@@ -1,0 +1,22 @@
+
+.sb-show-main {
+  padding: 0 !important;
+  margin: 0;  
+}
+
+.toolbox {
+  padding: 1rem;
+}
+
+#storybook-root {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.graph {
+  flex: 1;
+  position: relative;
+}

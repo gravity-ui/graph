@@ -1,0 +1,28 @@
+.example-block {
+  border: none;
+  border: 1px solid var(--graph-block-border);
+  box-shadow: inset 0 0 0 1px var(--graph-block-border);
+  border-radius: 3px;
+  font-size:  'YS Text", "Helvetica Neue", Helvetica, Arial, sans-serif';
+}
+.example-block.selected {
+  box-shadow: inset 0 0 0 4px var(--graph-block-border-selected),
+            inset 0 0 0 3px var(--graph-block-border-selected);
+}
+.example-block .block-header {
+  height: 75px;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.block-header .block-header-title {
+  font-size: 21px;
+}
+
+.example-block .block-footer {
+  margin-top: 20px;
+  padding: 10px;
+  display: flex;
+  gap: 10px;
+}
+

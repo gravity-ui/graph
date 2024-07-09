@@ -1,0 +1,8 @@
+node_modules
+.parcel-cache
+dist
+.idea
+.DS_Store
+storybook-static
+.tsbuildinfo
+build

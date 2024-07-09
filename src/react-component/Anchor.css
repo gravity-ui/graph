@@ -1,0 +1,31 @@
+.graph-block-anchor {
+  --width: var(--graph-block-anchor-width, 16px);
+  --height: var(--graph-block-anchor-height, 16px);
+  display: inline-block;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background-color: var(--graph-block-anchor-bg);
+  width: var(--graph-block-anchor-width, 16px);
+  height: var(--graph-block-anchor-height, 16px);
+  cursor: pointer;
+}
+
+.graph-block-anchor.graph-block-anchor-selected {
+  border: 2px solid var(--graph-block-anchor-border-selected);
+  transform: scale(var(--graph-block-anchor-hover-scale, 1.2));
+}
+.graph-block-anchor:hover {
+  transform: scale(var(--graph-block-anchor-hover-scale, 1.2));
+}
+
+.graph-block-anchor.graph-block-position-absolute {
+  --x: var(--graph-block-anchor-x, 0px);
+  --y: var(--graph-block-anchor-y, 0px);
+  --x-offset: calc(var(--width) / 2);
+  --y-offset: calc(var(--height) / 2);
+
+  position: absolute;
+  /* x,y offset needs to  */
+  top: calc(var(--y) - var(--y-offset));
+  left: calc(var(--x) - var(--x-offset));
+}
