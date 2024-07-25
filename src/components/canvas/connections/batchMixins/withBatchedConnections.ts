@@ -1,6 +1,6 @@
-import { Component } from "ya-nirvana-renderer";
 import { IWithBatchedConnection } from "./withBatchedConnection";
 import { TGraphLayerContext } from "../../layers/graphLayer/GraphLayer";
+import { Component } from "../../../../../lib/lib/Component";
 
 export interface IWithBatchedConnections {
   addInRenderOrder(comp: unknown, settings: object): void;

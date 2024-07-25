@@ -1,4 +1,3 @@
-import { Component, scheduler } from "ya-nirvana-renderer";
 import merge from "lodash/merge";
 import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
 import { Block, TBlock } from "./components/canvas/blocks/Block";
@@ -22,6 +21,8 @@ import { Anchor } from "./components/canvas/anchors";
 import { RecursivePartial } from "./utils/types/helpers";
 import { TBlockId } from "./store/block/Block";
 import { batch, signal } from "@preact/signals-core";
+import { scheduler } from "../lib/lib/Scheduler";
+import { Component } from "../lib/lib/Component";
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [
   T,
   T extends Constructor<Layer<infer Props>>

@@ -1,4 +1,3 @@
-import { Component } from "ya-nirvana-renderer";
 import { Emitter } from "../../utils/Emitter";
 import { EVENTS } from "../../utils/types/events";
 import { Block } from "../../components/canvas/blocks/Block";
@@ -8,6 +7,7 @@ import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../graphEvents
 import { selectBlockList } from "../../store/block/selectors";
 import { dragListener } from "../../utils/functions/dragListener";
 import { Anchor } from "../../components/canvas/anchors";
+import { Component } from "../../../lib/lib/Component";
 
 function getSelectionRect(sx: number, sy: number, ex: number, ey: number): number[] {
   if (sx > ex) [sx, ex] = [ex, sx];

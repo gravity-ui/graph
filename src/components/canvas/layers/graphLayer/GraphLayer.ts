@@ -1,4 +1,3 @@
-import { Component } from "ya-nirvana-renderer";
 import { ICamera } from "../../../../services/camera/CameraService";
 import { Camera, TCameraProps } from "../../../../services/camera/Camera";
 import { Blocks } from "../../blocks/Blocks";
@@ -11,6 +10,7 @@ import { BlockConnection } from "../../connections/BlockConnection";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { Graph } from "../../../../graph";
 import { GraphMouseEventNames, isNativeGraphEventName } from "../../../../graphEvents";
+import { Component } from "../../../../../lib/lib/Component";
 
 export type TGraphLayerProps = LayerProps & {
   camera: ICamera;

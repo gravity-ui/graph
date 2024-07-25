@@ -1,4 +1,3 @@
-// Copypaste from ya-nirvana-renderer/src/lib/Tree
 
 import { ZIndexMap } from "./ZindexMap";
 

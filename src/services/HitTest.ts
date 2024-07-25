@@ -1,9 +1,9 @@
 import RBush from "rbush";
-import { Component } from "ya-nirvana-renderer";
 import debounce from "lodash/debounce";
 import { IPoint, TRect } from "../utils/types/shapes";
 import { IWithHitTest } from "../mixins/withHitTest";
 import { Emitter } from "../utils/Emitter";
+import { Component } from "../../lib/lib/Component";
 
 export type HitBoxData = {
   minX: number;

@@ -5,11 +5,11 @@ library for graph visualization
 ## Install and setup
 
 ```bash
-npm install @yandex-data-ui/graph-editor
+npm install @gravity-ui/graph
 ```
 
 ```jsx
-import { GraphCanvas, GraphState, TRenderBlockFn } from "@yandex-data-ui/graph-editor";
+import { GraphCanvas, GraphState, TRenderBlockFn } from "@gravity-ui/graph";
 import classNames from "classnames";
 import React, { useRef } from "react";
 import { BlockMenuPortal } from "./Layers/BlockMenuLayer/BlockMenuPortal";
@@ -340,11 +340,9 @@ graph.on("connection-created", (event) => {
 })
 ```
 
-![new connection](https://jing.yandex-team.ru/files/evsudakov/img_3.png)
 
 - **Select multiple blocks** by pressing cmd + left click.
 
-![img_2.png](https://jing.yandex-team.ru/files/evsudakov/img_2.png)
 
 - **Duplicate existing block** by pressing alt + left click. A so-called
   "shadow block" will appear. 
@@ -370,7 +368,6 @@ graph.on("block-added-from-shadow", (event) => {
 })
 ```
 
-  ![img_4.png](https://jing.yandex-team.ru/files/evsudakov/img_4.png)
 
 ## Update graph state with Public api.
 

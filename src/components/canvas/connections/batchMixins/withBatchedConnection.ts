@@ -1,4 +1,4 @@
-import { Component } from "ya-nirvana-renderer";
+import { Component } from "../../../../../lib/lib/Component";
 
 export interface IWithBatchedConnection {
   _iterate(): boolean;

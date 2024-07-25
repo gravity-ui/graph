@@ -1,4 +1,4 @@
-import { Component } from "ya-nirvana-renderer";
+import { Component } from "../../lib/lib/Component";
 import { Emitter } from "../utils/Emitter";
 import { Layer } from "./Layer";
 import debounce from "lodash/debounce";

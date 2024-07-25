@@ -1,4 +1,4 @@
-import { Component } from "ya-nirvana-renderer";
+import { Component } from "../../lib/lib/Component";
 import { Graph } from "../graph";
 import { HitBox, HitBoxData, IHitBox } from "../services/HitTest";
 

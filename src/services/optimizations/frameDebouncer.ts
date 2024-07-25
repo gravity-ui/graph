@@ -1,5 +1,6 @@
 // TODO: throtled with leading need test
-import { scheduler } from "ya-nirvana-renderer";
+
+import { scheduler } from "../../../lib/lib/Scheduler";
 
 const getNowTime = window.performance.now.bind(performance);
 

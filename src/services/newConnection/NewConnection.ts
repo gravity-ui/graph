@@ -1,9 +1,9 @@
-import { Component } from "ya-nirvana-renderer";
 import { EVENTS } from "../../utils/types/events";
 import { OverLayer, TOverLayerContext } from "../../components/canvas/layers/overLayer/OverLayer";
 import { getXY } from "../../utils/functions";
 import { ConnectionService } from "./ConnectionService";
 import { render } from "../../utils/renderers/render";
+import { Component } from "../../../lib/lib/Component";
 
 export type NewConnectionProps = {
   connectionService: ConnectionService;

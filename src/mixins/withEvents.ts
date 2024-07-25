@@ -1,4 +1,5 @@
-import { Component } from "ya-nirvana-renderer";
+import { Component } from "../../lib/lib/Component";
+import { Constructor } from "../../lib/lib/tshelpers";
 
 export function withEvent<T extends Constructor<Component>>(Base: T): T & Constructor<IWithEvent> {
   return class WithEvent extends Base implements IWithEvent {

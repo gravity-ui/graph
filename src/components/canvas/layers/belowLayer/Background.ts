@@ -1,8 +1,8 @@
-import { Component } from "ya-nirvana-renderer";
 import { IRect, Rect, TRect } from "../../../../utils/types/shapes";
 import { PointerGrid } from "./PointerGrid";
 import { BlockListStore } from "../../../../store/block/BlocksList";
 import { TBelowLayerContext } from "./BelowLayer";
+import { Component } from "../../../../../lib/lib/Component";
 
 export class Background extends Component {
   private extendedUsableRect: IRect = new Rect(0, 0, 0, 0);

@@ -1,4 +1,3 @@
-import { Component } from "ya-nirvana-renderer";
 import { ICamera } from "./CameraService";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
 import { getXY, isMetaKeyEvent, isTrackpadWheelEvent, isWindows } from "../../utils/functions";
@@ -6,6 +5,7 @@ import { EVENTS } from "../../utils/types/events";
 import { dragListener } from "../../utils/functions/dragListener";
 import { withEvent } from "../../mixins/withEvents";
 import { clamp } from "../../utils/functions/clamp";
+import { Component } from "../../../lib/lib/Component";
 
 export type TCameraProps = {
   children: any[];

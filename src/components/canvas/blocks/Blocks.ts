@@ -1,8 +1,8 @@
-import { Component } from "ya-nirvana-renderer";
 import { Block } from "./Block";
 import { BlockState } from "../../../store/block/Block";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 import { BlocksNode } from "./BlocksTree";
+import { Component } from "../../../../lib/lib/Component";
 
 export class Blocks extends Component {
   protected blocks: BlockState[] = [];
@@ -72,7 +72,7 @@ export class Blocks extends Component {
     return this.getTreeNode().getRenderOrder(block);
   }
 
-  protected updateChildren(): void | object[] {
+  protected updateChildren() {
     return this.blocks.map((block, index) => {
       return (this.blocksView[block.$state.value.is] || Block).create(
         {

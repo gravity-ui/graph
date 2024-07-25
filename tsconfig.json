@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "baseUrl": "./src/",
+    "outDir": "./build/",
+    "moduleResolution": "node",
+    "module": "esnext",
+    "target": "es2020",
+    "noEmitOnError": true,
+    "allowJs": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "typeRoots": ["./node_modules/@types"],
+    "skipLibCheck": true,
+    "jsx": "react"
+  },
+  "outDir": "./dist/",
+  "include": ["./src/**/*.ts", "src/**/*.tsx"],
+}

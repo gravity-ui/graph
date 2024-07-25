@@ -1,10 +1,10 @@
 import { TGraphColors, TGraphConstants } from "../graphConfig";
-import { Component } from "ya-nirvana-renderer";
 import { ICamera } from "./camera/CameraService";
 import { Graph } from "../graph";
 import { noop } from "../utils/functions";
 
 import './Layer.css';
+import { Component } from "../../lib/lib/Component";
 
 export type LayerPropsElementProps = {
   zIndex: number;

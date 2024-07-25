@@ -1,9 +1,9 @@
-import { Component } from "ya-nirvana-renderer";
 import { OverLayer, TOverLayerContext } from "../../components/canvas/layers/overLayer/OverLayer";
 import { getXY } from "../../utils/functions";
 import { EVENTS } from "../../utils/types/events";
 import { NewBlocksService } from "./NewBlockService";
 import { render } from "../../utils/renderers/render";
+import { Component } from "../../../lib/lib/Component";
 
 type NewBlockComponentProps = {
   newBlocksService: NewBlocksService;
