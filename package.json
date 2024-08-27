@@ -4,7 +4,7 @@
   "description": "Modern graph editor component",
   "main": "build/index.js",
   "keywords": [],
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
         "type": "git",
         "url": "https://github.com/gravity-ui/graph"
