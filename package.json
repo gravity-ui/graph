@@ -4,10 +4,6 @@
   "description": "Simple graph editor component",
   "main": "build/index.js",
   "author": "Data UI Team <data-ui@yandex-team.ru>",
-  "repository": {
-    "type": "arc",
-    "url": "https://a.yandex-team.ru/arcadia/data-ui/graph-editor"
-  },
   "files": [
     "build",
     "tsconfig.json"
@@ -95,6 +91,7 @@
     "sass": "^1.77.1",
     "size-limit": "^10.0.1",
     "storybook": "^8.1.11",
+    "ts-node": "^10.9.2",
     "typescript": "^5.0.4"
   },
   "keywords": [],
