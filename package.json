@@ -1,6 +1,6 @@
 {
   "name": "@yandex-data-ui/graph-editor",
-  "version": "4.0.10-2",
+  "version": "0.0.1",
   "description": "Simple graph editor component",
   "main": "build/index.js",
   "author": "Data UI Team <data-ui@yandex-team.ru>",
