@@ -1,13 +1,22 @@
 {
-  "name": "@yandex-data-ui/graph-editor",
+  "name": "@gravity-ui/graph",
   "version": "0.0.1",
-  "description": "Simple graph editor component",
+  "description": "Modern graph editor component",
   "main": "build/index.js",
-  "author": "Data UI Team <data-ui@yandex-team.ru>",
+  "keywords": [],
+  "license": "UNLICENSED",
+  "repository": {
+        "type": "git",
+        "url": "https://github.com/gravity-ui/graph"
+    },
   "files": [
     "build",
     "tsconfig.json"
   ],
+  "engines": {
+      "yarn": "Please use npm instead of yarn to install dependencies",
+      "pnpm": "Please use npm instead of pnpm to install dependencies"
+    },
   "scripts": {
     "typecheck": "npm run build:publish -- --noEmit",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
@@ -29,10 +38,6 @@
       "gzip": true
     }
   ],
-  "publishConfig": {
-    "registry": "https://npm.yandex-team.ru/",
-    "access": "restricted"
-  },
   "dependencies": {
     "@preact/signals-core": "^1.5.1",
     "intersects": "^2.7.2",
@@ -93,7 +98,5 @@
     "storybook": "^8.1.11",
     "ts-node": "^10.9.2",
     "typescript": "^5.0.4"
-  },
-  "keywords": [],
-  "license": "UNLICENSED"
+  }
 }
