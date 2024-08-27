@@ -1,9 +1,9 @@
 import { OverLayer, TOverLayerContext } from "../../components/canvas/layers/overLayer/OverLayer";
+import { Component } from "../../lib/Component";
 import { getXY } from "../../utils/functions";
+import { render } from "../../utils/renderers/render";
 import { EVENTS } from "../../utils/types/events";
 import { NewBlocksService } from "./NewBlockService";
-import { render } from "../../utils/renderers/render";
-import { Component } from "../../../lib/lib/Component";
 
 type NewBlockComponentProps = {
   newBlocksService: NewBlocksService;

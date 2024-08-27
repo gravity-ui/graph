@@ -1,10 +1,10 @@
-import { TGraphColors, TGraphConstants } from "../graphConfig";
-import { ICamera } from "./camera/CameraService";
 import { Graph } from "../graph";
+import { TGraphColors, TGraphConstants } from "../graphConfig";
 import { noop } from "../utils/functions";
+import { ICamera } from "./camera/CameraService";
 
+import { Component } from "../lib/Component";
 import './Layer.css';
-import { Component } from "../../lib/lib/Component";
 
 export type LayerPropsElementProps = {
   zIndex: number;

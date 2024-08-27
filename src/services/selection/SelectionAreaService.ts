@@ -1,13 +1,13 @@
-import { Emitter } from "../../utils/Emitter";
-import { EVENTS } from "../../utils/types/events";
+import { Anchor } from "../../components/canvas/anchors";
 import { Block } from "../../components/canvas/blocks/Block";
-import { getXY, isBlock, isMetaKeyEvent } from "../../utils/functions";
 import { Graph } from "../../graph";
 import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../graphEvents";
+import { Component } from "../../lib/Component";
 import { selectBlockList } from "../../store/block/selectors";
+import { Emitter } from "../../utils/Emitter";
+import { getXY, isBlock, isMetaKeyEvent } from "../../utils/functions";
 import { dragListener } from "../../utils/functions/dragListener";
-import { Anchor } from "../../components/canvas/anchors";
-import { Component } from "../../../lib/lib/Component";
+import { EVENTS } from "../../utils/types/events";
 
 function getSelectionRect(sx: number, sy: number, ex: number, ey: number): number[] {
   if (sx > ex) [sx, ex] = [ex, sx];

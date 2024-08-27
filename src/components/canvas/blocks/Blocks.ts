@@ -1,8 +1,8 @@
-import { Block } from "./Block";
+import { Component } from "../../../lib/Component";
 import { BlockState } from "../../../store/block/Block";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
+import { Block } from "./Block";
 import { BlocksNode } from "./BlocksTree";
-import { Component } from "../../../../lib/lib/Component";
 
 export class Blocks extends Component {
   protected blocks: BlockState[] = [];

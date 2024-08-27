@@ -1,8 +1,8 @@
-import { IRect, Rect, TRect } from "../../../../utils/types/shapes";
-import { PointerGrid } from "./PointerGrid";
+import { Component } from "../../../../lib/Component";
 import { BlockListStore } from "../../../../store/block/BlocksList";
+import { IRect, Rect, TRect } from "../../../../utils/types/shapes";
 import { TBelowLayerContext } from "./BelowLayer";
-import { Component } from "../../../../../lib/lib/Component";
+import { PointerGrid } from "./PointerGrid";
 
 export class Background extends Component {
   private extendedUsableRect: IRect = new Rect(0, 0, 0, 0);

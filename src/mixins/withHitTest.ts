@@ -1,5 +1,5 @@
-import { Component } from "../../lib/lib/Component";
 import { Graph } from "../graph";
+import { Component } from "../lib/Component";
 import { HitBox, HitBoxData, IHitBox } from "../services/HitTest";
 
 export interface GraphComponent extends Component {

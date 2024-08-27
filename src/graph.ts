@@ -1,28 +1,28 @@
+import { batch, signal } from "@preact/signals-core";
 import merge from "lodash/merge";
 import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
+import { Anchor } from "./components/canvas/anchors";
 import { Block, TBlock } from "./components/canvas/blocks/Block";
+import { BlockConnection } from "./components/canvas/connections/BlockConnection";
 import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
 import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { OverLayer } from "./components/canvas/layers/overLayer/OverLayer";
-import { Layers } from "./services/LayersService";
+import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
+import { GraphEventParams, GraphEventsDefinitions } from "./graphEvents";
+import { Component } from "./lib/Component";
+import { scheduler } from "./lib/Scheduler";
+import { HitTest } from "./services/HitTest";
 import { Layer } from "./services/Layer";
+import { Layers } from "./services/LayersService";
 import { CameraService } from "./services/camera/CameraService";
 import { RootStore } from "./store";
+import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
 import { TGraphSettingsConfig } from "./store/settings";
-import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
-import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
-import { GraphEventsDefinitions, GraphEventParams } from "./graphEvents";
-import { clearTextCache } from "./utils/renderers/text";
-import { HitTest } from "./services/HitTest";
 import { getXY } from "./utils/functions";
-import { BlockConnection } from "./components/canvas/connections/BlockConnection";
-import { Anchor } from "./components/canvas/anchors";
+import { clearTextCache } from "./utils/renderers/text";
 import { RecursivePartial } from "./utils/types/helpers";
-import { TBlockId } from "./store/block/Block";
-import { batch, signal } from "@preact/signals-core";
-import { scheduler } from "../lib/lib/Scheduler";
-import { Component } from "../lib/lib/Component";
+import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [
   T,
   T extends Constructor<Layer<infer Props>>

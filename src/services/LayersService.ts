@@ -1,7 +1,7 @@
-import { Component } from "../../lib/lib/Component";
+import debounce from "lodash/debounce";
+import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
 import { Layer } from "./Layer";
-import debounce from "lodash/debounce";
 
 export class Layers extends Emitter {
   private attached = false;

@@ -1,7 +1,7 @@
+import { Component } from "../../../../lib/Component";
+import { TRect } from "../../../../utils/types/shapes";
 import { Background } from "./Background";
 import { TBelowLayerContext } from "./BelowLayer";
-import { TRect } from "../../../../utils/types/shapes";
-import { Component } from "../../../../../lib/lib/Component";
 
 export class PointerGrid extends Component {
   public declare props: TRect;

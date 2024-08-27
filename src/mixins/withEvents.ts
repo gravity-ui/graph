@@ -1,5 +1,5 @@
-import { Component } from "../../lib/lib/Component";
-import { Constructor } from "../../lib/lib/tshelpers";
+import { Component } from "../lib/Component";
+import { Constructor } from "../lib/tshelpers";
 
 export function withEvent<T extends Constructor<Component>>(Base: T): T & Constructor<IWithEvent> {
   return class WithEvent extends Base implements IWithEvent {

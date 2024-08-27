@@ -1,8 +1,8 @@
-import { EVENTS } from "../../utils/types/events";
 import { OverLayer, TOverLayerContext } from "../../components/canvas/layers/overLayer/OverLayer";
+import { Component } from "../../lib/Component";
 import { getXY } from "../../utils/functions";
 import { render } from "../../utils/renderers/render";
-import { Component } from "../../../lib/lib/Component";
+import { EVENTS } from "../../utils/types/events";
 import { SelectionAreaService } from "./SelectionAreaService";
 
 export type SelectionAreaProps = {

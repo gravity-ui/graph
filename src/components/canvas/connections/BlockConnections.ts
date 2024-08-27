@@ -1,8 +1,8 @@
+import { Component } from "../../../lib/Component";
+import { ConnectionState } from "../../../store/connection/ConnectionState";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 import { BlockConnection, TConnectionProps } from "./BlockConnection";
 import withBatchedConnections from "./batchMixins/withBatchedConnections";
-import { ConnectionState } from "../../../store/connection/ConnectionState";
-import { Component } from "../../../../lib/lib/Component";
 
 export class BlockConnections extends withBatchedConnections(Component) {
   public declare context: TGraphLayerContext;

@@ -1,4 +1,4 @@
-import { Component } from "../../../../../lib/lib/Component";
+import { Component } from "../../../../lib/Component";
 
 export interface IWithBatchedConnection {
   _iterate(): boolean;

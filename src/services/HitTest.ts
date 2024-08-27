@@ -1,9 +1,9 @@
-import RBush from "rbush";
 import debounce from "lodash/debounce";
-import { IPoint, TRect } from "../utils/types/shapes";
+import RBush from "rbush";
+import { Component } from "../lib/Component";
 import { IWithHitTest } from "../mixins/withHitTest";
 import { Emitter } from "../utils/Emitter";
-import { Component } from "../../lib/lib/Component";
+import { IPoint, TRect } from "../utils/types/shapes";
 
 export type HitBoxData = {
   minX: number;

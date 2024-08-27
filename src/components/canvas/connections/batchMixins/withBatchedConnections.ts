@@ -1,6 +1,6 @@
-import { IWithBatchedConnection } from "./withBatchedConnection";
+import { Component } from "../../../../lib/Component";
 import { TGraphLayerContext } from "../../layers/graphLayer/GraphLayer";
-import { Component } from "../../../../../lib/lib/Component";
+import { IWithBatchedConnection } from "./withBatchedConnection";
 
 export interface IWithBatchedConnections {
   addInRenderOrder(comp: unknown, settings: object): void;

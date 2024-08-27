@@ -1,11 +1,11 @@
-import { ICamera } from "./CameraService";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
-import { getXY, isMetaKeyEvent, isTrackpadWheelEvent, isWindows } from "../../utils/functions";
-import { EVENTS } from "../../utils/types/events";
-import { dragListener } from "../../utils/functions/dragListener";
+import { Component } from "../../lib/Component";
 import { withEvent } from "../../mixins/withEvents";
+import { getXY, isMetaKeyEvent, isTrackpadWheelEvent, isWindows } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
-import { Component } from "../../../lib/lib/Component";
+import { dragListener } from "../../utils/functions/dragListener";
+import { EVENTS } from "../../utils/types/events";
+import { ICamera } from "./CameraService";
 
 export type TCameraProps = {
   children: any[];

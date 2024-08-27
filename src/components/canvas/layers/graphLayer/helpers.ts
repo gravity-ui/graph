@@ -1,4 +1,4 @@
-import { Component } from "../../../../../lib/lib/Component";
+import { Component } from "../../../../lib/Component";
 
 export class DrawBelow extends Component {
   protected shouldUpdateChildren = false;

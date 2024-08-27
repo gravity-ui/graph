@@ -1,16 +1,16 @@
-import { ICamera } from "../../../../services/camera/CameraService";
-import { Camera, TCameraProps } from "../../../../services/camera/Camera";
-import { Blocks } from "../../blocks/Blocks";
-import { getEventDelta, getXY } from "../../../../utils/functions";
-import { Point } from "../../../../utils/types/shapes";
-import { EventedComponent } from "../../../../mixins/withEvents";
-import { BlockConnections } from "../../connections/BlockConnections";
-import { DrawBelow, DrawOver } from "./helpers";
-import { BlockConnection } from "../../connections/BlockConnection";
-import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { Graph } from "../../../../graph";
 import { GraphMouseEventNames, isNativeGraphEventName } from "../../../../graphEvents";
-import { Component } from "../../../../../lib/lib/Component";
+import { Component } from "../../../../lib/Component";
+import { EventedComponent } from "../../../../mixins/withEvents";
+import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
+import { Camera, TCameraProps } from "../../../../services/camera/Camera";
+import { ICamera } from "../../../../services/camera/CameraService";
+import { getEventDelta, getXY } from "../../../../utils/functions";
+import { Point } from "../../../../utils/types/shapes";
+import { Blocks } from "../../blocks/Blocks";
+import { BlockConnection } from "../../connections/BlockConnection";
+import { BlockConnections } from "../../connections/BlockConnections";
+import { DrawBelow, DrawOver } from "./helpers";
 
 export type TGraphLayerProps = LayerProps & {
   camera: ICamera;

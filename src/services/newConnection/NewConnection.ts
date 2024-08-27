@@ -1,9 +1,9 @@
-import { EVENTS } from "../../utils/types/events";
 import { OverLayer, TOverLayerContext } from "../../components/canvas/layers/overLayer/OverLayer";
+import { Component } from "../../lib/Component";
 import { getXY } from "../../utils/functions";
-import { ConnectionService } from "./ConnectionService";
 import { render } from "../../utils/renderers/render";
-import { Component } from "../../../lib/lib/Component";
+import { EVENTS } from "../../utils/types/events";
+import { ConnectionService } from "./ConnectionService";
 
 export type NewConnectionProps = {
   connectionService: ConnectionService;

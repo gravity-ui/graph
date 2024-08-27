@@ -1,6 +1,6 @@
 // TODO: throtled with leading need test
 
-import { scheduler } from "../../../lib/lib/Scheduler";
+import { scheduler } from "../../lib/Scheduler";
 
 const getNowTime = window.performance.now.bind(performance);
 
