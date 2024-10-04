@@ -1,6 +1,7 @@
 name: PR Preview Deploy
 
 on:
+  pull_request:
   workflow_run:
     workflows: [PR Preview Build]
     types:
