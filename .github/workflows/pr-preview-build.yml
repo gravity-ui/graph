@@ -1,4 +1,4 @@
-name: PR Preview Build
+name: PR Preview
 
 on:
   pull_request:
@@ -11,3 +11,14 @@ jobs:
       - uses: gravity-ui/preview-build-action@v2
         with:
           node-version: 18
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: gravity-ui/preview-deploy-action@v2
+        with:
+          project: graph
+          github-token: ${{ secrets.GRAVITY_UI_BOT_GITHUB_TOKEN }}
+          s3-key-id: ${{ secrets.STORYBOOK_S3_KEY_ID }}
+          s3-secret-key: ${{ secrets.STORYBOOK_S3_SECRET_KEY }}
