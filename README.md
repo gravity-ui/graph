@@ -1,4 +1,4 @@
-## Graph editor &middot; [![storybook](https://img.shields.io/badge/Storybook-deployed-ff4685)](https://preview.gravity-ui.com/uikit/)
+# @gravity-ui/graph &middot; [![storybook](https://img.shields.io/badge/Storybook-deployed-ff4685)](https://preview.gravity-ui.com/uikit/)
 
 library for graph visualization
 
