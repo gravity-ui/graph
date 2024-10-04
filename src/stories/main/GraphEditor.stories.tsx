@@ -138,7 +138,7 @@ export const GraphStressTest: Story = {
   },
   render: (args) => {
     return (
-      <GraphApp config={generatePrettyBlocks(110, 1000, false, { useBezierConnections: false })} {...args}></GraphApp>
+      <GraphApp config={generatePrettyBlocks(110, 600, false, { useBezierConnections: false })} {...args}></GraphApp>
     );
   },
 };
