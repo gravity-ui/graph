@@ -1,8 +1,8 @@
-# @gravity-ui/graph &middot; [![storybook](https://img.shields.io/badge/Storybook-deployed-ff4685)](https://preview.gravity-ui.com/uikit/)
+# @gravity-ui/graph &middot; [![storybook](https://img.shields.io/badge/Storybook-deployed-ff4685)](https://preview.gravity-ui.com/graph/)
 
 library for graph visualization
 
-[Storybook](https://preview.gravity-ui.com/uikit/)
+[Storybook](https://preview.gravity-ui.com/graph/)
 
 ## Install and setup
 
