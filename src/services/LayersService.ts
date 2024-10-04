@@ -61,9 +61,10 @@ export class Layers extends Emitter {
       });
 
       this.attached = false;
-      this.handleRootResize.cancel();
-      this.resizeObserver.disconnect();
     }
+
+    this.handleRootResize.cancel();
+    this.resizeObserver.disconnect();
 
     if (full) {
       this.$root = undefined;
