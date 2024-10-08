@@ -74,10 +74,16 @@ export function GraphPLayground() {
     }
   });
 
-  useGraphEvent(graph, 'connection-create-drop', ({targetBlockId, point}) => {
+  useGraphEvent(graph, 'connection-create-drop', ({sourceBlockId, sourceAnchorId, targetBlockId, point}) => {
     if(!targetBlockId) {
       const block = createPlaygroundBlock(point.x, point.y, graph.rootStore.blocksList.$blocksMap.value.size + 1);
       graph.api.addBlock(block);
+      graph.api.addConnection({
+        sourceBlockId,
+        sourceAnchorId,
+        targetBlockId: block.id,
+        targetAnchorId: block.anchors[0].id,
+      })
       graph.zoomTo([block.id], {transition: 250 });
     }
   });
