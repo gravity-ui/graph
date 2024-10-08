@@ -38,6 +38,8 @@ type TConnectionState = TConnection & {
 };
 
 export class BlockConnection extends withBatchedConnection(withHitTest(EventedComponent)) {
+
+  public readonly cursor = 'pointer';
   public declare props: TConnectionProps;
 
   public declare state: TConnectionState;

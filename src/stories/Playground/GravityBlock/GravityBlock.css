@@ -1,0 +1,20 @@
+.gravity-block-wrapper {
+  border-radius: 8px;
+  border-width: 3px;
+  padding: var(--g-spacing-3);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--g-spacing-1);
+}
+
+.gravity-block-name {
+  font-weight: 500;
+}
+
+.gravity-block-wrapper:hover {
+  cursor: pointer;
+  background-color: rgba(57, 47, 57, 1);
+}
+
+

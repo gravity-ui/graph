@@ -1,21 +1,40 @@
 import { IS_BLOCK_TYPE } from "../../store/block/Block";
-import { random } from "../../components/canvas/blocks/generate";
 import { TBlock } from "../../components/canvas/blocks/Block";
 import { TGraphConfig } from "../../graph";
-import { storiesSettings } from "./definitions";
+import { EAnchorType } from "../../store/anchor/Anchor";
 
-function createBlock(x: number, y: number, index): TBlock {
+export const GravityBlockIS = 'gravity'
+export type TGravityBlock = TBlock<{ description: string }> & { is: typeof GravityBlockIS };
+
+
+export function createPlaygroundBlock(x: number, y: number, index): TGravityBlock {
   const blockId = `block_${index}`;
   return {
     id: blockId,
-    is: IS_BLOCK_TYPE,
+    is: 'gravity',
     x,
     y,
     width: 63 * window.devicePixelRatio,
     height: 63 * window.devicePixelRatio,
     selected: false,
-    name: blockId,
-    anchors: [],
+    name: `Block ${index}`,
+    meta: {
+      description: "Description",
+    },
+    anchors: [
+      {
+        id: `${blockId}_anchor_in`,
+        blockId: blockId,
+        type: EAnchorType.IN,
+        index: 0
+      },
+      {
+        id: `${blockId}_anchor_out`,
+        blockId: blockId,
+        type: EAnchorType.OUT,
+        index: 0
+      }
+    ],
   };
 }
 
@@ -23,34 +42,19 @@ function getRandomArbitrary(min, max) {
   return (Math.random() * (max - min) + min) | 0;
 }
 
-export function generatePrettyBlocks(
+export function generatePlaygroundLayout(
   layersCount: number,
   connectionsPerLayer: number,
-  dashedLine = false,
-  overrideSettings?: Partial<TGraphConfig["settings"]>,
-  startIndex = 0
 ) {
-  const config: TGraphConfig = {
-    configurationName: "power of 2",
+  const config: TGraphConfig<TGravityBlock> = {
     blocks: [],
     connections: [],
-    rect: {
-      x: -500,
-      y: -2000,
-      width: 2000,
-      height: 2000,
-    },
-    cameraScale: 0.05,
-    settings: {
-      ...storiesSettings,
-      showConnectionLabels: true,
-      useBezierConnections: true,
-      ...overrideSettings,
-    },
   };
 
   const gapX = 500;
   const gapY = 200;
+
+  const blocksMap = new Map();
 
   let prevLayerBlocks: TBlock[] = [];
   let index = 0;
@@ -65,7 +69,7 @@ export function generatePrettyBlocks(
     for (let j = 0; j <= count; j++) {
       const y = startY + gapY * j;
 
-      const block = createBlock(layerX, y, startIndex + ++index);
+      const block = createPlaygroundBlock(layerX, y, ++index);
 
       config.blocks.push(block);
       currentLayerBlocks.push(block);
@@ -80,21 +84,21 @@ export function generatePrettyBlocks(
           config.blocks.length - currentLayerBlocks.length - 1,
           config.blocks.length - 1
         );
-        const sourceBlockId = `block_${startIndex + indexSource}`;
-        const targetBlockId = `block_${startIndex + indexTarget}`;
-        config.connections.push({
-          sourceBlockId: sourceBlockId,
-          targetBlockId: targetBlockId,
-          label: "Some label",
-          dashed: dashedLine && !!Math.floor(random(0, 2)),
-        });
+        if (indexSource !== indexTarget) {
+          const sourceBlockId = `block_${indexSource}`;
+          const targetBlockId = `block_${indexTarget}`;
+          config.connections.push({
+            sourceBlockId: sourceBlockId,
+            sourceAnchorId: `${sourceBlockId}_anchor_out`,
+            targetBlockId: targetBlockId,
+            targetAnchorId: `${targetBlockId}_anchor_in`,
+          });
+        }
+        
       }
       prevLayerBlocks = [...currentLayerBlocks];
     }
   }
-
-  console.log("Blocks count: ", config.blocks.length);
-  console.log("Connections count: ", config.connections.length);
 
   return config;
 }

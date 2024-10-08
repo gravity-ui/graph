@@ -1,0 +1,25 @@
+.wrapper {
+  height: 100%;
+  background-color: rgba(37, 27, 37, 1);
+  padding: 16px;
+}
+
+.graph {
+  min-width: 50%
+}
+
+.graph-editor {
+  background-color: rgba(22, 13, 27, 1);
+}
+
+.view {
+  border: 1px solid transparent;
+  border-radius: 24px;
+  overflow: hidden;
+  position: relative
+}
+
+.view.config-editor {
+  border-radius: 10px;
+  border-color: var(--g-color-base-float-accent-hover);
+}

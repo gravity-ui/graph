@@ -1,6 +1,5 @@
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
-import { Component } from "../../lib/Component";
-import { withEvent } from "../../mixins/withEvents";
+import { EventedComponent } from "../../mixins/withEvents";
 import { getXY, isMetaKeyEvent, isTrackpadWheelEvent, isWindows } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
 import { dragListener } from "../../utils/functions/dragListener";
@@ -12,7 +11,7 @@ export type TCameraProps = {
   root?: HTMLElement;
 };
 
-export class Camera extends withEvent(Component) {
+export class Camera extends EventedComponent {
   public declare props: TCameraProps;
 
   public declare context: TGraphLayerContext;
