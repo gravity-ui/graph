@@ -11,7 +11,7 @@ export type SelectionAreaProps = {
 };
 
 export class SelectionArea extends Component {
-  public declare state: { sx: number; sy: number; width: number; height: number };
+  public declare state: { width: number; height: number };
 
   public declare context: TOverLayerContext;
 
