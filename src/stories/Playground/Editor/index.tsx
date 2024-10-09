@@ -24,6 +24,7 @@ export interface ConfigEditorController {
 
 type ConfigEditorProps = { 
   onChange?: (config: { blocks: TBlock[], connections: TConnection[] }) => void
+  addBlock?: () => void
 };
 
 export const ConfigEditor = React.forwardRef(function ConfigEditor(props: ConfigEditorProps, ref: Ref<ConfigEditorController>) {
@@ -108,7 +109,7 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(props: Config
           console.error(e);
         }
       }}>Apply</Button>
-      <Button>Add new block</Button>
+      <Button onClick={props.addBlock}>Add new block</Button>
     </Flex>
   </Flex>
 })

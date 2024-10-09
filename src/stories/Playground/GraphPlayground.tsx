@@ -2,8 +2,8 @@ import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
 import "@gravity-ui/uikit/styles/styles.css";
 import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { StoryFn } from "storybook/internal/types";
-import { Graph, GraphState, TGraphConfig } from "../../graph";
-import { GraphCanvas, GraphProps, useGraph, useGraphEvent } from "../../react-component";
+import { Graph, GraphState } from "../../graph";
+import { GraphBlock, GraphCanvas, GraphProps, useGraph, useGraphEvent } from "../../react-component";
 import { ECanChangeBlockGeometry } from "../../store/settings";
 import { useFn } from "../../utils/hooks/useFn";
 import { PlaygroundBlock } from "./GravityBlock/GravityBlock";
@@ -12,6 +12,8 @@ import { ConfigEditor, ConfigEditorController } from "./Editor";
 import { createPlaygroundBlock, generatePlaygroundLayout, GravityBlockIS, TGravityBlock } from "./generateLayout";
 import { GravityBlock } from "./GravityBlock";
 import './Playground.css';
+import { TBlock } from "../../components/canvas/blocks/Block";
+import { random } from "../../components/canvas/blocks/generate";
 
 const generated = generatePlaygroundLayout(0, 5);
 
@@ -118,12 +120,23 @@ export function GraphPLayground() {
     }
   });
 
-  const renderBlockFn = useFn((graph: Graph, block: TGravityBlock) => {
+  const addNewBlock = useFn(() => {
+    const rect = graph.rootStore.blocksList.getUsableRect();
+    const x = random(rect.x, rect.x + rect.width * 2);
+    const y = random(rect.y, rect.y + rect.height * 2);
+    const block = createPlaygroundBlock(x, y, graph.rootStore.blocksList.$blocksMap.value.size + 1);
+    graph.api.addBlock(block);
+    graph.zoomTo([block.id], { transition: 250 });
+    updateVisibleConfig();
+    editorRef?.current.scrollTo(block.id);
+  });
+
+  const renderBlockFn = useFn((graph: Graph, block: TBlock) => {
     const view = graph.rootStore.blocksList.getBlockState(block.id)?.getViewComponent()
     if (view instanceof GravityBlock) {
       return view.renderHTML();
     }
-    return <PlaygroundBlock graph={graph} block={block} />
+    return <GraphBlock graph={graph} block={block}>Unknown block <>{block.id}</></GraphBlock>
   });
 
   const editorRef = useRef<ConfigEditorController>(null);
@@ -148,10 +161,12 @@ export function GraphPLayground() {
         <Flex direction="column" grow={1} className="content" gap={6}>
           <Text variant="header-1">JSON Editor</Text>
           <Flex grow={1} className="view config-editor">
-            <ConfigEditor onChange={({blocks, connections}) => {
-              debugger;
-              updateEntities({blocks, connections})
-            }} ref={editorRef} />
+            <ConfigEditor 
+              ref={editorRef}
+              onChange={({blocks, connections}) => {
+                updateEntities({blocks, connections})
+              }}
+              addBlock={addNewBlock} />
           </Flex>
         </Flex>
       </Flex>

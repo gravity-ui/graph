@@ -54,8 +54,6 @@ export function generatePlaygroundLayout(
   const gapX = 500;
   const gapY = 200;
 
-  const blocksMap = new Map();
-
   let prevLayerBlocks: TBlock[] = [];
   let index = 0;
   for (let i = 0; i <= layersCount; i++) {
