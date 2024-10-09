@@ -122,8 +122,8 @@ export function GraphPLayground() {
 
   const addNewBlock = useFn(() => {
     const rect = graph.rootStore.blocksList.getUsableRect();
-    const x = random(rect.x, rect.x + rect.width * 2);
-    const y = random(rect.y, rect.y + rect.height * 2);
+    const x = random(rect.x, rect.x + rect.width + 100);
+    const y = random(rect.y, rect.y + rect.height + 100);
     const block = createPlaygroundBlock(x, y, graph.rootStore.blocksList.$blocksMap.value.size + 1);
     graph.api.addBlock(block);
     graph.zoomTo([block.id], { transition: 250 });

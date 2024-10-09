@@ -1,19 +1,21 @@
 
 
-import { Editor, type Monaco, OnMount, loader } from "@monaco-editor/react";
-import React, { Ref, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import { Button, Flex, Icon, Text } from "@gravity-ui/uikit";
+import { Editor, loader, OnMount, OnValidate } from "@monaco-editor/react";
+import React, { Ref, useImperativeHandle, useRef, useState } from "react";
 import type { TBlock } from "../../../components/canvas/blocks/Block";
+import { TBlockId } from "../../../store/block/Block";
 import type { TConnection } from "../../../store/connection/ConnectionState";
 import { defineTheme, GravityTheme } from "./theme";
-import { TBlockId } from "../../../store/block/Block";
-import { Button, Flex } from "@gravity-ui/uikit";
 
 import "./Editor.css";
 import { findBlockPositionsMonaco } from "./utils";
+import { defineConigSchema } from "./schema";
 
 
 loader.init().then((monaco) => {
   defineTheme(monaco);
+  defineConigSchema(monaco);
 });
 
 export interface ConfigEditorController {
@@ -27,7 +29,11 @@ type ConfigEditorProps = {
   addBlock?: () => void
 };
 
+type ExtractTypeFromArray<T> = T extends Array<infer E> ? E : never; 
+
 export const ConfigEditor = React.forwardRef(function ConfigEditor(props: ConfigEditorProps, ref: Ref<ConfigEditorController>) {
+
+  const [errorMarker, setErrorMarker] = useState<ExtractTypeFromArray<Parameters<OnValidate>[0]>>(null);
 
   const monacoRef = useRef<Parameters<OnMount>[0]>(null);
 
@@ -35,7 +41,9 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(props: Config
 
   useImperativeHandle(ref, () => ({
     scrollTo: (blockId: string) => {
-
+      if (!monacoRef.current) {
+        return;
+      }
       const model = monacoRef.current.getModel();
       const range = findBlockPositionsMonaco(model, blockId);
       
@@ -51,6 +59,9 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(props: Config
       });
     },
     updateBlocks: (blocks: TBlock[]) => {
+      if (!monacoRef.current) {
+        return;
+      }
       const model = monacoRef.current.getModel();
       const edits = blocks.map((block)=> {
         const range = findBlockPositionsMonaco(model, block.id);
@@ -73,9 +84,13 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(props: Config
         blocks,
         connections
       }
+      if (!monacoRef.current) {
+        return;
+      }
       monacoRef.current?.setValue(JSON.stringify(valueRef.current, null, 2));
     },
   }));
+
 
   return <Flex direction="column" className="editor-wrap">
     <Flex grow={1} >
@@ -83,6 +98,9 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(props: Config
         onMount={(editor) => {
           monacoRef.current = editor;
           monacoRef.current?.setValue(JSON.stringify(valueRef.current, null, 2));
+        }}
+        onValidate={(markers) => {
+          setErrorMarker(markers.filter((m) => m.severity === 8)[0] || null)
         }}
         language={'json'}
         theme={GravityTheme}
@@ -101,7 +119,7 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(props: Config
       />
     </Flex>
     <Flex className="actions" gap={3}>
-      <Button view="action" onClick={() => {
+      <Button disabled={!!errorMarker} view="action" onClick={() => {
         try {
           const data = JSON.parse(monacoRef.current.getModel().getValue());
           props?.onChange?.({ blocks: data.blocks, connections: data.conections })
@@ -109,7 +127,25 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(props: Config
           console.error(e);
         }
       }}>Apply</Button>
-      <Button onClick={props.addBlock}>Add new block</Button>
+      <Button disabled={!!errorMarker} onClick={props.addBlock}>Add new block</Button>
+      {errorMarker && (
+        <Flex grow={1} alignItems="center" justifyContent="flex-end">
+          <Text color="danger">
+            <span style={{cursor: 'pointer'}} onClick={() => {
+              monacoRef.current?.revealLinesInCenter(errorMarker.startLineNumber, errorMarker.endLineNumber, 0);
+              
+
+              monacoRef.current.setSelection({
+                startColumn: errorMarker.startColumn,
+                startLineNumber: errorMarker.startLineNumber,
+                endColumn: errorMarker.endColumn,
+                endLineNumber: errorMarker.endLineNumber
+              });
+            }}
+            >{errorMarker.message}</span>
+          </Text>
+        </Flex>
+      )}
     </Flex>
   </Flex>
 })

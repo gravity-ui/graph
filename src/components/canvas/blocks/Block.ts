@@ -249,7 +249,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected onDragStart(event: MouseEvent) {
-    console.log('drag start')
     this.context.graph.executеDefaultEventAction(
       "block-drag-start",
       {
