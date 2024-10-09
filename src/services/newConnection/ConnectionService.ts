@@ -248,7 +248,7 @@ export class ConnectionService extends Emitter {
       this.sourceComponent.setSelection(false);
       targetComponent.connectedState.setSelection(false);
     }
-    debugger;
+
     this.graph.executеDefaultEventAction(
       "connection-create-drop",
       {

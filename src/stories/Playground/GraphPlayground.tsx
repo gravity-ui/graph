@@ -1,44 +1,22 @@
+import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
 import "@gravity-ui/uikit/styles/styles.css";
-import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
-import { TBlock } from "../../components/canvas/blocks/Block";
-import { GraphState, Graph, TGraphConfig } from "../../graph";
-import { useGraph, useGraphEvent, GraphCanvas, GraphProps } from "../../react-component";
-import { useFn } from "../../utils/hooks/useFn";
-import { ECanChangeBlockGeometry } from "../../store/settings";
-import React from "react";
-import { PlaygroundBlock } from "./GravityBlock/GravityBlock";
-import { Flex, Text, ThemeContext, ThemeProvider } from "@gravity-ui/uikit";
+import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { StoryFn } from "storybook/internal/types";
-import Editor from '@monaco-editor/react';
+import { Graph, GraphState, TGraphConfig } from "../../graph";
+import { GraphCanvas, GraphProps, useGraph, useGraphEvent } from "../../react-component";
+import { ECanChangeBlockGeometry } from "../../store/settings";
+import { useFn } from "../../utils/hooks/useFn";
+import { PlaygroundBlock } from "./GravityBlock/GravityBlock";
 
-import './Playground.css';
-import { GravityBlock } from "./GravityBlock";
-import { IS_BLOCK_TYPE } from "../../store/block/Block";
-import { createPlaygroundBlock, generatePlaygroundLayout, GravityBlockIS, TGravityBlock } from "./generateLayout";
 import { ConfigEditor, ConfigEditorController } from "./Editor";
+import { createPlaygroundBlock, generatePlaygroundLayout, GravityBlockIS, TGravityBlock } from "./generateLayout";
+import { GravityBlock } from "./GravityBlock";
+import './Playground.css';
 
-const generated = generatePlaygroundLayout(6, 12);
+const generated = generatePlaygroundLayout(0, 5);
 
 export function GraphPLayground() {
-  const config = useMemo((): TGraphConfig => {
-    return {
-      blocks: [],
-      connections: [],
-      settings: {
-        canDragCamera: true,
-        canZoomCamera: true,
-        canDuplicateBlocks: false,
-        canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
-        canCreateNewConnections: false,
-        showConnectionArrows: false,
-        scaleFontSize: 1,
-        useBezierConnections: true,
-        useBlocksAnchors: true,
-        showConnectionLabels: false,
-      },
-    };
-  }, []);
-  const { graph, setEntities, start } = useGraph({
+  const { graph, setEntities, updateEntities, start } = useGraph({
     viewConfiguration: {
       colors: {
         selection: {
@@ -67,11 +45,49 @@ export function GraphPLayground() {
       }
     },
     settings: {
-      ...config.settings,
+      canDragCamera: true,
+      canZoomCamera: true,
+      canDuplicateBlocks: false,
+      canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
+      canCreateNewConnections: false,
+      showConnectionArrows: false,
+      scaleFontSize: 1,
+      useBezierConnections: true,
+      useBlocksAnchors: true,
+      showConnectionLabels: false,
       blockComponents: {
         [GravityBlockIS]: GravityBlock
       }
     }
+  });
+
+  const updateVisibleConfig = useFn(() => {
+    const config = graph.rootStore.getAsConfig();
+    editorRef?.current.setContent({
+      blocks: config.blocks || [],
+      connections: config.connections || []
+    });
+  })
+
+  useGraphEvent(graph, 'block-drag', ({block}) => {
+    editorRef?.current.scrollTo(block.id);
+  })
+
+  useGraphEvent(graph, 'block-change', ({block}) => {
+    editorRef?.current.updateBlocks([block]);
+    editorRef?.current.scrollTo(block.id);
+  });
+  useGraphEvent(graph, "blocks-selection-change", ({ changes }) => {
+    editorRef?.current.updateBlocks([
+      ...changes.add.map((id) => ({
+        ...graph.rootStore.blocksList.getBlock(id),
+        selected: true,
+      })),
+      ...changes.removed.map((id) => ({
+        ...graph.rootStore.blocksList.getBlock(id),
+        selected: false,
+      }))
+    ]);
   });
 
   useGraphEvent(graph, 'connection-create-drop', ({sourceBlockId, sourceAnchorId, targetBlockId, point}) => {
@@ -85,11 +101,14 @@ export function GraphPLayground() {
         targetAnchorId: block.anchors[0].id,
       })
       graph.zoomTo([block.id], {transition: 250 });
+      updateVisibleConfig();
+      editorRef?.current.scrollTo(block.id);
     }
   });
 
   useLayoutEffect(() => {
     setEntities({ blocks: generated.blocks, connections: generated.connections });
+    updateVisibleConfig();
   }, [setEntities]);
 
   useGraphEvent(graph, "state-change", ({ state }) => {
@@ -107,13 +126,14 @@ export function GraphPLayground() {
     return <PlaygroundBlock graph={graph} block={block} />
   });
 
-  const ref = useRef<ConfigEditorController>(null);
+  const editorRef = useRef<ConfigEditorController>(null);
 
   const onSelectBlock: GraphProps['onBlockSelectionChange'] = useCallback((selection) => {
     if (selection.list.length === 1) {
-      ref?.current.scrollTo(selection.list[0]);
+      editorRef?.current.scrollTo(selection.list[0]);
     }
   }, [graph]);
+
 
 
   return (
@@ -128,7 +148,10 @@ export function GraphPLayground() {
         <Flex direction="column" grow={1} className="content" gap={6}>
           <Text variant="header-1">JSON Editor</Text>
           <Flex grow={1} className="view config-editor">
-            <ConfigEditor ref={ref} blocks={config.blocks} connections={config.connections} />
+            <ConfigEditor onChange={({blocks, connections}) => {
+              debugger;
+              updateEntities({blocks, connections})
+            }} ref={editorRef} />
           </Flex>
         </Flex>
       </Flex>
