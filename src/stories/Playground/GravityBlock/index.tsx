@@ -108,6 +108,10 @@ export class GravityBlock extends CanvasBlock<TGravityBlock> {
     })
   }
 
+  public renderDetailedView(ctx: CanvasRenderingContext2D) {
+    // This needs to prevent flickering of block on switch levels
+    this.renderBody(ctx);
+  }
 
   public renderSchematicView(ctx: CanvasRenderingContext2D) {
     this.renderBody(ctx);
