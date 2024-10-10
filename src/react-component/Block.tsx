@@ -42,6 +42,10 @@ export const GraphBlock = <T extends TBlock>({
     }
   }, [viewState, containerRef]);
 
+  if(!viewState || !state) {
+    return;
+  }
+
 
   return (
     <div className={`graph-block-container ${containerClassName}`} ref={containerRef}>

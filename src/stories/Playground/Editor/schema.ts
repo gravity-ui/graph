@@ -146,7 +146,7 @@ export function defineConigSchema(monaco: Monaco) {
                   "description": "Anchor index"
                 }
               },
-              "required": ["id", "blockId", "type", "index"]
+              "required": ["id", "blockId", "type"]
             }
           }
         },

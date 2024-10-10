@@ -327,7 +327,6 @@ export class BlockListStore {
     const selectedBlocks = this.$selectedBlocks.value;
     selectedBlocks.forEach((block) => {
       this.deleteAllBlockConnections(block.id);
-      block.dispose();
     });
     const newBlocks = this.$blocks.value.filter((block) => !selectedBlocks.includes(block));
     this.applyBlocksState(newBlocks);

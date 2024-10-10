@@ -30,13 +30,29 @@
 
 .graph-tools {
   height: 100%;
-  padding: 20px;
+  pointer-events: none;
+  position: absolute;
+  left: 20px;
+  z-index: 10;
+}
+
+.graph-tools-zoom {
+  pointer-events: all;
   box-sizing: border-box;
   position: absolute;
   top: 50%;
   left: 0;
   z-index: 10;
   transform: translate(0, -50%);
+}
+
+.graph-tools-settings {
+  pointer-events: all;
+  box-sizing: border-box;
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  z-index: 10;
 }
 
 .button-group .yc-button {

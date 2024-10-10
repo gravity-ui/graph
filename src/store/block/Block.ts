@@ -40,6 +40,16 @@ export class BlockState<T extends TBlock = TBlock> {
 
   public readonly $anchorStates: Signal<AnchorState[]> = signal([]);
 
+  public $anchorIndexs = computed(() => {
+    const typeIndex = {};
+    return new Map(this.$anchorStates.value?.sort((a, b) => ((a.state.index || 0) - (b.state.index || 0)) ).map((anchorState) => {
+      if (!typeIndex[anchorState.state.type]) {
+        typeIndex[anchorState.state.type] = 0;
+      }
+      return [anchorState.id, typeIndex[anchorState.state.type]++];
+    }) || []);
+  });
+
   public $anchors = computed(() => {
     return this.$anchorStates.value?.map((anchorState) => anchorState.asTAnchor()) || [];
   });
@@ -49,8 +59,6 @@ export class BlockState<T extends TBlock = TBlock> {
   });
 
   private blockView: Block;
-
-  public readonly dispose;
 
   public constructor(
     public readonly store: BlockListStore,
@@ -113,7 +121,7 @@ export class BlockState<T extends TBlock = TBlock> {
 
   public updateAnchors(anchors: TAnchor[]) {
     const anchorsMap = new Map(this.$anchorStates.value.map((a) => [a.id, a]));
-    this.$anchorStates.value = anchors.filter((a) => a.blockId === this.id).map((anchor) => {
+    this.$anchorStates.value = anchors.map((anchor) => {
       if (anchorsMap.has(anchor.id)) {
         const anchorState = anchorsMap.get(anchor.id);
         anchorState.update(anchor);
@@ -125,7 +133,9 @@ export class BlockState<T extends TBlock = TBlock> {
 
   public updateBlock(block: Partial<TBlock>): void {
     this.$state.value = Object.assign({}, this.$state.value, block);
-    this.updateAnchors(block.anchors);
+    if (block.anchors) {
+      this.updateAnchors(block.anchors);
+    }
     this.getViewComponent()?.updateHitBox(this.$geometry.value, true);
   }
 

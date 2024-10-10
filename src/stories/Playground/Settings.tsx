@@ -14,13 +14,13 @@ const ConnectionArrowsVariants: RadioButtonOption[] = [
   { value: 'line', content: 'Hide' },
 ];
 
-export function GraphSettings({graph}: {graph: Graph}) {
+export function GraphSettings({ className, graph }: {className: string, graph: Graph}) {
 
   const rerender = useRerender();
   const settingBtnRef = useRef();
   const [settingsOpened, setSettingsOpened] = useState(false);
   return <>
-    <Button view={settingsOpened ? "action" : "raised"} ref={settingBtnRef} onClick={() => setSettingsOpened((prevOpen) => !prevOpen)}>
+    <Button view={settingsOpened ? "action" : "raised"} className={className} ref={settingBtnRef} onClick={() => setSettingsOpened((prevOpen) => !prevOpen)}>
       <Icon data={Gear} />
     </Button>
     <Popup anchorRef={settingBtnRef} open={settingsOpened} onClose={() => setSettingsOpened(false)} placement={["right-end"]}>

@@ -206,7 +206,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
     this.eventByTargetComponent = event;
 
-    const point = this.getTargetPoint(event);
+    const point = this.context.graph.getPointInCameraSpace(event);
 
     this.targetComponent = this.context.graph.getElementOverPoint(point) || this.$.camera;
   }
@@ -268,13 +268,6 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   private handleMouseDownEvent = (event: MouseEvent) => {
     return this.onRootPointerStart(event);
   };
-
-  private getTargetPoint(event: MouseEvent) {
-    const xy = getXY(this.context.canvas, event);
-
-    const applied = this.camera.applyToPoint(xy[0], xy[1]);
-    return new Point(applied[0], applied[1], { x: xy[0], y: xy[1] });
-  }
 
   private onRootPointerStart(event: MouseEvent) {
     if (event.button === 2 /* Mouse right button */) {

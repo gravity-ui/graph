@@ -1,5 +1,5 @@
 import React from "react";
-import { CanvasBlock, EAnchorType, layoutText, TAnchor, TBlockId, TPoint } from "../../..";
+import { Anchor, CanvasBlock, EAnchorType, layoutText, TAnchor, TBlockId, TPoint } from "../../..";
 import { PlaygroundBlock } from "./GravityBlock";
 
 import { render } from "../../../utils/renderers/render";
@@ -7,6 +7,13 @@ import { renderSVG } from "../../../utils/renderers/svgPath";
 import { TGravityBlock } from "../generateLayout";
 import './GravityBlock.css';
 
+function getAnchorY(index) {
+  let y = 18 * index;
+  if (index >= 1) {
+    y += 8 * index;
+  }
+  return y + 18;
+}
 
 export class GravityBlock extends CanvasBlock<TGravityBlock> {
 
@@ -51,10 +58,31 @@ export class GravityBlock extends CanvasBlock<TGravityBlock> {
     this.context.ctx.strokeRect(this.state.x, this.state.y, this.state.width, this.state.height);
   }
 
+  protected renderAnchor(anchor: TAnchor, getPosition: (anchor: TAnchor) => TPoint) {
+    return Anchor.create({
+      ...anchor,
+      zIndex: this.zIndex,
+      size: 18,
+      lineWidth: 2,
+      getPosition,
+    }, {
+      key: anchor.id
+    });
+  }
+
+  protected getAnchorsYOffter(type: EAnchorType) {
+    const anchors = this.connectedState.$state.value.anchors.filter((a) => a.type === type);
+    const { height } = this.getContentRect();
+    return (height - getAnchorY(anchors.length - 1)) / 2;
+  }
+
   public getAnchorPosition(anchor: TAnchor): TPoint {
+    const a = this.getAnchorsYOffter(anchor.type as EAnchorType);
+    const index = this.connectedState.$anchorIndexs.value?.get(anchor.id) || 0;
+    const y = getAnchorY(index);
     return {
       x: anchor.type === EAnchorType.OUT ? this.state.width : 0,
-      y: this.state.height / 2,
+      y: a + y,
     };
   }
 
@@ -64,7 +92,7 @@ export class GravityBlock extends CanvasBlock<TGravityBlock> {
     ctx.fillStyle = this.context.colors.block.text;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    const { lines, measures, lineHeight } = layoutText(name, ctx, rect, { font: `500 ${9 / scale}px YS Text`, lineHeight: 9 / scale })
+    const { lines, measures } = layoutText(name, ctx, rect, { font: `500 ${9 / scale}px YS Text`, lineHeight: 9 / scale })
     const shiftY = rect.height / 2 - measures.height / 2;
     for (let index = 0; index < lines.length; index++) {
       const [line, x, y] = lines[index];

@@ -1,5 +1,5 @@
 import { EventedComponent } from "../../../mixins/withEvents";
-import { withHitTest } from "../../../mixins/withHitTest";
+import { debugHitBox, withHitTest } from "../../../mixins/withHitTest";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { frameDebouncer } from "../../../services/optimizations/frameDebouncer";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
@@ -13,7 +13,7 @@ export type TAnchor = {
   id: string;
   blockId: TBlockId;
   type: EAnchorType | string;
-  index: number;
+  index?: number;
 };
 
 export type TAnchorProps = TAnchor & {
@@ -48,7 +48,7 @@ export class Anchor extends withHitTest(EventedComponent) {
 
   private shift: number;
 
-  private hitBoxHash: number;
+  private hitBoxHash: string;
 
   private debouncedSetHitBox: (...args: any[]) => void;
 
@@ -102,9 +102,18 @@ export class Anchor extends withHitTest(EventedComponent) {
 
   public willIterate() {
     super.willIterate();
+    const { x: poxX, y: posY } = this.props.getPosition(this.props);
+    const hash = `${poxX}/${posY}/${this.shift}`;
+
+    if (this.hitBoxHash !== hash) {
+      this.hitBoxHash = hash;
+      this.debouncedSetHitBox();
+    }
+
     const { x, y, width, height } = this.hitBox.getRect();
 
     this.shouldRender = width && height ? this.context.camera.isRectVisible(x, y, width, height) : true;
+    
   }
 
   public handleEvent(event: MouseEvent | KeyboardEvent) {
@@ -115,32 +124,22 @@ export class Anchor extends withHitTest(EventedComponent) {
       case "click":
         this.toggleSelected();
         break;
-      case "mouseenter":
+      case "mouseenter":{
         this.setState({ raised: true });
         this.computeRenderSize(this.props.size, true);
         break;
-      case "mouseleave":
+      }
+      case "mouseleave": {
         this.setState({ raised: false });
         this.computeRenderSize(this.props.size, false);
         break;
+      }
     }
   }
 
   public bindedSetHitBox() {
     const { x, y } = this.props.getPosition(this.props);
     this.setHitBox(x - this.shift, y - this.shift, x + this.shift, y + this.shift);
-  }
-
-  public didRender() {
-    super.didRender();
-    const { x, y } = this.props.getPosition(this.props);
-
-    const hash = x / y + this.shift;
-
-    if (this.hitBoxHash !== hash) {
-      this.hitBoxHash = hash;
-      this.debouncedSetHitBox();
-    }
   }
 
   private computeRenderSize(size: number, raised: boolean) {
@@ -152,8 +151,6 @@ export class Anchor extends withHitTest(EventedComponent) {
   }
 
   protected render() {
-    // debugHitBox(this.context.ctx, this);
-
     if (this.context.camera.getCameraBlockScaleLevel() === ECameraScaleLevel.Detailed) {
       return;
     }

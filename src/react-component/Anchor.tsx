@@ -3,7 +3,7 @@ import { computed } from "@preact/signals-core";
 import { TAnchor } from "../components/canvas/anchors";
 import { Graph } from "../graph";
 import { useSignal } from "./hooks";
-import { useBlockAnchorState } from "./hooks/useBlockAnchorState";
+import { useBlockAnchorPosition, useBlockAnchorState } from "./hooks/useBlockAnchorState";
 import { AnchorState } from "../store/anchor/Anchor";
 
 import "./Anchor.css";
@@ -26,22 +26,16 @@ export function GraphBlockAnchor({
 
   const anchorState = useBlockAnchorState(graph, anchor);
 
-  useEffect(() => {
-    if (!container.current) {
-      return;
+  useBlockAnchorPosition(anchorState, (position) => {
+    if (position) {
+      setCssProps(container.current, {
+        "--graph-block-anchor-x": `${position.x}px`,
+        "--graph-block-anchor-y": `${position.y}px`,
+      });
+    } else {
+      removeCssProps(container.current, ["--graph-block-anchor-x", "--graph-block-anchor-y"]);
     }
-    if (position === "absolute") {
-      const position = anchorState.block.getViewComponent().getAnchorPosition(anchor);
-      if (position) {
-        setCssProps(container.current, {
-          "--graph-block-anchor-x": `${position.x}px`,
-          "--graph-block-anchor-y": `${position.y}px`,
-        });
-      } else {
-        removeCssProps(container.current, ["--graph-block-anchor-x", "--graph-block-anchor-y"]);
-      }
-    }
-  }, [container, position, anchorState, anchor]);
+  })
 
   const selectedSignal = useMemo(() => {
     return computed(() => {

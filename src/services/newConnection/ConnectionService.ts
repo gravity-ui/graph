@@ -137,15 +137,10 @@ export class ConnectionService extends Emitter {
   }
 
   public onMoveNewConnection(event: MouseEvent, point: Point) {
-    this.emit(EVENTS.NEW_CONNECTION_UPDATE, event);
-
     const newTargetComponent = this.graph.getElementOverPoint(point, [Block, Anchor]);
+    
+    this.emit(EVENTS.NEW_CONNECTION_UPDATE, { target: newTargetComponent, event });
 
-    if (!(newTargetComponent instanceof Block) || !(newTargetComponent instanceof Anchor)) {
-      return;
-    }
-
-    /* Unset selection on move new selection target-point out of components */
     if (!newTargetComponent || !newTargetComponent.connectedState) {
       this.targetComponent?.setSelection(false);
       this.targetComponent = undefined;

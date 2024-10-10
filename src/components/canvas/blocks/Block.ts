@@ -187,6 +187,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
         });
         this.updateHitBox(this.connectedState.$geometry.value);
       }),
+      this.connectedState.$anchors.subscribe(() => {
+        this.shouldUpdateChildren = true;
+        this.performRender();
+      })
     ];
   }
 
@@ -334,10 +338,11 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   /* Calculate the position of the anchors relative to the block container. */
   public getAnchorPosition(anchor: TAnchor): TPoint {
+    const index = this.connectedState.$anchorIndexs.value?.get(anchor.id) || 0;
     const offset = this.context.constants.block.HEAD_HEIGHT + this.context.constants.block.BODY_PADDING;
     return {
       x: anchor.type === EAnchorType.OUT ? this.state.width : 0,
-      y: offset + anchor.index * this.context.constants.system.GRID_SIZE * 2,
+      y: offset + index * this.context.constants.system.GRID_SIZE * 2,
     };
   }
 
@@ -355,6 +360,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       size: 18,
       lineWidth: 2,
       getPosition,
+    }, {
+      key: anchor.id
     });
   }
 

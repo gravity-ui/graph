@@ -1,6 +1,6 @@
 import "@gravity-ui/uikit/styles/styles.css";
 import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
-import React, { useCallback, useLayoutEffect, useRef } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { StoryFn } from "storybook/internal/types";
 import { Graph, GraphState } from "../../graph";
 import { GraphBlock, GraphCanvas, GraphProps, useGraph, useGraphEvent } from "../../react-component";
@@ -9,6 +9,7 @@ import { useFn } from "../../utils/hooks/useFn";
 
 import { TBlock } from "../../components/canvas/blocks/Block";
 import { random } from "../../components/canvas/blocks/generate";
+import { EAnchorType } from "../configurations/definitions";
 import { ConfigEditor, ConfigEditorController } from "./Editor";
 import { createPlaygroundBlock, generatePlaygroundLayout, GravityBlockIS } from "./generateLayout";
 import { GravityBlock } from "./GravityBlock";
@@ -95,20 +96,55 @@ export function GraphPLayground() {
     ]);
   });
 
-  useGraphEvent(graph, 'connection-create-drop', ({sourceBlockId, sourceAnchorId, targetBlockId, point}) => {
-    if(!targetBlockId) {
-      const block = createPlaygroundBlock(point.x, point.y, graph.rootStore.blocksList.$blocksMap.value.size + 1);
-      graph.api.addBlock(block);
+  useGraphEvent(graph, 'connection-created', ({sourceBlockId, sourceAnchorId, targetBlockId, targetAnchorId}, event) => {
+    event.preventDefault();
+    const pullSourceAnchor = graph.rootStore.blocksList.getBlockState(sourceBlockId).getAnchorById(sourceAnchorId);
+    if (pullSourceAnchor.state.type === EAnchorType.IN) {
       graph.api.addConnection({
-        sourceBlockId,
-        sourceAnchorId,
-        targetBlockId: block.id,
-        targetAnchorId: block.anchors[0].id,
+        sourceBlockId: targetBlockId,
+        sourceAnchorId: targetAnchorId,
+        targetBlockId: sourceBlockId,
+        targetAnchorId: sourceAnchorId,
       })
+    } else {
+      graph.api.addConnection({
+        sourceBlockId: sourceBlockId,
+        sourceAnchorId: sourceAnchorId,
+        targetBlockId: targetBlockId,
+        targetAnchorId: targetAnchorId,
+      })
+    }
+    updateVisibleConfig();
+  });
+
+  useGraphEvent(graph, 'connection-create-drop', ({sourceBlockId, sourceAnchorId, targetBlockId, point}) => {
+    if (targetBlockId) {
+      return;
+    }
+      let block: TBlock;
+      const pullSourceAnchor = graph.rootStore.blocksList.getBlockState(sourceBlockId).getAnchorById(sourceAnchorId);
+      if (pullSourceAnchor.state.type === EAnchorType.IN) {
+        block = createPlaygroundBlock(point.x - 126, point.y - 63, graph.rootStore.blocksList.$blocksMap.value.size + 1);
+        graph.api.addBlock(block);
+        graph.api.addConnection({
+          sourceBlockId: block.id,
+          sourceAnchorId: block.anchors[1].id,
+          targetBlockId: sourceBlockId,
+          targetAnchorId: sourceAnchorId,
+        })
+      } else {
+        block = createPlaygroundBlock(point.x, point.y - 63, graph.rootStore.blocksList.$blocksMap.value.size + 1);
+        graph.api.addBlock(block);
+        graph.api.addConnection({
+          sourceBlockId: sourceBlockId,
+          sourceAnchorId: sourceAnchorId,
+          targetBlockId: block.id,
+          targetAnchorId: block.anchors[0].id,
+        })
+      }
       graph.zoomTo([block.id], {transition: 250 });
       updateVisibleConfig();
       editorRef?.current.scrollTo(block.id);
-    }
   });
 
   useLayoutEffect(() => {
@@ -150,6 +186,17 @@ export function GraphPLayground() {
     }
   }, [graph]);
 
+  useEffect(() => {
+    const fn = (e) => {
+      if (e.code === 'Backspace') {
+        graph.api.deleteSelected();
+        updateVisibleConfig();
+      }
+    };
+    document.body.addEventListener('keydown', fn);
+    return () => document.body.removeEventListener('keydown', fn);
+  });
+
   return (
     <ThemeProvider theme="dark">
       <Flex className="wrapper" gap={8}>
@@ -158,7 +205,7 @@ export function GraphPLayground() {
           <Flex grow={1} className="view graph-editor">
             <Flex className="graph-tools" direction="column">
               <Toolbox graph={graph} className="graph-tools-zoom button-group"/>
-              <GraphSettings graph={graph} />
+              <GraphSettings className="graph-tools-settings" graph={graph} />
             </Flex>
             <GraphCanvas onBlockSelectionChange={onSelectBlock} graph={graph} renderBlock={renderBlockFn} />
           </Flex>

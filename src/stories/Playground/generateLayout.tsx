@@ -26,13 +26,11 @@ export function createPlaygroundBlock(x: number, y: number, index): TGravityBloc
         id: `${blockId}_anchor_in`,
         blockId: blockId,
         type: EAnchorType.IN,
-        index: 0
       },
       {
         id: `${blockId}_anchor_out`,
         blockId: blockId,
         type: EAnchorType.OUT,
-        index: 0
       }
     ],
   };

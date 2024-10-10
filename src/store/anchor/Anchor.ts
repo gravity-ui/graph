@@ -19,6 +19,10 @@ export class AnchorState {
     return this.$state.value.blockId;
   }
 
+  public get state() {
+    return this.$state.value
+  }
+
   public constructor(
     public readonly block: BlockState,
     anchor: TAnchor
