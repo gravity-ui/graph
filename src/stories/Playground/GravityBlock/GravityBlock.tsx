@@ -25,7 +25,7 @@ export function PlaygroundBlock({ graph, block }: { graph: Graph, block: TGravit
         <Text as="div" ellipsis variant="caption-1" color="secondary">{block.meta.description}</Text>
       </Flex>
       <Flex>
-        <Button><Icon data={Database} /></Button>
+        <Button onClick={(e) => e.stopPropagation()}><Icon data={Database} /></Button>
       </Flex>
     </GraphBlock>
   )
