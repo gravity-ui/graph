@@ -8,15 +8,16 @@
   will-change: transform, width, height;
   width: var(--graph-block-geometry-width, 0);
   height: var(--graph-block-geometry-height, 0);
+  --z-index: calc(var(--graph-block-z-index, 0) + var(--graph-block-order, 0));
+  z-index: var(--z-index);
 }
 
 .graph-block-wrapper {
   flex: 1;
+  min-width: 0;
   cursor: pointer;
 
   box-sizing: border-box;
-  --z-index: calc(var(--graph-block-z-index, 0) + var(--graph-block-order, 0));
-  z-index: var(--z-index);
 
   background: var(--graph-block-bg);
   border: 1px solid var(--graph-block-border)

@@ -30,6 +30,9 @@ type TAnchorState = {
 };
 
 export class Anchor extends withHitTest(EventedComponent) {
+
+  public readonly cursor = 'pointer';
+
   public get zIndex() {
     // @ts-ignore this.__comp.parent instanceOf Block
     return this.__comp.parent.zIndex + 1;
@@ -73,6 +76,10 @@ export class Anchor extends withHitTest(EventedComponent) {
 
     this.computeRenderSize(this.props.size, this.state.raised);
     this.shift = this.props.size / 2 + props.lineWidth;
+  }
+
+  public getPosition() {
+    return this.props.getPosition(this.props);
   }
 
   protected subscribe() {

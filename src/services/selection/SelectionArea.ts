@@ -3,6 +3,7 @@ import { Component } from "../../lib/Component";
 import { getXY } from "../../utils/functions";
 import { render } from "../../utils/renderers/render";
 import { EVENTS } from "../../utils/types/events";
+import { Point } from "../../utils/types/shapes";
 import { SelectionAreaService } from "./SelectionAreaService";
 
 export type SelectionAreaProps = {
@@ -10,11 +11,13 @@ export type SelectionAreaProps = {
 };
 
 export class SelectionArea extends Component {
-  public declare state: { sx: number; sy: number; width: number; height: number };
+  public declare state: { width: number; height: number };
 
   public declare context: TOverLayerContext;
 
   public declare props: SelectionAreaProps;
+
+  protected startPoint = new Point(0,0);
 
   public constructor(props: SelectionAreaProps, context: OverLayer) {
     super(props, context);
@@ -22,8 +25,6 @@ export class SelectionArea extends Component {
     this.context = context.context;
 
     this.state = {
-      sx: 0,
-      sy: 0,
       width: 0,
       height: 0,
     };
@@ -34,13 +35,14 @@ export class SelectionArea extends Component {
   }
 
   protected render() {
+    if (!this.state.width && !this.state.height) {
+      return;
+    }
     return render(this.context.ctx, (ctx) => {
       ctx.fillStyle = this.context.colors.selection.background;
       ctx.strokeStyle = this.context.colors.selection.border;
-      ctx.globalAlpha = 1;
-
       ctx.beginPath();
-      ctx.rect(this.state.sx, this.state.sy, this.state.width, this.state.height);
+      ctx.roundRect(this.startPoint.x, this.startPoint.y, this.state.width, this.state.height, 1 * window.devicePixelRatio);
       ctx.closePath();
 
       ctx.fill();
@@ -60,17 +62,15 @@ export class SelectionArea extends Component {
   private updateSelectionRender = (event: MouseEvent) => {
     const xy = getXY(this.context.graphCanvas, event);
     this.setState({
-      width: xy[0] - this.state.sx,
-      height: xy[1] - this.state.sy,
+      width: xy[0] - this.startPoint.x,
+      height: xy[1] - this.startPoint.y,
     });
   };
 
   private startSelectionRender = (event: MouseEvent) => {
-    const xy = getXY(this.context.graphCanvas, event);
-    this.setState({
-      sx: xy[0],
-      sy: xy[1],
-    });
+    const [x,y] = getXY(this.context.graphCanvas, event);
+    this.startPoint.x = x;
+    this.startPoint.y = y;
   };
 
   private endSelectionRender = () => {

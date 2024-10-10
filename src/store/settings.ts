@@ -8,7 +8,7 @@ export enum ECanChangeBlockGeometry {
   NONE = "none",
 }
 
-export type TGraphSettingsConfig<TBlockMeta extends Record<string, unknown> = {}> = {
+export type TGraphSettingsConfig<B extends TBlock = TBlock> = {
   canDragCamera: boolean;
   canZoomCamera: boolean;
   canDuplicateBlocks: boolean;
@@ -21,7 +21,7 @@ export type TGraphSettingsConfig<TBlockMeta extends Record<string, unknown> = {}
   useBlocksAnchors: boolean;
   connectivityComponentOnClickRaise: boolean;
   showConnectionLabels: boolean;
-  blockComponents: Record<string, typeof Block<TBlock<TBlockMeta>>>;
+  blockComponents: Record<string, typeof Block<B>>;
 };
 
 const getInitState: TGraphSettingsConfig = {
