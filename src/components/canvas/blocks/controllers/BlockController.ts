@@ -33,17 +33,19 @@ export class BlockController<T extends TBlock = TBlock, Props extends TBlockProp
       },
 
       mousedown(event: MouseEvent) {
-        event.stopPropagation();
         const blockState = selectBlockById(block.context.graph, block.props.id);
-        const blocksListState = this.context.graph.rootStore.blocksList;
-        const selectedBlocksStates = getSelectedBlocks(blockState, blocksListState);
-        const selectedBlocksComponents = selectedBlocksStates.map((block) => block.getViewComponent());
         const allowChangeBlockGeometry = isAllowChangeBlockGeometry(
           block.getConfigFlag("canChangeBlockGeometry") as ECanChangeBlockGeometry,
           blockState.selected
         );
 
         if (!allowChangeBlockGeometry) return;
+
+        event.stopPropagation();
+
+        const blocksListState = this.context.graph.rootStore.blocksList;
+        const selectedBlocksStates = getSelectedBlocks(blockState, blocksListState);
+        const selectedBlocksComponents = selectedBlocksStates.map((block) => block.getViewComponent());
 
         dragListener(block.context.ownerDocument)
           .on(EVENTS.DRAG_START, (_event: MouseEvent) => {
