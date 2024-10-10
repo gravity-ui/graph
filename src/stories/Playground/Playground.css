@@ -21,5 +21,58 @@
 
 .view.config-editor {
   border-radius: 10px;
-  border-color: var(--g-color-base-float-accent-hover);
+  border-color: var(--yc-color-base-float-accent-hover);
 }
+
+.settings-popup {
+  padding: 16px;
+}
+
+.graph-tools {
+  height: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  z-index: 10;
+  transform: translate(0, -50%);
+}
+
+.button-group .yc-button {
+  border-radius: 0 !important;
+}
+.button-group .yc-button::before {
+  border-radius: 0 !important;
+}
+.button-group .yc-button::after {
+  border-radius: 0 !important;
+}
+.button-group .yc-button:not(:last-child) {
+  border-bottom: 1px solid var(--yc-color-base-misc-light);
+}
+.button-group .yc-button:first-child {
+  border-top-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+  border-top-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+}
+.button-group .yc-button:first-child::before {
+  border-top-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+  border-top-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+}
+.button-group .yc-button:first-child::after {
+  border-top-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+  border-top-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+}
+.button-group .yc-button:last-child {
+  border-bottom-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+  border-bottom-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+}
+.button-group .yc-button:last-child::before {
+  border-bottom-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+  border-bottom-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+}
+.button-group .yc-button:last-child::after {
+  border-bottom-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+  border-bottom-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+}
+

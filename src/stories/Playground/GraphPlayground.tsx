@@ -1,4 +1,4 @@
-import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
+import { Button, Flex, Icon, Popup, RadioButton, RadioButtonOption, Text, ThemeProvider, Tooltip } from "@gravity-ui/uikit";
 import "@gravity-ui/uikit/styles/styles.css";
 import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { StoryFn } from "storybook/internal/types";
@@ -14,54 +14,59 @@ import { GravityBlock } from "./GravityBlock";
 import './Playground.css';
 import { TBlock } from "../../components/canvas/blocks/Block";
 import { random } from "../../components/canvas/blocks/generate";
+import { MagnifierPlus, MagnifierMinus, SquareDashed, Gear } from '@gravity-ui/icons';
+import { GraphSettings } from "./Settings";
+import { Toolbox } from "./Toolbox";
 
 const generated = generatePlaygroundLayout(0, 5);
 
-export function GraphPLayground() {
-  const { graph, setEntities, updateEntities, start } = useGraph({
-    viewConfiguration: {
-      colors: {
-        selection: {
-          background: "rgba(255, 190, 92, 0.1)",
-          border: "rgba(255, 190, 92, 1)",
-        },
-        connection: {
-          background: "rgba(255, 255, 255, 0.5)",
-          selectedBackground: "rgba(234, 201, 74, 1)",
-        },
-        block: {
-          background: "rgba(37, 27, 37, 1)",
-          border: "rgba(229, 229, 229, 0.2)",
-          selectedBorder: "rgba(255, 190, 92, 1)",
-          text: "rgba(255, 255, 255, 1)",
-        },
-        anchor: {
-          background: "rgba(255, 190, 92, 1)"
-        },
-        canvas: {
-          layerBackground: "rgba(22, 13, 27, 1)",
-          belowLayerBackground: "rgba(22, 13, 27, 1)",
-          dots: "rgba(255, 255, 255, 0.2)",
-          border: "rgba(255, 255, 255, 0.3)",
-        }
-      }
-    },
-    settings: {
-      canDragCamera: true,
-      canZoomCamera: true,
-      canDuplicateBlocks: false,
-      canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
-      canCreateNewConnections: false,
-      showConnectionArrows: false,
-      scaleFontSize: 1,
-      useBezierConnections: true,
-      useBlocksAnchors: true,
-      showConnectionLabels: false,
-      blockComponents: {
-        [GravityBlockIS]: GravityBlock
+const config = {
+  viewConfiguration: {
+    colors: {
+      selection: {
+        background: "rgba(255, 190, 92, 0.1)",
+        border: "rgba(255, 190, 92, 1)",
+      },
+      connection: {
+        background: "rgba(255, 255, 255, 0.5)",
+        selectedBackground: "rgba(234, 201, 74, 1)",
+      },
+      block: {
+        background: "rgba(37, 27, 37, 1)",
+        border: "rgba(229, 229, 229, 0.2)",
+        selectedBorder: "rgba(255, 190, 92, 1)",
+        text: "rgba(255, 255, 255, 1)",
+      },
+      anchor: {
+        background: "rgba(255, 190, 92, 1)"
+      },
+      canvas: {
+        layerBackground: "rgba(22, 13, 27, 1)",
+        belowLayerBackground: "rgba(22, 13, 27, 1)",
+        dots: "rgba(255, 255, 255, 0.2)",
+        border: "rgba(255, 255, 255, 0.3)",
       }
     }
-  });
+  },
+  settings: {
+    canDragCamera: true,
+    canZoomCamera: true,
+    canDuplicateBlocks: false,
+    canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
+    canCreateNewConnections: false,
+    showConnectionArrows: false,
+    scaleFontSize: 1,
+    useBezierConnections: true,
+    useBlocksAnchors: true,
+    showConnectionLabels: false,
+    blockComponents: {
+      [GravityBlockIS]: GravityBlock
+    }
+  }
+};
+
+export function GraphPLayground() {
+  const { graph, setEntities, updateEntities, start } = useGraph(config);
 
   const updateVisibleConfig = useFn(() => {
     const config = graph.rootStore.getAsConfig();
@@ -147,14 +152,16 @@ export function GraphPLayground() {
     }
   }, [graph]);
 
-
-
   return (
     <ThemeProvider theme="dark">
       <Flex className="wrapper" gap={8}>
         <Flex direction="column" grow={1} className="content graph" gap={6}>
           <Text variant="header-1">Graph viewer</Text>
           <Flex grow={1} className="view graph-editor">
+            <Flex className="graph-tools" direction="column">
+              <Toolbox graph={graph} className="graph-tools-zoom button-group"/>
+              <GraphSettings graph={graph} />
+            </Flex>
             <GraphCanvas onBlockSelectionChange={onSelectBlock} graph={graph} renderBlock={renderBlockFn} />
           </Flex>
         </Flex>
