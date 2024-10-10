@@ -3,6 +3,7 @@ import { BlockListStore } from "./BlocksList";
 import { Block, TBlock } from "../../components/canvas/blocks/Block";
 import { AnchorState } from "../anchor/Anchor";
 import { ESelectionStrategy } from "../../utils/types/types";
+import { TAnchor } from "../../components/canvas/anchors";
 
 export type TBlockId = string | number | symbol;
 
@@ -110,8 +111,21 @@ export class BlockState<T extends TBlock = TBlock> {
     };
   });
 
+  public updateAnchors(anchors: TAnchor[]) {
+    const anchorsMap = new Map(this.$anchorStates.value.map((a) => [a.id, a]));
+    this.$anchorStates.value = anchors.filter((a) => a.blockId === this.id).map((anchor) => {
+      if (anchorsMap.has(anchor.id)) {
+        const anchorState = anchorsMap.get(anchor.id);
+        anchorState.update(anchor);
+        return anchorState;
+      }
+      return new AnchorState(this, anchor);
+    }) 
+  }
+
   public updateBlock(block: Partial<TBlock>): void {
     this.$state.value = Object.assign({}, this.$state.value, block);
+    this.updateAnchors(block.anchors);
     this.getViewComponent()?.updateHitBox(this.$geometry.value, true);
   }
 

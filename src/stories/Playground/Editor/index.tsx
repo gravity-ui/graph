@@ -106,7 +106,7 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(props: Config
         theme={GravityTheme}
         options={{
           contextmenu: false,
-          lineNumbersMinChars: 2,
+          lineNumbersMinChars: 4,
           glyphMargin: false,
           fontSize: 18,
           lineHeight: 20,

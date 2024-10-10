@@ -1,37 +1,39 @@
-import React from "react";
+import React, { useState } from "react";
 import { Flex, Tooltip, Button, Icon } from "@gravity-ui/uikit";
 import { MagnifierPlus, MagnifierMinus, SquareDashed, Gear } from '@gravity-ui/icons';
 import { Graph } from "../../graph";
-import { useRerender } from './hooks';
+import { useGraphEvent } from "../../react-component";
 
 export function Toolbox({className, graph}: {className: string, graph: Graph}) {
-  const rerender = useRerender();
+  const [scale, setScale] = useState(1);
+
+  useGraphEvent(graph, 'camera-change', ({scale}) => {
+    setScale(scale)
+  })
   return <Flex grow={1} justifyContent="center" className={className} direction="column">
     <Tooltip content="Zoom +" placement="right">
       <Button
+        view="raised"
         onClick={() => {
           graph.zoom({ scale: graph.cameraService.getCameraScale() + 0.08 });
-          rerender();
         }}
-        disabled={graph.cameraService.getCameraScale() >= 1}
+        disabled={scale >= graph.cameraService.getCameraState().scaleMax}
       >
         <Icon data={MagnifierPlus} />
       </Button>
     </Tooltip>
     <Tooltip content="Fit to viewport" placement="right">
-      <Button onClick={() => {
+      <Button view="raised" onClick={() => {
         graph.zoomTo('center');
-        rerender();
       }}>
         <Icon data={SquareDashed} />
       </Button>
     </Tooltip>
     <Tooltip content="Zoom -" placement="right">
-      <Button onClick={() => {
+      <Button view="raised" onClick={() => {
         graph.zoom({ scale: graph.cameraService.getCameraScale() - 0.08 });
-        rerender();
       }}
-        disabled={graph.cameraService.getCameraScale() <= 0.01}>
+        disabled={scale <= graph.cameraService.getCameraState().scaleMin}>
         <Icon data={MagnifierMinus} />
       </Button>
     </Tooltip>

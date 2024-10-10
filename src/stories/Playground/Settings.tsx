@@ -20,7 +20,7 @@ export function GraphSettings({graph}: {graph: Graph}) {
   const settingBtnRef = useRef();
   const [settingsOpened, setSettingsOpened] = useState(false);
   return <>
-    <Button ref={settingBtnRef} onClick={() => setSettingsOpened((prevOpen) => !prevOpen)}>
+    <Button view={settingsOpened ? "action" : "raised"} ref={settingBtnRef} onClick={() => setSettingsOpened((prevOpen) => !prevOpen)}>
       <Icon data={Gear} />
     </Button>
     <Popup anchorRef={settingBtnRef} open={settingsOpened} onClose={() => setSettingsOpened(false)} placement={["right-end"]}>
@@ -41,7 +41,7 @@ export function GraphSettings({graph}: {graph: Graph}) {
           />
         </Flex>
         <Flex direction="column" gap={2}>
-          <Text variant="subheader-2">Show arrows</Text>
+          <Text variant="subheader-1">Show arrows</Text>
           <RadioButton
             size="l"
             onUpdate={(value) => {

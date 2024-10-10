@@ -1,20 +1,18 @@
-import { Button, Flex, Icon, Popup, RadioButton, RadioButtonOption, Text, ThemeProvider, Tooltip } from "@gravity-ui/uikit";
 import "@gravity-ui/uikit/styles/styles.css";
-import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
+import React, { useCallback, useLayoutEffect, useRef } from "react";
 import { StoryFn } from "storybook/internal/types";
 import { Graph, GraphState } from "../../graph";
 import { GraphBlock, GraphCanvas, GraphProps, useGraph, useGraphEvent } from "../../react-component";
 import { ECanChangeBlockGeometry } from "../../store/settings";
 import { useFn } from "../../utils/hooks/useFn";
-import { PlaygroundBlock } from "./GravityBlock/GravityBlock";
 
-import { ConfigEditor, ConfigEditorController } from "./Editor";
-import { createPlaygroundBlock, generatePlaygroundLayout, GravityBlockIS, TGravityBlock } from "./generateLayout";
-import { GravityBlock } from "./GravityBlock";
-import './Playground.css';
 import { TBlock } from "../../components/canvas/blocks/Block";
 import { random } from "../../components/canvas/blocks/generate";
-import { MagnifierPlus, MagnifierMinus, SquareDashed, Gear } from '@gravity-ui/icons';
+import { ConfigEditor, ConfigEditorController } from "./Editor";
+import { createPlaygroundBlock, generatePlaygroundLayout, GravityBlockIS } from "./generateLayout";
+import { GravityBlock } from "./GravityBlock";
+import './Playground.css';
 import { GraphSettings } from "./Settings";
 import { Toolbox } from "./Toolbox";
 

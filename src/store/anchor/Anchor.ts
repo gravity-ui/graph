@@ -25,6 +25,11 @@ export class AnchorState {
   ) {
     this.$state.value = anchor;
   }
+
+  public update(anchor: TAnchor) {
+    this.$state.value = anchor;
+  }
+
   public setSelection(selected: boolean, silent?: boolean) {
     if (silent) {
       this.$selected.value = selected;
