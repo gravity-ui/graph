@@ -277,7 +277,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     blocks.forEach((block) => {
       const viewComponent = block.getViewComponent();
 
-      viewComponent.renderMinimalisticBlock(this.context.ctx);
+      viewComponent?.renderMinimalisticBlock(this.context.ctx);
     });
   }
 
