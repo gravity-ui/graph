@@ -153,14 +153,33 @@ export function isWindows() {
   return navigator.appVersion.indexOf("Win") !== -1;
 }
 
-export function isTrackpadWheelEvent(e: WheelEvent) {
-  // deltaY in the mouse scroll even, usually is a float number.
-  // It's a bit of a hack, but it's the easiest way to detect a trackpad.
-  if (e.deltaY && !Number.isInteger(e.deltaY)) {
-    return false;
+function isTrackpadDetector() {
+  let isTrackpadDetected = false;
+  let cleanStateTimer = setTimeout(() => {}, 0);
+
+  return (e: WheelEvent) => {
+    // deltaX in the trackpad scroll usually is not zero.
+    if (e.deltaX) {
+      isTrackpadDetected = true;
+      clearTimeout(cleanStateTimer);
+      cleanStateTimer = setTimeout(() => {
+        isTrackpadDetected = false;
+      }, 1000 * 60);
+
+      return true;
+    }
+
+    // deltaY in the mouse scroll event, usually is a float number.
+    // It's a bit of a hack, but it's the easiest way to detect a mouse.
+    if (e.deltaY && !Number.isInteger(e.deltaY)) {
+      return false;
+    }
+
+    return isTrackpadDetected;
   }
-  return true;
 }
+
+export const isTrackpadWheelEvent = isTrackpadDetector();
 
 export function computeCssVariable(name: string) {
   if (!name.startsWith("var(")) return name;
