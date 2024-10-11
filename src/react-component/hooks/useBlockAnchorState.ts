@@ -4,7 +4,7 @@ import { useSignal } from "./useSignal";
 import { useBlockState } from "./useBlockState";
 import { AnchorState } from "../../store/anchor/Anchor";
 import { computed } from "@preact/signals-core";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import debounce from "lodash/debounce";
 
 export function useBlockAnchorState(graph: Graph, anchor: TAnchor): AnchorState | undefined {
@@ -15,18 +15,19 @@ export function useBlockAnchorState(graph: Graph, anchor: TAnchor): AnchorState 
   return useSignal(signal);
 }
 
-export function useBlockAnchorPosition(state: AnchorState | undefined, onUpdate: (position: {x: number, y: number}) => void) {
-  const fnRef = useRef(onUpdate);
-  fnRef.current = onUpdate;
+export function useBlockAnchorPosition(state: AnchorState | undefined) {
+  const [pos, setPos] = useState<{ x: number, y: number }>(state.block ? state.block.getViewComponent().getAnchorPosition(state.state)  : {x: 0, y: 0});
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if(!state) {
       return;
     }
     return state.block.$geometry.subscribe(debounce(() => {
       const position = state.block.getViewComponent().getAnchorPosition(state.state);
-      fnRef.current(position);
+      setPos(position);
     }, 16))
-  }, [state.block])
+  }, [state.block]);
+
+  return pos;
 } 
 

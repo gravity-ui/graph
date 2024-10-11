@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { CSSProperties, useEffect, useMemo, useRef } from "react";
 import { computed } from "@preact/signals-core";
 import { TAnchor } from "../components/canvas/anchors";
 import { Graph } from "../graph";
@@ -22,28 +22,12 @@ export function GraphBlockAnchor({
   className?: string;
   children?: React.ReactNode | ((anchorState: AnchorState) => React.ReactNode);
 }) {
-  const container = useRef<HTMLDivElement>(null);
 
   const anchorState = useBlockAnchorState(graph, anchor);
 
-  useBlockAnchorPosition(anchorState, (position) => {
-    if (position) {
-      setCssProps(container.current, {
-        "--graph-block-anchor-x": `${position.x}px`,
-        "--graph-block-anchor-y": `${position.y}px`,
-      });
-    } else {
-      removeCssProps(container.current, ["--graph-block-anchor-x", "--graph-block-anchor-y"]);
-    }
-  })
+  const coords = useBlockAnchorPosition(anchorState)
 
-  const selectedSignal = useMemo(() => {
-    return computed(() => {
-      return anchorState?.$selected.value;
-    });
-  }, [anchorState]);
-
-  const selected = useSignal(selectedSignal);
+  const selected = useSignal(anchorState?.$selected);
 
   const render = typeof children === "function" ? children : () => children;
   const classNames = useMemo(() => {
@@ -53,7 +37,13 @@ export function GraphBlockAnchor({
   }, [anchor, position, className, selected]);
 
   return (
-    <div ref={container} className={classNames}>
+    <div 
+      style={{
+        "--graph-block-anchor-x": `${coords.x}px`,
+        "--graph-block-anchor-y": `${coords.y}px`,
+      } as CSSProperties}
+      className={classNames}
+    >
       {render(anchorState)}
     </div>
   );
