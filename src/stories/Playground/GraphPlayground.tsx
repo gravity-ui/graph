@@ -1,8 +1,8 @@
 import "@gravity-ui/uikit/styles/styles.css";
-import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
+import { Flex, Select, Text, ThemeProvider } from "@gravity-ui/uikit";
 import React, { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { StoryFn } from "storybook/internal/types";
-import { Graph, GraphState } from "../../graph";
+import { Graph, GraphState, TGraphConfig } from "../../graph";
 import { GraphBlock, GraphCanvas, GraphProps, useGraph, useGraphEvent } from "../../react-component";
 import { ECanChangeBlockGeometry } from "../../store/settings";
 import { useFn } from "../../utils/hooks/useFn";
@@ -11,7 +11,7 @@ import { TBlock } from "../../components/canvas/blocks/Block";
 import { random } from "../../components/canvas/blocks/generate";
 import { EAnchorType } from "../configurations/definitions";
 import { ConfigEditor, ConfigEditorController } from "./Editor";
-import { createPlaygroundBlock, generatePlaygroundLayout, GravityBlockIS } from "./generateLayout";
+import { createPlaygroundBlock, generatePlaygroundLayout, GravityBlockIS, TGravityBlock } from "./generateLayout";
 import { GravityBlock } from "./GravityBlock";
 import './Playground.css';
 import { GraphSettings } from "./Settings";
@@ -83,6 +83,7 @@ export function GraphPLayground() {
     editorRef?.current.updateBlocks([block]);
     editorRef?.current.scrollTo(block.id);
   });
+
   useGraphEvent(graph, "blocks-selection-change", ({ changes }) => {
     editorRef?.current.updateBlocks([
       ...changes.add.map((id) => ({
@@ -197,11 +198,52 @@ export function GraphPLayground() {
     return () => document.body.removeEventListener('keydown', fn);
   });
 
+  const updateExample = useFn(([value]) => {
+    let config: TGraphConfig<TGravityBlock>;
+    switch(value) {
+      case "null": {
+        return;
+      }
+      case "1": {
+        config = generatePlaygroundLayout(0, 5);
+        break;
+      }
+      case "100": {
+        config = generatePlaygroundLayout(10, 100);
+        break;
+      }
+      case "1000": {
+        config = generatePlaygroundLayout(23, 150);
+        break;
+      }
+      case "10000": {
+        graph.updateSettings({
+          useBezierConnections: false
+        });
+        config = generatePlaygroundLayout(50, 150);
+        break;
+      }
+    }
+    console.log(config.blocks.length, config.connections.length)
+    setEntities(config);
+    graph.zoomTo('center', {transition: 500});
+    updateVisibleConfig();
+  })
+
   return (
     <ThemeProvider theme="dark">
       <Flex className="wrapper" gap={8}>
         <Flex direction="column" grow={1} className="content graph" gap={6}>
-          <Text variant="header-1">Graph viewer</Text>
+          <Flex justifyContent="space-between">
+            <Text variant="header-1">Graph viewer</Text>
+            <Select value={["null"]} onUpdate={updateExample}>
+              <Select.Option value="null">Choose example</Select.Option>
+              <Select.Option value="1">Single block</Select.Option>
+              <Select.Option value="100">100 blocks</Select.Option>
+              <Select.Option value="1000">1000 blocks</Select.Option>
+              <Select.Option value="10000">10000 blocks</Select.Option>
+            </Select>
+          </Flex>
           <Flex grow={1} className="view graph-editor">
             <Flex className="graph-tools" direction="column">
               <Toolbox graph={graph} className="graph-tools-zoom button-group"/>

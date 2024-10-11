@@ -102,6 +102,14 @@ export class Anchor extends withHitTest(EventedComponent) {
 
   public willIterate() {
     super.willIterate();
+
+    const { x, y, width, height } = this.hitBox.getRect();
+
+    this.shouldRender = width && height ? this.context.camera.isRectVisible(x, y, width, height) : true;
+    
+  }
+
+  public didIterate(): void {
     const { x: poxX, y: posY } = this.props.getPosition(this.props);
     const hash = `${poxX}/${posY}/${this.shift}`;
 
@@ -109,11 +117,6 @@ export class Anchor extends withHitTest(EventedComponent) {
       this.hitBoxHash = hash;
       this.debouncedSetHitBox();
     }
-
-    const { x, y, width, height } = this.hitBox.getRect();
-
-    this.shouldRender = width && height ? this.context.camera.isRectVisible(x, y, width, height) : true;
-    
   }
 
   public handleEvent(event: MouseEvent | KeyboardEvent) {
@@ -155,19 +158,17 @@ export class Anchor extends withHitTest(EventedComponent) {
       return;
     }
     const { x, y } = this.props.getPosition(this.props);
-    render(this.context.ctx, (ctx) => {
-      ctx.save();
-      ctx.fillStyle = this.context.colors.anchor.background;
-      ctx.beginPath();
-      ctx.arc(x, y, this.state.size * 0.5, 0, 2 * Math.PI);
-      ctx.fill();
+    const ctx = this.context.ctx;
+    ctx.fillStyle = this.context.colors.anchor.background;
+    ctx.beginPath();
+    ctx.arc(x, y, this.state.size * 0.5, 0, 2 * Math.PI);
+    ctx.fill();
 
-      if (this.state.selected) {
-        ctx.strokeStyle = this.context.colors.anchor.selectedBorder;
-        ctx.lineWidth = this.props.lineWidth + 3;
-        ctx.stroke();
-      }
-      ctx.closePath();
-    })
+    if (this.state.selected) {
+      ctx.strokeStyle = this.context.colors.anchor.selectedBorder;
+      ctx.lineWidth = this.props.lineWidth + 3;
+      ctx.stroke();
+    }
+    ctx.closePath();
   }
 }

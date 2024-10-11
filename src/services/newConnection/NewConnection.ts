@@ -45,6 +45,7 @@ export class NewConnection extends Component {
       ctx.closePath();
     });
     render(this.context.ctx, (ctx) => {
+      ctx.beginPath();
       ctx.fillStyle = "rgba(254, 190, 92, 1)";
       ctx.roundRect(this.state.tx, this.state.ty - 12, 24, 24, 8);
       ctx.fill();
@@ -66,6 +67,8 @@ export class NewConnection extends Component {
           initialHeight: 16
         }, ctx, { x: this.state.tx, y: this.state.ty - 12, width: 24, height: 24 });
       }
+
+      ctx.closePath();
     })
   }
 

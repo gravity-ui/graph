@@ -120,9 +120,11 @@ export class GravityBlock extends CanvasBlock<TGravityBlock> {
   }
 
   public renderMinimalisticBlock(ctx: CanvasRenderingContext2D): void {
-    render(ctx, (ctx) => {
       this.renderBody(ctx);
-      ctx.beginPath();
+      // do not show icon for large scale
+      if(this.context.camera.getCameraScale() < 0.1) {
+        return;
+      }
       
       ctx.fillStyle = "rgba(255, 190, 92, 1)";
       renderSVG({
@@ -132,8 +134,6 @@ export class GravityBlock extends CanvasBlock<TGravityBlock> {
         iniatialWidth: 14,
         initialHeight: 14,
       }, ctx, this.getContentRect());
-      ctx.closePath();
-    })
   }
 
   public renderDetailedView(ctx: CanvasRenderingContext2D) {
@@ -152,6 +152,5 @@ export class GravityBlock extends CanvasBlock<TGravityBlock> {
       ctx.textAlign = "center";
       this.renderTextAtCenter(this.state.name, ctx);
     }
-    ctx.closePath();
   }
 }
