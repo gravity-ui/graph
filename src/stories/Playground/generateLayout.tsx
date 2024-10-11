@@ -14,8 +14,8 @@ export function createPlaygroundBlock(x: number, y: number, index): TGravityBloc
     is: 'gravity',
     x,
     y,
-    width: 63 * window.devicePixelRatio,
-    height: 63 * window.devicePixelRatio,
+    width: 63 * 2,
+    height: 63 * 2,
     selected: false,
     name: `Block ${index}`,
     meta: {
