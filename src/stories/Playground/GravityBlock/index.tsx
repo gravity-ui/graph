@@ -51,13 +51,6 @@ export class GravityBlock extends CanvasBlock<TGravityBlock> {
     return <PlaygroundBlock graph={this.context.graph} block={this.connectedState.$state.value} />
   }
 
-  protected renderStroke(color: string) {
-    const scale = this.context.camera.getCameraScale();
-    this.context.ctx.lineWidth = Math.min(Math.round(3 / scale), 12);
-    this.context.ctx.strokeStyle = color;
-    this.context.ctx.strokeRect(this.state.x, this.state.y, this.state.width, this.state.height);
-  }
-
   protected renderAnchor(anchor: TAnchor, getPosition: (anchor: TAnchor) => TPoint) {
     return Anchor.create({
       ...anchor,
@@ -104,7 +97,7 @@ export class GravityBlock extends CanvasBlock<TGravityBlock> {
   public renderBody(ctx: CanvasRenderingContext2D) {
     const scale = this.context.camera.getCameraScale();
 
-    ctx.lineWidth = Math.min(Math.round(3 / scale), 12);
+    ctx.lineWidth = Math.min(Math.round(2 / scale), 12);
     ctx.fillStyle = this.hovered ? "rgba(57, 47, 57, 1)" : this.context.colors.block.background;
 
     ctx.beginPath();
@@ -134,11 +127,6 @@ export class GravityBlock extends CanvasBlock<TGravityBlock> {
         iniatialWidth: 14,
         initialHeight: 14,
       }, ctx, this.getContentRect());
-  }
-
-  public renderDetailedView(ctx: CanvasRenderingContext2D) {
-    // This needs to prevent flickering of block on switch levels
-    this.renderBody(ctx);
   }
 
   public renderSchematicView(ctx: CanvasRenderingContext2D) {

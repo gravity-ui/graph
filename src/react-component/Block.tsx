@@ -22,6 +22,11 @@ export const GraphBlock = <T extends TBlock>({
   const viewState = useBlockViewState(graph, block);
   const state = useBlockState(graph, block);
 
+  useEffect(() => {
+    viewState?.setHiddenBlock(true);
+    return () => viewState?.setHiddenBlock(false);
+  }, [viewState]);
+
   useLayoutEffect(() => {
     setCssProps(containerRef.current, {
       "--graph-block-geometry-x": `${block.x}px`,

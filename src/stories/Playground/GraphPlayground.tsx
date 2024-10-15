@@ -3,7 +3,7 @@ import { Flex, Select, Text, ThemeProvider } from "@gravity-ui/uikit";
 import React, { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { StoryFn } from "storybook/internal/types";
 import { Graph, GraphState, TGraphConfig } from "../../graph";
-import { GraphBlock, GraphCanvas, GraphProps, useGraph, useGraphEvent } from "../../react-component";
+import { GraphBlock, GraphCanvas, GraphProps, HookGraphParams, useGraph, useGraphEvent } from "../../react-component";
 import { ECanChangeBlockGeometry } from "../../store/settings";
 import { useFn } from "../../utils/hooks/useFn";
 
@@ -19,7 +19,7 @@ import { Toolbox } from "./Toolbox";
 
 const generated = generatePlaygroundLayout(0, 5);
 
-const config = {
+const config: HookGraphParams = {
   viewConfiguration: {
     colors: {
       selection: {
@@ -45,6 +45,11 @@ const config = {
         dots: "rgba(255, 255, 255, 0.2)",
         border: "rgba(255, 255, 255, 0.3)",
       }
+    },
+    constants: {
+      block: {
+        SCALES: [0.1, 0.2, 0.5]
+      }
     }
   },
   settings: {
@@ -66,6 +71,7 @@ const config = {
 
 export function GraphPLayground() {
   const { graph, setEntities, updateEntities, start } = useGraph(config);
+  const editorRef = useRef<ConfigEditorController>(null);
 
   const updateVisibleConfig = useFn(() => {
     const config = graph.rootStore.getAsConfig();
@@ -73,11 +79,7 @@ export function GraphPLayground() {
       blocks: config.blocks || [],
       connections: config.connections || []
     });
-  })
-
-  useGraphEvent(graph, 'block-drag', ({block}) => {
-    editorRef?.current.scrollTo(block.id);
-  })
+  });
 
   useGraphEvent(graph, 'block-change', ({block}) => {
     editorRef?.current.updateBlocks([block]);
@@ -179,13 +181,11 @@ export function GraphPLayground() {
     return <GraphBlock graph={graph} block={block}>Unknown block <>{block.id}</></GraphBlock>
   });
 
-  const editorRef = useRef<ConfigEditorController>(null);
-
-  const onSelectBlock: GraphProps['onBlockSelectionChange'] = useCallback((selection) => {
-    if (selection.list.length === 1) {
-      editorRef?.current.scrollTo(selection.list[0]);
+  useGraphEvent(graph, 'blocks-selection-change', ({list}) => {
+    if (list.length === 1) {
+      editorRef?.current.scrollTo(list[0]);
     }
-  }, [graph]);
+  });
 
   useEffect(() => {
     const fn = (e) => {
@@ -224,11 +224,11 @@ export function GraphPLayground() {
         break;
       }
     }
-    console.log(config.blocks.length, config.connections.length)
     setEntities(config);
     graph.zoomTo('center', {transition: 500});
     updateVisibleConfig();
-  })
+    
+  });
 
   return (
     <ThemeProvider theme="dark">
@@ -249,7 +249,7 @@ export function GraphPLayground() {
               <Toolbox graph={graph} className="graph-tools-zoom button-group"/>
               <GraphSettings className="graph-tools-settings" graph={graph} />
             </Flex>
-            <GraphCanvas onBlockSelectionChange={onSelectBlock} graph={graph} renderBlock={renderBlockFn} />
+            <GraphCanvas graph={graph} renderBlock={renderBlockFn} />
           </Flex>
         </Flex>
         <Flex direction="column" grow={1} className="content" gap={6}>
