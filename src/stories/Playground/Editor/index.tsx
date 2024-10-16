@@ -1,13 +1,15 @@
 
 
-import { Button, Flex, Text } from "@gravity-ui/uikit";
+import { Button, Flex, Hotkey, Text } from "@gravity-ui/uikit";
 import { Editor, OnMount, OnValidate, loader } from "@monaco-editor/react";
+import { KeyCode, KeyMod } from 'monaco-editor/esm/vs/editor/editor.api';
 import React, { Ref, useImperativeHandle, useRef, useState } from "react";
 import type { TBlock } from "../../../components/canvas/blocks/Block";
 import { TBlockId } from "../../../store/block/Block";
 import type { TConnection } from "../../../store/connection/ConnectionState";
 import { GravityTheme, defineTheme } from "./theme";
 
+import { useFn } from "../../../utils/hooks/useFn";
 import "./Editor.css";
 import { defineConigSchema } from "./schema";
 import { findBlockPositionsMonaco } from "./utils";
@@ -91,6 +93,14 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(props: Config
     },
   }));
 
+  const applyChanges = useFn(() => {
+    try {
+      const data = JSON.parse(monacoRef.current.getModel().getValue());
+      props?.onChange?.({ blocks: data.blocks, connections: data.conections })
+    } catch(e) {
+      console.error(e);
+    }
+  });
 
   return <Flex direction="column" className="editor-wrap">
     <Flex grow={1} >
@@ -98,6 +108,7 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(props: Config
         onMount={(editor) => {
           monacoRef.current = editor;
           monacoRef.current?.setValue(JSON.stringify(valueRef.current, null, 2));
+          editor.addCommand(KeyMod.CtrlCmd | KeyCode.Enter, applyChanges);
         }}
         onValidate={(markers) => {
           setErrorMarker(markers.filter((m) => m.severity === 8)[0] || null)
@@ -119,14 +130,14 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(props: Config
       />
     </Flex>
     <Flex className="actions" gap={3}>
-      <Button size="l" disabled={!!errorMarker} view="action" onClick={() => {
-        try {
-          const data = JSON.parse(monacoRef.current.getModel().getValue());
-          props?.onChange?.({ blocks: data.blocks, connections: data.conections })
-        } catch(e) {
-          console.error(e);
-        }
-      }}>Apply</Button>
+      <Button
+        size="l"
+        disabled={!!errorMarker}
+        view="action"
+        onClick={applyChanges}
+      >
+        Apply <Hotkey className="hotkey" view="light" value='mod+enter'/>
+      </Button>
       <Button size="l" disabled={!!errorMarker} onClick={props.addBlock}>Add Block</Button>
       {errorMarker && (
         <Flex grow={1} alignItems="center" justifyContent="flex-end">

@@ -207,7 +207,7 @@ export function GraphPLayground() {
   });
 
   useEffect(() => {
-    const fn = (e) => {
+    const fn = (e: KeyboardEvent) => {
       if (e.code === 'Backspace') {
         graph.api.deleteSelected();
         updateVisibleConfig();
