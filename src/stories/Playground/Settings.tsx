@@ -20,7 +20,13 @@ export function GraphSettings({ className, graph }: {className: string, graph: G
   const settingBtnRef = useRef();
   const [settingsOpened, setSettingsOpened] = useState(false);
   return <>
-    <Button view={settingsOpened ? "action" : "raised"} className={className} ref={settingBtnRef} onClick={() => setSettingsOpened((prevOpen) => !prevOpen)}>
+    <Button
+      size="l"
+      view={settingsOpened ? "action" : "raised"}
+      className={className}
+      ref={settingBtnRef}
+      onClick={() => setSettingsOpened((prevOpen) => !prevOpen)}
+    >
       <Icon data={Gear} />
     </Button>
     <Popup anchorRef={settingBtnRef} open={settingsOpened} onClose={() => setSettingsOpened(false)} placement={["right-end"]}>

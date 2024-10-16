@@ -1,9 +1,9 @@
+import { Flex, RadioButton, RadioButtonOption, RadioButtonProps, Text, ThemeProvider } from "@gravity-ui/uikit";
 import "@gravity-ui/uikit/styles/styles.css";
-import { Flex, Select, Text, ThemeProvider } from "@gravity-ui/uikit";
-import React, { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useRef } from "react";
 import { StoryFn } from "storybook/internal/types";
 import { Graph, GraphState, TGraphConfig } from "../../graph";
-import { GraphBlock, GraphCanvas, GraphProps, HookGraphParams, useGraph, useGraphEvent } from "../../react-component";
+import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "../../react-component";
 import { ECanChangeBlockGeometry } from "../../store/settings";
 import { useFn } from "../../utils/hooks/useFn";
 
@@ -68,6 +68,13 @@ const config: HookGraphParams = {
     }
   }
 };
+
+const graphSizeOptions: RadioButtonOption[] = [
+  {value: '1', content: 'S'},
+  {value: '100', content: 'M'},
+  {value: '1000', content: 'L'},
+  {value: '10000', content: 'XL'},
+];
 
 export function GraphPLayground() {
   const { graph, setEntities, updateEntities, start } = useGraph(config);
@@ -198,25 +205,22 @@ export function GraphPLayground() {
     return () => document.body.removeEventListener('keydown', fn);
   });
 
-  const updateExample = useFn(([value]) => {
+  const updateGraphSize = useFn<Parameters<RadioButtonProps["onUpdate"]>, void>((value) => {
     let config: TGraphConfig<TGravityBlock>;
     switch(value) {
-      case "null": {
-        return;
-      }
-      case "1": {
+      case graphSizeOptions[0].value: {
         config = generatePlaygroundLayout(0, 5);
         break;
       }
-      case "100": {
+      case graphSizeOptions[1].value: {
         config = generatePlaygroundLayout(10, 100);
         break;
       }
-      case "1000": {
+      case graphSizeOptions[2].value: {
         config = generatePlaygroundLayout(23, 150);
         break;
       }
-      case "10000": {
+      case graphSizeOptions[3].value: {
         graph.updateSettings({
           useBezierConnections: false
         });
@@ -227,22 +231,21 @@ export function GraphPLayground() {
     setEntities(config);
     graph.zoomTo('center', {transition: 500});
     updateVisibleConfig();
-    
+
   });
 
   return (
     <ThemeProvider theme="dark">
       <Flex className="wrapper" gap={8}>
         <Flex direction="column" grow={1} className="content graph" gap={6}>
-          <Flex justifyContent="space-between">
-            <Text variant="header-1">Graph viewer</Text>
-            <Select value={["null"]} onUpdate={updateExample}>
-              <Select.Option value="null">Choose example</Select.Option>
-              <Select.Option value="1">Single block</Select.Option>
-              <Select.Option value="100">100 blocks</Select.Option>
-              <Select.Option value="1000">1000 blocks</Select.Option>
-              <Select.Option value="10000">10000 blocks</Select.Option>
-            </Select>
+          <Flex direction="row" gap={4} alignItems="center">
+            <Text variant="header-1">Graph</Text>
+            <RadioButton
+              className="graph-size-settings"
+              options={graphSizeOptions}
+              onUpdate={updateGraphSize}
+              size="l"
+            ></RadioButton>
           </Flex>
           <Flex grow={1} className="view graph-editor">
             <Flex className="graph-tools" direction="column">
@@ -255,7 +258,7 @@ export function GraphPLayground() {
         <Flex direction="column" grow={1} className="content" gap={6}>
           <Text variant="header-1">JSON Editor</Text>
           <Flex grow={1} className="view config-editor">
-            <ConfigEditor 
+            <ConfigEditor
               ref={editorRef}
               onChange={({blocks, connections}) => {
                 updateEntities({blocks, connections})

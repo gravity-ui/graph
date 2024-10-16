@@ -1,16 +1,16 @@
 
 
-import { Button, Flex, Icon, Text } from "@gravity-ui/uikit";
-import { Editor, loader, OnMount, OnValidate } from "@monaco-editor/react";
+import { Button, Flex, Text } from "@gravity-ui/uikit";
+import { Editor, OnMount, OnValidate, loader } from "@monaco-editor/react";
 import React, { Ref, useImperativeHandle, useRef, useState } from "react";
 import type { TBlock } from "../../../components/canvas/blocks/Block";
 import { TBlockId } from "../../../store/block/Block";
 import type { TConnection } from "../../../store/connection/ConnectionState";
-import { defineTheme, GravityTheme } from "./theme";
+import { GravityTheme, defineTheme } from "./theme";
 
 import "./Editor.css";
-import { findBlockPositionsMonaco } from "./utils";
 import { defineConigSchema } from "./schema";
+import { findBlockPositionsMonaco } from "./utils";
 
 
 loader.init().then((monaco) => {
@@ -24,12 +24,12 @@ export interface ConfigEditorController {
   setContent: (p: {blocks: TBlock[], connections: TConnection[]}) => void;
 }
 
-type ConfigEditorProps = { 
+type ConfigEditorProps = {
   onChange?: (config: { blocks: TBlock[], connections: TConnection[] }) => void
   addBlock?: () => void
 };
 
-type ExtractTypeFromArray<T> = T extends Array<infer E> ? E : never; 
+type ExtractTypeFromArray<T> = T extends Array<infer E> ? E : never;
 
 export const ConfigEditor = React.forwardRef(function ConfigEditor(props: ConfigEditorProps, ref: Ref<ConfigEditorController>) {
 
@@ -46,7 +46,7 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(props: Config
       }
       const model = monacoRef.current.getModel();
       const range = findBlockPositionsMonaco(model, blockId);
-      
+
       if (range?.start.column) {
         monacoRef.current?.revealLinesInCenter(range.start.lineNumber, range.end.lineNumber, 0);
       }
@@ -76,7 +76,7 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(props: Config
           text: text.slice(19, text.length - 6),
         }
       })
-      
+
       model.applyEdits(edits);
     },
     setContent: ({ blocks, connections}) => {
@@ -119,7 +119,7 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(props: Config
       />
     </Flex>
     <Flex className="actions" gap={3}>
-      <Button disabled={!!errorMarker} view="action" onClick={() => {
+      <Button size="l" disabled={!!errorMarker} view="action" onClick={() => {
         try {
           const data = JSON.parse(monacoRef.current.getModel().getValue());
           props?.onChange?.({ blocks: data.blocks, connections: data.conections })
@@ -127,13 +127,13 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(props: Config
           console.error(e);
         }
       }}>Apply</Button>
-      <Button disabled={!!errorMarker} onClick={props.addBlock}>Add new block</Button>
+      <Button size="l" disabled={!!errorMarker} onClick={props.addBlock}>Add Block</Button>
       {errorMarker && (
         <Flex grow={1} alignItems="center" justifyContent="flex-end">
           <Text color="danger">
             <span style={{cursor: 'pointer'}} onClick={() => {
               monacoRef.current?.revealLinesInCenter(errorMarker.startLineNumber, errorMarker.endLineNumber, 0);
-              
+
 
               monacoRef.current.setSelection({
                 startColumn: errorMarker.startColumn,
