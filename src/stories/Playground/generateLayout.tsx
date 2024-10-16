@@ -1,38 +1,63 @@
-import { IS_BLOCK_TYPE } from "../../store/block/Block";
 import { TBlock } from "../../components/canvas/blocks/Block";
 import { TGraphConfig } from "../../graph";
 import { EAnchorType } from "../../store/anchor/Anchor";
 
-export const GravityBlockIS = 'gravity'
-export type TGravityBlock = TBlock<{ description: string }> & { is: typeof GravityBlockIS };
+export const GravityActionBlockIS = 'block-action'
+export type TGravityActionBlock = TBlock<{ description: string }> & { is: typeof GravityActionBlockIS };
 
+export const GravityTextBlockIS = 'block-text'
+export type TGravityTextBlock = TBlock<{ text: string }> & { is: typeof GravityTextBlockIS };
 
-export function createPlaygroundBlock(x: number, y: number, index): TGravityBlock {
-  const blockId = `block_${index}`;
+function getActionBlockId(num: number): string {
+  return `action_${num}`;
+}
+
+export function createActionBlock(x: number, y: number, index: number): TGravityActionBlock {
+  const blockId = getActionBlockId(index);
+
   return {
+    is: GravityActionBlockIS,
     id: blockId,
-    is: 'gravity',
     x,
     y,
     width: 63 * 2,
     height: 63 * 2,
     selected: false,
-    name: `Block ${index}`,
-    meta: {
-      description: "Description",
-    },
+    name: `Block #${index}`,
     anchors: [
       {
-        id: `${blockId}_anchor_in`,
-        blockId: blockId,
+        id: `${blockId}_in`,
+        blockId,
         type: EAnchorType.IN,
       },
       {
-        id: `${blockId}_anchor_out`,
-        blockId: blockId,
+        id: `${blockId}_out`,
+        blockId,
         type: EAnchorType.OUT,
       }
     ],
+    meta: {
+      description: "Description",
+    },
+  };
+}
+
+export function createTextBlock(x: number, y: number, width: number, index: number, text): TGravityTextBlock {
+  const blockId = `text_${index}`;
+
+  return {
+    is: GravityTextBlockIS,
+    id: blockId,
+    x,
+    y,
+    width,
+    height: 48,
+    selected: false,
+    name: `Text Block`,
+    anchors: [],
+    meta: {
+      text,
+    },
   };
 }
 
@@ -40,11 +65,11 @@ function getRandomArbitrary(min, max) {
   return (Math.random() * (max - min) + min) | 0;
 }
 
-export function generatePlaygroundLayout(
+export function generatePlaygroundActionBlocks(
   layersCount: number,
   connectionsPerLayer: number,
 ) {
-  const config: TGraphConfig<TGravityBlock> = {
+  const config: TGraphConfig<TGravityActionBlock> = {
     blocks: [],
     connections: [],
   };
@@ -65,7 +90,7 @@ export function generatePlaygroundLayout(
     for (let j = 0; j <= count; j++) {
       const y = startY + gapY * j;
 
-      const block = createPlaygroundBlock(layerX, y, ++index);
+      const block = createActionBlock(layerX, y, ++index);
 
       config.blocks.push(block);
       currentLayerBlocks.push(block);
@@ -81,8 +106,8 @@ export function generatePlaygroundLayout(
           config.blocks.length - 1
         );
         if (indexSource !== indexTarget) {
-          const sourceBlockId = `block_${indexSource}`;
-          const targetBlockId = `block_${indexTarget}`;
+          const sourceBlockId = getActionBlockId(indexSource);
+          const targetBlockId = getActionBlockId(indexTarget);
           config.connections.push({
             sourceBlockId: sourceBlockId,
             sourceAnchorId: `${sourceBlockId}_anchor_out`,
@@ -90,7 +115,7 @@ export function generatePlaygroundLayout(
             targetAnchorId: `${targetBlockId}_anchor_in`,
           });
         }
-        
+
       }
       prevLayerBlocks = [...currentLayerBlocks];
     }

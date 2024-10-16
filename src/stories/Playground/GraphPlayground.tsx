@@ -10,14 +10,19 @@ import { useFn } from "../../utils/hooks/useFn";
 import { TBlock } from "../../components/canvas/blocks/Block";
 import { random } from "../../components/canvas/blocks/generate";
 import { EAnchorType } from "../configurations/definitions";
+import { ActionBlock } from "./ActionBlock";
 import { ConfigEditor, ConfigEditorController } from "./Editor";
-import { createPlaygroundBlock, generatePlaygroundLayout, GravityBlockIS, TGravityBlock } from "./generateLayout";
-import { GravityBlock } from "./GravityBlock";
 import './Playground.css';
 import { GraphSettings } from "./Settings";
+import { TextBlock } from "./TextBlock";
 import { Toolbox } from "./Toolbox";
+import { GravityActionBlockIS, GravityTextBlockIS, TGravityActionBlock, TGravityTextBlock, createActionBlock, createTextBlock, generatePlaygroundActionBlocks } from "./generateLayout";
 
-const generated = generatePlaygroundLayout(0, 5);
+const generated = generatePlaygroundActionBlocks(0, 5);
+const textBlocks = [
+  createTextBlock(-144, 80, 448, 0, 'To create new block, drag and drop new connection from edge'),
+  createTextBlock(-64, 160, 240, 1, 'Use scroll to zoom in or out')
+];
 
 const config: HookGraphParams = {
   viewConfiguration: {
@@ -64,16 +69,17 @@ const config: HookGraphParams = {
     useBlocksAnchors: true,
     showConnectionLabels: false,
     blockComponents: {
-      [GravityBlockIS]: GravityBlock
+      [GravityActionBlockIS]: ActionBlock,
+      [GravityTextBlockIS]: TextBlock,
     }
   }
 };
 
 const graphSizeOptions: RadioButtonOption[] = [
-  {value: '1', content: 'S'},
-  {value: '100', content: 'M'},
-  {value: '1000', content: 'L'},
-  {value: '10000', content: 'XL'},
+  {value: '1', content: '1'},
+  {value: '100', content: '100'},
+  {value: '1000', content: '1 000'},
+  {value: '10000', content: '10 000'},
 ];
 
 export function GraphPLayground() {
@@ -134,7 +140,7 @@ export function GraphPLayground() {
       let block: TBlock;
       const pullSourceAnchor = graph.rootStore.blocksList.getBlockState(sourceBlockId).getAnchorById(sourceAnchorId);
       if (pullSourceAnchor.state.type === EAnchorType.IN) {
-        block = createPlaygroundBlock(point.x - 126, point.y - 63, graph.rootStore.blocksList.$blocksMap.value.size + 1);
+        block = createActionBlock(point.x - 126, point.y - 63, graph.rootStore.blocksList.$blocksMap.value.size + 1);
         graph.api.addBlock(block);
         graph.api.addConnection({
           sourceBlockId: block.id,
@@ -143,7 +149,7 @@ export function GraphPLayground() {
           targetAnchorId: sourceAnchorId,
         })
       } else {
-        block = createPlaygroundBlock(point.x, point.y - 63, graph.rootStore.blocksList.$blocksMap.value.size + 1);
+        block = createActionBlock(point.x, point.y - 63, graph.rootStore.blocksList.$blocksMap.value.size + 1);
         graph.api.addBlock(block);
         graph.api.addConnection({
           sourceBlockId: sourceBlockId,
@@ -158,7 +164,10 @@ export function GraphPLayground() {
   });
 
   useLayoutEffect(() => {
-    setEntities({ blocks: generated.blocks, connections: generated.connections });
+    setEntities({ blocks: [
+      ...textBlocks,
+      ...generated.blocks
+    ], connections: generated.connections });
     updateVisibleConfig();
   }, [setEntities]);
 
@@ -173,7 +182,7 @@ export function GraphPLayground() {
     const rect = graph.rootStore.blocksList.getUsableRect();
     const x = random(rect.x, rect.x + rect.width + 100);
     const y = random(rect.y, rect.y + rect.height + 100);
-    const block = createPlaygroundBlock(x, y, graph.rootStore.blocksList.$blocksMap.value.size + 1);
+    const block = createActionBlock(x, y, graph.rootStore.blocksList.$blocksMap.value.size + 1);
     graph.api.addBlock(block);
     graph.zoomTo([block.id], { transition: 250 });
     updateVisibleConfig();
@@ -182,7 +191,10 @@ export function GraphPLayground() {
 
   const renderBlockFn = useFn((graph: Graph, block: TBlock) => {
     const view = graph.rootStore.blocksList.getBlockState(block.id)?.getViewComponent()
-    if (view instanceof GravityBlock) {
+    if (view instanceof ActionBlock) {
+      return view.renderHTML();
+    }
+    if (view instanceof TextBlock) {
       return view.renderHTML();
     }
     return <GraphBlock graph={graph} block={block}>Unknown block <>{block.id}</></GraphBlock>
@@ -206,25 +218,25 @@ export function GraphPLayground() {
   });
 
   const updateGraphSize = useFn<Parameters<RadioButtonProps["onUpdate"]>, void>((value) => {
-    let config: TGraphConfig<TGravityBlock>;
+    let config: TGraphConfig<TGravityActionBlock | TGravityTextBlock>;
     switch(value) {
       case graphSizeOptions[0].value: {
-        config = generatePlaygroundLayout(0, 5);
+        config = generatePlaygroundActionBlocks(0, 5);
         break;
       }
       case graphSizeOptions[1].value: {
-        config = generatePlaygroundLayout(10, 100);
+        config = generatePlaygroundActionBlocks(10, 100);
         break;
       }
       case graphSizeOptions[2].value: {
-        config = generatePlaygroundLayout(23, 150);
+        config = generatePlaygroundActionBlocks(23, 150);
         break;
       }
       case graphSizeOptions[3].value: {
         graph.updateSettings({
           useBezierConnections: false
         });
-        config = generatePlaygroundLayout(50, 150);
+        config = generatePlaygroundActionBlocks(50, 150);
         break;
       }
     }
@@ -239,7 +251,7 @@ export function GraphPLayground() {
       <Flex className="wrapper" gap={8}>
         <Flex direction="column" grow={1} className="content graph" gap={6}>
           <Flex direction="row" gap={4} alignItems="center">
-            <Text variant="header-1">Graph</Text>
+            <Text variant="header-1">Blocks</Text>
             <RadioButton
               className="graph-size-settings"
               options={graphSizeOptions}

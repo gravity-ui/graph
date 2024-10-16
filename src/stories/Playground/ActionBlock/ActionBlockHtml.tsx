@@ -1,18 +1,18 @@
+import { Database } from '@gravity-ui/icons';
+import { Button, Flex, Icon, Text } from '@gravity-ui/uikit';
 import React from "react";
-import { Button, Flex, Icon, Text } from '@gravity-ui/uikit'; 
 import { Graph } from "../../../graph";
 import { GraphBlock, GraphBlockAnchor } from "../../../react-component";
-import { TGravityBlock } from "../generateLayout";
-import {Database} from '@gravity-ui/icons';
-import "./GravityBlock.css";
+import { TGravityActionBlock } from "../generateLayout";
+import "./ActionBlock.css";
 
-export function PlaygroundBlock({ graph, block }: { graph: Graph, block: TGravityBlock }) {
+export function ActionBlockHtml({ graph, block }: { graph: Graph, block: TGravityActionBlock }) {
   return (
-    <GraphBlock graph={graph} block={block} className="gravity-block-wrapper">
+    <GraphBlock graph={graph} block={block} className="action-block-wrapper">
       {block.anchors.map((anchor) => {
         return (
           <GraphBlockAnchor
-            className="gravity-block-achor"
+            className="action-block-achor"
             key={anchor.id}
             position="absolute"
             graph={graph}
@@ -21,7 +21,7 @@ export function PlaygroundBlock({ graph, block }: { graph: Graph, block: TGravit
         );
       })}
       <Flex grow={1} direction={"column"}>
-        <Text as="div" ellipsis variant="caption-2" className="gravity-block-name">{block.name}</Text>
+        <Text as="div" ellipsis variant="caption-2" className="action-block-name">{block.name}</Text>
         <Text as="div" ellipsis variant="caption-1" color="secondary">{block.meta.description}</Text>
       </Flex>
       <Flex>

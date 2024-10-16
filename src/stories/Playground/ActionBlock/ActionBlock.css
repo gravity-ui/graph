@@ -1,4 +1,4 @@
-.gravity-block-wrapper {
+.action-block-wrapper {
   border-radius: 8px;
   border-width: 4px;
   padding: var(--g-spacing-3);
@@ -8,11 +8,11 @@
   gap: var(--g-spacing-1);
 }
 
-.gravity-block-name {
+.action-block-name {
   font-weight: 500;
 }
 
-.gravity-block-wrapper:hover {
+.action-block-wrapper:hover {
   cursor: pointer;
   border-color: rgba(229, 229, 229, 0.4);
   background-color: rgba(57, 47, 57, 1);
