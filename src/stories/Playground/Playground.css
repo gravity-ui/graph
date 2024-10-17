@@ -1,0 +1,108 @@
+.wrapper {
+  height: 100%;
+  background-color: rgba(37, 27, 37, 1);
+  padding: 16px;
+}
+
+.graph {
+  min-width: 50%
+}
+
+.graph-editor {
+  background-color: rgba(22, 13, 27, 1);
+}
+
+.view {
+  border: 1px solid transparent;
+  border-radius: 24px;
+  overflow: hidden;
+  position: relative;
+}
+
+.view.config-editor {
+  border-radius: 10px;
+  border-color: var(--yc-color-base-float-accent-hover);
+}
+
+.settings-popup {
+  padding: 16px;
+}
+
+.graph-tools {
+  height: 100%;
+  pointer-events: none;
+  position: absolute;
+  left: 20px;
+  z-index: 10;
+}
+
+.graph-tools-zoom {
+  pointer-events: all;
+  box-sizing: border-box;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  z-index: 10;
+  transform: translate(0, -50%);
+}
+
+.graph-size-settings {
+  --g-color-base-brand: rgba(255, 190, 92, 1);
+  --g-color-base-background: var(--g-color-base-brand);
+  --g-color-text-primary: var(--g-color-text-dark-primary);
+}
+
+.graph-size-settings .yc-radio-button__option:hover .yc-radio-button__option-text {
+  --g-color-text-primary: var(--g-color-text-light-primary);
+}
+
+.graph-size-settings  .yc-radio-button__option_checked.yc-radio-button__option:hover .yc-radio-button__option-text {
+  --g-color-text-primary: var(--g-color-text-dark-primary);
+}
+
+.graph-tools-settings {
+  pointer-events: all;
+  box-sizing: border-box;
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  z-index: 10;
+}
+
+.button-group .yc-button {
+  border-radius: 0 !important;
+}
+.button-group .yc-button::before {
+  border-radius: 0 !important;
+}
+.button-group .yc-button::after {
+  border-radius: 0 !important;
+}
+.button-group .yc-button:not(:last-child) {
+  border-bottom: 1px solid var(--yc-color-base-misc-light);
+}
+.button-group .yc-button:first-child {
+  border-top-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+  border-top-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+}
+.button-group .yc-button:first-child::before {
+  border-top-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+  border-top-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+}
+.button-group .yc-button:first-child::after {
+  border-top-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+  border-top-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+}
+.button-group .yc-button:last-child {
+  border-bottom-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+  border-bottom-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+}
+.button-group .yc-button:last-child::before {
+  border-bottom-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+  border-bottom-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+}
+.button-group .yc-button:last-child::after {
+  border-bottom-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+  border-bottom-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+}
+

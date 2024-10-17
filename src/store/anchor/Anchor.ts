@@ -19,12 +19,21 @@ export class AnchorState {
     return this.$state.value.blockId;
   }
 
+  public get state() {
+    return this.$state.value
+  }
+
   public constructor(
     public readonly block: BlockState,
     anchor: TAnchor
   ) {
     this.$state.value = anchor;
   }
+
+  public update(anchor: TAnchor) {
+    this.$state.value = anchor;
+  }
+
   public setSelection(selected: boolean, silent?: boolean) {
     if (silent) {
       this.$selected.value = selected;

@@ -103,6 +103,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   protected raised: boolean;
 
+  protected hidden: boolean;
+
   protected currentState(): T {
     return this.connectedState.$state.value;
   }
@@ -187,6 +189,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
         });
         this.updateHitBox(this.connectedState.$geometry.value);
       }),
+      this.connectedState.$anchors.subscribe(() => {
+        this.shouldUpdateChildren = true;
+        this.performRender();
+      })
     ];
   }
 
@@ -334,10 +340,11 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   /* Calculate the position of the anchors relative to the block container. */
   public getAnchorPosition(anchor: TAnchor): TPoint {
+    const index = this.connectedState.$anchorIndexs.value?.get(anchor.id) || 0;
     const offset = this.context.constants.block.HEAD_HEIGHT + this.context.constants.block.BODY_PADDING;
     return {
       x: anchor.type === EAnchorType.OUT ? this.state.width : 0,
-      y: offset + anchor.index * this.context.constants.system.GRID_SIZE * 2,
+      y: offset + index * this.context.constants.system.GRID_SIZE * 2,
     };
   }
 
@@ -355,6 +362,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       size: 18,
       lineWidth: 2,
       getPosition,
+    }, {
+      key: anchor.id
     });
   }
 
@@ -385,7 +394,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   public willIterate() {
     super.willIterate();
 
-    this.shouldRender = this.context.camera.isRectVisible(
+    this.shouldRender = !this.hidden && this.context.camera.isRectVisible(
       this.state.x,
       this.state.y,
       this.state.width,
@@ -431,32 +440,34 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.renderSchematicView(ctx);
   }
 
-  public renderSchematicView(ctx: CanvasRenderingContext2D) {
-    ctx.lineWidth = 10;
+  protected renderBody(ctx: CanvasRenderingContext2D) {
     ctx.fillStyle = this.context.colors.block.background;
     ctx.strokeStyle = this.context.colors.block.border;
 
     ctx.fillRect(this.state.x, this.state.y, this.state.width, this.state.height);
-    this.renderStroke(this.context.colors.block.border);
+    this.renderStroke(this.state.selected ? this.context.colors.block.selectedBorder : this.context.colors.block.border);
+  }
 
-    const scale = this.context.camera.getCameraScale();
-    const shouldRenderText = scale > this.context.constants.block.SCALES[0];
+  public renderSchematicView(ctx: CanvasRenderingContext2D) {
+    this.renderBody(ctx);
 
-    if (shouldRenderText) {
+    if (this.shouldRenderText) {
       ctx.fillStyle = this.context.colors.block.text;
       ctx.textAlign = "center";
       this.renderText(this.state.name, ctx);
     }
-    if (this.state.selected) {
-      this.renderStroke(this.context.colors.block.selectedBorder);
-    }
+  }
 
-    ctx.globalAlpha = 1;
+  public setHiddenBlock(hidden: boolean) {
+    if (this.hidden !== hidden) {
+      this.hidden = hidden;
+      this.performRender();
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  public renderDetailedView(_ctx: CanvasRenderingContext2D) {
-    return;
+  public renderDetailedView(ctx: CanvasRenderingContext2D) {
+    return this.renderBody(ctx);
   }
 
   protected render() {

@@ -45,6 +45,15 @@ declare module "../../graphEvents" {
         targetAnchorId?: string;
       }>
     ) => void;
+    "connection-create-drop": (
+      event: CustomEvent<{
+        sourceBlockId: TBlockId;
+        sourceAnchorId: string;
+        targetBlockId?: TBlockId;
+        targetAnchorId?: string;
+        point: Point
+      }>
+    ) => void;
   }
 }
 
@@ -128,15 +137,10 @@ export class ConnectionService extends Emitter {
   }
 
   public onMoveNewConnection(event: MouseEvent, point: Point) {
-    this.emit(EVENTS.NEW_CONNECTION_UPDATE, event);
-
     const newTargetComponent = this.graph.getElementOverPoint(point, [Block, Anchor]);
+    
+    this.emit(EVENTS.NEW_CONNECTION_UPDATE, { target: newTargetComponent, event });
 
-    if (!(newTargetComponent instanceof Block) || !(newTargetComponent instanceof Anchor)) {
-      return;
-    }
-
-    /* Unset selection on move new selection target-point out of components */
     if (!newTargetComponent || !newTargetComponent.connectedState) {
       this.targetComponent?.setSelection(false);
       this.targetComponent = undefined;
@@ -169,15 +173,40 @@ export class ConnectionService extends Emitter {
     }
   }
 
+  protected getBlockId(component: BlockState | AnchorState) {
+    if (component instanceof AnchorState) {
+      return component.blockId;
+    }
+    return component.id;
+  }
+
+  protected getAnchorId(component: BlockState | AnchorState) {
+    if (component instanceof AnchorState) {
+      return component.id;
+    }
+    return undefined;
+  }
+
   public onEndNewConnection(point: Point) {
+    if (!this.sourceComponent) {
+      return;
+    }
     const targetComponent = this.graph.getElementOverPoint(point, [Block, Anchor]);
     this.emit(EVENTS.NEW_CONNECTION_END);
 
     if (!(targetComponent instanceof Block) && !(targetComponent instanceof Anchor)) {
+      this.graph.executеDefaultEventAction(
+        "connection-create-drop",
+        {
+          sourceBlockId: this.getBlockId(this.sourceComponent),
+          sourceAnchorId: this.getAnchorId(this.sourceComponent),
+          point,
+        },
+        () => { }
+      );
       return;
     }
     if (
-      this.sourceComponent &&
       targetComponent &&
       targetComponent.connectedState &&
       this.sourceComponent !== targetComponent.connectedState
@@ -211,10 +240,21 @@ export class ConnectionService extends Emitter {
           }
         );
       }
-
       this.sourceComponent.setSelection(false);
       targetComponent.connectedState.setSelection(false);
     }
+
+    this.graph.executеDefaultEventAction(
+      "connection-create-drop",
+      {
+        sourceBlockId: this.getBlockId(this.sourceComponent),
+        sourceAnchorId: this.getAnchorId(this.sourceComponent),
+        targetBlockId: this.getBlockId(targetComponent.connectedState),
+        targetAnchorId: this.getAnchorId(targetComponent.connectedState),
+        point,
+      },
+      () => { }
+    );
   }
 
   public unmount() {

@@ -3,7 +3,7 @@ import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
 import "./Block.css";
 import { setCssProps } from "../utils/functions/cssProp";
-import { useBlockViewState } from "./hooks/useBlockState";
+import { useBlockState, useBlockViewState } from "./hooks/useBlockState";
 
 export const GraphBlock = <T extends TBlock>({
   graph,
@@ -20,6 +20,12 @@ export const GraphBlock = <T extends TBlock>({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewState = useBlockViewState(graph, block);
+  const state = useBlockState(graph, block);
+
+  useEffect(() => {
+    viewState?.setHiddenBlock(true);
+    return () => viewState?.setHiddenBlock(false);
+  }, [viewState]);
 
   useLayoutEffect(() => {
     setCssProps(containerRef.current, {
@@ -41,10 +47,14 @@ export const GraphBlock = <T extends TBlock>({
     }
   }, [viewState, containerRef]);
 
+  if(!viewState || !state) {
+    return;
+  }
+
 
   return (
     <div className={`graph-block-container ${containerClassName}`} ref={containerRef}>
-      <div className={`graph-block-wrapper ${className} ${block.selected ? "selected" : ""}`}>{children}</div>
+      <div className={`graph-block-wrapper ${className} ${state.selected ? "selected" : ""}`}>{children}</div>
     </div>
   );
 };

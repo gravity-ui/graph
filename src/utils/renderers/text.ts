@@ -18,8 +18,8 @@ export function cachedMeasureText(text: string, params: TMeasureTextOptions) {
   }
   return cache.get(key);
 }
-export type TTExtRect = Omit<TRect, "width" | "height"> & Partial<Pick<TRect, "width" | "height">>;
-export function renderText(text: string, ctx: CanvasRenderingContext2D, rect: TTExtRect, params: TMeasureTextOptions) {
+
+export function layoutText(text: string, ctx: CanvasRenderingContext2D, rect: TTExtRect, params: TMeasureTextOptions) {
   let x = rect.x;
 
   switch (ctx.textAlign) {
@@ -47,13 +47,27 @@ export function renderText(text: string, ctx: CanvasRenderingContext2D, rect: TT
     maxHeight: rect.height,
     ...params,
   });
-
+  const lines = [];
   for (const line of measures.linesWords) {
-    ctx.fillText(line, x, y);
+    lines.push([line, x, y]);
     y += lineHeight;
     if (rect.height && y > rect.y + rect.height - lineHeight) {
       break;
     }
+  }
+  return {
+    measures,
+    lines,
+    lineHeight,
+  }
+}
+
+export type TTExtRect = Omit<TRect, "width" | "height"> & Partial<Pick<TRect, "width" | "height">>;
+export function renderText(text: string, ctx: CanvasRenderingContext2D, rect: TTExtRect, params: TMeasureTextOptions) {
+  const { lines, measures } = layoutText(text, ctx, rect, params);
+
+  for (const [line, x, y] of lines) {
+    ctx.fillText(line, x, y);
   }
 
   return measures;
