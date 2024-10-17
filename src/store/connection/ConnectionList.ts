@@ -41,7 +41,7 @@ export class ConnectionsStore {
   ) {
     const state = connection instanceof ConnectionState ? connection : this.$connectionsMap.value.get(connection);
     if (state) {
-      if (selected !== state.$state.value.selected) {
+      if (selected !== Boolean(state.$state.value.selected)) {
         if (!params?.ignoreChange) {
           state.updateConnection({
             selected,
