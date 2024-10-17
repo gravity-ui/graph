@@ -36,6 +36,8 @@ export function GraphBlockAnchor({
     } ${selected ? "graph-block-anchor-selected" : ""}`;
   }, [anchor, position, className, selected]);
 
+  if (!anchorState) return null;
+
   return (
     <div 
       style={{
