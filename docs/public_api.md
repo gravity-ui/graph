@@ -27,11 +27,11 @@ List of methods in your disposition:
 
   public addBlock(geometry: TGeometry, name: string: void): TBlockId;
 
-  public addConnection(connection: TConnection): string
+  public addConnection(connection: TConnection): TConnectionId
 
-  public updateConnection(id: string, connection: TConnection): void;
+  public updateConnection(id: TConnectionId, connection: TConnection): void;
 
-  public selectConnections(connectionIds: string[], selected: boolean): void;
+  public selectConnections(connectionIds: TConnectionId[], selected: boolean): void;
 ```
 
 ## API-Example. Entities set/update
