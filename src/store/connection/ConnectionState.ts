@@ -6,7 +6,10 @@ import { ESelectionStrategy } from "../../utils/types/types";
 
 export const IS_CONNECTION_TYPE = "Connection" as const;
 
+export type TConnectionId = string | number | symbol;
+
 export type TConnection = {
+  id?: TConnectionId;
   sourceBlockId: TBlockId;
   targetBlockId: TBlockId;
   sourceAnchorId?: string;
@@ -22,7 +25,9 @@ export type TConnection = {
 export class ConnectionState {
   public $state = signal<TConnection>(undefined);
 
-  public id: string;
+  public get id() {
+    return this.$state.value.id;
+  }
 
   public get sourceBlockId() {
     return this.$state.value.sourceBlockId;
@@ -49,6 +54,7 @@ export class ConnectionState {
   });
 
   public static getConnectionId(connection: TConnection) {
+    if (connection.id) return connection.id;
     if (connection.sourceAnchorId && connection.targetAnchorId) {
       return [connection.sourceAnchorId, connection.targetAnchorId].join(":");
     }
@@ -59,8 +65,8 @@ export class ConnectionState {
     public store: ConnectionsStore,
     connectionState: TConnection
   ) {
-    this.$state.value = connectionState;
-    this.id = ConnectionState.getConnectionId(connectionState);
+    const id = ConnectionState.getConnectionId(connectionState);
+    this.$state.value = {...connectionState, id};
   }
 
   public isSelected() {

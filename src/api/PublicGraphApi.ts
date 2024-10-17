@@ -2,7 +2,7 @@ import { batch } from "@preact/signals-core";
 import { Graph } from "../graph";
 import { TGraphColors, TGraphConstants } from "../graphConfig";
 import { TBlockId } from "../store/block/Block";
-import { TConnection } from "../store/connection/ConnectionState";
+import { TConnection, TConnectionId } from "../store/connection/ConnectionState";
 import { selectBlockById } from "../store/block/selectors";
 import { TGraphSettingsConfig } from "../store/settings";
 import { getUsableRectByBlockIds, startAnimation } from "../utils/functions";
@@ -122,7 +122,7 @@ export class PublicGraphApi {
   }
 
   public selectConnections(
-    connectionIds: string[],
+    connectionIds: TConnectionId[],
     selected: boolean,
     strategy: ESelectionStrategy = ESelectionStrategy.REPLACE
   ) {
@@ -131,7 +131,7 @@ export class PublicGraphApi {
     });
   }
 
-  public updateConnection(id: string, connection: Partial<TConnection>) {
+  public updateConnection(id: TConnectionId, connection: Partial<TConnection>) {
     const connectionStore = selectConnectionById(this.graph, id);
     connectionStore.updateConnection(connection);
   }

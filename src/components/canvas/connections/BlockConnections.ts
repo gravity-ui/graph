@@ -59,7 +59,7 @@ export class BlockConnections extends withBatchedConnections(Component) {
         showConnectionLabels: settings.showConnectionLabels,
         showConnectionArrows: settings.showConnectionArrows,
       };
-      return BlockConnection.create(props, { key: connection.id });
+      return BlockConnection.create(props, { key: String(connection.id) });
     });
   }
 }
