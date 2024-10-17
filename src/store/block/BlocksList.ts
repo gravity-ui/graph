@@ -158,7 +158,7 @@ export class BlockListStore {
     if (!blockState) {
       return;
     }
-    if (selected !== blockState.selected) {
+    if (selected !== Boolean(blockState.selected)) {
       if (!params?.ignoreChanges) {
         blockState.updateBlock({ selected });
       }
