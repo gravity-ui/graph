@@ -1,5 +1,5 @@
 import { signal, computed, batch } from "@preact/signals-core";
-import { ConnectionState, TConnection } from "./ConnectionState";
+import { ConnectionState, TConnection, TConnectionId } from "./ConnectionState";
 import { RootStore } from "../index";
 import { TBlockId } from "../block/Block";
 import { Graph } from "../../graph";
@@ -80,7 +80,7 @@ export class ConnectionsStore {
     return new ConnectionState(this, connections);
   }
 
-  public addConnection(connection: TConnection): string {
+  public addConnection(connection: TConnection): TConnectionId {
     const newConnection = new ConnectionState(this, connection);
     this.$connectionsMap.value.set(newConnection.id, newConnection);
     this.notifyConnectionMapChanged();
@@ -108,7 +108,7 @@ export class ConnectionsStore {
   }
 
   protected computeSelectionChange(
-    ids: string[],
+    ids: TConnectionId[],
     selected: boolean,
     strategy: ESelectionStrategy = ESelectionStrategy.REPLACE
   ) {
@@ -152,7 +152,7 @@ export class ConnectionsStore {
   }
 
   public setConnectionsSelection(
-    ids: string[],
+    ids: TConnectionId[],
     selected: boolean,
     strategy: ESelectionStrategy = ESelectionStrategy.REPLACE
   ) {
