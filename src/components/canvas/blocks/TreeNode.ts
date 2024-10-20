@@ -17,7 +17,7 @@ export class TreeNode<T = unknown, Children = unknown> {
 
   protected renderIdex = new Map<TreeNode<Children>, number>();
 
-  constructor(data, parent?: TreeNode) {
+  constructor(data, parent?: TreeNode, protected onDone?: () => void) {
     this.data = data;
     this.parent = parent;
   }
@@ -27,6 +27,7 @@ export class TreeNode<T = unknown, Children = unknown> {
   }
 
   public getRenderOrder(item: Children) {
+    return 1;
     const node = this.itemsMap.get(item);
     if (!node) return -1;
     return this.renderIdex.get(node);
@@ -81,6 +82,7 @@ export class TreeNode<T = unknown, Children = unknown> {
           node._walkDown(iterator);
         }
       })
+      this.onDone?.();
     }
 
     return void 0;
