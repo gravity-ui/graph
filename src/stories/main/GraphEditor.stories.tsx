@@ -136,6 +136,13 @@ export const FiveThousandsBlocks: Story = {
   render: (args) => <GraphApp config={generatePrettyBlocks(40, 300, false)} {...args}></GraphApp>,
 };
 
+export const TenThousandsBlocks: Story = {
+  args: {
+    useBezierConnections: false,
+  },
+  render: (args) => <GraphApp config={generatePrettyBlocks(100, 300, false)} {...args}></GraphApp>,
+};
+
 export const GraphStressTest: Story = {
   args: {
     useBezierConnections: false,

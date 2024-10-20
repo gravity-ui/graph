@@ -23,7 +23,13 @@ export class Blocks extends Component {
     this.prepareFont(this.getFontScale());
 
     // @ts-ignore
-    this.__comp.treeNode = new BlocksNode(this);
+    this.__comp.treeNode = new BlocksNode(this, null, () => {
+      const scale = this.context.camera.getCameraScale();
+      this.scheduledBlocks.forEach((blocks, instance) => {
+        instance.runPipeline(scale, Array.from(blocks), this.context);
+      });
+      this.scheduledBlocks.clear();
+    });
   }
 
   protected getTreeNode(): BlocksNode {
@@ -65,12 +71,23 @@ export class Blocks extends Component {
   }
 
   protected onViewOrderChange = (block: Block) => {
-    this.getTreeNode().updateBlockOrder(block);
+    // this.getTreeNode().updateBlockOrder(block);
   };
 
   protected onRenderIndex = (block: Block) => {
-    return this.getTreeNode().getRenderOrder(block);
-  };
+    return 0;
+    // return this.getTreeNode().getRenderOrder(block);
+  }
+
+  protected scheduledBlocks = new Map<typeof Block, Block[]>();
+
+  protected scheduleRender = (block: Block) => {
+    const instance = block.constructor as typeof Block;
+    const blocks = this.scheduledBlocks.get(instance) || [];
+    blocks.push(block);
+    this.scheduledBlocks.set(instance, blocks);
+
+  }
 
   protected updateChildren() {
     return this.blocks.map((block, index) => {
@@ -81,6 +98,7 @@ export class Blocks extends Component {
           font: this.font,
           onZindexChange: this.onViewOrderChange,
           getRenderIndex: this.onRenderIndex,
+          scheduleRender: this.scheduleRender,
         },
         {
           key: block.id,
