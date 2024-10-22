@@ -1,6 +1,6 @@
 import intersects from "intersects";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
-import { ConnectionState, TConnection } from "../../../store/connection/ConnectionState";
+import { ConnectionState, TConnection, TConnectionId } from "../../../store/connection/ConnectionState";
 import { selectConnectionById } from "../../../store/connection/selectors";
 import { withHitTest } from "../../../mixins/withHitTest";
 import { EventedComponent } from "../../../mixins/withEvents";
@@ -18,7 +18,7 @@ import { TAnchor } from "../anchors";
 import { ESelectionStrategy } from "../../../utils/types/types";
 
 export type TConnectionProps = {
-  id: string;
+  id: TConnectionId;
   addInRenderOrder(cmp, setting: object): void;
   removeFromRenderOrder(cmp): void;
   useBezier: boolean;

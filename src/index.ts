@@ -9,7 +9,7 @@ export * from "./services/Layer";
 export * from "./store";
 export { EAnchorType } from "./store/anchor/Anchor";
 export type { BlockState, TBlockId } from "./store/block/Block";
-export type { ConnectionState, TConnection } from "./store/connection/ConnectionState";
+export type { ConnectionState, TConnection, TConnectionId } from "./store/connection/ConnectionState";
 export { ECanChangeBlockGeometry } from "./store/settings";
 export * from "./utils/renderers/text";
 export { EVENTS } from "./utils/types/events";
