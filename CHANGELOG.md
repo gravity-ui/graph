@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.0.3](https://github.com/gravity-ui/graph/compare/v0.0.2...v0.0.3) (2024-10-22)
+
+
+### chore
+
+* release 0.0.3 ([b724fe9](https://github.com/gravity-ui/graph/commit/b724fe983595c3964a50ba344d702c350eb0f073))
+
+
+### Features
+
+* **TConnection:** add id field ([3e5b9a7](https://github.com/gravity-ui/graph/commit/3e5b9a7cf891a1a08908026d1065da59f793be7a))
+
+
+### Bug Fixes
+
+* **selection:** stop emit unselect event if select field not specified ([8642d3b](https://github.com/gravity-ui/graph/commit/8642d3b49dd5b53f496d8cca3506ad3593e2084e))
+* **useBlockAnchorState:** fix no blockState when graph entities updated ([4fbdc37](https://github.com/gravity-ui/graph/commit/4fbdc37e876c6c9f08f77b684f19789a65b95982))
+
 ## 0.0.2 (2024-10-17)
 
 
