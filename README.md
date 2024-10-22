@@ -10,6 +10,13 @@ High performance graph renderer with scale-aware detalization
 npm install @gravity-ui/graph
 ```
 
+## Examples
+- [Basic storybook example](https://preview.gravity-ui.com/graph/?path=/story/stories-main-grapheditor--hundred-blocks)
+- [Large Basic storybook example](https://preview.gravity-ui.com/graph/?path=/story/stories-main-grapheditor--five-thousands-blocks)
+- [Custom blocks view](https://preview.gravity-ui.com/graph/?path=/story/stories-main-grapheditor--custom-schematic-block)
+- [Bezier connection](https://preview.gravity-ui.com/graph/?path=/story/stories-main-grapheditor--one-bezier-connection)
+- [Customization connection](https://preview.gravity-ui.com/graph/?path=/story/api-updateconnection--default)
+
 ```jsx
 import { GraphCanvas, GraphState, TRenderBlockFn, useGraph } from "@gravity-ui/graph";
 import React from "react";
