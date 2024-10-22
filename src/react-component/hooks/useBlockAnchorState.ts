@@ -10,7 +10,12 @@ import debounce from "lodash/debounce";
 export function useBlockAnchorState(graph: Graph, anchor: TAnchor): AnchorState | undefined {
   const blockState = useBlockState(graph, anchor.blockId);
   const signal = useMemo(() => {
-    return computed(() => blockState.$anchorStates.value.find((a) => a.id === anchor.id));
+    return computed(() => {
+      if (!blockState) return;
+      if (!Array.isArray(blockState.$anchorStates?.value)) return;
+
+      return blockState.$anchorStates.value.find((a) => a.id === anchor.id)
+    });
   }, [blockState, anchor]);
   return useSignal(signal);
 }
