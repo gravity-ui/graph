@@ -15,6 +15,7 @@ import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { TTExtRect, renderText } from "../../../utils/renderers/text";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { TGraphSettingsConfig } from "../../../store";
+import { Pipeline } from "../../../utils/Pipeline";
 
 export type TBlockSettings = {
   /** Phantom blocks are blocks whose dimensions and position
@@ -45,6 +46,7 @@ export type TBlockProps = {
   font: string;
   onZindexChange: (block: Block) => void;
   getRenderIndex: (block: Block) => number;
+  scheduleRender: (block: Block) => number;
 };
 
 declare module "../../../graphEvents" {
@@ -115,6 +117,49 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   public $viewState = signal<BlockViewState>({ zIndex: 0, order: 0 });
 
+  public static pipeline = new Pipeline<Block, TGraphLayerContext>()
+    .step('body', (block, context) => {
+      // console.log('pipeline', 'render body', block.state.id);
+      context.ctx.strokeStyle = block.state.selected ? context.colors.block.selectedBorder : context.colors.block.border;
+      
+      context.ctx.rect(block.state.x, block.state.y, block.state.width, block.state.height);
+    },
+      {
+        batchBefore: (context) => {
+          context.ctx.beginPath();
+          context.ctx.fillStyle = context.colors.block.background;
+          context.ctx.strokeStyle = context.colors.block.border;
+          context.ctx.lineWidth = Math.round(3 / context.camera.getCameraScale());
+          
+        },
+        batched: true,
+        batchDone: (context) => {
+          context.ctx.closePath();
+          console.log('pipeline', 'apply body');
+          context.ctx.fill();
+          context.ctx.stroke();
+        },
+        getBatchType(block, context) {
+          return block.state.selected ? 'selected' : 'base';
+        },
+      }
+    )
+    .step('text', (block, context) => {
+      // console.log('pipeline', 'render text', block.state.id);
+      context.ctx.fillStyle = context.colors.block.text;
+      context.ctx.textAlign = "center";
+      
+      block.renderText(block.state.name, context.ctx);
+    })
+
+  public static runPipeline(scale: number, blocks: Block[], context: TGraphLayerContext) {
+    let pipelineSteps = ['body'];
+    if (scale > context.constants.block.SCALES[0]) {
+      pipelineSteps.push('text');
+    }
+    this.pipeline.run(pipelineSteps, blocks, context)
+  }
+
 
   public constructor(props: Props, parent: GraphLayer) {
     super(props, parent);
@@ -136,15 +181,15 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected updateViewState(params: Partial<BlockViewState>) {
-     let hasChanges = false;
-    for(let [key, value] of Object.entries(params)) {
-      if(this.$viewState.value[key] !== value) {
+    let hasChanges = false;
+    for (let [key, value] of Object.entries(params)) {
+      if (this.$viewState.value[key] !== value) {
         hasChanges = true;
         break;
       }
     }
 
-    if(!hasChanges) {
+    if (!hasChanges) {
       return;
     }
 
@@ -202,25 +247,25 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected zIndexDirty = false;
-  protected didIterate() {
-    if (this.zIndexDirty) {
-      this.props.onZindexChange(this);
-      this.zIndexDirty = false;
-      this.updateViewState({
-        zIndex: this.zIndex,
-      })
-      this.$viewState.value = {
-        ...this.$viewState.value,
-        zIndex: this.zIndex,
-      }
-    }
-    const nextOrder = this.props.getRenderIndex(this);
-    if (this.$viewState.value.order !== nextOrder) {
-      this.updateViewState({
-        order: nextOrder,
-      })
-    }
-  }
+  // protected didIterate() {
+  //   if (this.zIndexDirty) {
+  //     this.props.onZindexChange(this);
+  //     this.zIndexDirty = false;
+  //     this.updateViewState({
+  //       zIndex: this.zIndex,
+  //     })
+  //     this.$viewState.value = {
+  //       ...this.$viewState.value,
+  //       zIndex: this.zIndex,
+  //     }
+  //   }
+  //   const nextOrder = this.props.getRenderIndex(this);
+  //   if (this.$viewState.value.order !== nextOrder) {
+  //     this.updateViewState({
+  //       order: nextOrder,
+  //     })
+  //   }
+  // }
 
   protected raiseBlock() {
     this.zIndexDirty = true;
@@ -402,12 +447,12 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     );
   }
 
-  protected willRender() {
-    super.willRender();
+  // protected willRender() {
+  //   super.willRender();
 
-    const scale = this.context.camera.getCameraScale();
-    this.shouldRenderText = scale > this.context.constants.block.SCALES[0];
-  }
+  //   // const scale = this.context.camera.getCameraScale();
+  //   // this.shouldRenderText = scale > this.context.constants.block.SCALES[0];
+  // }
 
   protected renderStroke(color: string) {
     this.context.ctx.lineWidth = Math.round(3 / this.context.camera.getCameraScale());
@@ -425,7 +470,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     };
   }
 
-  protected renderText(
+  public renderText(
     text: string,
     ctx = this.context.ctx,
     { rect, renderParams }: { rect: TTExtRect; renderParams: TMeasureTextOptions } = {
@@ -471,6 +516,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected render() {
+    // console.log('pass me to schedule render')
+    this.props.scheduleRender(this);
+    return;
     const scaleLevel = this.context.graph.cameraService.getCameraBlockScaleLevel();
 
     switch (scaleLevel) {
