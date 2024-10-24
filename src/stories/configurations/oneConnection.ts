@@ -1,5 +1,6 @@
-import { storiesSettings } from "./definitions";
 import { TGraphConfig } from "../../graph";
+
+import { storiesSettings } from "./definitions";
 
 export const oneStraightConfig: TGraphConfig = {
   configurationName: "simple",

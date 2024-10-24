@@ -67,7 +67,7 @@ export class SelectionAreaService extends Emitter {
     const blocks = foundComponents.filter((component: Component) => isBlock(component));
     const blocksIds = blocks.map((component: Block) => component.state.id);
 
-    selectBlockList(this.graph).updateBlocksSelection(blocksIds, !!blocks.length);
+    selectBlockList(this.graph).updateBlocksSelection(blocksIds, Boolean(blocks.length));
   }
 
   protected getGraphCanvas() {

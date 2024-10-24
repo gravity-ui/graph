@@ -1,5 +1,5 @@
-import { storiesSettings } from "../../configurations/definitions";
 import { TGraphConfig } from "../../../index";
+import { storiesSettings } from "../../configurations/definitions";
 
 export const graphConfig: TGraphConfig = {
   configurationName: "simple",

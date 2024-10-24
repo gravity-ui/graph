@@ -1,27 +1,38 @@
-import { Flex, RadioButton, RadioButtonOption, RadioButtonProps, Text, ThemeProvider } from "@gravity-ui/uikit";
-import "@gravity-ui/uikit/styles/styles.css";
 import React, { useEffect, useLayoutEffect, useRef } from "react";
+
+import { Flex, RadioButton, RadioButtonOption, RadioButtonProps, Text, ThemeProvider } from "@gravity-ui/uikit";
 import { StoryFn } from "storybook/internal/types";
+
+import { TBlock } from "../../components/canvas/blocks/Block";
+import { random } from "../../components/canvas/blocks/generate";
 import { Graph, GraphState, TGraphConfig } from "../../graph";
 import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "../../react-component";
 import { ECanChangeBlockGeometry } from "../../store/settings";
 import { useFn } from "../../utils/hooks/useFn";
-
-import { TBlock } from "../../components/canvas/blocks/Block";
-import { random } from "../../components/canvas/blocks/generate";
 import { EAnchorType } from "../configurations/definitions";
+
 import { ActionBlock } from "./ActionBlock";
 import { ConfigEditor, ConfigEditorController } from "./Editor";
-import './Playground.css';
 import { GraphSettings } from "./Settings";
 import { TextBlock } from "./TextBlock";
 import { Toolbox } from "./Toolbox";
-import { GravityActionBlockIS, GravityTextBlockIS, TGravityActionBlock, TGravityTextBlock, createActionBlock, createTextBlock, generatePlaygroundActionBlocks } from "./generateLayout";
+import {
+  GravityActionBlockIS,
+  GravityTextBlockIS,
+  TGravityActionBlock,
+  TGravityTextBlock,
+  createActionBlock,
+  createTextBlock,
+  generatePlaygroundActionBlocks,
+} from "./generateLayout";
+
+import "./Playground.css";
+import "@gravity-ui/uikit/styles/styles.css";
 
 const generated = generatePlaygroundActionBlocks(0, 5);
 const textBlocks = [
-  createTextBlock(-144, 80, 448, 0, 'To create new block, drag and drop new connection from edge'),
-  createTextBlock(-64, 160, 240, 1, 'Use scroll to zoom in or out')
+  createTextBlock(-144, 80, 448, 0, "To create new block, drag and drop new connection from edge"),
+  createTextBlock(-64, 160, 240, 1, "Use scroll to zoom in or out"),
 ];
 
 const config: HookGraphParams = {
@@ -42,20 +53,20 @@ const config: HookGraphParams = {
         text: "rgba(255, 255, 255, 1)",
       },
       anchor: {
-        background: "rgba(255, 190, 92, 1)"
+        background: "rgba(255, 190, 92, 1)",
       },
       canvas: {
         layerBackground: "rgba(22, 13, 27, 1)",
         belowLayerBackground: "rgba(22, 13, 27, 1)",
         dots: "rgba(255, 255, 255, 0.2)",
         border: "rgba(255, 255, 255, 0.3)",
-      }
+      },
     },
     constants: {
       block: {
-        SCALES: [0.1, 0.2, 0.5]
-      }
-    }
+        SCALES: [0.1, 0.2, 0.5],
+      },
+    },
   },
   settings: {
     canDragCamera: true,
@@ -71,15 +82,15 @@ const config: HookGraphParams = {
     blockComponents: {
       [GravityActionBlockIS]: ActionBlock,
       [GravityTextBlockIS]: TextBlock,
-    }
-  }
+    },
+  },
 };
 
 const graphSizeOptions: RadioButtonOption[] = [
-  {value: '1', content: '1'},
-  {value: '100', content: '100'},
-  {value: '1000', content: '1 000'},
-  {value: '10000', content: '10 000'},
+  { value: "1", content: "1" },
+  { value: "100", content: "100" },
+  { value: "1000", content: "1 000" },
+  { value: "10000", content: "10 000" },
 ];
 
 export function GraphPLayground() {
@@ -90,11 +101,11 @@ export function GraphPLayground() {
     const config = graph.rootStore.getAsConfig();
     editorRef?.current.setContent({
       blocks: config.blocks || [],
-      connections: config.connections || []
+      connections: config.connections || [],
     });
   });
 
-  useGraphEvent(graph, 'block-change', ({block}) => {
+  useGraphEvent(graph, "block-change", ({ block }) => {
     editorRef?.current.updateBlocks([block]);
     editorRef?.current.scrollTo(block.id);
   });
@@ -108,66 +119,67 @@ export function GraphPLayground() {
       ...changes.removed.map((id) => ({
         ...graph.rootStore.blocksList.getBlock(id),
         selected: false,
-      }))
+      })),
     ]);
   });
 
-  useGraphEvent(graph, 'connection-created', ({sourceBlockId, sourceAnchorId, targetBlockId, targetAnchorId}, event) => {
-    event.preventDefault();
-    const pullSourceAnchor = graph.rootStore.blocksList.getBlockState(sourceBlockId).getAnchorById(sourceAnchorId);
-    if (pullSourceAnchor.state.type === EAnchorType.IN) {
-      graph.api.addConnection({
-        sourceBlockId: targetBlockId,
-        sourceAnchorId: targetAnchorId,
-        targetBlockId: sourceBlockId,
-        targetAnchorId: sourceAnchorId,
-      })
-    } else {
-      graph.api.addConnection({
-        sourceBlockId: sourceBlockId,
-        sourceAnchorId: sourceAnchorId,
-        targetBlockId: targetBlockId,
-        targetAnchorId: targetAnchorId,
-      })
-    }
-    updateVisibleConfig();
-  });
-
-  useGraphEvent(graph, 'connection-create-drop', ({sourceBlockId, sourceAnchorId, targetBlockId, point}) => {
-    if (targetBlockId) {
-      return;
-    }
-      let block: TBlock;
+  useGraphEvent(
+    graph,
+    "connection-created",
+    ({ sourceBlockId, sourceAnchorId, targetBlockId, targetAnchorId }, event) => {
+      event.preventDefault();
       const pullSourceAnchor = graph.rootStore.blocksList.getBlockState(sourceBlockId).getAnchorById(sourceAnchorId);
       if (pullSourceAnchor.state.type === EAnchorType.IN) {
-        block = createActionBlock(point.x - 126, point.y - 63, graph.rootStore.blocksList.$blocksMap.value.size + 1);
-        graph.api.addBlock(block);
         graph.api.addConnection({
-          sourceBlockId: block.id,
-          sourceAnchorId: block.anchors[1].id,
+          sourceBlockId: targetBlockId,
+          sourceAnchorId: targetAnchorId,
           targetBlockId: sourceBlockId,
           targetAnchorId: sourceAnchorId,
-        })
+        });
       } else {
-        block = createActionBlock(point.x, point.y - 63, graph.rootStore.blocksList.$blocksMap.value.size + 1);
-        graph.api.addBlock(block);
         graph.api.addConnection({
           sourceBlockId: sourceBlockId,
           sourceAnchorId: sourceAnchorId,
-          targetBlockId: block.id,
-          targetAnchorId: block.anchors[0].id,
-        })
+          targetBlockId: targetBlockId,
+          targetAnchorId: targetAnchorId,
+        });
       }
-      graph.zoomTo([block.id], {transition: 250 });
       updateVisibleConfig();
-      editorRef?.current.scrollTo(block.id);
+    }
+  );
+
+  useGraphEvent(graph, "connection-create-drop", ({ sourceBlockId, sourceAnchorId, targetBlockId, point }) => {
+    if (targetBlockId) {
+      return;
+    }
+    let block: TBlock;
+    const pullSourceAnchor = graph.rootStore.blocksList.getBlockState(sourceBlockId).getAnchorById(sourceAnchorId);
+    if (pullSourceAnchor.state.type === EAnchorType.IN) {
+      block = createActionBlock(point.x - 126, point.y - 63, graph.rootStore.blocksList.$blocksMap.value.size + 1);
+      graph.api.addBlock(block);
+      graph.api.addConnection({
+        sourceBlockId: block.id,
+        sourceAnchorId: block.anchors[1].id,
+        targetBlockId: sourceBlockId,
+        targetAnchorId: sourceAnchorId,
+      });
+    } else {
+      block = createActionBlock(point.x, point.y - 63, graph.rootStore.blocksList.$blocksMap.value.size + 1);
+      graph.api.addBlock(block);
+      graph.api.addConnection({
+        sourceBlockId: sourceBlockId,
+        sourceAnchorId: sourceAnchorId,
+        targetBlockId: block.id,
+        targetAnchorId: block.anchors[0].id,
+      });
+    }
+    graph.zoomTo([block.id], { transition: 250 });
+    updateVisibleConfig();
+    editorRef?.current.scrollTo(block.id);
   });
 
   useLayoutEffect(() => {
-    setEntities({ blocks: [
-      ...textBlocks,
-      ...generated.blocks
-    ], connections: generated.connections });
+    setEntities({ blocks: [...textBlocks, ...generated.blocks], connections: generated.connections });
     updateVisibleConfig();
   }, [setEntities]);
 
@@ -190,17 +202,21 @@ export function GraphPLayground() {
   });
 
   const renderBlockFn = useFn((graph: Graph, block: TBlock) => {
-    const view = graph.rootStore.blocksList.getBlockState(block.id)?.getViewComponent()
+    const view = graph.rootStore.blocksList.getBlockState(block.id)?.getViewComponent();
     if (view instanceof ActionBlock) {
       return view.renderHTML();
     }
     if (view instanceof TextBlock) {
       return view.renderHTML();
     }
-    return <GraphBlock graph={graph} block={block}>Unknown block <>{block.id}</></GraphBlock>
+    return (
+      <GraphBlock graph={graph} block={block}>
+        Unknown block <>{block.id}</>
+      </GraphBlock>
+    );
   });
 
-  useGraphEvent(graph, 'blocks-selection-change', ({list}) => {
+  useGraphEvent(graph, "blocks-selection-change", ({ list }) => {
     if (list.length === 1) {
       editorRef?.current.scrollTo(list[0]);
     }
@@ -208,18 +224,18 @@ export function GraphPLayground() {
 
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
-      if (e.code === 'Backspace') {
+      if (e.code === "Backspace") {
         graph.api.deleteSelected();
         updateVisibleConfig();
       }
     };
-    document.body.addEventListener('keydown', fn);
-    return () => document.body.removeEventListener('keydown', fn);
+    document.body.addEventListener("keydown", fn);
+    return () => document.body.removeEventListener("keydown", fn);
   });
 
   const updateGraphSize = useFn<Parameters<RadioButtonProps["onUpdate"]>, void>((value) => {
     let config: TGraphConfig<TGravityActionBlock | TGravityTextBlock>;
-    switch(value) {
+    switch (value) {
       case graphSizeOptions[0].value: {
         config = generatePlaygroundActionBlocks(0, 5);
         break;
@@ -234,16 +250,15 @@ export function GraphPLayground() {
       }
       case graphSizeOptions[3].value: {
         graph.updateSettings({
-          useBezierConnections: false
+          useBezierConnections: false,
         });
         config = generatePlaygroundActionBlocks(50, 150);
         break;
       }
     }
     setEntities(config);
-    graph.zoomTo('center', {transition: 500});
+    graph.zoomTo("center", { transition: 500 });
     updateVisibleConfig();
-
   });
 
   return (
@@ -261,7 +276,7 @@ export function GraphPLayground() {
           </Flex>
           <Flex grow={1} className="view graph-editor">
             <Flex className="graph-tools" direction="column">
-              <Toolbox graph={graph} className="graph-tools-zoom button-group"/>
+              <Toolbox graph={graph} className="graph-tools-zoom button-group" />
               <GraphSettings className="graph-tools-settings" graph={graph} />
             </Flex>
             <GraphCanvas graph={graph} renderBlock={renderBlockFn} />
@@ -272,10 +287,11 @@ export function GraphPLayground() {
           <Flex grow={1} className="view config-editor">
             <ConfigEditor
               ref={editorRef}
-              onChange={({blocks, connections}) => {
-                updateEntities({blocks, connections})
+              onChange={({ blocks, connections }) => {
+                updateEntities({ blocks, connections });
               }}
-              addBlock={addNewBlock} />
+              addBlock={addNewBlock}
+            />
           </Flex>
         </Flex>
       </Flex>

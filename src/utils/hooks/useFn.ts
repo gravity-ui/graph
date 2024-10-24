@@ -1,4 +1,4 @@
-import { useRef, useCallback } from "react";
+import { useCallback, useRef } from "react";
 
 export function useFn<ARG extends Array<unknown>, RT>(handler: (...args: ARG) => RT) {
   const handlerRef = useRef<typeof handler>(handler);

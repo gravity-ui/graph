@@ -1,3 +1,4 @@
+/* eslint-disable no-unmodified-loop-condition */
 export function getFontSize(fontSize, scale) {
   return (fontSize / scale) | 0;
 }
@@ -49,7 +50,13 @@ type TWordWrapOptions = {
 
 function wrapLines(
   text: string,
-  { lineHeight, measureText, maxWidth = +Infinity, maxHeight = +Infinity, wordWrap = true }: TWordWrapOptions
+  {
+    lineHeight,
+    measureText,
+    maxWidth = Number(Infinity),
+    maxHeight = Number(Infinity),
+    wordWrap = true,
+  }: TWordWrapOptions
 ): Array<TWordWrapResult> {
   let lines = [];
 

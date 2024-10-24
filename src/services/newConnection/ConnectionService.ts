@@ -1,14 +1,14 @@
+import { Anchor } from "../../components/canvas/anchors";
+import { Block } from "../../components/canvas/blocks/Block";
+import type { Graph } from "../../graph";
+import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../graphEvents";
+import { AnchorState } from "../../store/anchor/Anchor";
+import { BlockState, TBlockId } from "../../store/block/Block";
 import { Emitter } from "../../utils/Emitter";
+import { isBlock, isShiftKeyEvent } from "../../utils/functions";
+import { dragListener } from "../../utils/functions/dragListener";
 import { EVENTS } from "../../utils/types/events";
 import { Point } from "../../utils/types/shapes";
-import { Block } from "../../components/canvas/blocks/Block";
-import { BlockState, TBlockId } from "../../store/block/Block";
-import { AnchorState } from "../../store/anchor/Anchor";
-import { Anchor } from "../../components/canvas/anchors";
-import { type Graph } from "../../graph";
-import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../graphEvents";
-import { dragListener } from "../../utils/functions/dragListener";
-import { isBlock, isShiftKeyEvent } from "../../utils/functions";
 import { ESelectionStrategy } from "../../utils/types/types";
 
 declare module "../../graphEvents" {
@@ -51,7 +51,7 @@ declare module "../../graphEvents" {
         sourceAnchorId: string;
         targetBlockId?: TBlockId;
         targetAnchorId?: string;
-        point: Point
+        point: Point;
       }>
     ) => void;
   }
@@ -64,7 +64,7 @@ export class ConnectionService extends Emitter {
 
   protected unmountCbs = [];
 
-  public constructor(protected graph: Graph) {
+  constructor(protected graph: Graph) {
     super();
 
     this.unmountCbs.push(this.graph.on("mousedown", this.handleMouseDown));
@@ -138,7 +138,7 @@ export class ConnectionService extends Emitter {
 
   public onMoveNewConnection(event: MouseEvent, point: Point) {
     const newTargetComponent = this.graph.getElementOverPoint(point, [Block, Anchor]);
-    
+
     this.emit(EVENTS.NEW_CONNECTION_UPDATE, { target: newTargetComponent, event });
 
     if (!newTargetComponent || !newTargetComponent.connectedState) {
@@ -202,15 +202,11 @@ export class ConnectionService extends Emitter {
           sourceAnchorId: this.getAnchorId(this.sourceComponent),
           point,
         },
-        () => { }
+        () => {}
       );
       return;
     }
-    if (
-      targetComponent &&
-      targetComponent.connectedState &&
-      this.sourceComponent !== targetComponent.connectedState
-    ) {
+    if (targetComponent && targetComponent.connectedState && this.sourceComponent !== targetComponent.connectedState) {
       if (
         this.sourceComponent instanceof AnchorState &&
         targetComponent.connectedState instanceof AnchorState &&
@@ -253,7 +249,7 @@ export class ConnectionService extends Emitter {
         targetAnchorId: this.getAnchorId(targetComponent.connectedState),
         point,
       },
-      () => { }
+      () => {}
     );
   }
 

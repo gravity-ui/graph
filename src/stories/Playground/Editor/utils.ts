@@ -3,15 +3,15 @@ export function findBlockPositionsMonaco(model, blockId) {
   const blockSearchStr = `"id": "${blockId}"`;
   const startIndex = configString.indexOf(blockSearchStr);
 
-  const blockStart = configString.lastIndexOf('{', startIndex);
-  let blockEnd = configString.indexOf('}', startIndex);
+  const blockStart = configString.lastIndexOf("{", startIndex);
+  let blockEnd = configString.indexOf("}", startIndex);
 
   let braceCount = 1;
   let currentPos = blockEnd + 1;
   while (braceCount > 0 && currentPos < configString.length) {
-    if (configString[currentPos] === '{') {
+    if (configString[currentPos] === "{") {
       braceCount++;
-    } else if (configString[currentPos] === '}') {
+    } else if (configString[currentPos] === "}") {
       braceCount--;
     }
     currentPos++;

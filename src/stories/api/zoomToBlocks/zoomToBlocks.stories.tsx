@@ -1,10 +1,13 @@
-import "@gravity-ui/uikit/styles/styles.css";
-import type { Meta, StoryFn } from "@storybook/react";
 import React, { useCallback, useRef, useState } from "react";
-import { GraphComponentStory } from "../../main/GraphEditor";
-import { generatePrettyBlocks } from "../../configurations/generatePretty";
+
 import { Button, ButtonProps, Flex, TextInput, ThemeProvider } from "@gravity-ui/uikit";
+import type { Meta, StoryFn } from "@storybook/react";
+
 import { Graph } from "../../../graph";
+import { generatePrettyBlocks } from "../../configurations/generatePretty";
+import { GraphComponentStory } from "../../main/GraphEditor";
+
+import "@gravity-ui/uikit/styles/styles.css";
 
 const config = generatePrettyBlocks(10, 10, true);
 
@@ -16,7 +19,10 @@ const GraphApp = () => {
   const graphRef = useRef<Graph | undefined>(undefined);
 
   const onClick: ButtonProps["onClick"] = useCallback(() => {
-    graphRef.current.api.zoomToBlocks(blocksId.split(/,\s?/g), { transition: +transition, padding: +padding });
+    graphRef.current.api.zoomToBlocks(blocksId.split(/,\s?/g), {
+      transition: Number(transition),
+      padding: Number(padding),
+    });
   }, [blocksId, transition, padding]);
 
   return (

@@ -1,38 +1,33 @@
-import { Node } from './Tree';
+import { Node } from "./Tree";
 
-const rAF: Function = typeof window !== 'undefined'
-  ? window.requestAnimationFrame
-  : (fn) => global.setTimeout(fn, 16);
-const cAF: Function = typeof window !== 'undefined'
-  ? window.cancelAnimationFrame
-  : global.clearTimeout;
-const getNow = typeof window !== 'undefined'
-  ? window.performance.now.bind(window.performance)
-  : global.Date.now.bind(global.Date);
+const rAF: Function = typeof window !== "undefined" ? window.requestAnimationFrame : (fn) => global.setTimeout(fn, 16);
+const cAF: Function = typeof window !== "undefined" ? window.cancelAnimationFrame : global.clearTimeout;
+const getNow =
+  typeof window !== "undefined" ? window.performance.now.bind(window.performance) : global.Date.now.bind(global.Date);
 
 interface IScheduler {
-  performUpdate: Function
+  performUpdate: Function;
 }
 
 export class GlobalScheduler {
   private schedulers: IScheduler[][];
   private _cAFID: number;
 
-  constructor () {
+  constructor() {
     this.tick = this.tick.bind(this);
 
     this.schedulers = [[], [], [], [], []];
   }
 
-  getSchedulers () {
+  public getSchedulers() {
     return this.schedulers;
   }
 
-  addScheduler (scheduler: IScheduler, index = 2) {
+  public addScheduler(scheduler: IScheduler, index = 2) {
     this.schedulers[index].push(scheduler);
   }
 
-  removeScheduler (scheduler: IScheduler, index = 2) {
+  public removeScheduler(scheduler: IScheduler, index = 2) {
     const i = this.schedulers[index].indexOf(scheduler);
 
     if (i !== -1) {
@@ -40,23 +35,23 @@ export class GlobalScheduler {
     }
   }
 
-  start () {
+  public start() {
     if (!this._cAFID) {
-      this._cAFID = rAF(this.tick)
+      this._cAFID = rAF(this.tick);
     }
   }
 
-  stop () {
+  public stop() {
     cAF(this._cAFID);
     this._cAFID = undefined;
   }
 
-  tick () {
+  public tick() {
     this.performUpdate();
     this._cAFID = rAF(this.tick);
   }
 
-  performUpdate () {
+  public performUpdate() {
     const startTime = getNow();
     let schedulers = [];
 
@@ -77,7 +72,7 @@ export class Scheduler {
   private sheduled: boolean;
   private root: Node;
 
-  constructor () {
+  constructor() {
     this.performUpdate = this.performUpdate.bind(this);
 
     this.sheduled = false;
@@ -85,31 +80,31 @@ export class Scheduler {
     globalScheduler.addScheduler(this);
   }
 
-  setRoot (root: Node) {
+  public setRoot(root: Node) {
     this.root = root;
   }
 
-  start () {
+  public start() {
     globalScheduler.addScheduler(this);
   }
 
-  stop () {
+  public stop() {
     globalScheduler.removeScheduler(this);
   }
 
-  update () {
-    this.root && this.root.traverseDown(this.iterator);
+  public update() {
+    this.root?.traverseDown(this.iterator);
   }
 
-  iterator (node: Node) {
+  public iterator(node: Node) {
     return node.data.iterate();
   }
 
-  scheduleUpdate () {
+  public scheduleUpdate() {
     this.sheduled = true;
   }
 
-  performUpdate () {
+  public performUpdate() {
     if (this.sheduled) {
       this.sheduled = false;
       this.update();

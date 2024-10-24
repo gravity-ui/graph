@@ -1,10 +1,12 @@
-import { signal, computed, batch } from "@preact/signals-core";
-import { ConnectionState, TConnection, TConnectionId } from "./ConnectionState";
-import { RootStore } from "../index";
-import { TBlockId } from "../block/Block";
+import { batch, computed, signal } from "@preact/signals-core";
+
 import { Graph } from "../../graph";
 import { selectBlockById } from "../../store/block/selectors";
 import { ESelectionStrategy } from "../../utils/types/types";
+import { TBlockId } from "../block/Block";
+import { RootStore } from "../index";
+
+import { ConnectionState, TConnection, TConnectionId } from "./ConnectionState";
 
 declare module "../../graphEvents" {
   interface GraphEventsDefinitions {
@@ -25,7 +27,7 @@ export class ConnectionsStore {
     return new Set(this.$connections.value.filter((connection) => connection.isSelected()));
   });
 
-  public constructor(
+  constructor(
     public rootStore: RootStore,
     protected graph: Graph
   ) {}

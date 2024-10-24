@@ -1,16 +1,19 @@
-import { signal, computed, batch, effect } from "@preact/signals-core";
+import { batch, computed, effect, signal } from "@preact/signals-core";
 import throttle from "lodash/throttle";
-import { RootStore } from "../index";
-import { BlockState, TBlockId, mapToBlockId } from "./Block";
+
+import { AnchorState } from "store/anchor/Anchor";
+
+import { TAnchor } from "../../components/canvas/anchors";
 import { TBlock, isTBlock } from "../../components/canvas/blocks/Block";
-import { selectConnectionsByBlockId } from "../connection/selectors";
 import { generateRandomId } from "../../components/canvas/blocks/generate";
+import { Graph } from "../../graph";
 import { getUsableRectByBlockIds } from "../../utils/functions";
 import { TRect } from "../../utils/types/shapes";
-import { Graph } from "../../graph";
-import { AnchorState } from "store/anchor/Anchor";
 import { ESelectionStrategy } from "../../utils/types/types";
-import { TAnchor } from "../../components/canvas/anchors";
+import { selectConnectionsByBlockId } from "../connection/selectors";
+import { RootStore } from "../index";
+
+import { BlockState, TBlockId, mapToBlockId } from "./Block";
 
 declare module "../../graphEvents" {
   interface GraphEventsDefinitions {
@@ -64,9 +67,9 @@ export class BlockListStore {
   });
 
   public $selectedAnchor = computed(() => {
-    if (!this.rootStore.settings.getConfigFlag("useBlocksAnchors")) return;
+    if (!this.rootStore.settings.getConfigFlag("useBlocksAnchors")) return undefined;
     const block = this.$blocks.value.find((block) => {
-      return !!block.getSelectedAnchor();
+      return Boolean(block.getSelectedAnchor());
     });
     if (block) {
       return block.getSelectedAnchor();
@@ -78,7 +81,7 @@ export class BlockListStore {
 
   public $usableRect = signal<TRect>({ x: 0, y: 0, height: 0, width: 0 });
 
-  public constructor(
+  constructor(
     public rootStore: RootStore,
     protected graph: Graph
   ) {
@@ -87,7 +90,7 @@ export class BlockListStore {
     });
   }
 
-  /**
+  /*
    * Returns usable rectangles with guaranteed that the rectangle is calculated.
    *
    * This method is useful because the usable rectangle is automatically recalculated by throttling with 50ms delay,
@@ -156,7 +159,7 @@ export class BlockListStore {
   ): boolean {
     const blockState = block instanceof BlockState ? block : this.$blocksMap.value.get(block);
     if (!blockState) {
-      return;
+      return false;
     }
     if (selected !== Boolean(blockState.selected)) {
       if (!params?.ignoreChanges) {

@@ -1,6 +1,7 @@
-import { storiesSettings, EAnchorType } from "./definitions";
-import { TGraphConfig } from "../../graph";
 import { TAnchor } from "../../components/canvas/anchors";
+import { TGraphConfig } from "../../graph";
+
+import { EAnchorType, storiesSettings } from "./definitions";
 
 export const withAnchorsAndConnectionConfig: TGraphConfig = {
   configurationName: "simple",

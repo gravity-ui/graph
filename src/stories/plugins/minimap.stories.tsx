@@ -1,10 +1,13 @@
-import "@gravity-ui/uikit/styles/styles.css";
-import type { Meta, StoryFn } from "@storybook/react";
 import React, { useRef } from "react";
-import { GraphComponentStory } from "../main/GraphEditor";
-import { generatePrettyBlocks } from "../configurations/generatePretty";
-import { MiniMapLayer, LayerConfig, Graph, ECanChangeBlockGeometry } from "../../";
+
 import { ThemeProvider } from "@gravity-ui/uikit";
+import type { Meta, StoryFn } from "@storybook/react";
+
+import { ECanChangeBlockGeometry, Graph, LayerConfig, MiniMapLayer } from "../../";
+import { generatePrettyBlocks } from "../configurations/generatePretty";
+import { GraphComponentStory } from "../main/GraphEditor";
+
+import "@gravity-ui/uikit/styles/styles.css";
 
 const layers: LayerConfig<Constructor<MiniMapLayer>>[] = [
   [

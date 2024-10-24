@@ -1,6 +1,7 @@
-import { TBlockId } from "../block/Block";
-import { ConnectionState, TConnectionId } from "./ConnectionState";
 import { Graph } from "../../graph";
+import { TBlockId } from "../block/Block";
+
+import { ConnectionState, TConnectionId } from "./ConnectionState";
 
 export function selectConnectionById(graph: Graph, id: TConnectionId) {
   return graph.rootStore.connectionsList.$connectionsMap.value.get(id);

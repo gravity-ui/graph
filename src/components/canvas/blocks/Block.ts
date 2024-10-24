@@ -1,20 +1,22 @@
-import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
-import { withHitTest } from "../../../mixins/withHitTest";
-import { EventedComponent } from "../../../mixins/withEvents";
-import { getXY } from "../../../utils/functions";
 import { effect, signal } from "@preact/signals-core";
 import isObject from "lodash/isObject";
-import { BlockState, TBlockId } from "../../../store/block/Block";
-import { selectBlockById } from "../../../store/block/selectors";
-import { BlockController } from "./controllers/BlockController";
-import { EVENTS } from "../../../utils/types/events";
-import { EAnchorType } from "../../../store/anchor/Anchor";
-import { Anchor, TAnchor } from "../anchors";
-import { TPoint, TRect } from "../../../utils/types/shapes";
-import { TMeasureTextOptions } from "../../../utils/functions/text";
-import { TTExtRect, renderText } from "../../../utils/renderers/text";
+
+import { EventedComponent } from "../../../mixins/withEvents";
+import { withHitTest } from "../../../mixins/withHitTest";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { TGraphSettingsConfig } from "../../../store";
+import { EAnchorType } from "../../../store/anchor/Anchor";
+import { BlockState, TBlockId } from "../../../store/block/Block";
+import { selectBlockById } from "../../../store/block/selectors";
+import { getXY } from "../../../utils/functions";
+import { TMeasureTextOptions } from "../../../utils/functions/text";
+import { TTExtRect, renderText } from "../../../utils/renderers/text";
+import { EVENTS } from "../../../utils/types/events";
+import { TPoint, TRect } from "../../../utils/types/shapes";
+import { Anchor, TAnchor } from "../anchors";
+import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
+
+import { BlockController } from "./controllers/BlockController";
 
 export type TBlockSettings = {
   /** Phantom blocks are blocks whose dimensions and position
@@ -77,7 +79,7 @@ declare module "../../../graphEvents" {
 export type BlockViewState = {
   zIndex: number;
   order: number;
-}
+};
 
 export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlockProps> extends withHitTest(
   EventedComponent
@@ -115,8 +117,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   public $viewState = signal<BlockViewState>({ zIndex: 0, order: 0 });
 
-
-  public constructor(props: Props, parent: GraphLayer) {
+  constructor(props: Props, parent: GraphLayer) {
     super(props, parent);
 
     this.unsubscribe = this.subscribe(props.id);
@@ -136,23 +137,22 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected updateViewState(params: Partial<BlockViewState>) {
-     let hasChanges = false;
-    for(let [key, value] of Object.entries(params)) {
-      if(this.$viewState.value[key] !== value) {
+    let hasChanges = false;
+    for (const [key, value] of Object.entries(params)) {
+      if (this.$viewState.value[key] !== value) {
         hasChanges = true;
         break;
       }
     }
 
-    if(!hasChanges) {
+    if (!hasChanges) {
       return;
     }
 
     this.$viewState.value = {
       ...this.$viewState.value,
       ...params,
-    }
-
+    };
   }
 
   public getGeometry(): TRect {
@@ -179,7 +179,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.updateViewState({
       zIndex: this.zIndex,
       order: this.props.getRenderIndex(this),
-    })
+    });
 
     return [
       effect(() => {
@@ -192,7 +192,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       this.connectedState.$anchors.subscribe(() => {
         this.shouldUpdateChildren = true;
         this.performRender();
-      })
+      }),
     ];
   }
 
@@ -208,17 +208,17 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       this.zIndexDirty = false;
       this.updateViewState({
         zIndex: this.zIndex,
-      })
+      });
       this.$viewState.value = {
         ...this.$viewState.value,
         zIndex: this.zIndex,
-      }
+      };
     }
     const nextOrder = this.props.getRenderIndex(this);
     if (this.$viewState.value.order !== nextOrder) {
       this.updateViewState({
         order: nextOrder,
-      })
+      });
     }
   }
 
@@ -245,12 +245,18 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   public handleEvent(event: CustomEvent) {
     switch (event.type) {
-      case EVENTS.DRAG_START:
-        return this.onDragStart(event.detail.sourceEvent);
-      case EVENTS.DRAG_UPDATE:
-        return this.onDragUpdate(event.detail.sourceEvent);
-      case EVENTS.DRAG_END:
-        return this.onDragEnd(event.detail.sourceEvent);
+      case EVENTS.DRAG_START: {
+        this.onDragStart(event.detail.sourceEvent);
+        break;
+      }
+      case EVENTS.DRAG_UPDATE: {
+        this.onDragUpdate(event.detail.sourceEvent);
+        break;
+      }
+      case EVENTS.DRAG_END: {
+        this.onDragEnd(event.detail.sourceEvent);
+        break;
+      }
     }
   }
 
@@ -356,15 +362,18 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected renderAnchor(anchor: TAnchor, getPosition: (anchor: TAnchor) => TPoint) {
-    return Anchor.create({
-      ...anchor,
-      zIndex: this.zIndex,
-      size: 18,
-      lineWidth: 2,
-      getPosition,
-    }, {
-      key: anchor.id
-    });
+    return Anchor.create(
+      {
+        ...anchor,
+        zIndex: this.zIndex,
+        size: 18,
+        lineWidth: 2,
+        getPosition,
+      },
+      {
+        key: anchor.id,
+      }
+    );
   }
 
   protected isAnchorsAllowed() {
@@ -394,12 +403,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   public willIterate() {
     super.willIterate();
 
-    this.shouldRender = !this.hidden && this.context.camera.isRectVisible(
-      this.state.x,
-      this.state.y,
-      this.state.width,
-      this.state.height
-    );
+    this.shouldRender =
+      !this.hidden &&
+      this.context.camera.isRectVisible(this.state.x, this.state.y, this.state.width, this.state.height);
   }
 
   protected willRender() {
@@ -445,7 +451,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     ctx.strokeStyle = this.context.colors.block.border;
 
     ctx.fillRect(this.state.x, this.state.y, this.state.width, this.state.height);
-    this.renderStroke(this.state.selected ? this.context.colors.block.selectedBorder : this.context.colors.block.border);
+    this.renderStroke(
+      this.state.selected ? this.context.colors.block.selectedBorder : this.context.colors.block.border
+    );
   }
 
   public renderSchematicView(ctx: CanvasRenderingContext2D) {

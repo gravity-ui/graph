@@ -1,10 +1,13 @@
 import React, { PropsWithChildren, memo, useEffect, useMemo, useRef, useState } from "react";
-import { Graph, TGraphConfig } from "../graph";
-import { TBlock } from "../components/canvas/blocks/Block";
-import { TGraphColors, TGraphConstants } from "../graphConfig";
-import { BlocksList, TBlockListProps } from "./BlocksList";
+
 import { createPortal } from "react-dom";
-import { TGraphEventCallbacks, GraphCallbacksMap } from "./events";
+
+import { TBlock } from "../components/canvas/blocks/Block";
+import { Graph, TGraphConfig } from "../graph";
+import { TGraphColors, TGraphConstants } from "../graphConfig";
+
+import { BlocksList, TBlockListProps } from "./BlocksList";
+import { GraphCallbacksMap, TGraphEventCallbacks } from "./events";
 
 export interface TRenderBlockFn<T extends TBlock = TBlock> {
   (graphObject: Graph, block: T): React.JSX.Element;

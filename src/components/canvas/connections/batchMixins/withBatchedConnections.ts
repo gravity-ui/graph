@@ -1,5 +1,6 @@
 import { Component } from "../../../../lib/Component";
 import { TGraphLayerContext } from "../../layers/graphLayer/GraphLayer";
+
 import { IWithBatchedConnection } from "./withBatchedConnection";
 
 export interface IWithBatchedConnections {

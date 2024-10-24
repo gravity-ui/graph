@@ -1,11 +1,11 @@
 export function generateBezierParams(
-  startPos: { x: number; y: number }, 
-  endPos: { x: number; y: number }, 
-  mode: "vertical" | "horizontal" = 'horizontal'
+  startPos: { x: number; y: number },
+  endPos: { x: number; y: number },
+  mode: "vertical" | "horizontal" = "horizontal"
 ) {
   const distance = Math.abs(endPos.x - startPos.x);
-  const coef = mode === 'horizontal' ? Math.max(distance / 2, 25) : 0;
-  const coefY = mode === 'vertical' ? Math.max(distance / 2, 25) : 0;
+  const coef = mode === "horizontal" ? Math.max(distance / 2, 25) : 0;
+  const coefY = mode === "vertical" ? Math.max(distance / 2, 25) : 0;
   return [
     startPos,
     {
@@ -24,7 +24,7 @@ export function bezierCurveLine(
   startPos: { x: number; y: number },
   endPos: { x: number; y: number },
   ctx: CanvasRenderingContext2D,
-  mode: "vertical" | "horizontal" = 'horizontal'
+  mode: "vertical" | "horizontal" = "horizontal"
 ) {
   const path = new Path2D();
   const [start, firstPoint, secondPoint, end] = generateBezierParams(startPos, endPos, mode);
@@ -41,7 +41,7 @@ export function getPointOfBezierCurve(
   startPos: { x: number; y: number },
   endPos: { x: number; y: number },
   time: number,
-  mode: "vertical" | "horizontal" = 'horizontal'
+  mode: "vertical" | "horizontal" = "horizontal"
 ) {
   const [start, firstPoint, secondPoint, end] = generateBezierParams(startPos, endPos, mode);
   /* eslint-disable no-restricted-properties */
@@ -77,7 +77,7 @@ export function getArrowCoords(
   y1: number,
   x2: number,
   y2: number,
-  mode: 'vertical' | 'horizontal' = 'horizontal'
+  mode: "vertical" | "horizontal" = "horizontal"
 ) {
   const angle = Math.PI / 4;
   const d = 8;

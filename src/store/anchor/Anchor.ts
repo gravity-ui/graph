@@ -1,4 +1,5 @@
 import { signal } from "@preact/signals-core";
+
 import { TAnchor } from "../../components/canvas/anchors";
 import { BlockState } from "../block/Block";
 
@@ -20,10 +21,10 @@ export class AnchorState {
   }
 
   public get state() {
-    return this.$state.value
+    return this.$state.value;
   }
 
-  public constructor(
+  constructor(
     public readonly block: BlockState,
     anchor: TAnchor
   ) {
