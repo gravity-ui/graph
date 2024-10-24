@@ -1,4 +1,3 @@
-
 import { ZIndexMap } from "./ZindexMap";
 
 type TIterator = (node: TreeNode) => boolean;
@@ -7,8 +6,8 @@ export class TreeNode<T = unknown, Children = unknown> {
   public data: T;
   public parent: TreeNode;
 
-  public childrenLength: number = 0;
-  
+  public childrenLength = 0;
+
   protected children: TreeNode<Children>[] = [];
 
   protected itemsMap: Map<Children, TreeNode<Children>> = new Map();
@@ -22,7 +21,7 @@ export class TreeNode<T = unknown, Children = unknown> {
     this.parent = parent;
   }
 
-  public getZIndex(item: Children) {
+  public getZIndex(_item: Children) {
     return 0;
   }
 
@@ -34,9 +33,9 @@ export class TreeNode<T = unknown, Children = unknown> {
 
   public updateBlockOrder(item: Children) {
     const node = this.itemsMap.get(item);
-    if(!node) return;
+    if (!node) return;
     this.zIndexMap.update(node, this.getZIndex(item));
-  };
+  }
 
   public append(node: TreeNode<Children>) {
     this.children.push(node);
@@ -46,7 +45,7 @@ export class TreeNode<T = unknown, Children = unknown> {
 
   public remove(node: TreeNode<Children>) {
     if (node.parent === null) return;
-  
+
     this.children.splice(this.children.indexOf(node), 1);
     this.zIndexMap.remove(node);
     this.itemsMap.delete(node.data);
@@ -55,7 +54,7 @@ export class TreeNode<T = unknown, Children = unknown> {
   public setChildren(nodes: TreeNode<Children>[]) {
     this.children = nodes;
     this.zIndexMap.load(nodes, (node) => this.getZIndex(node.data));
-    this.itemsMap = new Map(nodes.map(node => [node.data, node]));
+    this.itemsMap = new Map(nodes.map((node) => [node.data, node]));
   }
 
   public clearChildren() {
@@ -65,7 +64,7 @@ export class TreeNode<T = unknown, Children = unknown> {
   }
 
   public traverseDown(iterator: TIterator) {
-    this._traverse(iterator, '_walkDown');
+    this._traverse(iterator, "_walkDown");
   }
 
   private _traverse(iterator: TIterator, strategyName: string) {
@@ -80,9 +79,7 @@ export class TreeNode<T = unknown, Children = unknown> {
         if (iterator(node) === true) {
           node._walkDown(iterator);
         }
-      })
+      });
     }
-
-    return void 0;
   }
 }

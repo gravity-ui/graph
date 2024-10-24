@@ -1,14 +1,18 @@
-import "@gravity-ui/uikit/styles/styles.css";
-import type { Meta, StoryFn } from "@storybook/react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { GraphComponentStory } from "../../main/GraphEditor";
+import React, { useEffect, useRef, useState } from "react";
+
 import { ThemeProvider } from "@gravity-ui/uikit";
+import type { Meta, StoryFn } from "@storybook/react";
+
+import { CanvasBlock, Graph, TBlock, TGraphConfig } from "../../../index";
+import { generatePrettyBlocks } from "../../configurations/generatePretty";
+import { GraphComponentStory } from "../../main/GraphEditor";
+
 import imageDone from "./done.png";
 import imageFail from "./fail.png";
 import imageRunning from "./running.png";
 import imageWaiting from "./waiting.png";
-import { TRenderBlockFn, CanvasBlock, TBlock, Graph, TGraphConfig } from "../../../index";
-import { generatePrettyBlocks } from "../../configurations/generatePretty";
+
+import "@gravity-ui/uikit/styles/styles.css";
 
 enum EBlockStatus {
   DONE = "done",
@@ -99,38 +103,6 @@ const GraphApp = () => {
   const graphRef = useRef<Graph | undefined>(undefined);
 
   const [config, setConfig] = useState<TGraphConfig | undefined>();
-
-  const renderBlockFn: TRenderBlockFn = useCallback(
-    (graphObject: Graph, block: TBlock<TBlockMeta>) => {
-      const colors = graphRef.current.api.getGraphColors();
-
-      return (
-        <div
-          style={{
-            width: block.width,
-            height: block.height,
-            contain: "layout size",
-            boxShadow: block.selected
-              ? `inset 0 0 0 4px ${colors.block.selectedBorder},
-            inset 0 0 0 3px ${colors.block.selectedBorder}`
-              : `inset 0 0 0 1px ${colors.block.border}`,
-            borderRadius: "3px",
-            transform: `translate3d(${block.x}px, ${block.y}px, ${0})`,
-            willChange: "transform, width, height",
-            position: "absolute",
-            top: 0,
-            left: 0,
-          }}
-        >
-          <img
-            style={{ objectFit: "contain", width: block.width, height: block.height, pointerEvents: "none" }}
-            src={getImageByStatus(block.meta.status)}
-          />
-        </div>
-      );
-    },
-    [graphRef]
-  );
 
   useEffect(() => {
     const newConfig = generatePrettyBlocks(10, 100, true);

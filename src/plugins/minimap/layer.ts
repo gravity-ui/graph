@@ -1,8 +1,8 @@
-import { dragListener } from "../../utils/functions/dragListener";
-import { Layer, LayerContext, LayerProps } from "../../services/Layer";
-import { EVENTS } from "../../utils/types/events";
-import { computeCssVariable, noop } from "../../utils/functions";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
+import { Layer, LayerContext, LayerProps } from "../../services/Layer";
+import { computeCssVariable, noop } from "../../utils/functions";
+import { dragListener } from "../../utils/functions/dragListener";
+import { EVENTS } from "../../utils/types/events";
 
 export type TMiniMapLocation =
   | "topLeft"

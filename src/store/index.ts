@@ -1,9 +1,10 @@
+import { batch } from "@preact/signals-core";
+
+import { Graph, TGraphConfig } from "../graph";
+
 import { BlockListStore } from "./block/BlocksList";
 import { ConnectionsStore } from "./connection/ConnectionList";
-import { Graph, TGraphConfig } from "../graph";
-import { CameraService } from "../services/camera/CameraService";
 import { GraphEditorSettings } from "./settings";
-import { batch } from "@preact/signals-core";
 
 export class RootStore {
   public blocksList: BlockListStore;
@@ -14,7 +15,7 @@ export class RootStore {
 
   public settings: GraphEditorSettings;
 
-  public constructor(graph: Graph) {
+  constructor(graph: Graph) {
     this.blocksList = new BlockListStore(this, graph);
     this.connectionsList = new ConnectionsStore(this, graph);
     this.settings = new GraphEditorSettings(this);

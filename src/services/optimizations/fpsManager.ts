@@ -5,7 +5,7 @@ class FpsManager {
 
   private history: number[] = [];
 
-  public constructor() {
+  constructor() {
     const times = [];
 
     const refreshLoop = () => {

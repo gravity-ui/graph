@@ -4,6 +4,7 @@ import { getXY } from "../../utils/functions";
 import { render } from "../../utils/renderers/render";
 import { EVENTS } from "../../utils/types/events";
 import { Point } from "../../utils/types/shapes";
+
 import { SelectionAreaService } from "./SelectionAreaService";
 
 export type SelectionAreaProps = {
@@ -17,9 +18,9 @@ export class SelectionArea extends Component {
 
   public declare props: SelectionAreaProps;
 
-  protected startPoint = new Point(0,0);
+  protected startPoint = new Point(0, 0);
 
-  public constructor(props: SelectionAreaProps, context: OverLayer) {
+  constructor(props: SelectionAreaProps, context: OverLayer) {
     super(props, context);
 
     this.context = context.context;
@@ -38,11 +39,17 @@ export class SelectionArea extends Component {
     if (!this.state.width && !this.state.height) {
       return;
     }
-    return render(this.context.ctx, (ctx) => {
+    render(this.context.ctx, (ctx) => {
       ctx.fillStyle = this.context.colors.selection.background;
       ctx.strokeStyle = this.context.colors.selection.border;
       ctx.beginPath();
-      ctx.roundRect(this.startPoint.x, this.startPoint.y, this.state.width, this.state.height, 1 * window.devicePixelRatio);
+      ctx.roundRect(
+        this.startPoint.x,
+        this.startPoint.y,
+        this.state.width,
+        this.state.height,
+        Number(window.devicePixelRatio)
+      );
       ctx.closePath();
 
       ctx.fill();
@@ -68,7 +75,7 @@ export class SelectionArea extends Component {
   };
 
   private startSelectionRender = (event: MouseEvent) => {
-    const [x,y] = getXY(this.context.graphCanvas, event);
+    const [x, y] = getXY(this.context.graphCanvas, event);
     this.startPoint.x = x;
     this.startPoint.y = y;
   };

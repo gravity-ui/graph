@@ -1,28 +1,30 @@
 import intersects from "intersects";
-import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
+
+import { EventedComponent } from "../../../mixins/withEvents";
+import { withHitTest } from "../../../mixins/withHitTest";
+import { HitBoxData } from "../../../services/HitTest";
+import { frameDebouncer } from "../../../services/optimizations/frameDebouncer";
 import { ConnectionState, TConnection, TConnectionId } from "../../../store/connection/ConnectionState";
 import { selectConnectionById } from "../../../store/connection/selectors";
-import { withHitTest } from "../../../mixins/withHitTest";
-import { EventedComponent } from "../../../mixins/withEvents";
-import { HitBoxData } from "../../../services/HitTest";
+import { isMetaKeyEvent } from "../../../utils/functions";
+import { getFontSize } from "../../../utils/functions/text";
+import { cachedMeasureText } from "../../../utils/renderers/text";
+import { TPoint } from "../../../utils/types/shapes";
+import { ESelectionStrategy } from "../../../utils/types/types";
+import { TAnchor } from "../anchors";
 import { Block } from "../blocks/Block";
+import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
+
 import withBatchedConnection from "./batchMixins/withBatchedConnection";
 import { bezierCurveLine, generateBezierParams, getArrowCoords, isPointInStroke } from "./bezierHelpers";
-import { getFontSize } from "../../../utils/functions/text";
 import { getLabelCoords } from "./labelHelper";
-import { frameDebouncer } from "../../../services/optimizations/frameDebouncer";
-import { isMetaKeyEvent } from "../../../utils/functions";
-import { TPoint } from "../../../utils/types/shapes";
-import { cachedMeasureText } from "../../../utils/renderers/text";
-import { TAnchor } from "../anchors";
-import { ESelectionStrategy } from "../../../utils/types/types";
 
 export type TConnectionProps = {
   id: TConnectionId;
   addInRenderOrder(cmp, setting: object): void;
   removeFromRenderOrder(cmp): void;
   useBezier: boolean;
-  bezierDirection: "vertical" | "horizontal",
+  bezierDirection: "vertical" | "horizontal";
   showConnectionArrows: boolean;
   showConnectionLabels: boolean;
 };
@@ -38,8 +40,7 @@ type TConnectionState = TConnection & {
 };
 
 export class BlockConnection extends withBatchedConnection(withHitTest(EventedComponent)) {
-
-  public readonly cursor = 'pointer';
+  public readonly cursor = "pointer";
   public declare props: TConnectionProps;
 
   public declare state: TConnectionState;
@@ -66,9 +67,9 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
 
   private labelGeometry = { x: 0, y: 0, width: 0, height: 0 };
 
-  private debouncedSetHitBox: (...args: any[]) => void;
+  private debouncedSetHitBox: () => void;
 
-  public constructor(props: TConnectionProps, parent: GraphLayer) {
+  constructor(props: TConnectionProps, parent: GraphLayer) {
     super(props, parent);
 
     this.unsubscribe = this.subscribe();
@@ -217,7 +218,7 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
     const threshold = this.context.constants.connection.THRESHOLD_LINE_HIT;
 
     if (this.props.useBezier) {
-      const line_points = generateBezierParams(
+      const linePoints = generateBezierParams(
         {
           x: this.geometry.x1,
           y: this.geometry.y1,
@@ -226,10 +227,10 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
           x: this.geometry.x2,
           y: this.geometry.y2,
         },
-        this.props.bezierDirection,
+        this.props.bezierDirection
       );
-      const Ys = line_points.map(({ y }) => y);
-      const Xs = line_points.map(({ x }) => x);
+      const Ys = linePoints.map(({ y }) => y);
+      const Xs = linePoints.map(({ x }) => x);
 
       minX = Math.min(...Xs);
       maxX = Math.max(...Xs);
@@ -263,15 +264,15 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
       this.props.useBezier && this.path2d
         ? isPointInStroke(this.context.ctx, this.path2d, shape.x, shape.y, THRESHOLD_LINE_HIT * 2)
         : intersects.boxLine(
-            x - relativeTreshold / 2,
-            y - relativeTreshold / 2,
-            relativeTreshold,
-            relativeTreshold,
-            this.geometry.x1,
-            this.geometry.y1,
-            this.geometry.x2,
-            this.geometry.y2
-          );
+          x - relativeTreshold / 2,
+          y - relativeTreshold / 2,
+          relativeTreshold,
+          relativeTreshold,
+          this.geometry.x1,
+          this.geometry.y1,
+          this.geometry.x2,
+          this.geometry.y2
+        );
 
     if (this.labelGeometry !== undefined) {
       return (
@@ -368,7 +369,7 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
       this.geometry.y1,
       this.geometry.x2,
       this.geometry.y2,
-      this.props.bezierDirection,
+      this.props.bezierDirection
     );
 
     this.context.ctx.moveTo(coords[0], coords[1]);
@@ -409,7 +410,7 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
           y: this.geometry.y2,
         },
         this.context.ctx,
-        this.props.bezierDirection,
+        this.props.bezierDirection
       );
       return;
     }

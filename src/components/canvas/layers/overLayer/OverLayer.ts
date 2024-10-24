@@ -1,12 +1,12 @@
-import { ICamera } from "../../../../services/camera/CameraService";
-import { SelectionArea } from "../../../../services/selection/SelectionArea";
-import { NewConnection } from "../../../../services/newConnection/NewConnection";
-import { NewBlockComponent } from "../../../../services/newBlock/NewBlockComponent";
-import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
-import { ConnectionService } from "../../../../services/newConnection/ConnectionService";
 import { Graph } from "../../../../graph";
-import { SelectionAreaService } from "../../../../services/selection/SelectionAreaService";
+import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
+import { ICamera } from "../../../../services/camera/CameraService";
+import { NewBlockComponent } from "../../../../services/newBlock/NewBlockComponent";
 import { NewBlocksService } from "../../../../services/newBlock/NewBlockService";
+import { ConnectionService } from "../../../../services/newConnection/ConnectionService";
+import { NewConnection } from "../../../../services/newConnection/NewConnection";
+import { SelectionArea } from "../../../../services/selection/SelectionArea";
+import { SelectionAreaService } from "../../../../services/selection/SelectionAreaService";
 
 export type TOverLayerProps = LayerProps & {
   camera: ICamera;
@@ -25,7 +25,7 @@ export class OverLayer extends Layer<TOverLayerProps, TOverLayerContext> {
 
   protected newBlocksService = new NewBlocksService(this.props.graph);
 
-  public constructor(props: TOverLayerProps, context: TOverLayerContext) {
+  constructor(props: TOverLayerProps, context: TOverLayerContext) {
     super(
       {
         canvas: {

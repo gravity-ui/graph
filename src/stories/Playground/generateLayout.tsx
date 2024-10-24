@@ -2,10 +2,10 @@ import { TBlock } from "../../components/canvas/blocks/Block";
 import { TGraphConfig } from "../../graph";
 import { EAnchorType } from "../../store/anchor/Anchor";
 
-export const GravityActionBlockIS = 'block-action'
+export const GravityActionBlockIS = "block-action";
 export type TGravityActionBlock = TBlock<{ description: string }> & { is: typeof GravityActionBlockIS };
 
-export const GravityTextBlockIS = 'block-text'
+export const GravityTextBlockIS = "block-text";
 export type TGravityTextBlock = TBlock<{ text: string }> & { is: typeof GravityTextBlockIS };
 
 function getActionBlockId(num: number): string {
@@ -34,7 +34,7 @@ export function createActionBlock(x: number, y: number, index: number): TGravity
         id: `${blockId}_out`,
         blockId,
         type: EAnchorType.OUT,
-      }
+      },
     ],
     meta: {
       description: "Description",
@@ -65,10 +65,7 @@ function getRandomArbitrary(min, max) {
   return (Math.random() * (max - min) + min) | 0;
 }
 
-export function generatePlaygroundActionBlocks(
-  layersCount: number,
-  connectionsPerLayer: number,
-) {
+export function generatePlaygroundActionBlocks(layersCount: number, connectionsPerLayer: number) {
   const config: TGraphConfig<TGravityActionBlock> = {
     blocks: [],
     connections: [],
@@ -115,7 +112,6 @@ export function generatePlaygroundActionBlocks(
             targetAnchorId: `${targetBlockId}_anchor_in`,
           });
         }
-
       }
       prevLayerBlocks = [...currentLayerBlocks];
     }

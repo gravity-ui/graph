@@ -1,6 +1,7 @@
 import { Component } from "../../../../lib/Component";
 import { BlockListStore } from "../../../../store/block/BlocksList";
 import { IRect, Rect, TRect } from "../../../../utils/types/shapes";
+
 import { TBelowLayerContext } from "./BelowLayer";
 import { PointerGrid } from "./PointerGrid";
 
@@ -13,7 +14,7 @@ export class Background extends Component {
 
   public declare context: TBelowLayerContext;
 
-  public constructor(props: {}, context: TBelowLayerContext) {
+  constructor(props: {}, context: TBelowLayerContext) {
     super(props, context);
 
     this.unsubscribe = this.subscribe();

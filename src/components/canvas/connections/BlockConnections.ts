@@ -1,6 +1,7 @@
 import { Component } from "../../../lib/Component";
 import { ConnectionState } from "../../../store/connection/ConnectionState";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
+
 import { BlockConnection, TConnectionProps } from "./BlockConnection";
 import withBatchedConnections from "./batchMixins/withBatchedConnections";
 
@@ -15,7 +16,7 @@ export class BlockConnections extends withBatchedConnections(Component) {
 
   public removeFromRenderOrder = this.removeFromRenderOrder.bind(this);
 
-  public constructor(props: {}, parent: GraphLayer) {
+  constructor(props: {}, parent: GraphLayer) {
     super(props, parent);
     this.unsubscribe = this.subscribe();
   }
@@ -47,7 +48,7 @@ export class BlockConnections extends withBatchedConnections(Component) {
   }
 
   protected updateChildren(): void | object[] {
-    if (!this.connections) return;
+    if (!this.connections) return [];
     const settings = this.context.graph.rootStore.settings.$connectionsSettings.value;
     return this.connections.map((connection) => {
       const props: TConnectionProps = {

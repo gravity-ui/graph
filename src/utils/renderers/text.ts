@@ -59,7 +59,7 @@ export function layoutText(text: string, ctx: CanvasRenderingContext2D, rect: TT
     measures,
     lines,
     lineHeight,
-  }
+  };
 }
 
 export type TTExtRect = Omit<TRect, "width" | "height"> & Partial<Pick<TRect, "width" | "height">>;

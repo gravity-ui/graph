@@ -1,12 +1,14 @@
-import ReactDOM from "react-dom/client";
-import { Layer } from "../../services/Layer";
 import React, { ChangeEvent, useCallback } from "react";
+
+import ReactDOM from "react-dom/client";
+
 import { Graph } from "../../graph";
+import { Layer } from "../../services/Layer";
 
 function Toolbox(props: { graph: Graph }) {
   const onChange = useCallback(
     (v: ChangeEvent<HTMLInputElement>) => {
-      props.graph.zoom({ scale: +v.target.value / 100 });
+      props.graph.zoom({ scale: Number(v.target.value) / 100 });
     },
     [props.graph]
   );

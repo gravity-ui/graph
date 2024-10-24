@@ -1,4 +1,5 @@
 import { CanvasBlock, TGraphConfig } from "../../index";
+
 import { storiesSettings } from "./definitions";
 
 class SpecificBlockView extends CanvasBlock {

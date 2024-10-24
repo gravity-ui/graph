@@ -1,4 +1,4 @@
-import { UnwrapGraphEventsDetail, UnwrapGraphEvents, GraphEventsDefinitions } from "../graphEvents";
+import { GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } from "../graphEvents";
 
 export type TGraphEventCallbacks = {
   click: (data: UnwrapGraphEventsDetail<"click">, event: UnwrapGraphEvents<"click">) => void;

@@ -1,11 +1,10 @@
 import { EventedComponent } from "../../../mixins/withEvents";
-import { debugHitBox, withHitTest } from "../../../mixins/withHitTest";
+import { withHitTest } from "../../../mixins/withHitTest";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { frameDebouncer } from "../../../services/optimizations/frameDebouncer";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { selectBlockAnchor } from "../../../store/block/selectors";
-import { render } from "../../../utils/renderers/render";
 import { TPoint } from "../../../utils/types/shapes";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
@@ -30,8 +29,7 @@ type TAnchorState = {
 };
 
 export class Anchor extends withHitTest(EventedComponent) {
-
-  public readonly cursor = 'pointer';
+  public readonly cursor = "pointer";
 
   public get zIndex() {
     // @ts-ignore this.__comp.parent instanceOf Block
@@ -54,7 +52,7 @@ export class Anchor extends withHitTest(EventedComponent) {
 
   protected readonly unsubscribe: (() => void)[] = [];
 
-  public constructor(props: TAnchorProps, parent: GraphLayer) {
+  constructor(props: TAnchorProps, parent: GraphLayer) {
     super(props, parent);
     this.state = { size: props.size, raised: false, selected: false };
 
@@ -106,7 +104,6 @@ export class Anchor extends withHitTest(EventedComponent) {
     const { x, y, width, height } = this.hitBox.getRect();
 
     this.shouldRender = width && height ? this.context.camera.isRectVisible(x, y, width, height) : true;
-    
   }
 
   public didIterate(): void {
@@ -127,7 +124,7 @@ export class Anchor extends withHitTest(EventedComponent) {
       case "click":
         this.toggleSelected();
         break;
-      case "mouseenter":{
+      case "mouseenter": {
         this.setState({ raised: true });
         this.computeRenderSize(this.props.size, true);
         break;

@@ -1,4 +1,4 @@
-type Constructor<T = Record<string, unknown>> = new (...args: any[]) => T;
+type Constructor<T = Record<string, unknown>> = new (...args: unknown[]) => T;
 
 type Interface<T> = { [P in keyof T]: T[P] };
 

@@ -1,7 +1,9 @@
-import { IS_BLOCK_TYPE } from "../../store/block/Block";
-import { random } from "../../components/canvas/blocks/generate";
+/* eslint-disable no-console */
 import { TBlock } from "../../components/canvas/blocks/Block";
+import { random } from "../../components/canvas/blocks/generate";
 import { TGraphConfig } from "../../graph";
+import { IS_BLOCK_TYPE } from "../../store/block/Block";
+
 import { storiesSettings } from "./definitions";
 
 function createBlock(x: number, y: number, index): TBlock {
@@ -86,7 +88,7 @@ export function generatePrettyBlocks(
           sourceBlockId: sourceBlockId,
           targetBlockId: targetBlockId,
           label: "Some label",
-          dashed: dashedLine && !!Math.floor(random(0, 2)),
+          dashed: dashedLine && Boolean(Math.floor(random(0, 2))),
         });
       }
       prevLayerBlocks = [...currentLayerBlocks];

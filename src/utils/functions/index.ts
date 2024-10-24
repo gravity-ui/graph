@@ -1,11 +1,11 @@
-import { EVENTS_DETAIL, SELECTION_EVENT_TYPES } from "../types/events";
 import { Block } from "../../components/canvas/blocks/Block";
 import { BlockState, TBlockId } from "../../store/block/Block";
 import { ECanChangeBlockGeometry } from "../../store/settings";
+import { EVENTS_DETAIL, SELECTION_EVENT_TYPES } from "../types/events";
 import { Rect, TRect } from "../types/shapes";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function noop(...args: any[]): any {
+export function noop(...args: unknown[]) {
   // noop
 }
 
@@ -78,7 +78,7 @@ export function createObject(simpleObject: object, forDefineProperties: Property
 
 export function dispatchEvents(comps, e) {
   for (let i = 0; i < comps.length; i += 1) {
-    if (comps[i] !== (this as any) && comps[i].dispatchEvent) {
+    if (comps[i] !== this && comps[i].dispatchEvent) {
       comps[i].dispatchEvent(e);
     }
   }
@@ -155,7 +155,7 @@ export function isWindows() {
 
 function isTrackpadDetector() {
   let isTrackpadDetected = false;
-  let cleanStateTimer = setTimeout(() => {}, 0);
+  let cleanStateTimer = setTimeout(() => { }, 0);
 
   return (e: WheelEvent) => {
     // deltaX in the trackpad scroll usually is not zero.
@@ -176,7 +176,7 @@ function isTrackpadDetector() {
     }
 
     return isTrackpadDetected;
-  }
+  };
 }
 
 export const isTrackpadWheelEvent = isTrackpadDetector();

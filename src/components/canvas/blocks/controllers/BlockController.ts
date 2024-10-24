@@ -12,9 +12,9 @@ import {
 import { dragListener } from "../../../../utils/functions/dragListener";
 import { EVENTS } from "../../../../utils/types/events";
 import { ESelectionStrategy } from "../../../../utils/types/types";
-import { Block, TBlock, TBlockProps } from "../Block";
+import { Block } from "../Block";
 
-export class BlockController<T extends TBlock = TBlock, Props extends TBlockProps = TBlockProps> {
+export class BlockController {
   constructor(block: Block) {
     addEventListeners(block, {
       click(event: MouseEvent) {

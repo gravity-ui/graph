@@ -1,12 +1,15 @@
-import { Database } from '@gravity-ui/icons';
-import { Button, Flex, Icon, Text } from '@gravity-ui/uikit';
 import React from "react";
+
+import { Database } from "@gravity-ui/icons";
+import { Button, Flex, Icon, Text } from "@gravity-ui/uikit";
+
 import { Graph } from "../../../graph";
 import { GraphBlock, GraphBlockAnchor } from "../../../react-component";
 import { TGravityActionBlock } from "../generateLayout";
+
 import "./ActionBlock.css";
 
-export function ActionBlockHtml({ graph, block }: { graph: Graph, block: TGravityActionBlock }) {
+export function ActionBlockHtml({ graph, block }: { graph: Graph; block: TGravityActionBlock }) {
   return (
     <GraphBlock graph={graph} block={block} className="action-block-wrapper">
       {block.anchors.map((anchor) => {
@@ -21,12 +24,18 @@ export function ActionBlockHtml({ graph, block }: { graph: Graph, block: TGravit
         );
       })}
       <Flex grow={1} direction={"column"}>
-        <Text as="div" ellipsis variant="caption-2" className="action-block-name">{block.name}</Text>
-        <Text as="div" ellipsis variant="caption-1" color="secondary">{block.meta.description}</Text>
+        <Text as="div" ellipsis variant="caption-2" className="action-block-name">
+          {block.name}
+        </Text>
+        <Text as="div" ellipsis variant="caption-1" color="secondary">
+          {block.meta.description}
+        </Text>
       </Flex>
       <Flex>
-        <Button onClick={(e) => e.stopPropagation()}><Icon data={Database} /></Button>
+        <Button onClick={(e) => e.stopPropagation()}>
+          <Icon data={Database} />
+        </Button>
       </Flex>
     </GraphBlock>
-  )
+  );
 }

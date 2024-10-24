@@ -3,6 +3,7 @@ import { Component } from "../../lib/Component";
 import { getXY } from "../../utils/functions";
 import { render } from "../../utils/renderers/render";
 import { EVENTS } from "../../utils/types/events";
+
 import { NewBlocksService } from "./NewBlockService";
 
 type NewBlockComponentProps = {
@@ -16,7 +17,7 @@ export class NewBlockComponent extends Component {
 
   public declare context: TOverLayerContext;
 
-  public constructor(props: NewBlockComponentProps, context: OverLayer) {
+  constructor(props: NewBlockComponentProps, context: OverLayer) {
     super(props, context);
 
     this.state = {
@@ -73,7 +74,7 @@ export class NewBlockComponent extends Component {
   protected willIterate() {
     super.willIterate();
 
-    this.shouldRender = !!(this.state.width && this.state.height);
+    this.shouldRender = Boolean(this.state.width && this.state.height);
   }
 
   public unmount() {

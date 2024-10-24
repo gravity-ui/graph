@@ -1,6 +1,7 @@
 import { useLayoutEffect } from "react";
-import { UnwrapGraphEventsDetail, UnwrapGraphEvents, GraphEventsDefinitions } from "../../graphEvents";
+
 import { Graph } from "../../graph";
+import { GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } from "../../graphEvents";
 import { useFn } from "../../utils/hooks/useFn";
 import { GraphCallbacksMap, TGraphEventCallbacks } from "../events";
 

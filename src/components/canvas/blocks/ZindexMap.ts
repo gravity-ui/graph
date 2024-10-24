@@ -1,7 +1,4 @@
-
-
 export class ZIndexMap<T> {
-
   protected zIndexMap: Map<number, Set<T>> = new Map();
 
   protected zIndexArray: number[] = [];
@@ -11,7 +8,7 @@ export class ZIndexMap<T> {
   protected orderMap: Map<T, number> = new Map();
 
   public load(item: T[], getInder: (item: T) => number) {
-    item.forEach(item => {
+    item.forEach((item) => {
       this.add(item, getInder(item));
     });
   }
@@ -37,10 +34,10 @@ export class ZIndexMap<T> {
     }
     const zIndex = this.indexMap.get(item);
     const set = this.zIndexMap.get(zIndex);
-    if(!set) return;
+    if (!set) return;
     set.delete(item);
     this.indexMap.delete(item);
-    if(!set.size) {
+    if (!set.size) {
       this.zIndexMap.delete(zIndex);
       this.resort();
     }
@@ -57,12 +54,10 @@ export class ZIndexMap<T> {
   }
 
   public forEach(callback: (item: T, zIndex: number) => void) {
-    this.zIndexArray.forEach(zIndex => {
-      this.zIndexMap.get(zIndex).forEach(item => {
+    this.zIndexArray.forEach((zIndex) => {
+      this.zIndexMap.get(zIndex).forEach((item) => {
         callback(item, zIndex);
       });
     });
   }
-
-
 }

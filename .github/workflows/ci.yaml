@@ -19,8 +19,8 @@ jobs:
         cache: npm
     - name: Install Packages
       run: npm ci
-    # - name: Lint Files
-      # run: npm run lint
+    - name: Lint Files
+      run: npm run lint
     - name: Typecheck
       run: npm run typecheck
 

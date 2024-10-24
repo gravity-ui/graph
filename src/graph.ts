@@ -1,5 +1,6 @@
 import { batch, signal } from "@preact/signals-core";
 import merge from "lodash/merge";
+
 import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
 import { Anchor } from "./components/canvas/anchors";
 import { Block, TBlock } from "./components/canvas/blocks/Block";
@@ -26,8 +27,8 @@ import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shap
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [
   T,
   T extends Constructor<Layer<infer Props>>
-    ? Omit<Props, "root" | "camera" | "graph"> & { root?: Props["root"] }
-    : never,
+  ? Omit<Props, "root" | "camera" | "graph"> & { root?: Props["root"] }
+  : never,
 ];
 export type TGraphConfig<B extends TBlock = TBlock> = {
   configurationName?: string;
@@ -89,10 +90,12 @@ export class Graph {
   public $graphConstants = signal<TGraphConstants>(initGraphConstants);
 
   public state: GraphState = GraphState.INIT;
+
   protected config: TGraphConfig;
+
   protected startRequested = false;
 
-  public constructor(
+  constructor(
     config: TGraphConfig,
     rootEl?: HTMLDivElement,
     graphColors?: TGraphColors,
@@ -135,6 +138,8 @@ export class Graph {
    * @param zoomConfig.x if set - zoom to x coordinate, else - zoom to center
    * @param zoomConfig.y if set - zoom to y coordinate, else - zoom to center
    * @param zoomConfig.scale camera scale
+   * 
+   * @returns {undefined}
    * */
   public zoom(zoomConfig: { x?: number; y?: number; scale: number }) {
     const { width, height } = this.cameraService.getCameraState();
@@ -229,7 +234,7 @@ export class Graph {
     this.eventEmitter.removeEventListener(type, cb);
   }
 
-  /**
+  /*
    * Emit Graph's events
    */
   public emit<
@@ -246,7 +251,7 @@ export class Graph {
     return event;
   }
 
-  /**
+  /*
    * Emit Graph's event and execute default action if it is not prevented
    */
   public executеDefaultEventAction<
