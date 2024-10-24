@@ -23,7 +23,7 @@ export class Point implements IPoint {
     y: number;
   };
 
-  public constructor(
+  constructor(
     x: number,
     y: number,
     origPoint?: {
@@ -82,7 +82,7 @@ export class Rect implements IRect {
 
   public height: number;
 
-  public constructor(x, y, width, height) {
+  constructor(x, y, width, height) {
     this.x = x;
     this.y = y;
     this.width = width;

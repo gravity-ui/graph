@@ -1,5 +1,6 @@
 import debounce from "lodash/debounce";
 import RBush from "rbush";
+
 import { Component } from "../lib/Component";
 import { IWithHitTest } from "../mixins/withHitTest";
 import { Emitter } from "../utils/Emitter";
@@ -97,6 +98,7 @@ export class HitTest extends Emitter {
       if (aZIndex !== bZIndex) {
         return bZIndex - aZIndex;
       }
+      return 0;
     });
 
     return res;
@@ -118,7 +120,7 @@ export class HitBox implements IHitBox {
 
   public y: number;
 
-  public constructor(
+  constructor(
     public item: { zIndex: number } & Component & IWithHitTest,
     protected hitTest: HitTest
   ) {}
@@ -134,7 +136,7 @@ export class HitBox implements IHitBox {
     this.minY = minY;
     this.maxX = maxX;
     this.maxY = maxY;
-    this.hitTest.add(this, !!force);
+    this.hitTest.add(this, Boolean(force));
   };
 
   public getRect(): TRect {

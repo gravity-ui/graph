@@ -1,5 +1,4 @@
 import { Component } from "../lib/Component";
-import { Constructor } from "../lib/tshelpers";
 
 export class EventedComponent extends Component {
   private _listenEvents: object = {};

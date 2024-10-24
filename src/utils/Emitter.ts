@@ -16,7 +16,7 @@ export class Emitter<T extends EmitterEventsDefinition = EmitterEventsDefinition
 
   private mapEventToMapFnToFnWrapper?: Map<keyof T, WeakMap<T[keyof T], FnWrapper<T[keyof T]>>>;
 
-  public constructor() {
+  constructor() {
     this.destroyed = false;
     this.eventsForGC = new Set();
     this.mapEventToFnWrapper = new Map();
@@ -147,7 +147,7 @@ class FnWrapper<Fn extends EmitterFn> {
 
   public canBeDeleted: boolean;
 
-  public constructor(fn: Fn, once: boolean) {
+  constructor(fn: Fn, once: boolean) {
     this.fn = fn;
     this.once = once;
     this.canBeDeleted = false;

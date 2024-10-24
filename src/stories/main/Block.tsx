@@ -1,10 +1,13 @@
 import React, { MouseEvent } from "react";
+
 import { AbbrApi, Bug, Database } from "@gravity-ui/icons";
 import { Button, Icon, Text } from "@gravity-ui/uikit";
+
 import { TBlock } from "../../components/canvas/blocks/Block";
-import { GraphBlock, GraphBlockAnchor } from "../../react-component";
 import { Graph } from "../../graph";
+import { GraphBlock, GraphBlockAnchor } from "../../react-component";
 import { useFn } from "../../utils/hooks/useFn";
+
 import "./Block.css";
 
 export type TBlockStoryProps = {

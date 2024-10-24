@@ -1,4 +1,5 @@
 import { TGraphConfig } from "../../graph";
+
 import { storiesSettings } from "./definitions";
 
 export const oneBlockConfig: TGraphConfig = {

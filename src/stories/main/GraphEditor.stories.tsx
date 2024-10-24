@@ -1,23 +1,27 @@
-import "@gravity-ui/uikit/styles/styles.css";
-import type { Meta, StoryObj } from "@storybook/react";
 import React, { useEffect, useMemo, useRef } from "react";
-import merge from "lodash/merge";
-import { GraphComponentStory } from "./GraphEditor";
-import { oneBlockConfig } from "../configurations/oneBlock";
-import { withAnchorsConfig } from "../configurations/withAnchors";
-import { oneStraightConfig } from "../configurations/oneConnection";
-import { oneBezierConnectionConfig } from "../configurations/bezierConnection";
-import { generatePrettyBlocks } from "../configurations/generatePretty";
-import { customSchematicViewConfig } from "../configurations/customBlocksView";
+
 import { ThemeProvider } from "@gravity-ui/uikit";
+import type { Meta, StoryObj } from "@storybook/react";
+import merge from "lodash/merge";
+
 import { Graph, TGraphConfig } from "../../graph";
-import { CustomLayerConfig } from "../configurations/CustomLayerConfig";
-import { verticalGraphConfig } from "../configurations/verticalGraph";
-import { coloredConnections } from "../configurations/coloredConnections";
+import { TGraphConstants, initGraphConstants } from "../../graphConfig";
 import { TGraphSettingsConfig } from "../../store";
 import { ECanChangeBlockGeometry } from "../../store/settings";
-import { TGraphConstants, initGraphConstants } from "../../graphConfig";
 import { RecursivePartial } from "../../utils/types/helpers";
+import { CustomLayerConfig } from "../configurations/CustomLayerConfig";
+import { oneBezierConnectionConfig } from "../configurations/bezierConnection";
+import { coloredConnections } from "../configurations/coloredConnections";
+import { customSchematicViewConfig } from "../configurations/customBlocksView";
+import { generatePrettyBlocks } from "../configurations/generatePretty";
+import { oneBlockConfig } from "../configurations/oneBlock";
+import { oneStraightConfig } from "../configurations/oneConnection";
+import { verticalGraphConfig } from "../configurations/verticalGraph";
+import { withAnchorsConfig } from "../configurations/withAnchors";
+
+import { GraphComponentStory } from "./GraphEditor";
+
+import "@gravity-ui/uikit/styles/styles.css";
 
 const GraphApp = ({
   config,

@@ -1,10 +1,13 @@
-import "@gravity-ui/uikit/styles/styles.css";
-import type { Meta, StoryFn } from "@storybook/react";
 import React, { useCallback, useRef, useState } from "react";
-import { GraphComponentStory } from "../../main/GraphEditor";
+
 import { Button, ButtonProps, Flex, TextInput, ThemeProvider } from "@gravity-ui/uikit";
+import type { Meta, StoryFn } from "@storybook/react";
+
 import { Graph } from "../../../graph";
 import { oneBlockConfig } from "../../configurations/oneBlock";
+import { GraphComponentStory } from "../../main/GraphEditor";
+
+import "@gravity-ui/uikit/styles/styles.css";
 
 const config = JSON.parse(JSON.stringify(oneBlockConfig));
 const blockConfig = config.blocks[0];
@@ -17,7 +20,13 @@ const GraphApp = () => {
   const [height, setHeight] = useState(blockConfig.height.toString());
 
   const onClick: ButtonProps["onClick"] = useCallback(() => {
-    graphRef.current.api.updateBlock({ ...blockConfig, x: +x, y: +y, width: +width, height: +height });
+    graphRef.current.api.updateBlock({
+      ...blockConfig,
+      x: Number(x),
+      y: Number(y),
+      width: Number(width),
+      height: Number(height),
+    });
   }, [x, y, width, height]);
 
   return (

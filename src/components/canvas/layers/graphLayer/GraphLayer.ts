@@ -5,11 +5,11 @@ import { EventedComponent } from "../../../../mixins/withEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { Camera, TCameraProps } from "../../../../services/camera/Camera";
 import { ICamera } from "../../../../services/camera/CameraService";
-import { getEventDelta, getXY } from "../../../../utils/functions";
-import { Point } from "../../../../utils/types/shapes";
+import { getEventDelta } from "../../../../utils/functions";
 import { Blocks } from "../../blocks/Blocks";
 import { BlockConnection } from "../../connections/BlockConnection";
 import { BlockConnections } from "../../connections/BlockConnections";
+
 import { DrawBelow, DrawOver } from "./helpers";
 
 export type TGraphLayerProps = LayerProps & {
@@ -70,7 +70,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private fixedTargetComponent?: EventedComponent | Camera;
 
-  public constructor(props: TGraphLayerProps, context: TGraphLayerContext) {
+  constructor(props: TGraphLayerProps, context: TGraphLayerContext) {
     super(
       {
         canvas: {
@@ -189,7 +189,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     }
     if (!target || typeof target.dispatchEvent !== "function") return;
 
-    return target.dispatchEvent(event);
+    target.dispatchEvent(event);
   }
 
   private updateTargetComponent(event, force = false) {
@@ -213,10 +213,10 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private onRootPointerMove(event: MouseEvent) {
     if (this.targetComponent !== this.prevTargetComponent) {
-      if(this.targetComponent?.cursor) {
+      if (this.targetComponent?.cursor) {
         this.root.style.cursor = this.targetComponent?.cursor;
       } else {
-        this.root.style.removeProperty('cursor');
+        this.root.style.removeProperty("cursor");
       }
       this.applyEventToTargetComponent(
         new CustomEvent("mouseleave", {

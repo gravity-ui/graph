@@ -1,14 +1,15 @@
 import { batch } from "@preact/signals-core";
+
+import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
 import { TGraphColors, TGraphConstants } from "../graphConfig";
 import { TBlockId } from "../store/block/Block";
-import { TConnection, TConnectionId } from "../store/connection/ConnectionState";
 import { selectBlockById } from "../store/block/selectors";
+import { TConnection, TConnectionId } from "../store/connection/ConnectionState";
+import { selectConnectionById } from "../store/connection/selectors";
 import { TGraphSettingsConfig } from "../store/settings";
 import { getUsableRectByBlockIds, startAnimation } from "../utils/functions";
 import { TRect } from "../utils/types/shapes";
-import { TBlock } from "../components/canvas/blocks/Block";
-import { selectConnectionById } from "../store/connection/selectors";
 import { ESelectionStrategy } from "../utils/types/types";
 
 export type ZoomConfig = {
@@ -17,7 +18,9 @@ export type ZoomConfig = {
 };
 
 export class PublicGraphApi {
-  public constructor(public graph: Graph) {}
+  constructor(public graph: Graph) {
+    // noop
+  }
 
   public zoomToBlocks(blockIds: TBlockId[], zoomConfig?: ZoomConfig) {
     const blocksRect = getUsableRectByBlockIds(this.graph.rootStore.blocksList.$blocks.value, blockIds);
@@ -52,7 +55,10 @@ export class PublicGraphApi {
       endScale
     );
 
-    if (!transition) return this.graph.cameraService.set({ ...xyPosition, scale: endScale });
+    if (!transition) {
+      this.graph.cameraService.set({ ...xyPosition, scale: endScale });
+      return;
+    }
 
     startAnimation(transition, (progress) => {
       const x = cameraRectInit.x + (xyPosition.x - cameraRectInit.x) * progress;

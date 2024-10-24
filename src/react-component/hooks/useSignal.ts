@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import type { Signal } from "@preact/signals-core";
 

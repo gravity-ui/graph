@@ -1,10 +1,11 @@
 import { Graph } from "../graph";
 import { TGraphColors, TGraphConstants } from "../graphConfig";
+import { Component } from "../lib/Component";
 import { noop } from "../utils/functions";
+
 import { ICamera } from "./camera/CameraService";
 
-import { Component } from "../lib/Component";
-import './Layer.css';
+import "./Layer.css";
 
 export type LayerPropsElementProps = {
   zIndex: number;
@@ -44,7 +45,7 @@ export class Layer<
 
   private cameraSubscription: () => void = noop;
 
-  public constructor(props: Props, context: Context) {
+  constructor(props: Props, context: Context) {
     super(props, context);
     this.setContext({
       camera: props.camera,
@@ -156,13 +157,13 @@ export class Layer<
   }
 
   protected subscribeCameraState() {
-    this.cameraSubscription = this.props.graph.on('camera-change', (event) => {
+    this.cameraSubscription = this.props.graph.on("camera-change", (event) => {
       const camera = event.detail;
       this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
     });
   }
 
-  protected createCanvas(params: LayerProps['canvas']) {
+  protected createCanvas(params: LayerProps["canvas"]) {
     const canvas = document.createElement("canvas");
     canvas.classList.add("layer", "layer-canvas");
     if (Array.isArray(params.classNames)) canvas.classList.add(...params.classNames);
@@ -170,7 +171,7 @@ export class Layer<
     return canvas;
   }
 
-  protected createHTML(params: LayerProps['html']) {
+  protected createHTML(params: LayerProps["html"]) {
     const div = document.createElement("div");
     div.classList.add("layer", "layer-html");
     if (Array.isArray(params.classNames)) div.classList.add(...params.classNames);

@@ -1,7 +1,5 @@
-import "@gravity-ui/uikit/styles/styles.css";
-import type { Meta, StoryFn } from "@storybook/react";
 import React, { useCallback, useRef } from "react";
-import { GraphComponentStory } from "../../main/GraphEditor";
+
 import {
   Checkbox,
   CheckboxProps,
@@ -17,9 +15,15 @@ import {
   TextInputProps,
   ThemeProvider,
 } from "@gravity-ui/uikit";
+import type { Meta, StoryFn } from "@storybook/react";
+
 import { Graph } from "../../../graph";
-import { graphConfig } from "./config";
 import { TConnection } from "../../../index";
+import { GraphComponentStory } from "../../main/GraphEditor";
+
+import { graphConfig } from "./config";
+
+import "@gravity-ui/uikit/styles/styles.css";
 
 type TOnConnectionChange = (connection: Partial<TConnection>) => void;
 

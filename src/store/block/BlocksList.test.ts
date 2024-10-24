@@ -1,5 +1,6 @@
 import { TBlock } from "../../components/canvas/blocks/Block";
 import { Graph } from "../../graph";
+
 import { BlockListStore } from "./BlocksList";
 
 const generateBlock = (): TBlock => {

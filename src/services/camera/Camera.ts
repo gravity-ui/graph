@@ -4,6 +4,7 @@ import { getXY, isMetaKeyEvent, isTrackpadWheelEvent, isWindows } from "../../ut
 import { clamp } from "../../utils/functions/clamp";
 import { dragListener } from "../../utils/functions/dragListener";
 import { EVENTS } from "../../utils/types/events";
+
 import { ICamera } from "./CameraService";
 
 export type TCameraProps = {
@@ -24,7 +25,7 @@ export class Camera extends EventedComponent {
 
   private lastDragEvent?: MouseEvent;
 
-  public constructor(props: TCameraProps, context: TGraphLayerContext) {
+  constructor(props: TCameraProps, context: TGraphLayerContext) {
     super(props, context);
 
     this.camera = this.context.camera;

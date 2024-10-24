@@ -1,35 +1,35 @@
-import { CoreComponent } from './CoreComponent';
-import { assign } from './utils';
+import { CoreComponent } from "./CoreComponent";
+import { assign } from "./utils";
 
 export class Component extends CoreComponent {
-  protected firstIterate: boolean = true;
+  protected firstIterate = true;
   protected firstRender = true;
   protected firstUpdateChildren = true;
 
-  protected shouldRender: boolean = true;
-  protected shouldUpdateChildren: boolean = true;
-  protected shouldRenderChildren: boolean = true;
+  protected shouldRender = true;
+  protected shouldUpdateChildren = true;
+  protected shouldRenderChildren = true;
 
   public props: object;
   public state: object;
   private __data = {
-    nextProps: void 0,
-    nextState: void 0,
+    nextProps: undefined,
+    nextState: undefined,
   };
 
-  constructor (...args) {
+  constructor(...args) {
     super(...args);
 
     this.state = {};
     this.props = args[0] || {};
   }
 
-  public setProps (props?: object) {
+  public setProps(props?: object) {
     if (props === undefined) return;
 
     const data = this.__data;
 
-    if (data.nextProps === void 0) {
+    if (data.nextProps === undefined) {
       data.nextProps = assign(assign({}, this.props), props);
       this.performRender();
     } else {
@@ -37,12 +37,12 @@ export class Component extends CoreComponent {
     }
   }
 
-  protected setState (state?: object) {
+  protected setState(state?: object) {
     if (state === undefined) return;
 
     const data = this.__data;
 
-    if (data.nextState === void 0) {
+    if (data.nextState === undefined) {
       data.nextState = assign(assign({}, this.state), state);
       this.performRender();
     } else {
@@ -50,29 +50,38 @@ export class Component extends CoreComponent {
     }
   }
 
-  protected propsChanged (nextProps: object): void {}
-  protected stateChanged (nextState: object): void {}
+  protected propsChanged(_nextProps: object): void {
+    // noop
+  }
 
-  protected checkData () {
+  protected stateChanged(_nextState: object): void {
+    // noop
+  }
+
+  protected checkData() {
     const data = this.__data;
 
-    if (data.nextProps !== void 0) {
+    if (data.nextProps !== undefined) {
       this.propsChanged(data.nextProps);
       assign(this.props, data.nextProps);
-      data.nextProps = void 0;
+      data.nextProps = undefined;
     }
 
-    if (data.nextState !== void 0) {
+    if (data.nextState !== undefined) {
       this.stateChanged(data.nextState);
       assign(this.state, data.nextState);
-      data.nextState = void 0;
+      data.nextState = undefined;
     }
   }
 
-  protected willRender () {}
-  protected didRender () {}
+  protected willRender() {
+    // noop
+  }
+  protected didRender() {
+    // noop
+  }
 
-  protected renderLifeCycle () {
+  protected renderLifeCycle() {
     this.willRender();
     this.render();
     this.didRender();
@@ -80,10 +89,14 @@ export class Component extends CoreComponent {
     this.firstRender = false;
   }
 
-  protected willUpdateChildren () {}
-  protected didUpdateChildren () {}
+  protected willUpdateChildren() {
+    // noop
+  }
+  protected didUpdateChildren() {
+    // noop
+  }
 
-  protected childrenLifeCycle () {
+  protected childrenLifeCycle() {
     this.willUpdateChildren();
     this.__updateChildren();
     this.didUpdateChildren();
@@ -91,15 +104,21 @@ export class Component extends CoreComponent {
     this.firstUpdateChildren = false;
   }
 
-  protected willIterate () {}
-  protected didIterate () {}
+  protected willIterate() {
+    // noop
+  }
+  protected didIterate() {
+    // noop
+  }
 
-  protected willNotRender () {}
-  protected __setProps (props: object) {
+  protected willNotRender() {
+    // noop
+  }
+  protected __setProps(props: object) {
     this.setProps(props);
   }
 
-  protected iterate () {
+  protected iterate() {
     super.iterate();
 
     this.checkData();
@@ -113,7 +132,7 @@ export class Component extends CoreComponent {
 
     if (this.shouldUpdateChildren) {
       this.shouldUpdateChildren = false;
-      this.childrenLifeCycle()
+      this.childrenLifeCycle();
     }
 
     this.didIterate();

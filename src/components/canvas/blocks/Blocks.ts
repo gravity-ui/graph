@@ -1,6 +1,7 @@
 import { Component } from "../../../lib/Component";
 import { BlockState } from "../../../store/block/Block";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
+
 import { Block } from "./Block";
 import { BlocksNode } from "./BlocksTree";
 
@@ -14,7 +15,7 @@ export class Blocks extends Component {
 
   private font: string;
 
-  public constructor(props: {}, context: any) {
+  constructor(props: {}, context: any) {
     super(props, context);
 
     this.unsubscribe = this.subscribe();
@@ -27,9 +28,8 @@ export class Blocks extends Component {
 
   protected getTreeNode(): BlocksNode {
     //@ts-ignore
-    return this.__comp.treeNode
+    return this.__comp.treeNode;
   }
-
 
   protected getFontScale() {
     return this.context.graph.rootStore.settings.getConfigFlag("scaleFontSize");
@@ -66,11 +66,11 @@ export class Blocks extends Component {
 
   protected onViewOrderChange = (block: Block) => {
     this.getTreeNode().updateBlockOrder(block);
-  }
+  };
 
   protected onRenderIndex = (block: Block) => {
     return this.getTreeNode().getRenderOrder(block);
-  }
+  };
 
   protected updateChildren() {
     return this.blocks.map((block, index) => {

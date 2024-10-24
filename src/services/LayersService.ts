@@ -1,6 +1,8 @@
 import debounce from "lodash/debounce";
+
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
+
 import { Layer } from "./Layer";
 
 export class Layers extends Emitter {
@@ -10,7 +12,7 @@ export class Layers extends Emitter {
 
   protected layers: Set<Layer> = new Set();
 
-  public constructor(public $root?: HTMLDivElement) {
+  constructor(public $root?: HTMLDivElement) {
     super();
   }
 

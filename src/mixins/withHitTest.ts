@@ -35,7 +35,7 @@ export function withHitTest<T extends Constructor<GraphComponent>>(superclass: T
     public hitBox: HitBox;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    public constructor(...args: any[]) {
+    constructor(...args: any[]) {
       super(...args);
       this.hitBox = new HitBox(this, this.context.graph.hitTest);
     }

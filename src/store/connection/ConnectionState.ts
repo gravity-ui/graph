@@ -1,8 +1,10 @@
-import { signal, computed } from "@preact/signals-core";
-import { TBlockId } from "../block/Block";
+import { computed, signal } from "@preact/signals-core";
+
 import { TConnectionColors } from "../../graphConfig";
-import { ConnectionsStore } from "./ConnectionList";
 import { ESelectionStrategy } from "../../utils/types/types";
+import { TBlockId } from "../block/Block";
+
+import { ConnectionsStore } from "./ConnectionList";
 
 export const IS_CONNECTION_TYPE = "Connection" as const;
 
@@ -61,12 +63,12 @@ export class ConnectionState {
     return [connection.sourceBlockId, connection.targetBlockId].join(":");
   }
 
-  public constructor(
+  constructor(
     public store: ConnectionsStore,
     connectionState: TConnection
   ) {
     const id = ConnectionState.getConnectionId(connectionState);
-    this.$state.value = {...connectionState, id};
+    this.$state.value = { ...connectionState, id };
   }
 
   public isSelected() {

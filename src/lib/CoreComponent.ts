@@ -1,5 +1,6 @@
-import { Scheduler } from './Scheduler';
-import { Node } from './Tree';
+/* eslint-disable complexity */
+import { Scheduler } from "./Scheduler";
+import { Node } from "./Tree";
 
 type TOptions = {
   readonly key?: string;
@@ -7,20 +8,22 @@ type TOptions = {
 };
 
 type TCompData = {
-  parent: ICoreComponent | void,
-  treeNode: Node,
+  parent: ICoreComponent | void;
+  treeNode: Node;
   context: {
-    scheduler: any,
-    globalIterateId: number,
-  },
-  children: object,
-  childrenKeys: string[],
-  prevChildrenArr: object[],
-  updated: boolean,
-  iterateId: number,
+    scheduler: any;
+    globalIterateId: number;
+  };
+  children: object;
+  childrenKeys: string[];
+  prevChildrenArr: object[];
+  updated: boolean;
+  iterateId: number;
 };
 
-interface ICoreComponent extends CoreComponent {}
+interface ICoreComponent extends CoreComponent {
+  // noop
+}
 
 const fakeEmptyOptions: TOptions = {};
 
@@ -30,8 +33,8 @@ export class CoreComponent {
   protected children: Function;
   protected __comp: TCompData;
 
-  constructor (...args: any[])
-  constructor (props: object | void, parent: TFakeParentData | ICoreComponent) {
+  constructor(...args: any[]);
+  constructor(props: object | void, parent: TFakeParentData | ICoreComponent) {
     this.context = parent.context;
 
     this.__comp = {
@@ -51,56 +54,66 @@ export class CoreComponent {
       this.iterate = function () {
         this.__comp.context.globalIterateId = Math.random();
         return protoParent();
-      }
+      };
     }
   }
 
-  public isIterated (): boolean {
+  public isIterated(): boolean {
     return this.__comp.iterateId === this.__comp.context.globalIterateId;
   }
 
-  public performRender () {
+  public performRender() {
     this.__comp.context.scheduler.scheduleUpdate();
   }
 
-  public getParent (): ICoreComponent | void {
+  public getParent(): ICoreComponent | void {
     return this.__comp.parent;
   }
 
-  public setContext (context: object) {
+  public setContext(context: object) {
     Object.assign(this.context, context);
     this.performRender();
   }
 
-  protected unmount () {}
-  protected render () {}
-  protected updateChildren (): void | object[] {}
+  protected unmount() {
+    // noop
+  }
+  protected render() {
+    // noop
+  }
+  protected updateChildren(): void | object[] {
+    // noop
+  }
 
-  protected setProps (props: object) {}
+  protected setProps(_props: object) {
+    // noop
+  }
   /* deprecated */
-  protected __setProps (props: object) {}
+  protected __setProps(_props: object) {
+    // noop
+  }
 
-  private __unmount () {
+  private __unmount() {
     this.__unmountChildren();
     this.unmount();
     this.performRender();
   }
 
-  protected iterate (): boolean {
+  protected iterate(): boolean {
     this.__comp.iterateId = this.__comp.context.globalIterateId;
 
     return true;
   }
 
-  protected __updateChildren () {
+  protected __updateChildren() {
     const nextChildrenArr = this.updateChildren();
 
-    if (typeof nextChildrenArr === 'undefined') return;
+    if (typeof nextChildrenArr === "undefined") return;
 
     const __comp = this.__comp;
     const children = __comp.children;
     const childrenKeys = __comp.childrenKeys;
-    const nextChildrenKeys = __comp.childrenKeys = [];
+    const nextChildrenKeys = (__comp.childrenKeys = []);
 
     if (nextChildrenArr === __comp.prevChildrenArr) return;
 
@@ -116,12 +129,12 @@ export class CoreComponent {
 
     if (nextChildrenArr.length === 0) {
       if (childrenKeys.length > 0) {
-        for (let i= 0; i < childrenKeys.length; i += 1) {
+        for (let i = 0; i < childrenKeys.length; i += 1) {
           key = childrenKeys[i];
           child = children[key];
 
           child.__unmount();
-          children[key] = void 0;
+          children[key] = undefined;
         }
       }
 
@@ -130,16 +143,17 @@ export class CoreComponent {
 
     if (childrenKeys.length === 0) {
       if (nextChildrenArr.length > 0) {
-        for (let i= 0; i < nextChildrenArr.length; i += 1) {
+        for (let i = 0; i < nextChildrenArr.length; i += 1) {
           child = nextChildrenArr[i];
-          key = child.options.hasOwnProperty('key') ? child.options.key : `${child.klass.name}|${i}|defaultKey`;
+          // eslint-disable-next-line no-prototype-builtins
+          key = child.options.hasOwnProperty("key") ? child.options.key : `${child.klass.name}|${i}|defaultKey`;
           ref = child.options.ref;
+          // eslint-disable-next-line new-cap
           children[key] = new child.klass(child.props, this);
 
-          if (typeof ref === 'function') {
+          if (typeof ref === "function") {
             ref(children[key]);
-          }
-          else if (typeof ref === 'string') {
+          } else if (typeof ref === "string") {
             this.$[ref] = children[key];
           }
 
@@ -156,15 +170,16 @@ export class CoreComponent {
 
     for (let i = 0; i < nextChildrenArr.length; i += 1) {
       child = nextChildrenArr[i];
-      key = child.options.hasOwnProperty('key') ? child.options.key : `${child.klass.name}|${i}|defaultKey`;
+      // eslint-disable-next-line no-prototype-builtins
+      key = child.options.hasOwnProperty("key") ? child.options.key : `${child.klass.name}|${i}|defaultKey`;
       currentChild = children[key];
 
       nextChildrenKeys.push(key);
 
       if (
-        currentChild !== undefined
-        && currentChild instanceof child.klass
-        && currentChild.constructor === child.klass
+        currentChild !== undefined &&
+        currentChild instanceof child.klass &&
+        currentChild.constructor === child.klass
       ) {
         currentChild.__setProps(child.props);
         currentChild.__comp.updated = true;
@@ -184,7 +199,7 @@ export class CoreComponent {
         child.__comp.updated = false;
       } else {
         child.__unmount();
-        children[key] = void 0;
+        children[key] = undefined;
       }
     }
 
@@ -192,39 +207,39 @@ export class CoreComponent {
       child = childForMount[i];
       key = keyForMount[i];
       ref = child.options.ref;
+      // eslint-disable-next-line new-cap
       child = children[key] = new child.klass(child.props, this);
 
-      if (typeof ref === 'function') {
+      if (typeof ref === "function") {
         ref(children[key]);
-      }
-      else if (typeof ref === 'string') {
+      } else if (typeof ref === "string") {
         this.$[ref] = children[key];
       }
     }
 
     for (let i = 0; i < nextChildrenKeys.length; i += 1) {
-      if ((child = children[nextChildrenKeys[ i ]]) !== undefined) {
+      if ((child = children[nextChildrenKeys[i]]) !== undefined) {
         treeNode.append(child.__comp.treeNode);
       }
     }
   }
 
-  private __unmountChildren () {
+  private __unmountChildren() {
     this.__comp.treeNode.clearChildren();
 
     const children = this.__comp.children;
     const childrenKeys = this.__comp.childrenKeys;
 
-    for (let i= 0; i < childrenKeys.length; i += 1) {
+    for (let i = 0; i < childrenKeys.length; i += 1) {
       children[childrenKeys[i]].__unmount();
     }
   }
 
-  static create (props?: object, options: TOptions = fakeEmptyOptions) {
+  public static create(props?: object, options: TOptions = fakeEmptyOptions) {
     return { props, options, klass: this };
   }
 
-  static mount (Component, props?: object) {
+  public static mount(Component, props?: object) {
     const context = getRootParentData();
     const root = new Component(props, context);
 
@@ -235,17 +250,17 @@ export class CoreComponent {
     return root;
   }
 
-  static unmount (instance) {
+  public static unmount(instance) {
     instance.__unmount();
   }
 }
 
 type TFakeParentData = {
-  context: any, // public context
-  __comp: any,
-}
+  context: any; // public context
+  __comp: any;
+};
 
-function getRootParentData (): TFakeParentData {
+function getRootParentData(): TFakeParentData {
   return {
     context: {}, // public context
     __comp: {
@@ -253,6 +268,6 @@ function getRootParentData (): TFakeParentData {
         scheduler: new Scheduler(),
         globalIterateId: 0,
       }, // private context
-    }
-  }
+    },
+  };
 }

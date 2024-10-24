@@ -1,11 +1,16 @@
-import "@gravity-ui/uikit/styles/styles.css";
-import type { Meta, StoryFn } from "@storybook/react";
+/* eslint-disable no-console */
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { GraphComponentStory } from "../../main/GraphEditor";
+
 import { ThemeProvider } from "@gravity-ui/uikit";
-import { Graph, TGraphConfig, TBlock, CanvasBlock, TRenderBlockFn } from "../../../index";
+import type { Meta, StoryFn } from "@storybook/react";
+
+import { CanvasBlock, Graph, TBlock, TGraphConfig, TRenderBlockFn } from "../../../index";
 import { storiesSettings } from "../../../stories/configurations/definitions";
+import { GraphComponentStory } from "../../main/GraphEditor";
+
 import image from "./image.png";
+
+import "@gravity-ui/uikit/styles/styles.css";
 
 type TBlockMeta = {
   color: string;
@@ -22,7 +27,7 @@ const SpecificBlockIs = "some-specific-view";
 
 async function generateByImage() {
   return new Promise<TGraphConfig>((resolve) => {
-    const config: TGraphConfig<TBlockMeta> = {
+    const config: TGraphConfig<TBlock<TBlockMeta>> = {
       configurationName: "power of 2",
       blocks: [],
       connections: [],
