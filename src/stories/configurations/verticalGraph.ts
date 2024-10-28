@@ -1,6 +1,7 @@
-import { storiesSettings } from "./definitions";
 import { Block } from "../../components/canvas/blocks/Block";
 import { TPoint } from "../../utils/types/shapes";
+
+import { storiesSettings } from "./definitions";
 
 class VerticalBlock extends Block {
   public override getConnectionPoint(direction: "in" | "out"): TPoint {
@@ -88,7 +89,7 @@ export const verticalGraphConfig = {
     ...storiesSettings,
     showConnectionLabels: true,
     useBezierConnections: true,
-    bezierConnectionDirection: 'vertical',
+    bezierConnectionDirection: "vertical",
     blockComponents: {
       verticalBlock: VerticalBlock,
     },

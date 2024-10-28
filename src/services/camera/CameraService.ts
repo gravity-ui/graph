@@ -1,9 +1,10 @@
 import intersects from "intersects";
-import { TRect } from "../../utils/types/shapes";
+import debounce from "lodash/debounce";
+
+import { Graph } from "../../graph";
 import { Emitter } from "../../utils/Emitter";
 import { clamp } from "../../utils/functions/clamp";
-import debounce from "lodash/debounce";
-import { Graph } from "../../graph";
+import { TRect } from "../../utils/types/shapes";
 
 export type TCameraState = {
   x: number;
@@ -72,7 +73,7 @@ export class CameraService extends Emitter {
     this.unstable = false;
   }, 50);
 
-  public constructor(
+  constructor(
     protected graph: Graph,
     protected state: TCameraState = getInitCameraState()
   ) {

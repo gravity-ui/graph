@@ -1,7 +1,8 @@
-import { Background } from "./Background";
-import { ICamera } from "../../../../services/camera/CameraService";
-import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { Graph } from "../../../../graph";
+import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
+import { ICamera } from "../../../../services/camera/CameraService";
+
+import { Background } from "./Background";
 
 export type TBelowLayerProps = LayerProps & {
   camera: ICamera;
@@ -19,7 +20,7 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
 
   private camera: ICamera;
 
-  public constructor(props: TBelowLayerProps, context: TBelowLayerContext) {
+  constructor(props: TBelowLayerProps, context: TBelowLayerContext) {
     super(
       {
         canvas: {

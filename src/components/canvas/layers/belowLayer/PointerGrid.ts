@@ -1,5 +1,6 @@
 import { Component } from "../../../../lib/Component";
 import { TRect } from "../../../../utils/types/shapes";
+
 import { Background } from "./Background";
 import { TBelowLayerContext } from "./BelowLayer";
 
@@ -20,7 +21,7 @@ export class PointerGrid extends Component {
   // need to understand when should remake pattern
   private currentDotsColor: string;
 
-  public constructor(props: TRect, parent: Background) {
+  constructor(props: TRect, parent: Background) {
     super(props, parent);
 
     this.props = props;

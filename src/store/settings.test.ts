@@ -1,4 +1,5 @@
 import { Graph } from "../graph";
+
 import { ECanChangeBlockGeometry, GraphEditorSettings } from "./settings";
 
 describe("Settings store", () => {
@@ -34,7 +35,7 @@ describe("Settings store", () => {
   });
   it("Should set config via key", () => {
     expect(store.getConfigFlag("canDuplicateBlocks")).toBe(false);
-    store.setConfigFlag("canDuplicateBlocks", true)
+    store.setConfigFlag("canDuplicateBlocks", true);
     expect(store.getConfigFlag("canDuplicateBlocks")).toBe(true);
   });
 });

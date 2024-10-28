@@ -1,8 +1,11 @@
+import { useMemo } from "react";
+
 import { computed } from "@preact/signals-core";
+
 import { TBlock, isTBlock } from "../../components/canvas/blocks/Block";
 import { Graph } from "../../graph";
+
 import { useSignal } from "./useSignal";
-import { useMemo } from "react";
 
 export function useBlockState<T extends TBlock>(graph: Graph, block: T | T["id"]) {
   const signal = useMemo(() => {

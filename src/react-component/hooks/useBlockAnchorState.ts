@@ -1,11 +1,14 @@
+import { useLayoutEffect, useMemo, useState } from "react";
+
+import { computed } from "@preact/signals-core";
+import debounce from "lodash/debounce";
+
 import { TAnchor } from "../../components/canvas/anchors";
 import { Graph } from "../../graph";
-import { useSignal } from "./useSignal";
-import { useBlockState } from "./useBlockState";
 import { AnchorState } from "../../store/anchor/Anchor";
-import { computed } from "@preact/signals-core";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import debounce from "lodash/debounce";
+
+import { useBlockState } from "./useBlockState";
+import { useSignal } from "./useSignal";
 
 export function useBlockAnchorState(graph: Graph, anchor: TAnchor): AnchorState | undefined {
   const blockState = useBlockState(graph, anchor.blockId);
@@ -14,25 +17,28 @@ export function useBlockAnchorState(graph: Graph, anchor: TAnchor): AnchorState 
       if (!blockState) return;
       if (!Array.isArray(blockState.$anchorStates?.value)) return;
 
-      return blockState.$anchorStates.value.find((a) => a.id === anchor.id)
+      return blockState.$anchorStates.value.find((a) => a.id === anchor.id);
     });
   }, [blockState, anchor]);
   return useSignal(signal);
 }
 
 export function useBlockAnchorPosition(state: AnchorState | undefined) {
-  const [pos, setPos] = useState<{ x: number, y: number }>(state.block ? state.block.getViewComponent().getAnchorPosition(state.state)  : {x: 0, y: 0});
+  const [pos, setPos] = useState<{ x: number; y: number }>(
+    state.block ? state.block.getViewComponent().getAnchorPosition(state.state) : { x: 0, y: 0 }
+  );
 
   useLayoutEffect(() => {
-    if(!state) {
+    if (!state) {
       return;
     }
-    return state.block.$geometry.subscribe(debounce(() => {
-      const position = state.block.getViewComponent().getAnchorPosition(state.state);
-      setPos(position);
-    }, 16))
+    return state.block.$geometry.subscribe(
+      debounce(() => {
+        const position = state.block.getViewComponent().getAnchorPosition(state.state);
+        setPos(position);
+      }, 16)
+    );
   }, [state.block]);
 
   return pos;
-} 
-
+}

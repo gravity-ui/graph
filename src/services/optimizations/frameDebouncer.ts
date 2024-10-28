@@ -23,7 +23,7 @@ export class FrameDebouncer {
 
   private tmpFns: ((...args: unknown[]) => unknown)[] = [];
 
-  private mapOriginalToBindedFn: WeakMap<((...args: unknown[]) => unknown), BindedFunction> = new WeakMap();
+  private mapOriginalToBindedFn: WeakMap<(...args: unknown[]) => unknown, BindedFunction> = new WeakMap();
 
   public run(frameTime: number) {
     const start = getNowTime();
@@ -63,7 +63,7 @@ export class FrameDebouncer {
     }
   }
 
-  private getBindedFunction(fn: ((...args: unknown[]) => unknown), options: Options): BindedFunction {
+  private getBindedFunction(fn: (...args: unknown[]) => unknown, options: Options): BindedFunction {
     const bindedFn = this.createBindedFunction(fn, options);
 
     bindedFn.delay = options.delay;

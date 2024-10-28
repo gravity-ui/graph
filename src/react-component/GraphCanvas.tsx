@@ -1,12 +1,15 @@
 import React, { useEffect, useLayoutEffect, useRef } from "react";
-import { Graph } from "../graph";
+
 import { createPortal } from "react-dom";
-import { BlocksList, TBlockListProps } from "./BlocksList";
-import { useGraphEvent, useGraphEvents } from "./hooks/useGraphEvents";
-import { TGraphEventCallbacks } from "./events";
+
 import { TGraphColors } from "..";
-import { useFn } from "../utils/hooks/useFn";
+import { Graph } from "../graph";
 import { setCssProps } from "../utils/functions/cssProp";
+import { useFn } from "../utils/hooks/useFn";
+
+import { BlocksList, TBlockListProps } from "./BlocksList";
+import { TGraphEventCallbacks } from "./events";
+import { useGraphEvent, useGraphEvents } from "./hooks/useGraphEvents";
 
 export type GraphProps = Pick<Partial<TBlockListProps>, "renderBlock"> &
   Partial<TGraphEventCallbacks> & {

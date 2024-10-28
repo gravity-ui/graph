@@ -1,6 +1,6 @@
 import type { Monaco } from "@monaco-editor/react";
 
-export const GravityTheme = 'gravity';
+export const GravityTheme = "gravity";
 
 export function defineTheme(monaco: Monaco) {
   monaco.editor.defineTheme(GravityTheme, {

@@ -1,5 +1,6 @@
-import { ToolboxLayer } from "../main/ToolboxLayer";
 import { TGraphConfig } from "../../graph";
+import { ToolboxLayer } from "../main/ToolboxLayer";
+
 import { storiesSettings } from "./definitions";
 
 export const CustomLayerConfig: TGraphConfig = {

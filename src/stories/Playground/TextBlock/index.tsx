@@ -1,37 +1,29 @@
 import React from "react";
-import { CanvasBlock, layoutText, TBlockId } from "../../..";
 
+import { CanvasBlock, TBlockId, layoutText } from "../../..";
 import { TGravityTextBlock } from "../generateLayout";
-import './TextBlock.css';
+
 import { TextBlockHtml } from "./TextBlockHtml";
 
-function getAnchorY(index) {
-  let y = 18 * index;
-  if (index >= 1) {
-    y += 8 * index;
-  }
-  return y + 18;
-}
+import "./TextBlock.css";
 
 export class TextBlock extends CanvasBlock<TGravityTextBlock> {
+  public cursor = "pointer";
 
-  public cursor = 'pointer';
-
-  protected hovered: boolean = false;
+  protected hovered = false;
 
   protected subscribe(id: TBlockId) {
     const subs = super.subscribe(id);
     subs.push(
-      this.addEventListener('mouseenter', (e) => {
-          this.hovered = true;
-          this.performRender();
-        }
-      ),
-      this.addEventListener('mouseleave', (e) => {
+      this.addEventListener("mouseenter", () => {
+        this.hovered = true;
+        this.performRender();
+      }),
+      this.addEventListener("mouseleave", () => {
         this.hovered = false;
         this.performRender();
       })
-    )
+    );
     return subs;
   }
 
@@ -42,7 +34,7 @@ export class TextBlock extends CanvasBlock<TGravityTextBlock> {
   }
 
   public renderHTML() {
-    return <TextBlockHtml graph={this.context.graph} block={this.connectedState.$state.value} />
+    return <TextBlockHtml graph={this.context.graph} block={this.connectedState.$state.value} />;
   }
 
   protected renderTextAtCenter(name: string, ctx: CanvasRenderingContext2D) {
@@ -51,7 +43,10 @@ export class TextBlock extends CanvasBlock<TGravityTextBlock> {
     ctx.fillStyle = "rgba(189, 142, 75, 1)";
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
-    const { lines, measures } = layoutText(name, ctx, rect, { font: `500 ${13 / scale}px YS Text`, lineHeight: 9 / scale })
+    const { lines, measures } = layoutText(name, ctx, rect, {
+      font: `500 ${13 / scale}px YS Text`,
+      lineHeight: 9 / scale,
+    });
     const shiftY = rect.height / 2 - measures.height / 2;
     for (let index = 0; index < lines.length; index++) {
       const [line, x, y] = lines[index];
@@ -66,7 +61,7 @@ export class TextBlock extends CanvasBlock<TGravityTextBlock> {
     ctx.save();
 
     ctx.lineWidth = Math.min(Math.round(2 / scale), 12);
-    ctx.fillStyle = 'rgba(189, 142, 75, 0.1)';
+    ctx.fillStyle = "rgba(189, 142, 75, 0.1)";
 
     ctx.beginPath();
     ctx.roundRect(this.state.x, this.state.y, this.state.width, this.state.height, 8);
@@ -79,7 +74,7 @@ export class TextBlock extends CanvasBlock<TGravityTextBlock> {
       ctx.setLineDash([4, 4]);
     }
 
-    ctx.strokeStyle = 'rgba(189, 142, 75, 1)'
+    ctx.strokeStyle = "rgba(189, 142, 75, 1)";
     ctx.stroke();
     ctx.closePath();
 
@@ -87,7 +82,7 @@ export class TextBlock extends CanvasBlock<TGravityTextBlock> {
   }
 
   public renderMinimalisticBlock(ctx: CanvasRenderingContext2D): void {
-      this.renderBody(ctx);
+    this.renderBody(ctx);
   }
 
   public renderSchematicView(ctx: CanvasRenderingContext2D) {

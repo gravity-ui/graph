@@ -1,12 +1,15 @@
-import isEqual from "lodash/isEqual";
 import React, { memo, useEffect, useMemo, useState } from "react";
-import debounce from 'lodash/debounce';
-import { BlockState } from "../store/block/Block";
+
+import debounce from "lodash/debounce";
+import isEqual from "lodash/isEqual";
+
 import { Block as CanvasBlock, TBlock } from "../components/canvas/blocks/Block";
 import { Graph, GraphState } from "../graph";
 import { ECameraScaleLevel } from "../services/camera/CameraService";
+import { BlockState } from "../store/block/Block";
 import { useCompareState } from "../utils/hooks/useCompareState";
 import { useFn } from "../utils/hooks/useFn";
+
 import { useSignal } from "./hooks";
 import { useGraphEvent } from "./hooks/useGraphEvents";
 
@@ -73,7 +76,7 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
 
   const scheduleListUpdate = useMemo(() => {
     return debounce(() => updateBlockList(), 0);
-  }, [])
+  }, []);
 
   useGraphEvent(graphObject, "state-change", () => {
     setGraphState(graphObject.state);
@@ -83,7 +86,7 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
     setGraphState(graphObject.state);
   }, [graphObject]);
 
-  useGraphEvent(graphObject, "camera-change", ({scale}) => {
+  useGraphEvent(graphObject, "camera-change", ({ scale }) => {
     if (graphObject.cameraService.getCameraBlockScaleLevel(scale) !== ECameraScaleLevel.Detailed) {
       setRenderAllowed(false);
       return;

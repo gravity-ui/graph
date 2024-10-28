@@ -1,0 +1,62 @@
+{
+  "extends": [
+    "@gravity-ui/eslint-config",
+    "@gravity-ui/eslint-config/import-order",
+    // "@gravity-ui/eslint-config/prettier",
+    "prettier"
+  ],
+  "parserOptions": {
+    "project": [
+      "./tsconfig.json"
+    ]
+  },
+  "root": true,
+  "env": {
+    "node": true,
+    "jest": true
+  },
+  "overrides": [
+    {
+      // enable the rule specifically for TypeScript files
+      "files": [
+        "*.ts",
+        "*.mts",
+        "*.cts",
+        "*.tsx"
+      ],
+      "rules": {
+        "@typescript-eslint/explicit-member-accessibility": [
+          "error",
+          {
+            "accessibility": "explicit",
+            "overrides": {
+              "accessors": "explicit",
+              "constructors": "no-public",
+              "methods": "explicit",
+              "properties": "off",
+              "parameterProperties": "explicit",
+            },
+          }
+        ],
+        "no-bitwise": [
+          "error",
+          {
+            "int32Hint": true
+          }
+        ]
+      }
+    }
+  ],
+  "rules": {
+    "no-negated-condition": "off",
+    "@typescript-eslint/parameter-properties": "off",
+    "no-param-reassign": "off",
+    "guard-for-in": "off",
+    "no-return-assign": "off",
+    "@typescript-eslint/member-ordering": "off",
+    "import/consistent-type-specifier-style": [
+      "error",
+      "prefer-top-level"
+    ]
+  }
+}

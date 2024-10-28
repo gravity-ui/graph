@@ -1,6 +1,8 @@
-import { signal, computed } from "@preact/signals-core";
-import { RootStore } from "./index";
+import { computed, signal } from "@preact/signals-core";
+
 import type { Block, TBlock } from "../components/canvas/blocks/Block";
+
+import { RootStore } from "./index";
 
 export enum ECanChangeBlockGeometry {
   ALL = "all",
@@ -17,7 +19,7 @@ export type TGraphSettingsConfig<B extends TBlock = TBlock> = {
   scaleFontSize: number;
   showConnectionArrows: boolean;
   useBezierConnections: boolean;
-  bezierConnectionDirection: 'vertical' | 'horizontal',
+  bezierConnectionDirection: "vertical" | "horizontal";
   useBlocksAnchors: boolean;
   connectivityComponentOnClickRaise: boolean;
   showConnectionLabels: boolean;
@@ -47,7 +49,7 @@ export class GraphEditorSettings {
     return this.$settings.value.blockComponents;
   });
 
-  public constructor(public rootStore: RootStore) {}
+  constructor(public rootStore: RootStore) {}
 
   public setupSettings(config: Partial<TGraphSettingsConfig>) {
     this.$settings.value = Object.assign({}, this.$settings.value, config);

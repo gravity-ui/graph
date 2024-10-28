@@ -1,11 +1,15 @@
-import "@gravity-ui/uikit/styles/styles.css";
-import type { Meta, StoryFn } from "@storybook/react";
 import React, { useCallback, useRef, useState } from "react";
-import { GraphComponentStory } from "../../main/GraphEditor";
+
 import { Button, ButtonProps, Flex, ThemeProvider } from "@gravity-ui/uikit";
+import type { Meta, StoryFn } from "@storybook/react";
+
+import { TGraphColors } from "graphConfig";
+
 import { Graph } from "../../../graph";
 import { oneBlockConfig } from "../../configurations/oneBlock";
-import { TGraphColors } from "graphConfig";
+import { GraphComponentStory } from "../../main/GraphEditor";
+
+import "@gravity-ui/uikit/styles/styles.css";
 
 const GraphApp = () => {
   const [colors, setColors] = useState<TGraphColors>();

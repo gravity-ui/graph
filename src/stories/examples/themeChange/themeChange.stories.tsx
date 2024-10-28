@@ -1,12 +1,15 @@
-import "@gravity-ui/uikit/styles/styles.css";
-import type { Meta, StoryFn } from "@storybook/react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { GraphComponentStory } from "../../main/GraphEditor";
+
 import { Flex, RadioButton, RadioButtonOption, RadioButtonProps, ThemeProvider } from "@gravity-ui/uikit";
+import type { Meta, StoryFn } from "@storybook/react";
+
 import { Graph } from "../../../graph";
 import { TGraphColors } from "../../../graphConfig";
-import { withAnchorsAndConnectionConfig } from "../../configurations/withAnchorAndConnection";
 import { computeCssVariable } from "../../../utils/functions";
+import { withAnchorsAndConnectionConfig } from "../../configurations/withAnchorAndConnection";
+import { GraphComponentStory } from "../../main/GraphEditor";
+
+import "@gravity-ui/uikit/styles/styles.css";
 
 const graphColors: TGraphColors = {
   anchor: {

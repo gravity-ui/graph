@@ -1,12 +1,13 @@
 import { BlockState } from "store/block/Block";
-import { Emitter } from "../../utils/Emitter";
-import { EVENTS } from "../../utils/types/events";
+
 import { Block, TBlock } from "../../components/canvas/blocks/Block";
 import { Graph } from "../../graph";
 import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../graphEvents";
-import { TPoint } from "../../utils/types/shapes";
+import { Emitter } from "../../utils/Emitter";
 import { isAltKeyEvent, isBlock } from "../../utils/functions";
 import { dragListener } from "../../utils/functions/dragListener";
+import { EVENTS } from "../../utils/types/events";
+import { TPoint } from "../../utils/types/shapes";
 
 declare module "../../graphEvents" {
   interface GraphEventsDefinitions {
