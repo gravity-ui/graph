@@ -354,7 +354,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     };
   }
 
-  public getConnectionPoint(direction: "in" | "out"): TPoint {
+  public getConnectionPoint(direction: "in" | "out", _target: Block): TPoint {
     return {
       x: this.state.x + (direction === "out" ? this.state.width : 0),
       y: (this.state.y + this.state.height / 2) | 0,
