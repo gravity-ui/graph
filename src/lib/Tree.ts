@@ -1,37 +1,99 @@
+import { cache } from "./utils";
+
 type TIterator = (Node) => boolean;
 
-export class Node {
-  public data: any;
-  private parent: Node;
-  private walkIndex = 0;
-  private childrenLength = 0;
-  private children: Node[] = [];
+export class Tree<T = unknown> {
+  public data: T;
+  public parent: Tree;
 
-  constructor(data, parent?: Node) {
+  protected children: Set<Tree> = new Set();
+  
+  private childrenArray: Tree[] = [];
+
+  protected childrenDirty = false;
+
+  protected zIndexGroups: Map<number, Set<Tree>> = new Map();
+
+  protected zIndexChildrenCache = cache(() => {
+    return Array.from(this.zIndexGroups.keys())
+      .sort((a, b) => a - b)
+      .map((index) => Array.from(this.zIndexGroups.get(index) || []))
+      .flat(2) as Tree[];
+  });
+
+  public renderOrder = 0;
+
+  public zIndex = 1;
+
+  constructor(data: T, parent?: Tree) {
     this.data = data;
     this.parent = parent;
   }
 
-  public append(node: Node) {
-    this.children.push(node);
-    this.childrenLength = this.children.length;
+  public append(node: Tree) {
+    node.parent = this;
+    this.children.add(node);
+    this.childrenDirty = true;
+    this.addInZIndex(node);
   }
 
-  public remove(node: Node = this) {
+  protected addInZIndex(node: Tree) {
+    if (!this.zIndexGroups.has(node.zIndex)) {
+      this.zIndexGroups.set(node.zIndex, new Set());
+    }
+    this.zIndexGroups.get(node.zIndex).add(node);
+    this.zIndexChildrenCache.reset();
+  }
+
+  protected removeZIndex(node: Tree) {
+    const zIndex = node.zIndex;
+    const set = this.zIndexGroups.get(node.zIndex);
+    if (!set) return;
+    set.delete(node);
+    if (!set.size) {
+      this.zIndexGroups.delete(zIndex);
+      this.zIndexChildrenCache.reset();
+    }
+  }
+
+  public remove(node: Tree = this) {
     if (node.parent === null) return;
-
-    node.parent.children.splice(node.parent.children.indexOf(node), 1);
-    node.parent.childrenLength = node.parent.children.length;
+    this.children.delete(node);
+    this.childrenDirty = true;
+    this.removeZIndex(node);
   }
 
-  public setChildren(nodes: Node[]) {
-    this.children = nodes;
-    this.childrenLength = nodes.length;
+  public setChildren(nodes: Tree[]) {
+    this.children = new Set(nodes);
+    this.childrenDirty = true;
+
+    nodes.forEach((item) => {
+      this.addInZIndex(item);
+    });
+  }
+
+  public updateZIndex(index: number) {
+    if (this.zIndex === index) {
+      return;
+    }
+    this.zIndex = index;
+    this.parent?.updateChildZIndex(this);
+  }
+
+  public updateChildZIndex(child: Tree) {
+    if(!this.children.has(child)) {
+      return;
+    }
+    this.removeZIndex(child);
+    this.addInZIndex(child);
   }
 
   public clearChildren() {
-    this.children = [];
-    this.childrenLength = 0;
+    this.children.clear();
+    this.childrenDirty = true;
+
+    this.zIndexGroups.clear();
+    this.zIndexChildrenCache.clear();
   }
 
   public traverseDown(iterator: TIterator) {
@@ -42,14 +104,24 @@ export class Node {
     this[strategyName](iterator);
   }
 
-  protected _walkDown(iterator: TIterator) {
-    if (iterator(this) === true && this.childrenLength > 0) {
-      while (this.walkIndex < this.childrenLength) {
-        this.children[this.walkIndex]._walkDown(iterator);
-        this.walkIndex += 1;
-      }
+  protected getChildrenArray() {
+    if (this.childrenDirty) {
+      this.childrenArray = Array.from(this.children);
+      this.childrenDirty = false;
+    }
+    return this.childrenArray;
+  }
 
-      this.walkIndex = 0;
+  protected _walkDown(iterator: TIterator, order: number) {
+    this.renderOrder = order;
+    if (iterator(this)) {
+      if (!this.children.size) {
+        return;
+      }
+      const children = this.zIndexChildrenCache.get();
+      for (let i = 0; i < children.length; i++) {
+        children[i]._walkDown(iterator, i);
+      }
     }
   }
 }

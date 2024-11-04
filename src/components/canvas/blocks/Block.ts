@@ -45,8 +45,6 @@ export type TBlock<T extends Record<string, unknown> = {}> = {
 export type TBlockProps = {
   id: TBlockId;
   font: string;
-  onZindexChange: (block: Block) => void;
-  getRenderIndex: (block: Block) => number;
 };
 
 declare module "../../../graphEvents" {
@@ -131,11 +129,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.shouldRender;
   }
 
-  public get zIndex() {
-    const raised = this.connectedState.selected || this.lastDragEvent ? 1 : 0;
-    return this.context.constants.block.DEFAULT_Z_INDEX + raised;
-  }
-
   protected updateViewState(params: Partial<BlockViewState>) {
     let hasChanges = false;
     for (const [key, value] of Object.entries(params)) {
@@ -178,7 +171,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     });
     this.updateViewState({
       zIndex: this.zIndex,
-      order: this.props.getRenderIndex(this),
+      order: this.renderOrder,
     });
 
     return [
@@ -201,29 +194,22 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.__data.nextState || this.state;
   }
 
-  protected zIndexDirty = false;
   protected didIterate() {
-    if (this.zIndexDirty) {
-      this.props.onZindexChange(this);
-      this.zIndexDirty = false;
+    if (this.$viewState.value.zIndex !== this.zIndex || this.$viewState.value.order !== this.renderOrder) {
       this.updateViewState({
         zIndex: this.zIndex,
-      });
-      this.$viewState.value = {
-        ...this.$viewState.value,
-        zIndex: this.zIndex,
-      };
-    }
-    const nextOrder = this.props.getRenderIndex(this);
-    if (this.$viewState.value.order !== nextOrder) {
-      this.updateViewState({
-        order: nextOrder,
+        order: this.renderOrder,
       });
     }
   }
 
+  protected calcZIndex() {
+    const raised = this.connectedState.selected || this.lastDragEvent ? 1 : 0;
+    return this.context.constants.block.DEFAULT_Z_INDEX + raised;
+  }
+
   protected raiseBlock() {
-    this.zIndexDirty = true;
+    this.zIndex = this.calcZIndex();
     this.performRender();
   }
 
@@ -235,7 +221,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   public getRenderIndex() {
-    return this.props.getRenderIndex(this);
+    return this.renderOrder;
   }
 
   public updatePosition(x: number, y: number) {

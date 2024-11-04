@@ -1,6 +1,6 @@
 /* eslint-disable complexity */
 import { Scheduler } from "./Scheduler";
-import { Node } from "./Tree";
+import { Tree } from "./Tree";
 
 type TOptions = {
   readonly key?: string;
@@ -9,7 +9,7 @@ type TOptions = {
 
 type TCompData = {
   parent: ICoreComponent | void;
-  treeNode: Node;
+  treeNode: Tree;
   context: {
     scheduler: any;
     globalIterateId: number;
@@ -33,6 +33,18 @@ export class CoreComponent {
   protected children: Function;
   protected __comp: TCompData;
 
+  public get zIndex() {
+    return this.__comp.treeNode.zIndex;
+  }
+
+  public set zIndex(index: number) {
+    this.__comp.treeNode.updateZIndex(index);
+  }
+
+  public get renderOrder() {
+    return this.__comp.treeNode.renderOrder;
+  }
+
   constructor(...args: any[]);
   constructor(props: object | void, parent: TFakeParentData | ICoreComponent) {
     this.context = parent.context;
@@ -40,7 +52,7 @@ export class CoreComponent {
     this.__comp = {
       parent: parent as ICoreComponent,
       context: (parent as any).__comp.context,
-      treeNode: new Node(this),
+      treeNode: new Tree(this),
       children: {},
       childrenKeys: [],
       prevChildrenArr: [],

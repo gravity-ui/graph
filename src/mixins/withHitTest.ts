@@ -30,8 +30,6 @@ export function withHitTest<T extends Constructor<GraphComponent>>(superclass: T
       graph: Graph;
     };
 
-    public declare zIndex: number;
-
     public hitBox: HitBox;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
