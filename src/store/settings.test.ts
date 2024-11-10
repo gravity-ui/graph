@@ -28,6 +28,7 @@ describe("Settings store", () => {
       connectivityComponentOnClickRaise: true,
       showConnectionLabels: false,
       blockComponents: {},
+      connectionComponents: {},
     });
   });
   it("Should get config via key", () => {

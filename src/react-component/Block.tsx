@@ -17,7 +17,7 @@ export const GraphBlock = <T extends TBlock>({
 }: {
   graph: Graph;
   block: T;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   className?: string;
   containerClassName?: string;
 }) => {

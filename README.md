@@ -18,7 +18,7 @@ npm install @gravity-ui/graph
 - [Customization connection](https://preview.gravity-ui.com/graph/?path=/story/api-updateconnection--default)
 
 ```jsx
-import { GraphCanvas, GraphState, TRenderBlockFn, useGraph } from "@gravity-ui/graph";
+import { GraphCanvas, GraphState, TRenderBlockFn, GraphBlock, useGraph } from "@gravity-ui/graph";
 import React from "react";
 
 const config = {};
@@ -62,8 +62,8 @@ export function GraphEditor() {
     })
   })
 
-  const renderBlock = (graph, block) => {
-    return <HTMLBlockView graph={graph} block={block} />;
+  const renderBlockFn = (graph, block) => {
+    return <GraphBlock graph={graph} block={block}>{block.id}</GraphBlock>;
   };
 
   return (
@@ -86,4 +86,3 @@ export function GraphEditor() {
 - [Pulic API](docs/public_api.md)
 - [Graph Events](docs/events.md)
 - [Editing](docs/editing.md)
-

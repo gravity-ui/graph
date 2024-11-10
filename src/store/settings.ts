@@ -1,6 +1,7 @@
 import { computed, signal } from "@preact/signals-core";
 
 import type { Block, TBlock } from "../components/canvas/blocks/Block";
+import type { BlockConnection } from "../components/canvas/connections/BlockConnection";
 
 import { RootStore } from "./index";
 
@@ -24,6 +25,7 @@ export type TGraphSettingsConfig<B extends TBlock = TBlock> = {
   connectivityComponentOnClickRaise: boolean;
   showConnectionLabels: boolean;
   blockComponents: Record<string, typeof Block<B>>;
+  connectionComponents: Record<string, typeof BlockConnection>;
 };
 
 const getInitState: TGraphSettingsConfig = {
@@ -40,6 +42,7 @@ const getInitState: TGraphSettingsConfig = {
   connectivityComponentOnClickRaise: true,
   showConnectionLabels: false,
   blockComponents: {},
+  connectionComponents: {},
 };
 
 export class GraphEditorSettings {
@@ -49,6 +52,9 @@ export class GraphEditorSettings {
     return this.$settings.value.blockComponents;
   });
 
+  public $connectionComponents = computed(() => {
+    return this.$settings.value.connectionComponents;
+  });
   constructor(public rootStore: RootStore) {}
 
   public setupSettings(config: Partial<TGraphSettingsConfig>) {
