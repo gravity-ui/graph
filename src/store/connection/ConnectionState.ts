@@ -12,6 +12,7 @@ export type TConnectionId = string | number | symbol;
 
 export type TConnection = {
   id?: TConnectionId;
+  is?: string;
   sourceBlockId: TBlockId;
   targetBlockId: TBlockId;
   sourceAnchorId?: string;

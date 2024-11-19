@@ -16,6 +16,8 @@ export class BlockConnections extends withBatchedConnections(Component) {
 
   public removeFromRenderOrder = this.removeFromRenderOrder.bind(this);
 
+  protected connectionsView = {};
+
   constructor(props: {}, parent: GraphLayer) {
     super(props, parent);
     this.unsubscribe = this.subscribe();
@@ -28,6 +30,7 @@ export class BlockConnections extends withBatchedConnections(Component) {
 
   protected subscribe() {
     this.connections = this.context.graph.rootStore.connectionsList.$connections.value;
+    this.connectionsView = this.context.graph.rootStore.settings.getConfigFlag("connectionComponents");
 
     const r1 = this.context.graph.rootStore.settings.$connectionsSettings.subscribe(() => {
       this.scheduleUpdate();
@@ -38,7 +41,12 @@ export class BlockConnections extends withBatchedConnections(Component) {
       this.scheduleUpdate();
     });
 
-    return [r1, r2];
+    const r3 = this.context.graph.rootStore.settings.$connectionComponents.subscribe((connectionsView) => {
+      this.connectionsView = connectionsView;
+      this.scheduleUpdate();
+    });
+
+    return [r1, r2, r3];
   }
 
   protected unmount() {
@@ -60,7 +68,7 @@ export class BlockConnections extends withBatchedConnections(Component) {
         showConnectionLabels: settings.showConnectionLabels,
         showConnectionArrows: settings.showConnectionArrows,
       };
-      return BlockConnection.create(props, { key: String(connection.id) });
+      return (this.connectionsView[connection.$state.value.is] || BlockConnection).create(props, { key: String(connection.id) });
     });
   }
 }

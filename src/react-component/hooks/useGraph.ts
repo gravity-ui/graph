@@ -4,11 +4,12 @@ import { batch } from "@preact/signals-core";
 
 import { ZoomConfig } from "../../api/PublicGraphApi";
 import type { TBlock } from "../../components/canvas/blocks/Block";
-import { Graph, GraphState, TGraphConfig } from "../../graph";
 import type { TGraphZoomTarget } from "../../graph";
+import { Graph, GraphState, TGraphConfig } from "../../graph";
 import type { TGraphColors, TGraphConstants } from "../../graphConfig";
 import type { Layer } from "../../services/Layer";
 import type { TConnection } from "../../store/connection/ConnectionState";
+import { TGraphSettingsConfig } from "../../store/settings";
 import { useFn } from "../../utils/hooks/useFn";
 import { RecursivePartial } from "../../utils/types/helpers";
 
@@ -57,7 +58,7 @@ export function useGraph(config: HookGraphParams) {
   return {
     graph,
     api: graph.api,
-    setSettings: useFn((settings) => graph.updateSettings(settings)),
+    setSettings: useFn((settings: Partial<TGraphSettingsConfig>) => graph.updateSettings(settings)),
     start: useFn(() => {
       if (graph.state !== GraphState.READY) {
         graph.start();

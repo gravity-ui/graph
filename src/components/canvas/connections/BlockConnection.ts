@@ -16,6 +16,7 @@ import { Block } from "../blocks/Block";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
 import withBatchedConnection from "./batchMixins/withBatchedConnection";
+import { TConnectionRenderSettings } from "./batchMixins/withBatchedConnections";
 import { bezierCurveLine, generateBezierParams, getArrowCoords, isPointInStroke } from "./bezierHelpers";
 import { getLabelCoords } from "./labelHelper";
 
@@ -51,19 +52,19 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
 
   protected readonly unsubscribe: (() => void)[];
 
-  private sourceBlock: Block;
+  public sourceBlock: Block;
 
-  private sourceAnchor?: TAnchor;
+  public sourceAnchor?: TAnchor;
 
-  private targetBlock: Block;
+  public targetBlock: Block;
 
-  private targetAnchor?: TAnchor;
+  public targetAnchor?: TAnchor;
 
-  private hitBoxHash = 0;
+  public hitBoxHash = 0;
 
-  protected path2d?: Path2D;
+  public path2d?: Path2D;
 
-  private geometry = { x1: 0, x2: 0, y1: 0, y2: 0 };
+  public geometry = { x1: 0, x2: 0, y1: 0, y2: 0 };
 
   private labelGeometry = { x: 0, y: 0, width: 0, height: 0 };
 
@@ -104,10 +105,13 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
     this.sourceBlock = this.connectedState.$sourceBlock.value?.getViewComponent();
     this.targetBlock = this.connectedState.$targetBlock.value?.getViewComponent();
 
-    if (this.connectedState.sourceAnchorId && this.connectedState.targetAnchorId) {
+    if (this.connectedState.sourceAnchorId) {
       this.sourceAnchor = this.sourceBlock.connectedState
         .getAnchorById(this.connectedState.sourceAnchorId)
         ?.asTAnchor();
+    }
+
+    if (this.connectedState.targetAnchorId) {
       this.targetAnchor = this.targetBlock.connectedState
         .getAnchorById(this.connectedState.targetAnchorId)
         ?.asTAnchor();
@@ -136,18 +140,17 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
       return;
     }
 
-    this.shouldRender = this.context.camera.isLineVisible(
-      this.geometry.x1,
-      this.geometry.y1,
-      this.geometry.x2,
-      this.geometry.y2
-    );
+    this.shouldRender = this.isConnectionVisible();
   }
 
-  public computeRenderSettings(props, state: TConnectionState) {
+  public isConnectionVisible() {
+    return this.context.camera.isLineVisible(this.geometry.x1, this.geometry.y1, this.geometry.x2, this.geometry.y2);
+  }
+
+  public computeRenderSettings(props, state: TConnectionState): TConnectionRenderSettings {
     let lineWidth = 2;
     let zIndex = 1;
-    let lineDash: number[] | boolean = false;
+    let lineDash: number[] | undefined;
     const strokeStyle = this.getStrokeColor(state);
 
     if (state.selected) {
@@ -180,12 +183,16 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
   protected didRender() {
     super.didRender();
 
-    const hash = this.geometry.x1 + this.geometry.y1 + this.geometry.x2 + this.geometry.y2;
+    const hash = this.calculateHitBoxHash();
 
     if (this.hitBoxHash !== hash) {
       this.hitBoxHash = hash;
       this.updateHitBox();
     }
+  }
+
+  public calculateHitBoxHash() {
+    return this.geometry.x1 + this.geometry.y1 + this.geometry.x2 + this.geometry.y2;
   }
 
   public handleEvent(event: MouseEvent | KeyboardEvent) {
@@ -208,7 +215,7 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
     }
   }
 
-  private updateHitBox = () => {
+  public updateHitBox = () => {
     const labelGeometry = this.labelGeometry;
     let minX: number;
     let maxX: number;
@@ -254,7 +261,7 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
 
   public onHitBox(shape: HitBoxData): boolean {
     const THRESHOLD_LINE_HIT = this.context.constants.connection.THRESHOLD_LINE_HIT;
-    const relativeTreshold = THRESHOLD_LINE_HIT / this.context.camera.getCameraScale();
+    const relativeThreshold = THRESHOLD_LINE_HIT / this.context.camera.getCameraScale();
     const x = (shape.minX + shape.maxX) / 2;
     const y = (shape.minY + shape.maxY) / 2;
 
@@ -264,25 +271,25 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
       this.props.useBezier && this.path2d
         ? isPointInStroke(this.context.ctx, this.path2d, shape.x, shape.y, THRESHOLD_LINE_HIT * 2)
         : intersects.boxLine(
-          x - relativeTreshold / 2,
-          y - relativeTreshold / 2,
-          relativeTreshold,
-          relativeTreshold,
-          this.geometry.x1,
-          this.geometry.y1,
-          this.geometry.x2,
-          this.geometry.y2
-        );
+            x - relativeThreshold / 2,
+            y - relativeThreshold / 2,
+            relativeThreshold,
+            relativeThreshold,
+            this.geometry.x1,
+            this.geometry.y1,
+            this.geometry.x2,
+            this.geometry.y2
+          );
 
     if (this.labelGeometry !== undefined) {
       return (
         superHit &&
         (intersectsLine ||
           intersects.boxBox(
-            x - relativeTreshold / 2,
-            y - relativeTreshold / 2,
-            relativeTreshold,
-            relativeTreshold,
+            x - relativeThreshold / 2,
+            y - relativeThreshold / 2,
+            relativeThreshold,
+            relativeThreshold,
             this.labelGeometry.x,
             this.labelGeometry.y,
             this.labelGeometry.width,
@@ -294,7 +301,7 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
     }
   }
 
-  private updateGeometry(sourceBlock: Block, targetBlock: Block) {
+  public updateGeometry(sourceBlock: Block, targetBlock: Block) {
     if (!sourceBlock || !targetBlock) return;
     const scale = this.context.camera.getCameraScale();
     const isSchematicView = scale < this.context.constants.connection.SCALES[1];
