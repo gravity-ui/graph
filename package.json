@@ -39,7 +39,6 @@
     }
   ],
   "dependencies": {
-    "@monaco-editor/react": "^4.6.0",
     "@preact/signals-core": "^1.5.1",
     "@types/lodash": "^4.17.12",
     "intersects": "^2.7.2",
@@ -64,6 +63,7 @@
     "@gravity-ui/prettier-config": "^1.1.0",
     "@gravity-ui/tsconfig": "^1.0.0",
     "@gravity-ui/uikit": "^5.26.0",
+    "@monaco-editor/react": "^4.6.0",
     "@size-limit/preset-big-lib": "^10.0.1",
     "@storybook/addon-essentials": "^8.1.11",
     "@storybook/addon-interactions": "^8.1.11",
