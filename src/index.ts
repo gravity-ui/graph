@@ -1,7 +1,8 @@
-export { Anchor, type TAnchor } from "./components/canvas/anchors";
+export { Anchor, type TAnchor, type TAnchorProps } from "./components/canvas/anchors";
 export { Block as CanvasBlock, type TBlock } from "./components/canvas/blocks/Block";
 export * from "./graph";
 export type { TGraphColors, TGraphConstants } from "./graphConfig";
+export { type UnwrapGraphEventsDetail } from "./graphEvents";
 export * from "./plugins";
 export * from "./react-component";
 export { ECameraScaleLevel } from "./services/camera/CameraService";
@@ -11,6 +12,7 @@ export { EAnchorType } from "./store/anchor/Anchor";
 export type { BlockState, TBlockId } from "./store/block/Block";
 export type { ConnectionState, TConnection, TConnectionId } from "./store/connection/ConnectionState";
 export { ECanChangeBlockGeometry } from "./store/settings";
+export { type TMeasureTextOptions, type TWrapText } from "./utils/functions/text";
 export * from "./utils/renderers/text";
 export { EVENTS } from "./utils/types/events";
 export { type TPoint, type TRect } from "./utils/types/shapes";
