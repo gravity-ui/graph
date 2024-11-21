@@ -17,8 +17,8 @@ export class NewBlockComponent extends Component {
 
   public declare context: TOverLayerContext;
 
-  constructor(props: NewBlockComponentProps, context: OverLayer) {
-    super(props, context);
+  constructor(props: NewBlockComponentProps, parent: Component) {
+    super(props, parent);
 
     this.state = {
       x: 0,

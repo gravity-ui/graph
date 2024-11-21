@@ -3,6 +3,8 @@ type Constructor<T = Record<string, unknown>> = new (...args: any[]) => T;
 
 type Interface<T> = { [P in keyof T]: T[P] };
 
+type PartialObject<T> = Pick<T, keyof T>;
+
 declare const global: any;
 
 interface IWithEvent extends EventTarget {

@@ -20,8 +20,8 @@ export class NewConnection extends Component {
 
   public declare context: TOverLayerContext;
 
-  constructor(props: NewConnectionProps, context: OverLayer) {
-    super(props, context);
+  constructor(props: NewConnectionProps, parent: Component) {
+    super(props, parent);
 
     this.state = {
       sx: 0,

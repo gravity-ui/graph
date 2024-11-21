@@ -1,8 +1,9 @@
+import { CoreComponent } from "./CoreComponent";
 import { cache } from "./utils";
 
 type TIterator = (Node) => boolean;
 
-export class Tree<T = unknown> {
+export class Tree<T extends CoreComponent = CoreComponent> {
   public data: T;
   public parent: Tree;
 

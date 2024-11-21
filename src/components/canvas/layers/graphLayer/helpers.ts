@@ -1,6 +1,7 @@
 import { Component } from "../../../../lib/Component";
+import { GraphComponent } from "../../graphComponent";
 
-export class DrawBelow extends Component {
+export class DrawBelow extends GraphComponent {
   protected shouldUpdateChildren = false;
 
   protected shouldRenderChildren = false;
@@ -11,7 +12,7 @@ export class DrawBelow extends Component {
   }
 }
 
-export class DrawOver extends Component {
+export class DrawOver extends GraphComponent {
   protected shouldUpdateChildren = false;
 
   protected shouldRenderChildren = false;

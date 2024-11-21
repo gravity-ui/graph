@@ -1,8 +1,6 @@
 import { effect, signal } from "@preact/signals-core";
 import isObject from "lodash/isObject";
 
-import { EventedComponent } from "../../../mixins/withEvents";
-import { withHitTest } from "../../../mixins/withHitTest";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
@@ -14,6 +12,7 @@ import { TTExtRect, renderText } from "../../../utils/renderers/text";
 import { EVENTS } from "../../../utils/types/events";
 import { TPoint, TRect } from "../../../utils/types/shapes";
 import { Anchor, TAnchor } from "../anchors";
+import { GraphComponent } from "../graphComponent";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
 import { BlockController } from "./controllers/BlockController";
@@ -79,9 +78,10 @@ export type BlockViewState = {
   order: number;
 };
 
-export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlockProps> extends withHitTest(
-  EventedComponent
-) {
+export class Block<
+  T extends TBlock = TBlock,
+  Props extends TBlockProps = TBlockProps
+> extends GraphComponent<Props, T, TGraphLayerContext> {
   // from controller mixin
   public readonly isBlock = true;
 
@@ -109,8 +109,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.connectedState.$state.value;
   }
 
-  protected readonly unsubscribe: (() => void)[] = [];
-
   protected blockController = new BlockController(this);
 
   public $viewState = signal<BlockViewState>({ zIndex: 0, order: 0 });
@@ -118,11 +116,11 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   constructor(props: Props, parent: GraphLayer) {
     super(props, parent);
 
-    this.unsubscribe = this.subscribe(props.id);
+    this.subscribe(props.id);
 
-    (this as unknown as EventedComponent).addEventListener(EVENTS.DRAG_START, this);
-    (this as unknown as EventedComponent).addEventListener(EVENTS.DRAG_UPDATE, this);
-    (this as unknown as EventedComponent).addEventListener(EVENTS.DRAG_END, this);
+    this.addEventListener(EVENTS.DRAG_START, this);
+    this.addEventListener(EVENTS.DRAG_UPDATE, this);
+    this.addEventListener(EVENTS.DRAG_END, this);
   }
 
   public isRendered() {
@@ -175,16 +173,18 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     });
 
     return [
-      effect(() => {
+      this.subscribeSignal(this.connectedState.$anchors, () => {
+        this.setState({
+          anchors: this.connectedState.$anchors.value,
+        });
+        this.shouldUpdateChildren = true;
+      }),
+      this.subscribeSignal(this.connectedState.$state, () => {
         this.setState({
           ...this.connectedState.$state.value,
           anchors: this.connectedState.$anchors.value,
         });
         this.updateHitBox(this.connectedState.$geometry.value);
-      }),
-      this.connectedState.$anchors.subscribe(() => {
-        this.shouldUpdateChildren = true;
-        this.performRender();
       }),
     ];
   }
@@ -378,12 +378,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.state.anchors.map((anchor) => {
       return this.renderAnchor(anchor, this.binderGetAnchorPosition);
     });
-  }
-
-  protected unmount() {
-    this.unsubscribe.forEach((reactionDisposer) => reactionDisposer());
-
-    super.unmount();
   }
 
   public willIterate() {

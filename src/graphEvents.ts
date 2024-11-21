@@ -16,12 +16,27 @@ export const extractNativeGraphMouseEvent = (event: GraphMouseEvent) => {
 
 export type GraphMouseEventNames = "mousedown" | "click" | "mouseenter" | "mousemove" | "mouseleave";
 
-export interface GraphEventsDefinitions {
+export interface BaseGraphEventDefinition {
   mousedown: (event: GraphMouseEvent) => void;
   click: (event: GraphMouseEvent) => void;
   mouseenter: (event: GraphMouseEvent) => void;
   mousemove: (event: GraphMouseEvent) => void;
   mouseleave: (event: GraphMouseEvent) => void;
+}
+
+export type UnwrapBaseGraphEvents<
+  Key extends keyof BaseGraphEventDefinition = keyof BaseGraphEventDefinition,
+  T extends BaseGraphEventDefinition[Key] = BaseGraphEventDefinition[Key],
+  P extends Parameters<T>[0] = Parameters<T>[0],
+> = P extends CustomEvent ? P : never;
+
+export type UnwrapBaseGraphEventsDetail<
+  Key extends keyof BaseGraphEventDefinition,
+  T extends BaseGraphEventDefinition[Key] = BaseGraphEventDefinition[Key],
+  P extends Parameters<T>[0] = Parameters<T>[0],
+> = UnwrapGraphEvents<Key, T, P>["detail"];
+
+export interface GraphEventsDefinitions extends BaseGraphEventDefinition {
   "camera-change": (event: CustomEvent<TCameraState>) => void;
   "constants-changed": (event: CustomEvent<{ constants: TGraphConstants }>) => void;
   "colors-changed": (event: CustomEvent<{ colors: TGraphColors }>) => void;

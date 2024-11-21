@@ -55,6 +55,13 @@ export class ConnectionState {
     return this.store.getBlock(this.targetBlockId);
   });
 
+  public $geometry = computed(() => {
+    return [
+      this.$sourceBlock.value.$geometry.value,
+      this.$targetBlock.value.$geometry.value,
+    ]
+  })
+
   public static getConnectionId(connection: TConnection) {
     if (connection.id) return connection.id;
     if (connection.sourceAnchorId && connection.targetAnchorId) {

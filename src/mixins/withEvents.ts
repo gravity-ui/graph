@@ -1,52 +1,66 @@
-import { Component } from "../lib/Component";
+import { Component, TComponentContext, TComponentProps, TComponentState } from "../lib/Component";
 
-export class EventedComponent extends Component {
-  private _listenEvents: object = {};
+type TEventedComponentListener = Component | ((e: Event) => void);
 
+const listeners = new WeakMap<Component, Map<string, Set<TEventedComponentListener>>>();
+
+export class EventedComponent<
+  Props extends TComponentProps = TComponentProps,
+  State extends TComponentState = TComponentState,
+  Context extends TComponentContext = TComponentContext
+> extends Component<Props, State, Context> {
   public readonly cursor?: string;
 
-  protected unmount() {
-    super.unmount();
-    this._listenEvents = {};
-  }
-
-  public hasEventListener(type: string) {
-    return Object.prototype.hasOwnProperty.call(this._listenEvents, type);
-  }
-
-  public addEventListener(type: string, cbOrObject: any) {
-    if (Array.isArray(this._listenEvents[type])) {
-      this._listenEvents[type].push(cbOrObject);
-    } else {
-      this._listenEvents[type] = [cbOrObject];
+  private get events() {
+    if (!listeners.has(this)) {
+      listeners.set(this, new Map());
     }
+    return listeners.get(this);
+  }
+
+  protected unmount() {
+    listeners.delete(this);
+    super.unmount();
+  }
+
+  protected handleEvent(_: Event) {
+    // noop
+  }
+
+  public listenEvents(
+    events: string[],
+    cbOrObject: TEventedComponentListener = this,
+  ) {
+    const unsubs = events.map((eventName) => {
+      return this.addEventListener(eventName, cbOrObject);
+    });
+    return unsubs
+  }
+
+  public addEventListener(type: string, cbOrObject: TEventedComponentListener) {
+    const cbs = this.events.get(type) || new Set();
+    cbs.add(cbOrObject);
+    this.events.set(type, cbs);
     return () => this.removeEventListener(type, cbOrObject);
   }
 
-  public removeEventListener(type: string, cbOrObject: any) {
-    if (Array.isArray(this._listenEvents[type])) {
-      const i = this._listenEvents[type].indexOf(cbOrObject);
-
-      if (i !== -1) {
-        this._listenEvents[type].splice(i, 1);
-      }
+  public removeEventListener(type: string, cbOrObject: TEventedComponentListener) {
+    const cbs = this.events.get(type);
+    if (cbs) {
+      cbs.delete(cbOrObject)
     }
   }
 
-  public _fireEvent(cmp: any, event: Event) {
-    if (!this._hasListener(cmp, event.type)) {
-      return;
-    }
+  public _fireEvent(cmp: Component, event: Event) {
+    const handlers = listeners.get(cmp)?.get?.(event.type);
 
-    const fnsOrObjects = cmp._listenEvents[event.type];
-
-    for (let i = 0; i < fnsOrObjects.length; i += 1) {
-      if (typeof fnsOrObjects[i] === "function") {
-        fnsOrObjects[i](event);
-      } else if (typeof fnsOrObjects[i] === "object" && typeof fnsOrObjects[i].handleEvent === "function") {
-        fnsOrObjects[i].handleEvent(event);
+    handlers?.forEach((cb) => {
+      if (typeof cb === "function") {
+        cb(event);
+      } else if (cb instanceof Component && "handleEvent" in cb && typeof cb.handleEvent === 'function') {
+        cb.handleEvent?.(event);
       }
-    }
+    })
   }
 
   public dispatchEvent(event: Event): boolean {
@@ -63,7 +77,7 @@ export class EventedComponent extends Component {
 
   public _dipping(startParent: Component, event: Event) {
     let stopPropagation = false;
-    let parent: Component | undefined = startParent;
+    let parent: Component = startParent;
     event.stopPropagation = () => {
       stopPropagation = true;
     };
@@ -79,7 +93,7 @@ export class EventedComponent extends Component {
     return true;
   }
 
-  public _hasListener(comp: any, type: string) {
-    return comp._listenEvents !== undefined && comp._listenEvents[type] !== undefined;
+  public _hasListener(comp: EventedComponent, type: string) {
+    return listeners.get(comp)?.has?.(type);
   }
 }

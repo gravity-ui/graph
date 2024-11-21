@@ -1,7 +1,15 @@
-import { CoreComponent } from "./CoreComponent";
+import { CoreComponent, CoreComponentContext, CoreComponentProps } from "./CoreComponent";
 import { assign } from "./utils";
 
-export class Component extends CoreComponent {
+export type TComponentState = Record<string, unknown>;
+export type TComponentProps = CoreComponentProps;
+export type TComponentContext = CoreComponentContext;
+
+export class Component<
+  Props extends CoreComponentProps = CoreComponentProps,
+  State extends TComponentState = TComponentState,
+  Context extends CoreComponentContext = CoreComponentContext
+> extends CoreComponent<Props, Context> {
   protected firstIterate = true;
   protected firstRender = true;
   protected firstUpdateChildren = true;
@@ -10,21 +18,25 @@ export class Component extends CoreComponent {
   protected shouldUpdateChildren = true;
   protected shouldRenderChildren = true;
 
-  public props: object;
-  public state: object;
-  private __data = {
+  public state: State;
+
+  protected __data: { nextProps: Props | undefined, nextState: State | undefined } = {
     nextProps: undefined,
     nextState: undefined,
   };
 
-  constructor(...args) {
-    super(...args);
-
-    this.state = {};
-    this.props = args[0] || {};
+  constructor(props: Props, parent: CoreComponent) {
+    super(props, parent);
+    this.state = {} as State;
   }
 
-  public setProps(props?: object) {
+  public setContext<K extends keyof Context>(context: Pick<Context, K>) {
+    this.shouldRenderChildren = true;
+    this.shouldUpdateChildren = true;
+    super.setContext(context);
+  }
+
+  public setProps<K extends keyof Props>(props?: Pick<Props, K>) {
     if (props === undefined) return;
 
     const data = this.__data;
@@ -37,9 +49,7 @@ export class Component extends CoreComponent {
     }
   }
 
-  protected setState(state?: object) {
-    if (state === undefined) return;
-
+  protected setState<K extends keyof State>(state: Pick<State, K>) {
     const data = this.__data;
 
     if (data.nextState === undefined) {
@@ -50,11 +60,11 @@ export class Component extends CoreComponent {
     }
   }
 
-  protected propsChanged(_nextProps: object): void {
+  protected propsChanged(_nextProps: Props): void {
     // noop
   }
 
-  protected stateChanged(_nextState: object): void {
+  protected stateChanged(_nextState: State): void {
     // noop
   }
 
@@ -113,9 +123,6 @@ export class Component extends CoreComponent {
 
   protected willNotRender() {
     // noop
-  }
-  protected __setProps(props: object) {
-    this.setProps(props);
   }
 
   protected iterate() {

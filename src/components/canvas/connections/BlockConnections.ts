@@ -16,7 +16,7 @@ export class BlockConnections extends withBatchedConnections(Component) {
 
   public removeFromRenderOrder = this.removeFromRenderOrder.bind(this);
 
-  constructor(props: {}, parent: GraphLayer) {
+  constructor(props: {}, parent: Component) {
     super(props, parent);
     this.unsubscribe = this.subscribe();
   }

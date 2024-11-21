@@ -20,10 +20,8 @@ export class SelectionArea extends Component {
 
   protected startPoint = new Point(0, 0);
 
-  constructor(props: SelectionAreaProps, context: OverLayer) {
-    super(props, context);
-
-    this.context = context.context;
+  constructor(props: SelectionAreaProps, parent: Component) {
+    super(props, parent);
 
     this.state = {
       width: 0,

@@ -1,11 +1,9 @@
 import { Graph } from "../graph";
-import { Component } from "../lib/Component";
+import { Component, TComponentContext, TComponentProps, TComponentState } from "../lib/Component";
 import { HitBox, HitBoxData, IHitBox } from "../services/HitTest";
 
-export interface GraphComponent extends Component {
-  context: {
-    graph: Graph;
-  };
+type HitTestComponentContext = TComponentContext & {
+  graph: Graph;
 }
 
 export interface IWithHitTest {
@@ -24,11 +22,8 @@ export function debugHitBox(ctx: CanvasRenderingContext2D, component: IWithHitTe
   ctx.restore();
 }
 
-export function withHitTest<T extends Constructor<GraphComponent>>(superclass: T): T & Constructor<IWithHitTest> {
+export function withHitTest<P extends TComponentProps, S extends TComponentState, C extends HitTestComponentContext, T extends Constructor<Component<P, S, C>>>(superclass: T): T & Constructor<IWithHitTest> {
   return class WithHitTest extends superclass implements IWithHitTest {
-    public declare context: {
-      graph: Graph;
-    };
 
     public hitBox: HitBox;
 

@@ -1,4 +1,5 @@
 import { Graph } from "../../../../graph";
+import { CoreComponent } from "../../../../lib";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { ICamera } from "../../../../services/camera/CameraService";
 
@@ -20,7 +21,7 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
 
   private camera: ICamera;
 
-  constructor(props: TBelowLayerProps, context: TBelowLayerContext) {
+  constructor(props: TBelowLayerProps) {
     super(
       {
         canvas: {
@@ -28,8 +29,7 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
           classNames: ["no-pointer-events"],
         },
         ...props,
-      },
-      context
+      }
     );
 
     this.setContext({
