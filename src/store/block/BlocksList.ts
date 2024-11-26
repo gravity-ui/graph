@@ -34,6 +34,8 @@ declare module "../../graphEvents" {
       event: CustomEvent<{
         /** Block anchor */
         anchor: TAnchor;
+        /** Is anchor selected */
+        selected: boolean;
       }>
     ) => void;
 
@@ -124,7 +126,7 @@ export class BlockListStore {
     }
 
     if (selected !== anchor.$selected.value) {
-      this.graph.executеDefaultEventAction("block-anchor-selection-change", { anchor: anchor.asTAnchor() }, () => {
+      this.graph.executеDefaultEventAction("block-anchor-selection-change", { anchor: anchor.asTAnchor(), selected }, () => {
         const currentSelected = this.$selectedAnchor.value;
         if (currentSelected && currentSelected !== anchor) {
           currentSelected.setSelection(false, true);
