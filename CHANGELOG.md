@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.0.4](https://github.com/gravity-ui/graph/compare/v0.0.3...v0.0.4) (2024-11-26)
+
+
+### chore
+
+* release 0.0.4 ([fbe3c6e](https://github.com/gravity-ui/graph/commit/fbe3c6eba9c72bdf004168c6370dfc09f2c63b85))
+
+
+### Features
+
+* **anchor:** add selected field for anchor selection change event ([49b9c10](https://github.com/gravity-ui/graph/commit/49b9c10818cecd7fa0bda27c79edbff344fe813e))
+
+
+### Bug Fixes
+
+* update css after call setEntities ([a38b363](https://github.com/gravity-ui/graph/commit/a38b363f31ee7f7a84826ce616706e9e659ec5d5))
+
 ## [0.0.3](https://github.com/gravity-ui/graph/compare/v0.0.2...v0.0.3) (2024-10-22)
 
 
