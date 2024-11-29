@@ -17,7 +17,6 @@ export function cache<T>(fn: () => T) {
   return {
     get: () => {
       if(touched) {
-        console.log('recombine list');
         result = fn();
         touched = false;
       }

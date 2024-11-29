@@ -96,4 +96,5 @@ export class EventedComponent<
   public _hasListener(comp: EventedComponent, type: string) {
     return listeners.get(comp)?.has?.(type);
   }
+  
 }

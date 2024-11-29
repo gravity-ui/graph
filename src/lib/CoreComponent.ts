@@ -245,8 +245,8 @@ export class CoreComponent<Props extends CoreComponentProps = CoreComponentProps
     }
   }
 
-  public static create<Props extends CoreComponentProps>(
-    this: Constructor<CoreComponent<Props>>,
+  public static create<Props extends CoreComponentProps, Context extends CoreComponentContext>(
+    this: Constructor<CoreComponent<Props, Context>>,
     props: Props = {} as Props,
     options: TOptions = {}
   ) {

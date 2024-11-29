@@ -1,6 +1,5 @@
 import { Graph } from "../../../../graph";
 import { GraphMouseEventNames, isNativeGraphEventName } from "../../../../graphEvents";
-import { CoreComponent } from "../../../../lib";
 import { Component } from "../../../../lib/Component";
 import { EventedComponent } from "../../../../mixins/withEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";

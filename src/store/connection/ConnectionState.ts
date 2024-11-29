@@ -47,18 +47,18 @@ export class ConnectionState {
     return this.$state.value.targetAnchorId;
   }
 
-  public $sourceBlock = computed(() => {
-    return this.store.getBlock(this.sourceBlockId);
+  public readonly $sourceBlock = computed(() => {
+    return this.store.getBlock(this.$state.value.sourceBlockId);
   });
 
-  public $targetBlock = computed(() => {
-    return this.store.getBlock(this.targetBlockId);
+  public readonly $targetBlock = computed(() => {
+    return this.store.getBlock(this.$state.value.targetBlockId);
   });
 
   public $geometry = computed(() => {
     return [
-      this.$sourceBlock.value.$geometry.value,
-      this.$targetBlock.value.$geometry.value,
+      this.$sourceBlock.value?.$geometry.value,
+      this.$targetBlock.value?.$geometry.value,
     ]
   })
 

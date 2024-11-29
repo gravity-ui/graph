@@ -325,8 +325,8 @@ export class Block<
   public getConnectionAnchorPosition(anchor: TAnchor) {
     const { x, y } = this.getAnchorPosition(anchor);
     return {
-      x: x + this.state.x,
-      y: y + this.state.y,
+      x: x + this.connectedState.x,
+      y: y + this.connectedState.y,
     };
   }
 
@@ -342,8 +342,8 @@ export class Block<
 
   public getConnectionPoint(direction: "in" | "out"): TPoint {
     return {
-      x: this.state.x + (direction === "out" ? this.state.width : 0),
-      y: (this.state.y + this.state.height / 2) | 0,
+      x: this.connectedState.x + (direction === "out" ? this.connectedState.width : 0),
+      y: (this.connectedState.y + this.connectedState.height / 2) | 0,
     };
   }
 

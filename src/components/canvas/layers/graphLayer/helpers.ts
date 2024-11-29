@@ -1,4 +1,3 @@
-import { Component } from "../../../../lib/Component";
 import { GraphComponent } from "../../graphComponent";
 
 export class DrawBelow extends GraphComponent {

@@ -30,6 +30,10 @@ export class Component<
     this.state = {} as State;
   }
 
+  protected willMount() {
+    // noop
+  }
+
   public setContext<K extends keyof Context>(context: Pick<Context, K>) {
     this.shouldRenderChildren = true;
     this.shouldUpdateChildren = true;
@@ -115,6 +119,9 @@ export class Component<
   }
 
   protected willIterate() {
+    if (this.firstIterate) {
+      this.willMount();
+    }
     // noop
   }
   protected didIterate() {
@@ -125,7 +132,7 @@ export class Component<
     // noop
   }
 
-  protected iterate() {
+  public iterate() {
     super.iterate();
 
     this.checkData();

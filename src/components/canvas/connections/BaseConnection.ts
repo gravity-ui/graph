@@ -9,8 +9,6 @@ import { GraphComponent, GraphComponentContext } from "../graphComponent";
 
 export type TBaseConnectionProps = {
   id: TConnectionId;
-  addInRenderOrder(cmp, setting: object): void;
-  removeFromRenderOrder(cmp): void;
 }
 
 export type TBaseConnectionState = TComponentState & TConnection & {
@@ -24,34 +22,59 @@ export class BaseConnection<
   Context extends GraphComponentContext = GraphComponentContext
 > extends GraphComponent<Props, State, Context> {
 
-  protected sourceBlock: Block;
+  protected get sourceBlock(): Block {
+    return this.connectedState.$sourceBlock.value?.getViewComponent()
+  }
 
-  protected sourceAnchor?: TAnchor;
+  protected get targetBlock(): Block {
+    return this.connectedState.$targetBlock.value?.getViewComponent();
+  };
 
-  protected targetBlock: Block;
+  protected get sourceAnchor(): TAnchor | undefined {
+    return this.sourceBlock.connectedState
+      .getAnchorById(this.connectedState.sourceAnchorId)
+      ?.asTAnchor()
+  };
+  protected get targetAnchor(): TAnchor | undefined {
+    return this.targetBlock.connectedState
+      .getAnchorById(this.connectedState.targetAnchorId)
+      ?.asTAnchor();
+  };
 
-  protected targetAnchor?: TAnchor;
+  public connectionPoints: [TPoint, TPoint] | undefined;
 
-  public connectedState: ConnectionState;
+  public anchorsPoints: [TPoint, TPoint] | undefined;
 
-  protected geometry = { x1: 0, x2: 0, y1: 0, y2: 0 };
+  protected connectedState: ConnectionState;
+
+  protected bBox: [minX: number, minY: number, maxX: number, maxY: number];
 
   constructor(props: Props, parent: Component) {
     super(props, parent);
 
     this.connectedState = selectConnectionById(this.context.graph, this.props.id);
-    this.setState({ ...this.connectedState.$state.value as TBaseConnectionState, hovered: false });
 
+    this.setState({ ...this.connectedState.$state.value as TBaseConnectionState, hovered: false });
+  }
+
+  protected willMount(): void {
     this.subscribeSignal(this.connectedState.$state, (state) => {
       this.setState({ ...state });
-      this.updateSourceAndTargetBlock();
-      this.updateHitBox();
     });
+
     this.subscribeSignal(this.connectedState.$geometry, () => {
-      this.updateGeometry(this.sourceBlock, this.targetBlock);
-    })
+      this.updatePoints();
+    });
 
     this.listenEvents(["mouseenter", 'mouseleave']);
+  }
+
+  protected willIterate() {
+    super.willIterate();
+
+    this.shouldRender = this.context.camera.isLineVisible(
+      ...this.bBox
+    );
   }
 
   protected override handleEvent(event) {
@@ -68,57 +91,41 @@ export class BaseConnection<
     }
   }
 
-  protected updateGeometry(sourceBlock: Block, targetBlock: Block) {
-    if (!sourceBlock || !targetBlock) return;
-    const scale = this.context.camera.getCameraScale();
-    const isSchematicView = scale < this.context.constants.connection.SCALES[1];
+  protected updatePoints() {
+    if (!this.sourceBlock || !this.targetBlock) return;
 
-    let sourcePos: TPoint | undefined;
-    let targetPos: TPoint | undefined;
-    if (isSchematicView || (!this.sourceAnchor && !this.targetAnchor)) {
-      sourcePos = sourceBlock.getConnectionPoint("out");
-      targetPos = targetBlock.getConnectionPoint("in");
-    } else if (
-      this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors") &&
-      this.sourceAnchor &&
-      this.targetAnchor
-    ) {
-      sourcePos = sourceBlock.getConnectionAnchorPosition(this.sourceAnchor);
-      targetPos = targetBlock.getConnectionAnchorPosition(this.targetAnchor);
+    this.connectionPoints = [
+      this.sourceBlock.getConnectionPoint("out"),
+      this.targetBlock.getConnectionPoint("in"),
+    ];
+    if (this.sourceAnchor && this.targetAnchor) {
+      this.anchorsPoints = [
+        this.sourceBlock.getConnectionAnchorPosition(this.sourceAnchor),
+        this.targetBlock.getConnectionAnchorPosition(this.targetAnchor)
+      ]
+    } else {
+      this.anchorsPoints = undefined;
     }
+    const x = [
+      this.connectionPoints[0].x,
+      this.connectionPoints[1].x,
+      this.anchorsPoints?.[0].x || Infinity,
+      this.anchorsPoints?.[1].x || Infinity
+    ];
+    const y = [
+      this.connectionPoints[0].y,
+      this.connectionPoints[1].y,
+      this.anchorsPoints?.[0].y || Infinity,
+      this.anchorsPoints?.[1].y || Infinity
+    ];
 
-    if (sourcePos && targetPos) {
-      this.geometry.x1 = sourcePos.x;
-      this.geometry.y1 = sourcePos.y;
-      this.geometry.x2 = targetPos.x;
-      this.geometry.y2 = targetPos.y;
-      this.updateHitBox();
-    }
-  }
+    this.bBox = [Math.min(...x), Math.min(...y), Math.max(...x), Math.max(...y)];
 
-  protected updateSourceAndTargetBlock() {
-    this.sourceBlock = this.connectedState.$sourceBlock.value?.getViewComponent();
-    this.targetBlock = this.connectedState.$targetBlock.value?.getViewComponent();
-
-    if (this.connectedState.sourceAnchorId && this.connectedState.targetAnchorId) {
-      this.sourceAnchor = this.sourceBlock.connectedState
-        .getAnchorById(this.connectedState.sourceAnchorId)
-        ?.asTAnchor();
-      this.targetAnchor = this.targetBlock.connectedState
-        .getAnchorById(this.connectedState.targetAnchorId)
-        ?.asTAnchor();
-    }
-  }
-
-  protected willIterate() {
-    const [x1, y1, x2, y2] = this.getBBox()
-    this.shouldRender = this.context.camera.isLineVisible(x1, y1, x2, y2);
-
-    super.willIterate();
+    this.updateHitBox();
   }
 
   protected getBBox(): Readonly<[sourceX: number, sourceY: number, targetX: number, targetY: number]> {
-    return [this.geometry.x1, this.geometry.y1, this.geometry.x2, this.geometry.y2] as const;
+    return this.bBox;
   }
 
 
@@ -132,20 +139,4 @@ export class BaseConnection<
       Math.max(y1, y2) + threshold
     );
   };
-
-  public _iterate() {
-    return super.iterate();
-  }
-
-  public iterate() {
-    if (this.firstIterate) {
-      return super.iterate();
-    }
-    return this.shouldRenderChildren;
-  }
-
-  public unmount() {
-    super.unmount();
-    this.props.removeFromRenderOrder(this);
-  }
 }

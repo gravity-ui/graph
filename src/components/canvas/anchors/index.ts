@@ -1,5 +1,3 @@
-import { EventedComponent } from "../../../mixins/withEvents";
-import { withHitTest } from "../../../mixins/withHitTest";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { frameDebouncer } from "../../../services/optimizations/frameDebouncer";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
