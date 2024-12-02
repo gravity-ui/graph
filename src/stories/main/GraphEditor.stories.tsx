@@ -13,6 +13,7 @@ import { CustomLayerConfig } from "../configurations/CustomLayerConfig";
 import { oneBezierConnectionConfig } from "../configurations/bezierConnection";
 import { coloredConnections } from "../configurations/coloredConnections";
 import { customSchematicViewConfig } from "../configurations/customBlocksView";
+import { customConnectionsPointsGraphConfig } from "../configurations/customConnectionsPoint";
 import { generatePrettyBlocks } from "../configurations/generatePretty";
 import { oneBlockConfig } from "../configurations/oneBlock";
 import { oneStraightConfig } from "../configurations/oneConnection";
@@ -163,6 +164,10 @@ export const CustomLayer: Story = {
 
 export const VerticalGraph: Story = {
   render: (args) => <GraphApp config={verticalGraphConfig} {...args}></GraphApp>,
+};
+
+export const GraphWithCustomConnectionsPoint: Story = {
+  render: (args) => <GraphApp config={customConnectionsPointsGraphConfig} {...args}></GraphApp>,
 };
 
 export const SnappingGraph: Story = {

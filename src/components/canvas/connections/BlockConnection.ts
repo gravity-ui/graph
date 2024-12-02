@@ -264,15 +264,15 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
       this.props.useBezier && this.path2d
         ? isPointInStroke(this.context.ctx, this.path2d, shape.x, shape.y, THRESHOLD_LINE_HIT * 2)
         : intersects.boxLine(
-          x - relativeTreshold / 2,
-          y - relativeTreshold / 2,
-          relativeTreshold,
-          relativeTreshold,
-          this.geometry.x1,
-          this.geometry.y1,
-          this.geometry.x2,
-          this.geometry.y2
-        );
+            x - relativeTreshold / 2,
+            y - relativeTreshold / 2,
+            relativeTreshold,
+            relativeTreshold,
+            this.geometry.x1,
+            this.geometry.y1,
+            this.geometry.x2,
+            this.geometry.y2
+          );
 
     if (this.labelGeometry !== undefined) {
       return (
@@ -302,8 +302,8 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
     let sourcePos: TPoint | undefined;
     let targetPos: TPoint | undefined;
     if (isSchematicView || (!this.sourceAnchor && !this.targetAnchor)) {
-      sourcePos = sourceBlock.getConnectionPoint("out");
-      targetPos = targetBlock.getConnectionPoint("in");
+      sourcePos = sourceBlock.getConnectionPoint("out", targetBlock);
+      targetPos = targetBlock.getConnectionPoint("in", sourceBlock);
     } else if (
       this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors") &&
       this.sourceAnchor &&
