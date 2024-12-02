@@ -116,7 +116,7 @@ export type TGraphConstants = {
     THRESHOLD_LINE_HIT: number;
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: number;
     LABEL: {
-      INNER_PADDING: number;
+      INNER_PADDINGS: [number, number, number, number];
     }
   };
 
@@ -156,7 +156,7 @@ export const initGraphConstants: TGraphConstants = {
     THRESHOLD_LINE_HIT: 8,
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: 0.25,
     LABEL: {
-      INNER_PADDING: 0,
+      INNER_PADDINGS: [0, 0, 0, 0],
     }
   },
   text: {
