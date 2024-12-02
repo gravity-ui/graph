@@ -115,6 +115,9 @@ export type TGraphConstants = {
     DEFAULT_Z_INDEX: number;
     THRESHOLD_LINE_HIT: number;
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: number;
+    LABEL: {
+      INNER_PADDING: number;
+    }
   };
 
   text: {
@@ -152,6 +155,9 @@ export const initGraphConstants: TGraphConstants = {
     DEFAULT_Z_INDEX: 0,
     THRESHOLD_LINE_HIT: 8,
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: 0.25,
+    LABEL: {
+      INNER_PADDING: 0,
+    }
   },
   text: {
     BASE_FONT_SIZE: 24,
