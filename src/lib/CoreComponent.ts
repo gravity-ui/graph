@@ -24,6 +24,13 @@ type TPrivateComponentData = {
 export type CoreComponentProps = Record<string, unknown>;
 export type CoreComponentContext = Record<string, unknown>;
 
+function createDefaultPrivateContext() {
+  return {
+    scheduler: new Scheduler(),
+    globalIterateId: 0,
+  };
+}
+
 export class CoreComponent<Props extends CoreComponentProps = CoreComponentProps, Context extends CoreComponentContext = CoreComponentContext> {
   public $: object = {};
 
@@ -46,19 +53,12 @@ export class CoreComponent<Props extends CoreComponentProps = CoreComponentProps
     return this.__comp.treeNode.renderOrder;
   }
 
-  protected static createDefaultPrivateContext() {
-    return {
-      scheduler: new Scheduler(),
-      globalIterateId: 0,
-    };
-  }
-
   constructor(props: Props, parent?: CoreComponent) {
     this.context = parent?.context as Context || {} as Context;
 
     this.__comp = {
       parent,
-      context: parent ? parent.__comp.context : (this.constructor as typeof CoreComponent).createDefaultPrivateContext(),
+      context: parent ? parent.__comp.context : createDefaultPrivateContext(),
       treeNode: new Tree(this),
       children: {},
       childrenKeys: [],

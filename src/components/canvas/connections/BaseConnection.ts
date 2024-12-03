@@ -123,12 +123,12 @@ export class BaseConnection<
 
   private updateHitBox = () => {
     const [x1, y1, x2, y2] = this.getBBox();
-    const threshold = this.context.constants.connection.THRESHOLD_LINE_HIT;
-    this.setHitBox(
-      Math.min(x1, x2) - threshold,
-      Math.min(y1, y2) - threshold,
-      Math.max(x1, x2) + threshold,
-      Math.max(y1, y2) + threshold
-    );
+      const threshold = this.context.constants.connection.THRESHOLD_LINE_HIT;
+      this.setHitBox(
+        Math.min(x1, x2) - threshold,
+        Math.min(y1, y2) - threshold,
+        Math.max(x1, x2) + threshold,
+        Math.max(y1, y2) + threshold
+      );
   };
 }

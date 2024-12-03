@@ -5,7 +5,7 @@ export class DrawBelow extends GraphComponent {
 
   protected shouldRenderChildren = false;
 
-  public isVisible(): boolean {
+  protected isVisible(): boolean {
     return true;
   }
 
@@ -20,7 +20,7 @@ export class DrawOver extends GraphComponent {
 
   protected shouldRenderChildren = false;
 
-  public isVisible(): boolean {
+  protected isVisible(): boolean {
     return true;
   }
 

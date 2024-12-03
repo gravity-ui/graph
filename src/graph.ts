@@ -2,16 +2,13 @@ import { batch, signal } from "@preact/signals-core";
 import merge from "lodash/merge";
 
 import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
-import { Anchor } from "./components/canvas/anchors";
-import { Block, TBlock } from "./components/canvas/blocks/Block";
-import { BlockConnection } from "./components/canvas/connections/BlockConnection";
+import { TBlock } from "./components/canvas/blocks/Block";
 import { GraphComponent } from "./components/canvas/graphComponent";
 import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
 import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { OverLayer } from "./components/canvas/layers/overLayer/OverLayer";
 import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
 import { GraphEventParams, GraphEventsDefinitions } from "./graphEvents";
-import { Component } from "./lib/Component";
 import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
 import { Layer } from "./services/Layer";

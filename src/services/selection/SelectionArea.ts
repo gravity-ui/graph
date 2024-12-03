@@ -1,4 +1,4 @@
-import { OverLayer, TOverLayerContext } from "../../components/canvas/layers/overLayer/OverLayer";
+import { TOverLayerContext } from "../../components/canvas/layers/overLayer/OverLayer";
 import { Component } from "../../lib/Component";
 import { getXY } from "../../utils/functions";
 import { render } from "../../utils/renderers/render";

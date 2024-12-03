@@ -1,4 +1,4 @@
-import { effect, signal } from "@preact/signals-core";
+import { signal } from "@preact/signals-core";
 import isObject from "lodash/isObject";
 
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
