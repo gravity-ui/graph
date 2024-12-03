@@ -322,6 +322,12 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
   }
 
   private renderLabelText() {
+    const [
+      labelInnerTopPadding,
+      labelInnerRightPadding,
+      labelInnerBottomPadding,
+      labelInnerLeftPadding,
+    ] = this.context.constants.connection.LABEL.INNER_PADDINGS;
     const padding = this.context.constants.system.GRID_SIZE / 8;
     const fontSize = Math.max(14, getFontSize(9, this.context.camera.getCameraScale()));
     const font = `${fontSize}px sans-serif`;
@@ -337,8 +343,8 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
       this.geometry.y1,
       this.geometry.x2,
       this.geometry.y2,
-      measure.width + padding * 2,
-      measure.height,
+      measure.width + padding * 2 + labelInnerLeftPadding + labelInnerRightPadding,
+      measure.height + labelInnerTopPadding + labelInnerBottomPadding,
       this.context.constants.system.GRID_SIZE
     );
 
@@ -359,7 +365,12 @@ export class BlockConnection extends withBatchedConnection(withHitTest(EventedCo
     if (this.state.hovered) this.context.ctx.fillStyle = this.context.colors.connectionLabel.hoverBackground;
     if (this.state.selected) this.context.ctx.fillStyle = this.context.colors.connectionLabel.selectedBackground;
 
-    this.context.ctx.fillRect(x, y, measure.width, measure.height);
+    this.context.ctx.fillRect(
+      x - labelInnerLeftPadding,
+      y - labelInnerTopPadding,
+      measure.width + labelInnerLeftPadding + labelInnerRightPadding,
+      measure.height + labelInnerTopPadding + labelInnerBottomPadding,
+    );
   }
 
   public renderArrow() {
