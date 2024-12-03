@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.6](https://github.com/gravity-ui/graph/compare/v0.0.5...v0.0.6) (2024-12-03)
+
+
+### chore
+
+* release 0.0.6 ([e71ef16](https://github.com/gravity-ui/graph/commit/e71ef16d9a3d2c36a531e9224ba8d5180956743e))
+
+
+### Features
+
+* add connection label inner paddings ([#27](https://github.com/gravity-ui/graph/issues/27)) ([a6791e0](https://github.com/gravity-ui/graph/commit/a6791e0a1ef68238a79bae0d03d7ac108dec57fa))
+
 ## [0.0.5](https://github.com/gravity-ui/graph/compare/v0.0.4...v0.0.5) (2024-11-29)
 
 
