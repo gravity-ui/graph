@@ -80,12 +80,9 @@ export class Anchor extends GraphComponent<TAnchorProps, TAnchorState> {
     this.connectedState.setSelection(!this.state.selected);
   }
 
-  public willIterate() {
-    super.willIterate();
-
-    const { x, y, width, height } = this.hitBox.getRect();
-
-    this.shouldRender = width && height ? this.context.camera.isRectVisible(x, y, width, height) : true;
+  protected isVisible() {
+    const params = this.getHitBox();
+    return params ? this.context.camera.isRectVisible(...params) : true;
   }
 
   public didIterate(): void {

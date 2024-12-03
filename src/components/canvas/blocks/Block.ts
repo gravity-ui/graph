@@ -380,14 +380,6 @@ export class Block<
     });
   }
 
-  public willIterate() {
-    super.willIterate();
-
-    this.shouldRender =
-      !this.hidden &&
-      this.context.camera.isRectVisible(this.state.x, this.state.y, this.state.width, this.state.height);
-  }
-
   protected willRender() {
     super.willRender();
 

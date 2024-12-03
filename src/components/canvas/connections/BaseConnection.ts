@@ -69,14 +69,6 @@ export class BaseConnection<
     this.listenEvents(["mouseenter", 'mouseleave']);
   }
 
-  protected willIterate() {
-    super.willIterate();
-
-    this.shouldRender = this.context.camera.isLineVisible(
-      ...this.bBox
-    );
-  }
-
   protected override handleEvent(event) {
     event.stopPropagation();
     super.handleEvent(event);

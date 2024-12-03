@@ -40,6 +40,18 @@ export class GraphComponent<
     this.hitBox.update(minX, minY, maxX, maxY, force);
   }
 
+  protected willIterate(): void {
+    super.willIterate();
+    if(!this.firstIterate) {
+      this.shouldRender = this.isVisible();
+    }
+    
+  }
+
+  public isVisible() {
+    return this.context.camera.isRectVisible(...this.getHitBox());
+  }
+
   public getHitBox() {
     return this.hitBox.getRect();
   }

@@ -5,6 +5,10 @@ export class DrawBelow extends GraphComponent {
 
   protected shouldRenderChildren = false;
 
+  public isVisible(): boolean {
+    return true;
+  }
+
   protected render() {
     this.context.ctx.globalCompositeOperation = "destination-over";
     return;
@@ -15,6 +19,10 @@ export class DrawOver extends GraphComponent {
   protected shouldUpdateChildren = false;
 
   protected shouldRenderChildren = false;
+
+  public isVisible(): boolean {
+    return true;
+  }
 
   protected render() {
     this.context.ctx.globalCompositeOperation = "source-over";
