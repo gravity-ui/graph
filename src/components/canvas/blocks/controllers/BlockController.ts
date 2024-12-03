@@ -16,7 +16,7 @@ import { Block } from "../Block";
 
 export class BlockController {
   constructor(block: Block) {
-    addEventListeners(block, {
+    addEventListeners(block as EventTarget, {
       click(event: MouseEvent) {
         event.stopPropagation();
         block.context.graph.api.selectBlocks(

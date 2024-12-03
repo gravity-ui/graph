@@ -37,7 +37,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   private cameraBorderColor: string;
   private unSubscribeUsableRectLoaded: typeof noop;
 
-  constructor(props: MiniMapLayerProps, context: MiniMapLayerContext) {
+  constructor(props: MiniMapLayerProps) {
     const classNames = Array.isArray(props.classNames) ? props.classNames : [];
     classNames.push("graph-minimap");
 
@@ -49,7 +49,6 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
         },
         ...props,
       },
-      context
     );
 
     this.minimapWidth = this.props.width || 200;

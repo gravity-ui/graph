@@ -70,7 +70,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private fixedTargetComponent?: EventedComponent | Camera;
 
-  constructor(props: TGraphLayerProps, context: TGraphLayerContext) {
+  constructor(props: TGraphLayerProps) {
     super(
       {
         canvas: {
@@ -84,8 +84,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
           transformByCameraPosition: true,
         },
         ...props,
-      },
-      context
+      }
     );
 
     const canvas = this.getCanvas();
@@ -102,8 +101,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
         constants: this.props.graph.graphConstants,
         colors: this.props.graph.graphColors,
         graph: this.props.graph,
-      },
-      true
+      }
     );
 
     if (this.context.root) {

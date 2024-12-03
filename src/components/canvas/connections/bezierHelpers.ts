@@ -23,13 +23,10 @@ export function generateBezierParams(
 export function bezierCurveLine(
   startPos: { x: number; y: number },
   endPos: { x: number; y: number },
-  ctx: CanvasRenderingContext2D,
   mode: "vertical" | "horizontal" = "horizontal"
 ) {
   const path = new Path2D();
   const [start, firstPoint, secondPoint, end] = generateBezierParams(startPos, endPos, mode);
-  ctx.moveTo(start.x, start.y);
-  ctx.bezierCurveTo(firstPoint.x, firstPoint.y, secondPoint.x, secondPoint.y, end.x, end.y);
   path.moveTo(start.x, start.y);
   path.bezierCurveTo(firstPoint.x, firstPoint.y, secondPoint.x, secondPoint.y, end.x, end.y);
 

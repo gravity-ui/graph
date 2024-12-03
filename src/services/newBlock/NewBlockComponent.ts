@@ -1,4 +1,4 @@
-import { OverLayer, TOverLayerContext } from "../../components/canvas/layers/overLayer/OverLayer";
+import { TOverLayerContext } from "../../components/canvas/layers/overLayer/OverLayer";
 import { Component } from "../../lib/Component";
 import { getXY } from "../../utils/functions";
 import { render } from "../../utils/renderers/render";
@@ -17,8 +17,8 @@ export class NewBlockComponent extends Component {
 
   public declare context: TOverLayerContext;
 
-  constructor(props: NewBlockComponentProps, context: OverLayer) {
-    super(props, context);
+  constructor(props: NewBlockComponentProps, parent: Component) {
+    super(props, parent);
 
     this.state = {
       x: 0,
