@@ -1,6 +1,6 @@
 /* eslint-disable complexity */
 import { Scheduler } from "./Scheduler";
-import { Tree } from "./Tree";
+import { ITree, Tree } from "./Tree";
 
 type TOptions = {
   readonly key?: string;
@@ -24,7 +24,17 @@ type TPrivateComponentData = {
 export type CoreComponentProps = Record<string, unknown>;
 export type CoreComponentContext = Record<string, unknown>;
 
-export class CoreComponent<Props extends CoreComponentProps = CoreComponentProps, Context extends CoreComponentContext = CoreComponentContext> {
+function createDefaultPrivateContext() {
+  return {
+    scheduler: new Scheduler(),
+    globalIterateId: 0,
+  };
+}
+
+export class CoreComponent<
+  Props extends CoreComponentProps = CoreComponentProps,
+  Context extends CoreComponentContext = CoreComponentContext
+> implements ITree {
   public $: object = {};
 
   public context: Context = {} as Context;
@@ -46,19 +56,12 @@ export class CoreComponent<Props extends CoreComponentProps = CoreComponentProps
     return this.__comp.treeNode.renderOrder;
   }
 
-  protected static createDefaultPrivateContext() {
-    return {
-      scheduler: new Scheduler(),
-      globalIterateId: 0,
-    };
-  }
-
   constructor(props: Props, parent?: CoreComponent) {
     this.context = parent?.context as Context || {} as Context;
 
     this.__comp = {
       parent,
-      context: parent ? parent.__comp.context : (this.constructor as typeof CoreComponent).createDefaultPrivateContext(),
+      context: parent ? parent.__comp.context : createDefaultPrivateContext(),
       treeNode: new Tree(this),
       children: {},
       childrenKeys: [],

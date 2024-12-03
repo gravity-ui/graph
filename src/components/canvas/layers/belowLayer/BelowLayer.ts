@@ -1,5 +1,4 @@
 import { Graph } from "../../../../graph";
-import { CoreComponent } from "../../../../lib";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { ICamera } from "../../../../services/camera/CameraService";
 

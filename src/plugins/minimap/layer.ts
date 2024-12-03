@@ -1,5 +1,4 @@
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
-import { Component } from "../../lib";
 import { Layer, LayerContext, LayerProps } from "../../services/Layer";
 import { computeCssVariable, noop } from "../../utils/functions";
 import { dragListener } from "../../utils/functions/dragListener";

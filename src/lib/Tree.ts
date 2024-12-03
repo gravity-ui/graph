@@ -1,13 +1,16 @@
-import { CoreComponent } from "./CoreComponent";
 import { cache } from "./utils";
 
-type TIterator = (Node) => boolean;
+type TIterator = (node: Tree) => boolean;
 
-export class Tree<T extends CoreComponent = CoreComponent> {
+export interface ITree {
+  iterate(): void;
+}
+
+export class Tree<T extends ITree = ITree> {
   public data: T;
   public parent: Tree;
 
-  protected children: Set<Tree> = new Set();
+  public children: Set<Tree> = new Set();
   
   private childrenArray: Tree[] = [];
 

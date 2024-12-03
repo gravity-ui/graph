@@ -48,7 +48,7 @@ export class GraphComponent<
     
   }
 
-  public isVisible() {
+  protected isVisible() {
     return this.context.camera.isRectVisible(...this.getHitBox());
   }
 
