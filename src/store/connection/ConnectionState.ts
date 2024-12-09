@@ -24,8 +24,8 @@ export type TConnection = {
   selected?: boolean;
 };
 
-export class ConnectionState {
-  public $state = signal<TConnection>(undefined);
+export class ConnectionState<T extends TConnection = TConnection> {
+  public $state = signal<T>(undefined);
 
   public get id() {
     return this.$state.value.id;

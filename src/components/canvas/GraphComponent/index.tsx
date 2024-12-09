@@ -22,7 +22,6 @@ export class GraphComponent<
   private unsubscribe: (() => void)[] = [];
 
   constructor(props: Props, parent: Component) {
-    console.log('lol');
     super(props, parent);
     this.hitBox = new HitBox(this, this.context.graph.hitTest);
   }

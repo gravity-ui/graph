@@ -46,7 +46,6 @@ export function generatePrettyBlocks(
     settings: {
       ...storiesSettings,
       showConnectionLabels: true,
-      useBezierConnections: true,
       ...overrideSettings,
     },
   };
@@ -85,10 +84,10 @@ export function generatePrettyBlocks(
         const sourceBlockId = `block_${startIndex + indexSource}`;
         const targetBlockId = `block_${startIndex + indexTarget}`;
         config.connections.push({
+          id: `${sourceBlockId}/${targetBlockId}`,
           sourceBlockId: sourceBlockId,
           targetBlockId: targetBlockId,
           label: "Some label",
-          dashed: dashedLine && Boolean(Math.floor(random(0, 2))),
         });
       }
       prevLayerBlocks = [...currentLayerBlocks];
