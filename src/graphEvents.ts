@@ -1,6 +1,6 @@
+import { EventedComponent } from "./components/canvas/EventedComponent/EventedComponent";
 import { GraphState } from "./graph";
 import { TGraphColors, TGraphConstants } from "./graphConfig";
-import { EventedComponent } from "./mixins/withEvents";
 import { TCameraState } from "./services/camera/CameraService";
 
 export type GraphMouseEvent<E extends Event = Event> = CustomEvent<{

@@ -3,8 +3,8 @@ import { Signal } from "@preact/signals-core";
 import { Graph } from "../../../graph";
 import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
-import { EventedComponent } from "../../../mixins/withEvents";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
+import { EventedComponent } from "../EventedComponent/EventedComponent";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
 
@@ -22,6 +22,7 @@ export class GraphComponent<
   private unsubscribe: (() => void)[] = [];
 
   constructor(props: Props, parent: Component) {
+    console.log('lol');
     super(props, parent);
     this.hitBox = new HitBox(this, this.context.graph.hitTest);
   }

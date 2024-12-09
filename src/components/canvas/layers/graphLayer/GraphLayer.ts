@@ -1,11 +1,11 @@
 import { Graph } from "../../../../graph";
 import { GraphMouseEventNames, isNativeGraphEventName } from "../../../../graphEvents";
 import { Component } from "../../../../lib/Component";
-import { EventedComponent } from "../../../../mixins/withEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { Camera, TCameraProps } from "../../../../services/camera/Camera";
 import { ICamera } from "../../../../services/camera/CameraService";
 import { getEventDelta } from "../../../../utils/functions";
+import { EventedComponent } from "../../EventedComponent/EventedComponent";
 import { Blocks } from "../../blocks/Blocks";
 import { BlockConnection } from "../../connections/BlockConnection";
 import { BlockConnections } from "../../connections/BlockConnections";

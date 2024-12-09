@@ -3,9 +3,9 @@ import { TComponentState } from "../../../lib/Component";
 import { ConnectionState, TConnection, TConnectionId } from "../../../store/connection/ConnectionState";
 import { selectConnectionById } from "../../../store/connection/selectors";
 import { TPoint } from "../../../utils/types/shapes";
+import { GraphComponent, GraphComponentContext } from "../GraphComponent";
 import { TAnchor } from "../anchors";
 import { Block } from "../blocks/Block";
-import { GraphComponent, GraphComponentContext } from "../graphComponent";
 
 export type TBaseConnectionProps = {
   id: TConnectionId;

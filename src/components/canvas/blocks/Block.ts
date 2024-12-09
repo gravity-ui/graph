@@ -11,8 +11,8 @@ import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { TTExtRect, renderText } from "../../../utils/renderers/text";
 import { EVENTS } from "../../../utils/types/events";
 import { TPoint, TRect } from "../../../utils/types/shapes";
+import { GraphComponent } from "../GraphComponent";
 import { Anchor, TAnchor } from "../anchors";
-import { GraphComponent } from "../graphComponent";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
 import { BlockController } from "./controllers/BlockController";

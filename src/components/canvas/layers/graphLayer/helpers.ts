@@ -1,4 +1,4 @@
-import { GraphComponent } from "../../graphComponent";
+import { GraphComponent } from "../../GraphComponent";
 
 export class DrawBelow extends GraphComponent {
   protected shouldUpdateChildren = false;

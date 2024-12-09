@@ -1,6 +1,6 @@
+import { EventedComponent } from "../../components/canvas/EventedComponent/EventedComponent";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
 import { Component } from "../../lib";
-import { EventedComponent } from "../../mixins/withEvents";
 import { getXY, isMetaKeyEvent, isTrackpadWheelEvent, isWindows } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
 import { dragListener } from "../../utils/functions/dragListener";

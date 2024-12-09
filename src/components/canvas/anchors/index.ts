@@ -4,7 +4,7 @@ import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { selectBlockAnchor } from "../../../store/block/selectors";
 import { TPoint } from "../../../utils/types/shapes";
-import { GraphComponent } from "../graphComponent";
+import { GraphComponent } from "../GraphComponent";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
 export type TAnchor = {

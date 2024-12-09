@@ -3,7 +3,7 @@ import { cache } from "./utils";
 type TIterator = (node: Tree) => boolean;
 
 export interface ITree {
-  iterate(): void;
+  iterate(): boolean;
 }
 
 export class Tree<T extends ITree = ITree> {

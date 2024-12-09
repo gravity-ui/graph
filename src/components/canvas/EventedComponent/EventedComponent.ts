@@ -1,4 +1,4 @@
-import { Component, TComponentContext, TComponentProps, TComponentState } from "../lib/Component";
+import { Component, TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 
 type TEventedComponentListener = Component | ((e: Event) => void);
 
