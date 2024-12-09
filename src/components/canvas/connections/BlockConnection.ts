@@ -26,10 +26,11 @@ export type TBlockConnection = {
   removeFromRenderOrder(cmp): void;
 };
 
-export class BlockConnection extends BaseConnection<
+export class BlockConnection<T extends TConnection> extends BaseConnection<
   TConnectionProps,
   TBaseConnectionState,
-  TGraphConnectionsContext
+  TGraphConnectionsContext,
+  T
 > implements Path2DRenderInstance {
 
   public readonly cursor = "pointer";

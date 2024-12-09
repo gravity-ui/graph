@@ -19,7 +19,8 @@ export type TBaseConnectionState = TComponentState & TConnection & {
 export class BaseConnection<
   Props extends TBaseConnectionProps = TBaseConnectionProps,
   State extends TBaseConnectionState = TBaseConnectionState,
-  Context extends GraphComponentContext = GraphComponentContext
+  Context extends GraphComponentContext = GraphComponentContext,
+  Connection extends TConnection  = TConnection,
 > extends GraphComponent<Props, State, Context> {
 
   protected get sourceBlock(): Block {
@@ -45,14 +46,14 @@ export class BaseConnection<
 
   public anchorsPoints: [TPoint, TPoint] | undefined;
 
-  protected connectedState: ConnectionState;
+  protected connectedState: ConnectionState<Connection>;
 
   protected bBox: [minX: number, minY: number, maxX: number, maxY: number];
 
   constructor(props: Props, parent: Component) {
     super(props, parent);
 
-    this.connectedState = selectConnectionById(this.context.graph, this.props.id);
+    this.connectedState = selectConnectionById(this.context.graph, this.props.id) as ConnectionState<Connection>;
 
     this.setState({ ...this.connectedState.$state.value as TBaseConnectionState, hovered: false });
   }

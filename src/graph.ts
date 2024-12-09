@@ -28,14 +28,14 @@ export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [
   ? Omit<Props, "root" | "camera" | "graph"> & { root?: Props["root"] }
   : never,
 ];
-export type TGraphConfig<B extends TBlock = TBlock> = {
+export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   configurationName?: string;
-  blocks?: B[];
+  blocks?: Block[];
   connections?: TConnection[];
   rect?: TRect;
   cameraXY?: TPoint;
   cameraScale?: number;
-  settings?: Partial<TGraphSettingsConfig<TBlock>>;
+  settings?: Partial<TGraphSettingsConfig<Block, Connection>>;
   layers?: LayerConfig[];
 };
 

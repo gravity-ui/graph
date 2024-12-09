@@ -35,16 +35,17 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
   }
 
   protected subscribe() {
-
-    const r1 = this.context.graph.rootStore.settings.$connectionsSettings.subscribe(() => {
-      this.scheduleUpdate();
-    });
-
-    const r2 = this.context.graph.rootStore.connectionsList.$connections.subscribe(() => {
-      this.scheduleUpdate();
-    });
-
-    return [r1, r2];
+    return [
+      this.context.graph.rootStore.settings.$connectionsSettings.subscribe(() => {
+        this.scheduleUpdate();
+      }), 
+      this.context.graph.rootStore.connectionsList.$connections.subscribe(() => {
+        this.scheduleUpdate();
+      }), 
+      this.context.graph.rootStore.settings.$connection.subscribe(() => {
+        this.scheduleUpdate();
+      })
+    ];
   }
 
   protected unmount() {
@@ -56,6 +57,7 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
   protected updateChildren(): void | object[] {
     if (!this.connections) return [];
     const settings = this.context.graph.rootStore.settings.$connectionsSettings.value;
+    const ConnectionCtop = this.context.graph.rootStore.settings.$connection.value || BlockConnection;
     return this.connections.map((connection) => {
       const props: TConnectionProps = {
         id: connection.id,
@@ -64,7 +66,7 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
         showConnectionLabels: settings.showConnectionLabels,
         showConnectionArrows: settings.showConnectionArrows,
       };
-      return BlockConnection.create(props, { key: String(connection.id) });
+      return ConnectionCtop.create(props, { key: String(connection.id) });
     });
   }
 
