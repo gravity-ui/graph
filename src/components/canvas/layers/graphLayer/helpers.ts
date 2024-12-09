@@ -1,9 +1,13 @@
-import { Component } from "../../../../lib/Component";
+import { GraphComponent } from "../../GraphComponent";
 
-export class DrawBelow extends Component {
+export class DrawBelow extends GraphComponent {
   protected shouldUpdateChildren = false;
 
   protected shouldRenderChildren = false;
+
+  protected isVisible(): boolean {
+    return true;
+  }
 
   protected render() {
     this.context.ctx.globalCompositeOperation = "destination-over";
@@ -11,10 +15,14 @@ export class DrawBelow extends Component {
   }
 }
 
-export class DrawOver extends Component {
+export class DrawOver extends GraphComponent {
   protected shouldUpdateChildren = false;
 
   protected shouldRenderChildren = false;
+
+  protected isVisible(): boolean {
+    return true;
+  }
 
   protected render() {
     this.context.ctx.globalCompositeOperation = "source-over";

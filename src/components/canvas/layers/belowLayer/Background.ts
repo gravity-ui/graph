@@ -14,8 +14,8 @@ export class Background extends Component {
 
   public declare context: TBelowLayerContext;
 
-  constructor(props: {}, context: TBelowLayerContext) {
-    super(props, context);
+  constructor(props: {}, parent: Component) {
+    super(props, parent);
 
     this.unsubscribe = this.subscribe();
   }

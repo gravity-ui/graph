@@ -3,7 +3,6 @@ import { BlockState } from "../../../store/block/Block";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
 import { Block } from "./Block";
-import { BlocksNode } from "./BlocksTree";
 
 export class Blocks extends Component {
   protected blocks: BlockState[] = [];
@@ -22,13 +21,6 @@ export class Blocks extends Component {
 
     this.prepareFont(this.getFontScale());
 
-    // @ts-ignore
-    this.__comp.treeNode = new BlocksNode(this);
-  }
-
-  protected getTreeNode(): BlocksNode {
-    //@ts-ignore
-    return this.__comp.treeNode;
   }
 
   protected getFontScale() {
@@ -64,14 +56,6 @@ export class Blocks extends Component {
     this.unsubscribe.forEach((cb) => cb());
   }
 
-  protected onViewOrderChange = (block: Block) => {
-    this.getTreeNode().updateBlockOrder(block);
-  };
-
-  protected onRenderIndex = (block: Block) => {
-    return this.getTreeNode().getRenderOrder(block);
-  };
-
   protected updateChildren() {
     return this.blocks.map((block, index) => {
       return (this.blocksView[block.$state.value.is] || Block).create(
@@ -79,8 +63,6 @@ export class Blocks extends Component {
           id: block.id,
           initialIndex: index,
           font: this.font,
-          onZindexChange: this.onViewOrderChange,
-          getRenderIndex: this.onRenderIndex,
         },
         {
           key: block.id,

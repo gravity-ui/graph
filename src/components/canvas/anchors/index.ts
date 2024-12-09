@@ -1,11 +1,10 @@
-import { EventedComponent } from "../../../mixins/withEvents";
-import { withHitTest } from "../../../mixins/withHitTest";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { frameDebouncer } from "../../../services/optimizations/frameDebouncer";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { selectBlockAnchor } from "../../../store/block/selectors";
 import { TPoint } from "../../../utils/types/shapes";
+import { GraphComponent } from "../GraphComponent";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
 export type TAnchor = {
@@ -28,7 +27,7 @@ type TAnchorState = {
   selected: boolean;
 };
 
-export class Anchor extends withHitTest(EventedComponent) {
+export class Anchor extends GraphComponent<TAnchorProps, TAnchorState> {
   public readonly cursor = "pointer";
 
   public get zIndex() {
@@ -50,17 +49,14 @@ export class Anchor extends withHitTest(EventedComponent) {
 
   private debouncedSetHitBox: (...args: any[]) => void;
 
-  protected readonly unsubscribe: (() => void)[] = [];
-
   constructor(props: TAnchorProps, parent: GraphLayer) {
     super(props, parent);
     this.state = { size: props.size, raised: false, selected: false };
 
     this.connectedState = selectBlockAnchor(this.context.graph, props.blockId, props.id);
-
-    if (this.connectedState) {
-      this.unsubscribe = this.subscribe();
-    }
+    this.subscribeSignal(this.connectedState.$selected, (selected) => {
+      this.setState({ selected });
+    })
 
     this.debouncedSetHitBox = frameDebouncer.add(this.bindedSetHitBox.bind(this), {
       delay: 4,
@@ -80,30 +76,13 @@ export class Anchor extends withHitTest(EventedComponent) {
     return this.props.getPosition(this.props);
   }
 
-  protected subscribe() {
-    return [
-      this.connectedState.$selected.subscribe((selected) => {
-        this.setState({ selected });
-      }),
-    ];
-  }
-
-  protected unmount() {
-    this.unsubscribe.forEach((reactionDisposer) => reactionDisposer());
-
-    super.unmount();
-  }
-
   public toggleSelected() {
     this.connectedState.setSelection(!this.state.selected);
   }
 
-  public willIterate() {
-    super.willIterate();
-
-    const { x, y, width, height } = this.hitBox.getRect();
-
-    this.shouldRender = width && height ? this.context.camera.isRectVisible(x, y, width, height) : true;
+  protected isVisible() {
+    const params = this.getHitBox();
+    return params ? this.context.camera.isRectVisible(...params) : true;
   }
 
   public didIterate(): void {

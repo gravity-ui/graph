@@ -43,6 +43,16 @@ export class BlockState<T extends TBlock = TBlock> {
 
   public readonly $anchorStates: Signal<AnchorState[]> = signal([]);
 
+  public readonly $geometry = computed(() => {
+    const state = this.$state.value;
+    return {
+      x: state.x | 0,
+      y: state.y | 0,
+      width: state.width,
+      height: state.height,
+    };
+  });
+
   public $anchorIndexs = computed(() => {
     const typeIndex = {};
     return new Map(
@@ -115,16 +125,6 @@ export class BlockState<T extends TBlock = TBlock> {
   public setName(newName: string) {
     this.$state.value.name = newName;
   }
-
-  public $geometry = computed(() => {
-    const state = this.$state.value;
-    return {
-      x: state.x | 0,
-      y: state.y | 0,
-      width: state.width,
-      height: state.height,
-    };
-  });
 
   public updateAnchors(anchors: TAnchor[]) {
     const anchorsMap = new Map(this.$anchorStates.value.map((a) => [a.id, a]));

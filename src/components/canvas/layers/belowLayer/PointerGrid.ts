@@ -4,7 +4,7 @@ import { TRect } from "../../../../utils/types/shapes";
 import { Background } from "./Background";
 import { TBelowLayerContext } from "./BelowLayer";
 
-export class PointerGrid extends Component {
+export class PointerGrid extends Component<TRect, TBelowLayerContext> {
   public declare props: TRect;
 
   public declare context: TBelowLayerContext;

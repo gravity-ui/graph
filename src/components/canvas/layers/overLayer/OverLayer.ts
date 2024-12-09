@@ -25,7 +25,7 @@ export class OverLayer extends Layer<TOverLayerProps, TOverLayerContext> {
 
   protected newBlocksService = new NewBlocksService(this.props.graph);
 
-  constructor(props: TOverLayerProps, context: TOverLayerContext) {
+  constructor(props: TOverLayerProps) {
     super(
       {
         canvas: {
@@ -34,7 +34,6 @@ export class OverLayer extends Layer<TOverLayerProps, TOverLayerContext> {
         },
         ...props,
       },
-      context
     );
 
     this.setContext({

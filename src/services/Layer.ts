@@ -1,6 +1,7 @@
 import { Graph } from "../graph";
 import { TGraphColors, TGraphConstants } from "../graphConfig";
-import { Component } from "../lib/Component";
+import { CoreComponent } from "../lib";
+import { Component, TComponentState } from "../lib/Component";
 import { noop } from "../utils/functions";
 
 import { ICamera } from "./camera/CameraService";
@@ -30,12 +31,8 @@ export type LayerContext = {
 export class Layer<
   Props extends LayerProps = LayerProps,
   Context extends LayerContext = LayerContext,
-> extends Component {
+  > extends Component<Props, TComponentState, Context> {
   public static id?: string;
-
-  public declare props: Props;
-
-  public declare context: Context;
 
   protected canvas: HTMLCanvasElement;
 
@@ -45,22 +42,25 @@ export class Layer<
 
   private cameraSubscription: () => void = noop;
 
-  constructor(props: Props, context: Context) {
-    super(props, context);
+  constructor(props: Props, parent?: CoreComponent) {
+    super(props, parent);
+    
     this.setContext({
       camera: props.camera,
-    } as Partial<Context>);
-    this.init();
-    this.props.graph.on("colors-changed", (event) => {
-      const colors = event.detail.colors;
-      this.setContext({
-        colors,
-      } as Partial<Context>);
     });
+    
+    this.init();
+
+    this.props.graph.on("colors-changed", (event) => {
+      this.setContext({
+        colors: event.detail.colors,
+      });
+    });
+
     this.props.graph.on("constants-changed", (event) => {
       this.setContext({
         constants: event.detail.constants,
-      } as Partial<Context>);
+      });
     });
   }
 
@@ -97,17 +97,6 @@ export class Layer<
     if (this.root) {
       this.attachLayer(this.root);
     }
-  }
-
-  public setContext(context: Partial<Context>, silent?: boolean) {
-    if (silent) {
-      Object.assign(this.context, context);
-    } else {
-      super.setContext(context);
-    }
-    this.shouldRenderChildren = true;
-    this.shouldUpdateChildren = true;
-    this.performRender();
   }
 
   protected unmountLayer() {
