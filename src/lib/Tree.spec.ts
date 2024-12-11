@@ -1,16 +1,16 @@
 import { ITree, Tree } from "./Tree";
 
-
-describe('Tree', () => {
-  const createChildData = () => ({
-    iterate: jest.fn(),
-  } as ITree)
-  test('Creation of a Tree object', () => {
+describe("Tree", () => {
+  const createChildData = () =>
+    ({
+      iterate: jest.fn(),
+    }) as ITree;
+  test("Creation of a Tree object", () => {
     const tree = new Tree(createChildData());
     expect(tree).toBeInstanceOf(Tree);
   });
 
-  test('Adding and removing child elements', () => {
+  test("Adding and removing child elements", () => {
     const parent = new Tree(createChildData());
     const child1 = new Tree(createChildData());
     const child2 = new Tree(createChildData());
@@ -27,7 +27,7 @@ describe('Tree', () => {
     expect(parent.children.size).toBe(0);
   });
 
-  test('Changing the rendering order', () => {
+  test("Changing the rendering order", () => {
     const parent = new Tree(createChildData());
     const child1 = new Tree(createChildData());
     const child2 = new Tree(createChildData());
@@ -42,7 +42,7 @@ describe('Tree', () => {
     expect(child2.renderOrder).toBe(2);
   });
 
-  test('Changing the z-index', () => {
+  test("Changing the z-index", () => {
     const parent = new Tree(createChildData());
     const child1 = new Tree(createChildData());
     const child2 = new Tree(createChildData());
@@ -57,7 +57,7 @@ describe('Tree', () => {
     expect(child2.zIndex).toBe(2);
   });
 
-  test('Traversing the tree', () => {
+  test("Traversing the tree", () => {
     const root = new Tree(createChildData());
     const child1 = new Tree(createChildData());
     const child2 = new Tree(createChildData());

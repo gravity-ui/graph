@@ -7,8 +7,9 @@ import { getFontSize } from "../../../utils/functions/text";
 import { cachedMeasureText } from "../../../utils/renderers/text";
 import { ESelectionStrategy } from "../../../utils/types/types";
 
+import { ConnectionArrow } from "./Arrow";
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "./BaseConnection";
-import { Path2DRenderInstance } from "./BatchPath2D";
+import { Path2DRenderInstance, Path2DRenderStyleResult } from "./BatchPath2D";
 import { BlockConnections, TGraphConnectionsContext } from "./BlockConnections";
 import { bezierCurveLine, getArrowCoords, isPointInStroke } from "./bezierHelpers";
 import { getLabelCoords } from "./labelHelper";
@@ -26,34 +27,72 @@ export type TBlockConnection = {
   removeFromRenderOrder(cmp): void;
 };
 
-export class BlockConnection<T extends TConnection> extends BaseConnection<
-  TConnectionProps,
-  TBaseConnectionState,
-  TGraphConnectionsContext,
-  T
-> implements Path2DRenderInstance {
-
+export class BlockConnection<T extends TConnection>
+  extends BaseConnection<TConnectionProps, TBaseConnectionState, TGraphConnectionsContext, T>
+  implements Path2DRenderInstance
+{
   public readonly cursor = "pointer";
 
   protected path2d: Path2D;
 
   private labelGeometry = { x: 0, y: 0, width: 0, height: 0 };
 
-  protected geometry: { x1: number, x2: number, y1: number, y2: number } = { x1: 0, x2: 0, y1: 0, y2: 0 };
+  protected geometry: { x1: number; x2: number; y1: number; y2: number } = { x1: 0, x2: 0, y1: 0, y2: 0 };
+
+  protected arrowShape = new ConnectionArrow(this);
 
   constructor(props: TConnectionProps, parent: BlockConnections) {
     super(props, parent);
     this.addEventListener("click", this);
 
-    this.context.batch.add(this, {zIndex: this.zIndex, group: this.getClassName()});
+    this.context.batch.add(this, { zIndex: this.zIndex, group: this.getClassName() });
+    this.context.batch.add(this.arrowShape, { zIndex: this.zIndex, group: `arrow/${this.getClassName()}` });
   }
 
-  public createPath(): Path2D {
-    if(!this.geometry) {
+  protected applyShape(state: TBaseConnectionState = this.state) {
+    const zIndex = state.selected || state.hovered ? this.zIndex + 10 : this.zIndex;
+    this.context.batch.update(this, { zIndex: zIndex, group: this.getClassName(state) });
+    this.context.batch.update(this.arrowShape, { zIndex: zIndex, group: `arrow/${this.getClassName(state)}` });
+  }
+
+  public getPath(): Path2D {
+    return this.generatePath();
+  }
+
+  public createArrowPath() {
+    const coords = getArrowCoords(
+      this.props.useBezier,
+      this.geometry.x1,
+      this.geometry.y1,
+      this.geometry.x2,
+      this.geometry.y2,
+      this.props.bezierDirection
+    );
+    const path = new Path2D();
+    path.moveTo(coords[0], coords[1]);
+    path.lineTo(coords[2], coords[3]);
+    path.lineTo(coords[4], coords[5]);
+    return path;
+  }
+
+  public styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
+    ctx.lineWidth = this.state.hovered || this.state.selected ? 4 : 2;
+    ctx.strokeStyle = this.getStrokeColor(this.state);
+    return { type: "stroke" };
+  }
+
+  protected generatePath() {
+    /* Setting this.path2D is important, as hotbox checking uses the isPointInStroke method. */
+    this.path2d = this.createPath();
+    return this.path2d;
+  }
+
+  protected createPath(): Path2D {
+    if (!this.geometry) {
       return new Path2D();
     }
     if (this.props.useBezier) {
-      this.path2d = bezierCurveLine(
+      return bezierCurveLine(
         {
           x: this.geometry.x1,
           y: this.geometry.y1,
@@ -64,25 +103,24 @@ export class BlockConnection<T extends TConnection> extends BaseConnection<
         },
         this.props.bezierDirection
       );
-    } else {
-      this.path2d = new Path2D();
-      this.path2d.moveTo(this.geometry.x1, this.geometry.y1);
-      this.path2d.lineTo(this.geometry.x2, this.geometry.y2);
     }
+    this.path2d = new Path2D();
+    this.path2d.moveTo(this.geometry.x1, this.geometry.y1);
+    this.path2d.lineTo(this.geometry.x2, this.geometry.y2);
 
     return this.path2d;
   }
 
   public getClassName(state = this.state) {
-    const hovered = state.hovered ? 'hovered' : 'none';
-    const selected = state.selected ? 'selected' : 'none';
+    const hovered = state.hovered ? "hovered" : "none";
+    const selected = state.selected ? "selected" : "none";
     const stroke = this.getStrokeColor(state);
-    const dash = state.dashed ? (state.styles?.dashes || [6, 4]).join(',') : "";
+    const dash = state.dashed ? (state.styles?.dashes || [6, 4]).join(",") : "";
     return `connection/${hovered}/${selected}/${stroke}/${dash}`;
   }
-  
-  public style(ctx: CanvasRenderingContext2D): { type: "stroke"; } | { type: "fill"; fillRule?: CanvasFillRule; } | undefined {
-    this.setRenderStyles(ctx, this.state)
+
+  public style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
+    this.setRenderStyles(ctx, this.state);
     return { type: "stroke" };
   }
 
@@ -98,10 +136,6 @@ export class BlockConnection<T extends TConnection> extends BaseConnection<
     const cameraClose =
       this.context.camera.getCameraScale() >= this.context.constants.connection.MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL;
 
-    if (this.props.showConnectionArrows && cameraClose) {
-      ctx.stroke(this.renderArrow());
-    }
-    
     if (this.state.label && this.props.showConnectionLabels && cameraClose) {
       this.renderLabelText(ctx);
     }
@@ -109,13 +143,12 @@ export class BlockConnection<T extends TConnection> extends BaseConnection<
 
   protected override propsChanged(nextProps: TConnectionProps) {
     super.propsChanged(nextProps);
-
-    this.context.batch.update(this, {zIndex: this.zIndex, group: this.getClassName()});
+    this.applyShape(this.state);
   }
 
   protected override stateChanged(nextState: TBaseConnectionState) {
     super.stateChanged(nextState);
-    this.context.batch.update(this, {zIndex: this.zIndex, group: this.getClassName(nextState)});
+    this.applyShape(nextState);
   }
 
   public get zIndex() {
@@ -131,15 +164,15 @@ export class BlockConnection<T extends TConnection> extends BaseConnection<
         y1: 0,
         x2: 0,
         y2: 0,
-      }
+      };
       return;
     }
     const useAnchors = this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors");
-    const source = useAnchors ? (this.anchorsPoints?.[0] || this.connectionPoints[0]) : this.connectionPoints[0];
-    const target = useAnchors ? (this.anchorsPoints?.[1] || this.connectionPoints[1]) : this.connectionPoints[1];
+    const source = useAnchors ? this.anchorsPoints?.[0] || this.connectionPoints[0] : this.connectionPoints[0];
+    const target = useAnchors ? this.anchorsPoints?.[1] || this.connectionPoints[1] : this.connectionPoints[1];
 
-    if(!source || !target) {
-      this.context.batch.update(this, {zIndex: this.zIndex, group: this.getClassName(this.state)});
+    if (!source || !target) {
+      this.applyShape();
       return;
     }
     this.geometry = {
@@ -147,8 +180,8 @@ export class BlockConnection<T extends TConnection> extends BaseConnection<
       y1: source.y,
       x2: target.x,
       y2: target.y,
-    }
-    this.context.batch.update(this, {zIndex: this.zIndex, group: this.getClassName(this.state)});
+    };
+    this.applyShape();
   }
 
   protected override handleEvent(event) {
@@ -193,12 +226,8 @@ export class BlockConnection<T extends TConnection> extends BaseConnection<
   }
 
   private renderLabelText(ctx: CanvasRenderingContext2D) {
-    const [
-      labelInnerTopPadding,
-      labelInnerRightPadding,
-      labelInnerBottomPadding,
-      labelInnerLeftPadding,
-    ] = this.context.constants.connection.LABEL.INNER_PADDINGS;
+    const [labelInnerTopPadding, labelInnerRightPadding, labelInnerBottomPadding, labelInnerLeftPadding] =
+      this.context.constants.connection.LABEL.INNER_PADDINGS;
     const padding = this.context.constants.system.GRID_SIZE / 8;
     const fontSize = Math.max(14, getFontSize(9, this.context.camera.getCameraScale()));
     const font = `${fontSize}px sans-serif`;
@@ -240,24 +269,8 @@ export class BlockConnection<T extends TConnection> extends BaseConnection<
       x - labelInnerLeftPadding,
       y - labelInnerTopPadding,
       measure.width + labelInnerLeftPadding + labelInnerRightPadding,
-      measure.height + labelInnerTopPadding + labelInnerBottomPadding,
+      measure.height + labelInnerTopPadding + labelInnerBottomPadding
     );
-  }
-
-  public renderArrow() {
-    const coords = getArrowCoords(
-      this.props.useBezier,
-      this.geometry.x1,
-      this.geometry.y1,
-      this.geometry.x2,
-      this.geometry.y2,
-      this.props.bezierDirection
-    );
-    const path = new Path2D();
-    path.moveTo(coords[0], coords[1]);
-    path.lineTo(coords[2], coords[3]);
-    path.lineTo(coords[4], coords[5]);
-    return path;
   }
 
   public getStrokeColor(state: TConnection) {

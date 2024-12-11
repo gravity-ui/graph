@@ -1,78 +1,82 @@
 import { ElkExtendedEdge } from "elkjs";
 
+import { Path2DRenderStyleResult } from "../../../components/canvas/connections/BatchPath2D";
 import { BlockConnection } from "../../../components/canvas/connections/BlockConnection";
 import { TConnection } from "../../../store/connection/ConnectionState";
-
-import { curve, getElkArrowCoords } from "./helpers";
+import { curvePolyline } from "../../../utils/shapes/curvePolyline";
+import { trangleArrowForVector } from "../../../utils/shapes/triangle";
 
 export type TElkTConnection = TConnection & {
-    elk: ElkExtendedEdge
-}
-
-
+  elk: ElkExtendedEdge;
+};
 
 export class ELKConnection extends BlockConnection<TElkTConnection> {
-    public createPath() {
-        const elk = this.connectedState.$state.value.elk;
-        if(!elk || !elk.sections) {
-            return super.createPath();
-        }
-        const path = new Path2D();
-        path.addPath(curve(this.points, 50));
-        const pointA = this.points[this.points.length - 1];
-        const pointB = this.points[this.points.length - 2];
+  protected points: { x: number; y: number }[] = [];
 
-        path.addPath(getElkArrowCoords(pointB.x, pointB.y, pointA.x, pointA.y, 8));
-        this.path2d = path;
-        return path;
+  public createPath() {
+    const elk = this.connectedState.$state.value.elk;
+    if (!elk.sections || !this.points?.length) {
+      return super.createPath();
     }
+    return curvePolyline(this.points, 10);
+  }
 
-    public style(ctx: CanvasRenderingContext2D): { type: "stroke"; } | { type: "fill"; fillRule?: CanvasFillRule; } | undefined {
-        ctx.lineCap = "round";
-        return super.style(ctx);
+  public createArrowPath(): Path2D {
+    if (!this.points.length) {
+      return undefined;
     }
+    const [start, end] = this.points.slice(this.points.length - 2);
+    return trangleArrowForVector(start, end, 16, 10);
+  }
 
-    public afterRender?(_: CanvasRenderingContext2D): void {
-        // noop;
-        return;
+  public styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult {
+    ctx.fillStyle = this.state.selected
+      ? this.context.colors.connection.selectedBackground
+      : this.context.colors.connection.background;
+    ctx.strokeStyle = ctx.fillStyle;
+    ctx.lineWidth = this.state.selected || this.state.hovered ? -1 : 1;
+    return { type: "both" };
+  }
+
+  public getPoints() {
+    return this.points || [];
+  }
+
+  public afterRender?(_: CanvasRenderingContext2D): void {
+    // do not render label;
+    return;
+  }
+
+  public updatePoints(): void {
+    super.updatePoints();
+    const elk = this.connectedState.$state.value.elk;
+    if (!elk || !elk.sections) {
+      return;
     }
+    const section = elk.sections[0];
 
-    protected points: {x:number, y: number}[]
+    this.points = [section.startPoint, ...(section.bendPoints?.map((point) => point) || []), section.endPoint];
 
-    public updatePoints(): void {
-        super.updatePoints();
-        const elk = this.connectedState.$state.value.elk;
-        if(!elk || !elk.sections) {
-            return;
-        }
-        const section = elk.sections[0];
+    return;
+  }
 
-        this.points = [
-            section.startPoint,
-            ...section.bendPoints?.map((point) => point) || [],
-            section.endPoint,
-        ];
-        
-        return;
+  public getBBox() {
+    const elk = this.connectedState.$state.value.elk;
+    if (!elk || !elk.sections) {
+      return super.getBBox();
     }
-
-    public getBBox() {
-        const elk = this.connectedState.$state.value.elk;
-        if(!elk || !elk.sections) {
-            return super.getBBox();
-        }
-        const x = [];
-        const y = [];
-        elk.sections.forEach((c) => {
-            x.push(c.startPoint.x);
-            y.push(c.startPoint.y);
-            c.bendPoints?.forEach((point) => {
-                x.push(point.x);
-                y.push(point.y);
-            });
-            x.push(c.endPoint.x);
-            y.push(c.endPoint.y);
-        });
-        return [Math.min(...x), Math.min(...y), Math.max(...x), Math.max(...y)] as const; 
-    }
+    const x = [];
+    const y = [];
+    elk.sections.forEach((c) => {
+      x.push(c.startPoint.x);
+      y.push(c.startPoint.y);
+      c.bendPoints?.forEach((point) => {
+        x.push(point.x);
+        y.push(point.y);
+      });
+      x.push(c.endPoint.x);
+      y.push(c.endPoint.y);
+    });
+    return [Math.min(...x), Math.min(...y), Math.max(...x), Math.max(...y)] as const;
+  }
 }

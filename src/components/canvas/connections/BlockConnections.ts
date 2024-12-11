@@ -9,13 +9,12 @@ import { BlockConnection, TConnectionProps } from "./BlockConnection";
 
 export type TGraphConnectionsContext = TGraphLayerContext & {
   batch: BatchPath2DRenderer;
-}
+};
 
 export class BlockConnections extends Component<CoreComponentProps, TComponentState, TGraphConnectionsContext> {
-
   public get connections(): ConnectionState[] {
     return this.context.graph.rootStore.connectionsList.$connections.value;
-  };
+  }
 
   protected readonly unsubscribe: (() => void)[];
 
@@ -25,8 +24,8 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
     super(props, parent);
     this.unsubscribe = this.subscribe();
     this.setContext({
-      batch: this.batch
-    })
+      batch: this.batch,
+    });
   }
 
   private scheduleUpdate() {
@@ -38,13 +37,13 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
     return [
       this.context.graph.rootStore.settings.$connectionsSettings.subscribe(() => {
         this.scheduleUpdate();
-      }), 
+      }),
       this.context.graph.rootStore.connectionsList.$connections.subscribe(() => {
         this.scheduleUpdate();
-      }), 
+      }),
       this.context.graph.rootStore.settings.$connection.subscribe(() => {
         this.scheduleUpdate();
-      })
+      }),
     ];
   }
 
@@ -72,7 +71,7 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
 
   protected render(): void {
     const paths = this.batch.orderedPaths.get();
-    for(const path of paths) {
+    for (const path of paths) {
       path.render(this.context.ctx);
     }
   }

@@ -7,7 +7,7 @@ const listeners = new WeakMap<Component, Map<string, Set<TEventedComponentListen
 export class EventedComponent<
   Props extends TComponentProps = TComponentProps,
   State extends TComponentState = TComponentState,
-  Context extends TComponentContext = TComponentContext
+  Context extends TComponentContext = TComponentContext,
 > extends Component<Props, State, Context> {
   public readonly cursor?: string;
 
@@ -27,14 +27,11 @@ export class EventedComponent<
     // noop
   }
 
-  public listenEvents(
-    events: string[],
-    cbOrObject: TEventedComponentListener = this,
-  ) {
+  public listenEvents(events: string[], cbOrObject: TEventedComponentListener = this) {
     const unsubs = events.map((eventName) => {
       return this.addEventListener(eventName, cbOrObject);
     });
-    return unsubs
+    return unsubs;
   }
 
   public addEventListener(type: string, cbOrObject: TEventedComponentListener) {
@@ -47,7 +44,7 @@ export class EventedComponent<
   public removeEventListener(type: string, cbOrObject: TEventedComponentListener) {
     const cbs = this.events.get(type);
     if (cbs) {
-      cbs.delete(cbOrObject)
+      cbs.delete(cbOrObject);
     }
   }
 
@@ -57,10 +54,10 @@ export class EventedComponent<
     handlers?.forEach((cb) => {
       if (typeof cb === "function") {
         cb(event);
-      } else if (cb instanceof Component && "handleEvent" in cb && typeof cb.handleEvent === 'function') {
+      } else if (cb instanceof Component && "handleEvent" in cb && typeof cb.handleEvent === "function") {
         cb.handleEvent?.(event);
       }
-    })
+    });
   }
 
   public dispatchEvent(event: Event): boolean {
@@ -96,5 +93,4 @@ export class EventedComponent<
   public _hasListener(comp: EventedComponent, type: string) {
     return listeners.get(comp)?.has?.(type);
   }
-  
 }

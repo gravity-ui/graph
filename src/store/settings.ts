@@ -1,11 +1,11 @@
 import { computed, signal } from "@preact/signals-core";
 
 import type { Block, TBlock } from "../components/canvas/blocks/Block";
+import { BlockConnection } from "../components/canvas/connections/BlockConnection";
+
+import { TConnection } from "./connection/ConnectionState";
 
 import { RootStore } from "./index";
-import { BaseConnection } from "../components/canvas/connections/BaseConnection";
-import { BlockConnection } from "../components/canvas/connections/BlockConnection";
-import { TConnection } from "./connection/ConnectionState";
 
 export enum ECanChangeBlockGeometry {
   ALL = "all",
@@ -13,7 +13,7 @@ export enum ECanChangeBlockGeometry {
   NONE = "none",
 }
 
-export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection > = {
+export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   canDragCamera: boolean;
   canZoomCamera: boolean;
   canDuplicateBlocks: boolean;
@@ -27,7 +27,7 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   connectivityComponentOnClickRaise: boolean;
   showConnectionLabels: boolean;
   blockComponents: Record<string, typeof Block<Block>>;
-  connection?: typeof BlockConnection<Connection>,
+  connection?: typeof BlockConnection<Connection>;
 };
 
 const getInitState: TGraphSettingsConfig = {
@@ -55,7 +55,7 @@ export class GraphEditorSettings {
 
   public $connection = computed(() => {
     return this.$settings.value.connection;
-  })
+  });
 
   constructor(public rootStore: RootStore) {}
 

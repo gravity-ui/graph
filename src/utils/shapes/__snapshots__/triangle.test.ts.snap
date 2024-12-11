@@ -1,0 +1,377 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`trangleArrowForVector should handle a default height if not provided 1`] = `
+Path2D {
+  "_events": [
+    {
+      "props": {
+        "x": 10,
+        "y": 10,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 1.1611652351681558,
+        "y": 4.696699141100894,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "x": 4.696699141100893,
+        "y": 1.1611652351681567,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {},
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "closePath",
+    },
+  ],
+  "_path": [
+    {
+      "props": {
+        "x": 10,
+        "y": 10,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 1.1611652351681558,
+        "y": 4.696699141100894,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "x": 4.696699141100893,
+        "y": 1.1611652351681567,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {},
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "closePath",
+    },
+  ],
+  "_stackIndex": 0,
+  "_transformStack": [
+    [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  ],
+  "addPath": [MockFunction],
+  "arc": [MockFunction],
+  "arcTo": [MockFunction],
+  "bezierCurveTo": [MockFunction],
+  "closePath": [MockFunction] {
+    "calls": [
+      [],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "ellipse": [MockFunction],
+  "lineTo": [MockFunction] {
+    "calls": [
+      [
+        1.1611652351681558,
+        4.696699141100894,
+      ],
+      [
+        4.696699141100893,
+        1.1611652351681567,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "moveTo": [MockFunction] {
+    "calls": [
+      [
+        10,
+        10,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "quadraticCurveTo": [MockFunction],
+  "rect": [MockFunction],
+}
+`;
+
+exports[`trangleArrowForVector should return a Path2D instance representing an arrow from start to end 1`] = `
+Path2D {
+  "_events": [
+    {
+      "props": {
+        "x": 10,
+        "y": 10,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 4.696699141100893,
+        "y": 8.232233047033631,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "x": 8.232233047033631,
+        "y": 4.696699141100893,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {},
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "closePath",
+    },
+  ],
+  "_path": [
+    {
+      "props": {
+        "x": 10,
+        "y": 10,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 4.696699141100893,
+        "y": 8.232233047033631,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "x": 8.232233047033631,
+        "y": 4.696699141100893,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {},
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "closePath",
+    },
+  ],
+  "_stackIndex": 0,
+  "_transformStack": [
+    [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  ],
+  "addPath": [MockFunction],
+  "arc": [MockFunction],
+  "arcTo": [MockFunction],
+  "bezierCurveTo": [MockFunction],
+  "closePath": [MockFunction] {
+    "calls": [
+      [],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "ellipse": [MockFunction],
+  "lineTo": [MockFunction] {
+    "calls": [
+      [
+        4.696699141100893,
+        8.232233047033631,
+      ],
+      [
+        8.232233047033631,
+        4.696699141100893,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "moveTo": [MockFunction] {
+    "calls": [
+      [
+        10,
+        10,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "quadraticCurveTo": [MockFunction],
+  "rect": [MockFunction],
+}
+`;

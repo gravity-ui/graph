@@ -88,6 +88,7 @@ export function generatePrettyBlocks(
           sourceBlockId: sourceBlockId,
           targetBlockId: targetBlockId,
           label: "Some label",
+          dashed: dashedLine && Boolean(Math.floor(random(0, 2))),
         });
       }
       prevLayerBlocks = [...currentLayerBlocks];

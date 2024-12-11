@@ -33,8 +33,9 @@ function createDefaultPrivateContext() {
 
 export class CoreComponent<
   Props extends CoreComponentProps = CoreComponentProps,
-  Context extends CoreComponentContext = CoreComponentContext
-> implements ITree {
+  Context extends CoreComponentContext = CoreComponentContext,
+> implements ITree
+{
   public $: object = {};
 
   public context: Context = {} as Context;
@@ -57,7 +58,7 @@ export class CoreComponent<
   }
 
   constructor(props: Props, parent?: CoreComponent) {
-    this.context = parent?.context as Context || {} as Context;
+    this.context = (parent?.context as Context) || ({} as Context);
 
     this.__comp = {
       parent,

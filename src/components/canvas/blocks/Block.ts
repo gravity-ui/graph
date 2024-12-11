@@ -78,10 +78,11 @@ export type BlockViewState = {
   order: number;
 };
 
-export class Block<
-  T extends TBlock = TBlock,
-  Props extends TBlockProps = TBlockProps
-> extends GraphComponent<Props, T, TGraphLayerContext> {
+export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlockProps> extends GraphComponent<
+  Props,
+  T,
+  TGraphLayerContext
+> {
   // from controller mixin
   public readonly isBlock = true;
 
