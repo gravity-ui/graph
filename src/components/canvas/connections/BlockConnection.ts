@@ -26,29 +26,31 @@ export type TBlockConnection = {
   removeFromRenderOrder(cmp): void;
 };
 
-export class BlockConnection extends BaseConnection<
-  TConnectionProps,
-  TBaseConnectionState,
-  TGraphConnectionsContext
-> implements Path2DRenderInstance {
-
+export class BlockConnection<T extends TConnection>
+  extends BaseConnection<TConnectionProps, TBaseConnectionState, TGraphConnectionsContext, T>
+  implements Path2DRenderInstance
+{
   public readonly cursor = "pointer";
 
   protected path2d: Path2D;
 
   private labelGeometry = { x: 0, y: 0, width: 0, height: 0 };
 
-  protected geometry: { x1: number, x2: number, y1: number, y2: number } = { x1: 0, x2: 0, y1: 0, y2: 0 };
+  protected geometry: { x1: number; x2: number; y1: number; y2: number } = { x1: 0, x2: 0, y1: 0, y2: 0 };
 
   constructor(props: TConnectionProps, parent: BlockConnections) {
     super(props, parent);
     this.addEventListener("click", this);
 
-    this.context.batch.add(this, {zIndex: this.zIndex, group: this.getClassName()});
+    this.context.batch.add(this, { zIndex: this.zIndex, group: this.getClassName() });
+  }
+
+  protected applyShape(state: TBaseConnectionState = this.state) {
+    this.context.batch.update(this, { zIndex: this.zIndex, group: this.getClassName(state) });
   }
 
   public createPath(): Path2D {
-    if(!this.geometry) {
+    if (!this.geometry) {
       return new Path2D();
     }
     if (this.props.useBezier) {
@@ -73,15 +75,21 @@ export class BlockConnection extends BaseConnection<
   }
 
   public getClassName(state = this.state) {
-    const hovered = state.hovered ? 'hovered' : 'none';
-    const selected = state.selected ? 'selected' : 'none';
+    const hovered = state.hovered ? "hovered" : "none";
+    const selected = state.selected ? "selected" : "none";
     const stroke = this.getStrokeColor(state);
-    const dash = state.dashed ? (state.styles?.dashes || [6, 4]).join(',') : "";
+    const dash = state.dashed ? (state.styles?.dashes || [6, 4]).join(",") : "";
     return `connection/${hovered}/${selected}/${stroke}/${dash}`;
   }
-  
-  public style(ctx: CanvasRenderingContext2D): { type: "stroke"; } | { type: "fill"; fillRule?: CanvasFillRule; } | undefined {
-    this.setRenderStyles(ctx, this.state)
+
+  public style(
+    ctx: CanvasRenderingContext2D
+  ):
+    | { type: "stroke" }
+    | { type: "fill"; fillRule?: CanvasFillRule }
+    | { type: "both"; fillRule?: CanvasFillRule }
+    | undefined {
+    this.setRenderStyles(ctx, this.state);
     return { type: "stroke" };
   }
 
@@ -100,7 +108,7 @@ export class BlockConnection extends BaseConnection<
     if (this.props.showConnectionArrows && cameraClose) {
       ctx.stroke(this.renderArrow());
     }
-    
+
     if (this.state.label && this.props.showConnectionLabels && cameraClose) {
       this.renderLabelText(ctx);
     }
@@ -108,13 +116,12 @@ export class BlockConnection extends BaseConnection<
 
   protected override propsChanged(nextProps: TConnectionProps) {
     super.propsChanged(nextProps);
-
-    this.context.batch.update(this, {zIndex: this.zIndex, group: this.getClassName()});
+    this.applyShape(this.state);
   }
 
   protected override stateChanged(nextState: TBaseConnectionState) {
     super.stateChanged(nextState);
-    this.context.batch.update(this, {zIndex: this.zIndex, group: this.getClassName(nextState)});
+    this.applyShape(nextState);
   }
 
   public get zIndex() {
@@ -130,15 +137,15 @@ export class BlockConnection extends BaseConnection<
         y1: 0,
         x2: 0,
         y2: 0,
-      }
+      };
       return;
     }
     const useAnchors = this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors");
-    const source = useAnchors ? (this.anchorsPoints?.[0] || this.connectionPoints[0]) : this.connectionPoints[0];
-    const target = useAnchors ? (this.anchorsPoints?.[1] || this.connectionPoints[1]) : this.connectionPoints[1];
+    const source = useAnchors ? this.anchorsPoints?.[0] || this.connectionPoints[0] : this.connectionPoints[0];
+    const target = useAnchors ? this.anchorsPoints?.[1] || this.connectionPoints[1] : this.connectionPoints[1];
 
-    if(!source || !target) {
-      this.context.batch.update(this, {zIndex: this.zIndex, group: this.getClassName(this.state)});
+    if (!source || !target) {
+      this.applyShape();
       return;
     }
     this.geometry = {
@@ -146,8 +153,8 @@ export class BlockConnection extends BaseConnection<
       y1: source.y,
       x2: target.x,
       y2: target.y,
-    }
-    this.context.batch.update(this, {zIndex: this.zIndex, group: this.getClassName(this.state)});
+    };
+    this.applyShape();
   }
 
   protected override handleEvent(event) {
@@ -192,12 +199,8 @@ export class BlockConnection extends BaseConnection<
   }
 
   private renderLabelText(ctx: CanvasRenderingContext2D) {
-    const [
-      labelInnerTopPadding,
-      labelInnerRightPadding,
-      labelInnerBottomPadding,
-      labelInnerLeftPadding,
-    ] = this.context.constants.connection.LABEL.INNER_PADDINGS;
+    const [labelInnerTopPadding, labelInnerRightPadding, labelInnerBottomPadding, labelInnerLeftPadding] =
+      this.context.constants.connection.LABEL.INNER_PADDINGS;
     const padding = this.context.constants.system.GRID_SIZE / 8;
     const fontSize = Math.max(14, getFontSize(9, this.context.camera.getCameraScale()));
     const font = `${fontSize}px sans-serif`;
@@ -239,7 +242,7 @@ export class BlockConnection extends BaseConnection<
       x - labelInnerLeftPadding,
       y - labelInnerTopPadding,
       measure.width + labelInnerLeftPadding + labelInnerRightPadding,
-      measure.height + labelInnerTopPadding + labelInnerBottomPadding,
+      measure.height + labelInnerTopPadding + labelInnerBottomPadding
     );
   }
 

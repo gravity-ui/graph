@@ -47,7 +47,16 @@ export class Anchor extends GraphComponent<TAnchorProps, TAnchorState> {
 
   private hitBoxHash: string;
 
-  private debouncedSetHitBox: (...args: any[]) => void;
+  private debouncedSetHitBox = frameDebouncer.add(
+    () => {
+      const { x, y } = this.props.getPosition(this.props);
+      this.setHitBox(x - this.shift, y - this.shift, x + this.shift, y + this.shift);
+    },
+    {
+      delay: 4,
+      lightFrame: true,
+    }
+  );
 
   constructor(props: TAnchorProps, parent: GraphLayer) {
     super(props, parent);
@@ -56,11 +65,6 @@ export class Anchor extends GraphComponent<TAnchorProps, TAnchorState> {
     this.connectedState = selectBlockAnchor(this.context.graph, props.blockId, props.id);
     this.subscribeSignal(this.connectedState.$selected, (selected) => {
       this.setState({ selected });
-    })
-
-    this.debouncedSetHitBox = frameDebouncer.add(this.bindedSetHitBox.bind(this), {
-      delay: 4,
-      lightFrame: true,
     });
 
     this.addEventListener("click", this);
@@ -114,11 +118,6 @@ export class Anchor extends GraphComponent<TAnchorProps, TAnchorState> {
         break;
       }
     }
-  }
-
-  public bindedSetHitBox() {
-    const { x, y } = this.props.getPosition(this.props);
-    this.setHitBox(x - this.shift, y - this.shift, x + this.shift, y + this.shift);
   }
 
   private computeRenderSize(size: number, raised: boolean) {
