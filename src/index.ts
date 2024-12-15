@@ -1,5 +1,6 @@
 export { Anchor, type TAnchor, type TAnchorProps } from "./components/canvas/anchors";
 export { Block as CanvasBlock, type TBlock } from "./components/canvas/blocks/Block";
+export { BlockConnection, BaseConnection, Path2DRenderStyleResult } from "./components/canvas/connections";
 export * from "./graph";
 export type { TGraphColors, TGraphConstants } from "./graphConfig";
 export { type UnwrapGraphEventsDetail } from "./graphEvents";
@@ -17,3 +18,4 @@ export * from "./utils/renderers/text";
 export { EVENTS } from "./utils/types/events";
 export { type TPoint, type TRect } from "./utils/types/shapes";
 export { ESelectionStrategy } from "./utils/types/types";
+export * from "./utils/shapes";

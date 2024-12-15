@@ -4,7 +4,7 @@ import isObject from "lodash/isObject";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
-import { BlockState, TBlockId } from "../../../store/block/Block";
+import { BlockState, IS_BLOCK_TYPE, TBlockId } from "../../../store/block/Block";
 import { selectBlockById } from "../../../store/block/selectors";
 import { getXY } from "../../../utils/functions";
 import { TMeasureTextOptions } from "../../../utils/functions/text";
@@ -83,6 +83,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   T,
   TGraphLayerContext
 > {
+  public static IS = IS_BLOCK_TYPE;
+
   // from controller mixin
   public readonly isBlock = true;
 

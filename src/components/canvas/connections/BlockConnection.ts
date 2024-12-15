@@ -104,11 +104,11 @@ export class BlockConnection<T extends TConnection>
         this.props.bezierDirection
       );
     }
-    this.path2d = new Path2D();
-    this.path2d.moveTo(this.geometry.x1, this.geometry.y1);
-    this.path2d.lineTo(this.geometry.x2, this.geometry.y2);
+    const path2d = new Path2D();
+    path2d.moveTo(this.geometry.x1, this.geometry.y1);
+    path2d.lineTo(this.geometry.x2, this.geometry.y2);
 
-    return this.path2d;
+    return path2d;
   }
 
   public getClassName(state = this.state) {
