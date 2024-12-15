@@ -1,11 +1,11 @@
 import { Graph } from "../../../../graph";
 import { GraphMouseEventNames, isNativeGraphEventName } from "../../../../graphEvents";
 import { Component } from "../../../../lib/Component";
-import { EventedComponent } from "../../../../mixins/withEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { Camera, TCameraProps } from "../../../../services/camera/Camera";
 import { ICamera } from "../../../../services/camera/CameraService";
 import { getEventDelta } from "../../../../utils/functions";
+import { EventedComponent } from "../../EventedComponent/EventedComponent";
 import { Blocks } from "../../blocks/Blocks";
 import { BlockConnection } from "../../connections/BlockConnection";
 import { BlockConnections } from "../../connections/BlockConnections";
@@ -70,41 +70,35 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private fixedTargetComponent?: EventedComponent | Camera;
 
-  constructor(props: TGraphLayerProps, context: TGraphLayerContext) {
-    super(
-      {
-        canvas: {
-          zIndex: 2,
-          respectPixelRatio: true,
-          classNames: ["no-user-select"],
-        },
-        html: {
-          zIndex: 3,
-          classNames: ["no-user-select"],
-          transformByCameraPosition: true,
-        },
-        ...props,
+  constructor(props: TGraphLayerProps) {
+    super({
+      canvas: {
+        zIndex: 2,
+        respectPixelRatio: true,
+        classNames: ["no-user-select"],
       },
-      context
-    );
+      html: {
+        zIndex: 3,
+        classNames: ["no-user-select"],
+        transformByCameraPosition: true,
+      },
+      ...props,
+    });
 
     const canvas = this.getCanvas();
     const html = this.getHTML();
 
-    this.setContext(
-      {
-        canvas: canvas,
-        ctx: canvas.getContext("2d"),
-        htmlCtx: html as HTMLDivElement,
-        root: this.props.root,
-        camera: this.props.camera,
-        ownerDocument: html.ownerDocument,
-        constants: this.props.graph.graphConstants,
-        colors: this.props.graph.graphColors,
-        graph: this.props.graph,
-      },
-      true
-    );
+    this.setContext({
+      canvas: canvas,
+      ctx: canvas.getContext("2d"),
+      htmlCtx: html as HTMLDivElement,
+      root: this.props.root,
+      camera: this.props.camera,
+      ownerDocument: html.ownerDocument,
+      constants: this.props.graph.graphConstants,
+      colors: this.props.graph.graphColors,
+      graph: this.props.graph,
+    });
 
     if (this.context.root) {
       this.attachListeners();
@@ -145,21 +139,28 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     }
 
     if (e.eventPhase === Event.CAPTURING_PHASE && rootCapturingEventTypes.has(e.type)) {
-      return this.tryEmulateClick(e);
+      this.tryEmulateClick(e);
+      return;
     }
 
     if (e.eventPhase === Event.BUBBLING_PHASE && rootBubblingEventTypes.has(e.type)) {
       switch (e.type) {
         case "mousedown":
-        case "touchstart":
+        case "touchstart": {
           this.updateTargetComponent(e, true);
-          return this.handleMouseDownEvent(e);
+          this.handleMouseDownEvent(e);
+          break;
+        }
         case "mouseup":
-        case "touchend":
-          return this.onRootPointerEnd(e);
+        case "touchend": {
+          this.onRootPointerEnd(e);
+          break;
+        }
         case "click":
-        case "dblclick":
-          return this.tryEmulateClick(e);
+        case "dblclick": {
+          this.tryEmulateClick(e);
+          break;
+        }
       }
     }
   }
@@ -197,7 +198,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
       return;
     }
     if (this.fixedTargetComponent !== undefined) {
-      return this.fixedTargetComponent;
+      return;
     }
 
     this.prevTargetComponent = this.targetComponent;

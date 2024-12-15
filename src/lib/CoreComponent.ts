@@ -1,17 +1,17 @@
 /* eslint-disable complexity */
 import { Scheduler } from "./Scheduler";
-import { Node } from "./Tree";
+import { ITree, Tree } from "./Tree";
 
 type TOptions = {
   readonly key?: string;
   readonly ref?: ((inst: any) => void) | string;
 };
 
-type TCompData = {
-  parent: ICoreComponent | void;
-  treeNode: Node;
+type TPrivateComponentData = {
+  parent: CoreComponent | undefined;
+  treeNode: Tree;
   context: {
-    scheduler: any;
+    scheduler: Scheduler;
     globalIterateId: number;
   };
   children: object;
@@ -21,41 +21,56 @@ type TCompData = {
   iterateId: number;
 };
 
-interface ICoreComponent extends CoreComponent {
-  // noop
+export type CoreComponentProps = Record<string, unknown>;
+export type CoreComponentContext = Record<string, unknown>;
+
+function createDefaultPrivateContext() {
+  return {
+    scheduler: new Scheduler(),
+    globalIterateId: 0,
+  };
 }
 
-const fakeEmptyOptions: TOptions = {};
-
-export class CoreComponent {
+export class CoreComponent<
+  Props extends CoreComponentProps = CoreComponentProps,
+  Context extends CoreComponentContext = CoreComponentContext,
+> implements ITree
+{
   public $: object = {};
-  public context: any;
-  protected children: Function;
-  protected __comp: TCompData;
 
-  constructor(...args: any[]);
-  constructor(props: object | void, parent: TFakeParentData | ICoreComponent) {
-    this.context = parent.context;
+  public context: Context = {} as Context;
+
+  public props: Props = {} as Props;
+
+  protected __comp: TPrivateComponentData;
+
+  public get zIndex() {
+    return this.__comp.treeNode.zIndex;
+  }
+
+  public set zIndex(index: number) {
+    this.__comp.treeNode.updateZIndex(index);
+    this.performRender();
+  }
+
+  public get renderOrder() {
+    return this.__comp.treeNode.renderOrder;
+  }
+
+  constructor(props: Props, parent?: CoreComponent) {
+    this.context = (parent?.context as Context) || ({} as Context);
 
     this.__comp = {
-      parent: parent as ICoreComponent,
-      context: (parent as any).__comp.context,
-      treeNode: new Node(this),
+      parent,
+      context: parent ? parent.__comp.context : createDefaultPrivateContext(),
+      treeNode: new Tree(this),
       children: {},
       childrenKeys: [],
       prevChildrenArr: [],
       updated: false,
       iterateId: 0,
     };
-
-    if (!(parent instanceof CoreComponent)) {
-      this.__comp.parent = undefined;
-      const protoParent = this.iterate.bind(this);
-      this.iterate = function () {
-        this.__comp.context.globalIterateId = Math.random();
-        return protoParent();
-      };
-    }
+    this.props = props;
   }
 
   public isIterated(): boolean {
@@ -66,11 +81,11 @@ export class CoreComponent {
     this.__comp.context.scheduler.scheduleUpdate();
   }
 
-  public getParent(): ICoreComponent | void {
+  public getParent(): CoreComponent | undefined {
     return this.__comp.parent;
   }
 
-  public setContext(context: object) {
+  public setContext<K extends keyof Context>(context: Pick<Context, K>) {
     Object.assign(this.context, context);
     this.performRender();
   }
@@ -85,11 +100,7 @@ export class CoreComponent {
     // noop
   }
 
-  protected setProps(_props: object) {
-    // noop
-  }
-  /* deprecated */
-  protected __setProps(_props: object) {
+  protected setProps<K extends keyof Props>(_: Pick<Props, K>) {
     // noop
   }
 
@@ -99,7 +110,10 @@ export class CoreComponent {
     this.performRender();
   }
 
-  protected iterate(): boolean {
+  public iterate(): boolean {
+    if (!this.__comp.parent) {
+      this.__comp.context.globalIterateId = Math.random();
+    }
     this.__comp.iterateId = this.__comp.context.globalIterateId;
 
     return true;
@@ -181,7 +195,7 @@ export class CoreComponent {
         currentChild instanceof child.klass &&
         currentChild.constructor === child.klass
       ) {
-        currentChild.__setProps(child.props);
+        currentChild.setProps(child.props);
         currentChild.__comp.updated = true;
       } else {
         childForMount.push(child);
@@ -235,13 +249,19 @@ export class CoreComponent {
     }
   }
 
-  public static create(props?: object, options: TOptions = fakeEmptyOptions) {
+  public static create<Props extends CoreComponentProps, Context extends CoreComponentContext>(
+    this: Constructor<CoreComponent<Props, Context>>,
+    props: Props = {} as Props,
+    options: TOptions = {}
+  ) {
     return { props, options, klass: this };
   }
 
-  public static mount(Component, props?: object) {
-    const context = getRootParentData();
-    const root = new Component(props, context);
+  public static mount<Props extends CoreComponentProps, Context extends CoreComponentContext>(
+    Component: Constructor<CoreComponent<Props, Context>>,
+    props?: Props
+  ) {
+    const root = new Component(props);
 
     const scheduler = root.__comp.context.scheduler;
     scheduler.setRoot(root.__comp.treeNode);
@@ -253,21 +273,4 @@ export class CoreComponent {
   public static unmount(instance) {
     instance.__unmount();
   }
-}
-
-type TFakeParentData = {
-  context: any; // public context
-  __comp: any;
-};
-
-function getRootParentData(): TFakeParentData {
-  return {
-    context: {}, // public context
-    __comp: {
-      context: {
-        scheduler: new Scheduler(),
-        globalIterateId: 0,
-      }, // private context
-    },
-  };
 }

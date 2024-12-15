@@ -155,7 +155,7 @@ export function isWindows() {
 
 function isTrackpadDetector() {
   let isTrackpadDetected = false;
-  let cleanStateTimer = setTimeout(() => { }, 0);
+  let cleanStateTimer = setTimeout(() => {}, 0);
 
   return (e: WheelEvent) => {
     // deltaX in the trackpad scroll usually is not zero.

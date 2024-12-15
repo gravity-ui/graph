@@ -1,5 +1,6 @@
+import { EventedComponent } from "../../components/canvas/EventedComponent/EventedComponent";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
-import { EventedComponent } from "../../mixins/withEvents";
+import { Component } from "../../lib";
 import { getXY, isMetaKeyEvent, isTrackpadWheelEvent, isWindows } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
 import { dragListener } from "../../utils/functions/dragListener";
@@ -25,8 +26,8 @@ export class Camera extends EventedComponent {
 
   private lastDragEvent?: MouseEvent;
 
-  constructor(props: TCameraProps, context: TGraphLayerContext) {
-    super(props, context);
+  constructor(props: TCameraProps, parent: Component) {
+    super(props, parent);
 
     this.camera = this.context.camera;
     this.ctx = this.context.ctx;

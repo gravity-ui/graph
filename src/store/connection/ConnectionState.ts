@@ -24,8 +24,8 @@ export type TConnection = {
   selected?: boolean;
 };
 
-export class ConnectionState {
-  public $state = signal<TConnection>(undefined);
+export class ConnectionState<T extends TConnection = TConnection> {
+  public $state = signal<T>(undefined);
 
   public get id() {
     return this.$state.value.id;
@@ -47,12 +47,16 @@ export class ConnectionState {
     return this.$state.value.targetAnchorId;
   }
 
-  public $sourceBlock = computed(() => {
-    return this.store.getBlock(this.sourceBlockId);
+  public readonly $sourceBlock = computed(() => {
+    return this.store.getBlock(this.$state.value.sourceBlockId);
   });
 
-  public $targetBlock = computed(() => {
-    return this.store.getBlock(this.targetBlockId);
+  public readonly $targetBlock = computed(() => {
+    return this.store.getBlock(this.$state.value.targetBlockId);
+  });
+
+  public $geometry = computed(() => {
+    return [this.$sourceBlock.value?.$geometry.value, this.$targetBlock.value?.$geometry.value];
   });
 
   public static getConnectionId(connection: TConnection) {
@@ -65,7 +69,7 @@ export class ConnectionState {
 
   constructor(
     public store: ConnectionsStore,
-    connectionState: TConnection
+    connectionState: T
   ) {
     const id = ConnectionState.getConnectionId(connectionState);
     this.$state.value = { ...connectionState, id };

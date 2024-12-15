@@ -37,20 +37,17 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   private cameraBorderColor: string;
   private unSubscribeUsableRectLoaded: typeof noop;
 
-  constructor(props: MiniMapLayerProps, context: MiniMapLayerContext) {
+  constructor(props: MiniMapLayerProps) {
     const classNames = Array.isArray(props.classNames) ? props.classNames : [];
     classNames.push("graph-minimap");
 
-    super(
-      {
-        canvas: {
-          zIndex: 300,
-          classNames,
-        },
-        ...props,
+    super({
+      canvas: {
+        zIndex: 300,
+        classNames,
       },
-      context
-    );
+      ...props,
+    });
 
     this.minimapWidth = this.props.width || 200;
     this.minimapHeight = this.props.height || 200;

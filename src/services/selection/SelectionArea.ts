@@ -1,4 +1,4 @@
-import { OverLayer, TOverLayerContext } from "../../components/canvas/layers/overLayer/OverLayer";
+import { TOverLayerContext } from "../../components/canvas/layers/overLayer/OverLayer";
 import { Component } from "../../lib/Component";
 import { getXY } from "../../utils/functions";
 import { render } from "../../utils/renderers/render";
@@ -20,10 +20,8 @@ export class SelectionArea extends Component {
 
   protected startPoint = new Point(0, 0);
 
-  constructor(props: SelectionAreaProps, context: OverLayer) {
-    super(props, context);
-
-    this.context = context.context;
+  constructor(props: SelectionAreaProps, parent: Component) {
+    super(props, parent);
 
     this.state = {
       width: 0,

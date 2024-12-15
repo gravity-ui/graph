@@ -2,9 +2,16 @@ import debounce from "lodash/debounce";
 import RBush from "rbush";
 
 import { Component } from "../lib/Component";
-import { IWithHitTest } from "../mixins/withHitTest";
 import { Emitter } from "../utils/Emitter";
-import { IPoint, TRect } from "../utils/types/shapes";
+import { IPoint } from "../utils/types/shapes";
+
+export interface IWithHitTest {
+  hitBox: IHitBox;
+  zIndex: number;
+  setHitBox(minX: number, minY: number, maxX: number, maxY: number, force?: boolean): void;
+  onHitBox(shape: HitBoxData): boolean;
+  removeHitBox(): void;
+}
 
 export type HitBoxData = {
   minX: number;
@@ -22,7 +29,7 @@ export type HitBoxData = {
 export interface IHitBox extends HitBoxData {
   update(minX: number, minY: number, maxX: number, maxY: number): void;
   destroy(): void;
-  getRect(): TRect;
+  getRect(): [number, number, number, number];
 }
 
 export class HitTest extends Emitter {
@@ -120,6 +127,8 @@ export class HitBox implements IHitBox {
 
   public y: number;
 
+  private rect: [number, number, number, number];
+
   constructor(
     public item: { zIndex: number } & Component & IWithHitTest,
     protected hitTest: HitTest
@@ -136,16 +145,12 @@ export class HitBox implements IHitBox {
     this.minY = minY;
     this.maxX = maxX;
     this.maxY = maxY;
+    this.rect = [this.minX, this.minY, this.maxX - this.minX, this.maxY - this.minY];
     this.hitTest.add(this, Boolean(force));
   };
 
-  public getRect(): TRect {
-    return {
-      x: this.minX,
-      y: this.minY,
-      width: this.maxX - this.minX,
-      height: this.maxY - this.minY,
-    };
+  public getRect(): [number, number, number, number] {
+    return this.rect;
   }
 
   public remove() {

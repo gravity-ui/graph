@@ -14,16 +14,14 @@ export class TextBlock extends CanvasBlock<TGravityTextBlock> {
 
   protected subscribe(id: TBlockId) {
     const subs = super.subscribe(id);
-    subs.push(
-      this.addEventListener("mouseenter", () => {
-        this.hovered = true;
-        this.performRender();
-      }),
-      this.addEventListener("mouseleave", () => {
-        this.hovered = false;
-        this.performRender();
-      })
-    );
+    this.addEventListener("mouseenter", () => {
+      this.hovered = true;
+      this.performRender();
+    });
+    this.addEventListener("mouseleave", () => {
+      this.hovered = false;
+      this.performRender();
+    });
     return subs;
   }
 

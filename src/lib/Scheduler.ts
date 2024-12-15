@@ -1,4 +1,4 @@
-import { Node } from "./Tree";
+import { Tree } from "./Tree";
 
 const rAF: Function = typeof window !== "undefined" ? window.requestAnimationFrame : (fn) => global.setTimeout(fn, 16);
 const cAF: Function = typeof window !== "undefined" ? window.cancelAnimationFrame : global.clearTimeout;
@@ -70,7 +70,7 @@ export const globalScheduler = new GlobalScheduler();
 export const scheduler = globalScheduler;
 export class Scheduler {
   private sheduled: boolean;
-  private root: Node;
+  private root: Tree;
 
   constructor() {
     this.performUpdate = this.performUpdate.bind(this);
@@ -80,7 +80,7 @@ export class Scheduler {
     globalScheduler.addScheduler(this);
   }
 
-  public setRoot(root: Node) {
+  public setRoot(root: Tree) {
     this.root = root;
   }
 
@@ -96,7 +96,7 @@ export class Scheduler {
     this.root?.traverseDown(this.iterator);
   }
 
-  public iterator(node: Node) {
+  public iterator(node: Tree) {
     return node.data.iterate();
   }
 

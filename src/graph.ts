@@ -2,15 +2,13 @@ import { batch, signal } from "@preact/signals-core";
 import merge from "lodash/merge";
 
 import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
-import { Anchor } from "./components/canvas/anchors";
-import { Block, TBlock } from "./components/canvas/blocks/Block";
-import { BlockConnection } from "./components/canvas/connections/BlockConnection";
+import { GraphComponent } from "./components/canvas/GraphComponent";
+import { TBlock } from "./components/canvas/blocks/Block";
 import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
 import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { OverLayer } from "./components/canvas/layers/overLayer/OverLayer";
 import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
 import { GraphEventParams, GraphEventsDefinitions } from "./graphEvents";
-import { Component } from "./lib/Component";
 import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
 import { Layer } from "./services/Layer";
@@ -27,17 +25,17 @@ import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shap
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [
   T,
   T extends Constructor<Layer<infer Props>>
-  ? Omit<Props, "root" | "camera" | "graph"> & { root?: Props["root"] }
-  : never,
+    ? Omit<Props, "root" | "camera" | "graph"> & { root?: Props["root"] }
+    : never,
 ];
-export type TGraphConfig<B extends TBlock = TBlock> = {
+export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   configurationName?: string;
-  blocks?: B[];
+  blocks?: Block[];
   connections?: TConnection[];
   rect?: TRect;
   cameraXY?: TPoint;
   cameraScale?: number;
-  settings?: Partial<TGraphSettingsConfig<TBlock>>;
+  settings?: Partial<TGraphSettingsConfig<Block, Connection>>;
   layers?: LayerConfig[];
 };
 
@@ -138,7 +136,7 @@ export class Graph {
    * @param zoomConfig.x if set - zoom to x coordinate, else - zoom to center
    * @param zoomConfig.y if set - zoom to y coordinate, else - zoom to center
    * @param zoomConfig.scale camera scale
-   * 
+   *
    * @returns {undefined}
    * */
   public zoom(zoomConfig: { x?: number; y?: number; scale: number }) {
@@ -158,10 +156,7 @@ export class Graph {
     this.api.zoomToBlocks(target, config);
   }
 
-  public getElementsOverPoint<T extends typeof Component = typeof Block | typeof Anchor | typeof BlockConnection>(
-    point: IPoint,
-    filter?: T[]
-  ): InstanceType<T>[] {
+  public getElementsOverPoint<T extends Constructor<GraphComponent>>(point: IPoint, filter?: T[]): InstanceType<T>[] {
     const items = this.hitTest.testPoint(point, this.graphConstants.system.PIXEL_RATIO);
     if (filter && items.length > 0) {
       return items.filter((item) => filter.some((Component) => item instanceof Component)) as InstanceType<T>[];
@@ -169,17 +164,14 @@ export class Graph {
     return items as InstanceType<T>[];
   }
 
-  public getElementOverPoint<T extends typeof Component = typeof Block | typeof Anchor | typeof BlockConnection>(
+  public getElementOverPoint<T extends Constructor<GraphComponent>>(
     point: IPoint,
     filter?: T[]
   ): InstanceType<T> | undefined {
     return this.getElementsOverPoint(point, filter)?.[0] as InstanceType<T> | undefined;
   }
 
-  public getElementsOverRect<T extends typeof Component = typeof Block | typeof Anchor | typeof BlockConnection>(
-    rect: TRect,
-    filter?: T[]
-  ): InstanceType<T>[] {
+  public getElementsOverRect<T extends Constructor<GraphComponent>>(rect: TRect, filter?: T[]): InstanceType<T>[] {
     const items = this.hitTest.testBox({
       minX: rect.x,
       minY: rect.y,

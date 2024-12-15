@@ -1,0 +1,183 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`polyline Should render polyline 1`] = `
+Path2D {
+  "_events": [
+    {
+      "props": {
+        "x": 0,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 10,
+        "y": 10,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "x": 20,
+        "y": 20,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+  ],
+  "_path": [
+    {
+      "props": {
+        "x": 0,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 10,
+        "y": 10,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "x": 20,
+        "y": 20,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+  ],
+  "_stackIndex": 0,
+  "_transformStack": [
+    [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  ],
+  "addPath": [MockFunction],
+  "arc": [MockFunction],
+  "arcTo": [MockFunction],
+  "bezierCurveTo": [MockFunction],
+  "closePath": [MockFunction],
+  "ellipse": [MockFunction],
+  "lineTo": [MockFunction] {
+    "calls": [
+      [
+        10,
+        10,
+      ],
+      [
+        20,
+        20,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "moveTo": [MockFunction] {
+    "calls": [
+      [
+        0,
+        0,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "quadraticCurveTo": [MockFunction],
+  "rect": [MockFunction],
+}
+`;
+
+exports[`polyline should create an empty shape for empty points 1`] = `
+Path2D {
+  "_events": [],
+  "_path": [],
+  "_stackIndex": 0,
+  "_transformStack": [
+    [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  ],
+  "addPath": [MockFunction],
+  "arc": [MockFunction],
+  "arcTo": [MockFunction],
+  "bezierCurveTo": [MockFunction],
+  "closePath": [MockFunction],
+  "ellipse": [MockFunction],
+  "lineTo": [MockFunction],
+  "moveTo": [MockFunction],
+  "quadraticCurveTo": [MockFunction],
+  "rect": [MockFunction],
+}
+`;

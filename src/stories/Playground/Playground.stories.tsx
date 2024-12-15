@@ -5,7 +5,7 @@ import { Meta, StoryFn } from "@storybook/react/*";
 import { GraphPLayground } from "./GraphPlayground";
 
 const meta: Meta = {
-  title: "Playground/playgground",
+  title: "Playground",
   component: GraphPLayground,
 };
 

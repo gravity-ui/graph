@@ -1,6 +1,6 @@
 import { Anchor } from "../../components/canvas/anchors";
 import { Block } from "../../components/canvas/blocks/Block";
-import { OverLayer, TOverLayerContext } from "../../components/canvas/layers/overLayer/OverLayer";
+import { TOverLayerContext } from "../../components/canvas/layers/overLayer/OverLayer";
 import { Component } from "../../lib/Component";
 import { getXY } from "../../utils/functions";
 import { render } from "../../utils/renderers/render";
@@ -20,8 +20,8 @@ export class NewConnection extends Component {
 
   public declare context: TOverLayerContext;
 
-  constructor(props: NewConnectionProps, context: OverLayer) {
-    super(props, context);
+  constructor(props: NewConnectionProps, parent: Component) {
+    super(props, parent);
 
     this.state = {
       sx: 0,

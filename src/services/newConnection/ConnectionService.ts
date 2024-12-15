@@ -77,10 +77,9 @@ export class ConnectionService extends Emitter {
       return;
     }
     if (
-      (
-        (this.graph.rootStore.settings.getConfigFlag("useBlocksAnchors") && target instanceof Anchor) ||
-        (isShiftKeyEvent(event) && isBlock(target))
-      ) && this.graph.rootStore.settings.getConfigFlag("canCreateNewConnections")
+      ((this.graph.rootStore.settings.getConfigFlag("useBlocksAnchors") && target instanceof Anchor) ||
+        (isShiftKeyEvent(event) && isBlock(target))) &&
+      this.graph.rootStore.settings.getConfigFlag("canCreateNewConnections")
     ) {
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();

@@ -1,0 +1,1111 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`curve should create smooth arcs for multiple points 1`] = `
+Path2D {
+  "_events": [
+    {
+      "props": {
+        "x": 0,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 44.61182407322746,
+        "y": 89.22364814645492,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "cpx1": 50,
+        "cpx2": 58.51945418114494,
+        "cpy1": 100,
+        "cpy2": 91.48054581885506,
+        "radius": 12.048327646991336,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "arcTo",
+    },
+    {
+      "props": {
+        "x": 91.48054581885506,
+        "y": 58.51945418114494,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "cpx1": 100,
+        "cpx2": 105.38817592677255,
+        "cpy1": 50,
+        "cpy2": 60.77635185354509,
+        "radius": 12.048327646991336,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "arcTo",
+    },
+    {
+      "props": {
+        "x": 150,
+        "y": 150,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+  ],
+  "_path": [
+    {
+      "props": {
+        "x": 0,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 44.61182407322746,
+        "y": 89.22364814645492,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "cpx1": 50,
+        "cpx2": 58.51945418114494,
+        "cpy1": 100,
+        "cpy2": 91.48054581885506,
+        "radius": 12.048327646991336,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "arcTo",
+    },
+    {
+      "props": {
+        "x": 91.48054581885506,
+        "y": 58.51945418114494,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "cpx1": 100,
+        "cpx2": 105.38817592677255,
+        "cpy1": 50,
+        "cpy2": 60.77635185354509,
+        "radius": 12.048327646991336,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "arcTo",
+    },
+    {
+      "props": {
+        "x": 150,
+        "y": 150,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+  ],
+  "_stackIndex": 0,
+  "_transformStack": [
+    [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  ],
+  "addPath": [MockFunction],
+  "arc": [MockFunction],
+  "arcTo": [MockFunction] {
+    "calls": [
+      [
+        50,
+        100,
+        58.51945418114494,
+        91.48054581885506,
+        12.048327646991336,
+      ],
+      [
+        100,
+        50,
+        105.38817592677255,
+        60.77635185354509,
+        12.048327646991336,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "bezierCurveTo": [MockFunction],
+  "closePath": [MockFunction],
+  "ellipse": [MockFunction],
+  "lineTo": [MockFunction] {
+    "calls": [
+      [
+        44.61182407322746,
+        89.22364814645492,
+      ],
+      [
+        91.48054581885506,
+        58.51945418114494,
+      ],
+      [
+        150,
+        150,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+      {
+        "type": "return",
+        "value": undefined,
+      },
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "moveTo": [MockFunction] {
+    "calls": [
+      [
+        0,
+        0,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "quadraticCurveTo": [MockFunction],
+  "rect": [MockFunction],
+}
+`;
+
+exports[`curve should handle a straight line with two points 1`] = `
+Path2D {
+  "_events": [
+    {
+      "props": {
+        "x": 0,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 100,
+        "y": 100,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+  ],
+  "_path": [
+    {
+      "props": {
+        "x": 0,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 100,
+        "y": 100,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+  ],
+  "_stackIndex": 0,
+  "_transformStack": [
+    [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  ],
+  "addPath": [MockFunction],
+  "arc": [MockFunction],
+  "arcTo": [MockFunction],
+  "bezierCurveTo": [MockFunction],
+  "closePath": [MockFunction],
+  "ellipse": [MockFunction],
+  "lineTo": [MockFunction] {
+    "calls": [
+      [
+        100,
+        100,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "moveTo": [MockFunction] {
+    "calls": [
+      [
+        0,
+        0,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "quadraticCurveTo": [MockFunction],
+  "rect": [MockFunction],
+}
+`;
+
+exports[`curve should handle collinear points without arcs 1`] = `
+Path2D {
+  "_events": [
+    {
+      "props": {
+        "x": 0,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 50,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "cpx1": 50,
+        "cpx2": 50,
+        "cpy1": 0,
+        "cpy2": 0,
+        "radius": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "arcTo",
+    },
+    {
+      "props": {
+        "x": 100,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+  ],
+  "_path": [
+    {
+      "props": {
+        "x": 0,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 50,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "cpx1": 50,
+        "cpx2": 50,
+        "cpy1": 0,
+        "cpy2": 0,
+        "radius": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "arcTo",
+    },
+    {
+      "props": {
+        "x": 100,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+  ],
+  "_stackIndex": 0,
+  "_transformStack": [
+    [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  ],
+  "addPath": [MockFunction],
+  "arc": [MockFunction],
+  "arcTo": [MockFunction] {
+    "calls": [
+      [
+        50,
+        0,
+        50,
+        0,
+        0,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "bezierCurveTo": [MockFunction],
+  "closePath": [MockFunction],
+  "ellipse": [MockFunction],
+  "lineTo": [MockFunction] {
+    "calls": [
+      [
+        50,
+        0,
+      ],
+      [
+        100,
+        0,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "moveTo": [MockFunction] {
+    "calls": [
+      [
+        0,
+        0,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "quadraticCurveTo": [MockFunction],
+  "rect": [MockFunction],
+}
+`;
+
+exports[`curve should handle sharp angles by reducing the radius 1`] = `
+Path2D {
+  "_events": [
+    {
+      "props": {
+        "x": 0,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 35,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "cpx1": 50,
+        "cpx2": 50,
+        "cpy1": 0,
+        "cpy2": 15,
+        "radius": 15,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "arcTo",
+    },
+    {
+      "props": {
+        "x": 50,
+        "y": 35,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "cpx1": 50,
+        "cpx2": 65,
+        "cpy1": 50,
+        "cpy2": 50,
+        "radius": 15,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "arcTo",
+    },
+    {
+      "props": {
+        "x": 100,
+        "y": 50,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+  ],
+  "_path": [
+    {
+      "props": {
+        "x": 0,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 35,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "cpx1": 50,
+        "cpx2": 50,
+        "cpy1": 0,
+        "cpy2": 15,
+        "radius": 15,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "arcTo",
+    },
+    {
+      "props": {
+        "x": 50,
+        "y": 35,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "cpx1": 50,
+        "cpx2": 65,
+        "cpy1": 50,
+        "cpy2": 50,
+        "radius": 15,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "arcTo",
+    },
+    {
+      "props": {
+        "x": 100,
+        "y": 50,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+  ],
+  "_stackIndex": 0,
+  "_transformStack": [
+    [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  ],
+  "addPath": [MockFunction],
+  "arc": [MockFunction],
+  "arcTo": [MockFunction] {
+    "calls": [
+      [
+        50,
+        0,
+        50,
+        15,
+        15,
+      ],
+      [
+        50,
+        50,
+        65,
+        50,
+        15,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "bezierCurveTo": [MockFunction],
+  "closePath": [MockFunction],
+  "ellipse": [MockFunction],
+  "lineTo": [MockFunction] {
+    "calls": [
+      [
+        35,
+        0,
+      ],
+      [
+        50,
+        35,
+      ],
+      [
+        100,
+        50,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+      {
+        "type": "return",
+        "value": undefined,
+      },
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "moveTo": [MockFunction] {
+    "calls": [
+      [
+        0,
+        0,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "quadraticCurveTo": [MockFunction],
+  "rect": [MockFunction],
+}
+`;
+
+exports[`curve should limit radius to fit between points 1`] = `
+Path2D {
+  "_events": [
+    {
+      "props": {
+        "x": 0,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 5,
+        "y": 5,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "cpx1": 10,
+        "cpx2": 15,
+        "cpy1": 10,
+        "cpy2": 5,
+        "radius": 7.0710678118654755,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "arcTo",
+    },
+    {
+      "props": {
+        "x": 20,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+  ],
+  "_path": [
+    {
+      "props": {
+        "x": 0,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "moveTo",
+    },
+    {
+      "props": {
+        "x": 5,
+        "y": 5,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+    {
+      "props": {
+        "cpx1": 10,
+        "cpx2": 15,
+        "cpy1": 10,
+        "cpy2": 5,
+        "radius": 7.0710678118654755,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "arcTo",
+    },
+    {
+      "props": {
+        "x": 20,
+        "y": 0,
+      },
+      "transform": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+      ],
+      "type": "lineTo",
+    },
+  ],
+  "_stackIndex": 0,
+  "_transformStack": [
+    [
+      1,
+      0,
+      0,
+      1,
+      0,
+      0,
+    ],
+  ],
+  "addPath": [MockFunction],
+  "arc": [MockFunction],
+  "arcTo": [MockFunction] {
+    "calls": [
+      [
+        10,
+        10,
+        15,
+        5,
+        7.0710678118654755,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "bezierCurveTo": [MockFunction],
+  "closePath": [MockFunction],
+  "ellipse": [MockFunction],
+  "lineTo": [MockFunction] {
+    "calls": [
+      [
+        5,
+        5,
+      ],
+      [
+        20,
+        0,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "moveTo": [MockFunction] {
+    "calls": [
+      [
+        0,
+        0,
+      ],
+    ],
+    "results": [
+      {
+        "type": "return",
+        "value": undefined,
+      },
+    ],
+  },
+  "quadraticCurveTo": [MockFunction],
+  "rect": [MockFunction],
+}
+`;

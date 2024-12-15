@@ -25,17 +25,14 @@ export class OverLayer extends Layer<TOverLayerProps, TOverLayerContext> {
 
   protected newBlocksService = new NewBlocksService(this.props.graph);
 
-  constructor(props: TOverLayerProps, context: TOverLayerContext) {
-    super(
-      {
-        canvas: {
-          zIndex: 4,
-          classNames: ["no-pointer-events"],
-        },
-        ...props,
+  constructor(props: TOverLayerProps) {
+    super({
+      canvas: {
+        zIndex: 4,
+        classNames: ["no-pointer-events"],
       },
-      context
-    );
+      ...props,
+    });
 
     this.setContext({
       canvas: this.getCanvas(),
