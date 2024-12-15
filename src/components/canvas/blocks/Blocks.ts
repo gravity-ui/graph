@@ -20,7 +20,6 @@ export class Blocks extends Component {
     this.unsubscribe = this.subscribe();
 
     this.prepareFont(this.getFontScale());
-
   }
 
   protected getFontScale() {

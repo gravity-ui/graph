@@ -7,22 +7,21 @@ import { HitBox, HitBoxData } from "../../../services/HitTest";
 import { EventedComponent } from "../EventedComponent/EventedComponent";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
-
-export type GraphComponentContext = TComponentContext & TGraphLayerContext & {
-  graph: Graph;
-}
+export type GraphComponentContext = TComponentContext &
+  TGraphLayerContext & {
+    graph: Graph;
+  };
 
 export class GraphComponent<
   Props extends TComponentProps = TComponentProps,
   State extends TComponentState = TComponentState,
-  Context extends GraphComponentContext = GraphComponentContext
+  Context extends GraphComponentContext = GraphComponentContext,
 > extends EventedComponent<Props, State, Context> {
   public hitBox: HitBox;
 
   private unsubscribe: (() => void)[] = [];
 
   constructor(props: Props, parent: Component) {
-    console.log('lol');
     super(props, parent);
     this.hitBox = new HitBox(this, this.context.graph.hitTest);
   }
@@ -43,10 +42,9 @@ export class GraphComponent<
 
   protected willIterate(): void {
     super.willIterate();
-    if(!this.firstIterate) {
+    if (!this.firstIterate) {
       this.shouldRender = this.isVisible();
     }
-    
   }
 
   protected isVisible() {

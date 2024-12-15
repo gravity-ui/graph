@@ -31,7 +31,7 @@ export type LayerContext = {
 export class Layer<
   Props extends LayerProps = LayerProps,
   Context extends LayerContext = LayerContext,
-  > extends Component<Props, TComponentState, Context> {
+> extends Component<Props, TComponentState, Context> {
   public static id?: string;
 
   protected canvas: HTMLCanvasElement;
@@ -44,11 +44,11 @@ export class Layer<
 
   constructor(props: Props, parent?: CoreComponent) {
     super(props, parent);
-    
+
     this.setContext({
       camera: props.camera,
     });
-    
+
     this.init();
 
     this.props.graph.on("colors-changed", (event) => {

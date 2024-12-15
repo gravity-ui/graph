@@ -145,16 +145,11 @@ export class HitBox implements IHitBox {
     this.minY = minY;
     this.maxX = maxX;
     this.maxY = maxY;
-    this.rect = [
-      this.minX,
-      this.minY,
-      this.maxX - this.minX,
-      this.maxY - this.minY,
-    ];
+    this.rect = [this.minX, this.minY, this.maxX - this.minX, this.maxY - this.minY];
     this.hitTest.add(this, Boolean(force));
   };
 
-  public getRect(): [number, number, number, number]  {
+  public getRect(): [number, number, number, number] {
     return this.rect;
   }
 

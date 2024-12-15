@@ -117,7 +117,7 @@ export type TGraphConstants = {
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: number;
     LABEL: {
       INNER_PADDINGS: [number, number, number, number];
-    }
+    };
   };
 
   text: {
@@ -157,7 +157,7 @@ export const initGraphConstants: TGraphConstants = {
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: 0.25,
     LABEL: {
       INNER_PADDINGS: [0, 0, 0, 0],
-    }
+    },
   },
   text: {
     BASE_FONT_SIZE: 24,

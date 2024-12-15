@@ -126,13 +126,17 @@ export class BlockListStore {
     }
 
     if (selected !== anchor.$selected.value) {
-      this.graph.executеDefaultEventAction("block-anchor-selection-change", { anchor: anchor.asTAnchor(), selected }, () => {
-        const currentSelected = this.$selectedAnchor.value;
-        if (currentSelected && currentSelected !== anchor) {
-          currentSelected.setSelection(false, true);
+      this.graph.executеDefaultEventAction(
+        "block-anchor-selection-change",
+        { anchor: anchor.asTAnchor(), selected },
+        () => {
+          const currentSelected = this.$selectedAnchor.value;
+          if (currentSelected && currentSelected !== anchor) {
+            currentSelected.setSelection(false, true);
+          }
+          anchor.setSelection(selected, true);
         }
-        anchor.setSelection(selected, true);
-      });
+      );
     }
   }
 

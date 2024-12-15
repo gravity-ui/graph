@@ -21,15 +21,13 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
   private camera: ICamera;
 
   constructor(props: TBelowLayerProps) {
-    super(
-      {
-        canvas: {
-          zIndex: 1,
-          classNames: ["no-pointer-events"],
-        },
-        ...props,
-      }
-    );
+    super({
+      canvas: {
+        zIndex: 1,
+        classNames: ["no-pointer-events"],
+      },
+      ...props,
+    });
 
     this.setContext({
       canvas: this.getCanvas(),

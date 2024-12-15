@@ -11,7 +11,7 @@ export class Tree<T extends ITree = ITree> {
   public parent: Tree;
 
   public children: Set<Tree> = new Set();
-  
+
   private childrenArray: Tree[] = [];
 
   protected childrenDirty = false;
@@ -85,7 +85,7 @@ export class Tree<T extends ITree = ITree> {
   }
 
   public updateChildZIndex(child: Tree) {
-    if(!this.children.has(child)) {
+    if (!this.children.has(child)) {
       return;
     }
     this.removeZIndex(child);

@@ -41,15 +41,13 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     const classNames = Array.isArray(props.classNames) ? props.classNames : [];
     classNames.push("graph-minimap");
 
-    super(
-      {
-        canvas: {
-          zIndex: 300,
-          classNames,
-        },
-        ...props,
+    super({
+      canvas: {
+        zIndex: 300,
+        classNames,
       },
-    );
+      ...props,
+    });
 
     this.minimapWidth = this.props.width || 200;
     this.minimapHeight = this.props.height || 200;

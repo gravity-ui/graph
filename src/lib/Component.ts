@@ -8,7 +8,7 @@ export type TComponentContext = CoreComponentContext;
 export class Component<
   Props extends CoreComponentProps = CoreComponentProps,
   State extends TComponentState = TComponentState,
-  Context extends CoreComponentContext = CoreComponentContext
+  Context extends CoreComponentContext = CoreComponentContext,
 > extends CoreComponent<Props, Context> {
   protected firstIterate = true;
   protected firstRender = true;
@@ -20,7 +20,7 @@ export class Component<
 
   public state: State;
 
-  protected __data: { nextProps: Props | undefined, nextState: State | undefined } = {
+  protected __data: { nextProps: Props | undefined; nextState: State | undefined } = {
     nextProps: undefined,
     nextState: undefined,
   };
