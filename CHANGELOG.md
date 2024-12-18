@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.0](https://github.com/gravity-ui/graph/compare/v0.0.6...v0.1.0) (2024-12-18)
+
+
+### Features
+
+* Allow to customization the connections ([#29](https://github.com/gravity-ui/graph/issues/29)) ([fe4fb33](https://github.com/gravity-ui/graph/commit/fe4fb3350719954945fe003b6aa3833a8215800f))
+
 ## [0.0.6](https://github.com/gravity-ui/graph/compare/v0.0.5...v0.0.6) (2024-12-03)
 
 
