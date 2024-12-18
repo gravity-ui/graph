@@ -20,7 +20,7 @@
   "scripts": {
     "typecheck": "npm run build:publish -- --noEmit",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
-    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests --updateSnapshot",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook -c .storybook -o storybook-static -s .storybook/public",
     "build-storybook": "storybook build",
