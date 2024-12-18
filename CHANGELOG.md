@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/gravity-ui/graph/compare/v0.1.0...v0.1.1) (2024-12-18)
+
+
+### chore
+
+* release 0.1.1 ([8126d0a](https://github.com/gravity-ui/graph/commit/8126d0ad61d9427d48857fd1d6768742ab36636d))
+
 ## [0.1.0](https://github.com/gravity-ui/graph/compare/v0.0.6...v0.1.0) (2024-12-18)
 
 
