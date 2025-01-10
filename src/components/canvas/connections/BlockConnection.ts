@@ -282,5 +282,6 @@ export class BlockConnection<T extends TConnection>
   protected unmount(): void {
     super.unmount();
     this.context.batch.delete(this);
+    this.context.batch.delete(this.arrowShape);
   }
 }
