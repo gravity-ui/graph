@@ -173,32 +173,15 @@ export class CameraService extends Emitter {
     });
   }
 
+  public getScaleRelativeDimensionsBySide(size: number, axis: "width" | "height") {
+    return clamp(Number(this.state[axis] / size), this.state.scaleMin, this.state.scaleMax);
+  }
+
   public getScaleRelativeDimensions(width: number, height: number) {
-    let scale = 1;
-
-    if (width > height) {
-      const calculatedScale = Number((this.state.width / width).toFixed(3));
-
-      if (calculatedScale > this.state.scaleMax) {
-        scale = this.state.scaleMax;
-      } else if (calculatedScale < this.state.scaleMin) {
-        scale = this.state.scaleMin;
-      } else {
-        scale = calculatedScale;
-      }
-    } else {
-      const calculatedScale = Number((this.state.height / height).toFixed(3));
-
-      if (calculatedScale > this.state.scaleMax) {
-        scale = this.state.scaleMax;
-      } else if (calculatedScale < this.state.scaleMin) {
-        scale = this.state.scaleMin;
-      } else {
-        scale = calculatedScale;
-      }
-    }
-
-    return scale;
+    return Math.min(
+      this.getScaleRelativeDimensionsBySide(width, "width"),
+      this.getScaleRelativeDimensionsBySide(height, "height")
+    );
   }
 
   public getXYRelativeCenterDimensions(dimensions: TRect, scale: number) {
