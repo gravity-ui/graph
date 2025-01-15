@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0](https://github.com/gravity-ui/graph/compare/v0.1.2...v0.2.0) (2025-01-14)
+
+
+### Features
+
+* elk converter ([#37](https://github.com/gravity-ui/graph/issues/37)) ([afe4c67](https://github.com/gravity-ui/graph/commit/afe4c67ed6280d611368c6c05146c80333a96494))
+
+
+### Bug Fixes
+
+* get correct scale ([#38](https://github.com/gravity-ui/graph/issues/38)) ([2323ca9](https://github.com/gravity-ui/graph/commit/2323ca9b5f04c6bd3608ccc423a405b52a337956))
+* unmount connection arrow on unmount connection ([#40](https://github.com/gravity-ui/graph/issues/40)) ([b5c46c4](https://github.com/gravity-ui/graph/commit/b5c46c41665e1454d76d4a91cbed0de997093f43))
+
 ## [0.1.2](https://github.com/gravity-ui/graph/compare/v0.1.1...v0.1.2) (2024-12-18)
 
 
