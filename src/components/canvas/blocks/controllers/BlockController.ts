@@ -19,6 +19,14 @@ export class BlockController {
     addEventListeners(block as EventTarget, {
       click(event: MouseEvent) {
         event.stopPropagation();
+
+        const { connectionsList } = block.context.graph.rootStore;
+        const isAnyConnectionSelected = connectionsList.$selectedConnections.value.size !== 0;
+
+        if (!isMetaKeyEvent(event) && isAnyConnectionSelected) {
+          connectionsList.resetSelection();
+        }
+
         block.context.graph.api.selectBlocks(
           [block.props.id],
           /**

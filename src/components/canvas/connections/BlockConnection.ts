@@ -189,13 +189,27 @@ export class BlockConnection<T extends TConnection>
     super.handleEvent(event);
 
     switch (event.type) {
-      case "click":
+      case "click": {
+        const { blocksList } = this.context.graph.rootStore;
+        const isAnyBlockSelected = blocksList.$selectedBlocks.value.length !== 0;
+        const isAnyAnchorSelected = Boolean(blocksList.$selectedAnchor.value);
+
+        if (!isMetaKeyEvent(event) && isAnyBlockSelected) {
+          blocksList.resetSelection();
+        }
+
+        if (!isMetaKeyEvent(event) && isAnyAnchorSelected) {
+          blocksList.resetSelection();
+        }
+
         this.context.graph.api.selectConnections(
           [this.props.id],
           !isMetaKeyEvent(event) ? true : !this.state.selected,
           !isMetaKeyEvent(event) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
         );
+
         break;
+      }
     }
   }
 
