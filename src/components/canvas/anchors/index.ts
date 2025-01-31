@@ -3,6 +3,7 @@ import { frameDebouncer } from "../../../services/optimizations/frameDebouncer";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { selectBlockAnchor } from "../../../store/block/selectors";
+import { isMetaKeyEvent } from "../../../utils/functions";
 import { TPoint } from "../../../utils/types/shapes";
 import { GraphComponent } from "../GraphComponent";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
@@ -104,9 +105,22 @@ export class Anchor extends GraphComponent<TAnchorProps, TAnchorState> {
     event.stopPropagation();
 
     switch (event.type) {
-      case "click":
+      case "click": {
+        const { blocksList, connectionsList } = this.context.graph.rootStore;
+        const isAnyBlockSelected = blocksList.$selectedBlocks.value.length !== 0;
+        const isAnyConnectionSelected = connectionsList.$selectedConnections.value.size !== 0;
+
+        if (!isMetaKeyEvent(event) && isAnyBlockSelected) {
+          blocksList.resetSelection();
+        }
+
+        if (!isMetaKeyEvent(event) && isAnyConnectionSelected) {
+          connectionsList.resetSelection();
+        }
+
         this.toggleSelected();
         break;
+      }
       case "mouseenter": {
         this.setState({ raised: true });
         this.computeRenderSize(this.props.size, true);
