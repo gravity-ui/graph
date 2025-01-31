@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/gravity-ui/graph/compare/v0.2.0...v0.2.1) (2025-01-31)
+
+
+### Bug Fixes
+
+* unselect entities without meta key pressed ([#42](https://github.com/gravity-ui/graph/issues/42)) ([fc670dc](https://github.com/gravity-ui/graph/commit/fc670dc96f7bfd8a49f5f17f8bfbde8feefde1b0))
+
 ## [0.2.0](https://github.com/gravity-ui/graph/compare/v0.1.2...v0.2.0) (2025-01-14)
 
 
