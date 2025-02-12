@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import { Select, SelectOption, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react";
+import ELK from "elkjs";
 
 import { Graph, GraphCanvas, GraphState, TBlock, TConnection, useGraph, useGraphEvent } from "../../../index";
 import { MultipointConnection } from "../../../plugins/elk/components/MultipointConnection";
@@ -19,6 +20,9 @@ const config = generatePrettyBlocks(10, 30, true);
 
 const GraphApp = () => {
   const [algorithm, setAlgorithm] = useState("layered");
+
+  const elk = useMemo(() => new ELK(), []);
+
   const { graph, setEntities, start } = useGraph({
     settings: {
       connection: MultipointConnection,
@@ -29,7 +33,7 @@ const GraphApp = () => {
     return getElkConfig(config, algorithm);
   }, [algorithm]);
 
-  const { isLoading, elk, result } = useElk(elkConfig);
+  const { isLoading, result } = useElk(elkConfig, elk);
 
   useEffect(() => {
     if (isLoading || !result) return;
