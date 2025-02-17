@@ -32,6 +32,7 @@ export type TBlock<T extends Record<string, unknown> = {}> = {
   is: string;
   x: number;
   y: number;
+  group?: string;
   width: number;
   height: number;
   selected: boolean;

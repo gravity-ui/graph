@@ -14,6 +14,7 @@ import { selectConnectionsByBlockId } from "../connection/selectors";
 import { RootStore } from "../index";
 
 import { BlockState, TBlockId, mapToBlockId } from "./Block";
+import { groupBy } from "lodash";
 
 declare module "../../graphEvents" {
   interface GraphEventsDefinitions {
@@ -77,6 +78,10 @@ export class BlockListStore {
       return block.getSelectedAnchor();
     }
     return undefined;
+  });
+
+  public $blockGroups = computed(() => {
+    return groupBy(this.$blocks.value, (item) => item.$state.value.group);
   });
 
   protected isDirtyRect = true;
