@@ -76,20 +76,10 @@ export function useGraph(config: HookGraphParams) {
       return graph.addLayer(layerCtor, props);
     },
     setEntities: useFn(<B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => {
-      batch(() => {
-        graph.rootStore.blocksList.setBlocks(entities.blocks || []);
-        graph.rootStore.connectionsList.setConnections(entities.connections || []);
-      });
+      graph.setEntities(entities);
     }),
     updateEntities: useFn(<B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => {
-      batch(() => {
-        if (entities.blocks) {
-          graph.rootStore.blocksList.updateBlocks(entities.blocks);
-        }
-        if (entities.connections) {
-          graph.rootStore.connectionsList.updateConnections(entities.connections);
-        }
-      });
+      graph.updateEntities(entities);
     }),
     zoomTo: useFn((target: TGraphZoomTarget, config?: ZoomConfig) => {
       graph.zoomTo(target, config);

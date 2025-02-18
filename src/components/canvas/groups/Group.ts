@@ -1,46 +1,52 @@
+import { TComponentState } from "../../../lib/Component";
 import { BlockState } from "../../../store/block/Block";
+import { TGroup, TGroupId } from "../../../store/group/Group";
 import { getUsableRectByBlockIds, getXY } from "../../../utils/functions";
+import { dragListener } from "../../../utils/functions/dragListener";
 import { EVENTS } from "../../../utils/types/events";
 import { TRect } from "../../../utils/types/shapes";
 import { GraphComponent } from "../GraphComponent";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
 export type TGroupProps = {
-  id: string;
+  id: TGroupId;
 };
 
-export class Group extends GraphComponent<TGroupProps, { rect: TRect; selected: boolean }, TGraphLayerContext> {
+type TGroupState = TComponentState &
+  TGroup & {
+    rect: TRect;
+  };
+
+export class Group extends GraphComponent<TGroupProps, TGroupState, TGraphLayerContext> {
   public declare context: TGraphLayerContext;
   protected blocks: BlockState[] = [];
-  protected lastDragEvent?: MouseEvent;
-  protected startDragCoords: number[] = [];
 
   public cursor = "pointer";
 
   constructor(props: TGroupProps, parent: GraphLayer) {
     super(props, parent);
     this.subscribeToBlocks();
+    this.subscribeToGroup();
 
-    this.addEventListener(EVENTS.DRAG_START, this);
-    this.addEventListener(EVENTS.DRAG_UPDATE, this);
-    this.addEventListener(EVENTS.DRAG_END, this);
     this.addEventListener("click", this);
+    this.addEventListener("mousedown", this);
+
+    this.onDrag({
+      onDragStart: () => {
+        this.setState({ selected: true });
+      },
+      onDragUpdate: ({ diffX, diffY }) => {
+        this.blocks.forEach((block) => {
+          const nextX = block.x - diffX;
+          const nextY = block.y - diffY;
+          block.updateXY(nextX, nextY);
+        });
+      },
+    });
   }
 
   public handleEvent(event: CustomEvent) {
     switch (event.type) {
-      case EVENTS.DRAG_START: {
-        this.onDragStart(event.detail.sourceEvent);
-        break;
-      }
-      case EVENTS.DRAG_UPDATE: {
-        this.onDragUpdate(event.detail.sourceEvent);
-        break;
-      }
-      case EVENTS.DRAG_END: {
-        this.onDragEnd();
-        break;
-      }
       case "click": {
         this.setState({ selected: !this.state.selected });
         break;
@@ -48,57 +54,41 @@ export class Group extends GraphComponent<TGroupProps, { rect: TRect; selected: 
     }
   }
 
-  protected onDragStart(event: MouseEvent) {
-    this.lastDragEvent = event;
-    const xy = getXY(this.context.canvas, event);
-    this.startDragCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
-  }
+  protected onBlocksUpdate = (blocks: BlockState[]) => {
+    this.blocks = blocks;
 
-  protected onDragUpdate(event: MouseEvent) {
-    if (!this.startDragCoords.length) return;
+    if (blocks.length) {
+      const rect = getUsableRectByBlockIds(blocks);
+      const padding = 20;
+      const newRect = {
+        x: rect.x - padding,
+        y: rect.y - padding,
+        width: rect.width + padding * 2,
+        height: rect.height + padding * 2,
+      };
 
-    this.lastDragEvent = event;
-    const [canvasX, canvasY] = getXY(this.context.canvas, event);
-    const [cameraSpaceX, cameraSpaceY] = this.context.camera.applyToPoint(canvasX, canvasY);
-
-    const diffX = (this.startDragCoords[0] - cameraSpaceX) | 0;
-    const diffY = (this.startDragCoords[1] - cameraSpaceY) | 0;
-
-    // Обновляем позиции всех блоков в группе
-    this.blocks.forEach((block) => {
-      const nextX = block.x - diffX;
-      const nextY = block.y - diffY;
-      block.updateXY(nextX, nextY);
-    });
-
-    this.startDragCoords = [cameraSpaceX, cameraSpaceY];
-  }
-
-  protected onDragEnd() {
-    this.lastDragEvent = undefined;
-    this.startDragCoords = [];
-  }
+      this.setState({ rect: newRect, selected: this.state?.selected || false });
+      this.updateHitBox(newRect);
+    }
+  };
 
   protected subscribeToBlocks() {
-    this.setHitBox(0, 0, 0, 0);
+    this.onBlocksUpdate(this.context.graph.rootStore.blocksList.$blockGroups.value[this.props.id]);
     return this.subscribeSignal(this.context.graph.rootStore.blocksList.$blockGroups, () => {
       const blocks = this.context.graph.rootStore.blocksList.$blockGroups.value[this.props.id] || [];
-      this.blocks = blocks;
+      this.onBlocksUpdate(blocks);
+    });
+  }
 
-      if (blocks.length) {
-        const rect = getUsableRectByBlockIds(blocks);
-        const padding = 20;
-        const newRect = {
-          x: rect.x - padding,
-          y: rect.y - padding,
-          width: rect.width + padding * 2,
-          height: rect.height + padding * 2,
-        };
-
-        this.setState({ rect: newRect, selected: this.state?.selected || false });
-        this.updateHitBox(newRect);
+  protected subscribeToGroup() {
+    return this.subscribeSignal(this.context.graph.rootStore.groupsList.$groupsMap, () => {
+      const group = this.context.graph.rootStore.groupsList.getGroup(this.props.id);
+      if (group) {
+        this.setState({
+          ...this.state,
+          ...group,
+        });
       }
-      this.performRender();
     });
   }
 
@@ -123,10 +113,13 @@ export class Group extends GraphComponent<TGroupProps, { rect: TRect; selected: 
     ctx.fill();
     ctx.stroke();
 
-    // Рисуем название группы
-    ctx.fillStyle = this.state.selected ? "rgba(100, 100, 100, 0.9)" : "rgba(100, 100, 100, 0.7)";
-    ctx.font = "14px Arial";
-    ctx.textAlign = "left";
-    ctx.fillText(`Group: ${this.props.id}`, rect.x + 10, rect.y + 20);
+    // Рисуем название группы в правом верхнем углу
+    if (this.state.name) {
+      ctx.fillStyle = this.state.selected ? "rgba(100, 100, 100, 0.9)" : "rgba(100, 100, 100, 0.7)";
+      ctx.font = "14px Arial";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "top";
+      ctx.fillText(this.state.name, rect.x + rect.width - 10, rect.y + 10);
+    }
   }
 }

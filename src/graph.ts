@@ -17,11 +17,13 @@ import { CameraService } from "./services/camera/CameraService";
 import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
+import { TGroup } from "./store/group/Group";
 import { TGraphSettingsConfig } from "./store/settings";
 import { getXY } from "./utils/functions";
 import { clearTextCache } from "./utils/renderers/text";
 import { RecursivePartial } from "./utils/types/helpers";
 import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
+
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [
   T,
   T extends Constructor<Layer<infer Props>>
@@ -193,7 +195,15 @@ export class Graph {
     return new Point(applied[0], applied[1], { x: xy[0], y: xy[1] });
   }
 
-  public updateEntities({ blocks, connections }: Partial<{ blocks?: TBlock[]; connections?: TConnection[] }>) {
+  public updateEntities({
+    blocks,
+    connections,
+    groups,
+  }: Partial<{
+    blocks?: TBlock[];
+    connections?: TConnection[];
+    groups?: TGroup[];
+  }>) {
     batch(() => {
       if (blocks?.length) {
         this.rootStore.blocksList.updateBlocks(blocks);
@@ -201,13 +211,25 @@ export class Graph {
       if (connections?.length) {
         this.rootStore.connectionsList.updateConnections(connections);
       }
+      if (groups?.length) {
+        this.rootStore.groupsList.updateGroups(groups);
+      }
     });
   }
 
-  public setEntities({ blocks, connections }: Partial<{ blocks?: TBlock[]; connections?: TConnection[] }>) {
+  public setEntities({
+    blocks,
+    connections,
+    groups,
+  }: Partial<{
+    blocks?: TBlock[];
+    connections?: TConnection[];
+    groups?: TGroup[];
+  }>) {
     batch(() => {
       this.rootStore.blocksList.setBlocks(blocks || []);
       this.rootStore.connectionsList.setConnections(connections || []);
+      this.rootStore.groupsList.setGroups(groups || []);
     });
   }
 
