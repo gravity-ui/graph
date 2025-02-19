@@ -9,7 +9,7 @@ import { GraphComponentStory } from "../../main/GraphEditor";
 
 import "@gravity-ui/uikit/styles/styles.css";
 
-const config = generatePrettyBlocks(10, 10, true);
+const config = generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 10, dashedLine: true });
 
 const GraphApp = () => {
   const [transition, setTransition] = useState("1000");

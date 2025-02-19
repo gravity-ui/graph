@@ -122,18 +122,27 @@ export const WithAnchors: Story = {
 };
 
 export const HundredBlocks: Story = {
-  render: (args) => <GraphApp config={generatePrettyBlocks(10, 100, true)} {...args}></GraphApp>,
+  render: (args) => (
+    <GraphApp
+      config={generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 100, dashedLine: true })}
+      {...args}
+    ></GraphApp>
+  ),
 };
 
 export const ThousandBlocks: Story = {
-  render: (args) => <GraphApp config={generatePrettyBlocks(25, 200)} {...args}></GraphApp>,
+  render: (args) => (
+    <GraphApp config={generatePrettyBlocks({ layersCount: 25, connectionsPerLayer: 200 })} {...args}></GraphApp>
+  ),
 };
 
 export const FiveThousandsBlocks: Story = {
   args: {
     useBezierConnections: false,
   },
-  render: (args) => <GraphApp config={generatePrettyBlocks(40, 300, false)} {...args}></GraphApp>,
+  render: (args) => (
+    <GraphApp config={generatePrettyBlocks({ layersCount: 30, connectionsPerLayer: 300 })} {...args}></GraphApp>
+  ),
 };
 
 export const GraphStressTest: Story = {
@@ -142,14 +151,28 @@ export const GraphStressTest: Story = {
   },
   render: (args) => {
     return (
-      <GraphApp config={generatePrettyBlocks(110, 1000, false, { useBezierConnections: false })} {...args}></GraphApp>
+      <GraphApp
+        config={generatePrettyBlocks({
+          layersCount: 110,
+          connectionsPerLayer: 1000,
+          overrideSettings: { useBezierConnections: false },
+        })}
+        {...args}
+      ></GraphApp>
     );
   },
 };
 export const NirvanaMaxGraphTest: Story = {
   render: (args) => {
     return (
-      <GraphApp config={generatePrettyBlocks(55, 400, false, { useBezierConnections: true })} {...args}></GraphApp>
+      <GraphApp
+        config={generatePrettyBlocks({
+          layersCount: 55,
+          connectionsPerLayer: 400,
+          overrideSettings: { useBezierConnections: true },
+        })}
+        {...args}
+      ></GraphApp>
     );
   },
 };
@@ -168,7 +191,7 @@ export const VerticalGraph: Story = {
 export const SnappingGraph: Story = {
   render: (args) => (
     <GraphApp
-      config={generatePrettyBlocks(4, 100)}
+      config={generatePrettyBlocks({ layersCount: 4, connectionsPerLayer: 100 })}
       {...args}
       constants={{ block: { SNAPPING_GRID_SIZE: 60 } }}
     ></GraphApp>
