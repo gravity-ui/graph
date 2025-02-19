@@ -1,6 +1,6 @@
 {
   "name": "@gravity-ui/graph",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Modern graph editor component",
   "main": "build/index.js",
   "keywords": [],
