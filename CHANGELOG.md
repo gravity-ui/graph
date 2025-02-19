@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/gravity-ui/graph/compare/v0.2.1...v0.3.0) (2025-02-19)
+
+
+### Features
+
+* **Storybook:** change elk examples ([#46](https://github.com/gravity-ui/graph/issues/46)) ([a3a181a](https://github.com/gravity-ui/graph/commit/a3a181a8607fd2333b343610797698fe357bd9f4))
+
 ## [0.2.1](https://github.com/gravity-ui/graph/compare/v0.2.0...v0.2.1) (2025-01-31)
 
 
