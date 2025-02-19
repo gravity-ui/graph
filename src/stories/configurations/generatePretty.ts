@@ -6,7 +6,7 @@ import { IS_BLOCK_TYPE } from "../../store/block/Block";
 
 import { storiesSettings } from "./definitions";
 
-function createBlock(x: number, y: number, index): TBlock {
+export function createBlock(x: number, y: number, index): TBlock {
   const blockId = `block_${index}`;
   return {
     id: blockId,
@@ -25,13 +25,21 @@ function getRandomArbitrary(min, max) {
   return (Math.random() * (max - min) + min) | 0;
 }
 
-export function generatePrettyBlocks(
-  layersCount: number,
-  connectionsPerLayer: number,
-  dashedLine = false,
-  overrideSettings?: Partial<TGraphConfig["settings"]>,
-  startIndex = 0
-) {
+type Props = {
+  layersCount: number;
+  connectionsPerLayer: number;
+  dashedLine?: boolean;
+  overrideSettings?: Partial<TGraphConfig["settings"]>;
+  startIndex?: number;
+};
+
+export function generatePrettyBlocks({
+  layersCount,
+  connectionsPerLayer,
+  dashedLine,
+  overrideSettings = {},
+  startIndex = 0,
+}: Props) {
   const config: TGraphConfig = {
     configurationName: "power of 2",
     blocks: [],

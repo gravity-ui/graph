@@ -12,7 +12,7 @@ import { BlockStory } from "../../main/Block";
 
 import "@gravity-ui/uikit/styles/styles.css";
 
-const config = generatePrettyBlocks(10, 10, true, {}, 0);
+const config = generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 10, dashedLine: true });
 
 const exampleGraph = new Graph({
   configurationName: "start-stop",
@@ -45,10 +45,15 @@ const GraphApp = () => {
   });
 
   const update = () => {
-    const config = generatePrettyBlocks(10, 10, true, {}, Math.random() * 1000);
+    const { blocks, connections } = generatePrettyBlocks({
+      layersCount: 10,
+      connectionsPerLayer: 10,
+      dashedLine: true,
+      startIndex: Math.random() * 1000,
+    });
     setEntities({
-      blocks: config.blocks,
-      connections: config.connections,
+      blocks,
+      connections,
     });
   };
 

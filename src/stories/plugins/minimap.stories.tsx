@@ -30,7 +30,7 @@ const GraphApp = () => {
       <GraphComponentStory
         graphRef={graphRef}
         config={{
-          ...generatePrettyBlocks(10, 10),
+          ...generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 10 }),
           layers,
           settings: { canChangeBlockGeometry: ECanChangeBlockGeometry.ALL },
         }}

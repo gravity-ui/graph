@@ -4,29 +4,39 @@ import { Select, SelectOption, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react";
 
 import { Graph, GraphCanvas, GraphState, TBlock, TConnection, useGraph, useGraphEvent } from "../../../index";
-import { MultipointConnection } from "../../../plugins/elk/components/MultipointConnection";
-import { useElk } from "../../../plugins/elk/hooks/useElk";
+import { MultipointConnection, useElk } from "../../../plugins";
 import { TMultipointConnection } from "../../../plugins/elk/types";
 import { useFn } from "../../../utils/hooks/useFn";
-import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 
-import { getElkConfig } from "./getElkConfig";
+import { getExampleConfig } from "./getExampleConfig";
+
+export enum Algorithm {
+  Box = "box",
+  Layered = "layered",
+  Disco = "disco",
+  Radial = "radial",
+  MrTree = "mrtree",
+  Force = "force",
+  Stress = "stress",
+  Random = "random",
+  SporeOverlap = "sporeOverlap",
+  SporeCompaction = "sporeCompaction",
+}
 
 import "@gravity-ui/uikit/styles/styles.css";
 
-const config = generatePrettyBlocks(10, 30, true);
-
 const GraphApp = () => {
-  const [algorithm, setAlgorithm] = useState("layered");
+  const [algorithm, setAlgorithm] = useState(Algorithm.Layered);
+  const [algorithms, setAlgorithms] = useState<SelectOption[]>([]);
   const { graph, setEntities, start } = useGraph({
     settings: {
       connection: MultipointConnection,
     },
   });
 
-  const elkConfig = useMemo(() => {
-    return getElkConfig(config, algorithm);
+  const { elkConfig, graphConfig } = useMemo(() => {
+    return getExampleConfig(algorithm);
   }, [algorithm]);
 
   const { isLoading, elk, result } = useElk(elkConfig);
@@ -34,20 +44,19 @@ const GraphApp = () => {
   useEffect(() => {
     if (isLoading || !result) return;
 
-    const connections = config.connections.reduce<(TConnection & Pick<TMultipointConnection, "points" | "labels">)[]>(
-      (acc, connection) => {
-        if (connection.id in result.edges) {
-          acc.push({
-            ...connection,
-            ...result.edges[connection.id],
-          });
-        }
-        return acc;
-      },
-      []
-    );
+    const connections = graphConfig.connections.reduce<
+      (TConnection & Pick<TMultipointConnection, "points" | "labels">)[]
+    >((acc, connection) => {
+      if (connection.id in result.edges) {
+        acc.push({
+          ...connection,
+          ...result.edges[connection.id],
+        });
+      }
+      return acc;
+    }, []);
 
-    const blocks = config.blocks.map((block) => {
+    const blocks = graphConfig.blocks.map((block) => {
       return {
         ...block,
         ...result.blocks[block.id],
@@ -61,8 +70,6 @@ const GraphApp = () => {
 
     graph.zoomTo("center", { padding: 300 });
   }, [isLoading, result]);
-
-  const [algorithms, setAlgorithms] = useState<SelectOption[]>([]);
 
   useEffect(() => {
     elk.knownLayoutAlgorithms().then((knownLayoutAlgorithms) => {
@@ -88,7 +95,7 @@ const GraphApp = () => {
 
   return (
     <ThemeProvider theme={"light"}>
-      <Select value={[algorithm]} options={algorithms} onUpdate={(v) => setAlgorithm(v[0])}></Select>
+      <Select value={[algorithm]} options={algorithms} onUpdate={(v) => setAlgorithm(v[0] as Algorithm)}></Select>
       <GraphCanvas className="graph" graph={graph} renderBlock={renderBlockFn} />;
     </ThemeProvider>
   );

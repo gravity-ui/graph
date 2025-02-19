@@ -105,7 +105,7 @@ const GraphApp = () => {
   const [config, setConfig] = useState<TGraphConfig | undefined>();
 
   useEffect(() => {
-    const newConfig = generatePrettyBlocks(10, 100, true);
+    const newConfig = generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 100, dashedLine: true });
     newConfig.settings.blockComponents = {};
     newConfig.settings.blockComponents[SpecificBlockIs] = SpecificBlockView;
 
