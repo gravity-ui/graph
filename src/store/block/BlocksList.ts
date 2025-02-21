@@ -80,10 +80,6 @@ export class BlockListStore {
     return undefined;
   });
 
-  public $blockGroups = computed(() => {
-    return groupBy(this.$blocks.value, (item) => item.$state.value.group);
-  });
-
   protected isDirtyRect = true;
 
   public $usableRect = signal<TRect>({ x: 0, y: 0, height: 0, width: 0 });

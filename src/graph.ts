@@ -293,6 +293,10 @@ export class Graph {
     }) as InstanceType<T>;
   }
 
+  public detachLayer(layer: Layer) {
+    this.layers.detachLayer(layer);
+  }
+
   public setupGraph(config: TGraphConfig = {}) {
     this.config = config;
     this.rootStore.configurationName = config.configurationName;

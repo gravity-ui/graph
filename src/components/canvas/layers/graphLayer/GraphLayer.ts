@@ -9,7 +9,6 @@ import { EventedComponent } from "../../EventedComponent/EventedComponent";
 import { Blocks } from "../../blocks/Blocks";
 import { BlockConnection } from "../../connections/BlockConnection";
 import { BlockConnections } from "../../connections/BlockConnections";
-import { BlockGroups } from "../../groups";
 
 import { DrawBelow, DrawOver } from "./helpers";
 
@@ -333,13 +332,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   public updateChildren() {
     const cameraProps: TCameraProps = {
-      children: [
-        DrawOver.create(),
-        Blocks.create(),
-        DrawBelow.create(),
-        BlockGroups.create(),
-        BlockConnections.create(),
-      ],
+      children: [DrawOver.create(), Blocks.create(), DrawBelow.create(), BlockConnections.create()],
       root: this.root,
     };
 

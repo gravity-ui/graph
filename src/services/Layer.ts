@@ -31,7 +31,8 @@ export type LayerContext = {
 export class Layer<
   Props extends LayerProps = LayerProps,
   Context extends LayerContext = LayerContext,
-> extends Component<Props, TComponentState, Context> {
+  State extends TComponentState = TComponentState,
+> extends Component<Props, State, Context> {
   public static id?: string;
 
   protected canvas: HTMLCanvasElement;
