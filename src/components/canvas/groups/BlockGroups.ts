@@ -1,10 +1,10 @@
-import { computed } from "@preact/signals-core";
+import { Signal, computed } from "@preact/signals-core";
 
 import { Graph } from "../../../graph";
 import { TComponentState } from "../../../lib/Component";
 import { Layer, LayerContext, LayerProps } from "../../../services/Layer";
 import { BlockState } from "../../../store/block/Block";
-import { GroupState, TGroup } from "../../../store/group/Group";
+import { GroupState, TGroup, TGroupId } from "../../../store/group/Group";
 
 import { Group } from "./Group";
 
@@ -36,12 +36,16 @@ export class BlockGroups extends Layer<BlockGroupsProps, BlockGroupsContext, Blo
     mapToGroups: (key: string, blocks: BlockState[]) => TGroup;
   }) {
     return class extends BlockGroups {
+      public $groupsBlocksMap = computed(() => {
+        const blocks = this.props.graph.rootStore.blocksList.$blocks.value;
+        return groupingFn(blocks);
+      });
+
       constructor(props: BlockGroupsProps) {
         super(props);
         this.unsubscribe.push(
           computed(() => {
-            const blocks = this.props.graph.rootStore.blocksList.$blocks.value;
-            const groupedBlocks = groupingFn(blocks);
+            const groupedBlocks = this.$groupsBlocksMap.value;
             return Object.entries(groupedBlocks).map(([key, blocks]) => mapToGroups(key, blocks));
           }).subscribe((groups: TGroup[]) => {
             this.setGroups(groups);
@@ -52,6 +56,8 @@ export class BlockGroups extends Layer<BlockGroupsProps, BlockGroupsContext, Blo
   }
 
   private unsubscribe: (() => void)[] = [];
+
+  protected $groupsBlocksMap = new Signal<Record<string, BlockState[]>>({});
 
   protected $groupsSource = this.props.graph.rootStore.groupsList.$groups;
 
@@ -89,6 +95,15 @@ export class BlockGroups extends Layer<BlockGroupsProps, BlockGroupsContext, Blo
     );
   }
 
+  public updateBlocks = (groupId: TGroupId, { diffX, diffY }: { diffX: number; diffY: number }) => {
+    const blocks = this.$groupsBlocksMap.value[groupId];
+    if (blocks) {
+      blocks.forEach((block) => {
+        block.updateXY(block.x - diffX, block.y - diffY);
+      });
+    }
+  };
+
   public setGroups(groups: TGroup[]) {
     this.props.graph.rootStore.groupsList.setGroups(groups);
   }
@@ -114,7 +129,9 @@ export class BlockGroups extends Layer<BlockGroupsProps, BlockGroupsContext, Blo
   }
 
   protected updateChildren() {
-    return this.state.groups?.map((group) => this.getGroupComponent(group).create({ id: group.id }, { key: group.id }));
+    return this.state.groups?.map((group) =>
+      this.getGroupComponent(group).create({ id: group.id, onDragUpdate: this.updateBlocks }, { key: group.id })
+    );
   }
 
   public render() {
