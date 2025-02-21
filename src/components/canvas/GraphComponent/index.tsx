@@ -49,6 +49,7 @@ export class GraphComponent<
     let startDragCoords: [number, number];
     return this.addEventListener("mousedown", (event: MouseEvent) => {
       event.stopPropagation();
+      console.log(this.context.ownerDocument);
       dragListener(this.context.ownerDocument)
         .on(EVENTS.DRAG_START, (event: MouseEvent) => {
           if (onDragStart?.(event) === false) {

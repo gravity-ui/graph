@@ -33,6 +33,11 @@ export class Layers extends Emitter {
     return layer;
   }
 
+  public detachLayer(layer: Layer) {
+    this.layers.delete(layer);
+    layer.detachLayer();
+  }
+
   public getRootSize() {
     return this.rootSize;
   }

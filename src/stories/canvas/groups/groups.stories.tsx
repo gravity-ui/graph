@@ -1,10 +1,13 @@
-import React from "react";
+import React, { useEffect } from "react";
 
 import type { Meta, StoryFn } from "@storybook/react";
+import groupBy from "lodash/groupBy";
 
-import { Graph, GraphCanvas, GraphState, TBlock, useGraph, useGraphEvent } from "../../../index";
+import { BlockGroups } from "../../../components/canvas/groups";
+import { BlockState, Graph, GraphCanvas, GraphState, TBlock, useGraph, useGraphEvent } from "../../../index";
 import { useFn } from "../../../utils/hooks/useFn";
 import { BlockStory } from "../../main/Block";
+import { getUsableRectByBlockIds } from "../../../utils/functions";
 
 const createConfig = () => {
   const blocks: TBlock[] = [
@@ -75,9 +78,27 @@ const createConfig = () => {
   return { blocks };
 };
 
+const GroupsLayer = BlockGroups.withBlockGrouping({
+  groupingFn: (blocks: BlockState[]) => {
+    return groupBy(blocks, (block) => block.$state.value.group);
+  },
+  mapToGroups: (grounId: string, blocks: BlockState[]) => ({
+    id: grounId,
+    name: grounId,
+    rect: getUsableRectByBlockIds(blocks),
+  }),
+});
+
 const GraphApp = () => {
   const { graph, setEntities, start } = useGraph({});
   const config = createConfig();
+
+  useEffect(() => {
+    const layer = graph.addLayer(GroupsLayer, {});
+    return () => {
+      layer.detachLayer();
+    };
+  }, [graph]);
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {

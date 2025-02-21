@@ -1,19 +1,31 @@
 import { signal } from "@preact/signals-core";
 
-import { GroupsListStore } from "./GroupsList";
+import { Group } from "../../components/canvas/groups";
+import { TRect } from "../../utils/types/shapes";
 
-export type TGroupId = string & { __brand: "GroupId" };
+import { GroupsListStore } from "./GroupsList";
+export type TGroupId = string;
 
 export interface TGroup {
   id: TGroupId;
   name: string;
-  color?: string;
+  rect: TRect;
+  selected?: boolean;
+  component?: typeof Group;
 }
 
 export class GroupState {
   public $state = signal<TGroup>({
     id: "" as TGroupId,
     name: "",
+    selected: false,
+    rect: {
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+    },
+    component: Group,
   });
 
   constructor(
@@ -27,11 +39,19 @@ export class GroupState {
     return this.$state.value.id;
   }
 
+  public get selected() {
+    return Boolean(this.$state.value.selected);
+  }
+
   public updateGroup(group: Partial<TGroup>) {
     this.$state.value = {
       ...this.$state.value,
       ...group,
     };
+  }
+
+  public setSelection(selected: boolean) {
+    this.store.setGroupSelection(this.id, selected);
   }
 
   public asTGroup(): TGroup {
