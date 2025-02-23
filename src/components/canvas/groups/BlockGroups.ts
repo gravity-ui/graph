@@ -5,13 +5,15 @@ import { TComponentState } from "../../../lib/Component";
 import { Layer, LayerContext, LayerProps } from "../../../services/Layer";
 import { BlockState } from "../../../store/block/Block";
 import { GroupState, TGroup, TGroupId } from "../../../store/group/Group";
+import { getUsableRectByBlockIds } from "../../../utils/functions";
+import { TRect } from "../../../utils/types/shapes";
 
 import { Group } from "./Group";
 
-export type BlockGroupsProps = LayerProps & {
+export type BlockGroupsProps<T extends TGroup = TGroup> = LayerProps & {
   // Some specific props
   mapBlockGroups?: (blocks: BlockState[]) => GroupState[];
-  groupComponent?: typeof Group;
+  groupComponent?: typeof Group<T>;
   draggable?: boolean;
   updateBlocksOnDrag?: boolean;
 };
@@ -35,7 +37,7 @@ export class BlockGroups extends Layer<BlockGroupsProps, BlockGroupsContext, Blo
     mapToGroups,
   }: {
     groupingFn: (blocks: BlockState[]) => Record<string, BlockState[]>;
-    mapToGroups: (key: string, blocks: BlockState[]) => TGroup;
+    mapToGroups: (key: string, params: { blocks: BlockState[]; rect: TRect }) => TGroup;
   }) {
     return class extends BlockGroups {
       public $groupsBlocksMap = computed(() => {
@@ -48,7 +50,9 @@ export class BlockGroups extends Layer<BlockGroupsProps, BlockGroupsContext, Blo
         this.unsubscribe.push(
           computed(() => {
             const groupedBlocks = this.$groupsBlocksMap.value;
-            return Object.entries(groupedBlocks).map(([key, blocks]) => mapToGroups(key, blocks));
+            return Object.entries(groupedBlocks).map(([key, blocks]) =>
+              mapToGroups(key, { blocks, rect: getUsableRectByBlockIds(blocks) })
+            );
           }).subscribe((groups: TGroup[]) => {
             this.setGroups(groups);
           })
@@ -106,11 +110,11 @@ export class BlockGroups extends Layer<BlockGroupsProps, BlockGroupsContext, Blo
     }
   };
 
-  public setGroups(groups: TGroup[]) {
+  public setGroups<T extends TGroup>(groups: T[]) {
     this.props.graph.rootStore.groupsList.setGroups(groups);
   }
 
-  public updateGroups(groups: TGroup[]) {
+  public updateGroups<T extends TGroup>(groups: T[]) {
     this.props.graph.rootStore.groupsList.updateGroups(groups);
   }
 
@@ -119,6 +123,7 @@ export class BlockGroups extends Layer<BlockGroupsProps, BlockGroupsContext, Blo
   }
 
   protected requestRender = () => {
+    console.log("requestRender");
     this.performRender();
   };
 

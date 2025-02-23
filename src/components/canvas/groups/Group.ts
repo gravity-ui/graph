@@ -32,8 +32,8 @@ export type TGroupProps = {
   updateBlocksOnDrag?: boolean;
 };
 
-type TGroupState = TComponentState &
-  TGroup & {
+type TGroupState<T extends TGroup = TGroup> = TComponentState &
+  T & {
     rect: TRect;
   };
 
@@ -51,9 +51,9 @@ const defaultGeometry: TGroupGeometry = {
   padding: [20, 20, 20, 20],
 };
 
-export class Group extends GraphComponent<TGroupProps, TGroupState, TGraphLayerContext> {
+export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps, TGroupState<T>, TGraphLayerContext> {
   public static define(config: { style?: Partial<TGroupStyle>; geometry?: Partial<TGroupGeometry> }) {
-    return class SpecificGroup extends Group {
+    return class SpecificGroup<T extends TGroup = TGroup> extends Group<T> {
       constructor(props: TGroupProps, parent: BlockGroups) {
         super(
           {
@@ -154,7 +154,7 @@ export class Group extends GraphComponent<TGroupProps, TGroupState, TGraphLayerC
         this.setState({
           ...this.state,
           ...group,
-        });
+        } as T);
         this.updateHitBox(this.getRect(group.rect));
       }
     });
@@ -185,7 +185,7 @@ export class Group extends GraphComponent<TGroupProps, TGroupState, TGraphLayerC
       ctx.font = "14px Arial";
       ctx.textAlign = "right";
       ctx.textBaseline = "top";
-      ctx.fillText(this.state.name, rect.x + rect.width - 10, rect.y + 10);
+      ctx.fillText(this.state.name, rect.x - 10, rect.y + 10);
     }
   }
 }

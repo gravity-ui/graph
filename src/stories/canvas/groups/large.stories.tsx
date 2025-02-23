@@ -5,78 +5,9 @@ import groupBy from "lodash/groupBy";
 
 import { BlockGroups, Group } from "../../../components/canvas/groups";
 import { BlockState, Graph, GraphCanvas, GraphState, TBlock, useGraph, useGraphEvent } from "../../../index";
-import { getUsableRectByBlockIds } from "../../../utils/functions";
 import { useFn } from "../../../utils/hooks/useFn";
+import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
-
-const createConfig = () => {
-  const blocks: TBlock[] = [
-    // Группа 1
-    {
-      id: "block1",
-      is: "block",
-      name: "Block 1",
-      x: 100,
-      y: 100,
-      width: 200,
-      height: 100,
-      group: "group1",
-      selected: false,
-      anchors: [],
-    },
-    {
-      id: "block2",
-      is: "block",
-      name: "Block 2",
-      x: 150,
-      y: 250,
-      width: 200,
-      height: 100,
-      group: "group1",
-      selected: false,
-      anchors: [],
-    },
-    // Группа 2
-    {
-      id: "block3",
-      is: "block",
-      name: "Block 3",
-      x: 500,
-      y: 100,
-      width: 200,
-      height: 100,
-      group: "group2",
-      selected: false,
-      anchors: [],
-    },
-    {
-      id: "block4",
-      is: "block",
-      name: "Block 4",
-      x: 550,
-      y: 250,
-      width: 200,
-      height: 100,
-      group: "group2",
-      selected: false,
-      anchors: [],
-    },
-    // Блок без группы
-    {
-      id: "block5",
-      is: "block",
-      name: "Block without group",
-      x: 300,
-      y: 400,
-      width: 200,
-      height: 100,
-      selected: false,
-      anchors: [],
-    },
-  ];
-
-  return { blocks };
-};
 
 const MyGroup = Group.define({
   style: {
@@ -92,21 +23,21 @@ const GroupsLayer = BlockGroups.withBlockGrouping({
   groupingFn: (blocks: BlockState[]) => {
     return groupBy(blocks, (block) => block.$state.value.group);
   },
-  mapToGroups: (grounId: string, blocks: BlockState[]) => ({
+  mapToGroups: (grounId: string, { rect }) => ({
     id: grounId,
+    rect,
     name: grounId,
-    rect: getUsableRectByBlockIds(blocks),
     component: MyGroup,
   }),
 });
 
-const GraphApp = () => {
+const LargeGraphApp = () => {
   const { graph, setEntities, start } = useGraph({});
-  const config = createConfig();
+  const config = generatePrettyBlocks(15, 50, true);
 
   useEffect(() => {
     const layer = graph.addLayer(GroupsLayer, {
-      draggable: false,
+      draggable: true,
       updateBlocksOnDrag: true,
     });
     return () => {
@@ -116,6 +47,12 @@ const GraphApp = () => {
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {
+      // Добавляем группы к блокам
+      config.blocks = config.blocks.map((block, index) => ({
+        ...block,
+        group: `group${Math.floor(index / 10)}`, // Каждые 10 блоков в одной группе
+      }));
+
       setEntities(config);
       start();
       graph.zoomTo("center", { padding: 100 });
@@ -130,10 +67,24 @@ const GraphApp = () => {
 };
 
 const meta: Meta = {
-  title: "Canvas/Groups",
-  component: GraphApp,
+  title: "Canvas/Groups/Large",
+  component: LargeGraphApp,
 };
 
 export default meta;
 
-export const Default: StoryFn = () => <GraphApp />;
+export const LargeGroupedGraph: StoryFn = () => <LargeGraphApp />;
+LargeGroupedGraph.parameters = {
+  docs: {
+    description: {
+      story: `
+This example shows how to work with many blocks:
+- Creates 225 blocks with connections between them
+- Puts every 10 blocks into one group
+- Groups can be dragged
+- When you drag a group, all blocks in it move together
+- Some connections are dashed (randomly)
+`,
+    },
+  },
+};

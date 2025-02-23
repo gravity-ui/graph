@@ -9,6 +9,7 @@ import type { TGraphZoomTarget } from "../../graph";
 import type { TGraphColors, TGraphConstants } from "../../graphConfig";
 import type { Layer } from "../../services/Layer";
 import type { TConnection } from "../../store/connection/ConnectionState";
+import { TGroup } from "../../store/group/Group";
 import { useFn } from "../../utils/hooks/useFn";
 import { RecursivePartial } from "../../utils/types/helpers";
 
@@ -75,12 +76,23 @@ export function useGraph(config: HookGraphParams) {
     ): InstanceType<T> => {
       return graph.addLayer(layerCtor, props);
     },
-    setEntities: useFn(<B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => {
-      graph.setEntities(entities);
-    }),
-    updateEntities: useFn(<B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => {
-      graph.updateEntities(entities);
-    }),
+    setEntities: useFn(
+      <B extends TBlock, C extends TConnection, G extends TGroup>(
+        entities: { blocks?: B[]; connections?: C[]; groups?: G[] },
+        force?: boolean
+      ) => {
+        graph.setEntities(entities, force);
+      }
+    ),
+    updateEntities: useFn(
+      <B extends TBlock, C extends TConnection, G extends TGroup>(entities: {
+        blocks?: B[];
+        connections?: C[];
+        groups?: G[];
+      }) => {
+        graph.updateEntities(entities);
+      }
+    ),
     zoomTo: useFn((target: TGraphZoomTarget, config?: ZoomConfig) => {
       graph.zoomTo(target, config);
     }),

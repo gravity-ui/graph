@@ -217,19 +217,28 @@ export class Graph {
     });
   }
 
-  public setEntities({
-    blocks,
-    connections,
-    groups,
-  }: Partial<{
-    blocks?: TBlock[];
-    connections?: TConnection[];
-    groups?: TGroup[];
-  }>) {
+  public setEntities(
+    {
+      blocks,
+      connections,
+      groups,
+    }: Partial<{
+      blocks?: TBlock[];
+      connections?: TConnection[];
+      groups?: TGroup[];
+    }>,
+    force?: boolean
+  ) {
     batch(() => {
-      this.rootStore.blocksList.setBlocks(blocks || []);
-      this.rootStore.connectionsList.setConnections(connections || []);
-      this.rootStore.groupsList.setGroups(groups || []);
+      if (blocks || force) {
+        this.rootStore.blocksList.setBlocks(blocks || []);
+      }
+      if (connections || force) {
+        this.rootStore.connectionsList.setConnections(connections || []);
+      }
+      if (groups || force) {
+        this.rootStore.groupsList.setGroups(groups || []);
+      }
     });
   }
 

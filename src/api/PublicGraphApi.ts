@@ -155,7 +155,6 @@ export class PublicGraphApi {
   }
 
   public unsetSelection() {
-    console.log("unsetSelection");
     batch(() => {
       this.graph.rootStore.blocksList.resetSelection();
       this.graph.rootStore.groupsList.resetSelection();
