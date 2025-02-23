@@ -3,11 +3,11 @@ import React, { useEffect } from "react";
 import type { Meta, StoryFn } from "@storybook/react";
 import groupBy from "lodash/groupBy";
 
-import { BlockGroups } from "../../../components/canvas/groups";
+import { BlockGroups, Group } from "../../../components/canvas/groups";
 import { BlockState, Graph, GraphCanvas, GraphState, TBlock, useGraph, useGraphEvent } from "../../../index";
+import { getUsableRectByBlockIds } from "../../../utils/functions";
 import { useFn } from "../../../utils/hooks/useFn";
 import { BlockStory } from "../../main/Block";
-import { getUsableRectByBlockIds } from "../../../utils/functions";
 
 const createConfig = () => {
   const blocks: TBlock[] = [
@@ -78,6 +78,12 @@ const createConfig = () => {
   return { blocks };
 };
 
+const MyGroup = Group.define({
+  padding: [10, 10, 10, 10],
+  draggable: true,
+  updateBlocksOnDrag: true,
+});
+
 const GroupsLayer = BlockGroups.withBlockGrouping({
   groupingFn: (blocks: BlockState[]) => {
     return groupBy(blocks, (block) => block.$state.value.group);
@@ -86,6 +92,7 @@ const GroupsLayer = BlockGroups.withBlockGrouping({
     id: grounId,
     name: grounId,
     rect: getUsableRectByBlockIds(blocks),
+    component: MyGroup,
   }),
 });
 

@@ -1,7 +1,9 @@
 import { TComponentState } from "../../../lib/Component";
 import { BlockState } from "../../../store/block/Block";
 import { GroupState, TGroup, TGroupId } from "../../../store/group/Group";
+import { isMetaKeyEvent } from "../../../utils/functions";
 import { TRect } from "../../../utils/types/shapes";
+import { ESelectionStrategy } from "../../../utils/types/types";
 import { GraphComponent } from "../GraphComponent";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
@@ -9,7 +11,7 @@ import { BlockGroups } from "./BlockGroups";
 
 export type TGroupProps = {
   id: TGroupId;
-  onDragUpdate: (groupId: string, diff: { diffX: number; diffY: number; }) => void;
+  onDragUpdate: (groupId: string, diff: { diffX: number; diffY: number }) => void;
 };
 
 type TGroupState = TComponentState &
@@ -32,8 +34,8 @@ export type TGroupViewState = {
 
 const defaultViewState: TGroupViewState = {
   padding: [20, 20, 20, 20],
-  draggable: true,
-  updateBlocksOnDrag: true,
+  draggable: false,
+  updateBlocksOnDrag: false,
   background: "rgba(100, 100, 100, 0.1)",
   border: "rgba(100, 100, 100, 0.3)",
   borderWidth: 2,
@@ -53,6 +55,10 @@ export class Group extends GraphComponent<TGroupProps, TGroupState, TGraphLayerC
     };
   }
 
+  public get zIndex() {
+    return 0;
+  }
+
   public declare context: TGraphLayerContext;
   protected blocks: BlockState[] = [];
 
@@ -66,9 +72,12 @@ export class Group extends GraphComponent<TGroupProps, TGroupState, TGraphLayerC
     super(props, parent);
     this.subscribeToGroup();
 
-    this.addEventListener("click", (event) => {
+    this.addEventListener("click", (event: MouseEvent) => {
       event.stopPropagation();
-      this.groupState.setSelection(true);
+      this.groupState.setSelection(
+        true,
+        !isMetaKeyEvent(event) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
+      );
     });
 
     this.onDrag({
@@ -98,26 +107,25 @@ export class Group extends GraphComponent<TGroupProps, TGroupState, TGraphLayerC
     });
   }
 
-  protected getRect() {
+  protected getRect(rect = this.state.rect) {
     const [paddingTop, paddingRight, paddingBottom, paddingLeft] = this.viewState.padding;
     return {
-      x: this.state.rect.x - paddingLeft,
-      y: this.state.rect.y - paddingTop,
-      width: this.state.rect.width + paddingLeft + paddingRight,
-      height: this.state.rect.height + paddingTop + paddingBottom,
+      x: rect.x - paddingLeft,
+      y: rect.y - paddingTop,
+      width: rect.width + paddingLeft + paddingRight,
+      height: rect.height + paddingTop + paddingBottom,
     };
   }
 
   protected subscribeToGroup() {
-    return this.subscribeSignal(this.context.graph.rootStore.groupsList.$groupsMap, () => {
-      const group = this.context.graph.rootStore.groupsList.getGroupState(this.props.id);
-      this.groupState = group;
+    this.groupState = this.context.graph.rootStore.groupsList.getGroupState(this.props.id);
+    return this.subscribeSignal(this.groupState.$state, (group) => {
       if (group) {
         this.setState({
           ...this.state,
-          ...group.asTGroup(),
+          ...group,
         });
-        this.updateHitBox(group.$state.value.rect);
+        this.updateHitBox(this.getRect(group.rect));
       }
     });
   }

@@ -4,6 +4,7 @@ import { Group } from "../../components/canvas/groups";
 import { TRect } from "../../utils/types/shapes";
 
 import { GroupsListStore } from "./GroupsList";
+import { ESelectionStrategy } from "../../utils/types/types";
 export type TGroupId = string;
 
 export interface TGroup {
@@ -50,8 +51,8 @@ export class GroupState {
     };
   }
 
-  public setSelection(selected: boolean) {
-    this.store.setGroupSelection(this.id, selected);
+  public setSelection(selected: boolean, strategy: ESelectionStrategy = ESelectionStrategy.REPLACE) {
+    this.store.updateGroupsSelection([this.id], selected, strategy);
   }
 
   public asTGroup(): TGroup {
