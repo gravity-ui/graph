@@ -79,9 +79,13 @@ const createConfig = () => {
 };
 
 const MyGroup = Group.define({
-  padding: [10, 10, 10, 10],
-  draggable: true,
-  updateBlocksOnDrag: true,
+  style: {
+    background: "rgba(100, 100, 100, 0.1)",
+    border: "rgba(100, 100, 100, 0.3)",
+    borderWidth: 2,
+    selectedBackground: "rgba(100, 100, 100, 1)",
+    selectedBorder: "rgba(100, 100, 100, 1)",
+  },
 });
 
 const GroupsLayer = BlockGroups.withBlockGrouping({
@@ -101,7 +105,10 @@ const GraphApp = () => {
   const config = createConfig();
 
   useEffect(() => {
-    const layer = graph.addLayer(GroupsLayer, {});
+    const layer = graph.addLayer(GroupsLayer, {
+      draggable: false,
+      updateBlocksOnDrag: true,
+    });
     return () => {
       layer.detachLayer();
     };

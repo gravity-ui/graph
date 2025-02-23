@@ -12,6 +12,8 @@ export type BlockGroupsProps = LayerProps & {
   // Some specific props
   mapBlockGroups?: (blocks: BlockState[]) => GroupState[];
   groupComponent?: typeof Group;
+  draggable?: boolean;
+  updateBlocksOnDrag?: boolean;
 };
 
 export type BlockGroupsContext = LayerContext & {
@@ -129,9 +131,17 @@ export class BlockGroups extends Layer<BlockGroupsProps, BlockGroupsContext, Blo
   }
 
   protected updateChildren() {
-    return this.state.groups?.map((group) =>
-      this.getGroupComponent(group).create({ id: group.id, onDragUpdate: this.updateBlocks }, { key: group.id })
-    );
+    return this.state.groups?.map((group) => {
+      return this.getGroupComponent(group).create(
+        {
+          id: group.id,
+          onDragUpdate: this.updateBlocks,
+          draggable: this.props.draggable || false,
+          updateBlocksOnDrag: this.props.updateBlocksOnDrag || false,
+        },
+        { key: group.id }
+      );
+    });
   }
 
   public render() {

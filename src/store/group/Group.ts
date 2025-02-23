@@ -2,9 +2,9 @@ import { signal } from "@preact/signals-core";
 
 import { Group } from "../../components/canvas/groups";
 import { TRect } from "../../utils/types/shapes";
+import { ESelectionStrategy } from "../../utils/types/types";
 
 import { GroupsListStore } from "./GroupsList";
-import { ESelectionStrategy } from "../../utils/types/types";
 export type TGroupId = string;
 
 export interface TGroup {

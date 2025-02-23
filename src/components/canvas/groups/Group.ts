@@ -9,20 +9,7 @@ import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
 import { BlockGroups } from "./BlockGroups";
 
-export type TGroupProps = {
-  id: TGroupId;
-  onDragUpdate: (groupId: string, diff: { diffX: number; diffY: number }) => void;
-};
-
-type TGroupState = TComponentState &
-  TGroup & {
-    rect: TRect;
-  };
-
-export type TGroupViewState = {
-  padding: [number, number, number, number];
-  draggable: boolean;
-  updateBlocksOnDrag: boolean;
+export type TGroupStyle = {
   background: string;
   border: string;
   borderWidth: number;
@@ -32,10 +19,25 @@ export type TGroupViewState = {
   selectedTextColor: string;
 };
 
-const defaultViewState: TGroupViewState = {
-  padding: [20, 20, 20, 20],
-  draggable: false,
-  updateBlocksOnDrag: false,
+export type TGroupGeometry = {
+  padding: [number, number, number, number];
+};
+
+export type TGroupProps = {
+  id: TGroupId;
+  onDragUpdate: (groupId: string, diff: { diffX: number; diffY: number }) => void;
+  style?: Partial<TGroupStyle>;
+  geometry?: Partial<TGroupGeometry>;
+  draggable?: boolean;
+  updateBlocksOnDrag?: boolean;
+};
+
+type TGroupState = TComponentState &
+  TGroup & {
+    rect: TRect;
+  };
+
+const defaultStyle: TGroupStyle = {
   background: "rgba(100, 100, 100, 0.1)",
   border: "rgba(100, 100, 100, 0.3)",
   borderWidth: 2,
@@ -45,13 +47,31 @@ const defaultViewState: TGroupViewState = {
   selectedTextColor: "rgba(100, 100, 100, 0.9)",
 };
 
+const defaultGeometry: TGroupGeometry = {
+  padding: [20, 20, 20, 20],
+};
+
 export class Group extends GraphComponent<TGroupProps, TGroupState, TGraphLayerContext> {
-  public static define(state: Partial<TGroupViewState>) {
+  public static define(config: { style?: Partial<TGroupStyle>; geometry?: Partial<TGroupGeometry> }) {
     return class SpecificGroup extends Group {
-      protected viewState = {
-        ...defaultViewState,
-        ...state,
-      };
+      constructor(props: TGroupProps, parent: BlockGroups) {
+        super(
+          {
+            ...props,
+            style: {
+              ...defaultStyle,
+              ...config.style,
+              ...props.style,
+            },
+            geometry: {
+              ...defaultGeometry,
+              ...config.geometry,
+              ...props.geometry,
+            },
+          },
+          parent
+        );
+      }
     };
   }
 
@@ -61,15 +81,25 @@ export class Group extends GraphComponent<TGroupProps, TGroupState, TGraphLayerC
 
   public declare context: TGraphLayerContext;
   protected blocks: BlockState[] = [];
-
   protected groupState: GroupState | undefined;
-
   public cursor = "pointer";
 
-  protected viewState = defaultViewState;
+  protected style: TGroupStyle;
+  protected geometry: TGroupGeometry;
 
   constructor(props: TGroupProps, parent: BlockGroups) {
     super(props, parent);
+
+    this.style = {
+      ...defaultStyle,
+      ...props.style,
+    };
+
+    this.geometry = {
+      ...defaultGeometry,
+      ...props.geometry,
+    };
+
     this.subscribeToGroup();
 
     this.addEventListener("click", (event: MouseEvent) => {
@@ -85,7 +115,7 @@ export class Group extends GraphComponent<TGroupProps, TGroupState, TGraphLayerC
         this.cursor = "grabbing";
       },
       onDragUpdate: ({ diffX, diffY }) => {
-        if (this.viewState.draggable) {
+        if (this.props.draggable) {
           const rect = {
             x: this.state.rect.x - diffX,
             y: this.state.rect.y - diffY,
@@ -96,7 +126,7 @@ export class Group extends GraphComponent<TGroupProps, TGroupState, TGraphLayerC
             rect,
           });
           this.updateHitBox(rect);
-          if (this.viewState.updateBlocksOnDrag) {
+          if (this.props.updateBlocksOnDrag) {
             this.props.onDragUpdate(this.props.id, { diffX, diffY });
           }
         }
@@ -108,7 +138,7 @@ export class Group extends GraphComponent<TGroupProps, TGroupState, TGraphLayerC
   }
 
   protected getRect(rect = this.state.rect) {
-    const [paddingTop, paddingRight, paddingBottom, paddingLeft] = this.viewState.padding;
+    const [paddingTop, paddingRight, paddingBottom, paddingLeft] = this.geometry.padding;
     return {
       x: rect.x - paddingLeft,
       y: rect.y - paddingTop,
@@ -139,9 +169,9 @@ export class Group extends GraphComponent<TGroupProps, TGroupState, TGraphLayerC
     const rect = this.getRect();
 
     // Настраиваем стиль для группы
-    ctx.strokeStyle = this.state.selected ? this.viewState.selectedBorder : this.viewState.border;
-    ctx.fillStyle = this.state.selected ? this.viewState.selectedBackground : this.viewState.background;
-    ctx.lineWidth = this.viewState.borderWidth;
+    ctx.strokeStyle = this.state.selected ? this.style.selectedBorder : this.style.border;
+    ctx.fillStyle = this.state.selected ? this.style.selectedBackground : this.style.background;
+    ctx.lineWidth = this.style.borderWidth;
 
     // Рисуем прямоугольник группы
     ctx.beginPath();
@@ -151,7 +181,7 @@ export class Group extends GraphComponent<TGroupProps, TGroupState, TGraphLayerC
 
     // Рисуем название группы в правом верхнем углу
     if (this.state.name) {
-      ctx.fillStyle = this.state.selected ? this.viewState.selectedTextColor : this.viewState.textColor;
+      ctx.fillStyle = this.state.selected ? this.style.selectedTextColor : this.style.textColor;
       ctx.font = "14px Arial";
       ctx.textAlign = "right";
       ctx.textBaseline = "top";
