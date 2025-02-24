@@ -17,16 +17,15 @@ const AutoGroups = BlockGroups.withBlockGrouping({
   groupingFn: (blocks) => {
     const groups = {};
     blocks.forEach(block => {
-      const groupName = block.type; // or any other property
-      if (!groups[groupName]) groups[groupName] = [];
-      groups[groupName].push(block);
+      const groupId = block.type; // or any other property
+      if (!groups[groupId]) groups[groupId] = [];
+      groups[groupId].push(block);
     });
     return groups;
   },
   // Set how groups look
-  mapToGroups: (name, { rect }) => ({
-    id: name,
-    name: `Group ${name}`,
+  mapToGroups: (groupId, { rect }) => ({
+    id: groupId,
     rect,
     style: {
       background: "rgba(0, 100, 200, 0.1)"
@@ -59,7 +58,6 @@ const groups = graph.addLayer(BlockGroups, {
 blockGroups.setGroups([
   {
     id: "group1",
-    name: "Group 1",
     rect: { x: 0, y: 0, width: 100, height: 100 },
     style: {
       background: "rgba(0, 100, 200, 0.1)"
@@ -91,7 +89,6 @@ const areas = graph.addLayer(BlockGroups, {
 areas.setGroups([
   {
     id: "area1",
-    name: "Left Area",
     rect: { x: 0, y: 0, width: 800, height: 400 },
     style: {
       background: "rgba(100, 149, 237, 0.1)",
@@ -100,7 +97,6 @@ areas.setGroups([
   },
   {
     id: "area2",
-    name: "Right Area",
     rect: { x: 800, y: 0, width: 800, height: 400 },
     style: {
       background: "rgba(144, 238, 144, 0.1)",
@@ -149,7 +145,7 @@ You can control how groups work:
 
 1. **Group Identification**
    - Give each group a unique ID
-   - Use clear names that describe the group
+   - Use clear descriptions for groups
 
 2. **Style Customization**
    - Use semi-transparent colors for better visual hierarchy
@@ -181,7 +177,6 @@ updateGroups(groups: TGroup[]): void;
 // What you can set in a group
 {
   id: string;          // unique group ID
-  name: string;        // group name
   rect: {             // where and how big
     x: number;
     y: number;
@@ -214,11 +209,11 @@ class CustomGroup extends Group<ExtendedTGroup> {
     const ctx = this.context.ctx;
     const rect = this.getRect();
 
-    // Draw description below group name
+    // Draw description
     if (this.state.description) {
       ctx.font = "12px Arial";
       ctx.fillStyle = this.style.textColor;
-      ctx.fillText(this.state.description, rect.x + 10, rect.y + 40);
+      ctx.fillText(this.state.description, rect.x + 10, rect.y + 25);
     }
 
     // Draw priority in top right corner
@@ -242,14 +237,12 @@ const blockGroups = graph.addLayer(BlockGroups, {
 blockGroups.setGroups([
   {
     id: "group1",
-    name: "Important Group",
     description: "Contains critical blocks",
     priority: 1,
     rect: { x: 0, y: 0, width: 800, height: 400 }
   },
   {
     id: "group2",
-    name: "Regular Group",
     description: "Contains regular blocks",
     priority: 2,
     rect: { x: 850, y: 0, width: 800, height: 400 }
@@ -259,24 +252,24 @@ blockGroups.setGroups([
 
 ## Examples
 
-You can find complete working examples in our Storybook stories:
+Вы можете найти полные рабочие примеры в наших Storybook историях:
 
-1. **Basic Groups** (`default.stories.tsx`)
+1. **Basic Groups** ([`default.stories.tsx`](https://github.com/aschetinin/graph/blob/main/src/stories/canvas/groups/default.stories.tsx))
    - Shows basic usage of automatic groups
    - Groups are created based on block properties
    - Demonstrates group styling and behavior
 
-2. **Large Graph** (`large.stories.tsx`)
+2. **Large Graph** ([`large.stories.tsx`](https://github.com/aschetinin/graph/blob/main/src/stories/canvas/groups/large.stories.tsx))
    - Shows how to work with many blocks (225+)
    - Automatically groups every 10 blocks
    - Demonstrates performance with multiple groups
 
-3. **Manual Groups** (`manual.stories.tsx`)
+3. **Manual Groups** ([`manual.stories.tsx`](https://github.com/aschetinin/graph/blob/main/src/stories/canvas/groups/manual.stories.tsx))
    - Shows how to create fixed area groups
    - Creates non-draggable zones with different colors
    - Demonstrates manual group management
 
-4. **Extended Groups** (`extended.stories.tsx`)
+4. **Extended Groups** ([`extended.stories.tsx`](https://github.com/aschetinin/graph/blob/main/src/stories/canvas/groups/extended.stories.tsx))
    - Shows how to create custom groups with extended properties
    - Adds description and priority to groups
    - Demonstrates custom rendering and styling
