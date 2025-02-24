@@ -17,7 +17,6 @@ import { CameraService } from "./services/camera/CameraService";
 import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
-import { TGroup } from "./store/group/Group";
 import { TGraphSettingsConfig } from "./store/settings";
 import { getXY } from "./utils/functions";
 import { clearTextCache } from "./utils/renderers/text";
@@ -198,11 +197,9 @@ export class Graph {
   public updateEntities({
     blocks,
     connections,
-    groups,
   }: Partial<{
     blocks?: TBlock[];
     connections?: TConnection[];
-    groups?: TGroup[];
   }>) {
     batch(() => {
       if (blocks?.length) {
@@ -211,34 +208,19 @@ export class Graph {
       if (connections?.length) {
         this.rootStore.connectionsList.updateConnections(connections);
       }
-      if (groups?.length) {
-        this.rootStore.groupsList.updateGroups(groups);
-      }
     });
   }
 
-  public setEntities(
-    {
-      blocks,
-      connections,
-      groups,
-    }: Partial<{
-      blocks?: TBlock[];
-      connections?: TConnection[];
-      groups?: TGroup[];
-    }>,
-    force?: boolean
-  ) {
+  public setEntities({
+    blocks,
+    connections,
+  }: Partial<{
+    blocks?: TBlock[];
+    connections?: TConnection[];
+  }>) {
     batch(() => {
-      if (blocks || force) {
-        this.rootStore.blocksList.setBlocks(blocks || []);
-      }
-      if (connections || force) {
-        this.rootStore.connectionsList.setConnections(connections || []);
-      }
-      if (groups || force) {
-        this.rootStore.groupsList.setGroups(groups || []);
-      }
+      this.rootStore.blocksList.setBlocks(blocks || []);
+      this.rootStore.connectionsList.setConnections(connections || []);
     });
   }
 

@@ -120,6 +120,7 @@ export class BlockGroups extends Layer<BlockGroupsProps, BlockGroupsContext, Blo
 
   protected unmountLayer(): void {
     this.context.camera.off("update", this.requestRender);
+    this.props.graph.rootStore.groupsList.reset();
   }
 
   protected requestRender = () => {
