@@ -15,8 +15,6 @@ export type TGroupStyle = {
   borderWidth: number;
   selectedBackground: string;
   selectedBorder: string;
-  textColor: string;
-  selectedTextColor: string;
 };
 
 export type TGroupGeometry = {
@@ -43,8 +41,6 @@ const defaultStyle: TGroupStyle = {
   borderWidth: 2,
   selectedBackground: "rgba(100, 100, 100, 1)",
   selectedBorder: "rgba(100, 100, 100, 1)",
-  textColor: "rgba(100, 100, 100, 0.7)",
-  selectedTextColor: "rgba(100, 100, 100, 0.9)",
 };
 
 const defaultGeometry: TGroupGeometry = {
@@ -52,7 +48,7 @@ const defaultGeometry: TGroupGeometry = {
 };
 
 export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps, TGroupState<T>, TGraphLayerContext> {
-  public static define(config: { style?: Partial<TGroupStyle>; geometry?: Partial<TGroupGeometry> }) {
+  public static define(config: { style?: Partial<TGroupStyle>; geometry?: Partial<TGroupGeometry> }): typeof Group {
     return class SpecificGroup<T extends TGroup = TGroup> extends Group<T> {
       constructor(props: TGroupProps, parent: BlockGroups) {
         super(
@@ -178,14 +174,5 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     ctx.roundRect(rect.x, rect.y, rect.width, rect.height, 8);
     ctx.fill();
     ctx.stroke();
-
-    // Рисуем название группы в правом верхнем углу
-    if (this.state.name) {
-      ctx.fillStyle = this.state.selected ? this.style.selectedTextColor : this.style.textColor;
-      ctx.font = "14px Arial";
-      ctx.textAlign = "right";
-      ctx.textBaseline = "top";
-      ctx.fillText(this.state.name, rect.x - 10, rect.y + 10);
-    }
   }
 }

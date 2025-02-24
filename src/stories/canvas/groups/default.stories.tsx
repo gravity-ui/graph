@@ -94,7 +94,6 @@ const GroupsLayer = BlockGroups.withBlockGrouping({
   mapToGroups: (grounId: string, { rect }) => ({
     id: grounId,
     rect,
-    name: grounId,
     component: MyGroup,
   }),
 });
@@ -136,16 +135,3 @@ const meta: Meta = {
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
-Default.parameters = {
-  docs: {
-    description: {
-      story: `
-This example shows basic usage of groups:
-- Creates blocks with predefined groups
-- Groups are automatically created based on block properties
-- Groups can be dragged
-- When you drag a group, all blocks in it move together
-`,
-    },
-  },
-};

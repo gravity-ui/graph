@@ -26,7 +26,6 @@ const GroupsLayer = BlockGroups.withBlockGrouping({
   mapToGroups: (grounId: string, { rect }) => ({
     id: grounId,
     rect,
-    name: grounId,
     component: MyGroup,
   }),
 });
@@ -74,17 +73,3 @@ const meta: Meta = {
 export default meta;
 
 export const LargeGroupedGraph: StoryFn = () => <LargeGraphApp />;
-LargeGroupedGraph.parameters = {
-  docs: {
-    description: {
-      story: `
-This example shows how to work with many blocks:
-- Creates 225 blocks with connections between them
-- Puts every 10 blocks into one group
-- Groups can be dragged
-- When you drag a group, all blocks in it move together
-- Some connections are dashed (randomly)
-`,
-    },
-  },
-};

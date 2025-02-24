@@ -25,7 +25,7 @@ class CustomGroup extends Group<ExtendedTGroup> {
     // Отрисовываем описание под названием группы
     if (this.state.description) {
       ctx.font = "12px Arial";
-      ctx.fillStyle = this.style.textColor;
+      ctx.fillStyle = this.context.colors.block.text;
       ctx.fillText(this.state.description, rect.x + 10, rect.y + 40);
     }
 
@@ -54,14 +54,12 @@ const ExtendedGroupsApp = () => {
     blockGroups.setGroups([
       {
         id: "group1",
-        name: "Left Area",
         description: "Left Area description",
         priority: 1,
         rect: { x: 0, y: 0, width: 800, height: 400 },
       },
       {
         id: "group2",
-        name: "Right Area",
         description: "Right Area description",
         priority: 2,
         rect: { x: 850, y: 0, width: 800, height: 400 },
@@ -96,17 +94,3 @@ const meta: Meta = {
 export default meta;
 
 export const ExtendedGroups: StoryFn = () => <ExtendedGroupsApp />;
-ExtendedGroups.parameters = {
-  docs: {
-    description: {
-      story: `
-This example shows how to create custom groups with extended properties:
-- Extends TGroup type with description and priority
-- Creates custom group component that renders these properties
-- Shows two groups with different priority levels
-- Each group displays its description and priority number
-- Groups are styled based on their priority
-- Groups can be dragged and blocks move with them`,
-    },
-  },
-};

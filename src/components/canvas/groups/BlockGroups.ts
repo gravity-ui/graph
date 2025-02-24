@@ -38,8 +38,8 @@ export class BlockGroups extends Layer<BlockGroupsProps, BlockGroupsContext, Blo
   }: {
     groupingFn: (blocks: BlockState[]) => Record<string, BlockState[]>;
     mapToGroups: (key: string, params: { blocks: BlockState[]; rect: TRect }) => TGroup;
-  }) {
-    return class extends BlockGroups {
+  }): typeof BlockGroups {
+    return class BlockGroupWithGrouping extends BlockGroups {
       public $groupsBlocksMap = computed(() => {
         const blocks = this.props.graph.rootStore.blocksList.$blocks.value;
         return groupingFn(blocks);

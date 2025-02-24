@@ -9,7 +9,6 @@ export type TGroupId = string;
 
 export interface TGroup {
   id: TGroupId;
-  name: string;
   rect: TRect;
   selected?: boolean;
   component?: typeof Group;
@@ -18,7 +17,6 @@ export interface TGroup {
 export class GroupState {
   public $state = signal<TGroup>({
     id: "" as TGroupId,
-    name: "",
     selected: false,
     rect: {
       x: 0,

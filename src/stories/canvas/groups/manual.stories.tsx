@@ -40,13 +40,11 @@ const ManualGroupsApp = () => {
     blockGroups.setGroups([
       {
         id: "group1",
-        name: "Left Area",
         rect: { x: 0, y: 0, width: 800, height: 400 },
         component: LeftGroup,
       },
       {
         id: "group2",
-        name: "Right Area",
         rect: { x: 800, y: 0, width: 800, height: 400 },
         component: RightGroup,
       },
@@ -79,27 +77,4 @@ const meta: Meta = {
 
 export default meta;
 
-/**
- * Shows how to create fixed area groups that automatically contain blocks based on their position.
- * Groups act as visual areas and cannot be moved.
- * Note: Dragging such groups is not recommended as this behavior is not yet implemented properly.
- * The groups should stay fixed while blocks can move freely between them.
- */
 export const ManualGroups: StoryFn = () => <ManualGroupsApp />;
-ManualGroups.parameters = {
-  docs: {
-    description: {
-      story: `
-This example shows how to create fixed area groups:
-- Creates two non-draggable areas with different colors
-- Left area (blue) automatically contains blocks with x < 800
-- Right area (green) automatically contains blocks with x >= 800
-- Areas stay fixed while blocks can be moved between them
-- Useful for creating zones or regions in the graph
-
-Note: Do not enable dragging for such area groups as this behavior is not yet implemented.
-The groups should remain fixed in their positions while blocks can be freely moved between them.
-`,
-    },
-  },
-};
