@@ -9,7 +9,6 @@ export class EventedComponent<
   State extends TComponentState = TComponentState,
   Context extends TComponentContext = TComponentContext,
 > extends Component<Props, State, Context> {
-
   public readonly evented: boolean = true;
 
   public readonly cursor?: string;

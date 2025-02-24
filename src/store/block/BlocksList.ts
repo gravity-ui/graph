@@ -1,5 +1,4 @@
 import { batch, computed, effect, signal } from "@preact/signals-core";
-import { groupBy } from "lodash";
 import throttle from "lodash/throttle";
 
 import { AnchorState } from "store/anchor/Anchor";

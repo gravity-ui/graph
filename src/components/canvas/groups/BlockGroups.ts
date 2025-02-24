@@ -123,7 +123,6 @@ export class BlockGroups extends Layer<BlockGroupsProps, BlockGroupsContext, Blo
   }
 
   protected requestRender = () => {
-    console.log("requestRender");
     this.performRender();
   };
 

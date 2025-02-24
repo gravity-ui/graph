@@ -1,7 +1,5 @@
 import { useLayoutEffect, useMemo } from "react";
 
-import { batch } from "@preact/signals-core";
-
 import { ZoomConfig } from "../../api/PublicGraphApi";
 import type { TBlock } from "../../components/canvas/blocks/Block";
 import { Graph, GraphState, TGraphConfig } from "../../graph";

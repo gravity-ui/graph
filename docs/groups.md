@@ -141,26 +141,6 @@ You can control how groups work:
 }
 ```
 
-## Best Practices
-
-1. **Group Identification**
-   - Give each group a unique ID
-   - Use clear descriptions for groups
-
-2. **Style Customization**
-   - Use semi-transparent colors for better visual hierarchy
-   - Keep consistent styling across similar groups
-
-3. **Performance**
-   - Don't make too many groups
-   - Use simple rules for automatic groups
-
-4. **Behavior**
-   - Think about whether blocks should move with groups
-   - Don't make everything draggable - it can confuse users
-   - Use fixed area groups when you need to define zones that shouldn't move
-   - Remember that dragging is not yet implemented for fixed area groups
-
 ## API Reference
 
 ### BlockGroups Methods
