@@ -10,7 +10,6 @@ import { BlockStory } from "../../main/Block";
 
 const createConfig = () => {
   const blocks: TBlock[] = [
-    // Группа 1
     {
       id: "block1",
       is: "block",
@@ -35,7 +34,6 @@ const createConfig = () => {
       selected: false,
       anchors: [],
     },
-    // Группа 2
     {
       id: "block3",
       is: "block",
@@ -60,7 +58,6 @@ const createConfig = () => {
       selected: false,
       anchors: [],
     },
-    // Блок без группы
     {
       id: "block5",
       is: "block",

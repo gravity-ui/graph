@@ -19,3 +19,5 @@ export { EVENTS } from "./utils/types/events";
 export { type TPoint, type TRect } from "./utils/types/shapes";
 export { ESelectionStrategy } from "./utils/types/types";
 export * from "./utils/shapes";
+
+export * from "./components/canvas/groups";

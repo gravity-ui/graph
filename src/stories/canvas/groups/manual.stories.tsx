@@ -36,7 +36,6 @@ const ManualGroupsApp = () => {
       updateBlocksOnDrag: false,
     });
 
-    // Создаем группы вручную
     blockGroups.setGroups([
       {
         id: "group1",

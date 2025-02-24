@@ -46,10 +46,9 @@ const LargeGraphApp = () => {
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {
-      // Добавляем группы к блокам
       config.blocks = config.blocks.map((block, index) => ({
         ...block,
-        group: `group${Math.floor(index / 10)}`, // Каждые 10 блоков в одной группе
+        group: `group${Math.floor(index / 10)}`,
       }));
 
       setEntities(config);

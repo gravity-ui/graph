@@ -22,14 +22,12 @@ class CustomGroup extends Group<ExtendedTGroup> {
     const ctx = this.context.ctx;
     const rect = this.getRect();
 
-    // Отрисовываем описание под названием группы
     if (this.state.description) {
       ctx.font = "12px Arial";
       ctx.fillStyle = this.context.colors.block.text;
       ctx.fillText(this.state.description, rect.x + 10, rect.y + 40);
     }
 
-    // Отрисовываем приоритет в правом верхнем углу
     if (this.state.priority) {
       ctx.font = "bold 14px Arial";
       const text = `P${this.state.priority}`;
@@ -50,7 +48,6 @@ const ExtendedGroupsApp = () => {
       groupComponent: CustomGroup,
     });
 
-    // Создаем группы вручную
     blockGroups.setGroups([
       {
         id: "group1",
