@@ -15,7 +15,6 @@ export type BlockGroupsProps<T extends TGroup = TGroup> = LayerProps & {
   mapBlockGroups?: (blocks: BlockState[]) => GroupState[];
   groupComponent?: typeof Group<T>;
   draggable?: boolean;
-  updateBlocksOnDrag?: boolean;
 };
 
 export type BlockGroupsContext = LayerContext & {
@@ -31,21 +30,21 @@ export type BlockGroupsState = TComponentState & {
   groups: GroupState[];
 };
 
-export class BlockGroups extends Layer<BlockGroupsProps, BlockGroupsContext, BlockGroupsState> {
+export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends Layer<P, BlockGroupsContext, BlockGroupsState> {
   public static withBlockGrouping({
     groupingFn,
     mapToGroups,
   }: {
     groupingFn: (blocks: BlockState[]) => Record<string, BlockState[]>;
     mapToGroups: (key: string, params: { blocks: BlockState[]; rect: TRect }) => TGroup;
-  }): typeof BlockGroups {
-    return class BlockGroupWithGrouping extends BlockGroups {
+  }): typeof BlockGroups<BlockGroupsProps & { updateBlocksOnDrag?: boolean }> {
+    return class BlockGroupWithGrouping extends BlockGroups<BlockGroupsProps & { updateBlocksOnDrag?: boolean }> {
       public $groupsBlocksMap = computed(() => {
         const blocks = this.props.graph.rootStore.blocksList.$blocks.value;
         return groupingFn(blocks);
       });
 
-      constructor(props: BlockGroupsProps) {
+      constructor(props: BlockGroupsProps & { updateBlocksOnDrag?: boolean }) {
         super(props);
         this.unsubscribe.push(
           computed(() => {
@@ -67,7 +66,7 @@ export class BlockGroups extends Layer<BlockGroupsProps, BlockGroupsContext, Blo
 
   protected $groupsSource = this.props.graph.rootStore.groupsList.$groups;
 
-  constructor(props: BlockGroupsProps) {
+  constructor(props: P) {
     super({
       canvas: {
         zIndex: 1,
@@ -105,7 +104,7 @@ export class BlockGroups extends Layer<BlockGroupsProps, BlockGroupsContext, Blo
     const blocks = this.$groupsBlocksMap.value[groupId];
     if (blocks) {
       blocks.forEach((block) => {
-        block.updateXY(block.x - diffX, block.y - diffY);
+        block.updateXY(block.x - diffX, block.y - diffY, true);
       });
     }
   };

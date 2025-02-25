@@ -36,7 +36,7 @@ const AutoGroups = BlockGroups.withBlockGrouping({
 // Add groups to graph
 graph.addLayer(AutoGroups, {
   draggable: true,  // groups can be moved
-  updateBlocksOnDrag: true  // blocks move with group
+  updateBlocksOnDrag: true  // blocks move with group. Works only if group is draggable and used Automatic Groups 
 });
 ```
 
@@ -51,7 +51,6 @@ Use direct `BlockGroups` methods when you need manual control over groups. This 
 // Add groups to graph
 const groups = graph.addLayer(BlockGroups, {
   draggable: true,
-  updateBlocksOnDrag: true
 });
 
 // Set groups
@@ -82,7 +81,6 @@ blockGroups.updateGroups([
 // Add fixed area groups to graph
 const areas = graph.addLayer(BlockGroups, {
   draggable: false,  // areas cannot be moved
-  updateBlocksOnDrag: false  // blocks move independently
 });
 
 // Create fixed areas
@@ -119,8 +117,6 @@ You can change how groups look:
   borderWidth: 2,                             // border thickness
   selectedBackground: "rgba(100, 100, 100, 1)", // color when selected
   selectedBorder: "rgba(100, 100, 100, 1)",    // border when selected
-  textColor: "rgba(100, 100, 100, 0.7)",      // text color
-  selectedTextColor: "rgba(100, 100, 100, 0.9)" // text color when selected
 }
 ```
 

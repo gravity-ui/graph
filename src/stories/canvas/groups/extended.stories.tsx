@@ -41,7 +41,6 @@ const ExtendedGroupsApp = () => {
   useEffect(() => {
     const blockGroups = graph.addLayer(BlockGroups, {
       draggable: false,
-      updateBlocksOnDrag: false,
       groupComponent: CustomGroup,
     });
 

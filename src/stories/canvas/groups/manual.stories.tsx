@@ -32,7 +32,6 @@ const ManualGroupsApp = () => {
   useEffect(() => {
     const blockGroups = graph.addLayer(BlockGroups, {
       draggable: false,
-      updateBlocksOnDrag: false,
     });
 
     blockGroups.setGroups([

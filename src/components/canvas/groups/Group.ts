@@ -2,6 +2,8 @@ import { TComponentState } from "../../../lib/Component";
 import { BlockState } from "../../../store/block/Block";
 import { GroupState, TGroup, TGroupId } from "../../../store/group/Group";
 import { isMetaKeyEvent } from "../../../utils/functions";
+import { TMeasureTextOptions } from "../../../utils/functions/text";
+import { layoutText } from "../../../utils/renderers/text";
 import { TRect } from "../../../utils/types/shapes";
 import { ESelectionStrategy } from "../../../utils/types/types";
 import { GraphComponent } from "../GraphComponent";
@@ -107,9 +109,6 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     });
 
     this.onDrag({
-      onDragStart: (_event) => {
-        this.cursor = "grabbing";
-      },
       onDragUpdate: ({ diffX, diffY }) => {
         if (this.props.draggable) {
           const rect = {
@@ -126,9 +125,6 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
             this.props.onDragUpdate(this.props.id, { diffX, diffY });
           }
         }
-      },
-      onDrop: () => {
-        this.cursor = "pointer";
       },
     });
   }
@@ -160,11 +156,16 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     this.setHitBox(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
   }
 
-  protected render() {
-    const ctx = this.context.ctx;
-    const rect = this.getRect();
+  protected layoutText(text: string, textParams?: TMeasureTextOptions) {
+    const currentRect = this.getRect();
+    return layoutText(text, this.context.ctx, currentRect, {
+      maxWidth: currentRect.width,
+      maxHeight: currentRect.height,
+      ...textParams,
+    });
+  }
 
-    // Настраиваем стиль для группы
+  protected renderBody(ctx: CanvasRenderingContext2D, rect = this.getRect()) {
     ctx.strokeStyle = this.state.selected ? this.style.selectedBorder : this.style.border;
     ctx.fillStyle = this.state.selected ? this.style.selectedBackground : this.style.background;
     ctx.lineWidth = this.style.borderWidth;
@@ -174,5 +175,9 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     ctx.roundRect(rect.x, rect.y, rect.width, rect.height, 8);
     ctx.fill();
     ctx.stroke();
+  }
+
+  protected render() {
+    this.renderBody(this.context.ctx, this.getRect());
   }
 }

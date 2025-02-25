@@ -228,8 +228,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.renderOrder;
   }
 
-  public updatePosition(x: number, y: number) {
-    this.connectedState.updateXY(x, y);
+  public updatePosition(x: number, y: number, silent = false) {
+    if (!silent) {
+      this.connectedState.updateXY(x, y);
+    }
     this.setState({ x, y });
   }
 
