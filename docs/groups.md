@@ -133,7 +133,7 @@ You can control how groups work:
 ```typescript
 {
   draggable: true,           // can move group with mouse
-  updateBlocksOnDrag: true   // blocks move when group moves
+  updateBlocksOnDrag: true   // blocks move with group. Works only if group is draggable and used Automatic Groups 
 }
 ```
 
@@ -205,7 +205,6 @@ class CustomGroup extends Group<ExtendedTGroup> {
 // 3. Create groups with extended properties
 const blockGroups = graph.addLayer(BlockGroups, {
   draggable: false,
-  updateBlocksOnDrag: false,
   groupComponent: CustomGroup, // Use our custom component
 });
 

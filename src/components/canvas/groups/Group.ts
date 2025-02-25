@@ -1,7 +1,8 @@
 import { TComponentState } from "../../../lib/Component";
 import { BlockState } from "../../../store/block/Block";
 import { GroupState, TGroup, TGroupId } from "../../../store/group/Group";
-import { isMetaKeyEvent } from "../../../utils/functions";
+import { ECanChangeBlockGeometry } from "../../../store/settings";
+import { isAllowChangeBlockGeometry, isMetaKeyEvent } from "../../../utils/functions";
 import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { layoutText } from "../../../utils/renderers/text";
 import { TRect } from "../../../utils/types/shapes";
@@ -29,7 +30,6 @@ export type TGroupProps = {
   style?: Partial<TGroupStyle>;
   geometry?: Partial<TGroupGeometry>;
   draggable?: boolean;
-  updateBlocksOnDrag?: boolean;
 };
 
 type TGroupState<T extends TGroup = TGroup> = TComponentState &
@@ -110,7 +110,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
 
     this.onDrag({
       onDragUpdate: ({ diffX, diffY }) => {
-        if (this.props.draggable) {
+        if (this.isDraggable()) {
           const rect = {
             x: this.state.rect.x - diffX,
             y: this.state.rect.y - diffY,
@@ -121,12 +121,20 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
             rect,
           });
           this.updateHitBox(rect);
-          if (this.props.updateBlocksOnDrag) {
-            this.props.onDragUpdate(this.props.id, { diffX, diffY });
-          }
+          this.props.onDragUpdate(this.props.id, { diffX, diffY });
         }
       },
     });
+  }
+
+  protected isDraggable() {
+    return (
+      this.props.draggable &&
+      isAllowChangeBlockGeometry(
+        this.context.graph.rootStore.settings.getConfigFlag("canChangeBlockGeometry") as ECanChangeBlockGeometry,
+        this.state.selected
+      )
+    );
   }
 
   protected getRect(rect = this.state.rect) {

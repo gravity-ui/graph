@@ -30,7 +30,11 @@ export type BlockGroupsState = TComponentState & {
   groups: GroupState[];
 };
 
-export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends Layer<P, BlockGroupsContext, BlockGroupsState> {
+export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends Layer<
+  P,
+  BlockGroupsContext,
+  BlockGroupsState
+> {
   public static withBlockGrouping({
     groupingFn,
     mapToGroups,
@@ -101,11 +105,13 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
   }
 
   public updateBlocks = (groupId: TGroupId, { diffX, diffY }: { diffX: number; diffY: number }) => {
-    const blocks = this.$groupsBlocksMap.value[groupId];
-    if (blocks) {
-      blocks.forEach((block) => {
-        block.updateXY(block.x - diffX, block.y - diffY, true);
-      });
+    if ((this.props as BlockGroupsProps & { updateBlocksOnDrag?: boolean }).updateBlocksOnDrag) {
+      const blocks = this.$groupsBlocksMap.value[groupId];
+      if (blocks) {
+        blocks.forEach((block) => {
+          block.updateXY(block.x - diffX, block.y - diffY, true);
+        });
+      }
     }
   };
 
@@ -141,7 +147,6 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
           id: group.id,
           onDragUpdate: this.updateBlocks,
           draggable: this.props.draggable || false,
-          updateBlocksOnDrag: this.props.updateBlocksOnDrag || false,
         },
         { key: group.id }
       );
