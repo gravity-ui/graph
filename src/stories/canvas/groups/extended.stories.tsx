@@ -67,7 +67,7 @@ const ExtendedGroupsApp = () => {
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {
-      setEntities(generatePrettyBlocks(5, 10, true));
+      setEntities(generatePrettyBlocks({ layersCount: 5, connectionsPerLayer: 10 }));
       start();
       graph.zoomTo("center", { padding: 100 });
     }

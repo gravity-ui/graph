@@ -45,7 +45,7 @@ const LargeGraphApp = () => {
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {
-      const config = generatePrettyBlocks(15, 50, true);
+      const config = generatePrettyBlocks({ layersCount: 15, connectionsPerLayer: 50 });
       config.blocks = config.blocks.map((block, index) => ({
         ...block,
         group: `group${Math.floor(index / 10)}`,
