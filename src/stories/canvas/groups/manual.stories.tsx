@@ -28,7 +28,6 @@ const RightGroup = Group.define({
 
 const ManualGroupsApp = () => {
   const { graph, setEntities, start } = useGraph({});
-  const config = generatePrettyBlocks(5, 10, true);
 
   useEffect(() => {
     const blockGroups = graph.addLayer(BlockGroups, {
@@ -56,7 +55,7 @@ const ManualGroupsApp = () => {
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {
-      setEntities(config);
+      setEntities(generatePrettyBlocks(5, 10, true));
       start();
       graph.zoomTo("center", { padding: 100 });
     }
@@ -70,7 +69,7 @@ const ManualGroupsApp = () => {
 };
 
 const meta: Meta = {
-  title: "Canvas/Groups/Manual",
+  title: "Canvas/Groups",
   component: ManualGroupsApp,
 };
 

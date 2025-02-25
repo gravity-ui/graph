@@ -141,7 +141,7 @@ export class Layer<
   }
 
   public detachLayer() {
-    this.unmountLayer();
+    this.unmount();
     this.root = undefined;
     this.cameraSubscription?.();
   }

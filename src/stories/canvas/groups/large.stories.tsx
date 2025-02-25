@@ -32,7 +32,6 @@ const GroupsLayer = BlockGroups.withBlockGrouping({
 
 const LargeGraphApp = () => {
   const { graph, setEntities, start } = useGraph({});
-  const config = generatePrettyBlocks(15, 50, true);
 
   useEffect(() => {
     const layer = graph.addLayer(GroupsLayer, {
@@ -46,6 +45,7 @@ const LargeGraphApp = () => {
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {
+      const config = generatePrettyBlocks(15, 50, true);
       config.blocks = config.blocks.map((block, index) => ({
         ...block,
         group: `group${Math.floor(index / 10)}`,
@@ -65,7 +65,7 @@ const LargeGraphApp = () => {
 };
 
 const meta: Meta = {
-  title: "Canvas/Groups/Large",
+  title: "Canvas/Groups",
   component: LargeGraphApp,
 };
 

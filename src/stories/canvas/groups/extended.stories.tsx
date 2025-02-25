@@ -9,13 +9,11 @@ import { useFn } from "../../../utils/hooks/useFn";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 
-// Определяем расширенный тип группы
 interface ExtendedTGroup extends TGroup {
   description: string;
   priority: number;
 }
 
-// Создаем кастомный компонент группы
 class CustomGroup extends Group<ExtendedTGroup> {
   protected override render() {
     super.render();
@@ -39,7 +37,6 @@ class CustomGroup extends Group<ExtendedTGroup> {
 
 const ExtendedGroupsApp = () => {
   const { graph, setEntities, start } = useGraph({});
-  const config = generatePrettyBlocks(5, 10, true);
 
   useEffect(() => {
     const blockGroups = graph.addLayer(BlockGroups, {
@@ -70,7 +67,7 @@ const ExtendedGroupsApp = () => {
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {
-      setEntities(config);
+      setEntities(generatePrettyBlocks(5, 10, true));
       start();
       graph.zoomTo("center", { padding: 100 });
     }
@@ -84,7 +81,7 @@ const ExtendedGroupsApp = () => {
 };
 
 const meta: Meta = {
-  title: "Canvas/Groups/Extended",
+  title: "Canvas/Groups",
   component: ExtendedGroupsApp,
 };
 
