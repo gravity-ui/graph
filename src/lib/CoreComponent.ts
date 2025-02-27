@@ -77,9 +77,9 @@ export class CoreComponent<
     return this.__comp.iterateId === this.__comp.context.globalIterateId;
   }
 
-  public performRender() {
+  public performRender = () => {
     this.__comp.context.scheduler.scheduleUpdate();
-  }
+  };
 
   public getParent(): CoreComponent | undefined {
     return this.__comp.parent;
