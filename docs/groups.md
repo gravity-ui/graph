@@ -227,7 +227,7 @@ blockGroups.setGroups([
 
 ## Examples
 
-Вы можете найти полные рабочие примеры в наших Storybook историях:
+You can find complete working examples in our Storybook stories:
 
 1. **Basic Groups** ([`default.stories.tsx`](https://github.com/aschetinin/graph/blob/main/src/stories/canvas/groups/default.stories.tsx))
    - Shows basic usage of automatic groups

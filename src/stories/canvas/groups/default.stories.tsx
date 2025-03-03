@@ -4,7 +4,16 @@ import type { Meta, StoryFn } from "@storybook/react";
 import groupBy from "lodash/groupBy";
 
 import { BlockGroups, Group } from "../../../components/canvas/groups";
-import { BlockState, Graph, GraphCanvas, GraphState, TBlock, useGraph, useGraphEvent } from "../../../index";
+import {
+  BlockState,
+  ECanChangeBlockGeometry,
+  Graph,
+  GraphCanvas,
+  GraphState,
+  TBlock,
+  useGraph,
+  useGraphEvent,
+} from "../../../index";
 import { useFn } from "../../../utils/hooks/useFn";
 import { BlockStory } from "../../main/Block";
 
@@ -96,7 +105,11 @@ const GroupsLayer = BlockGroups.withBlockGrouping({
 });
 
 const GraphApp = () => {
-  const { graph, setEntities, start } = useGraph({});
+  const { graph, setEntities, start } = useGraph({
+    settings: {
+      canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
+    },
+  });
   const config = createConfig();
 
   useEffect(() => {
