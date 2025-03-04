@@ -21,3 +21,6 @@ export { ESelectionStrategy } from "./utils/types/types";
 export * from "./utils/shapes";
 
 export * from "./components/canvas/groups";
+
+export * from "./components/canvas/layers/newBlockLayer/NewBlockLayer";
+export * from "./components/canvas/layers/connectionLayer/ConnectionLayer";

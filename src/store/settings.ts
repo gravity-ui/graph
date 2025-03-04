@@ -16,7 +16,8 @@ export enum ECanChangeBlockGeometry {
 export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   canDragCamera: boolean;
   canZoomCamera: boolean;
-  canDuplicateBlocks: boolean;
+  /** @deprecated Use NewBlockLayer parameters instead */
+  canDuplicateBlocks?: boolean;
   canChangeBlockGeometry: ECanChangeBlockGeometry;
   canCreateNewConnections: boolean;
   scaleFontSize: number;

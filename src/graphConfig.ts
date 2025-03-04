@@ -144,7 +144,7 @@ export const initGraphConstants: TGraphConstants = {
     SCALES: [0.125, 0.225, 0.7],
     DEFAULT_Z_INDEX: 1,
     INCRIMENT_Z_INDEX: 10,
-    GHOST_BLOCK_OPACITY: 0.1,
+    GHOST_BLOCK_OPACITY: 0.7,
     WIDTH: 200,
     HEIGHT: 160,
     SNAPPING_GRID_SIZE: 1,

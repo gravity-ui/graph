@@ -23,9 +23,12 @@ export type LayerProps = {
 };
 
 export type LayerContext = {
+  graph: Graph;
   camera: ICamera;
   constants: TGraphConstants;
   colors: TGraphColors;
+  graphCanvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
 };
 
 export class Layer<
@@ -47,7 +50,10 @@ export class Layer<
     super(props, parent);
 
     this.setContext({
+      graph: this.props.graph,
       camera: props.camera,
+      colors: this.props.graph.$graphColors.value,
+      constants: this.props.graph.$graphConstants.value,
     });
 
     this.init();

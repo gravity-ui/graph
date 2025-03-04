@@ -6,7 +6,7 @@ import { GraphComponent } from "./components/canvas/GraphComponent";
 import { TBlock } from "./components/canvas/blocks/Block";
 import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
 import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
-import { OverLayer } from "./components/canvas/layers/overLayer/OverLayer";
+import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
 import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
 import { GraphEventParams, GraphEventsDefinitions } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
@@ -67,7 +67,7 @@ export class Graph {
 
   protected belowLayer: BelowLayer;
 
-  protected overLayer: OverLayer;
+  protected selectionLayer: SelectionLayer;
 
   public getGraphHTML() {
     return this.graphLayer.getHTML();
@@ -102,7 +102,7 @@ export class Graph {
   ) {
     this.belowLayer = this.addLayer(BelowLayer, {});
     this.graphLayer = this.addLayer(GraphLayer, {});
-    this.overLayer = this.addLayer(OverLayer, {});
+    this.selectionLayer = this.addLayer(SelectionLayer, {});
 
     if (rootEl) {
       this.attach(rootEl);

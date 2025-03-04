@@ -8,7 +8,7 @@ export enum EAnchorType {
 export const storiesSettings = {
   canDragCamera: true,
   canZoomCamera: true,
-  canDuplicateBlocks: true,
+  canDuplicateBlocks: false,
   canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
   canCreateNewConnections: true,
   showConnectionArrows: true,
