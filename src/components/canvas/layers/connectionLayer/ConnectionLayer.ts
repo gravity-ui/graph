@@ -146,13 +146,13 @@ export class ConnectionLayer extends Layer<
     this.context.graph.on("mousedown", this.handleMouseDown, { capture: true });
   }
 
-  public enable() {
+  public enable = () => {
     this.enabled = true;
-  }
+  };
 
-  public disabled() {
+  public disable = () => {
     this.enabled = false;
-  }
+  };
 
   private getOwnedDocument() {
     return this.context.graph.getGraphHTML().ownerDocument;
@@ -165,9 +165,9 @@ export class ConnectionLayer extends Layer<
       return;
     }
     if (
+      this.enabled &&
       ((this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors") && target instanceof Anchor) ||
-        (isShiftKeyEvent(event) && isBlock(target))) &&
-      this.enabled
+        (isShiftKeyEvent(event) && isBlock(target)))
     ) {
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
@@ -183,6 +183,41 @@ export class ConnectionLayer extends Layer<
         );
     }
   };
+
+  protected renderEndpoint(ctx: CanvasRenderingContext2D) {
+    ctx.beginPath();
+    if (!this.target && this.props.createIcon) {
+      renderSVG(
+        {
+          path: this.props.createIcon.path,
+          width: this.props.createIcon.width,
+          height: this.props.createIcon.height,
+          iniatialWidth: this.props.createIcon.viewWidth,
+          initialHeight: this.props.createIcon.viewHeight,
+        },
+        ctx,
+        { x: this.connectionState.tx, y: this.connectionState.ty - 12, width: 24, height: 24 }
+      );
+    } else if (this.props.point) {
+      ctx.fillStyle = this.props.point.fill || this.context.colors.canvas.belowLayerBackground;
+      if (this.props.point.stroke) {
+        ctx.strokeStyle = this.props.point.stroke;
+      }
+
+      renderSVG(
+        {
+          path: this.props.point.path,
+          width: this.props.point.width,
+          height: this.props.point.height,
+          iniatialWidth: this.props.point.viewWidth,
+          initialHeight: this.props.point.viewHeight,
+        },
+        ctx,
+        { x: this.connectionState.tx, y: this.connectionState.ty - 12, width: 24, height: 24 }
+      );
+    }
+    ctx.closePath();
+  }
 
   protected render() {
     this.context.ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -211,42 +246,7 @@ export class ConnectionLayer extends Layer<
     }
 
     render(this.context.ctx, (ctx) => {
-      ctx.beginPath();
-      ctx.fillStyle = "rgba(254, 190, 92, 1)";
-      ctx.roundRect(this.connectionState.tx, this.connectionState.ty - 12, 24, 24, 8);
-      ctx.fill();
-
-      if (!this.target && this.props.createIcon) {
-        renderSVG(
-          {
-            path: this.props.createIcon.path,
-            width: this.props.createIcon.width,
-            height: this.props.createIcon.height,
-            iniatialWidth: this.props.createIcon.viewWidth,
-            initialHeight: this.props.createIcon.viewHeight,
-          },
-          ctx,
-          { x: this.connectionState.tx, y: this.connectionState.ty - 12, width: 24, height: 24 }
-        );
-      } else if (this.props.point) {
-        ctx.fillStyle = this.props.point.fill || this.context.colors.canvas.belowLayerBackground;
-        if (this.props.point.stroke) {
-          ctx.strokeStyle = this.props.point.stroke;
-        }
-
-        renderSVG(
-          {
-            path: this.props.point.path,
-            width: this.props.point.width,
-            height: this.props.point.height,
-            iniatialWidth: this.props.point.viewWidth,
-            initialHeight: this.props.point.viewHeight,
-          },
-          ctx,
-          { x: this.connectionState.tx, y: this.connectionState.ty - 12, width: 24, height: 24 }
-        );
-      }
-      ctx.closePath();
+      this.renderEndpoint(ctx);
     });
   }
 
