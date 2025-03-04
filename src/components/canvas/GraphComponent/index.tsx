@@ -4,6 +4,9 @@ import { Graph } from "../../../graph";
 import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
+import { getXY } from "../../../utils/functions";
+import { dragListener } from "../../../utils/functions/dragListener";
+import { EVENTS } from "../../../utils/types/events";
 import { EventedComponent } from "../EventedComponent/EventedComponent";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
@@ -24,6 +27,53 @@ export class GraphComponent<
   constructor(props: Props, parent: Component) {
     super(props, parent);
     this.hitBox = new HitBox(this, this.context.graph.hitTest);
+  }
+
+  protected onDrag({
+    onDragStart,
+    onDragUpdate,
+    onDrop,
+  }: {
+    onDragStart?: (_event: MouseEvent) => void | boolean;
+    onDragUpdate?: (
+      diff: {
+        prevCoords: [number, number];
+        currentCoords: [number, number];
+        diffX: number;
+        diffY: number;
+      },
+      _event: MouseEvent
+    ) => void;
+    onDrop?: (_event: MouseEvent) => void;
+  }) {
+    let startDragCoords: [number, number];
+    return this.addEventListener("mousedown", (event: MouseEvent) => {
+      event.stopPropagation();
+      dragListener(this.context.ownerDocument)
+        .on(EVENTS.DRAG_START, (event: MouseEvent) => {
+          if (onDragStart?.(event) === false) {
+            return;
+          }
+          const xy = getXY(this.context.canvas, event);
+          startDragCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
+        })
+        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => {
+          if (!startDragCoords.length) return;
+
+          const [canvasX, canvasY] = getXY(this.context.canvas, event);
+          const currentCoords = this.context.camera.applyToPoint(canvasX, canvasY);
+
+          const diffX = (startDragCoords[0] - currentCoords[0]) | 0;
+          const diffY = (startDragCoords[1] - currentCoords[1]) | 0;
+
+          onDragUpdate?.({ prevCoords: startDragCoords, currentCoords, diffX, diffY }, event);
+          startDragCoords = currentCoords;
+        })
+        .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
+          startDragCoords = undefined;
+          onDrop?.(_event);
+        });
+    });
   }
 
   protected subscribeSignal<T>(signal: Signal<T>, cb: (v: T) => void) {

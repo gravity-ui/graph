@@ -32,6 +32,7 @@ export type TBlock<T extends Record<string, unknown> = {}> = {
   is: string;
   x: number;
   y: number;
+  group?: string;
   width: number;
   height: number;
   selected: boolean;
@@ -227,8 +228,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.renderOrder;
   }
 
-  public updatePosition(x: number, y: number) {
-    this.connectedState.updateXY(x, y);
+  public updatePosition(x: number, y: number, silent = false) {
+    if (!silent) {
+      this.connectedState.updateXY(x, y);
+    }
     this.setState({ x, y });
   }
 

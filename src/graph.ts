@@ -22,6 +22,7 @@ import { getXY } from "./utils/functions";
 import { clearTextCache } from "./utils/renderers/text";
 import { RecursivePartial } from "./utils/types/helpers";
 import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
+
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [
   T,
   T extends Constructor<Layer<infer Props>>
@@ -193,7 +194,13 @@ export class Graph {
     return new Point(applied[0], applied[1], { x: xy[0], y: xy[1] });
   }
 
-  public updateEntities({ blocks, connections }: Partial<{ blocks?: TBlock[]; connections?: TConnection[] }>) {
+  public updateEntities({
+    blocks,
+    connections,
+  }: Partial<{
+    blocks?: TBlock[];
+    connections?: TConnection[];
+  }>) {
     batch(() => {
       if (blocks?.length) {
         this.rootStore.blocksList.updateBlocks(blocks);
@@ -204,7 +211,13 @@ export class Graph {
     });
   }
 
-  public setEntities({ blocks, connections }: Partial<{ blocks?: TBlock[]; connections?: TConnection[] }>) {
+  public setEntities({
+    blocks,
+    connections,
+  }: Partial<{
+    blocks?: TBlock[];
+    connections?: TConnection[];
+  }>) {
     batch(() => {
       this.rootStore.blocksList.setBlocks(blocks || []);
       this.rootStore.connectionsList.setConnections(connections || []);
@@ -269,6 +282,10 @@ export class Graph {
       camera: this.cameraService,
       graph: this,
     }) as InstanceType<T>;
+  }
+
+  public detachLayer(layer: Layer) {
+    this.layers.detachLayer(layer);
   }
 
   public setupGraph(config: TGraphConfig = {}) {

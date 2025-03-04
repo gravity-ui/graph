@@ -98,8 +98,11 @@ export class BlockState<T extends TBlock = TBlock> {
     return this.$anchorStates.value.find((state) => state.id === id);
   }
 
-  public updateXY(x: number, y: number) {
+  public updateXY(x: number, y: number, forceUpdate = false) {
     this.store.updatePosition(this.id, { x, y });
+    if (forceUpdate) {
+      this.blockView.updatePosition(x, y, true);
+    }
   }
 
   public setViewComponent(blockComponent: Block) {
