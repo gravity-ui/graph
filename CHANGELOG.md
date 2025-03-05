@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/gravity-ui/graph/compare/v0.2.1...v0.3.0) (2025-03-05)
+
+
+### Features
+
+* Presented BlockGroups layer ([#48](https://github.com/gravity-ui/graph/issues/48)) ([096543a](https://github.com/gravity-ui/graph/commit/096543aad79409adf9cd587633ec5c7f76c95f74))
+* **Storybook:** change elk examples ([#46](https://github.com/gravity-ui/graph/issues/46)) ([a3a181a](https://github.com/gravity-ui/graph/commit/a3a181a8607fd2333b343610797698fe357bd9f4))
+
 ## [0.2.1](https://github.com/gravity-ui/graph/compare/v0.2.0...v0.2.1) (2025-01-31)
 
 
