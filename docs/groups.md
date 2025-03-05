@@ -229,22 +229,22 @@ blockGroups.setGroups([
 
 You can find complete working examples in our Storybook stories:
 
-1. **Basic Groups** ([`default.stories.tsx`](https://github.com/aschetinin/graph/blob/main/src/stories/canvas/groups/default.stories.tsx))
+1. **Basic Groups** ([`default.stories.tsx`](https://github.com/gravity-ui/graph/blob/main/src/stories/canvas/groups/default.stories.tsx))
    - Shows basic usage of automatic groups
    - Groups are created based on block properties
    - Demonstrates group styling and behavior
 
-2. **Large Graph** ([`large.stories.tsx`](https://github.com/aschetinin/graph/blob/main/src/stories/canvas/groups/large.stories.tsx))
+2. **Large Graph** ([`large.stories.tsx`](https://github.com/gravity-ui/graph/blob/main/src/stories/canvas/groups/large.stories.tsx))
    - Shows how to work with many blocks (225+)
    - Automatically groups every 10 blocks
    - Demonstrates performance with multiple groups
 
-3. **Manual Groups** ([`manual.stories.tsx`](https://github.com/aschetinin/graph/blob/main/src/stories/canvas/groups/manual.stories.tsx))
+3. **Manual Groups** ([`manual.stories.tsx`](https://github.com/gravity-ui/graph/blob/main/src/stories/canvas/groups/manual.stories.tsx))
    - Shows how to create fixed area groups
    - Creates non-draggable zones with different colors
    - Demonstrates manual group management
 
-4. **Extended Groups** ([`extended.stories.tsx`](https://github.com/aschetinin/graph/blob/main/src/stories/canvas/groups/extended.stories.tsx))
+4. **Extended Groups** ([`extended.stories.tsx`](https://github.com/gravity-ui/graph/blob/main/src/stories/canvas/groups/extended.stories.tsx))
    - Shows how to create custom groups with extended properties
    - Adds description and priority to groups
    - Demonstrates custom rendering and styling
