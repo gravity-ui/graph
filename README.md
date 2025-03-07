@@ -85,4 +85,5 @@ export function GraphEditor() {
 
 - [Pulic API](docs/public_api.md)
 - [Graph Events](docs/events.md)
-- [Editing](docs/editing.md)
+- [Layers](docs/layers.md)
+- [Groups](docs/groups.md)
