@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/gravity-ui/graph/compare/v0.3.0...v0.3.1) (2025-03-11)
+
+
+### Bug Fixes
+
+* improve anchors props type ([#52](https://github.com/gravity-ui/graph/issues/52)) ([0553bfa](https://github.com/gravity-ui/graph/commit/0553bfa4687eadbcc2d314a6d31254266eccbb3e))
+
 ## [0.3.0](https://github.com/gravity-ui/graph/compare/v0.2.1...v0.3.0) (2025-03-05)
 
 
