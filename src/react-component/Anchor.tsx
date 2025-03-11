@@ -1,4 +1,4 @@
-import React, { CSSProperties, useMemo } from "react";
+import React, { useMemo } from "react";
 
 import { TAnchor } from "../components/canvas/anchors";
 import { Graph } from "../graph";
@@ -22,9 +22,10 @@ export function GraphBlockAnchor({
   className?: string;
   children?: React.ReactNode | ((anchorState: AnchorState) => React.ReactNode);
 }) {
+  const anchorContainerRef = React.useRef<HTMLDivElement>(null);
   const anchorState = useBlockAnchorState(graph, anchor);
 
-  const coords = useBlockAnchorPosition(anchorState);
+  useBlockAnchorPosition(anchorState, anchorContainerRef);
 
   const selected = useSignal(anchorState?.$selected);
 
@@ -38,15 +39,7 @@ export function GraphBlockAnchor({
   if (!anchorState) return null;
 
   return (
-    <div
-      style={
-        {
-          "--graph-block-anchor-x": `${coords.x}px`,
-          "--graph-block-anchor-y": `${coords.y}px`,
-        } as CSSProperties
-      }
-      className={classNames}
-    >
+    <div ref={anchorContainerRef} className={classNames}>
       {render(anchorState)}
     </div>
   );
