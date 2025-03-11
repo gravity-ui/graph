@@ -28,7 +28,7 @@ type TAnchorState = {
   selected: boolean;
 };
 
-export class Anchor extends GraphComponent<TAnchorProps, TAnchorState> {
+export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponent<T, TAnchorState> {
   public readonly cursor = "pointer";
 
   public get zIndex() {
@@ -38,7 +38,7 @@ export class Anchor extends GraphComponent<TAnchorProps, TAnchorState> {
 
   public declare state: TAnchorState;
 
-  public declare props: TAnchorProps;
+  public declare props: T;
 
   public declare context: TGraphLayerContext;
 
@@ -59,7 +59,7 @@ export class Anchor extends GraphComponent<TAnchorProps, TAnchorState> {
     }
   );
 
-  constructor(props: TAnchorProps, parent: GraphLayer) {
+  constructor(props: T, parent: GraphLayer) {
     super(props, parent);
     this.state = { size: props.size, raised: false, selected: false };
 
