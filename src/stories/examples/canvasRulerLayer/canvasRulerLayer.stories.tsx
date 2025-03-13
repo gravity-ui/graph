@@ -50,8 +50,7 @@ const GraphApp = () => {
   // Update ruler colors when they change
   useEffect(() => {
     if (rulerLayerRef.current) {
-      graph.detachLayer(rulerLayerRef.current);
-      rulerLayerRef.current = addLayer(CanvasRulerLayer, {
+      rulerLayerRef.current.setProps({
         rulerTextColor,
         rulerTickColor,
         rulerBackgroundColor,

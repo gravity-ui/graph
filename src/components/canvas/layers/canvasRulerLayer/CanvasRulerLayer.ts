@@ -53,11 +53,9 @@ export class CanvasRulerLayer extends Layer<TCanvasRulerLayerProps, TCanvasRuler
     this.context.graph.off("camera-change", this.performRender);
   }
 
-  public render() {
-    const cameraState = this.camera.getCameraState();
-
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.ctx.clearRect(0, 0, cameraState.width, cameraState.height);
+  protected propsChanged(_nextProps: TCanvasRulerLayerProps): void {
+    this.shouldUpdateChildren = true;
+    super.propsChanged(_nextProps);
   }
 
   public updateChildren() {
@@ -69,4 +67,4 @@ export class CanvasRulerLayer extends Layer<TCanvasRulerLayerProps, TCanvasRuler
       }),
     ];
   }
-} 
+}

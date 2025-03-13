@@ -6,7 +6,9 @@ The Canvas Ruler Layer adds horizontal and vertical rulers to the graph canvas, 
 
 - Horizontal ruler at the top of the canvas showing X coordinates
 - Vertical ruler on the left side of the canvas showing Y coordinates
-- Dynamic tick spacing based on camera scale (10, 100, 200, 400, 1000)
+- Dynamic tick spacing with automatic adjustment to prevent label overlap
+- Non-overlapping rulers with special handling for the top-left intersection
+- Origin indicator in the top-left corner showing the direction to (0,0)
 - Customizable colors for ruler text, ticks, and background
 
 ## Usage
@@ -48,14 +50,11 @@ If not specified, these properties will use default colors from the graph's colo
 
 ## Scale Behavior
 
-The ruler automatically adjusts the tick spacing based on the camera scale:
+The ruler automatically adjusts the tick spacing using a dynamic algorithm that prevents label overlap:
 
-| Scale Range | Tick Spacing |
-|-------------|--------------|
-| > 0.75      | 10           |
-| 0.5 - 0.75  | 100          |
-| 0.25 - 0.5  | 200          |
-| 0.1 - 0.25  | 400          |
-| < 0.1       | 1000         |
+1. The algorithm calculates the minimum world distance needed between ticks based on the current scale
+2. For normal zoom levels, it selects the smallest appropriate step from a predefined set: [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000]
+3. For very small scales (extreme zoom out), it uses a logarithmic approach that calculates steps based on powers of 10 (1x, 2x, or 5x the appropriate power of 10)
+4. This ensures that ruler labels remain readable and don't overlap at any zoom level, from extreme close-up to extreme far-out views
 
-This ensures that the rulers remain readable and useful at different zoom levels. 
+This approach provides a more flexible and responsive ruler that adapts to different zoom levels and viewport sizes. 
