@@ -101,7 +101,6 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     this.subscribeToGroup();
 
     this.addEventListener("click", (event: MouseEvent) => {
-      event.stopPropagation();
       this.groupState.setSelection(
         true,
         !isMetaKeyEvent(event) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
@@ -109,20 +108,19 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     });
 
     this.onDrag({
+      isDraggable: () => this.isDraggable(),
       onDragUpdate: ({ diffX, diffY }) => {
-        if (this.isDraggable()) {
-          const rect = {
-            x: this.state.rect.x - diffX,
-            y: this.state.rect.y - diffY,
-            width: this.state.rect.width,
-            height: this.state.rect.height,
-          };
-          this.setState({
-            rect,
-          });
-          this.updateHitBox(rect);
-          this.props.onDragUpdate(this.props.id, { diffX, diffY });
-        }
+        const rect = {
+          x: this.state.rect.x - diffX,
+          y: this.state.rect.y - diffY,
+          width: this.state.rect.width,
+          height: this.state.rect.height,
+        };
+        this.setState({
+          rect,
+        });
+        this.updateHitBox(rect);
+        this.props.onDragUpdate(this.props.id, { diffX, diffY });
       },
     });
   }

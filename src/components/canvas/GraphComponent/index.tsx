@@ -33,6 +33,7 @@ export class GraphComponent<
     onDragStart,
     onDragUpdate,
     onDrop,
+    isDraggable,
   }: {
     onDragStart?: (_event: MouseEvent) => void | boolean;
     onDragUpdate?: (
@@ -45,9 +46,13 @@ export class GraphComponent<
       _event: MouseEvent
     ) => void;
     onDrop?: (_event: MouseEvent) => void;
+    isDraggable?: (event: MouseEvent) => boolean;
   }) {
     let startDragCoords: [number, number];
     return this.addEventListener("mousedown", (event: MouseEvent) => {
+      if (!isDraggable?.(event)) {
+        return;
+      }
       event.stopPropagation();
       dragListener(this.context.ownerDocument)
         .on(EVENTS.DRAG_START, (event: MouseEvent) => {
