@@ -332,6 +332,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   public updateChildren() {
     const cameraProps: TCameraProps = {
+      /* Blocks must be initialized before connections as connections need Block instances to access their geometry */
       children: [DrawOver.create(), Blocks.create(), DrawBelow.create(), BlockConnections.create()],
       root: this.root,
     };

@@ -1,6 +1,7 @@
 import { Signal, computed } from "@preact/signals-core";
 
 import { Graph } from "../../../graph";
+import { CoreComponent } from "../../../lib";
 import { TComponentState } from "../../../lib/Component";
 import { Layer, LayerContext, LayerProps } from "../../../services/Layer";
 import { BlockState } from "../../../store/block/Block";
@@ -102,6 +103,14 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
         this.setState({ groups });
       })
     );
+  }
+
+  public getParent(): CoreComponent | undefined {
+    /*
+     * Override parent to delegate click events to camera.
+     * This allows camera movement when mouse button is held down.
+     */
+    return this.props.graph.getGraphLayer().$.camera;
   }
 
   public updateBlocks = (groupId: TGroupId, { diffX, diffY }: { diffX: number; diffY: number }) => {

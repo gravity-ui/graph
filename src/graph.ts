@@ -121,6 +121,10 @@ export class Graph {
     this.setupGraph(config);
   }
 
+  public getGraphLayer() {
+    return this.graphLayer;
+  }
+
   public setColors(colors: RecursivePartial<TGraphColors>) {
     this.$graphColors.value = merge({}, initGraphColors, colors);
     this.emit("colors-changed", { colors: this.graphColors });
