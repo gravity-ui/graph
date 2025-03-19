@@ -42,6 +42,7 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
 
     this.performRender = this.performRender.bind(this);
     this.context.graph.on("camera-change", this.performRender);
+    this.props.graph.rootStore.settings.$background.subscribe(this.performRender);
   }
 
   protected unmount() {
@@ -61,6 +62,6 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
   }
 
   public updateChildren() {
-    return [Background.create()];
+    return [(this.props.graph.rootStore.settings.$background.value || Background).create({})];
   }
 }
