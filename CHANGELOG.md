@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.3.1](https://github.com/gravity-ui/graph/compare/v0.3.0...v0.3.1) (2025-03-19)
+
+
+### chore
+
+* release 0.3.1 ([9b43f89](https://github.com/gravity-ui/graph/commit/9b43f89c36a259c7121268da4d53fcb0517b20c9))
+
+
+### Features
+
+* **canvas:** allow customize below layer ([#56](https://github.com/gravity-ui/graph/issues/56)) ([8b20838](https://github.com/gravity-ui/graph/commit/8b208381a8a3ff6fee3d9d2252155661f273083c))
+
+
+### Bug Fixes
+
+* delayed anchor render on html layer ([#54](https://github.com/gravity-ui/graph/issues/54)) ([da92917](https://github.com/gravity-ui/graph/commit/da929176ed073aef30a572671caf9b9e5b9d7a47))
+* Delegate pointer-events from the BlockGroupLayer to the Camera on interact with groups ([#57](https://github.com/gravity-ui/graph/issues/57)) ([450475b](https://github.com/gravity-ui/graph/commit/450475bfc7ac369a408565611ca57afab995297a))
+* improve anchors props type ([#52](https://github.com/gravity-ui/graph/issues/52)) ([0553bfa](https://github.com/gravity-ui/graph/commit/0553bfa4687eadbcc2d314a6d31254266eccbb3e))
+
 ## [0.3.0](https://github.com/gravity-ui/graph/compare/v0.2.1...v0.3.0) (2025-03-05)
 
 
