@@ -49,6 +49,27 @@ interface GraphEventsDefinitions {
 }
 ```
 
+### CanvasRulerLayer
+
+[CanvasRulerLayer](../src/components/canvas/layers/canvasRulerLayer/README.md) adds coordinate rulers to the graph:
+- Horizontal ruler at the top showing X coordinates
+- Vertical ruler on the left showing Y coordinates
+- Dynamic tick spacing based on camera scale
+- Customizable colors for ruler elements
+
+```typescript
+// Usage example
+const graph = new Graph({
+  layers: [
+    [CanvasRulerLayer, {
+      rulerTextColor: '#333333',
+      rulerTickColor: '#666666',
+      rulerBackgroundColor: '#f0f0f0'
+    }]
+  ]
+});
+```
+
 ## Using Layers
 
 ```typescript
