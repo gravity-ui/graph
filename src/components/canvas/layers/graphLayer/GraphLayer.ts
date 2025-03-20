@@ -20,7 +20,6 @@ export type TGraphLayerProps = LayerProps & {
 export type TGraphLayerContext = LayerContext & {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
-  htmlCtx: HTMLDivElement;
   root: HTMLDivElement;
   ownerDocument: Document;
   graph: Graph;
@@ -77,24 +76,17 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
         respectPixelRatio: true,
         classNames: ["no-user-select"],
       },
-      html: {
-        zIndex: 3,
-        classNames: ["no-user-select"],
-        transformByCameraPosition: true,
-      },
       ...props,
     });
 
     const canvas = this.getCanvas();
-    const html = this.getHTML();
 
     this.setContext({
       canvas: canvas,
       ctx: canvas.getContext("2d"),
-      htmlCtx: html as HTMLDivElement,
       root: this.props.root,
       camera: this.props.camera,
-      ownerDocument: html.ownerDocument,
+      ownerDocument: canvas.ownerDocument,
       constants: this.props.graph.graphConstants,
       colors: this.props.graph.graphColors,
       graph: this.props.graph,
