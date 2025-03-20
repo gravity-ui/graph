@@ -1,13 +1,12 @@
-import React, { useEffect, useLayoutEffect, useRef } from "react";
-
-import { createPortal } from "react-dom";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { TGraphColors } from "..";
+import { GraphHTMLLayer } from "../components/canvas/layers/graphLayer/GraphHTMLLayer";
 import { Graph } from "../graph";
 import { setCssProps } from "../utils/functions/cssProp";
 import { useFn } from "../utils/hooks/useFn";
 
-import { BlocksList, TBlockListProps } from "./BlocksList";
+import { TBlockListProps } from "./BlocksList";
 import { TGraphEventCallbacks } from "./events";
 import { useGraphEvent, useGraphEvents } from "./hooks/useGraphEvents";
 
@@ -19,6 +18,9 @@ export type GraphProps = Pick<Partial<TBlockListProps>, "renderBlock"> &
 
 export function GraphCanvas({ graph, className, renderBlock, ...cbs }: GraphProps) {
   const containerRef = useRef<HTMLDivElement>();
+  const htmlLayerRef = useRef<GraphHTMLLayer>();
+
+  const [portal, setPortal] = useState<React.ReactPortal | null>(null);
 
   useEffect(() => {
     if (containerRef.current) {
@@ -26,6 +28,12 @@ export function GraphCanvas({ graph, className, renderBlock, ...cbs }: GraphProp
     }
     return () => graph.detach();
   }, [graph, containerRef]);
+
+  useEffect(() => {
+    if (!htmlLayerRef.current) {
+      htmlLayerRef.current = graph.addLayer(GraphHTMLLayer, { renderBlock, onChangePortal: setPortal });
+    }
+  }, []);
 
   useGraphEvents(graph, cbs);
 
@@ -50,12 +58,7 @@ export function GraphCanvas({ graph, className, renderBlock, ...cbs }: GraphProp
   return (
     <div className={className}>
       <div style={{ position: "absolute", overflow: "hidden", width: "100%", height: "100%" }} ref={containerRef}>
-        {graph &&
-          createPortal(
-            <BlocksList graphObject={graph} renderBlock={renderBlock} />,
-            graph.getGraphHTML() as HTMLDivElement,
-            "graph-blocks-list"
-          )}
+        {portal}
       </div>
     </div>
   );
