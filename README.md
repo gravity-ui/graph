@@ -87,3 +87,84 @@ export function GraphEditor() {
 - [Graph Events](docs/events.md)
 - [Layers](docs/layers.md)
 - [Groups](docs/groups.md)
+
+```jsx
+import { GraphBlockAnchor } from "@gravity-ui/graph";
+
+const config = {};
+
+export function GraphEditor() {
+  const { graph, setEntities, start } = useGraph(config);
+
+  useEffect(() => {
+    setEntities({
+      blocks: [
+        {
+          is: "block-action",
+          id: "action_1",
+          x: -100,
+          y: -450,
+          width: 126,
+          height: 126,
+          selected: true,
+          name: "Block #1",
+          anchors: [],
+        },
+        {
+          id: "action_2",
+          is: "block-action",
+          x: 253,
+          y: 176,
+          width: 126,
+          height: 126,
+          selected: false,
+          name: "Block #2",
+          anchors: [],
+        }
+      ],
+      connections: [
+        {
+          sourceBlockId: "action_1",
+          targetBlockId: "action_2",
+        }
+      ]
+    });
+  }, [setEntities]);
+
+  const renderBlockFn = (graph, block) => {
+    return (
+      <>
+        <GraphBlock graph={graph} block={block}>{block.id}</GraphBlock>
+        {block.anchors.map(anchor => (
+          <GraphBlockAnchor
+            key={anchor.id}
+            graph={graph}
+            anchor={anchor}
+            position="fixed"
+            className="custom-anchor-class"
+          >
+            {(anchorState) => (
+              <div className={anchorState.selected ? "selected" : ""}>
+                {/* Custom anchor content */}
+              </div>
+            )}
+          </GraphBlockAnchor>
+        ))}
+      </>
+    );
+  };
+
+  return (
+    <GraphCanvas
+      graph={graph}
+      renderBlock={renderBlockFn}
+      onStateChanged={({ state }) => {
+        if (state === GraphState.ATTACHED) {
+          start();
+          graph.zoomTo("center", { padding: 300 });
+        }
+      }}
+    />
+  );
+}
+```
