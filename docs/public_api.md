@@ -25,7 +25,7 @@ List of methods in your disposition:
 
   public getUsableRect(): TGeometry;
 
-  public addBlock(geometry: TGeometry, name: string: void): TBlockId;
+  public addBlock(block: Omit<TBlock, "id"> & { id?: TBlockId }, selectionOptions?: { selected?: boolean; strategy?: ESelectionStrategy }): TBlockId;
 
   public addConnection(connection: TConnection): TConnectionId
 

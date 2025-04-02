@@ -9,6 +9,7 @@ import { Graph } from "../../../index";
 import { GraphCanvas } from "../../../react-component/GraphCanvas";
 import { useGraph } from "../../../react-component/hooks/useGraph";
 import { useFn } from "../../../utils/hooks/useFn";
+import { ESelectionStrategy } from "../../../utils/types/types";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 
@@ -36,15 +37,66 @@ const GraphApp = () => {
 
   useEffect(() => {
     graph.on("block-added-from-shadow", (event) => {
-      const block = event.detail.block.connectedState.asTBlock();
-      const point = event.detail.coord;
-      graph.api.addBlock({
-        ...block,
-        id: `${block.id.toString()}-added-from-shadow-${Date.now()}`,
-        is: "block",
-        x: point.x,
-        y: point.y,
+      // Clear selection of old blocks before adding new ones
+      graph.api.unsetSelection();
+
+      // Map to store original block ID to new block ID mapping
+      const blockIdMap = new Map<string, string>();
+
+      // First pass: create all blocks and build the ID mapping
+      event.detail.items.forEach((item) => {
+        const block = item.block.connectedState.asTBlock();
+        const point = item.coord;
+        const newBlockId = `${block.id.toString()}-added-from-shadow-${Date.now()}`;
+
+        // Store the mapping between original and new block IDs
+        blockIdMap.set(block.id.toString(), newBlockId);
+
+        graph.api.addBlock(
+          {
+            ...block,
+            id: newBlockId,
+            is: "block",
+            x: point.x,
+            y: point.y,
+          },
+          {
+            selected: true,
+            strategy: ESelectionStrategy.APPEND, // Use APPEND strategy to keep all blocks selected
+          }
+        );
       });
+
+      // Second pass: duplicate connections between duplicated blocks
+      if (blockIdMap.size > 1) {
+        // Only process connections if we have at least 2 blocks
+        // Get all connections from the graph
+        const connections = graph.rootStore.connectionsList.$connections.value;
+
+        // Check each connection to see if it connects blocks that were duplicated
+        connections.forEach((connection) => {
+          const sourceId = connection.sourceBlockId;
+          const targetId = connection.targetBlockId;
+
+          // If both source and target blocks were duplicated, create a new connection
+          if (blockIdMap.has(sourceId.toString()) && blockIdMap.has(targetId.toString())) {
+            const newSourceId = blockIdMap.get(sourceId.toString());
+            const newTargetId = blockIdMap.get(targetId.toString());
+
+            // Create a new connection between the duplicated blocks
+            graph.api.addConnection({
+              sourceBlockId: newSourceId,
+              targetBlockId: newTargetId,
+              sourceAnchorId: connection.sourceAnchorId,
+              targetAnchorId: connection.targetAnchorId,
+              // Copy any other connection properties
+              styles: connection.$state.value.styles,
+              dashed: connection.$state.value.dashed,
+              label: connection.$state.value.label,
+            });
+          }
+        });
+      }
     });
   }, [graph]);
 
