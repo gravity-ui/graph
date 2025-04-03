@@ -2,6 +2,8 @@
 
 This document provides an in-depth explanation of the component lifecycle in the rendering system, focusing on both the CoreComponent and Component classes and their specific lifecycle methods.
 
+**Note: This documentation file appears to be truncated. Please verify the completeness of the information below once the full content is available.**
+
 ## Lifecycle Flow Overview
 
 The component lifecycle consists of several phases, from initialization to unmounting, with specific hooks at each stage to allow for customization.
@@ -29,7 +31,7 @@ flowchart TD
     D --> E[Schedule next frame]
     E --> B
     
-    F[unmount] --> G[__unmountChildren]
+    F[unmount] --> G[unmountChildren]
     G --> H[unmount callback]
 ```
 
@@ -56,9 +58,8 @@ flowchart TD
     
     F --> M{shouldUpdateChildren?}
     M -->|Yes| N[childrenLifeCycle]
-    N --> O[willUpdateChildren]
-    O --> P[__updateChildren]
-    P --> Q[didUpdateChildren]
+    N --> O[updateChildren]
+    O --> P[didUpdateChildren]
     
     I --> R[didIterate]
     L --> R
@@ -109,14 +110,14 @@ The complete lifecycle method execution order for a Component:
 4. **Children Update Phase**
    - If `shouldUpdateChildren` is true:
      - `willUpdateChildren()`
-     - `__updateChildren()` (internal)
+     - `updateChildren()` (internal)
      - `didUpdateChildren()`
 
 5. **Completion**
    - `didIterate()`
 
 6. **Unmounting**
-   - `__unmount()` (internal)
+   - `unmount()` (internal)
    - `unmountChildren()` (internal)
    - `unmount()`
 
@@ -125,69 +126,69 @@ The complete lifecycle method execution order for a Component:
 ### CoreComponent Hooks
 
 - **render()**
-  - Purpose: Render the component
+  - Purpose: Render the component's visual representation. This is where you define the component's output based on its current state and props.
   - Called during: Rendering phase
   - Default: No-op, meant to be overridden
 
 - **updateChildren()**
-  - Purpose: Define child components
+  - Purpose: Define the component's child components. This method should return an array of child component definitions, specifying the component class, props, and options for each child.
   - Return value: Array of child component definitions or void
   - Default: No-op, meant to be overridden
 
 - **unmount()**
-  - Purpose: Clean up before component removal
+  - Purpose: Clean up any resources or subscriptions before the component is removed from the tree. This is where you should unsubscribe from events, clear timers, and release any other resources held by the component.
   - Called during: Unmounting phase
   - Default: No-op, meant to be overridden
 
 ### Component Hooks
 
 - **willMount()**
-  - Purpose: Initialize before first iteration
+  - Purpose: Perform initialization tasks that need to be done before the component is first rendered. This is a good place to fetch data, set up initial state, or perform other one-time setup tasks.
   - Called during: First iteration only
   - Default: No-op
 
 - **willIterate()**
-  - Purpose: Prepare for iteration
+  - Purpose: Prepare for each iteration of the component's lifecycle. This method is called at the beginning of each iteration, before any rendering or children updates are performed.
   - Called during: Start of every iteration
   - Default: No-op
 
 - **willRender()**
-  - Purpose: Prepare before rendering
+  - Purpose: Prepare for the rendering phase. This method is called before the `render()` method is invoked, allowing you to perform any last-minute calculations or adjustments before rendering.
   - Called during: Before render
   - Default: No-op
 
 - **didRender()**
-  - Purpose: React after rendering
+  - Purpose: React after the rendering phase. This method is called after the `render()` method has been invoked, allowing you to perform any post-rendering tasks, such as updating the DOM or triggering animations.
   - Called during: After render
   - Default: No-op
 
 - **willNotRender()**
-  - Purpose: Handle non-rendering case
+  - Purpose: Handle the case where the component will not be rendered. This method is called when the `shouldRender` flag is set to `false`, allowing you to perform any necessary cleanup or alternative actions.
   - Called during: When shouldRender is false
   - Default: No-op
 
 - **willUpdateChildren()**
-  - Purpose: Prepare before children update
+  - Purpose: Prepare before updating the component's children. This method is called before the `updateChildren()` method is invoked, allowing you to perform any necessary setup or calculations before the children are updated.
   - Called during: Before children updated
   - Default: No-op
 
 - **didUpdateChildren()**
-  - Purpose: React after children update
+  - Purpose: React after updating the component's children. This method is called after the `updateChildren()` method has been invoked, allowing you to perform any post-update tasks, such as updating the layout or triggering animations.
   - Called during: After children updated
   - Default: No-op
 
 - **didIterate()**
-  - Purpose: Finalize iteration
+  - Purpose: Finalize each iteration of the component's lifecycle. This method is called at the end of each iteration, after all rendering and children updates have been performed.
   - Called during: End of every iteration
   - Default: No-op
 
 - **propsChanged(nextProps)**
-  - Purpose: React to new props
+  - Purpose: React to changes in the component's props. This method is called when the component receives new props, allowing you to update the component's state or perform other actions in response to the prop changes.
   - Called during: checkData when props changed
   - Default: No-op
 
 - **stateChanged(nextState)**
-  - Purpose: React to new state
+  - Purpose: React to changes in the component's state. This method is called when the component's state is updated, allowing you to perform any necessary calculations or adjustments in response to the state changes.
   - Called during: checkData when state changed
   - Default: No-op
 
@@ -238,10 +239,12 @@ flowchart TD
 ### Basic Component Usage
 
 ```typescript
+import { Component } from "@/lib/Component";
+
 class MyComponent extends Component {
   protected willMount() {
     // Initialize, similar to constructor but guaranteed to run before first render
-    this.state = { counter: 0 };
+    this.setState({ counter: 0 });
   }
   
   protected render() {
@@ -258,6 +261,20 @@ class MyComponent extends Component {
 ### Component with Children
 
 ```typescript
+import { Component } from "@/lib/Component";
+
+class ChildComponent extends Component {
+  protected render() {
+    return null;
+  }
+}
+
+class AnotherChild extends Component {
+  protected render() {
+    return null;
+  }
+}
+
 class ParentComponent extends Component {
   protected updateChildren() {
     return [
@@ -279,6 +296,8 @@ class ParentComponent extends Component {
 ### Optimizing Renders
 
 ```typescript
+import { Component } from "@/lib/Component";
+
 class OptimizedComponent extends Component {
   protected propsChanged(nextProps) {
     // Only render if specific props changed
@@ -329,6 +348,8 @@ class OptimizedComponent extends Component {
 
 1. **Initialize State in willMount Using setState**
    ```typescript
+   import { Component } from "@/lib/Component";
+
    protected willMount() {
      // Don't use this.state = {} directly as per rules
      this.setState({
@@ -341,6 +362,8 @@ class OptimizedComponent extends Component {
 
 2. **Clean Up in unmount**
    ```typescript
+   import { Component } from "@/lib/Component";
+
    protected unmount() {
      // Clean up any subscriptions or timers
      this.eventEmitter.off('event', this.handler);
@@ -350,6 +373,8 @@ class OptimizedComponent extends Component {
 
 3. **Use Keys for Dynamic Children**
    ```typescript
+   import { Component } from "@/lib/Component";
+
    protected updateChildren() {
      // Use Component.create method instead of direct instantiation
      return this.state.items.map((item, index) => 
@@ -365,6 +390,8 @@ class OptimizedComponent extends Component {
 
 1. **Always Use Component.create**
    ```typescript
+   import { Component } from "@/lib/Component";
+
    // Incorrect - Don't use direct instantiation
    // new MyComponent(props, parent)
    
@@ -374,6 +401,8 @@ class OptimizedComponent extends Component {
 
 2. **Only Create Children in updateChildren Method**
    ```typescript
+   import { Component } from "@/lib/Component";
+
    protected updateChildren() {
      return [
        ChildComponent.create({ value: this.state.value }, { key: 'child1' }),
@@ -384,6 +413,8 @@ class OptimizedComponent extends Component {
 
 3. **Don't Transform Original Coordinates to World Coordinates**
    ```typescript
+   import { Component } from "@/lib/Component";
+
    // Incorrect
    // const worldX = originalX * transform.scale + transform.x;
    
@@ -398,6 +429,8 @@ class OptimizedComponent extends Component {
 
 1. **Use Props for Parent-to-Child Communication**
    ```typescript
+   import { Component } from "@/lib/Component";
+
    // Parent component
    protected updateChildren() {
      return [
@@ -411,6 +444,8 @@ class OptimizedComponent extends Component {
 
 2. **Use Context for Deep Prop Passing**
    ```typescript
+   import { Component } from "@/lib/Component";
+
    // Parent component
    this.setContext({
      theme: 'dark',
@@ -422,6 +457,8 @@ class OptimizedComponent extends Component {
 
 3. **Use Component References for Direct Communication**
    ```typescript
+   import { Component } from "@/lib/Component";
+
    protected updateChildren() {
      return [
        ChildComponent.create(
@@ -441,6 +478,8 @@ class OptimizedComponent extends Component {
 
 1. **Always Use setProps/setState Methods**
    ```typescript
+   import { Component } from "@/lib/Component";
+
    // Incorrect
    // this.props.value = newValue;
    // this.state.count = newCount;
@@ -452,69 +491,11 @@ class OptimizedComponent extends Component {
 
 2. **Batch Updates When Possible**
    ```typescript
+   import { Component } from "@/lib/Component";
+
    // Instead of multiple calls
    // this.setState({ value: 1 });
    // this.setState({ count: 2 });
    
    // Batch updates in one call
    this.setState({ value: 1, count: 2 });
-   ```
-
-### Error Handling
-
-1. **Implement Error Boundaries**
-   ```typescript
-   class ErrorBoundary extends Component {
-     protected willIterate() {
-       try {
-         // Normal component flow
-       } catch (error) {
-         this.setState({ hasError: true, error });
-         // Prevent normal rendering
-         this.shouldRender = false;
-         this.shouldUpdateChildren = false;
-       }
-     }
-     
-     protected render() {
-       if (this.state.hasError) {
-         // Render error state
-         console.error('Error caught:', this.state.error);
-       }
-     }
-   }
-   ```
-
-### Lifecycle Management
-
-1. **Prefer willIterate Over render for Side Effects**
-   ```typescript
-   protected willIterate() {
-     // Side effects like logging, analytics
-     if (this.props.shouldLog) {
-       console.log('Component iteration');
-     }
-   }
-   ```
-
-2. **Use didRender for DOM Manipulation**
-   ```typescript
-   protected didRender() {
-     // Access the DOM after render
-     if (this.domElement) {
-       this.domElement.focus();
-     }
-   }
-   ```
-
-3. **Handle First Render Cases**
-   ```typescript
-   protected render() {
-     // Special handling for first render
-     if (this.firstRender) {
-       // Do first render setup
-     }
-     
-     // Regular render logic
-   }
-   ``` 

@@ -19,7 +19,7 @@ This library provides a comprehensive system for rendering and interacting with 
 ## Quick Start
 
 ```typescript
-import { Graph, Block, BlockConnection } from 'graph-library';
+import { Graph, Block } from '@gravity-ui/graph';
 
 // Create a graph instance
 const graph = new Graph({
@@ -33,15 +33,17 @@ const block1 = graph.addBlock({
   x: 100, 
   y: 100, 
   width: 120, 
-  height: 80
-}, "Block 1");
+  height: 80,
+  name: "Block 1"
+});
 
 const block2 = graph.addBlock({
   x: 300, 
   y: 200, 
   width: 120, 
-  height: 80
-}, "Block 2");
+  height: 80,
+  label: "Block 2"
+});
 
 // Connect the blocks
 graph.addConnection({
@@ -51,7 +53,7 @@ graph.addConnection({
 
 // Update entities as needed
 graph.updateEntities({
-  blocks: [{ id: block1, name: 'Updated Block Name' }]
+  blocks: [{ id: block1, label: 'Updated Block Name' }]
 });
 ```
 
@@ -143,4 +145,4 @@ The library is built around a component-based architecture:
 - [Groups](./blocks/groups.md)
   - Automatic grouping
   - Manual group management
-  - Group styling and behavior 
+  - Group styling and behavior

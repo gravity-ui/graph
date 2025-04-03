@@ -7,7 +7,7 @@ The Graph React Component Library provides a React wrapper for a powerful graph 
 ## Installation
 
 ```bash
-npm install @gravity-ui/graph
+npm install @gravity-ui/@gravity-ui/graph
 ```
 
 ## Core Components
@@ -17,7 +17,8 @@ npm install @gravity-ui/graph
 The primary component for displaying and interacting with the graph.
 
 ```tsx
-import { GraphCanvas, useGraph } from '@gravity-ui/graph';
+import { GraphCanvas, useGraph } from '@gravity-ui/@gravity-ui/graph';
+import React, { useEffect } from 'react';
 
 function MyGraph() {
   const { graph, setEntities, start } = useGraph({
@@ -51,6 +52,8 @@ function MyGraph() {
 A fundamental component that properly positions block content on the canvas. It ensures that HTML elements and canvas rendering are correctly aligned at the same position, which is essential for the graph's visual integrity and interaction behavior.
 
 ```tsx
+import { GraphBlock } from '@gravity-ui/@gravity-ui/graph';
+
 <GraphBlock 
   graph={graph} 
   block={block}
@@ -76,6 +79,8 @@ It's strongly recommended to always use `GraphBlock` as the base component for a
 A specialized component for rendering connection points (anchors) on blocks. Anchors are the interactive points where connections begin and end.
 
 ```tsx
+import { GraphBlockAnchor } from '@gravity-ui/@gravity-ui/graph';
+
 <GraphBlockAnchor
   graph={graph}
   anchor={anchor}
@@ -112,6 +117,8 @@ The render prop pattern (`{(anchorState) => ...}`) gives you access to the ancho
 The main hook for creating and managing a graph instance.
 
 ```tsx
+import { useGraph } from '@gravity-ui/@gravity-ui/graph';
+
 const { 
   graph,          // The Graph instance
   api,            // Graph API
@@ -142,6 +149,8 @@ const {
 A hook for subscribing to graph events.
 
 ```tsx
+import { useGraphEvent } from '@gravity-ui/@gravity-ui/graph';
+
 useGraphEvent(graph, "block-change", ({ block }) => {
   // Handle block changes
 });
@@ -150,7 +159,7 @@ useGraphEvent(graph, "blocks-selection-change", ({ changes, list }) => {
   // Handle selection changes
 });
 
-useGraphEvent(graph, "connection-created", ({ sourceBlockId, sourceAnchorId, targetBlockId, targetAnchorId }, event) => {
+useGraphEvent(graph, "connection-created", ({ source, target }, event) => {
   // Handle connection creation
   event.preventDefault(); // Optionally prevent default behavior
 });
@@ -161,13 +170,13 @@ useGraphEvent(graph, "connection-created", ({ sourceBlockId, sourceAnchorId, tar
 The library provides a rich event system to respond to user interactions:
 
 - `click`: Canvas click events
-- `onCameraChange`: Camera position/zoom changes
-- `onBlockDragStart`, `onBlockDrag`, `onBlockDragEnd`: Block dragging events
-- `onBlockSelectionChange`: Block selection changes
-- `onBlockAnchorSelectionChange`: Anchor selection changes
-- `onBlockChange`: Block property changes
-- `onConnectionSelectionChange`: Connection selection changes
-- `onStateChanged`: Graph state changes
+- `camera-change`: Camera position/zoom changes
+- `block-drag-start`, `block-drag`, `block-drag-end`: Block dragging events
+- `blocks-selection-change`: Block selection changes
+- `block-anchor-selection-change`: Anchor selection changes
+- `block-change`: Block property changes
+- `connections-selection-change`: Connection selection changes
+- `state-changed`: Graph state changes
 
 ## Block Rendering Mechanism
 
@@ -208,7 +217,7 @@ import {
   useGraph, 
   useGraphEvent,
   GraphState 
-} from '@gravity-ui/graph';
+} from '@gravity-ui/@gravity-ui/graph';
 
 function GraphEditor() {
   // Initialize graph with configuration
@@ -306,7 +315,7 @@ function GraphEditor() {
       graph={graph} 
       renderBlock={renderBlockFn}
       onStateChanged={({ state }) => {
-        if (state === GraphState.ATTACHED) {
+        if (state === "ATTACHED") {
           start();
           graph.zoomTo("center", { padding: 300 });
         }
@@ -342,4 +351,4 @@ The Graph React Component library supports:
    - Use onStateChanged to detect when the graph is ready
 4. **Event handling**: Use event handlers to respond to user interactions
 5. **State management**: Let the graph manage its own state, but integrate with your application's state when needed
-6. **Lazy loading**: For large graphs, the library automatically handles viewport-based rendering 
+6. **Lazy loading**: For large graphs, the library automatically handles viewport-based rendering

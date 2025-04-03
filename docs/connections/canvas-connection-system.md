@@ -51,18 +51,44 @@ classDiagram
 
 ## 1. BaseConnection: The Foundation
 
-`BaseConnection` extends `GraphComponent` (see [GraphComponent documentation](canvas-graph-component-revised.md)) and serves as the foundation for all connection types in the system. It establishes the core functionality that all connections need:
+`BaseConnection` extends `GraphComponent` (see [GraphComponent documentation](canvas-graph-component.md)) and serves as the foundation for all connection types in the system. It establishes the core functionality that all connections need:
 
 ### Core Features
 
 1. **Connection State Management**
 ```typescript
-protected connectedState: ConnectionState<Connection>;
+import { Component } from "@/lib/Component";
+import { selectConnectionById } from "@/store/connection/selectors";
+import { ConnectionState } from "@/store/connection/ConnectionState";
+import { Block } from "@/store/block/Block";
+import { HitBox, HitBoxData } from "@/services/HitTest";
 
-constructor(props: Props, parent: Component) {
-  super(props, parent);
-  this.connectedState = selectConnectionById(this.context.graph, this.props.id);
-  this.setState({ ...(this.connectedState.$state.value as TBaseConnectionState), hovered: false });
+interface Props {
+  id: string;
+}
+
+interface TBaseConnectionState {
+  id: string;
+  sourceBlockId: string;
+  targetBlockId: string;
+}
+
+interface Path2DRenderStyleResult {
+  type: 'stroke' | 'fill' | 'both';
+}
+
+interface Connection {
+  id: string;
+}
+
+class BaseConnection extends Component<Props> {
+  protected connectedState: ConnectionState<Connection>;
+
+  constructor(props: Props, parent: Component) {
+    super(props, parent);
+    this.connectedState = selectConnectionById(this.context.graph, this.props.id);
+    this.setState({ ...(this.connectedState.$state.value as TBaseConnectionState), hovered: false });
+  }
 }
 ```
 
@@ -163,6 +189,9 @@ class SimpleConnection extends BaseConnection {
 1. **Path2D-based Rendering**
 
 ```typescript
+import { bezierCurveLine } from "@/utils/shapes/curvePolyline";
+import { curvePolyline } from "@/utils/shapes/polyline";
+
 protected generatePath() {
   this.path2d = this.createPath();
   return this.path2d;
@@ -247,9 +276,23 @@ BlockConnection handles label rendering with:
 - Visibility rules based on zoom level
 - Hit detection for label interaction
 
+#### Label Positioning and Styling
+
+The `renderLabelText` method handles the rendering and positioning of the connection label. It calculates the label's position based on the connection's geometry and the zoom level, ensuring that the label is legible and doesn't overlap with other elements.
+
+The label's styling (font, color, background) is also determined dynamically based on the connection's state (hovered, selected).
+
+### Arrow Rendering
+
+The `BlockConnection` uses a separate `ConnectionArrow` component to render the arrow at the end of the connection. The `createArrowPath` method calculates the arrow's geometry based on the connection's end points and the bezier direction (if applicable).
+
+The arrow's styling is also dynamic and changes based on the connection's state.
+
 ### Hit Detection
 
 ```typescript
+import { isPointInStroke } from "@/utils/functions/isPointInStroke";
+
 public onHitBox(shape: HitBoxData): boolean {
   const THRESHOLD_LINE_HIT = this.context.constants.connection.THRESHOLD_LINE_HIT;
 
@@ -428,6 +471,8 @@ MultipointConnection handles:
 2. **Custom Arrow Rendering**
 
 ```typescript
+import { trangleArrowForVector } from "@/utils/shapes";
+
 public createArrowPath(): Path2D {
   const { points } = this.connectedState.$state.value;
   if (!points.length) {
@@ -486,130 +531,14 @@ class MyCustomConnection extends BlockConnection {
     
     return path;
   }
-  
-  // Override styling for custom appearance
-  public style(ctx: CanvasRenderingContext2D) {
-    ctx.strokeStyle = this.state.selected ? 
-      '#ff5722' : (this.state.hovered ? '#ff9800' : '#9e9e9e');
-    ctx.lineWidth = this.state.selected ? 3 : (this.state.hovered ? 2 : 1);
-    ctx.setLineDash([5, 5]); // Make it a dashed line
-    
-    return { type: 'stroke' };
-  }
-  
-  // Add custom rendering elements
-  public afterRender(ctx: CanvasRenderingContext2D) {
-    super.afterRender(ctx);
-    
-    // Add custom decorations
-    const { x1, y1, x2, y2 } = this.geometry;
-    const midX = (x1 + x2) / 2;
-    const midY = (y1 + y2) / 2;
-    
-    ctx.fillStyle = '#4285f4';
-    ctx.beginPath();
-    ctx.arc(midX, midY, 5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
 ```
-
-## Best Practices for Working with Connections
 
 ### 1. Optimize Path Creation
 
-```typescript
-// Avoid frequent path recreation
-// BAD:
-protected render() {
-  const path = this.createPath(); // Creating path every frame
-  this.context.ctx.stroke(path);
-}
-
-// GOOD:
-protected updatePoints() {
-  super.updatePoints();
-  this.path2d = this.createPath(); // Create once when geometry changes
-}
-
-protected render() {
-  this.context.ctx.stroke(this.path2d); // Reuse existing path
-}
-```
-
 ### 2. Efficient State Handling
-
-```typescript
-// Be specific about what state changes should trigger updates
-protected stateChanged(nextState: TBaseConnectionState) {
-  if (
-    nextState.selected !== this.state.selected ||
-    nextState.hovered !== this.state.hovered
-  ) {
-    // Only update styles when selection/hover changes
-    this.applyShape(nextState);
-  }
-  super.stateChanged(nextState);
-}
-```
 
 ### 3. Leverage the Batch Rendering System
 
-```typescript
-// Group similar connections by properties that affect appearance
-public getClassName(state = this.state) {
-  // Return a string that uniquely identifies this visual style
-  return `connection/${state.type}/${state.selected ? 'selected' : 'normal'}`;
-}
-```
-
 ### 4. Handle Hit Detection Carefully
 
-```typescript
-// Precise hit detection for complex paths
-public onHitBox(shape: HitBoxData): boolean {
-  // First do the quick bounding box check (handled by superclass)
-  if (!super.onHitBox(shape)) return false;
-  
-  // Then do precise path hit detection
-  return isPointInStroke(
-    this.context.ctx, 
-    this.path2d, 
-    shape.x, 
-    shape.y, 
-    THRESHOLD_LINE_HIT
-  );
-}
-```
-
 ## Connection System Architecture Overview
-
-To summarize the connection system:
-
-1. **BaseConnection**
-   - Manages the connection state from the store
-   - Provides connection points and anchors
-   - Handles hit box and basic interaction
-
-2. **BlockConnection**
-   - Implements the Path2D rendering approach
-   - Integrates with the BatchPath2D system
-   - Provides styling, labels, and arrows
-
-3. **BatchPath2D**
-   - Groups connections by visual properties
-   - Handles Z-ordering and render batching
-   - Optimizes performance for many connections
-
-4. **Custom Connections**
-   - Extend BlockConnection for specialized behavior
-   - Customize path generation, styling, and interaction
-   - Add unique features while leveraging the base system
-
-This layered architecture provides:
-- Great performance through optimized rendering
-- Consistent appearance and behavior
-- Flexibility for creating custom connection types
-- Automatic handling of common tasks like hit detection and labels
-
-By leveraging this system, you can create visually rich, interactive connections that perform well even in complex graphs with many connections. 

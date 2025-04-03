@@ -85,12 +85,11 @@ sequenceDiagram
 
 The scheduling system works as follows:
 
-1. Component calls `performRender()` to schedule an update
-2. This sets `scheduled` flag in the component's Scheduler instance
-3. On the next animation frame, GlobalScheduler calls `performUpdate()` on each registered Scheduler
-4. If a Scheduler is scheduled, it calls `update()` to traverse the component tree
-5. Tree traversal invokes `iterate()` on each component in the tree
-6. Components process their lifecycle methods and potentially request more updates
+1. Component calls `performRender()` to schedule an update. This method sets the `scheduled` flag in the component's `Scheduler` instance, indicating that the component tree needs to be updated.
+2. On the next animation frame, GlobalScheduler calls `performUpdate()` on each registered Scheduler
+3. If a Scheduler is scheduled, it calls `update()` to traverse the component tree
+4. Tree traversal invokes `iterate()` on each component in the tree. The `iterate()` method determines whether the component's children should also be processed during the update. If the component returns `true` from `iterate()`, its children will be processed. If it returns `false`, its children will be skipped.
+5. Components process their lifecycle methods and potentially request more updates
 
 ## Priority Levels
 
@@ -184,6 +183,25 @@ class MyComponent extends Component {
 }
 ```
 
+### Using Multiple Schedulers with Different Priority Levels
+
+```typescript
+// Create two schedulers with different priority levels
+const highPriorityScheduler = new Scheduler();
+const lowPriorityScheduler = new Scheduler();
+
+// Add the schedulers to the global scheduler with different priority levels
+globalScheduler.addScheduler(highPriorityScheduler, 0); // High priority
+globalScheduler.addScheduler(lowPriorityScheduler, 4); // Low priority
+
+// Start the global scheduler
+globalScheduler.start();
+
+// Assign different components to the schedulers
+highPriorityScheduler.setRoot(highPriorityRootComponent.__comp.treeNode);
+lowPriorityScheduler.setRoot(lowPriorityRootComponent.__comp.treeNode);
+```
+
 ## Optimizing Performance
 
 The scheduling system is designed for optimal performance:
@@ -241,4 +259,13 @@ export const globalScheduler = new GlobalScheduler();
 export const scheduler = globalScheduler;
 ```
 
-This allows components to share a single scheduler instance and animation frame loop. 
+This allows components to share a single scheduler instance and animation frame loop.
+
+## Debugging the Scheduler
+
+Debugging issues with the scheduler can be challenging, but there are several techniques you can use to identify and resolve problems:
+
+1. **Logging**: Add console logs to the `performUpdate()` and `iterate()` methods to track the order in which components are being updated. This can help you identify performance bottlenecks or unexpected update patterns.
+2. **Performance Profiling**: Use the browser's performance profiling tools to identify areas where the scheduler is spending the most time. This can help you pinpoint inefficient components or rendering logic.
+3. **Breakpoints**: Set breakpoints in the scheduler's code to step through the update process and examine the state of components and the scheduler itself.
+4. **Visualizations**: Create visualizations to track the number of updates per frame, the time spent in each phase of the update process, and the number of components being processed. This can help you identify trends and patterns that might not be apparent from logging or profiling alone.

@@ -69,7 +69,7 @@ type TBlock<T extends Record<string, unknown> = {}> = {
   width: number;             // Width of the block
   height: number;            // Height of the block
   selected: boolean;         // Selection state
-  name: string;              // Display name
+  label: string;              // Display name
   anchors: TAnchor[];        // Connection points
   settings?: TBlockSettings; // Additional settings
   meta?: T;                  // Custom metadata
@@ -82,6 +82,7 @@ type TBlock<T extends Record<string, unknown> = {}> = {
 type TBlockProps = {
   id: TBlockId;  // ID of the block to render
   font: string;  // Font to use for text rendering
+  label: string; // Label of the block to render
 };
 ```
 
@@ -105,8 +106,8 @@ The Block component follows the standard component lifecycle, with additional sp
 
 2. **Rendering Pipeline**:
    - `willRender()` - Prepares the block for rendering
-   - `render()` - Main rendering method, delegates to view-specific methods
-   - `renderBody()` - Renders the main body of the block
+   - `render()` - Main rendering method, delegates to view-specific methods based on camera scale
+   - `renderMinimalisticBlock()` - Renders a basic representation of the block
    - `renderSchematicView()` - Renders the block in schematic (simplified) view
    - `renderDetailedView()` - Renders the block in detailed view
 
@@ -116,6 +117,38 @@ The Block component follows the standard component lifecycle, with additional sp
 4. **State Management**:
    - `stateChanged()` - Handles changes to the block's state
    - `updatePosition()` - Updates the block's position
+
+## Scale-Dependent Rendering
+
+The Block component uses a scale-dependent rendering system that displays different levels of detail based on the camera zoom level. This is controlled in the `render()` method:
+
+```typescript
+protected render() {
+  const scaleLevel = this.context.graph.cameraService.getCameraBlockScaleLevel();
+  
+  switch (scaleLevel) {
+    case ECameraScaleLevel.Minimalistic:
+      this.renderMinimalisticBlock(this.context.ctx);
+      break;
+    case ECameraScaleLevel.Schematic:
+      this.renderSchematicView(this.context.ctx);
+      break;
+    case ECameraScaleLevel.Detailed:
+      this.renderDetailedView(this.context.ctx);
+      break;
+  }
+}
+```
+
+The `getCameraBlockScaleLevel()` method determines the appropriate level of detail based on the camera's zoom level.
+
+### Rendering Methods
+
+The Block component has three primary rendering methods:
+
+1.  **renderMinimalisticBlock(ctx)**: Renders a basic representation of the block, used when the block is far away from the viewer.
+2.  **renderSchematicView(ctx)**: Renders a simplified view of the block, including the block label.
+3.  **renderDetailedView(ctx)**: Renders a detailed view of the block, including any additional information.
 
 ## Events and Interactions
 
@@ -141,7 +174,7 @@ sequenceDiagram
     Block->>Block: Emit "block-drag"
     User->>Block: Mouse Up
     Block->>BlockController: onDragEnd()
-    Block->>Block: Emit "block-drag-end"
+    BlockController->>Block: Emit "block-drag-end"
 ```
 
 ### Event Types
@@ -155,15 +188,6 @@ The Block component defines these custom events:
 ## Anchors
 
 Anchors are connection points on blocks that allow creating connections between blocks.
-
-```mermaid
-flowchart TD
-    A[Block] --> B[Anchors]
-    B --> C[Input Anchors]
-    B --> D[Output Anchors]
-    C --> E[Connection point]
-    D --> F[Connection point]
-```
 
 The Block component provides methods to manage anchors:
 
@@ -213,20 +237,37 @@ class CustomBlock extends Block {
 To use custom block implementations in a graph, you need to register them in the graph configuration:
 
 ```typescript
+import { Block, EAnchorType } from "@gravity-ui/graph";
+
 // Define a custom block type
 class MySpecialBlock extends Block {
   protected renderSchematicView(ctx: CanvasRenderingContext2D) {
     // Custom rendering logic
     ctx.fillStyle = "#FFD700"; // Gold color
     ctx.beginPath();
-    ctx.roundRect(this.state.x, this.state.y, this.state.width, this.state.height, [10]);
+    this.roundRect(ctx, this.state.x, this.state.y, this.state.width, this.state.height, [10]);
     ctx.fill();
     
     // Render text
     if (this.shouldRenderText) {
       ctx.fillStyle = "#000";
-      this.renderText(this.state.name);
+      this.renderText(this.state.label);
     }
+  }
+
+  // Polyfill for roundRect
+  private roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number[] | number) {
+    const radii = typeof radius === 'number' ? [radius, radius, radius, radius] : radius;
+    ctx.moveTo(x + radii[0], y);
+    ctx.lineTo(x + width - radii[1], y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radii[1]);
+    ctx.lineTo(x + width, y + height - radii[2]);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radii[2], y + height);
+    ctx.lineTo(x + radii[3], y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radii[3]);
+    ctx.lineTo(x, y + radii[0]);
+    ctx.quadraticCurveTo(x, y, x + radii[0], y);
+    ctx.closePath();
   }
 }
 
@@ -243,7 +284,7 @@ const graphConfig: TGraphConfig = {
       y: 200,
       width: 180,
       height: 120,
-      name: "My Special Block",
+      label: "My Special Block",
       selected: false,
       anchors: [
         // Define anchors for the block
@@ -269,7 +310,8 @@ const graph = new Graph(graphConfig, rootElement);
 Here's a complete example of creating and using a custom block:
 
 ```typescript
-import { Block, CanvasBlock, TGraphConfig, EAnchorType } from "graph-library";
+import { Group } from "@/lib/Component";
+import { Block, CanvasBlock, TGraphConfig, EAnchorType } from "@gravity-ui/graph";
 
 // 1. Define a custom block class
 class RoundedBlock extends CanvasBlock {
@@ -277,7 +319,7 @@ class RoundedBlock extends CanvasBlock {
   protected renderStroke(color: string) {
     this.context.ctx.lineWidth = Math.round(3 / this.context.camera.getCameraScale());
     this.context.ctx.strokeStyle = color;
-    this.context.ctx.roundRect(this.state.x, this.state.y, this.state.width, this.state.height, [15]);
+    this.roundRect(this.context.ctx, this.state.x, this.state.y, this.state.width, this.state.height, [15]);
     this.context.ctx.stroke();
   }
 
@@ -288,27 +330,42 @@ class RoundedBlock extends CanvasBlock {
     // Fill with custom color
     ctx.fillStyle = "#E6F7FF";
     ctx.beginPath();
-    ctx.roundRect(this.state.x, this.state.y, this.state.width, this.state.height, [15]);
+    this.roundRect(ctx, this.state.x, this.state.y, this.state.width, this.state.height, [15]);
     ctx.fill();
     
     // Stroke
     ctx.lineWidth = 2;
     ctx.strokeStyle = "#0077CC";
     ctx.beginPath();
-    ctx.roundRect(this.state.x, this.state.y, this.state.width, this.state.height, [15]);
+    this.roundRect(ctx, this.state.x, this.state.y, this.state.width, this.state.height, [15]);
     ctx.stroke();
 
     // Render text
     if (this.shouldRenderText) {
       ctx.fillStyle = "#003366";
       ctx.textAlign = "center";
-      this.renderText(this.state.name);
+      this.renderText(this.state.label);
     }
     
     // Render selection highlight
     if (this.state.selected) {
       this.renderStroke(this.context.colors.block.selectedBorder);
     }
+  }
+
+  // Polyfill for roundRect
+  private roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number[] | number) {
+    const radii = typeof radius === 'number' ? [radius, radius, radius, radius] : radius;
+    ctx.moveTo(x + radii[0], y);
+    ctx.lineTo(x + width - radii[1], y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radii[1]);
+    ctx.lineTo(x + width, y + height - radii[2]);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radii[2], y + height);
+    ctx.lineTo(x + radii[3], y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radii[3]);
+    ctx.lineTo(x, y + radii[0]);
+    ctx.quadraticCurveTo(x, y, x + radii[0], y);
+    ctx.closePath();
   }
 }
 
@@ -326,7 +383,7 @@ export const customBlockGraphConfig: TGraphConfig = {
       y: 100,
       width: 200,
       height: 150,
-      name: "Rounded Block 1",
+      label: "Rounded Block 1",
       selected: false,
       anchors: [
         { id: "in1", type: EAnchorType.INPUT, point: [0, 0.3] },
@@ -341,7 +398,7 @@ export const customBlockGraphConfig: TGraphConfig = {
       y: 200,
       width: 200,
       height: 150,
-      name: "Rounded Block 2",
+      label: "Rounded Block 2",
       selected: false,
       anchors: [
         { id: "in", type: EAnchorType.INPUT, point: [0, 0.5] },
@@ -398,7 +455,7 @@ When creating custom block implementations, follow these best practices:
    ```typescript
    // Only render text when needed
    if (this.shouldRenderText && this.context.camera.getCameraScale() > 0.5) {
-     this.renderText(this.state.name);
+     this.renderText(this.state.label);
    }
    ```
 
@@ -455,9 +512,9 @@ class OptimizedBlock extends Block {
         this.context.constants.block.DEFAULT_Z_INDEX;
     }
     
-    if (nextState.name !== this.state.name) {
-      // Handle name change
-      console.log(`Block name changed from "${this.state.name}" to "${nextState.name}"`);
+    if (nextState.label !== this.state.label) {
+      // Handle label change
+      console.log(`Block label changed from "${this.state.label}" to "${nextState.label}"`);
       
       // Only trigger a render if text-related properties change
       this.shouldRender = true;
@@ -466,9 +523,58 @@ class OptimizedBlock extends Block {
       console.log(`Block position changed to (${nextState.x}, ${nextState.y})`);
       
       // Update hit box for interaction
-      this.updateHitBox(nextState);
+      // this.updateHitBox(nextState); // TODO: Implement updateHitBox
     } else {
       // Skip render for other property changes
+      this.shouldRender = false;
+    }
+    
+    // Always call parent method after your custom logic
+    super.stateChanged(nextState);
+  }
+```
+
+### Custom Property Change Detection
+
+```typescript
+class OptimizedBlock extends Block {
+  // Override shouldRender to customize rendering behavior
+  protected shouldRender(nextState: TBlock, nextProps: TBlockProps): boolean {
+    // Check if relevant properties have changed
+    if (nextState.x !== this.state.x || nextState.y !== this.state.y) {
+      // Position changed, need to render
+      return true;
+    }
+    
+    if (nextProps.font !== this.props.font) {
+      // Font changed, need to render
+      return true;
+    }
+    
+    // No relevant changes, skip rendering
+    return false;
+  }
+}
+```
+
+### Advanced State Diffing for Optimizing Renders
+
+For complex blocks with many properties, you can use advanced state diffing techniques to optimize rendering performance. This involves comparing the current and next state to identify only the properties that have changed and trigger a render only when necessary.
+
+```typescript
+import { isEqual } from 'lodash';
+
+class OptimizedBlock extends Block {
+  protected stateChanged(nextState: TBlock): void {
+    // Compare relevant properties using lodash's isEqual
+    if (!isEqual(nextState.style, this.state.style)) {
+      // Style changed, need to render
+      this.shouldRender = true;
+    } else if (!isEqual(nextState.data, this.state.data)) {
+      // Data changed, need to render
+      this.shouldRender = true;
+    } else {
+      // No relevant changes, skip rendering
       this.shouldRender = false;
     }
     
@@ -478,173 +584,4 @@ class OptimizedBlock extends Block {
 }
 ```
 
-### Custom Property Change Detection
-
-```typescript
-class DataAwareBlock extends Block<TBlock & { data: { value: number } }> {
-  private prevValue: number;
-  private valueChanged: boolean = false;
-  
-  protected willMount() {
-    this.prevValue = this.state.data?.value;
-  }
-  
-  protected stateChanged(nextState: TBlock & { data: { value: number } }): void {
-    // Check if the value property in data has changed
-    if (nextState.data?.value !== this.prevValue) {
-      this.valueChanged = true;
-      this.prevValue = nextState.data?.value;
-      
-      // Calculate visual properties based on the new value
-      const normalizedValue = Math.min(Math.max(nextState.data.value / 100, 0), 1);
-      this.cachedFillColor = `rgba(0, ${Math.round(normalizedValue * 255)}, 0, 0.8)`;
-    } else {
-      this.valueChanged = false;
-    }
-    
-    super.stateChanged(nextState);
-  }
-  
-  protected renderSchematicView(ctx: CanvasRenderingContext2D) {
-    // Use the cached color calculated during stateChanged
-    ctx.fillStyle = this.cachedFillColor || this.context.colors.block.background;
-    ctx.fillRect(this.state.x, this.state.y, this.state.width, this.state.height);
-    
-    // Add a visual indicator when the value has just changed
-    if (this.valueChanged) {
-      ctx.fillStyle = 'yellow';
-      ctx.beginPath();
-      ctx.arc(
-        this.state.x + this.state.width - 10, 
-        this.state.y + 10, 
-        5, 
-        0, 
-        Math.PI * 2
-      );
-      ctx.fill();
-    }
-    
-    // Render text
-    if (this.shouldRenderText) {
-      ctx.fillStyle = this.context.colors.block.text;
-      this.renderText(`${this.state.name}: ${this.state.data?.value}`);
-    }
-  }
-}
-```
-
-### Advanced State Diffing for Optimizing Renders
-
-```typescript
-class HighPerformanceBlock extends Block<TBlock & { 
-  complexData: { 
-    items: Array<{ id: string; value: number }> 
-  } 
-}> {
-  // Cache for expensive calculations
-  private calculatedLayout: Record<string, { x: number; y: number; width: number; height: number }> = {};
-  private needsRecalculation = true;
-  
-  protected stateChanged(nextState: TBlock & { 
-    complexData: { 
-      items: Array<{ id: string; value: number }> 
-    } 
-  }): void {
-    // First check if we have a structural change in the items
-    const currentItems = this.state.complexData?.items || [];
-    const nextItems = nextState.complexData?.items || [];
-    
-    if (currentItems.length !== nextItems.length) {
-      // Item count changed - need full recalculation
-      this.needsRecalculation = true;
-    } else {
-      // Check if any item values changed
-      const hasChanges = nextItems.some((newItem, index) => {
-        const currentItem = currentItems[index];
-        return newItem.id !== currentItem.id || newItem.value !== currentItem.value;
-      });
-      
-      if (hasChanges) {
-        // We have changes in items - need recalculation
-        this.needsRecalculation = true;
-      }
-    }
-    
-    // Check if position or size changed
-    if (
-      nextState.x !== this.state.x || 
-      nextState.y !== this.state.y ||
-      nextState.width !== this.state.width ||
-      nextState.height !== this.state.height
-    ) {
-      // Container dimensions changed - need recalculation
-      this.needsRecalculation = true;
-    }
-    
-    super.stateChanged(nextState);
-  }
-  
-  protected willRender() {
-    super.willRender();
-    
-    // Perform expensive calculations only when needed
-    if (this.needsRecalculation) {
-      this.calculateInternalLayout();
-      this.needsRecalculation = false;
-    }
-  }
-  
-  private calculateInternalLayout() {
-    // Expensive calculation for internal element positions
-    const items = this.state.complexData?.items || [];
-    const padding = 10;
-    const itemHeight = 30;
-    const availableWidth = this.state.width - (padding * 2);
-    
-    this.calculatedLayout = {};
-    
-    items.forEach((item, index) => {
-      this.calculatedLayout[item.id] = {
-        x: this.state.x + padding,
-        y: this.state.y + padding + (index * (itemHeight + 5)),
-        width: availableWidth,
-        height: itemHeight
-      };
-    });
-  }
-  
-  protected renderSchematicView(ctx: CanvasRenderingContext2D) {
-    // Render main container
-    ctx.fillStyle = this.context.colors.block.background;
-    ctx.fillRect(this.state.x, this.state.y, this.state.width, this.state.height);
-    
-    // Render each item using pre-calculated layout
-    const items = this.state.complexData?.items || [];
-    items.forEach(item => {
-      const layout = this.calculatedLayout[item.id];
-      if (layout) {
-        // Render item background
-        ctx.fillStyle = `rgba(0, 0, 255, ${item.value / 100})`;
-        ctx.fillRect(layout.x, layout.y, layout.width, layout.height);
-        
-        // Render item text
-        if (this.shouldRenderText) {
-          ctx.fillStyle = '#ffffff';
-          ctx.textAlign = 'left';
-          ctx.font = this.props.font;
-          ctx.fillText(
-            `${item.id}: ${item.value}`, 
-            layout.x + 5, 
-            layout.y + layout.height/2 + 5
-          );
-        }
-      }
-    });
-    
-    // Render border
-    ctx.strokeStyle = this.state.selected ? 
-      this.context.colors.block.selectedBorder : 
-      this.context.colors.block.border;
-    ctx.strokeRect(this.state.x, this.state.y, this.state.width, this.state.height);
-  }
-} 
+By implementing these techniques, you can create custom block implementations that are both flexible and performant.

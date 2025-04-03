@@ -94,6 +94,8 @@ flowchart TD
     C --> Q[didIterate]
     Q --> R[Next Animation Frame]
     R --> C
+    C --> S[propsChanged]
+    C --> T[stateChanged]
 ```
 
 ## State and Props Management
@@ -163,4 +165,4 @@ The rendering mechanism integrates with the browser's animation frame:
   - `willUpdateChildren()` - Before updating children
   - `didUpdateChildren()` - After updating children
   - `propsChanged(nextProps)` - When props change
-  - `stateChanged(nextState)` - When state changes 
+  - `stateChanged(nextState)` - When state changes

@@ -9,9 +9,15 @@ List of methods in your disposition:
 
   public zoomToViewPort(transition?: number): void;
 
-  public getCurrentConfiguration(): TGraphConfig;
+  public getGraphColors(): TGraphColors;
 
-  public setBlockName(blockId: TBlockId, newName: string): void;
+  public updateGraphColors(colors: TGraphColors): void;
+
+  public getGraphConstants(): TGraphConstants;
+
+  public updateGraphConstants(constants: TGraphConstants): void;
+
+  public isGraphEmpty(): boolean;
 
   public setSetting(flagPath: keyof TGraphSettingsConfig, value: boolean | number | ECanChangeBlockGeometry): void;
 
@@ -19,19 +25,25 @@ List of methods in your disposition:
 
   public deleteSelected(): void;
 
-  public selectBlocks(blockIds: TBlockId[], selected: boolean): void;
+  public selectBlocks(blockIds: TBlockId[], selected: boolean, strategy: ESelectionStrategy = ESelectionStrategy.REPLACE): void;
+
+  public updateBlock(block: { id: TBlockId } & Partial<Omit<TBlock, "id">>): void;
+
+  public setAnchorSelection(blockId: TBlockId, anchorId: string, selected: boolean): void;
 
   public getBlockById(blockId: TBlockId): TBlock;
 
   public getUsableRect(): TGeometry;
 
-  public addBlock(geometry: TGeometry, name: string: void): TBlockId;
+  public unsetSelection(): void;
+
+  public addBlock(block: Omit<TBlock, "id"> & { id?: TBlockId }): TBlockId;
 
   public addConnection(connection: TConnection): TConnectionId
 
-  public updateConnection(id: TConnectionId, connection: TConnection): void;
+  public updateConnection(id: TConnectionId, connection: Partial<TConnection>): void;
 
-  public selectConnections(connectionIds: TConnectionId[], selected: boolean): void;
+  public selectConnections(connectionIds: TConnectionId[], selected: boolean, strategy: ESelectionStrategy = ESelectionStrategy.REPLACE): void;
 ```
 
 ## API-Example. Entities set/update
@@ -51,4 +63,3 @@ const update = useCallback(() => {
     blocks: [{...block, name: 'Updated Name'}],
   });
 })
-```

@@ -1,10 +1,35 @@
-## Graph events
+## Graph Events
 
-To respond to graph events, we have implemented an event system based on the DOM [EventTarget API](https://developer.mozilla.org/en-US/docs/Web/API/EventTarget) and [CustomEvent](https://developer.mozilla.org/en-US/docs/Web/API/CustomEvent/CustomEvent)
+To respond to graph events, we have implemented an event system based on the DOM [EventTarget API](https://developer.mozilla.org/en-US/docs/Web/API/EventTarget) and [CustomEvent](https://developer.mozilla.org/en-US/docs/Web/API/CustomEvent/CustomEvent).
 
+import { GraphEvents } from "@/graph";
+
+const `Graph` class provides two key methods for working with events: `emit` and `executeDefaultEventAction`.
+
+*   `emit(eventName: string, detail?: any)`: Dispatches a custom event on the graph. This is the primary way to trigger events within the graph.
+*   `executeDefaultEventAction(eventName: string, detail: any, defaultCb: () => void)`: Executes the default action associated with a given event. This is used internally to handle default behaviors like block dragging or selection. It takes the event name, an event detail object, and a callback function as parameters. The callback is executed only if the event is not prevented.
+
+**Example Usage:**
 
 ```typescript
-const graph new Graph(...props);
+// Emitting a custom event
+graph.emit('block-selected', { blockId: 'block123' });
+
+// Executing the default event action (e.g., after manually modifying block position)
+const blockChangeEventDetail = { block: { id: 'block123', x: 100, y: 200 } };
+
+const defaultBlockChangeAction = () => {
+  console.log('Default block change action executed');
+  // Perform default action here, e.g., update block position in the store
+};
+
+graph.executeDefaultEventAction('block-change', blockChangeEventDetail, defaultBlockChangeAction);
+```
+
+```typescript
+import { Graph } from "@/graph";
+
+const graph = new Graph(...props);
 
 const unsubscribe = graph.on("mouseenter", (event) => {
   console.log("mouseenter", event.detail);
@@ -15,7 +40,7 @@ const unsubscribe = graph.on("mouseenter", (event) => {
   event.stopPropagation();
 }, {
   once: true,
-  caprute: true;
+  capture: true
 });
 
 unsubscribe();
@@ -23,18 +48,20 @@ unsubscribe();
 
 ### Events
 
-#### Mouse events
+#### Mouse Events
 
-* mousedown
-* click
-* mouseenter
-* mousemove
-* mouseleave
+*   `mousedown`: Fires when a mouse button is pressed down on the graph. Prevents default browser behavior.
+*   `click`: Fires when a mouse button is released on the graph after a press. Prevents default browser behavior.
+*   `mouseenter`: Fires when the mouse pointer enters the graph.
+*   `mousemove`: Fires when the mouse pointer is moving inside the graph.
+*   `mouseleave`: Fires when the mouse pointer leaves the graph.
 
-This event has a type of Graphmodelevent, with possible targets of `Block`, `Connection`, `Anchor` or `Camera`. If the event fires when the cursor is not over any element, the target will be the Camera.
+These events have a type of `GraphMouseEvent`, with possible targets of `Block`, `Connection`, `Anchor`, or `Camera`. If the event fires when the cursor is not over any element, the target will be the `Camera`.
 
 ```typescript
-type GraphMouseEvent<E extends Event = Event> = CustomEvent<{
+import { EventedComponent } from "@/lib/Component";
+
+interface GraphMouseEvent<E extends Event = Event> = CustomEvent<{
   target?: EventedComponent;
   sourceEvent: E;
   pointerPressed?: boolean;
@@ -44,36 +71,51 @@ graph.on('click', (event: GraphMouseEvent) => {
   console.log('clicked element', event.detail.target);
   console.log('original event', event.detail.sourceEvent);
   console.log('prevent click on element', event.preventDefault());
-})
+});
 ```
 
-Preventing these events will prevent delegate this event to the target component so preventing selection, Drag and drop, other behavior implemented on the components.
+Preventing these events will prevent the event from being delegated to the target component, thus preventing selection, drag and drop, and other behaviors implemented on the components.
 
 #### Block Events
 
-`block-change` Fires on change block position
+`block-change`: Fires when a block's position changes.
 ```typescript
+interface TBlock {
+  id: string;
+}
+
 graph.on('block-change', (event: CustomEvent<{ block: TBlock }>) => {
   console.log('Changed block', event.detail.block);
-})
+});
 ```
-\
-\
-`block-anchor-selection-change` Fires when user select block's anchor\
+
+`block-anchor-selection-change`: Fires when a user selects a block's anchor.
 
 **IMPORTANT**: Multiple anchor selection is not currently supported, so this event will only fire for one anchor.
 
 ```typescript
+interface TAnchor {
+  id: string;
+}
+
 graph.on('block-anchor-selection-change', (event: CustomEvent<{ anchor: TAnchor }>) => {
   console.log('selected anchor', event.detail.anchor);
-})
+});
 ```
 
-\
-\
-`blocks-selection-change` Fires on selecte/unselect blocks
+`blocks-selection-change`: Fires when blocks are selected or unselected.
 
 ```typescript
+interface SelectionEvent<T> {
+  list: T[];
+  changed: {
+    add: T[];
+    removed: T[];
+  };
+}
+
+type TBlockId = string;
+
 graph.on('blocks-selection-change', (event: CustomEvent<SelectionEvent<TBlockId>>) => {
   console.log('List of selected block IDs', event.detail.list);
   console.log('List of recently selected block IDs', event.detail.changed.add);
@@ -81,105 +123,131 @@ graph.on('blocks-selection-change', (event: CustomEvent<SelectionEvent<TBlockId>
 
   // Prevent apply selection changes
   event.preventDefault();
-})
+});
 ```
-\
-\
-`block-drag-start`: Fires on before start drag event. Preventing stop the drag event
+
+`block-drag-start`: Fires before a drag event starts. Preventing this event stops the drag event.
 ```typescript
+interface TBlock {
+  id: string;
+}
+
 graph.on('block-drag-start', (event: CustomEvent<{ nativeEvent: MouseEvent; block: TBlock }>) => {
   console.log('drag block', event.detail.block);
   // prevent drag block
-  event.predentDefault();
-})
+  event.preventDefault();
+});
 ```
-\
-\
-`block-drag`
 
+`block-drag`: Fires continuously during a drag event. Preventing this event prevents the block from being dragged.
 ```typescript
+interface TBlock {
+  id: string;
+}
+
 graph.on('block-drag', (event: CustomEvent<{ nativeEvent: MouseEvent; block: TBlock }>) => {
   console.log('drag block', event.detail.block);
   console.log('next position', event.detail.x, event.detail.y);
   // prevent apply next block position
-  event.predentDefault();
-})
+  event.preventDefault();
+});
 ```
-\
-\
-`block-drag-end`
+
+`block-drag-end`: Fires when a drag event ends.
 ```typescript
+interface TBlock {
+  id: string;
+}
+
 graph.on('block-drag-end', (event: CustomEvent<{ nativeEvent: MouseEvent; block: TBlock }>) => {
   console.log('dropped block', event.detail.block);
-  // prevent do nothing. This event only reset the drag state
-  event.predentDefault();
-})
+  // prevent do nothing. This event only resets the drag state
+  event.preventDefault();
+});
 ```
 
+### Connection Events
 
-### Connection events
-
-`connection-selection-change` Fires on selecte/unselect connection
+`connection-selection-change`: Fires when connections are selected or unselected.
 
 ```typescript
+interface SelectionEvent<T> {
+  list: T[];
+  changed: {
+    add: T[];
+    removed: T[];
+  };
+}
+
+type TConnection = string;
+
 graph.on('connection-selection-change', (event: CustomEvent<SelectionEvent<TConnection>>) => {
-  console.log('List of selected coneections', event.detail.list);
-  console.log('List of recently selected coneections', event.detail.changed.add);
-  console.log('List of unselected coneections', event.detail.changed.removed);
+  console.log('List of selected connections', event.detail.list);
+  console.log('List of recently selected connections', event.detail.changed.add);
+  console.log('List of unselected connections', event.detail.changed.removed);
 
   // Prevent apply selection changes
   event.preventDefault();
-})
-
+});
 ```
 
-#### Camera events
+#### Camera Events
 
-`camera-change`: Fires on camera change state - move, zoom, reset viewport, ...etc
+`camera-change`: Fires when the camera's state changes (move, zoom, reset viewport, etc.).
 
 ```typescript
+interface TCameraState {
+  x: number;
+  y: number;
+  scale: number;
+}
+
 graph.on('camera-change', (event: CustomEvent<TCameraState>) => {
   console.log('camera change', event.detail);
   // prevent apply camera change
   event.preventDefault();
-})
+});
 ```
 
 ## Event in React
 
 To listen for events on the GraphComponent in React, you can use the `onEventName` prop. This is only available for some of the most common events, however. If you need to listen for other events, you can use a `graphRef` and the `on` method.
 
-List of most usefull events
+List of most useful events:
 
 ```typescript
+import { SelectionEvent } from "@/services/Layer";
+
 export type TGraphEventCallbacks = {
-  click: (data: UnwrapGraphEventsDetail<"click">, event: UnwrapGraphEvents<"click">) => void;
-  onCameraChange: (data: UnwrapGraphEventsDetail<"camera-change">, event: UnwrapGraphEvents<"camera-change">) => void;
-  onBlockDragStart: (
-    data: UnwrapGraphEventsDetail<"block-drag-start">,
-    event: UnwrapGraphEvents<"block-drag-start">
+  click: (data: any, event: CustomEvent<any>) => void;
+  cameraChange: (data: any, event: CustomEvent<any>) => void;
+  blockDragStart: (
+    data: any,
+    event: CustomEvent<any>
   ) => void;
-  onBlockDrag: (data: UnwrapGraphEventsDetail<"block-drag">, event: UnwrapGraphEvents<"block-drag">) => void;
-  onBlockDragEnd: (data: UnwrapGraphEventsDetail<"block-drag-end">, event: UnwrapGraphEvents<"block-drag-end">) => void;
-  onBlockSelectionChange: (
-    data: UnwrapGraphEventsDetail<"blocks-selection-change">,
-    event: UnwrapGraphEvents<"blocks-selection-change">
+  blockDrag: (data: any, event: CustomEvent<any>) => void;
+  blockDragEnd: (data: any, event: CustomEvent<any>) => void;
+  blockSelectionChange: (
+    data: SelectionEvent<TBlockId>,
+    event: CustomEvent<SelectionEvent<TBlockId>>
   ) => void;
-  onBlockAnchorSelectionChange: (
-    data: UnwrapGraphEventsDetail<"block-anchor-selection-change">,
-    event: UnwrapGraphEvents<"block-anchor-selection-change">
+  blockAnchorSelectionChange: (
+    data: any,
+    event: CustomEvent<any>
   ) => void;
-  onBlockChange: (data: UnwrapGraphEventsDetail<"block-change">, event: UnwrapGraphEvents<"block-change">) => void;
-  onConnectionSelectionChange: (
-    data: UnwrapGraphEventsDetail<"connection-selection-change">,
-    event: UnwrapGraphEvents<"connection-selection-change">
+  blockChange: (data: any, event: CustomEvent<any>) => void;
+  connectionSelectionChange: (
+    data: SelectionEvent<TConnection>,
+    event: CustomEvent<SelectionEvent<TConnection>>
   ) => void;
 };
 ```
 
-For Example
+For Example:
 
 ```typescript
+import { SelectionEvent } from "@/services/Layer";
+
 const YourPrettyGraphComponent = () => {
   const onBlockSelectionChange = useCallback((detail: SelectionEvent<TBlockId>, event: CustomEvent<SelectionEvent<TBlockId>>) => {
     console.log('List of selected block IDs', detail.list);
@@ -192,3 +260,52 @@ const YourPrettyGraphComponent = () => {
  />
 }
 ```
+
+## Custom Events
+
+You can create and dispatch custom events on the graph using the `dispatchEvent` method. This allows you to extend the graph's event system with your own application-specific events.
+
+**Example using `emit` and `executeDefaultEventAction`:**
+
+```typescript
+// Create a custom event detail
+const customEventDetail = {
+  message: 'Hello from my custom event!',
+  timestamp: Date.now()
+};
+
+// Emit the custom event
+graph.emit('my-custom-event', customEventDetail);
+
+// Define the default action for the custom event
+const defaultCustomEventAction = () => {
+  console.log('Default custom event action executed!');
+  // Perform default action here
+};
+
+// Execute the default event action (if any)
+graph.executeDefaultEventAction('my-custom-event', customEventDetail, defaultCustomEventAction);
+
+// Listen for the event
+graph.on('my-custom-event', (event: CustomEvent<{ message: string; timestamp: number }>) => {
+  console.log('Received custom event:', event.detail.message, 'at', new Date(event.detail.timestamp).toLocaleTimeString());
+});
+```
+
+## Extending the List of Available Events
+
+To extend the list of available events, you can use TypeScript's `declare module` syntax to augment the `GraphEvents` interface. This allows you to add your own custom event types to the graph's event system.
+
+```typescript
+import { GraphEvents } from "@/graph";
+
+declare module '@/graph' {
+  interface GraphEvents {
+    'my-custom-event': CustomEvent<{ message: string }>;
+  }
+}
+
+// Now you can use your custom event with type safety
+graph.on('my-custom-event', (event) => {
+  console.log(event.detail.message);
+});
