@@ -19,130 +19,58 @@ This library provides a comprehensive system for rendering and interacting with 
 ## Quick Start
 
 ```typescript
-import { Graph, Block } from '@gravity-ui/graph';
+import { Graph } from '@gravity-ui/graph';
 
 // Create a graph instance
-const graph = new Graph({
-  container: document.getElementById('graph-container'),
-  width: 800,
-  height: 600
-});
+const graph = new Graph({}, document.getElementById("graph-container"));
 
-// Add some blocks
-const block1 = graph.addBlock({
-  x: 100, 
-  y: 100, 
-  width: 120, 
-  height: 80,
-  name: "Block 1"
-});
-
-const block2 = graph.addBlock({
-  x: 300, 
-  y: 200, 
-  width: 120, 
-  height: 80,
-  label: "Block 2"
-});
-
-// Connect the blocks
-graph.addConnection({
-  source: { blockId: block1, anchorId: 'output' },
-  target: { blockId: block2, anchorId: 'input' }
-});
-
-// Update entities as needed
-graph.updateEntities({
-  blocks: [{ id: block1, label: 'Updated Block Name' }]
+// Set initial entities
+graph.setEntities({
+  blocks: [
+    { id: "block1", x: 100, y: 100, width: 120, height: 80, name: "Block 1" },
+    { id: "block2", x: 300, y: 200, width: 120, height: 80, name: "Block 2" }
+  ],
+  connections: [
+    { sourceBlockId: "block1", targetBlockId: "block2" }
+  ]
 });
 ```
 
 ## Documentation
 
-### Components
+The documentation is organized into logical sections that cover all aspects of the library:
 
-The library is built around a component-based architecture:
+### Core Concepts
 
-- [Canvas Graph Component](./components/canvas-graph-component.md) - The foundation for all visual elements
-- [Block Component](./components/block-component.md) - For rendering and interacting with graph nodes
+| Section | Description |
+|---------|-------------|
+| [Component Lifecycle](./system/component-lifecycle.md) | Understanding initialization, update, rendering, and unmounting phases |
+| [Rendering Mechanism](./rendering/rendering-mechanism.md) | How the rendering pipeline works and optimization techniques |
+| [Event System](./system/events.md) | Event handling, propagation, and custom events |
 
-### Connections
+### Main Components
 
-- [Canvas Connection System](./connections/canvas-connection-system.md) - Framework for rendering and interacting with connections
+| Component | Description |
+|-----------|-------------|
+| [Canvas Graph](./components/canvas-graph-component.md) | Foundation for all visual elements with HitBox system and spatial awareness |
+| [Block Component](./components/block-component.md) | Building blocks for graph nodes with customization options |
+| [Connections](./connections/canvas-connection-system.md) | System for creating and styling connections between blocks |
 
-### System
+### Advanced Features
 
-- [Component Lifecycle](./system/component-lifecycle.md) - Detailed explanation of component lifecycle
-- [Events](./system/events.md) - Event handling mechanisms
-- [Public API](./system/public_api.md) - Methods for interacting with the graph
-- [Scheduler System](./system/scheduler-system.md) - Manages component updates and rendering
+| Feature | Description |
+|---------|-------------|
+| [Layer System](./rendering/layers.md) | Managing z-index ordering and layer-specific rendering |
+| [Block Groups](./blocks/groups.md) | Automatic and manual grouping of blocks |
+| [Scheduler System](./system/scheduler-system.md) | Manages frame scheduling and update prioritization |
 
-### Rendering
+### Configuration
 
-- [Rendering Mechanism](./rendering/rendering-mechanism.md) - Details of the rendering pipeline
-- [Layers](./rendering/layers.md) - Layer-based rendering system
+| Topic | Description |
+|-------|-------------|
+| [Graph Settings](./system/graph-settings.md) | Configuration options, colors, layout parameters |
+| [Public API](./system/public_api.md) | Methods for graph manipulation and entity management |
 
-### Blocks
+## Examples
 
-- [Groups](./blocks/groups.md) - Working with block groups for organization
-
-## Table of Contents
-
-### Components
-- [Canvas Graph Component](./components/canvas-graph-component.md)
-  - Foundation for all visual elements
-  - HitBox system
-  - Spatial awareness
-  - Event handling
-
-- [Block Component](./components/block-component.md)
-  - Block architecture
-  - Rendering blocks
-  - Block states and controllers
-  - Customization options
-
-### Connections
-- [Canvas Connection System](./connections/canvas-connection-system.md)
-  - Connection architecture
-  - Path rendering
-  - Connection styling
-  - Interaction handling
-
-### System
-- [Component Lifecycle](./system/component-lifecycle.md)
-  - Initialization phase
-  - Update cycle
-  - Rendering pipeline
-  - Unmounting process
-
-- [Events](./system/events.md)
-  - Event handling
-  - Event propagation
-  - Custom events
-
-- [Public API](./system/public_api.md)
-  - Graph manipulation methods
-  - Configuration options
-  - Entity management
-
-- [Scheduler System](./system/scheduler-system.md)
-  - Frame scheduling
-  - Performance optimization
-  - Update prioritization
-
-### Rendering
-- [Rendering Mechanism](./rendering/rendering-mechanism.md)
-  - Component structure
-  - Rendering pipeline
-  - Optimization techniques
-
-- [Layers](./rendering/layers.md)
-  - Layer management
-  - Z-index ordering
-  - Layer-specific rendering
-
-### Blocks
-- [Groups](./blocks/groups.md)
-  - Automatic grouping
-  - Manual group management
-  - Group styling and behavior
+For more examples and usage scenarios, see the `src/stories` directory in the project repository.

@@ -2,30 +2,6 @@
 
 To respond to graph events, we have implemented an event system based on the DOM [EventTarget API](https://developer.mozilla.org/en-US/docs/Web/API/EventTarget) and [CustomEvent](https://developer.mozilla.org/en-US/docs/Web/API/CustomEvent/CustomEvent).
 
-import { GraphEvents } from "@/graph";
-
-const `Graph` class provides two key methods for working with events: `emit` and `executeDefaultEventAction`.
-
-*   `emit(eventName: string, detail?: any)`: Dispatches a custom event on the graph. This is the primary way to trigger events within the graph.
-*   `executeDefaultEventAction(eventName: string, detail: any, defaultCb: () => void)`: Executes the default action associated with a given event. This is used internally to handle default behaviors like block dragging or selection. It takes the event name, an event detail object, and a callback function as parameters. The callback is executed only if the event is not prevented.
-
-**Example Usage:**
-
-```typescript
-// Emitting a custom event
-graph.emit('block-selected', { blockId: 'block123' });
-
-// Executing the default event action (e.g., after manually modifying block position)
-const blockChangeEventDetail = { block: { id: 'block123', x: 100, y: 200 } };
-
-const defaultBlockChangeAction = () => {
-  console.log('Default block change action executed');
-  // Perform default action here, e.g., update block position in the store
-};
-
-graph.executeDefaultEventAction('block-change', blockChangeEventDetail, defaultBlockChangeAction);
-```
-
 ```typescript
 import { Graph } from "@/graph";
 
@@ -216,8 +192,6 @@ To listen for events on the GraphComponent in React, you can use the `onEventNam
 List of most useful events:
 
 ```typescript
-import { SelectionEvent } from "@/services/Layer";
-
 export type TGraphEventCallbacks = {
   click: (data: any, event: CustomEvent<any>) => void;
   cameraChange: (data: any, event: CustomEvent<any>) => void;
@@ -246,8 +220,6 @@ export type TGraphEventCallbacks = {
 For Example:
 
 ```typescript
-import { SelectionEvent } from "@/services/Layer";
-
 const YourPrettyGraphComponent = () => {
   const onBlockSelectionChange = useCallback((detail: SelectionEvent<TBlockId>, event: CustomEvent<SelectionEvent<TBlockId>>) => {
     console.log('List of selected block IDs', detail.list);
@@ -292,14 +264,10 @@ graph.on('my-custom-event', (event: CustomEvent<{ message: string; timestamp: nu
 });
 ```
 
-## Extending the List of Available Events
-
 To extend the list of available events, you can use TypeScript's `declare module` syntax to augment the `GraphEvents` interface. This allows you to add your own custom event types to the graph's event system.
 
 ```typescript
-import { GraphEvents } from "@/graph";
-
-declare module '@/graph' {
+declare module '@gravity-ui/graph' {
   interface GraphEvents {
     'my-custom-event': CustomEvent<{ message: string }>;
   }

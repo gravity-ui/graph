@@ -72,4 +72,24 @@ Implement both automatic and manual approaches for block grouping.
 - Implemented `BlockGroups.withBlockGrouping` for automatic grouping based on custom logic
 - Added support for group styling and behavior configuration
 - Included methods for manual group management (`setGroups`, `updateGroups`)
+
+## [2025-04-03 18:33:20] - Separation of Plugin-Specific Settings and Constants
+
+### Decision
+Refactor the codebase to separate plugin-specific settings, constants, and colors from the core graph library.
+
+### Rationale
+- **Cleaner Architecture**: Clear separation of concerns between core graph functionality and plugin-specific code
+- **Improved Maintainability**: Reduces coupling between core code and plugins
+- **Better Encapsulation**: Plugins should manage their own configuration and not rely on core settings
+- **Reduced Cognitive Load**: Developers can focus on relevant settings without being distracted by plugin-specific options
+- **Enhanced Modularity**: Makes it easier to add, remove, or modify plugins without affecting the core library
+
+### Implementation Details
+- Identify constants, settings, and colors that are exclusively used by plugins
+- Create plugin-specific configuration files within each plugin directory
+- Update plugins to use their own settings rather than core settings
+- Ensure backward compatibility through the public API
+- Update documentation to reflect the new organization of settings
+
 - Added support for custom group components through inheritance

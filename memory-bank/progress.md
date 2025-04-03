@@ -84,8 +84,23 @@ This file tracks the project's progress using a task list format.
 
 6. **Mobile Optimization**: Improve support for touch interactions and mobile devices.
 
+- [ ] **Refactoring of Settings and Constants**
+  - [ ] Separate plugin-specific settings/constants from core graph settings
+  - [ ] Move plugin constants and colors to their respective plugin modules
+  - [ ] Update documentation to reflect the separation of concerns
+  - [ ] Ensure backward compatibility in the public API
+
+[2025-04-03 18:32:48] - Added new task to separate plugin-specific constants, settings, and colors from the core graph library, moving them to their respective plugin modules for better separation of concerns and maintainability.
+
+
 7. **External Layout Integration**: Enhance integration with external layout algorithms like ELK.
 
 8. **React Component Enhancements**: Improve the React wrapper components for better integration with React applications.
 
 2025-04-03 15:09:56 - Updated with comprehensive task tracking based on the library documentation, including completed tasks, current tasks, and next steps.
+
+
+[2025-04-03 18:36:41] - Improved the documentation structure in docs/README.md by simplifying the organization, adding visual hierarchy with tables, streamlining the quick start example, and grouping documentation topics logically. This makes the library's documentation more accessible and easier to navigate.
+[2025-04-03 18:21:15] - Enhanced the graph-settings.md documentation by analyzing the codebase to identify and document only the settings and constants that are actually used. Removed unused settings from documentation to improve clarity and focus.
+
+[2025-04-03 18:16:42] - Completed documentation for graph settings. Created a comprehensive graph-settings.md file and updated the README.md to properly reference it in the documentation section and table of contents. The documentation includes detailed information about configuration options, colors, and constants with practical examples.

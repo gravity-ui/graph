@@ -44,4 +44,13 @@ Some open questions and issues that need to be addressed:
 
 5. **Accessibility Considerations**: Ensuring the library provides accessible visualizations, including keyboard navigation and screen reader support, may need further attention.
 
+6. **Plugin Independence**: Refactoring the code to clearly separate plugin-specific constants, settings, and colors from the core graph library. This will improve maintainability and create a cleaner architecture with proper separation of concerns.
+
+
+
+[2025-04-03 18:21:07] - Refined Graph Settings documentation to include only settings and constants that are actively used in the codebase. Removed unused settings and constants from the documentation to improve clarity and reduce confusion.
+
+[2025-04-03 18:16:30] - Created comprehensive documentation for Graph Settings (`docs/system/graph-settings.md`) and updated the main README.md to properly reference it in the Table of Contents. The documentation includes detailed explanations of configuration options, color customization, and constants, with examples for common use cases.
+
+[2025-04-03 18:36:58] - Restructured the docs/README.md to improve clarity and accessibility. The new documentation structure uses tables for better visual organization, simplifies the quick start example, and provides a more logical grouping of documentation topics. This change addresses the 'Documentation and Examples' focus area by making the library's documentation more approachable for new users.
 2025-04-03 15:09:16 - Updated with the current focus, recent changes, and open questions based on the library documentation.
