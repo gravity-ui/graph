@@ -11,8 +11,10 @@ There are two ways to work with groups:
 Use this when you want groups to update automatically based on block properties. For example, you can group blocks by their color or type.
 
 ```typescript
+import { Graph, GroupsList } from '@gravity-ui/graph';
+
 // Make groups automatically
-const AutoGroups = BlockGroups.withBlockGrouping({
+const AutoGroups = GroupsList.withBlockGrouping({
   // Put blocks in groups
   groupingFn: (blocks) => {
     const groups = {};
@@ -42,19 +44,21 @@ graph.addLayer(AutoGroups, {
 
 ### 2. Manual Groups
 
-Use direct `BlockGroups` methods when you need manual control over groups. This approach is useful when:
+Use direct `GroupsList` methods when you need manual control over groups. This approach is useful when:
 - Groups are created/updated based on user actions
 - You need custom group management logic
 - Groups are independent of block properties
 
 ```typescript
+import { Graph, GroupsList } from '@gravity-ui/graph';
+
 // Add groups to graph
-const groups = graph.addLayer(BlockGroups, {
+const groups = graph.addLayer(GroupsList, {
   draggable: true,
 });
 
 // Set groups
-blockGroups.setGroups([
+groups.setGroups([
   {
     id: "group1",
     rect: { x: 0, y: 0, width: 100, height: 100 },
@@ -65,7 +69,7 @@ blockGroups.setGroups([
 ]);
 
 // Update specific groups
-blockGroups.updateGroups([
+groups.updateGroups([
   {
     id: "group1",
     rect: { x: 50, y: 50, width: 100, height: 100 }
@@ -78,8 +82,10 @@ blockGroups.updateGroups([
 ### Creating a Group
 
 ```typescript
+import { Graph, GroupsList } from '@gravity-ui/graph';
+
 // Add fixed area groups to graph
-const areas = graph.addLayer(BlockGroups, {
+const areas = graph.addLayer(GroupsList, {
   draggable: false,  // areas cannot be moved
 });
 
@@ -117,6 +123,7 @@ You can change how groups look:
   borderWidth: 2,                             // border thickness
   selectedBackground: "rgba(100, 100, 100, 1)", // color when selected
   selectedBorder: "rgba(100, 100, 100, 1)",    // border when selected
+  textColor: "rgba(0, 0, 0, 1)",              // text color
 }
 ```
 
@@ -139,7 +146,7 @@ You can control how groups work:
 
 ## API Reference
 
-### BlockGroups Methods
+### GroupsList Methods
 ```typescript
 // Create or replace all groups
 setGroups(groups: TGroup[]): void;
@@ -161,7 +168,6 @@ updateGroups(groups: TGroup[]): void;
   };
   selected?: boolean;  // is it selected
   style?: {...};      // how it looks
-  geometry?: {...};   // padding settings
 }
 ```
 
@@ -169,9 +175,11 @@ updateGroups(groups: TGroup[]): void;
 
 ### Custom Group with Extended Properties
 
-You can create your own group type with additional properties. The key is to pass your custom group component to `BlockGroups`. Here's a complete example:
+You can create your own group type with additional properties. The key is to pass your custom group component to `GroupsList`. Here's a complete example:
 
 ```typescript
+import { Graph, GroupsList, Group } from '@gravity-ui/graph';
+
 // 1. Define extended group type
 interface ExtendedTGroup extends TGroup {
   description: string;
@@ -203,13 +211,13 @@ class CustomGroup extends Group<ExtendedTGroup> {
 }
 
 // 3. Create groups with extended properties
-const blockGroups = graph.addLayer(BlockGroups, {
+const groups = graph.addLayer(GroupsList, {
   draggable: false,
   groupComponent: CustomGroup, // Use our custom component
 });
 
 // 4. Set groups with extended properties
-blockGroups.setGroups([
+groups.setGroups([
   {
     id: "group1",
     description: "Contains critical blocks",
@@ -229,22 +237,22 @@ blockGroups.setGroups([
 
 You can find complete working examples in our Storybook stories:
 
-1. **Basic Groups** ([`default.stories.tsx`](https://github.com/gravity-ui/graph/blob/main/src/stories/canvas/groups/default.stories.tsx))
+1. **Basic Groups** ([`default.stories.tsx`](/src/stories/canvas/groups/default.stories.tsx))
    - Shows basic usage of automatic groups
    - Groups are created based on block properties
    - Demonstrates group styling and behavior
 
-2. **Large Graph** ([`large.stories.tsx`](https://github.com/gravity-ui/graph/blob/main/src/stories/canvas/groups/large.stories.tsx))
+2. **Large Graph** ([`large.stories.tsx`](/src/stories/canvas/groups/large.stories.tsx))
    - Shows how to work with many blocks (225+)
    - Automatically groups every 10 blocks
    - Demonstrates performance with multiple groups
 
-3. **Manual Groups** ([`manual.stories.tsx`](https://github.com/gravity-ui/graph/blob/main/src/stories/canvas/groups/manual.stories.tsx))
+3. **Manual Groups** ([`manual.stories.tsx`](/src/stories/canvas/groups/manual.stories.tsx))
    - Shows how to create fixed area groups
    - Creates non-draggable zones with different colors
    - Demonstrates manual group management
 
-4. **Extended Groups** ([`extended.stories.tsx`](https://github.com/gravity-ui/graph/blob/main/src/stories/canvas/groups/extended.stories.tsx))
+4. **Extended Groups** ([`extended.stories.tsx`](/src/stories/canvas/groups/extended.stories.tsx))
    - Shows how to create custom groups with extended properties
    - Adds description and priority to groups
    - Demonstrates custom rendering and styling
