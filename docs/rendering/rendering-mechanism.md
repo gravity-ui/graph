@@ -2,6 +2,8 @@
 
 This document provides a detailed explanation of the rendering mechanism implemented in the library, focusing on the Component and CoreComponent classes and their lifecycles.
 
+> **Note:** This document is part of a series on the rendering architecture. See also [Component Lifecycle](../system/component-lifecycle.md), [Scheduler System](../system/scheduler-system.md), and the integration document [Component Rendering and Lifecycle Integration](../system/component-rendering-lifecycle.md).
+
 ## Architecture Overview
 
 The rendering mechanism is built upon a hierarchical tree structure with the following key components:
@@ -58,69 +60,29 @@ The rendering process follows these steps:
 
 ## Component Lifecycle
 
-### CoreComponent Lifecycle
+The rendering mechanism relies on component lifecycle methods to manage the rendering process. The lifecycle methods are documented in detail in [Component Lifecycle](../system/component-lifecycle.md).
 
-```mermaid
-flowchart TD
-    A[Constructor] --> B[Mount]
-    B --> C[iterate]
-    C --> D[__updateChildren]
-    C --> E[Next Animation Frame]
-    E --> C
-    C --> F[__unmount]
-    F --> G[__unmountChildren]
-    F --> H[unmount]
-```
+Key integration points between the rendering system and component lifecycle:
 
-### Component Lifecycle
+- Components use `render()` to produce visual output
+- Component trees are traversed in z-index order
+- Visual output is coordinated through the `iterate()` method
+- State/props changes trigger rendering through `performRender()`
 
-```mermaid
-flowchart TD
-    A[Constructor] --> B[willMount first time]
-    B --> C[iterate]
-    C --> D[checkData]
-    D --> E[willIterate]
-    E --> F{shouldRender?}
-    F -->|Yes| G[renderLifeCycle]
-    F -->|No| H[willNotRender]
-    G --> I[willRender]
-    I --> J[render]
-    J --> K[didRender]
-    E --> L{shouldUpdateChildren?}
-    L -->|Yes| M[childrenLifeCycle]
-    M --> N[willUpdateChildren]
-    N --> O[__updateChildren]
-    O --> P[didUpdateChildren]
-    C --> Q[didIterate]
-    Q --> R[Next Animation Frame]
-    R --> C
-    C --> S[propsChanged]
-    C --> T[stateChanged]
-```
+See [Component Rendering and Lifecycle Integration](../system/component-rendering-lifecycle.md) for a comprehensive view of how these systems interact.
 
 ## State and Props Management
 
-Components manage their state and props using a two-phase approach:
+Components manage their state and props using a buffered approach:
 
-1. **Request Phase**: `setState` or `setProps` stores the next state/props in a temporary buffer
-2. **Apply Phase**: During `checkData`, the buffered changes are applied to the actual state/props
+1. When `setState` or `setProps` is called, changes are stored in a temporary buffer (`__data`)
+2. The component schedules a render update via `performRender()`
+3. On the next animation frame, the buffered changes are applied to the actual state/props during the `checkData()` method
+4. Lifecycle callbacks like `propsChanged()` and `stateChanged()` are triggered as needed
 
-This approach allows for batching multiple state/props updates into a single render cycle.
+This approach allows for batching multiple state/props updates into a single render cycle, improving performance.
 
-```mermaid
-sequenceDiagram
-    participant C as Component
-    participant B as Buffer (__data)
-    participant S as Scheduler
-    
-    C->>B: setState/setProps stores changes
-    C->>S: performRender schedules update
-    S->>C: iterate on next frame
-    C->>B: checkData retrieves pending changes
-    B->>C: Apply changes to this.state/this.props
-    C->>C: propsChanged/stateChanged callbacks
-    C->>C: render if needed
-```
+For more details on this process, see [Component Lifecycle](../system/component-lifecycle.md).
 
 ## Z-Index Management
 
@@ -166,3 +128,9 @@ The rendering mechanism integrates with the browser's animation frame:
   - `didUpdateChildren()` - After updating children
   - `propsChanged(nextProps)` - When props change
   - `stateChanged(nextState)` - When state changes
+  
+  ## Related Documentation
+  
+  - [Component Lifecycle](../system/component-lifecycle.md) - In-depth details about component lifecycle methods
+  - [Scheduler System](../system/scheduler-system.md) - Explanation of the scheduling and update system
+  - [Component Rendering and Lifecycle Integration](../system/component-rendering-lifecycle.md) - Comprehensive guide showing how these systems work together

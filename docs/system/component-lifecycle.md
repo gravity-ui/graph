@@ -2,13 +2,25 @@
 
 This document provides an in-depth explanation of the component lifecycle in the rendering system, focusing on both the CoreComponent and Component classes and their specific lifecycle methods.
 
-**Note: This documentation file appears to be truncated. Please verify the completeness of the information below once the full content is available.**
+> **Note:** This document is part of a series on the rendering architecture. See also [Rendering Mechanism](../rendering/rendering-mechanism.md), [Scheduler System](./scheduler-system.md), and the integration document [Component Rendering and Lifecycle Integration](./component-rendering-lifecycle.md).
 
-## Lifecycle Flow Overview
+## Overview
 
-The component lifecycle consists of several phases, from initialization to unmounting, with specific hooks at each stage to allow for customization.
+The component lifecycle is a sequence of stages and methods that each component goes through from creation to removal. Understanding this lifecycle is essential for effectively using the graph visualization library.
 
-## Initialization Phase
+## 1. Lifecycle Phases
+
+The component lifecycle consists of five main phases:
+
+1. **Initialization** - Component creation and setup
+2. **Mounting** - First addition to the component tree
+3. **Updating** - Processing state/props changes and rendering
+4. **Children Management** - Creating and updating child components
+5. **Unmounting** - Cleanup and removal from the tree
+
+## 2. Initialization Phase
+
+When a component is created, it goes through these initialization steps:
 
 ```mermaid
 flowchart TD
@@ -19,193 +31,101 @@ flowchart TD
     E --> F[Component is ready]
 ```
 
-## CoreComponent Basic Lifecycle
+During initialization:
+- The component's constructor sets up private properties
+- The component is registered in the Tree structure
+- Initial props and state are established
 
-The CoreComponent provides the fundamental lifecycle methods:
+## 3. Basic CoreComponent Lifecycle
 
-```mermaid
-flowchart TD
-    A[Start] --> B[iterate]
-    B --> C[updateChildren]
-    C --> D[render]
-    D --> E[Schedule next frame]
-    E --> B
-    
-    F[unmount] --> G[unmountChildren]
-    G --> H[unmount callback]
-```
+CoreComponent provides the foundation for all components in the system.
 
-## Component Detailed Lifecycle
+The CoreComponent has three main methods:
+- **iterate()** - Called on each frame, manages the update cycle
+- **updateChildren()** - Defines and updates child components
+- **render()** - Handles the visual rendering of the component
 
-The Component class extends CoreComponent with additional lifecycle hooks:
+Note: For details on how these methods interact with the rendering pipeline, see [Rendering Mechanism](../rendering/rendering-mechanism.md).
 
-```mermaid
-flowchart TD
-    A[Component created] --> B[First iteration]
-    B --> C[willMount]
-    C --> D[iterate loop]
-    
-    D --> E[checkData]
-    E --> F[willIterate]
-    
-    F --> G{shouldRender?}
-    G -->|Yes| H[renderLifeCycle]
-    G -->|No| I[willNotRender]
-    
-    H --> J[willRender]
-    J --> K[render]
-    K --> L[didRender]
-    
-    F --> M{shouldUpdateChildren?}
-    M -->|Yes| N[childrenLifeCycle]
-    N --> O[updateChildren]
-    O --> P[didUpdateChildren]
-    
-    I --> R[didIterate]
-    L --> R
-    Q --> R
-    
-    R --> S[Next frame]
-    S --> D
-```
+## 4. Component Lifecycle in Detail
 
-## Component State/Props Lifecycle
+The Component class extends CoreComponent with additional lifecycle hooks that provide more control:
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Component
-    participant Buffer
-    participant Scheduler
-    
-    User->>Component: setState/setProps
-    Component->>Buffer: Store in __data
-    Component->>Scheduler: performRender()
-    Scheduler->>Component: iterate() on next frame
-    Component->>Component: checkData()
-    Component->>Component: propsChanged()/stateChanged()
-    Component->>Component: render and update
-```
+### 4.1 Lifecycle Method Sequence
 
-## Lifecycle Method Execution Order
+During component iteration, methods are called in this order:
 
-The complete lifecycle method execution order for a Component:
+1. First iteration only:
+   - `willMount()`
 
-1. **Initialization**
-   - `constructor(props, parent)`
-
-2. **First Iteration**
-   - `willMount()` (only on first iteration)
-   - `willIterate()`
-
-3. **Render Phase**
-   - `checkData()` (internal)
-   - If `shouldRender` is true:
+2. Every iteration:
+   - `checkData()` - Processes buffered state/props changes
+   - `willIterate()` - Called at the start of each iteration
+   - Rendering phase (if `shouldRender` is true):
      - `willRender()`
      - `render()`
      - `didRender()`
-   - Else:
+   - If `shouldRender` is false:
      - `willNotRender()`
-
-4. **Children Update Phase**
-   - If `shouldUpdateChildren` is true:
+   - Children update phase (if `shouldUpdateChildren` is true):
      - `willUpdateChildren()`
-     - `updateChildren()` (internal)
+     - `updateChildren()`
      - `didUpdateChildren()`
+   - `didIterate()` - Called at the end of each iteration
 
-5. **Completion**
-   - `didIterate()`
+See [Component Rendering and Lifecycle Integration](./component-rendering-lifecycle.md) for detailed flow diagrams.
 
-6. **Unmounting**
-   - `unmount()` (internal)
-   - `unmountChildren()` (internal)
-   - `unmount()`
+## 5. State and Props Lifecycle
 
-## Lifecycle Hooks and Their Usage
+When state or props change:
 
-### CoreComponent Hooks
+1. Changes are called through `setState()` or `setProps()`
+2. Changes are buffered in `__data` until the next frame
+3. The component calls `performRender()` to schedule an update
+4. On the next frame, `checkData()` processes the buffered changes
+5. The `propsChanged()` or `stateChanged()` callbacks are triggered
+6. The component renders if needed based on the `shouldRender` flag
 
-- **render()**
-  - Purpose: Render the component's visual representation. This is where you define the component's output based on its current state and props.
-  - Called during: Rendering phase
-  - Default: No-op, meant to be overridden
+For details on how this integrates with the scheduler, see [Scheduler System](./scheduler-system.md).
 
-- **updateChildren()**
-  - Purpose: Define the component's child components. This method should return an array of child component definitions, specifying the component class, props, and options for each child.
-  - Return value: Array of child component definitions or void
-  - Default: No-op, meant to be overridden
+## 6. Complete Lifecycle Method Execution Order
 
-- **unmount()**
-  - Purpose: Clean up any resources or subscriptions before the component is removed from the tree. This is where you should unsubscribe from events, clear timers, and release any other resources held by the component.
-  - Called during: Unmounting phase
-  - Default: No-op, meant to be overridden
+| Phase | Method | Description | When Called |
+|-------|--------|-------------|------------|
+| **Initialization** | `constructor(props, parent)` | Set up the component | Component creation |
+| **First Iteration** | `willMount()` | One-time setup before first render | First iteration only |
+| | `willIterate()` | Prepare for iteration | Start of every iteration |
+| **Render Phase** | `checkData()` | Process buffered state/props changes | Each iteration (internal) |
+| | `propsChanged(nextProps)` | React to props changes | When props change |
+| | `stateChanged(nextState)` | React to state changes | When state changes |
+| | `willRender()` | Prepare for rendering | Before render if shouldRender is true |
+| | `render()` | Create visual output | During render phase if shouldRender is true |
+| | `didRender()` | Post-render actions | After render if shouldRender is true |
+| | `willNotRender()` | Alternative to render | When shouldRender is false |
+| **Children Phase** | `willUpdateChildren()` | Prepare for children updates | Before updating children |
+| | `updateChildren()` | Define child components | During children update |
+| | `didUpdateChildren()` | React to children updates | After updating children |
+| **Completion** | `didIterate()` | Finalize iteration | End of every iteration |
+| **Unmounting** | `unmount()` | Clean up resources | When component is removed |
 
-### Component Hooks
+## 7. Control Flags
 
-- **willMount()**
-  - Purpose: Perform initialization tasks that need to be done before the component is first rendered. This is a good place to fetch data, set up initial state, or perform other one-time setup tasks.
-  - Called during: First iteration only
-  - Default: No-op
+Components use several boolean flags to control their behavior:
 
-- **willIterate()**
-  - Purpose: Prepare for each iteration of the component's lifecycle. This method is called at the beginning of each iteration, before any rendering or children updates are performed.
-  - Called during: Start of every iteration
-  - Default: No-op
+| Flag | Purpose | Default |
+|------|---------|---------|
+| `firstIterate` | Tracks if this is the first iteration | `true` until first iteration completes |
+| `firstRender` | Tracks if this is the first render | `true` until first render completes |
+| `firstUpdateChildren` | Tracks if this is the first children update | `true` until first update completes |
+| `shouldRender` | Controls whether render() is called | `true` |
+| `shouldUpdateChildren` | Controls whether children are updated | `true` |
+| `shouldRenderChildren` | Controls whether children should render | `true` |
 
-- **willRender()**
-  - Purpose: Prepare for the rendering phase. This method is called before the `render()` method is invoked, allowing you to perform any last-minute calculations or adjustments before rendering.
-  - Called during: Before render
-  - Default: No-op
+You can modify these flags in lifecycle methods to optimize performance.
 
-- **didRender()**
-  - Purpose: React after the rendering phase. This method is called after the `render()` method has been invoked, allowing you to perform any post-rendering tasks, such as updating the DOM or triggering animations.
-  - Called during: After render
-  - Default: No-op
+## 8. Child Component Management
 
-- **willNotRender()**
-  - Purpose: Handle the case where the component will not be rendered. This method is called when the `shouldRender` flag is set to `false`, allowing you to perform any necessary cleanup or alternative actions.
-  - Called during: When shouldRender is false
-  - Default: No-op
-
-- **willUpdateChildren()**
-  - Purpose: Prepare before updating the component's children. This method is called before the `updateChildren()` method is invoked, allowing you to perform any necessary setup or calculations before the children are updated.
-  - Called during: Before children updated
-  - Default: No-op
-
-- **didUpdateChildren()**
-  - Purpose: React after updating the component's children. This method is called after the `updateChildren()` method has been invoked, allowing you to perform any post-update tasks, such as updating the layout or triggering animations.
-  - Called during: After children updated
-  - Default: No-op
-
-- **didIterate()**
-  - Purpose: Finalize each iteration of the component's lifecycle. This method is called at the end of each iteration, after all rendering and children updates have been performed.
-  - Called during: End of every iteration
-  - Default: No-op
-
-- **propsChanged(nextProps)**
-  - Purpose: React to changes in the component's props. This method is called when the component receives new props, allowing you to update the component's state or perform other actions in response to the prop changes.
-  - Called during: checkData when props changed
-  - Default: No-op
-
-- **stateChanged(nextState)**
-  - Purpose: React to changes in the component's state. This method is called when the component's state is updated, allowing you to perform any necessary calculations or adjustments in response to the state changes.
-  - Called during: checkData when state changed
-  - Default: No-op
-
-## Control Flags
-
-The Component class uses several boolean flags to control rendering behavior:
-
-- **firstIterate**: True until the first iteration completes
-- **firstRender**: True until the first render completes
-- **firstUpdateChildren**: True until the first children update completes
-- **shouldRender**: Controls whether render() is called
-- **shouldUpdateChildren**: Controls whether children are updated
-- **shouldRenderChildren**: Controls whether children should render
-
-## Child Component Management
-
-The CoreComponent handles child component lifecycle with these steps:
+Child components are managed through a structured process:
 
 ```mermaid
 flowchart TD
@@ -222,7 +142,14 @@ flowchart TD
     E --> L[Update Tree structure]
 ```
 
-## Z-Index Management in the Lifecycle
+Important rules:
+- Each child needs a unique `key` for proper updating
+- Use `Component.create()` instead of direct instantiation
+- Children should only be created in `updateChildren()`
+
+## 9. Z-Index Management
+
+Components use z-index values to control rendering order:
 
 ```mermaid
 flowchart TD
@@ -234,9 +161,11 @@ flowchart TD
     F --> G[Tree traversal order updated]
 ```
 
-## Practical Usage Examples
+Higher z-index values render on top of lower ones.
 
-### Basic Component Usage
+## 10. Practical Examples
+
+### 10.1 Basic Component
 
 ```typescript
 import { Component } from "@/lib/Component";
@@ -258,28 +187,16 @@ class MyComponent extends Component {
 }
 ```
 
-### Component with Children
+### 10.2 Component with Children
 
 ```typescript
 import { Component } from "@/lib/Component";
 
-class ChildComponent extends Component {
-  protected render() {
-    return null;
-  }
-}
-
-class AnotherChild extends Component {
-  protected render() {
-    return null;
-  }
-}
-
 class ParentComponent extends Component {
   protected updateChildren() {
     return [
-      { klass: ChildComponent, props: { value: this.state.value }, options: { key: 'child1' } },
-      { klass: AnotherChild, props: { data: this.props.data }, options: { key: 'child2' } }
+      ChildComponent.create({ value: this.state.value }, { key: 'child1' }),
+      AnotherChild.create({ data: this.props.data }, { key: 'child2' })
     ];
   }
   
@@ -293,7 +210,7 @@ class ParentComponent extends Component {
 }
 ```
 
-### Optimizing Renders
+### 10.3 Optimizing Renders
 
 ```typescript
 import { Component } from "@/lib/Component";
@@ -311,30 +228,19 @@ class OptimizedComponent extends Component {
 }
 ```
 
-## Best Practices
+## 11. Best Practices
 
-### Performance Optimization
+### 11.1 Performance Optimization
 
-1. **Control Rendering with Lifecycle Flags**
+1. **Control rendering with lifecycle flags**
    ```typescript
    protected propsChanged(nextProps) {
      // Only render if relevant props have changed
      this.shouldRender = nextProps.value !== this.props.value;
    }
-
-   protected stateChanged(nextState) {
-     // Only update children if relevant state has changed
-     this.shouldUpdateChildren = nextState.items !== this.state.items;
-   }
    ```
 
-2. **Use Z-Index Management for Layering**
-   ```typescript
-   // Set z-index for proper rendering order
-   this.zIndex = 5; // Higher z-index components render on top
-   ```
-
-3. **Batch State Updates**
+2. **Batch state updates**
    ```typescript
    // Instead of multiple setState calls
    // this.setState({ value: 1 });
@@ -344,14 +250,17 @@ class OptimizedComponent extends Component {
    this.setState({ value: 1, count: 2 });
    ```
 
-### Component Structure
-
-1. **Initialize State in willMount Using setState**
+3. **Use z-index for proper layering**
    ```typescript
-   import { Component } from "@/lib/Component";
+   // Set z-index for proper rendering order
+   this.zIndex = 5; // Higher z-index components render on top
+   ```
 
+### 11.2 Component Structure
+
+1. **Initialize state in willMount**
+   ```typescript
    protected willMount() {
-     // Don't use this.state = {} directly as per rules
      this.setState({
        count: 0,
        items: [],
@@ -360,10 +269,8 @@ class OptimizedComponent extends Component {
    }
    ```
 
-2. **Clean Up in unmount**
+2. **Clean up resources in unmount**
    ```typescript
-   import { Component } from "@/lib/Component";
-
    protected unmount() {
      // Clean up any subscriptions or timers
      this.eventEmitter.off('event', this.handler);
@@ -371,12 +278,9 @@ class OptimizedComponent extends Component {
    }
    ```
 
-3. **Use Keys for Dynamic Children**
+3. **Use keys for dynamic children**
    ```typescript
-   import { Component } from "@/lib/Component";
-
    protected updateChildren() {
-     // Use Component.create method instead of direct instantiation
      return this.state.items.map((item, index) => 
        ItemComponent.create(
          { data: item },
@@ -386,12 +290,10 @@ class OptimizedComponent extends Component {
    }
    ```
 
-### Component Creation and Management
+### 11.3 Component Creation and Management
 
-1. **Always Use Component.create**
+1. **Always use Component.create**
    ```typescript
-   import { Component } from "@/lib/Component";
-
    // Incorrect - Don't use direct instantiation
    // new MyComponent(props, parent)
    
@@ -399,10 +301,8 @@ class OptimizedComponent extends Component {
    MyComponent.create(props, { key: 'unique-key' })
    ```
 
-2. **Only Create Children in updateChildren Method**
+2. **Only create children in updateChildren**
    ```typescript
-   import { Component } from "@/lib/Component";
-
    protected updateChildren() {
      return [
        ChildComponent.create({ value: this.state.value }, { key: 'child1' }),
@@ -411,27 +311,18 @@ class OptimizedComponent extends Component {
    }
    ```
 
-3. **Don't Transform Original Coordinates to World Coordinates**
+3. **Keep original coordinates**
    ```typescript
-   import { Component } from "@/lib/Component";
-
-   // Incorrect
-   // const worldX = originalX * transform.scale + transform.x;
-   
-   // Correct - Keep original coordinates in the component
+   // Let the rendering system handle transformations
    protected render() {
      // Use original coordinates directly
-     // Let the rendering system handle transformations
    }
    ```
 
-### Component Communication
+### 11.4 Component Communication
 
-1. **Use Props for Parent-to-Child Communication**
+1. **Use props for parent-to-child communication**
    ```typescript
-   import { Component } from "@/lib/Component";
-
-   // Parent component
    protected updateChildren() {
      return [
        ChildComponent.create({ 
@@ -442,10 +333,8 @@ class OptimizedComponent extends Component {
    }
    ```
 
-2. **Use Context for Deep Prop Passing**
+2. **Use context for deep prop passing**
    ```typescript
-   import { Component } from "@/lib/Component";
-
    // Parent component
    this.setContext({
      theme: 'dark',
@@ -455,10 +344,8 @@ class OptimizedComponent extends Component {
    // Child components can access this.context.theme
    ```
 
-3. **Use Component References for Direct Communication**
+3. **Use component references for direct access**
    ```typescript
-   import { Component } from "@/lib/Component";
-
    protected updateChildren() {
      return [
        ChildComponent.create(
@@ -474,28 +361,21 @@ class OptimizedComponent extends Component {
    }
    ```
 
-### Props and State Management
+## 12. Summary
 
-1. **Always Use setProps/setState Methods**
-   ```typescript
-   import { Component } from "@/lib/Component";
+The component lifecycle provides a predictable pattern for managing component behavior:
 
-   // Incorrect
-   // this.props.value = newValue;
-   // this.state.count = newCount;
-   
-   // Correct
-   this.setProps({ value: newValue });
-   this.setState({ count: newCount });
-   ```
+1. Components are created with `Component.create()`
+2. During first iteration, `willMount()` is called for initialization
+3. Each iteration runs through a predictable sequence of methods
+4. State/props changes are buffered and processed during `checkData()`
+5. Rendering and children updates can be conditionally controlled
+6. When no longer needed, components are unmounted
 
-2. **Batch Updates When Possible**
-   ```typescript
-   import { Component } from "@/lib/Component";
+By understanding and leveraging these lifecycle methods, you can create efficient, maintainable components for your graph visualizations.
 
-   // Instead of multiple calls
-   // this.setState({ value: 1 });
-   // this.setState({ count: 2 });
-   
-   // Batch updates in one call
-   this.setState({ value: 1, count: 2 });
+## 13. Related Documentation
+
+- [Rendering Mechanism](../rendering/rendering-mechanism.md) - Detailed explanation of the rendering architecture
+- [Scheduler System](./scheduler-system.md) - Documentation about the system that coordinates component updates
+- [Component Rendering and Lifecycle Integration](./component-rendering-lifecycle.md) - Comprehensive guide showing how these systems work together

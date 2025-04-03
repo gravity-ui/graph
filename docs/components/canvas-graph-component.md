@@ -35,9 +35,9 @@ classDiagram
 
 ## The Four Core Capabilities
 
-### 1. Spatial Awareness with HitBox
+### 1. Spatial Awareness with HitBox and R-tree
 
-Every GraphComponent maintains awareness of its position in space through a HitBox - a crucial system that:
+Every GraphComponent maintains awareness of its position in space through a HitBox. These hitboxes are organized in an R-tree spatial index for efficient querying - a crucial system that:
 
 ```typescript
 import { Component } from "@/lib/Component";
@@ -64,7 +64,7 @@ class GraphComponent extends Component<Props> {
 - Without proper HitBox management, your component would be "invisible" to mouse interactions and queries!
 
 **Real-world impact:**
-When a user moves their mouse over the graph, the system uses these hitboxes to efficiently determine which component should respond, without having to check every component individually.
+When a user moves their mouse over the graph, the system uses the R-tree spatial index to efficiently determine which component should respond. Instead of checking every component individually (O(n) complexity), the R-tree allows for logarithmic O(log n) lookups by quickly eliminating large sections of the spatial area that don't contain the point. This is critical for performance when dealing with graphs containing hundreds or thousands of components.
 
 ```typescript
 // Setting your hitbox is about saying "I exist in this rectangular space"
@@ -74,9 +74,9 @@ public setHitBox(minX: number, minY: number, maxX: number, maxY: number, force?:
 }
 ```
 
-### 2. Smart Rendering with Visibility Checks
+### 2. Camera-based Culling with HitBox Visibility Checks
 
-GraphComponent only renders when it makes sense to do so:
+GraphComponent only renders when its hitbox is within the camera's view area:
 
 ```typescript
 protected willIterate(): void {
@@ -105,48 +105,64 @@ protected willIterate(): void {
 │    └──────┘        │
 │                    │
 └────────────────────┘
-                        ┌──────┐
-                        │Hidden │
-                        │Comp B │ (Not rendered)
-                        └──────┘
+                         ┌──────┐
+                         │Hidden │
+                         │Comp B │ (Not rendered)
+                         └──────┘
 ```
 
-### 3. Universal Drag Behavior
+### 3. Mouse Event Handling
 
-The GraphComponent provides a standardized, powerful drag system:
+GraphComponent adds the ability to listen to mouse events on the element, including drag operations:
 
 ```typescript
+// Listen for basic mouse events
+this.addEventListener('click', (event) => {
+  console.log('Component clicked at:', event.point);
+  this.setState({ selected: true });
+});
+
+this.addEventListener('mouseenter', () => {
+  this.setState({ hovered: true });
+  this.performRender();
+});
+
+this.addEventListener('mouseleave', () => {
+  this.setState({ hovered: false });
+  this.performRender();
+});
+
+// Use the specialized drag handling system
 this.onDrag({
   isDraggable: (event) => !this.props.locked && event.button === 0,
   onDragStart: (event) => {
-    // This runs when dragging starts
     this.setState({ dragging: true });
     this.context.graph.emit('element-drag-start', { element: this });
   },
   onDragUpdate: ({ diffX, diffY }, event) => {
-    // This runs continuously during dragging, with precise calculations
     this.updatePosition(this.state.x - diffX, this.state.y - diffY);
   },
   onDrop: () => {
-    // This runs when the user releases the mouse
     this.setState({ dragging: false });
     this.context.graph.emit('element-drag-end', { element: this });
   }
 });
 ```
 
-**The magic under the hood:**
-- Handles all browser-specific event details and mouse capture
-- Applies precise coordinate transformations between screen space and graph space
-- Manages calculation of movement deltas even during camera pan/zoom
-- Provides natural, responsive interaction without writing complex event code
-- Works across devices and input methods with consistent behavior
+**What makes this powerful:**
+- Events operate in world coordinates rather than screen coordinates
+- Event bubbling works through the component hierarchy
+- Proper mouse hit testing via the HitBox system
+- Camera transforms are handled automatically
+- Events that require capture (like drag) are managed for you
+- Event handlers are automatically cleaned up on unmount
 
-**Behavior flow:**
-1. `isDraggable` - First checks if dragging should be allowed 
-2. `onDragStart` - Captures initial coordinates and prepares for movement
-3. `onDragUpdate` - Provides movement data with precise world-space calculations
-4. `onDrop` - Finalizes the operation and cleans up event listeners
+**Supported events:**
+- `click`, `dblclick` - Mouse button clicks
+- `mousedown`, `mouseup` - Mouse button press and release
+- `mouseenter`, `mouseleave` - Mouse pointer entering or leaving the component
+- `mousemove` - Mouse movement over the component
+- Specialized `onDrag` system with precise coordinate handling
 
 ### 4. Reactive Data with Signal Subscriptions
 
@@ -292,25 +308,30 @@ class MyRectangleComponent extends GraphComponent<any, MyRectangleComponentState
 ### Pattern 2: Intelligent Rendering
 
 ```typescript
+import { ECameraScaleLevel } from "@/services/camera/CameraService";
+
 class MyEfficientComponent extends GraphComponent {
   protected render() {
     // First check: are we visible at all?
     if (!this.isVisible()) return;
     
     const ctx = this.context.ctx;
-    const scale = this.context.camera.getCameraScale();
+    const detailLevel = this.context.camera.getCameraBlockScaleLevel();
     
     // Second check: at current zoom level, which detail to show?
-    if (scale < 0.5) {
+    if (detailLevel === ECameraScaleLevel.Minimalistic) {
       // At far zoom levels, render simplified version
       this.renderSimplified(ctx);
+    } else if (detailLevel === ECameraScaleLevel.Schematic) {
+      // At medium zoom levels, show schematic version
+      this.renderSchematic(ctx);
     } else {
-      // At closer zoom levels, show full detail
+      // At closest zoom level (Detailed), show full detail
       this.renderDetailed(ctx);
     }
     
     // Only render text if it would be legible
-    if (scale > 0.3) {
+    if (detailLevel === ECameraScaleLevel.Schematic || detailLevel === ECameraScaleLevel.Detailed) {
       this.renderText(ctx);
     }
   }
@@ -501,7 +522,7 @@ class BadgeComponent extends GraphComponent<BadgeComponentProps, BadgeComponentS
     ctx.stroke();
     
     // Draw count
-    if (this.context.camera.getCameraScale() > 0.3) {
+    if (this.context.camera.getCameraBlockScaleLevel() !== ECameraScaleLevel.Minimalistic) {
       ctx.fillStyle = this.context.colors.badgeText;
       ctx.font = '16px Arial';
       ctx.textAlign = 'center';
@@ -540,7 +561,23 @@ class AnnotatedConnection extends BaseConnection<AnnotatedConnectionProps> {
     // and subscribes to geometry changes
     
     // Additional initialization if needed
-    // this.listenEvents(["click"]); // TODO: Implement listenEvents
+    this.state = {
+      ...this.state,
+      hovered: false,
+      labelText: 'Connection'
+    };
+    
+    // Listen for mouse events
+    this.addEventListener('mouseover', this.handleMouseOver);
+    this.addEventListener('mouseout', this.handleMouseOut);
+  }
+  
+  private handleMouseOver = () => {
+    this.setState({ hovered: true });
+  }
+  
+  private handleMouseOut = () => {
+    this.setState({ hovered: false });
   }
   
   // Use updateChildren to create and manage child components
@@ -559,16 +596,389 @@ class AnnotatedConnection extends BaseConnection<AnnotatedConnectionProps> {
       targetPoint.y - sourcePoint.y,
       targetPoint.x - sourcePoint.x
     );
+    
+    // Create label component
+    return [
+      // Create a label at the midpoint
+      Label.create(
+        {
+          x: midX,
+          y: midY,
+          text: this.state.labelText,
+          angle: angle,
+          highlighted: this.state.hovered
+        },
+        { key: 'label' }
+      ),
+      
+      // Create an arrow at the end
+      Arrow.create(
+        {
+          x: targetPoint.x,
+          y: targetPoint.y,
+          angle: angle,
+          size: 10,
+          highlighted: this.state.hovered
+        },
+        { key: 'arrow' }
+      )
+    ];
+  }
+  
+  // Override the path creation to customize the line style
+  protected createPath() {
+    if (!this.connectionPoints || this.connectionPoints.length < 2) return null;
+    
+    const [sourcePoint, targetPoint] = this.connectionPoints;
+    const path = new Path2D();
+    
+    // Simple straight line
+    path.moveTo(sourcePoint.x, sourcePoint.y);
+    path.lineTo(targetPoint.x, targetPoint.y);
+    
+    return path;
+  }
+  
+  // Override the render method to customize the visual appearance
+  protected render() {
+    super.render(); // This draws the base connection line
+    
+    // Add custom highlights when hovered
+    if (this.state.hovered && this.path) {
+      const ctx = this.context.ctx;
+      
+      // Draw glow effect
+      ctx.save();
+      ctx.strokeStyle = this.context.colors.highlightColor;
+      ctx.lineWidth = this.context.lineWidth + 4;
+      ctx.globalAlpha = 0.4;
+      ctx.stroke(this.path);
+      ctx.restore();
+    }
+  }
+}
 ```
 
 ## Performance Tips for GraphComponent
 
+When working with graph visualizations, especially those with hundreds or thousands of elements, performance becomes critical. Here are essential tips to keep your GraphComponents efficient:
+
+1. **Minimize HitBox Updates**: Only update your hitbox when geometry actually changes. Excessive hitbox updates can stress the spatial index.
+
+   ```typescript
+   // Bad - updating hitbox on every state change
+   protected stateChanged() {
+     super.stateChanged();
+     this.updateHitBox(); // Don't do this for every state change!
+   }
+   
+   // Good - only update when position changes
+   protected stateChanged(nextState) {
+     if (nextState.x !== this.state.x || nextState.y !== this.state.y) {
+       super.stateChanged(nextState);
+       this.updateHitBox();
+     } else {
+       super.stateChanged(nextState);
+     }
+   }
+   ```
+
+2. **Use Path2D Caching**: For complex shapes, create and cache Path2D objects instead of redrawing paths every frame.
+
+   ```typescript
+   // Cache the path when geometry changes
+   private updatePath() {
+     const path = new Path2D();
+     // Complex path drawing operations...
+     this.cachedPath = path;
+   }
+   
+   // Use the cached path during rendering
+   protected render() {
+     if (!this.isVisible()) return;
+     if (!this.cachedPath) this.updatePath();
+     
+     const ctx = this.context.ctx;
+     ctx.stroke(this.cachedPath);
+   }
+   ```
+
+3. **Level of Detail (LOD)**: Adjust rendering complexity based on zoom level.
+
+   ```typescript
+   import { ECameraScaleLevel } from "@/services/camera/CameraService";
+   
+   protected render() {
+     const detailLevel = this.context.camera.getCameraBlockScaleLevel();
+     
+     // Render based on the detail level enum from Camera
+     if (detailLevel === ECameraScaleLevel.Minimalistic) {
+       // Lowest detail: render as a single pixel dot
+       this.renderAsDot();
+     } else if (detailLevel === ECameraScaleLevel.Schematic) {
+       // Medium detail: render simplified shape
+       this.renderSimple();
+     } else {
+       // Highest detail (ECameraScaleLevel.Detailed): render full detail
+       this.renderDetailed();
+     }
+   }
+   ```
+
+4. **Minimize Context State Changes**: Group similar rendering operations to reduce the overhead of changing context properties.
+
+   ```typescript
+   // Group similar drawing operations together
+   protected render() {
+     if (!this.isVisible()) return;
+     
+     const ctx = this.context.ctx;
+     
+     // Set styles once for all similar elements
+     ctx.fillStyle = '#ff0000';
+     
+     // Draw all red elements
+     this.redElements.forEach(element => {
+       ctx.fillRect(element.x, element.y, element.width, element.height);
+     });
+     
+     // Then change style once for the next group
+     ctx.fillStyle = '#0000ff';
+     
+     // Draw all blue elements
+     this.blueElements.forEach(element => {
+       ctx.fillRect(element.x, element.y, element.width, element.height);
+     });
+   }
+   ```
+
+5. **Optimize Child Component Creation**: Only create child components when necessary and use stable keys to prevent recreation.
+
+   ```typescript
+   protected updateChildren() {
+     // Only create children if parent is visible
+     if (!this.isVisible()) return [];
+     
+     // Use stable keys so React/GraphComponents don't recreate unnecessarily
+     return [
+       ChildComponent.create({...}, { key: 'stable-id-1' }),
+       ChildComponent.create({...}, { key: 'stable-id-2' })
+     ];
+   }
+   ```
+
 ## GraphComponent in Different Contexts
+
+GraphComponents can be used in various contexts within the graph system. Understanding these contexts helps you create more effective and cohesive visualizations.
 
 ### 1. As Children in Blocks
 
+When used as children within blocks, GraphComponents can create rich, interactive block content:
+
+```typescript
+class ComplexBlock extends Block {
+  protected updateChildren() {
+    return [
+      // Add a badge to top-right corner with absolute positioning
+      BadgeComponent.create({
+        x: this.state.x + this.state.width - 10,
+        y: this.state.y,
+        count: this.props.notifications,
+      }, { key: 'badge' }),
+      
+      // Add an icon to the left side with absolute positioning
+      IconComponent.create({
+        x: this.state.x,
+        y: this.state.y + this.state.height / 2,
+        icon: this.props.icon,
+      }, { key: 'icon' }),
+      
+      // Add a progress indicator to the bottom with absolute positioning
+      ProgressBarComponent.create({
+        x: this.state.x,
+        y: this.state.y + this.state.height - 5,
+        width: this.state.width,
+        progress: this.props.progress,
+      }, { key: 'progress' })
+    ];
+  }
+}
+```
+
+**Best practices:**
+- Always use absolute positioning for all child components
+- Update child positions when the block is resized
+- When placing child components, use the block's dimensions to calculate positions
+- Consider block selection state when styling children
+
 ### 2. As Children in Custom Connections
+
+GraphComponents can enhance connections with labels, decorations, and interactive elements:
+
+```typescript
+class EnhancedConnection extends BaseConnection {
+  protected updateChildren() {
+    if (!this.connectionPoints) return [];
+    
+    const [start, end] = this.connectionPoints;
+    const midX = (start.x + end.x) / 2;
+    const midY = (start.y + end.y) / 2;
+    
+    return [
+      // Add a label in the middle with absolute positioning
+      ConnectionLabel.create({
+        x: midX,
+        y: midY,
+        text: this.props.label,
+      }, { key: 'label' }),
+      
+      // Add interactive buttons with absolute positioning
+      ActionButton.create({
+        x: midX + 20,
+        y: midY - 10,
+        icon: 'edit',
+        action: () => this.props.onEdit(),
+      }, { key: 'edit-button' }),
+      
+      // Add decorative elements with absolute positioning
+      ArrowComponent.create({
+        x: end.x,
+        y: end.y,
+        angle: Math.atan2(end.y - start.y, end.x - start.x),
+      }, { key: 'arrow' })
+    ];
+  }
+}
+```
+
+**Special considerations:**
+- Connection points may change when blocks move
+- Children need to reposition with absolute coordinates when the connection changes
+- Hitboxes should follow the connection path for proper interaction
+- Consider connection selection/hover states
 
 ### 3. As Children in Custom Layers
 
+GraphComponents can create global UI elements in custom layers that float above the graph:
+
+```typescript
+class ToolbarLayer extends Layer {
+  protected updateChildren() {
+    return [
+      ButtonComponent.create({
+        icon: 'zoom-in',
+        action: () => this.context.camera.zoomIn(),
+      }, { key: 'zoom-in' }),
+      
+      ButtonComponent.create({
+        icon: 'zoom-out',
+        action: () => this.context.camera.zoomOut(),
+      }, { key: 'zoom-out' }),
+      
+      SelectionInfoComponent.create({
+        selection: this.context.selection,
+      }, { key: 'selection-info' })
+    ];
+  }
+}
+```
+
 ### Real-World Use Cases
+
+GraphComponent flexibility enables diverse visualization applications:
+
+**1. Data Flow Diagrams**: Create blocks that visualize data processing steps with stats and progress indicators.
+
+```typescript
+class ProcessNode extends GraphComponent {
+  render() {
+    // Render node with inner components showing:
+    // - Processing status
+    // - Data throughput metrics
+    // - Error indicators
+    // - Resource utilization
+  }
+}
+```
+
+**2. Interactive Diagrams**: Build diagrams with tooltips, highlighting, and interactive elements.
+
+```typescript
+class DiagramNode extends GraphComponent {
+  constructor(props, parent) {
+    super(props, parent);
+    this.addEventListener('click', this.handleClick);
+    this.addEventListener('mouseover', this.handleMouseOver);
+  }
+  
+  handleClick = () => {
+    // Show detailed information panel
+    this.context.uiService.showDetails(this.props.id);
+  }
+  
+  handleMouseOver = () => {
+    // Highlight connected elements
+    this.context.highlightService.highlightConnected(this.props.id);
+  }
+}
+```
+
+**3. Real-time Monitoring**: Create components that update automatically with real-time data.
+
+```typescript
+class MonitoringNode extends GraphComponent {
+  constructor(props, parent) {
+    super(props, parent);
+    
+    // Update component every 5 seconds with new data
+    this.interval = setInterval(() => {
+      fetch(`/api/metrics/${this.props.id}`)
+        .then(res => res.json())
+        .then(data => {
+          this.setState({ metrics: data });
+        });
+    }, 5000);
+  }
+  
+  unmount() {
+    clearInterval(this.interval);
+    super.unmount();
+  }
+}
+```
+
+**4. Interactive Graph Editors**: Build full-featured graph editors with GraphComponent.
+
+```typescript
+class EditorNode extends GraphComponent {
+  constructor(props, parent) {
+    super(props, parent);
+    
+    // Make node draggable
+    this.onDrag({
+      isDraggable: () => this.context.editMode === 'move',
+      onDragUpdate: ({ diffX, diffY }) => {
+        this.setState({
+          x: this.state.x - diffX,
+          y: this.state.y - diffY
+        });
+      }
+    });
+  }
+  
+  // Add resize handles as child components with absolute positioning
+  updateChildren() {
+    return [
+      ResizeHandle.create({ 
+        position: 'topLeft',
+        x: this.state.x,
+        y: this.state.y,
+        onResize: this.handleResize 
+      }, { key: 'resize-tl' }),
+      // ... other handles
+    ];
+  }
+}
+```
+
+By leveraging GraphComponent's core capabilities, you can build sophisticated, high-performance graph visualizations tailored to your specific use case.

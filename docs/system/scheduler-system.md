@@ -2,6 +2,8 @@
 
 This document describes the scheduling system that coordinates component updates in the rendering engine, focusing on the `Scheduler` and `GlobalScheduler` classes.
 
+> **Note:** This document is part of a series on the rendering architecture. See also [Component Lifecycle](./component-lifecycle.md), [Rendering Mechanism](../rendering/rendering-mechanism.md), and the integration document [Component Rendering and Lifecycle Integration](./component-rendering-lifecycle.md).
+
 ## Scheduler Architecture
 
 The scheduling system consists of two main classes:
@@ -83,52 +85,34 @@ sequenceDiagram
 
 ## Update Scheduling
 
-The scheduling system works as follows:
+The scheduling system coordinates when component updates happen:
 
-1. Component calls `performRender()` to schedule an update. This method sets the `scheduled` flag in the component's `Scheduler` instance, indicating that the component tree needs to be updated.
-2. On the next animation frame, GlobalScheduler calls `performUpdate()` on each registered Scheduler
-3. If a Scheduler is scheduled, it calls `update()` to traverse the component tree
-4. Tree traversal invokes `iterate()` on each component in the tree. The `iterate()` method determines whether the component's children should also be processed during the update. If the component returns `true` from `iterate()`, its children will be processed. If it returns `false`, its children will be skipped.
-5. Components process their lifecycle methods and potentially request more updates
+1. Component calls `performRender()` to schedule an update
+2. This sets a `scheduled` flag in the Scheduler
+3. On the next animation frame, GlobalScheduler triggers updates for all scheduled components
+4. The Scheduler traverses the component tree in a depth-first order
+5. Each component's `iterate()` method is called during traversal
+6. Components can control whether their children are processed by returning true/false from `iterate()`
 
 ## Priority Levels
 
-The GlobalScheduler supports multiple priority levels for schedulers:
+The GlobalScheduler supports multiple priority levels (0-4):
 
-```mermaid
-flowchart TD
-    A[GlobalScheduler] --> B[Priority 0 Schedulers]
-    A --> C[Priority 1 Schedulers]
-    A --> D[Priority 2 Schedulers - Default]
-    A --> E[Priority 3 Schedulers]
-    A --> F[Priority 4 Schedulers]
-    
-    B --> G[Updates run in priority order]
-    C --> G
-    D --> G
-    E --> G
-    F --> G
-```
-
-Lower priority levels (0, 1) are processed before higher levels (3, 4), allowing critical updates to be processed first.
+- Lower priority levels (0, 1) are processed before higher levels (3, 4)
+- This allows critical updates to be processed first
+- Default priority is 2
+- Multiple schedulers can exist at different priority levels
 
 ## Tree Traversal
 
-During an update, the Scheduler traverses the component tree in depth-first order:
+The traversal process follows these rules:
 
-```mermaid
-flowchart TD
-    A[Scheduler.update] --> B[root.traverseDown]
-    B --> C[Tree._walkDown]
-    C --> D{Iterator returns true?}
-    D -->|Yes| E[Process children]
-    D -->|No| F[Skip children]
-    E --> G[Process each child]
-    G --> H[child._walkDown]
-    H --> C
-```
+- Components are visited in depth-first order
+- Children are ordered by z-index for proper rendering layering
+- Component's `iterate()` return value controls whether children are processed
+- This allows for efficient partial updates of the tree
 
-The traversal uses the Z-index ordering of components to determine the order of processing children.
+For detailed flow diagrams showing these processes, see [Component Rendering and Lifecycle Integration](./component-rendering-lifecycle.md).
 
 ## Scheduler Lifecycle
 
@@ -269,3 +253,9 @@ Debugging issues with the scheduler can be challenging, but there are several te
 2. **Performance Profiling**: Use the browser's performance profiling tools to identify areas where the scheduler is spending the most time. This can help you pinpoint inefficient components or rendering logic.
 3. **Breakpoints**: Set breakpoints in the scheduler's code to step through the update process and examine the state of components and the scheduler itself.
 4. **Visualizations**: Create visualizations to track the number of updates per frame, the time spent in each phase of the update process, and the number of components being processed. This can help you identify trends and patterns that might not be apparent from logging or profiling alone.
+
+## Related Documentation
+
+- [Component Lifecycle](./component-lifecycle.md) - In-depth details about component lifecycle methods
+- [Rendering Mechanism](../rendering/rendering-mechanism.md) - Architectural details of the rendering system
+- [Component Rendering and Lifecycle Integration](./component-rendering-lifecycle.md) - Comprehensive guide showing how these systems work together
