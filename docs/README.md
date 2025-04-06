@@ -2,19 +2,23 @@
 
 A powerful and flexible library for building interactive, canvas-based graph visualizations with blocks, connections, and advanced rendering capabilities.
 
+> **Note:** This is the main documentation for the graph visualization library. For specific topics, please refer to the relevant sections below.
+
 ## Overview
 
 This library provides a comprehensive system for rendering and interacting with graph-based visualizations. It features a component-based architecture with efficient rendering mechanisms, spatial awareness, and a rich set of interactive capabilities.
 
 ## Key Features
 
-- **Component-Based Architecture**: Build complex visualizations using reusable components
-- **Efficient Rendering**: Optimized canvas rendering with layering and batching support
-- **Spatial Awareness**: HitBox system for efficient interaction and collision detection
-- **Connection System**: Flexible system for creating and styling connections between blocks
-- **Block Management**: Create, customize, and organize blocks with grouping support
-- **Event Handling**: Comprehensive event system for user interactions
-- **Lifecycle Management**: Well-defined component lifecycle for predictable behavior
+| Feature | Description |
+|---------|-------------|
+| Component Architecture | Build complex visualizations using reusable components |
+| Efficient Rendering | Optimized canvas rendering with layering and batching support |
+| Spatial Awareness | HitBox system for efficient interaction and collision detection |
+| Connection System | Flexible system for creating and styling connections between blocks |
+| Block Management | Create, customize, and organize blocks with grouping support |
+| Event Handling | Comprehensive event system for user interactions |
+| Lifecycle Management | Well-defined component lifecycle for predictable behavior |
 
 ## Quick Start
 
@@ -34,43 +38,49 @@ graph.setEntities({
     { sourceBlockId: "block1", targetBlockId: "block2" }
   ]
 });
+
+graph.start();
 ```
 
-## Documentation
-
-The documentation is organized into logical sections that cover all aspects of the library:
+## Documentation Structure
 
 ### Core Concepts
 
-| Section | Description |
-|---------|-------------|
-| [Component Lifecycle](./system/component-lifecycle.md) | Understanding initialization, update, rendering, and unmounting phases |
-| [Rendering Mechanism](./rendering/rendering-mechanism.md) | How the rendering pipeline works and optimization techniques |
-| [Event System](./system/events.md) | Event handling, propagation, and custom events |
+| Section | Description | Documentation |
+|---------|-------------|---------------|
+| Component Lifecycle | Component initialization, update, rendering, and unmounting | [Read More](./system/component-lifecycle.md) |
+| Rendering Mechanism | Rendering pipeline and optimization techniques | [Read More](./rendering/rendering-mechanism.md) |
+| Event System | Event handling, propagation, and custom events | [Read More](./system/events.md) |
 
 ### Main Components
 
-| Component | Description |
-|-----------|-------------|
-| [Canvas Graph](./components/canvas-graph-component.md) | Foundation for all visual elements with HitBox system and spatial awareness |
-| [Block Component](./components/block-component.md) | Building blocks for graph nodes with customization options |
-| [Connections](./connections/canvas-connection-system.md) | System for creating and styling connections between blocks |
+| Component | Description | Documentation |
+|-----------|-------------|---------------|
+| Canvas Graph | Foundation for visual elements with HitBox system | [Read More](./components/canvas-graph-component.md) |
+| Block Component | Building blocks for graph nodes | [Read More](./components/block-component.md) |
+| Connections | Connection creation and styling system | [Read More](./connections/canvas-connection-system.md) |
 
 ### Advanced Features
 
-| Feature | Description |
-|---------|-------------|
-| [Layer System](./rendering/layers.md) | Managing z-index ordering and layer-specific rendering |
-| [Block Groups](./blocks/groups.md) | Automatic and manual grouping of blocks |
-| [Scheduler System](./system/scheduler-system.md) | Manages frame scheduling and update prioritization |
+| Feature | Description | Documentation |
+|---------|-------------|---------------|
+| Layer System | Z-index ordering and layer-specific rendering | [Read More](./rendering/layers.md) |
+| Block Groups | Automatic and manual block grouping | [Read More](./blocks/groups.md) |
+| Scheduler System | Frame scheduling and update prioritization | [Read More](./system/scheduler-system.md) |
 
 ### Configuration
 
-| Topic | Description |
-|-------|-------------|
-| [Graph Settings](./system/graph-settings.md) | Configuration options, colors, layout parameters |
-| [Public API](./system/public_api.md) | Methods for graph manipulation and entity management |
+| Topic | Description | Documentation |
+|-------|-------------|---------------|
+| Graph Settings | Configuration options and parameters | [Read More](./system/graph-settings.md) |
+| Public API | Methods for graph manipulation | [Read More](./system/public_api.md) |
 
 ## Examples
 
-For more examples and usage scenarios, see the `src/stories` directory in the project repository.
+For practical examples and usage scenarios, please refer to the following resources:
+
+1. Source Code Examples: See the `src/stories` directory in the project repository
+2. Interactive Demos: Available in the Storybook documentation
+3. API Examples: Found in each component's documentation
+
+> **Note:** All code examples in the documentation use TypeScript for better type safety and developer experience.
