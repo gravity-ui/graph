@@ -154,7 +154,7 @@ Constants control the sizing, spacing, and other numerical values used throughou
 
 | Constant | Default | Description |
 |----------|---------|-------------|
-| `SCALES` | `[0.125, 0.225, 0.7]` | Scale thresholds for different levels of detail |
+| `SCALES` | `[0.125, 0.225, 0.7]` | Scale thresholds for different levels of detail. These values determine when the block switches between rendering modes:\n- First value (0.125): Below this zoom level, blocks are rendered in minimalistic mode showing just basic shapes\n- Second value (0.225): Between first and second value, blocks are rendered in schematic mode with basic details\n- Third value (0.7): Above this zoom level, blocks are rendered in detailed mode with full information |
 | `DEFAULT_Z_INDEX` | `1` | Default z-index for blocks |
 | `HEAD_HEIGHT` | `64` | Height of the block header section |
 | `BODY_PADDING` | `24` | Padding inside block body |

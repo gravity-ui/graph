@@ -140,7 +140,52 @@ protected render() {
 }
 ```
 
-The `getCameraBlockScaleLevel()` method determines the appropriate level of detail based on the camera's zoom level.
+The zoom levels are determined by the `SCALES` array in block constants configuration:
+
+1. **Minimalistic View** (zoom < first threshold):
+   - Used when blocks are viewed from far away
+   - Renders only basic block shapes without text
+   - Optimized for performance when many blocks are visible
+
+2. **Schematic View** (between first and third threshold):
+   - Standard view for normal interaction
+   - Shows block name and basic structure
+   - Balances detail and performance
+
+3. **Detailed View** (zoom >= third threshold):
+   - Full detail view for close-up inspection
+   - Shows all block information and details
+   - Used when working with specific blocks
+
+You can configure these thresholds in the graph constants configuration:
+
+```typescript
+// Configure zoom level thresholds in graph settings
+graph.setConstants({
+  block: {
+    // Array of three numbers defining zoom thresholds:
+    // [minimalistic_threshold, schematic_threshold, detailed_threshold]
+    SCALES: [
+      0.125,  // Below this - minimalistic view
+      0.225,  // Between first and third - schematic view
+      0.7     // Above this - detailed view
+    ]
+  }
+});
+```
+
+These thresholds control when the block switches between different rendering modes. You can adjust them based on your needs:
+- Lower values will make the view mode switch at lower zoom levels (when zoomed out more)
+- Higher values will make the view mode switch at higher zoom levels (when zoomed in more)
+
+For example, if you want blocks to stay in detailed view longer when zooming out, you could lower the third threshold:
+```typescript
+graph.setConstants({
+  block: {
+    SCALES: [0.125, 0.225, 0.5] // Detailed view stays until zoom = 0.5
+  }
+});
+```
 
 ### Rendering Methods
 
