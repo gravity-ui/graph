@@ -1,226 +1,294 @@
-# Graph React Component Library
+# React Components API
 
-## Overview
-
-The Graph React Component Library provides a React wrapper for a powerful graph visualization and manipulation library. It enables developers to easily create interactive node-based editors, flow diagrams, and other graph-based interfaces in React applications.
-
-## Installation
-
-```bash
-npm install @gravity-ui/@gravity-ui/graph
-```
-
-## Core Components
+## Key Components
 
 ### GraphCanvas
 
-The primary component for displaying and interacting with the graph.
+The main container component that renders your graph:
 
 ```tsx
-import { GraphCanvas, useGraph } from '@gravity-ui/@gravity-ui/graph';
-import React, { useEffect } from 'react';
-
-function MyGraph() {
-  const { graph, setEntities, start } = useGraph({
-    viewConfiguration: {
-      colors: { ... },
-      constants: { ... }
-    },
-    settings: { ... }
-  });
-
-  // Initialize the graph
-  useEffect(() => {
-    setEntities({ blocks: [...], connections: [...] });
-    start(); // Start the graph after setting entities
-  }, []);
-
-  // Render blocks with custom components
-  // Note: This function receives the graph and block object as parameters
-  const renderBlockFn = (graph, block) => (
-    <GraphBlock graph={graph} block={block}>
-      {/* Custom content */}
-    </GraphBlock>
-  );
-
-  return <GraphCanvas graph={graph} renderBlock={renderBlockFn} className="my-graph" />;
-}
+<GraphCanvas 
+  graph={graph}
+  renderBlock={renderBlock}
+  className="my-graph"
+/>
 ```
 
 ### GraphBlock
 
-A fundamental component that properly positions block content on the canvas. It ensures that HTML elements and canvas rendering are correctly aligned at the same position, which is essential for the graph's visual integrity and interaction behavior.
+The `GraphBlock` component is a crucial wrapper that handles the complex interaction between HTML elements and the canvas layer. It's responsible for:
+
+1. **Position Synchronization**: Automatically aligns HTML content with canvas coordinates
+2. **State Management**: Handles selection, hover states, and drag interactions
+3. **Layout Management**: Maintains proper block dimensions and positioning
+4. **Z-index Handling**: Manages proper layering of blocks
+5. **CSS Variables**: Injects position and state variables for styling
 
 ```tsx
-import { GraphBlock } from '@gravity-ui/@gravity-ui/graph';
-
 <GraphBlock 
   graph={graph} 
   block={block}
-  className="custom-block-class"
-  containerClassName="custom-container-class"
+  className="custom-block"
+  containerClassName="custom-container"
 >
-  <div>Custom Block Content</div>
+  <div>Your block content here</div>
 </GraphBlock>
 ```
 
-The `GraphBlock` component is responsible for:
+The component automatically inherits styles from graph settings but can be customized using CSS variables:
 
-1. **Position Synchronization**: Maintains proper alignment between DOM elements and underlying canvas coordinates
-2. **Visual State Management**: Handles selection states, hover effects, and other visual feedback
-3. **Layout Coordination**: Ensures block dimensions are properly applied and maintained
-4. **Z-index Management**: Manages stacking order of blocks for proper layering
-5. **CSS Variable Injection**: Sets position-related CSS variables for styling and animations
+```css
+.custom-block {
+  /* Position variables (automatically set by GraphBlock) */
+  --graph-block-geometry-x: 0px;
+  --graph-block-geometry-y: 0px;
+  --graph-block-geometry-width: 200px;
+  --graph-block-geometry-height: 100px;
+  --graph-block-z-index: 1;
+  --graph-block-order: 0;
 
-It's strongly recommended to always use `GraphBlock` as the base component for any custom block rendering, rather than creating your own positioning mechanism. This component handles the complex alignment between the Canvas rendering layer and React's DOM elements.
+  /* Theme variables (from graph settings) */
+  --graph-block-bg: rgba(37, 27, 37, 1);
+  --graph-block-border: rgba(229, 229, 229, 0.2);
+  --graph-block-border-selected: rgba(255, 190, 92, 1);
+
+  /* Custom styling */
+  background-color: var(--graph-block-bg);
+  border: 1px solid var(--graph-block-border);
+}
+
+.custom-block.selected {
+  border-color: var(--graph-block-border-selected);
+}
+```
 
 ### GraphBlockAnchor
 
-A specialized component for rendering connection points (anchors) on blocks. Anchors are the interactive points where connections begin and end.
+Renders connection points on blocks. The component supports two positioning modes:
 
+1. **fixed** - Anchors are placed at exact coordinates relative to the block:
 ```tsx
-import { GraphBlockAnchor } from '@gravity-ui/@gravity-ui/graph';
-
-<GraphBlockAnchor
-  graph={graph}
+<GraphBlockAnchor 
+  graph={graph} 
   anchor={anchor}
   position="fixed"
-  className="custom-anchor-class"
 >
-  {(anchorState) => (
-    <div className={anchorState.selected ? "selected" : ""}>
-      {/* Custom anchor content */}
+  {(state) => (
+    <div className={state.selected ? 'selected' : ''}>
+      {/* Anchor visuals */}
     </div>
   )}
 </GraphBlockAnchor>
 ```
 
-The `GraphBlockAnchor` component is responsible for:
-
-1. **Connection Point Visualization**: Renders the visual representation of connection points
-2. **Interaction Handling**: Manages drag interactions for creating new connections
-3. **State Management**: Tracks and visualizes selection and hover states
-4. **Type Differentiation**: Provides visual distinction between input and output anchors
-5. **Position Maintenance**: Ensures anchors are positioned correctly relative to their parent block
-
-Anchors are typically defined in the block data structure and should be rendered as part of the `renderBlock` function. The `position` prop determines how anchors are positioned:
-
-- `"fixed"`: Anchors are positioned at exact coordinates relative to the block
-- `"auto"`: Anchors are positioned automatically based on their type and block layout
-
-The render prop pattern (`{(anchorState) => ...}`) gives you access to the anchor's current state, allowing for dynamic styling based on selection, hover, or connection status.
-
-## Hooks
-
-### useGraph
-
-The main hook for creating and managing a graph instance.
-
+2. **auto** - Anchors are automatically positioned based on their type:
 ```tsx
-import { useGraph } from '@gravity-ui/@gravity-ui/graph';
+<GraphBlockAnchor 
+  graph={graph} 
+  anchor={anchor}
+  position="auto"
+  // Inputs will be placed on the left, outputs on the right
+>
+  {(state) => (
+    <div className={state.selected ? 'selected' : ''}>
+      {/* Anchor visuals */}
+    </div>
+  )}
+</GraphBlockAnchor>
+```
 
-const { 
-  graph,          // The Graph instance
-  api,            // Graph API
-  setSettings,    // Update graph settings
-  start,          // Start the graph
-  stop,           // Stop the graph
-  setViewConfiguration, // Update colors and constants
-  addLayer,       // Add a custom layer
-  setEntities,    // Set blocks and connections
-  updateEntities, // Update blocks and connections
-  zoomTo,         // Zoom to specific elements
-} = useGraph({
-  name: "MyGraph",
+Anchor styling also uses CSS variables:
+```css
+.anchor {
+  --graph-block-anchor-bg: rgba(255, 190, 92, 1);
+  --graph-block-anchor-border-selected: rgba(255, 190, 92, 1);
+}
+```
+
+## Graph Configuration
+
+The graph can be extensively configured through the `useGraph` hook. See the [full configuration reference](https://gravity-ui.com/components/graph) for details.
+
+### View Configuration
+```tsx
+const config = {
+  viewConfiguration: {
+    colors: {
+      block: {
+        background: "rgba(37, 27, 37, 1)",
+        border: "rgba(229, 229, 229, 0.2)",
+        selectedBorder: "rgba(255, 190, 92, 1)"
+      },
+      connection: {
+        background: "rgba(255, 255, 255, 0.5)",
+        selectedBackground: "rgba(234, 201, 74, 1)"
+      },
+      anchor: {
+        background: "rgba(255, 190, 92, 1)"
+      },
+      canvas: {
+        layerBackground: "rgba(22, 13, 27, 1)",
+        dots: "rgba(255, 255, 255, 0.2)"
+      }
+    },
+    constants: {
+      block: {
+        SCALES: [0.1, 0.2, 0.5], // Zoom levels for block rendering
+      }
+    }
+  }
+};
+```
+
+### Behavior Settings
+```tsx
+const config = {
   settings: {
+    // Camera controls
     canDragCamera: true,
     canZoomCamera: true,
-    // Other settings...
-  },
-  viewConfiguration: {
-    colors: { ... },
-    constants: { ... }
+    
+    // Block interactions
+    canDragBlocks: true,
+    canDuplicateBlocks: false,
+    canChangeBlockGeometry: 'ALL', // 'NONE' | 'ALL' | 'SELECTED'
+    
+    // Connection settings
+    canCreateNewConnections: true,
+    showConnectionArrows: true,
+    useBezierConnections: true,
+    
+    // Visual settings
+    scaleFontSize: 1,
+    useBlocksAnchors: true,
+    showConnectionLabels: false,
+    
+    // Custom block components
+    blockComponents: {
+      'action-block': ActionBlockComponent,
+      'text-block': TextBlockComponent
+    }
   }
+};
+```
+
+## Event Handling
+
+The library provides a rich set of events you can listen to:
+
+```tsx
+import { useGraphEvent } from '@gravity-ui/graph';
+
+// When a new connection is created
+useGraphEvent(graph, "connection-created", 
+  ({ sourceBlockId, targetBlockId }, event) => {
+    // Handle new connection
+    // Use event.preventDefault() to cancel if needed
+});
+
+// When blocks are selected
+useGraphEvent(graph, "blocks-selection-change", 
+  ({ changes }) => {
+    console.log('Added:', changes.add);
+    console.log('Removed:', changes.removed);
+});
+
+// When a block is modified
+useGraphEvent(graph, "block-change", 
+  ({ block }) => {
+    // Handle block changes
 });
 ```
 
-### useGraphEvent
+## Common Patterns
 
-A hook for subscribing to graph events.
+### Zooming to Content
 
 ```tsx
-import { useGraphEvent } from '@gravity-ui/@gravity-ui/graph';
+// Zoom to center with padding
+graph.zoomTo("center", { padding: 300 });
 
-useGraphEvent(graph, "block-change", ({ block }) => {
-  // Handle block changes
-});
-
-useGraphEvent(graph, "blocks-selection-change", ({ changes, list }) => {
-  // Handle selection changes
-});
-
-useGraphEvent(graph, "connection-created", ({ source, target }, event) => {
-  // Handle connection creation
-  event.preventDefault(); // Optionally prevent default behavior
+// Zoom to specific blocks
+graph.zoomTo([blockId1, blockId2], { 
+  transition: 250 
 });
 ```
 
-## Events
-
-The library provides a rich event system to respond to user interactions:
-
-- `click`: Canvas click events
-- `camera-change`: Camera position/zoom changes
-- `block-drag-start`, `block-drag`, `block-drag-end`: Block dragging events
-- `blocks-selection-change`: Block selection changes
-- `block-anchor-selection-change`: Anchor selection changes
-- `block-change`: Block property changes
-- `connections-selection-change`: Connection selection changes
-- `state-changed`: Graph state changes
-
-## Block Rendering Mechanism
-
-The rendering mechanism in the Graph library is optimized for performance:
-
-1. **Viewport-Based Rendering**: Only blocks within the current viewport (plus a threshold area) are rendered.
-2. **Scale-Level Dependent**: Blocks are only rendered at `ECameraScaleLevel.Detailed` zoom level.
-3. **Block State Management**: Blocks are wrapped in a `BlockState` object that contains reactive state.
-
-The `renderBlock` function can be implemented in two ways:
+### Managing Selection
 
 ```tsx
-// Basic implementation
-const renderBlockFn = (graph, block) => (
-  <GraphBlock graph={graph} block={block}>
-    {/* Custom content */}
-  </GraphBlock>
-);
+useGraphEvent(graph, "blocks-selection-change", 
+  ({ changes }) => {
+    const selectedBlocks = changes.add.map(id => 
+      graph.rootStore.blocksList.getBlock(id)
+    );
+    // Update your UI with selected blocks
+});
+```
 
-// Advanced implementation with access to BlockState
-const renderBlockFn = (graph, block, blockState) => (
-  <GraphBlock graph={graph} block={block}>
-    {/* Custom content using blockState for reactive properties */}
-  </GraphBlock>
-);
+### Custom Connection Logic
+
+```tsx
+useGraphEvent(graph, "connection-created", 
+  (connection, event) => {
+    event.preventDefault(); // Prevent default connection
+    
+    // Apply your own connection logic
+    if (validateConnection(connection)) {
+      graph.api.addConnection({
+        ...connection,
+        // Add custom properties
+      });
+    }
+});
 ```
 
 ## Complete Example
 
-Here's a complete example showing how to create a simple graph editor:
+Here's a practical example that demonstrates the core features:
 
 ```tsx
-import React, { useEffect } from 'react';
-import { 
-  GraphCanvas, 
-  GraphBlock, 
-  GraphBlockAnchor, 
-  useGraph, 
-  useGraphEvent,
-  GraphState 
-} from '@gravity-ui/@gravity-ui/graph';
+import React, { useCallback } from 'react';
+import { GraphCanvas, GraphBlock, GraphBlockAnchor, useGraph, useGraphEvent, TBlock } from '@gravity-ui/graph';
 
-function GraphEditor() {
-  // Initialize graph with configuration
+function BlockComponent({ block, graph }: { block: TBlock; graph: Graph }) {
+  return (
+    <GraphBlock 
+      graph={graph} 
+      block={block}
+      className="custom-block"
+    >
+      {/* Block content */}
+      <div className="block-content">
+        {block.name}
+      </div>
+
+      {/* Render anchors */}
+      {block.anchors.map(anchor => (
+        <GraphBlockAnchor
+          key={anchor.id}
+          graph={graph}
+          anchor={anchor}
+          position="fixed"
+        >
+          {(state) => (
+            <div className={`anchor ${state.selected ? 'selected' : ''}`}>
+              <div className="anchor-dot" />
+              {state.isConnecting && (
+                <div className="anchor-label">
+                  {anchor.type === 'IN' ? 'Input' : 'Output'}
+                </div>
+              )}
+            </div>
+          )}
+        </GraphBlockAnchor>
+      ))}
+    </GraphBlock>
+  );
+}
+
+function CustomGraph() {
+  // Initialize graph
   const { graph, setEntities, start } = useGraph({
     viewConfiguration: {
       colors: {
@@ -229,7 +297,13 @@ function GraphEditor() {
           border: "rgba(229, 229, 229, 0.2)",
           selectedBorder: "rgba(255, 190, 92, 1)",
         },
-        // More color configurations...
+        connection: {
+          background: "rgba(255, 255, 255, 0.5)",
+          selectedBackground: "rgba(234, 201, 74, 1)",
+        },
+        anchor: {
+          background: "rgba(255, 190, 92, 1)",
+        },
       },
     },
     settings: {
@@ -237,118 +311,133 @@ function GraphEditor() {
       canZoomCamera: true,
       canCreateNewConnections: true,
       useBezierConnections: true,
-      // More settings...
     },
   });
 
-  // Set initial blocks and connections
-  useEffect(() => {
-    setEntities({ 
-      blocks: [
-        {
-          is: "block-action",
-          id: "block-1",
-          x: -100,
-          y: -100,
-          width: 200,
-          height: 100,
-          name: "Block #1",
-          anchors: [
-            {
-              id: "anchor-1",
-              type: "OUT",
-              x: 200,
-              y: 50,
-            }
-          ]
-        },
-        {
-          is: "block-action",
-          id: "block-2",
-          x: 200,
-          y: 100,
-          width: 200,
-          height: 100,
-          name: "Block #2",
-          anchors: [
-            {
-              id: "anchor-2",
-              type: "IN",
-              x: 0,
-              y: 50,
-            }
-          ]
-        }
-      ], 
-      connections: [
-        {
-          sourceBlockId: "block-1",
-          sourceAnchorId: "anchor-1",
-          targetBlockId: "block-2",
-          targetAnchorId: "anchor-2",
-        }
-      ] 
-    });
-  }, [setEntities]);
+  // Initialize blocks
+  React.useEffect(() => {
+    const blocks: TBlock[] = [
+      {
+        id: 'block1',
+        is: 'block',
+        name: 'Source',
+        x: 100,
+        y: 100,
+        width: 200,
+        height: 100,
+        selected: false,
+        anchors: [
+          {
+            id: 'out1',
+            type: 'OUT',
+            x: 200,
+            y: 50,
+          },
+        ],
+      },
+      {
+        id: 'block2',
+        is: 'block',
+        name: 'Target',
+        x: 400,
+        y: 100,
+        width: 200,
+        height: 100,
+        selected: false,
+        anchors: [
+          {
+            id: 'in1',
+            type: 'IN',
+            x: 0,
+            y: 50,
+          },
+        ],
+      },
+    ];
 
-  // Render blocks with custom components
-  // This function receives graph and block as parameters
-  const renderBlockFn = (graph, block) => (
-    <>
-      <GraphBlock graph={graph} block={block}>
-        <div className="block-header">{block.name}</div>
-        <div className="block-content">{block.content}</div>
-        {block.anchors.map(anchor => (
-            <GraphBlockAnchor 
-            key={anchor.id} 
-            graph={graph} 
-            anchor={anchor} 
-            position="fixed"
-            />
-        ))}
-      </GraphBlock>
-    </>
-  );
+    setEntities({ blocks });
+    start();
+    graph.zoomTo("center", { padding: 100 });
+  }, []);
+
+  // Handle clicks on blocks
+  useGraphEvent(graph, "click", ({ target }) => {
+    console.log('Clicked block:', target);
+  });
+
+  // Render blocks
+  const renderBlock = useCallback((graph, block) => (
+    <BlockComponent graph={graph} block={block} />
+  ), []);
 
   return (
-    <GraphCanvas 
-      graph={graph} 
-      renderBlock={renderBlockFn}
-      onStateChanged={({ state }) => {
-        if (state === "ATTACHED") {
-          start();
-          graph.zoomTo("center", { padding: 300 });
-        }
-      }}
-    />
+    <div className="graph-container">
+      <GraphCanvas 
+        graph={graph} 
+        renderBlock={renderBlock}
+        className="custom-graph"
+      />
+    </div>
   );
 }
+
+// Required styles
+const styles = `
+.custom-graph {
+  width: 100%;
+  height: 100vh;
+}
+
+.custom-block {
+  background-color: var(--graph-block-bg);
+  border: 1px solid var(--graph-block-border);
+  border-radius: 4px;
+}
+
+.custom-block.selected {
+  border-color: var(--graph-block-border-selected);
+}
+
+.block-content {
+  padding: 16px;
+  color: white;
+}
+
+.anchor {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--graph-block-anchor-bg);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.anchor.selected {
+  border: 2px solid var(--graph-block-anchor-border-selected);
+}
+
+.anchor-label {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+`;
 ```
 
-## Advanced Features
+This example demonstrates:
+1. Basic block and anchor setup
+2. Connection handling
+3. CSS variable usage for styling
+4. Proper TypeScript typing using built-in types
+5. Event handling
 
-The Graph React Component library supports:
-
-1. **Custom Block Rendering**: Create blocks with complex UI using regular React components
-2. **Dynamic Block Creation**: Create new blocks when dropping connections
-3. **Selection Management**: Select and manipulate multiple blocks simultaneously
-4. **Zoom and Pan Controls**: Easily navigate large graphs
-5. **Custom Connection Styles**: Configure connection appearance and behavior
-6. **Theming**: Customize colors and visual appearance
-7. **Performance Optimization**: Handles large graphs with thousands of nodes efficiently
-   - Only renders blocks within the viewport
-   - Uses scale-dependent rendering
-   - Debounces update operations
-
-## Best Practices
-
-1. **Use the hooks system**: The hooks provide a clean and efficient way to interact with the graph
-2. **Custom rendering**: Leverage the renderBlock function for block customization
-   - Keep renderBlock implementations simple and focused on UI
-   - Handle anchors within the renderBlock function when needed
-3. **Lifecycle management**: Initialize the graph properly
-   - Set entities before starting the graph
-   - Use onStateChanged to detect when the graph is ready
-4. **Event handling**: Use event handlers to respond to user interactions
-5. **State management**: Let the graph manage its own state, but integrate with your application's state when needed
-6. **Lazy loading**: For large graphs, the library automatically handles viewport-based rendering
+The graph will display:
+- Two blocks with input/output anchors
+- Interactive connection creation
+- Proper styling and hover effects

@@ -59,6 +59,8 @@ npm install @gravity-ui/graph
 
 ### React Example
 
+[Detailed React Components Documentation](docs/react/usage.md)
+
 ```typescript
 import { GraphCanvas, GraphState, GraphBlock, useGraph } from "@gravity-ui/graph";
 import React from "react";
