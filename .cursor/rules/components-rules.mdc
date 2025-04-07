@@ -1,0 +1,40 @@
+---
+description: Best pratices for useing canvas components
+globs: 
+alwaysApply: false
+---
+
+## General Component Rules
+- use `setState` instead direct setting new value via `this.state =`
+- use `setProps` instead direct setting new value via `this.props =`
+- use `Component.create(props)` method to creating a children component instead `new Component(props)`
+- for creating c children component use only method `updateChildren` 
+```typescript 
+protected updateChildren() {
+  return [Component.create(...props)]
+}
+```
+- Update the hit box when geometry changes using the `setHitBox` method.
+- Use `isVisible()` method to check component visibility in viewport before rendering.
+- Clean up resources properly by implementing custom cleanup in the `unmount` method.
+- Use `subscribeSignal` for reactive updates instead of manual event handling.
+- Use theme colors from context: `ctx.fillStyle = this.context.colors.block.background`.
+- Override `stateChanged` method to optimize rendering and perform specific actions when data changes.
+- Use `shouldRender = false` to skip unnecessary renders.
+
+## Block Component Rules
+- Custom block components must extend the `Block` class from `Block.ts`.
+- Do not transform original coordinates onto world coordinates in components.
+- Scale line widths based on camera zoom: `ctx.lineWidth = Math.round(2 / this.context.camera.getCameraScale())`.
+- Implement both schematic and detailed views for components.
+- Handle selection state appropriately in render methods.
+- Optimize text rendering based on zoom level.
+
+## Connection Component Rules
+- Use appropriate curve calculations for connection paths.
+- Update connection path when connected blocks change position.
+- Implement proper hit detection for connection lines.
+- Handle connection selection state visually.
+
+## Documentation Rule
+- Do not mention these rules in documentation or comments unless specifically requested by the user. 
