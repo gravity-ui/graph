@@ -1,34 +1,63 @@
 # @gravity-ui/graph &middot; [![npm package](https://img.shields.io/npm/v/@gravity-ui/graph)](https://www.npmjs.com/package/@gravity-ui/graph) [![Release](https://img.shields.io/github/actions/workflow/status/gravity-ui/graph/release.yml?branch=main&label=Release)](https://github.com/gravity-ui/graph/actions/workflows/release.yml?query=branch:main) [![storybook](https://img.shields.io/badge/Storybook-deployed-ff4685)](https://preview.gravity-ui.com/graph/)
 
-A powerful and flexible library for building interactive, canvas-based graph visualizations with blocks, connections, and advanced rendering capabilities.
+A graph visualization library that combines the best of both worlds:
+- Canvas for high performance when viewing the full graph
+- HTML/React for rich interactions when zoomed in
 
-> **Note:** This is the main documentation for the graph visualization library. For specific topics, please refer to the relevant sections below.
+No more choosing between performance and interactivity. Perfect for large diagrams, flowcharts, and node-based editors.
+
+## Motivation
+
+Modern web applications often require complex visualization and interactivity, but existing solutions typically focus on a single rendering technology:
+
+- **Canvas** offers high performance for complex graphics but is limited in text handling and interactivity.
+- **HTML DOM** is convenient for interfaces but less efficient for complex graphics or large numbers of elements.
+
+@gravity-ui/graph solves this by automatically switching between Canvas and HTML based on zoom level:
+- **Zoomed Out**: Uses Canvas for efficient rendering of the full graph
+- **Medium Zoom**: Shows schematic view with basic interactivity
+- **Zoomed In**: Switches to HTML/React components for rich interactions
+
+## How It Works
+
+The library uses a smart rendering system that automatically manages the transition between Canvas and React components:
+
+1. At low zoom levels, everything is rendered on Canvas for performance
+2. When zooming in to detailed view, the `BlocksList` component:
+   - Tracks camera viewport and scale changes
+   - Calculates which blocks are visible in the current viewport (with padding for smooth scrolling)
+   - Renders React components only for visible blocks
+   - Automatically updates the list when scrolling or zooming
+   - Removes React components when zooming out
+
+```typescript
+// Example of React components rendering
+const MyGraph = () => {
+  return (
+    <GraphCanvas
+      graph={graph}
+      renderBlock={(graph, block) => (
+        <MyCustomBlockComponent 
+          graph={graph} 
+          block={block}
+        />
+      )}
+    />
+  );
+};
+```
 
 [Storybook](https://preview.gravity-ui.com/graph/)
 
-## Install and Setup
+## Install
 
 ```bash
 npm install @gravity-ui/graph
 ```
 
-## Overview
+## Examples
 
-This library provides a comprehensive system for rendering and interacting with graph-based visualizations. It features a component-based architecture with efficient rendering mechanisms, spatial awareness, and a rich set of interactive capabilities.
-
-## Key Features
-
-| Feature | Description |
-|---------|-------------|
-| Component Architecture | Build complex visualizations using reusable components |
-| Efficient Rendering | Optimized canvas rendering with layering and batching support |
-| Spatial Awareness | HitBox system for efficient interaction and collision detection |
-| Connection System | Flexible system for creating and styling connections between blocks |
-| Block Management | Create, customize, and organize blocks with grouping support |
-| Event Handling | Comprehensive event system for user interactions |
-| Lifecycle Management | Well-defined component lifecycle for predictable behavior |
-
-## Quick Start
+### React Example
 
 ```typescript
 import { GraphCanvas, GraphState, GraphBlock, useGraph } from "@gravity-ui/graph";
@@ -93,7 +122,69 @@ export function GraphEditor() {
 }
 ```
 
-## Examples
+### Vanilla JavaScript Example
+
+```javascript
+import { Graph } from "@gravity-ui/graph";
+
+// Create container element
+const container = document.createElement('div');
+container.style.width = '100vw';
+container.style.height = '100vh';
+container.style.overflow = 'hidden';
+document.body.appendChild(container);
+
+// Initialize graph with configuration
+const graph = new Graph({
+    configurationName: "example",
+    blocks: [],
+    connections: [],
+    settings: {
+        canDragCamera: true,
+        canZoomCamera: true,
+        useBezierConnections: true,
+        showConnectionArrows: true
+    }
+}, container);
+
+// Add blocks and connections
+graph.setEntities({
+    blocks: [
+        {
+            is: "block-action",
+            id: "block1",
+            x: 100,
+            y: 100,
+            width: 120,
+            height: 120,
+            name: "Block #1"
+        },
+        {
+            is: "block-action",
+            id: "block2",
+            x: 300,
+            y: 300,
+            width: 120,
+            height: 120,
+            name: "Block #2"
+        }
+    ],
+    connections: [
+        {
+            sourceBlockId: "block1",
+            targetBlockId: "block2"
+        }
+    ]
+});
+
+// Start rendering
+graph.start();
+
+// Center the view
+graph.zoomTo("center", { padding: 100 });
+```
+
+## Live Examples
 
 - [Basic example](https://preview.gravity-ui.com/graph/?path=/story/stories-main-grapheditor--hundred-blocks)
 - [Large scale example](https://preview.gravity-ui.com/graph/?path=/story/stories-main-grapheditor--five-thousands-blocks)
@@ -103,35 +194,23 @@ export function GraphEditor() {
 
 ## Documentation
 
-### Core Concepts
+### Table of Contents
 
-| Section | Description | Documentation |
-|---------|-------------|---------------|
-| Component Lifecycle | Component initialization, update, rendering, and unmounting | [Read More](docs/system/component-lifecycle.md) |
-| Rendering Mechanism | Rendering pipeline and optimization techniques | [Read More](docs/rendering/rendering-mechanism.md) |
-| Event System | Event handling, propagation, and custom events | [Read More](docs/system/events.md) |
+1. System
+   - [Component Lifecycle](docs/system/component-lifecycle.md)
+   - [Events](docs/system/events.md)
+   - [Graph Settings](docs/system/graph-settings.md)
+   - [Public API](docs/system/public_api.md)
+   - [Scheduler System](docs/system/scheduler-system.md)
 
-### Main Components
+2. Components
+   - [Canvas Graph Component](docs/components/canvas-graph-component.md)
+   - [Block Component](docs/components/block-component.md)
 
-| Component | Description | Documentation |
-|-----------|-------------|---------------|
-| Canvas Graph | Foundation for visual elements with HitBox system | [Read More](docs/components/canvas-graph-component.md) |
-| Block Component | Building blocks for graph nodes | [Read More](docs/components/block-component.md) |
-| Connections | Connection creation and styling system | [Read More](docs/connections/canvas-connection-system.md) |
+3. Rendering
+   - [Rendering Mechanism](docs/rendering/rendering-mechanism.md)
+   - [Layers](docs/rendering/layers.md)
 
-### Advanced Features
-
-| Feature | Description | Documentation |
-|---------|-------------|---------------|
-| Layer System | Z-index ordering and layer-specific rendering | [Read More](docs/rendering/layers.md) |
-| Block Groups | Automatic and manual block grouping | [Read More](docs/blocks/groups.md) |
-| Scheduler System | Frame scheduling and update prioritization | [Read More](docs/system/scheduler-system.md) |
-
-### Configuration
-
-| Topic | Description | Documentation |
-|-------|-------------|---------------|
-| Graph Settings | Configuration options and parameters | [Read More](docs/system/graph-settings.md) |
-| Public API | Methods for graph manipulation | [Read More](docs/system/public_api.md) |
-
-> **Note:** All code examples in the documentation use TypeScript for better type safety and developer experience.
+4. Blocks and Connections
+   - [Block Groups](docs/blocks/groups.md)
+   - [Canvas Connection System](docs/connections/canvas-connection-system.md)
