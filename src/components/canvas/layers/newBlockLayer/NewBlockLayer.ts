@@ -57,8 +57,12 @@ export class NewBlockLayer extends Layer<
     });
 
     this.performRender = this.performRender.bind(this);
-    this.context.graph.on("camera-change", this.performRender);
-    this.context.graph.on("mousedown", this.handleMouseDown, { capture: true });
+    // Register event listeners with the AbortController signal for automatic cleanup when unmounted
+    this.context.graph.on("camera-change", this.performRender, { signal: this.eventAbortController.signal });
+    this.context.graph.on("mousedown", this.handleMouseDown, {
+      capture: true,
+      signal: this.eventAbortController.signal,
+    });
   }
 
   protected getOwnerDocument() {
@@ -96,9 +100,15 @@ export class NewBlockLayer extends Layer<
     });
   }
 
+  /**
+   * Unmounts the layer and cleans up resources.
+   * The super.unmount() call triggers the AbortController's abort method in the parent class,
+   * which automatically removes all event listeners.
+   * No manual event listener removal is needed.
+   */
   protected unmount(): void {
-    this.context.graph.off("camera-change", this.performRender);
-    this.context.graph.off("mousedown", this.handleMouseDown);
+    super.unmount();
+    // The event listeners will be automatically removed by the AbortController in the parent class
   }
 
   private onStartNewBlock(event: MouseEvent, block: Block) {

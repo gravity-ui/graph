@@ -13,6 +13,7 @@ import { Graph } from "@gravity-ui/graph";
 
 const graph = new Graph(...props);
 
+// Using the cleanup function
 const unsubscribe = graph.on("mouseenter", (event) => {
   console.log("mouseenter", event.detail);
   console.log('hovered element', event.detail.target);
@@ -25,7 +26,22 @@ const unsubscribe = graph.on("mouseenter", (event) => {
   capture: true
 });
 
+// Call the cleanup function when done
 unsubscribe();
+
+// Using AbortController (recommended for multiple event listeners)
+const controller = new AbortController();
+
+graph.on("mouseenter", (event) => {
+  console.log("Mouse entered:", event.detail);
+}, { signal: controller.signal });
+
+graph.on("mouseleave", (event) => {
+  console.log("Mouse left:", event.detail);
+}, { signal: controller.signal });
+
+// Later, to remove all event listeners at once:
+controller.abort();
 ```
 
 ## Event Types
@@ -85,6 +101,61 @@ interface GraphMouseEvent<E extends Event = Event> = CustomEvent<{
 | Event | Description |
 |-------|-------------|
 | `camera-change` | Fires on camera state changes |
+
+## Event Cleanup with AbortController
+
+The Graph library supports the [AbortController](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) API for managing event listeners. This is especially useful for components that need to register multiple event listeners and clean them up efficiently.
+
+```typescript
+import { Graph } from "@gravity-ui/graph";
+
+// Create a controller
+const controller = new AbortController();
+
+// Register multiple event listeners with the same controller
+graph.on("camera-change", handleCameraChange, { signal: controller.signal });
+graph.on("blocks-selection-change", handleSelectionChange, { signal: controller.signal });
+graph.on("mousedown", handleMouseDown, { signal: controller.signal });
+
+// DOM event listeners can also use the same controller
+document.addEventListener("keydown", handleKeyDown, { signal: controller.signal });
+
+// Later, remove all event listeners at once
+controller.abort();
+```
+
+### Benefits of AbortController
+
+1. **Simplified Cleanup**: Remove multiple event listeners with a single call
+2. **Prevents Memory Leaks**: Ensures all event listeners are properly cleaned up
+3. **Consistent API**: Works with both graph events and DOM events
+4. **Automatic Cleanup**: When used in layers, event listeners are automatically removed when the layer is unmounted
+
+### Using AbortController in Layers
+
+The Layer class in the Graph library uses AbortController internally to manage event listeners:
+
+```typescript
+export class MyLayer extends Layer {
+  constructor(props) {
+    super(props);
+    
+    // Event listeners registered with the AbortController signal
+    // will be automatically cleaned up when the layer is unmounted
+    this.props.graph.on("camera-change", this.handleCameraChange, { 
+      signal: this.eventAbortController.signal 
+    });
+    
+    // DOM event listeners can also use the AbortController signal
+    this.getCanvas()?.addEventListener("mousedown", this.handleMouseDown, { 
+      signal: this.eventAbortController.signal 
+    });
+  }
+  
+  // No need to manually remove event listeners in unmount
+  // They are automatically removed by the AbortController
+}
+```
 
 ## React Integration
 
