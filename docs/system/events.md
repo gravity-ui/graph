@@ -88,10 +88,10 @@ interface GraphMouseEvent<E extends Event = Event> = CustomEvent<{
 
 ## React Integration
 
-The GraphComponent in React provides two ways to handle events:
+The GraphCanvas component in React provides two ways to handle events:
 
 1. Using `onEventName` props for common events
-2. Using `graphRef` and the `on` method for all events
+2. Using the `graph` instance (obtained via `useGraph`) and the `on` method for all events
 
 ### Common Event Props
 
@@ -123,7 +123,7 @@ const YourPrettyGraphComponent = () => {
     []
   );
 
-  return <GraphComponent onBlockSelectionChange={onBlockSelectionChange} />;
+  return <GraphCanvas onBlockSelectionChange={onBlockSelectionChange} />;
 };
 ```
 

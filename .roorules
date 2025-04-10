@@ -1,1 +1,7 @@
 **See ./clinerules for more instructions**
+
+project-rules: .cursor/rules/project-rules.mdc
+components-rules: .cursor/rules/components-rules.mdc
+graph-structure: .cursor/rules/graph-structure.mdc
+layer-rules: .cursor/rules/layer-rules.mdc
+event-model-rules: .cursor/rules/event-model-rules.mdc

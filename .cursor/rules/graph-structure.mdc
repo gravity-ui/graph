@@ -1,0 +1,13 @@
+---
+description: Graph structure and architecture rules
+globs: 
+alwaysApply: false
+---
+
+## Graph Architecture
+This file contains rules and information about the architecture of the graph library:
+
+- The graph is built on a layered architecture
+- Canvas is used for high performance rendering
+- React components are used for detailed interaction
+- The system automatically switches between rendering modes 

@@ -1,0 +1,62 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+## Project Overview
+@gravity-ui/graph is a graph visualization library that combines the best of both worlds: Canvas for high performance when viewing the full graph and HTML/React for rich interactions when zoomed in.
+
+## Project Structure
+Project structure:
+- src/ - source code
+  - api/ - API for interacting with the graph
+  - components/ - Canvas components
+    - canvas/ - contains blocks, connections, anchors and layers for rendering
+  - lib/ - helper libraries
+  - plugins/ - plugins for extending functionality
+  - react-component/ - React wrappers for Canvas components
+  - services/ - services, including camera and others
+  - store/ - graph state storage
+  - stories/ - examples of component usage for Storybook
+  - utils/ - utility functions
+- docs/ - project documentation
+- .storybook/ - Storybook configuration
+
+## Technologies
+Technology stack:
+- TypeScript - main development language
+- React - for creating user interfaces
+- Canvas API - for rendering high-performance graphics
+- Storybook - for component development and testing
+- Jest - for unit testing
+- ESLint/Prettier - for maintaining code quality and style
+
+## Key Components
+Key components:
+- Graph - main class for graph management (src/graph.ts)
+- GraphCanvas - React component for displaying the graph (src/react-component/GraphCanvas.tsx)
+- Block - component for representing a graph block
+- Connection - component for connections between blocks
+- Anchor - components for connection attachment points
+
+## Rendering System
+Rendering system:
+- Full graph is rendered on Canvas for performance
+- When zooming in, HTML/React mode is automatically enabled for interactive elements
+- Uses a smart system that tracks visible blocks and renders only them in React
+
+## Development Guidelines
+Development guidelines:
+- To run the project locally, use `npm run storybook`
+- To build the project, use `npm run build`
+- Tests are run via `npm run test`
+- Use TypeScript for typing all code
+- Follow component architecture principles
+
+## File Naming Conventions
+File naming conventions:
+- Components: ComponentName.tsx
+- Utilities: utilityName.ts
+- Tests: ComponentName.test.ts
+- Styles: ComponentName.css
+- Types and interfaces: start with T or I (TBlock, IService) 
