@@ -101,6 +101,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     this.subscribeToGroup();
 
     this.addEventListener("click", (event: MouseEvent) => {
+      event.stopPropagation();
       this.groupState.setSelection(
         true,
         !isMetaKeyEvent(event) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
