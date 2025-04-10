@@ -41,14 +41,20 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
     this.ctx = this.context.ctx;
 
     this.performRender = this.performRender.bind(this);
-    this.context.graph.on("camera-change", this.performRender);
+    // Register event listener with the AbortController signal for automatic cleanup when unmounted
+    this.context.graph.on("camera-change", this.performRender, { signal: this.eventAbortController.signal });
     this.props.graph.rootStore.settings.$background.subscribe(this.performRender);
   }
 
+  /**
+   * Unmounts the layer and cleans up resources.
+   * The super.unmount() call triggers the AbortController's abort method in the parent class,
+   * which automatically removes all event listeners.
+   * No manual event listener removal is needed.
+   */
   protected unmount() {
     super.unmount();
-
-    this.context.graph.off("camera-change", this.performRender);
+    // The event listeners will be automatically removed by the AbortController in the parent class
   }
 
   public render() {

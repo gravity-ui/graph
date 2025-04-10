@@ -44,6 +44,7 @@ flowchart TD
    - Design patterns in use
    - Component relationships
    - Critical implementation paths
+   - Event handling patterns (prefer AbortController over manual unsubscribe functions)
 
 5. `techContext.md`
    - Technologies used
@@ -113,3 +114,33 @@ flowchart TD
 Note: When triggered by **update memory bank**, I MUST review every memory bank file, even if some don't require updates. Focus particularly on activeContext.md and progress.md as they track current state.
 
 REMEMBER: After every memory reset, I begin completely fresh. The Memory Bank is my only link to previous work. It must be maintained with precision and clarity, as my effectiveness depends entirely on its accuracy.
+
+## Project-Specific Patterns
+
+### Event Handling
+
+When implementing event subscriptions in this project:
+
+1. **Prefer AbortController over manual unsubscribe functions**
+   - Use the AbortController pattern for managing event listeners
+   - Pass the abort signal to all `graph.on()` calls and DOM event listeners
+   - This ensures proper cleanup and prevents memory leaks
+   - Example:
+     ```typescript
+     // Preferred approach
+     const controller = new AbortController();
+     graph.on("event-name", handler, { signal: controller.signal });
+     
+     // Later, to clean up:
+     controller.abort();
+     
+     // Instead of:
+     const unsubscribe = graph.on("event-name", handler);
+     // Later:
+     unsubscribe();
+     ```
+
+2. **In Layer classes**
+   - Use the built-in `eventAbortController` for all event subscriptions
+   - Call `super.unmount()` in the `unmount` method to ensure proper cleanup
+   - No need to manually remove event listeners in the `unmount` method

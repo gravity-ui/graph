@@ -2,7 +2,6 @@ import { Graph } from "../graph";
 import { TGraphColors, TGraphConstants } from "../graphConfig";
 import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
-import { noop } from "../utils/functions";
 
 import { ICamera } from "./camera/CameraService";
 
@@ -44,10 +43,17 @@ export class Layer<
 
   protected root?: HTMLElement;
 
-  private cameraSubscription: () => void = noop;
+  /**
+   * AbortController used to manage event listeners.
+   * All event listeners (both graph.on and DOM addEventListener) are registered with this controller's signal.
+   * When the layer is unmounted, the controller is aborted, which automatically removes all event listeners.
+   */
+  protected eventAbortController: AbortController;
 
   constructor(props: Props, parent?: CoreComponent) {
     super(props, parent);
+
+    this.eventAbortController = new AbortController();
 
     this.setContext({
       graph: this.props.graph,
@@ -58,17 +64,25 @@ export class Layer<
 
     this.init();
 
-    this.props.graph.on("colors-changed", (event) => {
-      this.setContext({
-        colors: event.detail.colors,
-      });
-    });
+    this.props.graph.on(
+      "colors-changed",
+      (event) => {
+        this.setContext({
+          colors: event.detail.colors,
+        });
+      },
+      { signal: this.eventAbortController.signal }
+    );
 
-    this.props.graph.on("constants-changed", (event) => {
-      this.setContext({
-        constants: event.detail.constants,
-      });
-    });
+    this.props.graph.on(
+      "constants-changed",
+      (event) => {
+        this.setContext({
+          constants: event.detail.constants,
+        });
+      },
+      { signal: this.eventAbortController.signal }
+    );
   }
 
   public updateSize(width: number, height: number) {
@@ -118,6 +132,12 @@ export class Layer<
     }
     this.canvas?.parentNode?.removeChild(this.canvas);
     this.html?.parentNode?.removeChild(this.html);
+
+    // Abort all event listeners (both graph.on and DOM addEventListener)
+    this.eventAbortController.abort();
+    // Create a new controller for potential reattachment
+    // This ensures that if the layer is reattached, new event listeners can be registered
+    this.eventAbortController = new AbortController();
   }
 
   protected unmount(): void {
@@ -149,14 +169,21 @@ export class Layer<
   public detachLayer() {
     this.unmount();
     this.root = undefined;
-    this.cameraSubscription?.();
   }
 
+  /**
+   * Subscribes to camera state changes to update the HTML element's transform.
+   * Uses the AbortController signal to ensure the event listener is properly cleaned up when the layer is unmounted.
+   */
   protected subscribeCameraState() {
-    this.cameraSubscription = this.props.graph.on("camera-change", (event) => {
-      const camera = event.detail;
-      this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
-    });
+    this.props.graph.on(
+      "camera-change",
+      (event) => {
+        const camera = event.detail;
+        this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
+      },
+      { signal: this.eventAbortController.signal }
+    );
   }
 
   protected createCanvas(params: LayerProps["canvas"]) {

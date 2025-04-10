@@ -219,11 +219,15 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
 
         this.calculateViewPortCoords();
         this.rerenderMapContent();
-        this.props.graph.on("camera-change", this.rerenderMapContent);
-        this.props.graph.on("colors-changed", this.rerenderMapContent);
-        this.props.graph.on("block-change", this.onBlockUpdated);
+        // Register all event listeners with the AbortController signal for automatic cleanup when unmounted
+        this.props.graph.on("camera-change", this.rerenderMapContent, { signal: this.eventAbortController.signal });
+        this.props.graph.on("colors-changed", this.rerenderMapContent, { signal: this.eventAbortController.signal });
+        this.props.graph.on("block-change", this.onBlockUpdated, { signal: this.eventAbortController.signal });
 
-        this.getCanvas()?.addEventListener("mousedown", this.handleMouseDownEvent);
+        // DOM event listeners also use the AbortController signal for consistent cleanup
+        this.getCanvas()?.addEventListener("mousedown", this.handleMouseDownEvent, {
+          signal: this.eventAbortController.signal,
+        });
 
         this.unSubscribeUsableRectLoaded?.();
       });
@@ -297,9 +301,14 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     dragListener(this.getCanvas(), true).on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onCameraDrag(event));
   };
 
+  /**
+   * Unmounts the layer and cleans up resources.
+   * The super.unmount() call triggers the AbortController's abort method in the parent class,
+   * which automatically removes all event listeners (both graph.on and DOM addEventListener).
+   * No manual event listener removal is needed.
+   */
   public unmount(): void {
-    this.getCanvas()?.removeEventListener("mousedown", this.handleMouseDownEvent);
-
     super.unmount();
+    // All event listeners (both graph.on and addEventListener) will be automatically removed by the AbortController in the parent class
   }
 }

@@ -108,7 +108,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     this.ctx = this.context.ctx;
 
     this.performRender = this.performRender.bind(this);
-    this.context.graph.on("camera-change", this.performRender);
+    this.context.graph.on("camera-change", this.performRender, { signal: this.eventAbortController.signal });
   }
 
   protected afterInit(): void {
@@ -119,16 +119,19 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     super.afterInit();
   }
 
+  /**
+   * Attaches DOM event listeners to the root element.
+   * All event listeners are registered with the AbortController signal to ensure they are properly cleaned up
+   * when the layer is unmounted. This eliminates the need for manual event listener removal.
+   */
   private attachListeners() {
-    rootBubblingEventTypes.forEach((type) => this.context.root?.addEventListener(type, this));
-    rootCapturingEventTypes.forEach((type) => this.context.root?.addEventListener(type, this, { capture: true }));
-    this.context.root?.addEventListener("mousemove", this);
-  }
-
-  private detachListeners() {
-    rootBubblingEventTypes.forEach((type) => this.context.root?.removeEventListener(type, this));
-    rootCapturingEventTypes.forEach((type) => this.context.root?.removeEventListener(type, this, { capture: true }));
-    this.context.root?.removeEventListener("mousemove", this);
+    rootBubblingEventTypes.forEach((type) =>
+      this.context.root?.addEventListener(type, this, { signal: this.eventAbortController.signal })
+    );
+    rootCapturingEventTypes.forEach((type) =>
+      this.context.root?.addEventListener(type, this, { capture: true, signal: this.eventAbortController.signal })
+    );
+    this.context.root?.addEventListener("mousemove", this, { signal: this.eventAbortController.signal });
   }
 
   public handleEvent(e) {
@@ -324,10 +327,16 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     }
   }
 
+  /**
+   * Unmounts the layer and cleans up resources.
+   * The super.unmount() call triggers the AbortController's abort method in the parent class,
+   * which automatically removes all event listeners (both graph.on and DOM addEventListener).
+   * Only the camera.off call is needed for cleanup that isn't handled by the AbortController.
+   */
   protected unmount() {
     super.unmount();
-    this.detachListeners();
     this.camera.off("update", this.performRender);
+    // All event listeners (both graph.on and addEventListener) will be automatically removed by the AbortController in the parent class
   }
 
   public updateChildren() {

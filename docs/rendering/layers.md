@@ -105,8 +105,8 @@ export class MyLayer extends Layer<MyLayerProps> {
       graph: this.props.graph
     });
     
-    // Subscribe to events
-    this.context.graph.on("camera-change", this.performRender);
+    // Subscribe to events using AbortController for automatic cleanup
+    this.context.graph.on("camera-change", this.performRender, { signal: this.eventAbortController.signal });
   }
   
   // Rendering method
@@ -118,7 +118,11 @@ export class MyLayer extends Layer<MyLayerProps> {
   
   // Resource cleanup
   protected unmount(): void {
-    this.context.graph.off("camera-change", this.performRender);
+    // Call super.unmount() to trigger the AbortController's abort method
+    // which automatically removes all event listeners
+    super.unmount();
+    // No need to manually remove event listeners as they are automatically
+    // cleaned up by the AbortController
   }
 }
 ```
@@ -170,6 +174,41 @@ this.context.graph.on("connection-created", (event) => {
 });
 ```
 
+### Event Handling with AbortController
+
+The Layer class uses an AbortController to manage event listeners. This ensures that all event listeners are properly cleaned up when a layer is unmounted, preventing memory leaks.
+
+```typescript
+export class Layer<Props extends LayerProps = LayerProps> extends Component<Props> {
+  /**
+   * AbortController used to manage event listeners.
+   * All event listeners (both graph.on and DOM addEventListener) are registered with this controller's signal.
+   * When the layer is unmounted, the controller is aborted, which automatically removes all event listeners.
+   */
+  protected eventAbortController: AbortController;
+
+  constructor(props: Props) {
+    super(props);
+    this.eventAbortController = new AbortController();
+    
+    // Register event listeners with the AbortController signal
+    this.props.graph.on("camera-change", this.handleCameraChange, { signal: this.eventAbortController.signal });
+    
+    // DOM event listeners can also use the AbortController signal
+    this.getCanvas()?.addEventListener("mousedown", this.handleMouseDown, { 
+      signal: this.eventAbortController.signal 
+    });
+  }
+  
+  protected unmountLayer() {
+    // Abort all event listeners (both graph.on and DOM addEventListener)
+    this.eventAbortController.abort();
+    // Create a new controller for potential reattachment
+    this.eventAbortController = new AbortController();
+  }
+}
+```
+
 ### Example: Grid Layer
 
 ```typescript
@@ -193,7 +232,8 @@ export class GridLayer extends Layer<GridLayerProps> {
     
     this.ctx = this.getCanvas().getContext("2d");
     
-    this.context.graph.on("camera-change", this.performRender);
+    // Use the AbortController signal for automatic cleanup
+    this.context.graph.on("camera-change", this.performRender, { signal: this.eventAbortController.signal });
   }
   
   protected render() {
@@ -224,6 +264,8 @@ export class GridLayer extends Layer<GridLayerProps> {
   }
   
   protected unmount(): void {
-    this.context.graph.off("camera-change", this.performRender);
+    // Call super.unmount() to trigger the AbortController's abort method
+    super.unmount();
+    // No need to manually remove event listeners
   }
 }
