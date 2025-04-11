@@ -33,13 +33,15 @@ type ConnectionLayerProps = LayerProps & {
   createIcon?: TIcon;
   point?: TIcon;
   drawLine?: DrawLineFunction;
+  isConnectionAllowed?: (sourceComponent: BlockState | AnchorState) => boolean;
 };
 
 declare module "../../../../graphEvents" {
   interface GraphEventsDefinitions {
     /**
-     * Event reporting on connection pull out of a block/block's anchor.
-     * Preventing this event will prevent the connection from being created.
+     * Fired when a user initiates a connection from a block or anchor.
+     * This happens when dragging starts from a block (with Shift key) or an anchor.
+     * Preventing this event will prevent the selection of the source component.
      */
     "connection-create-start": (
       event: CustomEvent<{
@@ -49,8 +51,8 @@ declare module "../../../../graphEvents" {
     ) => void;
 
     /**
-     * Event fires on pulled out connection hover on block or anchor
-     * Preventing prevent connection creation.
+     * Fired when the dragged connection endpoint hovers over a potential target block or anchor.
+     * Preventing this event will prevent the selection of the target component.
      */
     "connection-create-hover": (
       event: CustomEvent<{
@@ -62,9 +64,9 @@ declare module "../../../../graphEvents" {
     ) => void;
 
     /**
-     * Event fires when a connection is successfully created
-     * By default, this adds the connection to connectionsList
-     * Preventing this event will prevent the connection from being added
+     * Fired when a connection is successfully created between two elements.
+     * By default, this adds the connection to the connectionsList in the store.
+     * Preventing this event will prevent the connection from being added to the store.
      */
     "connection-created": (
       event: CustomEvent<{
@@ -76,8 +78,9 @@ declare module "../../../../graphEvents" {
     ) => void;
 
     /**
-     * Event fires when the user drops the connection endpoint
-     * This happens regardless of whether a connection was created
+     * Fired when the user releases the mouse button to complete the connection process.
+     * This event fires regardless of whether a valid connection was established.
+     * Can be used for cleanup or to handle custom connection drop behavior.
      */
     "connection-create-drop": (
       event: CustomEvent<{
@@ -92,18 +95,22 @@ declare module "../../../../graphEvents" {
 }
 
 /**
- * ConnectionLayer provides functionality for creating and visualizing connections
- * between blocks and anchors in a graph.
+ * ConnectionLayer manages the creation and visualization of connections
+ * between blocks and anchors in the graph.
  *
  * Features:
- * - Create connections through an intuitive drag and drop interface
- * - Customize connection appearance with icons and line styles
- * - Automatic selection of connected elements
- * - Rich event system for connection lifecycle
+ * - Interactive connection creation through drag and drop
+ * - Customizable connection appearance with configurable icons and line styles
+ * - Automatic selection handling of source and target elements
+ * - Comprehensive event system for the entire connection lifecycle
+ * - Optional connection validation through isConnectionAllowed prop
  *
  * Connection types:
- * - Block-to-Block: Hold Shift and drag from one block to another
- * - Anchor-to-Anchor: Drag from one anchor to another
+ * - Block-to-Block: Hold Shift key and drag from one block to another
+ * - Anchor-to-Anchor: Drag from one anchor to another (must be on different blocks)
+ *
+ * The layer renders on a separate canvas with a higher z-index and handles
+ * all mouse interactions for connection creation.
  */
 export class ConnectionLayer extends Layer<
   ConnectionLayerProps,
@@ -117,8 +124,8 @@ export class ConnectionLayer extends Layer<
   };
   protected target?: Block | Anchor;
   protected sourceComponent?: BlockState | AnchorState;
-
   protected enabled: boolean;
+  private declare eventAborter: AbortController;
 
   constructor(props: ConnectionLayerProps) {
     super({
@@ -141,9 +148,10 @@ export class ConnectionLayer extends Layer<
 
     this.enabled = Boolean(this.props.graph.rootStore.settings.getConfigFlag("canCreateNewConnections"));
 
+    this.eventAborter = new AbortController();
     this.performRender = this.performRender.bind(this);
-    this.context.graph.on("camera-change", this.performRender);
-    this.context.graph.on("mousedown", this.handleMouseDown, { capture: true });
+    this.context.graph.on("camera-change", this.performRender, { signal: this.eventAborter.signal });
+    this.context.graph.on("mousedown", this.handleMouseDown, { capture: true, signal: this.eventAborter.signal });
   }
 
   public enable = () => {
@@ -169,6 +177,14 @@ export class ConnectionLayer extends Layer<
       ((this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors") && target instanceof Anchor) ||
         (isShiftKeyEvent(event) && isBlock(target)))
     ) {
+      // Get the source component state
+      const sourceComponent = target.connectedState;
+
+      // Check if connection is allowed using the validation function if provided
+      if (this.props.isConnectionAllowed && !this.props.isConnectionAllowed(sourceComponent)) {
+        return;
+      }
+
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
       dragListener(this.getOwnedDocument())
@@ -249,8 +265,9 @@ export class ConnectionLayer extends Layer<
   }
 
   protected unmount(): void {
-    this.context.graph.off("camera-change", this.performRender);
-    this.context.graph.off("mousedown", this.handleMouseDown);
+    this.eventAborter.abort();
+
+    super.unmount();
   }
 
   private getBlockId(component: BlockState | AnchorState) {
@@ -274,6 +291,15 @@ export class ConnectionLayer extends Layer<
       return;
     }
 
+    this.sourceComponent = sourceComponent.connectedState;
+
+    const xy = getXY(this.context.graphCanvas, event);
+    this.connectionState = {
+      ...this.connectionState,
+      sx: xy[0],
+      sy: xy[1],
+    };
+
     this.context.graph.executеDefaultEventAction(
       "connection-create-start",
       {
@@ -284,29 +310,21 @@ export class ConnectionLayer extends Layer<
         anchorId: sourceComponent instanceof Anchor ? sourceComponent.connectedState.id : undefined,
       },
       () => {
-        this.sourceComponent = sourceComponent.connectedState;
-
         if (sourceComponent instanceof Block) {
           this.context.graph.api.selectBlocks([this.sourceComponent.id], true, ESelectionStrategy.REPLACE);
         } else if (sourceComponent instanceof Anchor) {
           this.context.graph.api.setAnchorSelection(sourceComponent.props.blockId, sourceComponent.props.id, true);
         }
-
-        const xy = getXY(this.context.graphCanvas, event);
-        this.connectionState = {
-          ...this.connectionState,
-          sx: xy[0],
-          sy: xy[1],
-        };
-        this.performRender();
       }
     );
+
+    this.performRender();
   }
 
   private onMoveNewConnection(event: MouseEvent, point: Point) {
     const newTargetComponent = this.context.graph.getElementOverPoint(point, [Block, Anchor]);
     const xy = getXY(this.context.graphCanvas, event);
-    this.target = newTargetComponent;
+
     this.connectionState = {
       ...this.connectionState,
       tx: xy[0],
@@ -320,13 +338,16 @@ export class ConnectionLayer extends Layer<
       return;
     }
 
+    // Only process if the target has changed or if there was no previous target
     if (
-      this.target?.connectedState !== newTargetComponent.connectedState &&
+      (!this.target || this.target.connectedState !== newTargetComponent.connectedState) &&
       newTargetComponent.connectedState !== this.sourceComponent
     ) {
       this.target?.connectedState?.setSelection(false);
 
       const target = newTargetComponent.connectedState;
+
+      this.target = newTargetComponent;
 
       this.context.graph.executеDefaultEventAction(
         "connection-create-hover",
@@ -338,7 +359,6 @@ export class ConnectionLayer extends Layer<
           targetBlockId: target instanceof AnchorState ? target.blockId : target.id,
         },
         () => {
-          this.target = newTargetComponent;
           this.target.connectedState.setSelection(true);
         }
       );
