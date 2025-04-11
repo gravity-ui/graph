@@ -37,7 +37,7 @@ List of methods in your disposition:
 
   public unsetSelection(): void;
 
-  public addBlock(block: Omit<TBlock, "id"> & { id?: TBlockId }): TBlockId;
+  public addBlock(block: Omit<TBlock, "id"> & { id?: TBlockId }, selectionOptions?: { selected?: boolean; strategy?: ESelectionStrategy }): TBlockId;
 
   public addConnection(connection: TConnection): TConnectionId
 
@@ -63,3 +63,4 @@ const update = useCallback(() => {
     blocks: [{...block, name: 'Updated Name'}],
   });
 })
+```

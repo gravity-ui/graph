@@ -117,9 +117,19 @@ export class PublicGraphApi {
     blockStore?.updateBlock(block);
   }
 
-  public addBlock(block: Omit<TBlock, "id"> & { id?: TBlockId }): TBlockId {
+  public addBlock(
+    block: Omit<TBlock, "id"> & { id?: TBlockId },
+    selectionOptions?: {
+      selected?: boolean;
+      strategy?: ESelectionStrategy;
+    }
+  ): TBlockId {
     const newBlockId = this.graph.rootStore.blocksList.addBlock(block);
-    this.graph.rootStore.blocksList.updateBlocksSelection([newBlockId], true);
+    this.graph.rootStore.blocksList.updateBlocksSelection(
+      [newBlockId],
+      selectionOptions?.selected !== undefined ? selectionOptions.selected : true,
+      selectionOptions?.strategy
+    );
     return newBlockId;
   }
 
