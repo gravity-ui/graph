@@ -34,22 +34,8 @@ const GraphApp = () => {
 
   const [enabled, setEnabled] = useState(true);
 
-  useEffect(() => {
-    graph.on("block-added-from-shadow", (event) => {
-      const block = event.detail.block.connectedState.asTBlock();
-      const point = event.detail.coord;
-      graph.api.addBlock({
-        ...block,
-        id: `${block.id.toString()}-added-from-shadow-${Date.now()}`,
-        is: "block",
-        x: point.x,
-        y: point.y,
-      });
-    });
-  }, [graph]);
-
-  const switchNewBlockEnabled = useFn((enabled: boolean) => {
-    if (enabled) {
+  const switchNewBlockEnabled = useFn((addEnabled: boolean) => {
+    if (addEnabled) {
       newBlockLayerRef.current.enable();
       setEnabled(true);
     } else {
