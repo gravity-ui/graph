@@ -200,7 +200,7 @@ graph.zoomTo("center", { padding: 100 });
 
 1. System
    - [Component Lifecycle](docs/system/component-lifecycle.md)
-   - [Events](docs/system/events.md)
+   - [Events](docs/system/events.md) - Event system with AbortController support
    - [Graph Settings](docs/system/graph-settings.md)
    - [Public API](docs/system/public_api.md)
    - [Scheduler System](docs/system/scheduler-system.md)
@@ -211,8 +211,97 @@ graph.zoomTo("center", { padding: 100 });
 
 3. Rendering
    - [Rendering Mechanism](docs/rendering/rendering-mechanism.md)
-   - [Layers](docs/rendering/layers.md)
+   - [Layers](docs/rendering/layers.md) - Layer system with HTML rendering and event handling
 
 4. Blocks and Connections
    - [Block Groups](docs/blocks/groups.md)
    - [Canvas Connection System](docs/connections/canvas-connection-system.md)
+
+## Best Practices
+
+### Event Handling with AbortController
+
+The library uses AbortController for managing event listeners, which simplifies cleanup and prevents memory leaks:
+
+```typescript
+// Using AbortController (recommended for multiple event listeners)
+const controller = new AbortController();
+
+graph.on("mouseenter", (event) => {
+  console.log("Mouse entered:", event.detail);
+}, { signal: controller.signal });
+
+graph.on("mouseleave", (event) => {
+  console.log("Mouse left:", event.detail);
+}, { signal: controller.signal });
+
+// Later, to remove all event listeners at once:
+controller.abort();
+```
+
+### Layer Event Subscriptions
+
+When creating custom layers, always set up event subscriptions in the `afterInit()` method, not in the constructor:
+
+```typescript
+protected afterInit(): void {
+  // Subscribe to events using the wrapper methods for automatic cleanup
+  this.graphOn("camera-change", this.performRender);
+  
+  // DOM event listeners with wrapper methods
+  if (this.canvas) {
+    this.canvasOn("mousedown", this.handleMouseDown);
+  }
+  
+  if (this.html) {
+    this.htmlOn("click", this.handleHtmlClick);
+  }
+  
+  if (this.root) {
+    this.rootOn("keydown", this.handleRootKeyDown);
+  }
+  
+  // Call parent afterInit to ensure proper initialization
+  super.afterInit();
+}
+```
+
+This ensures that event subscriptions are properly reestablished when a layer is reattached.
+
+### Manual Event Subscriptions
+
+While the wrapper methods (`graphOn`, `htmlOn`, `canvasOn`, `rootOn`) are recommended, you can also manually create event subscriptions using the layer's AbortController:
+
+```typescript
+protected afterInit(): void {
+  // Manual subscription using the layer's AbortController
+  this.canvas.addEventListener("mousedown", this.handleMouseDown, {
+    signal: this.eventAbortController.signal
+  });
+  
+  // For graph events
+  this.props.graph.on("camera-change", this.performRender, {
+    signal: this.eventAbortController.signal
+  });
+  
+  // If you don't use the AbortController signal, you must handle unsubscription manually
+  const unsubscribe = this.props.graph.on("block-change", this.handleBlockChange);
+  
+  // Store the unsubscribe function for later use
+  this.unsubscribeFunctions.push(unsubscribe);
+  
+  // Call parent afterInit to ensure proper initialization
+  super.afterInit();
+}
+
+protected unmount(): void {
+  // Call super.unmount() to trigger the AbortController's abort method
+  super.unmount();
+  
+  // Manually call any stored unsubscribe functions
+  this.unsubscribeFunctions.forEach(unsubscribe => unsubscribe());
+  this.unsubscribeFunctions = [];
+}
+```
+
+Using the wrapper methods is generally preferred as they provide automatic cleanup and error checking, but manual subscriptions give you more flexibility when needed.

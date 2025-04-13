@@ -142,8 +142,22 @@ export class ConnectionLayer extends Layer<
     this.enabled = Boolean(this.props.graph.rootStore.settings.getConfigFlag("canCreateNewConnections"));
 
     this.performRender = this.performRender.bind(this);
-    this.context.graph.on("camera-change", this.performRender);
-    this.context.graph.on("mousedown", this.handleMouseDown, { capture: true });
+  }
+
+  /**
+   * Called after initialization and when the layer is reattached.
+   * This is where we set up event subscriptions to ensure they work properly
+   * after the layer is unmounted and reattached.
+   */
+  protected afterInit(): void {
+    // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
+    this.graphOn("camera-change", this.performRender);
+    this.graphOn("mousedown", this.handleMouseDown, {
+      capture: true,
+    });
+
+    // Call parent afterInit to ensure proper initialization
+    super.afterInit();
   }
 
   public enable = () => {
@@ -250,9 +264,15 @@ export class ConnectionLayer extends Layer<
     });
   }
 
+  /**
+   * Unmounts the layer and cleans up resources.
+   * The super.unmount() call triggers the AbortController's abort method in the parent class,
+   * which automatically removes all event listeners.
+   * No manual event listener removal is needed.
+   */
   protected unmount(): void {
-    this.context.graph.off("camera-change", this.performRender);
-    this.context.graph.off("mousedown", this.handleMouseDown);
+    super.unmount();
+    // The event listeners will be automatically removed by the AbortController in the parent class
   }
 
   private getBlockId(component: BlockState | AnchorState) {

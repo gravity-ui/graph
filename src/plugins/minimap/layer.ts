@@ -74,6 +74,25 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
       }`;
 
     this.root.appendChild(style);
+
+    // Set up event subscriptions here if usableRect is already loaded
+    const usableRect = this.props.graph.api.getUsableRect();
+    if (!(usableRect.height === 0 && usableRect.width === 0 && usableRect.x === 0 && usableRect.y === 0)) {
+      this.calculateViewPortCoords();
+      this.rerenderMapContent();
+
+      // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
+      this.graphOn("camera-change", this.rerenderMapContent);
+      this.graphOn("colors-changed", this.rerenderMapContent);
+      this.graphOn("block-change", this.onBlockUpdated);
+
+      // Use canvasOn wrapper method for DOM event listeners to ensure proper cleanup
+      if (this.canvas) {
+        this.canvasOn("mousedown", this.handleMouseDownEvent);
+      }
+    }
+
+    super.afterInit();
   }
 
   public updateSize(): void {
@@ -219,11 +238,19 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
 
         this.calculateViewPortCoords();
         this.rerenderMapContent();
-        this.props.graph.on("camera-change", this.rerenderMapContent);
-        this.props.graph.on("colors-changed", this.rerenderMapContent);
-        this.props.graph.on("block-change", this.onBlockUpdated);
 
-        this.getCanvas()?.addEventListener("mousedown", this.handleMouseDownEvent);
+        // If the layer is already attached, set up event subscriptions here
+        if (this.root) {
+          // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
+          this.graphOn("camera-change", this.rerenderMapContent);
+          this.graphOn("colors-changed", this.rerenderMapContent);
+          this.graphOn("block-change", this.onBlockUpdated);
+
+          // Use canvasOn wrapper method for DOM event listeners to ensure proper cleanup
+          if (this.canvas) {
+            this.canvasOn("mousedown", this.handleMouseDownEvent);
+          }
+        }
 
         this.unSubscribeUsableRectLoaded?.();
       });
@@ -297,9 +324,14 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     dragListener(this.getCanvas(), true).on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onCameraDrag(event));
   };
 
+  /**
+   * Unmounts the layer and cleans up resources.
+   * The super.unmount() call triggers the AbortController's abort method in the parent class,
+   * which automatically removes all event listeners (both graph.on and DOM addEventListener).
+   * No manual event listener removal is needed.
+   */
   public unmount(): void {
-    this.getCanvas()?.removeEventListener("mousedown", this.handleMouseDownEvent);
-
     super.unmount();
+    // All event listeners (both graph.on and addEventListener) will be automatically removed by the AbortController in the parent class
   }
 }

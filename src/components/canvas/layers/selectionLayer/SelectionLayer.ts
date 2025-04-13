@@ -25,7 +25,6 @@ export class SelectionLayer extends Layer<
     width: 0,
     height: 0,
   };
-  private unmountCbs: Array<() => void> = [];
 
   constructor(props: LayerProps) {
     super({
@@ -40,13 +39,24 @@ export class SelectionLayer extends Layer<
       canvas: this.getCanvas(),
       ctx: this.getCanvas().getContext("2d"),
     });
-    this.bindEventHandlers();
+
+    this.performRender = this.performRender.bind(this);
   }
 
-  private bindEventHandlers(): void {
-    this.performRender = this.performRender.bind(this);
-    this.context.graph.on("camera-change", this.performRender);
-    this.unmountCbs.push(this.context.graph.on("mousedown", this.handleMouseDown, { capture: true }));
+  /**
+   * Called after initialization and when the layer is reattached.
+   * This is where we set up event subscriptions to ensure they work properly
+   * after the layer is unmounted and reattached.
+   */
+  protected afterInit(): void {
+    // Set up event handlers here instead of in constructor
+    this.graphOn("camera-change", this.performRender);
+    this.graphOn("mousedown", this.handleMouseDown, {
+      capture: true,
+    });
+
+    // Call parent afterInit to ensure proper initialization
+    super.afterInit();
   }
 
   protected render(): void {
@@ -85,13 +95,15 @@ export class SelectionLayer extends Layer<
     });
   }
 
+  /**
+   * Unmounts the layer and cleans up resources.
+   * The super.unmount() call triggers the AbortController's abort method in the parent class,
+   * which automatically removes all event listeners.
+   * No manual event listener removal is needed.
+   */
   protected unmount(): void {
-    this.unbindEventHandlers();
-    this.unmountCbs.forEach((cb) => cb());
-  }
-
-  private unbindEventHandlers(): void {
-    this.context.graph.off("camera-change", this.performRender);
+    super.unmount();
+    // The event listeners will be automatically removed by the AbortController in the parent class
   }
 
   private handleMouseDown = (nativeEvent: GraphMouseEvent) => {
