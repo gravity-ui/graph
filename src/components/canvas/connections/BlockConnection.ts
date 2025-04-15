@@ -46,12 +46,6 @@ export class BlockConnection<T extends TConnection>
   protected arrowShape = new ConnectionArrow(this);
 
   /**
-   * Flag to track whether the arrow has been added to the batch renderer.
-   * This helps prevent duplicate additions or unnecessary removals.
-   */
-  private arrowAddedToBatch = false;
-
-  /**
    * Creates a new BlockConnection instance.
    *
    * @param props - The connection properties including showConnectionArrows setting
@@ -83,20 +77,13 @@ export class BlockConnection<T extends TConnection>
     const zIndex = state.selected || state.hovered ? this.zIndex + 10 : this.zIndex;
     this.context.batch.update(this, { zIndex: zIndex, group: this.getClassName(state) });
 
-    // Handle arrow addition/removal based on the provided props
+    // Handle arrow visibility based on the provided props
     if (props.showConnectionArrows) {
-      if (!this.arrowAddedToBatch) {
-        // Add arrow to batch if it's not already there
-        this.context.batch.add(this.arrowShape, { zIndex: zIndex, group: `arrow/${this.getClassName(state)}` });
-        this.arrowAddedToBatch = true;
-      } else {
-        // Update existing arrow in batch
-        this.context.batch.update(this.arrowShape, { zIndex: zIndex, group: `arrow/${this.getClassName(state)}` });
-      }
-    } else if (this.arrowAddedToBatch) {
+      // Update will handle adding if not already in batch or updating if it is
+      this.context.batch.update(this.arrowShape, { zIndex: zIndex, group: `arrow/${this.getClassName(state)}` });
+    } else {
       // Remove arrow from batch if showConnectionArrows is false
       this.context.batch.delete(this.arrowShape);
-      this.arrowAddedToBatch = false;
     }
   }
 
@@ -349,10 +336,6 @@ export class BlockConnection<T extends TConnection>
   protected unmount(): void {
     super.unmount();
     this.context.batch.delete(this);
-
-    if (this.arrowAddedToBatch) {
-      this.context.batch.delete(this.arrowShape);
-      this.arrowAddedToBatch = false;
-    }
+    this.context.batch.delete(this.arrowShape);
   }
 }
