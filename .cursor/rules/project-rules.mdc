@@ -62,6 +62,7 @@ Rendering system:
 - Full graph is rendered on Canvas for performance
 - When zooming in, HTML/React mode is automatically enabled for interactive elements
 - Uses a smart system that tracks visible blocks and renders only them in React
+- Rendering is organized into Layers (`src/services/Layer.ts`) which control drawing order and can optimize rendering based on camera position and device pixel ratio (`respectPixelRatio`, `transformByCameraPosition` properties in `LayerProps`).
 
 ## Development Guidelines
 Development guidelines:
