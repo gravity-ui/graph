@@ -12,11 +12,12 @@ export type LayerPropsElementProps = {
   zIndex: number;
   classNames?: string[];
   root?: HTMLElement;
+  transformByCameraPosition?: boolean;
 };
 
 export type LayerProps = {
-  canvas?: LayerPropsElementProps & { respectPixelRatio?: true };
-  html?: LayerPropsElementProps & { transformByCameraPosition?: true };
+  canvas?: LayerPropsElementProps & { respectPixelRatio?: boolean };
+  html?: LayerPropsElementProps;
   root?: HTMLElement;
   camera: ICamera;
   graph: Graph;
@@ -29,6 +30,7 @@ export type LayerContext = {
   colors: TGraphColors;
   graphCanvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
+  layer: Layer;
 };
 
 export class Layer<
@@ -42,7 +44,7 @@ export class Layer<
 
   protected html: HTMLElement;
 
-  protected root?: HTMLElement;
+  protected root?: HTMLDivElement;
 
   private cameraSubscription: () => void = noop;
 
@@ -54,6 +56,7 @@ export class Layer<
       camera: props.camera,
       colors: this.props.graph.$graphColors.value,
       constants: this.props.graph.$graphConstants.value,
+      layer: this,
     });
 
     this.init();
@@ -73,13 +76,24 @@ export class Layer<
 
   public updateSize(width: number, height: number) {
     if (this.canvas) {
-      const dpr = this.props.canvas.respectPixelRatio ? this.context.constants.system?.PIXEL_RATIO : 1;
+      const dpr = this.props.canvas.respectPixelRatio === false ? 1 : this.context.constants.system?.PIXEL_RATIO;
       this.canvas.width = width * dpr;
       this.canvas.height = height * dpr;
     }
   }
 
   protected afterInit() {
+    if (this.props.canvas) {
+      const ctx = this.canvas.getContext("2d");
+      if (ctx) {
+        this.setContext({
+          graphCanvas: this.canvas,
+          ctx,
+        });
+      } else {
+        console.error("Failed to get 2D context from canvas");
+      }
+    }
     this.shouldRenderChildren = true;
     this.shouldUpdateChildren = true;
     this.performRender();
@@ -100,7 +114,7 @@ export class Layer<
       this.html = this.createHTML(this.props.html);
     }
 
-    this.root = this.props.root;
+    this.root = this.props.root as HTMLDivElement;
     if (this.root) {
       this.attachLayer(this.root);
     }
@@ -136,7 +150,7 @@ export class Layer<
     if (this.root) {
       this.unmountLayer();
     }
-    this.root = root;
+    this.root = root as HTMLDivElement;
     if (this.canvas) {
       root.appendChild(this.canvas);
     }
@@ -177,5 +191,31 @@ export class Layer<
       this.subscribeCameraState();
     }
     return div;
+  }
+
+  public getDRP() {
+    const respectPixelRatio = this.props.canvas?.respectPixelRatio ?? true;
+    return respectPixelRatio ? this.context.constants.system?.PIXEL_RATIO ?? 1 : 1;
+  }
+
+  protected applyTransform(
+    x: number,
+    y: number,
+    scale: number,
+    respectPixelRatio: boolean = this.props.canvas?.respectPixelRatio
+  ) {
+    const ctx = this.context.ctx;
+    const dpr = respectPixelRatio ? this.getDRP() : 1;
+    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, x * dpr, y * dpr);
+  }
+
+  public resetTransform() {
+    const cameraState = this.props.canvas?.transformByCameraPosition ? this.context.camera.getCameraState() : null;
+
+    // Reset transform and clear the canvas
+    this.context.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // Use canvas dimensions directly, as they should already factor in DPR if respectPixelRatio is true
+    this.context.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.applyTransform(cameraState?.x ?? 0, cameraState?.y ?? 0, cameraState?.scale ?? 1, true);
   }
 }

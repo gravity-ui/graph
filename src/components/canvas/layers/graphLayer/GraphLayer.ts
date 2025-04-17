@@ -44,13 +44,7 @@ export type GraphMouseEvent = CustomEvent<{
 }>;
 
 export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
-  public declare context: TGraphLayerContext;
-
-  public declare props: TGraphLayerProps;
-
   public declare $: Component & { camera: Camera };
-
-  private ctx: CanvasRenderingContext2D;
 
   private camera: ICamera;
 
@@ -74,8 +68,8 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     super({
       canvas: {
         zIndex: 2,
-        respectPixelRatio: true,
         classNames: ["no-user-select"],
+        transformByCameraPosition: true,
       },
       html: {
         zIndex: 3,
@@ -105,7 +99,6 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     }
 
     this.camera = this.props.camera;
-    this.ctx = this.context.ctx;
 
     this.performRender = this.performRender.bind(this);
     this.context.graph.on("camera-change", this.performRender);

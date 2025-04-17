@@ -50,16 +50,11 @@ export class SelectionLayer extends Layer<
   }
 
   protected render(): void {
-    this.clearCanvas();
+    this.resetTransform();
     if (!this.hasActiveSelection()) {
       return;
     }
     this.drawSelectionArea();
-  }
-
-  private clearCanvas(): void {
-    this.context.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.context.ctx.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height);
   }
 
   private hasActiveSelection(): boolean {
