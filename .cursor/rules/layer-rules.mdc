@@ -19,13 +19,59 @@ Layers are fundamental to the Canvas rendering pipeline in @gravity-ui/graph. Th
 
 ## Working with Layers
 - **Layers are Components:** Treat layers as specialized components. They follow the standard component lifecycle (`mount`, `unmount`, `render`, `stateChanged`, etc.) and **all general component rules (see `components-rules`) apply to layers as well**. A layer's `render` method might be empty if it only handles behavior.
-- **Creating New Layers:**
-    - If adding new types of visual elements or behaviors, create a new layer class.
-    - New layers should ideally extend a base `Layer` class or a suitable existing layer, inheriting common functionality.
-    - Register the new layer in the main graph's processing pipeline in the correct order.
+
+- **Inheritance and Generics:**
+    - Custom layers should extend the base `Layer` class from `src/services/Layer.ts`.
+    - The base `Layer` class has the following generic signature: `Layer<Props extends LayerProps, Context extends LayerContext, State extends TComponentState>`.
+    - `LayerProps`, `LayerContext`, and `TComponentState` are defined in `src/services/Layer.ts` and `src/lib/Component.ts` respectively.
+    - When defining your custom layer, specify your custom Props, Context (if needed, extending `LayerContext`), and State (if needed, extending `TComponentState`) in this order: `class MyLayer extends Layer<TMyLayerProps, TMyLayerContext, TMyLayerState> {...}`.
+    - Your custom `TMyLayerProps` interface **must extend the base `LayerProps`**. This is because the base constructor requires properties like `graph` and `camera`.
+
+- **Constructor and Props:**
+    - The constructor of your custom layer will typically receive the *full* `LayerProps` (or your extended `TMyLayerProps`).
+    - You should pass these props up to the base class constructor using `super(props)`. You can override specific options like `canvas` within the object passed to `super`, e.g., `super({...props, canvas: {...props.canvas, zIndex: 100, respectPixelRatio: true}})`.
+
+- **Creating and Adding Layers:**
+    - Layers are typically added to the graph via the `layers` array in the `TGraphConfig` or dynamically using `graph.addLayer()`.
+    - The `graph.addLayer<T extends Constructor<Layer>>(LayerClass, props)` method has a specific signature for its `props` argument: `Omit<LayerProps, 'root' | 'camera' | 'graph' | 'emitter'> & { root?: LayerProps['root'] }` (or the omitted version of your custom props if `LayerClass` uses them).
+    - **Important:** `graph.addLayer` automatically provides the `graph`, `camera`, `root`, and `emitter` properties to the layer's constructor. You **do not** need to include them in the `props` object passed to `graph.addLayer`.
+    - **Example Usage:**
+      ```typescript
+      // In TGraphConfig:
+      const graphConfig = {
+          // ... other config
+          layers: [
+              [MyLayer, { myCustomProp: 'value' }] // Pass only custom/overridden props here
+          ]
+      };
+
+      // Dynamic addition:
+      const myLayerInstance = graph.addLayer(MyLayer, { myCustomProp: 'value' });
+      ```
+    - Register the new layer in the main graph's processing pipeline in the correct order (often controlled by `zIndex` in `props.canvas` or `props.html`).
+
 - **Modifying Existing Layers:**
     - When changing how elements are rendered or behaviors are managed, modify the relevant methods (e.g., `render`, event handlers) of the corresponding layer.
     - Ensure efficiency; avoid unnecessary computations or drawing invisible elements.
+- **Handling Device Pixel Ratio (DPR):** For crisp rendering on HiDPI displays, ensure the layer respects DPR.
+    - **Recommended:** Set `respectPixelRatio: true` in the `canvas` options when initializing the layer via `super({ canvas: { respectPixelRatio: true }, ... })`. The base `Layer` class will then attempt to handle canvas sizing automatically.
+    - **Manual (if needed):** If automatic handling isn't sufficient or more control is required:
+        1.  Get the DPR from context: `const dpr = this.context.constants.system.PIXEL_RATIO;`
+        2.  In your layer's `render` method, reset the transform: `ctx.setTransform(1, 0, 0, 1, 0, 0);`
+        3.  Clear the correct area: `ctx.clearRect(0, 0, viewWidth * dpr, viewHeight * dpr);` (where `viewWidth`/`viewHeight` are CSS dimensions from camera state).
+        4.  Scale the context *before* drawing: `ctx.scale(dpr, dpr);`
+- **Layer Lifecycle & Context:**
+    - Use `afterInit` for setup that requires the canvas and context to be ready.
+    - Inside `afterInit`, reliably get the canvas using `this.getCanvas()`. 
+    - Initialize or update the layer's full context using `this.setContext({ canvas, ctx: canvas.getContext('2d'), camera: ..., constants: ..., colors: ..., graph: ..., ...this.context });`. This ensures the context object (`this.context`) is correctly typed and populated for your layer.
+    - Attach event listeners (e.g., `mousemove`, `mouseleave`) to the graph's root element (`this.props.graph.layers?.$root`) within `afterInit`.
+    - Always clean up listeners and subscriptions in the `unmount` method.
+- **Camera Interaction & Coordinates:**
+    - Subscribe to graph's `'camera-change'` event (`this.props.graph.on(...)`) to get updates. The event detail (`event.detail`) provides the `TCameraState` (containing `width`, `height`, `scale`, `x`, `y`).
+    - `cameraState.x` and `cameraState.y` represent the *screen coordinates* of the world origin (0,0). Use these (`worldOriginScreenX`, `worldOriginScreenY`) for coordinate calculations.
+    - To convert **screen coordinates to world coordinates** (e.g., mouse position), use `this.context.camera.applyToPoint(screenX, screenY)`.
+    - To convert **world coordinates to screen coordinates** (e.g., placing ticks), use the formula: `screenX = worldX * scale + worldOriginScreenX` and `screenY = worldY * scale + worldOriginScreenY`.
+    - To determine the **world coordinates visible** in the viewport, calculate the boundaries: `worldViewLeft = (0 - worldOriginScreenX) / scale`, `worldViewRight = (viewWidth - worldOriginScreenX) / scale`, etc. Use these boundaries to optimize rendering loops.
 - **Interaction & Behavior:** Layers are suitable for encapsulating specific interaction logic (e.g., drag-and-drop handling, tool activation). These layers might not draw anything but listen to events and modify the graph state.
 - **Event Propagation & Camera Interaction:** Since layers are often added directly to the root container (and not nested within the `GraphLayer` which handles core event delegation and contains the `Camera`), mouse events intended for camera interactions (like panning via click/drag) might be intercepted by the layer. To ensure the camera receives these events, you may need to override the layer's `getParent()` method to directly return the camera component: `return this.props.graph.getGraphLayer().$.camera;`. This effectively bypasses the standard hierarchy for event bubbling, delegating the event to the camera. *Note:* This is a workaround; be mindful of potential side effects on other event handling within your layer. See the `BlockGroups` layer (`src/components/canvas/groups/BlockGroups.ts`) for a practical example.
 - **State Management:** Layers typically access the graph's central state store (`store/`) to get the data they need and to dispatch changes. Use reactive patterns (signals) to trigger updates when relevant data changes.

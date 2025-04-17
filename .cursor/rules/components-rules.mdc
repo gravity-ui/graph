@@ -29,6 +29,7 @@ Canvas components are located in src/components/canvas/ and divided into several
 - anchors/ - anchors for connections
 - layers/ - layers for rendering various elements
 - groups/ - element grouping
+- **Note:** These Canvas components manage rendering directly onto a `<canvas>` element. They are distinct from React components (even those used *within* the HTML layer at high zoom levels, like `GraphBlock`), although they share some lifecycle concepts managed by the core library. Rules specific to Canvas component rendering might not apply directly to React components used for the HTML layer.
 
 # React Integration
 For integration of Canvas components with React, wrappers are used in the src/react-component/ directory. These components allow the use of Canvas in React applications.

@@ -22,6 +22,24 @@ Project structure:
 - docs/ - project documentation
 - .storybook/ - Storybook configuration
 
+## Key File Locations
+- **Main Graph Class:** `src/graph.ts` (Exports `Graph`, `TGraphConfig`)
+- **Base Layer Class:** `src/services/Layer.ts` (Exports `Layer`, `LayerProps`, `LayerContext`)
+- **Base Component Classes:** 
+    - `src/lib/CoreComponent.ts` (Exports `CoreComponent`, `CoreComponentProps`, `CoreComponentContext`)
+    - `src/lib/Component.ts` (Exports `Component`, `TComponentProps`, `TComponentState` - extends `CoreComponent`)
+- **Camera Service:** `src/services/camera/CameraService.ts` (Exports `CameraService`, `ICamera`, `TCameraState`)
+- **Block Definitions:**
+    - Base `Block` component: `src/components/canvas/blocks/Block.ts` (Exports `Block`, `TBlock`)
+    - Block Store State: `src/store/block/Block.ts` (Exports `BlockState`, `TBlockId`, `IS_BLOCK_TYPE`)
+- **Connection Definitions:**
+    - Connection Store State: `src/store/connection/ConnectionState.ts` (Exports `ConnectionState`, `TConnection`)
+    - Base `Connection` component: `src/components/canvas/connections/Connection.ts` (Exports `Connection`)
+- **React Integration:**
+    - `GraphCanvas` component: `src/react-component/GraphCanvas.tsx`
+    - `useGraph` hook: `src/react-component/hooks/useGraph.ts`
+    - `GraphBlock` component: `src/react-component/GraphBlock.tsx` (Or similar path)
+
 ## Technologies
 Technology stack:
 - TypeScript - main development language

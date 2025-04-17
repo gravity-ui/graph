@@ -1,0 +1,74 @@
+---
+description: Best practices for creation storybook graph stories
+globs: *.stories.tsx
+alwaysApply: false
+---
+# Story Creation Rules
+
+## Documentation and References
+- Read the `docs/react/usage.md` for general React integration documentation.
+- Refer to `/src/stories/Playground` for complex examples.
+- Always use `GraphBlock` for rendering graph blocks in the HTML layer unless you have a specific custom renderer.
+
+## Graph Initialization (Recommended Pattern)
+- **Use `useGraph` hook:** Initialize the graph instance within your story component using the `useGraph` hook from `src/react-component/hooks/useGraph.ts`.
+  ```typescript
+  import { useGraph, GraphCanvas, GraphBlock } from "@gravity-ui/graph"; // Adjust path as needed
+  
+  const MyStoryComponent = (props) => {
+      const { graph } = useGraph({
+          // Initial graph configuration (e.g., layers, renderBlock)
+          layers: [[MyCustomLayer, { customProp: 'value' }]],
+          renderBlock: (g, block) => <GraphBlock graph={g} block={block}>...</GraphBlock>
+      });
+      // ... useEffect for setting data and starting
+      return <GraphCanvas graph={graph} ... />;
+  };
+  ```
+- **Set data and start in `useEffect`:** Use a `useEffect` hook (with `graph` as a dependency) to populate the graph with data (`graph.setEntities({ blocks: ..., connections: ... })`) and then start the graph (`graph.start()`). This ensures the graph is ready before data is loaded.
+  ```typescript
+  useEffect(() => {
+      if (graph) {
+          graph.setEntities({ blocks: blocksData, connections: connectionsData });
+          graph.start();
+      }
+  }, [graph]);
+  ```
+- **Avoid direct `new Graph()` in story render:** While possible, using `useGraph` is preferred as it integrates better with React's lifecycle and state management for stories.
+
+## Data Types and Required Fields
+- Ensure blocks have all required TBlock fields:
+  ```typescript
+  {
+    is: "Block" as const,
+    selected: false,
+    name: string,
+    anchors: [],
+    // other fields...
+  }
+  ```
+- Connections must include `sourceBlockId` and `targetBlockId`
+- Use generics to extend block data types if needed
+
+## Component Structure
+- Use `GraphCanvas` as the main container component
+- Wrap custom block content in `GraphBlock` component
+- Utilize `className` prop on `GraphBlock` for styling
+- Set explicit container dimensions (e.g., `height: "600px"`)
+
+## UI Integration
+- Import and include UI library styles if using one
+- Wrap story in appropriate theme provider if needed
+- Use design system tokens/CSS variables for consistent styling
+- Use `useCallback` for `renderBlock` function to prevent unnecessary rerenders
+
+## Best Practices
+- Keep blocks and connections data outside the component
+- Use `useEffect` for graph initialization and setup
+- Follow the UI library's design system guidelines
+- Ensure proper cleanup in useEffect if needed
+- Test different zoom levels to verify both canvas and HTML rendering
+- **Testing Layers:** When creating stories for custom layers or components that interact heavily with the canvas/camera:
+    - Test behavior under different DPR settings (if possible, simulate different device pixel ratios).
+    - Verify rendering and interactions at various zoom levels (`ECameraScaleLevel.LOW`, `MEDIUM`, `HIGH`) and during camera panning.
+    - Test edge cases, like empty data or interactions near viewport boundaries. 
