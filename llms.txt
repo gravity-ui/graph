@@ -1,0 +1,40 @@
+# @gravity-ui/graph
+
+> @gravity-ui/graph is a graph visualization library that combines the best of both worlds: Canvas for high performance when viewing the full graph and HTML/React for rich interactions when zoomed in.
+
+Key features:
+- High-performance Canvas rendering for displaying the full graph
+- Automatic switching to HTML/React mode when zooming in for interactive elements
+- Smart system that tracks visible blocks and renders only them in React
+- Extensible architecture through layers (custom rendering layers that act as plugins)
+- Full TypeScript support
+- Organized rendering system with layer-based architecture
+
+## Quick Start & Common Scenarios
+
+- [Getting Started with React](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/react/usage.md): Creating your first graph component with React
+- [Layer Development](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/system/component-lifecycle.md): Creating custom layers (the library's extension mechanism)
+- [Built-in Layers](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/system/graph-settings.md#layers): Overview of available layers like ELK for auto-layout and Minimap
+- [Custom Layer Examples](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/system/component-rendering-lifecycle.md): Examples of custom layer implementation
+- [Event System & Interactions](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/system/events.md): Working with events and user interactions
+- [Graph Configuration](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/system/graph-settings.md): Configuring graph behavior and appearance
+
+## Core Documentation
+
+- [Public API](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/system/public_api.md): Main API for interacting with the graph
+- [Graph Settings](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/system/graph-settings.md): Graph settings and configuration
+- [Component Lifecycle](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/system/component-lifecycle.md): Component and layer lifecycle management
+- [Component Rendering](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/system/component-rendering-lifecycle.md): Component rendering process
+- [Event System](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/system/events.md): Event system and interactions
+- [Scheduler System](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/system/scheduler-system.md): Scheduling and optimization system
+
+## React Integration
+
+- [React Usage Guide](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/react/usage.md): Guide for using with React
+
+## Optional
+
+- [Blocks Documentation](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/blocks/): Documentation about graph blocks
+- [Connections Documentation](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/connections/): Documentation about connections
+- [Components Documentation](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/components/): Documentation about components
+- [Rendering Documentation](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/main/docs/rendering/): Detailed documentation about the rendering system 
