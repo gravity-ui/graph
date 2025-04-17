@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/gravity-ui/graph/compare/v0.3.1...v0.3.2) (2025-04-17)
+
+
+### Bug Fixes
+
+* **Group:** stop click event propagation to prevent selection reset ([#65](https://github.com/gravity-ui/graph/issues/65)) ([7b438de](https://github.com/gravity-ui/graph/commit/7b438decc1da886bf66fbb334e38116fcddbcbc2))
+
 ## [0.3.1](https://github.com/gravity-ui/graph/compare/v0.3.0...v0.3.1) (2025-03-19)
 
 
