@@ -81,4 +81,25 @@ The system uses **`CustomEvent`**, and interaction follows a `.on`/`.off`/`.emit
 - **Use `event.detail`:** Access event-specific data here.
 - **Check `event.detail.target`:** Identify the specific component involved.
 - **Emit Custom Events:** Use `graph.emit(...)` to broadcast custom global events.
-- **Performance:** Avoid heavy logic in listeners. 
+- **Performance:** Avoid heavy logic in listeners.
+
+## Connection Creation Events (`ConnectionLayer.ts`)
+These events are fired by the `ConnectionLayer` during the interactive creation of connections.
+
+- **`connection-create-start`**: Fires when the user starts dragging a connection from a block or anchor.
+  - **`event.detail`**: `{ blockId: TBlockId; anchorId: string | undefined; }`
+  - **Preventable:** Yes. Preventing this stops the connection creation process.
+
+- **`connection-create-hover`**: Fires when the dragged connection endpoint hovers over a potential target block or anchor.
+  - **`event.detail`**: `{ sourceBlockId: TBlockId; sourceAnchorId: string | undefined; targetBlockId: TBlockId | undefined; targetAnchorId: string | undefined; }`
+  - **Preventable:** Yes. Preventing this prevents the connection from being made to the current target (hover state might not show).
+
+- **`connection-created`**: Fires when a connection is successfully created (user drops the endpoint onto a valid target).
+  - **`event.detail`**: `{ sourceBlockId: TBlockId; sourceAnchorId?: string; targetBlockId: TBlockId; targetAnchorId?: string; }`
+  - **Preventable:** Yes. Preventing this stops the connection from being added to the `connectionsList` store (default action).
+
+- **`connection-create-drop`**: Fires when the user drops the connection endpoint, regardless of whether it landed on a valid target.
+  - **`event.detail`**: `{ sourceBlockId: TBlockId; sourceAnchorId: string | undefined; targetBlockId?: TBlockId; targetAnchorId?: string; point: Point; }` (target details are present if dropped on a valid target).
+  - **Preventable:** No (typically used for cleanup or alternative actions on drop).
+
+------- 

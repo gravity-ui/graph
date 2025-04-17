@@ -10,6 +10,22 @@ Layers are fundamental to the Canvas rendering pipeline in @gravity-ui/graph. Th
 
 ## Key Layer Concepts
 - **Purpose:** Each layer is responsible for a specific aspect of the graph, which can include **rendering visual elements** (e.g., `BackgroundLayer`, `ConnectionLayer`) or **managing behavior and logic** (e.g., handling specific user interactions, managing non-visual state). A layer might not have a direct visual representation but still participate in the graph's lifecycle and logic.
+- **Base Class:** `src/services/Layer.ts` (Exports `Layer`, `LayerProps`, `LayerContext`).
+- **`LayerProps` Interface:** Defines configuration for a layer. Key properties include:
+    - `canvas`: Configuration for the HTML5 Canvas element (optional).
+        - `zIndex`: Stacking order.
+        - `classNames`: CSS classes.
+        - `respectPixelRatio`: (boolean, default: true) Whether the canvas should account for device pixel ratio for sharper rendering.
+        - `transformByCameraPosition`: (boolean, default: false) Whether the canvas transform should automatically follow the camera's position and scale.
+    - `html`: Configuration for the HTML overlay element (optional).
+        - `zIndex`: Stacking order.
+        - `classNames`: CSS classes.
+        - `transformByCameraPosition`: (boolean, default: false) Whether the HTML element's transform should automatically follow the camera's position and scale via CSS `matrix()`.
+    - `camera`: The `ICamera` instance.
+    - `graph`: The main `Graph` instance.
+    - `root`: The root HTML element where the layer will be attached.
+- **`LayerContext` Interface:** Provides context information accessible within the layer (via `this.context`). Includes:
+    - `graph`, `camera`, `constants`, `colors`, `graphCanvas`, `ctx`, `layer` (self-reference).
 - **Location:** Core layer logic and specific layer implementations are found in `src/components/canvas/layers/` and potentially base classes/services like `src/services/Layer.ts`.
 - **Rendering Order/Priority:** Layers are rendered/processed in a specific sequence determined by the main graph component. The order is crucial for visual correctness and logical flow (e.g., connections below blocks, interaction handlers processed before rendering). Typical order might be: Background -> Connections -> Blocks -> Groups -> Behavior/Interaction Layers -> Highlight Layers.
 - **Performance:** Layers optimize rendering and processing by:
@@ -25,7 +41,7 @@ Layers are fundamental to the Canvas rendering pipeline in @gravity-ui/graph. Th
     - The base `Layer` class has the following generic signature: `Layer<Props extends LayerProps, Context extends LayerContext, State extends TComponentState>`.
     - `LayerProps`, `LayerContext`, and `TComponentState` are defined in `src/services/Layer.ts` and `src/lib/Component.ts` respectively.
     - When defining your custom layer, specify your custom Props, Context (if needed, extending `LayerContext`), and State (if needed, extending `TComponentState`) in this order: `class MyLayer extends Layer<TMyLayerProps, TMyLayerContext, TMyLayerState> {...}`.
-    - Your custom `TMyLayerProps` interface **must extend the base `LayerProps`**. This is because the base constructor requires properties like `graph` and `camera`.
+    - Your custom `TMyLayerProps` interface **must extend the base `LayerProps`**. This is because the base constructor requires properties like `graph` and `camera`. Make sure to define custom props alongside the base ones.
 
 - **Constructor and Props:**
     - The constructor of your custom layer will typically receive the *full* `LayerProps` (or your extended `TMyLayerProps`).
@@ -53,18 +69,19 @@ Layers are fundamental to the Canvas rendering pipeline in @gravity-ui/graph. Th
 - **Modifying Existing Layers:**
     - When changing how elements are rendered or behaviors are managed, modify the relevant methods (e.g., `render`, event handlers) of the corresponding layer.
     - Ensure efficiency; avoid unnecessary computations or drawing invisible elements.
-- **Handling Device Pixel Ratio (DPR):** For crisp rendering on HiDPI displays, ensure the layer respects DPR.
-    - **Recommended:** Set `respectPixelRatio: true` in the `canvas` options when initializing the layer via `super({ canvas: { respectPixelRatio: true }, ... })`. The base `Layer` class will then attempt to handle canvas sizing automatically.
-    - **Manual (if needed):** If automatic handling isn't sufficient or more control is required:
-        1.  Get the DPR from context: `const dpr = this.context.constants.system.PIXEL_RATIO;`
-        2.  In your layer's `render` method, reset the transform: `ctx.setTransform(1, 0, 0, 1, 0, 0);`
-        3.  Clear the correct area: `ctx.clearRect(0, 0, viewWidth * dpr, viewHeight * dpr);` (where `viewWidth`/`viewHeight` are CSS dimensions from camera state).
-        4.  Scale the context *before* drawing: `ctx.scale(dpr, dpr);`
+- **Handling Device Pixel Ratio (DPR) and Transforms:** For crisp rendering and correct positioning, especially when using Canvas:
+    - **`respectPixelRatio`:** Set this to `true` (default) in `LayerProps.canvas` to enable automatic DPR handling by the base `Layer` class. The canvas dimensions will be scaled, and transforms applied correctly.
+    - **`transformByCameraPosition`:** Set this to `true` in `LayerProps.canvas` or `LayerProps.html` if the layer's content should move/scale with the camera automatically.
+    - **Manual Transforms:**
+        - Use `this.resetTransform()` at the beginning of your `render` method. This clears the canvas and applies the base camera transform (if `transformByCameraPosition` is true for canvas) respecting the DPR.
+        - Use `this.applyTransform(x, y, scale, respectPixelRatio)` to apply additional transformations relative to the camera or world space, ensuring DPR is accounted for.
+        - Use `this.getDRP()` to get the calculated Device Pixel Ratio (respecting `respectPixelRatio` flag).
+    - **Coordinate Systems:** Remember that `this.context.ctx` transformations managed by `resetTransform` and `applyTransform` handle the conversion from world space to the scaled canvas coordinate space. Draw using world coordinates.
 - **Layer Lifecycle & Context:**
     - Use `afterInit` for setup that requires the canvas and context to be ready.
     - Inside `afterInit`, reliably get the canvas using `this.getCanvas()`. 
-    - Initialize or update the layer's full context using `this.setContext({ canvas, ctx: canvas.getContext('2d'), camera: ..., constants: ..., colors: ..., graph: ..., ...this.context });`. This ensures the context object (`this.context`) is correctly typed and populated for your layer.
-    - Attach event listeners (e.g., `mousemove`, `mouseleave`) to the graph's root element (`this.props.graph.layers?.$root`) within `afterInit`.
+    - Initialize or update the layer's full context using `this.setContext({ ...this.context, /* your additions */ });`. The base `Layer` already initializes `graph`, `camera`, `colors`, `constants`, `layer`. If you create a canvas/HTML element, you need to add `graphCanvas`/`html` and `ctx` to the context after creation (e.g., in `afterInit`).
+    - Attach event listeners (e.g., `mousemove`, `mouseleave`) to the graph's root element (`this.props.graph.getGraphHTML()`) or specific layer elements (`this.getCanvas()`, `this.getHTML()`) within `afterInit`.
     - Always clean up listeners and subscriptions in the `unmount` method.
 - **Camera Interaction & Coordinates:**
     - Subscribe to graph's `'camera-change'` event (`this.props.graph.on(...)`) to get updates. The event detail (`event.detail`) provides the `TCameraState` (containing `width`, `height`, `scale`, `x`, `y`).

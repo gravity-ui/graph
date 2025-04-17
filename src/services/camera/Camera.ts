@@ -1,6 +1,8 @@
 import { EventedComponent } from "../../components/canvas/EventedComponent/EventedComponent";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
 import { Component } from "../../lib";
+import { TComponentProps, TComponentState } from "../../lib/Component";
+import { ComponentDescriptor } from "../../lib/CoreComponent";
 import { getXY, isMetaKeyEvent, isTrackpadWheelEvent, isWindows } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
 import { dragListener } from "../../utils/functions/dragListener";
@@ -8,18 +10,12 @@ import { EVENTS } from "../../utils/types/events";
 
 import { ICamera } from "./CameraService";
 
-export type TCameraProps = {
-  children: any[];
-  root?: HTMLElement;
+export type TCameraProps = TComponentProps & {
+  root?: HTMLDivElement;
+  children: ComponentDescriptor[];
 };
 
-export class Camera extends EventedComponent {
-  public declare props: TCameraProps;
-
-  public declare context: TGraphLayerContext;
-
-  private ctx: CanvasRenderingContext2D;
-
+export class Camera extends EventedComponent<TCameraProps, TComponentState, TGraphLayerContext> {
   private camera: ICamera;
 
   private ownerDocument: Document;
@@ -30,7 +26,6 @@ export class Camera extends EventedComponent {
     super(props, parent);
 
     this.camera = this.context.camera;
-    this.ctx = this.context.ctx;
     this.ownerDocument = this.context.ownerDocument;
 
     this.addWheelListener();
@@ -168,20 +163,7 @@ export class Camera extends EventedComponent {
   }
 
   public render() {
-    const dpr = this.context.constants.system.PIXEL_RATIO;
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-    const cameraState = this.camera.getCameraState();
-    this.ctx.clearRect(0, 0, cameraState.width * dpr, cameraState.height * dpr);
-
-    this.ctx.setTransform(
-      cameraState.scale * dpr,
-      0,
-      0,
-      cameraState.scale * dpr,
-      cameraState.x * dpr,
-      cameraState.y * dpr
-    );
+    this.context.layer.resetTransform();
   }
 
   public updateChildren() {

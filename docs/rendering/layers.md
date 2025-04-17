@@ -70,58 +70,139 @@ const newBlockLayer = graph.addLayer(NewBlockLayer, { ghostBackground: "rgba(0, 
 
 ### Basic Structure
 
-Each layer can have its own canvas and/or HTML elements for rendering and interaction:
+Custom layers should extend the base `Layer` class (`src/services/Layer.ts`). This class provides the core functionality for managing Canvas and HTML elements within the graph's rendering pipeline.
 
 ```typescript
-import { Layer, LayerContext, LayerProps } from "@/services/Layer";
-import { CameraService } from "@/services/camera/CameraService";
+import { Layer, LayerContext, LayerProps, TGraphColors, TGraphConstants } from "@/services/Layer";
+import { ICamera } from "@/services/camera/CameraService";
 import { Graph } from "@/graph";
 
+// Define custom properties for your layer, extending the base LayerProps
 interface MyLayerProps extends LayerProps {
   customOption?: string;
+  gridColor?: string;
 }
 
-export class MyLayer extends Layer<MyLayerProps> {
+// Optionally extend the LayerContext if your layer needs additional context
+interface MyLayerContext extends LayerContext {
+  // Add specific context properties here
+}
+
+// Define the Layer, specifying Props and optionally Context
+export class MyLayer extends Layer<MyLayerProps, MyLayerContext> {
   constructor(props: MyLayerProps) {
+    // Call the base constructor, passing props and potentially overriding default layer settings
     super({
-      // Canvas element for drawing
+      // Canvas element configuration (optional)
       canvas: {
         zIndex: 10,
-        classNames: ["my-layer"]
+        classNames: ["my-layer-canvas"],
+        respectPixelRatio: true, // Default: true. Set to false to disable DPR scaling.
+        transformByCameraPosition: true // Default: false. Set to true to automatically apply camera transform.
       },
-      // HTML element for DOM-based interactions
+      // HTML element configuration (optional)
       html: {
-        zIndex: 10,
+        zIndex: 11,
         classNames: ["my-layer-html"],
-        transformByCameraPosition: true
+        transformByCameraPosition: true // Default: false. Set to true to apply camera transform via CSS.
       },
-      ...props
+      ...props // Pass remaining props, including required `graph` and `camera`
     });
-    
+
+    // --- Context Setup ---
+    // Base context (graph, camera, constants, colors, layer) is set by the super constructor.
+    // You need to add context specific to the elements created by this layer.
+    // It's recommended to do this in `afterInit` when elements are guaranteed to exist.
+  }
+
+  // `afterInit` is called after the layer's elements (canvas/html) are created and attached.
+  protected afterInit() {
+    // Get the created elements (if configured)
+    const canvas = this.getCanvas(); // Returns HTMLCanvasElement or undefined
+    const html = this.getHTML(); // Returns HTMLElement or undefined
+
+    // Set up the context, including the canvas context if needed
     this.setContext({
-      canvas: this.getCanvas(),
-      ctx: this.getCanvas().getContext("2d"),
-      camera: props.camera,
-      graph: this.props.graph
+      // Keep existing context properties
+      ...this.context,
+      // Add properties specific to this layer's setup
+      graphCanvas: canvas, // Use the correct property name
+      ctx: canvas?.getContext("2d") || undefined,
+      // Add any custom context fields defined in MyLayerContext
     });
-    
-    // Subscribe to events
-    this.context.graph.on("camera-change", this.performRender);
+
+    // Now the full context (this.context) is available and typed.
+    // Subscribe to events here
+    this.cameraSubscription = this.context.graph.on("camera-change", this.performRender);
+    // Add other event listeners (e.g., to this.getHTML() or this.getCanvas())
+
+    // Perform initial render
+    this.performRender();
   }
-  
-  // Rendering method
+
+  // --- Rendering --- 
+  // This method is called automatically when performRender is invoked (e.g., on camera change).
   protected render() {
-    const { ctx } = this.context;
-    ctx.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height);
-    // Custom rendering code
+    // Check if context is fully initialized
+    if (!this.context.ctx || !this.context.graphCanvas) {
+      return; 
+    }
+
+    // Reset transformations and clear canvas
+    this.resetTransform(); // Applies camera transform if transformByCameraPosition=true, respects DPR
+
+    const { ctx, camera, constants, colors } = this.context;
+    const { scale, x, y } = camera.getCameraState();
+
+    // --- Custom Rendering Logic --- 
+    // Draw using world coordinates. `resetTransform` handles the necessary scaling and translation.
+    ctx.fillStyle = this.props.gridColor || colors.canvas.gridColor; // Example using props/colors
+    ctx.fillRect(10, 10, 50, 50); // Draws a rectangle at world coordinates (10, 10)
+
+    // Example: Apply additional transform relative to the camera
+    // this.applyTransform(worldX, worldY, worldScale); // Respects DPR
   }
-  
-  // Resource cleanup
+
+  // --- Cleanup --- 
+  // Called when the layer is removed from the graph.
   protected unmount(): void {
-    this.context.graph.off("camera-change", this.performRender);
+    // Always clean up subscriptions and event listeners
+    this.cameraSubscription?.();
+    // Remove other listeners added in `afterInit`
+    super.unmount(); // Calls base unmount logic (removes elements)
   }
 }
 ```
+
+### Handling Transformations and Device Pixel Ratio (DPR)
+
+The `Layer` class provides tools to handle rendering correctly with camera transformations and on high-resolution (HiDPI) displays.
+
+- **`respectPixelRatio`** (`LayerProps.canvas.respectPixelRatio`, default: `true`):
+    - When `true`, the canvas dimensions are automatically scaled by the device pixel ratio (`window.devicePixelRatio`).
+    - The `resetTransform()` and `applyTransform()` methods automatically account for this scaling, so you can draw using world coordinates without manual DPR calculation.
+    - Set to `false` only if you need explicit manual control over pixel scaling.
+
+- **`transformByCameraPosition`** (`LayerProps.canvas.transformByCameraPosition` / `LayerProps.html.transformByCameraPosition`, default: `false`):
+    - **For Canvas:** When `true`, the `resetTransform()` method automatically applies the current camera translation (`x`, `y`) and `scale` to the canvas context (`ctx`). This means your subsequent drawing operations in the `render` method should use world coordinates.
+    - **For HTML:** When `true`, the HTML element gets the `layer-with-camera` class, and its CSS `transform: matrix(...)` is automatically updated on camera changes to match the camera's position and scale.
+
+- **`resetTransform()`**:
+    - Call this at the beginning of your canvas `render` method.
+    - It resets the canvas context's transform to the identity matrix.
+    - It clears the entire canvas (`clearRect`).
+    - If `transformByCameraPosition` is `true` for the canvas, it applies the current camera transform (`scale`, `x`, `y`), automatically accounting for DPR if `respectPixelRatio` is `true`.
+
+- **`applyTransform(x, y, scale, respectPixelRatioOverride)`**:
+    - Applies an *additional* transformation to the canvas context, relative to the current transform (which includes the camera transform if set by `resetTransform`).
+    - Useful for drawing elements at specific world positions/scales relative to the base camera view.
+    - It automatically accounts for DPR based on the layer's `respectPixelRatio` setting unless overridden by the optional fourth argument.
+
+- **`getDRP()`**:
+    - Returns the device pixel ratio value that the layer is currently using (respecting the `respectPixelRatio` flag).
+    - Use this only if you need the DPR value for complex manual calculations, usually unnecessary when using `resetTransform` and `applyTransform`.
+
+**In summary:** For most canvas layers, set `respectPixelRatio: true` and `transformByCameraPosition: true`, call `resetTransform()` at the start of `render`, and draw using world coordinates. Use `applyTransform` for specific relative positioning if needed.
 
 ### Built-in CSS Classes
 

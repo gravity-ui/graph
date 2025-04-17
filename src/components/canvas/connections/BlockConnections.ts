@@ -53,7 +53,7 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
     this.unsubscribe.forEach((reactionDisposer) => reactionDisposer());
   }
 
-  protected updateChildren(): void | object[] {
+  protected updateChildren() {
     if (!this.connections) return [];
     const settings = this.context.graph.rootStore.settings.$connectionsSettings.value;
     const ConnectionCtop = this.context.graph.rootStore.settings.$connection.value || BlockConnection;

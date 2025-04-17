@@ -45,6 +45,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
       canvas: {
         zIndex: 300,
         classNames,
+        transformByCameraPosition: false,
       },
       ...props,
     });
@@ -198,9 +199,13 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   protected willRender(): void {
     if (this.firstRender) {
       const canvas = this.getCanvas();
+      const dpr = this.getDRP();
 
-      canvas.width = this.minimapWidth;
-      canvas.height = this.minimapHeight;
+      canvas.width = this.minimapWidth * dpr;
+      canvas.height = this.minimapHeight * dpr;
+
+      canvas.style.width = `${this.minimapWidth}px`;
+      canvas.style.height = `${this.minimapHeight}px`;
 
       this.setContext({
         canvas,
@@ -238,18 +243,10 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   private rerenderMapContent = () => {
     if (!this.context?.ctx) return;
 
-    const cameraState = this.context.camera.getCameraState();
+    this.resetTransform();
 
-    this.context.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.context.ctx.clearRect(0, 0, cameraState.width, cameraState.height);
-    this.context.ctx.setTransform(
-      this.scale,
-      0,
-      0,
-      this.scale,
-      -(this.relativeX * this.scale),
-      -(this.relativeY * this.scale)
-    );
+    this.context.ctx.scale(this.scale, this.scale);
+    this.context.ctx.translate(-this.relativeX, -this.relativeY);
 
     this.renderUsableRectBelow();
     this.renderBlocks();

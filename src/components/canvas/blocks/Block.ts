@@ -376,7 +376,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.getConnectionAnchorPosition(anchor);
   };
 
-  protected updateChildren(): void | object[] {
+  protected updateChildren() {
     if (!this.isAnchorsAllowed()) {
       return undefined;
     }
