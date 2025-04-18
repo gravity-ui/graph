@@ -44,6 +44,7 @@ flowchart TD
    - Design patterns in use
    - Component relationships
    - Critical implementation paths
+   - Event handling patterns (prefer AbortController over manual unsubscribe functions)
 
 5. `techContext.md`
    - Technologies used
@@ -119,3 +120,4 @@ project-rules: .cursor/rules/project-rules.mdc
 components-rules: .cursor/rules/components-rules.mdc
 layer-rules: .cursor/rules/layer-rules.mdc
 event-model-rules: .cursor/rules/event-model-rules.mdc
+general-coding-rules: .cursor/rules/general-coding-rules.mdc

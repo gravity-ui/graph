@@ -1,0 +1,49 @@
+---
+description: General coding rules and best practices for @gravity-ui/graph
+globs: 
+alwaysApply: true
+---
+
+## Type Safety
+
+### Avoid `any` Type
+- **Never use the `any` type** in your code. Instead:
+  - Use specific types whenever possible (e.g., `MouseEvent`, `KeyboardEvent`, `HTMLElement`)
+  - Use `void` for function return types when the function doesn't return a value
+  - Use `unknown` only as a last resort when the type is truly unpredictable
+  - Implement appropriate interfaces (e.g., `EventListenerObject`) instead of type casting
+  - Use generics to create flexible but type-safe APIs
+
+### Type Casting
+- Avoid type casting with `as any`
+- If type casting is necessary, use `as unknown as TargetType` to make the cast more explicit and safer
+- Prefer type guards (`instanceof`, `typeof`, custom type predicates) over type casting
+
+## Code Quality
+
+### Function Return Types
+- Always specify return types for functions
+- Use `void` for functions that don't return a value
+- Be explicit about nullable return types (e.g., `string | null`)
+
+### Error Handling
+- Use specific error types instead of generic `Error`
+- Provide meaningful error messages
+- Handle errors at the appropriate level
+
+### Documentation
+- Document public APIs with JSDoc comments
+- Include parameter descriptions and return type descriptions
+- Document complex logic with inline comments
+
+## Performance
+
+### Event Handlers
+- Keep event handlers lightweight
+- Debounce or throttle handlers for frequent events (resize, scroll, mousemove)
+- Clean up event listeners when components are unmounted
+
+### Memory Management
+- Avoid memory leaks by properly cleaning up resources
+- Use AbortController for managing event listeners
+- Unsubscribe from subscriptions when components are unmounted
