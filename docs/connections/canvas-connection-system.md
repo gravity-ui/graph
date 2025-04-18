@@ -353,6 +353,89 @@ BatchPath2D groups similar elements:
 - Each group only requires one style setup (color, line width, etc.)
 - This dramatically reduces the number of state changes in the canvas context
 
+### Key Methods and Their Behavior
+
+The BatchPath2DRenderer provides three main methods for managing rendered elements:
+
+1. **add(item, params)**: Adds an item to the batch renderer
+   ```typescript
+   public add(item: Path2DRenderInstance, params: { zIndex: number; group: string }) {
+     if (this.itemParams.has(item)) {
+       this.update(item, params);
+     }
+     const bucket = this.getGroup(params.zIndex, params.group);
+     bucket.add(item);
+     this.itemParams.set(item, params);
+     this.orderedPaths.reset();
+     this.onChange?.();
+   }
+   ```
+
+2. **update(item, params)**: Updates an item's parameters in the batch renderer
+   ```typescript
+   public update(item: Path2DRenderInstance, params: { zIndex: number; group: string }) {
+     this.delete(item);
+     this.add(item, params);
+   }
+   ```
+   
+   **Important**: The `update()` method internally calls `delete()` followed by `add()`. This means:
+   - You don't need to track whether an item has been added before calling `update()`
+   - Calling `update()` will always ensure the item is in the batch with the correct parameters
+   - There's no need for additional flags to track whether an item has been added to the batch
+
+3. **delete(item)**: Removes an item from the batch renderer
+   ```typescript
+   public delete(item: Path2DRenderInstance) {
+     if (!this.itemParams.has(item)) {
+       return;
+     }
+     const params = this.itemParams.get(item);
+     const bucket = this.getGroup(params.zIndex, params.group);
+     bucket.delete(item);
+     this.itemParams.delete(item);
+     this.orderedPaths.reset();
+     this.onChange?.();
+   }
+   ```
+   
+   **Note**: The `delete()` method safely handles cases where the item isn't in the batch, making it safe to call even if you're unsure whether the item has been added.
+
+### Best Practices for BatchPath2D
+
+When working with the BatchPath2D renderer:
+
+1. **Prefer `update()` over conditional `add()`/`delete()`**: Since `update()` internally handles both adding and removing, you can simplify your code by always calling `update()` when an item should be visible, and `delete()` when it should be hidden.
+
+2. **Avoid tracking batch state**: Don't maintain separate flags to track whether items have been added to the batch. The BatchPath2DRenderer already handles this internally.
+
+3. **Use consistent parameters**: When updating items, ensure you're using consistent parameter structures to avoid unnecessary re-batching.
+
+4. **Clean up properly**: Always call `delete()` in your component's unmount method to remove items from the batch.
+
+Example of simplified batch management:
+```typescript
+// Good practice - let update() handle the add/delete logic
+if (shouldBeVisible) {
+  this.context.batch.update(this.shape, { zIndex, group });
+} else {
+  this.context.batch.delete(this.shape);
+}
+
+// Avoid this pattern - unnecessary tracking
+if (shouldBeVisible) {
+  if (!this.addedToBatch) {
+    this.context.batch.add(this.shape, { zIndex, group });
+    this.addedToBatch = true;
+  } else {
+    this.context.batch.update(this.shape, { zIndex, group });
+  }
+} else if (this.addedToBatch) {
+  this.context.batch.delete(this.shape);
+  this.addedToBatch = false;
+}
+```
+
 2. **Render Order Management**
 
 ```typescript
