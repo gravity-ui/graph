@@ -25,6 +25,7 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
       canvas: {
         zIndex: 1,
         classNames: ["no-pointer-events"],
+        transformByCameraPosition: true,
       },
       ...props,
     });
@@ -52,13 +53,7 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
   }
 
   public render() {
-    const cameraState = this.camera.getCameraState();
-
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-    this.ctx.clearRect(0, 0, cameraState.width, cameraState.height);
-
-    this.ctx.setTransform(cameraState.scale, 0, 0, cameraState.scale, cameraState.x, cameraState.y);
+    this.resetTransform();
   }
 
   public updateChildren() {

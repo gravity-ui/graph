@@ -75,8 +75,8 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
     super({
       canvas: {
         zIndex: 1,
-        respectPixelRatio: true,
         classNames: ["no-user-select"],
+        transformByCameraPosition: true,
       },
       ...props,
     });
@@ -110,7 +110,7 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
      * Override parent to delegate click events to camera.
      * This allows camera movement when mouse button is held down.
      */
-    return this.props.graph.getGraphLayer().$.camera;
+    return this.props.graph.getGraphLayer().$.camera as CoreComponent;
   }
 
   public updateBlocks = (groupId: TGroupId, { diffX, diffY }: { diffX: number; diffY: number }) => {
@@ -163,19 +163,6 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
   }
 
   public render() {
-    const dpr = this.context.constants.system.PIXEL_RATIO;
-    this.context.ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-    const cameraState = this.context.camera.getCameraState();
-    this.context.ctx.clearRect(0, 0, cameraState.width * dpr, cameraState.height * dpr);
-
-    this.context.ctx.setTransform(
-      cameraState.scale * dpr,
-      0,
-      0,
-      cameraState.scale * dpr,
-      cameraState.x * dpr,
-      cameraState.y * dpr
-    );
+    this.resetTransform();
   }
 }

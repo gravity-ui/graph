@@ -220,9 +220,7 @@ export class ConnectionLayer extends Layer<
   }
 
   protected render() {
-    this.context.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.context.ctx.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height);
-
+    this.resetTransform();
     if (!this.connectionState.sx && !this.connectionState.sy && !this.connectionState.tx && !this.connectionState.ty) {
       return;
     }

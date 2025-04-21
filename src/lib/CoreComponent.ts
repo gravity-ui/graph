@@ -7,6 +7,8 @@ type TOptions = {
   readonly ref?: ((inst: any) => void) | string;
 };
 
+export type TCoreComponent = CoreComponent<CoreComponentProps, CoreComponentContext>;
+
 type TPrivateComponentData = {
   parent: CoreComponent | undefined;
   treeNode: Tree;
@@ -23,6 +25,15 @@ type TPrivateComponentData = {
 
 export type CoreComponentProps = Record<string, unknown>;
 export type CoreComponentContext = Record<string, unknown>;
+
+export type ComponentDescriptor<
+  Props extends CoreComponentProps = CoreComponentProps,
+  Context extends CoreComponentContext = CoreComponentContext,
+> = {
+  props: Props;
+  options: TOptions;
+  klass: Constructor<CoreComponent<Props, Context>>;
+};
 
 function createDefaultPrivateContext() {
   return {
@@ -96,7 +107,7 @@ export class CoreComponent<
   protected render() {
     // noop
   }
-  protected updateChildren(): void | object[] {
+  protected updateChildren(): void | ComponentDescriptor[] {
     // noop
   }
 
@@ -253,7 +264,7 @@ export class CoreComponent<
     this: Constructor<CoreComponent<Props, Context>>,
     props: Props = {} as Props,
     options: TOptions = {}
-  ) {
+  ): ComponentDescriptor<Props, Context> {
     return { props, options, klass: this };
   }
 
