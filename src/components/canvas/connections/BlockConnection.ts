@@ -181,8 +181,6 @@ export class BlockConnection<T extends TConnection>
 
   protected override propsChanged(nextProps: TConnectionProps) {
     super.propsChanged(nextProps);
-
-    // Pass the new props to applyShape to handle arrow visibility
     this.applyShape(this.state, nextProps);
   }
 
