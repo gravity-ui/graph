@@ -60,6 +60,7 @@ The scaling system automatically switches between Canvas and HTML/React:
 - Update connection path when connected blocks change position.
 - Implement proper hit detection for connection lines.
 - Handle connection selection state visually.
+- When using BatchPath2DRenderer, prefer `update()` over conditional `add()`/`delete()` logic. The `update()` method internally calls `delete()` followed by `add()`, making it unnecessary to track whether an item has been added to the batch.
 
 # Performance Considerations
 When working with Canvas components:

@@ -353,33 +353,25 @@ BatchPath2D groups similar elements:
 - Each group only requires one style setup (color, line width, etc.)
 - This dramatically reduces the number of state changes in the canvas context
 
-2. **Render Order Management**
+### Key Methods and Their Behavior
 
-```typescript
-// In BatchPath2D
-private sortRenderOrder() {
-  this.renderOrder = [...this.batches.keys()].sort((a, b) => {
-    const aSettings = this.batchSettings.get(a);
-    const bSettings = this.batchSettings.get(b);
-    return (aSettings?.zIndex || 0) - (bSettings?.zIndex || 0);
-  });
-}
-```
+BatchPath2D provides three main methods for managing elements:
 
-BatchPath2D automatically:
-- Sorts elements by z-index for proper layering
-- Ensures selected/hovered elements appear on top
-- Minimizes context switching for better performance
+1. **add(item, params)**: Adds an item to the batch renderer.
+2. **update(item, params)**: Updates an item's parameters. This method internally calls `delete` and `add`, so you don't need to track whether an item has been added before.
+3. **delete(item)**: Removes an item from the batch renderer. It's safe to call even if the item hasn't been added.
 
-3. **Batch Rendering Process**
 
-The rendering process follows these steps:
-- Group elements by visual properties (stroke color, line width, etc.)
-- Sort groups by z-index
-- For each group:
-  - Set up the canvas context once
-  - Render all paths in the group
-  - Apply any post-processing
+### Best Practices for BatchPath2D
+
+1. **Prefer `update()` over `add()`/`delete()`**: `update()` handles both adding and removing, simplifying your code.
+2. **Avoid tracking batch state**: BatchPath2D manages this internally.
+3. **Use consistent parameters**: This helps avoid unnecessary re-batching.
+4. **Clean up properly**: Always call `delete()` in your component's unmount method to remove items from the batch.
+
+Following these practices will help you use BatchPath2D effectively and avoid common pitfalls.
+
+These changes make the text more concise and focus on the key points important for understanding and using BatchPath2D.
 
 ### Benefits of BatchPath2D
 

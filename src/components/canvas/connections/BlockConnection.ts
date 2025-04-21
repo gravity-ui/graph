@@ -39,26 +39,64 @@ export class BlockConnection<T extends TConnection>
 
   protected geometry: { x1: number; x2: number; y1: number; y2: number } = { x1: 0, x2: 0, y1: 0, y2: 0 };
 
+  /**
+   * The arrow shape component that renders the arrow in the middle of the connection.
+   * This is conditionally added to the batch renderer based on the showConnectionArrows setting.
+   */
   protected arrowShape = new ConnectionArrow(this);
 
+  /**
+   * Creates a new BlockConnection instance.
+   *
+   * @param props - The connection properties including showConnectionArrows setting
+   * @param parent - The parent BlockConnections component
+   */
   constructor(props: TConnectionProps, parent: BlockConnections) {
     super(props, parent);
     this.addEventListener("click", this);
 
+    // Add the connection line to the batch renderer
     this.context.batch.add(this, { zIndex: this.zIndex, group: this.getClassName() });
-    this.context.batch.add(this.arrowShape, { zIndex: this.zIndex, group: `arrow/${this.getClassName()}` });
+
+    // We'll handle arrow addition in applyShape based on showConnectionArrows setting
+    this.applyShape(this.state, props);
   }
 
-  protected applyShape(state: TBaseConnectionState = this.state) {
+  /**
+   * Updates the visual appearance of the connection and manages arrow visibility.
+   * This method centralizes all arrow rendering logic to ensure consistency.
+   *
+   * IMPORTANT: We must use the props parameter instead of this.props because this.props
+   * may contain outdated values during re-renders, which was the source of the original bug.
+   * Always pass the most current props to this method when calling it from propsChanged.
+   *
+   * @param state - The current state of the connection (selected, hovered, etc.)
+   * @param props - The connection properties, used to check showConnectionArrows setting
+   */
+  protected applyShape(state: TBaseConnectionState = this.state, props: TConnectionProps = this.props) {
     const zIndex = state.selected || state.hovered ? this.zIndex + 10 : this.zIndex;
     this.context.batch.update(this, { zIndex: zIndex, group: this.getClassName(state) });
-    this.context.batch.update(this.arrowShape, { zIndex: zIndex, group: `arrow/${this.getClassName(state)}` });
+
+    // Handle arrow visibility based on the provided props
+    if (props.showConnectionArrows) {
+      // Update will handle adding if not already in batch or updating if it is
+      this.context.batch.update(this.arrowShape, { zIndex: zIndex, group: `arrow/${this.getClassName(state)}` });
+    } else {
+      // Remove arrow from batch if showConnectionArrows is false
+      this.context.batch.delete(this.arrowShape);
+    }
   }
 
   public getPath(): Path2D {
     return this.generatePath();
   }
 
+  /**
+   * Creates the Path2D object for the arrow in the middle of the connection.
+   * This is used by the ConnectionArrow component to render the arrow.
+   *
+   * @returns A Path2D object representing the arrow shape
+   */
   public createArrowPath() {
     const coords = getArrowCoords(
       this.props.useBezier,
@@ -143,7 +181,7 @@ export class BlockConnection<T extends TConnection>
 
   protected override propsChanged(nextProps: TConnectionProps) {
     super.propsChanged(nextProps);
-    this.applyShape(this.state);
+    this.applyShape(this.state, nextProps);
   }
 
   protected override stateChanged(nextState: TBaseConnectionState) {
