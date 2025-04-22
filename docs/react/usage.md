@@ -109,6 +109,41 @@ Anchor styling also uses CSS variables:
 
 The graph can be extensively configured through the `useGraph` hook. See the [full configuration reference](https://gravity-ui.com/components/graph) for details.
 
+### Layer Management
+
+The `useLayer` hook provides a convenient way to add and manage layers in the graph:
+
+```tsx
+import { useLayer } from '@gravity-ui/graph';
+
+function CustomGraph() {
+  const { graph } = useGraph();
+
+  // Add and manage a custom layer
+  const devToolsLayer = useLayer(graph, DevToolsLayer, {
+    showRuler: true,
+    rulerSize: 20,
+  });
+
+  // Layer's props will be automatically updated when they change
+  const [rulerSize, setRulerSize] = useState(20);
+  
+  // No need to manually call setProps - useLayer handles this
+  const devToolsLayer = useLayer(graph, DevToolsLayer, {
+    showRuler: true,
+    rulerSize, // When this changes, layer will be updated
+  });
+
+  return <GraphCanvas graph={graph} />;
+}
+```
+
+The hook:
+- Automatically handles layer initialization and cleanup
+- Updates layer props when they change
+- Provides proper TypeScript types for layer props
+- Returns the layer instance for direct access if needed
+
 ### View Configuration
 ```tsx
 const config = {

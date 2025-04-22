@@ -1,5 +1,6 @@
 ---
 description: Rules for working with rendering layers in @gravity-ui/graph
+globs: 
 alwaysApply: false
 ---
 
@@ -92,4 +93,47 @@ Layers are fundamental to the Canvas rendering pipeline in @gravity-ui/graph. Th
 - **Interaction & Behavior:** Layers are suitable for encapsulating specific interaction logic (e.g., drag-and-drop handling, tool activation). These layers might not draw anything but listen to events and modify the graph state.
 - **Event Propagation & Camera Interaction:** Since layers are often added directly to the root container (and not nested within the `GraphLayer` which handles core event delegation and contains the `Camera`), mouse events intended for camera interactions (like panning via click/drag) might be intercepted by the layer. To ensure the camera receives these events, you may need to override the layer's `getParent()` method to directly return the camera component: `return this.props.graph.getGraphLayer().$.camera;`. This effectively bypasses the standard hierarchy for event bubbling, delegating the event to the camera. *Note:* This is a workaround; be mindful of potential side effects on other event handling within your layer. See the `BlockGroups` layer (`src/components/canvas/groups/BlockGroups.ts`) for a practical example.
 - **State Management:** Layers typically access the graph's central state store (`store/`) to get the data they need and to dispatch changes. Use reactive patterns (signals) to trigger updates when relevant data changes.
-- **Cleanup:** Implement necessary cleanup in the layer's `destroy` or `unmount` method to release resources, remove listeners, etc. 
+- **Cleanup:** Implement necessary cleanup in the layer's `destroy` or `unmount` method to release resources, remove listeners, etc.
+
+## React Integration with useLayer
+- **Using `useLayer` Hook:** The recommended way to add and manage layers in React components:
+    ```typescript
+    import { useLayer } from "@gravity-ui/graph";
+    
+    function MyComponent() {
+      const { graph } = useGraph(/* config */);
+      
+      const devToolsLayer = useLayer(graph, DevToolsLayer, {
+        showRuler: true,
+        rulerSize: 20,
+        // Only custom props, internal props like root/camera/graph are handled automatically
+      });
+      
+      return <GraphCanvas graph={graph} />;
+    }
+    ```
+- **Key Features:**
+    - Automatically handles layer initialization and cleanup
+    - Updates layer props when they change via React's dependency system
+    - Provides proper TypeScript types for layer props
+    - Returns the layer instance for direct access if needed
+- **Props Management:**
+    - Only pass custom props specific to your layer
+    - Internal props (`root`, `camera`, `graph`, `emitter`) are handled automatically
+    - Props updates trigger the layer's `setProps` method
+- **Lifecycle:**
+    - Layer is created when the component mounts
+    - Props are updated when dependencies change
+    - Layer is automatically cleaned up when the component unmounts
+- **Type Safety:**
+    - Uses TypeScript generics to ensure type safety
+    - Properly types the layer constructor and props
+    ```typescript
+    useLayer<T extends Constructor<Layer>>(
+      graph: Graph | null,
+      layerCtor: T,
+      props: T extends Constructor<Layer<infer Props>>
+        ? Omit<Props, "root" | "camera" | "graph" | "emitter"> & { root?: Props["root"] }
+        : never
+    )
+    ``` 
