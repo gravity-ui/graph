@@ -46,7 +46,7 @@ export class Layer<
 
   protected root?: HTMLDivElement;
 
-  private cameraSubscription: () => void = noop;
+  private __cameraSubscription: () => void = noop;
 
   constructor(props: Props, parent?: CoreComponent) {
     super(props, parent);
@@ -163,11 +163,11 @@ export class Layer<
   public detachLayer() {
     this.unmount();
     this.root = undefined;
-    this.cameraSubscription?.();
+    this.__cameraSubscription?.();
   }
 
   protected subscribeCameraState() {
-    this.cameraSubscription = this.props.graph.on("camera-change", (event) => {
+    this.__cameraSubscription = this.props.graph.on("camera-change", (event) => {
       const camera = event.detail;
       this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
     });

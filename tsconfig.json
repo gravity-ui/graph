@@ -11,7 +11,10 @@
     "experimentalDecorators": true,
     "typeRoots": ["./node_modules/@types"],
     "skipLibCheck": true,
-    "jsx": "react"
+    "jsx": "react",
+    "paths": {
+      "@/*": ["./*"]
+    }
   },
   "outDir": "./dist/",
   "include": ["./src/**/*.ts", "src/**/*.tsx"],

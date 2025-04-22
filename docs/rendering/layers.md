@@ -117,21 +117,6 @@ export class MyLayer extends Layer<MyLayerProps, MyLayerContext> {
 
   // `afterInit` is called after the layer's elements (canvas/html) are created and attached.
   protected afterInit() {
-    // Get the created elements (if configured)
-    const canvas = this.getCanvas(); // Returns HTMLCanvasElement or undefined
-    const html = this.getHTML(); // Returns HTMLElement or undefined
-
-    // Set up the context, including the canvas context if needed
-    this.setContext({
-      // Keep existing context properties
-      ...this.context,
-      // Add properties specific to this layer's setup
-      graphCanvas: canvas, // Use the correct property name
-      ctx: canvas?.getContext("2d") || undefined,
-      // Add any custom context fields defined in MyLayerContext
-    });
-
-    // Now the full context (this.context) is available and typed.
     // Subscribe to events here
     this.cameraSubscription = this.context.graph.on("camera-change", this.performRender);
     // Add other event listeners (e.g., to this.getHTML() or this.getCanvas())
