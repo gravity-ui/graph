@@ -152,6 +152,22 @@ export class CameraService extends Emitter {
   }
 
   /**
+   * Converts relative coordinate to absolute (screen space)
+   * Inverse of getRelative
+   */
+  public getAbsolute(n: number, scale: number = this.state.scale): number {
+    return n * scale;
+  }
+
+  /**
+   * Converts relative coordinates to absolute (screen space)
+   * Inverse of getRelativeXY
+   */
+  public getAbsoluteXY(x: number, y: number) {
+    return [x * this.state.scale + this.state.x, y * this.state.scale + this.state.y];
+  }
+
+  /**
    * Zoom to point
    *  */
   public zoom(x: number, y: number, scale: number) {
