@@ -11,8 +11,11 @@ import {
 } from "./constants";
 import { TDevToolsLayerProps, TDevToolsLayerState, TickInfo } from "./types";
 
+import "./devtools-layer.css"; // Import the CSS file after type imports
+
 /**
  * DevToolsLayer: Provides rulers and crosshairs for precise positioning and measurement.
+ * Uses two HTML divs with backdrop-filter for ruler background and blur.
  */
 export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDevToolsLayerState> {
   public state = INITIAL_DEVTOOLS_LAYER_STATE;
@@ -21,33 +24,68 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
   private mouseLeaveListener = this.handleMouseLeave.bind(this);
   protected cameraSubscription: (() => void) | null = null;
 
+  // HTML elements for ruler backgrounds
+  private horizontalRulerBgEl: HTMLDivElement | null = null;
+  private verticalRulerBgEl: HTMLDivElement | null = null;
+
   constructor(props: TDevToolsLayerProps) {
     const finalProps = { ...DEFAULT_DEVTOOLS_LAYER_PROPS, ...props };
     super({
       canvas: {
-        zIndex: 150, // Ensure it's above most other layers
-        classNames: ["devtools-layer-canvas", "no-pointer-events"], // Visual only
+        zIndex: 150, // Canvas (ticks, text) above HTML background
+        classNames: ["devtools-layer-canvas", "no-pointer-events"],
         respectPixelRatio: true,
-        transformByCameraPosition: false, // Rulers/Crosshair are fixed to viewport
-        ...(props.canvas ?? {}), // Allow overriding canvas props
+        transformByCameraPosition: false,
+        ...(props.canvas ?? {}),
       },
-      ...finalProps, // Pass merged props, including graph, camera etc.
+      html: {
+        zIndex: 149, // HTML backgrounds below the canvas
+        classNames: ["devtools-layer-html", "no-pointer-events"], // Keep base class for container
+        transformByCameraPosition: false, // Fixed to viewport
+        ...(props.html ?? {}),
+      },
+      ...finalProps,
     });
+  }
+
+  protected propsChanged(nextProps: TDevToolsLayerProps): void {
+    super.propsChanged(nextProps); // Always call super
+
+    const htmlContainer = this.getHTML();
+    if (!htmlContainer) return;
+
+    // Update CSS variables on the container (used by devtools-layer.css)
+    if (this.props.rulerBackgroundColor !== nextProps.rulerBackgroundColor) {
+      const bgColorValue = nextProps.rulerBackgroundColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackgroundColor;
+      htmlContainer.style.setProperty("--devtools-ruler-bg-color", bgColorValue);
+    }
+
+    if (this.props.rulerBackdropBlur !== nextProps.rulerBackdropBlur) {
+      const blurValue = nextProps.rulerBackdropBlur ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackdropBlur;
+      htmlContainer.style.setProperty("--devtools-ruler-blur", `${blurValue}px`);
+    }
+
+    // Rerender still needed if ruler size or visibility changes to update div positions/display
+    if (this.props.rulerSize !== nextProps.rulerSize) {
+      const sizeValue = nextProps.rulerSize ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize;
+      htmlContainer.style.setProperty("--devtools-ruler-size", `${sizeValue}px`);
+    }
+
+    if (this.props.showRuler !== nextProps.showRuler) {
+      htmlContainer.style.setProperty("--devtools-ruler-display", nextProps.showRuler ? "block" : "none");
+    }
   }
 
   protected afterInit(): void {
     super.afterInit();
-    // Listen to camera changes to redraw
-    // Ensure graph instance exists in context before subscribing
+
     if (this.context.graph) {
       this.cameraSubscription = this.context.graph.on("camera-change", () => this.performRender());
     } else {
       console.error("DevToolsLayer: Graph instance not found in context during afterInit.");
     }
 
-    // Listen to mouse events on the graph's root layer element
-    // Changed from getGraphHTML() to layers.$root
-    const graphRoot = this.props.graph?.layers?.$root; // Use optional chaining
+    const graphRoot = this.props.graph?.layers?.$root;
     if (graphRoot) {
       graphRoot.addEventListener("mousemove", this.mouseMoveListener);
       graphRoot.addEventListener("mouseenter", this.mouseEnterListener);
@@ -56,50 +94,83 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
       console.error("DevToolsLayer: Graph root layer element ($root) not found.");
     }
 
-    this.performRender();
+    // Create HTML elements for ruler backgrounds if showRuler is initially true
+    const htmlContainer = this.getHTML();
+    if (htmlContainer) {
+      // Set initial CSS variables on the container (can still be useful)
+      const initialBlur = this.props.rulerBackdropBlur ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackdropBlur;
+      const initialSize = this.props.rulerSize ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize;
+      const initialBgColor = this.props.rulerBackgroundColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackgroundColor;
+      const initialDisplay = this.props.showRuler ? "block" : "none";
+      htmlContainer.style.setProperty("--devtools-ruler-blur", `${initialBlur}px`);
+      htmlContainer.style.setProperty("--devtools-ruler-bg-color", initialBgColor);
+      htmlContainer.style.setProperty("--devtools-ruler-size", `${initialSize}px`);
+      htmlContainer.style.setProperty("--devtools-ruler-display", initialDisplay);
+      // Create the divs
+      this.horizontalRulerBgEl = document.createElement("div");
+      this.verticalRulerBgEl = document.createElement("div");
+
+      // Style using CSS variables defined on the parent
+      // Removed commonStyle and style.cssText assignment
+      // const commonStyle = `...`;
+      // this.horizontalRulerBgEl.style.cssText = commonStyle;
+      this.horizontalRulerBgEl.classList.add("devtools-ruler-bg", "devtools-ruler-bg-h");
+
+      // this.verticalRulerBgEl.style.cssText = commonStyle;
+      this.verticalRulerBgEl.classList.add("devtools-ruler-bg", "devtools-ruler-bg-v");
+
+      htmlContainer.appendChild(this.horizontalRulerBgEl);
+      htmlContainer.appendChild(this.verticalRulerBgEl);
+    }
+
+    this.performRender(); // Initial render for positioning divs and canvas ticks/text
   }
 
-  protected unmount(): void {
+  protected unmountLayer(): void {
     this.cameraSubscription?.();
     this.cameraSubscription = null;
 
-    // Changed from getGraphHTML() to layers.$root
-    const graphRoot = this.props.graph?.layers?.$root; // Use optional chaining
+    const graphRoot = this.props.graph?.layers?.$root;
     if (graphRoot) {
       graphRoot.removeEventListener("mousemove", this.mouseMoveListener);
       graphRoot.removeEventListener("mouseenter", this.mouseEnterListener);
       graphRoot.removeEventListener("mouseleave", this.mouseLeaveListener);
     }
 
-    super.unmount(); // Clean up canvas etc.
+    // Remove ruler background elements
+    this.horizontalRulerBgEl?.remove();
+    this.verticalRulerBgEl?.remove();
+    this.horizontalRulerBgEl = null;
+    this.verticalRulerBgEl = null;
+
+    super.unmountLayer();
   }
 
   // --- Event Handlers ---
 
-  private handleMouseMove(event: MouseEvent) {
-    // Use context.graphCanvas which should be set in afterInit
+  private handleMouseMove(event: MouseEvent): void {
     const canvas = this.context.graphCanvas;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     this.setState({
       mouseX: event.clientX - rect.left,
       mouseY: event.clientY - rect.top,
-      isMouseInside: true, // Ensure inside flag is true on move
+      isMouseInside: true,
     });
   }
 
-  private handleMouseEnter() {
+  private handleMouseEnter(): void {
     this.setState({ isMouseInside: true });
   }
 
-  private handleMouseLeave() {
+  private handleMouseLeave(): void {
     this.setState({ isMouseInside: false, mouseX: null, mouseY: null });
   }
 
   // --- State Update ---
 
   protected stateChanged(): void {
-    // Only re-render if crosshair is visible and mouse position changed
+    // Only re-render canvas if crosshair is visible and mouse position changed
     if (this.props.showCrosshair) {
       this.performRender();
     }
@@ -112,23 +183,17 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
       return;
     }
 
-    // Use resetTransform which handles DPR scaling because respectPixelRatio=true
-    // and transformByCameraPosition=false
-    this.resetTransform();
+    this.resetTransform(); // Clears canvas & applies base transform
 
     const { ctx, camera, graphCanvas } = this.context;
     const cameraState = camera.getCameraState();
-    const dpr = this.getDRP(); // We still need DPR for some calculations, but not for ctx drawing coords
-
-    // Use LOGICAL size for calculations passed to ctx
+    const dpr = this.getDRP();
     const rulerSize = this.props.rulerSize ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize;
-    // graphCanvas width/height are physical pixels, divide by dpr for logical viewport size
-    const viewWidth = graphCanvas.width / dpr;
-    const viewHeight = graphCanvas.height / dpr;
+    const viewWidth = graphCanvas.width / dpr; // Logical width
+    const viewHeight = graphCanvas.height / dpr; // Logical height
 
-    // Draw rulers if enabled
+    // Draw ruler ticks/text if enabled
     if (this.props.showRuler) {
-      this.drawRulerBackground(ctx, rulerSize, viewWidth, viewHeight);
       const tickInfo = this.calculateTickInfo(cameraState.scale);
       this.drawHorizontalRuler(ctx, cameraState, tickInfo, rulerSize, viewWidth);
       this.drawVerticalRuler(ctx, cameraState, tickInfo, rulerSize, viewHeight);
@@ -138,7 +203,7 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     if (
       this.props.showCrosshair &&
       this.state.isMouseInside &&
-      this.state.mouseX !== null && // mouseX/Y from state are LOGICAL coords
+      this.state.mouseX !== null &&
       this.state.mouseY !== null
     ) {
       const logicalMouseX = this.state.mouseX;
@@ -146,7 +211,6 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
       const isOverRuler = this.props.showRuler && (logicalMouseX < rulerSize || logicalMouseY < rulerSize);
 
       if (!isOverRuler) {
-        // Pass logical coords to drawCrosshair, remove dpr
         this.drawCrosshair(ctx, logicalMouseX, logicalMouseY, rulerSize, viewWidth, viewHeight);
       }
     }
@@ -154,31 +218,14 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
 
   // --- Drawing Helpers ---
 
-  private drawRulerBackground(
-    ctx: CanvasRenderingContext2D,
-    rulerSize: number,
-    viewWidth: number, // Now logical width
-    viewHeight: number // Now logical height
-  ): void {
-    ctx.fillStyle = this.props.rulerBackgroundColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackgroundColor;
-    // Draw using logical coords
-    ctx.fillRect(0, 0, rulerSize, rulerSize);
-    ctx.fillRect(rulerSize, 0, viewWidth - rulerSize, rulerSize);
-    ctx.fillRect(0, rulerSize, rulerSize, viewHeight - rulerSize);
-  }
-
-  // Pass DPR needed for minMajorTickDistance calculation
   private calculateTickInfo(scale: number): TickInfo {
-    // minMajorTickDistance is logical, scale by DPR for physical comparison if needed, or adjust world step calc
     const minMajorTickDistance = this.props.minMajorTickDistance ?? DEFAULT_DEVTOOLS_LAYER_PROPS.minMajorTickDistance;
-    // World step needed to cover the logical screen distance
     const minWorldStep = minMajorTickDistance / scale;
     const majorTickStep = calculateNiceNumber(minWorldStep);
 
     let minorTickStep: number;
     let minorTicksPerMajor: number;
 
-    // This logic uses world steps, independent of DPR
     if (majorTickStep / 5 >= minWorldStep / 4) {
       minorTickStep = majorTickStep / 5;
       minorTicksPerMajor = 5;
@@ -199,10 +246,10 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     ctx: CanvasRenderingContext2D,
     cameraState: TCameraState,
     tickInfo: TickInfo,
-    rulerSize: number, // Logical
-    viewWidth: number // Logical
+    rulerSize: number,
+    viewWidth: number
   ): void {
-    ctx.save(); // Save context state
+    ctx.save();
 
     const { scale, x: worldOriginScreenX } = cameraState;
     const { minorTickStep, minorTicksPerMajor, precision } = tickInfo;
@@ -212,16 +259,19 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
 
     const firstMinorTickWorldX = Math.floor(worldViewLeft / minorTickStep) * minorTickStep;
 
-    // Set styles within save/restore block
+    const currentFont = this.props.rulerTextFont ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTextFont;
     ctx.strokeStyle = this.props.rulerTickColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTickColor;
     ctx.fillStyle = this.props.rulerTextColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTextColor;
-    ctx.font = this.props.rulerTextFont ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTextFont;
+    ctx.font = currentFont;
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
 
     const minorTickLength = MAJOR_TICK_LENGTH * MINOR_TICK_LENGTH_FACTOR;
     const majorTickLength = MAJOR_TICK_LENGTH;
-    const textOffsetY = rulerSize - 5;
+    // Calculate padding based on font size
+    const fontSize = parseInt(currentFont, 10) || 14; // Default to 14 if parse fails
+    const padding = Math.max(10, fontSize * 0.6); // Proportional padding (e.g., 40% of font size, min 2px)
+    const textOffsetY = rulerSize - padding;
 
     ctx.beginPath();
     let currentWorldX = firstMinorTickWorldX;
@@ -244,17 +294,17 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     }
     ctx.stroke();
 
-    ctx.restore(); // Restore context state
+    ctx.restore();
   }
 
   private drawVerticalRuler(
     ctx: CanvasRenderingContext2D,
     cameraState: TCameraState,
     tickInfo: TickInfo,
-    rulerSize: number, // Logical
-    viewHeight: number // Logical
+    rulerSize: number,
+    viewHeight: number
   ): void {
-    ctx.save(); // Save context state
+    ctx.save();
 
     const { scale, y: worldOriginScreenY } = cameraState;
     const { minorTickStep, minorTicksPerMajor, precision } = tickInfo;
@@ -264,15 +314,20 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
 
     const firstMinorTickWorldY = Math.floor(worldViewTop / minorTickStep) * minorTickStep;
 
+    const currentFont = this.props.rulerTextFont ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTextFont;
     ctx.strokeStyle = this.props.rulerTickColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTickColor;
     ctx.fillStyle = this.props.rulerTextColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTextColor;
-    ctx.font = this.props.rulerTextFont ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTextFont;
-    ctx.textAlign = "left";
+    ctx.font = currentFont;
+    ctx.textAlign = "right";
     ctx.textBaseline = "middle";
 
     const minorTickLength = MAJOR_TICK_LENGTH * MINOR_TICK_LENGTH_FACTOR;
     const majorTickLength = MAJOR_TICK_LENGTH;
-    const textOffsetX = rulerSize - majorTickLength - 5;
+    // Calculate padding based on font size
+    const fontSize = parseInt(currentFont, 10) || 14; // Default to 14 if parse fails
+    const padding = Math.max(4, fontSize * 0.6); // Proportional padding
+    // Text offset is from ruler edge minus tick length minus padding
+    const textOffsetX = rulerSize - majorTickLength - padding;
 
     ctx.beginPath();
     let currentWorldY = firstMinorTickWorldY;
@@ -292,6 +347,8 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
           ctx.save();
           ctx.translate(textOffsetX, logicalScreenY);
           ctx.rotate(-Math.PI / 2);
+          // Set textAlign to center *after* rotation for centering
+          ctx.textAlign = "center";
           ctx.fillText(currentWorldY.toFixed(precision), 0, 0);
           ctx.restore();
         }
@@ -301,23 +358,23 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     }
     ctx.stroke();
 
-    ctx.restore(); // Restore context state
+    ctx.restore();
   }
 
   private drawCrosshair(
     ctx: CanvasRenderingContext2D,
     logicalMouseX: number,
     logicalMouseY: number,
-    rulerSize: number, // Logical
-    viewWidth: number, // Logical
-    viewHeight: number // Logical
+    rulerSize: number,
+    viewWidth: number,
+    viewHeight: number
   ): void {
     const camera = this.context.camera;
     if (!camera) return;
 
     const [worldX, worldY] = camera.applyToPoint(logicalMouseX, logicalMouseY);
 
-    // --- Draw Lines (Using Logical Coords) ---
+    // Draw Lines
     ctx.strokeStyle = this.props.crosshairColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairColor;
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
@@ -329,34 +386,27 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // --- Draw Coordinate Text ---
+    // Draw Coordinate Text
     const coordText = `X: ${worldX.toFixed(1)}, Y: ${worldY.toFixed(1)}`;
     const currentFont = this.props.crosshairTextFont ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextFont;
-    ctx.font = currentFont; // Set font before measuring
+    ctx.font = currentFont;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
 
-    // Use measureText helper - it returns LOGICAL width
     const logicalTextWidth = measureText(coordText, currentFont);
-
-    // Use logical font size for height calculation
     const logicalFontSize = parseInt(ctx.font, 10);
-    const logicalTextHeight = logicalFontSize; // Use parsed size directly
-    const logicalPadding = 4; // Logical padding
+    const logicalTextHeight = logicalFontSize;
+    const logicalPadding = 4;
 
-    // Position text box using LOGICAL coordinates
     const textRectX = rulerSize + logicalPadding;
     const textRectY = rulerSize + logicalPadding;
-    // Size text box using LOGICAL dimensions
     const textRectWidth = logicalTextWidth + 2 * logicalPadding;
     const textRectHeight = logicalTextHeight + 2 * logicalPadding;
 
-    // Draw background rect using logical coordinates
     ctx.fillStyle =
       this.props.crosshairTextBackgroundColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextBackgroundColor;
     ctx.fillRect(textRectX, textRectY, textRectWidth, textRectHeight);
 
-    // Draw text using logical coordinates
     ctx.fillStyle = this.props.crosshairTextColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextColor;
     ctx.fillText(coordText, textRectX + logicalPadding, textRectY + logicalPadding);
   }

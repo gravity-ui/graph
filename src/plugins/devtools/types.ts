@@ -27,6 +27,8 @@ export interface TDevToolsLayerProps extends LayerProps {
   crosshairTextFont?: string;
   /** Background color for the crosshair coordinate text */
   crosshairTextBackgroundColor?: string;
+  /** Blur strength for the background under the rulers */
+  rulerBackdropBlur?: number;
 }
 
 /** State managed by the DevToolsLayer */
@@ -37,7 +39,6 @@ export interface TDevToolsLayerState extends TComponentState {
   mouseY: number | null;
   /** Whether the mouse is currently inside the graph container */
   isMouseInside: boolean;
-  [key: string]: any;
 }
 
 /** Internal structure for tick calculation */

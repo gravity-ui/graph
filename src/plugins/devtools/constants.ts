@@ -4,16 +4,17 @@ import type { TDevToolsLayerProps, TDevToolsLayerState } from "./types";
 export const DEFAULT_DEVTOOLS_LAYER_PROPS: Omit<TDevToolsLayerProps, "graph" | "camera" | "root" | "emitter"> = {
   showRuler: true,
   showCrosshair: true,
-  rulerSize: 20,
+  rulerSize: 25,
   minMajorTickDistance: 50, // Minimum screen pixels between major ticks
-  rulerBackgroundColor: "rgba(45, 45, 45, 0.9)",
-  rulerTickColor: "rgba(150, 150, 150, 1)",
-  rulerTextColor: "rgba(200, 200, 200, 1)",
+  rulerBackgroundColor: "rgba(46, 46, 46, .4)",
+  rulerTickColor: "rgb(93, 93, 93)",
+  rulerTextColor: "rgba(245, 245, 245, 0.8)",
   rulerTextFont: "11px Helvetica",
   crosshairColor: "rgba(255, 0, 0, 0.7)",
   crosshairTextColor: "rgba(255, 255, 255, 1)",
   crosshairTextFont: "11px Helvetica",
   crosshairTextBackgroundColor: "rgba(0, 0, 0, 0.7)",
+  rulerBackdropBlur: 5, // Default blur strength in pixels
 };
 
 /** Initial state for the DevToolsLayer */

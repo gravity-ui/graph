@@ -82,19 +82,20 @@ function MyGraphComponent() {
 
 The layer accepts the following options (extending base `LayerProps`), with defaults defined in `DEFAULT_DEVTOOLS_LAYER_PROPS`:
 
-| Prop                       | Type      | Default                                | Description                                                                 |
-| :------------------------- | :-------- | :------------------------------------- | :-------------------------------------------------------------------------- |
-| `showRuler`                | `boolean` | `true`                                 | Toggles the visibility of the rulers.                                       |
-| `showCrosshair`            | `boolean` | `true`                                 | Toggles the visibility of the crosshair and coordinate display.             |
-| `rulerSize`                | `number`  | `20`                                   | Width/height of the ruler area in logical pixels.                           |
-| `minMajorTickDistance`     | `number`  | `50`                                   | Minimum desired screen distance (logical pixels) between major ruler ticks. |
-| `rulerBackgroundColor`     | `string`  | `"rgba(45, 45, 45, 0.9)"`              | Background color of the ruler areas.                                        |
-| `rulerTickColor`           | `string`  | `"rgba(150, 150, 150, 1)"`             | Color of the major and minor tick marks on the rulers.                      |
-| `rulerTextColor`           | `string`  | `"rgba(200, 200, 200, 1)"`             | Color of the text labels on the rulers.                                     |
-| `rulerTextFont`            | `string`  | `"14px monospace"`                     | CSS font string for the ruler text labels.                                  |
-| `crosshairColor`           | `string`  | `"rgba(255, 0, 0, 0.7)"`               | Color of the dashed crosshair lines.                                        |
-| `crosshairTextColor`       | `string`  | `"rgba(255, 255, 255, 1)"`             | Color of the coordinate text display.                                       |
-| `crosshairTextFont`        | `string`  | `"12px monospace"`                     | CSS font string for the coordinate text display.                            |
-| `crosshairTextBackgroundColor` | `string`  | `"rgba(0, 0, 0, 0.7)"`               | Background color for the coordinate text display box.                       |
+| Prop                       | Type      | Default                        | Description                                                                 |
+| :------------------------- | :-------- | :----------------------------- | :-------------------------------------------------------------------------- |
+| `showRuler`                | `boolean` | `true`                         | Toggles the visibility of the rulers.                                       |
+| `showCrosshair`            | `boolean` | `true`                         | Toggles the visibility of the crosshair and coordinate display.             |
+| `rulerSize`                | `number`  | `25`                           | Width/height of the ruler area in logical pixels.                           |
+| `minMajorTickDistance`     | `number`  | `50`                           | Minimum desired screen distance (logical pixels) between major ruler ticks. |
+| `rulerBackgroundColor`     | `string`  | `"rgba(46, 46, 46, .4)"`       | Background color of the ruler areas.                                        |
+| `rulerTickColor`           | `string`  | `"rgb(93, 93, 93)"`            | Color of the major and minor tick marks on the rulers.                      |
+| `rulerTextColor`           | `string`  | `"rgba(245, 245, 245, 0.8)"`   | Color of the text labels on the rulers.                                     |
+| `rulerTextFont`            | `string`  | `"11px Helvetica"`             | CSS font string for the ruler text labels.                                  |
+| `crosshairColor`           | `string`  | `"rgba(255, 0, 0, 0.7)"`       | Color of the dashed crosshair lines.                                        |
+| `crosshairTextColor`       | `string`  | `"rgba(255, 255, 255, 1)"`     | Color of the coordinate text display.                                       |
+| `crosshairTextFont`        | `string`  | `"11px Helvetica"`             | CSS font string for the coordinate text display.                            |
+| `crosshairTextBackgroundColor` | `string`  | `"rgba(0, 0, 0, 0.7)"`       | Background color for the coordinate text display box.                       |
+| `rulerBackdropBlur`        | `number`  | `5`                            | Blur strength (in px) for the backdrop filter under the ruler backgrounds.  |
 
 *Note: Base `LayerProps` like `graph`, `camera`, `root`, `emitter` are provided automatically when using `graph.addLayer` or `useLayer`.* 

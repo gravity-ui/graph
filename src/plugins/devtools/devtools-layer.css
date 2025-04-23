@@ -1,0 +1,26 @@
+/* Base styles for ruler background elements */
+.devtools-ruler-bg {
+    position: absolute;
+    pointer-events: none;
+    /* Use CSS variables defined on the parent .devtools-layer-html container */
+    background-color: var(--devtools-ruler-bg-color);
+    backdrop-filter: blur(var(--devtools-ruler-blur));
+    /* Display is controlled by the --devtools-ruler-display variable set in TS */
+    display: var(--devtools-ruler-display, block);
+}
+
+/* Horizontal ruler background */
+.devtools-ruler-bg-h {
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: var(--devtools-ruler-size);
+}
+
+/* Vertical ruler background */
+.devtools-ruler-bg-v {
+    top: var(--devtools-ruler-size); /* Start below horizontal ruler */
+    left: 0;
+    width: var(--devtools-ruler-size);
+    height: 100%; /* Stretch full height */
+} 

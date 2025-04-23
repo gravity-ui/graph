@@ -51,6 +51,7 @@ const DevToolsStoryComponent = (args: Omit<TDevToolsLayerProps, "graph" | "camer
     crosshairTextColor: args.crosshairTextColor,
     crosshairTextFont: args.crosshairTextFont,
     crosshairTextBackgroundColor: args.crosshairTextBackgroundColor,
+    rulerBackdropBlur: args.rulerBackdropBlur,
   });
 
   // Load initial data and start graph
@@ -83,19 +84,108 @@ const meta: Meta<typeof DevToolsStoryComponent> = {
   title: "Plugins/DevTools",
   component: DevToolsStoryComponent,
   tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "## DevToolsLayer\n\n" +
+          "The `DevToolsLayer` adds development helper tools on top of the graph:\n\n" +
+          "- **Rulers:** Horizontal and vertical rulers along the viewport edges, showing world coordinates.\n" +
+          "- **Crosshair:** A dynamic crosshair that follows the mouse cursor, displaying its current world coordinates.\n\n" +
+          "All configurable parameters (color, size, blur) are controlled via the layer's props.",
+      },
+      source: {
+        language: "tsx",
+        code: `
+import React from 'react';
+import { GraphCanvas, useGraph, useLayer, DevToolsLayer } from '@gravity-ui/graph';
+
+function MyGraphWithDevTools() {
+  const { graph } = useGraph({ 
+    settings: {
+      canZoomCamera: true,
+      canDragCamera: true,
+    }
+    /* Other graph config */ 
+  });
+
+  // Add the DevToolsLayer with desired options
+  useLayer(graph, DevToolsLayer, {
+    showRuler: true,
+    showCrosshair: true,
+    rulerSize: 20,
+    // Example colors (using default values)
+    rulerBackgroundColor: '${DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackgroundColor}',
+    rulerTickColor: '${DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTickColor}',
+    rulerTextColor: '${DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTextColor}',
+    crosshairColor: '${DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairColor}',
+    crosshairTextColor: '${DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextColor}',
+    crosshairTextBackgroundColor: '${DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextBackgroundColor}',
+    rulerBackdropBlur: 5,
+    // ... other TDevToolsLayerProps
+  });
+
+  // Add graph data and start in useEffect
+  React.useEffect(() => {
+    if (graph) {
+      // Example: graph.setEntities({ blocks: [], connections: [] });
+      // Example: graph.start();
+      // Example: graph.zoomTo('center');
+    }
+  }, [graph]);
+
+  return (
+    <GraphCanvas
+      graph={graph}
+      // renderBlock={...} // Your block rendering function
+    />
+  );
+}
+        `,
+      },
+    },
+  },
   argTypes: {
-    showRuler: { control: "boolean" },
-    showCrosshair: { control: "boolean" },
-    rulerSize: { control: { type: "range", min: 10, max: 50, step: 1 } },
-    minMajorTickDistance: { control: { type: "range", min: 20, max: 150, step: 5 } },
-    rulerBackgroundColor: { control: "color" },
-    rulerTickColor: { control: "color" },
-    rulerTextColor: { control: "color" },
-    rulerTextFont: { control: "text" },
-    crosshairColor: { control: "color" },
-    crosshairTextColor: { control: "color" },
-    crosshairTextFont: { control: "text" },
-    crosshairTextBackgroundColor: { control: "color" },
+    showRuler: { control: "boolean", description: "Show/hide rulers" },
+    showCrosshair: { control: "boolean", description: "Show/hide crosshair" },
+    rulerSize: {
+      control: { type: "range", min: 10, max: 50, step: 1 },
+      description: "Thickness of the rulers (in pixels)",
+    },
+    minMajorTickDistance: {
+      control: { type: "range", min: 20, max: 150, step: 5 },
+      description: "Minimum screen distance between major ruler ticks (in screen pixels)",
+    },
+    rulerBackgroundColor: {
+      control: "color",
+      description: "Background color for the rulers (accepts standard CSS colors)",
+    },
+    rulerTickColor: {
+      control: "color",
+      description: "Color for the ruler ticks (accepts standard CSS colors)",
+    },
+    rulerTextColor: {
+      control: "color",
+      description: "Color for the ruler text labels (accepts standard CSS colors)",
+    },
+    rulerTextFont: { control: "text", description: "Font for the ruler text labels" },
+    crosshairColor: {
+      control: "color",
+      description: "Color for the crosshair lines (accepts standard CSS colors)",
+    },
+    crosshairTextColor: {
+      control: "color",
+      description: "Color for the crosshair coordinate text (accepts standard CSS colors)",
+    },
+    crosshairTextFont: { control: "text", description: "Font for the crosshair coordinate text" },
+    crosshairTextBackgroundColor: {
+      control: "color",
+      description: "Background color for the crosshair coordinate text (accepts standard CSS colors)",
+    },
+    rulerBackdropBlur: {
+      control: { type: "range", min: 0, max: 20, step: 1 },
+      description: "Blur strength for the background under the rulers (in pixels)",
+    },
   },
   args: {
     // Default values for story controls, matching layer defaults
@@ -111,6 +201,7 @@ const meta: Meta<typeof DevToolsStoryComponent> = {
     crosshairTextColor: DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextColor,
     crosshairTextFont: DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextFont,
     crosshairTextBackgroundColor: DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextBackgroundColor,
+    rulerBackdropBlur: DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackdropBlur,
   },
 };
 
