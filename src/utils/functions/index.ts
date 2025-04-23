@@ -181,6 +181,47 @@ function isTrackpadDetector() {
 
 export const isTrackpadWheelEvent = isTrackpadDetector();
 
+/**
+ * Calculates a "nice" number approximately equal to the range.
+ * Useful for determining tick spacing on axes or rulers.
+ * Algorithm adapted from "Nice Numbers for Graph Labels" by Paul Heckbert
+ * @param range The desired approximate range or step.
+ * @param round Whether to round the result (usually false for step calculation).
+ * @returns A nice number (e.g., 1, 2, 5, 10, 20, 50, ...).
+ */
+export function calculateNiceNumber(range: number, round = false): number {
+  if (range <= 0) {
+    return 0;
+  }
+  const exponent = Math.floor(Math.log10(range));
+  const fraction = range / 10 ** exponent;
+  let niceFraction: number;
+
+  if (round) {
+    if (fraction < 1.5) niceFraction = 1;
+    else if (fraction < 3) niceFraction = 2;
+    else if (fraction < 7) niceFraction = 5;
+    else niceFraction = 10;
+  } else if (fraction <= 1) niceFraction = 1;
+  else if (fraction <= 2) niceFraction = 2;
+  else if (fraction <= 5) niceFraction = 5;
+  else niceFraction = 10;
+
+  return niceFraction * 10 ** exponent;
+}
+
+/**
+ * Aligns a coordinate value to the device's physical pixel grid for sharper rendering.
+ * @param value The coordinate value (e.g., x or y).
+ * @param dpr The device pixel ratio.
+ * @returns The aligned coordinate value.
+ */
+export function alignToPixelGrid(value: number, dpr: number): number {
+  // Scale by DPR, round to the nearest integer (physical pixel), then scale back.
+  // Add 0.001 to prevent floating point issues where rounding might go down unexpectedly.
+  return Math.round(value * dpr + 0.001) / dpr;
+}
+
 export function computeCssVariable(name: string) {
   if (!name.startsWith("var(")) return name;
 

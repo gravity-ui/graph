@@ -13,7 +13,8 @@ alwaysApply: false
 ## Graph Initialization (Recommended Pattern)
 - **Use `useGraph` hook:** Initialize the graph instance within your story component using the `useGraph` hook from `src/react-component/hooks/useGraph.ts`.
   ```typescript
-  import { useGraph, GraphCanvas, GraphBlock } from "@gravity-ui/graph"; // Adjust path as needed
+  import { Graph, GraphState } from "../../../graph"; // Adjust path as needed
+  import { GraphCanvas, useGraph } from "../../../react-component"; // Adjust path as needed
   
   const MyStoryComponent = (props) => {
       const { graph } = useGraph({
