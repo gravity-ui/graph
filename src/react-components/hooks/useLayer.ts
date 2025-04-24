@@ -56,7 +56,7 @@ export function useLayer<T extends Constructor<Layer> = Constructor<Layer>>(
     if (deferredLayer && (!prevProps || !isEqual(prevProps, props))) {
       deferredLayer.setProps(props);
     }
-  }, [deferredLayer, props, prevProps]);
+  }, [layer, props, prevProps]);
 
   return layer;
 }
