@@ -4,7 +4,7 @@ import cloneDeep from "lodash/cloneDeep";
 
 import { TAnchor } from "../../components/canvas/anchors";
 import { Block, TBlock } from "../../components/canvas/blocks/Block";
-import { ESelectionStrategy } from "../../utils/types/types";
+import { ISelectionBucket } from "../../services/selection/types";
 import { AnchorState } from "../anchor/Anchor";
 
 import { BlockListStore } from "./BlocksList";
@@ -15,7 +15,7 @@ export const IS_BLOCK_TYPE = "Block" as const;
 
 export class BlockState<T extends TBlock = TBlock> {
   public static fromTBlock(store: BlockListStore, block: TBlock): BlockState<TBlock> {
-    return new BlockState(store, block);
+    return new BlockState(store, block, store.blockSelectionBucket);
   }
 
   public $state = signal<T>(undefined);
@@ -39,8 +39,20 @@ export class BlockState<T extends TBlock = TBlock> {
   }
 
   public get selected() {
-    return this.$state.value.selected;
+    return this.$selected.value;
   }
+
+  /**
+   * Computed signal that reactively determines if this block is selected
+   * by checking if its ID exists in the selection bucket
+   */
+  public readonly $selected = computed(() => {
+    const id = this.id;
+    // Only string and number IDs can be in the selection bucket
+    return typeof id === "string" || typeof id === "number"
+      ? this.blockSelectionBucket.$selectedIds.value.has(id)
+      : false;
+  });
 
   public readonly $anchorStates: Signal<AnchorState[]> = signal([]);
 
@@ -80,7 +92,8 @@ export class BlockState<T extends TBlock = TBlock> {
 
   constructor(
     public readonly store: BlockListStore,
-    block: T
+    block: T,
+    private readonly blockSelectionBucket: ISelectionBucket<string | number>
   ) {
     this.$state.value = block;
 
@@ -116,10 +129,6 @@ export class BlockState<T extends TBlock = TBlock> {
 
   public getConnections() {
     return this.store.getBlockConnections(this.id);
-  }
-
-  public setSelection(selected: boolean, strategy: ESelectionStrategy = ESelectionStrategy.REPLACE) {
-    this.store.updateBlocksSelection([this.id], selected, strategy);
   }
 
   public clearAnchorsSelection() {
