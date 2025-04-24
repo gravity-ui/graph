@@ -5,7 +5,7 @@ import { Block } from "../../components/canvas/blocks/Block";
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "../../components/canvas/connections";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
 import { TConnectionColors } from "../../graphConfig";
-import { ESelectionStrategy } from "../../utils/types/types";
+import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
 import { TBlockId } from "../block/Block";
 
 import { ConnectionsStore } from "./ConnectionList";
@@ -136,6 +136,18 @@ export class ConnectionState<T extends TConnection = TConnection> {
     return undefined;
   });
 
+  /**
+   * Computed signal that reactively determines if this connection is selected
+   * by checking if its ID exists in the selection bucket
+   */
+  public readonly $selected = computed(() => {
+    const id = this.id;
+    // Only string and number IDs can be in the selection bucket
+    return typeof id === "string" || typeof id === "number"
+      ? this.connectionSelectionBucket.$selectedIds.value.has(id)
+      : false;
+  });
+
   public static getConnectionId(connection: TConnection) {
     if (connection.id) return connection.id;
     if (connection.sourceAnchorId && connection.targetAnchorId) {
@@ -148,7 +160,8 @@ export class ConnectionState<T extends TConnection = TConnection> {
 
   constructor(
     public store: ConnectionsStore,
-    connectionState: T
+    connectionState: T,
+    private readonly connectionSelectionBucket: ISelectionBucket<string | number>
   ) {
     const id = ConnectionState.getConnectionId(connectionState);
     this.$state.value = { ...connectionState, id };

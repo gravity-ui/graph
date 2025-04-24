@@ -1,3 +1,4 @@
+import { ESelectionStrategy } from "../../../../services/selection/types";
 import { BlockState } from "../../../../store/block/Block";
 import { BlockListStore } from "../../../../store/block/BlocksList";
 import { selectBlockById } from "../../../../store/block/selectors";
@@ -11,7 +12,6 @@ import {
 } from "../../../../utils/functions";
 import { dragListener } from "../../../../utils/functions/dragListener";
 import { EVENTS } from "../../../../utils/types/events";
-import { ESelectionStrategy } from "../../../../utils/types/types";
 import { Block } from "../Block";
 
 export class BlockController {
@@ -44,7 +44,7 @@ export class BlockController {
         const blockState = selectBlockById(block.context.graph, block.props.id);
         const allowChangeBlockGeometry = isAllowChangeBlockGeometry(
           block.getConfigFlag("canChangeBlockGeometry") as ECanChangeBlockGeometry,
-          blockState.selected
+          blockState.$selected.value
         );
 
         if (!allowChangeBlockGeometry) return;

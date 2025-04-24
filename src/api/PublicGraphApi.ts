@@ -3,6 +3,7 @@ import { batch } from "@preact/signals-core";
 import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
 import { TGraphColors, TGraphConstants } from "../graphConfig";
+import { ESelectionStrategy } from "../services/selection/types";
 import { TBlockId } from "../store/block/Block";
 import { selectBlockById } from "../store/block/selectors";
 import { TConnection, TConnectionId } from "../store/connection/ConnectionState";
@@ -10,7 +11,6 @@ import { selectConnectionById } from "../store/connection/selectors";
 import { TGraphSettingsConfig } from "../store/settings";
 import { getBlocksRect, startAnimation } from "../utils/functions";
 import { TRect } from "../utils/types/shapes";
-import { ESelectionStrategy } from "../utils/types/types";
 
 export type ZoomConfig = {
   transition?: number;

@@ -142,6 +142,9 @@ export class BaseConnection<
 
   protected willMount(): void {
     // Subscribe to connection state changes for automatic updates
+    this.subscribeSignal(this.connectedState.$selected, (selected) => {
+      this.setState({ selected });
+    });
     this.subscribeSignal(this.connectedState.$state, (state) => {
       this.setState({ ...state });
     });
