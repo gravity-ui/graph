@@ -17,7 +17,7 @@ export { type TMeasureTextOptions, type TWrapText } from "./utils/functions/text
 export * from "./utils/renderers/text";
 export { EVENTS } from "./utils/types/events";
 export { type TPoint, type TRect } from "./utils/types/shapes";
-export { ESelectionStrategy } from "./utils/types/types";
+export { ESelectionStrategy } from "./services/selection/types";
 export * from "./utils/shapes";
 
 export * from "./components/canvas/groups";
