@@ -54,6 +54,9 @@ export class BaseConnection<
   }
 
   protected willMount(): void {
+    this.subscribeSignal(this.connectedState.$selected, (selected) => {
+      this.setState({ selected });
+    });
     this.subscribeSignal(this.connectedState.$state, (state) => {
       this.setState({ ...state });
     });

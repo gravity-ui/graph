@@ -1,11 +1,11 @@
 import intersects from "intersects";
 
 import { HitBoxData } from "../../../services/HitTest";
+import { ESelectionStrategy } from "../../../services/selection/types";
 import { TConnection } from "../../../store/connection/ConnectionState";
 import { isMetaKeyEvent } from "../../../utils/functions";
 import { getFontSize } from "../../../utils/functions/text";
 import { cachedMeasureText } from "../../../utils/renderers/text";
-import { ESelectionStrategy } from "../../../utils/types/types";
 
 import { ConnectionArrow } from "./Arrow";
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "./BaseConnection";

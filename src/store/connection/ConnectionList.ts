@@ -1,8 +1,9 @@
-import { batch, computed, signal } from "@preact/signals-core";
+import { computed, signal } from "@preact/signals-core";
 
 import { Graph } from "../../graph";
+import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
+import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
 import { selectBlockById } from "../../store/block/selectors";
-import { ESelectionStrategy } from "../../utils/types/types";
 import { TBlockId } from "../block/Block";
 import { RootStore } from "../index";
 
@@ -21,38 +22,37 @@ export class ConnectionsStore {
 
   public $connectionsMap = signal<Map<ConnectionState["id"], ConnectionState>>(new Map());
 
-  public selectedConnections = new Set<ConnectionState["id"]>();
+  /**
+   * Bucket for managing connection selection state
+   */
+  public readonly connectionSelectionBucket: ISelectionBucket<string | number>;
 
   public $selectedConnections = computed(() => {
-    return new Set(this.$connections.value.filter((connection) => connection.isSelected()));
+    const selectedIds = this.connectionSelectionBucket.$selectedIds.value;
+    return new Set(
+      this.$connections.value.filter((connection) => {
+        const id = connection.id;
+        return typeof id === "string" || typeof id === "number" ? selectedIds.has(id) : false;
+      })
+    );
   });
 
   constructor(
     public rootStore: RootStore,
     protected graph: Graph
-  ) {}
+  ) {
+    // Create and register a selection bucket for connections
+    this.connectionSelectionBucket = new MultipleSelectionBucket<string | number>(
+      graph,
+      "connection",
+      "connection-selection-change"
+    );
+
+    this.rootStore.selectionService.registerBucket(this.connectionSelectionBucket);
+  }
 
   public getBlock(id: TBlockId) {
     return selectBlockById(this.graph, id);
-  }
-
-  protected setSelection(
-    connection: ConnectionState | ConnectionState["id"],
-    selected: boolean,
-    params?: { ignoreChange: boolean }
-  ) {
-    const state = connection instanceof ConnectionState ? connection : this.$connectionsMap.value.get(connection);
-    if (state) {
-      if (selected !== Boolean(state.$state.value.selected)) {
-        if (!params?.ignoreChange) {
-          state.updateConnection({
-            selected,
-          });
-        }
-        return true;
-      }
-    }
-    return false;
   }
 
   public updateConnections(connections: TConnection[]) {
@@ -79,11 +79,11 @@ export class ConnectionsStore {
       c.updateConnection(connections);
       return c;
     }
-    return new ConnectionState(this, connections);
+    return new ConnectionState(this, connections, this.connectionSelectionBucket);
   }
 
   public addConnection(connection: TConnection): TConnectionId {
-    const newConnection = new ConnectionState(this, connection);
+    const newConnection = new ConnectionState(this, connection, this.connectionSelectionBucket);
     this.$connectionsMap.value.set(newConnection.id, newConnection);
     this.notifyConnectionMapChanged();
     return newConnection.id;
@@ -109,78 +109,32 @@ export class ConnectionsStore {
     this.notifyConnectionMapChanged();
   }
 
-  protected computeSelectionChange(
-    ids: TConnectionId[],
-    selected: boolean,
-    strategy: ESelectionStrategy = ESelectionStrategy.REPLACE
-  ) {
-    const list = new Set(this.$selectedConnections.value);
-    let add: Set<ConnectionState>;
-    let removed: Set<ConnectionState>;
-    if (!selected) {
-      removed = new Set(
-        this.getConnections(ids).filter((connection) => {
-          if (this.setSelection(connection, false, { ignoreChange: true })) {
-            list.delete(connection);
-            return true;
-          }
-          return false;
-        })
-      );
-    } else {
-      if (strategy === ESelectionStrategy.REPLACE) {
-        removed = new Set(
-          Array.from(this.$selectedConnections.value).filter((connection) => {
-            return this.setSelection(connection, false, { ignoreChange: true });
-          })
-        );
-        list.clear();
-      }
-      add = new Set(
-        this.getConnections(ids).filter((connection) => {
-          if (
-            this.setSelection(connection.id, true, { ignoreChange: true }) ||
-            strategy === ESelectionStrategy.REPLACE
-          ) {
-            removed?.delete(connection);
-            list.add(connection);
-            return true;
-          }
-          return false;
-        })
-      );
-    }
-    return { add: Array.from(add || []), removed: Array.from(removed || []), list: Array.from(list) };
-  }
-
+  /**
+   * Updates connection selection using the SelectionService
+   * @param ids Connection IDs to update selection for
+   * @param selected Whether to select or deselect
+   * @param strategy The selection strategy to apply
+   */
   public setConnectionsSelection(
     ids: TConnectionId[],
     selected: boolean,
     strategy: ESelectionStrategy = ESelectionStrategy.REPLACE
   ) {
-    const { add, removed, list } = this.computeSelectionChange(ids, selected, strategy);
-    if (add.length || removed.length) {
-      this.graph.executеDefaultEventAction(
-        "connection-selection-change",
-        {
-          list: list.map((c) => c.asTConnection()),
-          changes: {
-            add: add.map((c) => c.asTConnection()),
-            removed: removed.map((c) => c.asTConnection()),
-          },
-        },
-        () => {
-          batch(() => {
-            removed.forEach((c) => this.setSelection(c.id, false));
-            add.forEach((c) => this.setSelection(c.id, true));
-          });
-        }
-      );
+    // Filter out non-string/number ids since SelectionService only supports string and number ids
+    const validIds = ids.filter((id) => typeof id === "string" || typeof id === "number") as (string | number)[];
+
+    if (selected) {
+      this.rootStore.selectionService.select("connection", validIds, strategy);
+    } else {
+      this.rootStore.selectionService.deselect("connection", validIds);
     }
   }
 
+  /**
+   * Resets the selection for connections
+   */
   public resetSelection() {
-    this.setConnectionsSelection([], false);
+    this.rootStore.selectionService.resetSelection("connection");
   }
   public getConnections(ids?: ConnectionState["id"][]) {
     if (!ids || !ids.length) {
