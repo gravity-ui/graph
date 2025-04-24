@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useLayoutEffect, useMemo } from "react";
 
 import isEqual from "lodash/isEqual";
 
@@ -36,6 +36,16 @@ export function useLayer<T extends Constructor<Layer> = Constructor<Layer>>(
 ) {
   const layer = useMemo(() => (graph ? graph.addLayer(layerCtor, props) : null), [graph]);
   const prevProps = usePrevious(props);
+
+  useLayoutEffect(() => {
+    // Detach layer on change layer instance
+    return () => {
+      // Only detach if both graph and layer are available
+      if (graph && layer) {
+        graph.detachLayer(layer);
+      }
+    };
+  }, [graph, layer]);
 
   useEffect(() => {
     if (layer && (!prevProps || !isEqual(prevProps, props))) {

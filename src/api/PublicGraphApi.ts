@@ -86,7 +86,7 @@ export class PublicGraphApi {
   }
 
   public isGraphEmpty() {
-    return this.graph.rootStore.blocksList.$ids.value.length === 0;
+    return this.graph.rootStore.blocksList.$blocksMap.value.size === 0;
   }
 
   public setSetting(flagPath: keyof TGraphSettingsConfig, value: boolean | number) {
