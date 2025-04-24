@@ -34,6 +34,49 @@ Layers are fundamental to the Canvas rendering pipeline in @gravity-ui/graph. Th
     - Potentially culling elements outside the current viewport.
     - Managing redraws or logic updates based on relevant state changes.
 
+## HTML Rendering in Layers
+
+The Layer class can create both Canvas and HTML elements for rendering:
+
+```typescript
+// Example of Layer creation with both Canvas and HTML elements
+constructor(props: LayerProps) {
+  super({
+    canvas: {
+      zIndex: 2,
+      respectPixelRatio: true,
+      classNames: ["no-user-select"],
+    },
+    html: {
+      zIndex: 3,
+      classNames: ["no-user-select"],
+      transformByCameraPosition: true, // This enables HTML rendering with camera transformation
+    },
+    ...props,
+  });
+}
+```
+
+### HTML Layer Configuration
+
+- **There is no dedicated "HTMLLayer" class**. Instead, HTML rendering is handled by setting the `html` property in the Layer constructor options.
+- The `transformByCameraPosition: true` option is crucial for HTML elements that need to move with the camera.
+- When this option is set, the layer adds the "layer-with-camera" class to the HTML element and subscribes to camera state changes.
+
+### Camera Transformation
+
+- HTML elements with `transformByCameraPosition: true` are transformed using a matrix transform based on camera state:
+```typescript
+this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
+```
+- This transformation is applied directly in the `afterInit()` method when the `transformByCameraPosition` option is set to `true`.
+- **IMPORTANT**: The camera state subscription is set up in the `afterInit()` method to ensure it's properly reestablished when a layer is reattached.
+
+### React Integration
+
+- React components are rendered into the HTML element of the GraphLayer using `createPortal` in `GraphCanvas.tsx`.
+- The BlocksList component renders React blocks only when the camera is at the detailed zoom level.
+
 ## Working with Layers
 - **Layers are Components:** Treat layers as specialized components. They follow the standard component lifecycle (`mount`, `unmount`, `render`, `stateChanged`, etc.) and **all general component rules (see `components-rules`) apply to layers as well**. A layer's `render` method might be empty if it only handles behavior.
 
@@ -137,3 +180,103 @@ Layers are fundamental to the Canvas rendering pipeline in @gravity-ui/graph. Th
         : never
     )
     ``` 
+
+## Layer Event Handling
+
+The Layer class provides several wrapper methods for managing event listeners with AbortController:
+
+```typescript
+// For graph events
+protected graphOn<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
+  eventName: EventName,
+  handler: Cb,
+  options?: Omit<AddEventListenerOptions, "signal">
+) {
+  return this.props.graph.on(eventName, handler, {
+    ...options,
+    signal: this.eventAbortController.signal,
+  });
+}
+
+// For HTML element events
+protected htmlOn<K extends keyof HTMLElementEventMap>(
+  eventName: K,
+  handler: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
+  options?: Omit<AddEventListenerOptions, "signal">
+) {
+  if (!this.html) {
+    throw new Error("Attempt to add event listener to non-existent HTML element");
+  }
+  
+  this.html.addEventListener(eventName, handler, {
+    ...options,
+    signal: this.eventAbortController.signal,
+  });
+}
+
+// For canvas element events
+protected canvasOn<K extends keyof HTMLElementEventMap>(
+  eventName: K,
+  handler: (this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => any,
+  options?: Omit<AddEventListenerOptions, "signal">
+) {
+  if (!this.canvas) {
+    throw new Error("Attempt to add event listener to non-existent canvas element");
+  }
+  
+  this.canvas.addEventListener(eventName, handler, {
+    ...options,
+    signal: this.eventAbortController.signal,
+  });
+}
+
+// For root element events
+protected rootOn<K extends keyof HTMLElementEventMap>(
+  eventName: K,
+  handler: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
+  options?: Omit<AddEventListenerOptions, "signal">
+) {
+  if (!this.root) {
+    throw new Error("Attempt to add event listener to non-existent root element");
+  }
+  
+  this.root.addEventListener(eventName, handler, {
+    ...options,
+    signal: this.eventAbortController.signal,
+  });
+}
+```
+
+**IMPORTANT**: Event subscriptions should always be set up in the `afterInit()` method, not in the constructor or other initialization methods. This ensures that subscriptions are properly reestablished when a layer is reattached.
+
+```typescript
+protected afterInit() {
+  // Set up event subscriptions here using the wrapper methods
+  this.graphOn("camera-change", this.handleCameraChange);
+  
+  if (this.canvas) {
+    this.canvasOn("mousedown", this.handleMouseDown);
+  }
+  
+  if (this.html) {
+    this.htmlOn("click", this.handleHtmlClick);
+  }
+  
+  if (this.root) {
+    this.rootOn("keydown", this.handleRootKeyDown);
+  }
+  
+  // Call super.afterInit() at the end
+  super.afterInit();
+}
+```
+
+When a layer is unmounted, the AbortController is aborted, which removes all event listeners:
+
+```typescript
+protected unmountLayer() {
+  // ...
+  this.eventAbortController.abort();
+  this.eventAbortController = new AbortController();
+}
+```

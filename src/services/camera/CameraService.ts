@@ -92,7 +92,6 @@ export class CameraService extends Emitter {
       this.state = Object.assign(this.state, newState);
       this.updateRelative();
       this.makeUnstable();
-      this.updateWorld();
     });
   }
 
@@ -101,10 +100,6 @@ export class CameraService extends Emitter {
     this.state.relativeY = this.getRelative(this.state.y) | 0;
     this.state.relativeWidth = this.getRelative(this.state.width) | 0;
     this.state.relativeHeight = this.getRelative(this.state.height) | 0;
-  }
-
-  public updateWorld() {
-    this.emit("update", this);
   }
 
   public getCameraRect(): TRect {

@@ -1,8 +1,8 @@
 import { Graph } from "../graph";
 import { TGraphColors, TGraphConstants } from "../graphConfig";
+import { GraphEventsDefinitions } from "../graphEvents";
 import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
-import { noop } from "../utils/functions";
 
 import { ICamera } from "./camera/CameraService";
 
@@ -46,10 +46,134 @@ export class Layer<
 
   protected root?: HTMLDivElement;
 
-  private __cameraSubscription: () => void = noop;
+  /**
+   * AbortController used to manage event listeners.
+   * All event listeners (both graph.on and DOM addEventListener) are registered with this controller's signal.
+   * When the layer is unmounted, the controller is aborted, which automatically removes all event listeners.
+   */
+  protected eventAbortController: AbortController;
+
+  /**
+   * A wrapper for this.props.graph.on that automatically includes the AbortController signal.
+   * The method is named graphOn to indicate it's specifically for graph events.
+   * This simplifies event subscription and ensures proper cleanup when the layer is unmounted.
+   *
+   * IMPORTANT: Always use this method in the afterInit() method, NOT in the constructor.
+   * This ensures that event subscriptions are properly set up when the layer is reattached.
+   * When a layer is unmounted, the AbortController is aborted and a new one is created.
+   * When the layer is reattached, afterInit() is called again, which sets up new subscriptions
+   * with the new AbortController.
+   *
+   * @param eventName - The name of the event to subscribe to
+   * @param handler - The event handler function
+   * @param options - Additional options (optional)
+   * @returns The result of graph.on call (an unsubscribe function)
+   */
+  protected graphOn<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
+    eventName: EventName,
+    handler: Cb,
+    options?: Omit<AddEventListenerOptions, "signal">
+  ) {
+    return this.props.graph.on(eventName, handler, {
+      ...options,
+      signal: this.eventAbortController.signal,
+    });
+  }
+
+  /**
+   * A wrapper for HTMLElement.addEventListener that automatically includes the AbortController signal.
+   * This method is for adding event listeners to the HTML element of the layer.
+   * It simplifies event subscription and ensures proper cleanup when the layer is unmounted.
+   *
+   * IMPORTANT: Always use this method in the afterInit() method, NOT in the constructor.
+   * This ensures that event subscriptions are properly set up when the layer is reattached.
+   * When a layer is unmounted, the AbortController is aborted and a new one is created.
+   * When the layer is reattached, afterInit() is called again, which sets up new subscriptions
+   * with the new AbortController.
+   *
+   * @param eventName - The name of the DOM event to subscribe to
+   * @param handler - The event handler function
+   * @param options - Additional options (optional)
+   */
+  protected htmlOn<K extends keyof HTMLElementEventMap>(
+    eventName: K,
+    handler: ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void) | EventListenerObject,
+    options?: Omit<AddEventListenerOptions, "signal">
+  ) {
+    if (!this.html) {
+      throw new Error("Attempt to add event listener to non-existent HTML element");
+    }
+
+    this.html.addEventListener(eventName, handler, {
+      ...options,
+      signal: this.eventAbortController.signal,
+    });
+  }
+
+  /**
+   * A wrapper for HTMLCanvasElement.addEventListener that automatically includes the AbortController signal.
+   * This method is for adding event listeners to the canvas element of the layer.
+   * It simplifies event subscription and ensures proper cleanup when the layer is unmounted.
+   *
+   * IMPORTANT: Always use this method in the afterInit() method, NOT in the constructor.
+   * This ensures that event subscriptions are properly set up when the layer is reattached.
+   * When a layer is unmounted, the AbortController is aborted and a new one is created.
+   * When the layer is reattached, afterInit() is called again, which sets up new subscriptions
+   * with the new AbortController.
+   *
+   * @param eventName - The name of the DOM event to subscribe to
+   * @param handler - The event handler function
+   * @param options - Additional options (optional)
+   */
+  protected canvasOn<K extends keyof HTMLElementEventMap>(
+    eventName: K,
+    handler: ((this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => void) | EventListenerObject,
+    options?: Omit<AddEventListenerOptions, "signal">
+  ) {
+    if (!this.canvas) {
+      throw new Error("Attempt to add event listener to non-existent canvas element");
+    }
+
+    this.canvas.addEventListener(eventName, handler, {
+      ...options,
+      signal: this.eventAbortController.signal,
+    });
+  }
+
+  /**
+   * A wrapper for HTMLElement.addEventListener that automatically includes the AbortController signal.
+   * This method is for adding event listeners to the root element of the layer.
+   * It simplifies event subscription and ensures proper cleanup when the layer is unmounted.
+   *
+   * IMPORTANT: Always use this method in the afterInit() method, NOT in the constructor.
+   * This ensures that event subscriptions are properly set up when the layer is reattached.
+   * When a layer is unmounted, the AbortController is aborted and a new one is created.
+   * When the layer is reattached, afterInit() is called again, which sets up new subscriptions
+   * with the new AbortController.
+   *
+   * @param eventName - The name of the DOM event to subscribe to
+   * @param handler - The event handler function
+   * @param options - Additional options (optional)
+   */
+  protected rootOn<K extends keyof HTMLElementEventMap>(
+    eventName: K,
+    handler: ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void) | EventListenerObject,
+    options?: Omit<AddEventListenerOptions, "signal">
+  ) {
+    if (!this.root) {
+      throw new Error("Attempt to add event listener to non-existent root element");
+    }
+
+    this.root.addEventListener(eventName, handler, {
+      ...options,
+      signal: this.eventAbortController.signal,
+    });
+  }
 
   constructor(props: Props, parent?: CoreComponent) {
     super(props, parent);
+
+    this.eventAbortController = new AbortController();
 
     this.setContext({
       graph: this.props.graph,
@@ -60,18 +184,6 @@ export class Layer<
     });
 
     this.init();
-
-    this.props.graph.on("colors-changed", (event) => {
-      this.setContext({
-        colors: event.detail.colors,
-      });
-    });
-
-    this.props.graph.on("constants-changed", (event) => {
-      this.setContext({
-        constants: event.detail.constants,
-      });
-    });
   }
 
   public updateSize(width: number, height: number) {
@@ -82,6 +194,16 @@ export class Layer<
     }
   }
 
+  /**
+   * Called after initialization and when the layer is reattached.
+   * This is the proper place to set up event subscriptions using graphOn().
+   *
+   * When a layer is unmounted, the AbortController is aborted and a new one is created.
+   * When the layer is reattached, this method is called again, which sets up new subscriptions
+   * with the new AbortController.
+   *
+   * All derived Layer classes should call super.afterInit() at the end of their afterInit method.
+   */
   protected afterInit() {
     if (this.props.canvas) {
       const ctx = this.canvas.getContext("2d");
@@ -97,6 +219,28 @@ export class Layer<
     this.shouldRenderChildren = true;
     this.shouldUpdateChildren = true;
     this.performRender();
+
+    // Subscribe to graph events here instead of in the constructor
+    // This ensures that subscriptions are properly set up when the layer is reattached
+    this.graphOn("colors-changed", (event) => {
+      this.setContext({
+        colors: event.detail.colors,
+      });
+    });
+
+    this.graphOn("constants-changed", (event) => {
+      this.setContext({
+        constants: event.detail.constants,
+      });
+    });
+
+    // Add camera state subscription if needed
+    if (this.props.html?.transformByCameraPosition && this.html) {
+      this.graphOn("camera-change", (event) => {
+        const camera = event.detail;
+        this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
+      });
+    }
   }
 
   protected init() {
@@ -132,6 +276,12 @@ export class Layer<
     }
     this.canvas?.parentNode?.removeChild(this.canvas);
     this.html?.parentNode?.removeChild(this.html);
+
+    // Abort all event listeners (both graph.on and DOM addEventListener)
+    this.eventAbortController.abort();
+    // Create a new controller for potential reattachment
+    // This ensures that if the layer is reattached, new event listeners can be registered
+    this.eventAbortController = new AbortController();
   }
 
   protected unmount(): void {
@@ -163,14 +313,6 @@ export class Layer<
   public detachLayer() {
     this.unmount();
     this.root = undefined;
-    this.__cameraSubscription?.();
-  }
-
-  protected subscribeCameraState() {
-    this.__cameraSubscription = this.props.graph.on("camera-change", (event) => {
-      const camera = event.detail;
-      this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
-    });
   }
 
   protected createCanvas(params: LayerProps["canvas"]) {
@@ -188,7 +330,6 @@ export class Layer<
     div.style.zIndex = `${Number(params.zIndex)}`;
     if (params.transformByCameraPosition) {
       div.classList.add("layer-with-camera");
-      this.subscribeCameraState();
     }
     return div;
   }

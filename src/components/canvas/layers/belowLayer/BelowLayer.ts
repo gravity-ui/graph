@@ -42,14 +42,21 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
     this.ctx = this.context.ctx;
 
     this.performRender = this.performRender.bind(this);
-    this.context.graph.on("camera-change", this.performRender);
+
     this.props.graph.rootStore.settings.$background.subscribe(this.performRender);
   }
 
-  protected unmount() {
-    super.unmount();
+  /**
+   * Called after initialization and when the layer is reattached.
+   * This is where we set up event subscriptions to ensure they work properly
+   * after the layer is unmounted and reattached.
+   */
+  protected afterInit(): void {
+    // Register event listener with the graphOn wrapper method for automatic cleanup when unmounted
+    this.graphOn("camera-change", this.performRender);
 
-    this.context.graph.off("camera-change", this.performRender);
+    // Call parent afterInit to ensure proper initialization
+    super.afterInit();
   }
 
   public render() {
