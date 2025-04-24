@@ -1,6 +1,6 @@
 # ConnectionLayer
 
-`ConnectionLayer` lets you create connections between blocks and anchors in your graph. It enables creating new connections through an intuitive drag and drop interface, handles the drawing of connection lines, and manages all related events.
+`ConnectionLayer` manages the creation process of connections between blocks and anchors in your graph. It provides an interactive drag and drop interface for creating new connections, temporary visualization during connection creation, automatic selection handling, and a comprehensive event system for the connection creation lifecycle.
 
 ## Basic Usage
 
@@ -35,6 +35,14 @@ graph.addLayer(ConnectionLayer, {
       style: { color: "blue", dash: [5, 5] }
     };
   },
+  isConnectionAllowed: (sourceComponent) => {
+    // Example: Only allow connections from anchor components
+    const isSourceAnchor = sourceComponent instanceof AnchorState;
+    return isSourceAnchor;
+    
+    // Or validate based on component properties
+    // return sourceComponent.someProperty === true;
+  },
   // ... other props
 })
 ```
@@ -48,6 +56,7 @@ type ConnectionLayerProps = LayerProps & {
   createIcon?: TIcon;
   point?: TIcon;
   drawLine?: DrawLineFunction;
+  isConnectionAllowed?: (sourceComponent: BlockState | AnchorState) => boolean;
 };
 
 type TIcon = {
@@ -64,6 +73,7 @@ type TIcon = {
 - **createIcon**: The icon shown when creating a connection
 - **point**: The icon shown at the end of the connection
 - **drawLine**: Function that defines how to draw the connection line
+- **isConnectionAllowed**: Function that validates if a connection can be created from a source component
 
 ## Methods
 
@@ -76,49 +86,55 @@ The layer provides these events:
 
 ### connection-create-start
 
-Fired when a user starts creating a connection.
+Fired when a user initiates a connection from a block or anchor. This happens when dragging starts from a block (with Shift key) or an anchor. Preventing this event will prevent the selection of the source component.
 
 ```typescript
 graph.on("connection-create-start", (event) => {
   console.log('Creating connection from block', event.detail.blockId);
+  
+  // If you prevent this event, the source component won't be selected
+  // event.preventDefault();
 })
 ```
 
 ### connection-create-hover
 
-Fired when hovering over a potential target while creating a connection.
+Fired when the dragged connection endpoint hovers over a potential target block or anchor. Preventing this event will prevent the selection of the target component.
 
 ```typescript
 graph.on("connection-create-hover", (event) => {
-  // Prevent connection to this target
-  event.preventDefault();
+  // If you prevent this event, the target component won't be selected
+  // event.preventDefault();
 })
 ```
 
 ### connection-created
 
-Fired when a connection is successfully created.
+Fired when a connection is successfully created between two elements. By default, this adds the connection to the connectionsList in the store. Preventing this event will prevent the connection from being added to the store.
 
 ```typescript
 graph.on("connection-created", (event) => {
   // The connection is added to connectionsList by default
-  // You can prevent this:
-  event.preventDefault();
+  // If you prevent this event, the connection won't be added to the store
+  // event.preventDefault();
 })
 ```
 
 ### connection-create-drop
 
-Fired when the user drops the connection endpoint, whether or not a connection was created.
+Fired when the user releases the mouse button to complete the connection process. This event fires regardless of whether a valid connection was established. Can be used for cleanup or to handle custom connection drop behavior.
 
 ```typescript
 graph.on("connection-create-drop", (event) => {
   console.log('Connection dropped at', event.detail.point);
+  
+  // This event is useful for cleanup or custom drop handling
 })
 ```
 
 ## How Connections Work
 
 - Hold Shift and drag from one block to another to create a block-to-block connection
-- Drag from one anchor to another to create an anchor-to-anchor connection
+- Drag from one anchor to another to create an anchor-to-anchor connection (must be on different blocks)
 - Elements are automatically selected during connection creation
+- Optional connection validation through the isConnectionAllowed prop

@@ -65,14 +65,16 @@ export function useGraph(config: HookGraphParams) {
       graph.stop();
     }),
     setViewConfiguration,
-    addLayer: <T extends Constructor<Layer> = Constructor<Layer>>(
-      layerCtor: T,
-      props: T extends Constructor<Layer<infer Props>>
-        ? Omit<Props, "root" | "camera" | "graph" | "emitter"> & { root?: Props["root"] }
-        : never
-    ): InstanceType<T> => {
-      return graph.addLayer(layerCtor, props);
-    },
+    addLayer: useFn(
+      <T extends Constructor<Layer> = Constructor<Layer>>(
+        layerCtor: T,
+        props: T extends Constructor<Layer<infer Props>>
+          ? Omit<Props, "root" | "camera" | "graph" | "emitter"> & { root?: Props["root"] }
+          : never
+      ): InstanceType<T> => {
+        return graph.addLayer(layerCtor, props);
+      }
+    ),
     setEntities: useFn(<B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => {
       graph.setEntities(entities);
     }),
