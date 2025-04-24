@@ -1,6 +1,6 @@
 # ConnectionLayer
 
-`ConnectionLayer` manages the creation and visualization of connections between blocks and anchors in your graph. It provides an interactive drag and drop interface, customizable connection appearance, automatic selection handling, and a comprehensive event system for the entire connection lifecycle.
+`ConnectionLayer` manages the creation process of connections between blocks and anchors in your graph. It provides an interactive drag and drop interface for creating new connections, temporary visualization during connection creation, automatic selection handling, and a comprehensive event system for the connection creation lifecycle.
 
 ## Basic Usage
 

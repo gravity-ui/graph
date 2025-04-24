@@ -95,14 +95,14 @@ declare module "../../../../graphEvents" {
 }
 
 /**
- * ConnectionLayer manages the creation and visualization of connections
- * between blocks and anchors in the graph.
+ * ConnectionLayer manages the creation process of connections between blocks and anchors in the graph.
+ * It handles the temporary visualization during connection creation but does not render existing connections.
  *
  * Features:
  * - Interactive connection creation through drag and drop
- * - Customizable connection appearance with configurable icons and line styles
+ * - Temporary visualization during connection creation with configurable icons and line styles
  * - Automatic selection handling of source and target elements
- * - Comprehensive event system for the entire connection lifecycle
+ * - Comprehensive event system for the connection creation lifecycle
  * - Optional connection validation through isConnectionAllowed prop
  *
  * Connection types:
