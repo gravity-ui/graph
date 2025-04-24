@@ -41,6 +41,9 @@ export function useLayer<T extends Constructor<Layer> = Constructor<Layer>>(
     if (layer && (!prevProps || !isEqual(prevProps, props))) {
       layer.setProps(props);
     }
+    return () => {
+      layer?.detachLayer();
+    };
   }, [layer, props, prevProps]);
 
   return layer;

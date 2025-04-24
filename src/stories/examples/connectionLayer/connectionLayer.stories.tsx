@@ -99,7 +99,7 @@ const GraphApp = () => {
       if (!event.detail.targetBlockId) {
         const source = graph.rootStore.blocksList.getBlock(event.detail.sourceBlockId);
         const block = graph.api.addBlock({
-          id: `${graph.rootStore.blocksList.$ids.value.length + 1}`,
+          id: `${graph.rootStore.blocksList.$blocksMap.value.size}`,
           name: `from ${source.name}`,
           x: event.detail.point.x,
           y: event.detail.point.y,
