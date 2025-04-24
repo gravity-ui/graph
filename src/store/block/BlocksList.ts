@@ -56,16 +56,20 @@ declare module "../../graphEvents" {
 export class BlockListStore {
   public $blocksMap = signal<Map<BlockState["id"], BlockState>>(new Map());
 
-  public $ids = computed(() => {
-    return Array.from(this.$blocksMap.value.keys());
-  });
+  public $blocks = signal<BlockState[]>([]);
 
-  public $blocks = computed(() => {
+  /**
+   * This signal is used to store blocks in reactive state.
+   * this signal fired for each change of the block state.
+   *
+   * NOTE: Please do not use it before you know what you are doing.
+   */
+  public $blocksReactiveState = computed(() => {
     return Array.from(this.$blocksMap.value.values());
   });
 
   public $selectedBlocks = computed(() => {
-    return this.$blocks.value.filter((block) => block.selected);
+    return this.$blocksReactiveState.value.filter((block) => block.selected);
   });
 
   public $selectedAnchor = computed(() => {
@@ -178,6 +182,7 @@ export class BlockListStore {
 
   protected updateBlocksMap(blocks: Map<BlockState["id"], BlockState> | [BlockState["id"], BlockState][]) {
     this.$blocksMap.value = new Map(blocks);
+    this.$blocks.value = Array.from(this.$blocksMap.value.values());
     this.isDirtyRect = true;
   }
 
