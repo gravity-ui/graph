@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.0](https://github.com/gravity-ui/graph/compare/v0.3.1...v0.4.0) (2025-04-27)
+
+
+### Features
+
+* add useLayer hook for managing graph layers and enhance documentation ([c7e083f](https://github.com/gravity-ui/graph/commit/c7e083f62429346c0d9396f73de016468f1a8e38))
+* **Camera:** add methods for converting relative coordinates to absolute screen space ([84a8111](https://github.com/gravity-ui/graph/commit/84a81113ac9fa5c7474c35f3fbc3f6a4093fc798))
+* **DevTools:** introduce DevToolsLayer for enhanced graph debugging and measurement ([d450e12](https://github.com/gravity-ui/graph/commit/d450e12d7ec9070f7dfd833cec58e48394ba0f8e))
+* export useLayer hook from index file to enhance layer management ([43d4e9c](https://github.com/gravity-ui/graph/commit/43d4e9c6da6682a2cd7ddb1a79fa1aa36c24ba2a))
+* **Layers:** add an AbortController to manage events ([#64](https://github.com/gravity-ui/graph/issues/64)) ([714fb0e](https://github.com/gravity-ui/graph/commit/714fb0ee1738988b967469391dc86298d5ace47c))
+* **NewBlockLayer, ConnectionLayer:** added validation and duplication of blocks by a group ([#62](https://github.com/gravity-ui/graph/issues/62)) ([4df468d](https://github.com/gravity-ui/graph/commit/4df468dc6dd75cab288c05bb0d08591e25579bf1))
+
+
+### Bug Fixes
+
+* **Events:** remove mousemove event from API/docs: it was never actually dispatched ([8393772](https://github.com/gravity-ui/graph/commit/8393772ca602b59f987bebc6407f45a0ec2f2ca9))
+* **Group:** stop click event propagation to prevent selection reset ([#65](https://github.com/gravity-ui/graph/issues/65)) ([7b438de](https://github.com/gravity-ui/graph/commit/7b438decc1da886bf66fbb334e38116fcddbcbc2))
+* Improve block signal handling and add $blocksReactiveState for full state tracking ([48c78aa](https://github.com/gravity-ui/graph/commit/48c78aa9432809bc4ab1059b1528a4db956a9135))
+* make showConnectionArrows setting properly control arrow visibility ([#67](https://github.com/gravity-ui/graph/issues/67)) ([8139e37](https://github.com/gravity-ui/graph/commit/8139e3706ff071fa337054b9292e93340d77f82c))
+
 ## [0.3.1](https://github.com/gravity-ui/graph/compare/v0.3.0...v0.3.1) (2025-03-19)
 
 
