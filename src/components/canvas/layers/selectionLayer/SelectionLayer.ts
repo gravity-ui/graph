@@ -50,8 +50,8 @@ export class SelectionLayer extends Layer<
    */
   protected afterInit(): void {
     // Set up event handlers here instead of in constructor
-    this.graphOn("camera-change", this.performRender);
-    this.graphOn("mousedown", this.handleMouseDown, {
+    this.onGraphEvent("camera-change", this.performRender);
+    this.onGraphEvent("mousedown", this.handleMouseDown, {
       capture: true,
     });
 

@@ -91,8 +91,8 @@ export class NewBlockLayer extends Layer<
    */
   protected afterInit(): void {
     // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
-    this.graphOn("camera-change", this.performRender);
-    this.graphOn("mousedown", this.handleMouseDown, {
+    this.onGraphEvent("camera-change", this.performRender);
+    this.onGraphEvent("mousedown", this.handleMouseDown, {
       capture: true,
     });
 

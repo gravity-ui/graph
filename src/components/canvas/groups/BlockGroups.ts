@@ -111,8 +111,8 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
    * after the layer is unmounted and reattached.
    */
   protected afterInit(): void {
-    // Register event listener with the graphOn wrapper method for automatic cleanup when unmounted
-    this.graphOn("camera-change", this.performRender);
+    // Register event listener with the onGraphEvent method for automatic cleanup when unmounted
+    this.onGraphEvent("camera-change", this.performRender);
 
     // Call parent afterInit to ensure proper initialization
     super.afterInit();

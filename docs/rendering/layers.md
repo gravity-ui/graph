@@ -161,7 +161,7 @@ export class MyLayer extends Layer<MyLayerProps, MyLayerContext> {
   // `afterInit` is called after the layer's elements (canvas/html) are created and attached.
   protected afterInit() {
     // Subscribe to events here
-    this.cameraSubscription = this.context.graph.on("camera-change", this.performRender);
+    this.onGraphEvent("camera-change", this.performRender);
     // Add other event listeners (e.g., to this.getHTML() or this.getCanvas())
     super.afterInit();
   }
@@ -280,133 +280,30 @@ this.context.graph.on("connection-created", (event) => {
 
 ### Event Handling with Wrapper Methods
 
-The Layer class provides convenient wrapper methods for event handling that automatically include the AbortController signal. This simplifies event subscription and ensures proper cleanup when layers are unmounted.
+The Layer class provides convenient wrapper methods for subscribing to events using `AbortController`. This ensures that all event handlers are automatically removed when the layer is unmounted, preventing memory leaks and redundant subscriptions.
 
+**Main subscription methods:**
+- `onGraphEvent` — for graph events
+- `onHtmlEvent` — for HTML element events
+- `onCanvasEvent` — for canvas element events
+- `onRootEvent` — for root element events
+
+> It is recommended to set up all subscriptions in the `afterInit()` method so they are properly re-established when the layer is remounted.
+
+**Example:**
 ```typescript
-export class Layer<Props extends LayerProps = LayerProps> extends Component<Props> {
-  /**
-   * AbortController used to manage event listeners.
-   * All event listeners (both graph.on and DOM addEventListener) are registered with this controller's signal.
-   * When the layer is unmounted, the controller is aborted, which automatically removes all event listeners.
-   */
-  protected eventAbortController: AbortController;
-
-  /**
-   * A wrapper for this.props.graph.on that automatically includes the AbortController signal.
-   * This simplifies event subscription and ensures proper cleanup when the layer is unmounted.
-   */
-  protected graphOn<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
-    eventName: EventName,
-    handler: Cb,
-    options?: Omit<AddEventListenerOptions, "signal">
-  ) {
-    return this.props.graph.on(eventName, handler, {
-      ...options,
-      signal: this.eventAbortController.signal,
-    });
-  }
-  
-  /**
-   * A wrapper for HTMLElement.addEventListener that automatically includes the AbortController signal.
-   * This method is for adding event listeners to the HTML element of the layer.
-   */
-  protected htmlOn<K extends keyof HTMLElementEventMap>(
-    eventName: K,
-    handler: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
-    options?: Omit<AddEventListenerOptions, "signal">
-  ) {
-    if (!this.html) {
-      throw new Error("Attempt to add event listener to non-existent HTML element");
-    }
-    
-    this.html.addEventListener(eventName, handler, {
-      ...options,
-      signal: this.eventAbortController.signal,
-    });
-  }
-
-  /**
-   * A wrapper for HTMLCanvasElement.addEventListener that automatically includes the AbortController signal.
-   * This method is for adding event listeners to the canvas element of the layer.
-   */
-  protected canvasOn<K extends keyof HTMLElementEventMap>(
-    eventName: K,
-    handler: (this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => any,
-    options?: Omit<AddEventListenerOptions, "signal">
-  ) {
-    if (!this.canvas) {
-      throw new Error("Attempt to add event listener to non-existent canvas element");
-    }
-    
-    this.canvas.addEventListener(eventName, handler, {
-      ...options,
-      signal: this.eventAbortController.signal,
-    });
-  }
-
-  /**
-   * A wrapper for HTMLElement.addEventListener that automatically includes the AbortController signal.
-   * This method is for adding event listeners to the root element of the layer.
-   */
-  protected rootOn<K extends keyof HTMLElementEventMap>(
-    eventName: K,
-    handler: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
-    options?: Omit<AddEventListenerOptions, "signal">
-  ) {
-    if (!this.root) {
-      throw new Error("Attempt to add event listener to non-existent root element");
-    }
-    
-    this.root.addEventListener(eventName, handler, {
-      ...options,
-      signal: this.eventAbortController.signal,
-    });
-  }
-
-  constructor(props: Props) {
-    super(props);
-    this.eventAbortController = new AbortController();
-    
-    // Initialize properties, but DO NOT register event listeners here
-  }
-  
-  /**
-   * Called after initialization and when the layer is reattached.
-   * This is the proper place to set up event subscriptions using the wrapper methods.
-   */
-  protected afterInit() {
-    // Register graph events with the graphOn wrapper method
-    this.graphOn("camera-change", this.handleCameraChange);
-    
-    // Use wrapper methods for DOM event listeners
-    if (this.canvas) {
-      this.canvasOn("mousedown", this.handleMouseDown);
-    }
-    
-    if (this.html) {
-      this.htmlOn("click", this.handleHtmlClick);
-    }
-    
-    if (this.root) {
-      this.rootOn("keydown", this.handleRootKeyDown);
-    }
-    
-    // Always call super.afterInit() at the end of your implementation
-    super.afterInit();
-  }
-  
-  protected unmountLayer() {
-    // Abort all event listeners (both graph.on and DOM addEventListener)
-    this.eventAbortController.abort();
-    // Create a new controller for potential reattachment
-    this.eventAbortController = new AbortController();
-  }
+protected afterInit() {
+  this.onGraphEvent("camera-change", this.handleCameraChange);
+  this.onCanvasEvent("mousedown", this.handleMouseDown);
+  super.afterInit();
 }
 ```
 
+When the layer is unmounted, all handlers are automatically removed.
+
 ### Manual Event Subscriptions
 
-While the wrapper methods (`graphOn`, `htmlOn`, `canvasOn`, `rootOn`) are recommended, you can also manually create event subscriptions using the layer's AbortController:
+While the wrapper methods (`onGraphEvent`, `onHtmlEvent`, `onCanvasEvent`, `onRootEvent`) are recommended, you can also manually create event subscriptions using the layer's AbortController:
 
 ```typescript
 export class MyCustomLayer extends Layer<MyLayerProps> {
@@ -499,8 +396,8 @@ export class GridLayer extends Layer<GridLayerProps> {
    * after the layer is unmounted and reattached.
    */
   protected afterInit(): void {
-    // Use the graphOn wrapper method for automatic cleanup
-    this.graphOn("camera-change", this.performRender);
+    // Use the onGraphEvent wrapper method for automatic cleanup
+    this.onGraphEvent("camera-change", this.performRender);
     
     // Call parent afterInit to ensure proper initialization
     super.afterInit();
@@ -539,3 +436,35 @@ export class GridLayer extends Layer<GridLayerProps> {
     // No need to manually remove event listeners
   }
 }
+
+```
+
+## Subscribing to signals with onSignal
+
+For reactive data (such as signals from @preact/signals-core), the Layer class provides a convenient onSignal method. It allows you to subscribe to a signal and automatically unsubscribe when the layer is unmounted (unmount) or when the AbortController is triggered:
+
+```typescript
+protected onSignal<T>(
+  signal: { subscribe: (handler: (value: T) => void) => () => void },
+  handler: (value: T) => void
+): () => void
+```
+
+- **signal** — an object with a subscribe method that returns an unsubscribe function (for example, a signal from @preact/signals-core)
+- **handler** — a function called when the signal value changes
+- **returns** an unsubscribe function, which is usually not needed to call manually
+
+### Example usage
+
+```typescript
+protected afterInit() {
+  // Subscribe to a signal with automatic cleanup on layer unmount
+  this.onSignal(this.props.graph.rootStore.blocksList.$blocks, (blocks) => {
+    this.shouldUpdateChildren = true;
+    this.performRender();
+  });
+  super.afterInit();
+}
+```
+
+> Unsubscription will happen automatically when the internal AbortController of the layer is aborted (for example, on detachLayer or destroy).

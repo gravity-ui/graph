@@ -110,7 +110,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     this.attachListeners();
 
     // Subscribe to graph events here instead of in the constructor
-    this.graphOn("camera-change", this.performRender);
+    this.onGraphEvent("camera-change", this.performRender);
 
     super.afterInit();
   }
@@ -123,9 +123,11 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   private attachListeners() {
     if (!this.root) return;
 
-    rootBubblingEventTypes.forEach((type) => this.rootOn(type as keyof HTMLElementEventMap, this));
-    rootCapturingEventTypes.forEach((type) => this.rootOn(type as keyof HTMLElementEventMap, this, { capture: true }));
-    this.rootOn("mousemove", this);
+    rootBubblingEventTypes.forEach((type) => this.onRootEvent(type as keyof HTMLElementEventMap, this));
+    rootCapturingEventTypes.forEach((type) =>
+      this.onRootEvent(type as keyof HTMLElementEventMap, this, { capture: true })
+    );
+    this.onRootEvent("mousemove", this);
   }
 
   public handleEvent(e: Event): void {

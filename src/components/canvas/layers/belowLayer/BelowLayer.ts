@@ -16,10 +16,6 @@ export type TBelowLayerContext = LayerContext & {
 };
 
 export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
-  private ctx: CanvasRenderingContext2D;
-
-  private camera: ICamera;
-
   constructor(props: TBelowLayerProps) {
     super({
       canvas: {
@@ -30,33 +26,15 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
       ...props,
     });
 
-    this.setContext({
-      canvas: this.getCanvas(),
-      ctx: this.getCanvas().getContext("2d"),
-      constants: this.props.graph.graphConstants,
-      colors: this.props.graph.graphColors,
-      graph: this.props.graph,
+    this.onSignal(this.props.graph.rootStore.settings.$background, () => {
+      this.shouldUpdateChildren = true;
+      this.performRender();
     });
-
-    this.camera = this.context.camera;
-    this.ctx = this.context.ctx;
-
-    this.performRender = this.performRender.bind(this);
-
-    this.props.graph.rootStore.settings.$background.subscribe(this.performRender);
   }
 
-  /**
-   * Called after initialization and when the layer is reattached.
-   * This is where we set up event subscriptions to ensure they work properly
-   * after the layer is unmounted and reattached.
-   */
   protected afterInit(): void {
-    // Register event listener with the graphOn wrapper method for automatic cleanup when unmounted
-    this.graphOn("camera-change", this.performRender);
-
-    // Call parent afterInit to ensure proper initialization
     super.afterInit();
+    this.onGraphEvent("camera-change", this.performRender);
   }
 
   public render() {

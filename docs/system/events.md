@@ -133,7 +133,7 @@ controller.abort();
 
 ### Using AbortController in Layers
 
-The Layer class in the Graph library uses AbortController internally to manage event listeners and provides a convenient `graphOn` method that automatically includes the AbortController signal:
+The Layer class in the Graph library uses AbortController internally to manage event listeners and provides a convenient `onGraphEvent` method that automatically includes the AbortController signal:
 
 ```typescript
 export class MyLayer extends Layer {
@@ -145,13 +145,13 @@ export class MyLayer extends Layer {
   
   /**
    * Called after initialization and when the layer is reattached.
-   * This is the proper place to set up event subscriptions using graphOn().
+   * This is the proper place to set up event subscriptions using onGraphEvent().
    */
   protected afterInit(): void {
-    // Use the graphOn wrapper method that automatically includes the AbortController signal
-    this.graphOn("camera-change", this.handleCameraChange);
-    this.graphOn("blocks-selection-change", this.handleSelectionChange);
-    this.graphOn("mousedown", this.handleMouseDown);
+    // Use the onGraphEvent wrapper method that automatically includes the AbortController signal
+    this.onGraphEvent("camera-change", this.handleCameraChange);
+    this.onGraphEvent("blocks-selection-change", this.handleSelectionChange);
+    this.onGraphEvent("mousedown", this.handleMouseDown);
     
     // DOM event listeners can also use the AbortController signal
     this.getCanvas()?.addEventListener("mousedown", this.handleMouseDown, { 
@@ -167,14 +167,14 @@ export class MyLayer extends Layer {
 }
 ```
 
-### The Layer.graphOn Method
+### The Layer.onGraphEvent Method
 
 The Layer class provides a convenient wrapper method for `graph.on` that automatically includes the AbortController signal:
 
 ```typescript
 /**
  * A wrapper for this.props.graph.on that automatically includes the AbortController signal.
- * The method is named graphOn to indicate it's specifically for graph events.
+ * The method is named onGraphEvent to indicate it's specifically for graph events.
  * This simplifies event subscription and ensures proper cleanup when the layer is unmounted.
  *
  * IMPORTANT: Always use this method in the afterInit() method, NOT in the constructor.
@@ -188,7 +188,7 @@ The Layer class provides a convenient wrapper method for `graph.on` that automat
  * @param options - Additional options (optional)
  * @returns The result of graph.on call (an unsubscribe function)
  */
-protected graphOn<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
+protected onGraphEvent<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
   eventName: EventName,
   handler: Cb,
   options?: Omit<AddEventListenerOptions, "signal">

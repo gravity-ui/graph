@@ -183,100 +183,23 @@ this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${ca
 
 ## Layer Event Handling
 
-The Layer class provides several wrapper methods for managing event listeners with AbortController:
+The layer system provides convenient wrapper methods for subscribing to events using `AbortController`. This ensures that all event handlers are automatically removed when the layer is unmounted, preventing memory leaks and redundant subscriptions.
 
-```typescript
-// For graph events
-protected graphOn<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
-  eventName: EventName,
-  handler: Cb,
-  options?: Omit<AddEventListenerOptions, "signal">
-) {
-  return this.props.graph.on(eventName, handler, {
-    ...options,
-    signal: this.eventAbortController.signal,
-  });
-}
+**Main subscription methods:**
+- `onGraphEvent` — for graph events
+- `onHtmlEvent` — for HTML element events
+- `onCanvasEvent` — for canvas element events
+- `onRootEvent` — for root element events
 
-// For HTML element events
-protected htmlOn<K extends keyof HTMLElementEventMap>(
-  eventName: K,
-  handler: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
-  options?: Omit<AddEventListenerOptions, "signal">
-) {
-  if (!this.html) {
-    throw new Error("Attempt to add event listener to non-existent HTML element");
-  }
-  
-  this.html.addEventListener(eventName, handler, {
-    ...options,
-    signal: this.eventAbortController.signal,
-  });
-}
+> It is recommended to set up all subscriptions in the `afterInit()` method so they are properly re-established when the layer is remounted.
 
-// For canvas element events
-protected canvasOn<K extends keyof HTMLElementEventMap>(
-  eventName: K,
-  handler: (this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => any,
-  options?: Omit<AddEventListenerOptions, "signal">
-) {
-  if (!this.canvas) {
-    throw new Error("Attempt to add event listener to non-existent canvas element");
-  }
-  
-  this.canvas.addEventListener(eventName, handler, {
-    ...options,
-    signal: this.eventAbortController.signal,
-  });
-}
-
-// For root element events
-protected rootOn<K extends keyof HTMLElementEventMap>(
-  eventName: K,
-  handler: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
-  options?: Omit<AddEventListenerOptions, "signal">
-) {
-  if (!this.root) {
-    throw new Error("Attempt to add event listener to non-existent root element");
-  }
-  
-  this.root.addEventListener(eventName, handler, {
-    ...options,
-    signal: this.eventAbortController.signal,
-  });
-}
-```
-
-**IMPORTANT**: Event subscriptions should always be set up in the `afterInit()` method, not in the constructor or other initialization methods. This ensures that subscriptions are properly reestablished when a layer is reattached.
-
+**Example:**
 ```typescript
 protected afterInit() {
-  // Set up event subscriptions here using the wrapper methods
-  this.graphOn("camera-change", this.handleCameraChange);
-  
-  if (this.canvas) {
-    this.canvasOn("mousedown", this.handleMouseDown);
-  }
-  
-  if (this.html) {
-    this.htmlOn("click", this.handleHtmlClick);
-  }
-  
-  if (this.root) {
-    this.rootOn("keydown", this.handleRootKeyDown);
-  }
-  
-  // Call super.afterInit() at the end
+  this.onGraphEvent("camera-change", this.handleCameraChange);
+  this.onCanvasEvent("mousedown", this.handleMouseDown);
   super.afterInit();
 }
 ```
 
-When a layer is unmounted, the AbortController is aborted, which removes all event listeners:
-
-```typescript
-protected unmountLayer() {
-  // ...
-  this.eventAbortController.abort();
-  this.eventAbortController = new AbortController();
-}
-```
+When the layer is unmounted, all handlers are automatically removed.

@@ -55,7 +55,7 @@ export class Layer<
 
   /**
    * A wrapper for this.props.graph.on that automatically includes the AbortController signal.
-   * The method is named graphOn to indicate it's specifically for graph events.
+   * The method is named onGraphEvent to indicate it's specifically for graph events.
    * This simplifies event subscription and ensures proper cleanup when the layer is unmounted.
    *
    * IMPORTANT: Always use this method in the afterInit() method, NOT in the constructor.
@@ -69,7 +69,7 @@ export class Layer<
    * @param options - Additional options (optional)
    * @returns The result of graph.on call (an unsubscribe function)
    */
-  protected graphOn<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
+  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
     eventName: EventName,
     handler: Cb,
     options?: Omit<AddEventListenerOptions, "signal">
@@ -95,7 +95,7 @@ export class Layer<
    * @param handler - The event handler function
    * @param options - Additional options (optional)
    */
-  protected htmlOn<K extends keyof HTMLElementEventMap>(
+  protected onHtmlEvent<K extends keyof HTMLElementEventMap>(
     eventName: K,
     handler: ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void) | EventListenerObject,
     options?: Omit<AddEventListenerOptions, "signal">
@@ -125,7 +125,7 @@ export class Layer<
    * @param handler - The event handler function
    * @param options - Additional options (optional)
    */
-  protected canvasOn<K extends keyof HTMLElementEventMap>(
+  protected onCanvasEvent<K extends keyof HTMLElementEventMap>(
     eventName: K,
     handler: ((this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => void) | EventListenerObject,
     options?: Omit<AddEventListenerOptions, "signal">
@@ -155,7 +155,7 @@ export class Layer<
    * @param handler - The event handler function
    * @param options - Additional options (optional)
    */
-  protected rootOn<K extends keyof HTMLElementEventMap>(
+  protected onRootEvent<K extends keyof HTMLElementEventMap>(
     eventName: K,
     handler: ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void) | EventListenerObject,
     options?: Omit<AddEventListenerOptions, "signal">
@@ -196,7 +196,7 @@ export class Layer<
 
   /**
    * Called after initialization and when the layer is reattached.
-   * This is the proper place to set up event subscriptions using graphOn().
+   * This is the proper place to set up event subscriptions using onGraphEvent().
    *
    * When a layer is unmounted, the AbortController is aborted and a new one is created.
    * When the layer is reattached, this method is called again, which sets up new subscriptions
@@ -205,30 +205,38 @@ export class Layer<
    * All derived Layer classes should call super.afterInit() at the end of their afterInit method.
    */
   protected afterInit() {
+    let context: Partial<Context> = {
+      ...this.context,
+      colors: this.props.graph.$graphColors.value,
+      constants: this.props.graph.$graphConstants.value,
+    };
     if (this.props.canvas) {
       const ctx = this.canvas.getContext("2d");
       if (ctx) {
-        this.setContext({
+        context = {
+          ...context,
           graphCanvas: this.canvas,
           ctx,
-        });
+        };
       } else {
         console.error("Failed to get 2D context from canvas");
       }
     }
+
+    this.setContext(context as Context);
     this.shouldRenderChildren = true;
     this.shouldUpdateChildren = true;
     this.performRender();
 
     // Subscribe to graph events here instead of in the constructor
     // This ensures that subscriptions are properly set up when the layer is reattached
-    this.graphOn("colors-changed", (event) => {
+    this.onGraphEvent("colors-changed", (event) => {
       this.setContext({
         colors: event.detail.colors,
       });
     });
 
-    this.graphOn("constants-changed", (event) => {
+    this.onGraphEvent("constants-changed", (event) => {
       this.setContext({
         constants: event.detail.constants,
       });
@@ -236,7 +244,7 @@ export class Layer<
 
     // Add camera state subscription if needed
     if (this.props.html?.transformByCameraPosition && this.html) {
-      this.graphOn("camera-change", (event) => {
+      this.onGraphEvent("camera-change", (event) => {
         const camera = event.detail;
         this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
       });
@@ -358,5 +366,30 @@ export class Layer<
     // Use canvas dimensions directly, as they should already factor in DPR if respectPixelRatio is true
     this.context.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this.applyTransform(cameraState?.x ?? 0, cameraState?.y ?? 0, cameraState?.scale ?? 1, true);
+  }
+
+  /**
+   * Subscribes to a signal (with .subscribe) and automatically unsubscribes when the layer's AbortController is aborted.
+   *
+   * Usage:
+   *   this.onSignal(signal, handler)
+   *
+   * @template S - Signal type (must have .subscribe method)
+   * @template T - Value type of the signal
+   * @param signal - Signal with .subscribe method (returns unsubscribe function)
+   * @param handler - Handler function to call on signal change
+   * @returns The unsubscribe function (called automatically on abort)
+   */
+  protected onSignal<
+    S extends { subscribe: (handler: (value: T) => void) => () => void },
+    T = S extends { subscribe: (handler: (value: infer U) => void) => () => void } ? U : unknown,
+  >(signal: S, handler: (value: T) => void): () => void {
+    const unsubscribe = signal.subscribe(handler);
+    const abortHandler = () => {
+      unsubscribe();
+      this.eventAbortController.signal.removeEventListener("abort", abortHandler);
+    };
+    this.eventAbortController.signal.addEventListener("abort", abortHandler);
+    return unsubscribe;
   }
 }

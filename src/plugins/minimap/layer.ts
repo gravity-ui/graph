@@ -83,13 +83,13 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
       this.rerenderMapContent();
 
       // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
-      this.graphOn("camera-change", this.rerenderMapContent);
-      this.graphOn("colors-changed", this.rerenderMapContent);
-      this.graphOn("block-change", this.onBlockUpdated);
+      this.onGraphEvent("camera-change", this.rerenderMapContent);
+      this.onGraphEvent("colors-changed", this.rerenderMapContent);
+      this.onGraphEvent("block-change", this.onBlockUpdated);
 
       // Use canvasOn wrapper method for DOM event listeners to ensure proper cleanup
       if (this.canvas) {
-        this.canvasOn("mousedown", this.handleMouseDownEvent);
+        this.onCanvasEvent("mousedown", this.handleMouseDownEvent);
       }
     }
 
@@ -247,13 +247,13 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
         // If the layer is already attached, set up event subscriptions here
         if (this.root) {
           // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
-          this.graphOn("camera-change", this.rerenderMapContent);
-          this.graphOn("colors-changed", this.rerenderMapContent);
-          this.graphOn("block-change", this.onBlockUpdated);
+          this.onGraphEvent("camera-change", this.rerenderMapContent);
+          this.onGraphEvent("colors-changed", this.rerenderMapContent);
+          this.onGraphEvent("block-change", this.onBlockUpdated);
 
           // Use canvasOn wrapper method for DOM event listeners to ensure proper cleanup
           if (this.canvas) {
-            this.canvasOn("mousedown", this.handleMouseDownEvent);
+            this.onCanvasEvent("mousedown", this.handleMouseDownEvent);
           }
         }
 
