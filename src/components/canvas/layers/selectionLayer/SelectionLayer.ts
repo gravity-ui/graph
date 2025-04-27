@@ -25,7 +25,6 @@ export class SelectionLayer extends Layer<
     width: 0,
     height: 0,
   };
-  private unmountCbs: Array<() => void> = [];
 
   constructor(props: LayerProps) {
     super({
@@ -40,13 +39,24 @@ export class SelectionLayer extends Layer<
       canvas: this.getCanvas(),
       ctx: this.getCanvas().getContext("2d"),
     });
-    this.bindEventHandlers();
+
+    this.performRender = this.performRender.bind(this);
   }
 
-  private bindEventHandlers(): void {
-    this.performRender = this.performRender.bind(this);
-    this.context.graph.on("camera-change", this.performRender);
-    this.unmountCbs.push(this.context.graph.on("mousedown", this.handleMouseDown, { capture: true }));
+  /**
+   * Called after initialization and when the layer is reattached.
+   * This is where we set up event subscriptions to ensure they work properly
+   * after the layer is unmounted and reattached.
+   */
+  protected afterInit(): void {
+    // Set up event handlers here instead of in constructor
+    this.onGraphEvent("camera-change", this.performRender);
+    this.onGraphEvent("mousedown", this.handleMouseDown, {
+      capture: true,
+    });
+
+    // Call parent afterInit to ensure proper initialization
+    super.afterInit();
   }
 
   protected render(): void {
@@ -78,15 +88,6 @@ export class SelectionLayer extends Layer<
       ctx.fill();
       ctx.stroke();
     });
-  }
-
-  protected unmount(): void {
-    this.unbindEventHandlers();
-    this.unmountCbs.forEach((cb) => cb());
-  }
-
-  private unbindEventHandlers(): void {
-    this.context.graph.off("camera-change", this.performRender);
   }
 
   private handleMouseDown = (nativeEvent: GraphMouseEvent) => {

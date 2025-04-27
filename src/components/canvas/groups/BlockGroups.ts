@@ -94,8 +94,6 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
       ownerDocument: this.props.root!,
     });
 
-    this.context.camera.on("update", this.requestRender);
-
     this.unsubscribe.push(
       this.$groupsSource.subscribe((groups) => {
         this.shouldUpdateChildren = true;
@@ -103,6 +101,21 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
         this.setState({ groups });
       })
     );
+
+    this.performRender = this.performRender.bind(this);
+  }
+
+  /**
+   * Called after initialization and when the layer is reattached.
+   * This is where we set up event subscriptions to ensure they work properly
+   * after the layer is unmounted and reattached.
+   */
+  protected afterInit(): void {
+    // Register event listener with the onGraphEvent method for automatic cleanup when unmounted
+    this.onGraphEvent("camera-change", this.performRender);
+
+    // Call parent afterInit to ensure proper initialization
+    super.afterInit();
   }
 
   public getParent(): CoreComponent | undefined {
@@ -133,13 +146,8 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
   }
 
   protected unmountLayer(): void {
-    this.context.camera.off("update", this.requestRender);
     this.props.graph.rootStore.groupsList.reset();
   }
-
-  protected requestRender = () => {
-    this.performRender();
-  };
 
   protected unmount(): void {
     this.unsubscribe.forEach((unsubscribe) => unsubscribe());

@@ -150,8 +150,22 @@ export class ConnectionLayer extends Layer<
 
     this.eventAborter = new AbortController();
     this.performRender = this.performRender.bind(this);
-    this.context.graph.on("camera-change", this.performRender, { signal: this.eventAborter.signal });
-    this.context.graph.on("mousedown", this.handleMouseDown, { capture: true, signal: this.eventAborter.signal });
+  }
+
+  /**
+   * Called after initialization and when the layer is reattached.
+   * This is where we set up event subscriptions to ensure they work properly
+   * after the layer is unmounted and reattached.
+   */
+  protected afterInit(): void {
+    // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
+    this.onGraphEvent("camera-change", this.performRender);
+    this.onGraphEvent("mousedown", this.handleMouseDown, {
+      capture: true,
+    });
+
+    // Call parent afterInit to ensure proper initialization
+    super.afterInit();
   }
 
   public enable = () => {
@@ -262,12 +276,6 @@ export class ConnectionLayer extends Layer<
     render(this.context.ctx, (ctx) => {
       this.renderEndpoint(ctx);
     });
-  }
-
-  protected unmount(): void {
-    this.eventAborter.abort();
-
-    super.unmount();
   }
 
   private getBlockId(component: BlockState | AnchorState) {

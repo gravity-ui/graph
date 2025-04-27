@@ -211,7 +211,7 @@ export function GraphPLayground() {
     }
     return (
       <GraphBlock graph={graph} block={block}>
-        Unknown block <>{block.id}</>
+        Unknown block <>{block.id.toLocaleString()}</>
       </GraphBlock>
     );
   });

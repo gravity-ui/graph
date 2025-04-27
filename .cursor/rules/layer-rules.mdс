@@ -34,6 +34,49 @@ Layers are fundamental to the Canvas rendering pipeline in @gravity-ui/graph. Th
     - Potentially culling elements outside the current viewport.
     - Managing redraws or logic updates based on relevant state changes.
 
+## HTML Rendering in Layers
+
+The Layer class can create both Canvas and HTML elements for rendering:
+
+```typescript
+// Example of Layer creation with both Canvas and HTML elements
+constructor(props: LayerProps) {
+  super({
+    canvas: {
+      zIndex: 2,
+      respectPixelRatio: true,
+      classNames: ["no-user-select"],
+    },
+    html: {
+      zIndex: 3,
+      classNames: ["no-user-select"],
+      transformByCameraPosition: true, // This enables HTML rendering with camera transformation
+    },
+    ...props,
+  });
+}
+```
+
+### HTML Layer Configuration
+
+- **There is no dedicated "HTMLLayer" class**. Instead, HTML rendering is handled by setting the `html` property in the Layer constructor options.
+- The `transformByCameraPosition: true` option is crucial for HTML elements that need to move with the camera.
+- When this option is set, the layer adds the "layer-with-camera" class to the HTML element and subscribes to camera state changes.
+
+### Camera Transformation
+
+- HTML elements with `transformByCameraPosition: true` are transformed using a matrix transform based on camera state:
+```typescript
+this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
+```
+- This transformation is applied directly in the `afterInit()` method when the `transformByCameraPosition` option is set to `true`.
+- **IMPORTANT**: The camera state subscription is set up in the `afterInit()` method to ensure it's properly reestablished when a layer is reattached.
+
+### React Integration
+
+- React components are rendered into the HTML element of the GraphLayer using `createPortal` in `GraphCanvas.tsx`.
+- The BlocksList component renders React blocks only when the camera is at the detailed zoom level.
+
 ## Working with Layers
 - **Layers are Components:** Treat layers as specialized components. They follow the standard component lifecycle (`mount`, `unmount`, `render`, `stateChanged`, etc.) and **all general component rules (see `components-rules`) apply to layers as well**. A layer's `render` method might be empty if it only handles behavior.
 
@@ -137,3 +180,26 @@ Layers are fundamental to the Canvas rendering pipeline in @gravity-ui/graph. Th
         : never
     )
     ``` 
+
+## Layer Event Handling
+
+The layer system provides convenient wrapper methods for subscribing to events using `AbortController`. This ensures that all event handlers are automatically removed when the layer is unmounted, preventing memory leaks and redundant subscriptions.
+
+**Main subscription methods:**
+- `onGraphEvent` — for graph events
+- `onHtmlEvent` — for HTML element events
+- `onCanvasEvent` — for canvas element events
+- `onRootEvent` — for root element events
+
+> It is recommended to set up all subscriptions in the `afterInit()` method so they are properly re-established when the layer is remounted.
+
+**Example:**
+```typescript
+protected afterInit() {
+  this.onGraphEvent("camera-change", this.handleCameraChange);
+  this.onCanvasEvent("mousedown", this.handleMouseDown);
+  super.afterInit();
+}
+```
+
+When the layer is unmounted, all handlers are automatically removed.

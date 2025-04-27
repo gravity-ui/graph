@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 
 import { Button, Flex, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react";
@@ -14,16 +14,17 @@ import "@gravity-ui/uikit/styles/styles.css";
 
 const config = generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 10, dashedLine: true });
 
-const exampleGraph = new Graph({
-  configurationName: "start-stop",
-  blocks: config.blocks,
-  connections: config.connections,
-  settings: config.settings,
-  layers: config.layers, // layers init only once
-});
-
 let initialized = false;
 const GraphApp = () => {
+  const exampleGraph = useMemo(() => {
+    return new Graph({
+      configurationName: "start-stop",
+      blocks: config.blocks,
+      connections: config.connections,
+      settings: config.settings,
+      layers: config.layers, // layers init only once
+    });
+  }, []);
   const { graph, start, stop, zoomTo, setEntities } = useGraph({ graph: exampleGraph });
   const [visible, setVisible] = useState(false);
   const [started, setStarted] = useState(false);

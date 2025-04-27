@@ -3,7 +3,6 @@ description: Rules and best practices for working with the event model in @gravi
 globs: 
 alwaysApply: false
 ---
-
 ## Event System Overview
 The event system allows communication between different parts of the graph.
 The primary event hub is the main **`Graph` instance**. Events related to specific components (like blocks or connections) are also typically emitted by the main `Graph` instance, carrying information about the target component in the event detail.
@@ -83,23 +82,66 @@ The system uses **`CustomEvent`**, and interaction follows a `.on`/`.off`/`.emit
 - **Emit Custom Events:** Use `graph.emit(...)` to broadcast custom global events.
 - **Performance:** Avoid heavy logic in listeners.
 
-## Connection Creation Events (`ConnectionLayer.ts`)
-These events are fired by the `ConnectionLayer` during the interactive creation of connections.
+## Preferred Event Subscription Pattern
 
-- **`connection-create-start`**: Fires when the user starts dragging a connection from a block or anchor.
-  - **`event.detail`**: `{ blockId: TBlockId; anchorId: string | undefined; }`
-  - **Preventable:** Yes. Preventing this stops the connection creation process.
+### Using AbortController
+When implementing event subscriptions in this project:
 
-- **`connection-create-hover`**: Fires when the dragged connection endpoint hovers over a potential target block or anchor.
-  - **`event.detail`**: `{ sourceBlockId: TBlockId; sourceAnchorId: string | undefined; targetBlockId: TBlockId | undefined; targetAnchorId: string | undefined; }`
-  - **Preventable:** Yes. Preventing this prevents the connection from being made to the current target (hover state might not show).
+1. **Prefer AbortController over manual unsubscribe functions**
+   - Use the AbortController pattern for managing event listeners
+   - Pass the abort signal to all `graph.on()` calls and DOM event listeners
+   - This ensures proper cleanup and prevents memory leaks
+   - Example:
+     ```typescript
+     // Preferred approach
+     const controller = new AbortController();
+     graph.on("event-name", handler, { signal: controller.signal });
+     
+     // Later, to clean up:
+     controller.abort();
+     
+     // Instead of:
+     const unsubscribe = graph.on("event-name", handler);
+     // Later:
+     unsubscribe();
+     ```
 
-- **`connection-created`**: Fires when a connection is successfully created (user drops the endpoint onto a valid target).
-  - **`event.detail`**: `{ sourceBlockId: TBlockId; sourceAnchorId?: string; targetBlockId: TBlockId; targetAnchorId?: string; }`
-  - **Preventable:** Yes. Preventing this stops the connection from being added to the `connectionsList` store (default action).
-
-- **`connection-create-drop`**: Fires when the user drops the connection endpoint, regardless of whether it landed on a valid target.
-  - **`event.detail`**: `{ sourceBlockId: TBlockId; sourceAnchorId: string | undefined; targetBlockId?: TBlockId; targetAnchorId?: string; point: Point; }` (target details are present if dropped on a valid target).
-  - **Preventable:** No (typically used for cleanup or alternative actions on drop).
-
-------- 
+2. **In Layer classes**
+   - Use the built-in `eventAbortController` for all event subscriptions
+   - Always use the wrapper methods (`onGraphEvent`, `onHtmlEvent`, `onCanvasEvent`, `onRootEvent`) in the `afterInit()` method, NOT in the constructor
+   - This ensures that event subscriptions are properly set up when the layer is reattached
+   - When a layer is unmounted, the AbortController is aborted and a new one is created
+   - When the layer is reattached, afterInit() is called again, which sets up new subscriptions
+   - Call `super.afterInit()` at the end of your `afterInit()` method
+   - Call `super.unmount()` in the `unmount` method to ensure proper cleanup
+   - No need to manually remove event listeners in the `unmount` method
+   - Example:
+     ```typescript
+     export class MyLayer extends Layer {
+       constructor(props) {
+         super(props);
+         // Initialize properties, but DO NOT register event listeners here
+       }
+       
+       protected afterInit(): void {
+         // Register graph events with the onGraphEvent wrapper method
+         this.onGraphEvent("camera-change", this.handleCameraChange);
+         
+         // Register DOM events with the appropriate wrapper methods
+         if (this.canvas) {
+           this.onCanvasEvent("mousedown", this.handleMouseDown);
+         }
+         
+         if (this.html) {
+           this.onHtmlEvent("click", this.handleHtmlClick);
+         }
+         
+         if (this.root) {
+           this.onRootEvent("keydown", this.handleRootKeyDown);
+         }
+         
+         // Always call super.afterInit() at the end
+         super.afterInit();
+       }
+     }
+     ```

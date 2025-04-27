@@ -16,10 +16,6 @@ export type TBelowLayerContext = LayerContext & {
 };
 
 export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
-  private ctx: CanvasRenderingContext2D;
-
-  private camera: ICamera;
-
   constructor(props: TBelowLayerProps) {
     super({
       canvas: {
@@ -30,26 +26,15 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
       ...props,
     });
 
-    this.setContext({
-      canvas: this.getCanvas(),
-      ctx: this.getCanvas().getContext("2d"),
-      constants: this.props.graph.graphConstants,
-      colors: this.props.graph.graphColors,
-      graph: this.props.graph,
+    this.onSignal(this.props.graph.rootStore.settings.$background, () => {
+      this.shouldUpdateChildren = true;
+      this.performRender();
     });
-
-    this.camera = this.context.camera;
-    this.ctx = this.context.ctx;
-
-    this.performRender = this.performRender.bind(this);
-    this.context.graph.on("camera-change", this.performRender);
-    this.props.graph.rootStore.settings.$background.subscribe(this.performRender);
   }
 
-  protected unmount() {
-    super.unmount();
-
-    this.context.graph.off("camera-change", this.performRender);
+  protected afterInit(): void {
+    super.afterInit();
+    this.onGraphEvent("camera-change", this.performRender);
   }
 
   public render() {

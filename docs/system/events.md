@@ -13,6 +13,7 @@ import { Graph } from "@gravity-ui/graph";
 
 const graph = new Graph(...props);
 
+// Using the cleanup function
 const unsubscribe = graph.on("mouseenter", (event) => {
   console.log("mouseenter", event.detail);
   console.log('hovered element', event.detail.target);
@@ -25,7 +26,22 @@ const unsubscribe = graph.on("mouseenter", (event) => {
   capture: true
 });
 
+// Call the cleanup function when done
 unsubscribe();
+
+// Using AbortController (recommended for multiple event listeners)
+const controller = new AbortController();
+
+graph.on("mouseenter", (event) => {
+  console.log("Mouse entered:", event.detail);
+}, { signal: controller.signal });
+
+graph.on("mouseleave", (event) => {
+  console.log("Mouse left:", event.detail);
+}, { signal: controller.signal });
+
+// Later, to remove all event listeners at once:
+controller.abort();
 ```
 
 ## Event Types
@@ -85,6 +101,106 @@ interface GraphMouseEvent<E extends Event = Event> = CustomEvent<{
 | Event | Description |
 |-------|-------------|
 | `camera-change` | Fires on camera state changes |
+
+## Event Cleanup with AbortController
+
+The Graph library supports the [AbortController](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) API for managing event listeners. This is especially useful for components that need to register multiple event listeners and clean them up efficiently.
+
+```typescript
+import { Graph } from "@gravity-ui/graph";
+
+// Create a controller
+const controller = new AbortController();
+
+// Register multiple event listeners with the same controller
+graph.on("camera-change", handleCameraChange, { signal: controller.signal });
+graph.on("blocks-selection-change", handleSelectionChange, { signal: controller.signal });
+graph.on("mousedown", handleMouseDown, { signal: controller.signal });
+
+// DOM event listeners can also use the same controller
+document.addEventListener("keydown", handleKeyDown, { signal: controller.signal });
+
+// Later, remove all event listeners at once
+controller.abort();
+```
+
+### Benefits of AbortController
+
+1. **Simplified Cleanup**: Remove multiple event listeners with a single call
+2. **Prevents Memory Leaks**: Ensures all event listeners are properly cleaned up
+3. **Consistent API**: Works with both graph events and DOM events
+4. **Automatic Cleanup**: When used in layers, event listeners are automatically removed when the layer is unmounted
+
+### Using AbortController in Layers
+
+The Layer class in the Graph library uses AbortController internally to manage event listeners and provides a convenient `onGraphEvent` method that automatically includes the AbortController signal:
+
+```typescript
+export class MyLayer extends Layer {
+  constructor(props) {
+    super(props);
+    
+    // Initialize properties, but DO NOT register event listeners here
+  }
+  
+  /**
+   * Called after initialization and when the layer is reattached.
+   * This is the proper place to set up event subscriptions using onGraphEvent().
+   */
+  protected afterInit(): void {
+    // Use the onGraphEvent wrapper method that automatically includes the AbortController signal
+    this.onGraphEvent("camera-change", this.handleCameraChange);
+    this.onGraphEvent("blocks-selection-change", this.handleSelectionChange);
+    this.onGraphEvent("mousedown", this.handleMouseDown);
+    
+    // DOM event listeners can also use the AbortController signal
+    this.getCanvas()?.addEventListener("mousedown", this.handleMouseDown, { 
+      signal: this.eventAbortController.signal 
+    });
+    
+    // Always call super.afterInit() at the end of your implementation
+    super.afterInit();
+  }
+  
+  // No need to manually remove event listeners in unmount
+  // They are automatically removed by the AbortController
+}
+```
+
+### The Layer.onGraphEvent Method
+
+The Layer class provides a convenient wrapper method for `graph.on` that automatically includes the AbortController signal:
+
+```typescript
+/**
+ * A wrapper for this.props.graph.on that automatically includes the AbortController signal.
+ * The method is named onGraphEvent to indicate it's specifically for graph events.
+ * This simplifies event subscription and ensures proper cleanup when the layer is unmounted.
+ *
+ * IMPORTANT: Always use this method in the afterInit() method, NOT in the constructor.
+ * This ensures that event subscriptions are properly set up when the layer is reattached.
+ * When a layer is unmounted, the AbortController is aborted and a new one is created.
+ * When the layer is reattached, afterInit() is called again, which sets up new subscriptions
+ * with the new AbortController.
+ *
+ * @param eventName - The name of the event to subscribe to
+ * @param handler - The event handler function
+ * @param options - Additional options (optional)
+ * @returns The result of graph.on call (an unsubscribe function)
+ */
+protected onGraphEvent<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
+  eventName: EventName,
+  handler: Cb,
+  options?: Omit<AddEventListenerOptions, "signal">
+) {
+  return this.props.graph.on(eventName, handler, {
+    ...options,
+    signal: this.eventAbortController.signal,
+  });
+}
+```
+
+This method simplifies event subscription in layers and ensures proper cleanup when layers are unmounted. It takes the same parameters as `graph.on` except for the signal, which it automatically adds.
 
 ## React Integration
 

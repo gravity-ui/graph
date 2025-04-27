@@ -66,6 +66,49 @@ const graph = new Graph({
 const newBlockLayer = graph.addLayer(NewBlockLayer, { ghostBackground: "rgba(0, 0, 255, 0.3)" });
 ```
 
+## HTML Rendering in Layers
+
+The Layer class can create both Canvas and HTML elements for rendering:
+
+```typescript
+// Example of Layer creation with both Canvas and HTML elements
+constructor(props: LayerProps) {
+  super({
+    canvas: {
+      zIndex: 2,
+      respectPixelRatio: true,
+      classNames: ["no-user-select"],
+    },
+    html: {
+      zIndex: 3,
+      classNames: ["no-user-select"],
+      transformByCameraPosition: true, // This enables HTML rendering with camera transformation
+    },
+    ...props,
+  });
+}
+```
+
+### HTML Layer Configuration
+
+- **There is no dedicated "HTMLLayer" class**. Instead, HTML rendering is handled by setting the `html` property in the Layer constructor options.
+- The `transformByCameraPosition: true` option is crucial for HTML elements that need to move with the camera.
+- When this option is set, the layer adds the "layer-with-camera" class to the HTML element and subscribes to camera state changes.
+
+### Camera Transformation
+
+- HTML elements with `transformByCameraPosition: true` are transformed using a matrix transform based on camera state:
+```typescript
+this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
+```
+- This transformation is applied directly in the `afterInit()` method when the `transformByCameraPosition` option is set to `true`.
+- **IMPORTANT**: The camera state subscription is set up in the `afterInit()` method to ensure it's properly reestablished when a layer is reattached.
+
+### React Integration
+
+- React components are rendered into the HTML element of the GraphLayer using `createPortal` in `GraphCanvas.tsx`.
+- The BlocksList component renders React blocks only when the camera is at the detailed zoom level.
+
 ## Creating Custom Layers
 
 ### Basic Structure
@@ -118,7 +161,7 @@ export class MyLayer extends Layer<MyLayerProps, MyLayerContext> {
   // `afterInit` is called after the layer's elements (canvas/html) are created and attached.
   protected afterInit() {
     // Subscribe to events here
-    this.cameraSubscription = this.context.graph.on("camera-change", this.performRender);
+    this.onGraphEvent("camera-change", this.performRender);
     // Add other event listeners (e.g., to this.getHTML() or this.getCanvas())
     super.afterInit();
   }
@@ -149,10 +192,11 @@ export class MyLayer extends Layer<MyLayerProps, MyLayerContext> {
   // --- Cleanup --- 
   // Called when the layer is removed from the graph.
   protected unmount(): void {
-    // Always clean up subscriptions and event listeners
-    this.cameraSubscription?.();
-    // Remove other listeners added in `afterInit`
-    super.unmount(); // Calls base unmount logic (removes elements)
+    // Call super.unmount() to trigger the AbortController's abort method
+    // which automatically removes all event listeners
+    super.unmount();
+    // No need to manually remove event listeners as they are automatically
+    // cleaned up by the AbortController
   }
 }
 ```
@@ -234,6 +278,92 @@ this.context.graph.on("connection-created", (event) => {
 });
 ```
 
+### Event Handling with Wrapper Methods
+
+The Layer class provides convenient wrapper methods for subscribing to events using `AbortController`. This ensures that all event handlers are automatically removed when the layer is unmounted, preventing memory leaks and redundant subscriptions.
+
+**Main subscription methods:**
+- `onGraphEvent` — for graph events
+- `onHtmlEvent` — for HTML element events
+- `onCanvasEvent` — for canvas element events
+- `onRootEvent` — for root element events
+
+> It is recommended to set up all subscriptions in the `afterInit()` method so they are properly re-established when the layer is remounted.
+
+**Example:**
+```typescript
+protected afterInit() {
+  this.onGraphEvent("camera-change", this.handleCameraChange);
+  this.onCanvasEvent("mousedown", this.handleMouseDown);
+  super.afterInit();
+}
+```
+
+When the layer is unmounted, all handlers are automatically removed.
+
+### Manual Event Subscriptions
+
+While the wrapper methods (`onGraphEvent`, `onHtmlEvent`, `onCanvasEvent`, `onRootEvent`) are recommended, you can also manually create event subscriptions using the layer's AbortController:
+
+```typescript
+export class MyCustomLayer extends Layer<MyLayerProps> {
+  private unsubscribeFunctions: Array<() => void> = [];
+  
+  constructor(props: MyLayerProps) {
+    super(props);
+    // Initialize properties, but DO NOT register event listeners here
+  }
+  
+  protected afterInit(): void {
+    // Option 1: Manual subscription using the layer's AbortController
+    // This will be automatically cleaned up when the layer is unmounted
+    this.canvas.addEventListener("mousedown", this.handleMouseDown, {
+      signal: this.eventAbortController.signal
+    });
+    
+    // Option 2: Manual subscription to graph events with AbortController
+    this.props.graph.on("camera-change", this.performRender, {
+      signal: this.eventAbortController.signal
+    });
+    
+    // Option 3: Manual subscription without AbortController
+    // In this case, you must handle unsubscription manually
+    const unsubscribe = this.props.graph.on("block-change", this.handleBlockChange);
+    
+    // Store the unsubscribe function for later use
+    this.unsubscribeFunctions.push(unsubscribe);
+    
+    // Always call super.afterInit() at the end
+    super.afterInit();
+  }
+  
+  protected unmount(): void {
+    // Call super.unmount() to trigger the AbortController's abort method
+    // This will clean up all event listeners registered with the AbortController
+    super.unmount();
+    
+    // Manually call any stored unsubscribe functions
+    // This is only needed for event listeners that weren't registered with the AbortController
+    this.unsubscribeFunctions.forEach(unsubscribe => unsubscribe());
+    this.unsubscribeFunctions = [];
+  }
+  
+  private handleMouseDown = (event: MouseEvent) => {
+    // Handle mouse down event
+  };
+  
+  private performRender = () => {
+    // Handle camera change event
+  };
+  
+  private handleBlockChange = () => {
+    // Handle block change event
+  };
+}
+```
+
+Using the wrapper methods is generally preferred as they provide automatic cleanup and error checking, but manual subscriptions give you more flexibility when needed.
+
 ### Example: Grid Layer
 
 ```typescript
@@ -257,7 +387,20 @@ export class GridLayer extends Layer<GridLayerProps> {
     
     this.ctx = this.getCanvas().getContext("2d");
     
-    this.context.graph.on("camera-change", this.performRender);
+    this.performRender = this.performRender.bind(this);
+  }
+  
+  /**
+   * Called after initialization and when the layer is reattached.
+   * This is where we set up event subscriptions to ensure they work properly
+   * after the layer is unmounted and reattached.
+   */
+  protected afterInit(): void {
+    // Use the onGraphEvent wrapper method for automatic cleanup
+    this.onGraphEvent("camera-change", this.performRender);
+    
+    // Call parent afterInit to ensure proper initialization
+    super.afterInit();
   }
   
   protected render() {
@@ -288,6 +431,40 @@ export class GridLayer extends Layer<GridLayerProps> {
   }
   
   protected unmount(): void {
-    this.context.graph.off("camera-change", this.performRender);
+    // Call super.unmount() to trigger the AbortController's abort method
+    super.unmount();
+    // No need to manually remove event listeners
   }
 }
+
+```
+
+## Subscribing to signals with onSignal
+
+For reactive data (such as signals from @preact/signals-core), the Layer class provides a convenient onSignal method. It allows you to subscribe to a signal and automatically unsubscribe when the layer is unmounted (unmount) or when the AbortController is triggered:
+
+```typescript
+protected onSignal<T>(
+  signal: { subscribe: (handler: (value: T) => void) => () => void },
+  handler: (value: T) => void
+): () => void
+```
+
+- **signal** — an object with a subscribe method that returns an unsubscribe function (for example, a signal from @preact/signals-core)
+- **handler** — a function called when the signal value changes
+- **returns** an unsubscribe function, which is usually not needed to call manually
+
+### Example usage
+
+```typescript
+protected afterInit() {
+  // Subscribe to a signal with automatic cleanup on layer unmount
+  this.onSignal(this.props.graph.rootStore.blocksList.$blocks, (blocks) => {
+    this.shouldUpdateChildren = true;
+    this.performRender();
+  });
+  super.afterInit();
+}
+```
+
+> Unsubscription will happen automatically when the internal AbortController of the layer is aborted (for example, on detachLayer or destroy).

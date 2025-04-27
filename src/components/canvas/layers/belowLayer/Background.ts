@@ -22,7 +22,6 @@ export class Background extends Component {
 
   public render() {
     const cameraState = this.context.camera.getCameraState();
-
     this.context.ctx.fillStyle = this.context.colors.canvas.belowLayerBackground;
     this.context.ctx.fillRect(
       -cameraState.relativeX,
