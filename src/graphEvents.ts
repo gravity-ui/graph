@@ -14,13 +14,12 @@ export const extractNativeGraphMouseEvent = (event: GraphMouseEvent) => {
   return event.detail.sourceEvent instanceof MouseEvent ? event.detail.sourceEvent : null;
 };
 
-export type GraphMouseEventNames = "mousedown" | "click" | "mouseenter" | "mousemove" | "mouseleave";
+export type GraphMouseEventNames = "mousedown" | "click" | "mouseenter" | "mouseleave";
 
 export interface BaseGraphEventDefinition {
   mousedown: (event: GraphMouseEvent) => void;
   click: (event: GraphMouseEvent) => void;
   mouseenter: (event: GraphMouseEvent) => void;
-  mousemove: (event: GraphMouseEvent) => void;
   mouseleave: (event: GraphMouseEvent) => void;
 }
 

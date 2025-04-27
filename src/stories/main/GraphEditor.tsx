@@ -29,7 +29,6 @@ const callbacks = {
   mousedown: action("mousedown"),
   click: action("click"),
   mouseenter: action("mouseenter"),
-  mousemove: action("mousemove"),
   mouseleave: action("mouseleave"),
   onCameraChange: action("onCameraChange"),
   onBlockDragStart: action("onBlockDragStart"),

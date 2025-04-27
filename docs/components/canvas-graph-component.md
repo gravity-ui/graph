@@ -161,7 +161,6 @@ this.onDrag({
 - `click`, `dblclick` - Mouse button clicks
 - `mousedown`, `mouseup` - Mouse button press and release
 - `mouseenter`, `mouseleave` - Mouse pointer entering or leaving the component
-- `mousemove` - Mouse movement over the component
 - Specialized `onDrag` system with precise coordinate handling
 
 ### 4. Reactive Data with Signal Subscriptions

@@ -55,7 +55,6 @@ The following mouse events are supported:
 | `mousedown` | Mouse button pressed down | Prevents browser default |
 | `click` | Mouse button released after press | Prevents browser default |
 | `mouseenter` | Mouse pointer enters graph area | - |
-| `mousemove` | Mouse pointer moves inside graph | - |
 | `mouseleave` | Mouse pointer leaves graph area | - |
 
 These events use the `GraphMouseEvent` type:
