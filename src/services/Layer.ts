@@ -46,6 +46,8 @@ export class Layer<
 
   protected root?: HTMLDivElement;
 
+  protected attached = false;
+
   /**
    * AbortController used to manage event listeners.
    * All event listeners (both graph.on and DOM addEventListener) are registered with this controller's signal.
@@ -252,6 +254,7 @@ export class Layer<
   }
 
   protected init() {
+    this.attached = false;
     if (this.props.canvas) {
       if (this.canvas) {
         throw new Error("Attempt to recreate a canvas");
@@ -290,6 +293,7 @@ export class Layer<
     // Create a new controller for potential reattachment
     // This ensures that if the layer is reattached, new event listeners can be registered
     this.eventAbortController = new AbortController();
+    this.attached = false;
   }
 
   protected unmount(): void {
@@ -305,6 +309,9 @@ export class Layer<
   }
 
   public attachLayer(root: HTMLElement) {
+    if (this.attached) {
+      return;
+    }
     if (this.root) {
       this.unmountLayer();
     }
@@ -316,6 +323,7 @@ export class Layer<
       root.appendChild(this.html);
     }
     this.afterInit();
+    this.attached = true;
   }
 
   public detachLayer() {
