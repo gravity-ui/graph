@@ -150,6 +150,10 @@ export class ConnectionLayer extends Layer<
 
     this.eventAborter = new AbortController();
     this.performRender = this.performRender.bind(this);
+
+    this.onSignal(this.props.graph.rootStore.settings.$settings, (value) => {
+      this.enabled = Boolean(value.canCreateNewConnections);
+    });
   }
 
   /**

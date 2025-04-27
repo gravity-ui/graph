@@ -5,8 +5,9 @@ import { StoryFn } from "storybook/internal/types";
 
 import { TBlock } from "../../components/canvas/blocks/Block";
 import { random } from "../../components/canvas/blocks/generate";
+import { ConnectionLayer } from "../../components/canvas/layers/connectionLayer/ConnectionLayer";
 import { Graph, GraphState, TGraphConfig } from "../../graph";
-import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "../../react-component";
+import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "../../react-component";
 import { ECanChangeBlockGeometry } from "../../store/settings";
 import { useFn } from "../../utils/hooks/useFn";
 import { EAnchorType } from "../configurations/definitions";
@@ -93,9 +94,49 @@ const graphSizeOptions: RadioButtonOption[] = [
   { value: "10000", content: "10 000" },
 ];
 
+const createIcon = {
+  path: "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z", // Plus icon
+  fill: "rgba(255, 190, 92, 1)",
+  width: 24,
+  height: 24,
+  viewWidth: 24,
+  viewHeight: 24,
+};
+
+// Icon for connection point
+const pointIcon = {
+  path: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z", // Circle icon
+  fill: "rgba(234, 201, 74, 1)",
+  stroke: "rgba(255, 190, 92, 1)",
+  width: 24,
+  height: 24,
+  viewWidth: 24,
+  viewHeight: 24,
+};
+
+// Function for drawing connection line
+const drawLine = (start, end) => {
+  const path = new Path2D();
+  path.moveTo(start.x, start.y);
+  path.lineTo(end.x, end.y);
+  return {
+    path,
+    style: {
+      color: "rgba(255, 190, 92, 1)",
+      dash: [5, 5], // Dashed line
+    },
+  };
+};
+
 export function GraphPLayground() {
   const { graph, setEntities, updateEntities, start } = useGraph(config);
   const editorRef = useRef<ConfigEditorController>(null);
+
+  useLayer(graph, ConnectionLayer, {
+    createIcon,
+    point: pointIcon,
+    drawLine,
+  });
 
   const updateVisibleConfig = useFn(() => {
     const config = graph.rootStore.getAsConfig();
@@ -154,7 +195,7 @@ export function GraphPLayground() {
     }
     let block: TBlock;
     const pullSourceAnchor = graph.rootStore.blocksList.getBlockState(sourceBlockId).getAnchorById(sourceAnchorId);
-    if (pullSourceAnchor.state.type === EAnchorType.IN) {
+    if (pullSourceAnchor?.state.type === EAnchorType.IN) {
       block = createActionBlock(point.x - 126, point.y - 63, graph.rootStore.blocksList.$blocksMap.value.size + 1);
       graph.api.addBlock(block);
       graph.api.addConnection({
