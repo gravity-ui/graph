@@ -207,25 +207,10 @@ export class Layer<
    * All derived Layer classes should call super.afterInit() at the end of their afterInit method.
    */
   protected afterInit() {
-    let context: Partial<Context> = {
-      ...this.context,
+    this.setContext({
       colors: this.props.graph.$graphColors.value,
       constants: this.props.graph.$graphConstants.value,
-    };
-    if (this.props.canvas) {
-      const ctx = this.canvas.getContext("2d");
-      if (ctx) {
-        context = {
-          ...context,
-          graphCanvas: this.canvas,
-          ctx,
-        };
-      } else {
-        console.error("Failed to get 2D context from canvas");
-      }
-    }
-
-    this.setContext(context as Context);
+    });
     this.shouldRenderChildren = true;
     this.shouldUpdateChildren = true;
     this.performRender();
@@ -336,6 +321,10 @@ export class Layer<
     canvas.classList.add("layer", "layer-canvas");
     if (Array.isArray(params.classNames)) canvas.classList.add(...params.classNames);
     canvas.style.zIndex = `${Number(params.zIndex)}`;
+    this.setContext({
+      graphCanvas: canvas,
+      ctx: canvas.getContext("2d"),
+    });
     return canvas;
   }
 
