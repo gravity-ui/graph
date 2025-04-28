@@ -7,7 +7,7 @@ import type { TGraphZoomTarget } from "../../graph";
 import type { TGraphColors, TGraphConstants } from "../../graphConfig";
 import type { Layer } from "../../services/Layer";
 import type { TConnection } from "../../store/connection/ConnectionState";
-import { useFn } from "../../utils/hooks/useFn";
+import { useFn } from "../utils/hooks/useFn";
 import { RecursivePartial } from "../../utils/types/helpers";
 
 export type HookGraphParams = Pick<TGraphConfig, "settings" | "layers"> & {

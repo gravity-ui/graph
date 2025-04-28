@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vue.js + @gravity-ui/graph Web Component Example</title>
+    <link rel="stylesheet" href="./styles.css">
+    <!-- Import Vue.js from CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body>
+    <div id="app" class="container">
+        <div class="header">
+            <h1>Vue.js + @gravity-ui/graph Web Component Example</h1>
+            <p>This example demonstrates how to use the @gravity-ui/graph web component with Vue.js.</p>
+        </div>
+        
+        <div class="controls">
+            <button @click="addBlock">Add Block</button>
+            <button @click="centerView">Center View</button>
+            <button @click="toggleBezier">Toggle Bezier Connections</button>
+            <button @click="toggleSelection">{{ isSelectionEnabled ? 'Disable' : 'Enable' }} Selection</button>
+        </div>
+        
+        <div class="info-panel" v-if="selectedBlocks.length > 0">
+            <h3>Selected Blocks</h3>
+            <ul>
+                <li v-for="blockId in selectedBlocks" :key="blockId">
+                    {{ blockId }}
+                    <button @click="removeBlock(blockId)" class="remove-btn">Remove</button>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="graph-container">
+            <!-- Our custom web component -->
+            <graph-editor ref="graphEditor" @selection-change="handleSelectionChange"></graph-editor>
+        </div>
+    </div>
+
+    <!-- Import the bundled web component script as a module -->
+    <script type="module" src="./dist/graph-editor.js"></script>
+    
+    <!-- Vue application script -->
+    <script type="module">
+        // Create Vue app
+        const { createApp, ref, onMounted } = Vue;
+        
+        createApp({
+            setup() {
+                const graphEditor = ref(null);
+                const selectedBlocks = ref([]);
+                const isSelectionEnabled = ref(true);
+                
+                // Wait for the component to be mounted
+                onMounted(() => {
+                    // Make sure the custom element is defined
+                    customElements.whenDefined('graph-editor').then(() => {
+                        console.log('Graph editor component is ready');
+                    });
+                });
+                
+                // Add a new block
+                const addBlock = () => {
+                    if (graphEditor.value) {
+                        const blockId = graphEditor.value.addRandomBlock();
+                        console.log(`Added block with ID: ${blockId}`);
+                    }
+                };
+                
+                // Center the view
+                const centerView = () => {
+                    if (graphEditor.value) {
+                        graphEditor.value.centerView();
+                    }
+                };
+                
+                // Toggle bezier connections
+                const toggleBezier = () => {
+                    if (graphEditor.value) {
+                        graphEditor.value.toggleBezierConnections();
+                    }
+                };
+                
+                // Toggle selection capability
+                const toggleSelection = () => {
+                    if (graphEditor.value) {
+                        const graph = graphEditor.value.getGraph();
+                        isSelectionEnabled.value = !isSelectionEnabled.value;
+                        graph.api.setSetting('canSelectBlocks', isSelectionEnabled.value);
+                    }
+                };
+                
+                // Handle selection change events
+                const handleSelectionChange = (event) => {
+                    console.log('Selection changed:', event.detail);
+                    
+                    // Update the selected blocks list
+                    if (event.detail.add && event.detail.add.length > 0) {
+                        selectedBlocks.value = [...selectedBlocks.value, ...event.detail.add];
+                    }
+                    
+                    if (event.detail.removed && event.detail.removed.length > 0) {
+                        selectedBlocks.value = selectedBlocks.value.filter(
+                            id => !event.detail.removed.includes(id)
+                        );
+                    }
+                };
+                
+                // Remove a block
+                const removeBlock = (blockId) => {
+                    if (graphEditor.value) {
+                        const graph = graphEditor.value.getGraph();
+                        graph.rootStore.blocksList.removeBlock(blockId);
+                        selectedBlocks.value = selectedBlocks.value.filter(id => id !== blockId);
+                    }
+                };
+                
+                return {
+                    graphEditor,
+                    selectedBlocks,
+                    isSelectionEnabled,
+                    addBlock,
+                    centerView,
+                    toggleBezier,
+                    toggleSelection,
+                    handleSelectionChange,
+                    removeBlock
+                };
+            }
+        }).mount('#app');
+    </script>
+    
+    <style>
+        .info-panel {
+            background-color: #f0f8ff;
+            border: 1px solid #b8d6f8;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .info-panel h3 {
+            margin-top: 0;
+            color: #0077cc;
+        }
+        
+        .info-panel ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        
+        .info-panel li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .remove-btn {
+            background-color: #ff4d4f;
+            font-size: 0.8em;
+            padding: 3px 8px;
+        }
+        
+        .remove-btn:hover {
+            background-color: #ff7875;
+        }
+    </style>
+</body>
+</html>

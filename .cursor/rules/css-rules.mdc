@@ -1,0 +1,55 @@
+# CSS Usage Rules
+
+## Problem with CSS in Shadow DOM
+
+When working with web components that use Shadow DOM (like in the `esm-webcomponent-example`), CSS styles defined in imported CSS files do not automatically apply within the Shadow DOM context. This is because Shadow DOM provides encapsulation that prevents styles from the main document from leaking into the component, and vice versa.
+
+## Solution: StylesManager
+
+To ensure consistent styling across all environments (React, Storybook, and Web Components with Shadow DOM), we've implemented a `StylesManager` utility that properly injects styles in all contexts.
+
+## Rules for CSS Usage
+
+1. **DO NOT** use direct CSS imports (e.g., `import './Layer.css'`) in core components or services that might be used in Shadow DOM contexts.
+
+2. **DO** use the `StylesManager` for all core components:
+   ```typescript
+   import { StylesManager } from '../utils/stylesManager';
+   
+   // Register styles once
+   StylesManager.registerStyles('layer', `.layer {
+     position: absolute;
+     top: 0;
+     left: 0;
+     bottom: 0;
+     right: 0;
+     width: 100%;
+     height: 100%;
+   }`);
+   
+   // Then use them in your component
+   StylesManager.applyStyles('layer');
+   ```
+
+3. **EXCEPTIONS**: Direct CSS imports are allowed in:
+   - React components (`src/react-component/` directory)
+   - Storybook stories (`src/stories/` directory)
+   - Any component that is guaranteed to never be used in a Shadow DOM context
+
+4. **LINTING**: ESLint rules have been configured to enforce these patterns:
+   - Direct CSS imports are blocked by default
+   - Exceptions are made for the React component and stories directories
+
+## Migration Strategy
+
+When migrating existing components:
+1. Move CSS content to `StylesManager.registerStyles` calls
+2. Replace CSS imports with `StylesManager.applyStyles`
+3. Ensure styles are registered before they're applied (typically in the same file)
+
+## Benefits
+
+- Consistent styling across all environments
+- Proper encapsulation in Shadow DOM contexts
+- Clear separation between styling and component logic
+- Better control over style application timing
