@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/gravity-ui/graph/compare/v0.4.1...v0.4.2) (2025-04-28)
+
+
+### Bug Fixes
+
+* **Layer:** streamline context setting in afterInit and createCanvas methods ([a7b93e3](https://github.com/gravity-ui/graph/commit/a7b93e35a0fc10393e3579664f501647349bd2c7))
+
 ## [0.4.1](https://github.com/gravity-ui/graph/compare/v0.4.0...v0.4.1) (2025-04-28)
 
 
