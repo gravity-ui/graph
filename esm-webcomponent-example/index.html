@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@gravity-ui/graph Web Component Example</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>@gravity-ui/graph Web Component Example</h1>
+            <p>This example demonstrates how to use @gravity-ui/graph in a pure JavaScript environment with Web Components.</p>
+        </div>
+        
+        <div class="controls">
+            <button id="add-block">Add Block</button>
+            <button id="center-view">Center View</button>
+            <button id="toggle-bezier">Toggle Bezier Connections</button>
+        </div>
+        
+        <div class="graph-container">
+            <!-- Our custom web component -->
+            <graph-editor></graph-editor>
+        </div>
+    </div>
+
+    <!-- Import our bundled web component script as a module -->
+    <script type="module" src="./dist/graph-editor.js"></script>
+    
+    <!-- Main application script -->
+    <script type="module">
+        // Wait for the custom element to be defined
+        customElements.whenDefined('graph-editor').then(() => {
+            const graphEditor = document.querySelector('graph-editor');
+            const addBlockButton = document.getElementById('add-block');
+            const centerViewButton = document.getElementById('center-view');
+            const toggleBezierButton = document.getElementById('toggle-bezier');
+            
+            // Add a new block when the button is clicked
+            addBlockButton.addEventListener('click', () => {
+                graphEditor.addRandomBlock();
+            });
+            
+            // Center the view when the button is clicked
+            centerViewButton.addEventListener('click', () => {
+                graphEditor.centerView();
+            });
+            
+            // Toggle bezier connections when the button is clicked
+            toggleBezierButton.addEventListener('click', () => {
+                graphEditor.toggleBezierConnections();
+            });
+        });
+    </script>
+</body>
+</html>

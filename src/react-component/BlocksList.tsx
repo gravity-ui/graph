@@ -7,8 +7,8 @@ import { Block as CanvasBlock, TBlock } from "../components/canvas/blocks/Block"
 import { Graph, GraphState } from "../graph";
 import { ECameraScaleLevel } from "../services/camera/CameraService";
 import { BlockState } from "../store/block/Block";
-import { useCompareState } from "../utils/hooks/useCompareState";
-import { useFn } from "../utils/hooks/useFn";
+import { useCompareState } from "./utils/hooks/useCompareState";
+import { useFn } from "./utils/hooks/useFn";
 
 import { useSignal } from "./hooks";
 import { useGraphEvent } from "./hooks/useGraphEvents";

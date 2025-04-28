@@ -7,7 +7,7 @@ import { KeyCode, KeyMod } from "monaco-editor/esm/vs/editor/editor.api";
 import type { TBlock } from "../../../components/canvas/blocks/Block";
 import { TBlockId } from "../../../store/block/Block";
 import type { TConnection } from "../../../store/connection/ConnectionState";
-import { useFn } from "../../../utils/hooks/useFn";
+import { useFn } from "../../../react-component/utils/hooks/useFn";
 
 import { defineConigSchema } from "./schema";
 import { GravityTheme, defineTheme } from "./theme";

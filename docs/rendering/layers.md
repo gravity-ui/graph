@@ -10,9 +10,54 @@ Layers are essentially plugins that extend the graph library's functionality. Ea
 
 The primary purpose of layers is to provide a modular way to extend the library's behavior without modifying its core code.
 
+## Layer Lifecycle
+
+Layers follow a specific initialization and attachment lifecycle that's important to understand:
+
+1. **Creation Phase (`constructor` and `init`)**
+   - Layer instance is created
+   - Basic properties are initialized
+   - Canvas and HTML elements are created if specified
+   - At this point, the layer is NOT yet attached to the DOM
+   - The `root` element may be undefined
+
+2. **Attachment Phase (`attachLayer` and `afterInit`)**
+   - Layer is attached to a DOM element
+   - `attachLayer` adds canvas/HTML elements to the DOM
+   - `afterInit` is called after attachment is complete
+   - At this point, the layer is fully attached to the DOM
+   - The `root` element is guaranteed to be defined
+
+3. **Update Phase (rendering cycle)**
+   - Layer responds to state changes
+   - Rendering occurs based on component lifecycle
+
+4. **Detachment Phase (`detachLayer` and `unmount`)**
+   - Layer is removed from the DOM
+   - Resources are cleaned up
+
+**Important**: Any operations that require the layer to be attached to the DOM (such as DOM manipulations, style injections, or measurements) should be performed in the `afterInit` method, not in `init` or the constructor.
+
 ## Built-in Layers
 
 The library includes several built-in layers that demonstrate how to extend functionality:
+
+### ReactLayer
+
+[ReactLayer](reactLayer.md) is responsible for rendering React components within the graph:
+- Creates HTML elements for React components
+- Manages the lifecycle of React components
+- Synchronizes React components with the core library
+
+```typescript
+// Creating a ReactLayer
+const reactLayer = graph.addLayer(ReactLayer, {});
+
+// Rendering React components through the layer
+const portal = reactLayer.renderPortal(renderBlock);
+```
+
+The ReactLayer is typically created and managed by the GraphCanvas component, but can also be used directly for more advanced use cases.
 
 ### NewBlockLayer
 

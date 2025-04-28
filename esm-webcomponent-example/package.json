@@ -1,0 +1,23 @@
+{
+  "name": "gravity-ui-graph-webcomponent-example",
+  "version": "1.0.0",
+  "description": "Example of using @gravity-ui/graph with Web Components and ESM",
+  "type": "module",
+  "scripts": {
+    "start": "serve .",
+    "build": "node esbuild.config.js"
+  },
+  "dependencies": {
+    "@gravity-ui/graph": "file:../"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.0",
+    "@rollup/plugin-json": "^6.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-terser": "^0.4.0",
+    "esbuild": "^0.25.2",
+    "rollup": "^3.0.0",
+    "rollup-plugin-postcss": "^4.0.0",
+    "serve": "^14.0.0"
+  }
+}
