@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/gravity-ui/graph/compare/v0.4.0...v0.4.1) (2025-04-28)
+
+
+### Bug Fixes
+
+* **package.json:** update copy-styles command to use quotes for path consistency ([#76](https://github.com/gravity-ui/graph/issues/76)) ([172254a](https://github.com/gravity-ui/graph/commit/172254a694989dbd3a583599a5eb39b16a307ef7))
+
 ## [0.4.0](https://github.com/gravity-ui/graph/compare/v0.3.1...v0.4.0) (2025-04-27)
 
 
