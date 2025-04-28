@@ -37,7 +37,7 @@
     "storybook:build": "storybook -c .storybook -o storybook-static -s .storybook/public",
     "build-storybook": "storybook build",
     "ci:storybook:build": "npm run build-storybook",
-    "copy-styles": "copyfiles -u 1 src/**/*.css build/",
+    "copy-styles": "copyfiles -u 1 \"src/**/*.css\" build/",
     "build:publish": "tsc -p tsconfig.publish.json && npm run copy-styles",
     "build": "tsc --declaration && npm run copy-styles",
     "size": "npm run build:publish && size-limit",
