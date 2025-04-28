@@ -3,7 +3,19 @@
   "version": "0.4.0",
   "description": "Modern graph editor component",
   "main": "build/index.js",
-  "keywords": [],
+  "keywords": [
+    "gravity-ui",
+    "graph",
+    "graph-editor",
+    "flowchart",
+    "workflow",
+    "node-based",
+    "node-editor",
+    "block-diagram",
+    "data-visualization",
+    "canvas",
+    "diagram"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
