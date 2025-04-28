@@ -7,9 +7,9 @@ import { TBlock } from "../../components/canvas/blocks/Block";
 import { random } from "../../components/canvas/blocks/generate";
 import { ConnectionLayer } from "../../components/canvas/layers/connectionLayer/ConnectionLayer";
 import { Graph, GraphState, TGraphConfig } from "../../graph";
-import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "../../react-component";
+import { useFn } from "../../react-component/utils/hooks/useFn";
+import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "../../react-components";
 import { ECanChangeBlockGeometry } from "../../store/settings";
-import { useFn } from "../../utils/hooks/useFn";
 import { EAnchorType } from "../configurations/definitions";
 
 import { ActionBlock } from "./ActionBlock";

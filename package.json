@@ -3,6 +3,20 @@
   "version": "0.4.0",
   "description": "Modern graph editor component",
   "main": "build/index.js",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "default": "./build/index.js"
+    },
+    "./react-components": {
+      "types": "./build/react-components.d.ts",
+      "default": "./build/react-components.js"
+    },
+    "./esm-components": {
+      "types": "./build/esm-components.d.ts",
+      "default": "./build/esm-components.js"
+    }
+  },
   "keywords": [],
   "license": "MIT",
   "repository": {
@@ -33,8 +47,18 @@
   },
   "size-limit": [
     {
-      "path": "build/**/*.js",
-      "import": "{ Graph, GraphComponent }",
+      "path": "build/index.js",
+      "import": "{ Graph }",
+      "gzip": true
+    },
+    {
+      "path": "build/react-components.js",
+      "import": "{ GraphComponent }",
+      "gzip": true
+    },
+    {
+      "path": "build/esm-components.js",
+      "import": "{ EsmLayer }",
       "gzip": true
     }
   ],
@@ -43,10 +67,6 @@
     "intersects": "^2.7.2",
     "lodash-es": "^4.17.21",
     "rbush": "^3.0.1"
-  },
-  "peerDependencies": {
-    "react": "^16.0.0 || ^17.0.0 || ^18.0.0",
-    "react-dom": "^16.0.0 || ^17.0.0 || ^18.0.0"
   },
   "devDependencies": {
     "@babel/plugin-proposal-class-properties": "^7.18.6",

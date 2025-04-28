@@ -4,7 +4,7 @@ import { Database } from "@gravity-ui/icons";
 import { Button, Flex, Icon, Text } from "@gravity-ui/uikit";
 
 import { Graph } from "../../../graph";
-import { GraphBlock, GraphBlockAnchor } from "../../../react-component";
+import { GraphBlock, GraphBlockAnchor } from "../../../react-components";
 import { TGravityActionBlock } from "../generateLayout";
 
 import "./ActionBlock.css";

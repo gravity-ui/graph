@@ -3,10 +3,10 @@ import { TGraphColors, TGraphConstants } from "../graphConfig";
 import { GraphEventsDefinitions } from "../graphEvents";
 import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
+import { noop } from "../utils/functions";
+import { StylesManager } from "../utils/stylesManager";
 
 import { ICamera } from "./camera/CameraService";
-
-import "./Layer.css";
 
 export type LayerPropsElementProps = {
   zIndex: number;
@@ -226,6 +226,9 @@ export class Layer<
     }
 
     this.setContext(context as Context);
+    // Inject styles after the layer is attached to the root
+    this.injectStyles();
+    
     this.shouldRenderChildren = true;
     this.shouldUpdateChildren = true;
     this.performRender();
@@ -273,6 +276,15 @@ export class Layer<
     if (this.root) {
       this.attachLayer(this.root);
     }
+  }
+
+  /**
+   * Injects layer styles using StylesManager
+   * This ensures styles work in both regular DOM and Shadow DOM contexts
+   */
+  private injectStyles(): void {
+    // Use universal style manager
+    StylesManager.getInstance().injectLayerStyles(this.root);
   }
 
   protected unmountLayer() {

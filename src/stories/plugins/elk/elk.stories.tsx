@@ -4,10 +4,10 @@ import { Select, SelectOption, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react";
 import ELK from "elkjs";
 
-import { Graph, GraphCanvas, GraphState, TBlock, TConnection, useGraph, useGraphEvent } from "../../../index";
-import { MultipointConnection, useElk } from "../../../plugins";
-import { TMultipointConnection } from "../../../plugins/elk/types";
-import { useFn } from "../../../utils/hooks/useFn";
+import { Graph, GraphState, TBlock, TConnection } from "../../../index";
+import { GraphCanvas, MultipointConnection, useElk, useGraph, useGraphEvent } from "../../../react-component";
+import { TMultipointConnection } from "../../../react-component/elk/types";
+import { useFn } from "../../../react-component/utils/hooks/useFn";
 import { BlockStory } from "../../main/Block";
 
 import { getExampleConfig } from "./getExampleConfig";
