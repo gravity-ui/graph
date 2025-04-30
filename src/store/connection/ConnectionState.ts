@@ -8,7 +8,7 @@ import { ConnectionsStore } from "./ConnectionList";
 
 export const IS_CONNECTION_TYPE = "Connection" as const;
 
-export type TConnectionId = string | number | symbol;
+export type TConnectionId = string | number;
 
 export type TConnection = {
   id?: TConnectionId;

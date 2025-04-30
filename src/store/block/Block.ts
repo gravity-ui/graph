@@ -8,7 +8,7 @@ import { AnchorState } from "../anchor/Anchor";
 
 import { BlockListStore } from "./BlocksList";
 
-export type TBlockId = string | number | symbol;
+export type TBlockId = string | number;
 
 export const IS_BLOCK_TYPE = "Block" as const;
 

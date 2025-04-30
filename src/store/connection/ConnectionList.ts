@@ -11,7 +11,7 @@ import { ConnectionState, TConnection, TConnectionId } from "./ConnectionState";
 
 declare module "../../graphEvents" {
   interface GraphEventsDefinitions {
-    "connection-selection-change": (event: SelectionEvent<TConnection>) => void;
+    "connection-selection-change": (event: SelectionEvent<TConnection["id"]>) => void;
   }
 }
 
@@ -43,9 +43,10 @@ export class ConnectionsStore {
   ) {
     // Create and register a selection bucket for connections
     this.connectionSelectionBucket = new MultipleSelectionBucket<string | number>(
-      graph,
       "connection",
-      "connection-selection-change"
+      (payload, defaultAction) => {
+        return this.graph.executеDefaultEventAction("connection-selection-change", payload, defaultAction);
+      }
     );
 
     this.rootStore.selectionService.registerBucket(this.connectionSelectionBucket);

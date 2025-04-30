@@ -8,6 +8,7 @@ import { TBlock, isTBlock } from "../../components/canvas/blocks/Block";
 import { generateRandomId } from "../../components/canvas/blocks/generate";
 import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
+import { SingleSelectionBucket } from "../../services/selection/SingleSelectionBucket";
 import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
 import { getUsableRectByBlockIds } from "../../utils/functions";
 import { TRect } from "../../utils/types/shapes";
@@ -78,21 +79,18 @@ export class BlockListStore {
    * Computed signal that returns the currently selected blocks
    */
   public $selectedBlocks = computed(() => {
-    const selectedIds = this.blockSelectionBucket.$selectedIds.value;
-    return this.$blocksReactiveState.value.filter((block) => {
-      // Only string and number IDs are supported in the selection bucket
-      const id = block.id;
-      return typeof id === "string" || typeof id === "number" ? selectedIds.has(id) : false;
-    });
+    const selectedIds = this.blockSelectionBucket.$selected.value;
+    return this.$blocksReactiveState.value.filter((block) => selectedIds.has(block.id));
   });
+
+  public readonly anchorSelectionBucket: ISelectionBucket<string | number>;
 
   public $selectedAnchor = computed(() => {
     if (!this.rootStore.settings.getConfigFlag("useBlocksAnchors")) return undefined;
-    const block = this.$blocks.value.find((block) => {
-      return Boolean(block.getSelectedAnchor());
-    });
-    if (block) {
-      return block.getSelectedAnchor();
+    const selectedIds = this.anchorSelectionBucket.$selected.value;
+    for (const block of this.$blocks.value) {
+      const anchor = block.$anchors.value.find((a) => selectedIds.has(a.id));
+      if (anchor) return anchor;
     }
     return undefined;
   });
@@ -106,9 +104,40 @@ export class BlockListStore {
     protected graph: Graph
   ) {
     // Create and register a selection bucket for blocks
-    this.blockSelectionBucket = new MultipleSelectionBucket<string | number>(graph, "block", "blocks-selection-change");
+    this.blockSelectionBucket = new MultipleSelectionBucket<string | number>("block", (payload, defaultAction) => {
+      return this.graph.executеDefaultEventAction("blocks-selection-change", payload, defaultAction);
+    });
 
     this.rootStore.selectionService.registerBucket(this.blockSelectionBucket);
+
+    this.anchorSelectionBucket = new SingleSelectionBucket<string | number>("anchor", (diff, defaultAction) => {
+      // diff: { added: Set<ID>, removed: Set<ID> }
+      // Для single selection максимум один id в added/removed
+      if (diff.changes.add.length > 0) {
+        const anchorId = diff.changes.add[0];
+        const anchor = this.$blocks.value.flatMap((block) => block.$anchors.value).find((a) => a.id === anchorId);
+        if (anchor) {
+          return this.graph.executеDefaultEventAction(
+            "block-anchor-selection-change",
+            { anchor: anchor, selected: true },
+            defaultAction
+          );
+        }
+      }
+      if (diff.changes.removed.length > 0) {
+        const anchorId = diff.changes.removed[0];
+        const anchor = this.$blocks.value.flatMap((block) => block.$anchors.value).find((a) => a.id === anchorId);
+        if (anchor) {
+          return this.graph.executеDefaultEventAction(
+            "block-anchor-selection-change",
+            { anchor: anchor, selected: false },
+            defaultAction
+          );
+        }
+      }
+      return defaultAction();
+    });
+    this.rootStore.selectionService.registerBucket(this.anchorSelectionBucket);
 
     effect(() => {
       this.recalcUsableRect();
@@ -148,23 +177,15 @@ export class BlockListStore {
       return;
     }
 
-    if (selected !== anchor.$selected.value) {
-      this.graph.executеDefaultEventAction(
-        "block-anchor-selection-change",
-        { anchor: anchor.asTAnchor(), selected },
-        () => {
-          const currentSelected = this.$selectedAnchor.value;
-          if (currentSelected && currentSelected !== anchor) {
-            currentSelected.setSelection(false, true);
-          }
-          anchor.setSelection(selected, true);
-        }
-      );
+    if (selected) {
+      this.rootStore.selectionService.select("anchor", [anchorId], ESelectionStrategy.REPLACE);
+    } else {
+      this.rootStore.selectionService.deselect("anchor", [anchorId]);
     }
   }
 
   protected unsetAnchorsSelection() {
-    this.$selectedAnchor.value?.setSelection(false);
+    this.rootStore.selectionService.resetSelection("anchor");
   }
 
   public updatePosition(id: BlockState["id"], nextState: Pick<TBlock, "x" | "y">) {
