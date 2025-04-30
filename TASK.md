@@ -114,7 +114,7 @@ We propose refactoring this logic into a new `SelectionService` that acts as a m
 
 ## NExt steps 
 
-- Use ESelectionStrategy from SelectioManager everywhere
+- Use ESelectionStrategy from SelectioManager everywhere - done
 - Reset every selection bucket on ESelectionStrategy.REPLACE
 ```
 selectionService.select('blocks', [...ids], ESelectionStrategy.REPLACE)
