@@ -43,7 +43,9 @@ export class GroupsListStore {
     protected graph: Graph
   ) {
     // Create and register a selection bucket for groups
-    this.groupSelectionBucket = new MultipleSelectionBucket<string | number>(graph, "group", "groups-selection-change");
+    this.groupSelectionBucket = new MultipleSelectionBucket<GroupState["id"]>("group", (payload, defaultAction) => {
+      this.graph.executеDefaultEventAction("groups-selection-change", payload, defaultAction);
+    });
 
     this.rootStore.selectionService.registerBucket(this.groupSelectionBucket);
   }
