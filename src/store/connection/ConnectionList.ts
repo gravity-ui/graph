@@ -3,7 +3,7 @@ import { computed, signal } from "@preact/signals-core";
 import { Graph } from "../../graph";
 import { Component } from "../../lib";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
-import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
+import { ESelectionStrategy } from "../../services/selection/types";
 import { RootStore } from "../index";
 
 import { ConnectionState, TConnection, TConnectionId } from "./ConnectionState";
@@ -26,14 +26,17 @@ export class ConnectionsStore {
   /**
    * Bucket for managing connection selection state
    */
-  public readonly connectionSelectionBucket: ISelectionBucket<string | number>;
+  public readonly connectionSelectionBucket = new MultipleSelectionBucket<string | number>(
+    "connection",
+    (payload, defaultAction) => {
+      return this.graph.executеDefaultEventAction("connection-selection-change", payload, defaultAction);
+    }
+  );
 
   public $selectedConnections = computed(() => {
-    const selectedIds = this.connectionSelectionBucket.$selectedIds.value;
     return new Set(
       this.$connections.value.filter((connection) => {
-        const id = connection.id;
-        return typeof id === "string" || typeof id === "number" ? selectedIds.has(id) : false;
+        return this.connectionSelectionBucket.isSelected(connection.id);
       })
     );
   });
@@ -237,6 +240,8 @@ export class ConnectionsStore {
 
   /**
    * Resets the selection for connections
+   *
+   * @returns {void}
    */
   public resetSelection() {
     this.rootStore.selectionService.resetSelection("connection");
