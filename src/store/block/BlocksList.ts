@@ -73,14 +73,18 @@ export class BlockListStore {
   /**
    * Bucket for managing block selection state
    */
-  public readonly blockSelectionBucket: ISelectionBucket<string | number>;
+  public readonly blockSelectionBucket = new MultipleSelectionBucket<string | number>(
+    "block",
+    (payload, defaultAction) => {
+      return this.graph.executеDefaultEventAction("blocks-selection-change", payload, defaultAction);
+    }
+  );
 
   /**
    * Computed signal that returns the currently selected blocks
    */
   public $selectedBlocks = computed(() => {
-    const selectedIds = this.blockSelectionBucket.$selected.value;
-    return this.$blocksReactiveState.value.filter((block) => selectedIds.has(block.id));
+    return this.$blocksReactiveState.value.filter((block) => this.blockSelectionBucket.isSelected(block.id));
   });
 
   public readonly anchorSelectionBucket: ISelectionBucket<string | number>;
@@ -103,11 +107,6 @@ export class BlockListStore {
     public rootStore: RootStore,
     protected graph: Graph
   ) {
-    // Create and register a selection bucket for blocks
-    this.blockSelectionBucket = new MultipleSelectionBucket<string | number>("block", (payload, defaultAction) => {
-      return this.graph.executеDefaultEventAction("blocks-selection-change", payload, defaultAction);
-    });
-
     this.rootStore.selectionService.registerBucket(this.blockSelectionBucket);
 
     this.anchorSelectionBucket = new SingleSelectionBucket<string | number>("anchor", (diff, defaultAction) => {
@@ -276,7 +275,6 @@ export class BlockListStore {
     selected: boolean,
     strategy: ESelectionStrategy = ESelectionStrategy.REPLACE
   ) {
-    console.log("select", ids, selected, strategy);
     // Filter out symbol ids since SelectionService only supports string and number ids
     const validIds = ids.filter((id) => typeof id === "string" || typeof id === "number") as (string | number)[];
 

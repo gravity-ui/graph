@@ -1,12 +1,12 @@
 import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
+import { ESelectionStrategy } from "../../../../services/selection/types";
 import { BlockState } from "../../../../store/block/Block";
 import { getXY, isAltKeyEvent, isBlock } from "../../../../utils/functions";
 import { dragListener } from "../../../../utils/functions/dragListener";
 import { render } from "../../../../utils/renderers/render";
 import { EVENTS } from "../../../../utils/types/events";
 import { TPoint } from "../../../../utils/types/shapes";
-import { ESelectionStrategy } from "../../../../utils/types/types";
 import { Block } from "../../../canvas/blocks/Block";
 
 /**

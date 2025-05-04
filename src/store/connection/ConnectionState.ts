@@ -64,11 +64,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
    * by checking if its ID exists in the selection bucket
    */
   public readonly $selected = computed(() => {
-    const id = this.id;
-    // Only string and number IDs can be in the selection bucket
-    return typeof id === "string" || typeof id === "number"
-      ? this.connectionSelectionBucket.$selectedIds.value.has(id)
-      : false;
+    return this.connectionSelectionBucket.$selected.value.has(this.id);
   });
 
   public static getConnectionId(connection: TConnection) {

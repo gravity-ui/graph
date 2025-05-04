@@ -3,7 +3,7 @@ import groupBy from "lodash/groupBy";
 
 import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
-import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
+import { ESelectionStrategy } from "../../services/selection/types";
 import { RootStore } from "../index";
 
 import { GroupState, TGroup, TGroupId } from "./Group";
@@ -28,25 +28,22 @@ export class GroupsListStore {
   /**
    * Bucket for managing group selection state
    */
-  public readonly groupSelectionBucket: ISelectionBucket<string | number>;
+  public readonly groupSelectionBucket = new MultipleSelectionBucket<GroupState["id"]>(
+    "group",
+    (payload, defaultAction) => {
+      this.graph.executеDefaultEventAction("groups-selection-change", payload, defaultAction);
+    }
+  );
 
   public $selectedGroups = computed(() => {
-    const selectedIds = this.groupSelectionBucket.$selectedIds.value;
-    return this.$groups.value.filter((group) => {
-      const id = group.id;
-      return typeof id === "string" || typeof id === "number" ? selectedIds.has(id) : false;
-    });
+    const selectedIds = this.groupSelectionBucket.$selected.value;
+    return this.$groups.value.filter((group) => selectedIds.has(group.id));
   });
 
   constructor(
     public rootStore: RootStore,
     protected graph: Graph
   ) {
-    // Create and register a selection bucket for groups
-    this.groupSelectionBucket = new MultipleSelectionBucket<GroupState["id"]>("group", (payload, defaultAction) => {
-      this.graph.executеDefaultEventAction("groups-selection-change", payload, defaultAction);
-    });
-
     this.rootStore.selectionService.registerBucket(this.groupSelectionBucket);
   }
 

@@ -2,7 +2,7 @@ import { computed, signal } from "@preact/signals-core";
 
 import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
-import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
+import { ESelectionStrategy } from "../../services/selection/types";
 import { selectBlockById } from "../../store/block/selectors";
 import { TBlockId } from "../block/Block";
 import { RootStore } from "../index";
@@ -25,14 +25,17 @@ export class ConnectionsStore {
   /**
    * Bucket for managing connection selection state
    */
-  public readonly connectionSelectionBucket: ISelectionBucket<string | number>;
+  public readonly connectionSelectionBucket = new MultipleSelectionBucket<string | number>(
+    "connection",
+    (payload, defaultAction) => {
+      return this.graph.executеDefaultEventAction("connection-selection-change", payload, defaultAction);
+    }
+  );
 
   public $selectedConnections = computed(() => {
-    const selectedIds = this.connectionSelectionBucket.$selectedIds.value;
     return new Set(
       this.$connections.value.filter((connection) => {
-        const id = connection.id;
-        return typeof id === "string" || typeof id === "number" ? selectedIds.has(id) : false;
+        return this.connectionSelectionBucket.isSelected(connection.id);
       })
     );
   });
@@ -41,14 +44,6 @@ export class ConnectionsStore {
     public rootStore: RootStore,
     protected graph: Graph
   ) {
-    // Create and register a selection bucket for connections
-    this.connectionSelectionBucket = new MultipleSelectionBucket<string | number>(
-      "connection",
-      (payload, defaultAction) => {
-        return this.graph.executеDefaultEventAction("connection-selection-change", payload, defaultAction);
-      }
-    );
-
     this.rootStore.selectionService.registerBucket(this.connectionSelectionBucket);
   }
 
@@ -133,10 +128,13 @@ export class ConnectionsStore {
 
   /**
    * Resets the selection for connections
+   *
+   * @returns {void}
    */
   public resetSelection() {
     this.rootStore.selectionService.resetSelection("connection");
   }
+
   public getConnections(ids?: ConnectionState["id"][]) {
     if (!ids || !ids.length) {
       return this.$connections.value;
