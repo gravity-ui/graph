@@ -1,5 +1,6 @@
-import { ESelectionStrategy, ISelectionBucket, TEntityId } from "./types";
 import { computed, signal } from "@preact/signals-core";
+
+import { ESelectionStrategy, ISelectionBucket, TEntityId } from "./types";
 
 /**
  * Service responsible for managing selection across different entity types
