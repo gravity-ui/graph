@@ -26,6 +26,8 @@ export abstract class BaseSelectionBucket<IDType extends TEntityId> implements I
     }
   }
 
+  public createSignalIsSelected = (id: IDType) => computed(() => this.$selectedIds.value.has(id));
+
   public isSelected(id: IDType): boolean {
     return this.$selectedIds.value.has(id);
   }

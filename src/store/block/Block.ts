@@ -46,13 +46,7 @@ export class BlockState<T extends TBlock = TBlock> {
    * Computed signal that reactively determines if this block is selected
    * by checking if its ID exists in the selection bucket
    */
-  public readonly $selected = computed(() => {
-    const id = this.id;
-    // Only string and number IDs can be in the selection bucket
-    return typeof id === "string" || typeof id === "number"
-      ? this.blockSelectionBucket.$selectedIds.value.has(id)
-      : false;
-  });
+  public readonly $selected = computed(() => this.blockSelectionBucket.isSelected(this.id));
 
   public readonly $anchorStates: Signal<AnchorState[]> = signal([]);
 
@@ -85,7 +79,11 @@ export class BlockState<T extends TBlock = TBlock> {
   });
 
   public $selectedAnchors = computed(() => {
-    return this.$anchorStates.value?.filter((anchorState) => anchorState.$selected.value) || [];
+    return (
+      this.$anchorStates.value?.filter((anchorState) =>
+        this.store.anchorSelectionBucket.$selected.value.has(anchorState.id)
+      ) || []
+    );
   });
 
   private blockView: Block;
@@ -132,7 +130,7 @@ export class BlockState<T extends TBlock = TBlock> {
   }
 
   public clearAnchorsSelection() {
-    this.$anchorStates.value.forEach((anchor) => anchor.setSelection(false));
+    this.store.anchorSelectionBucket.reset();
   }
 
   public setName(newName: string) {

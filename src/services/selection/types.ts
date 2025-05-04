@@ -31,6 +31,4 @@ export type TSelectionDiff<IDType extends TEntityId> = {
  * Interface defining the contract for components that manage selection state
  * for a specific entity type.
  */
-export interface ISelectionBucket<IDType extends TEntityId = TEntityId> extends BaseSelectionBucket<IDType> {
-  
-}
+export interface ISelectionBucket<IDType extends TEntityId = TEntityId> extends BaseSelectionBucket<IDType> {}
