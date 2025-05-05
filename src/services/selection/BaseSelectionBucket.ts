@@ -17,7 +17,7 @@ export abstract class BaseSelectionBucket<IDType extends TEntityId> implements I
     }
   ) {}
 
-  public abstract updateSelection(ids: IDType[], select: boolean, strategy: ESelectionStrategy): void;
+  public abstract updateSelection(ids: IDType[], select: boolean, strategy: ESelectionStrategy, silent?: boolean): void;
 
   public reset(): void {
     const currentSelectedIds = Array.from(this.$selectedIds.value);
@@ -26,13 +26,11 @@ export abstract class BaseSelectionBucket<IDType extends TEntityId> implements I
     }
   }
 
-  public createSignalIsSelected = (id: IDType) => computed(() => this.$selectedIds.value.has(id));
-
   public isSelected(id: IDType): boolean {
     return this.$selectedIds.value.has(id);
   }
 
-  protected applySelection(newSelectedIds: Set<IDType>, currentSelectedIds: Set<IDType>): void {
+  protected applySelection(newSelectedIds: Set<IDType>, currentSelectedIds: Set<IDType>, silent?: boolean): void {
     const addedIds: IDType[] = [];
     const removedIds: IDType[] = [];
 
@@ -58,7 +56,7 @@ export abstract class BaseSelectionBucket<IDType extends TEntityId> implements I
       const updateSelection = (rewritenIds?: Set<IDType>) => {
         this.$selectedIds.value = rewritenIds ?? newSelectedIds;
       };
-      const shouldUpdate = this.onSelectionChange(payload, updateSelection);
+      const shouldUpdate = silent || this.onSelectionChange(payload, updateSelection);
       if (shouldUpdate) {
         updateSelection();
       }

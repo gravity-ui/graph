@@ -5,10 +5,10 @@ import { ESelectionStrategy, TEntityId } from "./types";
  * Implements a selection bucket that only allows a single entity to be selected at a time
  */
 export class SingleSelectionBucket<IDType extends TEntityId> extends BaseSelectionBucket<IDType> {
-  public updateSelection(ids: IDType[], select: boolean, strategy: ESelectionStrategy): void {
+  public updateSelection(ids: IDType[], select: boolean, strategy: ESelectionStrategy, silent?: boolean): void {
     if (ids.length === 0) {
       if (strategy === ESelectionStrategy.REPLACE) {
-        this.applySelection(new Set(), this.$selectedIds.value);
+        this.applySelection(new Set(), this.$selectedIds.value, silent);
       }
       return;
     }
@@ -35,6 +35,6 @@ export class SingleSelectionBucket<IDType extends TEntityId> extends BaseSelecti
       }
     }
 
-    this.applySelection(newSelectedIds, currentSelectedIds);
+    this.applySelection(newSelectedIds, currentSelectedIds, silent);
   }
 }
