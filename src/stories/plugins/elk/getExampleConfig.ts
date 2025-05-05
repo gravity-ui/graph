@@ -19,7 +19,7 @@ const prepareChildren = (blocks: TGraphConfig["blocks"]) => {
   });
 };
 
-const prepareEdges = (connections: TGraphConfig["connections"]) => {
+const prepareEdges = (connections: TGraphConfig["connections"], skipLabels?: boolean) => {
   return connections.map((c, i) => {
     const labelText = `label ${i}`;
 
@@ -27,7 +27,9 @@ const prepareEdges = (connections: TGraphConfig["connections"]) => {
       id: c.id as string,
       sources: [c.sourceBlockId as string],
       targets: [c.targetBlockId as string],
-      labels: [{ text: labelText, width: measureText(labelText, `${FONT_SIZE}px sans-serif`), height: FONT_SIZE }],
+      labels: skipLabels
+        ? []
+        : [{ text: labelText, width: measureText(labelText, `${FONT_SIZE}px sans-serif`), height: FONT_SIZE }],
     } satisfies ElkExtendedEdge;
   });
 };
@@ -165,12 +167,8 @@ export const getExampleConfig = (algorithm: Algorithm): { elkConfig: ElkNode; gr
       };
     }
     case Algorithm.Radial:
-    case Algorithm.MrTree:
-    case Algorithm.Random:
-    case Algorithm.Force:
     case Algorithm.Stress:
-    case Algorithm.SporeOverlap:
-    case Algorithm.SporeCompaction: {
+    case Algorithm.SporeOverlap: {
       config = generateExampleTree(4);
 
       return {
@@ -178,6 +176,21 @@ export const getExampleConfig = (algorithm: Algorithm): { elkConfig: ElkNode; gr
           ...elkConfig,
           children: prepareChildren(config.blocks),
           edges: prepareEdges(config.connections),
+        },
+        graphConfig: config,
+      };
+    }
+    case Algorithm.MrTree:
+    case Algorithm.Random:
+    case Algorithm.Force:
+    case Algorithm.SporeCompaction: {
+      config = generateExampleTree(4);
+
+      return {
+        elkConfig: {
+          ...elkConfig,
+          children: prepareChildren(config.blocks),
+          edges: prepareEdges(config.connections, true),
         },
         graphConfig: config,
       };
