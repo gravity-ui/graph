@@ -8,7 +8,8 @@ export class MultipleSelectionBucket<IDType extends TEntityId> extends BaseSelec
   public updateSelection(
     ids: IDType[],
     select: boolean,
-    strategy: ESelectionStrategy = ESelectionStrategy.REPLACE
+    strategy: ESelectionStrategy = ESelectionStrategy.REPLACE,
+    silent?: boolean
   ): void {
     if (!ids.length && strategy !== ESelectionStrategy.REPLACE) {
       return;
@@ -43,6 +44,6 @@ export class MultipleSelectionBucket<IDType extends TEntityId> extends BaseSelec
         break;
     }
 
-    this.applySelection(newSelectedIds, currentSelectedIds);
+    this.applySelection(newSelectedIds, currentSelectedIds, silent);
   }
 }
