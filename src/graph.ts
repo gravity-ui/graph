@@ -82,6 +82,10 @@ export class Graph {
 
   public state: GraphState = GraphState.INIT;
 
+  public get selectionService() {
+    return this.rootStore.selectionService;
+  }
+
   protected config: TGraphConfig;
 
   protected startRequested = false;
