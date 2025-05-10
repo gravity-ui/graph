@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/gravity-ui/graph/compare/v0.4.2...v0.4.3) (2025-05-10)
+
+
+### Bug Fixes
+
+* **layers:** set attached flag on start to enable proper detach/remount ([#82](https://github.com/gravity-ui/graph/issues/82)) ([a01be39](https://github.com/gravity-ui/graph/commit/a01be39d90ab065148703a4a2e0c54d086168f99))
+
 ## [0.4.2](https://github.com/gravity-ui/graph/compare/v0.4.1...v0.4.2) (2025-04-28)
 
 
