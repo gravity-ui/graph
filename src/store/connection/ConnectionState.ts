@@ -1,14 +1,14 @@
 import { computed, signal } from "@preact/signals-core";
 
 import { TConnectionColors } from "../../graphConfig";
-import { ESelectionStrategy } from "../../utils/types/types";
+import { ISelectionBucket } from "../../services/selection/types";
 import { TBlockId } from "../block/Block";
 
 import { ConnectionsStore } from "./ConnectionList";
 
 export const IS_CONNECTION_TYPE = "Connection" as const;
 
-export type TConnectionId = string | number | symbol;
+export type TConnectionId = string | number;
 
 export type TConnection = {
   id?: TConnectionId;
@@ -59,6 +59,14 @@ export class ConnectionState<T extends TConnection = TConnection> {
     return [this.$sourceBlock.value?.$geometry.value, this.$targetBlock.value?.$geometry.value];
   });
 
+  /**
+   * Computed signal that reactively determines if this connection is selected
+   * by checking if its ID exists in the selection bucket
+   */
+  public readonly $selected = computed(() => {
+    return this.connectionSelectionBucket.$selected.value.has(this.id);
+  });
+
   public static getConnectionId(connection: TConnection) {
     if (connection.id) return connection.id;
     if (connection.sourceAnchorId && connection.targetAnchorId) {
@@ -69,18 +77,11 @@ export class ConnectionState<T extends TConnection = TConnection> {
 
   constructor(
     public store: ConnectionsStore,
-    connectionState: T
+    connectionState: T,
+    private readonly connectionSelectionBucket: ISelectionBucket<string | number>
   ) {
     const id = ConnectionState.getConnectionId(connectionState);
     this.$state.value = { ...connectionState, id };
-  }
-
-  public isSelected() {
-    return this.$state.value.selected;
-  }
-
-  public setSelection(selected: boolean, strategy: ESelectionStrategy = ESelectionStrategy.REPLACE) {
-    this.store.setConnectionsSelection([this.id], selected, strategy);
   }
 
   public asTConnection(): TConnection {

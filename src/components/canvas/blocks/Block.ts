@@ -183,6 +183,11 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
         });
         this.shouldUpdateChildren = true;
       }),
+      this.subscribeSignal(this.connectedState.$selected, (selected) => {
+        this.setState({
+          selected,
+        });
+      }),
       this.subscribeSignal(this.connectedState.$state, () => {
         this.setState({
           ...this.connectedState.$state.value,
@@ -208,7 +213,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected calcZIndex() {
-    const raised = this.connectedState.selected || this.lastDragEvent ? 1 : 0;
+    const raised = this.connectedState.$selected.value || this.lastDragEvent ? 1 : 0;
     return this.context.constants.block.DEFAULT_Z_INDEX + raised;
   }
 
