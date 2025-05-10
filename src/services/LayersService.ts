@@ -59,6 +59,7 @@ export class Layers extends Emitter {
     }
     this.updateSize();
     this.resizeObserver.observe(this.$root, { box: "border-box" });
+    this.attached = true;
   }
 
   public detach(full = false) {
