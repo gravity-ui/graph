@@ -1,4 +1,5 @@
 import { batch } from "@preact/signals-core";
+import cloneDeep from "lodash/cloneDeep";
 
 import { Graph, TGraphConfig } from "../graph";
 
@@ -26,15 +27,12 @@ export class RootStore {
   }
 
   public getAsConfig(): TGraphConfig {
-    const blocks = this.blocksList.$blocks.value.map((block) => block.asTBlock());
-    const connections = this.connectionsList.$connections.value.map((connection) => connection.asTConnection());
-
-    return {
+    return cloneDeep({
       configurationName: this.configurationName,
-      blocks,
-      connections,
-      settings: this.settings.asConfig,
-    };
+      blocks: this.blocksList.toJSON(),
+      connections: this.connectionsList.toJSON(),
+      settings: this.settings.toJSON(),
+    });
   }
 
   public reset() {

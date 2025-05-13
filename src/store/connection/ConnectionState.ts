@@ -1,4 +1,5 @@
 import { computed, signal } from "@preact/signals-core";
+import cloneDeep from "lodash/cloneDeep";
 
 import { TConnectionColors } from "../../graphConfig";
 import { ESelectionStrategy } from "../../utils/types/types";
@@ -84,7 +85,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
   }
 
   public asTConnection(): TConnection {
-    return this.$state.value;
+    return cloneDeep(this.$state.toJSON());
   }
 
   public updateConnection(connection: Partial<TConnection>): void {

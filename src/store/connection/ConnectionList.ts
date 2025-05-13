@@ -179,6 +179,10 @@ export class ConnectionsStore {
     }
   }
 
+  public toJSON() {
+    return this.$connections.value.map((c) => c.asTConnection());
+  }
+
   public resetSelection() {
     this.setConnectionsSelection([], false);
   }
