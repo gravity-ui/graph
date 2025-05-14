@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.3](https://github.com/gravity-ui/graph/compare/v0.4.2...v0.4.3) (2025-05-14)
+
+
+### Bug Fixes
+
+* **layers:** set attached flag on start to enable proper detach/remount ([#82](https://github.com/gravity-ui/graph/issues/82)) ([a01be39](https://github.com/gravity-ui/graph/commit/a01be39d90ab065148703a4a2e0c54d086168f99))
+* **story:** always deep-clone state on export to prevent frozen/proxied object errors ([#87](https://github.com/gravity-ui/graph/issues/87)) ([a936de5](https://github.com/gravity-ui/graph/commit/a936de5a07bdebaeefeb22f6e8768418cc821986))
+
 ## [0.4.2](https://github.com/gravity-ui/graph/compare/v0.4.1...v0.4.2) (2025-04-28)
 
 
