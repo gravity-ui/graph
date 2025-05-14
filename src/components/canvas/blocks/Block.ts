@@ -165,7 +165,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   protected subscribe(id: TBlockId) {
     this.connectedState = selectBlockById<T>(this.context.graph, id);
-    this.state = this.connectedState.$state.value;
     this.connectedState.setViewComponent(this);
     this.setState({
       ...this.connectedState.$state.value,

@@ -1,4 +1,5 @@
 import { computed, signal } from "@preact/signals-core";
+import cloneDeep from "lodash/cloneDeep";
 
 import type { Block, TBlock } from "../components/canvas/blocks/Block";
 import { BlockConnection } from "../components/canvas/connections/BlockConnection";
@@ -90,8 +91,12 @@ export class GraphEditorSettings {
     };
   });
 
+  public toJSON() {
+    return cloneDeep(this.$settings.toJSON());
+  }
+
   public get asConfig(): TGraphSettingsConfig {
-    return this.$settings.value;
+    return this.toJSON();
   }
 
   public reset() {

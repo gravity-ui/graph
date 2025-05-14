@@ -1,5 +1,6 @@
 import { computed, signal } from "@preact/signals-core";
 import type { Signal } from "@preact/signals-core";
+import cloneDeep from "lodash/cloneDeep";
 
 import { TAnchor } from "../../components/canvas/anchors";
 import { Block, TBlock } from "../../components/canvas/blocks/Block";
@@ -154,7 +155,7 @@ export class BlockState<T extends TBlock = TBlock> {
   }
 
   public asTBlock(): TBlock {
-    return this.$state.value;
+    return cloneDeep(this.$state.toJSON());
   }
 }
 
