@@ -45,6 +45,18 @@
           }
         ]
       }
+    },
+    {
+      "files": ["src/react-component/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": "off" // Allow CSS imports in react-component
+      }
+    },
+    {
+      "files": ["src/stories/**/*.{ts,tsx}"],
+      "rules": {
+        "no-restricted-imports": "off" // Allow CSS imports in stories
+      }
     }
   ],
   "rules": {
@@ -57,6 +69,27 @@
     "import/consistent-type-specifier-style": [
       "error",
       "prefer-top-level"
+    ],
+    // Prevent CSS imports in non-React components
+    "no-restricted-imports": [
+      "error", 
+      {
+        "patterns": [
+          {
+            "group": ["**/*.css"],
+            "importNames": ["*"],
+            "message": "Direct CSS imports are not allowed outside of react-component directory. CSS imports don't work in Shadow DOM contexts. Use StylesManager instead to ensure styles work in all environments.",
+            "allowTypeImports": false
+          }
+        ],
+        "paths": [
+          {
+            "name": "**/*.css",
+            "allowTypeImports": false,
+            "message": "Direct CSS imports are not allowed outside of react-component directory. CSS imports don't work in Shadow DOM contexts. Use StylesManager instead to ensure styles work in all environments."
+          }
+        ]
+      }
     ]
   }
 }

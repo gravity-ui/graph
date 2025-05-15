@@ -121,3 +121,4 @@ components-rules: .cursor/rules/components-rules.mdc
 layer-rules: .cursor/rules/layer-rules.mdc
 event-model-rules: .cursor/rules/event-model-rules.mdc
 general-coding-rules: .cursor/rules/general-coding-rules.mdc
+css-rules: .cursor/rules/css-rules.mdc

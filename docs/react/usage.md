@@ -1,5 +1,45 @@
 # React Components API
 
+## Import Structure
+
+The library now separates core functionality from React components:
+
+```typescript
+// Core functionality (no React dependency)
+import { Graph } from "@gravity-ui/graph";
+
+// React components (requires React)
+import { GraphCanvas, GraphBlock, GraphBlockAnchor, useGraph, useGraphEvent } from "@gravity-ui/graph/react-components";
+```
+
+## Architecture
+
+The library uses a modular architecture that separates the core rendering engine from React-specific implementations:
+
+- **Core Layer**: Handles canvas rendering, event management, and data structures
+- **ReactLayer**: A dedicated layer for rendering React components
+- **GraphCanvas**: A React component that creates and manages the ReactLayer
+
+This separation allows the core library to be framework-agnostic while providing seamless React integration.
+
+### ReactLayer
+
+The ReactLayer is responsible for:
+- Creating HTML elements for React components
+- Managing the lifecycle of React components
+- Synchronizing React components with the core library
+
+```typescript
+// Import from the React entry point
+import { ReactLayer } from "@gravity-ui/graph/react-components";
+
+// Creating a ReactLayer manually (usually done by GraphCanvas)
+const reactLayer = graph.addLayer(ReactLayer, {});
+
+// Rendering React components through the layer
+const portal = reactLayer.renderPortal(renderBlock);
+```
+
 ## Key Components
 
 ### GraphCanvas
@@ -7,6 +47,8 @@
 The main container component that renders your graph:
 
 ```tsx
+import { GraphCanvas } from "@gravity-ui/graph/react-components";
+
 <GraphCanvas 
   graph={graph}
   renderBlock={renderBlock}
@@ -25,6 +67,8 @@ The `GraphBlock` component is a crucial wrapper that handles the complex interac
 5. **CSS Variables**: Injects position and state variables for styling
 
 ```tsx
+import { GraphBlock } from "@gravity-ui/graph/react-components";
+
 <GraphBlock 
   graph={graph} 
   block={block}
@@ -68,6 +112,8 @@ Renders connection points on blocks. The component supports two positioning mode
 
 1. **fixed** - Anchors are placed at exact coordinates relative to the block:
 ```tsx
+import { GraphBlockAnchor } from "@gravity-ui/graph/react-components";
+
 <GraphBlockAnchor 
   graph={graph} 
   anchor={anchor}
@@ -212,7 +258,7 @@ const config = {
 The library provides a rich set of events you can listen to:
 
 ```tsx
-import { useGraphEvent } from '@gravity-ui/graph';
+import { useGraphEvent } from '@gravity-ui/graph/react-components';
 
 // When a new connection is created
 useGraphEvent(graph, "connection-created", 
@@ -284,7 +330,8 @@ Here's a practical example that demonstrates the core features:
 
 ```tsx
 import React, { useCallback } from 'react';
-import { GraphCanvas, GraphBlock, GraphBlockAnchor, useGraph, useGraphEvent, TBlock } from '@gravity-ui/graph';
+import { Graph } from '@gravity-ui/graph';
+import { GraphCanvas, GraphBlock, GraphBlockAnchor, useGraph, useGraphEvent, TBlock } from '@gravity-ui/graph/react-components';
 
 function BlockComponent({ block, graph }: { block: TBlock; graph: Graph }) {
   return (

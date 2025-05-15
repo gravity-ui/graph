@@ -5,7 +5,7 @@ export * from "./graph";
 export type { TGraphColors, TGraphConstants } from "./graphConfig";
 export { type UnwrapGraphEventsDetail } from "./graphEvents";
 export * from "./plugins";
-export * from "./react-component";
+// React components are now exported separately to avoid React dependencies in the core build
 export { ECameraScaleLevel } from "./services/camera/CameraService";
 export * from "./services/Layer";
 export * from "./store";
@@ -24,3 +24,5 @@ export * from "./components/canvas/groups";
 
 export * from "./components/canvas/layers/newBlockLayer/NewBlockLayer";
 export * from "./components/canvas/layers/connectionLayer/ConnectionLayer";
+// ReactLayer is now exported separately to avoid React dependencies in the core build
+// EsmLayer is also exported separately to keep the core build clean

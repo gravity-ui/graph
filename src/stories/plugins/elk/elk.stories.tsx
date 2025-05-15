@@ -5,19 +5,10 @@ import { Description, Meta as StorybookMeta, Title } from "@storybook/blocks";
 import type { Meta, StoryFn } from "@storybook/react";
 import ELK, { ElkNode } from "elkjs";
 
-import {
-  Graph,
-  GraphCanvas,
-  GraphState,
-  TBlock,
-  TConnection,
-  TGraphConfig,
-  useGraph,
-  useGraphEvent,
-} from "../../../index";
-import { MultipointConnection, useElk } from "../../../plugins";
-import { TMultipointConnection } from "../../../plugins/elk/types";
-import { useFn } from "../../../utils/hooks/useFn";
+import { Graph, GraphState, TBlock, TConnection, TGraphConfig } from "../../../index";
+import { GraphCanvas, MultipointConnection, useElk, useGraph, useGraphEvent } from "../../../react-component";
+import { TMultipointConnection } from "../../../react-component/elk/types";
+import { useFn } from "../../../react-component/utils/hooks/useFn";
 import { BlockStory } from "../../main/Block";
 
 import { getExampleConfig } from "./getExampleConfig";

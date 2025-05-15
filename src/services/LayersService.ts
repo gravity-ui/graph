@@ -42,6 +42,14 @@ export class Layers extends Emitter {
     return this.rootSize;
   }
 
+  /**
+   * Get all layers
+   * @returns Array of all layers
+   */
+  public getLayers(): Layer[] {
+    return Array.from(this.layers);
+  }
+
   public attach(root: HTMLDivElement = this.$root) {
     this.$root = root;
     this.layers.forEach((layer) => {
