@@ -2,7 +2,7 @@
 
 import { scheduler } from "../../lib/Scheduler";
 
-const getNowTime = window.performance.now.bind(performance);
+const getNowTime = () => performance.now();
 
 type Options = {
   delay?: number;

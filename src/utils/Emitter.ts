@@ -1,9 +1,10 @@
 import { noop } from "./functions";
 
 const TIME_PER_FRAME_FOR_GC = 5; // 5 mc
-const rIC = window.requestIdleCallback || window.setTimeout;
+const globalObject = typeof window === "undefined" ? global : window;
+const rIC = globalObject.requestIdleCallback || globalObject.setTimeout;
 
-const getTime = () => window.performance.now();
+const getTime = () => performance.now();
 type EmitterEventsDefinition = Record<string, (...args: unknown[]) => void>;
 export class Emitter<T extends EmitterEventsDefinition = EmitterEventsDefinition> {
   private destroyed: boolean;
