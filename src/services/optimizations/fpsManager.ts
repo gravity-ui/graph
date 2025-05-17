@@ -30,7 +30,11 @@ class FpsManager {
 
       this.averageFPS = Math.floor(sum / 10);
 
-      window.requestAnimationFrame(refreshLoop);
+      if (typeof window === "undefined") {
+        global.setTimeout(refreshLoop, 16);
+      } else {
+        window.requestAnimationFrame(refreshLoop);
+      }
     };
 
     refreshLoop();

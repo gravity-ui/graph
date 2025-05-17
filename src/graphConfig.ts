@@ -129,7 +129,7 @@ export type TGraphConstants = {
 export const initGraphConstants: TGraphConstants = {
   system: {
     GRID_SIZE: 16,
-    PIXEL_RATIO: window.devicePixelRatio || 1,
+    PIXEL_RATIO: typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
     USABLE_RECT_GAP: 400,
     CAMERA_VIEWPORT_TRESHOLD: 0.5,
   },
