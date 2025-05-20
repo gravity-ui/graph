@@ -11,7 +11,7 @@ function canvasContextGetter() {
   return canvas.getContext("2d");
 }
 
-const getCanvasContext = memoize(canvasContextGetter, () => "stableCacheKey");
+const getCanvasContext = memoize(canvasContextGetter, () => "canvasContext");
 
 const mapTextToMeasures: Map<string, number> = new Map();
 
