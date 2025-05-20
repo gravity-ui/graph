@@ -1,13 +1,23 @@
 /* eslint-disable no-unmodified-loop-condition */
+import memoize from "lodash/memoize";
+
 export function getFontSize(fontSize, scale) {
   return (fontSize / scale) | 0;
 }
 
-const canvas: HTMLCanvasElement = document.createElement("canvas");
-const context: CanvasRenderingContext2D = canvas.getContext("2d");
+function canvasContextGetter() {
+  const canvas: HTMLCanvasElement = document.createElement("canvas");
+
+  return canvas.getContext("2d");
+}
+
+const getCanvasContext = memoize(canvasContextGetter, () => "canvasContext");
+
 const mapTextToMeasures: Map<string, number> = new Map();
 
 export function measureText(text, font, approximate = true): number {
+  const context = getCanvasContext();
+
   context.font = font;
 
   if (!approximate) {
