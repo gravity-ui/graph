@@ -4,8 +4,9 @@ import type { Meta, StoryFn } from "@storybook/react";
 import groupBy from "lodash/groupBy";
 
 import { BlockGroups, Group } from "../../../components/canvas/groups";
-import { BlockState, Graph, GraphCanvas, GraphState, TBlock, useGraph, useGraphEvent } from "../../../index";
-import { useFn } from "../../../utils/hooks/useFn";
+import { BlockState, Graph, GraphState, TBlock } from "../../../index";
+import { GraphCanvas, useGraph, useGraphEvent } from "../../../react-components";
+import { useFn } from "../../../react-components/utils/hooks/useFn";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 

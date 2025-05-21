@@ -3,11 +3,8 @@ import React, { useLayoutEffect } from "react";
 import { TBlock } from "../../components/canvas/blocks/Block";
 import { Graph, GraphState, TGraphConfig } from "../../graph";
 import { TGraphColors, TGraphConstants } from "../../graphConfig";
-import { GraphCanvas } from "../../react-component/GraphCanvas";
-import { TGraphEventCallbacks } from "../../react-component/events";
-import { useGraph } from "../../react-component/hooks/useGraph";
-import { useGraphEvent } from "../../react-component/hooks/useGraphEvents";
-import { useFn } from "../../utils/hooks/useFn";
+import { GraphCanvas, TGraphEventCallbacks, useGraph, useGraphEvent } from "../../react-components";
+import { useFn } from "../../react-components/utils/hooks/useFn";
 
 import { BlockStory } from "./Block";
 
