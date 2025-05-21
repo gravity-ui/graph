@@ -67,7 +67,7 @@
       "gzip": true
     },
     {
-      "path": "build/react.js",
+      "path": "build/react-components/index.js",
       "import": "{ GraphComponent }",
       "gzip": true
     }
