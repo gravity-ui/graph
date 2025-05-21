@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef } from "react";
 
 import { TGraphColors } from "..";
 import { Graph } from "../graph";
@@ -6,6 +6,7 @@ import { setCssProps } from "../utils/functions/cssProp";
 
 import { TBlockListProps } from "./BlocksList";
 import { TGraphEventCallbacks } from "./events";
+import { useLayer } from "./hooks";
 import { useGraphEvent, useGraphEvents } from "./hooks/useGraphEvents";
 import { ReactLayer } from "./layer";
 import { useFn } from "./utils/hooks/useFn";
@@ -18,25 +19,15 @@ export type GraphProps = Pick<Partial<TBlockListProps>, "renderBlock"> &
 
 export function GraphCanvas({ graph, className, renderBlock, ...cbs }: GraphProps) {
   const containerRef = useRef<HTMLDivElement>();
-  const [reactLayer, setReactLayer] = useState<ReactLayer | null>(null);
 
-  // Create ReactLayer reference
-  const reactLayerRef = useRef<ReactLayer | null>(null);
+  const reactLayer = useLayer(graph, ReactLayer, {});
 
   useEffect(() => {
     if (containerRef.current) {
       graph.attach(containerRef.current);
-
-      // Create ReactLayer
-      const layer = graph.addLayer(ReactLayer, {});
-      reactLayerRef.current = layer;
-      setReactLayer(layer);
     }
 
     return () => {
-      if (reactLayerRef.current) {
-        graph.detachLayer(reactLayerRef.current);
-      }
       graph.detach();
     };
   }, [graph, containerRef]);
