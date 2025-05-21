@@ -30,6 +30,14 @@ The library uses a smart rendering system that automatically manages the transit
    - Automatically updates the list when scrolling or zooming
    - Removes React components when zooming out
 
+The library is designed with a modular architecture that separates the core rendering engine from framework-specific implementations:
+
+- **Core Layer**: Handles canvas rendering, event management, and data structures
+- **Framework Layers**: Separate layers for React (and potentially other frameworks)
+- **Plugin System**: Extensible through custom layers
+
+This separation means that React is now a development dependency rather than a peer dependency. Users who only need the core functionality can use the library without React, while those who want to use the React components can continue to do so.
+
 ```typescript
 // Example of React components rendering
 const MyGraph = () => {
@@ -55,6 +63,24 @@ const MyGraph = () => {
 npm install @gravity-ui/graph
 ```
 
+## Import Structure
+
+The library now separates core functionality from React components to allow usage without React dependencies:
+
+```typescript
+// Core functionality (no React dependency)
+import { EAnchorType, Graph } from "@gravity-ui/graph";
+
+// React components (requires React)
+import { GraphCanvas, GraphBlock } from "@gravity-ui/graph/react";
+```
+
+This separation allows:
+- Using the core library without React dependencies
+- Smaller bundle size when React components aren't needed
+- Framework-agnostic usage of the core functionality
+- Support for other UI frameworks in the future
+
 ## Examples
 
 ### React Example
@@ -62,7 +88,8 @@ npm install @gravity-ui/graph
 [Detailed React Components Documentation](docs/react/usage.md)
 
 ```typescript
-import { GraphCanvas, GraphState, GraphBlock, useGraph } from "@gravity-ui/graph";
+import { EAnchorType, Graph } from "@gravity-ui/graph";
+import { GraphCanvas, GraphState, GraphBlock, useGraph } from "@gravity-ui/graph/react";
 import React from "react";
 
 const config = {};
@@ -82,7 +109,14 @@ export function GraphEditor() {
           height: 126,
           selected: true,
           name: "Block #1",
-          anchors: [],
+          anchors: [
+            {
+              id: "out1",
+              blockId: "action_1",
+              type: EAnchorType.OUT,
+              index: 0
+            }
+          ],
         },
         {
           id: "action_2",
@@ -93,13 +127,22 @@ export function GraphEditor() {
           height: 126,
           selected: false,
           name: "Block #2",
-          anchors: [],
+          anchors: [
+            {
+              id: "in1",
+              blockId: "action_2",
+              type: EAnchorType.IN,
+              index: 0
+            }
+          ],
         }
       ],
       connections: [
         {
           sourceBlockId: "action_1",
+          sourceAnchorId: "out1",
           targetBlockId: "action_2",
+          targetAnchorId: "in1",
         }
       ]
     });
@@ -159,7 +202,15 @@ graph.setEntities({
             y: 100,
             width: 120,
             height: 120,
-            name: "Block #1"
+            name: "Block #1",
+            anchors: [
+                {
+                    id: "out1",
+                    blockId: "block1",
+                    type: EAnchorType.OUT,
+                    index: 0
+                }
+            ]
         },
         {
             is: "block-action",
@@ -168,13 +219,23 @@ graph.setEntities({
             y: 300,
             width: 120,
             height: 120,
-            name: "Block #2"
+            name: "Block #2",
+            anchors: [
+                {
+                    id: "in1",
+                    blockId: "block2",
+                    type: EAnchorType.IN,
+                    index: 0
+                }
+            ]
         }
     ],
     connections: [
         {
             sourceBlockId: "block1",
-            targetBlockId: "block2"
+            sourceAnchorId: "out1",
+            targetBlockId: "block2",
+            targetAnchorId: "in1"
         }
     ]
 });
@@ -208,6 +269,7 @@ graph.zoomTo("center", { padding: 100 });
 2. Components
    - [Canvas Graph Component](docs/components/canvas-graph-component.md)
    - [Block Component](docs/components/block-component.md)
+   - [Anchors](docs/components/anchors.md)
 
 3. Rendering
    - [Rendering Mechanism](docs/rendering/rendering-mechanism.md)

@@ -4,7 +4,8 @@ import isEqual from "lodash/isEqual";
 
 import type { Graph } from "../../graph";
 import type { Layer } from "../../services/Layer";
-import { usePrevious } from "../../utils/hooks/usePrevious";
+
+import { usePrevious } from "./usePrevious";
 
 /**
  * Hook for managing graph layers.
