@@ -4,7 +4,7 @@ import { CircleInfo } from "@gravity-ui/icons";
 import { Flex, Icon, Text } from "@gravity-ui/uikit";
 
 import { Graph } from "../../../graph";
-import { GraphBlock } from "../../../react-component";
+import { GraphBlock } from "../../../react-components";
 import { TGravityTextBlock } from "../generateLayout";
 
 import "./TextBlock.css";

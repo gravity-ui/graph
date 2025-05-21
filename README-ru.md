@@ -55,6 +55,24 @@ const MyGraph = () => {
 npm install @gravity-ui/graph
 ```
 
+## Структура импортов
+
+Библиотека теперь разделяет основную функциональность и React-компоненты, чтобы обеспечить использование без зависимостей от React:
+
+```typescript
+// Основная функциональность (без зависимости от React)
+import { Graph } from "@gravity-ui/graph";
+
+// React-компоненты (требуют React)
+import { GraphCanvas, GraphBlock } from "@gravity-ui/graph/react";
+```
+
+Это разделение позволяет:
+- Использовать основную библиотеку без зависимостей от React
+- Уменьшить размер бандла, когда React-компоненты не нужны
+- Использовать основную функциональность независимо от фреймворка
+- Поддерживать другие UI-фреймворки в будущем
+
 ## Примеры
 
 ### Пример на React
@@ -62,7 +80,8 @@ npm install @gravity-ui/graph
 [Подробная документация по React компонентам](docs/react/usage.md)
 
 ```typescript
-import { GraphCanvas, GraphState, GraphBlock, useGraph } from "@gravity-ui/graph";
+import { Graph } from "@gravity-ui/graph";
+import { GraphCanvas, GraphState, GraphBlock, useGraph } from "@gravity-ui/graph/react";
 import React from "react";
 
 const config = {};
@@ -226,4 +245,3 @@ graph.zoomTo("center", { padding: 100 });
 |------|-----------|--------------|
 | Настройки графа | Параметры конфигурации | [Подробнее](docs/system/graph-settings.md) |
 | API | Методы для управления графом | [Подробнее](docs/system/public_api.md) |
-

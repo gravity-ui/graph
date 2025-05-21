@@ -3,6 +3,13 @@
   "version": "0.4.3",
   "description": "Modern graph editor component",
   "main": "build/index.js",
+  "module": "build/index.js",
+  "types": "build/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "react": ["build/react-components/index.d.ts"]
+    }
+  },
   "keywords": [
     "gravity-ui",
     "graph",
@@ -16,6 +23,16 @@
     "canvas",
     "diagram"
   ],
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "default": "./build/index.js"
+    },
+    "./react": {
+      "types": "./build/react-components/index.d.ts",
+      "default": "./build/react-components/index.js"
+    }
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -45,8 +62,13 @@
   },
   "size-limit": [
     {
-      "path": "build/**/*.js",
-      "import": "{ Graph, GraphComponent }",
+      "path": "build/index.js",
+      "import": "{ Graph }",
+      "gzip": true
+    },
+    {
+      "path": "build/react.js",
+      "import": "{ GraphComponent }",
       "gzip": true
     }
   ],
@@ -55,10 +77,6 @@
     "intersects": "^2.7.2",
     "lodash-es": "^4.17.21",
     "rbush": "^3.0.1"
-  },
-  "peerDependencies": {
-    "react": "^16.0.0 || ^17.0.0 || ^18.0.0",
-    "react-dom": "^16.0.0 || ^17.0.0 || ^18.0.0"
   },
   "devDependencies": {
     "@babel/plugin-proposal-class-properties": "^7.18.6",

@@ -6,9 +6,8 @@ import type { Meta, StoryFn } from "@storybook/react";
 import { TBlock } from "../../../components/canvas/blocks/Block";
 import { NewBlockLayer } from "../../../components/canvas/layers/newBlockLayer/NewBlockLayer";
 import { Graph } from "../../../index";
-import { GraphCanvas } from "../../../react-component/GraphCanvas";
-import { useGraph } from "../../../react-component/hooks/useGraph";
-import { useFn } from "../../../utils/hooks/useFn";
+import { GraphCanvas, useGraph } from "../../../react-components";
+import { useFn } from "../../../react-components/utils/hooks/useFn";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 
