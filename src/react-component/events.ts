@@ -2,6 +2,7 @@ import { GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } fr
 
 export type TGraphEventCallbacks = {
   click: (data: UnwrapGraphEventsDetail<"click">, event: UnwrapGraphEvents<"click">) => void;
+  dblclick: (data: UnwrapGraphEventsDetail<"dblclick">, event: UnwrapGraphEvents<"dblclick">) => void;
   onCameraChange: (data: UnwrapGraphEventsDetail<"camera-change">, event: UnwrapGraphEvents<"camera-change">) => void;
   onBlockDragStart: (
     data: UnwrapGraphEventsDetail<"block-drag-start">,
@@ -30,6 +31,7 @@ export type GraphEvent<T extends keyof TGraphEventCallbacks> = Parameters<TGraph
 
 export const GraphCallbacksMap: Record<keyof TGraphEventCallbacks, keyof GraphEventsDefinitions> = {
   click: "click",
+  dblclick: "dblclick",
   onCameraChange: "camera-change",
   onBlockDragStart: "block-drag-start",
   onBlockDrag: "block-drag",
