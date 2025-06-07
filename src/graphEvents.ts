@@ -14,11 +14,12 @@ export const extractNativeGraphMouseEvent = (event: GraphMouseEvent) => {
   return event.detail.sourceEvent instanceof MouseEvent ? event.detail.sourceEvent : null;
 };
 
-export type GraphMouseEventNames = "mousedown" | "click" | "mouseenter" | "mouseleave";
+export type GraphMouseEventNames = "mousedown" | "click" | "dblclick" | "mouseenter" | "mouseleave";
 
 export interface BaseGraphEventDefinition {
   mousedown: (event: GraphMouseEvent) => void;
   click: (event: GraphMouseEvent) => void;
+  dblclick: (event: GraphMouseEvent) => void;
   mouseenter: (event: GraphMouseEvent) => void;
   mouseleave: (event: GraphMouseEvent) => void;
 }
@@ -41,7 +42,7 @@ export interface GraphEventsDefinitions extends BaseGraphEventDefinition {
   "colors-changed": (event: CustomEvent<{ colors: TGraphColors }>) => void;
   "state-change": (event: CustomEvent<{ state: GraphState }>) => void;
 }
-const graphMouseEvents = ["mousedown", "click", "mouseenter", "mousemove", "mouseleave"];
+const graphMouseEvents = ["mousedown", "click", "dblclick", "mouseenter", "mousemove", "mouseleave"];
 
 export type UnwrapGraphEvents<
   Key extends keyof GraphEventsDefinitions,

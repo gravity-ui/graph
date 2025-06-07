@@ -28,6 +28,7 @@ const action =
 const callbacks = {
   mousedown: action("mousedown"),
   click: action("click"),
+  dblclick: action("dblclick"),
   mouseenter: action("mouseenter"),
   mouseleave: action("mouseleave"),
   onCameraChange: action("onCameraChange"),
