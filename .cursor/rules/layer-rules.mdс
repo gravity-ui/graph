@@ -125,7 +125,7 @@ this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${ca
     - Use `afterInit` for setup that requires the canvas and context to be ready.
     - Inside `afterInit`, reliably get the canvas using `this.getCanvas()`. 
     - Initialize or update the layer's full context using `this.setContext({ ...this.context, /* your additions */ });`. The base `Layer` already initializes `graph`, `camera`, `colors`, `constants`, `layer`. If you create a canvas/HTML element, you need to add `graphCanvas`/`html` and `ctx` to the context after creation (e.g., in `afterInit`).
-    - Attach event listeners (e.g., `mousemove`, `mouseleave`) to the graph's root element (`this.props.graph.getGraphHTML()`) or specific layer elements (`this.getCanvas()`, `this.getHTML()`) within `afterInit`.
+    - Attach event listeners (e.g., `mousemove`, `mouseleave`) to the layer's root element (`this.root`) or specific layer elements (`this.getCanvas()`, `this.getHTML()`) within `afterInit`.
     - Always clean up listeners and subscriptions in the `unmount` method.
 - **Camera Interaction & Coordinates:**
     - Subscribe to graph's `'camera-change'` event (`this.props.graph.on(...)`) to get updates. The event detail (`event.detail`) provides the `TCameraState` (containing `width`, `height`, `scale`, `x`, `y`).
