@@ -8,6 +8,8 @@ import { TGraphColors, TGraphConstants } from "../graphConfig";
 
 import { BlocksList, TBlockListProps } from "./BlocksList";
 import { GraphCallbacksMap, TGraphEventCallbacks } from "./events";
+import { useLayer } from "./hooks";
+import { ReactLayer } from "./layer";
 
 export interface TRenderBlockFn<T extends TBlock = TBlock> {
   (graphObject: Graph, block: T): React.JSX.Element;
@@ -58,6 +60,8 @@ export const GraphComponent = memo(function GraphComponent(props: TGraphComponen
   const { config, graphRef, rootElementId, colors, constants, ...events } = props;
   const [graph, setGraph] = useState<Graph>(undefined);
 
+  const reactLayer = useLayer(graph, ReactLayer, {});
+
   // init graphEditor
   useEffect(() => {
     const elementId = rootElementId ? rootElementId : randomId;
@@ -103,14 +107,18 @@ export const GraphComponent = memo(function GraphComponent(props: TGraphComponen
   renderFnRef.current = props.renderBlockFn;
 
   const blocksList = useMemo(() => {
-    if (graph) {
-      return renderBlocksList(graph.getGraphHTML() as HTMLDivElement, {
-        graphObject: graph,
-        renderBlock: renderFnRef.current,
-      });
+    if (graph && reactLayer) {
+      const reactHTML = reactLayer.getHTML();
+
+      if (reactHTML) {
+        return renderBlocksList(reactHTML as HTMLDivElement, {
+          graphObject: graph,
+          renderBlock: renderFnRef.current,
+        });
+      }
     }
     return null;
-  }, [graph, renderFnRef]);
+  }, [graph, reactLayer, renderFnRef]);
 
   if (rootElementId) {
     return blocksList;

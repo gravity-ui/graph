@@ -97,10 +97,14 @@ export class SelectionLayer extends Layer<
       return;
     }
 
+    if (!this.root?.ownerDocument) {
+      return;
+    }
+
     if (event && isMetaKeyEvent(event)) {
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
-      dragListener(this.context.graph.getGraphHTML().ownerDocument)
+      dragListener(this.root.ownerDocument)
         .on(EVENTS.DRAG_START, this.startSelectionRender)
         .on(EVENTS.DRAG_UPDATE, this.updateSelectionRender)
         .on(EVENTS.DRAG_END, this.endSelectionRender);

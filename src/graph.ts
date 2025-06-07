@@ -69,23 +69,6 @@ export class Graph {
 
   protected selectionLayer: SelectionLayer;
 
-  /**
-   * Get HTML element for rendering React components
-   * @returns HTML element from ReactLayer if available, otherwise null
-   * @deprecated This method is maintained for backward compatibility. Use framework-specific layers directly.
-   */
-  public getGraphHTML() {
-    // Find ReactLayer instance in layers
-    const reactLayer = this.layers.getLayers().find((layer) => layer.constructor.name === "ReactLayer");
-
-    // Return HTML element from ReactLayer if available
-    if (reactLayer) {
-      return reactLayer.getHTML();
-    }
-
-    // Fallback to GraphLayer for backward compatibility
-    return this.graphLayer.getHTML();
-  }
   public getGraphCanvas() {
     return this.graphLayer.getCanvas();
   }
