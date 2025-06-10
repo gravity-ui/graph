@@ -90,33 +90,6 @@ const graphConfig = {
 };
 ```
 
-### Important Notes
-
-1. **blockId Requirement**: The `blockId` property must match the ID of the parent block. This is essential for the anchor to be properly associated with its block and for the selection system to work correctly.
-
-2. **Connection Configuration**: When using anchors, connections should specify both the blocks and the specific anchors being connected using `sourceAnchorId` and `targetAnchorId` properties.
-
-2. **Type Enum**: Always use the `EAnchorType` enum for the `type` property, not string literals. Import it from the library:
-   ```typescript
-   import { EAnchorType } from "@gravity-ui/graph";
-   ```
-
-3. **Index for Ordering**: The `index` property determines the order of anchors of the same type. This affects the visual positioning of anchors on the block.
-
-4. **No Direct Position**: Unlike some other graph libraries, anchors do not have direct `x` and `y` properties. Their position is calculated by the library based on the block's geometry and the anchor's type and index.
-
-5. **Optional Usage**: Anchors are optional in the graph system. You can disable them by setting the `useBlocksAnchors` setting to `false`:
-   ```typescript
-   const graph = new Graph({
-     settings: {
-       useBlocksAnchors: false, // Disable anchors
-       // other settings...
-     },
-     // blocks and connections...
-   }, container);
-   ```
-   When anchors are disabled, connections are made directly between blocks.
-
 ## Dynamic Anchor Creation
 
 When creating blocks dynamically, ensure you set the correct `blockId` for each anchor:
@@ -174,18 +147,6 @@ The position of anchors is determined by the block's geometry and the anchor's t
 // Get the position of an anchor
 const position = block.getAnchorPosition(anchorId);
 ```
-
-## Best Practices
-
-1. **Always Include blockId**: Always include the `blockId` property in anchor definitions, matching the ID of the parent block.
-
-2. **Use Enum for Type**: Always use the `EAnchorType` enum for the `type` property, not string literals.
-
-3. **Include Index for Ordering**: Include the `index` property to control the order of anchors of the same type.
-
-4. **Unique Anchor IDs**: Ensure each anchor has a unique ID within its block.
-
-5. **Dynamic Block Creation**: When creating blocks dynamically, ensure you set the correct `blockId` for each anchor, matching the ID of the new block.
 
 ## Anchor Positioning and Block Height
 

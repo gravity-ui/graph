@@ -1,5 +1,6 @@
 ---
 description: Rules for working with rendering layers in @gravity-ui/graph
+globs: 
 alwaysApply: false
 ---
 
@@ -10,6 +11,22 @@ Layers are fundamental to the Canvas rendering pipeline in @gravity-ui/graph. Th
 
 ## Key Layer Concepts
 - **Purpose:** Each layer is responsible for a specific aspect of the graph, which can include **rendering visual elements** (e.g., `BackgroundLayer`, `ConnectionLayer`) or **managing behavior and logic** (e.g., handling specific user interactions, managing non-visual state). A layer might not have a direct visual representation but still participate in the graph's lifecycle and logic.
+- **Base Class:** `src/services/Layer.ts` (Exports `Layer`, `LayerProps`, `LayerContext`).
+- **`LayerProps` Interface:** Defines configuration for a layer. Key properties include:
+    - `canvas`: Configuration for the HTML5 Canvas element (optional).
+        - `zIndex`: Stacking order.
+        - `classNames`: CSS classes.
+        - `respectPixelRatio`: (boolean, default: true) Whether the canvas should account for device pixel ratio for sharper rendering.
+        - `transformByCameraPosition`: (boolean, default: false) Whether the canvas transform should automatically follow the camera's position and scale.
+    - `html`: Configuration for the HTML overlay element (optional).
+        - `zIndex`: Stacking order.
+        - `classNames`: CSS classes.
+        - `transformByCameraPosition`: (boolean, default: false) Whether the HTML element's transform should automatically follow the camera's position and scale via CSS `matrix()`.
+    - `camera`: The `ICamera` instance.
+    - `graph`: The main `Graph` instance.
+    - `root`: The root HTML element where the layer will be attached.
+- **`LayerContext` Interface:** Provides context information accessible within the layer (via `this.context`). Includes:
+    - `graph`, `camera`, `constants`, `colors`, `graphCanvas`, `ctx`, `layer` (self-reference).
 - **Location:** Core layer logic and specific layer implementations are found in `src/components/canvas/layers/` and potentially base classes/services like `src/services/Layer.ts`.
 - **Rendering Order/Priority:** Layers are rendered/processed in a specific sequence determined by the main graph component. The order is crucial for visual correctness and logical flow (e.g., connections below blocks, interaction handlers processed before rendering). Typical order might be: Background -> Connections -> Blocks -> Groups -> Behavior/Interaction Layers -> Highlight Layers.
 - **Performance:** Layers optimize rendering and processing by:
@@ -29,8 +46,82 @@ Layers are fundamental to the Canvas rendering pipeline in @gravity-ui/graph. Th
 
 - **Why This Matters:** During the creation phase, the root element may be undefined or not yet attached to the document. The `afterInit` method is guaranteed to be called after the layer is properly attached to the DOM, ensuring that DOM operations work correctly.
 
+## HTML Rendering in Layers
+
+The Layer class can create both Canvas and HTML elements for rendering:
+
+```typescript
+// Example of Layer creation with both Canvas and HTML elements
+constructor(props: LayerProps) {
+  super({
+    canvas: {
+      zIndex: 2,
+      respectPixelRatio: true,
+      classNames: ["no-user-select"],
+    },
+    html: {
+      zIndex: 3,
+      classNames: ["no-user-select"],
+      transformByCameraPosition: true, // This enables HTML rendering with camera transformation
+    },
+    ...props,
+  });
+}
+```
+
+### HTML Layer Configuration
+
+- **There is no dedicated "HTMLLayer" class**. Instead, HTML rendering is handled by setting the `html` property in the Layer constructor options.
+- The `transformByCameraPosition: true` option is crucial for HTML elements that need to move with the camera.
+- When this option is set, the layer adds the "layer-with-camera" class to the HTML element and subscribes to camera state changes.
+
+### Camera Transformation
+
+- HTML elements with `transformByCameraPosition: true` are transformed using a matrix transform based on camera state:
+```typescript
+this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
+```
+- This transformation is applied directly in the `afterInit()` method when the `transformByCameraPosition` option is set to `true`.
+- **IMPORTANT**: The camera state subscription is set up in the `afterInit()` method to ensure it's properly reestablished when a layer is reattached.
+
+### React Integration
+
+- React components are rendered into the HTML element of the GraphLayer using `createPortal` in `GraphCanvas.tsx`.
+- The BlocksList component renders React blocks only when the camera is at the detailed zoom level.
+
 ## Working with Layers
 - **Layers are Components:** Treat layers as specialized components. They follow the standard component lifecycle (`mount`, `unmount`, `render`, `stateChanged`, etc.) and **all general component rules (see `components-rules`) apply to layers as well**. A layer's `render` method might be empty if it only handles behavior.
+
+- **Inheritance and Generics:**
+    - Custom layers should extend the base `Layer` class from `src/services/Layer.ts`.
+    - The base `Layer` class has the following generic signature: `Layer<Props extends LayerProps, Context extends LayerContext, State extends TComponentState>`.
+    - `LayerProps`, `LayerContext`, and `TComponentState` are defined in `src/services/Layer.ts` and `src/lib/Component.ts` respectively.
+    - When defining your custom layer, specify your custom Props, Context (if needed, extending `LayerContext`), and State (if needed, extending `TComponentState`) in this order: `class MyLayer extends Layer<TMyLayerProps, TMyLayerContext, TMyLayerState> {...}`.
+    - Your custom `TMyLayerProps` interface **must extend the base `LayerProps`**. This is because the base constructor requires properties like `graph` and `camera`. Make sure to define custom props alongside the base ones.
+
+- **Constructor and Props:**
+    - The constructor of your custom layer will typically receive the *full* `LayerProps` (or your extended `TMyLayerProps`).
+    - You should pass these props up to the base class constructor using `super(props)`. You can override specific options like `canvas` within the object passed to `super`, e.g., `super({...props, canvas: {...props.canvas, zIndex: 100, respectPixelRatio: true}})`.
+
+- **Creating and Adding Layers:**
+    - Layers are typically added to the graph via the `layers` array in the `TGraphConfig` or dynamically using `graph.addLayer()`.
+    - The `graph.addLayer<T extends Constructor<Layer>>(LayerClass, props)` method has a specific signature for its `props` argument: `Omit<LayerProps, 'root' | 'camera' | 'graph' | 'emitter'> & { root?: LayerProps['root'] }` (or the omitted version of your custom props if `LayerClass` uses them).
+    - **Important:** `graph.addLayer` automatically provides the `graph`, `camera`, `root`, and `emitter` properties to the layer's constructor. You **do not** need to include them in the `props` object passed to `graph.addLayer`.
+    - **Example Usage:**
+      ```typescript
+      // In TGraphConfig:
+      const graphConfig = {
+          // ... other config
+          layers: [
+              [MyLayer, { myCustomProp: 'value' }] // Pass only custom/overridden props here
+          ]
+      };
+
+      // Dynamic addition:
+      const myLayerInstance = graph.addLayer(MyLayer, { myCustomProp: 'value' });
+      ```
+    - Register the new layer in the main graph's processing pipeline in the correct order (often controlled by `zIndex` in `props.canvas` or `props.html`).
+
 - **Creating New Layers:**
     - If adding new types of visual elements or behaviors, create a new layer class.
     - New layers should ideally extend a base `Layer` class or a suitable existing layer, inheriting common functionality.
@@ -38,7 +129,93 @@ Layers are fundamental to the Canvas rendering pipeline in @gravity-ui/graph. Th
 - **Modifying Existing Layers:**
     - When changing how elements are rendered or behaviors are managed, modify the relevant methods (e.g., `render`, event handlers) of the corresponding layer.
     - Ensure efficiency; avoid unnecessary computations or drawing invisible elements.
+- **Handling Device Pixel Ratio (DPR) and Transforms:** For crisp rendering and correct positioning, especially when using Canvas:
+    - **`respectPixelRatio`:** Set this to `true` (default) in `LayerProps.canvas` to enable automatic DPR handling by the base `Layer` class. The canvas dimensions will be scaled, and transforms applied correctly.
+    - **`transformByCameraPosition`:** Set this to `true` in `LayerProps.canvas` or `LayerProps.html` if the layer's content should move/scale with the camera automatically.
+    - **Manual Transforms:**
+        - Use `this.resetTransform()` at the beginning of your `render` method. This clears the canvas and applies the base camera transform (if `transformByCameraPosition` is true for canvas) respecting the DPR.
+        - Use `this.applyTransform(x, y, scale, respectPixelRatio)` to apply additional transformations relative to the camera or world space, ensuring DPR is accounted for.
+        - Use `this.getDRP()` to get the calculated Device Pixel Ratio (respecting `respectPixelRatio` flag).
+    - **Coordinate Systems:** Remember that `this.context.ctx` transformations managed by `resetTransform` and `applyTransform` handle the conversion from world space to the scaled canvas coordinate space. Draw using world coordinates.
+- **Layer Lifecycle & Context:**
+    - Use `afterInit` for setup that requires the canvas and context to be ready.
+    - Inside `afterInit`, reliably get the canvas using `this.getCanvas()`. 
+    - Initialize or update the layer's full context using `this.setContext({ ...this.context, /* your additions */ });`. The base `Layer` already initializes `graph`, `camera`, `colors`, `constants`, `layer`. If you create a canvas/HTML element, you need to add `graphCanvas`/`html` and `ctx` to the context after creation (e.g., in `afterInit`).
+    - Attach event listeners (e.g., `mousemove`, `mouseleave`) to the layer's root element (`this.root`) or specific layer elements (`this.getCanvas()`, `this.getHTML()`) within `afterInit`.
+    - Always clean up listeners and subscriptions in the `unmount` method.
+- **Camera Interaction & Coordinates:**
+    - Subscribe to graph's `'camera-change'` event (`this.props.graph.on(...)`) to get updates. The event detail (`event.detail`) provides the `TCameraState` (containing `width`, `height`, `scale`, `x`, `y`).
+    - `cameraState.x` and `cameraState.y` represent the *screen coordinates* of the world origin (0,0). Use these (`worldOriginScreenX`, `worldOriginScreenY`) for coordinate calculations.
+    - To convert **screen coordinates to world coordinates** (e.g., mouse position), use `this.context.camera.applyToPoint(screenX, screenY)`.
+    - To convert **world coordinates to screen coordinates** (e.g., placing ticks), use the formula: `screenX = worldX * scale + worldOriginScreenX` and `screenY = worldY * scale + worldOriginScreenY`.
+    - To determine the **world coordinates visible** in the viewport, calculate the boundaries: `worldViewLeft = (0 - worldOriginScreenX) / scale`, `worldViewRight = (viewWidth - worldOriginScreenX) / scale`, etc. Use these boundaries to optimize rendering loops.
 - **Interaction & Behavior:** Layers are suitable for encapsulating specific interaction logic (e.g., drag-and-drop handling, tool activation). These layers might not draw anything but listen to events and modify the graph state.
 - **Event Propagation & Camera Interaction:** Since layers are often added directly to the root container (and not nested within the `GraphLayer` which handles core event delegation and contains the `Camera`), mouse events intended for camera interactions (like panning via click/drag) might be intercepted by the layer. To ensure the camera receives these events, you may need to override the layer's `getParent()` method to directly return the camera component: `return this.props.graph.getGraphLayer().$.camera;`. This effectively bypasses the standard hierarchy for event bubbling, delegating the event to the camera. *Note:* This is a workaround; be mindful of potential side effects on other event handling within your layer. See the `BlockGroups` layer (`src/components/canvas/groups/BlockGroups.ts`) for a practical example.
 - **State Management:** Layers typically access the graph's central state store (`store/`) to get the data they need and to dispatch changes. Use reactive patterns (signals) to trigger updates when relevant data changes.
 - **Cleanup:** Implement necessary cleanup in the layer's `destroy` or `unmount` method to release resources, remove listeners, etc.
+
+## React Integration with useLayer
+- **Using `useLayer` Hook:** The recommended way to add and manage layers in React components:
+    ```typescript
+    import { useLayer } from "@gravity-ui/graph";
+    
+    function MyComponent() {
+      const { graph } = useGraph(/* config */);
+      
+      const devToolsLayer = useLayer(graph, DevToolsLayer, {
+        showRuler: true,
+        rulerSize: 20,
+        // Only custom props, internal props like root/camera/graph are handled automatically
+      });
+      
+      return <GraphCanvas graph={graph} />;
+    }
+    ```
+- **Key Features:**
+    - Automatically handles layer initialization and cleanup
+    - Updates layer props when they change via React's dependency system
+    - Provides proper TypeScript types for layer props
+    - Returns the layer instance for direct access if needed
+- **Props Management:**
+    - Only pass custom props specific to your layer
+    - Internal props (`root`, `camera`, `graph`, `emitter`) are handled automatically
+    - Props updates trigger the layer's `setProps` method
+- **Lifecycle:**
+    - Layer is created when the component mounts
+    - Props are updated when dependencies change
+    - Layer is automatically cleaned up when the component unmounts
+- **Type Safety:**
+    - Uses TypeScript generics to ensure type safety
+    - Properly types the layer constructor and props
+    ```typescript
+    useLayer<T extends Constructor<Layer>>(
+      graph: Graph | null,
+      layerCtor: T,
+      props: T extends Constructor<Layer<infer Props>>
+        ? Omit<Props, "root" | "camera" | "graph" | "emitter"> & { root?: Props["root"] }
+        : never
+    )
+    ``` 
+
+## Layer Event Handling
+
+The layer system provides convenient wrapper methods for subscribing to events using `AbortController`. This ensures that all event handlers are automatically removed when the layer is unmounted, preventing memory leaks and redundant subscriptions.
+
+**Main subscription methods:**
+- `onGraphEvent` — for graph events
+- `onHtmlEvent` — for HTML element events
+- `onCanvasEvent` — for canvas element events
+- `onRootEvent` — for root element events
+
+> It is recommended to set up all subscriptions in the `afterInit()` method so they are properly re-established when the layer is remounted.
+
+**Example:**
+```typescript
+protected afterInit() {
+  this.onGraphEvent("camera-change", this.handleCameraChange);
+  this.onCanvasEvent("mousedown", this.handleMouseDown);
+  super.afterInit();
+}
+```
+
+When the layer is unmounted, all handlers are automatically removed. 
