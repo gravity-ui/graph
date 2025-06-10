@@ -1,4 +1,5 @@
 import { signal } from "@preact/signals-core";
+import cloneDeep from "lodash/cloneDeep";
 import isObject from "lodash/isObject";
 
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
@@ -165,6 +166,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   protected subscribe(id: TBlockId) {
     this.connectedState = selectBlockById<T>(this.context.graph, id);
+    this.state = cloneDeep(this.connectedState.$state.value);
     this.connectedState.setViewComponent(this);
     this.setState({
       ...this.connectedState.$state.value,

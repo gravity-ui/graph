@@ -180,14 +180,10 @@ export class ConnectionLayer extends Layer<
     this.enabled = false;
   };
 
-  private getOwnedDocument() {
-    return this.context.graph.getGraphHTML().ownerDocument;
-  }
-
   protected handleMouseDown = (nativeEvent: GraphMouseEvent) => {
     const target = nativeEvent.detail.target;
     const event = extractNativeGraphMouseEvent(nativeEvent);
-    if (!event || !target) {
+    if (!event || !target || !this.root?.ownerDocument) {
       return;
     }
     if (
@@ -205,7 +201,7 @@ export class ConnectionLayer extends Layer<
 
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
-      dragListener(this.getOwnedDocument())
+      dragListener(this.root.ownerDocument)
         .on(EVENTS.DRAG_START, (dStartEvent: MouseEvent) => {
           this.onStartConnection(dStartEvent, this.context.graph.getPointInCameraSpace(dStartEvent));
         })

@@ -1,15 +1,15 @@
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 
-import { createPortal } from "react-dom";
-
 import { TGraphColors } from "..";
 import { Graph } from "../graph";
 import { setCssProps } from "../utils/functions/cssProp";
-import { useFn } from "../utils/hooks/useFn";
 
-import { BlocksList, TBlockListProps } from "./BlocksList";
+import { TBlockListProps } from "./BlocksList";
 import { TGraphEventCallbacks } from "./events";
+import { useLayer } from "./hooks";
 import { useGraphEvent, useGraphEvents } from "./hooks/useGraphEvents";
+import { ReactLayer } from "./layer";
+import { useFn } from "./utils/hooks/useFn";
 
 export type GraphProps = Pick<Partial<TBlockListProps>, "renderBlock"> &
   Partial<TGraphEventCallbacks> & {
@@ -20,11 +20,16 @@ export type GraphProps = Pick<Partial<TBlockListProps>, "renderBlock"> &
 export function GraphCanvas({ graph, className, renderBlock, ...cbs }: GraphProps) {
   const containerRef = useRef<HTMLDivElement>();
 
+  const reactLayer = useLayer(graph, ReactLayer, {});
+
   useEffect(() => {
     if (containerRef.current) {
       graph.attach(containerRef.current);
     }
-    return () => graph.detach();
+
+    return () => {
+      graph.detach();
+    };
   }, [graph, containerRef]);
 
   useGraphEvents(graph, cbs);
@@ -50,12 +55,7 @@ export function GraphCanvas({ graph, className, renderBlock, ...cbs }: GraphProp
   return (
     <div className={className}>
       <div style={{ position: "absolute", overflow: "hidden", width: "100%", height: "100%" }} ref={containerRef}>
-        {graph &&
-          createPortal(
-            <BlocksList graphObject={graph} renderBlock={renderBlock} />,
-            graph.getGraphHTML() as HTMLDivElement,
-            "graph-blocks-list"
-          )}
+        {graph && reactLayer && reactLayer.renderPortal(renderBlock)}
       </div>
     </div>
   );
