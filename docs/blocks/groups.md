@@ -11,10 +11,17 @@ There are two ways to work with groups:
 Use this when you want groups to update automatically based on block properties. For example, you can group blocks by their color or type.
 
 ```typescript
-import { Graph, GroupsList } from '@gravity-ui/graph';
+import { BlockGroups, Graph, Group } from '@gravity-ui/graph';
+
+const MyGroup = Group.define({
+    style: {
+        background: 'rgba(0, 200, 200, 0.2)',
+        border: 'rgba(200, 200, 0, 0.2)',
+    },
+});
 
 // Make groups automatically
-const AutoGroups = GroupsList.withBlockGrouping({
+const AutoGroups = BlockGroups.withBlockGrouping({
   // Put blocks in groups
   groupingFn: (blocks) => {
     const groups = {};
@@ -29,9 +36,7 @@ const AutoGroups = GroupsList.withBlockGrouping({
   mapToGroups: (groupId, { rect }) => ({
     id: groupId,
     rect,
-    style: {
-      background: "rgba(0, 100, 200, 0.1)"
-    }
+    component: MyGroup,
   })
 });
 
@@ -44,16 +49,16 @@ graph.addLayer(AutoGroups, {
 
 ### 2. Manual Groups
 
-Use direct `GroupsList` methods when you need manual control over groups. This approach is useful when:
+Use direct `BlockGroups` methods when you need manual control over groups. This approach is useful when:
 - Groups are created/updated based on user actions
 - You need custom group management logic
 - Groups are independent of block properties
 
 ```typescript
-import { Graph, GroupsList } from '@gravity-ui/graph';
+import { Graph, BlockGroups } from '@gravity-ui/graph';
 
 // Add groups to graph
-const groups = graph.addLayer(GroupsList, {
+const groups = graph.addLayer(BlockGroups, {
   draggable: true,
 });
 
@@ -82,10 +87,10 @@ groups.updateGroups([
 ### Creating a Group
 
 ```typescript
-import { Graph, GroupsList } from '@gravity-ui/graph';
+import { Graph, BlockGroups } from '@gravity-ui/graph';
 
 // Add fixed area groups to graph
-const areas = graph.addLayer(GroupsList, {
+const areas = graph.addLayer(BlockGroups, {
   draggable: false,  // areas cannot be moved
 });
 
@@ -146,7 +151,7 @@ You can control how groups work:
 
 ## API Reference
 
-### GroupsList Methods
+### BlockGroups Methods
 ```typescript
 // Create or replace all groups
 setGroups(groups: TGroup[]): void;
@@ -175,10 +180,10 @@ updateGroups(groups: TGroup[]): void;
 
 ### Custom Group with Extended Properties
 
-You can create your own group type with additional properties. The key is to pass your custom group component to `GroupsList`. Here's a complete example:
+You can create your own group type with additional properties. The key is to pass your custom group component to `BlockGroups`. Here's a complete example:
 
 ```typescript
-import { Graph, GroupsList, Group } from '@gravity-ui/graph';
+import { Graph, BlockGroups, Group } from '@gravity-ui/graph';
 
 // 1. Define extended group type
 interface ExtendedTGroup extends TGroup {
@@ -211,7 +216,7 @@ class CustomGroup extends Group<ExtendedTGroup> {
 }
 
 // 3. Create groups with extended properties
-const groups = graph.addLayer(GroupsList, {
+const groups = graph.addLayer(BlockGroups, {
   draggable: false,
   groupComponent: CustomGroup, // Use our custom component
 });
