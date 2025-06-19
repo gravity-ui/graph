@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/gravity-ui/graph/compare/v0.4.3...v0.5.0) (2025-06-19)
+
+
+### Features
+
+* add double-click event support for graph components ([#92](https://github.com/gravity-ui/graph/issues/92)) ([df6ed69](https://github.com/gravity-ui/graph/commit/df6ed698a952d3e1863b9e86400fdd460c04833c))
+
+
+### Bug Fixes
+
+* update anchors before geometry to fix React positioning ([#98](https://github.com/gravity-ui/graph/issues/98)) ([59700fa](https://github.com/gravity-ui/graph/commit/59700fa88a371c75c2abf13ef8aedc77fcc729c8))
+
 ## [0.4.3](https://github.com/gravity-ui/graph/compare/v0.4.2...v0.4.3) (2025-05-14)
 
 
