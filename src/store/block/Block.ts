@@ -1,5 +1,5 @@
-import { computed, signal } from "@preact/signals-core";
 import type { Signal } from "@preact/signals-core";
+import { computed, signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
 import { TAnchor } from "../../components/canvas/anchors";
@@ -143,10 +143,12 @@ export class BlockState<T extends TBlock = TBlock> {
   }
 
   public updateBlock(block: Partial<TBlock>): void {
-    this.$state.value = Object.assign({}, this.$state.value, block);
+    // Update anchors first to ensure they have correct state when geometry changes
     if (block.anchors) {
       this.updateAnchors(block.anchors);
     }
+
+    this.$state.value = Object.assign({}, this.$state.value, block);
     this.getViewComponent()?.updateHitBox(this.$geometry.value, true);
   }
 
