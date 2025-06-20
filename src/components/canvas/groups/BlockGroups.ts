@@ -21,7 +21,6 @@ export type BlockGroupsProps<T extends TGroup = TGroup> = LayerProps & {
 export type BlockGroupsContext = LayerContext & {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
-  htmlCtx: HTMLDivElement;
   root?: HTMLElement;
   ownerDocument: Document | HTMLElement;
   graph: Graph;
