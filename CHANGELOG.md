@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.0](https://github.com/gravity-ui/graph/compare/v0.5.0...v1.0.0) (2025-06-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* React components moved to separate module
+
+### chore
+
+* release 1.0.0 ([48fdd24](https://github.com/gravity-ui/graph/commit/48fdd24c63c3653adc18cd1d3ce5e2c353384efa))
+
+
+### refactor
+
+* separate React dependencies from core library ([#74](https://github.com/gravity-ui/graph/issues/74)) ([12648c4](https://github.com/gravity-ui/graph/commit/12648c47b33cbf4f5945a09a54197d4ed61c46fc))
+
 ## [0.5.0](https://github.com/gravity-ui/graph/compare/v0.4.3...v0.5.0) (2025-06-19)
 
 

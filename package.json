@@ -1,13 +1,15 @@
 {
   "name": "@gravity-ui/graph",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "description": "Modern graph editor component",
   "main": "build/index.js",
   "module": "build/index.js",
   "types": "build/index.d.ts",
   "typesVersions": {
     "*": {
-      "react": ["build/react-components/index.d.ts"]
+      "react": [
+        "build/react-components/index.d.ts"
+      ]
     }
   },
   "keywords": [
