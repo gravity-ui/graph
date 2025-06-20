@@ -1,5 +1,7 @@
 # @gravity-ui/graph &middot; [![npm package](https://img.shields.io/npm/v/@gravity-ui/graph)](https://www.npmjs.com/package/@gravity-ui/graph) [![Release](https://img.shields.io/github/actions/workflow/status/gravity-ui/graph/release.yml?branch=main&label=Release)](https://github.com/gravity-ui/graph/actions/workflows/release.yml?query=branch:main) [![storybook](https://img.shields.io/badge/Storybook-deployed-ff4685)](https://preview.gravity-ui.com/graph/)
 
+> [Migration Guide from 0.x to 1.x →](docs/migration-guides/v0-to-v1.md)
+
 Библиотека для визуализации графов, объединяющая преимущества двух подходов:
 - Canvas для быстрой отрисовки всего графа
 - HTML/React для удобного взаимодействия при приближении
