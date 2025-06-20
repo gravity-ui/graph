@@ -3,9 +3,10 @@ import React, { useEffect } from "react";
 import type { Meta, StoryFn } from "@storybook/react";
 
 import { BlockGroups, Group } from "../../../components/canvas/groups";
-import { Graph, GraphCanvas, GraphState, TBlock, useGraph, useGraphEvent } from "../../../index";
+import { Graph, GraphState, TBlock } from "../../../index";
+import { GraphCanvas, useGraph, useGraphEvent } from "../../../react-components";
+import { useFn } from "../../../react-components/utils/hooks/useFn";
 import { TGroup } from "../../../store/group/Group";
-import { useFn } from "../../../utils/hooks/useFn";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 

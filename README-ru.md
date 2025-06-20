@@ -62,7 +62,8 @@ npm install @gravity-ui/graph
 [Подробная документация по React компонентам](docs/react/usage.md)
 
 ```typescript
-import { GraphCanvas, GraphState, GraphBlock, useGraph } from "@gravity-ui/graph";
+import { Graph } from "@gravity-ui/graph";
+import { GraphCanvas, GraphState, GraphBlock, useGraph } from "@gravity-ui/graph/react";
 import React from "react";
 
 const config = {};
@@ -226,4 +227,3 @@ graph.zoomTo("center", { padding: 100 });
 |------|-----------|--------------|
 | Настройки графа | Параметры конфигурации | [Подробнее](docs/system/graph-settings.md) |
 | API | Методы для управления графом | [Подробнее](docs/system/public_api.md) |
-

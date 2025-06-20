@@ -23,7 +23,7 @@ Modern web applications often require complex visualization and interactivity, b
 The library uses a smart rendering system that automatically manages the transition between Canvas and React components:
 
 1. At low zoom levels, everything is rendered on Canvas for performance
-2. When zooming in to detailed view, the `BlocksList` component:
+2. When zooming in to detailed view, the `GraphCanvas` component:
    - Tracks camera viewport and scale changes
    - Calculates which blocks are visible in the current viewport (with padding for smooth scrolling)
    - Renders React components only for visible blocks
@@ -62,7 +62,8 @@ npm install @gravity-ui/graph
 [Detailed React Components Documentation](docs/react/usage.md)
 
 ```typescript
-import { GraphCanvas, GraphState, GraphBlock, useGraph } from "@gravity-ui/graph";
+import { EAnchorType, Graph } from "@gravity-ui/graph";
+import { GraphCanvas, GraphState, GraphBlock, useGraph } from "@gravity-ui/graph/react";
 import React from "react";
 
 const config = {};
@@ -82,7 +83,14 @@ export function GraphEditor() {
           height: 126,
           selected: true,
           name: "Block #1",
-          anchors: [],
+          anchors: [
+            {
+              id: "out1",
+              blockId: "action_1",
+              type: EAnchorType.OUT,
+              index: 0
+            }
+          ],
         },
         {
           id: "action_2",
@@ -93,13 +101,22 @@ export function GraphEditor() {
           height: 126,
           selected: false,
           name: "Block #2",
-          anchors: [],
+          anchors: [
+            {
+              id: "in1",
+              blockId: "action_2",
+              type: EAnchorType.IN,
+              index: 0
+            }
+          ],
         }
       ],
       connections: [
         {
           sourceBlockId: "action_1",
+          sourceAnchorId: "out1",
           targetBlockId: "action_2",
+          targetAnchorId: "in1",
         }
       ]
     });
@@ -159,7 +176,15 @@ graph.setEntities({
             y: 100,
             width: 120,
             height: 120,
-            name: "Block #1"
+            name: "Block #1",
+            anchors: [
+                {
+                    id: "out1",
+                    blockId: "block1",
+                    type: EAnchorType.OUT,
+                    index: 0
+                }
+            ]
         },
         {
             is: "block-action",
@@ -168,13 +193,23 @@ graph.setEntities({
             y: 300,
             width: 120,
             height: 120,
-            name: "Block #2"
+            name: "Block #2",
+            anchors: [
+                {
+                    id: "in1",
+                    blockId: "block2",
+                    type: EAnchorType.IN,
+                    index: 0
+                }
+            ]
         }
     ],
     connections: [
         {
             sourceBlockId: "block1",
-            targetBlockId: "block2"
+            sourceAnchorId: "out1",
+            targetBlockId: "block2",
+            targetAnchorId: "in1"
         }
     ]
 });
@@ -208,6 +243,7 @@ graph.zoomTo("center", { padding: 100 });
 2. Components
    - [Canvas Graph Component](docs/components/canvas-graph-component.md)
    - [Block Component](docs/components/block-component.md)
+   - [Anchors](docs/components/anchors.md)
 
 3. Rendering
    - [Rendering Mechanism](docs/rendering/rendering-mechanism.md)

@@ -34,6 +34,18 @@ Layers are fundamental to the Canvas rendering pipeline in @gravity-ui/graph. Th
     - Potentially culling elements outside the current viewport.
     - Managing redraws or logic updates based on relevant state changes.
 
+## Layer Lifecycle and DOM Operations
+
+- **Layer Initialization Sequence:**
+  1. **Creation (`constructor` → `init`)**: Layer is created, but not yet attached to DOM
+  2. **Attachment (`attachLayer` → `afterInit`)**: Layer is attached to DOM
+  3. **Updates (rendering cycle)**: Layer responds to changes
+  4. **Detachment (`detachLayer` → `unmount`)**: Layer is removed from DOM
+
+- **DOM Operation Timing:** Any operations that require the layer to be attached to the DOM (such as DOM manipulations, style injections, measurements, or accessing parent elements) must be performed in the `afterInit` method, not in `init` or the constructor.
+
+- **Why This Matters:** During the creation phase, the root element may be undefined or not yet attached to the document. The `afterInit` method is guaranteed to be called after the layer is properly attached to the DOM, ensuring that DOM operations work correctly.
+
 ## HTML Rendering in Layers
 
 The Layer class can create both Canvas and HTML elements for rendering:
@@ -110,6 +122,10 @@ this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${ca
       ```
     - Register the new layer in the main graph's processing pipeline in the correct order (often controlled by `zIndex` in `props.canvas` or `props.html`).
 
+- **Creating New Layers:**
+    - If adding new types of visual elements or behaviors, create a new layer class.
+    - New layers should ideally extend a base `Layer` class or a suitable existing layer, inheriting common functionality.
+    - Register the new layer in the main graph's processing pipeline in the correct order.
 - **Modifying Existing Layers:**
     - When changing how elements are rendered or behaviors are managed, modify the relevant methods (e.g., `render`, event handlers) of the corresponding layer.
     - Ensure efficiency; avoid unnecessary computations or drawing invisible elements.
@@ -125,7 +141,7 @@ this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${ca
     - Use `afterInit` for setup that requires the canvas and context to be ready.
     - Inside `afterInit`, reliably get the canvas using `this.getCanvas()`. 
     - Initialize or update the layer's full context using `this.setContext({ ...this.context, /* your additions */ });`. The base `Layer` already initializes `graph`, `camera`, `colors`, `constants`, `layer`. If you create a canvas/HTML element, you need to add `graphCanvas`/`html` and `ctx` to the context after creation (e.g., in `afterInit`).
-    - Attach event listeners (e.g., `mousemove`, `mouseleave`) to the graph's root element (`this.props.graph.getGraphHTML()`) or specific layer elements (`this.getCanvas()`, `this.getHTML()`) within `afterInit`.
+    - Attach event listeners (e.g., `mousemove`, `mouseleave`) to the layer's root element (`this.root`) or specific layer elements (`this.getCanvas()`, `this.getHTML()`) within `afterInit`.
     - Always clean up listeners and subscriptions in the `unmount` method.
 - **Camera Interaction & Coordinates:**
     - Subscribe to graph's `'camera-change'` event (`this.props.graph.on(...)`) to get updates. The event detail (`event.detail`) provides the `TCameraState` (containing `width`, `height`, `scale`, `x`, `y`).
@@ -202,4 +218,4 @@ protected afterInit() {
 }
 ```
 
-When the layer is unmounted, all handlers are automatically removed.
+When the layer is unmounted, all handlers are automatically removed. 

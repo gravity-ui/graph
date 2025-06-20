@@ -2,8 +2,8 @@ import { useLayoutEffect } from "react";
 
 import { Graph } from "../../graph";
 import { GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } from "../../graphEvents";
-import { useFn } from "../../utils/hooks/useFn";
 import { GraphCallbacksMap, TGraphEventCallbacks } from "../events";
+import { useFn } from "../utils/hooks/useFn";
 
 export function useGraphEvent<Event extends keyof GraphEventsDefinitions>(
   graph: Graph | null,

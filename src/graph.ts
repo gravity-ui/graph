@@ -69,9 +69,6 @@ export class Graph {
 
   protected selectionLayer: SelectionLayer;
 
-  public getGraphHTML() {
-    return this.graphLayer.getHTML();
-  }
   public getGraphCanvas() {
     return this.graphLayer.getCanvas();
   }

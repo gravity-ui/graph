@@ -100,10 +100,6 @@ export class NewBlockLayer extends Layer<
     super.afterInit();
   }
 
-  protected getOwnerDocument() {
-    return this.context.graph.getGraphHTML().ownerDocument;
-  }
-
   protected handleMouseDown = (nativeEvent: GraphMouseEvent) => {
     const event = extractNativeGraphMouseEvent(nativeEvent);
     const target = nativeEvent.detail.target;
@@ -113,9 +109,13 @@ export class NewBlockLayer extends Layer<
         return; // Exit if duplication is not allowed
       }
 
+      if (!this.root?.ownerDocument) {
+        return;
+      }
+
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
-      dragListener(this.getOwnerDocument())
+      dragListener(this.root.ownerDocument)
         .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onStartNewBlock(event, target))
         .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onMoveNewBlock(event))
         .on(EVENTS.DRAG_END, (event: MouseEvent) =>

@@ -5,8 +5,8 @@ import { Button, Icon, Text } from "@gravity-ui/uikit";
 
 import { TBlock } from "../../components/canvas/blocks/Block";
 import { Graph } from "../../graph";
-import { GraphBlock, GraphBlockAnchor } from "../../react-component";
-import { useFn } from "../../utils/hooks/useFn";
+import { GraphBlock, GraphBlockAnchor } from "../../react-components";
+import { useFn } from "../../react-components/utils/hooks/useFn";
 
 import "./Block.css";
 
