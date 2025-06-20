@@ -23,20 +23,12 @@ Modern web applications often require complex visualization and interactivity, b
 The library uses a smart rendering system that automatically manages the transition between Canvas and React components:
 
 1. At low zoom levels, everything is rendered on Canvas for performance
-2. When zooming in to detailed view, the `BlocksList` component:
+2. When zooming in to detailed view, the `GraphCanvas` component:
    - Tracks camera viewport and scale changes
    - Calculates which blocks are visible in the current viewport (with padding for smooth scrolling)
    - Renders React components only for visible blocks
    - Automatically updates the list when scrolling or zooming
    - Removes React components when zooming out
-
-The library is designed with a modular architecture that separates the core rendering engine from framework-specific implementations:
-
-- **Core Layer**: Handles canvas rendering, event management, and data structures
-- **Framework Layers**: Separate layers for React (and potentially other frameworks)
-- **Plugin System**: Extensible through custom layers
-
-This separation means that React is now a development dependency rather than a peer dependency. Users who only need the core functionality can use the library without React, while those who want to use the React components can continue to do so.
 
 ```typescript
 // Example of React components rendering
@@ -62,24 +54,6 @@ const MyGraph = () => {
 ```bash
 npm install @gravity-ui/graph
 ```
-
-## Import Structure
-
-The library now separates core functionality from React components to allow usage without React dependencies:
-
-```typescript
-// Core functionality (no React dependency)
-import { EAnchorType, Graph } from "@gravity-ui/graph";
-
-// React components (requires React)
-import { GraphCanvas, GraphBlock } from "@gravity-ui/graph/react";
-```
-
-This separation allows:
-- Using the core library without React dependencies
-- Smaller bundle size when React components aren't needed
-- Framework-agnostic usage of the core functionality
-- Support for other UI frameworks in the future
 
 ## Examples
 
