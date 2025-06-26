@@ -146,10 +146,12 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
 
   protected unmountLayer(): void {
     this.props.graph.rootStore.groupsList.reset();
+    super.unmountLayer();
   }
 
   protected unmount(): void {
     this.unsubscribe.forEach((unsubscribe) => unsubscribe());
+    super.unmount();
   }
 
   protected getGroupComponent(group: GroupState) {
