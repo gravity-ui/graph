@@ -29,7 +29,7 @@ export class PublicGraphApi {
   }
 
   public zoomToViewPort(zoomConfig?: ZoomConfig) {
-    const blocksRect = this.graph.rootStore.blocksList.getUsableRect();
+    const blocksRect = this.getUsableRect();
 
     this.zoomToRect(blocksRect, zoomConfig);
   }
@@ -165,7 +165,7 @@ export class PublicGraphApi {
   }
 
   public getUsableRect() {
-    return this.graph.rootStore.blocksList.getUsableRect();
+    return this.graph.hitTest.usableRect.value;
   }
 
   public unsetSelection() {

@@ -61,7 +61,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private eventByTargetComponent?: EventedComponent | MouseEvent;
 
-  private fixedTargetComponent?: EventedComponent | Camera;
+  private capturedTargetComponent?: EventedComponent;
 
   constructor(props: TGraphLayerProps) {
     super({
@@ -121,6 +121,14 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
       this.onRootEvent(type as keyof HTMLElementEventMap, this, { capture: true })
     );
     this.onRootEvent("mousemove", this);
+  }
+
+  public captureEvents(component: EventedComponent) {
+    this.capturedTargetComponent = component;
+  }
+
+  public releaseCapturing() {
+    this.capturedTargetComponent = undefined;
   }
 
   public handleEvent(e: Event): void {
@@ -186,18 +194,20 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   }
 
   private updateTargetComponent(event: MouseEvent, force = false) {
-    if (this.camera.isUnstable()) {
+    if (!force && this.eventByTargetComponent && getEventDelta(event, this.eventByTargetComponent) < 3) return;
+
+    this.eventByTargetComponent = event;
+
+    if (this.capturedTargetComponent) {
+      this.targetComponent = this.capturedTargetComponent;
       return;
     }
-    if (this.fixedTargetComponent !== undefined) {
+
+    if (this.camera.isUnstable()) {
       return;
     }
 
     this.prevTargetComponent = this.targetComponent;
-
-    if (!force && this.eventByTargetComponent && getEventDelta(event, this.eventByTargetComponent) < 3) return;
-
-    this.eventByTargetComponent = event;
 
     const point = this.context.graph.getPointInCameraSpace(event);
 

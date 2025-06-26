@@ -9,7 +9,7 @@ import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
 import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
 import { GraphEventParams, GraphEventsDefinitions } from "./graphEvents";
-import { scheduler } from "./lib/Scheduler";
+import { ESchedulerPriority, scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
 import { Layer } from "./services/Layer";
 import { Layers } from "./services/LayersService";
@@ -118,6 +118,16 @@ export class Graph {
     this.setupGraph(config);
   }
 
+  public schedule(cb: () => void) {
+    const scheduler = {
+      performUpdate: () => {
+        cb();
+        this.scheduler.removeScheduler(scheduler, ESchedulerPriority.LOWEST);
+      },
+    };
+    this.scheduler.addScheduler(scheduler, ESchedulerPriority.LOWEST);
+  }
+
   public getGraphLayer() {
     return this.graphLayer;
   }
@@ -147,15 +157,17 @@ export class Graph {
   }
 
   public zoomTo(target: TGraphZoomTarget, config?: ZoomConfig) {
-    if (target === "center") {
-      this.api.zoomToViewPort(config);
-      return;
-    }
-    if (isTRect(target)) {
-      this.api.zoomToRect(target, config);
-      return;
-    }
-    this.api.zoomToBlocks(target, config);
+    this.schedule(() => {
+      if (target === "center") {
+        this.api.zoomToViewPort(config);
+        return;
+      }
+      if (isTRect(target)) {
+        this.api.zoomToRect(target, config);
+        return;
+      }
+      this.api.zoomToBlocks(target, config);
+    });
   }
 
   public getElementsOverPoint<T extends Constructor<GraphComponent>>(point: IPoint, filter?: T[]): InstanceType<T>[] {

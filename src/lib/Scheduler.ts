@@ -9,6 +9,13 @@ interface IScheduler {
   performUpdate: Function;
 }
 
+export enum ESchedulerPriority {
+  HIGHEST = 0,
+  HIGH = 1,
+  MEDIUM = 2,
+  LOW = 3,
+  LOWEST = 4,
+}
 export class GlobalScheduler {
   private schedulers: IScheduler[][];
   private _cAFID: number;
@@ -23,11 +30,12 @@ export class GlobalScheduler {
     return this.schedulers;
   }
 
-  public addScheduler(scheduler: IScheduler, index = 2) {
+  public addScheduler(scheduler: IScheduler, index = ESchedulerPriority.MEDIUM) {
     this.schedulers[index].push(scheduler);
+    return () => this.removeScheduler(scheduler, index);
   }
 
-  public removeScheduler(scheduler: IScheduler, index = 2) {
+  public removeScheduler(scheduler: IScheduler, index = ESchedulerPriority.MEDIUM) {
     const i = this.schedulers[index].indexOf(scheduler);
 
     if (i !== -1) {

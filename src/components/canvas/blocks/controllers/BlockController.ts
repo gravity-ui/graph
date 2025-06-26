@@ -57,12 +57,14 @@ export class BlockController {
 
         dragListener(block.context.ownerDocument)
           .on(EVENTS.DRAG_START, (_event: MouseEvent) => {
+            block.context.graph.getGraphLayer().captureEvents(this);
             dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_START, _event));
           })
           .on(EVENTS.DRAG_UPDATE, (_event: MouseEvent) => {
             dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_UPDATE, _event));
           })
           .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
+            block.context.graph.getGraphLayer().releaseCapturing();
             dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_END, _event));
           });
       },

@@ -1,9 +1,10 @@
-import debounce from "lodash/debounce";
+import { signal } from "@preact/signals-core";
 import RBush from "rbush";
 
+import { ESchedulerPriority, scheduler } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
-import { IPoint } from "../utils/types/shapes";
+import { IPoint, TRect } from "../utils/types/shapes";
 
 export interface IWithHitTest {
   hitBox: IHitBox;
@@ -37,42 +38,128 @@ export class HitTest extends Emitter {
 
   protected empty = true;
 
+  public usableRect = signal<TRect>({ x: 0, y: 0, width: 0, height: 0 });
+
+  protected scheduledItems = new Map<HitBox, HitBoxData>();
+  protected scheduledRemoveItems = new Set<HitBox>();
+
+  protected needEmitUpdate = false;
+
   public load(items: HitBox[]) {
     this.tree.load(items);
   }
 
-  protected scheduledItems = new Set<HitBox>();
+  protected loadItemsScheduler = {
+    performUpdate: () => {
+      if (this.scheduledItems.size === 0) return;
+      const items = Array.from(this.scheduledItems);
+      items.forEach(([item, bbox]) => {
+        this.tree.remove(item);
+        item.updateRect(bbox);
+      });
+      const boxes = Array.from(this.scheduledItems.keys());
+      this.tree.load(boxes);
+      this.scheduledItems.clear();
+
+      const { minX, minY, maxX, maxY } = this.getBBox(boxes);
+      if (
+        minX !== this.usableRect.value.x ||
+        minY !== this.usableRect.value.y ||
+        maxX !== this.usableRect.value.width ||
+        maxY !== this.usableRect.value.height
+      ) {
+        this.updateUsableRect();
+      }
+      this.emitUpdate();
+    },
+  };
+
+  protected removeItemsScheduler = {
+    performUpdate: () => {
+      if (this.scheduledRemoveItems.size === 0) return;
+      this.scheduledRemoveItems.forEach((item) => {
+        this.tree.remove(item);
+      });
+      this.scheduledRemoveItems.clear();
+      this.updateUsableRect();
+    },
+  };
+
+  protected emitUpdateScheduler = {
+    performUpdate: () => {
+      if (this.needEmitUpdate) {
+        this.emit("update", this);
+        this.needEmitUpdate = false;
+      }
+    },
+  };
+
+  protected removeSchedulersFns: (() => void)[] = [];
+
+  constructor() {
+    super();
+    this.removeSchedulersFns = [
+      // Schedule loading items to tree and recompute usableRect
+      scheduler.addScheduler(this.loadItemsScheduler, ESchedulerPriority.LOWEST),
+      scheduler.addScheduler(this.removeItemsScheduler, ESchedulerPriority.LOWEST),
+
+      // Recompute usableRect and emit update event
+      scheduler.addScheduler(this.emitUpdateScheduler, ESchedulerPriority.MEDIUM),
+    ];
+  }
+
+  public update(item: HitBox, bbox: HitBoxData) {
+    this.scheduledItems.set(item, bbox);
+  }
 
   public clear() {
+    this.scheduledRemoveItems.clear();
     this.scheduledItems.clear();
     this.tree.clear();
   }
 
-  public add(item: HitBox, force = false) {
-    this.scheduledItems.add(item);
-    this.scheduleLoad();
-    if (force) {
-      this.scheduleLoad.flush();
-    }
+  public add(item: HitBox) {
+    this.scheduledItems.set(item, item);
   }
 
-  protected scheduleLoad = debounce(() => {
-    this.tree.load(Array.from(this.scheduledItems));
-    this.scheduledItems.clear();
-    this.emitUpdate();
-  }, 50);
-
-  public remove(item: HitBox, silent = false) {
-    this.scheduledItems.delete(item);
-    this.tree.remove(item);
-    if (!silent) {
-      this.emitUpdate();
-    }
+  protected getBBox(items: HitBox[]) {
+    return items.reduce(
+      (acc, item) => {
+        if (Number.isFinite(item.minX)) {
+          acc.minX = Math.min(acc.minX, item.minX);
+        }
+        if (Number.isFinite(item.minY)) {
+          acc.minY = Math.min(acc.minY, item.minY);
+        }
+        if (Number.isFinite(item.maxX)) {
+          acc.maxX = Math.max(acc.maxX, item.maxX);
+        }
+        if (Number.isFinite(item.maxY)) {
+          acc.maxY = Math.max(acc.maxY, item.maxY);
+        }
+        return acc;
+      },
+      { minX: 0, minY: 0, maxX: 0, maxY: 0 }
+    );
   }
 
-  protected emitUpdate = debounce(() => {
-    this.emit("update", this);
-  }, 50);
+  protected updateUsableRect() {
+    const { minX, minY, maxX, maxY } = this.getBBox(this.tree.all());
+    this.usableRect.value = {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+    };
+  }
+
+  public remove(item: HitBox) {
+    this.scheduledRemoveItems.add(item);
+  }
+
+  protected emitUpdate = () => {
+    this.needEmitUpdate = true;
+  };
 
   public testPoint(point: IPoint, pixelRatio: number) {
     return this.testHitBox({
@@ -87,6 +174,11 @@ export class HitTest extends Emitter {
 
   public testBox(item: Omit<HitBoxData, "x" | "y">): Component[] {
     return this.tree.search(item).map((hitBox) => hitBox.item);
+  }
+
+  public destroy(): void {
+    super.destroy();
+    this.removeSchedulersFns.forEach((removeScheduler) => removeScheduler());
   }
 
   public testHitBox(item: HitBoxData): Component[] {
@@ -127,26 +219,27 @@ export class HitBox implements IHitBox {
 
   public y: number;
 
-  private rect: [number, number, number, number];
+  private rect: [number, number, number, number] = [0, 0, 0, 0];
 
   constructor(
     public item: { zIndex: number } & Component & IWithHitTest,
     protected hitTest: HitTest
   ) {}
 
+  public updateRect(rect: HitBoxData) {
+    this.minX = rect.minX;
+    this.minY = rect.minY;
+    this.maxX = rect.maxX;
+    this.maxY = rect.maxY;
+    this.x = rect.x;
+    this.y = rect.y;
+    this.rect = [this.minX, this.minY, this.maxX - this.minX, this.maxY - this.minY];
+  }
+
   public update = (minX: number, minY: number, maxX: number, maxY: number, force?: boolean): void => {
     if (this.destroyed) return;
     if (minX === this.minX && minY === this.minY && maxX === this.maxX && maxY === this.maxY && !force) return;
-    if (this.minX !== undefined) {
-      this.hitTest.remove(this, true);
-    }
-
-    this.minX = minX;
-    this.minY = minY;
-    this.maxX = maxX;
-    this.maxY = maxY;
-    this.rect = [this.minX, this.minY, this.maxX - this.minX, this.maxY - this.minY];
-    this.hitTest.add(this, Boolean(force));
+    this.hitTest.update(this, { minX, minY, maxX, maxY, x: this.x, y: this.y });
   };
 
   public getRect(): [number, number, number, number] {

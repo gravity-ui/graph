@@ -135,7 +135,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   };
 
   protected moveWithEdges(deltaX: number, deltaY: number) {
-    const uR = this.context.graph.rootStore.blocksList.getUsableRect();
+    const uR = this.context.graph.api.getUsableRect();
     const cameraState = this.camera.getCameraState();
 
     const gapX = cameraState.relativeWidth;

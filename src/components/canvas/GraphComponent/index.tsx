@@ -56,6 +56,7 @@ export class GraphComponent<
       event.stopPropagation();
       dragListener(this.context.ownerDocument)
         .on(EVENTS.DRAG_START, (event: MouseEvent) => {
+          this.context.graph.getGraphLayer().captureEvents(this);
           if (onDragStart?.(event) === false) {
             return;
           }
@@ -75,6 +76,7 @@ export class GraphComponent<
           startDragCoords = currentCoords;
         })
         .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
+          this.context.graph.getGraphLayer().releaseCapturing();
           startDragCoords = undefined;
           onDrop?.(_event);
         });

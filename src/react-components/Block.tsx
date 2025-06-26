@@ -32,12 +32,12 @@ export const GraphBlock = <T extends TBlock>({
 
   useLayoutEffect(() => {
     setCssProps(containerRef.current, {
-      "--graph-block-geometry-x": `${block.x}px`,
-      "--graph-block-geometry-y": `${block.y}px`,
-      "--graph-block-geometry-width": `${block.width}px`,
-      "--graph-block-geometry-height": `${block.height}px`,
+      "--graph-block-geometry-x": `${state.x}px`,
+      "--graph-block-geometry-y": `${state.y}px`,
+      "--graph-block-geometry-width": `${state.width}px`,
+      "--graph-block-geometry-height": `${state.height}px`,
     });
-  }, [block.x, block.y, block.width, block.height, containerRef]);
+  }, [state.x, state.y, state.width, state.height, containerRef]);
 
   useEffect(() => {
     if (viewState) {
