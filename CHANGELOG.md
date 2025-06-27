@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/gravity-ui/graph/compare/v1.0.0...v1.0.1) (2025-06-27)
+
+
+### Bug Fixes
+
+* minor fixes ([#100](https://github.com/gravity-ui/graph/issues/100)) ([178d24c](https://github.com/gravity-ui/graph/commit/178d24cf7ea0270e85717f74060ee9ba43010a24))
+
 ## [1.0.0](https://github.com/gravity-ui/graph/compare/v0.5.0...v1.0.0) (2025-06-20)
 
 
