@@ -5,7 +5,6 @@ import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react";
 
 import { CanvasBlock, Graph, TBlock, TGraphConfig } from "../../../index";
-import { TRenderBlockFn } from "../../../react-components";
 import { storiesSettings } from "../../../stories/configurations/definitions";
 import { GraphComponentStory } from "../../main/GraphEditor";
 
@@ -92,7 +91,7 @@ const GraphApp = () => {
 
   const [config, setConfig] = useState<TGraphConfig | undefined>();
 
-  const renderBlockFn: TRenderBlockFn = useCallback(() => {
+  const renderBlockFn = useCallback(() => {
     return null;
   }, []);
 

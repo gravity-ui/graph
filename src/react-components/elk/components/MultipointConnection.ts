@@ -14,7 +14,7 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
   private labelsGeometry: { x: number; y: number; width: number; height: number }[] = [];
 
   public createPath() {
-    const { points } = this.connectedState.$state.value;
+    const points = this.getPoints();
     if (!points.length) {
       return super.createPath();
     }
@@ -22,7 +22,7 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
   }
 
   public createArrowPath(): Path2D {
-    const { points } = this.connectedState.$state.value;
+    const points = this.getPoints();
     if (!points.length) {
       return undefined;
     }
@@ -54,7 +54,7 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
   }
 
   public getBBox() {
-    const { points } = this.connectedState.$state.value;
+    const points = this.getPoints();
     if (!points.length) {
       return super.getBBox();
     }
