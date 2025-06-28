@@ -123,11 +123,17 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     this.onRootEvent("mousemove", this);
   }
 
+  /*
+   * Capture element for future events
+   * When element is captured, it will be used as target for future events
+   * until releaseCapture is called
+   * @param component - element to capture
+   */
   public captureEvents(component: EventedComponent) {
     this.capturedTargetComponent = component;
   }
 
-  public releaseCapturing() {
+  public releaseCapture() {
     this.capturedTargetComponent = undefined;
   }
 
@@ -194,16 +200,15 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   }
 
   private updateTargetComponent(event: MouseEvent, force = false) {
+    // Check is event is too close to previous event
+    // In case when previous event is too close to current event, we don't need to update target component
+    // This is useful to prevent flickering when user is moving mouse fast
     if (!force && this.eventByTargetComponent && getEventDelta(event, this.eventByTargetComponent) < 3) return;
 
     this.eventByTargetComponent = event;
 
     if (this.capturedTargetComponent) {
       this.targetComponent = this.capturedTargetComponent;
-      return;
-    }
-
-    if (this.camera.isUnstable()) {
       return;
     }
 

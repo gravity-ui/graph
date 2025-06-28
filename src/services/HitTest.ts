@@ -5,6 +5,7 @@ import { ESchedulerPriority, scheduler } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
 import { IPoint, TRect } from "../utils/types/shapes";
+import { schedule } from "../utils/utils/schedule";
 
 export interface IWithHitTest {
   hitBox: IHitBox;
@@ -49,62 +50,55 @@ export class HitTest extends Emitter {
     this.tree.load(items);
   }
 
-  protected loadItemsScheduler = {
-    performUpdate: () => {
-      if (this.scheduledItems.size === 0) return;
-      const items = Array.from(this.scheduledItems);
-      items.forEach(([item, bbox]) => {
-        this.tree.remove(item);
-        item.updateRect(bbox);
-      });
-      const boxes = Array.from(this.scheduledItems.keys());
-      this.tree.load(boxes);
-      this.scheduledItems.clear();
-
-      const { minX, minY, maxX, maxY } = this.getBBox(boxes);
-      if (
-        minX !== this.usableRect.value.x ||
-        minY !== this.usableRect.value.y ||
-        maxX !== this.usableRect.value.width ||
-        maxY !== this.usableRect.value.height
-      ) {
-        this.updateUsableRect();
-      }
-      this.emitUpdate();
-    },
-  };
-
-  protected removeItemsScheduler = {
-    performUpdate: () => {
-      if (this.scheduledRemoveItems.size === 0) return;
-      this.scheduledRemoveItems.forEach((item) => {
-        this.tree.remove(item);
-      });
-      this.scheduledRemoveItems.clear();
-      this.updateUsableRect();
-    },
-  };
-
-  protected emitUpdateScheduler = {
-    performUpdate: () => {
-      if (this.needEmitUpdate) {
-        this.emit("update", this);
-        this.needEmitUpdate = false;
-      }
-    },
-  };
-
   protected removeSchedulersFns: (() => void)[] = [];
 
   constructor() {
     super();
     this.removeSchedulersFns = [
-      // Schedule loading items to tree and recompute usableRect
-      scheduler.addScheduler(this.loadItemsScheduler, ESchedulerPriority.LOWEST),
-      scheduler.addScheduler(this.removeItemsScheduler, ESchedulerPriority.LOWEST),
+      schedule(
+        () => {
+          let needUpdateUsableRect = false;
+          let needEmitUpdate = false;
+          if (this.scheduledRemoveItems.size > 0) {
+            needEmitUpdate = true;
+            this.scheduledRemoveItems.forEach((item) => {
+              this.tree.remove(item);
+            });
+            this.scheduledRemoveItems.clear();
+          }
+          if (this.scheduledItems.size > 0) {
+            needEmitUpdate = true;
+            const items = Array.from(this.scheduledItems);
+            items.forEach(([item, bbox]) => {
+              this.tree.remove(item);
+              item.updateRect(bbox);
+            });
+            const boxes = Array.from(this.scheduledItems.keys());
+            this.tree.load(boxes);
+            this.scheduledItems.clear();
 
-      // Recompute usableRect and emit update event
-      scheduler.addScheduler(this.emitUpdateScheduler, ESchedulerPriority.MEDIUM),
+            const { minX, minY, maxX, maxY } = this.getBBox(boxes);
+            if (
+              minX !== this.usableRect.value.x ||
+              minY !== this.usableRect.value.y ||
+              maxX !== this.usableRect.value.width ||
+              maxY !== this.usableRect.value.height
+            ) {
+              needUpdateUsableRect = true;
+            }
+          }
+          if (needUpdateUsableRect) {
+            this.updateUsableRect();
+          }
+          if (needEmitUpdate) {
+            this.emit("update", this);
+          }
+        },
+        {
+          priority: ESchedulerPriority.LOWEST,
+          frameInterval: 10,
+        }
+      ),
     ];
   }
 

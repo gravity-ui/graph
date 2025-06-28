@@ -22,6 +22,7 @@ import { getXY } from "./utils/functions";
 import { clearTextCache } from "./utils/renderers/text";
 import { RecursivePartial } from "./utils/types/helpers";
 import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
+import { schedule } from "./utils/utils/schedule";
 
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [
   T,
@@ -118,14 +119,17 @@ export class Graph {
     this.setupGraph(config);
   }
 
-  public schedule(cb: () => void) {
-    const scheduler = {
-      performUpdate: () => {
+  public scheduleTask(cb: () => void) {
+    schedule(
+      () => {
         cb();
-        this.scheduler.removeScheduler(scheduler, ESchedulerPriority.LOWEST);
       },
-    };
-    this.scheduler.addScheduler(scheduler, ESchedulerPriority.LOWEST);
+      {
+        priority: ESchedulerPriority.LOWEST,
+        frameInterval: 10,
+        once: true,
+      }
+    );
   }
 
   public getGraphLayer() {
@@ -157,7 +161,8 @@ export class Graph {
   }
 
   public zoomTo(target: TGraphZoomTarget, config?: ZoomConfig) {
-    this.schedule(() => {
+    this.scheduleTask(() => {
+      console.log("zoomTo", target, config);
       if (target === "center") {
         this.api.zoomToViewPort(config);
         return;

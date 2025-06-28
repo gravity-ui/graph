@@ -14,6 +14,7 @@ export class Layers extends Emitter {
 
   constructor(public $root?: HTMLDivElement) {
     super();
+    window.addEventListener("resize", this.handleRootResize);
   }
 
   public createLayer<T extends Constructor<Layer> = Constructor<Layer>>(
@@ -86,6 +87,7 @@ export class Layers extends Emitter {
   public unmount() {
     this.detach(true);
     this.destroy();
+    window.removeEventListener("resize", this.handleRootResize);
   }
 
   protected resizeObserver = new ResizeObserver(() => {

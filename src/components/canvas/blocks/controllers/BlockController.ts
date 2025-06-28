@@ -64,7 +64,7 @@ export class BlockController {
             dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_UPDATE, _event));
           })
           .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
-            block.context.graph.getGraphLayer().releaseCapturing();
+            block.context.graph.getGraphLayer().releaseCapture();
             dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_END, _event));
           });
       },

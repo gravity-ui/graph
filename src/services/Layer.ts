@@ -190,7 +190,7 @@ export class Layer<
 
   public updateSize(width: number, height: number) {
     if (this.canvas) {
-      const dpr = this.props.canvas.respectPixelRatio === false ? 1 : this.context.constants.system?.PIXEL_RATIO;
+      const dpr = this.props.canvas.respectPixelRatio === false ? 1 : devicePixelRatio;
       this.canvas.width = width * dpr;
       this.canvas.height = height * dpr;
     }
@@ -341,7 +341,7 @@ export class Layer<
 
   public getDRP() {
     const respectPixelRatio = this.props.canvas?.respectPixelRatio ?? true;
-    return respectPixelRatio ? this.context.constants.system?.PIXEL_RATIO ?? 1 : 1;
+    return respectPixelRatio ? devicePixelRatio : 1;
   }
 
   protected applyTransform(

@@ -76,7 +76,7 @@ export class GraphComponent<
           startDragCoords = currentCoords;
         })
         .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
-          this.context.graph.getGraphLayer().releaseCapturing();
+          this.context.graph.getGraphLayer().releaseCapture();
           startDragCoords = undefined;
           onDrop?.(_event);
         });
