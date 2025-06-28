@@ -27,10 +27,6 @@ export type TBlockProps = {
 export const Block: React.FC<TBlockProps> = memo((props: TBlockProps) => {
   const block = useSignal(props.blockState.$state);
 
-  useLayoutEffect(() => {
-    console.log("block-update", props.blockState.id);
-  }, [props.blockState]);
-
   if (!block) return;
 
   return props.renderBlock(props.graphObject, block, props.blockState);

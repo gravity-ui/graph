@@ -162,7 +162,6 @@ export class Graph {
 
   public zoomTo(target: TGraphZoomTarget, config?: ZoomConfig) {
     this.scheduleTask(() => {
-      console.log("zoomTo", target, config);
       if (target === "center") {
         this.api.zoomToViewPort(config);
         return;

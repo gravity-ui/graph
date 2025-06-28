@@ -56,10 +56,10 @@ export class GraphComponent<
       event.stopPropagation();
       dragListener(this.context.ownerDocument)
         .on(EVENTS.DRAG_START, (event: MouseEvent) => {
-          this.context.graph.getGraphLayer().captureEvents(this);
           if (onDragStart?.(event) === false) {
             return;
           }
+          this.context.graph.getGraphLayer().captureEvents(this);
           const xy = getXY(this.context.canvas, event);
           startDragCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
         })
