@@ -9,7 +9,7 @@ import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
 import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
 import { GraphEventParams, GraphEventsDefinitions } from "./graphEvents";
-import { scheduler } from "./lib/Scheduler";
+import { ESchedulerPriority, scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
 import { Layer } from "./services/Layer";
 import { Layers } from "./services/LayersService";
@@ -22,6 +22,7 @@ import { getXY } from "./utils/functions";
 import { clearTextCache } from "./utils/renderers/text";
 import { RecursivePartial } from "./utils/types/helpers";
 import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
+import { schedule } from "./utils/utils/schedule";
 
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [
   T,
@@ -118,6 +119,19 @@ export class Graph {
     this.setupGraph(config);
   }
 
+  public scheduleTask(cb: () => void) {
+    schedule(
+      () => {
+        cb();
+      },
+      {
+        priority: ESchedulerPriority.LOWEST,
+        frameInterval: 10,
+        once: true,
+      }
+    );
+  }
+
   public getGraphLayer() {
     return this.graphLayer;
   }
@@ -147,15 +161,17 @@ export class Graph {
   }
 
   public zoomTo(target: TGraphZoomTarget, config?: ZoomConfig) {
-    if (target === "center") {
-      this.api.zoomToViewPort(config);
-      return;
-    }
-    if (isTRect(target)) {
-      this.api.zoomToRect(target, config);
-      return;
-    }
-    this.api.zoomToBlocks(target, config);
+    this.scheduleTask(() => {
+      if (target === "center") {
+        this.api.zoomToViewPort(config);
+        return;
+      }
+      if (isTRect(target)) {
+        this.api.zoomToRect(target, config);
+        return;
+      }
+      this.api.zoomToBlocks(target, config);
+    });
   }
 
   public getElementsOverPoint<T extends Constructor<GraphComponent>>(point: IPoint, filter?: T[]): InstanceType<T>[] {

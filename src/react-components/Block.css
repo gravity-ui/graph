@@ -4,12 +4,14 @@
   top: 0;
   left: 0;
   box-sizing: content-box;
-  transform: translate3d(var(--graph-block-geometry-x, 0), var(--graph-block-geometry-y, 0), 0);
-  will-change: transform, width, height;
-  width: var(--graph-block-geometry-width, 0);
-  height: var(--graph-block-geometry-height, 0);
-  --z-index: calc(var(--graph-block-z-index, 0) + var(--graph-block-order, 0));
-  z-index: var(--z-index);
+  
+  will-change: transform;
+  contain: layout size;
+  isolation: isolate;
+  
+  /* Создаёт композитный слой */
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
 }
 
 .graph-block-wrapper {

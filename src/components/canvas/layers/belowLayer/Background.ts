@@ -1,18 +1,20 @@
-import { Component } from "../../../../lib/Component";
-import { BlockListStore } from "../../../../store/block/BlocksList";
+import { Component, TComponentProps, TComponentState } from "../../../../lib/Component";
 import { IRect, Rect, TRect } from "../../../../utils/types/shapes";
 
 import { TBelowLayerContext } from "./BelowLayer";
 import { PointerGrid } from "./PointerGrid";
 
-export class Background extends Component {
+type TBackgroundState = TComponentState & {
+  extendedUsableRectX: number;
+  extendedUsableRectY: number;
+  extendedUsableRectWidth: number;
+  extendedUsableRectHeight: number;
+};
+
+export class Background extends Component<TComponentProps, TBackgroundState, TBelowLayerContext> {
   private extendedUsableRect: IRect = new Rect(0, 0, 0, 0);
 
-  private blocksStore: BlockListStore;
-
   protected readonly unsubscribe: () => void;
-
-  public declare context: TBelowLayerContext;
 
   constructor(props: {}, parent: Component) {
     super(props, parent);
@@ -33,19 +35,19 @@ export class Background extends Component {
     this.context.ctx.lineWidth = Math.floor(3 / cameraState.scale);
     this.context.ctx.strokeStyle = this.context.colors.canvas.border;
     this.context.ctx.strokeRect(
-      this.extendedUsableRect.x,
-      this.extendedUsableRect.y,
-      this.extendedUsableRect.width,
-      this.extendedUsableRect.height
+      this.state.extendedUsableRectX,
+      this.state.extendedUsableRectY,
+      this.state.extendedUsableRectWidth,
+      this.state.extendedUsableRectHeight
     );
 
     this.context.ctx.fillStyle = this.context.colors.canvas.layerBackground;
 
     this.context.ctx.fillRect(
-      this.extendedUsableRect.x,
-      this.extendedUsableRect.y,
-      this.extendedUsableRect.width,
-      this.extendedUsableRect.height
+      this.state.extendedUsableRectX,
+      this.state.extendedUsableRectY,
+      this.state.extendedUsableRectWidth,
+      this.state.extendedUsableRectHeight
     );
 
     this.context.ctx.fillStyle = "black";
@@ -54,20 +56,37 @@ export class Background extends Component {
   }
 
   protected subscribe() {
-    this.blocksStore = this.context.graph.rootStore.blocksList;
-
-    return this.blocksStore.$usableRect.subscribe((usableRect) => {
+    return this.context.graph.hitTest.usableRect.subscribe((usableRect) => {
       this.setupExtendedUsableRect(usableRect);
-
-      this.performRender();
     });
   }
 
+  protected stateChanged(_nextState: TBackgroundState): void {
+    this.shouldUpdateChildren = true;
+    super.stateChanged(_nextState);
+  }
+
   private setupExtendedUsableRect(usableRect: TRect) {
-    this.extendedUsableRect.x = usableRect.x - this.context.constants.system.USABLE_RECT_GAP;
-    this.extendedUsableRect.y = usableRect.y - this.context.constants.system.USABLE_RECT_GAP;
-    this.extendedUsableRect.width = usableRect.width + this.context.constants.system.USABLE_RECT_GAP * 2;
-    this.extendedUsableRect.height = usableRect.height + this.context.constants.system.USABLE_RECT_GAP * 2;
+    if (usableRect.x - this.context.constants.system.USABLE_RECT_GAP !== this.extendedUsableRect.x) {
+      this.setState({
+        extendedUsableRectX: usableRect.x - this.context.constants.system.USABLE_RECT_GAP,
+      });
+    }
+    if (usableRect.y - this.context.constants.system.USABLE_RECT_GAP !== this.extendedUsableRect.y) {
+      this.setState({
+        extendedUsableRectY: usableRect.y - this.context.constants.system.USABLE_RECT_GAP,
+      });
+    }
+    if (usableRect.width + this.context.constants.system.USABLE_RECT_GAP * 2 !== this.extendedUsableRect.width) {
+      this.setState({
+        extendedUsableRectWidth: usableRect.width + this.context.constants.system.USABLE_RECT_GAP * 2,
+      });
+    }
+    if (usableRect.height + this.context.constants.system.USABLE_RECT_GAP * 2 !== this.extendedUsableRect.height) {
+      this.setState({
+        extendedUsableRectHeight: usableRect.height + this.context.constants.system.USABLE_RECT_GAP * 2,
+      });
+    }
   }
 
   protected unmount() {
@@ -76,6 +95,13 @@ export class Background extends Component {
   }
 
   public updateChildren() {
-    return [PointerGrid.create(this.extendedUsableRect)];
+    return [
+      PointerGrid.create({
+        x: this.state.extendedUsableRectX,
+        y: this.state.extendedUsableRectY,
+        width: this.state.extendedUsableRectWidth,
+        height: this.state.extendedUsableRectHeight,
+      }),
+    ];
   }
 }
