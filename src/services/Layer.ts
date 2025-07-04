@@ -82,6 +82,20 @@ export class Layer<
     });
   }
 
+  public hide() {
+    this.canvas?.classList.add("hidden");
+    this.html?.classList.add("hidden");
+  }
+
+  public isHidden() {
+    return this.canvas?.classList.contains("hidden") || this.html?.classList.contains("hidden");
+  }
+
+  public show() {
+    this.canvas?.classList.remove("hidden");
+    this.html?.classList.remove("hidden");
+  }
+
   /**
    * A wrapper for HTMLElement.addEventListener that automatically includes the AbortController signal.
    * This method is for adding event listeners to the HTML element of the layer.
@@ -190,7 +204,7 @@ export class Layer<
 
   public updateSize(width: number, height: number) {
     if (this.canvas) {
-      const dpr = this.props.canvas.respectPixelRatio === false ? 1 : devicePixelRatio;
+      const dpr = this.props.canvas.respectPixelRatio === false ? 1 : this.context.graph.layers.getDPR();
       this.canvas.width = width * dpr;
       this.canvas.height = height * dpr;
     }

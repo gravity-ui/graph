@@ -9,7 +9,7 @@ import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
 import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
 import { GraphEventParams, GraphEventsDefinitions } from "./graphEvents";
-import { ESchedulerPriority, scheduler } from "./lib/Scheduler";
+import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
 import { Layer } from "./services/Layer";
 import { Layers } from "./services/LayersService";
@@ -22,7 +22,6 @@ import { getXY } from "./utils/functions";
 import { clearTextCache } from "./utils/renderers/text";
 import { RecursivePartial } from "./utils/types/helpers";
 import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
-import { schedule } from "./utils/utils/schedule";
 
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [
   T,
@@ -102,6 +101,10 @@ export class Graph {
     this.graphLayer = this.addLayer(GraphLayer, {});
     this.selectionLayer = this.addLayer(SelectionLayer, {});
 
+    this.selectionLayer.hide();
+    this.graphLayer.hide();
+    this.belowLayer.hide();
+
     if (rootEl) {
       this.attach(rootEl);
     }
@@ -117,19 +120,6 @@ export class Graph {
     });
 
     this.setupGraph(config);
-  }
-
-  public scheduleTask(cb: () => void) {
-    schedule(
-      () => {
-        cb();
-      },
-      {
-        priority: ESchedulerPriority.LOWEST,
-        frameInterval: 10,
-        once: true,
-      }
-    );
   }
 
   public getGraphLayer() {
@@ -173,7 +163,7 @@ export class Graph {
   }
 
   public getElementsOverPoint<T extends Constructor<GraphComponent>>(point: IPoint, filter?: T[]): InstanceType<T>[] {
-    const items = this.hitTest.testPoint(point, this.graphConstants.system.PIXEL_RATIO);
+    const items = this.hitTest.testPoint(point, this.layers.getDPR());
     if (filter && items.length > 0) {
       return items.filter((item) => filter.some((Component) => item instanceof Component)) as InstanceType<T>[];
     }
@@ -362,6 +352,31 @@ export class Graph {
     this.layers.start();
     this.scheduler.start();
     this.setGraphState(GraphState.READY);
+    this.runAfterGraphReady(() => {
+      this.selectionLayer.show();
+      this.graphLayer.show();
+      this.belowLayer.show();
+    });
+  }
+
+  /**
+   * Graph is ready when the hitboxes are stable.
+   * In order to initialize hitboxes we need to start scheduler and wait untils every component registered in hitTest service
+   * Immediatelly after registering startign a rendering process.
+   * @param cb - Callback to run after graph is ready
+   */
+  public runAfterGraphReady(cb: () => void) {
+    if (this.hitTest.isUnstable) {
+      this.hitTest.on("update", () => {
+        if (this.hitTest.isUnstable) {
+          this.runAfterGraphReady(cb);
+          return;
+        }
+        cb();
+      });
+    } else {
+      cb();
+    }
   }
 
   public stop(full = false) {

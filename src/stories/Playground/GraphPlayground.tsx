@@ -7,6 +7,7 @@ import { TBlock } from "../../components/canvas/blocks/Block";
 import { random } from "../../components/canvas/blocks/generate";
 import { ConnectionLayer } from "../../components/canvas/layers/connectionLayer/ConnectionLayer";
 import { Graph, GraphState, TGraphConfig } from "../../graph";
+import { ESchedulerPriority } from "../../lib";
 import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "../../react-components";
 import { useFn } from "../../react-components/utils/hooks/useFn";
 import { ECanChangeBlockGeometry } from "../../store/settings";
@@ -29,6 +30,8 @@ import {
 
 import "./Playground.css";
 import "@gravity-ui/uikit/styles/styles.css";
+
+import { schedule } from "../../utils/functions";
 
 const generated = generatePlaygroundActionBlocks(0, 5);
 const textBlocks = [

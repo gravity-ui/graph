@@ -17,6 +17,10 @@ export class Layers extends Emitter {
     window.addEventListener("resize", this.handleRootResize);
   }
 
+  public getDPR() {
+    return devicePixelRatio;
+  }
+
   public createLayer<T extends Constructor<Layer> = Constructor<Layer>>(
     layerCtor: T,
     props: T extends Constructor<Layer<infer Props>> ? Omit<Props, "root"> & { root?: Props["root"] } : never

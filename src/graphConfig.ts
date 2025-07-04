@@ -83,6 +83,7 @@ export const initGraphColors: TGraphColors = {
 export type TGraphConstants = {
   system: {
     GRID_SIZE: number;
+    /* @deprecated this config is not used anymore, Layers checks devicePixelRatio internally */
     PIXEL_RATIO: number;
     USABLE_RECT_GAP: number;
     /** For preload blocks on the html layer (camera dimensions * (1 + this value)) */
@@ -131,6 +132,7 @@ export type TGraphConstants = {
 export const initGraphConstants: TGraphConstants = {
   system: {
     GRID_SIZE: 16,
+    /* @deprecated this config is not used anymore, Layers checks devicePixelRatio internally */
     PIXEL_RATIO: typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
     USABLE_RECT_GAP: 400,
     CAMERA_VIEWPORT_TRESHOLD: 0.5,
@@ -157,7 +159,7 @@ export const initGraphConstants: TGraphConstants = {
     DEFAULT_Z_INDEX: 0,
     THRESHOLD_LINE_HIT: 8,
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: 0.25,
-    PATH2D_CHUNK_SIZE: 9,
+    PATH2D_CHUNK_SIZE: 100,
     LABEL: {
       INNER_PADDINGS: [0, 0, 0, 0],
     },

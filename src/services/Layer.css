@@ -26,3 +26,7 @@
   transform-style: preserve-3d;
   will-change: transform;
 }
+
+.hidden {
+  visibility: hidden;
+}

@@ -95,8 +95,6 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     this.camera = this.props.camera;
 
     this.performRender = this.performRender.bind(this);
-
-    canvas.style.visibility = "hidden";
   }
 
   protected afterInit(): void {
@@ -107,16 +105,6 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
     // Subscribe to graph events here instead of in the constructor
     this.onGraphEvent("camera-change", this.performRender);
-    schedule(
-      () => {
-        this.getCanvas().style.visibility = "visible";
-      },
-      {
-        priority: ESchedulerPriority.LOWEST,
-        frameInterval: 15,
-        once: true,
-      }
-    );
     super.afterInit();
   }
 

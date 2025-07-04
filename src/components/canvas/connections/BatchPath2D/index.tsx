@@ -145,14 +145,16 @@ export class BatchPath2DRenderer {
       }, [] satisfies Path2DGroup[]);
   });
 
-  protected requestRender = debounce(
+  protected requestRender = () => {
+    this.onChange?.();
+  }; /* debounce(
     () => {
       this.onChange?.();
     },
     {
       priority: ESchedulerPriority.HIGHEST,
     }
-  );
+  ); */
 
   protected getGroup(zIndex: number, group: string) {
     if (!this.indexes.has(zIndex)) {

@@ -39,23 +39,23 @@ export class PublicGraphApi {
     return new Promise((resolve) => {
       const currentRect = this.getUsableRect();
 
-      // Check if usableRect is ready (not empty default state)
-      if (currentRect.width > 0 || currentRect.height > 0 || currentRect.x !== 0 || currentRect.y !== 0) {
-        this.zoomToRect(currentRect, zoomConfig);
-        resolve();
+      if (this.graph.hitTest.isUnstable) {
+        const unsubscribe = this.graph.hitTest.onUsableRectUpdate((usableRect) => {
+          if (this.graph.hitTest.isUnstable) {
+            return;
+          }
+
+          this.zoomToRect(usableRect, zoomConfig);
+          resolve();
+          setTimeout(() => {
+            unsubscribe();
+          }, 0);
+        });
         return;
       }
 
-      // Wait for usableRect to become ready
-      const unsubscribe = this.graph.hitTest.onUsableRectUpdate((usableRect) => {
-        if (usableRect.height === 0 && usableRect.width === 0 && usableRect.x === 0 && usableRect.y === 0) {
-          return;
-        }
-
-        this.zoomToRect(usableRect, zoomConfig);
-        unsubscribe();
-        resolve();
-      });
+      this.zoomToRect(currentRect, zoomConfig);
+      resolve();
     });
   }
 

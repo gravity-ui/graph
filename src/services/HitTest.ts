@@ -40,6 +40,16 @@ export class HitTest extends Emitter {
   // Single queue replaces all complex state tracking
   protected queue = new Map<HitBox, HitBoxData | null>();
 
+  public get isUnstable() {
+    return (
+      this.queue.size > 0 ||
+      (this.$usableRect.value.height === 0 &&
+        this.$usableRect.value.width === 0 &&
+        this.$usableRect.value.x === 0 &&
+        this.$usableRect.value.y === 0)
+    );
+  }
+
   public load(items: HitBox[]) {
     this.tree.load(items);
   }
@@ -74,9 +84,12 @@ export class HitTest extends Emitter {
     }
   );
 
-  public update(item: HitBox, bbox: HitBoxData) {
+  public update(item: HitBox, bbox: HitBoxData, force = false) {
     this.queue.set(item, bbox);
     this.processQueue();
+    if (force) {
+      this.processQueue.flush();
+    }
   }
 
   public clear() {
@@ -118,12 +131,12 @@ export class HitTest extends Emitter {
   }
 
   protected updateUsableRect() {
-    const { minX, minY, maxX, maxY } = this.getBBox(this.tree.all());
+    const rect = this.tree.toJSON();
     this.$usableRect.value = {
-      x: minX,
-      y: minY,
-      width: maxX - minX,
-      height: maxY - minY,
+      x: rect.minX,
+      y: rect.minY,
+      width: rect.maxX - rect.minX,
+      height: rect.maxY - rect.minY,
     };
   }
 
@@ -227,7 +240,7 @@ export class HitBox implements IHitBox {
   public update = (minX: number, minY: number, maxX: number, maxY: number, force?: boolean): void => {
     if (this.destroyed) return;
     if (minX === this.minX && minY === this.minY && maxX === this.maxX && maxY === this.maxY && !force) return;
-    this.hitTest.update(this, { minX, minY, maxX, maxY, x: this.x, y: this.y });
+    this.hitTest.update(this, { minX, minY, maxX, maxY, x: this.x, y: this.y }, force);
   };
 
   public getRect(): [number, number, number, number] {
