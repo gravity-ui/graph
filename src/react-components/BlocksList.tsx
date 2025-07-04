@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 
 import isEqual from "lodash/isEqual";
 
@@ -125,17 +125,12 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
       throttleUpdate.cancel();
       scheduleListUpdate.cancel();
     };
-  }, [graphObject.cameraService]);
+  }, []);
 
   // init list
-  useLayoutEffect(() => {
-    graphObject.hitTest.on("update", throttleUpdate);
-
-    throttleUpdate(graphObject.cameraService.getCameraState());
-    return () => {
-      graphObject.hitTest.off("update", updateBlockList);
-    };
-  }, [graphObject.cameraService, graphObject.hitTest, updateBlockList]);
+  useEffect(() => {
+    return graphObject.hitTest.onUsableRectUpdate(updateBlockList);
+  }, [graphObject.hitTest, throttleUpdate, isRenderAllowed, graphState]);
 
   return (
     <>

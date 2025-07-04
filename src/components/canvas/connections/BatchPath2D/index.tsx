@@ -1,6 +1,4 @@
-import { ESchedulerPriority } from "../../../../lib";
 import { cache } from "../../../../lib/utils";
-import { debounce } from "../../../../utils/functions";
 
 export type Path2DRenderStyleResult =
   | { type: "stroke" }

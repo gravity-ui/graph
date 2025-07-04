@@ -52,7 +52,7 @@ export const debounce = <T extends (...args: unknown[]) => void>(
     frameInterval?: number;
     frameTimeout?: number;
   } = {}
-): T & { cancel: () => void; flush: () => void } => {
+): T & { cancel: () => void; flush: () => void; isScheduled: () => boolean } => {
   let frameCounter = 0;
   let isScheduled = false;
   let removeScheduler: (() => void) | null = null;
@@ -66,10 +66,10 @@ export const debounce = <T extends (...args: unknown[]) => void>(
       const elapsedTime = currentTime - startTime;
 
       if (frameCounter >= frameInterval && elapsedTime >= frameTimeout) {
-        fn(...latestArgs);
         isScheduled = false;
         frameCounter = 0;
         startTime = 0;
+        fn(...latestArgs);
         if (removeScheduler) {
           removeScheduler();
           removeScheduler = null;
@@ -104,10 +104,13 @@ export const debounce = <T extends (...args: unknown[]) => void>(
       isScheduled = true;
       removeScheduler = scheduler.addScheduler(debouncedScheduler, priority);
     }
-  }) as T & { cancel: () => void; flush: () => void };
+  }) as T & { cancel: () => void; flush: () => void; isScheduled: () => boolean };
 
   debouncedFn.cancel = cancel;
   debouncedFn.flush = flush;
+  debouncedFn.isScheduled = () => {
+    return isScheduled;
+  };
 
   return debouncedFn;
 };

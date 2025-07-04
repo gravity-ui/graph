@@ -33,8 +33,6 @@ export interface IHitBox extends HitBoxData {
 export class HitTest extends Emitter {
   private tree = new RBush<HitBox>(9);
 
-  protected empty = true;
-
   protected $usableRect = signal<TRect>({ x: 0, y: 0, width: 0, height: 0 });
 
   // Single queue replaces all complex state tracking
@@ -42,6 +40,7 @@ export class HitTest extends Emitter {
 
   public get isUnstable() {
     return (
+      this.processQueue.isScheduled() ||
       this.queue.size > 0 ||
       (this.$usableRect.value.height === 0 &&
         this.$usableRect.value.width === 0 &&
@@ -57,8 +56,7 @@ export class HitTest extends Emitter {
   // Single debounced job replaces complex scheduler logic
   protected processQueue = debounce(
     () => {
-      let needUpdateUsableRect = false;
-
+      const items = [];
       for (const [item, bbox] of this.queue) {
         if (bbox === null) {
           // Remove operation
@@ -67,29 +65,28 @@ export class HitTest extends Emitter {
           // Add/update operation
           this.tree.remove(item);
           item.updateRect(bbox);
-          this.tree.load([item]);
-          needUpdateUsableRect = true;
+          items.push(item);
         }
       }
+      this.tree.load(items);
       this.queue.clear();
-
-      if (needUpdateUsableRect) {
-        this.updateUsableRect();
-      }
+      this.updateUsableRect();
       this.emit("update", this);
     },
     {
-      priority: ESchedulerPriority.HIGHEST,
+      priority: ESchedulerPriority.LOWEST,
       frameTimeout: 250,
     }
   );
 
-  public update(item: HitBox, bbox: HitBoxData, force = false) {
+  public update(item: HitBox, bbox: HitBoxData, _force = false) {
     this.queue.set(item, bbox);
     this.processQueue();
-    if (force) {
+    // TODO: force update may be cause to unset unstable flag before graph is really made stable
+    // Usually case: updateEntities update blocks and connections. In this case used force stategy, so every entity will be updated immediatelly, but async, so zoom will be unstable
+    /* if (force) {
       this.processQueue.flush();
-    }
+    } */
   }
 
   public clear() {
@@ -109,25 +106,13 @@ export class HitTest extends Emitter {
     this.processQueue();
   }
 
-  protected getBBox(items: HitBox[]) {
-    return items.reduce(
-      (acc, item) => {
-        if (Number.isFinite(item.minX)) {
-          acc.minX = Math.min(acc.minX, item.minX);
-        }
-        if (Number.isFinite(item.minY)) {
-          acc.minY = Math.min(acc.minY, item.minY);
-        }
-        if (Number.isFinite(item.maxX)) {
-          acc.maxX = Math.max(acc.maxX, item.maxX);
-        }
-        if (Number.isFinite(item.maxY)) {
-          acc.maxY = Math.max(acc.maxY, item.maxY);
-        }
-        return acc;
-      },
-      { minX: 0, minY: 0, maxX: 0, maxY: 0 }
-    );
+  public waitUsableRectUpdate(callback: (rect: TRect) => void) {
+    if (this.isUnstable) {
+      return this.once("update", () => {
+        this.waitUsableRectUpdate(callback);
+      });
+    }
+    callback(this.$usableRect.value);
   }
 
   protected updateUsableRect() {

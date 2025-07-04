@@ -35,27 +35,9 @@ export class PublicGraphApi {
    * @param zoomConfig - Configuration for zoom transition and padding
    * @returns Promise that resolves when zoom operation is complete
    */
-  public zoomToViewPort(zoomConfig?: ZoomConfig): Promise<void> {
-    return new Promise((resolve) => {
-      const currentRect = this.getUsableRect();
-
-      if (this.graph.hitTest.isUnstable) {
-        const unsubscribe = this.graph.hitTest.onUsableRectUpdate((usableRect) => {
-          if (this.graph.hitTest.isUnstable) {
-            return;
-          }
-
-          this.zoomToRect(usableRect, zoomConfig);
-          resolve();
-          setTimeout(() => {
-            unsubscribe();
-          }, 0);
-        });
-        return;
-      }
-
-      this.zoomToRect(currentRect, zoomConfig);
-      resolve();
+  public zoomToViewPort(zoomConfig?: ZoomConfig) {
+    this.graph.hitTest.waitUsableRectUpdate((rect) => {
+      this.zoomToRect(rect, zoomConfig);
     });
   }
 

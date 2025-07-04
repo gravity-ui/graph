@@ -366,17 +366,7 @@ export class Graph {
    * @param cb - Callback to run after graph is ready
    */
   public runAfterGraphReady(cb: () => void) {
-    if (this.hitTest.isUnstable) {
-      this.hitTest.on("update", () => {
-        if (this.hitTest.isUnstable) {
-          this.runAfterGraphReady(cb);
-          return;
-        }
-        cb();
-      });
-    } else {
-      cb();
-    }
+    this.hitTest.waitUsableRectUpdate(cb);
   }
 
   public stop(full = false) {
