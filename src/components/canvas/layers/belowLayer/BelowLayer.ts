@@ -1,4 +1,6 @@
 import { Graph } from "../../../../graph";
+import { Component } from "../../../../lib";
+import { ComponentDescriptor, CoreComponentContext, CoreComponentProps } from "../../../../lib/CoreComponent";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { ICamera } from "../../../../services/camera/CameraService";
 
@@ -16,6 +18,8 @@ export type TBelowLayerContext = LayerContext & {
 };
 
 export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
+  protected background: typeof Component;
+
   constructor(props: TBelowLayerProps) {
     super({
       canvas: {
@@ -27,21 +31,22 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
     });
 
     this.onSignal(this.props.graph.rootStore.settings.$background, () => {
+      this.background = this.props.graph.rootStore.settings.$background.value || (Background as typeof Component);
       this.shouldUpdateChildren = true;
       this.performRender();
     });
   }
 
   protected afterInit(): void {
-    super.afterInit();
     this.onGraphEvent("camera-change", this.performRender);
+    super.afterInit();
   }
 
   public render() {
     this.resetTransform();
   }
 
-  public updateChildren() {
-    return [(this.props.graph.rootStore.settings.$background.value || Background).create({})];
+  public updateChildren(): ComponentDescriptor<CoreComponentProps, CoreComponentContext>[] {
+    return [this.background.create({})];
   }
 }

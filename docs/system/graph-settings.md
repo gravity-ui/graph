@@ -140,8 +140,8 @@ Constants control the sizing, spacing, and other numerical values used throughou
 | Constant | Default | Description |
 |----------|---------|-------------|
 | `GRID_SIZE` | `16` | Base grid size for layout calculations |
-| `PIXEL_RATIO` | `window.devicePixelRatio \|\| 1` | Device pixel ratio for rendering |
 | `USABLE_RECT_GAP` | `400` | Gap around the usable rect area |
+| `CAMERA_VIEWPORT_TRESHOLD` | `0.5` | Threshold for camera viewport |
 
 ### Camera Constants
 

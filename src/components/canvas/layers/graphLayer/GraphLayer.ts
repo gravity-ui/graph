@@ -61,7 +61,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private eventByTargetComponent?: EventedComponent | MouseEvent;
 
-  private fixedTargetComponent?: EventedComponent | Camera;
+  private capturedTargetComponent?: EventedComponent;
 
   constructor(props: TGraphLayerProps) {
     super({
@@ -104,7 +104,6 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
     // Subscribe to graph events here instead of in the constructor
     this.onGraphEvent("camera-change", this.performRender);
-
     super.afterInit();
   }
 
@@ -121,6 +120,20 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
       this.onRootEvent(type as keyof HTMLElementEventMap, this, { capture: true })
     );
     this.onRootEvent("mousemove", this);
+  }
+
+  /*
+   * Capture element for future events
+   * When element is captured, it will be used as target for future events
+   * until releaseCapture is called
+   * @param component - element to capture
+   */
+  public captureEvents(component: EventedComponent) {
+    this.capturedTargetComponent = component;
+  }
+
+  public releaseCapture() {
+    this.capturedTargetComponent = undefined;
   }
 
   public handleEvent(e: Event): void {
@@ -186,18 +199,19 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   }
 
   private updateTargetComponent(event: MouseEvent, force = false) {
-    if (this.camera.isUnstable()) {
-      return;
-    }
-    if (this.fixedTargetComponent !== undefined) {
+    // Check is event is too close to previous event
+    // In case when previous event is too close to current event, we don't need to update target component
+    // This is useful to prevent flickering when user is moving mouse fast
+    if (!force && this.eventByTargetComponent && getEventDelta(event, this.eventByTargetComponent) < 3) return;
+
+    this.eventByTargetComponent = event;
+
+    if (this.capturedTargetComponent) {
+      this.targetComponent = this.capturedTargetComponent;
       return;
     }
 
     this.prevTargetComponent = this.targetComponent;
-
-    if (!force && this.eventByTargetComponent && getEventDelta(event, this.eventByTargetComponent) < 3) return;
-
-    this.eventByTargetComponent = event;
 
     const point = this.context.graph.getPointInCameraSpace(event);
 

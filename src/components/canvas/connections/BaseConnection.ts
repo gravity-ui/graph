@@ -96,13 +96,13 @@ export class BaseConnection<
       this.connectionPoints[1].x,
       this.anchorsPoints?.[0].x || Infinity,
       this.anchorsPoints?.[1].x || Infinity,
-    ];
+    ].filter(Number.isFinite);
     const y = [
       this.connectionPoints[0].y,
       this.connectionPoints[1].y,
       this.anchorsPoints?.[0].y || Infinity,
       this.anchorsPoints?.[1].y || Infinity,
-    ];
+    ].filter(Number.isFinite);
 
     this.bBox = [Math.min(...x), Math.min(...y), Math.max(...x), Math.max(...y)];
 

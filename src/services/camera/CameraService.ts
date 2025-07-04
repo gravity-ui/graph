@@ -1,5 +1,4 @@
 import intersects from "intersects";
-import debounce from "lodash/debounce";
 
 import { Graph } from "../../graph";
 import { Emitter } from "../../utils/Emitter";
@@ -57,22 +56,6 @@ export const getInitCameraState = (): TCameraState => {
 export type ICamera = Interface<CameraService>;
 
 export class CameraService extends Emitter {
-  /* State for unstable state of camera viewport, like moving viewport or zoom */
-  protected unstable = false;
-
-  public isUnstable() {
-    return this.unstable;
-  }
-
-  protected makeUnstable() {
-    this.unstable = true;
-    this.unsetUnstable();
-  }
-
-  protected unsetUnstable = debounce(() => {
-    this.unstable = false;
-  }, 50);
-
   constructor(
     protected graph: Graph,
     protected state: TCameraState = getInitCameraState()
@@ -91,7 +74,6 @@ export class CameraService extends Emitter {
     this.graph.executеDefaultEventAction("camera-change", Object.assign({}, this.state, newState), () => {
       this.state = Object.assign(this.state, newState);
       this.updateRelative();
-      this.makeUnstable();
     });
   }
 

@@ -101,6 +101,10 @@ export class Graph {
     this.graphLayer = this.addLayer(GraphLayer, {});
     this.selectionLayer = this.addLayer(SelectionLayer, {});
 
+    this.selectionLayer.hide();
+    this.graphLayer.hide();
+    this.belowLayer.hide();
+
     if (rootEl) {
       this.attach(rootEl);
     }
@@ -146,7 +150,7 @@ export class Graph {
     this.cameraService.zoom(zoomConfig.x || width / 2, zoomConfig.y || height / 2, zoomConfig.scale);
   }
 
-  public zoomTo(target: TGraphZoomTarget, config?: ZoomConfig) {
+  public zoomTo(target: TGraphZoomTarget, config?: ZoomConfig): Promise<void> | void {
     if (target === "center") {
       this.api.zoomToViewPort(config);
       return;
@@ -159,7 +163,7 @@ export class Graph {
   }
 
   public getElementsOverPoint<T extends Constructor<GraphComponent>>(point: IPoint, filter?: T[]): InstanceType<T>[] {
-    const items = this.hitTest.testPoint(point, this.graphConstants.system.PIXEL_RATIO);
+    const items = this.hitTest.testPoint(point, this.layers.getDPR());
     if (filter && items.length > 0) {
       return items.filter((item) => filter.some((Component) => item instanceof Component)) as InstanceType<T>[];
     }
@@ -348,6 +352,21 @@ export class Graph {
     this.layers.start();
     this.scheduler.start();
     this.setGraphState(GraphState.READY);
+    this.runAfterGraphReady(() => {
+      this.selectionLayer.show();
+      this.graphLayer.show();
+      this.belowLayer.show();
+    });
+  }
+
+  /**
+   * Graph is ready when the hitboxes are stable.
+   * In order to initialize hitboxes we need to start scheduler and wait untils every component registered in hitTest service
+   * Immediatelly after registering startign a rendering process.
+   * @param cb - Callback to run after graph is ready
+   */
+  public runAfterGraphReady(cb: () => void) {
+    this.hitTest.waitUsableRectUpdate(cb);
   }
 
   public stop(full = false) {

@@ -448,6 +448,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   public setHiddenBlock(hidden: boolean) {
     if (this.hidden !== hidden) {
       this.hidden = hidden;
+      this.shouldRender = !hidden;
       this.performRender();
     }
   }
@@ -458,6 +459,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected render() {
+    if (this.hidden) {
+      return;
+    }
+
     const scaleLevel = this.context.graph.cameraService.getCameraBlockScaleLevel();
 
     switch (scaleLevel) {

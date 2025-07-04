@@ -232,7 +232,7 @@ export function GraphPLayground() {
   });
 
   const addNewBlock = useFn(() => {
-    const rect = graph.rootStore.blocksList.getUsableRect();
+    const rect = graph.api.getUsableRect();
     const x = random(rect.x, rect.x + rect.width + 100);
     const y = random(rect.y, rect.y + rect.height + 100);
     const block = createActionBlock(x, y, graph.rootStore.blocksList.$blocksMap.value.size + 1);
