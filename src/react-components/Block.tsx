@@ -30,8 +30,8 @@ export const GraphBlock = <T extends TBlock>({
     return () => viewState?.setHiddenBlock(false);
   }, [viewState]);
 
-  // Оптимизированные обновления только при реальных изменениях
-  useEffect(() => {
+  // Optimized updates only on actual changes
+  useLayoutEffect(() => {
     if (!containerRef.current || !state) return;
 
     const element = containerRef.current;

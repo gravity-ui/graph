@@ -1,7 +1,7 @@
-import debounce from "lodash/debounce";
-
+import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
+import { throttle } from "../utils/functions";
 
 import { Layer } from "./Layer";
 
@@ -94,9 +94,14 @@ export class Layers extends Emitter {
     this.handleRootResize();
   });
 
-  protected handleRootResize = debounce(() => {
-    this.updateSize();
-  }, 16);
+  protected handleRootResize = throttle(
+    () => {
+      this.updateSize();
+    },
+    {
+      priority: ESchedulerPriority.HIGHEST,
+    }
+  );
 
   public destroy() {
     this.detach();
@@ -114,7 +119,10 @@ export class Layers extends Emitter {
     if (!this.rootSize) {
       return;
     }
-    this.updateRootSize();
+    const changed = this.updateRootSize();
+    if (!changed) {
+      return;
+    }
 
     const { width, height } = this.rootSize;
     this.layers.forEach((layer) => {
@@ -123,8 +131,19 @@ export class Layers extends Emitter {
     this.emit("update-size", this.rootSize);
   };
 
-  private updateRootSize() {
-    this.rootSize.width = this.$root.clientWidth;
-    this.rootSize.height = this.$root.clientHeight;
-  }
+  private updateRootSize = () => {
+    let changed = false;
+    if (!this.$root) {
+      return changed;
+    }
+    if (this.rootSize.width !== this.$root.clientWidth) {
+      this.rootSize.width = this.$root.clientWidth;
+      changed = true;
+    }
+    if (this.rootSize.height !== this.$root.clientHeight) {
+      changed = true;
+      this.rootSize.height = this.$root.clientHeight;
+    }
+    return changed;
+  };
 }

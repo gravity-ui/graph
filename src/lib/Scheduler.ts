@@ -6,7 +6,7 @@ const getNow =
   typeof window !== "undefined" ? window.performance.now.bind(window.performance) : global.Date.now.bind(global.Date);
 
 interface IScheduler {
-  performUpdate: Function;
+  performUpdate: (time: number) => void;
 }
 
 export enum ESchedulerPriority {
@@ -17,7 +17,7 @@ export enum ESchedulerPriority {
   LOWEST = 4,
 }
 export class GlobalScheduler {
-  private schedulers: IScheduler[][];
+  private schedulers: [IScheduler[], IScheduler[], IScheduler[], IScheduler[], IScheduler[]];
   private _cAFID: number;
 
   constructor() {
@@ -61,7 +61,7 @@ export class GlobalScheduler {
 
   public performUpdate() {
     const startTime = getNow();
-    let schedulers = [];
+    let schedulers: IScheduler[] = [];
 
     for (let i = 0; i < this.schedulers.length; i += 1) {
       schedulers = this.schedulers[i];

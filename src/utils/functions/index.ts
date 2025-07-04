@@ -250,3 +250,6 @@ export function computeCssVariable(name: string) {
 
   return computedStyle.getPropertyValue(name).trim();
 }
+
+// Re-export scheduler utilities
+export { schedule, debounce, throttle } from "../utils/schedule";

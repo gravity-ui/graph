@@ -160,18 +160,16 @@ export class Graph {
     this.cameraService.zoom(zoomConfig.x || width / 2, zoomConfig.y || height / 2, zoomConfig.scale);
   }
 
-  public zoomTo(target: TGraphZoomTarget, config?: ZoomConfig) {
-    this.scheduleTask(() => {
-      if (target === "center") {
-        this.api.zoomToViewPort(config);
-        return;
-      }
-      if (isTRect(target)) {
-        this.api.zoomToRect(target, config);
-        return;
-      }
-      this.api.zoomToBlocks(target, config);
-    });
+  public zoomTo(target: TGraphZoomTarget, config?: ZoomConfig): Promise<void> | void {
+    if (target === "center") {
+      this.api.zoomToViewPort(config);
+      return;
+    }
+    if (isTRect(target)) {
+      this.api.zoomToRect(target, config);
+      return;
+    }
+    this.api.zoomToBlocks(target, config);
   }
 
   public getElementsOverPoint<T extends Constructor<GraphComponent>>(point: IPoint, filter?: T[]): InstanceType<T>[] {

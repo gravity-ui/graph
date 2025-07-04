@@ -115,6 +115,8 @@ export type TGraphConstants = {
     DEFAULT_Z_INDEX: number;
     THRESHOLD_LINE_HIT: number;
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: number;
+    /** Size of Path2D chunks for batch rendering */
+    PATH2D_CHUNK_SIZE: number;
     LABEL: {
       INNER_PADDINGS: [number, number, number, number];
     };
@@ -155,6 +157,7 @@ export const initGraphConstants: TGraphConstants = {
     DEFAULT_Z_INDEX: 0,
     THRESHOLD_LINE_HIT: 8,
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: 0.25,
+    PATH2D_CHUNK_SIZE: 9,
     LABEL: {
       INNER_PADDINGS: [0, 0, 0, 0],
     },

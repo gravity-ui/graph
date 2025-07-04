@@ -22,7 +22,7 @@ export class PointerGrid extends Component<TRect, TBelowLayerContext> {
   private currentDotsColor: string;
 
   constructor(props: TRect, parent: Background) {
-    super(props, parent);
+    super(props, parent as Component);
 
     this.props = props;
 

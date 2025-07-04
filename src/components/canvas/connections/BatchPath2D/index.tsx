@@ -1,6 +1,6 @@
-import debounce from "lodash/debounce";
-
+import { ESchedulerPriority } from "../../../../lib";
 import { cache } from "../../../../lib/utils";
+import { debounce } from "../../../../utils/functions";
 
 export type Path2DRenderStyleResult =
   | { type: "stroke" }
@@ -14,8 +14,6 @@ export interface Path2DRenderInstance {
   isPathVisible?(): boolean;
 }
 
-const CHUNK_SIZE = 100;
-
 class Path2DChunk {
   protected items: Set<Path2DRenderInstance> = new Set();
 
@@ -26,20 +24,20 @@ class Path2DChunk {
   protected path = cache(() => {
     const path = new Path2D();
     path.moveTo(0, 0);
-    return this.visibleItems.get().reduce((path, item) => {
-      if (item.isPathVisible?.() ?? true) {
-        const subPath = item.getPath();
-        if (subPath) {
-          path.addPath(subPath);
-        }
+    // Use already filtered visibleItems - no need for additional visibility checks
+    for (const item of this.visibleItems.get()) {
+      const subPath = item.getPath();
+      if (subPath) {
+        path.addPath(subPath);
       }
-      return path;
-    }, path);
+    }
+    return path;
   });
 
-  protected applyStyles(ctx) {
-    const val = Array.from(this.items).find((item) => item.isPathVisible?.() ?? true);
-    return val?.style(ctx);
+  protected applyStyles(ctx: CanvasRenderingContext2D) {
+    // Style comes from first visible item
+    const first = this.visibleItems.get()[0];
+    return first?.style(ctx);
   }
 
   public add(item: Path2DRenderInstance) {
@@ -58,32 +56,24 @@ class Path2DChunk {
   }
 
   public render(ctx: CanvasRenderingContext2D) {
-    const visibleItems = this.visibleItems.get();
+    const vis = this.visibleItems.get();
+    if (!vis.length) return;
 
-    if (visibleItems.length) {
-      ctx.save();
+    ctx.save();
+    const style = this.applyStyles(ctx);
+    if (style) {
+      const p = this.path.get();
+      if (style.type === "fill" || style.type === "both") {
+        ctx.fill(p, style.fillRule);
+      }
+      if (style.type === "stroke" || style.type === "both") {
+        ctx.stroke(p);
+      }
+    }
+    ctx.restore();
 
-      const result = this.applyStyles(ctx);
-      if (result) {
-        switch (result.type) {
-          case "fill": {
-            ctx.fill(this.path.get(), result.fillRule);
-            break;
-          }
-          case "stroke": {
-            ctx.stroke(this.path.get());
-            break;
-          }
-          case "both": {
-            ctx.fill(this.path.get(), result.fillRule);
-            ctx.stroke(this.path.get());
-          }
-        }
-      }
-      ctx.restore();
-      for (const item of visibleItems) {
-        item.afterRender?.(ctx);
-      }
+    for (const item of vis) {
+      item.afterRender?.(ctx);
     }
   }
 
@@ -93,12 +83,16 @@ class Path2DChunk {
 }
 
 class Path2DGroup {
-  protected chunks: Path2DChunk[] = [new Path2DChunk()];
+  protected chunks: Path2DChunk[] = [];
   protected itemToChunk: Map<Path2DRenderInstance, Path2DChunk> = new Map();
+
+  constructor(private chunkSize: number) {
+    this.chunks.push(new Path2DChunk());
+  }
 
   public add(item: Path2DRenderInstance) {
     let lastChunk = this.chunks[this.chunks.length - 1];
-    if (lastChunk.size >= CHUNK_SIZE) {
+    if (lastChunk.size >= this.chunkSize) {
       lastChunk = new Path2DChunk();
       this.chunks.push(lastChunk);
     }
@@ -133,7 +127,10 @@ class Path2DGroup {
 }
 
 export class BatchPath2DRenderer {
-  constructor(protected onChange: () => void) {}
+  constructor(
+    protected onChange: () => void,
+    private chunkSize: number = 100
+  ) {}
 
   protected indexes: Map<number, Map<string, Path2DGroup>> = new Map();
 
@@ -148,6 +145,15 @@ export class BatchPath2DRenderer {
       }, [] satisfies Path2DGroup[]);
   });
 
+  protected requestRender = debounce(
+    () => {
+      this.onChange?.();
+    },
+    {
+      priority: ESchedulerPriority.HIGHEST,
+    }
+  );
+
   protected getGroup(zIndex: number, group: string) {
     if (!this.indexes.has(zIndex)) {
       this.indexes.set(zIndex, new Map());
@@ -155,7 +161,7 @@ export class BatchPath2DRenderer {
     const index = this.indexes.get(zIndex);
 
     if (!index.has(group)) {
-      index.set(group, new Path2DGroup());
+      index.set(group, new Path2DGroup(this.chunkSize));
     }
 
     return index.get(group);
@@ -169,7 +175,7 @@ export class BatchPath2DRenderer {
     bucket.add(item);
     this.itemParams.set(item, params);
     this.orderedPaths.reset();
-    this.onChange?.();
+    this.requestRender();
   }
 
   public update(item: Path2DRenderInstance, params: { zIndex: number; group: string }) {
@@ -186,7 +192,7 @@ export class BatchPath2DRenderer {
     bucket.delete(item);
     this.itemParams.delete(item);
     this.orderedPaths.reset();
-    this.onChange?.();
+    this.requestRender();
   }
 
   public markDirty(item: Path2DRenderInstance) {
@@ -194,7 +200,7 @@ export class BatchPath2DRenderer {
     if (params) {
       const group = this.getGroup(params.zIndex, params.group);
       group.resetItem(item);
-      this.onChange?.();
+      this.requestRender();
     }
   }
 }

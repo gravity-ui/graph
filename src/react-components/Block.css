@@ -9,7 +9,7 @@
   contain: layout size;
   isolation: isolate;
   
-  /* Создаёт композитный слой */
+  /* Creates a composite layer */
   backface-visibility: hidden;
   transform-style: preserve-3d;
 }

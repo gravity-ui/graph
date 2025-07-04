@@ -1,21 +1,24 @@
-import React, { memo, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
-import debounce from "lodash/debounce";
 import isEqual from "lodash/isEqual";
 
 import { Block as CanvasBlock, TBlock } from "../components/canvas/blocks/Block";
 import { Graph, GraphState } from "../graph";
-import { ECameraScaleLevel } from "../services/camera/CameraService";
+import { ESchedulerPriority } from "../lib";
+import { ECameraScaleLevel, TCameraState } from "../services/camera/CameraService";
 import { BlockState } from "../store/block/Block";
+import { debounce, throttle } from "../utils/functions";
 
 import { useSignal } from "./hooks";
 import { useGraphEvent } from "./hooks/useGraphEvents";
 import { useCompareState } from "./utils/hooks/useCompareState";
 import { useFn } from "./utils/hooks/useFn";
 
+export type TRenderBlockFn = <T extends TBlock>(graphObject: Graph, block: T) => React.JSX.Element;
+
 export type TBlockListProps = {
   graphObject: Graph;
-  renderBlock: <T extends TBlock>(graphObject: Graph, block: T) => React.JSX.Element;
+  renderBlock: TRenderBlockFn;
 };
 
 export type TBlockProps = {
@@ -79,7 +82,10 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
   });
 
   const scheduleListUpdate = useMemo(() => {
-    return debounce(() => updateBlockList(), 0);
+    return debounce(() => updateBlockList(), {
+      priority: ESchedulerPriority.HIGHEST,
+      frameInterval: 1,
+    });
   }, []);
 
   useGraphEvent(graphObject, "state-change", () => {
@@ -90,20 +96,42 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
     setGraphState(graphObject.state);
   }, [graphObject]);
 
-  useGraphEvent(graphObject, "camera-change", ({ scale }) => {
-    if (graphObject.cameraService.getCameraBlockScaleLevel(scale) !== ECameraScaleLevel.Detailed) {
-      setRenderAllowed(false);
-      return;
-    }
-    setRenderAllowed(true);
-    scheduleListUpdate();
-  });
+  const throttleUpdate = useMemo(
+    () =>
+      throttle(
+        ({ scale }: TCameraState) => {
+          if (graphObject.cameraService.getCameraBlockScaleLevel(scale) !== ECameraScaleLevel.Detailed) {
+            setRenderAllowed(false);
+            return;
+          }
+          setRenderAllowed(true);
+          scheduleListUpdate();
+          if (!isRenderAllowed) {
+            scheduleListUpdate.flush();
+          }
+        },
+        {
+          priority: ESchedulerPriority.HIGHEST,
+          frameTimeout: 15,
+        }
+      ),
+    []
+  );
+
+  useGraphEvent(graphObject, "camera-change", throttleUpdate);
+
+  useEffect(() => {
+    return () => {
+      throttleUpdate.cancel();
+      scheduleListUpdate.cancel();
+    };
+  }, [graphObject.cameraService]);
 
   // init list
-  useEffect(() => {
-    graphObject.hitTest.on("update", updateBlockList);
+  useLayoutEffect(() => {
+    graphObject.hitTest.on("update", throttleUpdate);
 
-    updateBlockList();
+    throttleUpdate(graphObject.cameraService.getCameraState());
     return () => {
       graphObject.hitTest.off("update", updateBlockList);
     };
