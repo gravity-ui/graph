@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/gravity-ui/graph/compare/v1.0.1...v1.1.0) (2025-07-06)
+
+
+### Features
+
+* Improved performance ([#101](https://github.com/gravity-ui/graph/issues/101)) ([51f0279](https://github.com/gravity-ui/graph/commit/51f0279d132ed041b24a5754ccef17e3d323ff99))
+
 ## [1.0.1](https://github.com/gravity-ui/graph/compare/v1.0.0...v1.0.1) (2025-06-27)
 
 
