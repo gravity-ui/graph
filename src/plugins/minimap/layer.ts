@@ -238,7 +238,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
 
   protected didRender(): void {
     if (this.firstRender) {
-      this.unSubscribeUsableRectLoaded = this.props.graph.rootStore.blocksList.$usableRect.subscribe((usableRect) => {
+      this.unSubscribeUsableRectLoaded = this.props.graph.hitTest.onUsableRectUpdate((usableRect) => {
         if (usableRect.height === 0 && usableRect.width === 0 && usableRect.x === 0 && usableRect.y === 0) return;
 
         this.calculateViewPortCoords();

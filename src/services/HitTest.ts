@@ -1,9 +1,11 @@
-import debounce from "lodash/debounce";
+import { signal } from "@preact/signals-core";
 import RBush from "rbush";
 
+import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
-import { IPoint } from "../utils/types/shapes";
+import { IPoint, TRect } from "../utils/types/shapes";
+import { debounce } from "../utils/utils/schedule";
 
 export interface IWithHitTest {
   hitBox: IHitBox;
@@ -22,10 +24,6 @@ export type HitBoxData = {
   y: number;
 };
 
-// type OptionsHitTest = {
-//   noSort?: boolean;
-// };
-
 export interface IHitBox extends HitBoxData {
   update(minX: number, minY: number, maxX: number, maxY: number): void;
   destroy(): void;
@@ -33,46 +31,104 @@ export interface IHitBox extends HitBoxData {
 }
 
 export class HitTest extends Emitter {
-  private tree = new RBush<HitBox>(16);
+  private tree = new RBush<HitBox>(9);
 
-  protected empty = true;
+  protected $usableRect = signal<TRect>({ x: 0, y: 0, width: 0, height: 0 });
+
+  // Single queue replaces all complex state tracking
+  protected queue = new Map<HitBox, HitBoxData | null>();
+
+  public get isUnstable() {
+    return (
+      this.processQueue.isScheduled() ||
+      this.queue.size > 0 ||
+      (this.$usableRect.value.height === 0 &&
+        this.$usableRect.value.width === 0 &&
+        this.$usableRect.value.x === 0 &&
+        this.$usableRect.value.y === 0)
+    );
+  }
 
   public load(items: HitBox[]) {
     this.tree.load(items);
   }
 
-  protected scheduledItems = new Set<HitBox>();
+  // Single debounced job replaces complex scheduler logic
+  protected processQueue = debounce(
+    () => {
+      const items = [];
+      for (const [item, bbox] of this.queue) {
+        if (bbox === null) {
+          // Remove operation
+          this.tree.remove(item);
+        } else {
+          // Add/update operation
+          this.tree.remove(item);
+          item.updateRect(bbox);
+          items.push(item);
+        }
+      }
+      this.tree.load(items);
+      this.queue.clear();
+      this.updateUsableRect();
+      this.emit("update", this);
+    },
+    {
+      priority: ESchedulerPriority.LOWEST,
+      frameTimeout: 250,
+    }
+  );
+
+  public update(item: HitBox, bbox: HitBoxData, _force = false) {
+    this.queue.set(item, bbox);
+    this.processQueue();
+    // TODO: force update may be cause to unset unstable flag before graph is really made stable
+    // Usually case: updateEntities update blocks and connections. In this case used force stategy, so every entity will be updated immediatelly, but async, so zoom will be unstable
+    /* if (force) {
+      this.processQueue.flush();
+    } */
+  }
 
   public clear() {
-    this.scheduledItems.clear();
+    this.queue.clear();
     this.tree.clear();
   }
 
-  public add(item: HitBox, force = false) {
-    this.scheduledItems.add(item);
-    this.scheduleLoad();
-    if (force) {
-      this.scheduleLoad.flush();
-    }
+  public add(item: HitBox) {
+    this.queue.set(item, {
+      minX: item.minX,
+      minY: item.minY,
+      maxX: item.maxX,
+      maxY: item.maxY,
+      x: item.x,
+      y: item.y,
+    });
+    this.processQueue();
   }
 
-  protected scheduleLoad = debounce(() => {
-    this.tree.load(Array.from(this.scheduledItems));
-    this.scheduledItems.clear();
-    this.emitUpdate();
-  }, 50);
-
-  public remove(item: HitBox, silent = false) {
-    this.scheduledItems.delete(item);
-    this.tree.remove(item);
-    if (!silent) {
-      this.emitUpdate();
+  public waitUsableRectUpdate(callback: (rect: TRect) => void) {
+    if (this.isUnstable) {
+      return this.once("update", () => {
+        this.waitUsableRectUpdate(callback);
+      });
     }
+    callback(this.$usableRect.value);
   }
 
-  protected emitUpdate = debounce(() => {
-    this.emit("update", this);
-  }, 50);
+  protected updateUsableRect() {
+    const rect = this.tree.toJSON();
+    this.$usableRect.value = {
+      x: rect.minX,
+      y: rect.minY,
+      width: rect.maxX - rect.minX,
+      height: rect.maxY - rect.minY,
+    };
+  }
+
+  public remove(item: HitBox) {
+    this.queue.set(item, null);
+    this.processQueue();
+  }
 
   public testPoint(point: IPoint, pixelRatio: number) {
     return this.testHitBox({
@@ -87,6 +143,28 @@ export class HitTest extends Emitter {
 
   public testBox(item: Omit<HitBoxData, "x" | "y">): Component[] {
     return this.tree.search(item).map((hitBox) => hitBox.item);
+  }
+
+  /**
+   * Subscribe to usableRect updates
+   * @param callback Function to call when usableRect changes
+   * @returns Unsubscribe function
+   */
+  public onUsableRectUpdate(callback: (rect: TRect) => void): () => void {
+    return this.$usableRect.subscribe(callback);
+  }
+
+  /**
+   * Get current usableRect value
+   * @returns Current usableRect
+   */
+  public getUsableRect(): TRect {
+    return this.$usableRect.value;
+  }
+
+  public destroy(): void {
+    super.destroy();
+    this.processQueue.cancel();
   }
 
   public testHitBox(item: HitBoxData): Component[] {
@@ -127,26 +205,27 @@ export class HitBox implements IHitBox {
 
   public y: number;
 
-  private rect: [number, number, number, number];
+  private rect: [number, number, number, number] = [0, 0, 0, 0];
 
   constructor(
     public item: { zIndex: number } & Component & IWithHitTest,
     protected hitTest: HitTest
   ) {}
 
+  public updateRect(rect: HitBoxData) {
+    this.minX = rect.minX;
+    this.minY = rect.minY;
+    this.maxX = rect.maxX;
+    this.maxY = rect.maxY;
+    this.x = rect.x;
+    this.y = rect.y;
+    this.rect = [this.minX, this.minY, this.maxX - this.minX, this.maxY - this.minY];
+  }
+
   public update = (minX: number, minY: number, maxX: number, maxY: number, force?: boolean): void => {
     if (this.destroyed) return;
     if (minX === this.minX && minY === this.minY && maxX === this.maxX && maxY === this.maxY && !force) return;
-    if (this.minX !== undefined) {
-      this.hitTest.remove(this, true);
-    }
-
-    this.minX = minX;
-    this.minY = minY;
-    this.maxX = maxX;
-    this.maxY = maxY;
-    this.rect = [this.minX, this.minY, this.maxX - this.minX, this.maxY - this.minY];
-    this.hitTest.add(this, Boolean(force));
+    this.hitTest.update(this, { minX, minY, maxX, maxY, x: this.x, y: this.y }, force);
   };
 
   public getRect(): [number, number, number, number] {

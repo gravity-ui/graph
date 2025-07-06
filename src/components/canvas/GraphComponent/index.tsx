@@ -59,6 +59,7 @@ export class GraphComponent<
           if (onDragStart?.(event) === false) {
             return;
           }
+          this.context.graph.getGraphLayer().captureEvents(this);
           const xy = getXY(this.context.canvas, event);
           startDragCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
         })
@@ -75,6 +76,7 @@ export class GraphComponent<
           startDragCoords = currentCoords;
         })
         .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
+          this.context.graph.getGraphLayer().releaseCapture();
           startDragCoords = undefined;
           onDrop?.(_event);
         });

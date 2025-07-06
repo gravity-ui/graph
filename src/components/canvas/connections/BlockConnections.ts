@@ -18,10 +18,14 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
 
   protected readonly unsubscribe: (() => void)[];
 
-  protected batch = new BatchPath2DRenderer(() => this.performRender());
+  protected batch: BatchPath2DRenderer;
 
   constructor(props: {}, parent: Component) {
     super(props, parent);
+    this.batch = new BatchPath2DRenderer(
+      () => this.performRender(),
+      this.context.constants.connection.PATH2D_CHUNK_SIZE || 100
+    );
     this.unsubscribe = this.subscribe();
     this.setContext({
       batch: this.batch,

@@ -28,10 +28,17 @@ export class PublicGraphApi {
     this.zoomToRect(blocksRect, zoomConfig);
   }
 
+  /**
+   * Zooms to fit all blocks in the viewport. This method is asynchronous and waits
+   * for the usableRect to be ready before performing the zoom operation.
+   *
+   * @param zoomConfig - Configuration for zoom transition and padding
+   * @returns Promise that resolves when zoom operation is complete
+   */
   public zoomToViewPort(zoomConfig?: ZoomConfig) {
-    const blocksRect = this.graph.rootStore.blocksList.getUsableRect();
-
-    this.zoomToRect(blocksRect, zoomConfig);
+    this.graph.hitTest.waitUsableRectUpdate((rect) => {
+      this.zoomToRect(rect, zoomConfig);
+    });
   }
 
   public zoomToRect(rect: TRect, zoomConfig?: ZoomConfig) {
@@ -165,7 +172,7 @@ export class PublicGraphApi {
   }
 
   public getUsableRect() {
-    return this.graph.rootStore.blocksList.getUsableRect();
+    return this.graph.hitTest.getUsableRect();
   }
 
   public unsetSelection() {

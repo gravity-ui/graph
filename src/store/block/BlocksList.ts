@@ -1,5 +1,4 @@
-import { batch, computed, effect, signal } from "@preact/signals-core";
-import throttle from "lodash/throttle";
+import { batch, computed, signal } from "@preact/signals-core";
 
 import { AnchorState } from "store/anchor/Anchor";
 
@@ -7,8 +6,6 @@ import { TAnchor } from "../../components/canvas/anchors";
 import { TBlock, isTBlock } from "../../components/canvas/blocks/Block";
 import { generateRandomId } from "../../components/canvas/blocks/generate";
 import { Graph } from "../../graph";
-import { getUsableRectByBlockIds } from "../../utils/functions";
-import { TRect } from "../../utils/types/shapes";
 import { ESelectionStrategy } from "../../utils/types/types";
 import { selectConnectionsByBlockId } from "../connection/selectors";
 import { RootStore } from "../index";
@@ -83,41 +80,10 @@ export class BlockListStore {
     return undefined;
   });
 
-  protected isDirtyRect = true;
-
-  public $usableRect = signal<TRect>({ x: 0, y: 0, height: 0, width: 0 });
-
   constructor(
     public rootStore: RootStore,
     protected graph: Graph
-  ) {
-    effect(() => {
-      this.recalcUsableRect();
-    });
-  }
-
-  /*
-   * Returns usable rectangles with guaranteed that the rectangle is calculated.
-   *
-   * This method is useful because the usable rectangle is automatically recalculated by throttling with 50ms delay,
-   * so sometimes the usable rectangle might not be accurate.
-   */
-  public getUsableRect() {
-    if (this.isDirtyRect || (this.$usableRect.value.x === 0 && this.$usableRect.value.width === 0)) {
-      this.forceRecalcUsableRect();
-    }
-    return this.$usableRect.value;
-  }
-
-  protected forceRecalcUsableRect(blocks = this.$blocks.value) {
-    this.recalcUsableRect.cancel();
-    this.$usableRect.value = blocks.length ? getUsableRectByBlockIds(blocks) : { x: 0, y: 0, height: 0, width: 0 };
-    this.isDirtyRect = false;
-  }
-
-  protected recalcUsableRect = throttle((blocks = this.$blocks.value) => {
-    this.forceRecalcUsableRect(blocks);
-  }, 50);
+  ) {}
 
   public setAnchorSelection(blockId: BlockState["id"], anchorId: AnchorState["id"], selected: boolean) {
     const blockState = this.$blocksMap.value.get(blockId);
@@ -154,11 +120,7 @@ export class BlockListStore {
       return;
     }
     this.graph.executеDefaultEventAction("block-change", { block: blockState.asTBlock() }, () => {
-      batch(() => {
-        blockState.updateBlock(nextState);
-        this.isDirtyRect = true;
-        this.recalcUsableRect(this.$blocks.value);
-      });
+      blockState.updateBlock(nextState);
     });
   }
 
@@ -183,7 +145,6 @@ export class BlockListStore {
   protected updateBlocksMap(blocks: Map<BlockState["id"], BlockState> | [BlockState["id"], BlockState][]) {
     this.$blocksMap.value = new Map(blocks);
     this.$blocks.value = Array.from(this.$blocksMap.value.values());
-    this.isDirtyRect = true;
   }
 
   public addBlock(block: Omit<TBlock, "id"> & { id?: TBlockId }) {

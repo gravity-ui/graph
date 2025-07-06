@@ -153,13 +153,29 @@ export function isWindows() {
   return navigator.appVersion.indexOf("Win") !== -1;
 }
 
+/**
+ * Detects if the event is from a trackpad.
+ * Way to detect is a bit of a hack, but it's the easiest way to detect a mouse.
+ *
+ * The deltaY in the trackpad scroll USUALLY is not zero.
+ * The deltaX in the trackpad scroll USUALLY is not zero.
+ * The deltaY in the mouse scroll event USUALLY is a float number.
+ *
+ * ISSUE: When user use the browser zoom, deltaY is a float number.
+ * It is may be cause of the false-negative detection.
+ * For this case deltaY have to be normalized by devicePixelRatio.
+ *
+ * @returns true if the event is from a trackpad, false otherwise.
+ */
 function isTrackpadDetector() {
   let isTrackpadDetected = false;
   let cleanStateTimer = setTimeout(() => {}, 0);
 
   return (e: WheelEvent) => {
+    const normalizedDeltaY = e.deltaY * devicePixelRatio;
+    const normalizedDeltaX = e.deltaX * devicePixelRatio;
     // deltaX in the trackpad scroll usually is not zero.
-    if (e.deltaX) {
+    if (normalizedDeltaX) {
       isTrackpadDetected = true;
       clearTimeout(cleanStateTimer);
       cleanStateTimer = setTimeout(() => {
@@ -169,9 +185,7 @@ function isTrackpadDetector() {
       return true;
     }
 
-    // deltaY in the mouse scroll event, usually is a float number.
-    // It's a bit of a hack, but it's the easiest way to detect a mouse.
-    if (e.deltaY && !Number.isInteger(e.deltaY)) {
+    if (normalizedDeltaY && !Number.isInteger(normalizedDeltaY)) {
       return false;
     }
 
@@ -236,3 +250,6 @@ export function computeCssVariable(name: string) {
 
   return computedStyle.getPropertyValue(name).trim();
 }
+
+// Re-export scheduler utilities
+export { schedule, debounce, throttle } from "../utils/schedule";

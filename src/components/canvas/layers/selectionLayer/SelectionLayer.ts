@@ -81,7 +81,7 @@ export class SelectionLayer extends Layer<
         this.selection.y,
         this.selection.width,
         this.selection.height,
-        Number(window.devicePixelRatio)
+        Number(this.context.graph.layers.getDPR())
       );
       ctx.closePath();
 
