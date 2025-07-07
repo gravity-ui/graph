@@ -7,8 +7,6 @@ const rIC = globalObject.requestIdleCallback || globalObject.setTimeout;
 const getTime = () => performance.now();
 type EmitterEventsDefinition = Record<string, (...args: unknown[]) => void>;
 export class Emitter<T extends EmitterEventsDefinition = EmitterEventsDefinition> {
-  private destroyed: boolean;
-
   private gcLaunched: boolean;
 
   private eventsForGC? = new Set<keyof T>();
@@ -18,7 +16,6 @@ export class Emitter<T extends EmitterEventsDefinition = EmitterEventsDefinition
   private mapEventToMapFnToFnWrapper?: Map<keyof T, WeakMap<T[keyof T], FnWrapper<T[keyof T]>>>;
 
   constructor() {
-    this.destroyed = false;
     this.eventsForGC = new Set();
     this.mapEventToFnWrapper = new Map();
     this.mapEventToMapFnToFnWrapper = new Map();
@@ -35,8 +32,6 @@ export class Emitter<T extends EmitterEventsDefinition = EmitterEventsDefinition
   }
 
   public off<Name extends keyof T>(event?: Name, fn?: T[Name]) {
-    if (this.destroyed) return;
-
     if (event === undefined) {
       this.eventsForGC = new Set();
       this.mapEventToFnWrapper = new Map();
@@ -68,8 +63,6 @@ export class Emitter<T extends EmitterEventsDefinition = EmitterEventsDefinition
   }
 
   public emit<Name extends keyof T>(event: Name, ...args: Parameters<T[Name]>) {
-    if (this.destroyed) return;
-
     if (!this.mapEventToFnWrapper?.has(event)) return;
 
     const fnWrappers = this.mapEventToFnWrapper.get(event) ?? [];
@@ -81,16 +74,12 @@ export class Emitter<T extends EmitterEventsDefinition = EmitterEventsDefinition
   }
 
   public destroy() {
-    if (this.destroyed) return;
-
-    this.destroyed = true;
-    this.eventsForGC = undefined;
-    this.mapEventToFnWrapper = undefined;
-    this.mapEventToMapFnToFnWrapper = undefined;
+    this.eventsForGC = new Set();
+    this.mapEventToFnWrapper = new Map();
+    this.mapEventToMapFnToFnWrapper = new Map();
   }
 
   private _on<Name extends keyof T>(event: Name, fn: T[Name], once: boolean) {
-    if (this.destroyed) return;
     if (!this.mapEventToFnWrapper?.has(event)) {
       this.mapEventToFnWrapper?.set(event, []);
       this.mapEventToMapFnToFnWrapper?.set(event, new WeakMap());
@@ -103,7 +92,7 @@ export class Emitter<T extends EmitterEventsDefinition = EmitterEventsDefinition
   }
 
   private _launchGC() {
-    if (this.gcLaunched || this.destroyed) return;
+    if (this.gcLaunched) return;
 
     this.gcLaunched = true;
 
@@ -114,8 +103,6 @@ export class Emitter<T extends EmitterEventsDefinition = EmitterEventsDefinition
   }
 
   private _walkGC() {
-    if (this.destroyed) return;
-
     const startTime = getTime();
 
     for (const event of this.eventsForGC ?? []) {

@@ -104,19 +104,6 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
     this.performRender = this.performRender.bind(this);
   }
 
-  /**
-   * Called after initialization and when the layer is reattached.
-   * This is where we set up event subscriptions to ensure they work properly
-   * after the layer is unmounted and reattached.
-   */
-  protected afterInit(): void {
-    // Register event listener with the onGraphEvent method for automatic cleanup when unmounted
-    this.onGraphEvent("camera-change", this.performRender);
-
-    // Call parent afterInit to ensure proper initialization
-    super.afterInit();
-  }
-
   public getParent(): CoreComponent | undefined {
     /*
      * Override parent to delegate click events to camera.

@@ -4,6 +4,7 @@ import RBush from "rbush";
 import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
+import { noop } from "../utils/functions";
 import { IPoint, TRect } from "../utils/types/shapes";
 import { debounce } from "../utils/utils/schedule";
 
@@ -64,7 +65,7 @@ export class HitTest extends Emitter {
         } else {
           // Add/update operation
           this.tree.remove(item);
-          item.updateRect(bbox);
+          // item.updateRect(bbox);
           items.push(item);
         }
       }
@@ -108,11 +109,14 @@ export class HitTest extends Emitter {
 
   public waitUsableRectUpdate(callback: (rect: TRect) => void) {
     if (this.isUnstable) {
-      return this.once("update", () => {
+      const fn = () => {
         this.waitUsableRectUpdate(callback);
-      });
+      };
+      this.once("update", fn);
+      return () => this.off("update", fn);
     }
     callback(this.$usableRect.value);
+    return noop;
   }
 
   protected updateUsableRect() {
@@ -225,6 +229,7 @@ export class HitBox implements IHitBox {
   public update = (minX: number, minY: number, maxX: number, maxY: number, force?: boolean): void => {
     if (this.destroyed) return;
     if (minX === this.minX && minY === this.minY && maxX === this.maxX && maxY === this.maxY && !force) return;
+    this.updateRect({ minX, minY, maxX, maxY, x: this.x, y: this.y });
     this.hitTest.update(this, { minX, minY, maxX, maxY, x: this.x, y: this.y }, force);
   };
 

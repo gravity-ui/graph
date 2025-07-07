@@ -27,8 +27,9 @@ export class Blocks extends Component {
   }
 
   protected rerender() {
-    this.performRender();
+    this.shouldRenderChildren = true;
     this.shouldUpdateChildren = true;
+    this.performRender();
   }
 
   protected subscribe() {

@@ -1,3 +1,5 @@
+import { effect } from "@preact/signals-core";
+
 import { Graph } from "../../../../graph";
 import { GraphMouseEventNames, isNativeGraphEventName } from "../../../../graphEvents";
 import { Component } from "../../../../lib/Component";
@@ -104,6 +106,12 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
     // Subscribe to graph events here instead of in the constructor
     this.onGraphEvent("camera-change", this.performRender);
+    this.context.graph.rootStore.blocksList.$blocks.subscribe(() => {
+      this.performRender();
+    });
+    this.context.graph.rootStore.connectionsList.$connections.subscribe(() => {
+      this.performRender();
+    });
     super.afterInit();
   }
 

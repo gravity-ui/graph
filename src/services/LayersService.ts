@@ -1,7 +1,7 @@
 import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
-import { throttle } from "../utils/functions";
+import { debounce } from "../utils/functions";
 
 import { Layer } from "./Layer";
 
@@ -14,7 +14,6 @@ export class Layers extends Emitter {
 
   constructor(public $root?: HTMLDivElement) {
     super();
-    window.addEventListener("resize", this.handleRootResize);
   }
 
   public getDPR() {
@@ -68,17 +67,18 @@ export class Layers extends Emitter {
     }
     this.updateSize();
     this.resizeObserver.observe(this.$root, { box: "border-box" });
+    window.addEventListener("resize", this.handleRootResize);
     this.attached = true;
   }
 
   public detach(full = false) {
-    if (this.attached) {
-      this.layers.forEach((layer) => {
-        layer.detachLayer();
-      });
+    this.layers.forEach((layer) => {
+      layer.detachLayer();
+    });
 
-      this.attached = false;
-    }
+    this.attached = false;
+
+    window.removeEventListener("resize", this.handleRootResize);
 
     this.handleRootResize.cancel();
     this.resizeObserver.disconnect();
@@ -91,19 +91,19 @@ export class Layers extends Emitter {
   public unmount() {
     this.detach(true);
     this.destroy();
-    window.removeEventListener("resize", this.handleRootResize);
   }
 
   protected resizeObserver = new ResizeObserver(() => {
     this.handleRootResize();
   });
 
-  protected handleRootResize = throttle(
+  protected handleRootResize = debounce(
     () => {
       this.updateSize();
     },
     {
-      priority: ESchedulerPriority.HIGHEST,
+      priority: ESchedulerPriority.HIGH,
+      frameTimeout: 16,
     }
   );
 
@@ -123,10 +123,7 @@ export class Layers extends Emitter {
     if (!this.rootSize) {
       return;
     }
-    const changed = this.updateRootSize();
-    if (!changed) {
-      return;
-    }
+    this.updateRootSize();
 
     const { width, height } = this.rootSize;
     this.layers.forEach((layer) => {
@@ -136,18 +133,10 @@ export class Layers extends Emitter {
   };
 
   private updateRootSize = () => {
-    let changed = false;
     if (!this.$root) {
-      return changed;
+      return;
     }
-    if (this.rootSize.width !== this.$root.clientWidth) {
-      this.rootSize.width = this.$root.clientWidth;
-      changed = true;
-    }
-    if (this.rootSize.height !== this.$root.clientHeight) {
-      changed = true;
-      this.rootSize.height = this.$root.clientHeight;
-    }
-    return changed;
+    this.rootSize.width = this.$root.clientWidth;
+    this.rootSize.height = this.$root.clientHeight;
   };
 }

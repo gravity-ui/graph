@@ -297,6 +297,7 @@ export class Layer<
 
   protected unmount(): void {
     this.unmountLayer();
+    super.unmount();
   }
 
   public getCanvas() {
@@ -326,7 +327,7 @@ export class Layer<
   }
 
   public detachLayer() {
-    this.unmount();
+    this.unmountLayer();
     this.root = undefined;
   }
 
@@ -355,7 +356,7 @@ export class Layer<
 
   public getDRP() {
     const respectPixelRatio = this.props.canvas?.respectPixelRatio ?? true;
-    return respectPixelRatio ? devicePixelRatio : 1;
+    return respectPixelRatio ? this.context.graph.layers.getDPR() : 1;
   }
 
   protected applyTransform(
@@ -371,7 +372,6 @@ export class Layer<
 
   public resetTransform() {
     const cameraState = this.props.canvas?.transformByCameraPosition ? this.context.camera.getCameraState() : null;
-
     // Reset transform and clear the canvas
     this.context.ctx.setTransform(1, 0, 0, 1, 0, 0);
     // Use canvas dimensions directly, as they should already factor in DPR if respectPixelRatio is true

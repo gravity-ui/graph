@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import isEqual from "lodash/isEqual";
 
@@ -35,18 +35,19 @@ export function useLayer<T extends Constructor<Layer> = Constructor<Layer>>(
     ? Omit<Props, "root" | "camera" | "graph" | "emitter"> & { root?: Props["root"] }
     : never
 ) {
-  const layer = useMemo(() => (graph ? graph.addLayer(layerCtor, props) : null), [graph]);
-  const prevProps = usePrevious(props);
+  const [layer, setLayer] = useState<InstanceType<T> | null>(null);
 
-  useLayoutEffect(() => {
-    // Detach layer on change layer instance
+  useEffect(() => {
+    const layerInstance = graph ? graph.addLayer(layerCtor, props) : null;
+    setLayer(layerInstance);
     return () => {
-      // Only detach if both graph and layer are available
-      if (graph && layer) {
-        graph.detachLayer(layer);
+      if (layerInstance) {
+        graph?.detachLayer(layerInstance);
       }
     };
-  }, [graph, layer]);
+  }, [layerCtor, graph]);
+
+  const prevProps = usePrevious(props);
 
   useEffect(() => {
     if (layer && (!prevProps || !isEqual(prevProps, props))) {

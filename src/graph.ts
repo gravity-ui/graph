@@ -115,12 +115,12 @@ export class Graph {
       this.setConstants(graphConstants);
     }
 
-    this.layers.on("update-size", (event: IRect) => {
-      this.cameraService.set(event);
-    });
-
     this.setupGraph(config);
   }
+
+  protected onUpdateSize = (event: IRect) => {
+    this.cameraService.set(event);
+  };
 
   public getGraphLayer() {
     return this.graphLayer;
@@ -324,6 +324,7 @@ export class Graph {
     if (this.state === GraphState.READY) {
       return;
     }
+    rootEl[Symbol.for("graph")] = this;
     this.layers.attach(rootEl);
 
     const { width: rootWidth, height: rootHeight } = this.layers.getRootSize();
@@ -349,6 +350,7 @@ export class Graph {
     if (rootEl) {
       this.attach(rootEl);
     }
+    this.layers.on("update-size", this.onUpdateSize);
     this.layers.start();
     this.scheduler.start();
     this.setGraphState(GraphState.READY);
@@ -395,9 +397,10 @@ export class Graph {
 
   public unmount() {
     this.detach();
+    this.layers.off("update-size", this.onUpdateSize);
     this.setGraphState(GraphState.INIT);
     this.hitTest.clear();
-    this.layers.destroy();
+    this.layers.unmount();
     clearTextCache();
     this.rootStore.reset();
     this.scheduler.stop();
