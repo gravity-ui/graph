@@ -7,7 +7,7 @@ import { Graph, GraphState } from "../graph";
 import { ESchedulerPriority } from "../lib";
 import { ECameraScaleLevel, TCameraState } from "../services/camera/CameraService";
 import { BlockState } from "../store/block/Block";
-import { debounce, throttle } from "../utils/functions";
+import { debounce } from "../utils/functions";
 
 import { useSignal } from "./hooks";
 import { useGraphEvent } from "./hooks/useGraphEvents";

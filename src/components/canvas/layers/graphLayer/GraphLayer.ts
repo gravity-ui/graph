@@ -1,5 +1,3 @@
-import { effect } from "@preact/signals-core";
-
 import { Graph } from "../../../../graph";
 import { GraphMouseEventNames, isNativeGraphEventName } from "../../../../graphEvents";
 import { Component } from "../../../../lib/Component";

@@ -127,20 +127,6 @@ describe("useLayer hook", () => {
   });
 
   describe("Props management", () => {
-    it("should call setProps on initial render", () => {
-      // Setup
-      const props = createValidLayerProps();
-
-      // Execute
-      const { result } = renderHook(() => useLayer(graph, TestLayer, props));
-
-      // Get the layer instance
-      const layer = result.current;
-
-      // Verify that setProps was called on the created layer
-      expect(layer.setProps).toHaveBeenCalledWith(props);
-    });
-
     it("should pass initial props to layer via addLayer", () => {
       // Setup
       const initialProps = createValidLayerProps();

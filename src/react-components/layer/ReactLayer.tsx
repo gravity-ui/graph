@@ -6,11 +6,13 @@ import { TBlock } from "../../components/canvas/blocks/Block";
 import { Graph } from "../../graph";
 import { Layer, LayerContext, LayerProps } from "../../services/Layer";
 import { ICamera } from "../../services/camera/CameraService";
+import { parseClassNames } from "../../utils/functions";
 import { BlocksList } from "../BlocksList";
 
 export type TReactLayerProps = LayerProps & {
   camera: ICamera;
   root: HTMLDivElement;
+  blockListClassName?: string;
 };
 
 export type TReactLayerContext = LayerContext & {
@@ -28,6 +30,36 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
       },
       ...props,
     });
+  }
+
+  protected afterInit(): void {
+    super.afterInit();
+    this.applyBlockListClassName(undefined, this.props.blockListClassName);
+  }
+
+  protected propsChanged(nextProps: TReactLayerProps): void {
+    if (this.props.blockListClassName !== nextProps.blockListClassName) {
+      this.applyBlockListClassName(this.props.blockListClassName, nextProps.blockListClassName);
+    }
+    super.propsChanged(nextProps);
+  }
+
+  private applyBlockListClassName(oldClassName?: string, newClassName?: string): void {
+    const htmlElement = this.getHTML();
+    if (!htmlElement) return;
+
+    // Remove previous blockListClassName classes if they exist
+    if (oldClassName) {
+      const oldClasses = parseClassNames(oldClassName);
+      htmlElement.classList.remove(...oldClasses);
+    }
+
+    // Add new blockListClassName classes if they exist
+    // If newClassName is provided (even if undefined), use it instead of this.props.blockListClassName
+    if (newClassName) {
+      const newClasses = parseClassNames(newClassName);
+      htmlElement.classList.add(...newClasses);
+    }
   }
 
   /**
