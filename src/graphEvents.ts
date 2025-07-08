@@ -3,25 +3,27 @@ import { GraphState } from "./graph";
 import { TGraphColors, TGraphConstants } from "./graphConfig";
 import { TCameraState } from "./services/camera/CameraService";
 
-export type GraphMouseEvent<E extends Event = Event> = CustomEvent<{
+export type GraphPointerEvent<E extends Event = Event> = CustomEvent<{
   target?: EventedComponent;
   sourceEvent: E;
   pointerPressed?: boolean;
 }>;
 export type GraphEventParams<T extends CustomEvent> = T extends CustomEvent ? T["detail"] : never;
 
-export const extractNativeGraphMouseEvent = (event: GraphMouseEvent) => {
-  return event.detail.sourceEvent instanceof MouseEvent ? event.detail.sourceEvent : null;
+export const extractNativeGraphPointerEvent = (event: GraphPointerEvent) => {
+  return event.detail.sourceEvent instanceof PointerEvent ? event.detail.sourceEvent : null;
 };
 
-export type GraphMouseEventNames = "mousedown" | "click" | "dblclick" | "mouseenter" | "mouseleave";
+export type GraphPointerEventNames = "click" | "dblclick" | "pointerdown" | "pointerenter" | "pointerleave";
+
+export type GraphEventNames = GraphPointerEventNames;
 
 export interface BaseGraphEventDefinition {
-  mousedown: (event: GraphMouseEvent) => void;
-  click: (event: GraphMouseEvent) => void;
-  dblclick: (event: GraphMouseEvent) => void;
-  mouseenter: (event: GraphMouseEvent) => void;
-  mouseleave: (event: GraphMouseEvent) => void;
+  click: (event: GraphPointerEvent) => void;
+  dblclick: (event: GraphPointerEvent) => void;
+  pointerdown: (event: GraphPointerEvent) => void;
+  pointerenter: (event: GraphPointerEvent) => void;
+  pointerleave: (event: GraphPointerEvent) => void;
 }
 
 export type UnwrapBaseGraphEvents<
@@ -42,7 +44,7 @@ export interface GraphEventsDefinitions extends BaseGraphEventDefinition {
   "colors-changed": (event: CustomEvent<{ colors: TGraphColors }>) => void;
   "state-change": (event: CustomEvent<{ state: GraphState }>) => void;
 }
-const graphMouseEvents = ["mousedown", "click", "dblclick", "mouseenter", "mousemove", "mouseleave", "touchmove"];
+const graphPointerEvents = ["click", "dblclick", "pointerdown", "pointerenter", "pointermove", "pointerleave"];
 
 export type UnwrapGraphEvents<
   Key extends keyof GraphEventsDefinitions,
@@ -67,6 +69,6 @@ export type SelectionEvent<T> = CustomEvent<{
   };
 }>;
 
-export function isNativeGraphEventName(eventType: string): eventType is GraphMouseEventNames {
-  return graphMouseEvents.includes(eventType);
+export function isNativeGraphEventName(eventType: string): eventType is GraphEventNames {
+  return graphPointerEvents.includes(eventType);
 }

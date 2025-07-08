@@ -35,7 +35,7 @@ export class GraphComponent<
     onDrop,
     isDraggable,
   }: {
-    onDragStart?: (_event: MouseEvent | TouchEvent) => void | boolean;
+    onDragStart?: (_event: PointerEvent) => void | boolean;
     onDragUpdate?: (
       diff: {
         prevCoords: [number, number];
@@ -43,19 +43,19 @@ export class GraphComponent<
         diffX: number;
         diffY: number;
       },
-      _event: MouseEvent | TouchEvent
+      _event: PointerEvent
     ) => void;
-    onDrop?: (_event: MouseEvent | TouchEvent) => void;
-    isDraggable?: (event: MouseEvent | TouchEvent) => boolean;
+    onDrop?: (_event: PointerEvent) => void;
+    isDraggable?: (event: PointerEvent) => boolean;
   }) {
     let startDragCoords: [number, number];
-    return this.addEventListener("mousedown", (event: MouseEvent) => {
+    return this.addEventListener("pointerdown", (event: PointerEvent) => {
       if (!isDraggable?.(event)) {
         return;
       }
       event.stopPropagation();
       dragListener(this.context.ownerDocument)
-        .on(EVENTS.DRAG_START, (event: MouseEvent | TouchEvent) => {
+        .on(EVENTS.DRAG_START, (event: PointerEvent) => {
           if (onDragStart?.(event) === false) {
             return;
           }
@@ -63,7 +63,7 @@ export class GraphComponent<
           const xy = getXY(this.context.canvas, event);
           startDragCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
         })
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent | TouchEvent) => {
+        .on(EVENTS.DRAG_UPDATE, (event: PointerEvent) => {
           if (!startDragCoords.length) return;
 
           const [canvasX, canvasY] = getXY(this.context.canvas, event);
@@ -75,7 +75,7 @@ export class GraphComponent<
           onDragUpdate?.({ prevCoords: startDragCoords, currentCoords, diffX, diffY }, event);
           startDragCoords = currentCoords;
         })
-        .on(EVENTS.DRAG_END, (_event: MouseEvent | TouchEvent) => {
+        .on(EVENTS.DRAG_END, (_event: PointerEvent) => {
           this.context.graph.getGraphLayer().releaseCapture();
           startDragCoords = undefined;
           onDrop?.(_event);

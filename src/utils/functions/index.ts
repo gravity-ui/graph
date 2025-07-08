@@ -11,14 +11,8 @@ export function noop(...args: unknown[]) {
   // noop
 }
 
-export function getXY(root: HTMLElement, event: Event | WheelEvent | MouseEvent | TouchEvent): [number, number] {
+export function getXY(root: HTMLElement, event: Event | WheelEvent | PointerEvent): [number, number] {
   const rect = root.getBoundingClientRect();
-  if ("touches" in event && event.touches !== undefined && event.touches.length) {
-    return [
-      Math.round(event.touches[0].pageX) - rect.left - window.scrollX,
-      Math.round(event.touches[0].pageY) - rect.top - window.scrollY,
-    ];
-  }
 
   if ("pageX" in event) {
     return [event.pageX - rect.left - window.scrollX, event.pageY - rect.top - window.scrollY];
@@ -27,33 +21,29 @@ export function getXY(root: HTMLElement, event: Event | WheelEvent | MouseEvent 
   return [-1, -1];
 }
 
-export function getCoord(event: TouchEvent | MouseEvent, coord: string) {
+export function getCoord(event: PointerEvent, coord: string) {
   const name = `page${coord.toUpperCase()}`;
 
-  if ("touches" in event && event.touches !== undefined && event.touches.length) {
-    return Math.round(event.touches[0][name]);
-  } else {
-    return event[name];
-  }
+  return event[name];
 }
 
 export function getEventDelta(e1, e2) {
   return Math.abs(getCoord(e1, "x") - getCoord(e2, "x")) + Math.abs(getCoord(e1, "y") - getCoord(e2, "y"));
 }
 
-export function isMetaKeyEvent(event: MouseEvent | TouchEvent | KeyboardEvent): boolean {
+export function isMetaKeyEvent(event: MouseEvent | PointerEvent | KeyboardEvent): boolean {
   return event.metaKey || event.ctrlKey;
 }
 
-export function isShiftKeyEvent(event: MouseEvent | TouchEvent | KeyboardEvent): boolean {
+export function isShiftKeyEvent(event: PointerEvent | KeyboardEvent): boolean {
   return event.shiftKey;
 }
 
-export function isAltKeyEvent(event: MouseEvent | TouchEvent | KeyboardEvent): boolean {
+export function isAltKeyEvent(event: PointerEvent | KeyboardEvent): boolean {
   return event.altKey;
 }
 
-export function getEventSelectionAction(event: MouseEvent | TouchEvent) {
+export function getEventSelectionAction(event: PointerEvent) {
   if (isMetaKeyEvent(event)) return SELECTION_EVENT_TYPES.TOGGLE;
   return SELECTION_EVENT_TYPES.DELETE;
 }
@@ -98,7 +88,7 @@ export function dispatchEvents(comps, e) {
 
 export function addEventListeners(
   instance: EventTarget,
-  mapEventsToFn?: Record<string, (event: CustomEvent | MouseEvent | TouchEvent) => void>
+  mapEventsToFn?: Record<string, (event: CustomEvent | PointerEvent) => void>
 ): () => void {
   if (mapEventsToFn === undefined) return noop;
 

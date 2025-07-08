@@ -69,9 +69,9 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     });
 
     this.addEventListener("click", this);
-    this.addEventListener("mouseenter", this);
-    this.addEventListener("mousedown", this);
-    this.addEventListener("mouseleave", this);
+    this.addEventListener("pointerenter", this);
+    this.addEventListener("pointerdown", this);
+    this.addEventListener("pointerleave", this);
 
     this.computeRenderSize(this.props.size, this.state.raised);
     this.shift = this.props.size / 2 + props.lineWidth;
@@ -105,7 +105,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     }
   }
 
-  public handleEvent(event: MouseEvent | KeyboardEvent) {
+  public handleEvent(event: PointerEvent | KeyboardEvent) {
     event.preventDefault();
     event.stopPropagation();
 
@@ -126,12 +126,12 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
         this.toggleSelected();
         break;
       }
-      case "mouseenter": {
+      case "pointerenter": {
         this.setState({ raised: true });
         this.computeRenderSize(this.props.size, true);
         break;
       }
-      case "mouseleave": {
+      case "pointerleave": {
         this.setState({ raised: false });
         this.computeRenderSize(this.props.size, false);
         break;

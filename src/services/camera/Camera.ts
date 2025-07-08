@@ -20,7 +20,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
   private ownerDocument: Document;
 
-  private lastDragEvent?: MouseEvent | TouchEvent;
+  private lastDragEvent?: PointerEvent;
 
   constructor(props: TCameraProps, parent: Component) {
     super(props, parent);
@@ -30,8 +30,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
     this.addWheelListener();
     this.addEventListener("click", this.handleClick);
-    this.addEventListener("mousedown", this.handleMouseDownEvent);
-    this.addEventListener("touchstart", this.handleMouseDownEvent);
+    this.addEventListener("pointerdown", this.handlePointerDownEvent);
   }
 
   protected handleClick = () => {
@@ -61,30 +60,26 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     super.unmount();
 
     this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
-    this.removeEventListener("mousedown", this.handleMouseDownEvent);
-    this.removeEventListener("touchstart", this.handleMouseDownEvent);
+    this.removeEventListener("pointerdown", this.handlePointerDownEvent);
   }
 
-  private handleMouseDownEvent = (event: MouseEvent | TouchEvent) => {
-    if (
-      !this.context.graph.rootStore.settings.getConfigFlag("canDragCamera") ||
-      !(event instanceof MouseEvent || event instanceof TouchEvent)
-    ) {
+  private handlePointerDownEvent = (event: PointerEvent) => {
+    if (!this.context.graph.rootStore.settings.getConfigFlag("canDragCamera") || !(event instanceof PointerEvent)) {
       return;
     }
     if (!isMetaKeyEvent(event)) {
       dragListener(this.ownerDocument)
-        .on(EVENTS.DRAG_START, (event: MouseEvent | TouchEvent) => this.onDragStart(event))
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent | TouchEvent) => this.onDragUpdate(event))
+        .on(EVENTS.DRAG_START, (event: PointerEvent) => this.onDragStart(event))
+        .on(EVENTS.DRAG_UPDATE, (event: PointerEvent) => this.onDragUpdate(event))
         .on(EVENTS.DRAG_END, () => this.onDragEnd());
     }
   };
 
-  private onDragStart(event: MouseEvent | TouchEvent) {
+  private onDragStart(event: PointerEvent) {
     this.lastDragEvent = event;
   }
 
-  private onDragUpdate(event: MouseEvent | TouchEvent) {
+  private onDragUpdate(event: PointerEvent) {
     if (!this.lastDragEvent) {
       return;
     }

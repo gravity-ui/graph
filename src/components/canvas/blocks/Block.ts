@@ -52,14 +52,14 @@ declare module "../../../graphEvents" {
   interface GraphEventsDefinitions {
     "block-drag-start": (
       event: CustomEvent<{
-        nativeEvent: MouseEvent;
+        nativeEvent: PointerEvent;
         block: TBlock;
       }>
     ) => void;
 
     "block-drag": (
       event: CustomEvent<{
-        nativeEvent: MouseEvent;
+        nativeEvent: PointerEvent;
         block: TBlock;
         x: number;
         y: number;
@@ -68,7 +68,7 @@ declare module "../../../graphEvents" {
 
     "block-drag-end": (
       event: CustomEvent<{
-        nativeEvent: MouseEvent;
+        nativeEvent: PointerEvent;
         block: TBlock;
       }>
     ) => void;
@@ -98,7 +98,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   public connectedState: BlockState<T>;
 
-  protected lastDragEvent?: MouseEvent;
+  protected lastDragEvent?: PointerEvent;
 
   protected startDragCoords: number[] = [];
 
@@ -253,7 +253,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     }
   }
 
-  protected onDragStart(event: MouseEvent) {
+  protected onDragStart(event: PointerEvent) {
     this.context.graph.executеDefaultEventAction(
       "block-drag-start",
       {
@@ -269,7 +269,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     );
   }
 
-  protected onDragUpdate(event: MouseEvent) {
+  protected onDragUpdate(event: PointerEvent) {
     if (!this.startDragCoords) return;
 
     this.lastDragEvent = event;
@@ -312,7 +312,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.updatePosition(x, y);
   }
 
-  protected onDragEnd(event: MouseEvent) {
+  protected onDragEnd(event: PointerEvent) {
     if (!this.startDragCoords) return;
     this.context.graph.emit("block-drag-end", {
       nativeEvent: event,

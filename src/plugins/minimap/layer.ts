@@ -89,7 +89,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
 
       // Use canvasOn wrapper method for DOM event listeners to ensure proper cleanup
       if (this.canvas) {
-        this.onCanvasEvent("mousedown", this.handleMouseDownEvent);
+        this.onCanvasEvent("pointerdown", this.handlePointerDownEvent);
       }
     }
     this.onSignal(this.props.graph.hitTest.$usableRect, () => {
@@ -258,7 +258,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
 
           // Use canvasOn wrapper method for DOM event listeners to ensure proper cleanup
           if (this.canvas) {
-            this.onCanvasEvent("mousedown", this.handleMouseDownEvent);
+            this.onCanvasEvent("pointerdown", this.handlePointerDownEvent);
           }
         }
 
@@ -307,7 +307,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     });
   }
 
-  private onCameraDrag(event: MouseEvent) {
+  private onCameraDrag(event: PointerEvent) {
     const cameraState = this.props.camera.getCameraState();
 
     const x = -(this.relativeX + event.offsetX / this.scale) + cameraState.relativeWidth / 2;
@@ -319,10 +319,10 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     this.context.camera.move(dx, dy);
   }
 
-  private handleMouseDownEvent = (rootEvent: MouseEvent) => {
+  private handlePointerDownEvent = (rootEvent: PointerEvent) => {
     rootEvent.stopPropagation();
     this.onCameraDrag(rootEvent);
 
-    dragListener(this.getCanvas(), true).on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onCameraDrag(event));
+    dragListener(this.getCanvas(), true).on(EVENTS.DRAG_UPDATE, (event: PointerEvent) => this.onCameraDrag(event));
   };
 }

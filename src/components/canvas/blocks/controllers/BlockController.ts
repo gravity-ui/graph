@@ -14,7 +14,7 @@ import { EVENTS } from "../../../../utils/types/events";
 import { ESelectionStrategy } from "../../../../utils/types/types";
 import { Block } from "../Block";
 
-const handleMouseDownEvent = (event: MouseEvent | TouchEvent, block: Block, self: any) => {
+const handlePointerDownEvent = (event: PointerEvent, block: Block, self: any) => {
   const blockState = selectBlockById(block.context.graph, block.props.id);
   const allowChangeBlockGeometry = isAllowChangeBlockGeometry(
     block.getConfigFlag("canChangeBlockGeometry") as ECanChangeBlockGeometry,
@@ -30,14 +30,14 @@ const handleMouseDownEvent = (event: MouseEvent | TouchEvent, block: Block, self
   const selectedBlocksComponents = selectedBlocksStates.map((block) => block.getViewComponent());
 
   dragListener(block.context.ownerDocument)
-    .on(EVENTS.DRAG_START, (_event: MouseEvent | TouchEvent) => {
+    .on(EVENTS.DRAG_START, (_event: PointerEvent) => {
       block.context.graph.getGraphLayer().captureEvents(self);
       dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_START, _event));
     })
-    .on(EVENTS.DRAG_UPDATE, (_event: MouseEvent | TouchEvent) => {
+    .on(EVENTS.DRAG_UPDATE, (_event: PointerEvent) => {
       dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_UPDATE, _event));
     })
-    .on(EVENTS.DRAG_END, (_event: MouseEvent | TouchEvent) => {
+    .on(EVENTS.DRAG_END, (_event: PointerEvent) => {
       block.context.graph.getGraphLayer().releaseCapture();
       dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_END, _event));
     });
@@ -50,7 +50,7 @@ export class BlockController {
     this.block = block;
 
     addEventListeners(block as EventTarget, {
-      click(event: MouseEvent | TouchEvent) {
+      click(event: PointerEvent) {
         event.stopPropagation();
 
         const { connectionsList } = block.context.graph.rootStore;
@@ -73,12 +73,8 @@ export class BlockController {
         );
       },
 
-      mousedown(event: MouseEvent | TouchEvent) {
-        handleMouseDownEvent(event, block, this);
-      },
-
-      touchstart(event: MouseEvent | TouchEvent) {
-        handleMouseDownEvent(event, block, this);
+      pointerdown(event: PointerEvent) {
+        handlePointerDownEvent(event, block, this);
       },
     });
   }
