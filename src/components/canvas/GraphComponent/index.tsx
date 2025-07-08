@@ -35,7 +35,7 @@ export class GraphComponent<
     onDrop,
     isDraggable,
   }: {
-    onDragStart?: (_event: MouseEvent) => void | boolean;
+    onDragStart?: (_event: MouseEvent | TouchEvent) => void | boolean;
     onDragUpdate?: (
       diff: {
         prevCoords: [number, number];
@@ -43,10 +43,10 @@ export class GraphComponent<
         diffX: number;
         diffY: number;
       },
-      _event: MouseEvent
+      _event: MouseEvent | TouchEvent
     ) => void;
-    onDrop?: (_event: MouseEvent) => void;
-    isDraggable?: (event: MouseEvent) => boolean;
+    onDrop?: (_event: MouseEvent | TouchEvent) => void;
+    isDraggable?: (event: MouseEvent | TouchEvent) => boolean;
   }) {
     let startDragCoords: [number, number];
     return this.addEventListener("mousedown", (event: MouseEvent) => {
@@ -55,7 +55,7 @@ export class GraphComponent<
       }
       event.stopPropagation();
       dragListener(this.context.ownerDocument)
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => {
+        .on(EVENTS.DRAG_START, (event: MouseEvent | TouchEvent) => {
           if (onDragStart?.(event) === false) {
             return;
           }
@@ -63,7 +63,7 @@ export class GraphComponent<
           const xy = getXY(this.context.canvas, event);
           startDragCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
         })
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => {
+        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent | TouchEvent) => {
           if (!startDragCoords.length) return;
 
           const [canvasX, canvasY] = getXY(this.context.canvas, event);
@@ -75,7 +75,7 @@ export class GraphComponent<
           onDragUpdate?.({ prevCoords: startDragCoords, currentCoords, diffX, diffY }, event);
           startDragCoords = currentCoords;
         })
-        .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
+        .on(EVENTS.DRAG_END, (_event: MouseEvent | TouchEvent) => {
           this.context.graph.getGraphLayer().releaseCapture();
           startDragCoords = undefined;
           onDrop?.(_event);

@@ -17,6 +17,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
         }
         finished = true;
         document.removeEventListener("mousemove", mousemoveBinded);
+        document.removeEventListener("touchmove", mousemoveBinded);
       },
       { once: true, capture: true }
     );
@@ -36,6 +37,19 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   );
 
   document.addEventListener(
+    "touchmove",
+    (event) => {
+      if (finished) {
+        return;
+      }
+      started = true;
+      emitter.emit(EVENTS.DRAG_START, event);
+      document.addEventListener("touchmove", mousemoveBinded);
+    },
+    { once: true, capture: true }
+  );
+
+  document.addEventListener(
     "mouseup",
     (event) => {
       if (started) {
@@ -43,6 +57,33 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
       }
       finished = true;
       document.removeEventListener("mousemove", mousemoveBinded);
+      document.removeEventListener("touchmove", mousemoveBinded);
+    },
+    { once: true, capture: true }
+  );
+
+  document.addEventListener(
+    "touchend",
+    (event) => {
+      if (started) {
+        mouseupBinded(event);
+      }
+      finished = true;
+      document.removeEventListener("mousemove", mousemoveBinded);
+      document.removeEventListener("touchmove", mousemoveBinded);
+    },
+    { once: true, capture: true }
+  );
+
+  document.addEventListener(
+    "dragend",
+    (event) => {
+      if (started) {
+        mouseupBinded(event);
+      }
+      finished = true;
+      document.removeEventListener("mousemove", mousemoveBinded);
+      document.removeEventListener("touchmove", mousemoveBinded);
     },
     { once: true, capture: true }
   );
@@ -51,6 +92,16 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     "mousedown",
     () => {
       document.removeEventListener("mousemove", mousemoveBinded);
+      document.removeEventListener("touchmove", mousemoveBinded);
+    },
+    { once: true, capture: true }
+  );
+
+  document.addEventListener(
+    "touchstart",
+    () => {
+      document.removeEventListener("mousemove", mousemoveBinded);
+      document.removeEventListener("touchmove", mousemoveBinded);
     },
     { once: true, capture: true }
   );
@@ -58,11 +109,11 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   return emitter;
 }
 
-function mousemove(emitter: Emitter, event: MouseEvent) {
+function mousemove(emitter: Emitter, event: MouseEvent | TouchEvent) {
   emitter.emit(EVENTS.DRAG_UPDATE, event);
 }
 
-function mouseup(emitter: Emitter, event: MouseEvent) {
+function mouseup(emitter: Emitter, event: MouseEvent | TouchEvent) {
   emitter.emit(EVENTS.DRAG_END, event);
   emitter.destroy();
 }

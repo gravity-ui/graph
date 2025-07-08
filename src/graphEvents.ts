@@ -42,7 +42,7 @@ export interface GraphEventsDefinitions extends BaseGraphEventDefinition {
   "colors-changed": (event: CustomEvent<{ colors: TGraphColors }>) => void;
   "state-change": (event: CustomEvent<{ state: GraphState }>) => void;
 }
-const graphMouseEvents = ["mousedown", "click", "dblclick", "mouseenter", "mousemove", "mouseleave"];
+const graphMouseEvents = ["mousedown", "click", "dblclick", "mouseenter", "mousemove", "mouseleave", "touchmove"];
 
 export type UnwrapGraphEvents<
   Key extends keyof GraphEventsDefinitions,

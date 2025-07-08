@@ -3,7 +3,7 @@ import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/Gr
 import { Component } from "../../lib";
 import { TComponentProps, TComponentState } from "../../lib/Component";
 import { ComponentDescriptor } from "../../lib/CoreComponent";
-import { getXY, isMetaKeyEvent, isTrackpadWheelEvent, isWindows } from "../../utils/functions";
+import { getCoord, getEventDelta, getXY, isMetaKeyEvent, isTrackpadWheelEvent, isWindows } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
 import { dragListener } from "../../utils/functions/dragListener";
 import { EVENTS } from "../../utils/types/events";
@@ -20,7 +20,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
   private ownerDocument: Document;
 
-  private lastDragEvent?: MouseEvent;
+  private lastDragEvent?: MouseEvent | TouchEvent;
 
   constructor(props: TCameraProps, parent: Component) {
     super(props, parent);
@@ -31,6 +31,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     this.addWheelListener();
     this.addEventListener("click", this.handleClick);
     this.addEventListener("mousedown", this.handleMouseDownEvent);
+    this.addEventListener("touchstart", this.handleMouseDownEvent);
   }
 
   protected handleClick = () => {
@@ -61,29 +62,38 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
     this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
     this.removeEventListener("mousedown", this.handleMouseDownEvent);
+    this.removeEventListener("touchstart", this.handleMouseDownEvent);
   }
 
-  private handleMouseDownEvent = (event: MouseEvent) => {
-    if (!this.context.graph.rootStore.settings.getConfigFlag("canDragCamera") || !(event instanceof MouseEvent)) {
+  private handleMouseDownEvent = (event: MouseEvent | TouchEvent) => {
+    if (
+      !this.context.graph.rootStore.settings.getConfigFlag("canDragCamera") ||
+      !(event instanceof MouseEvent || event instanceof TouchEvent)
+    ) {
       return;
     }
     if (!isMetaKeyEvent(event)) {
       dragListener(this.ownerDocument)
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onDragStart(event))
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onDragUpdate(event))
+        .on(EVENTS.DRAG_START, (event: MouseEvent | TouchEvent) => this.onDragStart(event))
+        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent | TouchEvent) => this.onDragUpdate(event))
         .on(EVENTS.DRAG_END, () => this.onDragEnd());
     }
   };
 
-  private onDragStart(event: MouseEvent) {
+  private onDragStart(event: MouseEvent | TouchEvent) {
     this.lastDragEvent = event;
   }
 
-  private onDragUpdate(event: MouseEvent) {
+  private onDragUpdate(event: MouseEvent | TouchEvent) {
     if (!this.lastDragEvent) {
       return;
     }
-    this.camera.move(event.pageX - this.lastDragEvent.pageX, event.pageY - this.lastDragEvent.pageY);
+    const deltaX = getCoord(event, "x") - getCoord(this.lastDragEvent, "x");
+    const deltaY = getCoord(event, "y") - getCoord(this.lastDragEvent, "y");
+
+    if (getEventDelta(event, this.lastDragEvent) < 3) return;
+
+    this.camera.move(deltaX, deltaY);
     this.lastDragEvent = event;
   }
 

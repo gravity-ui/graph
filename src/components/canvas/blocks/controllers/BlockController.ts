@@ -14,10 +14,43 @@ import { EVENTS } from "../../../../utils/types/events";
 import { ESelectionStrategy } from "../../../../utils/types/types";
 import { Block } from "../Block";
 
+const handleMouseDownEvent = (event: MouseEvent | TouchEvent, block: Block, self: any) => {
+  const blockState = selectBlockById(block.context.graph, block.props.id);
+  const allowChangeBlockGeometry = isAllowChangeBlockGeometry(
+    block.getConfigFlag("canChangeBlockGeometry") as ECanChangeBlockGeometry,
+    blockState.selected
+  );
+
+  if (!allowChangeBlockGeometry) return;
+
+  event.stopPropagation();
+
+  const blocksListState = self.context.graph.rootStore.blocksList;
+  const selectedBlocksStates = getSelectedBlocks(blockState, blocksListState);
+  const selectedBlocksComponents = selectedBlocksStates.map((block) => block.getViewComponent());
+
+  dragListener(block.context.ownerDocument)
+    .on(EVENTS.DRAG_START, (_event: MouseEvent | TouchEvent) => {
+      block.context.graph.getGraphLayer().captureEvents(self);
+      dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_START, _event));
+    })
+    .on(EVENTS.DRAG_UPDATE, (_event: MouseEvent | TouchEvent) => {
+      dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_UPDATE, _event));
+    })
+    .on(EVENTS.DRAG_END, (_event: MouseEvent | TouchEvent) => {
+      block.context.graph.getGraphLayer().releaseCapture();
+      dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_END, _event));
+    });
+};
+
 export class BlockController {
+  private block: Block;
+
   constructor(block: Block) {
+    this.block = block;
+
     addEventListeners(block as EventTarget, {
-      click(event: MouseEvent) {
+      click(event: MouseEvent | TouchEvent) {
         event.stopPropagation();
 
         const { connectionsList } = block.context.graph.rootStore;
@@ -40,33 +73,12 @@ export class BlockController {
         );
       },
 
-      mousedown(event: MouseEvent) {
-        const blockState = selectBlockById(block.context.graph, block.props.id);
-        const allowChangeBlockGeometry = isAllowChangeBlockGeometry(
-          block.getConfigFlag("canChangeBlockGeometry") as ECanChangeBlockGeometry,
-          blockState.selected
-        );
+      mousedown(event: MouseEvent | TouchEvent) {
+        handleMouseDownEvent(event, block, this);
+      },
 
-        if (!allowChangeBlockGeometry) return;
-
-        event.stopPropagation();
-
-        const blocksListState = this.context.graph.rootStore.blocksList;
-        const selectedBlocksStates = getSelectedBlocks(blockState, blocksListState);
-        const selectedBlocksComponents = selectedBlocksStates.map((block) => block.getViewComponent());
-
-        dragListener(block.context.ownerDocument)
-          .on(EVENTS.DRAG_START, (_event: MouseEvent) => {
-            block.context.graph.getGraphLayer().captureEvents(this);
-            dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_START, _event));
-          })
-          .on(EVENTS.DRAG_UPDATE, (_event: MouseEvent) => {
-            dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_UPDATE, _event));
-          })
-          .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
-            block.context.graph.getGraphLayer().releaseCapture();
-            dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_END, _event));
-          });
+      touchstart(event: MouseEvent | TouchEvent) {
+        handleMouseDownEvent(event, block, this);
       },
     });
   }

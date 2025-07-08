@@ -29,12 +29,13 @@ const rootBubblingEventTypes = new Set([
   "mousedown",
   "touchstart",
   "mouseup",
+  "dragend",
   "touchend",
   "click",
   "dblclick",
   "contextmenu",
 ]);
-const rootCapturingEventTypes = new Set(["mousedown", "touchstart", "mouseup", "touchend"]);
+const rootCapturingEventTypes = new Set(["mousedown", "touchstart", "mouseup", "dragend", "touchmove", "touchend"]);
 
 export type GraphMouseEvent = CustomEvent<{
   target: EventedComponent;
@@ -55,7 +56,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private pointerStartTarget?: EventedComponent;
 
-  private pointerStartEvent?: MouseEvent;
+  private pointerStartEvent?: MouseEvent | TouchEvent;
 
   private pointerPressed = false;
 
@@ -126,6 +127,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
       this.onRootEvent(type as keyof HTMLElementEventMap, this, { capture: true })
     );
     this.onRootEvent("mousemove", this);
+    this.onRootEvent("touchmove", this);
   }
 
   /*
@@ -143,7 +145,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   }
 
   public handleEvent(e: Event): void {
-    if (e.type === "mousemove") {
+    if (e.type === "mousemove" || e.type === "touchmove") {
       this.updateTargetComponent(e as MouseEvent);
       this.onRootPointerMove(e as MouseEvent);
       return;
@@ -163,6 +165,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
           break;
         }
         case "mouseup":
+        case "dragend":
         case "touchend": {
           this.onRootPointerEnd(e as MouseEvent);
           break;
@@ -312,15 +315,15 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     this.applyEventToTargetComponent(event);
   }
 
-  private tryEmulateClick(event: MouseEvent, target = this.targetComponent) {
-    if ((event.type === "mousedown" || event.type === "touchstart") && target !== undefined) {
+  private tryEmulateClick(event: MouseEvent | TouchEvent, target = this.targetComponent) {
+    if (event.type === "mousedown" && target !== undefined) {
       this.canEmulateClick = false;
       this.pointerStartTarget = target;
       this.pointerStartEvent = event;
     }
 
     if (
-      (event.type === "mouseup" || event.type === "touchend") &&
+      (event.type === "mouseup" || event.type === "touchend" || event.type === "dragend") &&
       (this.pointerStartTarget === target ||
         // connections can be very close to each other
         (this.pointerStartTarget instanceof BlockConnection && target instanceof BlockConnection)) &&

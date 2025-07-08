@@ -11,17 +11,27 @@ export function noop(...args: unknown[]) {
   // noop
 }
 
-export function getXY(root: HTMLElement, event: Event | WheelEvent | MouseEvent): [number, number] {
-  if (!("pageX" in event)) return [-1, -1];
+export function getXY(root: HTMLElement, event: Event | WheelEvent | MouseEvent | TouchEvent): [number, number] {
   const rect = root.getBoundingClientRect();
-  return [event.pageX - rect.left - window.scrollX, event.pageY - rect.top - window.scrollY];
+  if ("touches" in event && event.touches !== undefined && event.touches.length) {
+    return [
+      Math.round(event.touches[0].pageX) - rect.left - window.scrollX,
+      Math.round(event.touches[0].pageY) - rect.top - window.scrollY,
+    ];
+  }
+
+  if ("pageX" in event) {
+    return [event.pageX - rect.left - window.scrollX, event.pageY - rect.top - window.scrollY];
+  }
+
+  return [-1, -1];
 }
 
-export function getCoord(event: TouchEvent & MouseEvent, coord: string) {
+export function getCoord(event: TouchEvent | MouseEvent, coord: string) {
   const name = `page${coord.toUpperCase()}`;
 
-  if (event.touches !== undefined && event.touches.length) {
-    return event.touches[0][name];
+  if ("touches" in event && event.touches !== undefined && event.touches.length) {
+    return Math.round(event.touches[0][name]);
   } else {
     return event[name];
   }
@@ -31,19 +41,19 @@ export function getEventDelta(e1, e2) {
   return Math.abs(getCoord(e1, "x") - getCoord(e2, "x")) + Math.abs(getCoord(e1, "y") - getCoord(e2, "y"));
 }
 
-export function isMetaKeyEvent(event: MouseEvent | KeyboardEvent): boolean {
+export function isMetaKeyEvent(event: MouseEvent | TouchEvent | KeyboardEvent): boolean {
   return event.metaKey || event.ctrlKey;
 }
 
-export function isShiftKeyEvent(event: MouseEvent | KeyboardEvent): boolean {
+export function isShiftKeyEvent(event: MouseEvent | TouchEvent | KeyboardEvent): boolean {
   return event.shiftKey;
 }
 
-export function isAltKeyEvent(event: MouseEvent | KeyboardEvent): boolean {
+export function isAltKeyEvent(event: MouseEvent | TouchEvent | KeyboardEvent): boolean {
   return event.altKey;
 }
 
-export function getEventSelectionAction(event: MouseEvent) {
+export function getEventSelectionAction(event: MouseEvent | TouchEvent) {
   if (isMetaKeyEvent(event)) return SELECTION_EVENT_TYPES.TOGGLE;
   return SELECTION_EVENT_TYPES.DELETE;
 }
@@ -55,7 +65,7 @@ export function isBlock(component: unknown): component is Block {
 export function createCustomDragEvent(eventType: string, e): CustomEvent {
   return new CustomEvent(eventType, {
     detail: {
-      ...EVENTS_DETAIL[eventType](e.pageX, e.pageY),
+      ...EVENTS_DETAIL[eventType](getCoord(e, "x"), getCoord(e, "y")),
       sourceEvent: e,
     },
   });
@@ -88,7 +98,7 @@ export function dispatchEvents(comps, e) {
 
 export function addEventListeners(
   instance: EventTarget,
-  mapEventsToFn?: Record<string, (event: CustomEvent | MouseEvent) => void>
+  mapEventsToFn?: Record<string, (event: CustomEvent | MouseEvent | TouchEvent) => void>
 ): () => void {
   if (mapEventsToFn === undefined) return noop;
 
