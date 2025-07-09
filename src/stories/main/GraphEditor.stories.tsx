@@ -141,7 +141,7 @@ export const FiveThousandsBlocks: Story = {
     useBezierConnections: false,
   },
   render: (args) => (
-    <GraphApp config={generatePrettyBlocks({ layersCount: 30, connectionsPerLayer: 300 })} {...args}></GraphApp>
+    <GraphApp config={generatePrettyBlocks({ layersCount: 40, connectionsPerLayer: 300 })} {...args}></GraphApp>
   ),
 };
 
