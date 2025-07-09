@@ -71,7 +71,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     this.addEventListener("click", this);
     this.addEventListener("pointerenter", this);
     this.addEventListener("pointerdown", this);
-    this.addEventListener("pointerleave", this);
+    this.addEventListener("pointerup", this);
 
     this.computeRenderSize(this.props.size, this.state.raised);
     this.shift = this.props.size / 2 + props.lineWidth;
@@ -131,7 +131,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
         this.computeRenderSize(this.props.size, true);
         break;
       }
-      case "pointerleave": {
+      case "pointerup": {
         this.setState({ raised: false });
         this.computeRenderSize(this.props.size, false);
         break;
