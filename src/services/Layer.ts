@@ -202,13 +202,12 @@ export class Layer<
     this.init();
   }
 
-  public updateSize(width: number, height: number) {
-    if (this.canvas) {
-      const dpr = this.props.canvas.respectPixelRatio === false ? 1 : this.context.graph.layers.getDPR();
-      this.canvas.width = width * dpr;
-      this.canvas.height = height * dpr;
-    }
-  }
+  protected sizeTouched = false;
+
+  public updateSize = () => {
+    this.sizeTouched = true;
+    this.performRender();
+  };
 
   /**
    * Called after initialization and when the layer is reattached.
@@ -250,6 +249,7 @@ export class Layer<
         this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
       });
     }
+    this.onSignal(this.props.graph.layers.rootSize, this.updateSize);
   }
 
   protected init() {
@@ -370,7 +370,17 @@ export class Layer<
     ctx.setTransform(scale * dpr, 0, 0, scale * dpr, x * dpr, y * dpr);
   }
 
+  protected updateCanvasSize() {
+    const { width, height, dpr } = this.context.graph.layers.getRootSize();
+    this.canvas.width = width * dpr;
+    this.canvas.height = height * dpr;
+  }
+
   public resetTransform() {
+    if (this.sizeTouched) {
+      this.sizeTouched = false;
+      this.updateCanvasSize();
+    }
     const cameraState = this.props.canvas?.transformByCameraPosition ? this.context.camera.getCameraState() : null;
     // Reset transform and clear the canvas
     this.context.ctx.setTransform(1, 0, 0, 1, 0, 0);

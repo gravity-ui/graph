@@ -1,14 +1,16 @@
+import { signal } from "@preact/signals-core";
+
 import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
-import { debounce } from "../utils/functions";
+import { throttle } from "../utils/functions";
 
 import { Layer } from "./Layer";
 
 export class Layers extends Emitter {
   private attached = false;
 
-  private rootSize: { width: number; height: number } = { width: 0, height: 0 };
+  public readonly rootSize = signal({ width: 0, height: 0, dpr: globalThis.devicePixelRatio || 1 });
 
   protected layers: Set<Layer> = new Set();
 
@@ -17,7 +19,7 @@ export class Layers extends Emitter {
   }
 
   public getDPR() {
-    return devicePixelRatio;
+    return globalThis.devicePixelRatio || 1;
   }
 
   public createLayer<T extends Constructor<Layer> = Constructor<Layer>>(
@@ -30,8 +32,6 @@ export class Layers extends Emitter {
     }) as InstanceType<T>;
     this.layers.add(layer);
     if (this.attached) {
-      const { width, height } = this.rootSize;
-      layer.updateSize(width, height);
       layer.attachLayer(this.$root);
     }
     return layer;
@@ -43,7 +43,7 @@ export class Layers extends Emitter {
   }
 
   public getRootSize() {
-    return this.rootSize;
+    return this.rootSize.value;
   }
 
   public getLayers(): Layer[] {
@@ -97,13 +97,13 @@ export class Layers extends Emitter {
     this.handleRootResize();
   });
 
-  protected handleRootResize = debounce(
+  protected handleRootResize = throttle(
     () => {
       this.updateSize();
     },
     {
-      priority: ESchedulerPriority.HIGH,
-      frameTimeout: 16,
+      priority: ESchedulerPriority.LOWEST,
+      frameInterval: 1,
     }
   );
 
@@ -120,23 +120,14 @@ export class Layers extends Emitter {
   }
 
   public updateSize = () => {
-    if (!this.rootSize) {
-      return;
-    }
-    this.updateRootSize();
-
-    const { width, height } = this.rootSize;
-    this.layers.forEach((layer) => {
-      layer.updateSize(width, height);
-    });
-    this.emit("update-size", this.rootSize);
-  };
-
-  private updateRootSize = () => {
     if (!this.$root) {
       return;
     }
-    this.rootSize.width = this.$root.clientWidth;
-    this.rootSize.height = this.$root.clientHeight;
+    this.rootSize.value = {
+      width: this.$root.clientWidth,
+      height: this.$root.clientHeight,
+      dpr: this.getDPR(),
+    };
+    this.emit("update-size", this.getRootSize());
   };
 }

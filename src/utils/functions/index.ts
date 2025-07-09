@@ -173,9 +173,9 @@ function isTrackpadDetector() {
   let isTrackpadDetected = false;
   let cleanStateTimer = setTimeout(() => {}, 0);
 
-  return (e: WheelEvent) => {
-    const normalizedDeltaY = e.deltaY * devicePixelRatio;
-    const normalizedDeltaX = e.deltaX * devicePixelRatio;
+  return (e: WheelEvent, dpr: number = globalThis.devicePixelRatio || 1) => {
+    const normalizedDeltaY = e.deltaY * dpr;
+    const normalizedDeltaX = e.deltaX * dpr;
     // deltaX in the trackpad scroll usually is not zero.
     if (normalizedDeltaX) {
       isTrackpadDetected = true;

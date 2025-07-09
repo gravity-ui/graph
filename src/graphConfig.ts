@@ -133,7 +133,7 @@ export const initGraphConstants: TGraphConstants = {
   system: {
     GRID_SIZE: 16,
     /* @deprecated this config is not used anymore, Layers checks devicePixelRatio internally */
-    PIXEL_RATIO: typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
+    PIXEL_RATIO: typeof globalThis !== "undefined" ? globalThis.devicePixelRatio || 1 : 1,
     USABLE_RECT_GAP: 400,
     CAMERA_VIEWPORT_TRESHOLD: 0.5,
   },

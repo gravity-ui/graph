@@ -34,7 +34,7 @@ export interface IHitBox extends HitBoxData {
 export class HitTest extends Emitter {
   private tree = new RBush<HitBox>(9);
 
-  protected $usableRect = signal<TRect>({ x: 0, y: 0, width: 0, height: 0 });
+  public readonly $usableRect = signal<TRect>({ x: 0, y: 0, width: 0, height: 0 });
 
   // Single queue replaces all complex state tracking
   protected queue = new Map<HitBox, HitBoxData | null>();
@@ -76,7 +76,7 @@ export class HitTest extends Emitter {
     },
     {
       priority: ESchedulerPriority.LOWEST,
-      frameTimeout: 250,
+      frameTimeout: 100,
     }
   );
 
@@ -91,8 +91,10 @@ export class HitTest extends Emitter {
   }
 
   public clear() {
+    this.processQueue.cancel();
     this.queue.clear();
     this.tree.clear();
+    this.updateUsableRect();
   }
 
   public add(item: HitBox) {
@@ -121,11 +123,15 @@ export class HitTest extends Emitter {
 
   protected updateUsableRect() {
     const rect = this.tree.toJSON();
+    if (rect.length === 0) {
+      this.$usableRect.value = { x: 0, y: 0, width: 0, height: 0 };
+      return;
+    }
     this.$usableRect.value = {
-      x: rect.minX,
-      y: rect.minY,
-      width: rect.maxX - rect.minX,
-      height: rect.maxY - rect.minY,
+      x: Number.isFinite(rect.minX) ? rect.minX : 0,
+      y: Number.isFinite(rect.minY) ? rect.minY : 0,
+      width: Number.isFinite(rect.maxX) ? rect.maxX - rect.minX : 0,
+      height: Number.isFinite(rect.maxY) ? rect.maxY - rect.minY : 0,
     };
   }
 
