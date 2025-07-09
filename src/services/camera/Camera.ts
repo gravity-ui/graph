@@ -59,8 +59,6 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   protected unmount() {
     super.unmount();
 
-    this.camera.off("update", this.performRender);
-
     this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
     this.removeEventListener("mousedown", this.handleMouseDownEvent);
   }

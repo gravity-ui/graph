@@ -33,6 +33,15 @@ export function useGraph(config: HookGraphParams) {
     });
   }, [config.graph]);
 
+  // Cleanup graph on unmount to prevent memory leaks in strict mode
+  useLayoutEffect(() => {
+    return () => {
+      if (!config.graph && graph) {
+        graph.unmount();
+      }
+    };
+  }, [graph]);
+
   const setViewConfiguration = useFn((viewConfig: HookGraphParams["viewConfiguration"]) => {
     if (viewConfig.colors) {
       graph.setColors(config.viewConfiguration.colors);

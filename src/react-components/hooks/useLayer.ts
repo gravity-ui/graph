@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo } from "react";
+import { useDeferredValue, useLayoutEffect, useState } from "react";
 
 import isEqual from "lodash/isEqual";
 
@@ -35,24 +35,30 @@ export function useLayer<T extends Constructor<Layer> = Constructor<Layer>>(
     ? Omit<Props, "root" | "camera" | "graph" | "emitter"> & { root?: Props["root"] }
     : never
 ) {
-  const layer = useMemo(() => (graph ? graph.addLayer(layerCtor, props) : null), [graph]);
+  const [layer, setLayer] = useState<InstanceType<T> | null>(null);
+  const deferredLayer = useDeferredValue(layer);
+
+  useLayoutEffect(() => {
+    // setLayer will apply the next state not immediately,
+    // so we have to store link to layer instance in useLayoutEffect
+    // in order to detach that layer from graph in case of fast re-run of effect
+    const layerInstance = graph ? graph.addLayer(layerCtor, props) : null;
+    setLayer(layerInstance);
+    return () => {
+      // detach layer from graph
+      if (layerInstance) {
+        graph?.detachLayer(layerInstance);
+      }
+    };
+  }, [layerCtor, graph]);
+
   const prevProps = usePrevious(props);
 
   useLayoutEffect(() => {
-    // Detach layer on change layer instance
-    return () => {
-      // Only detach if both graph and layer are available
-      if (graph && layer) {
-        graph.detachLayer(layer);
-      }
-    };
-  }, [graph, layer]);
-
-  useEffect(() => {
-    if (layer && (!prevProps || !isEqual(prevProps, props))) {
-      layer.setProps(props);
+    if (deferredLayer && (!prevProps || !isEqual(prevProps, props))) {
+      deferredLayer.setProps(props);
     }
-  }, [layer, props, prevProps]);
+  }, [deferredLayer, props, prevProps]);
 
   return layer;
 }

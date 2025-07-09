@@ -19,10 +19,6 @@ import "./devtools-layer.css"; // Import the CSS file after type imports
  */
 export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDevToolsLayerState> {
   public state = INITIAL_DEVTOOLS_LAYER_STATE;
-  private mouseMoveListener = this.handleMouseMove.bind(this);
-  private mouseEnterListener = this.handleMouseEnter.bind(this);
-  private mouseLeaveListener = this.handleMouseLeave.bind(this);
-  protected cameraSubscription: (() => void) | null = null;
 
   // HTML elements for ruler backgrounds
   private horizontalRulerBgEl: HTMLDivElement | null = null;
@@ -77,22 +73,27 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
   }
 
   protected afterInit(): void {
-    super.afterInit();
-
-    if (this.context.graph) {
-      this.cameraSubscription = this.context.graph.on("camera-change", () => this.performRender());
-    } else {
-      console.error("DevToolsLayer: Graph instance not found in context during afterInit.");
-    }
-
-    const graphRoot = this.props.graph?.layers?.$root;
-    if (graphRoot) {
-      graphRoot.addEventListener("mousemove", this.mouseMoveListener);
-      graphRoot.addEventListener("mouseenter", this.mouseEnterListener);
-      graphRoot.addEventListener("mouseleave", this.mouseLeaveListener);
-    } else {
-      console.error("DevToolsLayer: Graph root layer element ($root) not found.");
-    }
+    this.onGraphEvent("camera-change", () => this.performRender());
+    this.onRootEvent(
+      "mousemove",
+      (event: MouseEvent): void => {
+        const canvas = this.context.graphCanvas;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        this.setState({
+          mouseX: event.clientX - rect.left,
+          mouseY: event.clientY - rect.top,
+          isMouseInside: true,
+        });
+      },
+      { capture: true }
+    );
+    this.onRootEvent("mouseenter", (): void => {
+      this.setState({ isMouseInside: true });
+    });
+    this.onRootEvent("mouseleave", (): void => {
+      this.setState({ isMouseInside: false, mouseX: null, mouseY: null });
+    });
 
     // Create HTML elements for ruler backgrounds if showRuler is initially true
     const htmlContainer = this.getHTML();
@@ -123,60 +124,8 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
       htmlContainer.appendChild(this.verticalRulerBgEl);
     }
 
-    this.performRender(); // Initial render for positioning divs and canvas ticks/text
+    super.afterInit();
   }
-
-  protected unmountLayer(): void {
-    this.cameraSubscription?.();
-    this.cameraSubscription = null;
-
-    const graphRoot = this.props.graph?.layers?.$root;
-    if (graphRoot) {
-      graphRoot.removeEventListener("mousemove", this.mouseMoveListener);
-      graphRoot.removeEventListener("mouseenter", this.mouseEnterListener);
-      graphRoot.removeEventListener("mouseleave", this.mouseLeaveListener);
-    }
-
-    // Remove ruler background elements
-    this.horizontalRulerBgEl?.remove();
-    this.verticalRulerBgEl?.remove();
-    this.horizontalRulerBgEl = null;
-    this.verticalRulerBgEl = null;
-
-    super.unmountLayer();
-  }
-
-  // --- Event Handlers ---
-
-  private handleMouseMove(event: MouseEvent): void {
-    const canvas = this.context.graphCanvas;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    this.setState({
-      mouseX: event.clientX - rect.left,
-      mouseY: event.clientY - rect.top,
-      isMouseInside: true,
-    });
-  }
-
-  private handleMouseEnter(): void {
-    this.setState({ isMouseInside: true });
-  }
-
-  private handleMouseLeave(): void {
-    this.setState({ isMouseInside: false, mouseX: null, mouseY: null });
-  }
-
-  // --- State Update ---
-
-  protected stateChanged(): void {
-    // Only re-render canvas if crosshair is visible and mouse position changed
-    if (this.props.showCrosshair) {
-      this.performRender();
-    }
-  }
-
-  // --- Rendering Logic ---
 
   protected render(): void {
     if (!this.context.ctx || !this.context.graphCanvas) {

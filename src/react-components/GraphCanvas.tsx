@@ -14,13 +14,21 @@ import { useFn } from "./utils/hooks/useFn";
 export type GraphProps = Pick<Partial<TBlockListProps>, "renderBlock"> &
   Partial<TGraphEventCallbacks> & {
     className?: string;
+    blockListClassName?: string;
     graph: Graph;
+    reactLayerRef?: React.MutableRefObject<ReactLayer | null>;
   };
 
-export function GraphCanvas({ graph, className, renderBlock, ...cbs }: GraphProps) {
+export function GraphCanvas({ graph, className, blockListClassName, renderBlock, reactLayerRef, ...cbs }: GraphProps) {
   const containerRef = useRef<HTMLDivElement>();
 
-  const reactLayer = useLayer(graph, ReactLayer, {});
+  const reactLayer = useLayer(graph, ReactLayer, {
+    blockListClassName,
+  });
+
+  if (reactLayerRef) {
+    reactLayerRef.current = reactLayer;
+  }
 
   useEffect(() => {
     if (containerRef.current) {

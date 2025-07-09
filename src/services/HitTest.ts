@@ -4,6 +4,7 @@ import RBush from "rbush";
 import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
+import { noop } from "../utils/functions";
 import { IPoint, TRect } from "../utils/types/shapes";
 import { debounce } from "../utils/utils/schedule";
 
@@ -33,7 +34,7 @@ export interface IHitBox extends HitBoxData {
 export class HitTest extends Emitter {
   private tree = new RBush<HitBox>(9);
 
-  protected $usableRect = signal<TRect>({ x: 0, y: 0, width: 0, height: 0 });
+  public readonly $usableRect = signal<TRect>({ x: 0, y: 0, width: 0, height: 0 });
 
   // Single queue replaces all complex state tracking
   protected queue = new Map<HitBox, HitBoxData | null>();
@@ -64,7 +65,7 @@ export class HitTest extends Emitter {
         } else {
           // Add/update operation
           this.tree.remove(item);
-          item.updateRect(bbox);
+          // item.updateRect(bbox);
           items.push(item);
         }
       }
@@ -75,7 +76,7 @@ export class HitTest extends Emitter {
     },
     {
       priority: ESchedulerPriority.LOWEST,
-      frameTimeout: 250,
+      frameTimeout: 100,
     }
   );
 
@@ -90,8 +91,10 @@ export class HitTest extends Emitter {
   }
 
   public clear() {
+    this.processQueue.cancel();
     this.queue.clear();
     this.tree.clear();
+    this.updateUsableRect();
   }
 
   public add(item: HitBox) {
@@ -108,20 +111,27 @@ export class HitTest extends Emitter {
 
   public waitUsableRectUpdate(callback: (rect: TRect) => void) {
     if (this.isUnstable) {
-      return this.once("update", () => {
+      const fn = () => {
         this.waitUsableRectUpdate(callback);
-      });
+      };
+      this.once("update", fn);
+      return () => this.off("update", fn);
     }
     callback(this.$usableRect.value);
+    return noop;
   }
 
   protected updateUsableRect() {
     const rect = this.tree.toJSON();
+    if (rect.length === 0) {
+      this.$usableRect.value = { x: 0, y: 0, width: 0, height: 0 };
+      return;
+    }
     this.$usableRect.value = {
-      x: rect.minX,
-      y: rect.minY,
-      width: rect.maxX - rect.minX,
-      height: rect.maxY - rect.minY,
+      x: Number.isFinite(rect.minX) ? rect.minX : 0,
+      y: Number.isFinite(rect.minY) ? rect.minY : 0,
+      width: Number.isFinite(rect.maxX) ? rect.maxX - rect.minX : 0,
+      height: Number.isFinite(rect.maxY) ? rect.maxY - rect.minY : 0,
     };
   }
 
@@ -225,6 +235,7 @@ export class HitBox implements IHitBox {
   public update = (minX: number, minY: number, maxX: number, maxY: number, force?: boolean): void => {
     if (this.destroyed) return;
     if (minX === this.minX && minY === this.minY && maxX === this.maxX && maxY === this.maxY && !force) return;
+    this.updateRect({ minX, minY, maxX, maxY, x: this.x, y: this.y });
     this.hitTest.update(this, { minX, minY, maxX, maxY, x: this.x, y: this.y }, force);
   };
 

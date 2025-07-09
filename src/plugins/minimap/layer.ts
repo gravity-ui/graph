@@ -92,11 +92,16 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
         this.onCanvasEvent("mousedown", this.handleMouseDownEvent);
       }
     }
+    this.onSignal(this.props.graph.hitTest.$usableRect, () => {
+      this.onBlockUpdated();
+      this.calculateViewPortCoords();
+      this.rerenderMapContent();
+    });
 
     super.afterInit();
   }
 
-  public updateSize(): void {
+  protected updateCanvasSize(): void {
     this.rerenderMapContent();
   }
 

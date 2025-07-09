@@ -1,3 +1,5 @@
+import { signal } from "@preact/signals-core";
+
 import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
@@ -8,17 +10,16 @@ import { Layer } from "./Layer";
 export class Layers extends Emitter {
   private attached = false;
 
-  private rootSize: { width: number; height: number } = { width: 0, height: 0 };
+  public readonly rootSize = signal({ width: 0, height: 0, dpr: globalThis.devicePixelRatio || 1 });
 
   protected layers: Set<Layer> = new Set();
 
   constructor(public $root?: HTMLDivElement) {
     super();
-    window.addEventListener("resize", this.handleRootResize);
   }
 
   public getDPR() {
-    return devicePixelRatio;
+    return globalThis.devicePixelRatio || 1;
   }
 
   public createLayer<T extends Constructor<Layer> = Constructor<Layer>>(
@@ -31,8 +32,6 @@ export class Layers extends Emitter {
     }) as InstanceType<T>;
     this.layers.add(layer);
     if (this.attached) {
-      const { width, height } = this.rootSize;
-      layer.updateSize(width, height);
       layer.attachLayer(this.$root);
     }
     return layer;
@@ -44,7 +43,7 @@ export class Layers extends Emitter {
   }
 
   public getRootSize() {
-    return this.rootSize;
+    return this.rootSize.value;
   }
 
   public getLayers(): Layer[] {
@@ -68,17 +67,18 @@ export class Layers extends Emitter {
     }
     this.updateSize();
     this.resizeObserver.observe(this.$root, { box: "border-box" });
+    window.addEventListener("resize", this.handleRootResize);
     this.attached = true;
   }
 
   public detach(full = false) {
-    if (this.attached) {
-      this.layers.forEach((layer) => {
-        layer.detachLayer();
-      });
+    this.layers.forEach((layer) => {
+      layer.detachLayer();
+    });
 
-      this.attached = false;
-    }
+    this.attached = false;
+
+    window.removeEventListener("resize", this.handleRootResize);
 
     this.handleRootResize.cancel();
     this.resizeObserver.disconnect();
@@ -91,7 +91,6 @@ export class Layers extends Emitter {
   public unmount() {
     this.detach(true);
     this.destroy();
-    window.removeEventListener("resize", this.handleRootResize);
   }
 
   protected resizeObserver = new ResizeObserver(() => {
@@ -103,7 +102,8 @@ export class Layers extends Emitter {
       this.updateSize();
     },
     {
-      priority: ESchedulerPriority.HIGHEST,
+      priority: ESchedulerPriority.LOWEST,
+      frameInterval: 1,
     }
   );
 
@@ -120,34 +120,14 @@ export class Layers extends Emitter {
   }
 
   public updateSize = () => {
-    if (!this.rootSize) {
-      return;
-    }
-    const changed = this.updateRootSize();
-    if (!changed) {
-      return;
-    }
-
-    const { width, height } = this.rootSize;
-    this.layers.forEach((layer) => {
-      layer.updateSize(width, height);
-    });
-    this.emit("update-size", this.rootSize);
-  };
-
-  private updateRootSize = () => {
-    let changed = false;
     if (!this.$root) {
-      return changed;
+      return;
     }
-    if (this.rootSize.width !== this.$root.clientWidth) {
-      this.rootSize.width = this.$root.clientWidth;
-      changed = true;
-    }
-    if (this.rootSize.height !== this.$root.clientHeight) {
-      changed = true;
-      this.rootSize.height = this.$root.clientHeight;
-    }
-    return changed;
+    this.rootSize.value = {
+      width: this.$root.clientWidth,
+      height: this.$root.clientHeight,
+      dpr: this.getDPR(),
+    };
+    this.emit("update-size", this.getRootSize());
   };
 }

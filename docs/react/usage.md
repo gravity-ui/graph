@@ -34,8 +34,19 @@ import { GraphCanvas } from "@gravity-ui/graph/react";
   graph={graph}
   renderBlock={renderBlock}
   className="my-graph"
+  blockListClassName="custom-blocks-container"
+  reactLayerRef={reactLayerRef}
 />
 ```
+
+#### Props
+
+- **`graph`** (required): The Graph instance to render
+- **`renderBlock`** (optional): Function to render custom block components
+- **`className`** (optional): CSS class for the main container
+- **`blockListClassName`** (optional): CSS class applied to the blocks container layer
+- **`reactLayerRef`** (optional): Ref to access the ReactLayer instance directly
+- **Event callbacks**: All graph event callbacks can be passed as props
 
 ### GraphBlock
 

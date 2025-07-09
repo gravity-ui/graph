@@ -202,13 +202,12 @@ export class Layer<
     this.init();
   }
 
-  public updateSize(width: number, height: number) {
-    if (this.canvas) {
-      const dpr = this.props.canvas.respectPixelRatio === false ? 1 : this.context.graph.layers.getDPR();
-      this.canvas.width = width * dpr;
-      this.canvas.height = height * dpr;
-    }
-  }
+  protected sizeTouched = false;
+
+  public updateSize = () => {
+    this.sizeTouched = true;
+    this.performRender();
+  };
 
   /**
    * Called after initialization and when the layer is reattached.
@@ -250,6 +249,7 @@ export class Layer<
         this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
       });
     }
+    this.onSignal(this.props.graph.layers.rootSize, this.updateSize);
   }
 
   protected init() {
@@ -297,6 +297,7 @@ export class Layer<
 
   protected unmount(): void {
     this.unmountLayer();
+    super.unmount();
   }
 
   public getCanvas() {
@@ -326,7 +327,7 @@ export class Layer<
   }
 
   public detachLayer() {
-    this.unmount();
+    this.unmountLayer();
     this.root = undefined;
   }
 
@@ -355,7 +356,7 @@ export class Layer<
 
   public getDRP() {
     const respectPixelRatio = this.props.canvas?.respectPixelRatio ?? true;
-    return respectPixelRatio ? devicePixelRatio : 1;
+    return respectPixelRatio ? this.context.graph.layers.getDPR() : 1;
   }
 
   protected applyTransform(
@@ -369,9 +370,18 @@ export class Layer<
     ctx.setTransform(scale * dpr, 0, 0, scale * dpr, x * dpr, y * dpr);
   }
 
-  public resetTransform() {
-    const cameraState = this.props.canvas?.transformByCameraPosition ? this.context.camera.getCameraState() : null;
+  protected updateCanvasSize() {
+    const { width, height, dpr } = this.context.graph.layers.getRootSize();
+    this.canvas.width = width * dpr;
+    this.canvas.height = height * dpr;
+  }
 
+  public resetTransform() {
+    if (this.sizeTouched) {
+      this.sizeTouched = false;
+      this.updateCanvasSize();
+    }
+    const cameraState = this.props.canvas?.transformByCameraPosition ? this.context.camera.getCameraState() : null;
     // Reset transform and clear the canvas
     this.context.ctx.setTransform(1, 0, 0, 1, 0, 0);
     // Use canvas dimensions directly, as they should already factor in DPR if respectPixelRatio is true

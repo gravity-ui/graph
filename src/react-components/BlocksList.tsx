@@ -7,7 +7,7 @@ import { Graph, GraphState } from "../graph";
 import { ESchedulerPriority } from "../lib";
 import { ECameraScaleLevel, TCameraState } from "../services/camera/CameraService";
 import { BlockState } from "../store/block/Block";
-import { debounce, throttle } from "../utils/functions";
+import { debounce } from "../utils/functions";
 
 import { useSignal } from "./hooks";
 import { useGraphEvent } from "./hooks/useGraphEvents";
@@ -96,41 +96,30 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
     setGraphState(graphObject.state);
   }, [graphObject]);
 
-  const throttleUpdate = useMemo(
-    () =>
-      throttle(
-        ({ scale }: TCameraState) => {
-          if (graphObject.cameraService.getCameraBlockScaleLevel(scale) !== ECameraScaleLevel.Detailed) {
-            setRenderAllowed(false);
-            return;
-          }
-          setRenderAllowed(true);
-          scheduleListUpdate();
-          if (!isRenderAllowed) {
-            scheduleListUpdate.flush();
-          }
-        },
-        {
-          priority: ESchedulerPriority.HIGHEST,
-          frameTimeout: 15,
-        }
-      ),
-    []
-  );
-
-  useGraphEvent(graphObject, "camera-change", throttleUpdate);
+  useGraphEvent(graphObject, "camera-change", ({ scale }: TCameraState) => {
+    if (graphObject.cameraService.getCameraBlockScaleLevel(scale) !== ECameraScaleLevel.Detailed) {
+      setRenderAllowed(false);
+      return;
+    }
+    setRenderAllowed(true);
+    scheduleListUpdate();
+    if (!isRenderAllowed) {
+      scheduleListUpdate.flush();
+    }
+  });
 
   useEffect(() => {
     return () => {
-      throttleUpdate.cancel();
+      // throttleUpdate.cancel();
       scheduleListUpdate.cancel();
     };
   }, []);
 
   // init list
   useEffect(() => {
+    graphObject.hitTest.waitUsableRectUpdate(updateBlockList);
     return graphObject.hitTest.onUsableRectUpdate(updateBlockList);
-  }, [graphObject.hitTest, throttleUpdate, isRenderAllowed, graphState]);
+  }, [graphObject.hitTest, isRenderAllowed, graphState]);
 
   return (
     <>
