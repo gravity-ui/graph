@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/gravity-ui/graph/compare/v1.1.0...v1.1.1) (2025-07-09)
+
+
+### Bug Fixes
+
+* fix for react strict mode ([#107](https://github.com/gravity-ui/graph/issues/107)) ([07ba2ee](https://github.com/gravity-ui/graph/commit/07ba2ee95ccc334b18db8c10a58067085d7d8f8d))
+
 ## [1.1.0](https://github.com/gravity-ui/graph/compare/v1.0.1...v1.1.0) (2025-07-06)
 
 
