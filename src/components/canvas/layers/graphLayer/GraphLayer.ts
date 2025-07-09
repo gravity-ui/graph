@@ -25,7 +25,14 @@ export type TGraphLayerContext = LayerContext & {
   graph: Graph;
 };
 
-const rootBubblingEventTypes = new Set(["pointerdown", "pointerup", "click", "dblclick", "contextmenu"]);
+const rootBubblingEventTypes = new Set([
+  "pointerdown",
+  "pointerup",
+  "click",
+  "dblclick",
+  "contextmenu",
+  "pointercancel",
+]);
 const rootCapturingEventTypes = new Set(["pointerdown", "pointerup"]);
 
 export type GraphPointerEvent = CustomEvent<{
@@ -323,8 +330,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     }
 
     if (
-      this.pointerStartEvent &&
-      getEventDelta(this.pointerStartEvent, event) < 3 &&
+      (this.canEmulateClick || event.pointerType === "touch") &&
       (event.type === "click" || event.type === "dblclick")
     ) {
       this.applyEventToTargetComponent(new PointerEvent(event.type, event), target);
