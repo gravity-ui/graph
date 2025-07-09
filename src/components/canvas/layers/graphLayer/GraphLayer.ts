@@ -7,6 +7,7 @@ import { ICamera } from "../../../../services/camera/CameraService";
 import { getEventDelta } from "../../../../utils/functions";
 import { EventedComponent } from "../../EventedComponent/EventedComponent";
 import { Blocks } from "../../blocks/Blocks";
+import { BlockConnection } from "../../connections";
 import { BlockConnections } from "../../connections/BlockConnections";
 
 import { DrawBelow, DrawOver } from "./helpers";
@@ -24,15 +25,8 @@ export type TGraphLayerContext = LayerContext & {
   graph: Graph;
 };
 
-const rootBubblingEventTypes = new Set([
-  "pointerdown",
-  "pointerenter",
-  "pointermove",
-  "click",
-  "dblclick",
-  "contextmenu",
-]);
-const rootCapturingEventTypes = new Set(["pointerdown", "pointerenter", "pointermove"]);
+const rootBubblingEventTypes = new Set(["pointerdown", "pointerup", "click", "dblclick", "contextmenu"]);
+const rootCapturingEventTypes = new Set(["pointerdown", "pointerup"]);
 
 export type GraphPointerEvent = CustomEvent<{
   target: EventedComponent;
@@ -48,6 +42,8 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   private targetComponent: EventedComponent;
 
   private prevTargetComponent: EventedComponent;
+
+  private canEmulateClick?: boolean;
 
   private pointerStartTarget?: EventedComponent;
 
@@ -309,8 +305,21 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private tryEmulateClick(event: PointerEvent, target = this.targetComponent) {
     if (event.type === "pointerdown" && target !== undefined) {
+      this.canEmulateClick = false;
       this.pointerStartTarget = target;
       this.pointerStartEvent = event;
+    }
+
+    if (
+      event.type === "pointerup" &&
+      (this.pointerStartTarget === target ||
+        // connections can be very close to each other
+        (this.pointerStartTarget instanceof BlockConnection && target instanceof BlockConnection)) &&
+      // pointerStartEvent can be undefined if mousedown/touchstart event happened over dialog backdrop
+      this.pointerStartEvent &&
+      getEventDelta(this.pointerStartEvent, event) < 3
+    ) {
+      this.canEmulateClick = true;
     }
 
     if (

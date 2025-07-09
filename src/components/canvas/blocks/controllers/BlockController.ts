@@ -14,35 +14,6 @@ import { EVENTS } from "../../../../utils/types/events";
 import { ESelectionStrategy } from "../../../../utils/types/types";
 import { Block } from "../Block";
 
-const handlePointerDownEvent = (event: PointerEvent, block: Block, self: any) => {
-  const blockState = selectBlockById(block.context.graph, block.props.id);
-  const allowChangeBlockGeometry = isAllowChangeBlockGeometry(
-    block.getConfigFlag("canChangeBlockGeometry") as ECanChangeBlockGeometry,
-    blockState.selected
-  );
-
-  if (!allowChangeBlockGeometry) return;
-
-  event.stopPropagation();
-
-  const blocksListState = self.context.graph.rootStore.blocksList;
-  const selectedBlocksStates = getSelectedBlocks(blockState, blocksListState);
-  const selectedBlocksComponents = selectedBlocksStates.map((block) => block.getViewComponent());
-
-  dragListener(block.context.ownerDocument)
-    .on(EVENTS.DRAG_START, (_event: PointerEvent) => {
-      block.context.graph.getGraphLayer().captureEvents(self);
-      dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_START, _event));
-    })
-    .on(EVENTS.DRAG_UPDATE, (_event: PointerEvent) => {
-      dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_UPDATE, _event));
-    })
-    .on(EVENTS.DRAG_END, (_event: PointerEvent) => {
-      block.context.graph.getGraphLayer().releaseCapture();
-      dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_END, _event));
-    });
-};
-
 export class BlockController {
   private block: Block;
 
@@ -74,7 +45,32 @@ export class BlockController {
       },
 
       pointerdown(event: PointerEvent) {
-        handlePointerDownEvent(event, block, this);
+        const blockState = selectBlockById(block.context.graph, block.props.id);
+        const allowChangeBlockGeometry = isAllowChangeBlockGeometry(
+          block.getConfigFlag("canChangeBlockGeometry") as ECanChangeBlockGeometry,
+          blockState.selected
+        );
+
+        if (!allowChangeBlockGeometry) return;
+
+        event.stopPropagation();
+
+        const blocksListState = this.context.graph.rootStore.blocksList;
+        const selectedBlocksStates = getSelectedBlocks(blockState, blocksListState);
+        const selectedBlocksComponents = selectedBlocksStates.map((block) => block.getViewComponent());
+
+        dragListener(block.context.ownerDocument)
+          .on(EVENTS.DRAG_START, (_event: PointerEvent) => {
+            block.context.graph.getGraphLayer().captureEvents(this);
+            dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_START, _event));
+          })
+          .on(EVENTS.DRAG_UPDATE, (_event: PointerEvent) => {
+            dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_UPDATE, _event));
+          })
+          .on(EVENTS.DRAG_END, (_event: PointerEvent) => {
+            block.context.graph.getGraphLayer().releaseCapture();
+            dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_END, _event));
+          });
       },
     });
   }
