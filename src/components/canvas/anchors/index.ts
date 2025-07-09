@@ -1,9 +1,9 @@
+import { ESchedulerPriority } from "../../../lib";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
-import { frameDebouncer } from "../../../services/optimizations/frameDebouncer";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { selectBlockAnchor } from "../../../store/block/selectors";
-import { isMetaKeyEvent } from "../../../utils/functions";
+import { debounce, isMetaKeyEvent } from "../../../utils/functions";
 import { TPoint } from "../../../utils/types/shapes";
 import { GraphComponent } from "../GraphComponent";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
@@ -48,14 +48,14 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
 
   private hitBoxHash: string;
 
-  private debouncedSetHitBox = frameDebouncer.add(
+  private debouncedSetHitBox = debounce(
     () => {
       const { x, y } = this.props.getPosition(this.props);
       this.setHitBox(x - this.shift, y - this.shift, x + this.shift, y + this.shift);
     },
     {
-      delay: 4,
-      lightFrame: true,
+      priority: ESchedulerPriority.HIGHEST,
+      frameInterval: 4,
     }
   );
 
@@ -88,6 +88,11 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   protected isVisible() {
     const params = this.getHitBox();
     return params ? this.context.camera.isRectVisible(...params) : true;
+  }
+
+  protected unmount() {
+    super.unmount();
+    this.debouncedSetHitBox.cancel();
   }
 
   public didIterate(): void {

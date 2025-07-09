@@ -59,13 +59,9 @@ export class HitTest extends Emitter {
     () => {
       const items = [];
       for (const [item, bbox] of this.queue) {
-        if (bbox === null) {
-          // Remove operation
-          this.tree.remove(item);
-        } else {
-          // Add/update operation
-          this.tree.remove(item);
-          // item.updateRect(bbox);
+        this.tree.remove(item);
+        if (bbox) {
+          item.updateRect(bbox);
           items.push(item);
         }
       }
@@ -76,7 +72,7 @@ export class HitTest extends Emitter {
     },
     {
       priority: ESchedulerPriority.LOWEST,
-      frameTimeout: 100,
+      frameInterval: 1,
     }
   );
 
@@ -98,24 +94,22 @@ export class HitTest extends Emitter {
   }
 
   public add(item: HitBox) {
-    this.queue.set(item, {
-      minX: item.minX,
-      minY: item.minY,
-      maxX: item.maxX,
-      maxY: item.maxY,
-      x: item.x,
-      y: item.y,
-    });
+    if (item.destroyed) {
+      return;
+    }
+    this.queue.set(item, item);
     this.processQueue();
   }
 
   public waitUsableRectUpdate(callback: (rect: TRect) => void) {
     if (this.isUnstable) {
-      const fn = () => {
-        this.waitUsableRectUpdate(callback);
-      };
-      this.once("update", fn);
-      return () => this.off("update", fn);
+      const removeListener = this.$usableRect.subscribe(() => {
+        if (!this.isUnstable) {
+          removeListener();
+          callback(this.$usableRect.value);
+        }
+      });
+      return removeListener;
     }
     callback(this.$usableRect.value);
     return noop;
@@ -173,8 +167,8 @@ export class HitTest extends Emitter {
   }
 
   public destroy(): void {
+    this.clear();
     super.destroy();
-    this.processQueue.cancel();
   }
 
   public testHitBox(item: HitBoxData): Component[] {
@@ -201,7 +195,7 @@ export class HitTest extends Emitter {
 }
 
 export class HitBox implements IHitBox {
-  private destroyed = false;
+  public destroyed = false;
 
   public maxX: number;
 
@@ -217,6 +211,8 @@ export class HitBox implements IHitBox {
 
   private rect: [number, number, number, number] = [0, 0, 0, 0];
 
+  protected unstable = true;
+
   constructor(
     public item: { zIndex: number } & Component & IWithHitTest,
     protected hitTest: HitTest
@@ -230,12 +226,14 @@ export class HitBox implements IHitBox {
     this.x = rect.x;
     this.y = rect.y;
     this.rect = [this.minX, this.minY, this.maxX - this.minX, this.maxY - this.minY];
+    this.unstable = false;
   }
 
   public update = (minX: number, minY: number, maxX: number, maxY: number, force?: boolean): void => {
     if (this.destroyed) return;
     if (minX === this.minX && minY === this.minY && maxX === this.maxX && maxY === this.maxY && !force) return;
-    this.updateRect({ minX, minY, maxX, maxY, x: this.x, y: this.y });
+    this.unstable = true;
+    this.rect = [minX, minY, maxX - minX, maxY - minY];
     this.hitTest.update(this, { minX, minY, maxX, maxY, x: this.x, y: this.y }, force);
   };
 
