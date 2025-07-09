@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/gravity-ui/graph/compare/v1.1.2...v1.1.3) (2025-07-09)
+
+
+### Bug Fixes
+
+* fix add/remove hitbox item ([3b0bb42](https://github.com/gravity-ui/graph/commit/3b0bb42a774c71609c4268e28485679452d5b026))
+
 ## [1.1.2](https://github.com/gravity-ui/graph/compare/v1.1.0...v1.1.2) (2025-07-09)
 
 ### Bug Fixes
