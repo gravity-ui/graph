@@ -15,9 +15,13 @@ import { ESelectionStrategy } from "../../../../utils/types/types";
 import { Block } from "../Block";
 
 export class BlockController {
+  private block: Block;
+
   constructor(block: Block) {
+    this.block = block;
+
     addEventListeners(block as EventTarget, {
-      click(event: MouseEvent) {
+      click(event: PointerEvent) {
         event.stopPropagation();
 
         const { connectionsList } = block.context.graph.rootStore;
@@ -40,7 +44,7 @@ export class BlockController {
         );
       },
 
-      mousedown(event: MouseEvent) {
+      pointerdown(event: PointerEvent) {
         const blockState = selectBlockById(block.context.graph, block.props.id);
         const allowChangeBlockGeometry = isAllowChangeBlockGeometry(
           block.getConfigFlag("canChangeBlockGeometry") as ECanChangeBlockGeometry,
@@ -56,14 +60,14 @@ export class BlockController {
         const selectedBlocksComponents = selectedBlocksStates.map((block) => block.getViewComponent());
 
         dragListener(block.context.ownerDocument)
-          .on(EVENTS.DRAG_START, (_event: MouseEvent) => {
+          .on(EVENTS.DRAG_START, (_event: PointerEvent) => {
             block.context.graph.getGraphLayer().captureEvents(this);
             dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_START, _event));
           })
-          .on(EVENTS.DRAG_UPDATE, (_event: MouseEvent) => {
+          .on(EVENTS.DRAG_UPDATE, (_event: PointerEvent) => {
             dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_UPDATE, _event));
           })
-          .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
+          .on(EVENTS.DRAG_END, (_event: PointerEvent) => {
             block.context.graph.getGraphLayer().releaseCapture();
             dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_END, _event));
           });

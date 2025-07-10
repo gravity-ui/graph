@@ -1,4 +1,4 @@
-import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
+import { GraphPointerEvent, extractNativeGraphPointerEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { selectBlockList } from "../../../../store/block/selectors";
 import { getXY, isBlock, isMetaKeyEvent } from "../../../../utils/functions";
@@ -49,7 +49,7 @@ export class SelectionLayer extends Layer<
    */
   protected afterInit(): void {
     // Set up event handlers here instead of in constructor
-    this.onGraphEvent("mousedown", this.handleMouseDown, {
+    this.onGraphEvent("pointerdown", this.handlePointerDown, {
       capture: true,
     });
 
@@ -88,8 +88,8 @@ export class SelectionLayer extends Layer<
     });
   }
 
-  private handleMouseDown = (nativeEvent: GraphMouseEvent) => {
-    const event = extractNativeGraphMouseEvent(nativeEvent);
+  private handlePointerDown = (nativeEvent: GraphPointerEvent) => {
+    const event = extractNativeGraphPointerEvent(nativeEvent);
     const target = nativeEvent.detail.target;
     if (target instanceof Anchor || target instanceof Block) {
       return;
@@ -109,20 +109,20 @@ export class SelectionLayer extends Layer<
     }
   };
 
-  private updateSelectionRender = (event: MouseEvent) => {
+  private updateSelectionRender = (event: PointerEvent) => {
     const [x, y] = getXY(this.context.canvas, event);
     this.selection.width = x - this.selection.x;
     this.selection.height = y - this.selection.y;
     this.performRender();
   };
 
-  private startSelectionRender = (event: MouseEvent) => {
+  private startSelectionRender = (event: PointerEvent) => {
     const [x, y] = getXY(this.context.canvas, event);
     this.selection.x = x;
     this.selection.y = y;
   };
 
-  private endSelectionRender = (event: MouseEvent) => {
+  private endSelectionRender = (event: PointerEvent) => {
     if (this.selection.width === 0 && this.selection.height === 0) {
       return;
     }

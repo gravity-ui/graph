@@ -62,7 +62,7 @@ export class BaseConnection<
       this.updatePoints();
     });
 
-    this.listenEvents(["mouseenter", "mouseleave"]);
+    this.listenEvents(["pointerenter", "pointerleave"]);
   }
 
   protected override handleEvent(event) {
@@ -70,10 +70,10 @@ export class BaseConnection<
     super.handleEvent(event);
 
     switch (event.type) {
-      case "mouseenter":
+      case "pointerenter":
         this.setState({ hovered: true });
         break;
-      case "mouseleave":
+      case "pointerleave":
         this.setState({ hovered: false });
         break;
     }
