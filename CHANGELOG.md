@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.4](https://github.com/gravity-ui/graph/compare/v1.1.3...v1.1.4) (2025-07-10)
+
+
+### chore
+
+* release 1.1.4 ([f45c596](https://github.com/gravity-ui/graph/commit/f45c596e271d7d696a4b11960e8d7a208c3bbb4a))
+
+
+### Features
+
+* **Graph:** Add method to get elements in viewport ([9f10e1c](https://github.com/gravity-ui/graph/commit/9f10e1c37a654bc6a1c901601d638a63b930ce8e))
+
+
+### Bug Fixes
+
+* **Layer:** fix Layer lifecycle ([#112](https://github.com/gravity-ui/graph/issues/112)) ([9f10e1c](https://github.com/gravity-ui/graph/commit/9f10e1c37a654bc6a1c901601d638a63b930ce8e))
+
 ## [1.1.3](https://github.com/gravity-ui/graph/compare/v1.1.2...v1.1.3) (2025-07-09)
 
 
