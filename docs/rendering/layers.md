@@ -338,7 +338,7 @@ The Layer class provides convenient wrapper methods for subscribing to events us
 ```typescript
 protected afterInit() {
   this.onGraphEvent("camera-change", this.handleCameraChange);
-  this.onCanvasEvent("mousedown", this.handleMouseDown);
+  this.onCanvasEvent("pointerdown", this.handlePointerDown);
   super.afterInit();
 }
 ```
@@ -361,7 +361,7 @@ export class MyCustomLayer extends Layer<MyLayerProps> {
   protected afterInit(): void {
     // Option 1: Manual subscription using the layer's AbortController
     // This will be automatically cleaned up when the layer is unmounted
-    this.canvas.addEventListener("mousedown", this.handleMouseDown, {
+    this.canvas.addEventListener("pointerdown", this.handlePointerDown, {
       signal: this.eventAbortController.signal
     });
     
@@ -392,8 +392,8 @@ export class MyCustomLayer extends Layer<MyLayerProps> {
     this.unsubscribeFunctions = [];
   }
   
-  private handleMouseDown = (event: MouseEvent) => {
-    // Handle mouse down event
+  private handlePointerDown = (event: PointerEvent) => {
+    // Handle pointer down event
   };
   
   private performRender = () => {

@@ -14,8 +14,8 @@ import { Graph } from "@gravity-ui/graph";
 const graph = new Graph(...props);
 
 // Using the cleanup function
-const unsubscribe = graph.on("mouseenter", (event) => {
-  console.log("mouseenter", event.detail);
+const unsubscribe = graph.on("pointerenter", (event) => {
+  console.log("pointerenter", event.detail);
   console.log('hovered element', event.detail.target);
   console.log('original event', event.detail.sourceEvent);
 
@@ -32,12 +32,12 @@ unsubscribe();
 // Using AbortController (recommended for multiple event listeners)
 const controller = new AbortController();
 
-graph.on("mouseenter", (event) => {
-  console.log("Mouse entered:", event.detail);
+graph.on("pointerenter", (event) => {
+  console.log("Pointer entered:", event.detail);
 }, { signal: controller.signal });
 
-graph.on("mouseleave", (event) => {
-  console.log("Mouse left:", event.detail);
+graph.on("pointerleave", (event) => {
+  console.log("Pointer left:", event.detail);
 }, { signal: controller.signal });
 
 // Later, to remove all event listeners at once:
@@ -46,23 +46,23 @@ controller.abort();
 
 ## Event Types
 
-### Mouse Events
+### Pointer Events
 
-The following mouse events are supported:
+The following pointer events are supported:
 
 | Event | Description | Default Prevention |
 |-------|-------------|-------------------|
-| `mousedown` | Mouse button pressed down | Prevents browser default |
-| `click` | Mouse button released after press | Prevents browser default |
-| `mouseenter` | Mouse pointer enters graph area | - |
-| `mouseleave` | Mouse pointer leaves graph area | - |
+| `pointerdown` | Pointer pressed down | Prevents browser default |
+| `click` | Pointer released after press | Prevents browser default |
+| `pointerenter` | Pointer enters graph area | - |
+| `pointerleave` | Pointer leaves graph area | - |
 
-These events use the `GraphMouseEvent` type:
+These events use the `GraphPointerEvent` type:
 
 ```typescript
 import { EventedComponent } from "@gravity-ui/graph";
 
-interface GraphMouseEvent<E extends Event = Event> = CustomEvent<{
+interface GraphPointerEvent<E extends Event = Event> = CustomEvent<{
   target?: EventedComponent;
   sourceEvent: E;
   pointerPressed?: boolean;
@@ -114,7 +114,7 @@ const controller = new AbortController();
 // Register multiple event listeners with the same controller
 graph.on("camera-change", handleCameraChange, { signal: controller.signal });
 graph.on("blocks-selection-change", handleSelectionChange, { signal: controller.signal });
-graph.on("mousedown", handleMouseDown, { signal: controller.signal });
+graph.on("pointerdown", handlePointerDown, { signal: controller.signal });
 
 // DOM event listeners can also use the same controller
 document.addEventListener("keydown", handleKeyDown, { signal: controller.signal });
@@ -150,10 +150,10 @@ export class MyLayer extends Layer {
     // Use the onGraphEvent wrapper method that automatically includes the AbortController signal
     this.onGraphEvent("camera-change", this.handleCameraChange);
     this.onGraphEvent("blocks-selection-change", this.handleSelectionChange);
-    this.onGraphEvent("mousedown", this.handleMouseDown);
+    this.onGraphEvent("pointerdown", this.handlePointerDown);
     
     // DOM event listeners can also use the AbortController signal
-    this.getCanvas()?.addEventListener("mousedown", this.handleMouseDown, { 
+    this.getCanvas()?.addEventListener("pointerdown", this.handlePointerDown, { 
       signal: this.eventAbortController.signal 
     });
     

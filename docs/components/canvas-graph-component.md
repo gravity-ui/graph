@@ -111,23 +111,23 @@ protected willIterate(): void {
                          └──────┘
 ```
 
-### 3. Mouse Event Handling
+### 3. Pointer Event Handling
 
-GraphComponent adds the ability to listen to mouse events on the element, including drag operations:
+GraphComponent adds the ability to listen to pointer events on the element, including drag operations:
 
 ```typescript
-// Listen for basic mouse events
+// Listen for basic pointer events
 this.addEventListener('click', (event) => {
   console.log('Component clicked at:', event.point);
   this.setState({ selected: true });
 });
 
-this.addEventListener('mouseenter', () => {
+this.addEventListener('pointerenter', () => {
   this.setState({ hovered: true });
   this.performRender();
 });
 
-this.addEventListener('mouseleave', () => {
+this.addEventListener('pointerleave', () => {
   this.setState({ hovered: false });
   this.performRender();
 });
@@ -159,8 +159,8 @@ this.onDrag({
 
 **Supported events:**
 - `click`, `dblclick` - Mouse button clicks
-- `mousedown`, `mouseup` - Mouse button press and release
-- `mouseenter`, `mouseleave` - Mouse pointer entering or leaving the component
+- `pointerdown`, `pointerup` - Pointer button press and release
+- `pointerenter`, `pointerleave` - Pointer pointer entering or leaving the component
 - Specialized `onDrag` system with precise coordinate handling
 
 ### 4. Reactive Data with Signal Subscriptions
@@ -566,16 +566,16 @@ class AnnotatedConnection extends BaseConnection<AnnotatedConnectionProps> {
       labelText: 'Connection'
     };
     
-    // Listen for mouse events
-    this.addEventListener('mouseover', this.handleMouseOver);
-    this.addEventListener('mouseout', this.handleMouseOut);
+    // Listen for pointer events
+    this.addEventListener('pointerover', this.handlePointerOver);
+    this.addEventListener('pointerout', this.handlePointerOut);
   }
   
-  private handleMouseOver = () => {
+  private handlePointerOver = () => {
     this.setState({ hovered: true });
   }
   
-  private handleMouseOut = () => {
+  private handlePointerOut = () => {
     this.setState({ hovered: false });
   }
   
@@ -907,7 +907,7 @@ class DiagramNode extends GraphComponent {
   constructor(props, parent) {
     super(props, parent);
     this.addEventListener('click', this.handleClick);
-    this.addEventListener('mouseover', this.handleMouseOver);
+    this.addEventListener('pointerover', this.handlePointerOver);
   }
   
   handleClick = () => {
@@ -915,7 +915,7 @@ class DiagramNode extends GraphComponent {
     this.context.uiService.showDetails(this.props.id);
   }
   
-  handleMouseOver = () => {
+  handlePointerOver = () => {
     // Highlight connected elements
     this.context.highlightService.highlightConnected(this.props.id);
   }

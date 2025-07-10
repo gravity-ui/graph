@@ -208,16 +208,16 @@ sequenceDiagram
     participant BlockController
     participant Store
     
-    User->>Block: Mouse Down
+    User->>Block: Pointer Down
     Block->>BlockController: onDragStart()
     BlockController->>Block: Emit "block-drag-start"
-    User->>Block: Mouse Move
+    User->>Block: Pointer Move
     Block->>BlockController: onDragUpdate()
     BlockController->>Block: Calculate next position
     Block->>Block: applyNextPosition()
     Block->>Store: Update position
     Block->>Block: Emit "block-drag"
-    User->>Block: Mouse Up
+    User->>Block: Pointer Up
     Block->>BlockController: onDragEnd()
     BlockController->>Block: Emit "block-drag-end"
 ```
@@ -267,7 +267,7 @@ class CustomBlock extends Block {
   }
   
   // Override behavior methods to customize interactions
-  protected onDragStart(event: MouseEvent) {
+  protected onDragStart(event: PointerEvent) {
     // Custom drag start handling
     console.log("Custom drag start");
     

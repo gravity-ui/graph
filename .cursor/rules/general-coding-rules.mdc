@@ -8,7 +8,7 @@ alwaysApply: true
 
 ### Avoid `any` Type
 - **Never use the `any` type** in your code. Instead:
-  - Use specific types whenever possible (e.g., `MouseEvent`, `KeyboardEvent`, `HTMLElement`)
+  - Use specific types whenever possible (e.g., `PointerEvent`, `KeyboardEvent`, `HTMLElement`)
   - Use `void` for function return types when the function doesn't return a value
   - Use `unknown` only as a last resort when the type is truly unpredictable
   - Implement appropriate interfaces (e.g., `EventListenerObject`) instead of type casting
@@ -40,7 +40,7 @@ alwaysApply: true
 
 ### Event Handlers
 - Keep event handlers lightweight
-- Debounce or throttle handlers for frequent events (resize, scroll, mousemove)
+- Debounce or throttle handlers for frequent events (resize, scroll, pointermove)
 - Clean up event listeners when components are unmounted
 
 ### Memory Management

@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef } from "react";
+import type { CSSProperties } from "react";
 
 import { TGraphColors } from "..";
 import { Graph } from "../graph";
@@ -10,6 +11,14 @@ import { useLayer } from "./hooks";
 import { useGraphEvent, useGraphEvents } from "./hooks/useGraphEvents";
 import { ReactLayer } from "./layer";
 import { useFn } from "./utils/hooks/useFn";
+
+const containerStyles = {
+  position: "absolute",
+  overflow: "hidden",
+  width: "100%",
+  height: "100%",
+  "-webkit-tap-highlight-color": "transparent",
+} as CSSProperties;
 
 export type GraphProps = Pick<Partial<TBlockListProps>, "renderBlock"> &
   Partial<TGraphEventCallbacks> & {
@@ -62,7 +71,7 @@ export function GraphCanvas({ graph, className, blockListClassName, renderBlock,
 
   return (
     <div className={className}>
-      <div style={{ position: "absolute", overflow: "hidden", width: "100%", height: "100%" }} ref={containerRef}>
+      <div style={containerStyles} ref={containerRef}>
         {graph && reactLayer && reactLayer.renderPortal(renderBlock)}
       </div>
     </div>

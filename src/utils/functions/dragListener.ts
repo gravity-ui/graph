@@ -1,22 +1,22 @@
 import { Emitter } from "../Emitter";
 import { EVENTS } from "../types/events";
 
-export function dragListener(document: Document | HTMLDivElement | HTMLCanvasElement, stopOnMouseLeave = false) {
+export function dragListener(document: Document | HTMLDivElement | HTMLCanvasElement, stopOnPointerLeave = false) {
   let started = false;
   let finished = false;
   const emitter = new Emitter();
-  const mousemoveBinded = mousemove.bind(null, emitter);
-  const mouseupBinded = mouseup.bind(null, emitter);
+  const pointermoveBinded = pointermove.bind(null, emitter);
+  const pointerupBinded = pointerup.bind(null, emitter);
 
-  if (stopOnMouseLeave) {
+  if (stopOnPointerLeave) {
     document.addEventListener(
       "pointerleave",
       (event) => {
         if (started) {
-          mouseupBinded(event);
+          pointerupBinded(event);
         }
         finished = true;
-        document.removeEventListener("pointermove", mousemoveBinded);
+        document.removeEventListener("pointermove", pointermoveBinded);
       },
       { once: true, capture: true }
     );
@@ -30,7 +30,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
       }
       started = true;
       emitter.emit(EVENTS.DRAG_START, event);
-      document.addEventListener("pointermove", mousemoveBinded);
+      document.addEventListener("pointermove", pointermoveBinded);
     },
     { once: true, capture: true }
   );
@@ -39,10 +39,10 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     "pointerup",
     (event) => {
       if (started) {
-        mouseupBinded(event);
+        pointerupBinded(event);
       }
       finished = true;
-      document.removeEventListener("pointermove", mousemoveBinded);
+      document.removeEventListener("pointermove", pointermoveBinded);
     },
     { once: true, capture: true }
   );
@@ -50,7 +50,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   document.addEventListener(
     "pointerdown",
     () => {
-      document.removeEventListener("pointermove", mousemoveBinded);
+      document.removeEventListener("pointermove", pointermoveBinded);
     },
     { once: true, capture: true }
   );
@@ -58,11 +58,11 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   return emitter;
 }
 
-function mousemove(emitter: Emitter, event: PointerEvent) {
+function pointermove(emitter: Emitter, event: PointerEvent) {
   emitter.emit(EVENTS.DRAG_UPDATE, event);
 }
 
-function mouseup(emitter: Emitter, event: PointerEvent) {
+function pointerup(emitter: Emitter, event: PointerEvent) {
   emitter.emit(EVENTS.DRAG_END, event);
   emitter.destroy();
 }
