@@ -26,24 +26,20 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
         zIndex: 1,
         classNames: ["no-pointer-events"],
         transformByCameraPosition: true,
+        ...props.canvas,
       },
       ...props,
     });
+    this.background = this.props.graph.rootStore.settings.$background.value || (Background as typeof Component);
+  }
 
+  protected afterInit(): void {
     this.onSignal(this.props.graph.rootStore.settings.$background, () => {
       this.background = this.props.graph.rootStore.settings.$background.value || (Background as typeof Component);
       this.shouldUpdateChildren = true;
       this.performRender();
     });
-  }
-
-  protected afterInit(): void {
-    this.onGraphEvent("camera-change", this.performRender);
     super.afterInit();
-  }
-
-  public render() {
-    this.resetTransform();
   }
 
   public updateChildren(): ComponentDescriptor<CoreComponentProps, CoreComponentContext>[] {

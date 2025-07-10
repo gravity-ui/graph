@@ -49,25 +49,8 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
       setBlockStates([]);
       return;
     }
-    const CAMERA_VIEWPORT_TRESHOLD = graphObject.graphConstants.system.CAMERA_VIEWPORT_TRESHOLD;
-    const cameraSize = graphObject.cameraService.getCameraState();
+    const statesInRect = graphObject.getElementsInViewport([CanvasBlock]).map((component) => component.connectedState);
 
-    const x = -cameraSize.relativeX - cameraSize.relativeWidth * CAMERA_VIEWPORT_TRESHOLD;
-    const y = -cameraSize.relativeY - cameraSize.relativeHeight * CAMERA_VIEWPORT_TRESHOLD;
-    const width = -cameraSize.relativeX + cameraSize.relativeWidth * (1 + CAMERA_VIEWPORT_TRESHOLD) - x;
-    const height = -cameraSize.relativeY + cameraSize.relativeHeight * (1 + CAMERA_VIEWPORT_TRESHOLD) - y;
-
-    const statesInRect = graphObject
-      .getElementsOverRect(
-        {
-          x,
-          y,
-          width,
-          height,
-        },
-        [CanvasBlock]
-      )
-      .map((component: CanvasBlock) => component.connectedState);
     setBlockStates((blocks) => {
       if (
         !isEqual(
@@ -110,14 +93,20 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
 
   useEffect(() => {
     return () => {
-      // throttleUpdate.cancel();
       scheduleListUpdate.cancel();
     };
   }, []);
 
   // init list
   useEffect(() => {
-    graphObject.hitTest.waitUsableRectUpdate(updateBlockList);
+    graphObject.hitTest.waitUsableRectUpdate(() => {
+      if (graphObject.cameraService.getCameraBlockScaleLevel() !== ECameraScaleLevel.Detailed) {
+        setRenderAllowed(false);
+        return;
+      }
+      setRenderAllowed(true);
+      scheduleListUpdate.flush();
+    });
     return graphObject.hitTest.onUsableRectUpdate(updateBlockList);
   }, [graphObject.hitTest, isRenderAllowed, graphState]);
 

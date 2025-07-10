@@ -48,23 +48,22 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
         return groupingFn(blocks);
       });
 
-      constructor(props: BlockGroupsProps & { updateBlocksOnDrag?: boolean }) {
-        super(props);
-        this.unsubscribe.push(
-          computed(() => {
+      protected afterInit(): void {
+        this.onSignal(
+          computed<TGroup[]>(() => {
             const groupedBlocks = this.$groupsBlocksMap.value;
             return Object.entries(groupedBlocks).map(([key, blocks]) =>
               mapToGroups(key, { blocks, rect: getUsableRectByBlockIds(blocks) })
             );
-          }).subscribe((groups: TGroup[]) => {
+          }),
+          (groups: TGroup[]) => {
             this.setGroups(groups);
-          })
+          }
         );
+        super.afterInit();
       }
     };
   }
-
-  private unsubscribe: (() => void)[] = [];
 
   protected $groupsBlocksMap = new Signal<Record<string, BlockState[]>>({});
 
@@ -76,6 +75,7 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
         zIndex: 1,
         classNames: ["no-user-select"],
         transformByCameraPosition: true,
+        ...props.canvas,
       },
       ...props,
     });
@@ -92,16 +92,15 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
       graph: this.props.graph,
       ownerDocument: this.props.root!,
     });
+  }
 
-    this.unsubscribe.push(
-      this.$groupsSource.subscribe((groups) => {
-        this.shouldUpdateChildren = true;
-        this.shouldRenderChildren = true;
-        this.setState({ groups });
-      })
-    );
-
-    this.performRender = this.performRender.bind(this);
+  protected afterInit(): void {
+    this.onSignal(this.$groupsSource, (groups) => {
+      this.shouldUpdateChildren = true;
+      this.shouldRenderChildren = true;
+      this.setState({ groups });
+    });
+    super.afterInit();
   }
 
   public getParent(): CoreComponent | undefined {
@@ -136,11 +135,6 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
     super.unmountLayer();
   }
 
-  protected unmount(): void {
-    this.unsubscribe.forEach((unsubscribe) => unsubscribe());
-    super.unmount();
-  }
-
   protected getGroupComponent(group: GroupState) {
     return group.$state.value.component || this.props.groupComponent || Group;
   }
@@ -156,9 +150,5 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
         { key: group.id }
       );
     });
-  }
-
-  public render() {
-    this.resetTransform();
   }
 }
