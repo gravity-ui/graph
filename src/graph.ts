@@ -177,6 +177,23 @@ export class Graph {
     return this.getElementsOverPoint(point, filter)?.[0] as InstanceType<T> | undefined;
   }
 
+  public getViewportRect(): TRect {
+    const CAMERA_VIEWPORT_TRESHOLD = this.graphConstants.system.CAMERA_VIEWPORT_TRESHOLD;
+    const cameraSize = this.cameraService.getCameraState();
+
+    const x = -cameraSize.relativeX - cameraSize.relativeWidth * CAMERA_VIEWPORT_TRESHOLD;
+    const y = -cameraSize.relativeY - cameraSize.relativeHeight * CAMERA_VIEWPORT_TRESHOLD;
+    const width = -cameraSize.relativeX + cameraSize.relativeWidth * (1 + CAMERA_VIEWPORT_TRESHOLD) - x;
+    const height = -cameraSize.relativeY + cameraSize.relativeHeight * (1 + CAMERA_VIEWPORT_TRESHOLD) - y;
+
+    return { x, y, width, height };
+  }
+
+  public getElementsInViewport<T extends Constructor<GraphComponent>>(filter?: T[]): InstanceType<T>[] {
+    const viewportRect = this.getViewportRect();
+    return this.getElementsOverRect(viewportRect, filter);
+  }
+
   public getElementsOverRect<T extends Constructor<GraphComponent>>(rect: TRect, filter?: T[]): InstanceType<T>[] {
     const items = this.hitTest.testBox({
       minX: rect.x,

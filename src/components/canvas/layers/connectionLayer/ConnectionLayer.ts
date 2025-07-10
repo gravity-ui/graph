@@ -132,6 +132,7 @@ export class ConnectionLayer extends Layer<
       canvas: {
         zIndex: 4,
         classNames: ["no-pointer-events"],
+        ...props.canvas,
       },
       ...props,
     });
@@ -148,9 +149,6 @@ export class ConnectionLayer extends Layer<
 
     this.enabled = Boolean(this.props.graph.rootStore.settings.getConfigFlag("canCreateNewConnections"));
 
-    this.eventAborter = new AbortController();
-    this.performRender = this.performRender.bind(this);
-
     this.onSignal(this.props.graph.rootStore.settings.$settings, (value) => {
       this.enabled = Boolean(value.canCreateNewConnections);
     });
@@ -163,7 +161,6 @@ export class ConnectionLayer extends Layer<
    */
   protected afterInit(): void {
     // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
-    this.onGraphEvent("camera-change", this.performRender);
     this.onGraphEvent("mousedown", this.handleMouseDown, {
       capture: true,
     });

@@ -66,6 +66,7 @@ export class NewBlockLayer extends Layer<
       canvas: {
         zIndex: 4,
         classNames: ["no-pointer-events"],
+        ...props.canvas,
       },
       ...props,
     });
@@ -79,9 +80,6 @@ export class NewBlockLayer extends Layer<
       colors: this.props.graph.graphColors,
       graph: this.props.graph,
     });
-
-    this.eventAborter = new AbortController();
-    this.performRender = this.performRender.bind(this);
   }
 
   /**
@@ -90,14 +88,11 @@ export class NewBlockLayer extends Layer<
    * after the layer is unmounted and reattached.
    */
   protected afterInit(): void {
+    super.afterInit();
     // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
-    this.onGraphEvent("camera-change", this.performRender);
     this.onGraphEvent("mousedown", this.handleMouseDown, {
       capture: true,
     });
-
-    // Call parent afterInit to ensure proper initialization
-    super.afterInit();
   }
 
   protected handleMouseDown = (nativeEvent: GraphMouseEvent) => {
@@ -181,14 +176,15 @@ export class NewBlockLayer extends Layer<
     this.initialPoint = this.context.graph.getPointInCameraSpace(event);
 
     this.context.graph.executеDefaultEventAction("block-add-start-from-shadow", { blocks }, () => {
+      const scale = this.context.camera.getCameraScale();
       const xy = getXY(this.context.graphCanvas, event);
       const mouseX = xy[0];
       const mouseY = xy[1];
 
       // Calculate the screen position of the clicked block
       const cameraRect = this.context.camera.getCameraRect();
-      const clickedBlockX = block.connectedState.x * this.context.camera.getCameraScale() + cameraRect.x;
-      const clickedBlockY = block.connectedState.y * this.context.camera.getCameraScale() + cameraRect.y;
+      const clickedBlockX = block.connectedState.x * scale + cameraRect.x;
+      const clickedBlockY = block.connectedState.y * scale + cameraRect.y;
 
       // Calculate the click position relative to the block's top-left corner
       const clickOffsetX = mouseX - clickedBlockX;
@@ -197,12 +193,12 @@ export class NewBlockLayer extends Layer<
       // Create ghost blocks for each block being duplicated
       this.blockStates = this.copyBlocks.map((blockState) => {
         // Calculate screen position for each block
-        const blockScreenX = blockState.x * this.context.camera.getCameraScale() + cameraRect.x;
-        const blockScreenY = blockState.y * this.context.camera.getCameraScale() + cameraRect.y;
+        const blockScreenX = blockState.x * scale + cameraRect.x;
+        const blockScreenY = blockState.y * scale + cameraRect.y;
 
         // Use block's own width and height values
-        const blockWidth = blockState.width * this.context.camera.getCameraScale();
-        const blockHeight = blockState.height * this.context.camera.getCameraScale();
+        const blockWidth = blockState.width * scale;
+        const blockHeight = blockState.height * scale;
 
         return {
           width: blockWidth,

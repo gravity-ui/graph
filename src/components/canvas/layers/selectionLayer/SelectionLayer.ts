@@ -31,6 +31,7 @@ export class SelectionLayer extends Layer<
       canvas: {
         zIndex: 4,
         classNames: ["no-pointer-events"],
+        ...props.canvas,
       },
       ...props,
     });
@@ -39,8 +40,6 @@ export class SelectionLayer extends Layer<
       canvas: this.getCanvas(),
       ctx: this.getCanvas().getContext("2d"),
     });
-
-    this.performRender = this.performRender.bind(this);
   }
 
   /**
@@ -50,7 +49,6 @@ export class SelectionLayer extends Layer<
    */
   protected afterInit(): void {
     // Set up event handlers here instead of in constructor
-    this.onGraphEvent("camera-change", this.performRender);
     this.onGraphEvent("mousedown", this.handleMouseDown, {
       capture: true,
     });

@@ -4,7 +4,7 @@ import { GraphEventsDefinitions } from "../graphEvents";
 import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
 
-import { ICamera } from "./camera/CameraService";
+import { ICamera, TCameraState } from "./camera/CameraService";
 
 import "./Layer.css";
 
@@ -186,6 +186,31 @@ export class Layer<
     });
   }
 
+  /**
+   * Subscribes to a signal (with .subscribe) and automatically unsubscribes when the layer's AbortController is aborted.
+   *
+   * Usage:
+   *   this.onSignal(signal, handler)
+   *
+   * @template S - Signal type (must have .subscribe method)
+   * @template T - Value type of the signal
+   * @param signal - Signal with .subscribe method (returns unsubscribe function)
+   * @param handler - Handler function to call on signal change
+   * @returns The unsubscribe function (called automatically on abort)
+   */
+  protected onSignal<
+    S extends { subscribe: (handler: (value: T) => void) => () => void },
+    T = S extends { subscribe: (handler: (value: infer U) => void) => () => void } ? U : unknown,
+  >(signal: S, handler: (value: T) => void): () => void {
+    const unsubscribe = signal.subscribe(handler);
+    const abortHandler = () => {
+      unsubscribe();
+      this.eventAbortController.signal.removeEventListener("abort", abortHandler);
+    };
+    this.eventAbortController.signal.addEventListener("abort", abortHandler);
+    return unsubscribe;
+  }
+
   constructor(props: Props, parent?: CoreComponent) {
     super(props, parent);
 
@@ -224,9 +249,6 @@ export class Layer<
       colors: this.props.graph.$graphColors.value,
       constants: this.props.graph.$graphConstants.value,
     });
-    this.shouldRenderChildren = true;
-    this.shouldUpdateChildren = true;
-    this.performRender();
 
     // Subscribe to graph events here instead of in the constructor
     // This ensures that subscriptions are properly set up when the layer is reattached
@@ -241,15 +263,22 @@ export class Layer<
         constants: event.detail.constants,
       });
     });
-
-    // Add camera state subscription if needed
-    if (this.props.html?.transformByCameraPosition && this.html) {
-      this.onGraphEvent("camera-change", (event) => {
-        const camera = event.detail;
-        this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
-      });
-    }
+    this.onGraphEvent("camera-change", (event) => this.onCameraChange(event.detail));
     this.onSignal(this.props.graph.layers.rootSize, this.updateSize);
+
+    this.shouldRenderChildren = true;
+    this.shouldUpdateChildren = true;
+    this.onCameraChange(this.context.camera.getCameraState());
+    this.updateSize();
+  }
+
+  protected onCameraChange(camera: TCameraState) {
+    if (this.props.html?.transformByCameraPosition && this.html) {
+      this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
+    }
+    if (this.props.canvas?.transformByCameraPosition) {
+      this.performRender();
+    }
   }
 
   protected init() {
@@ -266,11 +295,6 @@ export class Layer<
         throw new Error("Attempt to recreate an html");
       }
       this.html = this.createHTML(this.props.html);
-    }
-
-    this.root = this.props.root as HTMLDivElement;
-    if (this.root) {
-      this.attachLayer(this.root);
     }
   }
 
@@ -322,8 +346,8 @@ export class Layer<
     if (this.html) {
       root.appendChild(this.html);
     }
-    this.afterInit();
     this.attached = true;
+    this.afterInit();
   }
 
   public detachLayer() {
@@ -389,28 +413,9 @@ export class Layer<
     this.applyTransform(cameraState?.x ?? 0, cameraState?.y ?? 0, cameraState?.scale ?? 1, true);
   }
 
-  /**
-   * Subscribes to a signal (with .subscribe) and automatically unsubscribes when the layer's AbortController is aborted.
-   *
-   * Usage:
-   *   this.onSignal(signal, handler)
-   *
-   * @template S - Signal type (must have .subscribe method)
-   * @template T - Value type of the signal
-   * @param signal - Signal with .subscribe method (returns unsubscribe function)
-   * @param handler - Handler function to call on signal change
-   * @returns The unsubscribe function (called automatically on abort)
-   */
-  protected onSignal<
-    S extends { subscribe: (handler: (value: T) => void) => () => void },
-    T = S extends { subscribe: (handler: (value: infer U) => void) => () => void } ? U : unknown,
-  >(signal: S, handler: (value: T) => void): () => void {
-    const unsubscribe = signal.subscribe(handler);
-    const abortHandler = () => {
-      unsubscribe();
-      this.eventAbortController.signal.removeEventListener("abort", abortHandler);
-    };
-    this.eventAbortController.signal.addEventListener("abort", abortHandler);
-    return unsubscribe;
+  protected render() {
+    if (this.canvas) {
+      this.resetTransform();
+    }
   }
 }
