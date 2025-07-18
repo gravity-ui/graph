@@ -60,7 +60,7 @@ For complete React integration documentation, see [React Components API](../reac
 
 ### NewBlockLayer
 
-[NewBlockLayer](newBlockLayer.md) is a good example that extends the library by enabling block creation:
+[NewBlockLayer](../../src/components/canvas/layers/newBlockLayer/NewBlockLayer.md) is a good example that extends the library by enabling block creation:
 - Clone blocks with Alt + drag
 - Customize ghost block appearance
 - Handle block creation events
@@ -75,7 +75,7 @@ interface GraphEventsDefinitions {
 
 ### ConnectionLayer
 
-[ConnectionLayer](connectionLayer.md) is another usefull extension that manages connections:
+[ConnectionLayer](../../src/components/canvas/layers/connectionLayer/ConnectionLayer.md) is another usefull extension that manages connections:
 - Create block-to-block connections (Shift + drag)
 - Create anchor-to-anchor connections
 - Customize connection appearance
