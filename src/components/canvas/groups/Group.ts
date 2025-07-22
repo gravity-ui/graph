@@ -100,7 +100,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
 
     this.subscribeToGroup();
 
-    this.addEventListener("click", (event: MouseEvent) => {
+    this.addEventListener("click", (event: PointerEvent) => {
       event.stopPropagation();
       this.groupState.setSelection(
         true,

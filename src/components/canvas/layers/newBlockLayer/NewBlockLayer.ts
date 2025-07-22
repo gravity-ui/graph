@@ -1,4 +1,4 @@
-import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
+import { GraphPointerEvent, extractNativeGraphPointerEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { BlockState } from "../../../../store/block/Block";
 import { getXY, isAltKeyEvent, isBlock } from "../../../../utils/functions";
@@ -90,13 +90,13 @@ export class NewBlockLayer extends Layer<
   protected afterInit(): void {
     super.afterInit();
     // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
-    this.onGraphEvent("mousedown", this.handleMouseDown, {
+    this.onGraphEvent("pointerdown", this.handlePointerDown, {
       capture: true,
     });
   }
 
-  protected handleMouseDown = (nativeEvent: GraphMouseEvent) => {
-    const event = extractNativeGraphMouseEvent(nativeEvent);
+  protected handlePointerDown = (nativeEvent: GraphPointerEvent) => {
+    const event = extractNativeGraphPointerEvent(nativeEvent);
     const target = nativeEvent.detail.target;
     if (event && isAltKeyEvent(event) && isBlock(target) && this.enabled) {
       // Check if duplication is allowed for this block
@@ -111,9 +111,9 @@ export class NewBlockLayer extends Layer<
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
       dragListener(this.root.ownerDocument)
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onStartNewBlock(event, target))
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onMoveNewBlock(event))
-        .on(EVENTS.DRAG_END, (event: MouseEvent) =>
+        .on(EVENTS.DRAG_START, (event: PointerEvent) => this.onStartNewBlock(event, target))
+        .on(EVENTS.DRAG_UPDATE, (event: PointerEvent) => this.onMoveNewBlock(event))
+        .on(EVENTS.DRAG_END, (event: PointerEvent) =>
           this.onEndNewBlock(event, this.context.graph.getPointInCameraSpace(event))
         );
     }
@@ -139,7 +139,7 @@ export class NewBlockLayer extends Layer<
     });
   }
 
-  private onStartNewBlock(event: MouseEvent, block: Block) {
+  private onStartNewBlock(event: PointerEvent, block: Block) {
     // Check if the clicked block is selected
     const isBlockSelected = block.connectedState.selected;
 
@@ -216,7 +216,7 @@ export class NewBlockLayer extends Layer<
   private lastMouseX: number;
   private lastMouseY: number;
 
-  private onMoveNewBlock(event: MouseEvent) {
+  private onMoveNewBlock(event: PointerEvent) {
     if (!this.copyBlocks.length) {
       return;
     }
@@ -252,7 +252,7 @@ export class NewBlockLayer extends Layer<
     this.performRender();
   }
 
-  private onEndNewBlock(event: MouseEvent, point: TPoint) {
+  private onEndNewBlock(event: PointerEvent, point: TPoint) {
     if (!this.copyBlocks.length) {
       return;
     }

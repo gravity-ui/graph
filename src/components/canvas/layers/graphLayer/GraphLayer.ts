@@ -1,5 +1,5 @@
 import { Graph } from "../../../../graph";
-import { GraphMouseEventNames, isNativeGraphEventName } from "../../../../graphEvents";
+import { GraphPointerEventNames, isNativeGraphEventName } from "../../../../graphEvents";
 import { Component } from "../../../../lib/Component";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { Camera, TCameraProps } from "../../../../services/camera/Camera";
@@ -7,7 +7,7 @@ import { ICamera } from "../../../../services/camera/CameraService";
 import { getEventDelta } from "../../../../utils/functions";
 import { EventedComponent } from "../../EventedComponent/EventedComponent";
 import { Blocks } from "../../blocks/Blocks";
-import { BlockConnection } from "../../connections/BlockConnection";
+import { BlockConnection } from "../../connections";
 import { BlockConnections } from "../../connections/BlockConnections";
 
 import { DrawBelow, DrawOver } from "./helpers";
@@ -26,19 +26,18 @@ export type TGraphLayerContext = LayerContext & {
 };
 
 const rootBubblingEventTypes = new Set([
-  "mousedown",
-  "touchstart",
-  "mouseup",
-  "touchend",
+  "pointerdown",
+  "pointerup",
   "click",
   "dblclick",
   "contextmenu",
+  "pointercancel",
 ]);
-const rootCapturingEventTypes = new Set(["mousedown", "touchstart", "mouseup", "touchend"]);
+const rootCapturingEventTypes = new Set(["pointerdown", "pointerup"]);
 
-export type GraphMouseEvent = CustomEvent<{
+export type GraphPointerEvent = CustomEvent<{
   target: EventedComponent;
-  sourceEvent: MouseEvent;
+  sourceEvent: PointerEvent;
   pointerPressed: boolean;
 }>;
 
@@ -55,11 +54,11 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private pointerStartTarget?: EventedComponent;
 
-  private pointerStartEvent?: MouseEvent;
+  private pointerStartEvent?: PointerEvent;
 
   private pointerPressed = false;
 
-  private eventByTargetComponent?: EventedComponent | MouseEvent;
+  private eventByTargetComponent?: EventedComponent | PointerEvent;
 
   private capturedTargetComponent?: EventedComponent;
 
@@ -125,7 +124,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     rootCapturingEventTypes.forEach((type) =>
       this.onRootEvent(type as keyof HTMLElementEventMap, this, { capture: true })
     );
-    this.onRootEvent("mousemove", this);
+    this.onRootEvent("pointermove", this);
   }
 
   /*
@@ -143,33 +142,32 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   }
 
   public handleEvent(e: Event): void {
-    if (e.type === "mousemove") {
-      this.updateTargetComponent(e as MouseEvent);
-      this.onRootPointerMove(e as MouseEvent);
+    if (e.type === "pointermove") {
+      this.updateTargetComponent(e as PointerEvent);
+      this.onRootPointerMove(e as PointerEvent);
       return;
     }
 
     if (e.eventPhase === Event.CAPTURING_PHASE && rootCapturingEventTypes.has(e.type)) {
-      this.tryEmulateClick(e as MouseEvent);
+      this.tryEmulateClick(e as PointerEvent);
       return;
     }
 
     if (e.eventPhase === Event.BUBBLING_PHASE && rootBubblingEventTypes.has(e.type)) {
       switch (e.type) {
-        case "mousedown":
-        case "touchstart": {
-          this.updateTargetComponent(e as MouseEvent, true);
-          this.handleMouseDownEvent(e as MouseEvent);
+        case "pointerdown": {
+          this.updateTargetComponent(e as PointerEvent, true);
+          this.handlePointerDownEvent(e as PointerEvent);
           break;
         }
-        case "mouseup":
-        case "touchend": {
-          this.onRootPointerEnd(e as MouseEvent);
+        case "pointercancel":
+        case "pointerup": {
+          this.onRootPointerEnd(e as PointerEvent);
           break;
         }
         case "click":
         case "dblclick": {
-          this.tryEmulateClick(e as MouseEvent);
+          this.tryEmulateClick(e as PointerEvent);
           break;
         }
       }
@@ -177,8 +175,8 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   }
 
   private dispatchNativeEvent(
-    type: GraphMouseEventNames,
-    event: MouseEvent | GraphMouseEvent,
+    type: GraphPointerEventNames,
+    event: PointerEvent | GraphPointerEvent,
     targetComponent?: EventedComponent
   ) {
     const graphEvent = this.props.graph.emit(type, {
@@ -193,7 +191,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     return true;
   }
 
-  private applyEventToTargetComponent(event: MouseEvent | GraphMouseEvent, target = this.targetComponent) {
+  private applyEventToTargetComponent(event: PointerEvent | GraphPointerEvent, target = this.targetComponent) {
     if (isNativeGraphEventName(event.type)) {
       if (!this.dispatchNativeEvent(event.type, event, target)) {
         return;
@@ -204,7 +202,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     target.dispatchEvent(event);
   }
 
-  private updateTargetComponent(event: MouseEvent, force = false) {
+  private updateTargetComponent(event: PointerEvent, force = false) {
     // Check is event is too close to previous event
     // In case when previous event is too close to current event, we don't need to update target component
     // This is useful to prevent flickering when user is moving mouse fast
@@ -224,7 +222,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     this.targetComponent = this.context.graph.getElementOverPoint(point) || this.$.camera;
   }
 
-  private onRootPointerMove(event: MouseEvent) {
+  private onRootPointerMove(event: PointerEvent) {
     if (this.targetComponent !== this.prevTargetComponent) {
       if (this.targetComponent?.cursor) {
         this.root.style.cursor = this.targetComponent?.cursor;
@@ -232,7 +230,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
         this.root.style.removeProperty("cursor");
       }
       this.applyEventToTargetComponent(
-        new CustomEvent("mouseleave", {
+        new CustomEvent("pointerleave", {
           bubbles: false,
           detail: {
             target: this.prevTargetComponent,
@@ -243,7 +241,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
         this.prevTargetComponent
       );
       this.applyEventToTargetComponent(
-        new CustomEvent("mouseout", {
+        new CustomEvent("pointerout", {
           bubbles: true,
           detail: {
             target: this.prevTargetComponent,
@@ -254,7 +252,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
         this.prevTargetComponent
       );
       this.applyEventToTargetComponent(
-        new CustomEvent("mouseenter", {
+        new CustomEvent("pointerenter", {
           bubbles: false,
           detail: {
             target: this.targetComponent,
@@ -265,7 +263,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
         this.targetComponent
       );
       this.applyEventToTargetComponent(
-        new CustomEvent("mouseover", {
+        new CustomEvent("pointerover", {
           bubbles: true,
           detail: {
             target: this.targetComponent,
@@ -278,11 +276,11 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     }
   }
 
-  private handleMouseDownEvent = (event: MouseEvent) => {
+  private handlePointerDownEvent = (event: PointerEvent) => {
     return this.onRootPointerStart(event);
   };
 
-  private onRootPointerStart(event: MouseEvent) {
+  private onRootPointerStart(event: PointerEvent) {
     if (event.button === 2 /* Mouse right button */) {
       /*
        * used contextmenu event to prevent native menu
@@ -297,7 +295,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     this.applyEventToTargetComponent(event);
   }
 
-  private onRootPointerEnd(event: MouseEvent) {
+  private onRootPointerEnd(event: PointerEvent) {
     if (event.button === 2 /* Mouse right button */) {
       /*
        * used contextmenu event to prevent native menu
@@ -312,15 +310,15 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     this.applyEventToTargetComponent(event);
   }
 
-  private tryEmulateClick(event: MouseEvent, target = this.targetComponent) {
-    if ((event.type === "mousedown" || event.type === "touchstart") && target !== undefined) {
+  private tryEmulateClick(event: PointerEvent, target = this.targetComponent) {
+    if (event.type === "pointerdown" && target !== undefined) {
       this.canEmulateClick = false;
       this.pointerStartTarget = target;
       this.pointerStartEvent = event;
     }
 
     if (
-      (event.type === "mouseup" || event.type === "touchend") &&
+      event.type === "pointerup" &&
       (this.pointerStartTarget === target ||
         // connections can be very close to each other
         (this.pointerStartTarget instanceof BlockConnection && target instanceof BlockConnection)) &&
@@ -331,8 +329,11 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
       this.canEmulateClick = true;
     }
 
-    if (this.canEmulateClick && (event.type === "click" || event.type === "dblclick")) {
-      this.applyEventToTargetComponent(new MouseEvent(event.type, event), this.pointerStartTarget);
+    if (
+      (this.canEmulateClick || event.pointerType === "touch") &&
+      (event.type === "click" || event.type === "dblclick")
+    ) {
+      this.applyEventToTargetComponent(new PointerEvent(event.type, event), target);
     }
   }
 

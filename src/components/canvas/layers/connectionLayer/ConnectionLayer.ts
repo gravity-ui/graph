@@ -1,4 +1,4 @@
-import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
+import { GraphPointerEvent, extractNativeGraphPointerEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { AnchorState } from "../../../../store/anchor/Anchor";
 import { BlockState, TBlockId } from "../../../../store/block/Block";
@@ -161,7 +161,7 @@ export class ConnectionLayer extends Layer<
    */
   protected afterInit(): void {
     // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
-    this.onGraphEvent("mousedown", this.handleMouseDown, {
+    this.onGraphEvent("pointerdown", this.handlePointerDown, {
       capture: true,
     });
 
@@ -177,9 +177,9 @@ export class ConnectionLayer extends Layer<
     this.enabled = false;
   };
 
-  protected handleMouseDown = (nativeEvent: GraphMouseEvent) => {
+  protected handlePointerDown = (nativeEvent: GraphPointerEvent) => {
     const target = nativeEvent.detail.target;
-    const event = extractNativeGraphMouseEvent(nativeEvent);
+    const event = extractNativeGraphPointerEvent(nativeEvent);
     if (!event || !target || !this.root?.ownerDocument) {
       return;
     }
@@ -199,13 +199,13 @@ export class ConnectionLayer extends Layer<
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
       dragListener(this.root.ownerDocument)
-        .on(EVENTS.DRAG_START, (dStartEvent: MouseEvent) => {
+        .on(EVENTS.DRAG_START, (dStartEvent: PointerEvent) => {
           this.onStartConnection(dStartEvent, this.context.graph.getPointInCameraSpace(dStartEvent));
         })
-        .on(EVENTS.DRAG_UPDATE, (dUpdateEvent: MouseEvent) =>
+        .on(EVENTS.DRAG_UPDATE, (dUpdateEvent: PointerEvent) =>
           this.onMoveNewConnection(dUpdateEvent, this.context.graph.getPointInCameraSpace(dUpdateEvent))
         )
-        .on(EVENTS.DRAG_END, (dEndEvent: MouseEvent) =>
+        .on(EVENTS.DRAG_END, (dEndEvent: PointerEvent) =>
           this.onEndNewConnection(this.context.graph.getPointInCameraSpace(dEndEvent))
         );
     }
@@ -289,7 +289,7 @@ export class ConnectionLayer extends Layer<
     return undefined;
   }
 
-  private onStartConnection(event: MouseEvent, point: Point) {
+  private onStartConnection(event: PointerEvent, point: Point) {
     const sourceComponent = this.context.graph.getElementOverPoint(point, [Block, Anchor]);
 
     if (!sourceComponent) {
@@ -326,7 +326,7 @@ export class ConnectionLayer extends Layer<
     this.performRender();
   }
 
-  private onMoveNewConnection(event: MouseEvent, point: Point) {
+  private onMoveNewConnection(event: PointerEvent, point: Point) {
     const newTargetComponent = this.context.graph.getElementOverPoint(point, [Block, Anchor]);
     const xy = getXY(this.context.graphCanvas, event);
 
