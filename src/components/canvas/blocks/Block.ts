@@ -348,9 +348,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   public getConnectionPoint(direction: "in" | "out"): TPoint {
+    const { x, y } = this.getGeometry();
     return {
-      x: this.connectedState.x + (direction === "out" ? this.connectedState.width : 0),
-      y: (this.connectedState.y + this.connectedState.height / 2) | 0,
+      x: x + (direction === "out" ? this.state.width : 0),
+      y: y + this.state.height / 2,
     };
   }
 
@@ -397,16 +398,18 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   protected renderStroke(color: string) {
     this.context.ctx.lineWidth = Math.round(3 / this.context.camera.getCameraScale());
     this.context.ctx.strokeStyle = color;
-    this.context.ctx.strokeRect(this.state.x, this.state.y, this.state.width, this.state.height);
+    const geometry = this.getGeometry();
+    this.context.ctx.strokeRect(geometry.x, geometry.y, geometry.width, geometry.height);
   }
 
   /* Returns rect of block size with padding */
   protected getContentRect(): TRect {
+    const { x, y, width, height } = this.getGeometry();
     return {
-      x: this.state.x + this.context.constants.text.PADDING,
-      y: this.state.y + this.context.constants.text.PADDING,
-      height: this.state.height - this.context.constants.text.PADDING * 2,
-      width: this.state.width - this.context.constants.text.PADDING * 2,
+      x: x + this.context.constants.text.PADDING,
+      y: y + this.context.constants.text.PADDING,
+      height: height - this.context.constants.text.PADDING * 2,
+      width: width - this.context.constants.text.PADDING * 2,
     };
   }
 
@@ -429,7 +432,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     ctx.fillStyle = this.context.colors.block.background;
     ctx.strokeStyle = this.context.colors.block.border;
 
-    ctx.fillRect(this.state.x, this.state.y, this.state.width, this.state.height);
+    const geometry = this.getGeometry();
+    ctx.fillRect(geometry.x, geometry.y, geometry.width, geometry.height);
     this.renderStroke(
       this.state.selected ? this.context.colors.block.selectedBorder : this.context.colors.block.border
     );
