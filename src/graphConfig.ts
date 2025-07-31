@@ -95,6 +95,13 @@ export type TGraphConstants = {
     SPEED: number;
     /* Step on camera scale */
     STEP: number;
+    /* Edge panning settings */
+    EDGE_PANNING: {
+      /* Size of edge detection zone in pixels */
+      EDGE_SIZE: number;
+      /* Speed of camera movement during edge panning */
+      SPEED: number;
+    };
   };
 
   block: {
@@ -140,6 +147,10 @@ export const initGraphConstants: TGraphConstants = {
   camera: {
     SPEED: 1,
     STEP: 0.008,
+    EDGE_PANNING: {
+      EDGE_SIZE: 150,
+      SPEED: 15,
+    },
   },
   block: {
     WIDTH_MIN: 16 * 10,

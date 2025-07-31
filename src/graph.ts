@@ -10,6 +10,7 @@ import { SelectionLayer } from "./components/canvas/layers/selectionLayer/Select
 import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
 import { GraphEventParams, GraphEventsDefinitions } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
+import { DragController } from "./services/DragController";
 import { HitTest } from "./services/HitTest";
 import { Layer } from "./services/Layer";
 import { Layers } from "./services/LayersService";
@@ -62,6 +63,8 @@ export class Graph {
   public rootStore: RootStore = new RootStore(this);
 
   public hitTest = new HitTest();
+
+  public dragController = new DragController(this);
 
   protected graphLayer: GraphLayer;
 
@@ -383,6 +386,7 @@ export class Graph {
    * In order to initialize hitboxes we need to start scheduler and wait untils every component registered in hitTest service
    * Immediatelly after registering startign a rendering process.
    * @param cb - Callback to run after graph is ready
+   * @returns void
    */
   public runAfterGraphReady(cb: () => void) {
     this.hitTest.waitUsableRectUpdate(cb);
