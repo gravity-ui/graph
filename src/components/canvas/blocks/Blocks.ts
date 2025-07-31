@@ -69,7 +69,7 @@ export class Blocks extends GraphComponent {
       const selectedBlocksComponents: Block[] = selectedBlocksStates.map((block) => block.getViewComponent());
 
       this.context.graph.getGraphLayer().captureEvents(blockInstance);
-      const gridSnap = DragModifiers.gridSnap(15, "drop");
+      const gridSnap = DragModifiers.gridSnap(10);
 
       // Получаем начальную позицию основного блока (который инициировал драг)
       const mainBlockState = blockInstance.connectedState;

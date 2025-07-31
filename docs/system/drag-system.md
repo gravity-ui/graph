@@ -1048,3 +1048,243 @@ interface DragContext {
 ```
 
 This comprehensive API allows for flexible, performant drag implementations that can handle everything from simple block movement to complex multi-entity operations with sophisticated snapping and alignment behaviors.
+
+## Drag Lifecycle and State Transitions
+
+The drag system operates through a well-defined lifecycle with three distinct stages. Understanding these stages is crucial for implementing effective position modifiers and drag behaviors.
+
+### Drag Stage State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> start: dragController.start()
+    start --> dragging: dragInfo.update()
+    dragging --> dragging: dragInfo.update()
+    dragging --> drop: dragInfo.end()
+    drop --> [*]: dragInfo.reset()
+    
+    state start {
+        [*] --> onDragStart
+        onDragStart --> [*]
+    }
+    
+    state dragging {
+        [*] --> analyzeSuggestions
+        analyzeSuggestions --> beforeUpdate
+        beforeUpdate --> onDragUpdate
+        onDragUpdate --> [*]
+    }
+    
+    state drop {
+        [*] --> analyzeSuggestions_final
+        analyzeSuggestions_final --> beforeUpdate_final
+        beforeUpdate_final --> onDragUpdate_final
+        onDragUpdate_final --> onDragEnd
+        onDragEnd --> [*]
+    }
+```
+
+### Stage Descriptions
+
+**Start Stage (`"start"`):**
+- **Trigger**: User initiates drag (mouse down + initial movement)
+- **Purpose**: Initialize drag state, show visual feedback, prepare for movement
+- **Modifiers**: Generally inactive to avoid interfering with drag initiation
+- **Duration**: Single event cycle
+
+**Dragging Stage (`"dragging"`):**
+- **Trigger**: Mouse movement during active drag
+- **Purpose**: Continuous position updates, real-time visual feedback
+- **Modifiers**: Can apply for real-time effects (previews, smooth snapping)
+- **Duration**: Multiple event cycles until mouse release
+
+**Drop Stage (`"drop"`):**
+- **Trigger**: User releases mouse button
+- **Purpose**: Final position calculation, snap to final positions
+- **Modifiers**: Ideal for snap behaviors (grid, alignment, magnetism)
+- **Duration**: Single event cycle before cleanup
+
+### Method Call Sequence
+
+The following sequence diagram shows the precise order of method calls during a complete drag operation:
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant DragController
+    participant DragInfo
+    participant DragHandler
+    participant Modifiers
+
+    Note over User,Modifiers: START PHASE
+    User->>DragController: start(handler, event, config)
+    DragController->>DragInfo: new DragInfo(modifiers, context)
+    DragController->>DragInfo: init(event) [stage = "start"]
+    DragController->>DragHandler: onDragStart(event, dragInfo)
+
+    Note over User,Modifiers: DRAGGING PHASE (multiple times)
+    User->>DragController: update(event)
+    DragController->>DragInfo: update(event) [stage = "dragging"]
+    DragController->>DragInfo: analyzeSuggestions()
+    DragInfo->>Modifiers: applicable(pos, dragInfo, ctx)
+    Modifiers-->>DragInfo: true/false based on stage
+    DragInfo->>Modifiers: suggest(pos, dragInfo, ctx)
+    Modifiers-->>DragInfo: modified position
+    DragController->>DragHandler: beforeUpdate(dragInfo)
+    DragHandler->>DragInfo: selectModifier() or selectDefault()
+    DragController->>DragHandler: onDragUpdate(event, dragInfo)
+
+    Note over User,Modifiers: DROP PHASE
+    User->>DragController: end(event)
+    DragController->>DragInfo: end(event) [stage = "drop"]
+    DragController->>DragInfo: analyzeSuggestions()
+    DragInfo->>Modifiers: applicable(pos, dragInfo, ctx)
+    Note right of Modifiers: gridSnapOnDrop returns true<br/>for stage === "drop"
+    DragInfo->>Modifiers: suggest(pos, dragInfo, ctx)
+    Modifiers-->>DragInfo: snapped position
+    DragController->>DragHandler: beforeUpdate(dragInfo)
+    DragController->>DragHandler: onDragUpdate(event, dragInfo)
+    Note right of DragHandler: Gets final snapped positions
+    DragController->>DragHandler: onDragEnd(event, dragInfo)
+    DragController->>DragInfo: reset()
+```
+
+### Position Modifier Flow by Stage
+
+This flowchart illustrates how position modifiers are evaluated and applied at different stages:
+
+```mermaid
+flowchart TD
+    A[Mouse Event] --> B{Stage?}
+    
+    B -->|start| C[Stage: START]
+    B -->|dragging| D[Stage: DRAGGING]  
+    B -->|drop| E[Stage: DROP]
+    
+    C --> C1[No modifiers applied]
+    C1 --> C2[onDragStart called]
+    
+    D --> D1[Check modifiers]
+    D1 --> D2{gridSnap applicable?}
+    D2 -->|No for dragging| D3[Skip gridSnap]
+    D2 -->|Yes for dragging| D4[Apply gridSnap]
+    D3 --> D5[Smooth movement]
+    D4 --> D5
+    D5 --> D6[onDragUpdate called]
+    
+    E --> E1[Check modifiers]
+    E1 --> E2{gridSnapOnDrop applicable?}
+    E2 -->|Yes for drop| E3[Apply snap to grid]
+    E2 -->|No for drop| E4[No snap]
+    E3 --> E5[Final snapped position]
+    E4 --> E5
+    E5 --> E6[onDragUpdate with final pos]
+    E6 --> E7[onDragEnd called]
+    
+    subgraph Examples ["Modifier Examples"]
+        M1["gridSnap(20, 'dragging')<br/>applies during movement"]
+        M2["gridSnapOnDrop(20)<br/>applies only at end"]
+        M3["previewSnap<br/>shows preview during drag"]
+    end
+```
+
+## Stage-based Modifier Patterns
+
+### Pattern 1: Snap Only on Drop
+Perfect for clean final positioning without interference during movement:
+
+```typescript
+const snapOnDrop = DragModifiers.gridSnapOnDrop(20);
+// Only activates when ctx.stage === "drop"
+```
+
+### Pattern 2: Real-time Snapping
+For immediate visual feedback during movement:
+
+```typescript
+const realtimeSnap = DragModifiers.gridSnap(20, "dragging");
+// Activates when ctx.stage === "dragging"
+```
+
+### Pattern 3: Progressive Behavior
+Different behaviors for different stages:
+
+```typescript
+const progressiveModifier = {
+  name: "progressive",
+  priority: 10,
+  applicable: (pos, dragInfo, ctx) => {
+    if (ctx.stage === "start") return false;     // No modification at start
+    if (ctx.stage === "dragging") return true;   // Loose snapping during drag
+    if (ctx.stage === "drop") return true;       // Precise snapping on drop
+  },
+  suggest: (pos, dragInfo, ctx) => {
+    const gridSize = ctx.stage === "dragging" ? 40 : 20; // Larger grid during drag
+    return new Point(
+      Math.round(pos.x / gridSize) * gridSize,
+      Math.round(pos.y / gridSize) * gridSize
+    );
+  }
+};
+```
+
+### Pattern 4: Preview + Final
+Show preview during drag, apply on drop:
+
+```typescript
+const previewModifier = {
+  name: "preview",
+  applicable: (pos, dragInfo, ctx) => ctx.stage === "dragging",
+  suggest: (pos, dragInfo, ctx) => {
+    // Calculate snap position but don't apply
+    ctx.previewPosition = calculateSnapPosition(pos);
+    return pos; // Return original position
+  }
+};
+
+const finalModifier = {
+  name: "final",
+  applicable: (pos, dragInfo, ctx) => ctx.stage === "drop",
+  suggest: (pos, dragInfo, ctx) => {
+    // Apply the previewed position
+    return ctx.previewPosition || pos;
+  }
+};
+```
+
+## Implementation Guidelines
+
+### Best Practices for Stage-aware Modifiers
+
+1. **Start Stage**: Avoid position modifications to prevent interfering with drag initiation
+2. **Dragging Stage**: Use for real-time feedback, loose snapping, or preview calculations
+3. **Drop Stage**: Ideal for precise final positioning, grid snapping, alignment
+
+### Performance Considerations
+
+- **Dragging stage modifiers** run on every mouse move - keep them lightweight
+- **Drop stage modifiers** run once - can be more computationally expensive
+- Use `ctx.stage` checks early in `applicable()` for optimal performance
+
+### Multi-stage Modifier Design
+
+```typescript
+const smartModifier = {
+  name: "smart",
+  applicable: (pos, dragInfo, ctx) => {
+    // Quick stage filtering
+    if (ctx.stage === "start") return false;
+    
+    // Stage-specific logic
+    return ctx.stage === "dragging" ? 
+      ctx.showPreview : 
+      ctx.enableSnapping;
+  },
+  suggest: (pos, dragInfo, ctx) => {
+    const intensity = ctx.stage === "dragging" ? 0.5 : 1.0;
+    return applySnapping(pos, intensity);
+  }
+};
+```
+
+This stage-based architecture provides a clean, extensible foundation for implementing sophisticated drag behaviors while maintaining optimal performance and user experience.

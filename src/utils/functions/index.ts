@@ -315,31 +315,4 @@ export const DragModifiers = {
       );
     },
   }),
-
-  /**
-   * Создает модификатор для привязки к сетке только при завершении перетаскивания (stage === 'drop')
-   * Применяется только на стадии 'drop' для snap только при отпускании мыши
-   * @param gridSize - Размер ячейки сетки в пикселях
-   * @returns Модификатор gridSnapOnDrop
-   */
-  gridSnapOnDrop: (gridSize: number): PositionModifier => ({
-    name: "grid-snap-on-drop",
-    priority: 10,
-
-    applicable: (pos, dragInfo, ctx) => {
-      // Применяется только на стадии 'drop'
-      const isDropStage = ctx.stage === "drop";
-      const isEnabled = ctx.enableGridSnap !== false; // По умолчанию включен
-      return isDropStage && !dragInfo.isMicroDrag() && isEnabled;
-    },
-
-    suggest: (pos, _dragInfo, ctx) => {
-      // Можно переопределить размер сетки через контекст
-      const effectiveGridSize = (ctx.gridSize as number) || gridSize;
-      return new Point(
-        Math.round(pos.x / effectiveGridSize) * effectiveGridSize,
-        Math.round(pos.y / effectiveGridSize) * effectiveGridSize
-      );
-    },
-  }),
 };
