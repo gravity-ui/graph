@@ -5,8 +5,6 @@ import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
 import { getXY } from "../../../utils/functions";
-import { dragListener } from "../../../utils/functions/dragListener";
-import { EVENTS } from "../../../utils/types/events";
 import { EventedComponent } from "../EventedComponent/EventedComponent";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
@@ -22,7 +20,7 @@ export class GraphComponent<
 > extends EventedComponent<Props, State, Context> {
   public hitBox: HitBox;
 
-  private unsubscribe: (() => void)[] = [];
+  protected unsubscribe: (() => void)[] = [];
 
   constructor(props: Props, parent: Component) {
     super(props, parent);
@@ -54,32 +52,36 @@ export class GraphComponent<
         return;
       }
       event.stopPropagation();
-      dragListener(this.context.ownerDocument)
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => {
-          if (onDragStart?.(event) === false) {
-            return;
-          }
-          this.context.graph.getGraphLayer().captureEvents(this);
-          const xy = getXY(this.context.canvas, event);
-          startDragCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
-        })
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => {
-          if (!startDragCoords.length) return;
+      this.context.graph.dragController.start(
+        {
+          onDraggingStart: (event) => {
+            if (onDragStart?.(event) === false) {
+              return;
+            }
+            this.context.graph.getGraphLayer().captureEvents(this);
+            const xy = getXY(this.context.canvas, event);
+            startDragCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
+          },
+          onDragUpdate: (event) => {
+            if (!startDragCoords.length) return;
 
-          const [canvasX, canvasY] = getXY(this.context.canvas, event);
-          const currentCoords = this.context.camera.applyToPoint(canvasX, canvasY);
+            const [canvasX, canvasY] = getXY(this.context.canvas, event);
+            const currentCoords = this.context.camera.applyToPoint(canvasX, canvasY);
 
-          const diffX = (startDragCoords[0] - currentCoords[0]) | 0;
-          const diffY = (startDragCoords[1] - currentCoords[1]) | 0;
+            const diffX = (startDragCoords[0] - currentCoords[0]) | 0;
+            const diffY = (startDragCoords[1] - currentCoords[1]) | 0;
 
-          onDragUpdate?.({ prevCoords: startDragCoords, currentCoords, diffX, diffY }, event);
-          startDragCoords = currentCoords;
-        })
-        .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
-          this.context.graph.getGraphLayer().releaseCapture();
-          startDragCoords = undefined;
-          onDrop?.(_event);
-        });
+            onDragUpdate?.({ prevCoords: startDragCoords, currentCoords, diffX, diffY }, event);
+            startDragCoords = currentCoords;
+          },
+          onDragEnd: (event) => {
+            this.context.graph.getGraphLayer().releaseCapture();
+            startDragCoords = undefined;
+            onDrop?.(event);
+          },
+        },
+        event
+      );
     });
   }
 
