@@ -1,10 +1,9 @@
 import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
+import { DragHandler } from "../../../../services/DragController";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { selectBlockList } from "../../../../store/block/selectors";
-import { getXY, isBlock, isMetaKeyEvent } from "../../../../utils/functions";
-import { dragListener } from "../../../../utils/functions/dragListener";
+import { isBlock, isMetaKeyEvent } from "../../../../utils/functions";
 import { render } from "../../../../utils/renderers/render";
-import { EVENTS } from "../../../../utils/types/events";
 import { TRect } from "../../../../utils/types/shapes";
 import { Anchor } from "../../anchors";
 import { Block } from "../../blocks/Block";
@@ -39,6 +38,10 @@ export class SelectionLayer extends Layer<
     this.setContext({
       canvas: this.getCanvas(),
       ctx: this.getCanvas().getContext("2d"),
+      camera: props.camera,
+      constants: this.props.graph.graphConstants,
+      colors: this.props.graph.graphColors,
+      graph: this.props.graph,
     });
   }
 
@@ -46,6 +49,7 @@ export class SelectionLayer extends Layer<
    * Called after initialization and when the layer is reattached.
    * This is where we set up event subscriptions to ensure they work properly
    * after the layer is unmounted and reattached.
+   * @returns {void}
    */
   protected afterInit(): void {
     // Set up event handlers here instead of in constructor
@@ -74,13 +78,17 @@ export class SelectionLayer extends Layer<
       ctx.fillStyle = this.context.colors.selection.background;
       ctx.strokeStyle = this.context.colors.selection.border;
       ctx.beginPath();
-      ctx.roundRect(
-        this.selection.x,
-        this.selection.y,
-        this.selection.width,
-        this.selection.height,
-        Number(this.context.graph.layers.getDPR())
-      );
+
+      // Преобразуем мировые координаты в координаты canvas для рендеринга
+      const scale = this.context.camera.getCameraScale();
+      const cameraRect = this.context.camera.getCameraRect();
+
+      const canvasX = this.selection.x * scale + cameraRect.x;
+      const canvasY = this.selection.y * scale + cameraRect.y;
+      const canvasWidth = this.selection.width * scale;
+      const canvasHeight = this.selection.height * scale;
+
+      ctx.roundRect(canvasX, canvasY, canvasWidth, canvasHeight, Number(this.context.graph.layers.getDPR()));
       ctx.closePath();
 
       ctx.fill();
@@ -102,24 +110,30 @@ export class SelectionLayer extends Layer<
     if (event && isMetaKeyEvent(event)) {
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
-      dragListener(this.root.ownerDocument)
-        .on(EVENTS.DRAG_START, this.startSelectionRender)
-        .on(EVENTS.DRAG_UPDATE, this.updateSelectionRender)
-        .on(EVENTS.DRAG_END, this.endSelectionRender);
+
+      const selectionHandler: DragHandler = {
+        onDraggingStart: this.startSelectionRender,
+        onDragUpdate: this.updateSelectionRender,
+        onDragEnd: this.endSelectionRender,
+      };
+
+      this.context.graph.dragController.start(selectionHandler, event, {
+        enableEdgePanning: true, // Отключаем edge panning для выделения
+      });
     }
   };
 
   private updateSelectionRender = (event: MouseEvent) => {
-    const [x, y] = getXY(this.context.canvas, event);
-    this.selection.width = x - this.selection.x;
-    this.selection.height = y - this.selection.y;
+    const worldPoint = this.context.graph.getPointInCameraSpace(event);
+    this.selection.width = worldPoint.x - this.selection.x;
+    this.selection.height = worldPoint.y - this.selection.y;
     this.performRender();
   };
 
   private startSelectionRender = (event: MouseEvent) => {
-    const [x, y] = getXY(this.context.canvas, event);
-    this.selection.x = x;
-    this.selection.y = y;
+    const worldPoint = this.context.graph.getPointInCameraSpace(event);
+    this.selection.x = worldPoint.x;
+    this.selection.y = worldPoint.y;
   };
 
   private endSelectionRender = (event: MouseEvent) => {
@@ -127,15 +141,11 @@ export class SelectionLayer extends Layer<
       return;
     }
 
-    const [x, y] = getXY(this.context.canvas, event);
-    const selectionRect = getSelectionRect(this.selection.x, this.selection.y, x, y);
-    const cameraRect = this.context.graph.cameraService.applyToRect(
-      selectionRect[0],
-      selectionRect[1],
-      selectionRect[2],
-      selectionRect[3]
-    );
-    this.applySelectedArea(cameraRect[0], cameraRect[1], cameraRect[2], cameraRect[3]);
+    const worldPoint = this.context.graph.getPointInCameraSpace(event);
+    const selectionRect = getSelectionRect(this.selection.x, this.selection.y, worldPoint.x, worldPoint.y);
+
+    // Координаты уже в мировом пространстве, преобразование не нужно
+    this.applySelectedArea(selectionRect[0], selectionRect[1], selectionRect[2], selectionRect[3]);
     this.selection.width = 0;
     this.selection.height = 0;
     this.performRender();

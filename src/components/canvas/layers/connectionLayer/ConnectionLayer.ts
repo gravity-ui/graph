@@ -1,12 +1,11 @@
 import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
+import { DragHandler } from "../../../../services/DragController";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { AnchorState } from "../../../../store/anchor/Anchor";
 import { BlockState, TBlockId } from "../../../../store/block/Block";
-import { getXY, isBlock, isShiftKeyEvent } from "../../../../utils/functions";
-import { dragListener } from "../../../../utils/functions/dragListener";
+import { isBlock, isShiftKeyEvent } from "../../../../utils/functions";
 import { render } from "../../../../utils/renderers/render";
 import { renderSVG } from "../../../../utils/renderers/svgPath";
-import { EVENTS } from "../../../../utils/types/events";
 import { Point, TPoint } from "../../../../utils/types/shapes";
 import { ESelectionStrategy } from "../../../../utils/types/types";
 import { Anchor } from "../../../canvas/anchors";
@@ -158,6 +157,7 @@ export class ConnectionLayer extends Layer<
    * Called after initialization and when the layer is reattached.
    * This is where we set up event subscriptions to ensure they work properly
    * after the layer is unmounted and reattached.
+   * @returns {void}
    */
   protected afterInit(): void {
     // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
@@ -169,14 +169,27 @@ export class ConnectionLayer extends Layer<
     super.afterInit();
   }
 
+  /**
+   * Enables connection creation functionality
+   * @returns {void}
+   */
   public enable = () => {
     this.enabled = true;
   };
 
+  /**
+   * Disables connection creation functionality
+   * @returns {void}
+   */
   public disable = () => {
     this.enabled = false;
   };
 
+  /**
+   * Handles mousedown events to initiate connection creation
+   * @param {GraphMouseEvent} nativeEvent - The graph mouse event
+   * @returns {void}
+   */
   protected handleMouseDown = (nativeEvent: GraphMouseEvent) => {
     const target = nativeEvent.detail.target;
     const event = extractNativeGraphMouseEvent(nativeEvent);
@@ -198,20 +211,26 @@ export class ConnectionLayer extends Layer<
 
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
-      dragListener(this.root.ownerDocument)
-        .on(EVENTS.DRAG_START, (dStartEvent: MouseEvent) => {
+
+      const connectionHandler: DragHandler = {
+        onDraggingStart: (dStartEvent: MouseEvent) => {
           this.onStartConnection(dStartEvent, this.context.graph.getPointInCameraSpace(dStartEvent));
-        })
-        .on(EVENTS.DRAG_UPDATE, (dUpdateEvent: MouseEvent) =>
-          this.onMoveNewConnection(dUpdateEvent, this.context.graph.getPointInCameraSpace(dUpdateEvent))
-        )
-        .on(EVENTS.DRAG_END, (dEndEvent: MouseEvent) =>
-          this.onEndNewConnection(this.context.graph.getPointInCameraSpace(dEndEvent))
-        );
+        },
+        onDragUpdate: (dUpdateEvent: MouseEvent) => {
+          this.onMoveNewConnection(dUpdateEvent, this.context.graph.getPointInCameraSpace(dUpdateEvent));
+        },
+        onDragEnd: (dEndEvent: MouseEvent) => {
+          this.onEndNewConnection(this.context.graph.getPointInCameraSpace(dEndEvent));
+        },
+      };
+
+      this.context.graph.dragController.start(connectionHandler, event, {
+        enableEdgePanning: true, // Включаем edge panning для соединений
+      });
     }
   };
 
-  protected renderEndpoint(ctx: CanvasRenderingContext2D) {
+  protected renderEndpoint(ctx: CanvasRenderingContext2D, endCanvasX: number, endCanvasY: number) {
     ctx.beginPath();
     if (!this.target && this.props.createIcon) {
       renderSVG(
@@ -223,7 +242,7 @@ export class ConnectionLayer extends Layer<
           initialHeight: this.props.createIcon.viewHeight,
         },
         ctx,
-        { x: this.connectionState.tx, y: this.connectionState.ty - 12, width: 24, height: 24 }
+        { x: endCanvasX, y: endCanvasY - 12, width: 24, height: 24 }
       );
     } else if (this.props.point) {
       ctx.fillStyle = this.props.point.fill || this.context.colors.canvas.belowLayerBackground;
@@ -240,7 +259,7 @@ export class ConnectionLayer extends Layer<
           initialHeight: this.props.point.viewHeight,
         },
         ctx,
-        { x: this.connectionState.tx, y: this.connectionState.ty - 12, width: 24, height: 24 }
+        { x: endCanvasX, y: endCanvasY - 12, width: 24, height: 24 }
       );
     }
     ctx.closePath();
@@ -252,10 +271,19 @@ export class ConnectionLayer extends Layer<
       return;
     }
 
+    // Преобразуем мировые координаты в координаты canvas для рендеринга
+    const scale = this.context.camera.getCameraScale();
+    const cameraRect = this.context.camera.getCameraRect();
+
+    const startCanvasX = this.connectionState.sx * scale + cameraRect.x;
+    const startCanvasY = this.connectionState.sy * scale + cameraRect.y;
+    const endCanvasX = this.connectionState.tx * scale + cameraRect.x;
+    const endCanvasY = this.connectionState.ty * scale + cameraRect.y;
+
     if (this.props.drawLine) {
       const { path, style } = this.props.drawLine(
-        { x: this.connectionState.sx, y: this.connectionState.sy },
-        { x: this.connectionState.tx, y: this.connectionState.ty }
+        { x: startCanvasX, y: startCanvasY },
+        { x: endCanvasX, y: endCanvasY }
       );
 
       this.context.ctx.strokeStyle = style.color;
@@ -264,14 +292,14 @@ export class ConnectionLayer extends Layer<
     } else {
       this.context.ctx.beginPath();
       this.context.ctx.strokeStyle = this.context.colors.connection.selectedBackground;
-      this.context.ctx.moveTo(this.connectionState.sx, this.connectionState.sy);
-      this.context.ctx.lineTo(this.connectionState.tx, this.connectionState.ty);
+      this.context.ctx.moveTo(startCanvasX, startCanvasY);
+      this.context.ctx.lineTo(endCanvasX, endCanvasY);
       this.context.ctx.stroke();
       this.context.ctx.closePath();
     }
 
     render(this.context.ctx, (ctx) => {
-      this.renderEndpoint(ctx);
+      this.renderEndpoint(ctx, endCanvasX, endCanvasY);
     });
   }
 
@@ -298,11 +326,11 @@ export class ConnectionLayer extends Layer<
 
     this.sourceComponent = sourceComponent.connectedState;
 
-    const xy = getXY(this.context.graphCanvas, event);
+    // Используем мировые координаты вместо координат canvas
     this.connectionState = {
       ...this.connectionState,
-      sx: xy[0],
-      sy: xy[1],
+      sx: point.x,
+      sy: point.y,
     };
 
     this.context.graph.executеDefaultEventAction(
@@ -328,12 +356,12 @@ export class ConnectionLayer extends Layer<
 
   private onMoveNewConnection(event: MouseEvent, point: Point) {
     const newTargetComponent = this.context.graph.getElementOverPoint(point, [Block, Anchor]);
-    const xy = getXY(this.context.graphCanvas, event);
 
+    // Используем мировые координаты вместо координат canvas
     this.connectionState = {
       ...this.connectionState,
-      tx: xy[0],
-      ty: xy[1],
+      tx: point.x,
+      ty: point.y,
     };
     this.performRender();
 
