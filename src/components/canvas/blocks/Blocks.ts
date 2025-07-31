@@ -1,6 +1,6 @@
 import { BlockState } from "../../../store/block/Block";
 import { BlockListStore } from "../../../store/block/BlocksList";
-import { isMetaKeyEvent } from "../../../utils/functions";
+import { DragModifiers, isMetaKeyEvent } from "../../../utils/functions";
 import { ESelectionStrategy } from "../../../utils/types/types";
 import { GraphComponent } from "../GraphComponent";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
@@ -56,7 +56,6 @@ export class Blocks extends GraphComponent {
 
     this.addEventListener("mousedown", (event) => {
       const blockInstance = this.getTargetComponent(event);
-      // const { target: blockInstance, sourceEvent } = graphEvent.detail;
 
       if (!(blockInstance instanceof Block) || !blockInstance.isDraggable()) {
         return;
@@ -70,26 +69,46 @@ export class Blocks extends GraphComponent {
       const selectedBlocksComponents: Block[] = selectedBlocksStates.map((block) => block.getViewComponent());
 
       this.context.graph.getGraphLayer().captureEvents(blockInstance);
+      const gridSnap = DragModifiers.gridSnap(15, "drop");
+
+      // Получаем начальную позицию основного блока (который инициировал драг)
+      const mainBlockState = blockInstance.connectedState;
+      const initialEntityPosition = { x: mainBlockState.x, y: mainBlockState.y };
+
       this.context.graph.dragController.start(
         {
-          onDragStart: (dragEvent, _dragInfo) => {
-            for (const block of selectedBlocksComponents) {
+          onDragStart: (dragEvent, dragInfo) => {
+            const blocks = dragInfo.context.selectedBlocks as Block[];
+            for (const block of blocks) {
               block.onDragStart(dragEvent);
             }
           },
+          beforeUpdate: (dragInfo) => {
+            dragInfo.selectModifier(gridSnap.name);
+          },
           onDragUpdate: (dragEvent, dragInfo) => {
-            for (const block of selectedBlocksComponents) {
+            const blocks = dragInfo.context.selectedBlocks as Block[];
+            for (const block of blocks) {
               block.onDragUpdate(dragEvent, dragInfo);
             }
           },
           onDragEnd: (dragEvent, dragInfo) => {
             this.context.graph.getGraphLayer().releaseCapture();
-            for (const block of selectedBlocksComponents) {
-              block.onDragEnd(dragEvent, dragInfo);
+            const blocks = dragInfo.context.selectedBlocks as Block[];
+            for (const block of blocks) {
+              block.onDragEnd(dragEvent);
             }
           },
         },
-        event as MouseEvent
+        event as MouseEvent,
+        {
+          positionModifiers: [gridSnap],
+          initialEntityPosition: initialEntityPosition,
+          context: {
+            enableGridSnap: true,
+            selectedBlocks: selectedBlocksComponents,
+          },
+        }
       );
     });
   }

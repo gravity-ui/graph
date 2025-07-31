@@ -251,32 +251,26 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   public onDragUpdate(event: MouseEvent, dragInfo: DragInfo) {
     if (!this.startDragCoords) return;
 
-    const [x, y] = this.calcNextDragPosition(dragInfo);
+    // Применяем скорректированную дельту к начальной позиции этого блока
+    const newPos = dragInfo.applyAdjustedDelta(this.startDragCoords[0], this.startDragCoords[1]);
 
     this.context.graph.executеDefaultEventAction(
       "block-drag",
       {
         nativeEvent: event,
         block: this.connectedState.asTBlock(),
-        x,
-        y,
+        x: newPos.x,
+        y: newPos.y,
       },
-      () => this.applyNextPosition(x, y)
+      () => this.applyNextPosition(newPos.x, newPos.y)
     );
   }
 
-  protected calcNextDragPosition(dragInfo: DragInfo, snapToGrid?: boolean) {
+  protected calcNextDragPosition(dragInfo: DragInfo) {
     const diff = dragInfo.worldDelta;
 
-    let nextX = this.startDragCoords[0] + diff.x;
-    let nextY = this.startDragCoords[1] + diff.y;
-
-    const spanGridSize = 15; //this.context.constants.block.SNAPPING_GRID_SIZE;
-
-    if (snapToGrid && spanGridSize > 1) {
-      nextX = Math.round(nextX / spanGridSize) * spanGridSize;
-      nextY = Math.round(nextY / spanGridSize) * spanGridSize;
-    }
+    const nextX = this.startDragCoords[0] + diff.x;
+    const nextY = this.startDragCoords[1] + diff.y;
 
     return [nextX, nextY];
   }

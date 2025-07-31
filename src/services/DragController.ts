@@ -3,12 +3,18 @@ import { ESchedulerPriority, scheduler } from "../lib/Scheduler";
 import { dragListener } from "../utils/functions/dragListener";
 import { EVENTS } from "../utils/types/events";
 
-import { DragInfo } from "./DragInfo";
+import { DragInfo, PositionModifier } from "./DragInfo";
 
 /**
  * Интерфейс для компонентов, которые могут быть перетаскиваемыми
  */
 export interface DragHandler {
+  /**
+   * Вызывается перед обновлением позиции для выбора модификатора
+   * @param dragInfo - Statefull модель с информацией о перетаскивании
+   */
+  beforeUpdate?(dragInfo: DragInfo): void;
+
   /**
    * Вызывается при начале перетаскивания
    * @param event - Событие мыши
@@ -37,6 +43,12 @@ export interface DragHandler {
 export interface DragControllerConfig {
   /** Включить автоматическое движение камеры при приближении к границам */
   enableEdgePanning?: boolean;
+  /** Модификаторы позиции для коррекции координат во время перетаскивания */
+  positionModifiers?: PositionModifier[];
+  /** Дополнительный контекст для передачи в модификаторы */
+  context?: Record<string, unknown>;
+  /** Начальная позиция перетаскиваемой сущности в пространстве камеры */
+  initialEntityPosition?: { x: number; y: number };
 }
 
 /**
@@ -57,7 +69,6 @@ export class DragController {
 
   constructor(graph: Graph) {
     this.graph = graph;
-    this.dragInfo = new DragInfo(graph);
   }
 
   /**
@@ -78,7 +89,13 @@ export class DragController {
     this.isDragging = true;
     this.lastMouseEvent = event;
 
-    // Инициализируем DragInfo с начальным событием
+    // Создаем DragInfo с модификаторами, контекстом и инициализируем
+    this.dragInfo = new DragInfo(
+      this.graph,
+      config.positionModifiers || [],
+      config.context,
+      config.initialEntityPosition
+    );
     this.dragInfo.init(event);
 
     if (config.enableEdgePanning ?? true) {
@@ -113,6 +130,17 @@ export class DragController {
     // Обновляем состояние DragInfo
     this.dragInfo.update(event);
 
+    // Анализируем модификаторы позиции
+    this.dragInfo.analyzeSuggestions();
+
+    // Даем возможность выбрать модификатор в beforeUpdate
+    if (this.currentDragHandler.beforeUpdate) {
+      this.currentDragHandler.beforeUpdate(this.dragInfo);
+    } else {
+      // Дефолтная стратегия - по расстоянию
+      this.dragInfo.selectDefault();
+    }
+
     this.currentDragHandler.onDragUpdate(event, this.dragInfo);
   }
 
@@ -135,10 +163,24 @@ export class DragController {
     // Отключаем edge panning
     this.graph.getGraphLayer().disableEdgePanning();
 
-    // Завершаем процесс в DragInfo
+    // Завершаем процесс в DragInfo (устанавливает стадию 'drop')
     this.dragInfo.end(event);
 
-    // Вызываем обработчик завершения перетаскивания
+    // Анализируем модификаторы на стадии 'drop'
+    this.dragInfo.analyzeSuggestions();
+
+    // Даем возможность выбрать модификатор на стадии drop
+    if (this.currentDragHandler.beforeUpdate) {
+      this.currentDragHandler.beforeUpdate(this.dragInfo);
+    } else {
+      // Дефолтная стратегия - по расстоянию
+      this.dragInfo.selectDefault();
+    }
+
+    // Вызываем onDragUpdate с финальными позициями (на стадии 'drop')
+    this.currentDragHandler.onDragUpdate(event, this.dragInfo);
+
+    // Затем вызываем обработчик завершения перетаскивания
     this.currentDragHandler.onDragEnd(event, this.dragInfo);
 
     // Сбрасываем состояние

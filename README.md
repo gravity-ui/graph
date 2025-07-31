@@ -237,6 +237,7 @@ graph.zoomTo("center", { padding: 100 });
 
 1. System
    - [Component Lifecycle](docs/system/component-lifecycle.md)
+   - [Drag System](docs/system/drag-system.md)
    - [Events](docs/system/events.md)
    - [Graph Settings](docs/system/graph-settings.md)
    - [Public API](docs/system/public_api.md)

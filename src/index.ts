@@ -7,7 +7,14 @@ export { type UnwrapGraphEventsDetail } from "./graphEvents";
 export * from "./plugins";
 export { ECameraScaleLevel } from "./services/camera/CameraService";
 export { DragController, type DragHandler, type DragControllerConfig } from "./services/DragController";
-export { DragInfo } from "./services/DragInfo";
+export {
+  DragInfo,
+  type PositionModifier,
+  type DragContext,
+  type ModifierSuggestion,
+  type DragStage,
+} from "./services/DragInfo";
+export { DragModifiers } from "./utils/functions";
 export * from "./services/Layer";
 export * from "./store";
 export { EAnchorType } from "./store/anchor/Anchor";
