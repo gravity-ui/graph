@@ -7,7 +7,8 @@ import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
 import { BlockState, IS_BLOCK_TYPE, TBlockId } from "../../../store/block/Block";
 import { selectBlockById } from "../../../store/block/selectors";
-import { getXY } from "../../../utils/functions";
+import { ECanChangeBlockGeometry } from "../../../store/settings";
+import { getXY, isAllowChangeBlockGeometry } from "../../../utils/functions";
 import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { TTExtRect, renderText } from "../../../utils/renderers/text";
 import { EVENTS } from "../../../utils/types/events";
@@ -15,8 +16,6 @@ import { TPoint, TRect } from "../../../utils/types/shapes";
 import { GraphComponent } from "../GraphComponent";
 import { Anchor, TAnchor } from "../anchors";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
-
-import { BlockController } from "./controllers/BlockController";
 
 export type TBlockSettings = {
   /** Phantom blocks are blocks whose dimensions and position
@@ -114,8 +113,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.connectedState.$state.value;
   }
 
-  protected blockController = new BlockController(this);
-
   public $viewState = signal<BlockViewState>({ zIndex: 0, order: 0 });
 
   constructor(props: Props, parent: GraphLayer) {
@@ -149,6 +146,13 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       ...this.$viewState.value,
       ...params,
     };
+  }
+
+  public isDraggable() {
+    return isAllowChangeBlockGeometry(
+      this.getConfigFlag("canChangeBlockGeometry") as ECanChangeBlockGeometry,
+      this.state.selected
+    );
   }
 
   public getGeometry(): TRect {
