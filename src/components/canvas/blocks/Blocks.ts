@@ -1,6 +1,7 @@
+import { createGridSnapModifier } from "../../../services/Drag/modifiers/GridSnapModifier";
 import { BlockState } from "../../../store/block/Block";
 import { BlockListStore } from "../../../store/block/BlocksList";
-import { DragModifiers, isMetaKeyEvent } from "../../../utils/functions";
+import { isMetaKeyEvent } from "../../../utils/functions";
 import { ESelectionStrategy } from "../../../utils/types/types";
 import { GraphComponent } from "../GraphComponent";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
@@ -69,7 +70,6 @@ export class Blocks extends GraphComponent {
       const selectedBlocksComponents: Block[] = selectedBlocksStates.map((block) => block.getViewComponent());
 
       this.context.graph.getGraphLayer().captureEvents(blockInstance);
-      const gridSnap = DragModifiers.gridSnap(10);
 
       // Получаем начальную позицию основного блока (который инициировал драг)
       const mainBlockState = blockInstance.connectedState;
@@ -82,9 +82,6 @@ export class Blocks extends GraphComponent {
             for (const block of blocks) {
               block.onDragStart(dragEvent);
             }
-          },
-          beforeUpdate: (dragInfo) => {
-            dragInfo.selectModifier(gridSnap.name);
           },
           onDragUpdate: (dragEvent, dragInfo) => {
             const blocks = dragInfo.context.selectedBlocks as Block[];
@@ -102,7 +99,9 @@ export class Blocks extends GraphComponent {
         },
         event as MouseEvent,
         {
-          positionModifiers: [gridSnap],
+          positionModifiers: [
+            createGridSnapModifier({ gridSize: this.context.constants.block.SNAPPING_GRID_SIZE, stage: "drop" }),
+          ],
           initialEntityPosition: initialEntityPosition,
           context: {
             enableGridSnap: true,

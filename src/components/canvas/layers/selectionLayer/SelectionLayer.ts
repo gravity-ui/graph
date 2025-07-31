@@ -1,6 +1,6 @@
 import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
-import { DragHandler } from "../../../../services/DragController";
-import { DragInfo } from "../../../../services/DragInfo";
+import { DragHandler } from "../../../../services/Drag/DragController";
+import { DragInfo } from "../../../../services/Drag/DragInfo";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { selectBlockList } from "../../../../store/block/selectors";
 import { isBlock, isMetaKeyEvent } from "../../../../utils/functions";

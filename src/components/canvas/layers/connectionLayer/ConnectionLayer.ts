@@ -1,8 +1,9 @@
 import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
-import { DragHandler } from "../../../../services/DragController";
-import { DragInfo } from "../../../../services/DragInfo";
+import { DragHandler } from "../../../../services/Drag/DragController";
+import { DragInfo } from "../../../../services/Drag/DragInfo";
+import { MagneticModifier } from "../../../../services/Drag/modifiers/MagneticModifier";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
-import { AnchorState } from "../../../../store/anchor/Anchor";
+import { AnchorState, EAnchorType } from "../../../../store/anchor/Anchor";
 import { BlockState, TBlockId } from "../../../../store/block/Block";
 import { isBlock, isShiftKeyEvent } from "../../../../utils/functions";
 import { render } from "../../../../utils/renderers/render";
@@ -11,6 +12,7 @@ import { Point, TPoint } from "../../../../utils/types/shapes";
 import { ESelectionStrategy } from "../../../../utils/types/types";
 import { Anchor } from "../../../canvas/anchors";
 import { Block } from "../../../canvas/blocks/Block";
+import { GraphComponent } from "../../GraphComponent";
 
 type TIcon = {
   path: string;
@@ -34,6 +36,10 @@ type ConnectionLayerProps = LayerProps & {
   point?: TIcon;
   drawLine?: DrawLineFunction;
   isConnectionAllowed?: (sourceComponent: BlockState | AnchorState) => boolean;
+  /**
+   * Distance threshold for block magnetism. Defaults to 50 pixels.
+   */
+  magnetismDistance?: number;
 };
 
 declare module "../../../../graphEvents" {
@@ -127,6 +133,20 @@ export class ConnectionLayer extends Layer<
   protected enabled: boolean;
   private declare eventAborter: AbortController;
 
+  // eslint-disable-next-line new-cap
+  protected magneticModifier = MagneticModifier({
+    magnetismDistance: 200,
+    resolvePosition: (element: GraphComponent) => {
+      if (element instanceof Block) {
+        return element.getConnectionPoint("in");
+      }
+      if (element instanceof Anchor) {
+        return element.getPosition();
+      }
+      return null;
+    },
+  });
+
   constructor(props: ConnectionLayerProps) {
     super({
       canvas: {
@@ -197,10 +217,10 @@ export class ConnectionLayer extends Layer<
     if (!event || !target || !this.root?.ownerDocument) {
       return;
     }
+    const useBlocksAnchors = this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors");
     if (
       this.enabled &&
-      ((this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors") && target instanceof Anchor) ||
-        (isShiftKeyEvent(event) && isBlock(target)))
+      ((useBlocksAnchors && target instanceof Anchor) || (isShiftKeyEvent(event) && isBlock(target)))
     ) {
       // Get the source component state
       const sourceComponent = target.connectedState;
@@ -220,15 +240,34 @@ export class ConnectionLayer extends Layer<
         onDragUpdate: (dUpdateEvent: MouseEvent, dragInfo: DragInfo) => {
           this.onMoveNewConnection(
             dUpdateEvent,
-            new Point(dragInfo.lastCameraX as number, dragInfo.lastCameraY as number)
+            dragInfo.adjustedEntityPosition,
+            dragInfo.context?.closestTarget as Block | Anchor
           );
         },
         onDragEnd: (dEndEvent: MouseEvent, dragInfo: DragInfo) => {
-          this.onEndNewConnection(new Point(dragInfo.lastCameraX as number, dragInfo.lastCameraY as number));
+          this.onEndNewConnection(dragInfo.adjustedEntityPosition, dragInfo.context?.closestTarget as Block | Anchor);
         },
       };
 
-      this.context.graph.dragController.start(connectionHandler, event);
+      this.magneticModifier.setParams({
+        magnetismDistance: this.props.magnetismDistance || 80,
+        targets: useBlocksAnchors ? [Anchor] : [Block],
+        filter: (element: GraphComponent) => {
+          if (element === target) {
+            return false;
+          }
+          if (useBlocksAnchors) {
+            if (target instanceof Anchor && element instanceof Anchor) {
+              // Anchors with same type can't be connected (IN and IN or OUT and OUT)
+              return target.connectedState.state.type !== element.connectedState.state.type;
+            }
+          }
+        },
+      });
+
+      this.context.graph.dragController.start(connectionHandler, event, {
+        positionModifiers: [this.magneticModifier],
+      });
     }
   };
 
@@ -354,10 +393,8 @@ export class ConnectionLayer extends Layer<
     this.performRender();
   }
 
-  private onMoveNewConnection(event: MouseEvent, point: Point) {
-    const newTargetComponent = this.context.graph.getElementOverPoint(point, [Block, Anchor]);
-
-    // Используем мировые координаты вместо координат canvas
+  private onMoveNewConnection(event: MouseEvent, point: Point, newTargetComponent?: Block | Anchor) {
+    // Update connection state with adjusted position from magnetism
     this.connectionState = {
       ...this.connectionState,
       tx: point.x,
@@ -372,6 +409,7 @@ export class ConnectionLayer extends Layer<
     }
 
     // Only process if the target has changed or if there was no previous target
+    // Also ensure we're not targeting the source component
     if (
       (!this.target || this.target.connectedState !== newTargetComponent.connectedState) &&
       newTargetComponent.connectedState !== this.sourceComponent
@@ -398,12 +436,11 @@ export class ConnectionLayer extends Layer<
     }
   }
 
-  private onEndNewConnection(point: Point) {
+  private onEndNewConnection(point: Point, targetComponent?: Block | Anchor) {
     if (!this.sourceComponent) {
       return;
     }
 
-    const targetComponent = this.context.graph.getElementOverPoint(point, [Block, Anchor]);
     this.connectionState = {
       sx: 0,
       sy: 0,

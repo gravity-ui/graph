@@ -1,27 +1,27 @@
-import { Graph } from "../graph";
-import { Point } from "../utils/types/shapes";
+import { Graph } from "../../graph";
+import { Point } from "../../utils/types/shapes";
 
 /**
- * Стадии жизненного цикла перетаскивания
+ * Drag lifecycle stages
  */
 export type DragStage = "start" | "dragging" | "drop";
 
 /**
- * Интерфейс для модификатора позиции при перетаскивании
+ * Interface for position modifier during dragging
  */
 export interface PositionModifier {
   name: string;
   priority: number;
 
-  /** Проверяет, применим ли модификатор для данной позиции */
+  /** Checks if the modifier is applicable for the given position */
   applicable: (pos: Point, dragInfo: DragInfo, ctx: DragContext) => boolean;
 
-  /** Предлагает новую позицию (ленивое вычисление) */
+  /** Suggests a new position (lazy evaluation) */
   suggest: (pos: Point, dragInfo: DragInfo, ctx: DragContext) => Point | null;
 }
 
 /**
- * Контекст для модификаторов перетаскивания
+ * Context for drag modifiers
  */
 export interface DragContext {
   graph: Graph;
@@ -31,46 +31,46 @@ export interface DragContext {
 }
 
 /**
- * Предложение модификатора с ленивым вычислением
+ * Modifier suggestion with lazy evaluation
  */
 export interface ModifierSuggestion {
   name: string;
   priority: number;
   distance: number | null;
 
-  /** Получает предложенную позицию (с кэшированием) */
+  /** Gets the suggested position (with caching) */
   getSuggestedPosition(): Point | null;
 
-  /** @private Ленивая функция вычисления */
+  /** @private Lazy calculation function */
   _suggester: () => Point | null;
 
-  /** @private Кэш позиции */
+  /** @private Position cache */
   _cachedPosition?: Point | null;
 }
 
 /**
- * Statefull модель для хранения информации о процессе перетаскивания
- * Использует ленивые вычисления через getter-ы для оптимальной производительности
+ * Stateful model for storing drag process information
+ * Uses lazy calculations through getters for optimal performance
  */
 export class DragInfo {
   protected initialEvent: MouseEvent | null = null;
   protected currentEvent: MouseEvent | null = null;
 
-  // Кэш для координат камеры
+  // Cache for camera coordinates
   private _startCameraPoint: Point | null = null;
   private _currentCameraPoint: Point | null = null;
 
-  // Система модификаторов позиции
+  // Position modifier system
   private modifiers: PositionModifier[] = [];
   private suggestions: ModifierSuggestion[] = [];
   private selectedModifier: string | null = null;
   private contextCache: DragContext | null = null;
   private customContext: Record<string, unknown>;
 
-  // Стадия перетаскивания
+  // Drag stage
   private currentStage: DragStage = "start";
 
-  // Позиция перетаскиваемой сущности
+  // Position of the dragged entity
   private entityStartPosition: Point | null = null;
   private mouseToEntityOffset: Point | null = null;
 
@@ -89,7 +89,7 @@ export class DragInfo {
   }
 
   /**
-   * Сбрасывает состояние DragInfo
+   * Resets DragInfo state
    * @returns void
    */
   public reset(): void {
@@ -100,30 +100,30 @@ export class DragInfo {
     this.suggestions = [];
     this.selectedModifier = null;
     this.contextCache = null;
-    this.currentStage = "start"; // Возвращаем к начальной стадии
-    // Кастомный контекст не сбрасываем, так как он задается при создании DragInfo
+    this.currentStage = "start"; // Return to initial stage
+    // Don't reset custom context as it's set during DragInfo creation
   }
 
   /**
-   * Получает текущую стадию перетаскивания
+   * Gets the current drag stage
    */
   public get stage(): DragStage {
     return this.currentStage;
   }
 
   /**
-   * Инициализирует начальное состояние перетаскивания
-   * @param event - Начальное событие мыши
+   * Initializes the initial drag state
+   * @param event - Initial mouse event
    * @returns void
    */
   public init(event: MouseEvent): void {
     this.initialEvent = event;
     this.currentEvent = event;
-    this._startCameraPoint = null; // Будет вычислен лениво
+    this._startCameraPoint = null; // Will be calculated lazily
     this._currentCameraPoint = null;
-    this.currentStage = "start"; // Устанавливаем стадию инициализации
+    this.currentStage = "start"; // Set initialization stage
 
-    // Вычисляем offset между мышью и сущностью при инициализации
+    // Calculate offset between mouse and entity during initialization
     if (this.entityStartPosition) {
       const mouseStartPoint = this.graph.getPointInCameraSpace(event);
       this.mouseToEntityOffset = new Point(
@@ -138,73 +138,73 @@ export class DragInfo {
   }
 
   /**
-   * Обновляет текущее состояние перетаскивания
-   * @param event - Текущее событие мыши
+   * Updates the current drag state
+   * @param event - Current mouse event
    * @returns void
    */
   public update(event: MouseEvent): void {
     this.currentEvent = event;
-    this._currentCameraPoint = null; // Сбрасываем кэш для перевычисления
-    this.currentStage = "dragging"; // Устанавливаем стадию активного перетаскивания
-    this.contextCache = null; // Сбрасываем кэш контекста для обновления stage
+    this._currentCameraPoint = null; // Reset cache for recalculation
+    this.currentStage = "dragging"; // Set active drag stage
+    this.contextCache = null; // Reset context cache to update stage
   }
 
   /**
-   * Завершает процесс перетаскивания
-   * @param event - Финальное событие мыши
+   * Ends the drag process
+   * @param event - Final mouse event
    * @returns void
    */
   public end(event: MouseEvent): void {
     this.currentEvent = event;
-    this._currentCameraPoint = null; // Финальное обновление
-    this.currentStage = "drop"; // Устанавливаем стадию завершения
-    this.contextCache = null; // Сбрасываем кэш контекста для обновления stage
+    this._currentCameraPoint = null; // Final update
+    this.currentStage = "drop"; // Set completion stage
+    this.contextCache = null; // Reset context cache to update stage
   }
 
   /**
-   * Обновляет кастомный контекст во время операции перетаскивания
-   * @param newContext - Новые данные контекста для объединения с существующими
+   * Updates custom context during drag operation
+   * @param newContext - New context data to merge with existing
    * @returns void
    */
   public updateContext(newContext: Record<string, unknown>): void {
     this.customContext = { ...this.customContext, ...newContext };
-    this.contextCache = null; // Сбрасываем кэш контекста для перевычисления
+    this.contextCache = null; // Reset context cache for recalculation
   }
 
-  // === ЛЕНИВЫЕ ГЕТТЕРЫ ДЛЯ ЭКРАННЫХ КООРДИНАТ ===
+  // === LAZY GETTERS FOR SCREEN COORDINATES ===
 
   /**
-   * Начальные координаты X в экранном пространстве
+   * Initial X coordinates in screen space
    */
   public get startX(): number {
     return this.initialEvent?.clientX ?? 0;
   }
 
   /**
-   * Начальные координаты Y в экранном пространстве
+   * Initial Y coordinates in screen space
    */
   public get startY(): number {
     return this.initialEvent?.clientY ?? 0;
   }
 
   /**
-   * Текущие координаты X в экранном пространстве
+   * Current X coordinates in screen space
    */
   public get lastX(): number {
     return this.currentEvent?.clientX ?? this.startX;
   }
 
   /**
-   * Текущие координаты Y в экранном пространстве
+   * Current Y coordinates in screen space
    */
   public get lastY(): number {
     return this.currentEvent?.clientY ?? this.startY;
   }
 
-  // === ЛЕНИВЫЕ ГЕТТЕРЫ ДЛЯ КООРДИНАТ КАМЕРЫ ===
+  // === LAZY GETTERS FOR CAMERA COORDINATES ===
 
   /**
-   * Начальные координаты в пространстве камеры
+   * Initial coordinates in camera space
    */
   protected get startCameraPoint(): Point {
     if (!this._startCameraPoint && this.initialEvent) {
@@ -214,7 +214,7 @@ export class DragInfo {
   }
 
   /**
-   * Текущие координаты в пространстве камеры
+   * Current coordinates in camera space
    */
   protected get currentCameraPoint(): Point {
     if (!this._currentCameraPoint && this.currentEvent) {
@@ -224,37 +224,37 @@ export class DragInfo {
   }
 
   /**
-   * Начальная координата X в пространстве камеры
+   * Initial X coordinate in camera space
    */
   public get startCameraX(): number {
     return this.startCameraPoint.x;
   }
 
   /**
-   * Начальная координата Y в пространстве камеры
+   * Initial Y coordinate in camera space
    */
   public get startCameraY(): number {
     return this.startCameraPoint.y;
   }
 
   /**
-   * Текущая координата X в пространстве камеры
+   * Current X coordinate in camera space
    */
   public get lastCameraX(): number {
     return this.currentCameraPoint.x;
   }
 
   /**
-   * Текущая координата Y в пространстве камеры
+   * Current Y coordinate in camera space
    */
   public get lastCameraY(): number {
     return this.currentCameraPoint.y;
   }
 
-  // === ВЫЧИСЛЯЕМЫЕ СВОЙСТВА ===
+  // === COMPUTED PROPERTIES ===
 
   /**
-   * Разность координат в экранном пространстве
+   * Coordinate difference in screen space
    */
   public get screenDelta(): { x: number; y: number } {
     return {
@@ -264,7 +264,7 @@ export class DragInfo {
   }
 
   /**
-   * Разность координат в пространстве камеры
+   * Coordinate difference in camera space
    */
   public get worldDelta(): { x: number; y: number } {
     return {
@@ -274,7 +274,7 @@ export class DragInfo {
   }
 
   /**
-   * Расстояние перетаскивания в экранном пространстве
+   * Drag distance in screen space
    */
   public get screenDistance(): number {
     const delta = this.screenDelta;
@@ -282,7 +282,7 @@ export class DragInfo {
   }
 
   /**
-   * Расстояние перетаскивания в пространстве камеры
+   * Drag distance in camera space
    */
   public get worldDistance(): number {
     const delta = this.worldDelta;
@@ -290,7 +290,7 @@ export class DragInfo {
   }
 
   /**
-   * Направление перетаскивания в пространстве камеры
+   * Drag direction in camera space
    */
   public get worldDirection(): "horizontal" | "vertical" | "diagonal" | "none" {
     const delta = this.worldDelta;
@@ -306,16 +306,16 @@ export class DragInfo {
   }
 
   /**
-   * Проверяет, является ли перетаскивание микросдвигом
-   * @param threshold - Порог расстояния в пикселях (по умолчанию 5)
-   * @returns true если расстояние меньше порога
+   * Checks if dragging is a micro-movement
+   * @param threshold - Distance threshold in pixels (default 5)
+   * @returns true if distance is less than threshold
    */
   public isMicroDrag(threshold = 5): boolean {
     return this.worldDistance < threshold;
   }
 
   /**
-   * Продолжительность перетаскивания в миллисекундах
+   * Drag duration in milliseconds
    */
   public get duration(): number {
     if (!this.initialEvent || !this.currentEvent) return 0;
@@ -323,7 +323,7 @@ export class DragInfo {
   }
 
   /**
-   * Скорость перетаскивания в пикселях в миллисекунду
+   * Drag velocity in pixels per millisecond
    */
   public get velocity(): { vx: number; vy: number } {
     const duration = this.duration;
@@ -337,37 +337,37 @@ export class DragInfo {
   }
 
   /**
-   * Исходное событие мыши
+   * Initial mouse event
    */
   public get initialMouseEvent(): MouseEvent | null {
     return this.initialEvent;
   }
 
   /**
-   * Текущее событие мыши
+   * Current mouse event
    */
   public get currentMouseEvent(): MouseEvent | null {
     return this.currentEvent;
   }
 
   /**
-   * Проверяет, инициализирован ли DragInfo
+   * Checks if DragInfo is initialized
    */
   public get isInitialized(): boolean {
     return this.initialEvent !== null;
   }
 
   /**
-   * Проверяет, есть ли движение с момента инициализации
+   * Checks if there's movement since initialization
    */
   public get hasMovement(): boolean {
     return this.currentEvent !== this.initialEvent;
   }
 
-  // === СИСТЕМА МОДИФИКАТОРОВ ПОЗИЦИИ ===
+  // === POSITION MODIFIER SYSTEM ===
 
   /**
-   * Анализирует все модификаторы и создает предложения
+   * Analyzes all modifiers and creates suggestions
    * @returns void
    */
   public analyzeSuggestions(): void {
@@ -376,7 +376,7 @@ export class DragInfo {
       return;
     }
 
-    // Используем позицию сущности для модификаторов, а не позицию мыши
+    // Use entity position for modifiers, not mouse position
     const entityPos = this.currentEntityPosition;
     const context = this.getDragContext();
 
@@ -386,17 +386,17 @@ export class DragInfo {
   }
 
   /**
-   * Создает ленивое предложение модификатора
-   * @param modifier - Модификатор позиции
-   * @param pos - Исходная позиция
-   * @param ctx - Контекст перетаскивания
-   * @returns Предложение с ленивым вычислением
+   * Creates a lazy modifier suggestion
+   * @param modifier - Position modifier
+   * @param pos - Initial position
+   * @param ctx - Drag context
+   * @returns Suggestion with lazy evaluation
    */
   private createSuggestion(modifier: PositionModifier, pos: Point, ctx: DragContext): ModifierSuggestion {
     return {
       name: modifier.name,
       priority: modifier.priority,
-      distance: null, // Ленивое вычисление
+      distance: null, // Lazy evaluation
       _suggester: () => modifier.suggest(pos, this, ctx),
       _cachedPosition: undefined,
 
@@ -410,7 +410,7 @@ export class DragInfo {
   }
 
   /**
-   * Выбирает модификатор по приоритету (первый с наименьшим приоритетом)
+   * Selects modifier by priority (first with lowest priority)
    * @returns void
    */
   public selectByPriority(): void {
@@ -419,7 +419,7 @@ export class DragInfo {
   }
 
   /**
-   * Выбирает модификатор по расстоянию (ближайший к исходной позиции)
+   * Selects modifier by distance (closest to original position)
    * @returns void
    */
   public selectByDistance(): void {
@@ -434,8 +434,8 @@ export class DragInfo {
   }
 
   /**
-   * Выбирает модификатор с помощью кастомной функции
-   * @param selector - Функция выбора модификатора
+   * Selects modifier using custom function
+   * @param selector - Modifier selection function
    * @returns void
    */
   public selectByCustom(selector: (suggestions: ModifierSuggestion[]) => string | null): void {
@@ -443,8 +443,8 @@ export class DragInfo {
   }
 
   /**
-   * Выбирает конкретный модификатор по имени
-   * @param name - Имя модификатора
+   * Selects specific modifier by name
+   * @param name - Modifier name
    * @returns void
    */
   public selectModifier(name: string): void {
@@ -454,7 +454,7 @@ export class DragInfo {
   }
 
   /**
-   * Выбирает модификатор по умолчанию (по расстоянию)
+   * Selects default modifier (by distance)
    * @returns void
    */
   public selectDefault(): void {
@@ -462,9 +462,9 @@ export class DragInfo {
   }
 
   /**
-   * Вычисляет расстояние от исходной до предложенной позиции
-   * @param suggestion - Предложение модификатора
-   * @returns Расстояние в пикселях
+   * Calculates distance from original to suggested position
+   * @param suggestion - Modifier suggestion
+   * @returns Distance in pixels
    */
   private calculateDistance(suggestion: ModifierSuggestion): number {
     const original = new Point(this.lastCameraX, this.lastCameraY);
@@ -476,25 +476,25 @@ export class DragInfo {
   }
 
   /**
-   * Проверяет, применим ли модификатор с указанным именем
-   * @param modifierName - Имя модификатора
-   * @returns true если модификатор применим
+   * Checks if modifier with specified name is applicable
+   * @param modifierName - Modifier name
+   * @returns true if modifier is applicable
    */
   public isApplicable(modifierName: string): boolean {
     return this.suggestions.some((s) => s.name === modifierName);
   }
 
   /**
-   * Проверяет, применен ли модификатор с указанным именем
-   * @param modifierName - Имя модификатора
-   * @returns true если модификатор применен
+   * Checks if modifier with specified name is applied
+   * @param modifierName - Modifier name
+   * @returns true if modifier is applied
    */
   public isModified(modifierName: string): boolean {
     return this.selectedModifier === modifierName;
   }
 
   /**
-   * Получает скорректированную позицию с учетом примененного модификатора
+   * Gets adjusted position considering applied modifier
    */
   public get adjustedPosition(): Point {
     if (!this.selectedModifier) {
@@ -508,41 +508,41 @@ export class DragInfo {
   }
 
   /**
-   * Получает скорректированную координату X
+   * Gets adjusted X coordinate
    */
   public get adjustedCameraX(): number {
     return this.adjustedPosition.x;
   }
 
   /**
-   * Получает скорректированную координату Y
+   * Gets adjusted Y coordinate
    */
   public get adjustedCameraY(): number {
     return this.adjustedPosition.y;
   }
 
-  // === ПОЗИЦИЯ СУЩНОСТИ ===
+  // === ENTITY POSITION ===
 
   /**
-   * Начальная позиция сущности
+   * Initial entity position
    */
   public get entityStartX(): number {
     return this.entityStartPosition?.x ?? 0;
   }
 
   /**
-   * Начальная позиция сущности
+   * Initial entity position
    */
   public get entityStartY(): number {
     return this.entityStartPosition?.y ?? 0;
   }
 
   /**
-   * Текущая позиция сущности (без модификаторов)
+   * Current entity position (without modifiers)
    */
   public get currentEntityPosition(): Point {
     if (!this.entityStartPosition || !this.mouseToEntityOffset) {
-      // Fallback к позиции мыши если нет данных о сущности
+      // Fallback to mouse position if no entity data
       return new Point(this.lastCameraX, this.lastCameraY);
     }
 
@@ -551,7 +551,7 @@ export class DragInfo {
   }
 
   /**
-   * Скорректированная позиция сущности с учетом модификаторов
+   * Adjusted entity position considering modifiers
    */
   public get adjustedEntityPosition(): Point {
     if (!this.selectedModifier) {
@@ -565,22 +565,22 @@ export class DragInfo {
   }
 
   /**
-   * Скорректированная X координата сущности
+   * Adjusted entity X coordinate
    */
   public get adjustedEntityX(): number {
     return this.adjustedEntityPosition.x;
   }
 
   /**
-   * Скорректированная Y координата сущности
+   * Adjusted entity Y coordinate
    */
   public get adjustedEntityY(): number {
     return this.adjustedEntityPosition.y;
   }
 
   /**
-   * Дельта между начальной и скорректированной позицией сущности
-   * Используется для применения той же дельты к другим сущностям
+   * Delta between initial and adjusted entity position
+   * Used to apply the same delta to other entities
    */
   public get adjustedWorldDelta(): { x: number; y: number } {
     if (!this.entityStartPosition) {
@@ -595,10 +595,10 @@ export class DragInfo {
   }
 
   /**
-   * Применяет скорректированную дельту к произвольной начальной позиции
-   * @param startX - Начальная X координата сущности
-   * @param startY - Начальная Y координата сущности
-   * @returns Новая позиция с примененной дельтой
+   * Applies adjusted delta to arbitrary starting position
+   * @param startX - Initial entity X coordinate
+   * @param startY - Initial entity Y coordinate
+   * @returns New position with applied delta
    */
   public applyAdjustedDelta(startX: number, startY: number): { x: number; y: number } {
     const delta = this.adjustedWorldDelta;
@@ -608,11 +608,11 @@ export class DragInfo {
     };
   }
 
-  // === КОНТЕКСТ ПЕРЕТАСКИВАНИЯ ===
+  // === DRAG CONTEXT ===
 
   /**
-   * Получает контекст перетаскивания (с кэшированием)
-   * @returns Контекст перетаскивания
+   * Gets drag context (with caching)
+   * @returns Drag context
    */
   private getDragContext(): DragContext {
     if (!this.contextCache) {
@@ -622,8 +622,8 @@ export class DragInfo {
   }
 
   /**
-   * Создает простой контекст перетаскивания
-   * @returns Базовый контекст с дополнительными данными от пользователя
+   * Creates simple drag context
+   * @returns Basic context with additional user data
    */
   private createSimpleContext(): DragContext {
     const mousePos = new Point(this.lastCameraX, this.lastCameraY);
@@ -631,11 +631,11 @@ export class DragInfo {
 
     return {
       graph: this.graph,
-      currentPosition: mousePos, // Позиция мыши (для совместимости)
-      currentEntityPosition: entityPos, // Позиция сущности
+      currentPosition: mousePos, // Mouse position (for compatibility)
+      currentEntityPosition: entityPos, // Entity position
       entityStartPosition: this.entityStartPosition,
-      stage: this.currentStage, // Текущая стадия перетаскивания
-      // Добавляем пользовательский контекст
+      stage: this.currentStage, // Current drag stage
+      // Add user context
       ...this.customContext,
     };
   }

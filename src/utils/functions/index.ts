@@ -1,5 +1,5 @@
 import { Block } from "../../components/canvas/blocks/Block";
-import type { DragStage, PositionModifier } from "../../services/DragInfo";
+import type { DragStage, PositionModifier } from "../../services/Drag/DragInfo";
 import { BlockState, TBlockId } from "../../store/block/Block";
 import { ECanChangeBlockGeometry } from "../../store/settings";
 import { EVENTS_DETAIL, SELECTION_EVENT_TYPES } from "../types/events";
@@ -256,63 +256,3 @@ export function computeCssVariable(name: string) {
 
 // Re-export scheduler utilities
 export { schedule, debounce, throttle } from "../utils/schedule";
-
-// === POSITION MODIFIERS ===
-
-/**
- * Утилиты для создания стандартных модификаторов позиции
- *
- * Новая архитектура поддерживает позицию сущности вместо позиции мыши:
- * - `adjustedEntityPosition` - скорректированная позиция сущности (блока)
- * - `initialEntityPosition` - начальная позиция сущности
- * - Модификаторы работают с позицией сущности, а не курсора
- *
- * @example
- * dragController.start(handler, event, {
- *   positionModifiers: [DragModifiers.gridSnap(20)],
- *   initialEntityPosition: { x: block.x, y: block.y }, // Позиция блока
- *   context: {
- *     enableGridSnap: true,
- *     gridSize: 15, // Переопределяем размер сетки
- *     selectedBlocks: [block1, block2] // любые данные
- *   }
- * });
- *
- * // В обработчике для одного блока:
- * onDragUpdate(event, dragInfo) {
- *   const newPos = dragInfo.adjustedEntityPosition; // Позиция основного блока
- *   mainBlock.updatePosition(newPos.x, newPos.y);
- * }
- *
- * // Для множественного выбора (каждый блок использует свою начальную позицию):
- * onDragUpdate(event, dragInfo) {
- *   const newPos = dragInfo.applyAdjustedDelta(this.startX, this.startY);
- *   thisBlock.updatePosition(newPos.x, newPos.y);
- * }
- */
-export const DragModifiers = {
-  /**
-   * Создает модификатор для привязки к сетке
-   * @param gridSize - Размер ячейки сетки в пикселях
-   * @returns Модификатор gridSnap
-   */
-  gridSnap: (gridSize: number, stage: DragStage = "drop"): PositionModifier => ({
-    name: "grid-snap",
-    priority: 10,
-
-    applicable: (pos, dragInfo, ctx) => {
-      // Применяем только если есть движение (не микросдвиг)
-      const isEnabled = ctx.enableGridSnap !== false; // По умолчанию включен
-      return !dragInfo.isMicroDrag() && isEnabled && ctx.stage === stage;
-    },
-
-    suggest: (pos, _dragInfo, ctx) => {
-      // Можно переопределить размер сетки через контекст
-      const effectiveGridSize = (ctx.gridSize as number) || gridSize;
-      return new Point(
-        Math.round(pos.x / effectiveGridSize) * effectiveGridSize,
-        Math.round(pos.y / effectiveGridSize) * effectiveGridSize
-      );
-    },
-  }),
-};

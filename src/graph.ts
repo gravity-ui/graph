@@ -10,7 +10,7 @@ import { SelectionLayer } from "./components/canvas/layers/selectionLayer/Select
 import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
 import { GraphEventParams, GraphEventsDefinitions } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
-import { DragController } from "./services/DragController";
+import { DragController } from "./services/Drag/DragController";
 import { HitTest } from "./services/HitTest";
 import { Layer } from "./services/Layer";
 import { Layers } from "./services/LayersService";

@@ -2,7 +2,7 @@ import { signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 import isObject from "lodash/isObject";
 
-import { DragInfo } from "../../../services/DragInfo";
+import { DragInfo } from "../../../services/Drag/DragInfo";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
