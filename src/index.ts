@@ -6,6 +6,8 @@ export type { TGraphColors, TGraphConstants } from "./graphConfig";
 export { type UnwrapGraphEventsDetail } from "./graphEvents";
 export * from "./plugins";
 export { ECameraScaleLevel } from "./services/camera/CameraService";
+export { DragController, type DragHandler, type DragControllerConfig } from "./services/DragController";
+export { DragInfo } from "./services/DragInfo";
 export * from "./services/Layer";
 export * from "./store";
 export { EAnchorType } from "./store/anchor/Anchor";

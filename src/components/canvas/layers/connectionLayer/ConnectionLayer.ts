@@ -1,5 +1,6 @@
 import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
 import { DragHandler } from "../../../../services/DragController";
+import { DragInfo } from "../../../../services/DragInfo";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { AnchorState } from "../../../../store/anchor/Anchor";
 import { BlockState, TBlockId } from "../../../../store/block/Block";
@@ -213,20 +214,21 @@ export class ConnectionLayer extends Layer<
       nativeEvent.stopPropagation();
 
       const connectionHandler: DragHandler = {
-        onDraggingStart: (dStartEvent: MouseEvent) => {
-          this.onStartConnection(dStartEvent, this.context.graph.getPointInCameraSpace(dStartEvent));
+        onDragStart: (dStartEvent: MouseEvent, dragInfo: DragInfo) => {
+          this.onStartConnection(dStartEvent, new Point(dragInfo.startCameraX, dragInfo.startCameraY));
         },
-        onDragUpdate: (dUpdateEvent: MouseEvent) => {
-          this.onMoveNewConnection(dUpdateEvent, this.context.graph.getPointInCameraSpace(dUpdateEvent));
+        onDragUpdate: (dUpdateEvent: MouseEvent, dragInfo: DragInfo) => {
+          this.onMoveNewConnection(
+            dUpdateEvent,
+            new Point(dragInfo.lastCameraX as number, dragInfo.lastCameraY as number)
+          );
         },
-        onDragEnd: (dEndEvent: MouseEvent) => {
-          this.onEndNewConnection(this.context.graph.getPointInCameraSpace(dEndEvent));
+        onDragEnd: (dEndEvent: MouseEvent, dragInfo: DragInfo) => {
+          this.onEndNewConnection(new Point(dragInfo.lastCameraX as number, dragInfo.lastCameraY as number));
         },
       };
 
-      this.context.graph.dragController.start(connectionHandler, event, {
-        enableEdgePanning: true, // Включаем edge panning для соединений
-      });
+      this.context.graph.dragController.start(connectionHandler, event);
     }
   };
 
@@ -271,7 +273,6 @@ export class ConnectionLayer extends Layer<
       return;
     }
 
-    // Преобразуем мировые координаты в координаты canvas для рендеринга
     const scale = this.context.camera.getCameraScale();
     const cameraRect = this.context.camera.getCameraRect();
 
@@ -326,7 +327,6 @@ export class ConnectionLayer extends Layer<
 
     this.sourceComponent = sourceComponent.connectedState;
 
-    // Используем мировые координаты вместо координат canvas
     this.connectionState = {
       ...this.connectionState,
       sx: point.x,

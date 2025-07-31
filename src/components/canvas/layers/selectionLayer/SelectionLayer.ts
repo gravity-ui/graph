@@ -1,5 +1,6 @@
 import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
 import { DragHandler } from "../../../../services/DragController";
+import { DragInfo } from "../../../../services/DragInfo";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { selectBlockList } from "../../../../store/block/selectors";
 import { isBlock, isMetaKeyEvent } from "../../../../utils/functions";
@@ -52,12 +53,10 @@ export class SelectionLayer extends Layer<
    * @returns {void}
    */
   protected afterInit(): void {
-    // Set up event handlers here instead of in constructor
     this.onGraphEvent("mousedown", this.handleMouseDown, {
       capture: true,
     });
 
-    // Call parent afterInit to ensure proper initialization
     super.afterInit();
   }
 
@@ -79,7 +78,6 @@ export class SelectionLayer extends Layer<
       ctx.strokeStyle = this.context.colors.selection.border;
       ctx.beginPath();
 
-      // Преобразуем мировые координаты в координаты canvas для рендеринга
       const scale = this.context.camera.getCameraScale();
       const cameraRect = this.context.camera.getCameraRect();
 
@@ -112,39 +110,39 @@ export class SelectionLayer extends Layer<
       nativeEvent.stopPropagation();
 
       const selectionHandler: DragHandler = {
-        onDraggingStart: this.startSelectionRender,
-        onDragUpdate: this.updateSelectionRender,
-        onDragEnd: this.endSelectionRender,
+        onDragStart: (dragEvent: MouseEvent, dragInfo: DragInfo) => this.startSelectionRender(dragEvent, dragInfo),
+        onDragUpdate: (dragEvent: MouseEvent, dragInfo: DragInfo) => this.updateSelectionRender(dragEvent, dragInfo),
+        onDragEnd: (dragEvent: MouseEvent, dragInfo: DragInfo) => this.endSelectionRender(dragEvent, dragInfo),
       };
 
-      this.context.graph.dragController.start(selectionHandler, event, {
-        enableEdgePanning: true, // Отключаем edge panning для выделения
-      });
+      this.context.graph.dragController.start(selectionHandler, event);
     }
   };
 
-  private updateSelectionRender = (event: MouseEvent) => {
-    const worldPoint = this.context.graph.getPointInCameraSpace(event);
-    this.selection.width = worldPoint.x - this.selection.x;
-    this.selection.height = worldPoint.y - this.selection.y;
+  private updateSelectionRender = (event: MouseEvent, dragInfo: DragInfo) => {
+    // Используем готовые координаты из dragInfo
+    this.selection.width = (dragInfo.lastCameraX as number) - this.selection.x;
+    this.selection.height = (dragInfo.lastCameraY as number) - this.selection.y;
     this.performRender();
   };
 
-  private startSelectionRender = (event: MouseEvent) => {
-    const worldPoint = this.context.graph.getPointInCameraSpace(event);
-    this.selection.x = worldPoint.x;
-    this.selection.y = worldPoint.y;
+  private startSelectionRender = (event: MouseEvent, dragInfo: DragInfo) => {
+    // Используем готовые координаты из dragInfo
+    this.selection.x = dragInfo.startCameraX;
+    this.selection.y = dragInfo.startCameraY;
   };
 
-  private endSelectionRender = (event: MouseEvent) => {
+  private endSelectionRender = (event: MouseEvent, dragInfo: DragInfo) => {
     if (this.selection.width === 0 && this.selection.height === 0) {
       return;
     }
 
-    const worldPoint = this.context.graph.getPointInCameraSpace(event);
-    const selectionRect = getSelectionRect(this.selection.x, this.selection.y, worldPoint.x, worldPoint.y);
+    // Используем готовые координаты из dragInfo
+    const endX = dragInfo.lastCameraX as number;
+    const endY = dragInfo.lastCameraY as number;
 
-    // Координаты уже в мировом пространстве, преобразование не нужно
+    const selectionRect = getSelectionRect(this.selection.x, this.selection.y, endX, endY);
+
     this.applySelectedArea(selectionRect[0], selectionRect[1], selectionRect[2], selectionRect[3]);
     this.selection.width = 0;
     this.selection.height = 0;

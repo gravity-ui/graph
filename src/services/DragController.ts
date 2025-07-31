@@ -3,7 +3,7 @@ import { ESchedulerPriority, scheduler } from "../lib/Scheduler";
 import { dragListener } from "../utils/functions/dragListener";
 import { EVENTS } from "../utils/types/events";
 
-import { TEdgePanningConfig } from "./camera/Camera";
+import { DragInfo } from "./DragInfo";
 
 /**
  * Интерфейс для компонентов, которые могут быть перетаскиваемыми
@@ -12,20 +12,23 @@ export interface DragHandler {
   /**
    * Вызывается при начале перетаскивания
    * @param event - Событие мыши
+   * @param dragInfo - Statefull модель с информацией о перетаскивании
    */
-  onDraggingStart(event: MouseEvent): void;
+  onDragStart(event: MouseEvent, dragInfo: DragInfo): void;
 
   /**
    * Вызывается при обновлении позиции во время перетаскивания
    * @param event - Событие мыши
+   * @param dragInfo - Statefull модель с информацией о перетаскивании
    */
-  onDragUpdate(event: MouseEvent): void;
+  onDragUpdate(event: MouseEvent, dragInfo: DragInfo): void;
 
   /**
    * Вызывается при завершении перетаскивания
    * @param event - Событие мыши
+   * @param dragInfo - Statefull модель с информацией о перетаскивании
    */
-  onDragEnd(event: MouseEvent): void;
+  onDragEnd(event: MouseEvent, dragInfo: DragInfo): void;
 }
 
 /**
@@ -34,8 +37,6 @@ export interface DragHandler {
 export interface DragControllerConfig {
   /** Включить автоматическое движение камеры при приближении к границам */
   enableEdgePanning?: boolean;
-  /** Конфигурация edge panning */
-  edgePanningConfig?: Partial<TEdgePanningConfig>;
 }
 
 /**
@@ -50,10 +51,13 @@ export class DragController {
 
   private lastMouseEvent?: MouseEvent;
 
+  private dragInfo: DragInfo;
+
   private updateScheduler?: () => void;
 
   constructor(graph: Graph) {
     this.graph = graph;
+    this.dragInfo = new DragInfo(graph);
   }
 
   /**
@@ -74,27 +78,23 @@ export class DragController {
     this.isDragging = true;
     this.lastMouseEvent = event;
 
-    // Включаем edge panning если необходимо
+    // Инициализируем DragInfo с начальным событием
+    this.dragInfo.init(event);
+
     if (config.enableEdgePanning ?? true) {
-      const camera = this.graph.getGraphLayer().$.camera;
       const defaultConfig = this.graph.graphConstants.camera.EDGE_PANNING;
 
-      camera.enableEdgePanning({
-        speed: config.edgePanningConfig?.speed || defaultConfig.SPEED,
-        edgeSize: config.edgePanningConfig?.edgeSize || defaultConfig.EDGE_SIZE,
+      this.graph.getGraphLayer().enableEdgePanning({
+        speed: defaultConfig.SPEED,
+        edgeSize: defaultConfig.EDGE_SIZE,
       });
 
       // Запускаем периодическое обновление компонента для синхронизации с движением камеры
       this.startContinuousUpdate();
     }
 
-    // TODO: Нужно передать EventedComponent вместо DragController
-    // this.graph.getGraphLayer().captureEvents(this);
+    component.onDragStart(event, this.dragInfo);
 
-    // Вызываем обработчик начала перетаскивания
-    component.onDraggingStart(event);
-
-    // Запускаем dragListener для отслеживания движений мыши
     this.startDragListener(event);
   }
 
@@ -109,7 +109,11 @@ export class DragController {
     }
 
     this.lastMouseEvent = event;
-    this.currentDragHandler.onDragUpdate(event);
+
+    // Обновляем состояние DragInfo
+    this.dragInfo.update(event);
+
+    this.currentDragHandler.onDragUpdate(event, this.dragInfo);
   }
 
   /**
@@ -129,16 +133,19 @@ export class DragController {
     this.stopContinuousUpdate();
 
     // Отключаем edge panning
-    const camera = this.graph.getGraphLayer().$.camera;
-    camera.disableEdgePanning();
+    this.graph.getGraphLayer().disableEdgePanning();
+
+    // Завершаем процесс в DragInfo
+    this.dragInfo.end(event);
 
     // Вызываем обработчик завершения перетаскивания
-    this.currentDragHandler.onDragEnd(event);
+    this.currentDragHandler.onDragEnd(event, this.dragInfo);
 
     // Сбрасываем состояние
     this.currentDragHandler = undefined;
     this.isDragging = false;
     this.lastMouseEvent = undefined;
+    this.dragInfo.reset();
   }
 
   /**
@@ -155,6 +162,14 @@ export class DragController {
    */
   public getCurrentDragHandler(): DragHandler | undefined {
     return this.currentDragHandler;
+  }
+
+  /**
+   * Получает текущую информацию о перетаскивании
+   * @returns экземпляр DragInfo (всегда доступен)
+   */
+  public getCurrentDragInfo(): DragInfo {
+    return this.dragInfo;
   }
 
   /**
@@ -185,9 +200,10 @@ export class DragController {
       Object.defineProperty(syntheticEvent, "pageX", { value: this.lastMouseEvent.pageX });
       Object.defineProperty(syntheticEvent, "pageY", { value: this.lastMouseEvent.pageY });
 
-      // TODO: лучше в onDragUpdate передавать только deltaX/deltaY и clientX/clientY
+      // Обновляем состояние DragInfo для синтетического события
+      this.dragInfo.update(this.lastMouseEvent);
 
-      this.currentDragHandler.onDragUpdate(syntheticEvent);
+      this.currentDragHandler.onDragUpdate(syntheticEvent, this.dragInfo);
     };
 
     // Используем средний приоритет для обновлений чтобы синхронизироваться с движением камеры

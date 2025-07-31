@@ -1,7 +1,6 @@
 import { BlockState } from "../../../store/block/Block";
 import { BlockListStore } from "../../../store/block/BlocksList";
-import { createCustomDragEvent, dispatchEvents, isMetaKeyEvent } from "../../../utils/functions";
-import { EVENTS } from "../../../utils/types/events";
+import { isMetaKeyEvent } from "../../../utils/functions";
 import { ESelectionStrategy } from "../../../utils/types/types";
 import { GraphComponent } from "../GraphComponent";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
@@ -68,18 +67,26 @@ export class Blocks extends GraphComponent {
       const blockState = blockInstance.connectedState;
 
       const selectedBlocksStates = getSelectedBlocks(blockState, this.context.graph.rootStore.blocksList);
-      const selectedBlocksComponents = selectedBlocksStates.map((block) => block.getViewComponent());
+      const selectedBlocksComponents: Block[] = selectedBlocksStates.map((block) => block.getViewComponent());
 
+      this.context.graph.getGraphLayer().captureEvents(blockInstance);
       this.context.graph.dragController.start(
         {
-          onDraggingStart: (event) => {
-            dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_START, event));
+          onDragStart: (dragEvent, _dragInfo) => {
+            for (const block of selectedBlocksComponents) {
+              block.onDragStart(dragEvent);
+            }
           },
-          onDragUpdate: (event) => {
-            dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_UPDATE, event));
+          onDragUpdate: (dragEvent, dragInfo) => {
+            for (const block of selectedBlocksComponents) {
+              block.onDragUpdate(dragEvent, dragInfo);
+            }
           },
-          onDragEnd: (event) => {
-            dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_END, event));
+          onDragEnd: (dragEvent, dragInfo) => {
+            this.context.graph.getGraphLayer().releaseCapture();
+            for (const block of selectedBlocksComponents) {
+              block.onDragEnd(dragEvent, dragInfo);
+            }
           },
         },
         event as MouseEvent

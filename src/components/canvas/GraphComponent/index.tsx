@@ -54,7 +54,7 @@ export class GraphComponent<
       event.stopPropagation();
       this.context.graph.dragController.start(
         {
-          onDraggingStart: (event) => {
+          onDragStart: (event) => {
             if (onDragStart?.(event) === false) {
               return;
             }
