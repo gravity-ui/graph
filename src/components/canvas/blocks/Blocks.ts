@@ -1,4 +1,5 @@
 import { createGridSnapModifier } from "../../../services/Drag/modifiers/GridSnapModifier";
+import { MagneticBorderModifier } from "../../../services/Drag/modifiers/MagneticBorderModifier";
 import { BlockState } from "../../../store/block/Block";
 import { BlockListStore } from "../../../store/block/BlocksList";
 import { isMetaKeyEvent } from "../../../utils/functions";
@@ -83,6 +84,9 @@ export class Blocks extends GraphComponent {
               block.onDragStart(dragEvent);
             }
           },
+          beforeUpdate: (dragInfo) => {
+            dragInfo.selectByPriority();
+          },
           onDragUpdate: (dragEvent, dragInfo) => {
             const blocks = dragInfo.context.selectedBlocks as Block[];
             for (const block of blocks) {
@@ -101,6 +105,25 @@ export class Blocks extends GraphComponent {
         {
           positionModifiers: [
             createGridSnapModifier({ gridSize: this.context.constants.block.SNAPPING_GRID_SIZE, stage: "drop" }),
+            // eslint-disable-next-line new-cap
+            MagneticBorderModifier({
+              magnetismDistance: "auto",
+              targets: [Block],
+              enabledBorders: ["top", "right", "bottom", "left"],
+              filter: (element) => {
+                return element !== blockInstance;
+              },
+              resolveBounds: (element) => {
+                if (element instanceof Block) {
+                  return {
+                    x: element.state.x,
+                    y: element.state.y,
+                    width: element.state.width,
+                    height: element.state.height,
+                  };
+                }
+              },
+            }),
           ],
           initialEntityPosition: initialEntityPosition,
           context: {
