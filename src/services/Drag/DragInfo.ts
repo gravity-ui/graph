@@ -21,6 +21,22 @@ export interface PositionModifier {
 }
 
 /**
+ * Extended drag modifier with additional lifecycle hooks
+ */
+export interface DragModifier extends PositionModifier {
+  /** Called when modifier is applied during dragging */
+  onApply?: (dragInfo: DragInfo, ctx: DragContext) => void;
+}
+
+/**
+ * Interface for layers and components that can provide drag modifiers
+ */
+export interface IDragMiddleware {
+  /** Returns a drag modifier for this middleware */
+  dragModifier(): DragModifier;
+}
+
+/**
  * Context for drag modifiers
  */
 export interface DragContext {
@@ -61,9 +77,10 @@ export class DragInfo {
   private _currentCameraPoint: Point | null = null;
 
   // Position modifier system
-  private modifiers: PositionModifier[] = [];
+  private modifiers: (PositionModifier | DragModifier)[] = [];
   private suggestions: ModifierSuggestion[] = [];
   private selectedModifier: string | null = null;
+  private appliedModifiers: Set<string> = new Set();
   private contextCache: DragContext | null = null;
   private customContext: Record<string, unknown>;
 
@@ -76,7 +93,7 @@ export class DragInfo {
 
   constructor(
     protected graph: Graph,
-    modifiers: PositionModifier[] = [],
+    modifiers: (PositionModifier | DragModifier)[] = [],
     customContext?: Record<string, unknown>,
     initialEntityPosition?: { x: number; y: number }
   ) {
@@ -99,6 +116,7 @@ export class DragInfo {
     this._currentCameraPoint = null;
     this.suggestions = [];
     this.selectedModifier = null;
+    this.appliedModifiers.clear();
     this.contextCache = null;
     this.currentStage = "start"; // Return to initial stage
     // Don't reset custom context as it's set during DragInfo creation
@@ -410,12 +428,31 @@ export class DragInfo {
   }
 
   /**
+   * Applies a modifier by name
+   * @param name - Modifier name
+   * @returns void
+   * @private
+   */
+  private applyModifier(name: string | null): void {
+    if (name) {
+      this.appliedModifiers.add(name);
+
+      // Call onApply for DragModifier if available
+      const modifier = this.modifiers.find((m) => m.name === name);
+      if (modifier && "onApply" in modifier && modifier.onApply) {
+        modifier.onApply(this, this.getDragContext());
+      }
+    }
+  }
+
+  /**
    * Selects modifier by priority (first with lowest priority)
    * @returns void
    */
   public selectByPriority(): void {
     const best = this.suggestions.sort((a, b) => a.priority - b.priority)[0];
     this.selectedModifier = best?.name || null;
+    this.applyModifier(this.selectedModifier);
   }
 
   /**
@@ -431,6 +468,7 @@ export class DragInfo {
       .sort((a, b) => a.distance - b.distance);
 
     this.selectedModifier = withDistances[0]?.name || null;
+    this.applyModifier(this.selectedModifier);
   }
 
   /**
@@ -440,6 +478,7 @@ export class DragInfo {
    */
   public selectByCustom(selector: (suggestions: ModifierSuggestion[]) => string | null): void {
     this.selectedModifier = selector(this.suggestions);
+    this.applyModifier(this.selectedModifier);
   }
 
   /**
@@ -450,6 +489,7 @@ export class DragInfo {
   public selectModifier(name: string): void {
     if (this.suggestions.some((s) => s.name === name)) {
       this.selectedModifier = name;
+      this.applyModifier(name);
     }
   }
 
@@ -638,5 +678,53 @@ export class DragInfo {
       // Add user context
       ...this.customContext,
     };
+  }
+
+  // === DYNAMIC MODIFIER MANAGEMENT ===
+
+  /**
+   * Adds a modifier dynamically during the drag process
+   * @param modifier - The modifier to add
+   * @returns void
+   */
+  public addModifier(modifier: PositionModifier | DragModifier): void {
+    // Check if modifier with this name already exists
+    const existingIndex = this.modifiers.findIndex((m) => m.name === modifier.name);
+    if (existingIndex !== -1) {
+      // Replace existing modifier
+      this.modifiers[existingIndex] = modifier;
+    } else {
+      // Add new modifier
+      this.modifiers.push(modifier);
+    }
+
+    // Clear suggestions cache to recalculate with new modifier
+    this.suggestions = [];
+  }
+
+  /**
+   * Removes a modifier by name
+   * @param modifierName - Name of the modifier to remove
+   * @returns void
+   */
+  public removeModifier(modifierName: string): void {
+    const index = this.modifiers.findIndex((m) => m.name === modifierName);
+    if (index !== -1) {
+      this.modifiers.splice(index, 1);
+      // Clear suggestions cache to recalculate without removed modifier
+      this.suggestions = [];
+      // Remove from applied modifiers if present
+      this.appliedModifiers.delete(modifierName);
+    }
+  }
+
+  /**
+   * Checks if a modifier is currently applied
+   * @param modifier - The modifier to check (can be name or modifier object)
+   * @returns true if modifier is applied
+   */
+  public isApplied(modifier: string | PositionModifier | DragModifier): boolean {
+    const modifierName = typeof modifier === "string" ? modifier : modifier.name;
+    return this.appliedModifiers.has(modifierName);
   }
 }

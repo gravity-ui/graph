@@ -12,6 +12,12 @@ export type MagneticBorderModifierConfig = {
    * - 'auto': All elements in camera viewport will be considered for magnetism
    */
   magnetismDistance: number | "auto";
+  /**
+   * Distance threshold for actual snapping in pixels.
+   * If not provided, uses magnetismDistance value.
+   * Must be <= magnetismDistance when both are numbers.
+   */
+  snapThreshold?: number;
   /** Array of component types to search for magnetism. If not provided, searches all components. */
   targets?: Constructor<GraphComponent>[];
   /**
@@ -26,12 +32,17 @@ export type MagneticBorderModifierConfig = {
    * @param element - The element to test
    * @returns true if element should be considered for magnetism
    */
-  filter?: (element: GraphComponent) => boolean;
+  filter?: (element: GraphComponent, dragInfo: DragInfo, ctx: DragContext) => boolean;
   /**
    * Which borders to consider for snapping.
    * @default ['top', 'right', 'bottom', 'left']
    */
   enabledBorders?: Array<"top" | "right" | "bottom" | "left">;
+  /**
+   * Whether to allow snapping to multiple borders simultaneously.
+   * @default false
+   */
+  allowMultipleSnap?: boolean;
 };
 
 /**
@@ -40,10 +51,12 @@ export type MagneticBorderModifierConfig = {
 type MagneticBorderModifierContext = DragContext & {
   magneticBorderModifier: {
     magnetismDistance: number | "auto";
+    snapThreshold?: number;
     targets?: Constructor<GraphComponent>[];
     resolveBounds?: (element: GraphComponent) => { x: number; y: number; width: number; height: number } | null;
     filter?: (element: GraphComponent) => boolean;
     enabledBorders?: Array<"top" | "right" | "bottom" | "left">;
+    allowMultipleSnap?: boolean;
   };
 };
 
@@ -56,6 +69,188 @@ type BorderInfo = {
   point: Point;
   distance: number;
 };
+
+/**
+ * Calculates the minimum distance from any border of a dragged block to an infinite line.
+ * @param currentPos - Current position (top-left corner) where the block would be placed
+ * @param blockSize - Size of the dragged block (width and height)
+ * @param lineInfo - Information about the infinite line
+ * @returns Minimum distance from any border of the block to the line
+ */
+function getDistanceFromBlockBordersToLine(
+  currentPos: Point,
+  blockSize: { width: number; height: number },
+  lineInfo: { border: "top" | "right" | "bottom" | "left"; point: Point }
+): number {
+  const { border, point } = lineInfo;
+
+  if (border === "top" || border === "bottom") {
+    // Horizontal line - check distance from top and bottom borders of dragged block
+    const topDistance = Math.abs(currentPos.y - point.y);
+    const bottomDistance = Math.abs(currentPos.y + blockSize.height - point.y);
+    return Math.min(topDistance, bottomDistance);
+  } else {
+    // Vertical line - check distance from left and right borders of dragged block
+    const leftDistance = Math.abs(currentPos.x - point.x);
+    const rightDistance = Math.abs(currentPos.x + blockSize.width - point.x);
+    return Math.min(leftDistance, rightDistance);
+  }
+}
+
+/**
+ * Calculates the correct position for the dragged block when snapping to a line.
+ * Determines which border of the block should snap to the line and calculates
+ * the corresponding top-left position of the block.
+ * @param currentPos - Current position (top-left corner) of the block
+ * @param blockSize - Size of the block (width and height)
+ * @param lineInfo - Information about the line to snap to
+ * @returns New position for the block's top-left corner
+ */
+function calculateSnapPosition(
+  currentPos: Point,
+  blockSize: { width: number; height: number },
+  lineInfo: { border: "top" | "right" | "bottom" | "left"; point: Point }
+): Point {
+  const { border, point } = lineInfo;
+
+  if (border === "top" || border === "bottom") {
+    // Horizontal line - determine which border (top or bottom) should snap
+    const topDistance = Math.abs(currentPos.y - point.y);
+    const bottomDistance = Math.abs(currentPos.y + blockSize.height - point.y);
+
+    if (topDistance <= bottomDistance) {
+      // Top border snaps to line
+      return new Point(currentPos.x, point.y);
+    } else {
+      // Bottom border snaps to line
+      return new Point(currentPos.x, point.y - blockSize.height);
+    }
+  } else {
+    // Vertical line - determine which border (left or right) should snap
+    const leftDistance = Math.abs(currentPos.x - point.x);
+    const rightDistance = Math.abs(currentPos.x + blockSize.width - point.x);
+
+    if (leftDistance <= rightDistance) {
+      // Left border snaps to line
+      return new Point(point.x, currentPos.y);
+    } else {
+      // Right border snaps to line
+      return new Point(point.x - blockSize.width, currentPos.y);
+    }
+  }
+}
+
+/**
+ * Processes a single element to collect its border lines and snap candidates.
+ * @param element - The graph component to process
+ * @param pos - Current cursor position
+ * @param enabledBorders - Which borders to consider
+ * @param snapThreshold - Distance threshold for snapping
+ * @param draggedSize - Size of the dragged element (optional)
+ * @param resolveBounds - Function to resolve element bounds
+ * @returns Object containing all border lines and snap candidates
+ */
+function processElementBorderLines(
+  element: GraphComponent,
+  pos: Point,
+  enabledBorders: Array<"top" | "right" | "bottom" | "left">,
+  snapThreshold: number,
+  draggedSize: { width: number; height: number } | null,
+  resolveBounds?: (element: GraphComponent) => { x: number; y: number; width: number; height: number } | null
+): { allLines: BorderInfo[]; snapCandidates: BorderInfo[] } {
+  const bounds = resolveBounds?.(element);
+  if (!bounds) {
+    return { allLines: [], snapCandidates: [] };
+  }
+
+  const allLines: BorderInfo[] = [];
+  const snapCandidates: BorderInfo[] = [];
+  const borderLines = getClosestBorderLines(pos, bounds, enabledBorders);
+
+  for (const borderLine of borderLines) {
+    const borderInfo: BorderInfo = {
+      element,
+      border: borderLine.border,
+      point: borderLine.point,
+      distance: borderLine.distance,
+    };
+
+    allLines.push(borderInfo);
+
+    // Check if any border of the dragged block is close to this infinite line
+    let shouldSnap = false;
+    if (draggedSize) {
+      // Use the current position (pos) to calculate where the block would be
+      const blockToLineDistance = getDistanceFromBlockBordersToLine(pos, draggedSize, {
+        border: borderLine.border,
+        point: borderLine.point,
+      });
+      shouldSnap = blockToLineDistance <= snapThreshold;
+    } else {
+      // Fallback to original point-based logic if no dragged size
+      shouldSnap = borderLine.distance <= snapThreshold;
+    }
+
+    if (shouldSnap) {
+      snapCandidates.push(borderInfo);
+    }
+  }
+
+  return { allLines, snapCandidates };
+}
+
+/**
+ * Calculates the final position after applying snapping to selected borders.
+ * @param selectedBorders - Array of borders to snap to
+ * @param draggedSize - Size of the dragged element (optional)
+ * @param pos - Current position
+ * @returns Final position after snapping
+ */
+function calculateFinalPosition(
+  selectedBorders: BorderInfo[],
+  draggedSize: { width: number; height: number } | null,
+  pos: Point
+): Point {
+  if (selectedBorders.length === 0) {
+    return pos; // No snapping
+  }
+
+  let newPos = pos;
+
+  if (draggedSize) {
+    // Use smart positioning that considers which border of the block should snap
+    for (const border of selectedBorders) {
+      const snapPos = calculateSnapPosition(newPos, draggedSize, {
+        border: border.border,
+        point: border.point,
+      });
+
+      if (border.border === "top" || border.border === "bottom") {
+        // Update Y coordinate from horizontal line snap
+        newPos = new Point(newPos.x, snapPos.y);
+      } else {
+        // Update X coordinate from vertical line snap
+        newPos = new Point(snapPos.x, newPos.y);
+      }
+    }
+  } else {
+    // Fallback to original logic if no dragged size
+    let newX = pos.x;
+    let newY = pos.y;
+
+    for (const border of selectedBorders) {
+      if (border.border === "top" || border.border === "bottom") {
+        newY = border.point.y;
+      } else if (border.border === "left" || border.border === "right") {
+        newX = border.point.x;
+      }
+    }
+
+    newPos = new Point(newX, newY);
+  }
+
+  return newPos;
+}
 
 /**
  * Calculates the closest point on infinite lines extending through rectangle borders.
@@ -207,77 +402,93 @@ export const MagneticBorderModifier = (params: MagneticBorderModifierConfig) => 
     suggest: (pos: Point, dragInfo: DragInfo, ctx: MagneticBorderModifierContext) => {
       const enabledBorders = config.enabledBorders || ["right", "left"];
       const isAutoMode = config.magnetismDistance === "auto";
+      const allowMultipleSnap = config.allowMultipleSnap || false;
 
-      // Determine search area and maximum distance
-      let searchRect: { x: number; y: number; width: number; height: number };
-      let maxDistance: number;
+      // Get snap threshold - defaults to magnetismDistance if not provided
+      const snapThreshold = isAutoMode ? Infinity : config.snapThreshold ?? (config.magnetismDistance as number);
 
+      // Get elements within search area
       let elementsInRect = [];
 
       if (isAutoMode) {
         elementsInRect = ctx.graph.getElementsInViewport(config.targets ? [...config.targets] : []);
-        // In auto mode, allow infinite distance within viewport
-        maxDistance = Infinity;
       } else {
         // Distance mode: create search rectangle around current position
         const distance = config.magnetismDistance as number;
-        searchRect = {
+        const searchRect = {
           x: pos.x - distance,
           y: pos.y - distance,
           width: distance * 2,
           height: distance * 2,
         };
         elementsInRect = ctx.graph.getElementsOverRect(searchRect, config.targets ? [...config.targets] : []);
-        maxDistance = distance;
       }
-
-      // Get elements within the search area
 
       if (config.filter) {
-        elementsInRect = elementsInRect.filter(config.filter);
+        elementsInRect = elementsInRect.filter((element) => config.filter(element, dragInfo, ctx));
       }
 
-      let closestBorder: BorderInfo | null = null;
-      let closestDistance = maxDistance;
+      // Get dragged element size for border distance calculations
+      const draggedElement = (ctx as MagneticBorderModifierContext & { dragEntity?: GraphComponent }).dragEntity;
+      const draggedBounds = draggedElement ? config.resolveBounds?.(draggedElement) : null;
+      const draggedSize = draggedBounds ? { width: draggedBounds.width, height: draggedBounds.height } : null;
+
+      // Collect infinite border lines from all found elements
+      const allBorderLines: BorderInfo[] = [];
+      // Collect lines that are close enough for actual snapping
+      const snapCandidates: BorderInfo[] = [];
 
       // Check all found elements for their borders
       elementsInRect.forEach((element) => {
-        const bounds = config.resolveBounds?.(element);
-        if (!bounds) {
-          return;
-        }
-
-        // Get closest border lines for this element
-        const borderLines = getClosestBorderLines(pos, bounds, enabledBorders);
-
-        // Check if any border line is closer than our current closest
-        for (const borderLine of borderLines) {
-          if (borderLine.distance < closestDistance) {
-            closestBorder = {
-              element,
-              border: borderLine.border,
-              point: borderLine.point,
-              distance: borderLine.distance,
-            };
-            closestDistance = borderLine.distance;
-          }
-        }
+        const result = processElementBorderLines(
+          element,
+          pos,
+          enabledBorders,
+          snapThreshold,
+          draggedSize,
+          config.resolveBounds
+        );
+        allBorderLines.push(...result.allLines);
+        snapCandidates.push(...result.snapCandidates);
       });
 
-      // Update context with closest border information for use in drag handlers
+      // Sort candidates by distance
+      allBorderLines.sort((a, b) => a.distance - b.distance);
+      snapCandidates.sort((a, b) => a.distance - b.distance);
+
+      // Find the best borders to snap to
+      let selectedBorders: BorderInfo[] = [];
+
+      if (snapCandidates.length > 0) {
+        if (allowMultipleSnap) {
+          // Group by axis (horizontal/vertical) and take closest from each
+          const horizontalBorders = snapCandidates.filter((b) => b.border === "top" || b.border === "bottom");
+          const verticalBorders = snapCandidates.filter((b) => b.border === "left" || b.border === "right");
+
+          if (horizontalBorders.length > 0) {
+            selectedBorders.push(horizontalBorders[0]); // Closest horizontal
+          }
+          if (verticalBorders.length > 0) {
+            selectedBorders.push(verticalBorders[0]); // Closest vertical
+          }
+        } else {
+          // Take only the single closest border
+          selectedBorders = [snapCandidates[0]];
+        }
+      }
+
+      // Update context with border information for visualization
+      const closestBorder = allBorderLines.length > 0 ? allBorderLines[0] : null;
       dragInfo.updateContext({
         closestBorder,
         closestBorderElement: closestBorder?.element,
         closestBorderSide: closestBorder?.border,
+        allBorderLines, // All lines for visualization
+        selectedBorders, // Lines that are actually snapped to
       });
 
-      // If we found a nearby border, snap to it
-      if (closestBorder) {
-        return closestBorder.point;
-      }
-
-      // No snapping suggestion - return original position
-      return pos;
+      // Calculate and return final position
+      return calculateFinalPosition(selectedBorders, draggedSize, pos);
     },
   };
 };

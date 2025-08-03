@@ -10,6 +10,8 @@ export { DragController, type DragHandler, type DragControllerConfig } from "./s
 export {
   DragInfo,
   type PositionModifier,
+  type DragModifier,
+  type IDragMiddleware,
   type DragContext,
   type ModifierSuggestion,
   type DragStage,
@@ -32,4 +34,5 @@ export * from "./components/canvas/groups";
 
 export * from "./components/canvas/layers/newBlockLayer/NewBlockLayer";
 export * from "./components/canvas/layers/connectionLayer/ConnectionLayer";
+export * from "./components/canvas/layers/alignmentLayer";
 export * from "./lib/Component";

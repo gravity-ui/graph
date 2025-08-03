@@ -3,7 +3,7 @@ import { ESchedulerPriority, scheduler } from "../../lib/Scheduler";
 import { dragListener } from "../../utils/functions/dragListener";
 import { EVENTS } from "../../utils/types/events";
 
-import { DragInfo, PositionModifier } from "./DragInfo";
+import { DragInfo, DragModifier, PositionModifier } from "./DragInfo";
 
 /**
  * Interface for components that can be dragged
@@ -44,7 +44,7 @@ export interface DragControllerConfig {
   /** Enable automatic camera movement when approaching edges */
   enableEdgePanning?: boolean;
   /** Position modifiers for coordinate correction during dragging */
-  positionModifiers?: PositionModifier[];
+  positionModifiers?: (PositionModifier | DragModifier)[];
   /** Additional context to pass to modifiers */
   context?: Record<string, unknown>;
   /** Initial position of the dragged entity in camera space */
@@ -112,6 +112,9 @@ export class DragController {
 
     component.onDragStart(event, this.dragInfo);
 
+    // Emit drag-start event
+    this.graph.emit("drag-start", { dragInfo: this.dragInfo });
+
     this.startDragListener(event);
   }
 
@@ -142,6 +145,9 @@ export class DragController {
     }
 
     this.currentDragHandler.onDragUpdate(event, this.dragInfo);
+
+    // Emit drag-update event
+    this.graph.emit("drag-update", { dragInfo: this.dragInfo });
   }
 
   /**
@@ -182,6 +188,9 @@ export class DragController {
 
     // Then call the drag end handler
     this.currentDragHandler.onDragEnd(event, this.dragInfo);
+
+    // Emit drag-end event
+    this.graph.emit("drag-end", { dragInfo: this.dragInfo });
 
     // Reset state
     this.currentDragHandler = undefined;

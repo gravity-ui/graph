@@ -105,28 +105,10 @@ export class Blocks extends GraphComponent {
         {
           positionModifiers: [
             createGridSnapModifier({ gridSize: this.context.constants.block.SNAPPING_GRID_SIZE, stage: "drop" }),
-            // eslint-disable-next-line new-cap
-            MagneticBorderModifier({
-              magnetismDistance: "auto",
-              targets: [Block],
-              enabledBorders: ["top", "right", "bottom", "left"],
-              filter: (element) => {
-                return element !== blockInstance;
-              },
-              resolveBounds: (element) => {
-                if (element instanceof Block) {
-                  return {
-                    x: element.state.x,
-                    y: element.state.y,
-                    width: element.state.width,
-                    height: element.state.height,
-                  };
-                }
-              },
-            }),
           ],
           initialEntityPosition: initialEntityPosition,
           context: {
+            dragEntity: blockInstance,
             enableGridSnap: true,
             selectedBlocks: selectedBlocksComponents,
           },
