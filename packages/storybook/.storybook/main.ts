@@ -1,7 +1,9 @@
 import type { StorybookConfig } from "@storybook/react-webpack5";
 import type { Options } from '@swc/core';
+import path from 'path';
+
 const config: StorybookConfig = {
-  stories: ["../src/**/*.mdx", "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
+  stories: ["../stories/**/*.mdx", "../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
 
   addons: [
     // "@storybook/addon-links",
@@ -17,6 +19,28 @@ const config: StorybookConfig = {
     name: "@storybook/react-webpack5",
     options: {},
   },
+  
+  webpackFinal: async (config) => {
+    if (config.resolve) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        '@gravity-ui/graph': path.resolve(__dirname, '../../graph/src/index.ts'),
+        '@gravity-ui/graph/react': path.resolve(__dirname, '../../graph/src/react-components/index.ts'),
+      };
+    }
+    
+    // Enable live reload for workspace packages
+    if (config.watchOptions) {
+      config.watchOptions = {
+        ...config.watchOptions,
+        poll: 1000,
+        aggregateTimeout: 300,
+      };
+    }
+    
+    return config;
+  },
+
   swc: (config: Options): Options => {
     return {
       ...config,

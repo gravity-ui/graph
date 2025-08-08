@@ -7,7 +7,8 @@
 ```
 graph-workspace/
 ├── packages/
-│   └── graph/          # Основная библиотека @gravity-ui/graph
+│   ├── graph/          # Основная библиотека @gravity-ui/graph
+│   └── storybook/      # Storybook для разработки и демонстрации
 ├── package.json         # Корневой package.json с настройкой workspaces
 └── README.md           # Этот файл
 ```
@@ -51,10 +52,17 @@ npm run lint
 Основная библиотека для создания интерактивных графов с поддержкой Canvas и React рендеринга.
 
 **Команды:**
-- `npm run storybook` - запуск Storybook
 - `npm run build` - сборка библиотеки
 - `npm run test` - запуск тестов
 - `npm run lint` - линтинг кода
+
+### @gravity-ui/graph-storybook
+
+Storybook для разработки и демонстрации возможностей библиотеки.
+
+**Команды:**
+- `npm run storybook` - запуск Storybook
+- `npm run storybook:build` - сборка Storybook
 
 ## Разработка
 

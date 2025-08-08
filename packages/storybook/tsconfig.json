@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "./dist",
+    "moduleResolution": "node",
+    "module": "esnext",
+    "target": "es2020",
+    "noEmitOnError": true,
+    "allowJs": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "typeRoots": ["./node_modules/@types"],
+    "skipLibCheck": true,
+    "jsx": "react",
+    "paths": {
+      "@gravity-ui/graph": ["../graph/src/index.ts"],
+      "@gravity-ui/graph/react": ["../graph/src/react-components/index.ts"]
+    }
+  },
+  "include": [
+    "stories/**/*.ts",
+    "stories/**/*.tsx",
+    ".storybook/**/*.ts",
+    ".storybook/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

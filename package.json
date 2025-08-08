@@ -6,12 +6,12 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces",
-    "lint": "npm run lint --workspaces",
-    "typecheck": "npm run typecheck --workspaces",
-    "storybook": "npm run storybook --workspace=@gravity-ui/graph",
-    "storybook:build": "npm run storybook:build --workspace=@gravity-ui/graph"
+    "build": "npm run build --workspace=@gravity-ui/graph",
+    "test": "npm run test --workspace=@gravity-ui/graph",
+    "lint": "npm run lint --workspace=@gravity-ui/graph",
+    "typecheck": "npm run typecheck --workspace=@gravity-ui/graph",
+    "storybook": "npm run storybook --workspace=@gravity-ui/graph-storybook",
+    "storybook:build": "npm run storybook:build --workspace=@gravity-ui/graph-storybook"
   },
   "devDependencies": {
     "@gravity-ui/eslint-config": "^3.2.0",
