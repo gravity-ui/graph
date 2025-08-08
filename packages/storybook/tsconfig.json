@@ -12,10 +12,7 @@
     "typeRoots": ["./node_modules/@types"],
     "skipLibCheck": true,
     "jsx": "react",
-    "paths": {
-      "@gravity-ui/graph": ["../graph/src/index.ts"],
-      "@gravity-ui/graph/react": ["../graph/src/react-components/index.ts"]
-    }
+    "paths": {}
   },
   "include": [
     "stories/**/*.ts",

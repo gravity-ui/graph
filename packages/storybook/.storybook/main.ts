@@ -21,14 +21,6 @@ const config: StorybookConfig = {
   },
   
   webpackFinal: async (config) => {
-    if (config.resolve) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        '@gravity-ui/graph': path.resolve(__dirname, '../../graph/src/index.ts'),
-        '@gravity-ui/graph/react': path.resolve(__dirname, '../../graph/src/react-components/index.ts'),
-      };
-    }
-    
     // Enable live reload for workspace packages
     if (config.watchOptions) {
       config.watchOptions = {

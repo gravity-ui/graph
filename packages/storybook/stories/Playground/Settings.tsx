@@ -3,7 +3,7 @@ import React, { useRef, useState } from "react";
 import { Gear } from "@gravity-ui/icons";
 import { Button, Flex, Icon, Popup, RadioButton, RadioButtonOption, Text } from "@gravity-ui/uikit";
 
-import { Graph } from "../../graph";
+import { Graph } from "@gravity-ui/graph";
 
 import { useRerender } from "./hooks";
 

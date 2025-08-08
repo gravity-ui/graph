@@ -3,9 +3,9 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Flex, RadioButton, RadioButtonOption, RadioButtonProps, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react";
 
-import { Graph } from "../../../graph";
+import { Graph } from "@gravity-ui/graph";
 import { TGraphColors } from "../../../graphConfig";
-import { computeCssVariable } from "../../../utils/functions";
+import { computeCssVariable } from "@gravity-ui/graph";
 import { withAnchorsAndConnectionConfig } from "../../configurations/withAnchorAndConnection";
 import { GraphComponentStory } from "../../main/GraphEditor";
 

@@ -5,7 +5,7 @@ import type { Meta, StoryFn } from "@storybook/react";
 
 import { TGraphColors } from "graphConfig";
 
-import { Graph } from "../../../graph";
+import { Graph } from "@gravity-ui/graph";
 import { oneBlockConfig } from "../../configurations/oneBlock";
 import { GraphComponentStory } from "../../main/GraphEditor";
 

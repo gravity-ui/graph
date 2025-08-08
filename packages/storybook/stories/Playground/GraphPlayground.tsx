@@ -3,12 +3,12 @@ import React, { useEffect, useLayoutEffect, useRef } from "react";
 import { Flex, RadioButton, RadioButtonOption, RadioButtonProps, Text, ThemeProvider } from "@gravity-ui/uikit";
 import { StoryFn } from "storybook/internal/types";
 
-import { TBlock } from "../../components/canvas/blocks/Block";
+import { TBlock } from "@gravity-ui/graph";
 import { random } from "../../components/canvas/blocks/generate";
 import { ConnectionLayer } from "../../components/canvas/layers/connectionLayer/ConnectionLayer";
-import { Graph, GraphState, TGraphConfig } from "../../graph";
-import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "../../react-components";
-import { useFn } from "../../react-components/utils/hooks/useFn";
+import { Graph, GraphState, TGraphConfig } from "@gravity-ui/graph";
+import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph/react";
+import { useFn } from "@gravity-ui/graph/react";
 import { ECanChangeBlockGeometry } from "../../store/settings";
 import { EAnchorType } from "../configurations/definitions";
 

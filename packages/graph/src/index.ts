@@ -25,3 +25,5 @@ export * from "./components/canvas/groups";
 export * from "./components/canvas/layers/newBlockLayer/NewBlockLayer";
 export * from "./components/canvas/layers/connectionLayer/ConnectionLayer";
 export * from "./lib/Component";
+
+export {useFn} from "./react-components/utils/hooks/useFn";

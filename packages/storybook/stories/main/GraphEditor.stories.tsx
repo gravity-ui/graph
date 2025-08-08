@@ -4,11 +4,11 @@ import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryObj } from "@storybook/react";
 import merge from "lodash/merge";
 
-import { Graph, TGraphConfig } from "../../graph";
-import { TGraphConstants, initGraphConstants } from "../../graphConfig";
-import { TGraphSettingsConfig } from "../../store";
-import { ECanChangeBlockGeometry } from "../../store/settings";
-import { RecursivePartial } from "../../utils/types/helpers";
+import { Graph, TGraphConfig } from "@gravity-ui/graph";
+import { TGraphConstants, initGraphConstants } from "@gravity-ui/graph";
+import { TGraphSettingsConfig } from "@gravity-ui/graph";
+import { ECanChangeBlockGeometry } from "@gravity-ui/graph";
+import { RecursivePartial } from "@gravity-ui/graph";
 import { CustomLayerConfig } from "../configurations/CustomLayerConfig";
 import { oneBezierConnectionConfig } from "../configurations/bezierConnection";
 import { coloredConnections } from "../configurations/coloredConnections";
