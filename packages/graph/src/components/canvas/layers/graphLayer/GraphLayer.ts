@@ -43,7 +43,7 @@ export type GraphMouseEvent = CustomEvent<{
 }>;
 
 export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
-  public declare $: Component & { camera: Camera };
+  declare public $: Component & { camera: Camera };
 
   private camera: ICamera;
 

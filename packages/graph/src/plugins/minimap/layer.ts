@@ -26,7 +26,7 @@ export type MiniMapLayerContext = LayerContext & {
 };
 
 export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> {
-  public declare context: Omit<TGraphLayerContext, "ownerDocument" | "root">;
+  declare public context: Omit<TGraphLayerContext, "ownerDocument" | "root">;
 
   private minimapWidth: number;
   private minimapHeight: number;

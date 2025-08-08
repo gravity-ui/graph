@@ -36,11 +36,11 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     return this.__comp.parent.zIndex + 1;
   }
 
-  public declare state: TAnchorState;
+  declare public state: TAnchorState;
 
-  public declare props: T;
+  declare public props: T;
 
-  public declare context: TGraphLayerContext;
+  declare public context: TGraphLayerContext;
 
   public connectedState: AnchorState;
 

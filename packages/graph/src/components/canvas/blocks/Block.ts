@@ -90,11 +90,11 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   // from controller mixin
   public readonly isBlock = true;
 
-  public declare context: TGraphLayerContext;
+  declare public context: TGraphLayerContext;
 
-  public declare state: T;
+  declare public state: T;
 
-  public declare props: Props;
+  declare public props: Props;
 
   public connectedState: BlockState<T>;
 

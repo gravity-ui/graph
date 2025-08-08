@@ -59,7 +59,7 @@ export class NewBlockLayer extends Layer<
     height: number;
   }> = [];
   private enabled = true;
-  private declare eventAborter: AbortController;
+  declare private eventAborter: AbortController;
 
   constructor(props: NewBlockLayerProps) {
     super({

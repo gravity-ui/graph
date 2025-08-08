@@ -5,9 +5,9 @@ import { Background } from "./Background";
 import { TBelowLayerContext } from "./BelowLayer";
 
 export class PointerGrid extends Component<TRect, TBelowLayerContext> {
-  public declare props: TRect;
+  declare public props: TRect;
 
-  public declare context: TBelowLayerContext;
+  declare public context: TBelowLayerContext;
 
   private fakeCanvasContext?: CanvasRenderingContext2D;
 

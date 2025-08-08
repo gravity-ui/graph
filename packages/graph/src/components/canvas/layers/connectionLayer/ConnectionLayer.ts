@@ -125,7 +125,7 @@ export class ConnectionLayer extends Layer<
   protected target?: Block | Anchor;
   protected sourceComponent?: BlockState | AnchorState;
   protected enabled: boolean;
-  private declare eventAborter: AbortController;
+  declare private eventAborter: AbortController;
 
   constructor(props: ConnectionLayerProps) {
     super({

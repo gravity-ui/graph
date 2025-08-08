@@ -8,7 +8,7 @@ export class Blocks extends Component {
   protected blocks: BlockState[] = [];
   protected blocksView = {};
 
-  public declare context: TGraphLayerContext;
+  declare public context: TGraphLayerContext;
 
   protected readonly unsubscribe: (() => void)[];
 
