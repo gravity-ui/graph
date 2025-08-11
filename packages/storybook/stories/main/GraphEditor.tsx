@@ -4,7 +4,7 @@ import { TBlock } from "@gravity-ui/graph";
 import { Graph, GraphState, TGraphConfig } from "@gravity-ui/graph";
 import { TGraphColors, TGraphConstants } from "@gravity-ui/graph";
 import { GraphCanvas, TGraphEventCallbacks, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
-import { useFn } from "@gravity-ui/graph/react";
+import { useFn } from "@gravity-ui/graph";
 
 import { BlockStory } from "./Block";
 

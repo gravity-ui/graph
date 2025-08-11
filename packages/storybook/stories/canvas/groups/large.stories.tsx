@@ -1,12 +1,10 @@
 import React, { useEffect } from "react";
 
+import { BlockGroups, BlockState, Graph, GraphState, Group, TBlock, useFn } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
 import type { Meta, StoryFn } from "@storybook/react";
 import groupBy from "lodash/groupBy";
 
-import { BlockGroups, Group } from "../../../components/canvas/groups";
-import { BlockState, Graph, GraphState, TBlock } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
-import { useFn } from "@gravity-ui/graph/react";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 

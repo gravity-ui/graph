@@ -1,8 +1,5 @@
 {
-  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "baseUrl": "./src/",
-    "outDir": "./build/",
     "moduleResolution": "node",
     "module": "esnext",
     "target": "es2020",
@@ -17,14 +14,12 @@
       "@/*": ["./*"]
     }
   },
-  "outDir": "./dist/",
-  "include": ["./src/**/*.ts", "src/**/*.tsx"],
+  "include": [
+    "packages/**/*.ts",
+    "packages/**/*.tsx"
+  ],
   "exclude": [
-    "**/*.test.ts",
-    "**/*.test.tsx",
-    "**/*.spec.ts",
-    "**/*.spec.tsx",
-    "**/__tests__/**",
-    "**/__mocks__/**"
+    "node_modules",
+    "dist"
   ]
 }

@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from "react";
 
+import { Graph, GraphState, TBlock, useFn } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph } from "@gravity-ui/graph/react";
 import { Button, Flex, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react";
 
-import { TBlock, Graph, GraphState } from "@gravity-ui/graph";
-import {GraphCanvas, useGraph, useFn} from "@gravity-ui/graph/react";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 

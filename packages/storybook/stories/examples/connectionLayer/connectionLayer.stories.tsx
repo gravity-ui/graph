@@ -1,13 +1,10 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { ConnectionLayer, Graph, TBlock, useFn } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph } from "@gravity-ui/graph/react";
 import { Flex, Hotkey, Switch, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react";
 
-import { TBlock } from "@gravity-ui/graph";
-import { ConnectionLayer } from "../../../components/canvas/layers/connectionLayer/ConnectionLayer";
-import { Graph } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph } from "@gravity-ui/graph/react";
-import { useFn } from "@gravity-ui/graph/react";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 

@@ -8,7 +8,7 @@ import ELK, { ElkNode } from "elkjs";
 import { Graph, GraphState, TBlock, TConnection, TGraphConfig } from "@gravity-ui/graph";
 import { GraphCanvas, MultipointConnection, useElk, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
 import { TMultipointConnection } from "@gravity-ui/graph/react";
-import { useFn } from "@gravity-ui/graph/react";
+import { useFn } from "@gravity-ui/graph";
 import { BlockStory } from "../../main/Block";
 
 import { getExampleConfig } from "./getExampleConfig";

@@ -5,7 +5,7 @@ import { Editor, OnMount, OnValidate, loader } from "@monaco-editor/react";
 import { KeyCode, KeyMod } from "monaco-editor/esm/vs/editor/editor.api";
 
 import type { TBlock } from "@gravity-ui/graph";
-import { useFn } from "@gravity-ui/graph/react";
+import { useFn } from "@gravity-ui/graph";
 import { TBlockId } from "@gravity-ui/graph";
 import type { TConnection } from "@gravity-ui/graph";
 

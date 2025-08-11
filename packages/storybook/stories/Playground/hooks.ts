@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { useFn } from "../../react-components/utils/hooks/useFn";
+import { useFn } from "@gravity-ui/graph/react";
 
 export function useRerender() {
   const [_, setTick] = useState(Date.now());

@@ -1,8 +1,4 @@
-/* eslint-disable no-console */
-import { TBlock } from "../../components/canvas/blocks/Block";
-import { random } from "../../components/canvas/blocks/generate";
-import { TGraphConfig } from "../../graph";
-import { IS_BLOCK_TYPE } from "../../store/block/Block";
+import { IS_BLOCK_TYPE, TBlock, TGraphConfig } from "@gravity-ui/graph";
 
 import { storiesSettings } from "./definitions";
 
@@ -96,7 +92,7 @@ export function generatePrettyBlocks({
           sourceBlockId: sourceBlockId,
           targetBlockId: targetBlockId,
           label: "Some label",
-          dashed: dashedLine && Boolean(Math.floor(random(0, 2))),
+          dashed: dashedLine && Boolean(Math.floor(Math.random() * 2)),
         });
       }
       prevLayerBlocks = [...currentLayerBlocks];

@@ -1,4 +1,4 @@
-import { ECanChangeBlockGeometry } from "../../store/settings";
+import { ECanChangeBlockGeometry } from "@gravity-ui/graph";
 
 export enum EAnchorType {
   IN = "IN",

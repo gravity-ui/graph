@@ -1,4 +1,5 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
     "baseUrl": ".",
     "outDir": "./dist",
@@ -12,7 +13,8 @@
     "typeRoots": ["./node_modules/@types"],
     "skipLibCheck": true,
     "jsx": "react",
-    "paths": {}
+    "paths": {},
+    "composite": true
   },
   "include": [
     "stories/**/*.ts",
