@@ -1,14 +1,11 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useCallback, useEffect } from "react";
 
+import { Graph, GraphState, TBlock, TGraphConfig } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import { Description, Meta as StorybookMeta, Title } from "@storybook/blocks";
 import type { Meta, StoryFn } from "@storybook/react";
-import ELK, { ElkNode } from "elkjs";
 
-import { Graph, GraphState, TBlock, TConnection, TGraphConfig } from "@gravity-ui/graph";
-import { GraphCanvas, MultipointConnection, useElk, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
-import { TMultipointConnection } from "@gravity-ui/graph/react";
-import { useFn } from "@gravity-ui/graph";
 import { BlockStory } from "../../main/Block";
 
 import { getExampleConfig } from "./getExampleConfig";
@@ -29,50 +26,20 @@ export enum Algorithm {
 import "@gravity-ui/uikit/styles/styles.css";
 
 interface GraphAppProps {
-  elkConfig?: ElkNode;
   graphConfig?: TGraphConfig;
 }
 
-const GraphApp = ({ elkConfig, graphConfig }: GraphAppProps) => {
-  const elk = useMemo(() => new ELK(), []);
-
+const GraphApp = ({ graphConfig }: GraphAppProps) => {
   const { graph, setEntities, start } = useGraph({
-    settings: {
-      connection: MultipointConnection,
-    },
+    settings: {},
   });
 
-  const { isLoading, result } = useElk(elkConfig, elk);
-
   useEffect(() => {
-    if (isLoading || !result) return;
-
-    const connections = graphConfig.connections.reduce<
-      (TConnection & Pick<TMultipointConnection, "points" | "labels">)[]
-    >((acc, connection) => {
-      if (connection.id in result.edges) {
-        acc.push({
-          ...connection,
-          ...result.edges[connection.id],
-        });
-      }
-      return acc;
-    }, []);
-
-    const blocks = graphConfig.blocks.map((block) => {
-      return {
-        ...block,
-        ...result.blocks[block.id],
-      };
-    });
-
-    setEntities({
-      blocks,
-      connections,
-    });
-
-    graph.zoomTo("center", { padding: 300 });
-  }, [isLoading, result]);
+    if (graphConfig) {
+      setEntities(graphConfig);
+      graph.zoomTo("center", { padding: 300 });
+    }
+  }, [graphConfig, setEntities, graph]);
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {
@@ -80,9 +47,9 @@ const GraphApp = ({ elkConfig, graphConfig }: GraphAppProps) => {
     }
   });
 
-  const renderBlockFn = useFn((graphObject: Graph, block: TBlock) => {
+  const renderBlockFn = useCallback((graphObject: Graph, block: TBlock) => {
     return <BlockStory graph={graphObject} block={block} />;
-  });
+  }, []);
 
   return (
     <ThemeProvider theme={"light"}>
@@ -170,10 +137,6 @@ const meta: Meta<typeof GraphApp> = {
     },
   },
   argTypes: {
-    elkConfig: {
-      control: "object",
-      description: "ELK layout configuration object",
-    },
     graphConfig: {
       control: "object",
       description: "Graph configuration with blocks and connections",

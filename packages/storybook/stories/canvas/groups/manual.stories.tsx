@@ -1,7 +1,7 @@
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect } from "react";
 
-import { BlockGroups, Graph, GraphState, Group, TBlock, useFn } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
+import { BlockGroups, Graph, GraphState, Group, TBlock } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import type { Meta, StoryFn } from "@storybook/react";
 
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
@@ -29,9 +29,7 @@ const ManualGroupsApp = () => {
   const { graph, setEntities, start } = useGraph({});
 
   useEffect(() => {
-    const blockGroups = graph.addLayer(BlockGroups, {
-      draggable: false,
-    });
+    const blockGroups = graph.addLayer(BlockGroups, {});
 
     blockGroups.setGroups([
       {
@@ -59,9 +57,9 @@ const ManualGroupsApp = () => {
     }
   });
 
-  const renderBlockFn = useFn((graphObject: Graph, block: TBlock) => {
+  const renderBlockFn = useCallback((graphObject: Graph, block: TBlock) => {
     return <BlockStory graph={graphObject} block={block} />;
-  });
+  }, []);
 
   return <GraphCanvas className="graph" graph={graph} renderBlock={renderBlockFn} />;
 };

@@ -1,15 +1,17 @@
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect } from "react";
 
-import { BlockGroups, Graph, GraphState, Group, TBlock, TGroup, useFn } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
+import { BlockGroups, Graph, GraphState, Group, TBlock } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import type { Meta, StoryFn } from "@storybook/react";
 
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 
-interface ExtendedTGroup extends TGroup {
+interface ExtendedTGroup {
+  id: string;
   description: string;
   priority: number;
+  rect: { x: number; y: number; width: number; height: number };
 }
 
 class CustomGroup extends Group<ExtendedTGroup> {
@@ -38,9 +40,8 @@ const ExtendedGroupsApp = () => {
 
   useEffect(() => {
     const blockGroups = graph.addLayer(BlockGroups, {
-      draggable: false,
       groupComponent: CustomGroup,
-    });
+    } as any);
 
     blockGroups.setGroups([
       {
@@ -70,9 +71,9 @@ const ExtendedGroupsApp = () => {
     }
   });
 
-  const renderBlockFn = useFn((graphObject: Graph, block: TBlock) => {
+  const renderBlockFn = useCallback((graphObject: Graph, block: TBlock) => {
     return <BlockStory graph={graphObject} block={block} />;
-  });
+  }, []);
 
   return <GraphCanvas className="graph" graph={graph} renderBlock={renderBlockFn} />;
 };

@@ -1,13 +1,9 @@
-import React, { Ref, useImperativeHandle, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 
+import type { TBlock, TBlockId, TConnection } from "@gravity-ui/graph";
 import { Button, Flex, Hotkey, Text } from "@gravity-ui/uikit";
 import { Editor, OnMount, OnValidate, loader } from "@monaco-editor/react";
 import { KeyCode, KeyMod } from "monaco-editor/esm/vs/editor/editor.api";
-
-import type { TBlock } from "@gravity-ui/graph";
-import { useFn } from "@gravity-ui/graph";
-import { TBlockId } from "@gravity-ui/graph";
-import type { TConnection } from "@gravity-ui/graph";
 
 import { defineConigSchema } from "./schema";
 import { GravityTheme, defineTheme } from "./theme";
@@ -35,7 +31,7 @@ type ExtractTypeFromArray<T> = T extends Array<infer E> ? E : never;
 
 export const ConfigEditor = React.forwardRef(function ConfigEditor(
   props: ConfigEditorProps,
-  ref: Ref<ConfigEditorController>
+  ref: React.Ref<ConfigEditorController>
 ) {
   const [errorMarker, setErrorMarker] = useState<ExtractTypeFromArray<Parameters<OnValidate>[0]>>(null);
 
@@ -43,7 +39,7 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(
 
   const valueRef = useRef<{ blocks: TBlock[]; connections: TConnection[] }>({ blocks: [], connections: [] });
 
-  useImperativeHandle(ref, () => ({
+  React.useImperativeHandle(ref, () => ({
     scrollTo: (blockId: string) => {
       if (!monacoRef.current) {
         return;
@@ -95,7 +91,7 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(
     },
   }));
 
-  const applyChanges = useFn(() => {
+  const applyChanges = useCallback(() => {
     try {
       const data = JSON.parse(monacoRef.current.getModel().getValue());
       props?.onChange?.({ blocks: data.blocks, connections: data.conections });
@@ -103,7 +99,7 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(
       // eslint-disable-next-line no-console
       console.error(e);
     }
-  });
+  }, [props?.onChange]);
 
   return (
     <Flex direction="column" className="editor-wrap">

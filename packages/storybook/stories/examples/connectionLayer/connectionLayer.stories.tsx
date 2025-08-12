@@ -1,7 +1,7 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { ConnectionLayer, Graph, TBlock, useFn } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph } from "@gravity-ui/graph/react";
+import { ConnectionLayer, Graph, TBlock } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 import { Flex, Hotkey, Switch, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react";
 
@@ -25,7 +25,7 @@ const GraphApp = () => {
 
   const connectionLayerRef = useRef<ConnectionLayer>(null);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     // Create icon for creating connections
     const createIcon = {
       path: "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z", // Plus icon
@@ -117,7 +117,7 @@ const GraphApp = () => {
     });
   }, [graph]);
 
-  const switchConnectionEnabled = useFn((enabled: boolean) => {
+  const switchConnectionEnabled = useCallback((enabled: boolean) => {
     if (enabled) {
       connectionLayerRef.current.enable();
       setEnabled(true);
@@ -125,7 +125,7 @@ const GraphApp = () => {
       connectionLayerRef.current.disable(); // Обратите внимание, что в оригинале метод назван disabled, а не disable
       setEnabled(false);
     }
-  });
+  }, []);
 
   const renderBlock = (graphInstance: Graph, block: TBlock) => {
     return <BlockStory graph={graphInstance} block={block} />;

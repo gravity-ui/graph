@@ -1,0 +1,30 @@
+.graph-block-container {
+  display: flex;
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: content-box;
+  
+  will-change: transform;
+  contain: layout size;
+  isolation: isolate;
+  
+  /* Creates a composite layer */
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+
+.graph-block-wrapper {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+
+  box-sizing: border-box;
+
+  background: var(--graph-block-bg);
+  border: 1px solid var(--graph-block-border)
+}
+
+.graph-block-wrapper.selected {
+  border-color: var(--graph-block-border-selected)
+}

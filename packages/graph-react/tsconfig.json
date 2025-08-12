@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "build",
+    "rootDir": "src",
+    "baseUrl": "./src/",
+    "paths": {
+      "@gravity-ui/graph": ["../graph/src"]
+    },
+    "skipLibCheck": true,
+    "noEmitOnError": false,
+    "jsx": "react"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["build", "node_modules", "**/*.test.ts", "**/*.test.tsx", "../graph/**/*"]
+}

@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 
-import { Graph, GraphState, TBlock, useFn } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph } from "@gravity-ui/graph/react";
+import { Graph, GraphState, TBlock } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 import { Button, Flex, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react";
 
@@ -39,9 +39,9 @@ const GraphApp = () => {
     }
   };
 
-  const renderBlockFn = useFn((graphObject: Graph, block: TBlock) => {
+  const renderBlockFn = useCallback((graphObject: Graph, block: TBlock) => {
     return <BlockStory graph={graphObject} block={block} />;
-  });
+  }, []);
 
   const update = () => {
     const { blocks, connections } = generatePrettyBlocks({

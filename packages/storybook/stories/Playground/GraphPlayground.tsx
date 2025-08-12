@@ -1,17 +1,9 @@
-import React, { useEffect, useLayoutEffect, useRef } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
 import { ConnectionLayer, ECanChangeBlockGeometry, Graph, GraphState, TBlock, TGraphConfig } from "@gravity-ui/graph";
-import {
-  GraphBlock,
-  GraphCanvas,
-  HookGraphParams,
-  useFn,
-  useGraph,
-  useGraphEvent,
-  useLayer,
-} from "@gravity-ui/graph/react";
-import { Flex, RadioButton, RadioButtonOption, RadioButtonProps, Text, ThemeProvider } from "@gravity-ui/uikit";
-import { StoryFn } from "storybook/internal/types";
+import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph-react";
+import { Flex, RadioButton, RadioButtonOption, Text, ThemeProvider } from "@gravity-ui/uikit";
+import type { StoryFn } from "storybook/internal/types";
 
 import { EAnchorType } from "../configurations/definitions";
 
@@ -141,13 +133,13 @@ export function GraphPLayground() {
     drawLine,
   });
 
-  const updateVisibleConfig = useFn(() => {
+  const updateVisibleConfig = useCallback(() => {
     const config = graph.rootStore.getAsConfig();
     editorRef?.current.setContent({
       blocks: config.blocks || [],
       connections: config.connections || [],
     });
-  });
+  }, [graph]);
 
   useGraphEvent(graph, "block-change", ({ block }) => {
     editorRef?.current.updateBlocks([block]);
@@ -234,18 +226,18 @@ export function GraphPLayground() {
     }
   });
 
-  const addNewBlock = useFn(() => {
+  const addNewBlock = useCallback(() => {
     const rect = graph.api.getUsableRect();
-    const x = random(rect.x, rect.x + rect.width + 100);
-    const y = random(rect.y, rect.y + rect.height + 100);
+    const x = rect.x + Math.random() * rect.width;
+    const y = rect.y + Math.random() * rect.height;
     const block = createActionBlock(x, y, graph.rootStore.blocksList.$blocksMap.value.size + 1);
     graph.api.addBlock(block);
     graph.zoomTo([block.id], { transition: 250 });
     updateVisibleConfig();
     editorRef?.current.scrollTo(block.id);
-  });
+  }, [graph, updateVisibleConfig]);
 
-  const renderBlockFn = useFn((graph: Graph, block: TBlock) => {
+  const renderBlockFn = useCallback((graph: Graph, block: TBlock) => {
     const view = graph.rootStore.blocksList.getBlockState(block.id)?.getViewComponent();
     if (view instanceof ActionBlock) {
       return view.renderHTML();
@@ -258,7 +250,7 @@ export function GraphPLayground() {
         Unknown block <>{block.id.toLocaleString()}</>
       </GraphBlock>
     );
-  });
+  }, []);
 
   useGraphEvent(graph, "blocks-selection-change", ({ list }) => {
     if (list.length === 1) {
@@ -277,33 +269,36 @@ export function GraphPLayground() {
     return () => document.body.removeEventListener("keydown", fn);
   });
 
-  const updateGraphSize = useFn<Parameters<RadioButtonProps["onUpdate"]>, void>((value) => {
-    let config: TGraphConfig<TGravityActionBlock | TGravityTextBlock>;
-    switch (value) {
-      case graphSizeOptions[0].value: {
-        config = generatePlaygroundActionBlocks(0, 5);
-        break;
+  const updateGraphSize = useCallback(
+    (value: string) => {
+      let config: TGraphConfig<TGravityActionBlock | TGravityTextBlock>;
+      switch (value) {
+        case graphSizeOptions[0].value: {
+          config = generatePlaygroundActionBlocks(0, 5);
+          break;
+        }
+        case graphSizeOptions[1].value: {
+          config = generatePlaygroundActionBlocks(10, 100);
+          break;
+        }
+        case graphSizeOptions[2].value: {
+          config = generatePlaygroundActionBlocks(23, 150);
+          break;
+        }
+        case graphSizeOptions[3].value: {
+          graph.updateSettings({
+            useBezierConnections: false,
+          });
+          config = generatePlaygroundActionBlocks(50, 150);
+          break;
+        }
       }
-      case graphSizeOptions[1].value: {
-        config = generatePlaygroundActionBlocks(10, 100);
-        break;
-      }
-      case graphSizeOptions[2].value: {
-        config = generatePlaygroundActionBlocks(23, 150);
-        break;
-      }
-      case graphSizeOptions[3].value: {
-        graph.updateSettings({
-          useBezierConnections: false,
-        });
-        config = generatePlaygroundActionBlocks(50, 150);
-        break;
-      }
-    }
-    setEntities(config);
-    graph.zoomTo("center", { transition: 500 });
-    updateVisibleConfig();
-  });
+      setEntities(config);
+      graph.zoomTo("center", { transition: 500 });
+      updateVisibleConfig();
+    },
+    [graph, setEntities, updateVisibleConfig]
+  );
 
   return (
     <ThemeProvider theme="dark">

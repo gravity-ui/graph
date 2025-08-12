@@ -1,10 +1,7 @@
-import React, { useLayoutEffect } from "react";
+import React, { useCallback, useLayoutEffect } from "react";
 
-import { TBlock } from "@gravity-ui/graph";
-import { Graph, GraphState, TGraphConfig } from "@gravity-ui/graph";
-import { TGraphColors, TGraphConstants } from "@gravity-ui/graph";
-import { GraphCanvas, TGraphEventCallbacks, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
-import { useFn } from "@gravity-ui/graph";
+import { Graph, GraphState, TBlock, TGraphColors, TGraphConfig, TGraphConstants } from "@gravity-ui/graph";
+import { GraphCanvas, TGraphEventCallbacks, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 
 import { BlockStory } from "./Block";
 
@@ -62,9 +59,12 @@ export const GraphComponentStory = ({ config, graphRef, constants, colors, rende
     }
   });
 
-  const renderBlockFn = useFn((graphObject: Graph, block: TBlock) => {
-    return renderBlock?.(graphObject, block) || <BlockStory graph={graphObject} block={block} />;
-  });
+  const renderBlockFn = useCallback(
+    (graphObject: Graph, block: TBlock) => {
+      return renderBlock?.(graphObject, block) || <BlockStory graph={graphObject} block={block} />;
+    },
+    [renderBlock]
+  );
 
   return <GraphCanvas className="graph" graph={graph} renderBlock={renderBlockFn} {...callbacks} />;
 };
