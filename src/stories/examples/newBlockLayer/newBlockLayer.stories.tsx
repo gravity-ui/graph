@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Flex, Hotkey, Switch, Text, ThemeProvider } from "@gravity-ui/uikit";
-import type { Meta, StoryFn } from "@storybook/react";
+import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { TBlock } from "../../../components/canvas/blocks/Block";
 import { NewBlockLayer } from "../../../components/canvas/layers/newBlockLayer/NewBlockLayer";

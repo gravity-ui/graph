@@ -1,7 +1,7 @@
 import React, { useRef } from "react";
 
 import { ThemeProvider } from "@gravity-ui/uikit";
-import type { Meta, StoryFn } from "@storybook/react";
+import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { ECanChangeBlockGeometry, Graph, LayerConfig, MiniMapLayer } from "../../";
 import { generatePrettyBlocks } from "../configurations/generatePretty";

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from "react";
 
 import { ThemeProvider } from "@gravity-ui/uikit";
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-webpack5";
 import merge from "lodash/merge";
 
 import { Graph, TGraphConfig } from "../../graph";

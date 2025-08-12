@@ -1,17 +1,9 @@
 import type { StorybookConfig } from "@storybook/react-webpack5";
-import type { Options } from '@swc/core';
+import type { Options } from "@swc/core";
 const config: StorybookConfig = {
   stories: ["../src/**/*.mdx", "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
 
-  addons: [
-    // "@storybook/addon-links",
-    "@storybook/addon-essentials",
-    // "@storybook/addon-onboarding",
-    // "@storybook/addon-interactions",
-    "@storybook/addon-styling-webpack",
-    "@storybook/addon-webpack5-compiler-swc",
-    // "@chromatic-com/storybook"
-  ],
+  addons: ["@storybook/addon-styling-webpack", "@storybook/addon-webpack5-compiler-swc", "@storybook/addon-docs"],
 
   framework: {
     name: "@storybook/react-webpack5",
@@ -32,7 +24,7 @@ const config: StorybookConfig = {
   },
 
   typescript: {
-    reactDocgen: "react-docgen-typescript"
-  }
+    reactDocgen: "react-docgen-typescript",
+  },
 };
 export default config;

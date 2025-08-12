@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect } from "react";
 
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
 import { TBlock } from "../../../components/canvas/blocks/Block";
 import { Graph } from "../../../graph";

@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from "react";
 
-import { Button, ButtonProps, Flex, ThemeProvider } from "@gravity-ui/uikit";
-import type { Meta, StoryFn } from "@storybook/react";
+import { Button, ButtonButtonProps, Flex, ThemeProvider } from "@gravity-ui/uikit";
+import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { TGraphColors } from "graphConfig";
 
@@ -19,19 +19,19 @@ const GraphApp = () => {
     setColors(colors);
   }, []);
 
-  const onRedClick: ButtonProps["onClick"] = useCallback(() => {
+  const onRedClick: ButtonButtonProps["onClick"] = useCallback(() => {
     graphRef.current.api.updateGraphColors({ block: { background: "#febcb8" } });
 
     updateReactComponentsColors({ block: { background: "#febcb8" } });
   }, [updateReactComponentsColors]);
 
-  const onGreenClick: ButtonProps["onClick"] = useCallback(() => {
+  const onGreenClick: ButtonButtonProps["onClick"] = useCallback(() => {
     graphRef.current.api.updateGraphColors({ block: { background: "#b7e6b0" } });
 
     updateReactComponentsColors({ block: { background: "#b7e6b0" } });
   }, [updateReactComponentsColors]);
 
-  const onYellowClick: ButtonProps["onClick"] = useCallback(() => {
+  const onYellowClick: ButtonButtonProps["onClick"] = useCallback(() => {
     graphRef.current.api.updateGraphColors({ block: { background: "#fee0b0" } });
 
     updateReactComponentsColors({ block: { background: "#fee0b0" } });

@@ -15,7 +15,7 @@ import {
   TextInputProps,
   ThemeProvider,
 } from "@gravity-ui/uikit";
-import type { Meta, StoryFn } from "@storybook/react";
+import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { Graph } from "../../../graph";
 import { TConnection } from "../../../index";

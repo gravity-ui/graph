@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 
 import { Button, Flex, ThemeProvider } from "@gravity-ui/uikit";
-import type { Meta, StoryFn } from "@storybook/react";
+import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { TBlock } from "../../../components/canvas/blocks/Block";
 import { Graph, GraphState } from "../../../graph";

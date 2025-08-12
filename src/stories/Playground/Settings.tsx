@@ -1,18 +1,26 @@
 import React, { useRef, useState } from "react";
 
 import { Gear } from "@gravity-ui/icons";
-import { Button, Flex, Icon, Popup, RadioButton, RadioButtonOption, Text } from "@gravity-ui/uikit";
+import {
+  Button,
+  Flex,
+  Icon,
+  Popup,
+  SegmentedRadioGroup,
+  SegmentedRadioGroupOptionProps,
+  Text,
+} from "@gravity-ui/uikit";
 
 import { Graph } from "../../graph";
 
 import { useRerender } from "./hooks";
 
-const ConnectionVariants: RadioButtonOption[] = [
+const ConnectionVariants: SegmentedRadioGroupOptionProps[] = [
   { value: "bezier", content: "Bezier" },
   { value: "line", content: "Line" },
 ];
 
-const ConnectionArrowsVariants: RadioButtonOption[] = [
+const ConnectionArrowsVariants: SegmentedRadioGroupOptionProps[] = [
   { value: "bezier", content: "Show" },
   { value: "line", content: "Hide" },
 ];
@@ -42,7 +50,7 @@ export function GraphSettings({ className, graph }: { className: string; graph: 
           <Text variant="subheader-2">Graph settings</Text>
           <Flex direction="column" gap={2}>
             <Text variant="subheader-1">Connection type</Text>
-            <RadioButton
+            <SegmentedRadioGroup
               size="l"
               onUpdate={(value) => {
                 graph.updateSettings({
@@ -56,7 +64,7 @@ export function GraphSettings({ className, graph }: { className: string; graph: 
           </Flex>
           <Flex direction="column" gap={2}>
             <Text variant="subheader-1">Show arrows</Text>
-            <RadioButton
+            <SegmentedRadioGroup
               size="l"
               onUpdate={(value) => {
                 graph.updateSettings({
