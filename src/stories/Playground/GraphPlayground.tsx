@@ -1,6 +1,13 @@
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 
-import { Flex, RadioButton, RadioButtonOption, RadioButtonProps, Text, ThemeProvider } from "@gravity-ui/uikit";
+import {
+  Flex,
+  SegmentedRadioGroup,
+  SegmentedRadioGroupOptionProps,
+  SegmentedRadioGroupProps,
+  Text,
+  ThemeProvider,
+} from "@gravity-ui/uikit";
 import { StoryFn } from "storybook/internal/types";
 
 import { TBlock } from "../../components/canvas/blocks/Block";
@@ -87,7 +94,7 @@ const config: HookGraphParams = {
   },
 };
 
-const graphSizeOptions: RadioButtonOption[] = [
+const graphSizeOptions: SegmentedRadioGroupOptionProps[] = [
   { value: "1", content: "1" },
   { value: "100", content: "100" },
   { value: "1000", content: "1 000" },
@@ -274,7 +281,7 @@ export function GraphPLayground() {
     return () => document.body.removeEventListener("keydown", fn);
   });
 
-  const updateGraphSize = useFn<Parameters<RadioButtonProps["onUpdate"]>, void>((value) => {
+  const updateGraphSize = useFn<Parameters<SegmentedRadioGroupProps["onUpdate"]>, void>((value) => {
     let config: TGraphConfig<TGravityActionBlock | TGravityTextBlock>;
     switch (value) {
       case graphSizeOptions[0].value: {
@@ -308,12 +315,12 @@ export function GraphPLayground() {
         <Flex direction="column" grow={1} className="content graph" gap={6}>
           <Flex direction="row" gap={4} alignItems="center">
             <Text variant="header-1">Blocks</Text>
-            <RadioButton
+            <SegmentedRadioGroup
               className="graph-size-settings"
               options={graphSizeOptions}
               onUpdate={updateGraphSize}
               size="l"
-            ></RadioButton>
+            ></SegmentedRadioGroup>
           </Flex>
           <Flex grow={1} className="view graph-editor">
             <Flex className="graph-tools" direction="column">

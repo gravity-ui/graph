@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { Flex, RadioButton, RadioButtonOption, RadioButtonProps, ThemeProvider } from "@gravity-ui/uikit";
+import {
+  Flex,
+  SegmentedRadioGroup,
+  SegmentedRadioGroupOptionProps,
+  SegmentedRadioGroupProps,
+  ThemeProvider,
+} from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react";
 
 import { Graph } from "../../../graph";
@@ -56,7 +62,7 @@ function parseTheme(colors: TGraphColors): TGraphColors {
 
   return parsed;
 }
-const options: RadioButtonOption[] = [
+const options: SegmentedRadioGroupOptionProps[] = [
   { value: "light", content: "Light" },
   { value: "dark", content: "Dark" },
 ];
@@ -66,7 +72,7 @@ const GraphApp = () => {
 
   const [theme, setTheme] = useState(options[0].value);
 
-  const onThemeUpdate: RadioButtonProps["onUpdate"] = useCallback((value) => {
+  const onThemeUpdate: SegmentedRadioGroupProps["onUpdate"] = useCallback((value) => {
     setTheme(value);
   }, []);
 
@@ -78,7 +84,7 @@ const GraphApp = () => {
   return (
     <ThemeProvider theme={theme}>
       <Flex direction={"column"} width={320} gap={2} style={{ marginBottom: "10px" }}>
-        <RadioButton name="group2" defaultValue={options[0].value} options={options} onUpdate={onThemeUpdate} />
+        <SegmentedRadioGroup name="group2" defaultValue={options[0].value} options={options} onUpdate={onThemeUpdate} />
       </Flex>
       <GraphComponentStory graphRef={graphRef} config={withAnchorsAndConnectionConfig} colors={graphColors} />
     </ThemeProvider>
