@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
   Flex,
@@ -138,6 +138,7 @@ const drawLine = (start, end) => {
 export function GraphPLayground() {
   const { graph, setEntities, updateEntities, start } = useGraph(config);
   const editorRef = useRef<ConfigEditorController>(null);
+  const [graphSize, setGraphSize] = useState<string>("1");
 
   useLayer(graph, ConnectionLayer, {
     createIcon,
@@ -283,6 +284,8 @@ export function GraphPLayground() {
 
   const updateGraphSize = useFn<Parameters<SegmentedRadioGroupProps["onUpdate"]>, void>((value) => {
     let config: TGraphConfig<TGravityActionBlock | TGravityTextBlock>;
+    setGraphSize(value);
+
     switch (value) {
       case graphSizeOptions[0].value: {
         config = generatePlaygroundActionBlocks(0, 5);
@@ -316,11 +319,12 @@ export function GraphPLayground() {
           <Flex direction="row" gap={4} alignItems="center">
             <Text variant="header-1">Blocks</Text>
             <SegmentedRadioGroup
+              value={graphSize}
               className="graph-size-settings"
               options={graphSizeOptions}
               onUpdate={updateGraphSize}
               size="l"
-            ></SegmentedRadioGroup>
+            />
           </Flex>
           <Flex grow={1} className="view graph-editor">
             <Flex className="graph-tools" direction="column">

@@ -106,7 +106,7 @@ const GraphApp = () => {
 
   return (
     <ThemeProvider theme={"light"}>
-      <Flex className="toolbox" direction={"column"} width={320} gap={2} style={{ marginBottom: "10px" }}>
+      <Flex className="toolbox" direction={"column"} width={450} gap={2} style={{ marginBottom: "10px" }}>
         <Flex direction={"row"} gap={2}>
           <Select
             options={sourceBlockOptions}
