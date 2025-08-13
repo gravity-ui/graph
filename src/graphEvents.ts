@@ -2,6 +2,7 @@ import { EventedComponent } from "./components/canvas/EventedComponent/EventedCo
 import { GraphState } from "./graph";
 import { TGraphColors, TGraphConstants } from "./graphConfig";
 import { TCameraState } from "./services/camera/CameraService";
+import { DragInfo } from "./services/Drag/DragInfo";
 
 export type GraphMouseEvent<E extends Event = Event> = CustomEvent<{
   target?: EventedComponent;
@@ -41,6 +42,9 @@ export interface GraphEventsDefinitions extends BaseGraphEventDefinition {
   "constants-changed": (event: CustomEvent<{ constants: TGraphConstants }>) => void;
   "colors-changed": (event: CustomEvent<{ colors: TGraphColors }>) => void;
   "state-change": (event: CustomEvent<{ state: GraphState }>) => void;
+  "drag-start": (event: CustomEvent<{ dragInfo: DragInfo }>) => void;
+  "drag-update": (event: CustomEvent<{ dragInfo: DragInfo }>) => void;
+  "drag-end": (event: CustomEvent<{ dragInfo: DragInfo }>) => void;
 }
 const graphMouseEvents = ["mousedown", "click", "dblclick", "mouseenter", "mousemove", "mouseleave"];
 

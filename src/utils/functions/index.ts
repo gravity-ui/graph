@@ -1,8 +1,9 @@
 import { Block } from "../../components/canvas/blocks/Block";
+import type { DragStage, PositionModifier } from "../../services/Drag/DragInfo";
 import { BlockState, TBlockId } from "../../store/block/Block";
 import { ECanChangeBlockGeometry } from "../../store/settings";
 import { EVENTS_DETAIL, SELECTION_EVENT_TYPES } from "../types/events";
-import { Rect, TRect } from "../types/shapes";
+import { Point, Rect, TRect } from "../types/shapes";
 
 export { parseClassNames } from "./classNames";
 

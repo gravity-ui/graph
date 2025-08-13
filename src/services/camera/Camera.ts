@@ -1,12 +1,13 @@
 import { EventedComponent } from "../../components/canvas/EventedComponent/EventedComponent";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
-import { Component } from "../../lib";
+import { Component, ESchedulerPriority } from "../../lib";
 import { TComponentProps, TComponentState } from "../../lib/Component";
 import { ComponentDescriptor } from "../../lib/CoreComponent";
 import { getXY, isMetaKeyEvent, isTrackpadWheelEvent, isWindows } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
 import { dragListener } from "../../utils/functions/dragListener";
 import { EVENTS } from "../../utils/types/events";
+import { schedule } from "../../utils/utils/schedule";
 
 import { ICamera } from "./CameraService";
 
@@ -15,12 +16,30 @@ export type TCameraProps = TComponentProps & {
   children: ComponentDescriptor[];
 };
 
+export type TEdgePanningConfig = {
+  edgeSize: number; // размер зоны для активации edge panning (в пикселях)
+  speed: number; // скорость движения камеры
+  enabled: boolean; // включен ли режим
+};
+
+const DEFAULT_EDGE_PANNING_CONFIG: TEdgePanningConfig = {
+  edgeSize: 100,
+  speed: 15,
+  enabled: false,
+};
+
 export class Camera extends EventedComponent<TCameraProps, TComponentState, TGraphLayerContext> {
   private camera: ICamera;
 
   private ownerDocument: Document;
 
   private lastDragEvent?: MouseEvent;
+
+  private edgePanningConfig: TEdgePanningConfig = { ...DEFAULT_EDGE_PANNING_CONFIG };
+
+  private edgePanningAnimation?: () => void;
+
+  private lastMousePosition: { x: number; y: number } = { x: 0, y: 0 };
 
   constructor(props: TCameraProps, parent: Component) {
     super(props, parent);
@@ -61,6 +80,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
     this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
     this.removeEventListener("mousedown", this.handleMouseDownEvent);
+    this.disableEdgePanning();
   }
 
   private handleMouseDownEvent = (event: MouseEvent) => {
@@ -69,8 +89,8 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     }
     if (!isMetaKeyEvent(event)) {
       dragListener(this.ownerDocument)
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onDragStart(event))
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onDragUpdate(event))
+        .on(EVENTS.DRAG_START, (dragEvent: MouseEvent) => this.onDragStart(dragEvent))
+        .on(EVENTS.DRAG_UPDATE, (dragEvent: MouseEvent) => this.onDragUpdate(dragEvent))
         .on(EVENTS.DRAG_END, () => this.onDragEnd());
     }
   };
@@ -166,5 +186,121 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
   public updateChildren() {
     return this.props.children;
+  }
+
+  /**
+   * Включает автоматическое перемещение камеры при приближении мыши к границам viewport
+   * @param config Конфигурация edge panning (частичная)
+   * @returns void
+   */
+  public enableEdgePanning(config: Partial<TEdgePanningConfig> = {}): void {
+    this.edgePanningConfig = { ...this.edgePanningConfig, ...config, enabled: true };
+
+    if (this.props.root) {
+      this.props.root.addEventListener("mousemove", this.handleEdgePanningMouseMove);
+      this.props.root.addEventListener("mouseleave", this.handleEdgePanningMouseLeave);
+    }
+  }
+
+  /**
+   * Отключает автоматическое перемещение камеры
+   * @returns void
+   */
+  public disableEdgePanning(): void {
+    this.edgePanningConfig.enabled = false;
+
+    if (this.props.root) {
+      this.props.root.removeEventListener("mousemove", this.handleEdgePanningMouseMove);
+      this.props.root.removeEventListener("mouseleave", this.handleEdgePanningMouseLeave);
+    }
+
+    this.stopEdgePanningAnimation();
+  }
+
+  private handleEdgePanningMouseMove = (event: MouseEvent): void => {
+    if (!this.edgePanningConfig.enabled || !this.props.root) {
+      return;
+    }
+
+    this.lastMousePosition = { x: event.clientX, y: event.clientY };
+    this.updateEdgePanning();
+  };
+
+  private handleEdgePanningMouseLeave = (): void => {
+    this.stopEdgePanningAnimation();
+  };
+
+  private updateEdgePanning(): void {
+    if (!this.edgePanningConfig.enabled || !this.props.root) {
+      return;
+    }
+
+    const rect = this.props.root.getBoundingClientRect();
+    const { x, y } = this.lastMousePosition;
+    const { edgeSize, speed } = this.edgePanningConfig;
+
+    // Вычисляем расстояния до границ
+    const distanceToLeft = x - rect.left;
+    const distanceToRight = rect.right - x;
+    const distanceToTop = y - rect.top;
+    const distanceToBottom = rect.bottom - y;
+
+    let deltaX = 0;
+    let deltaY = 0;
+
+    // Проверяем левую границу - при приближении к левому краю двигаем камеру вправо
+    if (distanceToLeft < edgeSize && distanceToLeft >= 0) {
+      const intensity = 1 - distanceToLeft / edgeSize;
+      deltaX = speed * intensity; // Положительный - камера двигается вправо
+    }
+    // Проверяем правую границу - при приближении к правому краю двигаем камеру влево
+    else if (distanceToRight < edgeSize && distanceToRight >= 0) {
+      const intensity = 1 - distanceToRight / edgeSize;
+      deltaX = -speed * intensity; // Отрицательный - камера двигается влево
+    }
+
+    // Проверяем верхнюю границу - при приближении к верхнему краю двигаем камеру вниз
+    if (distanceToTop < edgeSize && distanceToTop >= 0) {
+      const intensity = 1 - distanceToTop / edgeSize;
+      deltaY = speed * intensity; // Положительный - камера двигается вниз
+    }
+    // Проверяем нижнюю границу - при приближении к нижнему краю двигаем камеру вверх
+    else if (distanceToBottom < edgeSize && distanceToBottom >= 0) {
+      const intensity = 1 - distanceToBottom / edgeSize;
+      deltaY = -speed * intensity; // Отрицательный - камера двигается вверх
+    }
+
+    // Если нужно двигать камеру
+    if (deltaX !== 0 || deltaY !== 0) {
+      this.startEdgePanningAnimation(deltaX, deltaY);
+    } else {
+      this.stopEdgePanningAnimation();
+    }
+  }
+
+  private startEdgePanningAnimation(deltaX: number, deltaY: number): void {
+    // Останавливаем предыдущую анимацию
+    this.stopEdgePanningAnimation();
+
+    // Используем schedule с высоким приоритетом и частотой обновления каждый фрейм
+    this.edgePanningAnimation = schedule(
+      () => {
+        if (this.edgePanningConfig.enabled) {
+          this.camera.move(deltaX, deltaY);
+        }
+      },
+      {
+        priority: ESchedulerPriority.HIGH,
+        frameInterval: 1, // Каждый фрейм
+        once: false, // Повторяющаяся анимация
+      }
+    );
+  }
+
+  private stopEdgePanningAnimation(): void {
+    if (this.edgePanningAnimation) {
+      this.edgePanningAnimation(); // Вызываем функцию для остановки
+      this.edgePanningAnimation = undefined;
+    }
   }
 }

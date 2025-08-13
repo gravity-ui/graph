@@ -18,6 +18,8 @@ export enum ECanChangeBlockGeometry {
 export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   canDragCamera: boolean;
   canZoomCamera: boolean;
+  /** Enable automatic camera movement when mouse approaches viewport edges during block dragging */
+  enableEdgePanning: boolean;
   /** @deprecated Use NewBlockLayer parameters instead */
   canDuplicateBlocks?: boolean;
   canChangeBlockGeometry: ECanChangeBlockGeometry;
@@ -37,6 +39,7 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
 const getInitState: TGraphSettingsConfig = {
   canDragCamera: true,
   canZoomCamera: true,
+  enableEdgePanning: true,
   canDuplicateBlocks: false,
   canChangeBlockGeometry: ECanChangeBlockGeometry.NONE,
   canCreateNewConnections: false,

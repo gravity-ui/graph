@@ -2,7 +2,7 @@ import { Graph } from "../../../../graph";
 import { GraphMouseEventNames, isNativeGraphEventName } from "../../../../graphEvents";
 import { Component } from "../../../../lib/Component";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
-import { Camera, TCameraProps } from "../../../../services/camera/Camera";
+import { Camera, TCameraProps, TEdgePanningConfig } from "../../../../services/camera/Camera";
 import { ICamera } from "../../../../services/camera/CameraService";
 import { getEventDelta } from "../../../../utils/functions";
 import { EventedComponent } from "../../EventedComponent/EventedComponent";
@@ -111,6 +111,14 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
       this.performRender();
     });
     super.afterInit();
+  }
+
+  public enableEdgePanning(config: Partial<TEdgePanningConfig> = {}): void {
+    this.$.camera.enableEdgePanning(config);
+  }
+
+  public disableEdgePanning(): void {
+    this.$.camera.disableEdgePanning();
   }
 
   /**

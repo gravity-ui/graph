@@ -1,11 +1,11 @@
 import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
+import { DragHandler } from "../../../../services/Drag/DragController";
+import { DragInfo } from "../../../../services/Drag/DragInfo";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { BlockState } from "../../../../store/block/Block";
 import { getXY, isAltKeyEvent, isBlock } from "../../../../utils/functions";
-import { dragListener } from "../../../../utils/functions/dragListener";
 import { render } from "../../../../utils/renderers/render";
-import { EVENTS } from "../../../../utils/types/events";
-import { TPoint } from "../../../../utils/types/shapes";
+import { Point, TPoint } from "../../../../utils/types/shapes";
 import { ESelectionStrategy } from "../../../../utils/types/types";
 import { Block } from "../../../canvas/blocks/Block";
 
@@ -110,12 +110,15 @@ export class NewBlockLayer extends Layer<
 
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
-      dragListener(this.root.ownerDocument)
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onStartNewBlock(event, target))
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onMoveNewBlock(event))
-        .on(EVENTS.DRAG_END, (event: MouseEvent) =>
-          this.onEndNewBlock(event, this.context.graph.getPointInCameraSpace(event))
-        );
+
+      const newBlockHandler: DragHandler = {
+        onDragStart: (dragEvent: MouseEvent, _dragInfo: DragInfo) => this.onStartNewBlock(dragEvent, target),
+        onDragUpdate: (dragEvent: MouseEvent, _dragInfo: DragInfo) => this.onMoveNewBlock(dragEvent),
+        onDragEnd: (dragEvent: MouseEvent, dragInfo: DragInfo) =>
+          this.onEndNewBlock(dragEvent, new Point(dragInfo.lastCameraX as number, dragInfo.lastCameraY as number)),
+      };
+
+      this.context.graph.dragController.start(newBlockHandler, event);
     }
   };
 

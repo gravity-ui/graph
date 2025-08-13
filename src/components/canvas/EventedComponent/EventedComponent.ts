@@ -4,6 +4,8 @@ type TEventedComponentListener = Component | ((e: Event) => void);
 
 const listeners = new WeakMap<Component, Map<string, Set<TEventedComponentListener>>>();
 
+const parents = new WeakMap<Event, EventedComponent>();
+
 export class EventedComponent<
   Props extends TComponentProps = TComponentProps,
   State extends TComponentState = TComponentState,
@@ -50,7 +52,14 @@ export class EventedComponent<
     }
   }
 
+  protected getTargetComponent(event: Event): EventedComponent {
+    return parents.get(event);
+  }
+
   public _fireEvent(cmp: Component, event: Event) {
+    if (!parents.has(event)) {
+      parents.set(event, this);
+    }
     const handlers = listeners.get(cmp)?.get?.(event.type);
 
     handlers?.forEach((cb) => {
