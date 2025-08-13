@@ -20,7 +20,10 @@ import { BlockController } from "./controllers/BlockController";
 
 export type TBlockSettings = {
   /** Phantom blocks are blocks whose dimensions and position
-   * are not taken into account when calculating the usable rect. */
+   * are not taken into account when calculating the usable rect.
+   *
+   * @deprecated phantom blocks are not used anymore. Please create an issue if you need this feature.
+   */
   phantom?: boolean;
 };
 

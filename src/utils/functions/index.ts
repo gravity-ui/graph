@@ -1,5 +1,4 @@
-import { Block } from "../../components/canvas/blocks/Block";
-import { BlockState, TBlockId } from "../../store/block/Block";
+import { Block, TBlock } from "../../components/canvas/blocks/Block";
 import { ECanChangeBlockGeometry } from "../../store/settings";
 import { EVENTS_DETAIL, SELECTION_EVENT_TYPES } from "../types/events";
 import { Rect, TRect } from "../types/shapes";
@@ -17,17 +16,17 @@ export function getXY(root: HTMLElement, event: Event | WheelEvent | MouseEvent)
   return [event.pageX - rect.left - window.scrollX, event.pageY - rect.top - window.scrollY];
 }
 
-export function getCoord(event: TouchEvent & MouseEvent, coord: string) {
+export function getCoord(event: TouchEvent | MouseEvent, coord: string) {
   const name = `page${coord.toUpperCase()}`;
 
-  if (event.touches !== undefined && event.touches.length) {
+  if (event instanceof TouchEvent) {
     return event.touches[0][name];
-  } else {
-    return event[name];
   }
+
+  return event[name];
 }
 
-export function getEventDelta(e1, e2) {
+export function getEventDelta(e1: TouchEvent | MouseEvent, e2: TouchEvent | MouseEvent) {
   return Math.abs(getCoord(e1, "x") - getCoord(e2, "x")) + Math.abs(getCoord(e1, "y") - getCoord(e2, "y"));
 }
 
@@ -109,11 +108,21 @@ export function isAllowChangeBlockGeometry(globalCanChangeGeometry: ECanChangeBl
   return globalCanChangeGeometry === ECanChangeBlockGeometry.ONLY_SELECTED && blockSelected;
 }
 
-export function getUsableRectByBlockIds(blocks: BlockState[], blockIds?: TBlockId[]): TRect {
-  const filteredBlocks = blocks.filter((block) => {
-    return !block.$state.value.settings?.phantom && (blockIds ? blockIds.includes(block.id) : true);
-  });
-  const geometry = filteredBlocks.reduce(
+/**
+ * Gets the usable rectangle that encompasses the specified blocks.
+ * If no blocks are provided or the blocks array is empty, returns a default rectangle (0,0,0,0)
+ * to prevent camera state issues with Infinity values.
+ *
+ * @param blocks - Array of blocks to calculate bounding box for
+ * @returns TRect representing the bounding box of the blocks, or a default rect (0,0,0,0) if no blocks or invalid geometry
+ */
+export function getBlocksRect(blocks: TBlock[]): TRect {
+  // If no blocks or all blocks are not found, return a default rectangle to prevent camera state issues with Infinity values.
+  if (blocks.length === 0) {
+    return new Rect(0, 0, 0, 0);
+  }
+
+  const geometry = blocks.reduce(
     (acc, item) => {
       acc.minX = Math.min(acc.minX, item.x);
       acc.minY = Math.min(acc.minY, item.y);
@@ -123,7 +132,13 @@ export function getUsableRectByBlockIds(blocks: BlockState[], blockIds?: TBlockI
     },
     { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
   );
-  return new Rect(geometry.minX, geometry.minY, geometry.maxX - geometry.minX, geometry.maxY - geometry.minY);
+  const rect = new Rect(geometry.minX, geometry.minY, geometry.maxX - geometry.minX, geometry.maxY - geometry.minY);
+
+  if (isGeometryHaveInfinity(rect)) {
+    return new Rect(0, 0, 0, 0);
+  }
+
+  return rect;
 }
 
 export function isGeometryHaveInfinity(geometry: TRect): boolean {

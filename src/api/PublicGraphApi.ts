@@ -8,7 +8,7 @@ import { selectBlockById } from "../store/block/selectors";
 import { TConnection, TConnectionId } from "../store/connection/ConnectionState";
 import { selectConnectionById } from "../store/connection/selectors";
 import { TGraphSettingsConfig } from "../store/settings";
-import { getUsableRectByBlockIds, startAnimation } from "../utils/functions";
+import { getBlocksRect, startAnimation } from "../utils/functions";
 import { TRect } from "../utils/types/shapes";
 import { ESelectionStrategy } from "../utils/types/types";
 
@@ -23,8 +23,11 @@ export class PublicGraphApi {
   }
 
   public zoomToBlocks(blockIds: TBlockId[], zoomConfig?: ZoomConfig) {
-    const blocksRect = getUsableRectByBlockIds(this.graph.rootStore.blocksList.$blocks.value, blockIds);
-
+    const blocks = blockIds.map((id) => this.graph.rootStore.blocksList.$blocksMap.value.get(id)).filter(Boolean);
+    if (blocks.length === 0) {
+      return;
+    }
+    const blocksRect = getBlocksRect(blocks.map((block) => block.asTBlock()));
     this.zoomToRect(blocksRect, zoomConfig);
   }
 

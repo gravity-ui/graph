@@ -6,7 +6,7 @@ import { TComponentState } from "../../../lib/Component";
 import { Layer, LayerContext, LayerProps } from "../../../services/Layer";
 import { BlockState } from "../../../store/block/Block";
 import { GroupState, TGroup, TGroupId } from "../../../store/group/Group";
-import { getUsableRectByBlockIds } from "../../../utils/functions";
+import { getBlocksRect } from "../../../utils/functions";
 import { TRect } from "../../../utils/types/shapes";
 
 import { Group } from "./Group";
@@ -53,7 +53,7 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
           computed<TGroup[]>(() => {
             const groupedBlocks = this.$groupsBlocksMap.value;
             return Object.entries(groupedBlocks).map(([key, blocks]) =>
-              mapToGroups(key, { blocks, rect: getUsableRectByBlockIds(blocks) })
+              mapToGroups(key, { blocks, rect: getBlocksRect(blocks.map((block) => block.asTBlock())) })
             );
           }),
           (groups: TGroup[]) => {

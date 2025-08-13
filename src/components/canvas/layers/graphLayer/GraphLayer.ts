@@ -59,7 +59,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private pointerPressed = false;
 
-  private eventByTargetComponent?: EventedComponent | MouseEvent;
+  private eventByTargetComponent?: MouseEvent;
 
   private capturedTargetComponent?: EventedComponent;
 
