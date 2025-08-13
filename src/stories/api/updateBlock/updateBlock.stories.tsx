@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from "react";
 
-import { Button, ButtonProps, Flex, TextInput, ThemeProvider } from "@gravity-ui/uikit";
-import type { Meta, StoryFn } from "@storybook/react";
+import { Button, ButtonButtonProps, Flex, TextInput, ThemeProvider } from "@gravity-ui/uikit";
+import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { Graph } from "../../../graph";
 import { oneBlockConfig } from "../../configurations/oneBlock";
@@ -19,7 +19,7 @@ const GraphApp = () => {
   const [width, setWidth] = useState(blockConfig.width.toString());
   const [height, setHeight] = useState(blockConfig.height.toString());
 
-  const onClick: ButtonProps["onClick"] = useCallback(() => {
+  const onClick: ButtonButtonProps["onClick"] = useCallback(() => {
     graphRef.current.api.updateBlock({
       ...blockConfig,
       x: Number(x),

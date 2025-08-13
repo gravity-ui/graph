@@ -5,7 +5,7 @@
 }
 
 .graph {
-  min-width: 50%
+  min-width: 50%;
 }
 
 .graph-editor {
@@ -21,7 +21,7 @@
 
 .view.config-editor {
   border-radius: 10px;
-  border-color: var(--yc-color-base-float-accent-hover);
+  border-color: var(--g-color-base-float-accent-hover);
 }
 
 .settings-popup {
@@ -49,15 +49,6 @@
 .graph-size-settings {
   --g-color-base-brand: rgba(255, 190, 92, 1);
   --g-color-base-background: var(--g-color-base-brand);
-  --g-color-text-primary: var(--g-color-text-dark-primary);
-}
-
-.graph-size-settings .yc-radio-button__option:hover .yc-radio-button__option-text {
-  --g-color-text-primary: var(--g-color-text-light-primary);
-}
-
-.graph-size-settings  .yc-radio-button__option_checked.yc-radio-button__option:hover .yc-radio-button__option-text {
-  --g-color-text-primary: var(--g-color-text-dark-primary);
 }
 
 .graph-tools-settings {
@@ -69,40 +60,39 @@
   z-index: 10;
 }
 
-.button-group .yc-button {
+.button-group .g-button {
   border-radius: 0 !important;
 }
-.button-group .yc-button::before {
+.button-group .g-button::before {
   border-radius: 0 !important;
 }
-.button-group .yc-button::after {
+.button-group .g-button::after {
   border-radius: 0 !important;
 }
-.button-group .yc-button:not(:last-child) {
-  border-bottom: 1px solid var(--yc-color-base-misc-light);
+.button-group .g-button:not(:last-child) {
+  border-bottom: 1px solid var(--g-color-base-misc-light);
 }
-.button-group .yc-button:first-child {
-  border-top-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
-  border-top-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+.button-group .g-button:first-child {
+  border-top-right-radius: var(--g-button-border-radius, var(--_--border-radius)) !important;
+  border-top-left-radius: var(--g-button-border-radius, var(--_--border-radius)) !important;
 }
-.button-group .yc-button:first-child::before {
-  border-top-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
-  border-top-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+.button-group .g-button:first-child::before {
+  border-top-right-radius: var(--g-button-border-radius, var(--_--border-radius)) !important;
+  border-top-left-radius: var(--g-button-border-radius, var(--_--border-radius)) !important;
 }
-.button-group .yc-button:first-child::after {
-  border-top-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
-  border-top-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+.button-group .g-button:first-child::after {
+  border-top-right-radius: var(--g-button-border-radius, var(--_--border-radius)) !important;
+  border-top-left-radius: var(--g-button-border-radius, var(--_--border-radius)) !important;
 }
-.button-group .yc-button:last-child {
-  border-bottom-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
-  border-bottom-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+.button-group .g-button:last-child {
+  border-bottom-right-radius: var(--g-button-border-radius, var(--_--border-radius)) !important;
+  border-bottom-left-radius: var(--g-button-border-radius, var(--_--border-radius)) !important;
 }
-.button-group .yc-button:last-child::before {
-  border-bottom-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
-  border-bottom-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+.button-group .g-button:last-child::before {
+  border-bottom-right-radius: var(--g-button-border-radius, var(--_--border-radius)) !important;
+  border-bottom-left-radius: var(--g-button-border-radius, var(--_--border-radius)) !important;
 }
-.button-group .yc-button:last-child::after {
-  border-bottom-right-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
-  border-bottom-left-radius: var(--yc-button-border-radius, var(--_--border-radius)) !important;
+.button-group .g-button:last-child::after {
+  border-bottom-right-radius: var(--g-button-border-radius, var(--_--border-radius)) !important;
+  border-bottom-left-radius: var(--g-button-border-radius, var(--_--border-radius)) !important;
 }
-

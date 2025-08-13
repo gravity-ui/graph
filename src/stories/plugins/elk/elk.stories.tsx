@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo } from "react";
 
 import { ThemeProvider } from "@gravity-ui/uikit";
-import { Description, Meta as StorybookMeta, Title } from "@storybook/blocks";
-import type { Meta, StoryFn } from "@storybook/react";
+import { Description, Meta as StorybookMeta, Title } from "@storybook/addon-docs/blocks";
+import type { Meta, StoryFn } from "@storybook/react-webpack5";
 import ELK, { ElkNode } from "elkjs";
 
 import { Graph, GraphState, TBlock, TConnection, TGraphConfig } from "../../../index";

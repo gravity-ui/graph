@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from "react";
 
-import { Button, ButtonProps, Flex, TextInput, ThemeProvider } from "@gravity-ui/uikit";
-import type { Meta, StoryFn } from "@storybook/react";
+import { Button, ButtonButtonProps, Flex, TextInput, ThemeProvider } from "@gravity-ui/uikit";
+import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { Graph } from "../../../graph";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
@@ -17,7 +17,7 @@ const GraphApp = () => {
 
   const graphRef = useRef<Graph | undefined>(undefined);
 
-  const onClick: ButtonProps["onClick"] = useCallback(() => {
+  const onClick: ButtonButtonProps["onClick"] = useCallback(() => {
     graphRef.current.setConstants({
       camera: {
         SPEED: Number(speed),

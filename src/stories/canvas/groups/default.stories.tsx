@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 
-import type { Meta, StoryFn } from "@storybook/react";
+import type { Meta, StoryFn } from "@storybook/react-webpack5";
 import groupBy from "lodash/groupBy";
 
 import { BlockGroups, Group } from "../../../components/canvas/groups";

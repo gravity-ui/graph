@@ -4,9 +4,9 @@ import {
   Checkbox,
   CheckboxProps,
   Flex,
-  RadioButton,
-  RadioButtonOption,
-  RadioButtonProps,
+  SegmentedRadioGroup,
+  SegmentedRadioGroupOptionProps,
+  SegmentedRadioGroupProps,
   Select,
   SelectOption,
   SelectProps,
@@ -15,7 +15,7 @@ import {
   TextInputProps,
   ThemeProvider,
 } from "@gravity-ui/uikit";
-import type { Meta, StoryFn } from "@storybook/react";
+import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { Graph } from "../../../graph";
 import { TConnection } from "../../../index";
@@ -35,13 +35,13 @@ const targetBlockOptions: SelectOption[] = [
   { value: "OneRight", content: "OneRight" },
   { value: "TwoRight", content: "TwoRight" },
 ];
-const strokeColors: RadioButtonOption[] = [
+const strokeColors: SegmentedRadioGroupOptionProps[] = [
   { value: "#272727", content: "Default" },
   { value: "rgb(255, 190, 92)", content: "Yellow" },
   { value: "rgb(48, 170, 110)", content: "Green" },
   { value: "rgb(233, 3, 58)", content: "Red" },
 ];
-const selectedStrokeColors: RadioButtonOption[] = [
+const selectedStrokeColors: SegmentedRadioGroupOptionProps[] = [
   { value: "#ecc113", content: "Default" },
   { value: "rgb(211, 158, 80)", content: "Yellow" },
   { value: "rgb(45, 139, 93)", content: "Green" },
@@ -90,14 +90,14 @@ const GraphApp = () => {
     [onConnectionChange]
   );
 
-  const onStrokeColorUpdate: RadioButtonProps<string>["onUpdate"] = useCallback(
+  const onStrokeColorUpdate: SegmentedRadioGroupProps<string>["onUpdate"] = useCallback(
     (value) => {
       onConnectionChange({ styles: { background: value } });
     },
     [onConnectionChange]
   );
 
-  const onSelectedStrokeColorUpdate: RadioButtonProps<string>["onUpdate"] = useCallback(
+  const onSelectedStrokeColorUpdate: SegmentedRadioGroupProps<string>["onUpdate"] = useCallback(
     (value) => {
       onConnectionChange({ styles: { selectedBackground: value } });
     },
@@ -106,7 +106,7 @@ const GraphApp = () => {
 
   return (
     <ThemeProvider theme={"light"}>
-      <Flex className="toolbox" direction={"column"} width={320} gap={2} style={{ marginBottom: "10px" }}>
+      <Flex className="toolbox" direction={"column"} width={450} gap={2} style={{ marginBottom: "10px" }}>
         <Flex direction={"row"} gap={2}>
           <Select
             options={sourceBlockOptions}
@@ -126,7 +126,7 @@ const GraphApp = () => {
         <Checkbox onUpdate={onSelectedUpdate}>Selected</Checkbox>
         <Flex direction={"row"} gap={2} alignItems={"center"}>
           <Text>Stroke color</Text>
-          <RadioButton
+          <SegmentedRadioGroup
             name="group1"
             defaultValue={strokeColors[0].value}
             options={strokeColors}
@@ -135,7 +135,7 @@ const GraphApp = () => {
         </Flex>
         <Flex direction={"row"} gap={2} alignItems={"center"}>
           <Text>Selected stroke color</Text>
-          <RadioButton
+          <SegmentedRadioGroup
             name="group1"
             defaultValue={selectedStrokeColors[0].value}
             options={selectedStrokeColors}
