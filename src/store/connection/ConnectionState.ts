@@ -1,6 +1,8 @@
 import { computed, signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
+import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "../../components/canvas/connections";
+import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
 import { TConnectionColors } from "../../graphConfig";
 import { ESelectionStrategy } from "../../utils/types/types";
 import { TBlockId } from "../block/Block";
@@ -68,12 +70,20 @@ export class ConnectionState<T extends TConnection = TConnection> {
     return [connection.sourceBlockId, connection.targetBlockId].join(":");
   }
 
+  public viewComponent: BaseConnection<TBaseConnectionProps, TBaseConnectionState, TGraphLayerContext, T>;
+
   constructor(
     public store: ConnectionsStore,
     connectionState: T
   ) {
     const id = ConnectionState.getConnectionId(connectionState);
     this.$state.value = { ...connectionState, id };
+  }
+
+  public setViewComponent<P extends TBaseConnectionProps, S extends TBaseConnectionState, C extends TGraphLayerContext>(
+    viewComponent: BaseConnection<P, S, C, T>
+  ) {
+    this.viewComponent = viewComponent;
   }
 
   public isSelected() {
@@ -84,7 +94,14 @@ export class ConnectionState<T extends TConnection = TConnection> {
     this.store.setConnectionsSelection([this.id], selected, strategy);
   }
 
+  /**
+   * @deprecated Use `toJSON` instead.
+   */
   public asTConnection(): TConnection {
+    return cloneDeep(this.$state.toJSON());
+  }
+
+  public toJSON(): TConnection {
     return cloneDeep(this.$state.toJSON());
   }
 
