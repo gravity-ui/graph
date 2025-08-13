@@ -1,17 +1,19 @@
-import React, { forwardRef, useImperativeHandle } from "react";
+import React, { forwardRef, useImperativeHandle, useState } from "react";
 
+import { GraphState } from "../graph";
 import type { Layer } from "../services/Layer";
 
 import { useGraphContext } from "./GraphContext";
+import { useGraphEvent } from "./hooks/useGraphEvents";
 import { useLayer } from "./hooks/useLayer";
 
 /**
- * Тип конструктора Layer класса
+ * Type constructor for Layer class
  */
 type Constructor<T = {}> = new (...args: any[]) => T;
 
 /**
- * Извлекает типы свойств из конструктора Layer
+ * Extracts property types from Layer constructor
  */
 type LayerPropsForConstructor<TLayer extends Constructor<Layer>> =
   TLayer extends Constructor<Layer<infer LayerProps>>
@@ -19,74 +21,55 @@ type LayerPropsForConstructor<TLayer extends Constructor<Layer>> =
     : never;
 
 /**
- * Извлекает тип экземпляра слоя из конструктора
+ * Extracts layer instance type from constructor
  */
 type LayerInstanceForConstructor<TLayer extends Constructor<Layer>> =
   TLayer extends Constructor<infer LayerInstance> ? LayerInstance : never;
 
 /**
- * Свойства компонента GraphLayer
+ * Props for GraphLayer component
  */
-export type GraphLayerProps<TLayer extends Constructor<Layer>> = {
+export interface GraphLayerProps<TLayer extends Constructor<Layer> = Constructor<Layer>> {
   /**
-   * Конструктор Layer класса
+   * Layer constructor class
    */
   layer: TLayer;
-} & LayerPropsForConstructor<TLayer>;
+  /**
+   * Props to pass to layer constructor
+   */
+  props?: LayerPropsForConstructor<TLayer>;
+  /**
+   * Ref to access layer instance
+   */
+  ref?: React.Ref<LayerInstanceForConstructor<TLayer>>;
+}
 
 /**
- * Декларативный компонент для добавления существующих Layer классов в граф.
- *
- * Упрощает использование слоев за счет декларативного подхода вместо
- * императивных вызовов useLayer или graph.addLayer.
- *
- * **Важно:** Должен использоваться как дочерний компонент GraphCanvas.
- *
- * @example
- * ```tsx
- * import { DevToolsLayer } from "@gravity-ui/graph";
- * import { GraphLayer, GraphCanvas } from "@gravity-ui/graph/react";
- *
- * function MyGraph() {
- *   const { graph } = useGraph();
- *   const layerRef = useRef<DevToolsLayer>(null);
- *
- *   return (
- *     <GraphCanvas graph={graph} renderBlock={renderBlock}>
- *       <GraphLayer
- *         ref={layerRef}
- *         layer={DevToolsLayer}
- *         showRuler={true}
- *         rulerSize={20}
- *       />
- *       <button onClick={() => layerRef.current?.setVisible(false)}>
- *         Hide DevTools
- *       </button>
- *     </GraphCanvas>
- *   );
- * }
- * ```
- *
- * @template TLayer - Тип конструктора слоя, расширяющего Layer
- * @param layer - Класс-конструктор слоя
- * @param ...props - Свойства слоя (исключая внутренние props как root, camera, graph, emitter)
- * @returns null - компонент ничего не рендерит, только управляет слоем
+ * GraphLayer component provides declarative way to add existing Layer classes to the graph
  */
-export const GraphLayer = forwardRef(function GraphLayer<TLayer extends Constructor<Layer>>(
-  { layer, ...layerProps }: GraphLayerProps<TLayer>,
-  ref: React.Ref<LayerInstanceForConstructor<TLayer>>
-): null {
-  // Получаем graph из контекста
-  const { graph } = useGraphContext();
+export const GraphLayer = forwardRef<LayerInstanceForConstructor<Constructor<Layer>>, GraphLayerProps>(
+  function GraphLayer<TLayer extends Constructor<Layer>>(
+    { layer: LayerClass, props }: GraphLayerProps<TLayer>,
+    ref
+  ): React.ReactElement | null {
+    // Get graph from context
+    const { graph } = useGraphContext();
 
-  // Используем useLayer для создания и управления слоем
-  const layerInstance = useLayer(graph, layer, layerProps as any);
+    // Track graph state to determine readiness for layer creation
+    const [_graphState, setGraphState] = useState<GraphState>(graph?.state ?? GraphState.INIT);
 
-  // Предоставляем доступ к слою через ref
-  useImperativeHandle(ref, () => layerInstance as LayerInstanceForConstructor<TLayer>, [layerInstance]);
+    // Subscribe to graph state changes
+    useGraphEvent(graph, "state-change", ({ state }) => {
+      setGraphState(state);
+    });
 
-  // Компонент не рендерит ничего визуального
-  return null;
-}) as <TLayer extends Constructor<Layer>>(
-  props: GraphLayerProps<TLayer> & { ref?: React.Ref<LayerInstanceForConstructor<TLayer>> }
-) => null;
+    // Always create layer using useLayer (hooks must be called unconditionally)
+    const layer = useLayer(graph, LayerClass, (props as any) || {});
+
+    // Expose layer through ref
+    useImperativeHandle(ref, () => layer!, [layer]);
+
+    // GraphLayer doesn't render any visible content
+    return null;
+  }
+);

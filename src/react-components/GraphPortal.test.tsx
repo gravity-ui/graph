@@ -1,6 +1,6 @@
 import React, { createRef } from "react";
 
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 
 import { Graph } from "../graph";
 
@@ -27,8 +27,12 @@ describe("GraphPortal", () => {
       </GraphCanvas>
     );
 
-    graph.start();
+    // Start the graph to make it ready
+    await act(async () => {
+      graph.start();
+    });
 
+    // Wait for portal content to appear
     await waitFor(() => {
       expect(container.querySelector('[data-testid="portal-content"]')).not.toBeNull();
     });
@@ -45,8 +49,12 @@ describe("GraphPortal", () => {
       </GraphCanvas>
     );
 
-    graph.start();
+    // Start the graph to make it ready
+    await act(async () => {
+      graph.start();
+    });
 
+    // Wait for layer to be created
     await waitFor(() => {
       expect(ref.current).toBeDefined();
       expect(ref.current.getPortalTarget).toBeDefined();
@@ -63,8 +71,12 @@ describe("GraphPortal", () => {
       </GraphCanvas>
     );
 
-    graph.start();
+    // Start the graph to make it ready
+    await act(async () => {
+      graph.start();
+    });
 
+    // Wait for function to be called
     await waitFor(() => {
       expect(childrenFn).toHaveBeenCalled();
       expect(childrenFn.mock.calls[0][0]).toBeDefined(); // layer
@@ -82,7 +94,7 @@ describe("GraphPortal", () => {
       </GraphCanvas>
     );
 
-    // График не запущен
+    // Graph is not started, so portal should not render
     expect(container.querySelector('[data-testid="portal-content"]')).toBeNull();
   });
 });

@@ -350,10 +350,11 @@ function BlockTooltipExample() {
 
 export const BlockTooltipStory: Story = {
   render: () => <BlockTooltipExample />,
+  tags: ["autodocs"],
   parameters: {
     docs: {
       description: {
-        story: `
+        component: `
 ### Block Tooltip with GraphPortal
 
 Этот пример демонстрирует создание интерактивных тултипов для блоков графа с помощью GraphPortal.

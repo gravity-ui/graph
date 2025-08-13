@@ -1,6 +1,6 @@
 import React, { createRef } from "react";
 
-import { render } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 
 import { Graph } from "../graph";
 import { Layer } from "../services/Layer";
@@ -23,10 +23,12 @@ describe("GraphLayer", () => {
   });
 
   afterEach(() => {
-    graph?.unmount();
+    act(() => {
+      graph?.unmount();
+    });
   });
 
-  it("should provide layer instance through ref", () => {
+  it("should provide layer instance through ref", async () => {
     const ref = createRef<MockLayer>();
 
     render(
@@ -35,9 +37,17 @@ describe("GraphLayer", () => {
       </GraphCanvas>
     );
 
-    expect(ref.current).toBeDefined();
-    expect(ref.current).toBeInstanceOf(MockLayer);
-    expect(ref.current?.testMethod()).toBe("test method called");
+    // Start the graph to make it ready
+    await act(async () => {
+      graph.start();
+    });
+
+    // Wait for layer to be created
+    await waitFor(() => {
+      expect(ref.current).toBeDefined();
+      expect(ref.current).toBeInstanceOf(MockLayer);
+      expect(ref.current?.testMethod()).toBe("test method called");
+    });
   });
 
   it("should not render any visible content", () => {
@@ -51,18 +61,26 @@ describe("GraphLayer", () => {
     expect(container.children).toHaveLength(1); // Only GraphCanvas
   });
 
-  it("should create layer with correct props", () => {
+  it("should create layer with correct props", async () => {
     const ref = createRef<MockLayer>();
-    const testProps = { testProp: "test value" };
+    const customProps = { zIndex: 200 };
 
     render(
       <GraphCanvas graph={graph} renderBlock={() => <div>Block</div>}>
-        <GraphLayer ref={ref} layer={MockLayer} {...testProps} />
+        <GraphLayer ref={ref} layer={MockLayer} {...customProps} />
       </GraphCanvas>
     );
 
-    expect(ref.current).toBeDefined();
-    // Layer props should be passed correctly (checked through layer existence)
-    expect(ref.current).toBeInstanceOf(MockLayer);
+    // Start the graph to make it ready
+    await act(async () => {
+      graph.start();
+    });
+
+    // Wait for layer to be created
+    await waitFor(() => {
+      expect(ref.current).toBeDefined();
+      // Layer props should be passed correctly (checked through layer existence)
+      expect(ref.current).toBeInstanceOf(MockLayer);
+    });
   });
 });

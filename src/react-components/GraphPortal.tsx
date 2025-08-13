@@ -11,26 +11,26 @@ import { useGraphEvent } from "./hooks/useGraphEvents";
 import { useLayer } from "./hooks/useLayer";
 
 /**
- * Свойства для создания внутреннего слоя GraphPortal
+ * Properties for creating internal GraphPortal layer
  */
 export interface GraphPortalLayerProps extends LayerProps {
   /**
-   * Дополнительные CSS классы для HTML элемента
+   * Additional CSS classes for HTML element
    */
   className?: string;
   /**
-   * Позиция слоя по оси Z
+   * Layer position on Z axis
    */
   zIndex?: number;
   /**
-   * Следует ли HTML элементу за позицией камеры
+   * Whether HTML element should follow camera position
    */
   transformByCameraPosition?: boolean;
 }
 
 /**
- * Внутренний Layer класс для GraphPortal
- * Создает HTML элемент и предоставляет его через portal
+ * Internal Layer class for GraphPortal
+ * Creates HTML element and provides it through portal
  */
 class GraphPortalLayer extends Layer<GraphPortalLayerProps, LayerContext, TComponentState> {
   constructor(props: GraphPortalLayerProps) {
@@ -47,7 +47,7 @@ class GraphPortalLayer extends Layer<GraphPortalLayerProps, LayerContext, TCompo
   }
 
   /**
-   * Получить HTML элемент для создания портала
+   * Get HTML element for creating portal
    */
   public getPortalTarget(): HTMLElement | null {
     return this.getHTML();
@@ -55,34 +55,34 @@ class GraphPortalLayer extends Layer<GraphPortalLayerProps, LayerContext, TCompo
 }
 
 /**
- * Свойства компонента GraphPortal
+ * GraphPortal component properties
  */
 export interface GraphPortalProps {
   /**
-   * Дополнительные CSS классы для слоя
+   * Additional CSS classes for layer
    */
   className?: string;
   /**
-   * Позиция слоя по оси Z
+   * Layer position on Z axis
    */
   zIndex?: number;
   /**
-   * Следует ли HTML элементу за позицией камеры
+   * Whether HTML element should follow camera position
    * @default false
    */
   transformByCameraPosition?: boolean;
   /**
-   * Функция рендеринга содержимого портала
+   * Function for rendering portal content
    */
   children: React.ReactNode | ((layer: GraphPortalLayer, graph: Graph) => React.ReactNode);
 }
 
 /**
- * Декларативный компонент для создания HTML слоев с render prop паттерном.
+ * Declarative component for creating HTML layers using render prop pattern.
  *
- * Создает внутренний Layer с HTML элементом и рендерит переданные
- * React компоненты через React Portal без необходимости создавать
- * отдельный Layer класс.
+ * Creates internal Layer with HTML element and renders passed
+ * React components through React Portal without need to create
+ * separate Layer class.
  *
  * @example
  * ```tsx
@@ -112,7 +112,7 @@ export interface GraphPortalProps {
  *
  * @example
  * ```tsx
- * // С render prop для доступа к слою и графу
+ * // With render prop for accessing layer and graph
  * <GraphPortal>
  *   {(layer, graph) => (
  *     <div onClick={() => layer.hide()}>
@@ -126,41 +126,38 @@ export const GraphPortal = forwardRef<GraphPortalLayer, GraphPortalProps>(functi
   { className, zIndex, transformByCameraPosition = false, children }: GraphPortalProps,
   ref
 ): React.ReactElement | null {
-  // Получаем graph из контекста
+  // Get graph from context
   const { graph } = useGraphContext();
 
-  // Отслеживаем состояние графа для определения готовности к созданию порталов
+  // Track graph state to determine readiness for portal creation
   const [graphState, setGraphState] = useState<GraphState>(graph?.state ?? GraphState.INIT);
 
-  // Подписываемся на изменения состояния графа
+  // Subscribe to graph state changes
   useGraphEvent(graph, "state-change", ({ state }) => {
     setGraphState(state);
   });
 
-  // Создаем внутренний слой с помощью useLayer
+  // Always create internal layer using useLayer (hooks must be called unconditionally)
   const layer = useLayer(graph, GraphPortalLayer, {
     className,
     zIndex,
     transformByCameraPosition,
   });
 
-  // Предоставляем доступ к слою через ref
-  useImperativeHandle(ref, () => layer, [layer]);
+  // Expose layer through ref
+  useImperativeHandle(ref, () => layer!, [layer]);
 
-  // Если граф не готов или слой еще не создан, не рендерим портал
+  // If graph is not ready or layer not yet created, don't render portal
   if (!graph || graphState < GraphState.ATTACHED || !layer) {
     return null;
   }
 
-  // Если нет HTML элемента, не рендерим портал
+  // If no HTML element, don't render portal
   const portalTarget = layer.getPortalTarget();
   if (!portalTarget) {
     return null;
   }
 
-  // Определяем содержимое для рендеринга
-  const content = typeof children === "function" ? children(layer, graph) : children;
-
-  // Создаем React Portal для рендеринга содержимого в HTML элементе слоя
-  return createPortal(content, portalTarget);
+  // Render portal content
+  return createPortal(typeof children === "function" ? children(layer, graph) : children, portalTarget, "graph-portal");
 });
