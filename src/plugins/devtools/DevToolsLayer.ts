@@ -75,8 +75,8 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
   protected afterInit(): void {
     this.onGraphEvent("camera-change", () => this.performRender());
     this.onRootEvent(
-      "mousemove",
-      (event: MouseEvent): void => {
+      "pointermove",
+      (event: PointerEvent): void => {
         const canvas = this.context.graphCanvas;
         if (!canvas) return;
         const rect = canvas.getBoundingClientRect();
@@ -88,10 +88,10 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
       },
       { capture: true }
     );
-    this.onRootEvent("mouseenter", (): void => {
+    this.onRootEvent("pointerenter", (): void => {
       this.setState({ isMouseInside: true });
     });
-    this.onRootEvent("mouseleave", (): void => {
+    this.onRootEvent("pointerleave", (): void => {
       this.setState({ isMouseInside: false, mouseX: null, mouseY: null });
     });
 

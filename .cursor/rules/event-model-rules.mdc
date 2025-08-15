@@ -129,7 +129,7 @@ When implementing event subscriptions in this project:
          
          // Register DOM events with the appropriate wrapper methods
          if (this.canvas) {
-           this.onCanvasEvent("mousedown", this.handleMouseDown);
+           this.onCanvasEvent("pointerdown", this.handlePointerDown);
          }
          
          if (this.html) {

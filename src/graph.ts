@@ -209,7 +209,7 @@ export class Graph {
     return items as InstanceType<T>[];
   }
 
-  public getPointInCameraSpace(event: MouseEvent) {
+  public getPointInCameraSpace(event: PointerEvent) {
     const xy = getXY(this.graphLayer.getCanvas(), event);
 
     const applied = this.cameraService.applyToPoint(xy[0], xy[1]);
