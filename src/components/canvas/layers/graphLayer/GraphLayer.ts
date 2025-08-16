@@ -25,6 +25,19 @@ export type TGraphLayerContext = LayerContext & {
   graph: Graph;
 };
 
+// События, которые теперь обрабатывает GestureService
+const gestureEventTypes = new Set([
+  "tap",
+  "hover",
+  "panstart",
+  "panmove",
+  "panend",
+  "pinchstart",
+  "pinchmove",
+  "pinchend",
+]);
+
+// События, которые GraphLayer продолжает обрабатывать для совместимости
 const rootBubblingEventTypes = new Set([
   "mousedown",
   "touchstart",
@@ -117,10 +130,13 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
    * Attaches DOM event listeners to the root element.
    * All event listeners are registered with the rootOn wrapper method to ensure they are properly cleaned up
    * when the layer is unmounted. This eliminates the need for manual event listener removal.
+   *
+   * Note: Gesture events (tap, hover, pan, pinch) are now handled by GestureService
    */
   private attachListeners() {
     if (!this.root) return;
 
+    // Обрабатываем только события, которые не обрабатывает GestureService
     rootBubblingEventTypes.forEach((type) => this.onRootEvent(type as keyof HTMLElementEventMap, this));
     rootCapturingEventTypes.forEach((type) =>
       this.onRootEvent(type as keyof HTMLElementEventMap, this, { capture: true })
@@ -136,13 +152,30 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
    */
   public captureEvents(component: EventedComponent) {
     this.capturedTargetComponent = component;
+
+    // Уведомляем GestureService о захвате компонента
+    const gestureService = this.context.graph.getGestureService();
+    if (gestureService) {
+      gestureService.setTargetComponent(component);
+    }
   }
 
   public releaseCapture() {
     this.capturedTargetComponent = undefined;
+
+    // Уведомляем GestureService об освобождении захвата
+    const gestureService = this.context.graph.getGestureService();
+    if (gestureService) {
+      gestureService.setTargetComponent(undefined);
+    }
   }
 
   public handleEvent(e: Event): void {
+    // Проверяем, не является ли это событием жеста
+    if (gestureEventTypes.has(e.type)) {
+      return; // События жестов обрабатывает GestureService
+    }
+
     if (e.type === "mousemove") {
       this.updateTargetComponent(e as MouseEvent);
       this.onRootPointerMove(e as MouseEvent);
@@ -222,6 +255,12 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     const point = this.context.graph.getPointInCameraSpace(event);
 
     this.targetComponent = this.context.graph.getElementOverPoint(point) || this.$.camera;
+
+    // Уведомляем GestureService о новом целевом компоненте
+    const gestureService = this.context.graph.getGestureService();
+    if (gestureService) {
+      gestureService.setTargetComponent(this.targetComponent);
+    }
   }
 
   private onRootPointerMove(event: MouseEvent) {

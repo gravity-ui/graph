@@ -21,6 +21,10 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   private ownerDocument: Document;
 
   private lastDragEvent?: MouseEvent;
+  private isPanning = false;
+  private panStartPoint?: { x: number; y: number };
+  private isPinching = false;
+  private pinchStartScale = 1;
 
   constructor(props: TCameraProps, parent: Component) {
     super(props, parent);
@@ -31,6 +35,19 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     this.addWheelListener();
     this.addEventListener("click", this.handleClick);
     this.addEventListener("mousedown", this.handleMouseDownEvent);
+
+    // Подписываемся на события жестов
+    this.setupGestureListeners();
+  }
+
+  private setupGestureListeners(): void {
+    // Слушаем события жестов на уровне Graph
+    this.context.graph.on("panstart", this.handlePanStart.bind(this));
+    this.context.graph.on("panmove", this.handlePanMove.bind(this));
+    this.context.graph.on("panend", this.handlePanEnd.bind(this));
+    this.context.graph.on("pinchstart", this.handlePinchStart.bind(this));
+    this.context.graph.on("pinchmove", this.handlePinchMove.bind(this));
+    this.context.graph.on("pinchend", this.handlePinchEnd.bind(this));
   }
 
   protected handleClick = () => {
@@ -61,6 +78,14 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
     this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
     this.removeEventListener("mousedown", this.handleMouseDownEvent);
+
+    // Отписываемся от событий жестов
+    this.context.graph.off("panstart", this.handlePanStart.bind(this));
+    this.context.graph.off("panmove", this.handlePanMove.bind(this));
+    this.context.graph.off("panend", this.handlePanEnd.bind(this));
+    this.context.graph.off("pinchstart", this.handlePinchStart.bind(this));
+    this.context.graph.off("pinchmove", this.handlePinchMove.bind(this));
+    this.context.graph.off("pinchend", this.handlePinchEnd.bind(this));
   }
 
   private handleMouseDownEvent = (event: MouseEvent) => {
@@ -68,13 +93,94 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
       return;
     }
     if (!isMetaKeyEvent(event)) {
+      // Используем старую систему dragListener как fallback для совместимости
       dragListener(this.ownerDocument)
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onDragStart(event))
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onDragUpdate(event))
+        .on(EVENTS.DRAG_START, (dragEvent: MouseEvent) => this.onDragStart(dragEvent))
+        .on(EVENTS.DRAG_UPDATE, (dragEvent: MouseEvent) => this.onDragUpdate(dragEvent))
         .on(EVENTS.DRAG_END, () => this.onDragEnd());
     }
   };
 
+  // Обработчики новых событий жестов
+  private handlePanStart = (gestureEvent: any) => {
+    if (!this.context.graph.rootStore.settings.getConfigFlag("canDragCamera")) {
+      return;
+    }
+
+    // Проверяем, что событие произошло на камере (не на блоках)
+    if (gestureEvent.detail.target === this) {
+      this.isPanning = true;
+      this.panStartPoint = { x: gestureEvent.detail.sourceEvent.center.x, y: gestureEvent.detail.sourceEvent.center.y };
+    }
+  };
+
+  private handlePanMove = (gestureEvent: any) => {
+    if (!this.isPanning || !this.panStartPoint) {
+      return;
+    }
+
+    const currentPoint = gestureEvent.detail.sourceEvent.center;
+    const deltaX = currentPoint.x - this.panStartPoint.x;
+    const deltaY = currentPoint.y - this.panStartPoint.y;
+
+    // Обновляем начальную точку для следующего движения
+    this.panStartPoint = { x: currentPoint.x, y: currentPoint.y };
+
+    // Двигаем камеру
+    this.camera.move(deltaX, deltaY);
+  };
+
+  private handlePanEnd = (_gestureEvent: any) => {
+    this.isPanning = false;
+    this.panStartPoint = undefined;
+  };
+
+  private handlePinchStart = (gestureEvent: any) => {
+    if (!this.context.graph.rootStore.settings.getConfigFlag("canZoomCamera")) {
+      return;
+    }
+
+    this.isPinching = true;
+    // Проверяем, что событие произошло на камере (не на блоках)
+    if (gestureEvent.detail.target === this) {
+      this.pinchStartScale = gestureEvent.detail.sourceEvent.scale;
+    }
+  };
+
+  private handlePinchMove = (gestureEvent: any) => {
+    if (!this.isPinching) {
+      return;
+    }
+
+    const currentScale = gestureEvent.detail.sourceEvent.scale;
+    const scaleDelta = currentScale - this.pinchStartScale;
+
+    // Получаем центр pinch жеста
+    const center = gestureEvent.detail.sourceEvent.center;
+
+    // Используем ту же логику скорости зума, что и в handleWheelEvent
+    // Конвертируем scaleDelta в формат, совместимый с wheel событием
+    const pinchSpeed = Math.sign(scaleDelta) * clamp(Math.abs(scaleDelta * 10), 1, 20);
+    const dScale = this.context.constants.camera.STEP * this.context.constants.camera.SPEED * pinchSpeed;
+
+    const cameraScale = this.camera.getCameraScale();
+
+    // Smooth scale. The closer you get, the higher the speed
+    const smoothDScale = dScale * cameraScale;
+
+    // Применяем зум к камере с той же формулой
+    this.camera.zoom(center.x, center.y, cameraScale - smoothDScale);
+
+    // Обновляем начальный масштаб для следующего кадра
+    this.pinchStartScale = currentScale;
+  };
+
+  private handlePinchEnd = (_gestureEvent: any) => {
+    this.isPinching = false;
+    this.pinchStartScale = 1;
+  };
+
+  // Старые обработчики для совместимости
   private onDragStart(event: MouseEvent) {
     this.lastDragEvent = event;
   }

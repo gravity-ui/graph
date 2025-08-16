@@ -24,6 +24,15 @@ export type TGraphEventCallbacks = {
     event: UnwrapGraphEvents<"connection-selection-change">
   ) => void;
   onStateChanged: (data: UnwrapGraphEventsDetail<"state-change">, event: UnwrapGraphEvents<"state-change">) => void;
+  // Новые события жестов
+  onTap: (data: UnwrapGraphEventsDetail<"tap">, event: UnwrapGraphEvents<"tap">) => void;
+  onHover: (data: UnwrapGraphEventsDetail<"hover">, event: UnwrapGraphEvents<"hover">) => void;
+  onPanStart: (data: UnwrapGraphEventsDetail<"panstart">, event: UnwrapGraphEvents<"panstart">) => void;
+  onPanMove: (data: UnwrapGraphEventsDetail<"panmove">, event: UnwrapGraphEvents<"panmove">) => void;
+  onPanEnd: (data: UnwrapGraphEventsDetail<"panend">, event: UnwrapGraphEvents<"panend">) => void;
+  onPinchStart: (data: UnwrapGraphEventsDetail<"pinchstart">, event: UnwrapGraphEvents<"pinchstart">) => void;
+  onPinchMove: (data: UnwrapGraphEventsDetail<"pinchmove">, event: UnwrapGraphEvents<"pinchmove">) => void;
+  onPinchEnd: (data: UnwrapGraphEventsDetail<"pinchend">, event: UnwrapGraphEvents<"pinchend">) => void;
 };
 
 export type GraphEventDetail<T extends keyof TGraphEventCallbacks> = Parameters<TGraphEventCallbacks[T]>[0];
@@ -41,4 +50,13 @@ export const GraphCallbacksMap: Record<keyof TGraphEventCallbacks, keyof GraphEv
   onBlockChange: "block-change",
   onConnectionSelectionChange: "connection-selection-change",
   onStateChanged: "state-change",
+  // Новые события жестов
+  onTap: "tap",
+  onHover: "hover",
+  onPanStart: "panstart",
+  onPanMove: "panmove",
+  onPanEnd: "panend",
+  onPinchStart: "pinchstart",
+  onPinchMove: "pinchmove",
+  onPinchEnd: "pinchend",
 };

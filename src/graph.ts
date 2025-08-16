@@ -10,6 +10,7 @@ import { SelectionLayer } from "./components/canvas/layers/selectionLayer/Select
 import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
 import { GraphEventParams, GraphEventsDefinitions } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
+import { GestureService } from "./services/GestureService";
 import { HitTest } from "./services/HitTest";
 import { Layer } from "./services/Layer";
 import { Layers } from "./services/LayersService";
@@ -69,6 +70,8 @@ export class Graph {
 
   protected selectionLayer: SelectionLayer;
 
+  protected gestureService?: GestureService;
+
   public getGraphCanvas() {
     return this.graphLayer.getCanvas();
   }
@@ -124,6 +127,10 @@ export class Graph {
 
   public getGraphLayer() {
     return this.graphLayer;
+  }
+
+  public getGestureService(): GestureService | undefined {
+    return this.gestureService;
   }
 
   public setColors(colors: RecursivePartial<TGraphColors>) {
@@ -344,6 +351,9 @@ export class Graph {
     rootEl[Symbol.for("graph")] = this;
     this.layers.attach(rootEl);
 
+    // Инициализируем GestureService для обработки жестов
+    this.gestureService = new GestureService(this, rootEl);
+
     const { width: rootWidth, height: rootHeight } = this.layers.getRootSize();
 
     this.cameraService.set({ width: rootWidth, height: rootHeight });
@@ -410,6 +420,10 @@ export class Graph {
 
   public detach() {
     this.stop(true);
+    if (this.gestureService) {
+      this.gestureService.destroy();
+      this.gestureService = undefined;
+    }
   }
 
   public unmount() {
