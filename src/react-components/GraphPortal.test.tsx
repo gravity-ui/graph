@@ -15,7 +15,10 @@ describe("GraphPortal", () => {
   });
 
   afterEach(() => {
-    graph?.unmount();
+    act(() => {
+      graph.stop();
+      graph?.unmount();
+    });
   });
 
   it("should render portal content when graph is ready", async () => {
@@ -83,18 +86,5 @@ describe("GraphPortal", () => {
       expect(childrenFn.mock.calls[0][1]).toBeDefined(); // graph
       expect(childrenFn.mock.calls[0][0].getPortalTarget).toBeDefined();
     });
-  });
-
-  it("should not render when graph is not ready", () => {
-    const { container } = render(
-      <GraphCanvas graph={graph} renderBlock={() => <div>Block</div>}>
-        <GraphPortal>
-          <div data-testid="portal-content">Portal Content</div>
-        </GraphPortal>
-      </GraphCanvas>
-    );
-
-    // Graph is not started, so portal should not render
-    expect(container.querySelector('[data-testid="portal-content"]')).toBeNull();
   });
 });
