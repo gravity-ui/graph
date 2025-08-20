@@ -107,9 +107,9 @@ export function generatePlaygroundActionBlocks(layersCount: number, connectionsP
           const targetBlockId = getActionBlockId(indexTarget);
           config.connections.push({
             sourceBlockId: sourceBlockId,
-            sourceAnchorId: `${sourceBlockId}_anchor_out`,
+            sourceAnchorId: `${sourceBlockId}_out`,
             targetBlockId: targetBlockId,
-            targetAnchorId: `${targetBlockId}_anchor_in`,
+            targetAnchorId: `${targetBlockId}_in`,
           });
         }
       }

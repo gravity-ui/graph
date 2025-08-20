@@ -7,6 +7,8 @@ import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
 import { BlockState, IS_BLOCK_TYPE, TBlockId } from "../../../store/block/Block";
 import { selectBlockById } from "../../../store/block/selectors";
+import { PortState } from "../../../store/port/Port";
+import { createAnchorPortId, createBlockPointPortId } from "../../../store/port/utils";
 import { getXY } from "../../../utils/functions";
 import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { TTExtRect, renderText } from "../../../utils/renderers/text";
@@ -180,6 +182,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       order: this.renderOrder,
     });
 
+    // Initialize ports
     return [
       this.subscribeSignal(this.connectedState.$anchors, () => {
         this.setState({
@@ -193,6 +196,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
           anchors: this.connectedState.$anchors.value,
         });
         this.updateHitBox(this.connectedState.$geometry.value);
+        this.updatePortPositions();
       }),
     ];
   }
@@ -237,6 +241,42 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       this.connectedState.updateXY(x, y);
     }
     this.setState({ x, y });
+    this.updatePortPositions();
+  }
+
+  protected updatePortPositions(): void {
+    // Update input port position
+    const inputPoint = this.getConnectionPoint("in");
+    this.getInputPort().setPoint(inputPoint.x, inputPoint.y);
+
+    // Update output port position
+    const outputPoint = this.getConnectionPoint("out");
+    this.getOutputPort().setPoint(outputPoint.x, outputPoint.y);
+
+    // Update anchor ports positions
+    this.state.anchors.forEach((anchor) => {
+      const port = this.getAnchorPort(anchor.id);
+      if (port) {
+        const anchorPoint = this.getConnectionAnchorPosition(anchor);
+        port.setPoint(anchorPoint.x, anchorPoint.y);
+      }
+    });
+  }
+
+  public getInputPort(): PortState | undefined {
+    return this.context.graph.rootStore.connectionsList.getPort(createBlockPointPortId(this.state.id, true), this);
+  }
+
+  public getOutputPort(): PortState | undefined {
+    return this.context.graph.rootStore.connectionsList.getPort(createBlockPointPortId(this.state.id, false), this);
+  }
+
+  public getAnchorPort(anchorId: string): PortState | undefined {
+    const anchorPort = this.context.graph.rootStore.connectionsList.getPort(
+      createAnchorPortId(this.state.id, anchorId),
+      this
+    );
+    return anchorPort;
   }
 
   public handleEvent(event: CustomEvent) {
@@ -482,5 +522,14 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
         break;
       }
     }
+  }
+
+  protected override unmount(): void {
+    this.context.graph.rootStore.portsList.deletePorts([
+      this.getInputPort().id,
+      this.getOutputPort().id,
+      ...this.state.anchors.map((anchor) => this.getAnchorPort(anchor.id).id),
+    ]);
+    super.unmount();
   }
 }
