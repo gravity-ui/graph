@@ -4,6 +4,8 @@ import cloneDeep from "lodash/cloneDeep";
 import { TConnectionColors } from "../../graphConfig";
 import { ESelectionStrategy } from "../../utils/types/types";
 import { TBlockId } from "../block/Block";
+import { TPortId } from "../port/Port";
+import { createAnchorPortId, createBlockPointPortId } from "../port/utils";
 
 import { ConnectionsStore } from "./ConnectionList";
 
@@ -17,6 +19,8 @@ export type TConnection = {
   targetBlockId: TBlockId;
   sourceAnchorId?: string;
   targetAnchorId?: string;
+  sourcePortId?: TPortId;
+  targetPortId?: TPortId;
   label?: string;
   styles?: Partial<TConnectionColors> & {
     dashes?: number[];
@@ -48,6 +52,42 @@ export class ConnectionState<T extends TConnection = TConnection> {
     return this.$state.value.targetAnchorId;
   }
 
+  public get sourcePortId() {
+    if (this.$state.value.sourcePortId) {
+      return this.$state.value.sourcePortId;
+    }
+    if (this.$state.value.sourceAnchorId) {
+      return createAnchorPortId(this.$state.value.sourceBlockId, this.$state.value.sourceAnchorId);
+    }
+    return createBlockPointPortId(this.$state.value.sourceBlockId, false);
+  }
+
+  public get targetPortId() {
+    if (this.$state.value.targetPortId) {
+      return this.$state.value.targetPortId;
+    }
+    if (this.$state.value.targetAnchorId) {
+      return createAnchorPortId(this.$state.value.targetBlockId, this.$state.value.targetAnchorId);
+    }
+    return createBlockPointPortId(this.$state.value.targetBlockId, true);
+  }
+
+  public readonly $sourcePort = computed(() => {
+    return this.store.getPort(this.sourcePortId).$state.value;
+  });
+
+  public readonly $sourcePortState = computed(() => {
+    return this.store.getPort(this.sourcePortId);
+  });
+
+  public readonly $targetPortState = computed(() => {
+    return this.store.getPort(this.targetPortId);
+  });
+
+  public readonly $targetPort = computed(() => {
+    return this.store.getPort(this.targetPortId).$state.value;
+  });
+
   public readonly $sourceBlock = computed(() => {
     return this.store.getBlock(this.$state.value.sourceBlockId);
   });
@@ -57,7 +97,10 @@ export class ConnectionState<T extends TConnection = TConnection> {
   });
 
   public $geometry = computed(() => {
-    return [this.$sourceBlock.value?.$geometry.value, this.$targetBlock.value?.$geometry.value];
+    if (!this.$sourcePort.value.lookup && !this.$targetPort.value.lookup) {
+      return [this.$sourcePort.value, this.$targetPort.value];
+    }
+    return undefined;
   });
 
   public static getConnectionId(connection: TConnection) {

@@ -22,24 +22,34 @@ export class BaseConnection<
   Context extends GraphComponentContext = GraphComponentContext,
   Connection extends TConnection = TConnection,
 > extends GraphComponent<Props, State, Context> {
+  /**
+   * @deprecated use port system instead
+   */
   protected get sourceBlock(): Block {
     return this.connectedState.$sourceBlock.value?.getViewComponent();
   }
 
+  /**
+   * @deprecated use port system instead
+   */
   protected get targetBlock(): Block {
     return this.connectedState.$targetBlock.value?.getViewComponent();
   }
 
+  /**
+   * @deprecated use port system instead
+   */
   protected get sourceAnchor(): TAnchor | undefined {
     return this.sourceBlock.connectedState.getAnchorById(this.connectedState.sourceAnchorId)?.asTAnchor();
   }
+  /**
+   * @deprecated use port system instead
+   */
   protected get targetAnchor(): TAnchor | undefined {
     return this.targetBlock.connectedState.getAnchorById(this.connectedState.targetAnchorId)?.asTAnchor();
   }
 
   public connectionPoints: [TPoint, TPoint] | undefined;
-
-  public anchorsPoints: [TPoint, TPoint] | undefined;
 
   protected connectedState: ConnectionState<Connection>;
 
@@ -49,6 +59,8 @@ export class BaseConnection<
     super(props, parent);
 
     this.connectedState = selectConnectionById(this.context.graph, this.props.id) as ConnectionState<Connection>;
+    this.connectedState.$sourcePortState.value.own(this);
+    this.connectedState.$targetPortState.value.own(this);
 
     this.setState({ ...(this.connectedState.$state.value as TBaseConnectionState), hovered: false });
   }
@@ -79,30 +91,27 @@ export class BaseConnection<
     }
   }
 
-  protected updatePoints() {
-    if (!this.sourceBlock || !this.targetBlock) return;
+  protected override unmount(): void {
+    this.connectedState.$sourcePortState.value.unown(this);
+    this.connectedState.$targetPortState.value.unown(this);
+    super.unmount();
+  }
 
-    this.connectionPoints = [this.sourceBlock.getConnectionPoint("out"), this.targetBlock.getConnectionPoint("in")];
-    if (this.sourceAnchor && this.targetAnchor) {
-      this.anchorsPoints = [
-        this.sourceBlock.getConnectionAnchorPosition(this.sourceAnchor),
-        this.targetBlock.getConnectionAnchorPosition(this.targetAnchor),
+  protected updatePoints() {
+    this.connectionPoints = [
+      { x: 0, y: 0 },
+      { x: 0, y: 0 },
+    ];
+    if (this.connectedState.$geometry.value) {
+      const [source, target] = this.connectedState.$geometry.value;
+      this.connectionPoints = [
+        { x: source.x, y: source.y },
+        { x: target.x, y: target.y },
       ];
-    } else {
-      this.anchorsPoints = undefined;
     }
-    const x = [
-      this.connectionPoints[0].x,
-      this.connectionPoints[1].x,
-      this.anchorsPoints?.[0].x || Infinity,
-      this.anchorsPoints?.[1].x || Infinity,
-    ].filter(Number.isFinite);
-    const y = [
-      this.connectionPoints[0].y,
-      this.connectionPoints[1].y,
-      this.anchorsPoints?.[0].y || Infinity,
-      this.anchorsPoints?.[1].y || Infinity,
-    ].filter(Number.isFinite);
+
+    const x = [this.connectionPoints[0].x, this.connectionPoints[1].x].filter(Number.isFinite);
+    const y = [this.connectionPoints[0].y, this.connectionPoints[1].y].filter(Number.isFinite);
 
     this.bBox = [Math.min(...x), Math.min(...y), Math.max(...x), Math.max(...y)];
 

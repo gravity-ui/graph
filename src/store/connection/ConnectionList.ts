@@ -1,10 +1,13 @@
 import { batch, computed, signal } from "@preact/signals-core";
 
+import { GraphComponent } from "../../components/canvas/GraphComponent";
 import { Graph } from "../../graph";
 import { selectBlockById } from "../../store/block/selectors";
 import { ESelectionStrategy } from "../../utils/types/types";
 import { TBlockId } from "../block/Block";
 import { RootStore } from "../index";
+import { PortState, TPortId } from "../port/Port";
+import { PortsStore } from "../port/PortList";
 
 import { ConnectionState, TConnection, TConnectionId } from "./ConnectionState";
 
@@ -27,11 +30,16 @@ export class ConnectionsStore {
     return new Set(this.$connections.value.filter((connection) => connection.isSelected()));
   });
 
+  protected ports = new PortsStore(this.rootStore, this.graph);
+
   constructor(
     public rootStore: RootStore,
     protected graph: Graph
   ) {}
 
+  /**
+   * @deprecated use getPort instead
+   */
   public getBlock(id: TBlockId) {
     return selectBlockById(this.graph, id);
   }
@@ -196,5 +204,9 @@ export class ConnectionsStore {
 
   public reset() {
     this.setConnections([]);
+  }
+
+  public getPort(id: TPortId, component?: GraphComponent): PortState | undefined {
+    return this.ports.getOrCreatePort(id, component);
   }
 }
