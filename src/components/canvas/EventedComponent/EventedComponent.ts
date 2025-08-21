@@ -11,7 +11,7 @@ export class EventedComponent<
 > extends Component<Props, State, Context> {
   public readonly evented: boolean = true;
 
-  public readonly cursor?: string;
+  public cursor?: string;
 
   private get events() {
     if (!listeners.has(this)) {
