@@ -182,6 +182,86 @@ The hook:
 - Provides proper TypeScript types for layer props
 - Returns the layer instance for direct access if needed
 
+## Declarative Components
+
+In addition to the imperative `useLayer` hook, the library provides declarative React components for working with layers and HTML overlays.
+
+### GraphLayer
+
+The `GraphLayer` component provides a declarative way to add existing Layer classes to the graph:
+
+```tsx
+import { GraphLayer, GraphCanvas, useGraph } from '@gravity-ui/graph/react';
+import { DevToolsLayer } from '@gravity-ui/graph/plugins';
+
+function MyGraph() {
+  const { graph, setEntities, start } = useGraph({});
+
+  React.useEffect(() => {
+    if (graph) {
+      setEntities({ blocks: [...], connections: [...] });
+      start();
+    }
+  }, [graph]);
+
+  return (
+    <GraphCanvas graph={graph} renderBlock={renderBlock}>
+      <GraphLayer 
+        layer={DevToolsLayer}
+        showRuler={true}
+        showCrosshair={true}
+        rulerSize={20}
+        rulerBackgroundColor="rgba(0, 0, 0, 0.8)"
+        crosshairColor="rgba(255, 0, 0, 0.8)"
+      />
+    </GraphCanvas>
+  );
+}
+```
+
+### GraphPortal
+
+The `GraphPortal` component allows creating HTML layers without writing separate Layer classes:
+
+```tsx
+import { GraphPortal, GraphCanvas, useGraph } from '@gravity-ui/graph/react';
+
+function MyGraph() {
+  const { graph, setEntities, start } = useGraph({});
+  const [counter, setCounter] = useState(0);
+
+  React.useEffect(() => {
+    if (graph) {
+      setEntities({ blocks: [...], connections: [...] });
+      start();
+    }
+  }, [graph]);
+
+  return (
+    <GraphCanvas graph={graph} renderBlock={renderBlock}>
+      <GraphPortal zIndex={200}>
+        <div style={{ 
+          position: 'absolute', 
+          top: 20, 
+          right: 20,
+          background: 'white',
+          padding: 16,
+          borderRadius: 8,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
+        }}>
+          <h3>Custom UI</h3>
+          <button onClick={() => setCounter(c => c + 1)}>
+            Counter: {counter}
+          </button>
+        </div>
+      </GraphPortal>
+    </GraphCanvas>
+  );
+}
+```
+
+For more detailed information about declarative components, see the [dedicated documentation](declarative-components.md).
+
 ### View Configuration
 ```tsx
 const config = {

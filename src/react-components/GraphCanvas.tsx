@@ -5,11 +5,15 @@ import { Graph } from "../graph";
 import { setCssProps } from "../utils/functions/cssProp";
 
 import { TBlockListProps } from "./BlocksList";
+import { GraphContextProvider } from "./GraphContext";
 import { TGraphEventCallbacks } from "./events";
 import { useLayer } from "./hooks";
 import { useGraphEvent, useGraphEvents } from "./hooks/useGraphEvents";
 import { ReactLayer } from "./layer";
+import { cn } from "./utils/cn";
 import { useFn } from "./utils/hooks/useFn";
+
+import "./graph-canvas.css";
 
 export type GraphProps = Pick<Partial<TBlockListProps>, "renderBlock"> &
   Partial<TGraphEventCallbacks> & {
@@ -17,9 +21,18 @@ export type GraphProps = Pick<Partial<TBlockListProps>, "renderBlock"> &
     blockListClassName?: string;
     graph: Graph;
     reactLayerRef?: React.MutableRefObject<ReactLayer | null>;
+    children?: React.ReactNode;
   };
 
-export function GraphCanvas({ graph, className, blockListClassName, renderBlock, reactLayerRef, ...cbs }: GraphProps) {
+export function GraphCanvas({
+  graph,
+  className,
+  blockListClassName,
+  renderBlock,
+  reactLayerRef,
+  children,
+  ...cbs
+}: GraphProps) {
   const containerRef = useRef<HTMLDivElement>();
 
   const reactLayer = useLayer(graph, ReactLayer, {
@@ -61,10 +74,13 @@ export function GraphCanvas({ graph, className, blockListClassName, renderBlock,
   });
 
   return (
-    <div className={className}>
-      <div style={{ position: "absolute", overflow: "hidden", width: "100%", height: "100%" }} ref={containerRef}>
-        {graph && reactLayer && reactLayer.renderPortal(renderBlock)}
+    <GraphContextProvider graph={graph}>
+      <div className={cn("graph-wrapper", className)}>
+        <div className="graph-canvas" ref={containerRef}>
+          {graph && reactLayer && reactLayer.renderPortal(renderBlock)}
+        </div>
+        {children}
       </div>
-    </div>
+    </GraphContextProvider>
   );
 }
