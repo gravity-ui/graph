@@ -2,9 +2,6 @@ import React, { createContext, useContext } from "react";
 
 import type { Graph } from "../graph";
 
-/**
- * Контекст для передачи Graph instance дочерним компонентам
- */
 export interface GraphContextType {
   graph: Graph;
 }
@@ -12,9 +9,9 @@ export interface GraphContextType {
 export const GraphContext = createContext<GraphContextType | null>(null);
 
 /**
- * Хук для получения Graph instance из контекста
+ * Hook for getting Graph instance from context
  *
- * @throws {Error} Если используется вне GraphCanvas
+ * @throws {Error} If used outside of GraphCanvas
  */
 export function useGraphContext(): GraphContextType {
   const context = useContext(GraphContext);
@@ -29,9 +26,6 @@ export function useGraphContext(): GraphContextType {
   return context;
 }
 
-/**
- * Провайдер контекста для Graph
- */
 export interface GraphContextProviderProps {
   graph: Graph;
   children: React.ReactNode;
