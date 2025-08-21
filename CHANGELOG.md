@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/gravity-ui/graph/compare/v1.1.4...v1.2.0) (2025-08-21)
+
+
+### Features
+
+* add declarative way to add layers on the graph canvas ([#120](https://github.com/gravity-ui/graph/issues/120)) ([fa77af8](https://github.com/gravity-ui/graph/commit/fa77af85cec3379790a1a203f394b74e06f06ce3))
+
+
+### Bug Fixes
+
+* make cursor field writable ([#127](https://github.com/gravity-ui/graph/issues/127)) ([01a7e10](https://github.com/gravity-ui/graph/commit/01a7e101ad45f25f3168fcf93ac5d348db6024aa))
+* **zoom:** return valid rect instead of Infinity when blocks not found ([#123](https://github.com/gravity-ui/graph/issues/123)) ([9ad6828](https://github.com/gravity-ui/graph/commit/9ad6828e688d273a1c2af73b7fa383982e59fe21))
+
 ## [1.1.4](https://github.com/gravity-ui/graph/compare/v1.1.3...v1.1.4) (2025-07-10)
 
 
