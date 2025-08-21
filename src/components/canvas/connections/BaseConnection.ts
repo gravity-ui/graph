@@ -33,6 +33,7 @@ export class BaseConnection<
   protected get sourceAnchor(): TAnchor | undefined {
     return this.sourceBlock.connectedState.getAnchorById(this.connectedState.sourceAnchorId)?.asTAnchor();
   }
+
   protected get targetAnchor(): TAnchor | undefined {
     return this.targetBlock.connectedState.getAnchorById(this.connectedState.targetAnchorId)?.asTAnchor();
   }
@@ -49,6 +50,7 @@ export class BaseConnection<
     super(props, parent);
 
     this.connectedState = selectConnectionById(this.context.graph, this.props.id) as ConnectionState<Connection>;
+    this.connectedState.setViewComponent(this);
 
     this.setState({ ...(this.connectedState.$state.value as TBaseConnectionState), hovered: false });
   }
