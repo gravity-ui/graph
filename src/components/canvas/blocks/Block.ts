@@ -7,8 +7,8 @@ import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
 import { BlockState, IS_BLOCK_TYPE, TBlockId } from "../../../store/block/Block";
 import { selectBlockById } from "../../../store/block/selectors";
-import { PortState } from "../../../store/port/Port";
-import { createAnchorPortId, createBlockPointPortId } from "../../../store/port/utils";
+import { PortState } from "../../../store/connection/port/Port";
+import { createAnchorPortId, createBlockPointPortId } from "../../../store/connection/port/utils";
 import { getXY } from "../../../utils/functions";
 import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { TTExtRect, renderText } from "../../../utils/renderers/text";
@@ -525,7 +525,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected override unmount(): void {
-    this.context.graph.rootStore.portsList.deletePorts([
+    this.context.graph.rootStore.connectionsList.deletePorts([
       this.getInputPort().id,
       this.getOutputPort().id,
       ...this.state.anchors.map((anchor) => this.getAnchorPort(anchor.id).id),

@@ -1,15 +1,15 @@
 import { batch, computed, signal } from "@preact/signals-core";
 
-import { GraphComponent } from "../../components/canvas/GraphComponent";
 import { Graph } from "../../graph";
+import { Component } from "../../lib";
 import { selectBlockById } from "../../store/block/selectors";
 import { ESelectionStrategy } from "../../utils/types/types";
 import { TBlockId } from "../block/Block";
 import { RootStore } from "../index";
-import { PortState, TPortId } from "../port/Port";
-import { PortsStore } from "../port/PortList";
 
 import { ConnectionState, TConnection, TConnectionId } from "./ConnectionState";
+import { PortState, TPortId } from "./port/Port";
+import { PortsStore } from "./port/PortList";
 
 declare module "../../graphEvents" {
   interface GraphEventsDefinitions {
@@ -42,6 +42,25 @@ export class ConnectionsStore {
    */
   public getBlock(id: TBlockId) {
     return selectBlockById(this.graph, id);
+  }
+
+  public usePort(id: TPortId, listener: Component) {
+    const port = this.ports.getOrCreatePort(id);
+    port.listen(listener);
+    return port;
+  }
+
+  public unusePort(id: TPortId, listener: Component) {
+    const port = this.ports.getOrCreatePort(id);
+    port.unlisten(listener);
+  }
+
+  public getPort(id: TPortId, component?: Component): PortState | undefined {
+    return this.ports.getOrCreatePort(id, component);
+  }
+
+  public deletePorts(ports: TPortId[]) {
+    this.ports.deletePorts(ports);
   }
 
   protected setSelection(
@@ -204,9 +223,6 @@ export class ConnectionsStore {
 
   public reset() {
     this.setConnections([]);
-  }
-
-  public getPort(id: TPortId, component?: GraphComponent): PortState | undefined {
-    return this.ports.getOrCreatePort(id, component);
+    this.ports.reset();
   }
 }

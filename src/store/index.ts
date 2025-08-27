@@ -5,8 +5,8 @@ import { Graph, TGraphConfig } from "../graph";
 
 import { BlockListStore } from "./block/BlocksList";
 import { ConnectionsStore } from "./connection/ConnectionList";
+import { PortsStore } from "./connection/port/PortList";
 import { GroupsListStore } from "./group/GroupsList";
-import { PortsStore } from "./port/PortList";
 import { GraphEditorSettings } from "./settings";
 
 export class RootStore {
@@ -27,7 +27,6 @@ export class RootStore {
     this.connectionsList = new ConnectionsStore(this, graph);
     this.settings = new GraphEditorSettings(this);
     this.groupsList = new GroupsListStore(this, graph);
-    this.portsList = new PortsStore(this, graph);
   }
 
   public getAsConfig(): TGraphConfig {
@@ -45,7 +44,6 @@ export class RootStore {
       this.connectionsList.reset();
       this.settings.reset();
       this.groupsList.reset();
-      this.portsList.reset();
     });
   }
 }

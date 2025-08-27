@@ -1,8 +1,9 @@
 import { computed, signal } from "@preact/signals-core";
 
-import { GraphComponent } from "../../components/canvas/GraphComponent";
-import { Graph } from "../../graph";
-import { RootStore } from "../index";
+import { GraphComponent } from "../../../components/canvas/GraphComponent";
+import { Graph } from "../../../graph";
+import { Component } from "../../../lib";
+import { RootStore } from "../../index";
 
 import { PortState, TPort, TPortId } from "./Port";
 
@@ -18,7 +19,7 @@ export class PortsStore {
     protected graph: Graph
   ) {}
 
-  public createPort(id: TPortId, component: GraphComponent): PortState {
+  public createPort(id: TPortId, component: Component): PortState {
     if (this.$portsMap.value.has(id)) {
       const existingPort = this.$portsMap.value.get(id);
       if (existingPort) {
@@ -43,7 +44,7 @@ export class PortsStore {
     return this.$portsMap.value.get(id);
   }
 
-  public getOrCreatePort(id: TPortId, component?: GraphComponent): PortState {
+  public getOrCreatePort(id: TPortId, component?: Component): PortState {
     const existingPort = this.getPort(id);
     if (existingPort) {
       return existingPort;
@@ -83,7 +84,7 @@ export class PortsStore {
   }
 
   public ownPort(port: PortState, component: GraphComponent): void {
-    port.own(component);
+    port.listen(component);
   }
 
   public unownPort(port: PortState, component: GraphComponent): void {

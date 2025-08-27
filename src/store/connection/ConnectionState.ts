@@ -4,30 +4,36 @@ import cloneDeep from "lodash/cloneDeep";
 import { TConnectionColors } from "../../graphConfig";
 import { ESelectionStrategy } from "../../utils/types/types";
 import { TBlockId } from "../block/Block";
-import { TPortId } from "../port/Port";
-import { createAnchorPortId, createBlockPointPortId } from "../port/utils";
 
 import { ConnectionsStore } from "./ConnectionList";
+import { TPortId } from "./port/Port";
+import { createAnchorPortId, createBlockPointPortId } from "./port/utils";
 
 export const IS_CONNECTION_TYPE = "Connection" as const;
 
 export type TConnectionId = string | number | symbol;
 
+export type TConnectionBlockPoint = {};
+
+export type TConnectionPortPoint = {};
+
 export type TConnection = {
   id?: TConnectionId;
-  sourceBlockId: TBlockId;
-  targetBlockId: TBlockId;
+  sourceBlockId?: TBlockId;
+  targetBlockId?: TBlockId;
   sourceAnchorId?: string;
   targetAnchorId?: string;
+
   sourcePortId?: TPortId;
   targetPortId?: TPortId;
+
   label?: string;
   styles?: Partial<TConnectionColors> & {
     dashes?: number[];
   };
   dashed?: boolean;
   selected?: boolean;
-};
+} & (TConnectionBlockPoint | TConnectionPortPoint);
 
 export class ConnectionState<T extends TConnection = TConnection> {
   public $state = signal<T>(undefined);

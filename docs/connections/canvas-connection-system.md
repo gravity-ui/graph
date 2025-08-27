@@ -1,177 +1,309 @@
-# Canvas Connection System: Efficient Rendering of Graph Connections
+# Connection System: Connecting Blocks in Your Graph
 
-The Connection System is a sophisticated framework for rendering and interacting with connections between blocks in the graph. It consists of several key components that work together to provide efficient rendering, reliable interaction, and customizable appearance.
+The Connection System allows you to create visual links between blocks in your graph. It supports different types of connections, from simple straight lines to complex curved paths with multiple points.
 
-## Core Connection Classes Hierarchy
+## Key Features
 
-```mermaid
-classDiagram
-    GraphComponent <|-- BaseConnection
-    BaseConnection <|-- BlockConnection
-    BlockConnection <|-- CustomConnections
-    CustomConnections : MultipointConnection
-    BlockConnection -- Path2DRenderInstance
-    BlockConnection -- BatchPath2D
-    
-    class GraphComponent {
-        +hitBox: HitBox
-        +render()
-        +updateChildren()
-    }
-    
-    class BaseConnection {
-        +connectionPoints
-        +anchorsPoints
-        +connectedState
-        +updatePoints()
-    }
-    
-    class BlockConnection {
-        +path2d
-        +createPath()
-        +style()
-        +getClassName()
-    }
-    
-    class Path2DRenderInstance {
-        <<interface>>
-        +getPath()
-        +style()
-        +afterRender()
-    }
-    
-    class BatchPath2D {
-        -batches: Map
-        +add()
-        +update()
-        +delete()
-        +render()
-    }
-```
+- **Flexible Connection Types**: Straight lines, bezier curves, and multi-point connections
+- **Visual Customization**: Colors, dash patterns, line thickness, and arrows
+- **Interactive Elements**: Hover effects, selection states, and clickable labels
+- **Performance Optimized**: Efficient rendering of thousands of connections
+- **Anchor Support**: Connect to specific points on blocks or use default connection points
 
-## 1. BaseConnection: The Foundation
+## Creating Connections
 
-`BaseConnection` extends `GraphComponent` (see [GraphComponent documentation](canvas-graph-component.md)) and serves as the foundation for all connection types in the system. It establishes the core functionality that all connections need:
-
-### Core Features
-
-1. **Connection State Management**
-```typescript
-import { Component } from "@/lib/Component";
-import { selectConnectionById } from "@/store/connection/selectors";
-import { ConnectionState } from "@/store/connection/ConnectionState";
-import { Block } from "@/store/block/Block";
-import { HitBox, HitBoxData } from "@/services/HitTest";
-
-interface Props {
-  id: string;
-}
-
-interface TBaseConnectionState {
-  id: string;
-  sourceBlockId: string;
-  targetBlockId: string;
-}
-
-interface Path2DRenderStyleResult {
-  type: 'stroke' | 'fill' | 'both';
-}
-
-interface Connection {
-  id: string;
-}
-
-class BaseConnection extends Component<Props> {
-  protected connectedState: ConnectionState<Connection>;
-
-  constructor(props: Props, parent: Component) {
-    super(props, parent);
-    this.connectedState = selectConnectionById(this.context.graph, this.props.id);
-    this.setState({ ...(this.connectedState.$state.value as TBaseConnectionState), hovered: false });
-  }
-}
-```
-
-BaseConnection automatically connects to the store and maintains a synchronized state with the data model. This means:
-- Your connection always reflects the current data in the store
-- Changes in the store automatically update your connection
-- No manual synchronization code needed
-
-2. **Source and Target Block References**
+The simplest way to create connections is using block identifiers. The system will automatically connect to the default input/output points of blocks:
 
 ```typescript
-protected get sourceBlock(): Block {
-  return this.connectedState.$sourceBlock.value?.getViewComponent();
-}
+// Simple connection between two blocks
+const connection = {
+  id: "connection-1",
+  sourceBlockId: "block-1",
+  targetBlockId: "block-2"
+};
 
-protected get targetBlock(): Block {
-  return this.connectedState.$targetBlock.value?.getViewComponent();
-}
+graph.setEntities({ connections: [connection] });
 ```
 
-BaseConnection maintains references to the blocks it connects, making it easy to:
-- Access source and target block properties
-- Respond to changes in block positions
-- Implement custom connection logic based on block attributes
-
-3. **Connection Points Calculation**
+For more precise control, connect to specific anchor points on blocks:
 
 ```typescript
-protected updatePoints() {
-  if (!this.sourceBlock || !this.targetBlock) return;
-
-  this.connectionPoints = [
-    this.sourceBlock.getConnectionPoint("out"), 
-    this.targetBlock.getConnectionPoint("in")
-  ];
-  
-  // ... further processing ...
-
-  this.updateHitBox();
-}
-```
-
-BaseConnection automatically calculates and updates the connection endpoints whenever:
-- Blocks move
-- Connection geometry changes
-- Anchors are updated
-
-4. **Hit Box Management**
-
-```typescript
-private updateHitBox = () => {
-  const [x1, y1, x2, y2] = this.getBBox();
-  const threshold = this.context.constants.connection.THRESHOLD_LINE_HIT;
-  this.setHitBox(
-    Math.min(x1, x2) - threshold,
-    Math.min(y1, y2) - threshold,
-    Math.max(x1, x2) + threshold,
-    Math.max(y1, y2) + threshold
-  );
+// Connection to specific anchors
+const connection = {
+  id: "connection-2", 
+  sourceBlockId: "block-1",
+  sourceAnchorId: "output",
+  targetBlockId: "block-2",
+  targetAnchorId: "input"
 };
 ```
 
-The connection automatically maintains a proper hit box, making it:
-- Clickable and interactive
-- Properly detected in spatial queries
-- Responsive to hover and selection events
+## Port System: Connection Foundation
 
-### When to Use BaseConnection
+The Port System manages connection endpoints and allows connections to be created before their target components exist, solving initialization order problems. The system can connect any graph entities - blocks, anchors, groups, or custom components.
 
-Use `BaseConnection` when:
-- You need the most basic connection functionality without rendering
-- You're implementing a custom rendering system
-- You want to build a connection from scratch with your own rendering logic
+Ports have unique identifiers based on their type:
+- **Block Point Ports**: `"blockId_input"` (left side), `"blockId_output"` (right side)
+- **Anchor Ports**: `"blockId/anchorId"` for specific anchor points
+- **Custom Entity Ports**: Any format for groups (`"groupId_connection_point"`) or custom components
 
-Example:
+When you create connections using `sourceBlockId`/`targetBlockId`, the system automatically resolves them to port IDs. Without anchors, it uses default block points (`block-1_output` → `block-2_input`). With anchors, it creates anchor ports (`block-1/output` → `block-2/input`).
+
+For advanced use cases, specify port IDs directly to connect any entities:
+
 ```typescript
-class SimpleConnection extends BaseConnection {
+// Connect different entity types
+const connections = [
+   // Block to block
+  { 
+    id: "connection-1",
+    sourceBlockId: "block-1_output",
+    targetBlockId: "block-2_input"
+  },
+  // Block to group
+  {
+    id: "connection-2",
+    sourceBlockId: "block-1_output",
+    targetPortId: "group-1_connection_point"
+  },
+  // Group to group
+  {
+    id: "connection-3",
+    sourcePortId: "group-1_output",
+    targetPortId: "group-2_input"
+  },
+  // Block to custom
+  {
+    id: "connection-4",
+    sourceBlockId: "block-1_output",
+    targetPortId: "custom-component/endpoint"
+  }
+];
+```
+
+This flexible system provides universal connections, lazy initialization, extensibility for new entity types, and consistent API regardless of what you're connecting.
+
+## Styling and Visual Customization
+
+Global settings control the visual appearance the default [BlockConnection](../../src/components/canvas/connections/BlockConnection.md) and behavior of all connections in your graph:
+
+```typescript
+graph.updateSettings({
+  useBezierConnections: true,           // Enable curved connections
+  bezierConnectionDirection: "horizontal", // "horizontal" or "vertical"
+  showConnectionArrows: true,           // Show direction arrows
+  showConnectionLabels: true,           // Show text labels
+  canCreateNewConnections: true         // Allow user to create connections
+});
+```
+
+Individual connections can have custom styling and labels. Set the `label` property to add text, and use `styles` for custom colors and dash patterns:
+
+```typescript
+const styledConnection = {
+  id: "styled-connection",
+  sourceBlockId: "block-1",
+  targetBlockId: "block-2",
+  label: "Data Flow",
+  styles: {
+    background: "#ff6b6b",           // Connection color
+    selectedBackground: "#e63946",   // Color when selected
+    dashes: [8, 4]                   // Dash pattern [dash, gap]
+  },
+  dashed: true                       // Enable dash pattern
+};
+```
+
+Labels and arrows automatically respect zoom levels - they appear only when zoomed in enough for comfortable viewing. The system optimizes performance by grouping connections with similar visual properties for batch rendering.
+
+## Advanced Connection Features
+
+**Interactive Features** are built-in. Connections automatically respond to hover and selection states with visual feedback. Use the selection API to programmatically select connections:
+
+```typescript
+// Select connections and listen to changes
+graph.api.selectConnections(["connection-1"], true);
+graph.on("connection-selection-change", (event) => {
+  console.log("Selected connections:", event.detail.list);
+});
+
+// Handle connection clicks
+graph.on("connection-click", (event) => {
+  console.log("Clicked connection:", event.detail.connection.id);
+});
+```
+
+## Working with Connection Data
+
+Manage connections through the graph API. Add single connections using the connection store, or batch multiple connections for better performance:
+
+```typescript
+// Add single connection
+const connectionId = graph.rootStore.connectionsList.addConnection({
+  sourceBlockId: "block-1",
+  targetBlockId: "block-2"
+});
+
+// Add multiple connections (preferred for performance)
+graph.setEntities({ 
+  connections: [
+    { id: "conn-1", sourceBlockId: "block-1", targetBlockId: "block-2" },
+    { id: "conn-2", sourceBlockId: "block-2", targetBlockId: "block-3" }
+  ]
+});
+```
+
+Update existing connections by modifying their properties. You can change labels, styling, or any other connection data:
+
+```typescript
+graph.updateConnections([
+  {
+    id: "connection-1",
+    label: "Updated Label",
+    styles: { background: "#4caf50" }
+  }
+]);
+```
+
+Remove connections either by deleting selected ones or by specifying connection IDs:
+
+```typescript
+// Delete selected connections
+graph.rootStore.connectionsList.deleteSelectedConnections();
+
+// Delete specific connections
+const connectionsToDelete = graph.rootStore.connectionsList.getConnections(["conn-1", "conn-2"]);
+graph.rootStore.connectionsList.deleteConnections(connectionsToDelete);
+```
+
+## Advanced Connection Configuration
+
+### Zoom-Based Visibility
+Labels and arrows automatically respect zoom levels when enabled globally:
+
+```typescript
+// Enable labels and arrows globally
+graph.updateSettings({
+  showConnectionLabels: true,  // Shows only when zoomed in enough
+  showConnectionArrows: true   // Shows only when zoomed in enough
+});
+
+// Connection with label - visibility controlled by zoom and global settings
+const connection = {
+  id: "zoom-aware",
+  sourceBlockId: "block-1",
+  targetBlockId: "block-2",
+  label: "Process Data"
+};
+```
+
+## Performance and Scale
+
+The connection system is optimized for handling large numbers of connections efficiently:
+
+- **Automatic Batching**: Connections with similar visual properties are grouped together for optimal rendering
+- **Zoom-Aware Rendering**: Complex visual elements (labels, arrows) appear only when zoomed in
+- **Lazy Updates**: Connection geometry is calculated only when source or target positions change
+- **Efficient Hit Detection**: Smart collision detection for user interactions
+
+### Working with Many Connections
+
+```typescript
+// Efficiently add many connections at once
+const connections = [];
+for (let i = 0; i < 1000; i++) {
+  connections.push({
+    id: `conn-${i}`,
+    sourceBlockId: `block-${i}`,
+    targetBlockId: `block-${i + 1}`,
+    styles: { background: i % 2 ? "#blue" : "#red" }
+  });
+}
+
+// Single operation for best performance
+graph.setEntities({ connections });
+```
+
+## Configuration Examples
+
+### Complete Connection Setup
+Example of a fully configured connection with graph settings:
+
+```typescript
+// Configure global connection settings
+graph.updateSettings({
+  useBezierConnections: true,
+  bezierConnectionDirection: "horizontal",
+  showConnectionArrows: true,
+  showConnectionLabels: true
+});
+
+// Create a styled connection
+const fullConnection = {
+  id: "complete-example",
+  
+  // Connection endpoints
+  sourceBlockId: "input-block",
+  sourceAnchorId: "output",
+  targetBlockId: "process-block", 
+  targetAnchorId: "input",
+  
+  // Connection-specific properties
+  label: "Data Pipeline",
+  
+  // Styling
+  styles: {
+    background: "#2196f3",
+    selectedBackground: "#1976d2",
+    dashes: [10, 5]
+  },
+  dashed: true,
+  
+  // Selection state
+  selected: false
+};
+```
+
+### Dynamic Connection Updates
+Example of updating connections based on application state:
+
+```typescript
+// Update connection color based on data flow status
+function updateConnectionStatus(connectionId: string, status: "active" | "idle" | "error") {
+  const colors = {
+    active: "#4caf50",
+    idle: "#757575", 
+    error: "#f44336"
+  };
+  
+  graph.updateConnections([{
+    id: connectionId,
+    styles: { background: colors[status] }
+  }]);
+}
+```
+
+## Custom Connection Types
+
+You can create custom connection implementations by extending the base connection classes to add specific rendering logic or behavior.
+
+### Extending BaseConnection
+
+For custom connections with basic functionality:
+
+```typescript
+import { BaseConnection } from "@gravity-ui/graph";
+
+class SimpleLineConnection extends BaseConnection {
   protected render() {
     if (!this.connectionPoints) return;
     
     const [source, target] = this.connectionPoints;
     const ctx = this.context.ctx;
     
+    // Custom rendering logic
+    ctx.strokeStyle = this.state.selected ? "#ff0000" : "#000000";
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(source.x, source.y);
     ctx.lineTo(target.x, target.y);
@@ -180,357 +312,101 @@ class SimpleConnection extends BaseConnection {
 }
 ```
 
-## 2. BlockConnection: Optimized Rendering with Path2D
+### Extending BlockConnection
 
-`BlockConnection` extends `BaseConnection` and adds an optimized rendering system using HTML5's Path2D and the BatchPath2D rendering system.
-
-### Performance Optimizations
-
-1. **Path2D-based Rendering**
+For optimized connections with advanced features. BlockConnection automatically handles performance optimization through batch rendering - see [Batch Rendering System](batch-rendering.md) for technical details on how this works internally.
 
 ```typescript
-import { bezierCurveLine } from "@/utils/shapes/curvePolyline";
-import { curvePolyline } from "@/utils/shapes/polyline";
+import { BlockConnection } from "@gravity-ui/graph";
 
-protected generatePath() {
-  this.path2d = this.createPath();
-  return this.path2d;
-}
-
-protected createPath(): Path2D {
-  if (this.props.useBezier) {
-    return bezierCurveLine(
-      { x: this.geometry.x1, y: this.geometry.y1 },
-      { x: this.geometry.x2, y: this.geometry.y2 },
-      this.props.bezierDirection
-    );
-  }
-  const path2d = new Path2D();
-  path2d.moveTo(this.geometry.x1, this.geometry.y1);
-  path2d.lineTo(this.geometry.x2, this.geometry.y2);
-  return path2d;
-}
-```
-
-The Path2D approach offers several advantages:
-- **Performance**: Path objects are optimized by the browser
-- **Reusability**: Paths can be reused without recalculation
-- **Precision**: More accurate hit detection on complex paths
-
-2. **Batch Rendering System**
-
-```typescript
-constructor(props: TConnectionProps, parent: BlockConnections) {
-  super(props, parent);
-  this.addEventListener("click", this);
-
-  this.context.batch.add(this, { zIndex: this.zIndex, group: this.getClassName() });
-  this.context.batch.add(this.arrowShape, { zIndex: this.zIndex, group: `arrow/${this.getClassName()}` });
-}
-```
-
-BlockConnection integrates with the BatchPath2D system, which:
-- Groups similar connections to reduce draw calls
-- Handles Z-index ordering automatically
-- Efficiently manages rendering of hundreds or thousands of connections
-
-### Styling and Appearance
-
-1. **Dynamic Connection Styling**
-
-```typescript
-public getClassName(state = this.state) {
-  const hovered = state.hovered ? "hovered" : "none";
-  const selected = state.selected ? "selected" : "none";
-  const stroke = this.getStrokeColor(state);
-  const dash = state.dashed ? (state.styles?.dashes || [6, 4]).join(",") : "";
-  return `connection/${hovered}/${selected}/${stroke}/${dash}`;
-}
-
-public style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
-  this.setRenderStyles(ctx, this.state);
-  return { type: "stroke" };
-}
-```
-
-BlockConnection provides a flexible styling system:
-- Connections automatically change appearance on hover/selection
-- Styles are grouped by visual properties for efficient rendering
-- Custom styles can be applied through connection state
-
-2. **Label Rendering**
-
-```typescript
-public afterRender?(ctx: CanvasRenderingContext2D): void {
-  const cameraClose = this.context.camera.getCameraScale() >= 
-    this.context.constants.connection.MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL;
-
-  if (this.state.label && this.props.showConnectionLabels && cameraClose) {
-    this.renderLabelText(ctx);
-  }
-}
-```
-
-BlockConnection handles label rendering with:
-- Automatic positioning based on connection geometry
-- Visibility rules based on zoom level
-- Hit detection for label interaction
-
-#### Label Positioning and Styling
-
-The `renderLabelText` method handles the rendering and positioning of the connection label. It calculates the label's position based on the connection's geometry and the zoom level, ensuring that the label is legible and doesn't overlap with other elements.
-
-The label's styling (font, color, background) is also determined dynamically based on the connection's state (hovered, selected).
-
-### Arrow Rendering
-
-The `BlockConnection` uses a separate `ConnectionArrow` component to render the arrow at the end of the connection. The `createArrowPath` method calculates the arrow's geometry based on the connection's end points and the bezier direction (if applicable).
-
-The arrow's styling is also dynamic and changes based on the connection's state.
-
-### Hit Detection
-
-```typescript
-import { isPointInStroke } from "@/utils/functions/isPointInStroke";
-
-public onHitBox(shape: HitBoxData): boolean {
-  const THRESHOLD_LINE_HIT = this.context.constants.connection.THRESHOLD_LINE_HIT;
-
-  if (isPointInStroke(this.context.ctx, this.path2d, shape.x, shape.y, THRESHOLD_LINE_HIT * 2)) {
-    return true;
-  }
-
-  // Or if pointer over label
-  if (this.labelGeometry !== undefined) {
-    // ... label hit detection ...
-  }
-  return false;
-}
-```
-
-BlockConnection implements precise hit detection:
-- Uses Path2D's `isPointInStroke` for pixel-perfect detection
-- Includes padding for easier mouse interaction
-- Handles both line and label hit detection
-
-### When to Use BlockConnection
-
-Use BlockConnection when:
-- You need optimized rendering for many connections
-- You want standard styling with hover/selection states
-- You need labels and arrows to be handled automatically
-
-Example:
-```typescript
-// The BlockConnection class is typically used directly
-// with different options for customization
-const connection = new BlockConnection({
-  id: "connection1",
-  useBezier: true,
-  bezierDirection: "vertical",
-  showConnectionArrows: true,
-  showConnectionLabels: true
-}, parent);
-```
-
-## 3. BatchPath2D: The Connection Rendering Engine
-
-`BatchPath2D` is a sophisticated rendering system specifically designed for efficient handling of large numbers of similar graphical elements (like connections).
-
-### How BatchPath2D Works
-
-1. **Element Grouping**
-
-```typescript
-this.context.batch.add(this, { 
-  zIndex: this.zIndex, 
-  group: this.getClassName() 
-});
-```
-
-BatchPath2D groups similar elements:
-- Elements with the same visual properties are batched together
-- Each group only requires one style setup (color, line width, etc.)
-- This dramatically reduces the number of state changes in the canvas context
-
-### Key Methods and Their Behavior
-
-BatchPath2D provides three main methods for managing elements:
-
-1. **add(item, params)**: Adds an item to the batch renderer.
-2. **update(item, params)**: Updates an item's parameters. This method internally calls `delete` and `add`, so you don't need to track whether an item has been added before.
-3. **delete(item)**: Removes an item from the batch renderer. It's safe to call even if the item hasn't been added.
-
-
-### Best Practices for BatchPath2D
-
-1. **Prefer `update()` over `add()`/`delete()`**: `update()` handles both adding and removing, simplifying your code.
-2. **Avoid tracking batch state**: BatchPath2D manages this internally.
-3. **Use consistent parameters**: This helps avoid unnecessary re-batching.
-4. **Clean up properly**: Always call `delete()` in your component's unmount method to remove items from the batch.
-
-Following these practices will help you use BatchPath2D effectively and avoid common pitfalls.
-
-These changes make the text more concise and focus on the key points important for understanding and using BatchPath2D.
-
-### Benefits of BatchPath2D
-
-1. **Performance**
-   - **Reduced Context Switching**: Setting stroke styles is expensive; batching reduces this
-   - **Optimized Memory Usage**: Path2D objects are memory-efficient
-   - **Fewer Draw Calls**: Batching similar elements reduces CPU usage
-
-2. **Visual Consistency**
-   - Elements with the same style are guaranteed to look identical
-   - Z-indexing ensures proper layering of elements
-
-3. **Simplicity for Developers**
-   - Declarative style definition (just return a class name)
-   - Automatic handling of state changes (hover, selection)
-   - Built-in support for arrows and labels
-
-### How to Integrate with BatchPath2D
-
-**Important**: BlockConnection already fully implements the BatchPath2D integration. You only need to implement the Path2DRenderInstance interface directly if you're creating a completely custom connection type that doesn't extend BlockConnection.
-
-For most cases, simply extend BlockConnection and override the necessary methods:
-
-```typescript
-class MyCustomConnection extends BlockConnection {
-  // Override createPath() to change the path geometry
-  public createPath(): Path2D {
-    // Your custom path creation logic
-    return new Path2D();
-  }
-  
-  // Override style() to change the appearance
-  public style(ctx: CanvasRenderingContext2D) {
-    // Your custom styling logic
-    return { type: 'stroke' };
-  }
-}
-```
-
-For completely custom implementations, implement the Path2DRenderInstance interface:
-
-```typescript
-// Only for completely custom connection types not using BlockConnection
-class MyCustomPathImplementation implements Path2DRenderInstance {
-  public getPath(): Path2D {
-    // Create and return a Path2D object
-    const path = new Path2D();
-    // ... draw your path ...
-    return path;
-  }
-  
-  public style(ctx: CanvasRenderingContext2D) {
-    // Set up styles for your path
-    ctx.strokeStyle = '#4285f4';
-    ctx.lineWidth = 2;
-    return { type: 'stroke' };  // or 'fill' or 'both'
-  }
-  
-  public afterRender?(ctx: CanvasRenderingContext2D): void {
-    // Optional: Add any additional rendering after the main path
-    // This is ideal for labels, arrows, etc.
-  }
-}
-```
-
-## 4. Advanced Example: MultipointConnection
-
-`MultipointConnection` extends `BlockConnection` to implement connections with multiple segments, typically used in auto-layout scenarios.
-
-### Key Features
-
-1. **Multiple Path Segments**
-
-```typescript
-public createPath() {
-  const { points } = this.connectedState.$state.value;
-  if (!points.length) {
-    return super.createPath();
-  }
-  return curvePolyline(points, 10);
-}
-```
-
-MultipointConnection handles:
-- An array of points defining a multi-segment path
-- Curved corners with controllable radius
-- Fallback to standard connection when no points are available
-
-2. **Custom Arrow Rendering**
-
-```typescript
-import { trangleArrowForVector } from "@/utils/shapes";
-
-public createArrowPath(): Path2D {
-  const { points } = this.connectedState.$state.value;
-  if (!points.length) {
-    return undefined;
-  }
-
-  const [start, end] = points.slice(points.length - 2);
-  return trangleArrowForVector(start, end, 16, 10);
-}
-```
-
-Arrow is automatically:
-- Positioned at the end of the last segment
-- Oriented according to the direction of the last segment
-- Sized appropriately for the connection
-
-3. **Multiple Labels**
-
-```typescript
-private renderLabelsText(ctx: CanvasRenderingContext2D) {
-  const { labels } = this.connectedState.$state.value;
-  if (!labels || !labels.length) {
-    return;
-  }
-
-  this.labelsGeometry = [];
-  labels.forEach(({ x, y, text, height, width }) => {
-    // ... label rendering ...
-  });
-}
-```
-
-MultipointConnection supports:
-- Multiple labels along the path
-- Custom positioning for each label
-- Efficient hit detection for all labels
-
-### Creating a Custom Connection
-
-Here's how to create your own custom connection based on this system:
-
-```typescript
-class MyCustomConnection extends BlockConnection {
-  // Override the path creation for custom appearance
+class CustomPathConnection extends BlockConnection {
+  // Override path creation for custom geometry
   public createPath(): Path2D {
     const path = new Path2D();
-    
-    // Example: Create a dashed custom path
     const { x1, y1, x2, y2 } = this.geometry;
+    
+    // Create zigzag path
     const midX = (x1 + x2) / 2;
+    const offset = 20;
     
     path.moveTo(x1, y1);
-    path.lineTo(midX, y1);
-    path.lineTo(midX, y2);
+    path.lineTo(midX - offset, y1);
+    path.lineTo(midX + offset, y2);
     path.lineTo(x2, y2);
     
     return path;
   }
+  
+  // Override styling
+  public style(ctx: CanvasRenderingContext2D) {
+    ctx.strokeStyle = this.state.hovered ? "#ff6b6b" : "#4285f4";
+    ctx.lineWidth = this.state.selected ? 4 : 2;
+    ctx.setLineDash(this.state.dashed ? [8, 4] : []);
+    return { type: "stroke" };
+  }
+}
 ```
 
-### 1. Optimize Path Creation
+### Custom Connection with Special Rendering
 
-### 2. Efficient State Handling
+Example of a connection with custom visual elements:
 
-### 3. Leverage the Batch Rendering System
+```typescript
+class AnimatedConnection extends BlockConnection {
+  private animationPhase = 0;
+  protected render() {
+    const [source, target] = this.connectionPoints;
+    
+    // Calculate particle positions based on animation phase
+    for (let i = 0; i < 3; i++) {
+      const progress = (this.animationPhase + i * 0.3) % 1;
+      const x = source.x + (target.x - source.x) * progress;
+      const y = source.y + (target.y - source.y) * progress;
+      
+      ctx.fillStyle = "#ffeb3b";
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    this.animationPhase += 0.02;
+    if (this.animationPhase > 1) this.animationPhase = 0;
+  }
+}
+```
 
-### 4. Handle Hit Detection Carefully
+### Registering Custom Connection Types
 
-## Connection System Architecture Overview
+Register your custom connection in graph settings:
+
+```typescript
+import { Graph } from "@gravity-ui/graph";
+
+// Configure graph to use custom connection type
+const graph = new Graph(container, {
+  settings: {
+    connection: CustomPathConnection, // Use your custom class
+    // other settings...
+  }
+});
+```
+
+### When to Use Custom Connections
+
+- **BaseConnection**: When you need simple custom rendering without performance optimization
+- **BlockConnection**: When you need optimized rendering with batching, arrows, and labels
+- **Custom Logic**: When you need special interaction handling or animation
+- **Domain-Specific**: For connections that represent specific concepts in your application
+
+## Best Practices
+
+### Connection Creation
+
+1. **Use batch operations for multiple connections**:
+   ```typescript
+   // Good: Single operation for many connections
+   graph.setEntities({ connections: connectionArray });
+   
+   // Avoid: Individual operations in loops
+   connectionArray.forEach(conn => graph.addConnection(conn));
+   ```
