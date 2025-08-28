@@ -39,7 +39,7 @@ export type TBlock<T extends Record<string, unknown> = {}> = {
   group?: string;
   width: number;
   height: number;
-  selected: boolean;
+  selected?: boolean;
   name: string;
   anchors: TAnchor[];
   settings?: TBlockSettings;
