@@ -10,6 +10,10 @@ export function noop(...args: unknown[]) {
   // noop
 }
 
+export function isTouchEvent(event: Event): event is TouchEvent {
+  return globalThis.TouchEvent ? event instanceof globalThis.TouchEvent : event.type?.startsWith("touch");
+}
+
 export function getXY(root: HTMLElement, event: Event | WheelEvent | MouseEvent): [number, number] {
   if (!("pageX" in event)) return [-1, -1];
   const rect = root.getBoundingClientRect();
@@ -19,10 +23,9 @@ export function getXY(root: HTMLElement, event: Event | WheelEvent | MouseEvent)
 export function getCoord(event: TouchEvent | MouseEvent, coord: string) {
   const name = `page${coord.toUpperCase()}`;
 
-  if (event instanceof TouchEvent) {
+  if (isTouchEvent(event)) {
     return event.touches[0][name];
   }
-
   return event[name];
 }
 
