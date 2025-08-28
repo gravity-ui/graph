@@ -1,6 +1,7 @@
 import { computed, signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
+import { Block } from "../../components/canvas/blocks/Block";
 import { TConnectionColors } from "../../graphConfig";
 import { ESelectionStrategy } from "../../utils/types/types";
 import { TBlockId } from "../block/Block";
@@ -38,6 +39,8 @@ export type TConnection = {
 export class ConnectionState<T extends TConnection = TConnection> {
   public $state = signal<T>(undefined);
 
+  private isDestroyed = false;
+
   public get id() {
     return this.$state.value.id;
   }
@@ -58,7 +61,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
     return this.$state.value.targetAnchorId;
   }
 
-  public get sourcePortId() {
+  public $sourcePortId = computed(() => {
     if (this.$state.value.sourcePortId) {
       return this.$state.value.sourcePortId;
     }
@@ -66,9 +69,9 @@ export class ConnectionState<T extends TConnection = TConnection> {
       return createAnchorPortId(this.$state.value.sourceBlockId, this.$state.value.sourceAnchorId);
     }
     return createBlockPointPortId(this.$state.value.sourceBlockId, false);
-  }
+  });
 
-  public get targetPortId() {
+  public $targetPortId = computed(() => {
     if (this.$state.value.targetPortId) {
       return this.$state.value.targetPortId;
     }
@@ -76,30 +79,52 @@ export class ConnectionState<T extends TConnection = TConnection> {
       return createAnchorPortId(this.$state.value.targetBlockId, this.$state.value.targetAnchorId);
     }
     return createBlockPointPortId(this.$state.value.targetBlockId, true);
-  }
-
-  public readonly $sourcePort = computed(() => {
-    return this.store.getPort(this.sourcePortId).$state.value;
   });
 
   public readonly $sourcePortState = computed(() => {
-    return this.store.getPort(this.sourcePortId);
+    const portId = this.$sourcePortId.value;
+    let port = this.store.getPort(portId);
+    if (!port) {
+      port = this.store.observePort(portId, this);
+    } else if (!port.observers.has(this)) {
+      port.addObserver(this);
+    }
+    return port;
   });
 
   public readonly $targetPortState = computed(() => {
-    return this.store.getPort(this.targetPortId);
+    const portId = this.$targetPortId.value;
+    let port = this.store.getPort(portId);
+    if (!port) {
+      port = this.store.observePort(portId, this);
+    } else if (!port.observers.has(this)) {
+      port.addObserver(this);
+    }
+    return port;
+  });
+
+  public readonly $sourcePort = computed(() => {
+    return this.$sourcePortState.value.$state.value;
   });
 
   public readonly $targetPort = computed(() => {
-    return this.store.getPort(this.targetPortId).$state.value;
+    return this.$targetPortState.value.$state.value;
   });
 
+  /* @deprecated use $sourcePortState instead */
   public readonly $sourceBlock = computed(() => {
-    return this.store.getBlock(this.$state.value.sourceBlockId);
+    if (this.$sourcePortState.value.component && this.$sourcePortState.value.component instanceof Block) {
+      return this.$sourcePortState.value.component;
+    }
+    return undefined;
   });
 
+  /* @deprecated use $targetPortState instead */
   public readonly $targetBlock = computed(() => {
-    return this.store.getBlock(this.$state.value.targetBlockId);
+    if (this.$targetPortState.value.component && this.$targetPortState.value.component instanceof Block) {
+      return this.$targetPortState.value.component;
+    }
+    return undefined;
   });
 
   public $geometry = computed(() => {
@@ -143,5 +168,20 @@ export class ConnectionState<T extends TConnection = TConnection> {
     const newStyles = Object.assign({}, this.$state.value.styles, styles);
 
     this.$state.value = Object.assign({}, this.$state.value, newProps, { styles: newStyles });
+  }
+
+  /**
+   * Clean up port observers when connection is destroyed
+   */
+  public destroy(): void {
+    // Stop observing source port
+    if (this.$sourcePortId.value) {
+      this.store.unobservePort(this.$sourcePortId.value, this);
+    }
+
+    // Stop observing target port
+    if (this.$targetPortId.value) {
+      this.store.unobservePort(this.$targetPortId.value, this);
+    }
   }
 }

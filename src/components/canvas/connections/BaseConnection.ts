@@ -131,8 +131,8 @@ export class BaseConnection<
     this.connectedState = selectConnectionById(this.context.graph, this.props.id) as ConnectionState<Connection>;
 
     // Subscribe to port changes for automatic geometry updates
-    this.connectedState.$sourcePortState.value.listen(this);
-    this.connectedState.$targetPortState.value.listen(this);
+    this.connectedState.$sourcePortState.value.addObserver(this);
+    this.connectedState.$targetPortState.value.addObserver(this);
 
     // Initialize component state with connection data
     this.setState({ ...(this.connectedState.$state.value as TBaseConnectionState), hovered: false });
@@ -168,8 +168,8 @@ export class BaseConnection<
   }
 
   protected override unmount(): void {
-    this.connectedState.$sourcePortState.value.unlisten(this);
-    this.connectedState.$targetPortState.value.unlisten(this);
+    this.connectedState.$sourcePortState.value.removeObserver(this);
+    this.connectedState.$targetPortState.value.removeObserver(this);
     super.unmount();
   }
 

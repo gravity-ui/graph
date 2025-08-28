@@ -52,18 +52,18 @@ When you create connections using `sourceBlockId`/`targetBlockId`, the system au
 For advanced use cases, specify port IDs directly to connect any entities:
 
 ```typescript
-// Connect different entity types
+// Connect different entity types using direct port IDs
 const connections = [
-   // Block to block
+   // Block to block (using port IDs directly)
   { 
     id: "connection-1",
-    sourceBlockId: "block-1_output",
-    targetBlockId: "block-2_input"
+    sourcePortId: "block-1_output",
+    targetPortId: "block-2_input"
   },
   // Block to group
   {
     id: "connection-2",
-    sourceBlockId: "block-1_output",
+    sourcePortId: "block-1_output",
     targetPortId: "group-1_connection_point"
   },
   // Group to group
@@ -75,13 +75,38 @@ const connections = [
   // Block to custom
   {
     id: "connection-4",
-    sourceBlockId: "block-1_output",
+    sourcePortId: "block-1_output",
     targetPortId: "custom-component/endpoint"
   }
 ];
 ```
 
 This flexible system provides universal connections, lazy initialization, extensibility for new entity types, and consistent API regardless of what you're connecting.
+
+### Port Management API
+
+For advanced use cases, you can manage ports directly using the port management API:
+
+```typescript
+// Claim ownership of a port (for blocks, anchors)
+const port = graph.rootStore.connectionsList.claimPort("block-1_output", ownerComponent);
+
+// Release ownership when component is destroyed
+graph.rootStore.connectionsList.releasePort("block-1_output", ownerComponent);
+
+// Observe port changes (for connections)
+const port = graph.rootStore.connectionsList.observePort("block-1_output", observerComponent);
+
+// Stop observing when no longer needed
+graph.rootStore.connectionsList.unobservePort("block-1_output", observerComponent);
+
+// Check if port exists
+if (graph.rootStore.connectionsList.hasPort("block-1_output")) {
+  const port = graph.rootStore.connectionsList.getPort("block-1_output");
+}
+```
+
+**Ownership Model**: Components that own ports (blocks, anchors) are responsible for updating port coordinates. Components that observe ports (connections) read coordinates for rendering but don't control them. Ports are automatically cleaned up when they have no owner and no observers.
 
 ## Styling and Visual Customization
 

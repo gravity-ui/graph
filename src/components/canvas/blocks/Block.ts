@@ -263,20 +263,16 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     });
   }
 
-  public getInputPort(): PortState | undefined {
-    return this.context.graph.rootStore.connectionsList.getPort(createBlockPointPortId(this.state.id, true), this);
+  public getInputPort(): PortState {
+    return this.getPort(createBlockPointPortId(this.state.id, true));
   }
 
-  public getOutputPort(): PortState | undefined {
-    return this.context.graph.rootStore.connectionsList.getPort(createBlockPointPortId(this.state.id, false), this);
+  public getOutputPort(): PortState {
+    return this.getPort(createBlockPointPortId(this.state.id, false));
   }
 
-  public getAnchorPort(anchorId: string): PortState | undefined {
-    const anchorPort = this.context.graph.rootStore.connectionsList.getPort(
-      createAnchorPortId(this.state.id, anchorId),
-      this
-    );
-    return anchorPort;
+  public getAnchorPort(anchorId: string): PortState {
+    return this.getPort(createAnchorPortId(this.state.id, anchorId));
   }
 
   public handleEvent(event: CustomEvent) {
@@ -525,11 +521,16 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected override unmount(): void {
-    this.context.graph.rootStore.connectionsList.deletePorts([
-      this.getInputPort().id,
-      this.getOutputPort().id,
-      ...this.state.anchors.map((anchor) => this.getAnchorPort(anchor.id).id),
-    ]);
+    // Release ownership of all ports owned by this block
+    const connectionsList = this.context.graph.rootStore.connectionsList;
+
+    connectionsList.releasePort(createBlockPointPortId(this.state.id, true), this);
+    connectionsList.releasePort(createBlockPointPortId(this.state.id, false), this);
+
+    this.state.anchors.forEach((anchor) => {
+      connectionsList.releasePort(createAnchorPortId(this.state.id, anchor.id), this);
+    });
+
     super.unmount();
   }
 }

@@ -1,36 +1,9 @@
-/**
- * Port System - Система портов для @gravity-ui/graph
- *
- * 🎯 МОТИВАЦИЯ:
- *
- * Система портов решает фундаментальную проблему архитектуры графов -
- * жесткую зависимость от порядка инициализации компонентов.
- *
- * ПРОБЛЕМА СТАРОЙ СИСТЕМЫ:
- * - Связи можно было создавать только ПОСЛЕ полной инициализации блоков и якорей
- * - Строгий порядок создания: блоки → якоря → связи
- * - Race conditions и ошибки при неправильном порядке
- *
- * РЕШЕНИЕ ЧЕРЕЗ ПОРТЫ:
- * - Порты создаются ПО ТРЕБОВАНИЮ (lazy creation)
- * - Связи работают независимо от готовности блоков
- * - Порты автоматически обновляются когда компоненты готовы
- * - Нет необходимости ждать правильного порядка инициализации
- *
- * ПРЕИМУЩЕСТВА:
- * - Гибкость: связи между любыми объектами
- * - Надежность: нет race conditions
- * - Производительность: порты создаются только когда нужны
- * - Расширяемость: легко добавлять новые типы соединений
- */
-
 import { signal } from "@preact/signals-core";
 
 import { Component } from "../../../lib";
 
 export const IS_PORT_TYPE = "Port" as const;
 
-/** Unique identifier for a port */
 export type TPortId = string | number | symbol;
 
 /**
@@ -71,19 +44,17 @@ export type TPort = {
  * remain and no component owns the port, it can be safely garbage collected.
  */
 export class PortState {
-  /** Reactive signal containing the port's current state */
   public $state = signal<TPort>(undefined);
 
+  public owner?: Component;
+
   /**
-   * Set of components listening to this port's changes
+   * Set of references observing this port's changes
    *
-   * Since ports are created lazily, it is important to understand when a port
-   * should be removed - when it has no parent component and no listeners.
-   * This is its main purpose. Additionally, the list of listeners allows
-   * obtaining a list of elements that are observing this port, which can be
-   * useful for the UI.
+   * Used for reference counting to determine when the port can be safely deleted.
+   * Stores actual object references to ensure accurate counting and prevent duplicates.
    */
-  public listeners = new Set<Component>();
+  public observers = new Set<unknown>();
 
   /**
    * Get the port's unique identifier
@@ -118,7 +89,7 @@ export class PortState {
    * @returns {Component | undefined} The owning component, if any
    */
   public get component(): Component | undefined {
-    return this.$state.value.component;
+    return this.owner || this.$state.value.component;
   }
 
   /**
@@ -132,22 +103,46 @@ export class PortState {
 
   constructor(port: TPort) {
     this.$state.value = { ...port };
+    // Initialize owner if component was provided in the constructor
+    if (port.component) {
+      this.owner = port.component;
+    }
   }
 
   /**
-   * Register a component as a listener to this port's changes
-   * @param component Component that wants to receive updates when this port changes
+   * Set the component that owns this port
+   * @param owner Component that will own this port (block, anchor, etc.)
+   * @returns void
    */
-  public listen(component: Component): void {
-    this.listeners.add(component);
+  public setOwner(owner: Component): void {
+    this.owner = owner;
+    this.updatePort({ component: owner, lookup: false });
   }
 
   /**
-   * Unregister a component from listening to this port's changes
-   * @param component Component to stop receiving updates
+   * Remove the current owner from this port
    */
-  public unlisten(component: Component): void {
-    this.listeners.delete(component);
+  public removeOwner(): void {
+    this.owner = undefined;
+    this.updatePort({ component: undefined, lookup: true });
+  }
+
+  /**
+   * Add an observer reference to this port
+   * Stores the actual reference for accurate counting
+   * @param observer The object observing this port
+   */
+  public addObserver(observer: unknown): void {
+    this.observers.add(observer);
+  }
+
+  /**
+   * Remove an observer reference from this port
+   * Removes the actual reference from the set
+   * @param observer The object to stop observing this port
+   */
+  public removeObserver(observer: unknown): void {
+    this.observers.delete(observer);
   }
 
   /**
@@ -160,18 +155,18 @@ export class PortState {
   }
 
   /**
-   * Set the component that owns this port and mark it as resolved
-   * @param component The component (block, anchor, etc.) that owns this port
-   */
-  public setComponent(component: Component): void {
-    this.updatePort({ component, lookup: !component });
-  }
-
-  /**
    * Update port state with partial data
    * @param port Partial port data to merge with current state
    */
   public updatePort(port: Partial<TPort>): void {
     this.$state.value = { ...this.$state.value, ...port };
+  }
+
+  /**
+   * Check if this port can be safely deleted
+   * @returns true if port has no owner and no observers
+   */
+  public canBeDeleted(): boolean {
+    return !this.owner && this.observers.size === 0;
   }
 }

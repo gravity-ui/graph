@@ -2,9 +2,7 @@ import { batch, computed, signal } from "@preact/signals-core";
 
 import { Graph } from "../../graph";
 import { Component } from "../../lib";
-import { selectBlockById } from "../../store/block/selectors";
 import { ESelectionStrategy } from "../../utils/types/types";
-import { TBlockId } from "../block/Block";
 import { RootStore } from "../index";
 
 import { ConnectionState, TConnection, TConnectionId } from "./ConnectionState";
@@ -30,33 +28,92 @@ export class ConnectionsStore {
     return new Set(this.$connections.value.filter((connection) => connection.isSelected()));
   });
 
-  protected ports = new PortsStore(this.rootStore, this.graph);
+  protected ports: PortsStore;
 
   constructor(
     public rootStore: RootStore,
     protected graph: Graph
-  ) {}
-
-  /**
-   * @deprecated use getPort instead
-   */
-  public getBlock(id: TBlockId) {
-    return selectBlockById(this.graph, id);
+  ) {
+    this.ports = new PortsStore(this.rootStore, this.graph);
   }
 
-  public usePort(id: TPortId, listener: Component) {
+  /**
+   * Claim ownership of a port (for Blocks, Anchors)
+   * @param id Port identifier
+   * @param owner Component that will own this port
+   * @returns The port state
+   */
+  public claimPort(id: TPortId, owner: Component): PortState {
     const port = this.ports.getOrCreatePort(id);
-    port.listen(listener);
+    port.setOwner(owner);
     return port;
   }
 
-  public unusePort(id: TPortId, listener: Component) {
-    const port = this.ports.getOrCreatePort(id);
-    port.unlisten(listener);
+  /**
+   * Release ownership of a port (when Block/Anchor is destroyed)
+   * @param id Port identifier
+   * @param owner Component that currently owns this port
+   */
+  public releasePort(id: TPortId, owner: Component): void {
+    const port = this.ports.getPort(id);
+    if (port?.owner === owner) {
+      port.removeOwner();
+      this.checkAndDeletePort(id);
+    }
   }
 
-  public getPort(id: TPortId, component?: Component): PortState | undefined {
-    return this.ports.getOrCreatePort(id, component);
+  /**
+   * Start observing a port (for Connections)
+   * @param id Port identifier
+   * @param observer The object that will observe this port
+   * @returns The port state
+   */
+  public observePort(id: TPortId, observer: unknown): PortState {
+    const port = this.ports.getOrCreatePort(id);
+    port.addObserver(observer);
+    return port;
+  }
+
+  /**
+   * Stop observing a port (when Connection is destroyed)
+   * @param id Port identifier
+   * @param observer The object that was observing this port
+   */
+  public unobservePort(id: TPortId, observer: unknown): void {
+    const port = this.ports.getPort(id);
+    if (port) {
+      port.removeObserver(observer);
+      this.checkAndDeletePort(id);
+    }
+  }
+
+  /**
+   * Get a port by its ID
+   * @param id Port identifier
+   * @returns The port state if it exists
+   */
+  public getPort(id: TPortId): PortState | undefined {
+    return this.ports.getPort(id);
+  }
+
+  /**
+   * Check if a port exists
+   * @param id Port identifier
+   * @returns true if port exists
+   */
+  public hasPort(id: TPortId): boolean {
+    return this.ports.getPort(id) !== undefined;
+  }
+
+  /**
+   * Check if a port can be deleted and delete it if possible
+   * @param id Port identifier
+   */
+  private checkAndDeletePort(id: TPortId): void {
+    const port = this.ports.getPort(id);
+    if (port && port.canBeDeleted()) {
+      this.ports.deletePort(id);
+    }
   }
 
   public deletePorts(ports: TPortId[]) {
@@ -122,6 +179,7 @@ export class ConnectionsStore {
 
   public deleteConnections(connections: ConnectionState[]) {
     connections.forEach((c) => {
+      c.destroy(); // Clean up port observers
       this.$connectionsMap.value.delete(c.id);
     });
     this.notifyConnectionMapChanged();
@@ -130,6 +188,7 @@ export class ConnectionsStore {
   public deleteSelectedConnections() {
     this.$connections.value.forEach((c) => {
       if (c.$state.value.selected) {
+        c.destroy(); // Clean up port observers
         this.$connectionsMap.value.delete(c.id);
       }
     });
@@ -222,6 +281,11 @@ export class ConnectionsStore {
   }
 
   public reset() {
+    // Clean up all connections first
+    this.$connections.value.forEach((c) => {
+      c.destroy();
+    });
+
     this.setConnections([]);
     this.ports.reset();
   }
