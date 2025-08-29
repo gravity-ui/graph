@@ -5,13 +5,35 @@ type TEventedComponentListener = Component | ((e: Event) => void);
 const listeners = new WeakMap<Component, Map<string, Set<TEventedComponentListener>>>();
 
 export class EventedComponent<
-  Props extends TComponentProps = TComponentProps,
+  Props extends TComponentProps & { interactive?: boolean } = TComponentProps & { interactive?: boolean },
   State extends TComponentState = TComponentState,
   Context extends TComponentContext = TComponentContext,
 > extends Component<Props, State, Context> {
   public readonly evented: boolean = true;
 
   public cursor?: string;
+
+  protected interactive: boolean;
+
+  constructor(props: Props, parent: Component) {
+    super(props, parent);
+    this.setInteractive(props.interactive ?? true);
+  }
+
+  protected propsChanged(_nextProps: Props): void {
+    if (this.interactive !== _nextProps.interactive) {
+      this.interactive = _nextProps.interactive;
+    }
+    super.propsChanged(_nextProps);
+  }
+
+  public isInteractive() {
+    return this.interactive;
+  }
+
+  public setInteractive(interactive: boolean) {
+    this.setProps({ interactive });
+  }
 
   private get events() {
     if (!listeners.has(this)) {
@@ -50,7 +72,10 @@ export class EventedComponent<
     }
   }
 
-  public _fireEvent(cmp: Component, event: Event) {
+  protected _fireEvent(cmp: Component, event: Event) {
+    if (cmp instanceof EventedComponent && !cmp.isInteractive?.()) {
+      return;
+    }
     const handlers = listeners.get(cmp)?.get?.(event.type);
 
     handlers?.forEach((cb) => {
@@ -65,7 +90,7 @@ export class EventedComponent<
   public dispatchEvent(event: Event): boolean {
     const bubbles = event.bubbles || false;
 
-    if (bubbles) {
+    if (bubbles || !this.interactive) {
       return this._dipping(this, event);
     } else if (this._hasListener(this, event.type)) {
       this._fireEvent(this, event);
@@ -74,7 +99,7 @@ export class EventedComponent<
     return false;
   }
 
-  public _dipping(startParent: Component, event: Event) {
+  protected _dipping(startParent: Component, event: Event) {
     let stopPropagation = false;
     let parent: Component = startParent;
     event.stopPropagation = () => {
@@ -92,7 +117,7 @@ export class EventedComponent<
     return true;
   }
 
-  public _hasListener(comp: EventedComponent, type: string) {
+  protected _hasListener(comp: EventedComponent, type: string) {
     return listeners.get(comp)?.has?.(type);
   }
 }
