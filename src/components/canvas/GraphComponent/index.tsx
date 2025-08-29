@@ -16,8 +16,13 @@ export type GraphComponentContext = TComponentContext &
     graph: Graph;
   };
 
+export type TGraphComponentProps = TComponentProps & {
+  interactive?: boolean;
+  affectsUsableRect?: boolean;
+};
+
 export class GraphComponent<
-  Props extends TComponentProps = TComponentProps,
+  Props extends TGraphComponentProps = TGraphComponentProps,
   State extends TComponentState = TComponentState,
   Context extends GraphComponentContext = GraphComponentContext,
 > extends EventedComponent<Props, State, Context> {
@@ -27,8 +32,13 @@ export class GraphComponent<
 
   protected ports: Map<TPortId, PortState> = new Map();
 
+  public get affectsUsableRect() {
+    return this.props.affectsUsableRect;
+  }
+
   constructor(props: Props, parent: Component) {
     super(props, parent);
+    this.setProps({ affectsUsableRect: props.affectsUsableRect ?? true });
     this.hitBox = new HitBox(this, this.context.graph.hitTest);
   }
 
@@ -43,6 +53,17 @@ export class GraphComponent<
       return this.createPort(id);
     }
     return this.ports.get(id)!;
+  }
+
+  protected setAffectsUsableRect(affectsUsableRect: boolean) {
+    this.setProps({ affectsUsableRect });
+  }
+
+  protected propsChanged(_nextProps: Props): void {
+    if (this.affectsUsableRect !== _nextProps.affectsUsableRect) {
+      this.hitBox.setAffectsUsableRect(_nextProps.affectsUsableRect);
+    }
+    super.propsChanged(_nextProps);
   }
 
   protected onDrag({
