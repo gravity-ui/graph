@@ -4,6 +4,7 @@ import { Graph } from "../../../graph";
 import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
+import { PortState, TPortId } from "../../../store/connection/port/Port";
 import { getXY } from "../../../utils/functions";
 import { dragListener } from "../../../utils/functions/dragListener";
 import { EVENTS } from "../../../utils/types/events";
@@ -24,9 +25,24 @@ export class GraphComponent<
 
   private unsubscribe: (() => void)[] = [];
 
+  protected ports: Map<TPortId, PortState> = new Map();
+
   constructor(props: Props, parent: Component) {
     super(props, parent);
     this.hitBox = new HitBox(this, this.context.graph.hitTest);
+  }
+
+  public createPort(id: TPortId) {
+    const port = this.context.graph.rootStore.connectionsList.claimPort(id, this);
+    this.ports.set(id, port);
+    return port;
+  }
+
+  public getPort(id: TPortId): PortState {
+    if (!this.ports.has(id)) {
+      return this.createPort(id);
+    }
+    return this.ports.get(id)!;
   }
 
   protected onDrag({
@@ -90,6 +106,10 @@ export class GraphComponent<
   protected unmount() {
     super.unmount();
     this.unsubscribe.forEach((cb) => cb());
+    this.ports.forEach((port) => {
+      this.context.graph.rootStore.connectionsList.releasePort(port.id, this);
+    });
+    this.ports.clear();
     this.destroyHitBox();
   }
 

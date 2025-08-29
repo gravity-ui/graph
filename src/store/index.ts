@@ -5,6 +5,7 @@ import { Graph, TGraphConfig } from "../graph";
 
 import { BlockListStore } from "./block/BlocksList";
 import { ConnectionsStore } from "./connection/ConnectionList";
+import { PortsStore } from "./connection/port/PortList";
 import { GroupsListStore } from "./group/GroupsList";
 import { GraphEditorSettings } from "./settings";
 
@@ -18,6 +19,8 @@ export class RootStore {
   public settings: GraphEditorSettings;
 
   public groupsList: GroupsListStore;
+
+  public portsList: PortsStore;
 
   constructor(graph: Graph) {
     this.blocksList = new BlockListStore(this, graph);

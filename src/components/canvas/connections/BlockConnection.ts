@@ -196,29 +196,11 @@ export class BlockConnection<T extends TConnection>
   protected override updatePoints() {
     super.updatePoints();
 
-    if (!this.connectedState) {
-      this.geometry = {
-        x1: 0,
-        y1: 0,
-        x2: 0,
-        y2: 0,
-      };
-      return;
-    }
-    const useAnchors = this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors");
-    const source = useAnchors ? this.anchorsPoints?.[0] || this.connectionPoints[0] : this.connectionPoints[0];
-    const target = useAnchors ? this.anchorsPoints?.[1] || this.connectionPoints[1] : this.connectionPoints[1];
+    this.geometry.x1 = this.connectionPoints[0].x;
+    this.geometry.y1 = this.connectionPoints[0].y;
+    this.geometry.x2 = this.connectionPoints[1].x;
+    this.geometry.y2 = this.connectionPoints[1].y;
 
-    if (!source || !target) {
-      this.applyShape();
-      return;
-    }
-    this.geometry = {
-      x1: source.x,
-      y1: source.y,
-      x2: target.x,
-      y2: target.y,
-    };
     this.applyShape();
   }
 
