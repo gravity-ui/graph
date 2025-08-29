@@ -27,7 +27,7 @@ export const BlockStory: React.FC<TBlockStoryProps> = ({ graph, block }) => {
           {block.name}
         </Text>
       </div>
-      {block.anchors.map((anchor) => {
+      {block.anchors?.map((anchor) => {
         return (
           <GraphBlockAnchor
             className="block-anchor"

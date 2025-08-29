@@ -418,7 +418,7 @@ function BlockComponent({ block, graph }: { block: TBlock; graph: Graph }) {
       </div>
 
       {/* Render anchors */}
-      {block.anchors.map(anchor => (
+      {block.anchors?.map(anchor => (
         <GraphBlockAnchor
           key={anchor.id}
           graph={graph}
