@@ -14,6 +14,8 @@ export type { ConnectionState, TConnection, TConnectionId } from "./store/connec
 export type { AnchorState } from "./store/anchor/Anchor";
 export { ECanChangeBlockGeometry } from "./store/settings";
 export { type TMeasureTextOptions, type TWrapText } from "./utils/functions/text";
+export { ESchedulerPriority } from "./lib/Scheduler";
+export { debounce, throttle, schedule } from "./utils/functions";
 export * from "./utils/renderers/text";
 export { EVENTS } from "./utils/types/events";
 export { type TPoint, type TRect } from "./utils/types/shapes";
