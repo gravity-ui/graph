@@ -144,7 +144,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
     return [connection.sourceBlockId, connection.targetBlockId].join(":");
   }
 
-  public viewComponent: BaseConnection<TBaseConnectionProps, TBaseConnectionState, TGraphLayerContext, T>;
+  private viewComponent: BaseConnection<TBaseConnectionProps, TBaseConnectionState, TGraphLayerContext, T>;
 
   constructor(
     public store: ConnectionsStore,
@@ -165,6 +165,18 @@ export class ConnectionState<T extends TConnection = TConnection> {
     this.viewComponent = viewComponent;
   }
 
+  /**
+   * Gets the view component associated with this connection state.
+   * @returns The BaseConnection view component or undefined if not set.
+   */
+  public getViewComponent() {
+    return this.viewComponent;
+  }
+
+  /**
+   * Checks if the connection is currently selected.
+   * @returns True if the connection is selected, false otherwise.
+   */
   public isSelected() {
     return this.$state.value.selected;
   }
