@@ -4,8 +4,10 @@ type TEventedComponentListener = Component | ((e: Event) => void);
 
 const listeners = new WeakMap<Component, Map<string, Set<TEventedComponentListener>>>();
 
+export type TEventedComponentProps = TComponentProps & { interactive?: boolean };
+
 export class EventedComponent<
-  Props extends TComponentProps & { interactive?: boolean } = TComponentProps & { interactive?: boolean },
+  Props extends TEventedComponentProps = TEventedComponentProps,
   State extends TComponentState = TComponentState,
   Context extends TComponentContext = TComponentContext,
 > extends Component<Props, State, Context> {
@@ -13,22 +15,18 @@ export class EventedComponent<
 
   public cursor?: string;
 
-  protected interactive: boolean;
-
   constructor(props: Props, parent: Component) {
-    super(props, parent);
-    this.setInteractive(props.interactive ?? true);
-  }
-
-  protected propsChanged(_nextProps: Props): void {
-    if (this.interactive !== _nextProps.interactive) {
-      this.interactive = _nextProps.interactive;
-    }
-    super.propsChanged(_nextProps);
+    super(
+      {
+        ...props,
+        interactive: props.interactive ?? true,
+      },
+      parent
+    );
   }
 
   public isInteractive() {
-    return this.interactive;
+    return this.props.interactive;
   }
 
   public setInteractive(interactive: boolean) {
@@ -90,7 +88,7 @@ export class EventedComponent<
   public dispatchEvent(event: Event): boolean {
     const bubbles = event.bubbles || false;
 
-    if (bubbles || !this.interactive) {
+    if (bubbles || !this.isInteractive()) {
       return this._dipping(this, event);
     } else if (this._hasListener(this, event.type)) {
       this._fireEvent(this, event);

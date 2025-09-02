@@ -98,18 +98,21 @@ export class HitTest extends Emitter {
         this.interactiveTree.remove(item);
 
         if (bbox) {
+          let shouldUpdate = true;
           if (item.affectsUsableRect) {
             if (this.usableRectTracker.has(item)) {
               this.usableRectTracker.update(item, bbox);
-              item.updateRect(bbox);
             } else {
               item.updateRect(bbox);
+              shouldUpdate = false;
               this.usableRectTracker.add(item);
             }
           } else {
             this.usableRectTracker.remove(item);
           }
-          item.updateRect(bbox);
+          if (shouldUpdate) {
+            item.updateRect(bbox);
+          }
           interactiveItems.push(item);
         } else {
           this.usableRectTracker.remove(item);
@@ -191,12 +194,21 @@ export class HitTest extends Emitter {
       this.$usableRect.value = { x: 0, y: 0, width: 0, height: 0 };
       return;
     }
-    this.$usableRect.value = {
+    const usableRect = {
       x: Number.isFinite(rect.minX) ? rect.minX : 0,
       y: Number.isFinite(rect.minY) ? rect.minY : 0,
       width: Number.isFinite(rect.maxX) ? rect.maxX - rect.minX : 0,
       height: Number.isFinite(rect.maxY) ? rect.maxY - rect.minY : 0,
     };
+    // if (
+    //   usableRect.x === this.$usableRect.value.x &&
+    //   usableRect.y === this.$usableRect.value.y &&
+    //   usableRect.width === this.$usableRect.value.width &&
+    //   usableRect.height === this.$usableRect.value.height
+    // ) {
+    //   return;
+    // }
+    this.$usableRect.value = usableRect;
   }
 
   /**

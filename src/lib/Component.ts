@@ -34,10 +34,11 @@ export class Component<
     // noop
   }
 
-  public setContext<K extends keyof Context>(context: Pick<Context, K>) {
+  public setContext<K extends keyof Context>(context: Partial<Pick<Context, K>>) {
     this.shouldRenderChildren = true;
     this.shouldUpdateChildren = true;
-    super.setContext(context);
+    super.setContext({ ...this.context, ...context });
+    this.contextChanged(this.context);
   }
 
   public setProps<K extends keyof Props>(props?: Pick<Props, K>) {
@@ -72,20 +73,28 @@ export class Component<
     // noop
   }
 
+  protected contextChanged(_nextContext: Context): void {
+    // noop
+  }
+
   protected checkData() {
     const data = this.__data;
+    let updated = false;
 
     if (data.nextProps !== undefined) {
       this.propsChanged(data.nextProps);
       assign(this.props, data.nextProps);
       data.nextProps = undefined;
+      updated = true;
     }
 
     if (data.nextState !== undefined) {
       this.stateChanged(data.nextState);
       assign(this.state, data.nextState);
       data.nextState = undefined;
+      updated = true;
     }
+    return updated;
   }
 
   protected willRender() {

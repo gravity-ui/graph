@@ -2,6 +2,7 @@ import { signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 import isObject from "lodash/isObject";
 
+import { Component } from "../../../lib/Component";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
@@ -14,9 +15,9 @@ import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { TTExtRect, renderText } from "../../../utils/renderers/text";
 import { EVENTS } from "../../../utils/types/events";
 import { TPoint, TRect } from "../../../utils/types/shapes";
-import { GraphComponent } from "../GraphComponent";
+import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
 import { Anchor, TAnchor } from "../anchors";
-import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
+import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
 import { BlockController } from "./controllers/BlockController";
 
@@ -48,9 +49,9 @@ export type TBlock<T extends Record<string, unknown> = {}> = {
   meta?: T;
 };
 
-export type TBlockProps = {
+export type TBlockProps = TGraphComponentProps & {
   id: TBlockId;
-  font: string;
+  font?: string;
 };
 
 declare module "../../../graphEvents" {
@@ -123,7 +124,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   public $viewState = signal<BlockViewState>({ zIndex: 0, order: 0 });
 
-  constructor(props: Props, parent: GraphLayer) {
+  constructor(props: Props, parent: Component) {
     super(props, parent);
 
     this.subscribe(props.id);

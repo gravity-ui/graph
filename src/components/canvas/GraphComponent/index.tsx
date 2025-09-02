@@ -14,6 +14,7 @@ import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 export type GraphComponentContext = TComponentContext &
   TGraphLayerContext & {
     graph: Graph;
+    affectsUsableRect?: boolean;
   };
 
 export type TGraphComponentProps = TComponentProps & {
@@ -33,13 +34,17 @@ export class GraphComponent<
   protected ports: Map<TPortId, PortState> = new Map();
 
   public get affectsUsableRect() {
-    return this.props.affectsUsableRect;
+    return this.props.affectsUsableRect ?? this.context.affectsUsableRect ?? true;
   }
 
   constructor(props: Props, parent: Component) {
     super(props, parent);
-    this.setProps({ affectsUsableRect: props.affectsUsableRect ?? true });
+
+    // Determine affectsUsableRect value: explicit prop > parent context > default (true)
     this.hitBox = new HitBox(this, this.context.graph.hitTest);
+    const affectsUsableRect = props.affectsUsableRect ?? this.context.affectsUsableRect ?? true;
+    this.setProps({ affectsUsableRect });
+    this.setContext({ affectsUsableRect });
   }
 
   public createPort(id: TPortId) {
@@ -57,13 +62,40 @@ export class GraphComponent<
 
   protected setAffectsUsableRect(affectsUsableRect: boolean) {
     this.setProps({ affectsUsableRect });
+    this.setContext({ affectsUsableRect });
   }
 
   protected propsChanged(_nextProps: Props): void {
     if (this.affectsUsableRect !== _nextProps.affectsUsableRect) {
       this.hitBox.setAffectsUsableRect(_nextProps.affectsUsableRect);
+      this.setContext({ affectsUsableRect: _nextProps.affectsUsableRect });
     }
     super.propsChanged(_nextProps);
+  }
+
+  protected contextChanged(_nextContext: Context): void {
+    // If affectsUsableRect changed in context and there's no explicit prop override
+    if (
+      this.firstRender ||
+      (this.context.affectsUsableRect !== _nextContext.affectsUsableRect && this.props.affectsUsableRect === undefined)
+    ) {
+      this.hitBox.setAffectsUsableRect(_nextContext.affectsUsableRect);
+    }
+    super.contextChanged(_nextContext);
+  }
+
+  public onChange(cb: (v: this) => void) {
+    return this.addEventListener("graph-component-change", () => {
+      cb(this);
+    });
+  }
+
+  protected checkData() {
+    if (super.checkData()) {
+      this.dispatchEvent(new Event("graph-component-change"));
+      return true;
+    }
+    return false;
   }
 
   protected onDrag({

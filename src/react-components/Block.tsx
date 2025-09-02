@@ -59,6 +59,17 @@ export const GraphBlock = <T extends TBlock>({
 
   useEffect(() => {
     if (viewState && containerRef.current) {
+      containerRef.current.style.pointerEvents = viewState.isInteractive() ? "auto" : "none";
+      return viewState.onChange(() => {
+        if (containerRef.current) {
+          containerRef.current.style.pointerEvents = viewState.isInteractive() ? "auto" : "none";
+        }
+      });
+    }
+  }, [viewState]);
+
+  useEffect(() => {
+    if (viewState && containerRef.current) {
       return viewState.$viewState.subscribe(({ zIndex, order }) => {
         const element = containerRef.current;
         const lastState = lastStateRef.current;
