@@ -91,6 +91,14 @@ export class Graph {
 
   protected startRequested = false;
 
+  public get blocks() {
+    return this.rootStore.blocksList;
+  }
+
+  public get connections() {
+    return this.rootStore.connectionsList;
+  }
+
   constructor(
     config: TGraphConfig,
     rootEl?: HTMLDivElement,

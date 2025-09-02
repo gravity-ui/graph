@@ -2,6 +2,8 @@ import { computed, signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
 import { Block } from "../../components/canvas/blocks/Block";
+import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "../../components/canvas/connections";
+import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
 import { TConnectionColors } from "../../graphConfig";
 import { ESelectionStrategy } from "../../utils/types/types";
 import { TBlockId } from "../block/Block";
@@ -142,6 +144,8 @@ export class ConnectionState<T extends TConnection = TConnection> {
     return [connection.sourceBlockId, connection.targetBlockId].join(":");
   }
 
+  private viewComponent: BaseConnection<TBaseConnectionProps, TBaseConnectionState, TGraphLayerContext, T>;
+
   constructor(
     public store: ConnectionsStore,
     connectionState: T
@@ -150,6 +154,29 @@ export class ConnectionState<T extends TConnection = TConnection> {
     this.$state.value = { ...connectionState, id };
   }
 
+  /**
+   * Sets the view component for this connection state
+   * @param viewComponent - The BaseConnection component instance
+   * @returns {void}
+   */
+  public setViewComponent<P extends TBaseConnectionProps, S extends TBaseConnectionState, C extends TGraphLayerContext>(
+    viewComponent: BaseConnection<P, S, C, T>
+  ) {
+    this.viewComponent = viewComponent;
+  }
+
+  /**
+   * Gets the view component associated with this connection state.
+   * @returns The BaseConnection view component or undefined if not set.
+   */
+  public getViewComponent() {
+    return this.viewComponent;
+  }
+
+  /**
+   * Checks if the connection is currently selected.
+   * @returns True if the connection is selected, false otherwise.
+   */
   public isSelected() {
     return this.$state.value.selected;
   }
@@ -158,10 +185,27 @@ export class ConnectionState<T extends TConnection = TConnection> {
     this.store.setConnectionsSelection([this.id], selected, strategy);
   }
 
+  /**
+   * @deprecated Use `toJSON` instead.
+   * @returns {TConnection} A deep copy of the connection data
+   */
   public asTConnection(): TConnection {
     return cloneDeep(this.$state.toJSON());
   }
 
+  /**
+   * Converts the connection state to a plain JSON object
+   * @returns {TConnection} A deep copy of the connection data
+   */
+  public toJSON(): TConnection {
+    return cloneDeep(this.$state.toJSON());
+  }
+
+  /**
+   * Updates the connection with new data
+   * @param connection - Partial connection data to update
+   * @returns {void}
+   */
   public updateConnection(connection: Partial<TConnection>): void {
     const { styles, ...newProps } = connection;
 
@@ -172,6 +216,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
 
   /**
    * Clean up port observers when connection is destroyed
+   * @returns {void}
    */
   public destroy(): void {
     // Stop observing source port

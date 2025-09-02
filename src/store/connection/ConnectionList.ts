@@ -20,9 +20,9 @@ export class ConnectionsStore {
     return Array.from(this.$connectionsMap.value.values());
   });
 
-  public $connectionsMap = signal<Map<ConnectionState["id"], ConnectionState>>(new Map());
+  public $connectionsMap = signal<Map<TConnectionId, ConnectionState>>(new Map());
 
-  public selectedConnections = new Set<ConnectionState["id"]>();
+  public selectedConnections = new Set<TConnectionId>();
 
   public $selectedConnections = computed(() => {
     return new Set(this.$connections.value.filter((connection) => connection.isSelected()));
@@ -121,7 +121,7 @@ export class ConnectionsStore {
   }
 
   protected setSelection(
-    connection: ConnectionState | ConnectionState["id"],
+    connection: ConnectionState | TConnectionId,
     selected: boolean,
     params?: { ignoreChange: boolean }
   ) {
@@ -249,10 +249,10 @@ export class ConnectionsStore {
       this.graph.executеDefaultEventAction(
         "connection-selection-change",
         {
-          list: list.map((c) => c.asTConnection()),
+          list: list.map((c) => c.toJSON()),
           changes: {
-            add: add.map((c) => c.asTConnection()),
-            removed: removed.map((c) => c.asTConnection()),
+            add: add.map((c) => c.toJSON()),
+            removed: removed.map((c) => c.toJSON()),
           },
         },
         () => {
@@ -266,18 +266,31 @@ export class ConnectionsStore {
   }
 
   public toJSON() {
-    return this.$connections.value.map((c) => c.asTConnection());
+    return this.$connections.value.map((c) => c.toJSON());
   }
 
   public resetSelection() {
     this.setConnectionsSelection([], false);
   }
-  public getConnections(ids?: ConnectionState["id"][]) {
+
+  public getConnections(ids?: TConnectionId[]) {
     if (!ids || !ids.length) {
       return this.$connections.value;
     }
     const map = this.$connectionsMap.value;
     return ids.map((id) => map.get(id)).filter(Boolean);
+  }
+
+  public getConnectionState(id: TConnectionId) {
+    return this.$connectionsMap.value.get(id);
+  }
+
+  public getConnection(id: TConnectionId): TConnection | undefined {
+    return this.getConnectionState(id)?.toJSON();
+  }
+
+  public getConnectionStates(ids: TConnectionId[]) {
+    return ids.map((id) => this.getConnectionState(id)).filter(Boolean);
   }
 
   public reset() {

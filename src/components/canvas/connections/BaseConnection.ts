@@ -99,6 +99,7 @@ export class BaseConnection<
   protected get sourceAnchor(): TAnchor | undefined {
     return this.sourceBlock.connectedState.getAnchorById(this.connectedState.sourceAnchorId)?.asTAnchor();
   }
+
   /**
    * @deprecated use port system instead
    */
@@ -129,6 +130,7 @@ export class BaseConnection<
 
     // Get reactive connection state from the store
     this.connectedState = selectConnectionById(this.context.graph, this.props.id) as ConnectionState<Connection>;
+    this.connectedState.setViewComponent(this);
 
     // Subscribe to port changes for automatic geometry updates
     this.connectedState.$sourcePortState.value.addObserver(this);
