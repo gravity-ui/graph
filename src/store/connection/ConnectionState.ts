@@ -116,7 +116,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
   /* @deprecated use $sourcePortState instead */
   public readonly $sourceBlock = computed(() => {
     if (this.$sourcePortState.value.component && this.$sourcePortState.value.component instanceof Block) {
-      return this.$sourcePortState.value.component;
+      return this.$sourcePortState.value.component.connectedState;
     }
     return undefined;
   });
@@ -124,7 +124,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
   /* @deprecated use $targetPortState instead */
   public readonly $targetBlock = computed(() => {
     if (this.$targetPortState.value.component && this.$targetPortState.value.component instanceof Block) {
-      return this.$targetPortState.value.component;
+      return this.$targetPortState.value.component.connectedState;
     }
     return undefined;
   });
