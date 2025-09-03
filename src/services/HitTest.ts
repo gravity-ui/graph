@@ -200,14 +200,14 @@ export class HitTest extends Emitter {
       width: Number.isFinite(rect.maxX) ? rect.maxX - rect.minX : 0,
       height: Number.isFinite(rect.maxY) ? rect.maxY - rect.minY : 0,
     };
-    // if (
-    //   usableRect.x === this.$usableRect.value.x &&
-    //   usableRect.y === this.$usableRect.value.y &&
-    //   usableRect.width === this.$usableRect.value.width &&
-    //   usableRect.height === this.$usableRect.value.height
-    // ) {
-    //   return;
-    // }
+    if (
+      usableRect.x === this.$usableRect.value.x &&
+      usableRect.y === this.$usableRect.value.y &&
+      usableRect.width === this.$usableRect.value.width &&
+      usableRect.height === this.$usableRect.value.height
+    ) {
+      return;
+    }
     this.$usableRect.value = usableRect;
   }
 
