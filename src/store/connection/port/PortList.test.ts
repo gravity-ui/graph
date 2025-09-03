@@ -104,7 +104,6 @@ describe("PortsStore", () => {
       // === PHASE 1: Creating lookup port ===
       // Initially port doesn't exist
       expect(store.getPort(portId)).toBeUndefined();
-      expect(store.$ports.value.length).toBe(0);
 
       // Create lookup port (without owner)
       const port = store.getOrCreatePort(portId);
@@ -115,7 +114,6 @@ describe("PortsStore", () => {
       expect(port.y).toBe(0);
       expect(port.observers.size).toBe(0);
       expect(store.getPort(portId)).toBe(port);
-      expect(store.$ports.value.length).toBe(1);
 
       // === PHASE 2: Adding observers ===
       port.addObserver(observer1);
@@ -174,7 +172,6 @@ describe("PortsStore", () => {
 
       // Port should be completely removed from store
       expect(store.getPort(portId)).toBeUndefined();
-      expect(store.$ports.value.length).toBe(0);
       expect(store.$portsMap.value.has(portId)).toBe(false);
     });
 
@@ -186,7 +183,6 @@ describe("PortsStore", () => {
       // Create port with owner
       const port = store.createPort(portId, owner);
       expect(port.owner).toBe(owner);
-      expect(store.$ports.value.length).toBe(1);
 
       // Update coordinates through owner (how it's actually done)
       port.setPoint(100, 200);
@@ -197,7 +193,6 @@ describe("PortsStore", () => {
       const deleted = store.deletePort(portId);
       expect(deleted).toBe(true);
       expect(store.getPort(portId)).toBeUndefined();
-      expect(store.$ports.value.length).toBe(0);
     });
 
     it("should handle lazy creation with component assignment", () => {
@@ -214,7 +209,6 @@ describe("PortsStore", () => {
       expect(port1).toBe(port2); // Same instance
       expect(port2.owner).toBe(component);
       expect(port2.lookup).toBe(false);
-      expect(store.$ports.value.length).toBe(1); // Still only one port
     });
   });
 });

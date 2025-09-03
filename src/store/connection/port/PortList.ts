@@ -3,10 +3,10 @@ import { computed, signal } from "@preact/signals-core";
 import { GraphComponent } from "../../../components/canvas/GraphComponent";
 import { Graph } from "../../../graph";
 import { Component, ESchedulerPriority } from "../../../lib";
+import { debounce } from "../../../utils/utils/schedule";
 import { RootStore } from "../../index";
 
 import { PortState, TPortId } from "./Port";
-import { debounce } from "../../../utils/utils/schedule";
 
 export class PortsStore {
   public $ports = computed(() => {
@@ -68,7 +68,7 @@ export class PortsStore {
 
   public deletePorts(ids: TPortId[]): void {
     ids.forEach((id) => {
-      this.$portsMap.value.delete(id)
+      this.$portsMap.value.delete(id);
     });
   }
 
@@ -77,9 +77,15 @@ export class PortsStore {
     this.notifyPortMapChanged();
   }
 
-  protected notifyPortMapChanged = debounce(() => {
-    this.$portsMap.value = new Map(this.$portsMap.value);
-  }, {  priority: ESchedulerPriority.LOW, frameInterval: 1,  });  
+  protected notifyPortMapChanged = debounce(
+    () => {
+      this.$portsMap.value = new Map(this.$portsMap.value);
+    },
+    {
+      priority: ESchedulerPriority.LOW,
+      frameInterval: 1,
+    }
+  );
 
   public getPortsByComponent(component: GraphComponent): PortState[] {
     return this.$ports.value.filter((port) => port.component === component);
