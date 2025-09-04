@@ -97,7 +97,19 @@ export class CoreComponent<
   }
 
   public setContext<K extends keyof Context>(context: Pick<Context, K>) {
-    Object.assign(this.context, context);
+    this.context = Object.assign({}, this.context, context);
+
+    // Propagate context changes to all children
+    const children = this.__comp.children;
+    const childrenKeys = this.__comp.childrenKeys;
+
+    for (let i = 0; i < childrenKeys.length; i += 1) {
+      const child = children[childrenKeys[i]];
+      if (child) {
+        child.setContext(context);
+      }
+    }
+
     this.performRender();
   }
 

@@ -226,7 +226,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private onRootPointerMove(event: MouseEvent) {
     if (this.targetComponent !== this.prevTargetComponent) {
-      if (this.targetComponent?.cursor) {
+      if (this.targetComponent?.isInteractive() && this.targetComponent?.cursor) {
         this.root.style.cursor = this.targetComponent?.cursor;
       } else {
         this.root.style.removeProperty("cursor");

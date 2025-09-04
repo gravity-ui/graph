@@ -5,7 +5,7 @@ import { TBlockId } from "../../../store/block/Block";
 import { selectBlockAnchor } from "../../../store/block/selectors";
 import { debounce, isMetaKeyEvent } from "../../../utils/functions";
 import { TPoint } from "../../../utils/types/shapes";
-import { GraphComponent } from "../GraphComponent";
+import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
 export type TAnchor = {
@@ -15,12 +15,13 @@ export type TAnchor = {
   index?: number;
 };
 
-export type TAnchorProps = TAnchor & {
-  size: number;
-  lineWidth: number;
-  zIndex: number;
-  getPosition: (anchor: TAnchor) => TPoint;
-};
+export type TAnchorProps = TGraphComponentProps &
+  TAnchor & {
+    size: number;
+    lineWidth: number;
+    zIndex: number;
+    getPosition: (anchor: TAnchor) => TPoint;
+  };
 
 type TAnchorState = {
   size: number;
