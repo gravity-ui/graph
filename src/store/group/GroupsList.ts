@@ -36,15 +36,16 @@ export class GroupsListStore {
   );
 
   public $selectedGroups = computed(() => {
-    const selectedIds = this.groupSelectionBucket.$selected.value;
-    return this.$groups.value.filter((group) => selectedIds.has(group.id));
+    return Array.from(this.groupSelectionBucket.$selected.value)
+      .map((id) => this.getGroupState(id))
+      .filter(Boolean);
   });
 
   constructor(
     public rootStore: RootStore,
     protected graph: Graph
   ) {
-    this.rootStore.selectionService.registerBucket(this.groupSelectionBucket);
+    this.groupSelectionBucket.attachToManager(this.rootStore.selectionService);
   }
 
   protected updateGroupsMap(groups: Map<GroupState["id"], GroupState> | [GroupState["id"], GroupState][]) {
@@ -123,13 +124,10 @@ export class GroupsListStore {
     selected: boolean,
     strategy: ESelectionStrategy = ESelectionStrategy.REPLACE
   ) {
-    // Filter out symbol ids since SelectionService only supports string and number ids
-    const validIds = ids.filter((id) => typeof id === "string" || typeof id === "number") as (string | number)[];
-
     if (selected) {
-      this.rootStore.selectionService.select("group", validIds, strategy);
+      this.groupSelectionBucket.select(ids, strategy);
     } else {
-      this.rootStore.selectionService.deselect("group", validIds);
+      this.groupSelectionBucket.deselect(ids);
     }
   }
 
@@ -137,7 +135,7 @@ export class GroupsListStore {
    * Resets the selection for groups
    */
   public resetSelection() {
-    this.rootStore.selectionService.resetSelection("group");
+    this.groupSelectionBucket.reset();
   }
 
   protected getGroupStates(ids: GroupState["id"][]) {

@@ -2,13 +2,13 @@ import { batch, computed, signal } from "@preact/signals-core";
 
 import { AnchorState } from "store/anchor/Anchor";
 
-import { TAnchor } from "../../components/canvas/anchors";
+import { TAnchor, TAnchorId } from "../../components/canvas/anchors";
 import { TBlock, isTBlock } from "../../components/canvas/blocks/Block";
 import { generateRandomId } from "../../components/canvas/blocks/generate";
 import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
 import { SingleSelectionBucket } from "../../services/selection/SingleSelectionBucket";
-import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
+import { ESelectionStrategy } from "../../services/selection/types";
 import { selectConnectionsByBlockId } from "../connection/selectors";
 import { RootStore } from "../index";
 
@@ -70,21 +70,46 @@ export class BlockListStore {
   /**
    * Bucket for managing block selection state
    */
-  public readonly blockSelectionBucket = new MultipleSelectionBucket<string | number>(
-    "block",
-    (payload, defaultAction) => {
-      return this.graph.executеDefaultEventAction("blocks-selection-change", payload, defaultAction);
+  public readonly blockSelectionBucket = new MultipleSelectionBucket<TBlockId>("block", (payload, defaultAction) => {
+    return this.graph.executеDefaultEventAction("blocks-selection-change", payload, defaultAction);
+  });
+
+  public readonly anchorSelectionBucket = new SingleSelectionBucket<TAnchorId>("anchor", (diff, defaultAction) => {
+    // diff: { added: Set<ID>, removed: Set<ID> }
+    // Для single selection максимум один id в added/removed
+    if (diff.changes.add.length > 0) {
+      const anchorId = diff.changes.add[0];
+      const anchor = this.$blocks.value.flatMap((block) => block.$anchors.value).find((a) => a.id === anchorId);
+      if (anchor) {
+        return this.graph.executеDefaultEventAction(
+          "block-anchor-selection-change",
+          { anchor: anchor, selected: true },
+          defaultAction
+        );
+      }
     }
-  );
+    if (diff.changes.removed.length > 0) {
+      const anchorId = diff.changes.removed[0];
+      const anchor = this.$blocks.value.flatMap((block) => block.$anchors.value).find((a) => a.id === anchorId);
+      if (anchor) {
+        return this.graph.executеDefaultEventAction(
+          "block-anchor-selection-change",
+          { anchor: anchor, selected: false },
+          defaultAction
+        );
+      }
+    }
+    return defaultAction();
+  });
 
   /**
    * Computed signal that returns the currently selected blocks
    */
   public $selectedBlocks = computed(() => {
-    return this.$blocksReactiveState.value.filter((block) => this.blockSelectionBucket.isSelected(block.id));
+    return Array.from(this.blockSelectionBucket.$selected.value)
+      .map((id) => this.getBlockState(id))
+      .filter(Boolean);
   });
-
-  public readonly anchorSelectionBucket: ISelectionBucket<string | number>;
 
   public $selectedAnchor = computed(() => {
     if (!this.rootStore.settings.getConfigFlag("useBlocksAnchors")) return undefined;
@@ -100,36 +125,8 @@ export class BlockListStore {
     public rootStore: RootStore,
     protected graph: Graph
   ) {
-    this.rootStore.selectionService.registerBucket(this.blockSelectionBucket);
-
-    this.anchorSelectionBucket = new SingleSelectionBucket<string | number>("anchor", (diff, defaultAction) => {
-      // diff: { added: Set<ID>, removed: Set<ID> }
-      // Для single selection максимум один id в added/removed
-      if (diff.changes.add.length > 0) {
-        const anchorId = diff.changes.add[0];
-        const anchor = this.$blocks.value.flatMap((block) => block.$anchors.value).find((a) => a.id === anchorId);
-        if (anchor) {
-          return this.graph.executеDefaultEventAction(
-            "block-anchor-selection-change",
-            { anchor: anchor, selected: true },
-            defaultAction
-          );
-        }
-      }
-      if (diff.changes.removed.length > 0) {
-        const anchorId = diff.changes.removed[0];
-        const anchor = this.$blocks.value.flatMap((block) => block.$anchors.value).find((a) => a.id === anchorId);
-        if (anchor) {
-          return this.graph.executеDefaultEventAction(
-            "block-anchor-selection-change",
-            { anchor: anchor, selected: false },
-            defaultAction
-          );
-        }
-      }
-      return defaultAction();
-    });
-    this.rootStore.selectionService.registerBucket(this.anchorSelectionBucket);
+    this.blockSelectionBucket.attachToManager(this.rootStore.selectionService);
+    this.anchorSelectionBucket.attachToManager(this.rootStore.selectionService);
   }
 
   public setAnchorSelection(blockId: BlockState["id"], anchorId: AnchorState["id"], selected: boolean) {
@@ -143,14 +140,14 @@ export class BlockListStore {
     }
 
     if (selected) {
-      this.rootStore.selectionService.select("anchor", [anchorId], ESelectionStrategy.REPLACE);
+      this.anchorSelectionBucket.select([anchorId], ESelectionStrategy.REPLACE);
     } else {
-      this.rootStore.selectionService.deselect("anchor", [anchorId]);
+      this.anchorSelectionBucket.deselect([anchorId]);
     }
   }
 
   protected unsetAnchorsSelection() {
-    this.rootStore.selectionService.resetSelection("anchor");
+    this.anchorSelectionBucket.reset();
   }
 
   public updatePosition(id: BlockState["id"], nextState: Pick<TBlock, "x" | "y">) {
@@ -240,12 +237,10 @@ export class BlockListStore {
     const validIds = ids.filter((id) => typeof id === "string" || typeof id === "number") as (string | number)[];
 
     batch(() => {
-      this.unsetAnchorsSelection();
-
       if (selected) {
-        this.rootStore.selectionService.select("block", validIds, strategy);
+        this.blockSelectionBucket.select(validIds, strategy);
       } else {
-        this.rootStore.selectionService.deselect("block", validIds);
+        this.blockSelectionBucket.deselect(validIds);
       }
     });
   }
@@ -259,7 +254,7 @@ export class BlockListStore {
   public resetSelection() {
     batch(() => {
       this.unsetAnchorsSelection();
-      this.rootStore.selectionService.resetSelection("block");
+      this.blockSelectionBucket.reset();
     });
   }
 

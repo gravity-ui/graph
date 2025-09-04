@@ -1,5 +1,6 @@
 import { ReadonlySignal, Signal, computed, signal } from "@preact/signals-core";
 
+import { SelectionService } from "./SelectionService";
 import { ESelectionStrategy, ISelectionBucket, TEntityId, TSelectionDiff } from "./types";
 
 export abstract class BaseSelectionBucket<IDType extends TEntityId> implements ISelectionBucket<IDType> {
@@ -16,6 +17,33 @@ export abstract class BaseSelectionBucket<IDType extends TEntityId> implements I
       return true;
     }
   ) {}
+
+  protected manager: SelectionService;
+  public attachToManager(manager: SelectionService): void {
+    this.manager = manager;
+    manager.registerBucket(this);
+  }
+
+  public detachFromManager(manager: SelectionService): void {
+    this.manager = undefined;
+    manager.unregisterBucket(this);
+  }
+
+  public select(ids: IDType[], strategy: ESelectionStrategy = ESelectionStrategy.REPLACE, silent?: boolean): void {
+    if (this.manager) {
+      this.manager.select(this.entityType, ids, strategy);
+    } else {
+      this.updateSelection(ids, true, strategy, silent);
+    }
+  }
+
+  public deselect(ids: IDType[], silent?: boolean): void {
+    if (this.manager) {
+      this.manager.deselect(this.entityType, ids);
+    } else {
+      this.updateSelection(ids, false, ESelectionStrategy.SUBTRACT, silent);
+    }
+  }
 
   public abstract updateSelection(ids: IDType[], select: boolean, strategy: ESelectionStrategy, silent?: boolean): void;
 

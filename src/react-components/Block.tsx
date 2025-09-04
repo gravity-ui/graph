@@ -7,6 +7,10 @@ import { useBlockState, useBlockViewState } from "./hooks/useBlockState";
 
 import "./Block.css";
 
+import { useSignal } from "./hooks";
+
+import { computed } from "@preact/signals-core";
+
 export const GraphBlock = <T extends TBlock>({
   graph,
   block,
@@ -24,6 +28,8 @@ export const GraphBlock = <T extends TBlock>({
   const lastStateRef = useRef({ x: 0, y: 0, width: 0, height: 0, zIndex: 0 });
   const viewState = useBlockViewState(graph, block);
   const state = useBlockState(graph, block);
+
+  const selected = useSignal(computed(() => state?.$selected.value ?? false));
 
   useEffect(() => {
     viewState?.setHiddenBlock(true);
@@ -91,7 +97,7 @@ export const GraphBlock = <T extends TBlock>({
 
   return (
     <div className={`graph-block-container ${containerClassName || ""}`} ref={containerRef}>
-      <div className={`graph-block-wrapper ${className || ""} ${state.selected ? "selected" : ""}`}>{children}</div>
+      <div className={`graph-block-wrapper ${className || ""} ${selected ? "selected" : ""}`}>{children}</div>
     </div>
   );
 };
