@@ -34,11 +34,10 @@ export class ConnectionsStore {
   );
 
   public $selectedConnections = computed(() => {
-    return new Set(
-      this.$connections.value.filter((connection) => {
-        return this.connectionSelectionBucket.isSelected(connection.id);
-      })
-    );
+    const items = this.connectionSelectionBucket.$selected.value;
+    return Array.from(items)
+      .map((id) => this.getConnectionState(id))
+      .filter(Boolean);
   });
 
   protected ports: PortsStore;
@@ -56,7 +55,7 @@ export class ConnectionsStore {
       }
     );
 
-    this.rootStore.selectionService.registerBucket(this.connectionSelectionBucket);
+    this.connectionSelectionBucket.attachToManager(this.rootStore.selectionService);
   }
 
   /**
@@ -228,13 +227,10 @@ export class ConnectionsStore {
     selected: boolean,
     strategy: ESelectionStrategy = ESelectionStrategy.REPLACE
   ) {
-    // Filter out non-string/number ids since SelectionService only supports string and number ids
-    const validIds = ids.filter((id) => typeof id === "string" || typeof id === "number") as (string | number)[];
-
     if (selected) {
-      this.rootStore.selectionService.select("connection", validIds, strategy);
+      this.connectionSelectionBucket.select(ids, strategy);
     } else {
-      this.rootStore.selectionService.deselect("connection", validIds);
+      this.connectionSelectionBucket.deselect(ids);
     }
   }
 
@@ -244,7 +240,7 @@ export class ConnectionsStore {
    * @returns {void}
    */
   public resetSelection() {
-    this.rootStore.selectionService.resetSelection("connection");
+    this.connectionSelectionBucket.reset();
   }
 
   public getConnections(ids?: TConnectionId[]) {
@@ -265,6 +261,10 @@ export class ConnectionsStore {
 
   public getConnectionStates(ids: TConnectionId[]) {
     return ids.map((id) => this.getConnectionState(id)).filter(Boolean);
+  }
+
+  public toJSON() {
+    return this.$connections.value.map((c) => c.toJSON());
   }
 
   public reset() {

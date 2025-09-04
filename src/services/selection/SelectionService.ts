@@ -39,6 +39,16 @@ export class SelectionService {
   }
 
   /**
+   * Unregisters a selection bucket for a specific entity type
+   * @param bucket The selection bucket to unregister
+   */
+  public unregisterBucket(bucket: ISelectionBucket): void {
+    const newMap = new Map(this.buckets.value);
+    newMap.delete(bucket.entityType);
+    this.buckets.value = newMap;
+  }
+
+  /**
    * Retrieves the selection bucket for a specific entity type
    * @param entityType The entity type to get the bucket for
    * @returns The selection bucket or undefined if not found

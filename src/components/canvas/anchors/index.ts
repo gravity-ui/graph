@@ -8,6 +8,7 @@ import { TPoint } from "../../../utils/types/shapes";
 import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
+export type TAnchorId = string | number;
 export type TAnchor = {
   id: string;
   blockId: TBlockId;
