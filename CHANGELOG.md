@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.2.0-rc](https://github.com/gravity-ui/graph/compare/v1.1.4...v1.2.0-rc) (2025-09-04)
+
+
+### chore
+
+* release 1.2.0-rc ([342203f](https://github.com/gravity-ui/graph/commit/342203f9f53ae9d9bce0ad8224bce0939cf44893))
+
+
+### Features
+
+* add declarative way to add layers on the graph canvas ([#120](https://github.com/gravity-ui/graph/issues/120)) ([fa77af8](https://github.com/gravity-ui/graph/commit/fa77af85cec3379790a1a203f394b74e06f06ce3))
+* **ConnectionState:** add link to BlockConnection in ConnectionState ([#124](https://github.com/gravity-ui/graph/issues/124)) ([f1f802e](https://github.com/gravity-ui/graph/commit/f1f802e44a14146895dade5278231c4ead6281c9))
+* export scheduler tools from lib ([#132](https://github.com/gravity-ui/graph/issues/132)) ([f4048a9](https://github.com/gravity-ui/graph/commit/f4048a9751204d4d5cf5b7f375316f2ad68e52e9))
+* **GraphComponent, HitBox:** introduce interactive and non-boundary components ([#130](https://github.com/gravity-ui/graph/issues/130)) ([ec53993](https://github.com/gravity-ui/graph/commit/ec53993a88e689fecfdccf707aa8c3e50db2684e))
+* introduce Port System ([#128](https://github.com/gravity-ui/graph/issues/128)) ([6e062fe](https://github.com/gravity-ui/graph/commit/6e062fe0d4d5cb67de79dea79f038e136e096537))
+* make selected and anchors fields optional in TBlock type ([#129](https://github.com/gravity-ui/graph/issues/129)) ([badfdfb](https://github.com/gravity-ui/graph/commit/badfdfb2d1ba27c1297df3b3710c840535b501e8))
+
+
+### Bug Fixes
+
+* **ConnectionState:** fix breaking change with $sourceBlock and $targetBloc ([6587d5a](https://github.com/gravity-ui/graph/commit/6587d5a1a0c70ef2a5699ad7f328325bdd409bd0))
+* fix getCoord in safari ([fa6f463](https://github.com/gravity-ui/graph/commit/fa6f463eabda462c995f255090d48e29768cb88c))
+* make cursor field writable ([#127](https://github.com/gravity-ui/graph/issues/127)) ([01a7e10](https://github.com/gravity-ui/graph/commit/01a7e101ad45f25f3168fcf93ac5d348db6024aa))
+* **PortList:** fix performance issue on update portsMap ([04b5d37](https://github.com/gravity-ui/graph/commit/04b5d37d82ff67858e3f40aead0799d83c5877ba))
+* **zoom:** return valid rect instead of Infinity when blocks not found ([#123](https://github.com/gravity-ui/graph/issues/123)) ([9ad6828](https://github.com/gravity-ui/graph/commit/9ad6828e688d273a1c2af73b7fa383982e59fe21))
+
 ## [1.1.4](https://github.com/gravity-ui/graph/compare/v1.1.3...v1.1.4) (2025-07-10)
 
 
