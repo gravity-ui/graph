@@ -64,8 +64,8 @@ npm install @gravity-ui/graph
 [Detailed React Components Documentation](docs/react/usage.md)
 
 ```typescript
-import { EAnchorType, Graph } from "@gravity-ui/graph";
-import { GraphCanvas, GraphState, GraphBlock, useGraph } from "@gravity-ui/graph/react";
+import { EAnchorType, Graph, GraphState } from "@gravity-ui/graph";
+import { GraphCanvas, GraphBlock, useGraph } from "@gravity-ui/graph/react";
 import React from "react";
 
 const config = {};
