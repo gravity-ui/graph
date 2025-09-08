@@ -19,6 +19,7 @@ export enum ESchedulerPriority {
 export class GlobalScheduler {
   private schedulers: [IScheduler[], IScheduler[], IScheduler[], IScheduler[], IScheduler[]];
   private _cAFID: number;
+  private toRemove: Array<[IScheduler, ESchedulerPriority]> = [];
 
   constructor() {
     this.tick = this.tick.bind(this);
@@ -36,11 +37,7 @@ export class GlobalScheduler {
   }
 
   public removeScheduler(scheduler: IScheduler, index = ESchedulerPriority.MEDIUM) {
-    const i = this.schedulers[index].indexOf(scheduler);
-
-    if (i !== -1) {
-      this.schedulers[index].splice(i, 1);
-    }
+    this.toRemove.push([scheduler, index]);
   }
 
   public start() {
@@ -70,6 +67,15 @@ export class GlobalScheduler {
         schedulers[j].performUpdate(getNow() - startTime);
       }
     }
+
+    // Process deferred removals after all schedulers have been executed
+    for (const [scheduler, index] of this.toRemove) {
+      const schedulerIndex = this.schedulers[index].indexOf(scheduler);
+      if (schedulerIndex !== -1) {
+        this.schedulers[index].splice(schedulerIndex, 1);
+      }
+    }
+    this.toRemove.length = 0;
   }
 }
 
