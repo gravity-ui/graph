@@ -255,7 +255,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.getOutputPort().setPoint(outputPoint.x, outputPoint.y);
 
     // Update anchor ports positions
-    this.state.anchors.forEach((anchor) => {
+    this.connectedState.$anchors.value.forEach((anchor) => {
       const port = this.getAnchorPort(anchor.id);
       if (port) {
         const anchorPoint = this.getConnectionAnchorPosition(anchor);
