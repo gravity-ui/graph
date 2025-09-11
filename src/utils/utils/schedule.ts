@@ -72,7 +72,6 @@ export const debounce = <T extends (...args: unknown[]) => void>(
         fn(...latestArgs);
         if (removeScheduler) {
           removeScheduler();
-          removeScheduler = null;
         }
       }
     },
@@ -81,7 +80,6 @@ export const debounce = <T extends (...args: unknown[]) => void>(
   const cancel = () => {
     if (isScheduled && removeScheduler) {
       removeScheduler();
-      removeScheduler = null;
     }
     isScheduled = false;
     frameCounter = 0;
