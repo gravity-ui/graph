@@ -1,5 +1,6 @@
 import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
+import { ESelectionStrategy } from "../../../../services/selection/types";
 import { AnchorState } from "../../../../store/anchor/Anchor";
 import { BlockState, TBlockId } from "../../../../store/block/Block";
 import { getXY, isBlock, isShiftKeyEvent } from "../../../../utils/functions";
@@ -8,7 +9,6 @@ import { render } from "../../../../utils/renderers/render";
 import { renderSVG } from "../../../../utils/renderers/svgPath";
 import { EVENTS } from "../../../../utils/types/events";
 import { Point, TPoint } from "../../../../utils/types/shapes";
-import { ESelectionStrategy } from "../../../../utils/types/types";
 import { Anchor } from "../../../canvas/anchors";
 import { Block } from "../../../canvas/blocks/Block";
 

@@ -4,18 +4,18 @@ import cloneDeep from "lodash/cloneDeep";
 
 import { TAnchor } from "../../components/canvas/anchors";
 import { Block, TBlock } from "../../components/canvas/blocks/Block";
-import { ESelectionStrategy } from "../../utils/types/types";
+import { ISelectionBucket } from "../../services/selection/types";
 import { AnchorState } from "../anchor/Anchor";
 
 import { BlockListStore } from "./BlocksList";
 
-export type TBlockId = string | number | symbol;
+export type TBlockId = string | number;
 
 export const IS_BLOCK_TYPE = "Block" as const;
 
 export class BlockState<T extends TBlock = TBlock> {
   public static fromTBlock(store: BlockListStore, block: TBlock): BlockState<TBlock> {
-    return new BlockState(store, block);
+    return new BlockState(store, block, store.blockSelectionBucket);
   }
 
   public $state = signal<T>(undefined);
@@ -39,8 +39,14 @@ export class BlockState<T extends TBlock = TBlock> {
   }
 
   public get selected() {
-    return this.$state.value.selected;
+    return this.$selected.value;
   }
+
+  /**
+   * Computed signal that reactively determines if this block is selected
+   * by checking if its ID exists in the selection bucket
+   */
+  public readonly $selected = computed(() => this.blockSelectionBucket.isSelected(this.id));
 
   public readonly $anchorStates: Signal<AnchorState[]> = signal([]);
 
@@ -73,14 +79,19 @@ export class BlockState<T extends TBlock = TBlock> {
   });
 
   public $selectedAnchors = computed(() => {
-    return this.$anchorStates.value?.filter((anchorState) => anchorState.$selected.value) || [];
+    return (
+      this.$anchorStates.value?.filter((anchorState) =>
+        this.store.anchorSelectionBucket.$selected.value.has(anchorState.id)
+      ) || []
+    );
   });
 
   private blockView: Block;
 
   constructor(
     public readonly store: BlockListStore,
-    block: T
+    block: T,
+    private readonly blockSelectionBucket: ISelectionBucket<string | number>
   ) {
     this.$state.value = block;
 
@@ -118,12 +129,8 @@ export class BlockState<T extends TBlock = TBlock> {
     return this.store.getBlockConnections(this.id);
   }
 
-  public setSelection(selected: boolean, strategy: ESelectionStrategy = ESelectionStrategy.REPLACE) {
-    this.store.updateBlocksSelection([this.id], selected, strategy);
-  }
-
   public clearAnchorsSelection() {
-    this.$anchorStates.value.forEach((anchor) => anchor.setSelection(false));
+    this.store.anchorSelectionBucket.reset();
   }
 
   public setName(newName: string) {

@@ -1,8 +1,8 @@
-import { signal } from "@preact/signals-core";
+import { computed, signal } from "@preact/signals-core";
 
 import { Group } from "../../components/canvas/groups";
+import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
 import { TRect } from "../../utils/types/shapes";
-import { ESelectionStrategy } from "../../utils/types/types";
 
 import { GroupsListStore } from "./GroupsList";
 export type TGroupId = string;
@@ -29,7 +29,8 @@ export class GroupState {
 
   constructor(
     protected store: GroupsListStore,
-    state: TGroup
+    state: TGroup,
+    private readonly groupSelectionBucket: ISelectionBucket<string | number>
   ) {
     this.$state.value = state;
   }
@@ -38,9 +39,17 @@ export class GroupState {
     return this.$state.value.id;
   }
 
-  public get selected() {
-    return Boolean(this.$state.value.selected);
-  }
+  /**
+   * Computed signal that reactively determines if this group is selected
+   * by checking if its ID exists in the selection bucket
+   */
+  public readonly $selected = computed(() => {
+    const id = this.id;
+    // Only string and number IDs can be in the selection bucket
+    return typeof id === "string" || typeof id === "number"
+      ? this.groupSelectionBucket.$selectedIds.value.has(id)
+      : false;
+  });
 
   public updateGroup(group: Partial<TGroup>) {
     this.$state.value = {
@@ -58,6 +67,6 @@ export class GroupState {
   }
 
   public static fromTGroup(store: GroupsListStore, group: TGroup) {
-    return new GroupState(store, group);
+    return new GroupState(store, group, store.groupSelectionBucket);
   }
 }
