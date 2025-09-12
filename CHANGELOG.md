@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.2.1](https://github.com/gravity-ui/graph/compare/v1.2.0-rc...v1.2.1) (2025-09-12)
+
+
+### chore
+
+* release 1.2.1 ([1370c00](https://github.com/gravity-ui/graph/commit/1370c009e15070b201f710b60df280c924f7883f))
+
+
+### Features
+
+* **GlobalScheduler:** implement deferred removal of schedulers ([#136](https://github.com/gravity-ui/graph/issues/136)) ([48d5022](https://github.com/gravity-ui/graph/commit/48d502263e3003e893e4923d28ab2a75d9b4b436))
+
+
+### Bug Fixes
+
+* **Block:** fix update anchor's port positions after update state ([#137](https://github.com/gravity-ui/graph/issues/137)) ([22e396d](https://github.com/gravity-ui/graph/commit/22e396ddea5d327150fa9213e4e60167edc7cae2))
+
 ## [1.2.0-rc](https://github.com/gravity-ui/graph/compare/v1.1.4...v1.2.0-rc) (2025-09-04)
 
 
