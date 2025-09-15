@@ -1,0 +1,19 @@
+# Build outputs
+dist/
+build/
+
+# Dependencies
+node_modules/
+
+# Coverage
+coverage/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+.wireit

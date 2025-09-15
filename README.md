@@ -8,6 +8,13 @@ A graph visualization library that combines the best of both worlds:
 
 No more choosing between performance and interactivity. Perfect for large diagrams, flowcharts, and node-based editors.
 
+## Packages
+
+This monorepo contains two packages:
+
+- **[@gravity-ui/graph](packages/graph)** - Core graph visualization library with Canvas-based rendering
+- **[@gravity-ui/graph-react](packages/graph-react)** - React components and hooks for @gravity-ui/graph
+
 ## Motivation
 
 Modern web applications often require complex visualization and interactivity, but existing solutions typically focus on a single rendering technology:
@@ -53,8 +60,16 @@ const MyGraph = () => {
 
 ## Install
 
+### Core Library
+
 ```bash
 npm install @gravity-ui/graph
+```
+
+### React Components
+
+```bash
+npm install @gravity-ui/graph @gravity-ui/graph-react
 ```
 
 ## Examples
@@ -65,7 +80,7 @@ npm install @gravity-ui/graph
 
 ```typescript
 import { EAnchorType, Graph, GraphState } from "@gravity-ui/graph";
-import { GraphCanvas, GraphBlock, useGraph } from "@gravity-ui/graph/react";
+import { GraphCanvas, GraphBlock, useGraph } from "@gravity-ui/graph-react";
 import React from "react";
 
 const config = {};

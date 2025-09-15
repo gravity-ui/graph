@@ -1,0 +1,22 @@
+{
+  "extends": "@gravity-ui/tsconfig",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "moduleResolution": "node",
+    "module": "esnext",
+    "target": "es2020",
+    "noEmitOnError": false,
+    "allowJs": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "typeRoots": ["../node_modules/@types"],
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@gravity-ui/graph": ["../packages/graph/src/index.ts"],
+      "@gravity-ui/graph-react": ["../packages/graph-react/src/index.ts"]
+    }
+  },
+  "include": ["./**/*.ts", "./**/*.tsx"],
+  "exclude": ["**/*.d.ts"]
+}

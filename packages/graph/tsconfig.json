@@ -1,0 +1,25 @@
+{
+  "extends": "@gravity-ui/tsconfig",
+  "compilerOptions": {
+    "baseUrl": "./src/",
+    "outDir": "./dist/",
+    "moduleResolution": "node",
+    "module": "esnext",
+    "target": "es2020",
+    "noEmitOnError": true,
+    "allowJs": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "typeRoots": ["../../node_modules/@types"],
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "jsx": "react",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["./src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["dist", "**/*.test.*", "**/*.spec.*"]
+}
