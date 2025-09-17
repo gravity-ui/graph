@@ -77,7 +77,7 @@
   "dependencies": {
     "@preact/signals-core": "^1.5.1",
     "intersects": "^2.7.2",
-    "lodash-es": "^4.17.21",
+    "lodash": "^4.17.21",
     "rbush": "^3.0.1"
   },
   "devDependencies": {
