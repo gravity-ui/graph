@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/gravity-ui/graph/compare/v1.2.1...v1.2.2) (2025-09-17)
+
+
+### Bug Fixes
+
+* correct lodash dependency declaration ([#139](https://github.com/gravity-ui/graph/issues/139)) ([41a6868](https://github.com/gravity-ui/graph/commit/41a68684c39f10f1b561bd081b0a6d92ef913045))
+
 ## [1.2.1](https://github.com/gravity-ui/graph/compare/v1.2.0-rc...v1.2.1) (2025-09-12)
 
 
