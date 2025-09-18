@@ -17,6 +17,16 @@ export type TCameraState = {
   relativeY: number;
   relativeWidth: number;
   relativeHeight: number;
+  /**
+   * Insets of visible viewport inside the canvas area (in screen space, pixels)
+   * Use these to specify drawers/side panels overlaying the canvas. All values are >= 0.
+   */
+  viewportInsets: {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+  };
 };
 
 export enum ECameraScaleLevel {
@@ -50,6 +60,7 @@ export const getInitCameraState = (): TCameraState => {
     scale: 0.5,
     scaleMax: 1,
     scaleMin: 0.01,
+    viewportInsets: { left: 0, right: 0, top: 0, bottom: 0 },
   };
 };
 
@@ -78,6 +89,7 @@ export class CameraService extends Emitter {
   }
 
   private updateRelative() {
+    // Relative coordinates are based on full canvas viewport (ignore insets)
     this.state.relativeX = this.getRelative(this.state.x) | 0;
     this.state.relativeY = this.getRelative(this.state.y) | 0;
     this.state.relativeWidth = this.getRelative(this.state.width) | 0;
@@ -87,6 +99,52 @@ export class CameraService extends Emitter {
   public getCameraRect(): TRect {
     const { x, y, width, height } = this.state;
     return { x, y, width, height };
+  }
+
+  /**
+   * Returns the visible camera rect in screen space that accounts for the viewport insets.
+   * @returns {TRect} Visible rectangle inside the canvas after applying insets
+   */
+  public getVisibleCameraRect(): TRect {
+    const { x, y, width, height, viewportInsets } = this.state;
+    const visibleWidth = Math.max(0, width - viewportInsets.left - viewportInsets.right);
+    const visibleHeight = Math.max(0, height - viewportInsets.top - viewportInsets.bottom);
+    return {
+      x: x + viewportInsets.left,
+      y: y + viewportInsets.top,
+      width: visibleWidth,
+      height: visibleHeight,
+    };
+  }
+
+  /**
+   * Returns camera viewport rectangle in camera-relative space.
+   * By default returns full canvas-relative viewport (ignores insets).
+   * When options.respectInsets is true, returns viewport of the visible area (with insets applied).
+   * @param {Object} [options]
+   * @param {boolean} [options.respectInsets]
+   * @returns {TRect} Relative viewport rectangle
+   */
+  public getRelativeViewportRect(options?: { respectInsets?: boolean }): TRect {
+    const useVisible = Boolean(options?.respectInsets);
+    if (!useVisible) {
+      return {
+        x: this.getRelative(this.state.x) | 0,
+        y: this.getRelative(this.state.y) | 0,
+        width: this.getRelative(this.state.width) | 0,
+        height: this.getRelative(this.state.height) | 0,
+      };
+    }
+
+    const insets = this.state.viewportInsets;
+    const visibleWidth = Math.max(0, this.state.width - insets.left - insets.right);
+    const visibleHeight = Math.max(0, this.state.height - insets.top - insets.bottom);
+    return {
+      x: this.getRelative(this.state.x + insets.left) | 0,
+      y: this.getRelative(this.state.y + insets.top) | 0,
+      width: this.getRelative(visibleWidth) | 0,
+      height: this.getRelative(visibleHeight) | 0,
+    };
   }
 
   public getCameraScale() {
@@ -129,24 +187,34 @@ export class CameraService extends Emitter {
   }
 
   /**
-   * Converts relative coordinate to absolute (screen space)
-   * Inverse of getRelative
+   * Converts relative coordinate to absolute (screen space).
+   * Inverse of getRelative.
+   * @param {number} n Relative coordinate
+   * @param {number} [scale=this.state.scale] Scale to use for conversion
+   * @returns {number} Absolute coordinate in screen space
    */
   public getAbsolute(n: number, scale: number = this.state.scale): number {
     return n * scale;
   }
 
   /**
-   * Converts relative coordinates to absolute (screen space)
-   * Inverse of getRelativeXY
+   * Converts relative coordinates to absolute (screen space).
+   * Inverse of getRelativeXY.
+   * @param {number} x Relative x
+   * @param {number} y Relative y
+   * @returns {number[]} Absolute [x, y] in screen space
    */
   public getAbsoluteXY(x: number, y: number) {
     return [x * this.state.scale + this.state.x, y * this.state.scale + this.state.y];
   }
 
   /**
-   * Zoom to point
-   *  */
+   * Zoom to a screen point.
+   * @param {number} x Screen x where zoom anchors
+   * @param {number} y Screen y where zoom anchors
+   * @param {number} scale Target scale value
+   * @returns {void}
+   */
   public zoom(x: number, y: number, scale: number) {
     const normalizedScale = clamp(scale, this.state.scaleMin, this.state.scaleMax);
 
@@ -166,25 +234,47 @@ export class CameraService extends Emitter {
     });
   }
 
-  public getScaleRelativeDimensionsBySide(size: number, axis: "width" | "height") {
-    return clamp(Number(this.state[axis] / size), this.state.scaleMin, this.state.scaleMax);
+  public getScaleRelativeDimensionsBySide(
+    size: number,
+    axis: "width" | "height",
+    options?: { respectInsets?: boolean }
+  ) {
+    const useVisible = Boolean(options?.respectInsets);
+    const insets = this.state.viewportInsets;
+    let viewportSize: number;
+    if (axis === "width") {
+      viewportSize = useVisible ? Math.max(0, this.state.width - insets.left - insets.right) : this.state.width;
+    } else {
+      viewportSize = useVisible ? Math.max(0, this.state.height - insets.top - insets.bottom) : this.state.height;
+    }
+    return clamp(Number(viewportSize / size), this.state.scaleMin, this.state.scaleMax);
   }
 
-  public getScaleRelativeDimensions(width: number, height: number) {
+  public getScaleRelativeDimensions(width: number, height: number, options?: { respectInsets?: boolean }) {
     return Math.min(
-      this.getScaleRelativeDimensionsBySide(width, "width"),
-      this.getScaleRelativeDimensionsBySide(height, "height")
+      this.getScaleRelativeDimensionsBySide(width, "width", options),
+      this.getScaleRelativeDimensionsBySide(height, "height", options)
     );
   }
 
-  public getXYRelativeCenterDimensions(dimensions: TRect, scale: number) {
-    const x = 0 - dimensions.x * scale - (dimensions.width / 2) * scale + this.state.width / 2;
-    const y = 0 - dimensions.y * scale - (dimensions.height / 2) * scale + this.state.height / 2;
+  public getXYRelativeCenterDimensions(dimensions: TRect, scale: number, options?: { respectInsets?: boolean }) {
+    const useVisible = Boolean(options?.respectInsets);
+    const insets = this.state.viewportInsets;
+    const centerX = useVisible
+      ? insets.left + Math.max(0, this.state.width - insets.left - insets.right) / 2
+      : this.state.width / 2;
+    const centerY = useVisible
+      ? insets.top + Math.max(0, this.state.height - insets.top - insets.bottom) / 2
+      : this.state.height / 2;
+
+    const x = 0 - dimensions.x * scale - (dimensions.width / 2) * scale + centerX;
+    const y = 0 - dimensions.y * scale - (dimensions.height / 2) * scale + centerY;
 
     return { x, y };
   }
 
   public isRectVisible(x: number, y: number, w: number, h: number) {
+    // Shift by relative viewport origin (full viewport, without insets). Insets are irrelevant for visibility.
     return intersects.boxBox(
       x + this.state.relativeX,
       y + this.state.relativeY,
@@ -219,5 +309,56 @@ export class CameraService extends Emitter {
 
   public applyToRect(x: number, y: number, w: number, h: number): number[] {
     return this.applyToPoint(x, y).concat(Math.floor(this.getRelative(w)), Math.floor(this.getRelative(h)));
+  }
+
+  /**
+   * Update viewport insets (screen-space paddings inside canvas) and optionally keep the
+   * world point under the visible center unchanged.
+   * @param {Object} insets Partial insets to update
+   * @param {number} [insets.left]
+   * @param {number} [insets.right]
+   * @param {number} [insets.top]
+   * @param {number} [insets.bottom]
+   * @param {string} [maintain=center] Preserve visual anchor; allowed values: center or none. "center" keeps the
+   * same world point under visible center
+   * @returns {void}
+   */
+  public setViewportInsets(insets: Partial<TCameraState["viewportInsets"]>, params?: { maintain?: "center" }): void {
+    const currentInsets = this.state.viewportInsets;
+    const nextInsets = {
+      left: insets.left ?? currentInsets.left,
+      right: insets.right ?? currentInsets.right,
+      top: insets.top ?? currentInsets.top,
+      bottom: insets.bottom ?? currentInsets.bottom,
+    };
+
+    if (params?.maintain === "center") {
+      const oldVisibleWidth = Math.max(0, this.state.width - currentInsets.left - currentInsets.right);
+      const oldVisibleHeight = Math.max(0, this.state.height - currentInsets.top - currentInsets.bottom);
+      const oldCenterX = currentInsets.left + oldVisibleWidth / 2;
+      const oldCenterY = currentInsets.top + oldVisibleHeight / 2;
+      const [anchorWorldX, anchorWorldY] = this.getRelativeXY(oldCenterX, oldCenterY);
+
+      const newVisibleWidth = Math.max(0, this.state.width - nextInsets.left - nextInsets.right);
+      const newVisibleHeight = Math.max(0, this.state.height - nextInsets.top - nextInsets.bottom);
+      const newCenterX = nextInsets.left + newVisibleWidth / 2;
+      const newCenterY = nextInsets.top + newVisibleHeight / 2;
+
+      const nextX = newCenterX - anchorWorldX * this.state.scale;
+      const nextY = newCenterY - anchorWorldY * this.state.scale;
+
+      this.set({ viewportInsets: nextInsets, x: nextX, y: nextY });
+      return;
+    }
+
+    this.set({ viewportInsets: nextInsets });
+  }
+
+  /**
+   * Returns current viewport insets.
+   * @returns {{left: number, right: number, top: number, bottom: number}} Current insets of visible viewport
+   */
+  public getViewportInsets(): TCameraState["viewportInsets"] {
+    return this.state.viewportInsets;
   }
 }

@@ -185,14 +185,18 @@ export class Graph {
     return this.getElementsOverPoint(point, filter)?.[0] as InstanceType<T> | undefined;
   }
 
+  /**
+   * Returns the current viewport rectangle in camera space, expanded by threshold.
+   * @returns {TRect} Viewport rect in camera-relative coordinates
+   */
   public getViewportRect(): TRect {
     const CAMERA_VIEWPORT_TRESHOLD = this.graphConstants.system.CAMERA_VIEWPORT_TRESHOLD;
-    const cameraSize = this.cameraService.getCameraState();
+    const rel = this.cameraService.getRelativeViewportRect(); // full viewport, ignores insets
 
-    const x = -cameraSize.relativeX - cameraSize.relativeWidth * CAMERA_VIEWPORT_TRESHOLD;
-    const y = -cameraSize.relativeY - cameraSize.relativeHeight * CAMERA_VIEWPORT_TRESHOLD;
-    const width = -cameraSize.relativeX + cameraSize.relativeWidth * (1 + CAMERA_VIEWPORT_TRESHOLD) - x;
-    const height = -cameraSize.relativeY + cameraSize.relativeHeight * (1 + CAMERA_VIEWPORT_TRESHOLD) - y;
+    const x = -rel.x - rel.width * CAMERA_VIEWPORT_TRESHOLD;
+    const y = -rel.y - rel.height * CAMERA_VIEWPORT_TRESHOLD;
+    const width = -rel.x + rel.width * (1 + CAMERA_VIEWPORT_TRESHOLD) - x;
+    const height = -rel.y + rel.height * (1 + CAMERA_VIEWPORT_TRESHOLD) - y;
 
     return { x, y, width, height };
   }
