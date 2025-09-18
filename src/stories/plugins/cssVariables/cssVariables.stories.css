@@ -1,0 +1,180 @@
+.css-variables-story {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.controls {
+  padding: 16px;
+  background: #f5f5f5;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-group label {
+  font-weight: 500;
+}
+
+.control-group select {
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.info {
+  flex: 1;
+  min-width: 300px;
+}
+
+.info h3 {
+  margin: 0 0 8px 0;
+  color: #333;
+}
+
+.info p {
+  margin: 0 0 8px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.info ul {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
+  color: #666;
+}
+
+.info code {
+  background: #e8e8e8;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: "Monaco", "Menlo", monospace;
+  font-size: 12px;
+}
+
+.css-controls {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.css-controls button {
+  padding: 6px 12px;
+  border: 1px solid #007acc;
+  background: #007acc;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.css-controls button:hover {
+  background: #005a99;
+}
+
+.css-controls button:last-child {
+  background: #dc3545;
+  border-color: #dc3545;
+}
+
+.css-controls button:last-child:hover {
+  background: #c82333;
+}
+
+.graph-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Light theme CSS variables */
+.graph-theme-light {
+  --graph-canvas-background: #ffffff;
+  --graph-canvas-below-background: #f8f9fa;
+  --graph-canvas-dots: #e9ecef;
+  --graph-canvas-border: #dee2e6;
+  
+  --graph-block-background: #ffffff;
+  --graph-block-border: #dee2e6;
+  --graph-block-text: #212529;
+  --graph-block-selected-border: #007bff;
+  
+  --graph-connection-background: #6c757d;
+  --graph-connection-selected-background: #007bff;
+  
+  --graph-anchor-background: #6c757d;
+  --graph-anchor-selected-border: #007bff;
+}
+
+/* Dark theme CSS variables */
+.graph-theme-dark {
+  --graph-canvas-background: #1a1a1a;
+  --graph-canvas-below-background: #2d2d2d;
+  --graph-canvas-dots: #404040;
+  --graph-canvas-border: #555555;
+  
+  --graph-block-background: #2d2d2d;
+  --graph-block-border: #555555;
+  --graph-block-text: #ffffff;
+  --graph-block-selected-border: #ffc107;
+  
+  --graph-connection-background: #ffffff;
+  --graph-connection-selected-background: #ffc107;
+  
+  --graph-anchor-background: #ffffff;
+  --graph-anchor-selected-border: #ffc107;
+}
+
+/* Custom theme CSS variables */
+.graph-theme-custom {
+  --graph-canvas-background: #fef7e0;
+  --graph-canvas-below-background: #fdf2d9;
+  --graph-canvas-dots: #f4e4bc;
+  --graph-canvas-border: #e8d5a3;
+  
+  --graph-block-background: #ff9a8b;
+  --graph-block-border: #ff6b6b;
+  --graph-block-text: #ffffff;
+  --graph-block-selected-border: #a8e6cf;
+  
+  --graph-connection-background: #4ecdc4;
+  --graph-connection-selected-background: #a8e6cf;
+  
+  --graph-anchor-background: #4ecdc4;
+  --graph-anchor-selected-border: #a8e6cf;
+}
+
+/* Advanced example theme */
+.advanced-graph-theme {
+  --graph-canvas-background: #f8f9fa;
+  --graph-canvas-below-background: #e9ecef;
+  --graph-canvas-dots: #dee2e6;
+  --graph-canvas-border: #adb5bd;
+  
+  --graph-block-background: #e3f2fd;
+  --graph-block-border: #2196f3;
+  --graph-block-text: #1565c0;
+  --graph-block-selected-border: #ff9800;
+  
+  --graph-connection-background: #2196f3;
+  --graph-connection-selected-background: #ff9800;
+  
+  --graph-anchor-background: #2196f3;
+  --graph-anchor-selected-border: #ff9800;
+  
+  /* Constants can also be overridden */
+  --graph-block-width: 180px;
+  --graph-block-height: 120px;
+}
