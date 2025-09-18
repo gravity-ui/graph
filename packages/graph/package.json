@@ -34,6 +34,9 @@
     "dist",
     "tsconfig.json"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "wireit",
     "typecheck": "wireit",

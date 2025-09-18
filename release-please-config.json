@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "manifest": true,
+  "plugins": ["node-workspace"],
+  "release-type": "node",
+  "monorepo-tags": true,
+  "include-v-in-tag": true,
+  "packages": {
+    "packages/graph": {
+      "release-type": "node",
+      "component": "graph",
+      "changelog-path": "packages/graph/CHANGELOG.md"
+    },
+    "packages/graph-react": {
+      "release-type": "node",
+      "component": "graph-react",
+      "changelog-path": "packages/graph-react/CHANGELOG.md"
+    }
+  }
+}
