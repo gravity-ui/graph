@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
 import { Graph, GraphState } from "../../../graph";
+import { CSSVariablesLayer } from "../../../plugins/cssVariables";
 import { GraphCanvas, useGraphEvent } from "../../../react-components";
 import { useGraph, useLayer } from "../../../react-components/hooks";
 import { generatePrettyBlocks } from "../../../stories/configurations/generatePretty";
-import { CSSVariablesLayer } from "../../../plugins/cssVariables";
 import { BlockStory } from "../../main/Block";
 
 import "./cssVariables.stories.css";
@@ -27,7 +27,7 @@ const SAMPLE_BLOCKS = generatePrettyBlocks({ layersCount: 3, connectionsPerLayer
 
 function CSSVariablesExample() {
   const [theme, setTheme] = useState<"light" | "dark" | "custom">("light");
-  
+
   const { graph, setEntities, start } = useGraph({
     settings: {
       canDragCamera: true,
@@ -36,7 +36,7 @@ function CSSVariablesExample() {
   });
 
   // Add CSS Variables Layer
-  const cssLayer = useLayer(graph, CSSVariablesLayer, {
+  useLayer(graph, CSSVariablesLayer, {
     containerClass: `graph-theme`,
     debug: true,
     onChange: (changes) => {
@@ -46,7 +46,7 @@ function CSSVariablesExample() {
 
   React.useEffect(() => {
     if (!graph) return;
-    
+
     setEntities({
       blocks: SAMPLE_BLOCKS.blocks,
       connections: SAMPLE_BLOCKS.connections,
@@ -75,18 +75,28 @@ function CSSVariablesExample() {
             <option value="custom">Custom</option>
           </select>
         </div>
-        
+
         <div className="info">
           <p>Open DevTools and try changing CSS variables like:</p>
           <ul>
-            <li><code>--graph-block-background</code></li>
-            <li><code>--graph-connection-background</code></li>
-            <li><code>--graph-canvas-background</code></li>
+            <li>
+              <code>--graph-block-background</code>
+            </li>
+            <li>
+              <code>--graph-connection-background</code>
+            </li>
+            <li>
+              <code>--graph-canvas-background</code>
+            </li>
           </ul>
         </div>
       </div>
 
-      <GraphCanvas className={`graph-container graph-theme graph-theme-${theme}`} graph={graph} renderBlock={renderBlockFn} />
+      <GraphCanvas
+        className={`graph-container graph-theme graph-theme-${theme}`}
+        graph={graph}
+        renderBlock={renderBlockFn}
+      />
     </div>
   );
 }
@@ -131,7 +141,7 @@ function AdvancedExample() {
 
   React.useEffect(() => {
     if (!graph) return;
-    
+
     setEntities({
       blocks: SAMPLE_BLOCKS.blocks,
       connections: SAMPLE_BLOCKS.connections,
@@ -150,7 +160,7 @@ function AdvancedExample() {
   }, []);
 
   const updateStyle = (name: string, value: string) => {
-    const element = document.querySelector('.graph-container') as HTMLDivElement;
+    const element = document.querySelector(".graph-container") as HTMLDivElement;
     if (element) {
       element.style.setProperty(name, value);
     }
@@ -168,7 +178,7 @@ function AdvancedExample() {
             <li>Integration with connections</li>
             <li>Debug mode enabled</li>
           </ul>
-          
+
           <div className="css-controls">
             <button
               onClick={() => {
@@ -177,7 +187,7 @@ function AdvancedExample() {
             >
               Set Red Blocks
             </button>
-            
+
             <button
               onClick={() => {
                 updateStyle("--graph-connection-background", "#4ecdc4");
@@ -185,7 +195,7 @@ function AdvancedExample() {
             >
               Set Teal Connections
             </button>
-            
+
             <button
               onClick={() => {
                 updateStyle("--graph-canvas-background", "#ffe66d");
@@ -193,7 +203,7 @@ function AdvancedExample() {
             >
               Set Yellow Canvas
             </button>
-            
+
             <button
               onClick={() => {
                 updateStyle("--graph-block-background", "");

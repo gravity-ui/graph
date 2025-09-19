@@ -1,21 +1,17 @@
+import { merge } from "lodash";
 import StyleObserver from "style-observer";
 
 import { Layer, LayerContext } from "../../services/Layer";
 
 import { DEFAULT_CSS_VARIABLES_LAYER_PROPS, SUPPORTED_CSS_VARIABLES } from "./constants";
-import { 
-  mapCSSChangesToGraphColors, 
-  mapCSSChangesToGraphConstants,
-  filterSupportedCSSChanges 
-} from "./mapping";
-import type { CSSVariablesLayerProps, CSSVariablesLayerState, CSSVariableChange } from "./types";
-import { merge } from "lodash";
+import { filterSupportedCSSChanges, mapCSSChangesToGraphColors, mapCSSChangesToGraphConstants } from "./mapping";
+import type { CSSVariableChange, CSSVariablesLayerProps, CSSVariablesLayerState } from "./types";
 
 /**
  * CSSVariablesLayer: Synchronizes CSS variables with graph colors and constants
- * 
+ *
  * Creates an empty HTML div with specified CSS class and monitors CSS variable changes
- * using style-observer package. Automatically maps CSS variables to TGraphColors and 
+ * using style-observer package. Automatically maps CSS variables to TGraphColors and
  * TGraphConstants and applies changes via graph.setColors() and graph.setConstants().
  */
 export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContext, CSSVariablesLayerState> {
@@ -35,13 +31,18 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
 
   protected propsChanged(nextProps: CSSVariablesLayerProps): void {
     super.propsChanged(nextProps);
-    
+
     // If containerClass changed, we need to recreate the container and restart observing
     if (this.props.containerClass !== nextProps.containerClass) {
       if (this.props.debug) {
-        console.log("CSSVariablesLayer: Container class changed from", this.props.containerClass, "to", nextProps.containerClass);
+        console.log(
+          "CSSVariablesLayer: Container class changed from",
+          this.props.containerClass,
+          "to",
+          nextProps.containerClass
+        );
       }
-      
+
       this.stopObserving();
       this.removeContainerElement();
       this.createContainerElement();
@@ -74,7 +75,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
 
     this.containerElement = document.createElement("div");
     this.containerElement.className = this.props.containerClass;
-    
+
     // Make the container invisible and non-interactive
     this.containerElement.style.cssText = `
       position: absolute;
@@ -125,9 +126,10 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
       // Convert Set to Array for style-observer
       const variablesToObserve = Array.from(SUPPORTED_CSS_VARIABLES);
 
-      this.styleObserver = new StyleObserver((records) => {
+      this.styleObserver = new StyleObserver(
+        (records) => {
           // Convert StyleObserver records to our CSSVariableChange format
-          const changes: CSSVariableChange[] = records.map(record => ({
+          const changes: CSSVariableChange[] = records.map((record) => ({
             name: record.property,
             value: record.value,
             oldValue: record.oldValue,
@@ -138,9 +140,10 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
           }
 
           this.handleCSSVariableChanges(changes);
-        }, {
+        },
+        {
           targets: [this.containerElement],
-          properties: variablesToObserve
+          properties: variablesToObserve,
         }
       );
 
@@ -212,7 +215,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
       const colors = merge({}, this.state.colors, colorChanges);
       const constants = merge({}, this.state.constants, constantChanges);
 
-      this.setState({colors, constants});
+      this.setState({ colors, constants });
 
       this.props.graph.setColors(colors);
       if (this.props.debug) {

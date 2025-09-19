@@ -11,11 +11,7 @@ export type {
 } from "./types";
 
 // Constants and mappings
-export {
-  DEFAULT_CSS_VARIABLES_LAYER_PROPS,
-  CSS_VARIABLE_MAPPINGS,
-  SUPPORTED_CSS_VARIABLES,
-} from "./constants";
+export { DEFAULT_CSS_VARIABLES_LAYER_PROPS, CSS_VARIABLE_MAPPINGS, SUPPORTED_CSS_VARIABLES } from "./constants";
 
 // Mapping utilities
 export {
