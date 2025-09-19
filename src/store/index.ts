@@ -2,6 +2,7 @@ import { batch } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
 import { Graph, TGraphConfig } from "../graph";
+import { SelectionService } from "../services/selection/SelectionService";
 
 import { BlockListStore } from "./block/BlocksList";
 import { ConnectionsStore } from "./connection/ConnectionList";
@@ -21,8 +22,10 @@ export class RootStore {
   public groupsList: GroupsListStore;
 
   public portsList: PortsStore;
+  public selectionService: SelectionService;
 
   constructor(graph: Graph) {
+    this.selectionService = new SelectionService();
     this.blocksList = new BlockListStore(this, graph);
     this.connectionsList = new ConnectionsStore(this, graph);
     this.settings = new GraphEditorSettings(this);

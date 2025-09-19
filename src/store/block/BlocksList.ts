@@ -2,15 +2,17 @@ import { batch, computed, signal } from "@preact/signals-core";
 
 import { AnchorState } from "store/anchor/Anchor";
 
-import { TAnchor } from "../../components/canvas/anchors";
+import { TAnchor, TAnchorId } from "../../components/canvas/anchors";
 import { TBlock, isTBlock } from "../../components/canvas/blocks/Block";
 import { generateRandomId } from "../../components/canvas/blocks/generate";
 import { Graph } from "../../graph";
-import { ESelectionStrategy } from "../../utils/types/types";
+import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
+import { SingleSelectionBucket } from "../../services/selection/SingleSelectionBucket";
+import { ESelectionStrategy } from "../../services/selection/types";
 import { selectConnectionsByBlockId } from "../connection/selectors";
 import { RootStore } from "../index";
 
-import { BlockState, TBlockId, mapToBlockId } from "./Block";
+import { BlockState, TBlockId } from "./Block";
 
 declare module "../../graphEvents" {
   interface GraphEventsDefinitions {
@@ -65,17 +67,56 @@ export class BlockListStore {
     return Array.from(this.$blocksMap.value.values());
   });
 
+  /**
+   * Bucket for managing block selection state
+   */
+  public readonly blockSelectionBucket = new MultipleSelectionBucket<TBlockId>("block", (payload, defaultAction) => {
+    return this.graph.executеDefaultEventAction("blocks-selection-change", payload, defaultAction);
+  });
+
+  public readonly anchorSelectionBucket = new SingleSelectionBucket<TAnchorId>("anchor", (diff, defaultAction) => {
+    // diff: { added: Set<ID>, removed: Set<ID> }
+    // Для single selection максимум один id в added/removed
+    if (diff.changes.add.length > 0) {
+      const anchorId = diff.changes.add[0];
+      const anchor = this.$blocks.value.flatMap((block) => block.$anchors.value).find((a) => a.id === anchorId);
+      if (anchor) {
+        return this.graph.executеDefaultEventAction(
+          "block-anchor-selection-change",
+          { anchor: anchor, selected: true },
+          defaultAction
+        );
+      }
+    }
+    if (diff.changes.removed.length > 0) {
+      const anchorId = diff.changes.removed[0];
+      const anchor = this.$blocks.value.flatMap((block) => block.$anchors.value).find((a) => a.id === anchorId);
+      if (anchor) {
+        return this.graph.executеDefaultEventAction(
+          "block-anchor-selection-change",
+          { anchor: anchor, selected: false },
+          defaultAction
+        );
+      }
+    }
+    return defaultAction();
+  });
+
+  /**
+   * Computed signal that returns the currently selected blocks
+   */
   public $selectedBlocks = computed(() => {
-    return this.$blocksReactiveState.value.filter((block) => block.selected);
+    return Array.from(this.blockSelectionBucket.$selected.value)
+      .map((id) => this.getBlockState(id))
+      .filter(Boolean);
   });
 
   public $selectedAnchor = computed(() => {
     if (!this.rootStore.settings.getConfigFlag("useBlocksAnchors")) return undefined;
-    const block = this.$blocks.value.find((block) => {
-      return Boolean(block.getSelectedAnchor());
-    });
-    if (block) {
-      return block.getSelectedAnchor();
+    const selectedIds = this.anchorSelectionBucket.$selected.value;
+    for (const block of this.$blocks.value) {
+      const anchor = block.$anchors.value.find((a) => selectedIds.has(a.id));
+      if (anchor) return anchor;
     }
     return undefined;
   });
@@ -83,7 +124,10 @@ export class BlockListStore {
   constructor(
     public rootStore: RootStore,
     protected graph: Graph
-  ) {}
+  ) {
+    this.blockSelectionBucket.attachToManager(this.rootStore.selectionService);
+    this.anchorSelectionBucket.attachToManager(this.rootStore.selectionService);
+  }
 
   public setAnchorSelection(blockId: BlockState["id"], anchorId: AnchorState["id"], selected: boolean) {
     const blockState = this.$blocksMap.value.get(blockId);
@@ -95,23 +139,15 @@ export class BlockListStore {
       return;
     }
 
-    if (selected !== anchor.$selected.value) {
-      this.graph.executеDefaultEventAction(
-        "block-anchor-selection-change",
-        { anchor: anchor.asTAnchor(), selected },
-        () => {
-          const currentSelected = this.$selectedAnchor.value;
-          if (currentSelected && currentSelected !== anchor) {
-            currentSelected.setSelection(false, true);
-          }
-          anchor.setSelection(selected, true);
-        }
-      );
+    if (selected) {
+      this.anchorSelectionBucket.select([anchorId], ESelectionStrategy.REPLACE);
+    } else {
+      this.anchorSelectionBucket.deselect([anchorId]);
     }
   }
 
   protected unsetAnchorsSelection() {
-    this.$selectedAnchor.value?.setSelection(false);
+    this.anchorSelectionBucket.reset();
   }
 
   public updatePosition(id: BlockState["id"], nextState: Pick<TBlock, "x" | "y">) {
@@ -122,24 +158,6 @@ export class BlockListStore {
     this.graph.executеDefaultEventAction("block-change", { block: blockState.asTBlock() }, () => {
       blockState.updateBlock(nextState);
     });
-  }
-
-  protected setBlockSelection(
-    block: BlockState | BlockState["id"],
-    selected: boolean,
-    params?: { ignoreChanges?: boolean }
-  ): boolean {
-    const blockState = block instanceof BlockState ? block : this.$blocksMap.value.get(block);
-    if (!blockState) {
-      return false;
-    }
-    if (selected !== Boolean(blockState.selected)) {
-      if (!params?.ignoreChanges) {
-        blockState.updateBlock({ selected });
-      }
-      return true;
-    }
-    return false;
   }
 
   protected updateBlocksMap(blocks: Map<BlockState["id"], BlockState> | [BlockState["id"], BlockState][]) {
@@ -204,85 +222,27 @@ export class BlockListStore {
     this.updateBlocksMap(blocks.map((block) => [block.id, block]));
   }
 
-  protected computeSelectionChange(
-    ids: TBlockId[],
-    selected: boolean,
-    strategy: ESelectionStrategy = ESelectionStrategy.REPLACE
-  ) {
-    const list = new Set(this.$selectedBlocks.value);
-    let add: Set<BlockState>;
-    let removed: Set<BlockState>;
-
-    if (!selected) {
-      removed = new Set(
-        this.getBlockStates(ids).filter((block: BlockState) => {
-          if (this.setBlockSelection(block.id, false, { ignoreChanges: true })) {
-            list.delete(block);
-            return true;
-          }
-          return false;
-        })
-      );
-    } else {
-      if (strategy === ESelectionStrategy.REPLACE) {
-        removed = new Set(
-          this.$selectedBlocks.value.filter((block) => {
-            return this.setBlockSelection(block.id, false, { ignoreChanges: true });
-          })
-        );
-        list.clear();
-      }
-      add = new Set(
-        this.getBlockStates(ids).filter((block: BlockState) => {
-          if (
-            this.setBlockSelection(block.id, true, { ignoreChanges: true }) ||
-            strategy === ESelectionStrategy.REPLACE
-          ) {
-            removed?.delete(block);
-            list.add(block);
-            return true;
-          }
-          return false;
-        })
-      );
-    }
-    return { add: Array.from(add || []), removed: Array.from(removed || []), list: Array.from(list) };
-  }
-
+  /**
+   * Updates block selection using the SelectionService
+   * @param ids Block IDs to update selection for
+   * @param selected Whether to select or deselect
+   * @param strategy The selection strategy to apply
+   */
   public updateBlocksSelection(
     ids: TBlockId[],
     selected: boolean,
     strategy: ESelectionStrategy = ESelectionStrategy.REPLACE
   ) {
-    const { add, removed, list } = this.computeSelectionChange(ids, selected, strategy);
+    // Filter out symbol ids since SelectionService only supports string and number ids
+    const validIds = ids.filter((id) => typeof id === "string" || typeof id === "number") as (string | number)[];
 
-    if (add.length || removed.length) {
-      this.graph.executеDefaultEventAction(
-        "blocks-selection-change",
-        {
-          list: list.map(mapToBlockId),
-          changes: {
-            add: add.map(mapToBlockId),
-            removed: removed.map(mapToBlockId),
-          },
-        },
-        () => {
-          batch(() => {
-            this.unsetAnchorsSelection();
-            /**
-             * Order is important here
-             * If we first add and then remove, we will lose selection
-             */
-            removed.forEach((block) => {
-              this.setBlockSelection(block.id, false);
-            });
-            add.forEach((block) => {
-              this.setBlockSelection(block.id, true);
-            });
-          });
-        }
-      );
-    }
+    batch(() => {
+      if (selected) {
+        this.blockSelectionBucket.select(validIds, strategy);
+      } else {
+        this.blockSelectionBucket.deselect(validIds);
+      }
+    });
   }
 
   public getBlockConnections(blockId: TBlockId) {
@@ -294,7 +254,7 @@ export class BlockListStore {
   public resetSelection() {
     batch(() => {
       this.unsetAnchorsSelection();
-      this.updateBlocksSelection(this.$selectedBlocks.value.map(mapToBlockId), false);
+      this.blockSelectionBucket.reset();
     });
   }
 
