@@ -15,6 +15,11 @@ export enum ESelectionStrategy {
   TOGGLE = "toggle",
 }
 
+/**
+ * Multi-entity selection input for selecting across multiple entity types
+ */
+export type TMultiEntitySelection = Record<string, TEntityId[]>;
+
 export type TSelectionDiff<IDType extends TEntityId> = {
   /** List of next selection state */
   list: IDType[];

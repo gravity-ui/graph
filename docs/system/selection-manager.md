@@ -50,7 +50,9 @@ The primary reason for this architecture (central service + specific buckets) is
 
 Assume `selectionService` is an instance of `SelectionService`.
 
-1.  **Selecting Entities:**
+#### Single-Entity Selection API
+
+1.  **Selecting Single Entity Type:**
     ```typescript
     // Select only block 'b1', deselecting all other blocks
     selectionService.select("block", ["b1"], ESelectionStrategy.REPLACE);
@@ -63,7 +65,7 @@ Assume `selectionService` is an instance of `SelectionService`.
     selectionService.select("anchor", ["a1"], ESelectionStrategy.REPLACE);
     ```
 
-2.  **Deselecting Entities:**
+2.  **Deselecting Single Entity Type:**
     ```typescript
     // Deselect block 'b2' from the current selection
     selectionService.deselect("block", ["b2"]); // Equivalent to select with SUBTRACT
@@ -72,22 +74,61 @@ Assume `selectionService` is an instance of `SelectionService`.
     selectionService.deselect("anchor", ["a1", "a2"]);
     ```
 
-3.  **Resetting Selection:**
+3.  **Resetting Single Entity Type:**
     ```typescript
     // Clear selection for blocks only
     selectionService.resetSelection("block");
+
+    // Clear selection for multiple entity types
+    selectionService.resetSelection(["block", "connection"]);
 
     // Clear selection for all registered buckets
     selectionService.resetAllSelections();
     ```
 
-4.  **Checking Selection Status:**
+4.  **Checking Single Entity Selection Status:**
     ```typescript
     const isBlockB1Selected = selectionService.isSelected("block", "b1");
     const isAnchorA1Selected = selectionService.isSelected("anchor", "a1");
     ```
 
-5.  **Reacting to Changes:**
+#### Multi-Entity Selection API
+
+5.  **Selecting Multiple Entity Types:**
+    ```typescript
+    // Select blocks and connections simultaneously
+    selectionService.select({
+      block: ["b1", "b2"],
+      connection: ["c1", "c2"]
+    }, ESelectionStrategy.REPLACE);
+
+    // Add to existing selections
+    selectionService.select({
+      block: ["b3"],
+      connection: ["c3"]
+    }, ESelectionStrategy.APPEND);
+    ```
+
+6.  **Deselecting Multiple Entity Types:**
+    ```typescript
+    // Deselect specific items from multiple types
+    selectionService.deselect({
+      block: ["b1"],
+      connection: ["c2"]
+    });
+    ```
+
+7.  **Checking Multiple Entity Selection Status:**
+    ```typescript
+    // Check if any of the specified IDs are selected
+    const results = selectionService.isSelected({
+      block: ["b1", "b2"],      // true if b1 OR b2 is selected
+      connection: ["c1", "c2"]  // true if c1 OR c2 is selected
+    });
+    // results: { block: true, connection: true }
+    ```
+
+8.  **Reacting to Changes:**
     ```typescript
     // Get the current selection state across all buckets
     const currentSelectionMap = selectionService.$selection.value;
@@ -186,6 +227,83 @@ To add selection support for a new type of entity (e.g., "groups"):
 ## 4. Examples in Layers / Components
 
 (Existing examples remain relevant but should be interpreted with the understanding that layers/components typically interact with the *stores* or use hooks that access stores, which then call `SelectionService`.)
+
+### Example: Multi-Entity Selection in Interaction Layer
+
+```typescript
+// MultiEntityInteractionLayer.ts (Simplified)
+import { Layer, LayerProps, LayerContext } from "src/services/Layer";
+import { ESelectionStrategy } from "src/services/selection/types";
+import { TCoords } from "src/types";
+
+export class MultiEntityInteractionLayer extends Layer<LayerProps, LayerContext, {}> {
+  get selectionService() {
+    return this.context.graph.selectionService;
+  }
+
+  afterInit() {
+    this.getCanvas()?.addEventListener("click", this.handleClick);
+  }
+
+  unmount() {
+    this.getCanvas()?.removeEventListener("click", this.handleClick);
+    super.unmount();
+  }
+
+  handleClick = (event: MouseEvent) => {
+    const worldPos: TCoords = this.context.camera.getWorldPosition(event.offsetX, event.offsetY);
+
+    // Multi-select blocks and connections at click position
+    const selection = {
+      block: ["block-at-position"],
+      connection: ["connection-at-position"]
+    };
+
+    this.selectionService.select(selection, ESelectionStrategy.REPLACE);
+  };
+
+  render() {} // Interaction-only layer
+}
+```
+
+### Example: Bulk Selection Management
+
+```typescript
+// BulkSelectionManager.ts
+import { SelectionService } from "src/services/selection/SelectionService";
+import { ESelectionStrategy } from "src/services/selection/types";
+
+export class BulkSelectionManager {
+  constructor(private selectionService: SelectionService) {}
+
+  selectAllBlocksAndConnections(blockIds: string[], connectionIds: string[]) {
+    this.selectionService.select({
+      block: blockIds,
+      connection: connectionIds
+    }, ESelectionStrategy.REPLACE);
+  }
+
+  deselectFromAllTypes(blockIds: string[], connectionIds: string[]) {
+    this.selectionService.deselect({
+      block: blockIds,
+      connection: connectionIds
+    });
+  }
+
+  getSelectionStatus() {
+    const results = this.selectionService.isSelected({
+      block: ["b1", "b2"],
+      connection: ["c1", "c2"]
+    });
+
+    return results; // { block: true, connection: false }
+  }
+
+  clearAllSelections() {
+    this.selectionService.resetAllSelections();
+  }
+}
+```
 
 ### Example: Highlighting Selected Custom Entities
 

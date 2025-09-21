@@ -1,7 +1,7 @@
 import { BaseSelectionBucket } from "./BaseSelectionBucket";
 import { MultipleSelectionBucket } from "./MultipleSelectionBucket";
 import { SelectionService } from "./SelectionService";
-import { ESelectionStrategy } from "./types";
+import { ESelectionStrategy, TMultiEntitySelection } from "./types";
 
 describe("SelectionService", () => {
   let service: SelectionService;
@@ -231,5 +231,164 @@ describe("SelectionService registerBucket errors", () => {
     const bucketA2 = new MultipleSelectionBucket<string>("A");
     service.registerBucket(bucketA1);
     expect(() => service.registerBucket(bucketA2)).toThrow(/Selection bucket for entityType 'A' is already registered/);
+  });
+});
+
+// --- MULTI-ENTITY SELECTION TESTS ---
+describe("SelectionService multi-entity selection", () => {
+  let service: SelectionService;
+  let blockBucket: MultipleSelectionBucket<string>;
+  let connectionBucket: MultipleSelectionBucket<string>;
+
+  beforeEach(() => {
+    service = new SelectionService();
+    blockBucket = new MultipleSelectionBucket<string>("block");
+    connectionBucket = new MultipleSelectionBucket<string>("connection");
+    service.registerBucket(blockBucket);
+    service.registerBucket(connectionBucket);
+  });
+
+  it("selects entities across multiple types with REPLACE strategy", () => {
+    const selection: TMultiEntitySelection = {
+      block: ["b1", "b2"],
+      connection: ["c1", "c2"],
+    };
+
+    service.select(selection, ESelectionStrategy.REPLACE);
+
+    expect(blockBucket.$selected.value).toEqual(new Set(["b1", "b2"]));
+    expect(connectionBucket.$selected.value).toEqual(new Set(["c1", "c2"]));
+    expect(service.$selection.value.get("block")).toEqual(new Set(["b1", "b2"]));
+    expect(service.$selection.value.get("connection")).toEqual(new Set(["c1", "c2"]));
+  });
+
+  it("selects entities across multiple types with APPEND strategy", () => {
+    // Initial selection using single-entity API
+    service.select("block", ["b1"], ESelectionStrategy.REPLACE);
+    service.select("connection", ["c1"], ESelectionStrategy.REPLACE);
+
+    // Check initial state - first let's check if single-entity API worked
+    expect(blockBucket.$selected.value).toEqual(new Set(["b1"]));
+    expect(connectionBucket.$selected.value).toEqual(new Set(["c1"]));
+
+    const selection: TMultiEntitySelection = {
+      block: ["b2", "b3"],
+      connection: ["c2", "c3"],
+    };
+
+    service.select(selection, ESelectionStrategy.APPEND);
+
+    expect(blockBucket.$selected.value).toEqual(new Set(["b1", "b2", "b3"]));
+    expect(connectionBucket.$selected.value).toEqual(new Set(["c1", "c2", "c3"]));
+  });
+
+  it("single-entity API works in multi-entity context", () => {
+    // Test single-entity API in the same context as multi-entity tests
+    service.select("block", ["b1"], ESelectionStrategy.REPLACE);
+    expect(blockBucket.$selected.value).toEqual(new Set(["b1"]));
+
+    service.select("connection", ["c1"], ESelectionStrategy.REPLACE);
+    expect(connectionBucket.$selected.value).toEqual(new Set(["c1"]));
+
+    // Now test multi-entity API
+    const selection: TMultiEntitySelection = {
+      block: ["b2"],
+      connection: ["c2"],
+    };
+
+    service.select(selection, ESelectionStrategy.APPEND);
+    expect(blockBucket.$selected.value).toEqual(new Set(["b1", "b2"]));
+    expect(connectionBucket.$selected.value).toEqual(new Set(["c1", "c2"]));
+  });
+
+  it("deselects entities across multiple types", () => {
+    // Initial selection using single-entity API
+    service.select("block", ["b1", "b2"], ESelectionStrategy.REPLACE);
+    service.select("connection", ["c1", "c2"], ESelectionStrategy.REPLACE);
+
+    const deselection: TMultiEntitySelection = {
+      block: ["b1"],
+      connection: ["c2"],
+    };
+
+    service.deselect(deselection);
+
+    expect(blockBucket.$selected.value).toEqual(new Set(["b2"]));
+    expect(connectionBucket.$selected.value).toEqual(new Set(["c1"]));
+  });
+
+  it("checks selection status across multiple types", () => {
+    service.select("block", ["b1"], ESelectionStrategy.REPLACE);
+    service.select("connection", ["c1"], ESelectionStrategy.REPLACE);
+
+    const queries: TMultiEntitySelection = {
+      block: ["b1", "b2"],
+      connection: ["c1", "c2"],
+    };
+
+    const results = service.isSelected(queries) as Record<string, boolean>;
+
+    expect(results.block).toBe(true); // b1 is selected, so some() returns true
+    expect(results.connection).toBe(true); // c1 is selected, so some() returns true
+  });
+
+  it("resets selection for multiple entity types", () => {
+    service.select("block", ["b1"], ESelectionStrategy.REPLACE);
+    service.select("connection", ["c1"], ESelectionStrategy.REPLACE);
+
+    service.resetSelection(["block", "connection"]);
+
+    expect(blockBucket.$selected.value.size).toBe(0);
+    expect(connectionBucket.$selected.value.size).toBe(0);
+  });
+
+  it("resets all selections", () => {
+    service.select("block", ["b1"], ESelectionStrategy.REPLACE);
+    service.select("connection", ["c1"], ESelectionStrategy.REPLACE);
+
+    service.resetAllSelections();
+
+    expect(blockBucket.$selected.value.size).toBe(0);
+    expect(connectionBucket.$selected.value.size).toBe(0);
+  });
+
+  it("REPLACE strategy with multi-entity selection resets non-selected types", () => {
+    const bucket3 = new MultipleSelectionBucket<string>("other");
+    service.registerBucket(bucket3);
+
+    // Initial selections
+    service.select("block", ["b1"], ESelectionStrategy.REPLACE);
+    service.select("connection", ["c1"], ESelectionStrategy.REPLACE);
+    service.select("other", ["o1"], ESelectionStrategy.REPLACE);
+
+    // Multi-select only block and connection
+    const selection: TMultiEntitySelection = {
+      block: ["b2"],
+      connection: ["c2"],
+    };
+
+    service.select(selection, ESelectionStrategy.REPLACE);
+
+    // block and connection should be updated
+    expect(blockBucket.$selected.value).toEqual(new Set(["b2"]));
+    expect(connectionBucket.$selected.value).toEqual(new Set(["c2"]));
+
+    // other should be reset because it's not in the selection
+    expect(bucket3.$selected.value.size).toBe(0);
+  });
+
+  it("works with single-entity API after multi-entity API", () => {
+    // Use multi-entity API first
+    const selection: TMultiEntitySelection = {
+      block: ["b1", "b2"],
+      connection: ["c1"],
+    };
+    service.select(selection, ESelectionStrategy.REPLACE);
+
+    // Then use single-entity API
+    service.select("block", ["b3"], ESelectionStrategy.APPEND);
+
+    expect(blockBucket.$selected.value).toEqual(new Set(["b1", "b2", "b3"]));
+    expect(connectionBucket.$selected.value).toEqual(new Set(["c1"]));
   });
 });
