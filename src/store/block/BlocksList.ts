@@ -9,7 +9,6 @@ import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
 import { SingleSelectionBucket } from "../../services/selection/SingleSelectionBucket";
 import { ESelectionStrategy } from "../../services/selection/types";
-import { selectConnectionsByBlockId } from "../connection/selectors";
 import { RootStore } from "../index";
 
 import { BlockState, TBlockId } from "./Block";
@@ -52,6 +51,12 @@ declare module "../../graphEvents" {
   }
 }
 
+/**
+ * Storage for managing blocks state
+ *
+ * Этот стор хранит и управляет состоянием блоков.
+ * Определяет способ управления выбором блоков и анкоров.
+ */
 export class BlockListStore {
   public $blocksMap = signal<Map<BlockState["id"], BlockState>>(new Map());
 
@@ -111,6 +116,9 @@ export class BlockListStore {
       .filter(Boolean);
   });
 
+  /**
+   * Computed signal that returns the currently selected anchor
+   */
   public $selectedAnchor = computed(() => {
     if (!this.rootStore.settings.getConfigFlag("useBlocksAnchors")) return undefined;
     const selectedIds = this.anchorSelectionBucket.$selected.value;
@@ -129,6 +137,14 @@ export class BlockListStore {
     this.anchorSelectionBucket.attachToManager(this.rootStore.selectionService);
   }
 
+  /**
+   * Sets anchor selection
+   *
+   * @param blockId {BlockState["id"]} Block id
+   * @param anchorId {AnchorState["id"]} Anchor id
+   * @param selected {boolean} Selected
+   * @returns void
+   */
   public setAnchorSelection(blockId: BlockState["id"], anchorId: AnchorState["id"], selected: boolean) {
     const blockState = this.$blocksMap.value.get(blockId);
     if (!blockState) {
@@ -146,10 +162,28 @@ export class BlockListStore {
     }
   }
 
+  /**
+   * Checks if a block is selected
+   *
+   * @param blockId {BlockState["id"]} Block id
+   * @returns {boolean} Is selected
+   */
+  public isSelectedBlock(blockId: BlockState["id"]): boolean {
+    return this.blockSelectionBucket.$selected.value.has(blockId);
+  }
+
   protected unsetAnchorsSelection() {
     this.anchorSelectionBucket.reset();
   }
 
+  /**
+   * Updates block position
+   *
+   * @event block-change
+   * @param id {BlockState["id"]} Block id
+   * @param nextState {{x: number, y: number}} Next state
+   * @returns void
+   */
   public updatePosition(id: BlockState["id"], nextState: Pick<TBlock, "x" | "y">) {
     const blockState = this.$blocksMap.value.get(id);
     if (!blockState) {
@@ -165,6 +199,15 @@ export class BlockListStore {
     this.$blocks.value = Array.from(this.$blocksMap.value.values());
   }
 
+  /**
+   * Adds block
+   *
+   * If a block with this id already exists, it will be updated.
+   * If id is not provided, a random id will be generated.
+   *
+   * @param block {Omit<TBlock, "id"> & { id?: TBlockId }} Block to add
+   * @returns void
+   */
   public addBlock(block: Omit<TBlock, "id"> & { id?: TBlockId }) {
     const id = block.id || (generateRandomId("block") as TBlockId);
 
@@ -181,6 +224,12 @@ export class BlockListStore {
     return id;
   }
 
+  /**
+   * Deletes blocks
+   *
+   * @param blocks {TBlock["id"] | TBlock} Blocks to delete
+   * @returns void
+   */
   public deleteBlocks(blocks: (TBlock["id"] | TBlock)[]) {
     const map = new Map(this.$blocksMap.value);
     blocks.forEach((bId) => {
@@ -194,6 +243,15 @@ export class BlockListStore {
     this.updateBlocksMap(map);
   }
 
+  /**
+   * Updates blocks state
+   *
+   * If block with this id already exists, it will be updated.
+   * Otherwise, a new block will be created.
+   *
+   * @param blocks {TBlock[]} Blocks to update
+   * @returns void
+   */
   public updateBlocks(blocks: TBlock[]) {
     this.updateBlocksMap(
       blocks.reduce((acc, block) => {
@@ -204,6 +262,12 @@ export class BlockListStore {
     );
   }
 
+  /**
+   * Sets blocks state
+   *
+   * @param blocks {TBlock[]} Blocks to set
+   * @returns void
+   */
   public setBlocks(blocks: TBlock[]) {
     const blockStates = blocks.map((block) => this.getOrCraeateBlockState(block));
     this.applyBlocksState(blockStates);
@@ -224,33 +288,45 @@ export class BlockListStore {
 
   /**
    * Updates block selection using the SelectionService
+   *
    * @param ids Block IDs to update selection for
    * @param selected Whether to select or deselect
    * @param strategy The selection strategy to apply
+   *
+   * @returns void
    */
   public updateBlocksSelection(
     ids: TBlockId[],
     selected: boolean,
     strategy: ESelectionStrategy = ESelectionStrategy.REPLACE
   ) {
-    // Filter out symbol ids since SelectionService only supports string and number ids
-    const validIds = ids.filter((id) => typeof id === "string" || typeof id === "number") as (string | number)[];
-
-    batch(() => {
-      if (selected) {
-        this.blockSelectionBucket.select(validIds, strategy);
-      } else {
-        this.blockSelectionBucket.deselect(validIds);
-      }
-    });
+    if (selected) {
+      this.blockSelectionBucket.select(ids, strategy);
+    } else {
+      this.blockSelectionBucket.deselect(ids);
+    }
   }
 
+  /**
+   * Gets connections of a block
+   *
+   * Method search connection with source/target block id.
+   * If you connect blocks via custom ports, this method will not work.
+   *
+   * @param blockId {TBlockId} Block id
+   * @returns {ConnectionState[]} Connections
+   */
   public getBlockConnections(blockId: TBlockId) {
     return this.rootStore.connectionsList.$connections.value.filter((connection) =>
       [connection.targetBlockId, connection.sourceBlockId].includes(blockId)
     );
   }
 
+  /**
+   * Resets block selection
+   *
+   * @returns void
+   */
   public resetSelection() {
     batch(() => {
       this.unsetAnchorsSelection();
@@ -258,6 +334,11 @@ export class BlockListStore {
     });
   }
 
+  /**
+   * Deletes selected blocks
+   *
+   * @returns void
+   */
   public deleteSelectedBlocks() {
     const selectedBlocks = this.$selectedBlocks.value;
     selectedBlocks.forEach((block) => {
@@ -267,8 +348,17 @@ export class BlockListStore {
     this.applyBlocksState(newBlocks);
   }
 
+  /**
+   * Deletes all connections of a block
+   *
+   * Method search connection with source/target block id.
+   * If you connect blocks via custom ports, this method will not work.
+   *
+   * @param blockId {TBlockId} Block id
+   * @returns void
+   */
   public deleteAllBlockConnections(blockId: TBlockId) {
-    const connections = selectConnectionsByBlockId(this.graph, blockId);
+    const connections = this.getBlockConnections(blockId);
     this.rootStore.connectionsList.deleteConnections(connections);
   }
 
@@ -276,22 +366,55 @@ export class BlockListStore {
     this.applyBlocksState([]);
   }
 
+  /**
+   * Gets blocks as JSON
+   *
+   * @returns {TBlock[]} Blocks
+   */
   public toJSON() {
     return this.$blocks.value.map((block) => block.asTBlock());
   }
 
+  /**
+   * Gets block state by id
+   *
+   * @param id {TBlockId} Block id
+   * @returns {BlockState | undefined} Block state
+   */
   public getBlockState(id: TBlockId) {
     return this.$blocksMap.value.get(id);
   }
 
+  /**
+   * Gets block by id
+   *
+   * @param id {TBlockId} Block id
+   * @returns {TBlock | undefined} Block
+   */
   public getBlock(id: TBlockId): TBlock | undefined {
     return this.getBlockState(id)?.asTBlock();
   }
 
+  /**
+   * Gets blocks by ids
+   *
+   * If block with this id does not exist, it will filtered out.
+   *
+   * @param ids {BlockState["id"][]} Block ids
+   * @returns {TBlock[]} Blocks
+   */
   public getBlocks(ids: BlockState["id"][]) {
-    return this.getBlockStates(ids);
+    return this.getBlockStates(ids).map((block) => block.asTBlock());
   }
 
+  /**
+   * Gets block states by ids
+   *
+   * If block with this id does not exist, it will filtered out.
+   *
+   * @param ids {BlockState["id"][]} Block ids
+   * @returns {BlockState[]} Block states
+   */
   public getBlockStates(ids: BlockState["id"][]) {
     return ids.map((id) => this.getBlockState(id)).filter(Boolean);
   }

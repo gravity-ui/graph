@@ -20,13 +20,34 @@
 
 ### Architecture Rationale
 
-The primary reason for this architecture (central service + specific buckets) is the **separation of concerns** and **extensibility**:
+The SelectionService architecture was designed to solve several practical challenges that emerged during development:
 
-1.  **Centralized Coordination:** `SelectionService` provides a single point of interaction for selection actions (`select`, `deselect`, `reset`) and a unified view of the overall selection state (`$selection`). It ensures consistency, like handling the `REPLACE` strategy across different entity types if needed.
-2.  **Delegated State Management:** Each `ISelectionBucket` encapsulates the specific logic for *how* selection works for a particular entity type (single vs. multiple selection, validation, etc.) and holds the actual state (the set of selected IDs).
-3.  **Modularity:** Stores responsible for managing specific entities (like `BlockListStore`, `ConnectionListStore`) create and own their respective buckets. This keeps the selection logic close to the data it manages.
-4.  **Decoupling:** UI Components (like `Block`, `Anchor`) don't interact with `SelectionService` or buckets directly. They read selection status reactively from their corresponding stores (`BlockListStore`, etc.), which in turn get the state from their registered buckets. This decouples rendering logic from selection management.
-5.  **Event-Driven:** The optional callback passed during bucket creation allows for intercepting selection changes, firing events, and potentially preventing updates, enabling complex interaction workflows.
+#### Challenge 1: Consistent Selection Behavior
+When you select something new, you usually want to clear the previous selection. For example, when clicking on a block, any previously selected connections should be deselected automatically. Without a central coordinator, each entity type would manage its own selection independently, leading to confusing UI states where multiple unrelated items remain selected.
+
+**Solution:** `SelectionService` acts as a central coordinator that automatically handles the "clear others when selecting new" behavior across all entity types.
+
+#### Challenge 2: Easy Integration for Custom Entities
+Graph libraries need to support custom entity types beyond the standard blocks and connections. Adding selection support for a new entity type shouldn't require writing complex state management code or event handling logic.
+
+**Solution:** The bucket registration pattern makes it simple - just create a bucket for your entity type and register it. The selection system automatically handles the rest.
+
+#### Challenge 3: Avoiding Event Storms
+If each entity fired its own selection event, selecting 10 blocks would trigger 10 separate events. This creates performance issues and makes it hard to handle selection changes efficiently.
+
+**Solution:** Selection buckets batch changes and emit a single consolidated event with all the details about what was selected and deselected.
+
+#### Challenge 4: Different Selection Rules
+Some entities should only allow one item to be selected (like anchors), while others support multiple selection (like blocks). These rules shouldn't be enforced in UI components - they should be built into the selection system.
+
+**Solution:** `SingleSelectionBucket` and `MultipleSelectionBucket` enforce these rules automatically, so components don't need to worry about validation.
+
+#### Why This Architecture Works
+This design provides several benefits:
+- **Consistency:** Selection behavior is predictable across the entire graph
+- **Simplicity:** Adding new selectable entities requires minimal code
+- **Performance:** Single events instead of event storms
+- **Reliability:** Selection rules are enforced automatically, not manually
 
 ---
 
@@ -45,6 +66,69 @@ The primary reason for this architecture (central service + specific buckets) is
   this.rootStore.selectionService.registerBucket(this.anchorSelectionBucket);
   ```
 - Access the service instance via the `graph.selectionService` accessor or through the root store: `graph.rootStore.selectionService`.
+```typescript
+const selectionBucket = new MultipleSelectionBucket(/* ... */);
+graph.selectionService.registerBucket(selectionBucket);
+// or 
+selectionBucket.attachToManager(graph.selectionService);
+```
+
+### Bucket Behavior: Connected vs Standalone
+
+The selection system supports two interaction patterns depending on whether buckets are connected to the SelectionService:
+
+#### Connected Buckets (Recommended for Internal Use)
+When a bucket is attached to a SelectionService, all selection operations are delegated to the central service:
+
+```typescript
+// Bucket is connected to SelectionService
+bucket.attachToManager(selectionService);
+
+// These calls are delegated to SelectionService
+bucket.select(['item1', 'item2'], ESelectionStrategy.REPLACE);
+bucket.deselect(['item1']);
+```
+
+**Behavior:**
+- `bucket.select()` → calls `selectionService.select()`
+- `bucket.deselect()` → calls `selectionService.deselect()`
+- SelectionService coordinates with other buckets (e.g., resets others on REPLACE)
+- Consistent cross-entity selection behavior is maintained
+
+**Use case:** Internal entity management within stores where coordinated selection behavior is required.
+
+#### Standalone Buckets (For Isolated Use Cases)
+When a bucket is not connected to a SelectionService, it operates independently:
+
+```typescript
+// Bucket operates standalone
+const standaloneBucket = new MultipleSelectionBucket('isolated');
+
+// These calls only affect this bucket's state
+standaloneBucket.select(['item1', 'item2'], ESelectionStrategy.REPLACE);
+standaloneBucket.deselect(['item1']);
+```
+
+**Behavior:**
+- Selection operations only affect this bucket's internal state
+- No coordination with other buckets
+- Events are still fired through the `onSelectionChange` callback
+
+**Use case:** Testing, isolated components, or when you need selection behavior without cross-entity coordination.
+
+#### Selection Service Direct Access (For External Control)
+For external coordination or when one entity needs to affect another, use the SelectionService directly:
+
+```typescript
+// External control - affects multiple entity types with coordination
+selectionService.select('block', ['b1', 'b2'], ESelectionStrategy.REPLACE);
+selectionService.select({
+  block: ['b1'],
+  connection: ['c1']
+}, ESelectionStrategy.REPLACE);
+```
+
+**Use case:** Public API, user interactions, or cross-entity operations where centralized coordination is needed.
 
 ### Core API Usage
 
@@ -417,8 +501,3 @@ export class GroupInteractionLayer extends Layer<LayerProps, LayerContext, {}> {
 - **Best Practice:** Encapsulate selection logic within stores. Interact with selection via store methods from components/layers. Use reactivity (`$selection` signal or computed signals in stores) to update the UI.
 - **Cleanup:** Remember to remove event listeners and signal subscriptions (e.g., in `unmount` methods or React `useEffect` cleanup).
 - **`select` vs `deselect`**: `select` uses the specified strategy (`REPLACE`, `ADD`, `SUBTRACT`). `deselect` always acts as `SUBTRACT` for the given bucket. `resetSelection` clears all selections for a specific bucket.
-
-### Custom cases
-
-- Выделение связанных блоков при клике на блок
-- Выделение блока при

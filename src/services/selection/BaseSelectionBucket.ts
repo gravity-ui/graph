@@ -42,27 +42,27 @@ export abstract class BaseSelectionBucket<IDType extends TEntityId> implements I
   protected readonly $selectedIds: Signal<Set<IDType>> = signal(new Set<IDType>());
   public readonly $selected: ReadonlySignal<Set<IDType>> = computed(() => new Set(this.$selectedIds.value));
 
-  constructor(
-    public readonly entityType: string,
-    protected onSelectionChange: (payload: TSelectionDiff<IDType>, defaultAction: () => void) => void | boolean = (
-      _payload,
-      defaultAction
-    ) => {
-      defaultAction();
-      return true;
-    }
-  ) {}
-
   protected manager: SelectionService;
 
+  constructor(
+    public readonly entityType: string,
+    protected onSelectionChange: (
+      payload: TSelectionDiff<IDType>,
+      defaultAction: (rewritenIds?: Set<IDType>) => void
+    ) => void | boolean = (_payload, defaultAction) => {
+      const result = defaultAction();
+      return result ?? true;
+    }
+  ) {}
   /**
    * Attaches the bucket to the manager
+   *
    * @param manager {SelectionService} - The manager to attach to
    * @returns void
    */
   public attachToManager(manager: SelectionService): void {
-    this.manager = manager;
     manager.registerBucket(this);
+    this.manager = manager;
   }
 
   /**
@@ -71,12 +71,13 @@ export abstract class BaseSelectionBucket<IDType extends TEntityId> implements I
    * @returns void
    */
   public detachFromManager(manager: SelectionService): void {
-    this.manager = undefined;
     manager.unregisterBucket(this);
+    this.manager = undefined;
   }
 
   /**
    * Selects the given ids
+   *
    * @param ids {IDType[]} - The ids to select
    * @param strategy {ESelectionStrategy} - The strategy to use
    * @param silent {boolean} - Whether to suppress the selection change event
@@ -92,6 +93,8 @@ export abstract class BaseSelectionBucket<IDType extends TEntityId> implements I
 
   /**
    * Deselects the given ids
+   * Passed ids will be deselected with strategy SUBTRACT
+   *
    * @param ids {IDType[]} - The ids to deselect
    * @param silent {boolean} - Whether to suppress the selection change event
    * @returns void
@@ -115,6 +118,8 @@ export abstract class BaseSelectionBucket<IDType extends TEntityId> implements I
 
   /**
    * Resets the selection
+   * All selected ids will be deselected with strategy SUBTRACT
+   *
    * @returns void
    */
   public reset(): void {
@@ -126,6 +131,7 @@ export abstract class BaseSelectionBucket<IDType extends TEntityId> implements I
 
   /**
    * Checks if the given id is selected
+   *
    * @param id {IDType} - The id to check
    * @returns boolean
    */
@@ -135,6 +141,9 @@ export abstract class BaseSelectionBucket<IDType extends TEntityId> implements I
 
   /**
    * Applies the selection
+   * Generate diff between new and current selected ids and run onSelectionChange callback
+   * If silent is true, the nextSelection state will be applied immediately, otherwise it will be applied after the callback is executed and
+   *
    * @param newSelectedIds {Set<IDType>} - The new selected ids
    * @param currentSelectedIds {Set<IDType>} - The current selected ids
    * @param silent {boolean} - Whether to suppress the selection change event
@@ -163,11 +172,15 @@ export abstract class BaseSelectionBucket<IDType extends TEntityId> implements I
           removed: removedIds,
         },
       };
+
+      let callbackUpdated = false;
       const updateSelection = (rewritenIds?: Set<IDType>) => {
         this.$selectedIds.value = rewritenIds ?? newSelectedIds;
+        callbackUpdated = true;
       };
+
       const shouldUpdate = silent || this.onSelectionChange(payload, updateSelection);
-      if (shouldUpdate) {
+      if (shouldUpdate && !callbackUpdated) {
         updateSelection();
       }
     }

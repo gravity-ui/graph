@@ -18,26 +18,56 @@ export class BlockState<T extends TBlock = TBlock> {
     return new BlockState(store, block, store.blockSelectionBucket);
   }
 
-  public $state = signal<T>(undefined);
+  protected $rawState = signal<T>(undefined);
 
+  /**
+   * Block state signal
+   *
+   * @returns {ReadonlySignal<T>} Block state
+   */
+  public $state = computed(() => ({
+    ...this.$rawState.value,
+    selected: this.$selected.value,
+  }));
+
+  /**
+   * Block id
+   */
   public get id() {
     return this.$state.value.id;
   }
+
+  /**
+   * Block x position
+   */
   public get x() {
     return this.$state.value.x;
   }
+
+  /**
+   * Block y position
+   */
   public get y() {
     return this.$state.value.y;
   }
 
+  /**
+   * Block width
+   */
   public get width() {
     return this.$state.value.width;
   }
 
+  /**
+   * Block height
+   */
   public get height() {
     return this.$state.value.height;
   }
 
+  /**
+   * Block selected
+   */
   public get selected() {
     return this.$selected.value;
   }
@@ -46,10 +76,17 @@ export class BlockState<T extends TBlock = TBlock> {
    * Computed signal that reactively determines if this block is selected
    * by checking if its ID exists in the selection bucket
    */
-  public readonly $selected = computed(() => this.blockSelectionBucket.isSelected(this.id));
+  public readonly $selected = computed(() => this.blockSelectionBucket.isSelected(this.$rawState.value.id));
 
   public readonly $anchorStates: Signal<AnchorState[]> = signal([]);
 
+  /**
+   * Block geometry signal
+   *
+   * Pay attention!! x and y are rounded to integer
+   *
+   * @returns {ReadonlySignal<{x: number, y: number, width: number, height: number}>} Block geometry
+   */
   public readonly $geometry = computed(() => {
     const state = this.$state.value;
     return {
@@ -60,6 +97,11 @@ export class BlockState<T extends TBlock = TBlock> {
     };
   });
 
+  /**
+   * Block anchor indexes signal
+   *
+   * @returns {ReadonlySignal<Map<string, number>>} Block anchor indexes
+   */
   public $anchorIndexs = computed(() => {
     const typeIndex = {};
     return new Map(
@@ -74,10 +116,20 @@ export class BlockState<T extends TBlock = TBlock> {
     );
   });
 
+  /**
+   * Block anchors signal
+   *
+   * @returns {ReadonlySignal<TAnchor[]>} Block anchors
+   */
   public $anchors = computed(() => {
     return this.$anchorStates.value?.map((anchorState) => anchorState.asTAnchor()) || [];
   });
 
+  /**
+   * Block selected anchors signal
+   *
+   * @returns {TAnchor[]} Block selected anchors
+   */
   public $selectedAnchors = computed(() => {
     return (
       this.$anchorStates.value?.filter((anchorState) =>
@@ -93,8 +145,7 @@ export class BlockState<T extends TBlock = TBlock> {
     block: T,
     private readonly blockSelectionBucket: ISelectionBucket<string | number>
   ) {
-    this.$state.value = block;
-
+    this.$rawState.value = block;
     this.$anchorStates.value = block.anchors?.map((anchor) => new AnchorState(this, anchor)) ?? [];
   }
 
@@ -134,7 +185,10 @@ export class BlockState<T extends TBlock = TBlock> {
   }
 
   public setName(newName: string) {
-    this.$state.value.name = newName;
+    this.$rawState.value = {
+      ...this.$rawState.value,
+      name: newName,
+    };
   }
 
   public updateAnchors(anchors: TAnchor[]) {
@@ -149,13 +203,19 @@ export class BlockState<T extends TBlock = TBlock> {
     });
   }
 
+  /**
+   * Updates block state
+   *
+   * @param block {Partial<TBlock>} Block to update
+   * @returns void
+   */
   public updateBlock(block: Partial<TBlock>): void {
     // Update anchors first to ensure they have correct state when geometry changes
     if (block.anchors) {
       this.updateAnchors(block.anchors);
     }
 
-    this.$state.value = Object.assign({}, this.$state.value, block);
+    this.$rawState.value = Object.assign({}, this.$rawState.value, block);
     this.getViewComponent()?.updateHitBox(this.$geometry.value, true);
   }
 
@@ -163,14 +223,15 @@ export class BlockState<T extends TBlock = TBlock> {
     return this.$anchorStates.value.find((anchor) => anchor.id === anchorId);
   }
 
+  /**
+   * Converts the block state to a TBlock
+   *
+   * @returns {TBlock} TBlock
+   */
   public asTBlock(): TBlock {
-    return cloneDeep(this.$state.toJSON());
+    return cloneDeep({
+      ...this.$rawState.toJSON(),
+      selected: this.$selected.value,
+    });
   }
-}
-
-export function mapToTBlock(blockState: BlockState) {
-  return blockState.asTBlock();
-}
-export function mapToBlockId(blockState: BlockState) {
-  return blockState.id;
 }

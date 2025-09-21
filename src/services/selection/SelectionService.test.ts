@@ -1,7 +1,7 @@
 import { BaseSelectionBucket } from "./BaseSelectionBucket";
 import { MultipleSelectionBucket } from "./MultipleSelectionBucket";
 import { SelectionService } from "./SelectionService";
-import { ESelectionStrategy, TMultiEntitySelection } from "./types";
+import { ESelectionStrategy, TEntityId, TMultiEntitySelection } from "./types";
 
 describe("SelectionService", () => {
   let service: SelectionService;
@@ -107,12 +107,12 @@ describe("SelectionService with multiple buckets", () => {
 
 describe("SelectionService corner-cases", () => {
   let service: SelectionService;
-  let bucket: MultipleSelectionBucket<any>;
+  let bucket: MultipleSelectionBucket<TEntityId>;
   const entityType = "block";
 
   beforeEach(() => {
     service = new SelectionService();
-    bucket = new MultipleSelectionBucket<any>(entityType);
+    bucket = new MultipleSelectionBucket<TEntityId>(entityType);
     service.registerBucket(bucket);
   });
 
@@ -124,7 +124,7 @@ describe("SelectionService corner-cases", () => {
   });
 
   it("REPLACE with already selected ids resets other buckets", () => {
-    const bucket2 = new MultipleSelectionBucket<any>("other");
+    const bucket2 = new MultipleSelectionBucket<TEntityId>("other");
     service.registerBucket(bucket2);
     bucket.updateSelection(["a"], true, ESelectionStrategy.REPLACE);
     bucket2.updateSelection(["b"], true, ESelectionStrategy.REPLACE);
@@ -263,11 +263,14 @@ describe("SelectionService multi-entity selection", () => {
   });
 
   it("selects entities across multiple types with APPEND strategy", () => {
-    // Initial selection using single-entity API
-    service.select("block", ["b1"], ESelectionStrategy.REPLACE);
-    service.select("connection", ["c1"], ESelectionStrategy.REPLACE);
+    // Initial selection using multi-entity API to avoid cross-bucket reset
+    const initialSelection: TMultiEntitySelection = {
+      block: ["b1"],
+      connection: ["c1"],
+    };
+    service.select(initialSelection, ESelectionStrategy.REPLACE);
 
-    // Check initial state - first let's check if single-entity API worked
+    // Check initial state
     expect(blockBucket.$selected.value).toEqual(new Set(["b1"]));
     expect(connectionBucket.$selected.value).toEqual(new Set(["c1"]));
 
@@ -283,11 +286,14 @@ describe("SelectionService multi-entity selection", () => {
   });
 
   it("single-entity API works in multi-entity context", () => {
-    // Test single-entity API in the same context as multi-entity tests
-    service.select("block", ["b1"], ESelectionStrategy.REPLACE);
-    expect(blockBucket.$selected.value).toEqual(new Set(["b1"]));
+    // Use multi-entity API to establish initial state without cross-bucket reset
+    const initialSelection: TMultiEntitySelection = {
+      block: ["b1"],
+      connection: ["c1"],
+    };
+    service.select(initialSelection, ESelectionStrategy.REPLACE);
 
-    service.select("connection", ["c1"], ESelectionStrategy.REPLACE);
+    expect(blockBucket.$selected.value).toEqual(new Set(["b1"]));
     expect(connectionBucket.$selected.value).toEqual(new Set(["c1"]));
 
     // Now test multi-entity API
@@ -302,9 +308,12 @@ describe("SelectionService multi-entity selection", () => {
   });
 
   it("deselects entities across multiple types", () => {
-    // Initial selection using single-entity API
-    service.select("block", ["b1", "b2"], ESelectionStrategy.REPLACE);
-    service.select("connection", ["c1", "c2"], ESelectionStrategy.REPLACE);
+    // Initial selection using multi-entity API to avoid cross-bucket reset
+    const initialSelection: TMultiEntitySelection = {
+      block: ["b1", "b2"],
+      connection: ["c1", "c2"],
+    };
+    service.select(initialSelection, ESelectionStrategy.REPLACE);
 
     const deselection: TMultiEntitySelection = {
       block: ["b1"],
@@ -318,8 +327,12 @@ describe("SelectionService multi-entity selection", () => {
   });
 
   it("checks selection status across multiple types", () => {
-    service.select("block", ["b1"], ESelectionStrategy.REPLACE);
-    service.select("connection", ["c1"], ESelectionStrategy.REPLACE);
+    // Use multi-entity API to establish initial state without cross-bucket reset
+    const initialSelection: TMultiEntitySelection = {
+      block: ["b1"],
+      connection: ["c1"],
+    };
+    service.select(initialSelection, ESelectionStrategy.REPLACE);
 
     const queries: TMultiEntitySelection = {
       block: ["b1", "b2"],
