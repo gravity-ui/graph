@@ -1,6 +1,8 @@
 import { computed, signal } from "@preact/signals-core";
 
-import { ESelectionStrategy, ISelectionBucket, TEntityId, TMultiEntitySelection } from "./types";
+import { GraphComponent } from "../../components/canvas/GraphComponent";
+
+import { ESelectionStrategy, ISelectionBucket, TMultiEntitySelection, TSelectionEntityId } from "./types";
 
 /**
  * Service responsible for managing selection across different entity types
@@ -45,7 +47,7 @@ export class SelectionService {
    * Computed signal aggregating selection from all buckets
    */
   public readonly $selection = computed(() => {
-    const result = new Map<string, Set<TEntityId>>();
+    const result = new Map<string, Set<TSelectionEntityId>>();
     for (const [type, bucket] of this.buckets.value.entries()) {
       // $selected всегда ReadonlySignal<Set<TEntityId>>
       result.set(type, bucket.$selected.value);
@@ -89,6 +91,28 @@ export class SelectionService {
     return this.buckets.value.get(entityType);
   }
 
+  public getBucketByElement(element: GraphComponent): ISelectionBucket | undefined {
+    return Array.from(this.buckets.value.values()).find((bucket) => bucket.isRelatedElement?.(element));
+  }
+
+  public selectRelatedElements(elements: GraphComponent[], strategy: ESelectionStrategy): void {
+    const result = elements.reduce(
+      (acc, element) => {
+        const bucket = this.getBucketByElement(element);
+        const id = element.getEntityId();
+        if (bucket) {
+          if (!acc[bucket.entityType]) {
+            acc[bucket.entityType] = [];
+          }
+          acc[bucket.entityType].push(id);
+        }
+        return acc;
+      },
+      {} as Record<string, TSelectionEntityId[]>
+    );
+    this.select(result, strategy);
+  }
+
   /**
    * Selects entities of a specific type according to the specified strategy
    *
@@ -97,7 +121,7 @@ export class SelectionService {
    * @param strategy The selection strategy to apply
    * @returns void
    */
-  public select(entityType: string, ids: TEntityId[], strategy: ESelectionStrategy): void;
+  public select(entityType: string, ids: TSelectionEntityId[], strategy: ESelectionStrategy): void;
 
   /**
    * Selects entities across multiple entity types according to the specified strategy
@@ -118,14 +142,14 @@ export class SelectionService {
    */
   public select(
     entityTypeOrSelection: string | TMultiEntitySelection,
-    idsOrStrategy: TEntityId[] | ESelectionStrategy,
+    idsOrStrategy: TSelectionEntityId[] | ESelectionStrategy,
     strategy?: ESelectionStrategy
   ): void {
     // Detect which API is being used
     if (typeof entityTypeOrSelection === "string") {
       // Single entity type API
       const entityType = entityTypeOrSelection;
-      const ids = idsOrStrategy as TEntityId[];
+      const ids = idsOrStrategy as TSelectionEntityId[];
       const finalStrategy = strategy || ESelectionStrategy.REPLACE;
 
       if (finalStrategy === ESelectionStrategy.REPLACE) {
@@ -188,7 +212,7 @@ export class SelectionService {
    * @param ids The IDs of the entities to deselect
    * @returns void
    */
-  public deselect(entityType: string, ids: TEntityId[]): void;
+  public deselect(entityType: string, ids: TSelectionEntityId[]): void;
 
   /**
    * Deselects entities across multiple entity types
@@ -205,7 +229,7 @@ export class SelectionService {
    * @param ids Array of IDs to deselect
    * @returns void
    */
-  public deselect(entityTypeOrSelection: string | TMultiEntitySelection, ids?: TEntityId[]): void {
+  public deselect(entityTypeOrSelection: string | TMultiEntitySelection, ids?: TSelectionEntityId[]): void {
     // Detect which API is being used
     if (typeof entityTypeOrSelection === "string") {
       // Single entity type API
@@ -240,7 +264,7 @@ export class SelectionService {
    * @param id The ID of the entity
    * @returns true if selected, false otherwise
    */
-  public isSelected(entityType: string, id: TEntityId): boolean;
+  public isSelected(entityType: string, id: TSelectionEntityId): boolean;
 
   /**
    * Checks if an entity is currently selected
@@ -248,7 +272,7 @@ export class SelectionService {
    * @param id The ID of the entity
    * @returns true if selected, false otherwise
    */
-  public isSelected(entityType: string, id: TEntityId): boolean;
+  public isSelected(entityType: string, id: TSelectionEntityId): boolean;
 
   /**
    * Checks selection status for multiple entities across different types
@@ -265,7 +289,7 @@ export class SelectionService {
    */
   public isSelected(
     entityTypeOrQueries: string | TMultiEntitySelection,
-    id?: TEntityId
+    id?: TSelectionEntityId
   ): boolean | Record<string, boolean> {
     // Detect which API is being used
     if (typeof entityTypeOrQueries === "string") {

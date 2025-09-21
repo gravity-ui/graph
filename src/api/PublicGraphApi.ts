@@ -182,10 +182,6 @@ export class PublicGraphApi {
   }
 
   public unsetSelection() {
-    batch(() => {
-      this.graph.rootStore.blocksList.resetSelection();
-      this.graph.rootStore.groupsList.resetSelection();
-      this.graph.rootStore.connectionsList.resetSelection();
-    });
+    this.graph.rootStore.selectionService.resetAllSelections();
   }
 }

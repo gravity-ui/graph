@@ -2,7 +2,7 @@ import { EventedComponent } from "./components/canvas/EventedComponent/EventedCo
 import { GraphState } from "./graph";
 import { TGraphColors, TGraphConstants } from "./graphConfig";
 import { TCameraState } from "./services/camera/CameraService";
-import { TEntityId, TSelectionDiff } from "./services/selection/types";
+import { TSelectionDiff, TSelectionEntityId } from "./services/selection/types";
 
 export type GraphMouseEvent<E extends Event = Event> = CustomEvent<{
   target?: EventedComponent;
@@ -56,7 +56,7 @@ export type UnwrapGraphEventsDetail<
   P extends Parameters<T>[0] = Parameters<T>[0],
 > = UnwrapGraphEvents<Key, T, P>["detail"];
 
-export type SelectionEvent<T extends TEntityId> = CustomEvent<TSelectionDiff<T>>;
+export type SelectionEvent<T extends TSelectionEntityId> = CustomEvent<TSelectionDiff<T>>;
 
 export function isNativeGraphEventName(eventType: string): eventType is GraphMouseEventNames {
   return graphMouseEvents.includes(eventType);

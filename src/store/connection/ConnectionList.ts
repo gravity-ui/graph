@@ -1,5 +1,6 @@
 import { computed, signal } from "@preact/signals-core";
 
+import { BaseConnection } from "../../components/canvas/connections";
 import { Graph } from "../../graph";
 import { Component } from "../../lib";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
@@ -52,7 +53,8 @@ export class ConnectionsStore {
       "connection",
       (payload, defaultAction) => {
         return this.graph.executеDefaultEventAction("connection-selection-change", payload, defaultAction);
-      }
+      },
+      (element) => element instanceof BaseConnection
     );
 
     this.connectionSelectionBucket.attachToManager(this.rootStore.selectionService);

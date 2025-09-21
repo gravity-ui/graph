@@ -1,6 +1,7 @@
 import { computed, signal } from "@preact/signals-core";
 import groupBy from "lodash/groupBy";
 
+import { Group } from "../../components/canvas/groups";
 import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
 import { ESelectionStrategy } from "../../services/selection/types";
@@ -32,6 +33,9 @@ export class GroupsListStore {
     "group",
     (payload, defaultAction) => {
       this.graph.executеDefaultEventAction("groups-selection-change", payload, defaultAction);
+    },
+    (element) => {
+      return element instanceof Group;
     }
   );
 

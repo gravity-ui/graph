@@ -1,5 +1,5 @@
 import { BaseSelectionBucket } from "./BaseSelectionBucket";
-import { ESelectionStrategy, TEntityId } from "./types";
+import { ESelectionStrategy, TSelectionEntityId } from "./types";
 
 /**
  * A selection bucket implementation that allows only a single entity of a specific type to be selected at a time.
@@ -9,7 +9,7 @@ import { ESelectionStrategy, TEntityId } from "./types";
  * @see {@link ISelectionBucket}
  * @see {@link MultipleSelectionBucket}
  */
-export class SingleSelectionBucket<IDType extends TEntityId> extends BaseSelectionBucket<IDType> {
+export class SingleSelectionBucket<IDType extends TSelectionEntityId> extends BaseSelectionBucket<IDType> {
   public updateSelection(ids: IDType[], select: boolean, strategy: ESelectionStrategy, silent?: boolean): void {
     if (ids.length === 0) {
       if (strategy === ESelectionStrategy.REPLACE) {

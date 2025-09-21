@@ -1,8 +1,10 @@
 import { computed, signal } from "@preact/signals-core";
 import type { ReadonlySignal, Signal } from "@preact/signals-core";
 
+import { GraphComponent } from "../../components/canvas/GraphComponent";
+
 import type { SelectionService } from "./SelectionService";
-import { ESelectionStrategy, ISelectionBucket, TEntityId, TSelectionDiff } from "./types";
+import { ESelectionStrategy, ISelectionBucket, TSelectionDiff, TSelectionEntityId } from "./types";
 
 /**
  * @abstract
@@ -38,7 +40,7 @@ import { ESelectionStrategy, ISelectionBucket, TEntityId, TSelectionDiff } from 
  * @see {@link SingleSelectionBucket}
  * @see {@linkplain ../../docs/system/selection-manager.md SelectionManager Documentation} for more details on selection architecture.
  */
-export abstract class BaseSelectionBucket<IDType extends TEntityId> implements ISelectionBucket<IDType> {
+export abstract class BaseSelectionBucket<IDType extends TSelectionEntityId> implements ISelectionBucket<IDType> {
   protected readonly $selectedIds: Signal<Set<IDType>> = signal(new Set<IDType>());
   public readonly $selected: ReadonlySignal<Set<IDType>> = computed(() => new Set(this.$selectedIds.value));
 
@@ -52,8 +54,10 @@ export abstract class BaseSelectionBucket<IDType extends TEntityId> implements I
     ) => void | boolean = (_payload, defaultAction) => {
       const result = defaultAction();
       return result ?? true;
-    }
+    },
+    public isRelatedElement?: (element: GraphComponent) => boolean
   ) {}
+
   /**
    * Attaches the bucket to the manager
    *

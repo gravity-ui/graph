@@ -1,7 +1,7 @@
 import { BaseSelectionBucket } from "./BaseSelectionBucket";
 import { MultipleSelectionBucket } from "./MultipleSelectionBucket";
 import { SelectionService } from "./SelectionService";
-import { ESelectionStrategy, TEntityId, TMultiEntitySelection } from "./types";
+import { ESelectionStrategy, TMultiEntitySelection, TSelectionEntityId } from "./types";
 
 describe("SelectionService", () => {
   let service: SelectionService;
@@ -107,12 +107,12 @@ describe("SelectionService with multiple buckets", () => {
 
 describe("SelectionService corner-cases", () => {
   let service: SelectionService;
-  let bucket: MultipleSelectionBucket<TEntityId>;
+  let bucket: MultipleSelectionBucket<TSelectionEntityId>;
   const entityType = "block";
 
   beforeEach(() => {
     service = new SelectionService();
-    bucket = new MultipleSelectionBucket<TEntityId>(entityType);
+    bucket = new MultipleSelectionBucket<TSelectionEntityId>(entityType);
     service.registerBucket(bucket);
   });
 
@@ -124,7 +124,7 @@ describe("SelectionService corner-cases", () => {
   });
 
   it("REPLACE with already selected ids resets other buckets", () => {
-    const bucket2 = new MultipleSelectionBucket<TEntityId>("other");
+    const bucket2 = new MultipleSelectionBucket<TSelectionEntityId>("other");
     service.registerBucket(bucket2);
     bucket.updateSelection(["a"], true, ESelectionStrategy.REPLACE);
     bucket2.updateSelection(["b"], true, ESelectionStrategy.REPLACE);

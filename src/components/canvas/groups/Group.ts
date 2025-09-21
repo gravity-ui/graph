@@ -126,6 +126,10 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     });
   }
 
+  public getEntityId() {
+    return this.props.id;
+  }
+
   protected isDraggable() {
     return (
       this.props.draggable &&

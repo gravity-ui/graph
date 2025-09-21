@@ -3,7 +3,7 @@ import { BaseSelectionBucket } from "./BaseSelectionBucket";
 /**
  * Entity ID type that can be used across different entity types
  */
-export type TEntityId = string | number;
+export type TSelectionEntityId = string | number;
 
 /**
  * Selection strategies for managing entity selections
@@ -18,9 +18,9 @@ export enum ESelectionStrategy {
 /**
  * Multi-entity selection input for selecting across multiple entity types
  */
-export type TMultiEntitySelection = Record<string, TEntityId[]>;
+export type TMultiEntitySelection = Record<string, TSelectionEntityId[]>;
 
-export type TSelectionDiff<IDType extends TEntityId> = {
+export type TSelectionDiff<IDType extends TSelectionEntityId> = {
   /** List of next selection state */
   list: IDType[];
   /** Details of changes */
@@ -36,4 +36,5 @@ export type TSelectionDiff<IDType extends TEntityId> = {
  * Interface defining the contract for components that manage selection state
  * for a specific entity type.
  */
-export interface ISelectionBucket<IDType extends TEntityId = TEntityId> extends BaseSelectionBucket<IDType> {}
+export interface ISelectionBucket<IDType extends TSelectionEntityId = TSelectionEntityId>
+  extends BaseSelectionBucket<IDType> {}

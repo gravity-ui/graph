@@ -1,5 +1,5 @@
 import { BaseSelectionBucket } from "./BaseSelectionBucket";
-import { ESelectionStrategy, TEntityId } from "./types";
+import { ESelectionStrategy, TSelectionEntityId } from "./types";
 
 /**
  * A selection bucket implementation that allows multiple entities of a specific type to be selected simultaneously.
@@ -8,7 +8,7 @@ import { ESelectionStrategy, TEntityId } from "./types";
  * @see {@link ISelectionBucket}
  * @see {@link ../../../docs/system/selection-manager.md} for more details on selection architecture.
  */
-export class MultipleSelectionBucket<IDType extends TEntityId> extends BaseSelectionBucket<IDType> {
+export class MultipleSelectionBucket<IDType extends TSelectionEntityId> extends BaseSelectionBucket<IDType> {
   public updateSelection(
     ids: IDType[],
     select: boolean,

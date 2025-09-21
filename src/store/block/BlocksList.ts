@@ -3,7 +3,7 @@ import { batch, computed, signal } from "@preact/signals-core";
 import { AnchorState } from "store/anchor/Anchor";
 
 import { TAnchor, TAnchorId } from "../../components/canvas/anchors";
-import { TBlock, isTBlock } from "../../components/canvas/blocks/Block";
+import { Block, TBlock, isTBlock } from "../../components/canvas/blocks/Block";
 import { generateRandomId } from "../../components/canvas/blocks/generate";
 import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
@@ -75,9 +75,13 @@ export class BlockListStore {
   /**
    * Bucket for managing block selection state
    */
-  public readonly blockSelectionBucket = new MultipleSelectionBucket<TBlockId>("block", (payload, defaultAction) => {
-    return this.graph.executеDefaultEventAction("blocks-selection-change", payload, defaultAction);
-  });
+  public readonly blockSelectionBucket = new MultipleSelectionBucket<TBlockId>(
+    "block",
+    (payload, defaultAction) => {
+      return this.graph.executеDefaultEventAction("blocks-selection-change", payload, defaultAction);
+    },
+    (element) => element instanceof Block
+  );
 
   public readonly anchorSelectionBucket = new SingleSelectionBucket<TAnchorId>("anchor", (diff, defaultAction) => {
     // diff: { added: Set<ID>, removed: Set<ID> }

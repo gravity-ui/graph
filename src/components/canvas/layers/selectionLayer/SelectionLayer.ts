@@ -1,20 +1,18 @@
 import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
-import { selectBlockList } from "../../../../store/block/selectors";
-import { getXY, isBlock, isMetaKeyEvent } from "../../../../utils/functions";
+import { Camera } from "../../../../services/camera/Camera";
+import { ESelectionStrategy } from "../../../../services/selection";
+import { getXY, isMetaKeyEvent } from "../../../../utils/functions";
 import { dragListener } from "../../../../utils/functions/dragListener";
 import { render } from "../../../../utils/renderers/render";
 import { EVENTS } from "../../../../utils/types/events";
 import { TRect } from "../../../../utils/types/shapes";
-import { Anchor } from "../../anchors";
-import { Block } from "../../blocks/Block";
 
 function getSelectionRect(sx: number, sy: number, ex: number, ey: number): number[] {
   if (sx > ex) [sx, ex] = [ex, sx];
   if (sy > ey) [sy, ey] = [ey, sy];
   return [sx, sy, ex - sx, ey - sy];
 }
-
 export class SelectionLayer extends Layer<
   LayerProps,
   LayerContext & { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }
@@ -89,13 +87,13 @@ export class SelectionLayer extends Layer<
   }
 
   private handleMouseDown = (nativeEvent: GraphMouseEvent) => {
-    const event = extractNativeGraphMouseEvent(nativeEvent);
-    const target = nativeEvent.detail.target;
-    if (target instanceof Anchor || target instanceof Block) {
+    if (!this.root?.ownerDocument) {
       return;
     }
-
-    if (!this.root?.ownerDocument) {
+    const event = extractNativeGraphMouseEvent(nativeEvent);
+    const target = nativeEvent.detail.target;
+    // If target is camera, that means that user is start selection outside any elements
+    if (!(target instanceof Camera)) {
       return;
     }
 
@@ -142,18 +140,9 @@ export class SelectionLayer extends Layer<
   };
 
   private applySelectedArea(x: number, y: number, w: number, h: number): void {
-    const foundComponents = this.context.graph.hitTest.testHitBox({
-      minX: x,
-      minY: y,
-      maxX: x + w,
-      maxY: y + h,
-      x,
-      y,
-    });
+    const selectableEntityTypes = this.context.graph.$graphConstants.value.selectionLayer.SELECTABLE_ENTITY_TYPES;
 
-    const blocks = foundComponents.filter((component) => isBlock(component));
-    const blocksIds = blocks.map((component: Block) => component.state.id);
-
-    selectBlockList(this.context.graph).updateBlocksSelection(blocksIds, Boolean(blocks.length));
+    const elements = this.context.graph.getElementsOverRect({ x, y, width: w, height: h }, selectableEntityTypes);
+    this.context.graph.rootStore.selectionService.selectRelatedElements(elements, ESelectionStrategy.REPLACE);
   }
 }

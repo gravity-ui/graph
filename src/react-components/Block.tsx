@@ -1,15 +1,14 @@
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 
+import { computed } from "@preact/signals-core";
+
 import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
 
+import { useSignal } from "./hooks";
 import { useBlockState, useBlockViewState } from "./hooks/useBlockState";
 
 import "./Block.css";
-
-import { useSignal } from "./hooks";
-
-import { computed } from "@preact/signals-core";
 
 export const GraphBlock = <T extends TBlock>({
   graph,

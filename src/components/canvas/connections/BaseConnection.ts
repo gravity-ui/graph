@@ -140,6 +140,10 @@ export class BaseConnection<
     this.setState({ ...(this.connectedState.$state.value as TBaseConnectionState), hovered: false });
   }
 
+  public getEntityId() {
+    return this.props.id;
+  }
+
   protected willMount(): void {
     // Subscribe to connection state changes for automatic updates
     this.subscribeSignal(this.connectedState.$selected, (selected) => {
