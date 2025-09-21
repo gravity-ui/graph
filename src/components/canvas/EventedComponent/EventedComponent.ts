@@ -78,10 +78,11 @@ export class EventedComponent<
 
     handlers?.forEach((cb) => {
       if (typeof cb === "function") {
-        cb(event);
+        return cb(event);
       } else if (cb instanceof Component && "handleEvent" in cb && typeof cb.handleEvent === "function") {
-        cb.handleEvent?.(event);
+        return cb.handleEvent?.(event);
       }
+      return undefined;
     });
   }
 

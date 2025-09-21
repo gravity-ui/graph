@@ -45,6 +45,23 @@
           }
         ]
       }
+    },
+    {
+      "files": [
+        "src/stories/**/*.tsx"
+      ],
+      "rules": {
+        "no-console": "off"
+      }
+    },
+    {
+      "files": [
+        "**/*.test.ts",
+        "**/*.test.tsx"
+      ],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off"
+      }
     }
   ],
   "rules": {
@@ -54,6 +71,8 @@
     "guard-for-in": "off",
     "no-return-assign": "off",
     "@typescript-eslint/member-ordering": "off",
+    "@typescript-eslint/no-shadow": "off",
+    "valid-jsdoc": "off",
     "import/consistent-type-specifier-style": [
       "error",
       "prefer-top-level"

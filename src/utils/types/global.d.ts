@@ -5,6 +5,7 @@ type Interface<T> = { [P in keyof T]: T[P] };
 
 type PartialObject<T> = Pick<T, keyof T>;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const global: any;
 
 interface IWithEvent extends EventTarget {

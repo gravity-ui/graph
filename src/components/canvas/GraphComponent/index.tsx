@@ -57,7 +57,7 @@ export class GraphComponent<
     if (!this.ports.has(id)) {
       return this.createPort(id);
     }
-    return this.ports.get(id)!;
+    return this.ports.get(id);
   }
 
   protected setAffectsUsableRect(affectsUsableRect: boolean) {

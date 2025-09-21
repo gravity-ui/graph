@@ -30,7 +30,7 @@ export type TBlockProps = {
 export const Block: React.FC<TBlockProps> = memo((props: TBlockProps) => {
   const block = useSignal(props.blockState.$state);
 
-  if (!block) return;
+  if (!block) return null;
 
   return props.renderBlock(props.graphObject, block, props.blockState);
 });

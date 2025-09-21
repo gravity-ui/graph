@@ -33,6 +33,24 @@ export type LayerContext = {
   layer: Layer;
 };
 
+/**
+ * Utility type to extract public props for a Layer constructor.
+ * Excludes internal props that are provided by the graph instance:
+ * - root: managed by the layers service
+ * - camera: provided by the graph's camera service
+ * - graph: provided by the graph instance
+ *
+ * The root prop is made optional as it can be overridden by the user.
+ *
+ * @template T - Layer constructor type
+ */
+export type LayerPublicProps<T extends Constructor<Layer>> =
+  T extends Constructor<Layer<infer Props>>
+    ? Omit<Props, "root" | "camera" | "graph"> & { root?: Props["root"] }
+    : never;
+
+export type LayerConstructor<T extends Constructor<Layer>> = T extends Constructor<Layer> ? T : never;
+
 export class Layer<
   Props extends LayerProps = LayerProps,
   Context extends LayerContext = LayerContext,

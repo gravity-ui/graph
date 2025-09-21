@@ -66,6 +66,7 @@ export const GraphBlock = <T extends TBlock>({
         }
       });
     }
+    return undefined;
   }, [viewState]);
 
   useEffect(() => {

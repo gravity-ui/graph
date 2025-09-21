@@ -127,6 +127,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     this.relativeY = yPos + height / 2 - this.minimapHeight / this.scale / 2;
   }
 
+  // eslint-disable-next-line complexity
   private drawCameraBorderFrame() {
     const cameraState = this.props.camera.getCameraState();
 

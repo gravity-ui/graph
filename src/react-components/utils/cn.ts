@@ -22,6 +22,7 @@ export const cn = (
       .map(([key]) => key) // Extract the class name (key)
       .join(" ");
 
+    // eslint-disable-next-line no-nested-ternary
     return items ? (acc ? `${acc} ${items}` : items) : acc;
   }, "");
 };

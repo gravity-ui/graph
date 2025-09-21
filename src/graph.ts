@@ -11,7 +11,7 @@ import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } fr
 import { GraphEventParams, GraphEventsDefinitions } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
-import { Layer } from "./services/Layer";
+import { Layer, LayerPublicProps } from "./services/Layer";
 import { Layers } from "./services/LayersService";
 import { CameraService } from "./services/camera/CameraService";
 import { RootStore } from "./store";
@@ -23,12 +23,7 @@ import { clearTextCache } from "./utils/renderers/text";
 import { RecursivePartial } from "./utils/types/helpers";
 import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
 
-export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [
-  T,
-  T extends Constructor<Layer<infer Props>>
-    ? Omit<Props, "root" | "camera" | "graph"> & { root?: Props["root"] }
-    : never,
-];
+export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
 export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   configurationName?: string;
   blocks?: Block[];
@@ -302,9 +297,7 @@ export class Graph {
 
   public addLayer<T extends Constructor<Layer> = Constructor<Layer>>(
     layerCtor: T,
-    props: T extends Constructor<Layer<infer Props>>
-      ? Omit<Props, "root" | "camera" | "graph" | "emitter"> & { root?: Props["root"] }
-      : never
+    props: LayerPublicProps<T>
   ): InstanceType<T> {
     // TODO: These types are too complicated, try to simplify them
     return this.layers.createLayer(layerCtor as Constructor<Layer>, {

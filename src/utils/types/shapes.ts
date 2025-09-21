@@ -1,3 +1,5 @@
+import isObject from "lodash/isObject";
+
 export type TPoint = {
   x: number;
   y: number;
@@ -55,8 +57,9 @@ export type TRect = {
   height: number;
 };
 
-export function isTRect(rect: any): rect is TRect {
+export function isTRect(rect: unknown): rect is TRect {
   return (
+    isObject(rect) &&
     "x" in rect &&
     typeof rect.x === "number" &&
     "y" in rect &&

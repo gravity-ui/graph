@@ -3,7 +3,7 @@ import { useDeferredValue, useLayoutEffect, useState } from "react";
 import isEqual from "lodash/isEqual";
 
 import type { Graph } from "../../graph";
-import type { Layer } from "../../services/Layer";
+import type { Layer, LayerPublicProps } from "../../services/Layer";
 
 import { usePrevious } from "./usePrevious";
 
@@ -31,9 +31,7 @@ import { usePrevious } from "./usePrevious";
 export function useLayer<T extends Constructor<Layer> = Constructor<Layer>>(
   graph: Graph | null,
   layerCtor: T,
-  props: T extends Constructor<Layer<infer Props>>
-    ? Omit<Props, "root" | "camera" | "graph" | "emitter"> & { root?: Props["root"] }
-    : never
+  props: LayerPublicProps<T>
 ) {
   const [layer, setLayer] = useState<InstanceType<T> | null>(null);
   const deferredLayer = useDeferredValue(layer);

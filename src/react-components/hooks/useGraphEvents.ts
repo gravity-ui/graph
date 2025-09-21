@@ -14,14 +14,14 @@ export function useGraphEvent<Event extends keyof GraphEventsDefinitions>(
     cb(e.detail, e);
   });
   useLayoutEffect(() => {
-    if (!graph) return;
+    if (!graph) return undefined;
     return graph.on(event, onEvent);
   }, [graph, event, onEvent]);
 }
 
 export function useGraphEvents(graph: Graph | null, events: Partial<TGraphEventCallbacks>) {
   useLayoutEffect(() => {
-    if (!graph) return;
+    if (!graph) return undefined;
 
     const unsubscribe = [];
     const fn = (cb: TGraphEventCallbacks[keyof TGraphEventCallbacks]) => (event: CustomEvent) => {
