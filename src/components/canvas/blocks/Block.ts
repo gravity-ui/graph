@@ -175,7 +175,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected subscribe(id: TBlockId) {
-    this.selectionBucketId = id;
     this.connectedState = selectBlockById<T>(this.context.graph, id);
     this.state = cloneDeep(this.connectedState.$state.value);
     this.connectedState.setViewComponent(this);

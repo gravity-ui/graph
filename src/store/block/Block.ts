@@ -4,7 +4,7 @@ import cloneDeep from "lodash/cloneDeep";
 
 import { TAnchor } from "../../components/canvas/anchors";
 import { Block, TBlock } from "../../components/canvas/blocks/Block";
-import { ISelectionBucket } from "../../services/selection/types";
+import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
 import { AnchorState } from "../anchor/Anchor";
 
 import { BlockListStore } from "./BlocksList";
@@ -151,6 +151,10 @@ export class BlockState<T extends TBlock = TBlock> {
 
   public onAnchorSelected(anchorId: AnchorState["id"], selected: boolean) {
     this.store.setAnchorSelection(this.id, anchorId, selected);
+  }
+
+  public setSelection(selected: boolean, strategy: ESelectionStrategy = ESelectionStrategy.REPLACE) {
+    this.store.updateBlocksSelection([this.id], selected, strategy);
   }
 
   public getSelectedAnchor() {
