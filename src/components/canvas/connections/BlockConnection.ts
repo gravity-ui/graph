@@ -53,7 +53,7 @@ export class BlockConnection<T extends TConnection>
    */
   constructor(props: TConnectionProps, parent: BlockConnections) {
     super(props, parent);
-    this.addEventListener("click", this);
+    this.addEventListener("tap", this);
 
     // Add the connection line to the batch renderer
     this.context.batch.add(this, { zIndex: this.zIndex, group: this.getClassName() });
@@ -209,7 +209,7 @@ export class BlockConnection<T extends TConnection>
     super.handleEvent(event);
 
     switch (event.type) {
-      case "click": {
+      case "tap": {
         const { blocksList } = this.context.graph.rootStore;
         const isAnyBlockSelected = blocksList.$selectedBlocks.value.length !== 0;
         const isAnyAnchorSelected = Boolean(blocksList.$selectedAnchor.value);

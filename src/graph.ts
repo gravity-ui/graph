@@ -14,6 +14,7 @@ import { HitTest } from "./services/HitTest";
 import { Layer } from "./services/Layer";
 import { Layers } from "./services/LayersService";
 import { CameraService } from "./services/camera/CameraService";
+import { EventService } from "./services/event/EventService";
 import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
@@ -50,6 +51,7 @@ export enum GraphState {
 
 export class Graph {
   private scheduler = scheduler;
+  private eventService: EventService = new EventService(this);
 
   public cameraService: CameraService = new CameraService(this);
 
@@ -122,6 +124,12 @@ export class Graph {
     if (graphConstants) {
       this.setConstants(graphConstants);
     }
+
+    this.eventEmitter.addEventListener("dragstart", (event) => {
+      // event.preventDefault();
+
+      console.log(event);
+    });
 
     this.setupGraph(config);
   }
@@ -358,6 +366,8 @@ export class Graph {
 
     this.setGraphState(GraphState.ATTACHED);
 
+    this.eventService.attach(rootEl);
+
     if (this.startRequested) {
       this.startRequested = false;
       this.start();
@@ -417,6 +427,7 @@ export class Graph {
   }
 
   public detach() {
+    this.eventService.detach();
     this.stop(true);
   }
 

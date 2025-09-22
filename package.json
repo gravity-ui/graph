@@ -78,6 +78,7 @@
     "@preact/signals-core": "^1.5.1",
     "intersects": "^2.7.2",
     "lodash": "^4.17.21",
+    "mjolnir.js": "^3.0.0",
     "rbush": "^3.0.1"
   },
   "devDependencies": {

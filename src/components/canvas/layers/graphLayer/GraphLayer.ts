@@ -100,7 +100,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     this.setContext({
       root: this.root as HTMLDivElement,
     });
-    this.attachListeners();
+    // this.attachListeners();
 
     // Subscribe to graph events here instead of in the constructor
     this.onGraphEvent("camera-change", this.performRender);
@@ -143,38 +143,39 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   }
 
   public handleEvent(e: Event): void {
-    if (e.type === "mousemove") {
-      this.updateTargetComponent(e as MouseEvent);
-      this.onRootPointerMove(e as MouseEvent);
-      return;
-    }
-
-    if (e.eventPhase === Event.CAPTURING_PHASE && rootCapturingEventTypes.has(e.type)) {
-      this.tryEmulateClick(e as MouseEvent);
-      return;
-    }
-
-    if (e.eventPhase === Event.BUBBLING_PHASE && rootBubblingEventTypes.has(e.type)) {
-      switch (e.type) {
-        case "mousedown":
-        case "touchstart": {
-          this.updateTargetComponent(e as MouseEvent, true);
-          this.handleMouseDownEvent(e as MouseEvent);
-          break;
-        }
-        case "mouseup":
-        case "touchend": {
-          this.onRootPointerEnd(e as MouseEvent);
-          break;
-        }
-        case "click":
-        case "dblclick": {
-          this.tryEmulateClick(e as MouseEvent);
-          break;
-        }
-      }
-    }
+    console.log({ eventPhase: e.eventPhase, type: e.type });
   }
+
+  // public handleEvent(e: Event): void {
+  //   if (e.type === "pointermove") {
+  //     this.updateTargetComponent(e as MouseEvent);
+  //     this.onRootPointerMove(e as MouseEvent);
+  //     return;
+  //   }
+
+  //   if (e.eventPhase === Event.CAPTURING_PHASE && rootCapturingEventTypes.has(e.type)) {
+  //     this.tryEmulateClick(e as MouseEvent);
+  //     return;
+  //   }
+
+  //   if (e.eventPhase === Event.BUBBLING_PHASE && rootBubblingEventTypes.has(e.type)) {
+  //     switch (e.type) {
+  //       case "pointerdown": {
+  //         this.updateTargetComponent(e as MouseEvent, true);
+  //         this.handleMouseDownEvent(e as MouseEvent);
+  //         break;
+  //       }
+  //       case "pointerup": {
+  //         this.onRootPointerEnd(e as MouseEvent);
+  //         break;
+  //       }
+  //       case "tap": {
+  //         this.tryEmulateClick(e as MouseEvent);
+  //         break;
+  //       }
+  //     }
+  //   }
+  // }
 
   private dispatchNativeEvent(
     type: GraphMouseEventNames,
@@ -232,7 +233,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
         this.root.style.removeProperty("cursor");
       }
       this.applyEventToTargetComponent(
-        new CustomEvent("mouseleave", {
+        new CustomEvent("pointerleave", {
           bubbles: false,
           detail: {
             target: this.prevTargetComponent,
@@ -243,7 +244,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
         this.prevTargetComponent
       );
       this.applyEventToTargetComponent(
-        new CustomEvent("mouseout", {
+        new CustomEvent("pointerout", {
           bubbles: true,
           detail: {
             target: this.prevTargetComponent,
@@ -254,7 +255,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
         this.prevTargetComponent
       );
       this.applyEventToTargetComponent(
-        new CustomEvent("mouseenter", {
+        new CustomEvent("pointerenter", {
           bubbles: false,
           detail: {
             target: this.targetComponent,
@@ -265,7 +266,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
         this.targetComponent
       );
       this.applyEventToTargetComponent(
-        new CustomEvent("mouseover", {
+        new CustomEvent("pointerover", {
           bubbles: true,
           detail: {
             target: this.targetComponent,
@@ -342,7 +343,6 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
       children: [DrawOver.create(), Blocks.create(), DrawBelow.create(), BlockConnections.create()],
       root: this.root,
     };
-
     return [Camera.create(cameraProps, { ref: "camera" })];
   }
 }

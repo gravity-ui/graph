@@ -3,10 +3,10 @@ import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/Gr
 import { Component } from "../../lib";
 import { TComponentProps, TComponentState } from "../../lib/Component";
 import { ComponentDescriptor } from "../../lib/CoreComponent";
+import { GraphEvent } from "../../services/event/EventService";
 import { getXY, isMetaKeyEvent, isTrackpadWheelEvent, isWindows } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
-import { dragListener } from "../../utils/functions/dragListener";
-import { EVENTS } from "../../utils/types/events";
+import { IPoint } from "../../utils/types/shapes";
 
 import { ICamera } from "./CameraService";
 
@@ -20,7 +20,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
   private ownerDocument: Document;
 
-  private lastDragEvent?: MouseEvent;
+  private lastDragPoint?: IPoint;
 
   constructor(props: TCameraProps, parent: Component) {
     super(props, parent);
@@ -28,9 +28,11 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     this.camera = this.context.camera;
     this.ownerDocument = this.context.ownerDocument;
 
-    this.addWheelListener();
-    this.addEventListener("click", this.handleClick);
-    this.addEventListener("mousedown", this.handleMouseDownEvent);
+    this.addEventListener("tap", this);
+    this.addEventListener("dragstart", this);
+    this.addEventListener("dragmove", this);
+    this.addEventListener("dragend", this);
+    this.addEventListener("wheel", this);
   }
 
   protected handleClick = () => {
@@ -41,58 +43,72 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     this.setContext({
       root: this.props.root,
     });
-    this.addWheelListener(this.props.root);
+    // this.addWheelListener(this.props.root);
   }
 
-  protected addWheelListener(root = this.props.root) {
-    root?.addEventListener("wheel", this.handleWheelEvent, { passive: false });
-  }
+  // protected addWheelListener(root = this.props.root) {
+  //   root?.addEventListener("wheel", this.handleWheelEvent, { passive: false });
+  // }
 
   protected propsChanged(nextProps: TCameraProps) {
-    if (this.props.root !== nextProps.root) {
-      this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
-      this.addWheelListener(nextProps.root);
-    }
+    // if (this.props.root !== nextProps.root) {
+    //   this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
+    //   // this.addWheelListener(nextProps.root);
+    // }
     super.propsChanged(nextProps);
   }
 
-  protected unmount() {
-    super.unmount();
-
-    this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
-    this.removeEventListener("mousedown", this.handleMouseDownEvent);
+  public handleEvent(event: CustomEvent) {
+    switch (event.type) {
+      case "tap": {
+        this.handleClick();
+        break;
+      }
+      case "dragstart": {
+        this.onDragStart(event);
+        break;
+      }
+      case "dragmove": {
+        this.onDragMove(event);
+        break;
+      }
+      case "dragend": {
+        this.onDragEnd();
+        break;
+      }
+      case "wheel": {
+        this.handleWheelEvent(event);
+        break;
+      }
+    }
   }
 
-  private handleMouseDownEvent = (event: MouseEvent) => {
+  private onDragStart({ detail: { globalCoordinate, sourceEvent: event } }: GraphEvent) {
     if (!this.context.graph.rootStore.settings.getConfigFlag("canDragCamera") || !(event instanceof MouseEvent)) {
       return;
     }
     if (!isMetaKeyEvent(event)) {
-      dragListener(this.ownerDocument)
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onDragStart(event))
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onDragUpdate(event))
-        .on(EVENTS.DRAG_END, () => this.onDragEnd());
+      this.lastDragPoint = globalCoordinate;
     }
-  };
-
-  private onDragStart(event: MouseEvent) {
-    this.lastDragEvent = event;
   }
 
-  private onDragUpdate(event: MouseEvent) {
-    if (!this.lastDragEvent) {
+  private onDragMove({ detail: { globalCoordinate } }: GraphEvent) {
+    if (!this.lastDragPoint) {
       return;
     }
-    this.camera.move(event.pageX - this.lastDragEvent.pageX, event.pageY - this.lastDragEvent.pageY);
-    this.lastDragEvent = event;
+    this.camera.move(
+      globalCoordinate.origPoint.x - this.lastDragPoint.origPoint.x,
+      globalCoordinate.origPoint.y - this.lastDragPoint.origPoint.y
+    );
+    this.lastDragPoint = globalCoordinate;
   }
 
   private onDragEnd() {
-    this.lastDragEvent = undefined;
+    this.lastDragPoint = undefined;
   }
 
-  private handleWheelEvent = (event: WheelEvent) => {
-    if (!this.context.graph.rootStore.settings.getConfigFlag("canZoomCamera")) {
+  private handleWheelEvent = ({ detail: { sourceEvent: event } }: GraphEvent) => {
+    if (!this.context.graph.rootStore.settings.getConfigFlag("canZoomCamera") || !(event instanceof WheelEvent)) {
       return;
     }
 

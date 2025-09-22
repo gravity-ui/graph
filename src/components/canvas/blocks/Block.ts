@@ -4,22 +4,23 @@ import isObject from "lodash/isObject";
 
 import { Component } from "../../../lib/Component";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
+import { GraphEvent } from "../../../services/event/EventService";
 import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
 import { BlockState, IS_BLOCK_TYPE, TBlockId } from "../../../store/block/Block";
 import { selectBlockById } from "../../../store/block/selectors";
 import { PortState } from "../../../store/connection/port/Port";
 import { createAnchorPortId, createBlockPointPortId } from "../../../store/connection/port/utils";
-import { getXY } from "../../../utils/functions";
+import { getXY, isMetaKeyEvent } from "../../../utils/functions";
 import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { TTExtRect, renderText } from "../../../utils/renderers/text";
-import { EVENTS } from "../../../utils/types/events";
 import { TPoint, TRect } from "../../../utils/types/shapes";
+import { ESelectionStrategy } from "../../../utils/types/types";
 import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
 import { Anchor, TAnchor } from "../anchors";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
-import { BlockController } from "./controllers/BlockController";
+// import { BlockController } from "./controllers/BlockController";
 
 export type TBlockSettings = {
   /** Phantom blocks are blocks whose dimensions and position
@@ -120,7 +121,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.connectedState.$state.value;
   }
 
-  protected blockController = new BlockController(this);
+  // protected blockController = new BlockController(this);
 
   public $viewState = signal<BlockViewState>({ zIndex: 0, order: 0 });
 
@@ -129,9 +130,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
     this.subscribe(props.id);
 
-    this.addEventListener(EVENTS.DRAG_START, this);
-    this.addEventListener(EVENTS.DRAG_UPDATE, this);
-    this.addEventListener(EVENTS.DRAG_END, this);
+    this.addEventListener("tap", this);
+    this.addEventListener("pointerdown", this);
+    this.addEventListener("dragmove", this);
+    this.addEventListener("dragend", this);
   }
 
   public isRendered() {
@@ -276,41 +278,76 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.getPort(createAnchorPortId(this.state.id, anchorId));
   }
 
-  public handleEvent(event: CustomEvent) {
+  public handleEvent(event: GraphEvent) {
     switch (event.type) {
-      case EVENTS.DRAG_START: {
-        this.onDragStart(event.detail.sourceEvent);
+      case "tap": {
+        event.stopPropagation();
+
+        const { connectionsList } = this.context.graph.rootStore;
+        const isAnyConnectionSelected = connectionsList.$selectedConnections.value.size !== 0;
+
+        if (!isMetaKeyEvent(event.detail.sourceEvent) && isAnyConnectionSelected) {
+          connectionsList.resetSelection();
+        }
+
+        this.context.graph.api.selectBlocks(
+          [this.props.id],
+          /**
+           * On click with meta key we want to select only one block, otherwise we want to toggle selection
+           */
+          !isMetaKeyEvent(event.detail.sourceEvent) ? true : !this.state.selected,
+          /**
+           * On click with meta key we want to append selection, otherwise we want to replace selection
+           */
+          !isMetaKeyEvent(event.detail.sourceEvent) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
+        );
         break;
       }
-      case EVENTS.DRAG_UPDATE: {
-        this.onDragUpdate(event.detail.sourceEvent);
+      case "pointerdown": {
+        console.log({ event });
+        this.onDragStart(event);
         break;
       }
-      case EVENTS.DRAG_END: {
-        this.onDragEnd(event.detail.sourceEvent);
+      case "dragmove": {
+        this.onDragmove(event);
+        break;
+      }
+      case "dragend": {
+        this.onDragEnd(event);
         break;
       }
     }
   }
 
-  protected onDragStart(event: MouseEvent) {
-    this.context.graph.executеDefaultEventAction(
-      "block-drag-start",
-      {
-        nativeEvent: event,
-        block: this.connectedState.asTBlock(),
-      },
-      () => {
-        this.lastDragEvent = event;
-        const xy = getXY(this.context.canvas, event);
-        this.startDragCoords = this.context.camera.applyToPoint(xy[0], xy[1]).concat([this.state.x, this.state.y]);
-        this.raiseBlock();
-      }
-    );
+  protected onDragStart(event: GraphEvent) {
+    // this.context.graph.executеDefaultEventAction(
+    //   "block-drag-start",
+    //   {
+    //     nativeEvent: event,
+    //     block: this.connectedState.asTBlock(),
+    //   },
+    //   () => {
+    //     this.lastDragEvent = event;
+    //     const xy = getXY(this.context.canvas, event);
+    //     this.startDragCoords = this.context.camera.applyToPoint(xy[0], xy[1]).concat([this.state.x, this.state.y]);
+    //     this.raiseBlock();
+    //   }
+    // );
+    const xy = getXY(this.context.canvas, event.detail.sourceEvent);
+    this.startDragCoords = this.context.camera.applyToPoint(xy[0], xy[1]).concat([this.state.x, this.state.y]);
+  }
+
+  protected onDragmove(event: GraphEvent) {
+    const [canvasX, canvasY] = getXY(this.context.canvas, event.detail.sourceEvent);
+    const [cameraSpaceX, cameraSpaceY] = this.context.camera.applyToPoint(canvasX, canvasY);
+
+    const [x, y] = this.calcNextDragPosition(cameraSpaceX, cameraSpaceY);
+
+    this.updatePosition(x, y);
   }
 
   protected onDragUpdate(event: MouseEvent) {
-    if (!this.startDragCoords) return;
+    // if (!this.startDragCoords) return;
 
     this.lastDragEvent = event;
 
@@ -319,16 +356,17 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
     const [x, y] = this.calcNextDragPosition(cameraSpaceX, cameraSpaceY);
 
-    this.context.graph.executеDefaultEventAction(
-      "block-drag",
-      {
-        nativeEvent: event,
-        block: this.connectedState.asTBlock(),
-        x,
-        y,
-      },
-      () => this.applyNextPosition(x, y)
-    );
+    // this.context.graph.executеDefaultEventAction(
+    //   "block-drag",
+    //   {
+    //     nativeEvent: event,
+    //     block: this.connectedState.asTBlock(),
+    //     x,
+    //     y,
+    //   },
+    //   () => this.applyNextPosition(x, y)
+    // );
+    this.updatePosition(x, y);
   }
 
   protected calcNextDragPosition(x: number, y: number) {
@@ -352,12 +390,12 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.updatePosition(x, y);
   }
 
-  protected onDragEnd(event: MouseEvent) {
-    if (!this.startDragCoords) return;
-    this.context.graph.emit("block-drag-end", {
-      nativeEvent: event,
-      block: this.connectedState.asTBlock(),
-    });
+  protected onDragEnd(event: GraphEvent) {
+    // if (!this.startDragCoords) return;
+    // this.context.graph.emit("block-drag-end", {
+    //   nativeEvent: event,
+    //   block: this.connectedState.asTBlock(),
+    // });
 
     this.lastDragEvent = undefined;
     this.startDragCoords = [];
