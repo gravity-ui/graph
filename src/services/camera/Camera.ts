@@ -6,6 +6,12 @@ import { ComponentDescriptor } from "../../lib/CoreComponent";
 import { getXY, isMetaKeyEvent, isTrackpadWheelEvent, isWindows } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
 import { dragListener } from "../../utils/functions/dragListener";
+import {
+  getEventPageCoordinates,
+  getTouchCenter,
+  getTouchDistance,
+  isTouchDevice,
+} from "../../utils/functions/touchUtils";
 import { EVENTS } from "../../utils/types/events";
 
 import { ICamera } from "./CameraService";
@@ -16,21 +22,30 @@ export type TCameraProps = TComponentProps & {
 };
 
 export class Camera extends EventedComponent<TCameraProps, TComponentState, TGraphLayerContext> {
+  private static readonly PINCH_THRESHOLD = 0.01;
+  private static readonly PINCH_DELTA_MULTIPLIER = 100;
+
   private camera: ICamera;
-
   private ownerDocument: Document;
+  private lastDragEvent?: MouseEvent | TouchEvent;
 
-  private lastDragEvent?: MouseEvent;
+  // Touch gesture state
+  private isTouch: boolean;
+  private lastPinchDistance?: number;
+  private isPinching = false;
 
   constructor(props: TCameraProps, parent: Component) {
     super(props, parent);
 
     this.camera = this.context.camera;
     this.ownerDocument = this.context.ownerDocument;
+    this.isTouch = isTouchDevice();
 
     this.addWheelListener();
     this.addEventListener("click", this.handleClick);
     this.addEventListener("mousedown", this.handleMouseDownEvent);
+
+    this.addTouchEventListeners();
   }
 
   protected handleClick = () => {
@@ -48,6 +63,30 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     root?.addEventListener("wheel", this.handleWheelEvent, { passive: false });
   }
 
+  /**
+   * Adds touch event listeners for pinch gestures on touch devices
+   * @returns {void}
+   */
+  private addTouchEventListeners() {
+    if (this.isTouch) {
+      document.addEventListener("touchstart", this.handleTouchStartEvent, { passive: false });
+      document.addEventListener("touchmove", this.handleTouchMoveEvent, { passive: false });
+      document.addEventListener("touchend", this.handleTouchEndEvent, { passive: false });
+    }
+  }
+
+  /**
+   * Removes touch event listeners
+   * @returns {void}
+   */
+  private removeTouchEventListeners() {
+    if (this.isTouch) {
+      document.removeEventListener("touchstart", this.handleTouchStartEvent);
+      document.removeEventListener("touchmove", this.handleTouchMoveEvent);
+      document.removeEventListener("touchend", this.handleTouchEndEvent);
+    }
+  }
+
   protected propsChanged(nextProps: TCameraProps) {
     if (this.props.root !== nextProps.root) {
       this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
@@ -61,6 +100,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
     this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
     this.removeEventListener("mousedown", this.handleMouseDownEvent);
+    this.removeTouchEventListeners();
   }
 
   private handleMouseDownEvent = (event: MouseEvent) => {
@@ -68,22 +108,159 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
       return;
     }
     if (!isMetaKeyEvent(event)) {
-      dragListener(this.ownerDocument)
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onDragStart(event))
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onDragUpdate(event))
-        .on(EVENTS.DRAG_END, () => this.onDragEnd());
+      this.startDragListening();
     }
   };
 
-  private onDragStart(event: MouseEvent) {
+  private handleTouchStartEvent = (event: TouchEvent) => {
+    // Prevent default browser pinch/zoom behavior for multi-touch events
+    if (event.touches.length >= 2) {
+      event.preventDefault();
+    }
+
+    if (!this.context.graph.rootStore.settings.getConfigFlag("canDragCamera")) {
+      return;
+    }
+
+    if (!this.handlePinchStart(event)) {
+      this.handleSingleTouchStart(event);
+    }
+  };
+
+  /**
+   * Handles the start of a pinch gesture
+   * @param {TouchEvent} event - Touch event
+   * @returns {boolean} True if pinch was started
+   */
+  private handlePinchStart(event: TouchEvent): boolean {
+    if (event.touches.length === 2 && this.context.graph.rootStore.settings.getConfigFlag("canZoomCamera")) {
+      this.isPinching = true;
+      this.lastPinchDistance = getTouchDistance(event);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Handles the start of a single touch drag
+   * @param {TouchEvent} event - Touch event
+   * @returns {boolean} True if drag was started
+   */
+  private handleSingleTouchStart(event: TouchEvent): boolean {
+    if (event.touches.length === 1 && !this.isPinching) {
+      this.startDragListening();
+      return true;
+    }
+    return false;
+  }
+
+  private handleTouchMoveEvent = (event: TouchEvent) => {
+    // Prevent default browser behavior for multi-touch to avoid browser zoom
+    if (event.touches.length >= 2) {
+      event.preventDefault();
+    }
+
+    if (this.isPinching && event.touches.length === 2) {
+      this.processPinchZoom(event);
+    }
+  };
+
+  /**
+   * Processes pinch zoom gesture
+   * @param {TouchEvent} event - Touch event
+   * @returns {void}
+   */
+  private processPinchZoom(event: TouchEvent): void {
+    if (!this.context.graph.rootStore.settings.getConfigFlag("canZoomCamera") || !this.lastPinchDistance) {
+      return;
+    }
+
+    const currentDistance = getTouchDistance(event);
+    if (currentDistance <= 0) return;
+
+    const scaleDelta = currentDistance / this.lastPinchDistance;
+
+    // Only apply zoom if there's a meaningful change to avoid jitter
+    if (Math.abs(scaleDelta - 1) > Camera.PINCH_THRESHOLD) {
+      this.applyPinchZoom(event, scaleDelta);
+    }
+
+    this.lastPinchDistance = currentDistance;
+  }
+
+  /**
+   * Applies pinch zoom using the same logic as wheel events for consistency
+   * @param {TouchEvent} event - Touch event
+   * @param {number} scaleDelta - Scale delta from pinch gesture
+   * @returns {void}
+   */
+  private applyPinchZoom(event: TouchEvent, scaleDelta: number): void {
+    const center = getTouchCenter(event);
+
+    // Convert client coordinates to canvas coordinates
+    const rect = this.context.canvas.getBoundingClientRect();
+    const canvasX = center.x - rect.left;
+    const canvasY = center.y - rect.top;
+
+    // Use the same logic as handleWheelEvent for consistent zoom behavior
+    const deltaDirection = scaleDelta > 1 ? -1 : 1; // Invert direction like wheel events
+    const deltaAmount = Math.abs(scaleDelta - 1) * Camera.PINCH_DELTA_MULTIPLIER;
+
+    // Apply the same speed calculation as in handleWheelEvent
+    const pinchSpeed = Math.sign(deltaDirection) * clamp(deltaAmount, 1, 20);
+    const dScale = this.context.constants.camera.STEP * this.context.constants.camera.SPEED * pinchSpeed;
+
+    const cameraScale = this.camera.getCameraScale();
+    const smoothDScale = dScale * cameraScale;
+
+    this.camera.zoom(canvasX, canvasY, cameraScale - smoothDScale);
+  }
+
+  private handleTouchEndEvent = (event: TouchEvent) => {
+    // Prevent default browser behavior when ending multi-touch gestures
+    if (this.isPinching || event.changedTouches.length > 1) {
+      event.preventDefault();
+    }
+
+    this.resetPinchState(event);
+  };
+
+  /**
+   * Resets pinch gesture state when appropriate
+   * @param {TouchEvent} event - Touch event
+   * @returns {void}
+   */
+  private resetPinchState(event: TouchEvent): void {
+    if (this.isPinching && event.touches.length < 2) {
+      this.isPinching = false;
+      this.lastPinchDistance = undefined;
+    }
+  }
+
+  private startDragListening() {
+    dragListener(this.ownerDocument)
+      .on(EVENTS.DRAG_START, (event: MouseEvent | TouchEvent) => this.onDragStart(event))
+      .on(EVENTS.DRAG_UPDATE, (event: MouseEvent | TouchEvent) => this.onDragUpdate(event))
+      .on(EVENTS.DRAG_END, () => this.onDragEnd());
+  }
+
+  private onDragStart(event: MouseEvent | TouchEvent) {
+    // Don't start drag if we're in the middle of a pinch gesture
+    if (this.isPinching) {
+      return;
+    }
     this.lastDragEvent = event;
   }
 
-  private onDragUpdate(event: MouseEvent) {
-    if (!this.lastDragEvent) {
+  private onDragUpdate(event: MouseEvent | TouchEvent) {
+    if (!this.lastDragEvent || this.isPinching) {
       return;
     }
-    this.camera.move(event.pageX - this.lastDragEvent.pageX, event.pageY - this.lastDragEvent.pageY);
+
+    const currentCoords = getEventPageCoordinates(event);
+    const lastCoords = getEventPageCoordinates(this.lastDragEvent);
+
+    this.camera.move(currentCoords.pageX - lastCoords.pageX, currentCoords.pageY - lastCoords.pageY);
     this.lastDragEvent = event;
   }
 

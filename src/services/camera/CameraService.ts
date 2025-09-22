@@ -159,6 +159,7 @@ export class CameraService extends Emitter {
     const nextX = this.state.x + (dxInNextScale - dx) * normalizedScale;
     const nextY = this.state.y + (dyInNextScale - dy) * normalizedScale;
 
+    console.log("apply zoom", nextX, nextY, normalizedScale);
     this.set({
       scale: normalizedScale,
       x: nextX,
