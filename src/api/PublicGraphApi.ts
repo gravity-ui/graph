@@ -50,9 +50,11 @@ export class PublicGraphApi {
     const cameraRectInit = this.graph.cameraService.getCameraRect();
     const cameraScaleInit = this.graph.cameraService.getCameraScale();
 
+    // Compute scale against visible viewport (respectInsets) so content fits actual visible area
     const endScale = this.graph.cameraService.getScaleRelativeDimensions(
       rect.width + padding * 2,
-      rect.height + padding * 2
+      rect.height + padding * 2,
+      { respectInsets: true }
     );
 
     const xyPosition = this.graph.cameraService.getXYRelativeCenterDimensions(
@@ -62,7 +64,8 @@ export class PublicGraphApi {
         width: rect.width + padding * 2,
         height: rect.height + padding * 2,
       },
-      endScale
+      endScale,
+      { respectInsets: true }
     );
 
     if (!transition) {
