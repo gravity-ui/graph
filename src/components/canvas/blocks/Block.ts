@@ -134,6 +134,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.addEventListener(EVENTS.DRAG_END, this);
   }
 
+  public getEntityId() {
+    return this.props.id;
+  }
+
   public isRendered() {
     return this.shouldRender;
   }
@@ -217,7 +221,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected calcZIndex() {
-    const raised = this.connectedState.selected || this.lastDragEvent ? 1 : 0;
+    const raised = this.connectedState.$selected.value || this.lastDragEvent ? 1 : 0;
     return this.context.constants.block.DEFAULT_Z_INDEX + raised;
   }
 

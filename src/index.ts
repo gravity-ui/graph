@@ -19,7 +19,7 @@ export { debounce, throttle, schedule } from "./utils/functions";
 export * from "./utils/renderers/text";
 export { EVENTS } from "./utils/types/events";
 export { type TPoint, type TRect } from "./utils/types/shapes";
-export { ESelectionStrategy } from "./utils/types/types";
+export { ESelectionStrategy } from "./services/selection/types";
 export * from "./utils/shapes";
 
 export * from "./components/canvas/groups";
@@ -27,3 +27,5 @@ export * from "./components/canvas/groups";
 export * from "./components/canvas/layers/newBlockLayer/NewBlockLayer";
 export * from "./components/canvas/layers/connectionLayer/ConnectionLayer";
 export * from "./lib/Component";
+
+export * from "./services/selection/index.public";

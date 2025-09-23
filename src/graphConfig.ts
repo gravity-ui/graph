@@ -1,3 +1,6 @@
+import { GraphComponent } from "./components/canvas/GraphComponent";
+import { Block } from "./components/canvas/blocks/Block";
+
 export type TGraphColors = {
   canvas?: Partial<TCanvasColors>;
   block?: Partial<TBlockColors>;
@@ -80,7 +83,16 @@ export const initGraphColors: TGraphColors = {
   },
 };
 
+/**
+ * Constructor type for any class that extends GraphComponent
+ */
+export type GraphComponentConstructor = new (...args: unknown[]) => GraphComponent;
+
 export type TGraphConstants = {
+  selectionLayer: {
+    SELECTABLE_ENTITY_TYPES: GraphComponentConstructor[];
+  };
+
   system: {
     GRID_SIZE: number;
     /* @deprecated this config is not used anymore, Layers checks devicePixelRatio internally */
@@ -130,6 +142,9 @@ export type TGraphConstants = {
 };
 
 export const initGraphConstants: TGraphConstants = {
+  selectionLayer: {
+    SELECTABLE_ENTITY_TYPES: [Block],
+  },
   system: {
     GRID_SIZE: 16,
     /* @deprecated this config is not used anymore, Layers checks devicePixelRatio internally */

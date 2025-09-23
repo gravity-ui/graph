@@ -3,11 +3,12 @@ import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { selectBlockAnchor } from "../../../store/block/selectors";
-import { debounce, isMetaKeyEvent } from "../../../utils/functions";
+import { debounce } from "../../../utils/functions";
 import { TPoint } from "../../../utils/types/shapes";
 import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
 import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
+export type TAnchorId = string | number;
 export type TAnchor = {
   id: string;
   blockId: TBlockId;
@@ -112,18 +113,6 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
 
     switch (event.type) {
       case "click": {
-        const { blocksList, connectionsList } = this.context.graph.rootStore;
-        const isAnyBlockSelected = blocksList.$selectedBlocks.value.length !== 0;
-        const isAnyConnectionSelected = connectionsList.$selectedConnections.value.size !== 0;
-
-        if (!isMetaKeyEvent(event) && isAnyBlockSelected) {
-          blocksList.resetSelection();
-        }
-
-        if (!isMetaKeyEvent(event) && isAnyConnectionSelected) {
-          connectionsList.resetSelection();
-        }
-
         this.toggleSelected();
         break;
       }

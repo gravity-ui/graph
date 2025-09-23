@@ -87,7 +87,10 @@ const MyGroup = Group.define({
 
 const GroupsLayer = BlockGroups.withBlockGrouping({
   groupingFn: (blocks: BlockState[]) => {
-    return groupBy(blocks, (block) => block.$state.value.group);
+    return groupBy(
+      blocks.filter((block) => block.$state.value.group),
+      (block) => block.$state.value.group
+    );
   },
   mapToGroups: (grounId: string, { rect }) => ({
     id: grounId,

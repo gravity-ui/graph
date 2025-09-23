@@ -4,46 +4,89 @@ import cloneDeep from "lodash/cloneDeep";
 
 import { TAnchor } from "../../components/canvas/anchors";
 import { Block, TBlock } from "../../components/canvas/blocks/Block";
-import { ESelectionStrategy } from "../../utils/types/types";
+import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
 import { AnchorState } from "../anchor/Anchor";
 
 import { BlockListStore } from "./BlocksList";
 
-export type TBlockId = string | number | symbol;
+export type TBlockId = string | number;
 
 export const IS_BLOCK_TYPE = "Block" as const;
 
 export class BlockState<T extends TBlock = TBlock> {
   public static fromTBlock(store: BlockListStore, block: TBlock): BlockState<TBlock> {
-    return new BlockState(store, block);
+    return new BlockState(store, block, store.blockSelectionBucket);
   }
 
-  public $state = signal<T>(undefined);
+  protected $rawState = signal<T>(undefined);
 
+  /**
+   * Block state signal
+   *
+   * @returns {ReadonlySignal<T>} Block state
+   */
+  public $state = computed(() => ({
+    ...this.$rawState.value,
+    selected: this.$selected.value,
+  }));
+
+  /**
+   * Block id
+   */
   public get id() {
     return this.$state.value.id;
   }
+
+  /**
+   * Block x position
+   */
   public get x() {
     return this.$state.value.x;
   }
+
+  /**
+   * Block y position
+   */
   public get y() {
     return this.$state.value.y;
   }
 
+  /**
+   * Block width
+   */
   public get width() {
     return this.$state.value.width;
   }
 
+  /**
+   * Block height
+   */
   public get height() {
     return this.$state.value.height;
   }
 
+  /**
+   * Block selected
+   */
   public get selected() {
-    return this.$state.value.selected;
+    return this.$selected.value;
   }
+
+  /**
+   * Computed signal that reactively determines if this block is selected
+   * by checking if its ID exists in the selection bucket
+   */
+  public readonly $selected = computed(() => this.blockSelectionBucket.isSelected(this.$rawState.value.id));
 
   public readonly $anchorStates: Signal<AnchorState[]> = signal([]);
 
+  /**
+   * Block geometry signal
+   *
+   * Pay attention!! x and y are rounded to integer
+   *
+   * @returns {ReadonlySignal<{x: number, y: number, width: number, height: number}>} Block geometry
+   */
   public readonly $geometry = computed(() => {
     const state = this.$state.value;
     return {
@@ -54,6 +97,11 @@ export class BlockState<T extends TBlock = TBlock> {
     };
   });
 
+  /**
+   * Block anchor indexes signal
+   *
+   * @returns {ReadonlySignal<Map<string, number>>} Block anchor indexes
+   */
   public $anchorIndexs = computed(() => {
     const typeIndex = {};
     return new Map(
@@ -68,27 +116,45 @@ export class BlockState<T extends TBlock = TBlock> {
     );
   });
 
+  /**
+   * Block anchors signal
+   *
+   * @returns {ReadonlySignal<TAnchor[]>} Block anchors
+   */
   public $anchors = computed(() => {
     return this.$anchorStates.value?.map((anchorState) => anchorState.asTAnchor()) || [];
   });
 
+  /**
+   * Block selected anchors signal
+   *
+   * @returns {TAnchor[]} Block selected anchors
+   */
   public $selectedAnchors = computed(() => {
-    return this.$anchorStates.value?.filter((anchorState) => anchorState.$selected.value) || [];
+    return (
+      this.$anchorStates.value?.filter((anchorState) =>
+        this.store.anchorSelectionBucket.$selected.value.has(anchorState.id)
+      ) || []
+    );
   });
 
   private blockView: Block;
 
   constructor(
     public readonly store: BlockListStore,
-    block: T
+    block: T,
+    private readonly blockSelectionBucket: ISelectionBucket<string | number>
   ) {
-    this.$state.value = block;
-
+    this.$rawState.value = block;
     this.$anchorStates.value = block.anchors?.map((anchor) => new AnchorState(this, anchor)) ?? [];
   }
 
   public onAnchorSelected(anchorId: AnchorState["id"], selected: boolean) {
     this.store.setAnchorSelection(this.id, anchorId, selected);
+  }
+
+  public setSelection(selected: boolean, strategy: ESelectionStrategy = ESelectionStrategy.REPLACE) {
+    this.store.updateBlocksSelection([this.id], selected, strategy);
   }
 
   public getSelectedAnchor() {
@@ -118,16 +184,15 @@ export class BlockState<T extends TBlock = TBlock> {
     return this.store.getBlockConnections(this.id);
   }
 
-  public setSelection(selected: boolean, strategy: ESelectionStrategy = ESelectionStrategy.REPLACE) {
-    this.store.updateBlocksSelection([this.id], selected, strategy);
-  }
-
   public clearAnchorsSelection() {
-    this.$anchorStates.value.forEach((anchor) => anchor.setSelection(false));
+    this.store.anchorSelectionBucket.reset();
   }
 
   public setName(newName: string) {
-    this.$state.value.name = newName;
+    this.$rawState.value = {
+      ...this.$rawState.value,
+      name: newName,
+    };
   }
 
   public updateAnchors(anchors: TAnchor[]) {
@@ -142,13 +207,19 @@ export class BlockState<T extends TBlock = TBlock> {
     });
   }
 
+  /**
+   * Updates block state
+   *
+   * @param block {Partial<TBlock>} Block to update
+   * @returns void
+   */
   public updateBlock(block: Partial<TBlock>): void {
     // Update anchors first to ensure they have correct state when geometry changes
     if (block.anchors) {
       this.updateAnchors(block.anchors);
     }
 
-    this.$state.value = Object.assign({}, this.$state.value, block);
+    this.$rawState.value = Object.assign({}, this.$rawState.value, block);
     this.getViewComponent()?.updateHitBox(this.$geometry.value, true);
   }
 
@@ -156,14 +227,15 @@ export class BlockState<T extends TBlock = TBlock> {
     return this.$anchorStates.value.find((anchor) => anchor.id === anchorId);
   }
 
+  /**
+   * Converts the block state to a TBlock
+   *
+   * @returns {TBlock} TBlock
+   */
   public asTBlock(): TBlock {
-    return cloneDeep(this.$state.toJSON());
+    return cloneDeep({
+      ...this.$rawState.toJSON(),
+      selected: this.$selected.value,
+    });
   }
-}
-
-export function mapToTBlock(blockState: BlockState) {
-  return blockState.asTBlock();
-}
-export function mapToBlockId(blockState: BlockState) {
-  return blockState.id;
 }

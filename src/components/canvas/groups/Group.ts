@@ -1,4 +1,5 @@
 import { TComponentState } from "../../../lib/Component";
+import { ESelectionStrategy } from "../../../services/selection/types";
 import { BlockState } from "../../../store/block/Block";
 import { GroupState, TGroup, TGroupId } from "../../../store/group/Group";
 import { ECanChangeBlockGeometry } from "../../../store/settings";
@@ -6,7 +7,6 @@ import { isAllowChangeBlockGeometry, isMetaKeyEvent } from "../../../utils/funct
 import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { layoutText } from "../../../utils/renderers/text";
 import { TRect } from "../../../utils/types/shapes";
-import { ESelectionStrategy } from "../../../utils/types/types";
 import { GraphComponent } from "../GraphComponent";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
@@ -126,6 +126,10 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     });
   }
 
+  public getEntityId() {
+    return this.props.id;
+  }
+
   protected isDraggable() {
     return (
       this.props.draggable &&
@@ -148,6 +152,11 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
 
   protected subscribeToGroup() {
     this.groupState = this.context.graph.rootStore.groupsList.getGroupState(this.props.id);
+    this.subscribeSignal(this.groupState.$selected, (selected) => {
+      this.setState({
+        selected,
+      });
+    });
     return this.subscribeSignal(this.groupState.$state, (group) => {
       if (group) {
         this.setState({

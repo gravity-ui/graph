@@ -94,6 +94,10 @@ export class Graph {
     return this.rootStore.connectionsList;
   }
 
+  public get selectionService() {
+    return this.rootStore.selectionService;
+  }
+
   constructor(
     config: TGraphConfig,
     rootEl?: HTMLDivElement,

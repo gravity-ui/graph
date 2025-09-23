@@ -33,6 +33,10 @@ export class GraphComponent<
 
   protected ports: Map<TPortId, PortState> = new Map();
 
+  public getEntityId(): number | string {
+    throw new Error("GraphComponent.getEntityId() is not implemented");
+  }
+
   public get affectsUsableRect() {
     return this.props.affectsUsableRect ?? this.context.affectsUsableRect ?? true;
   }
