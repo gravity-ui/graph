@@ -5,7 +5,7 @@ import type { TBlock } from "../../components/canvas/blocks/Block";
 import { Graph, GraphState, TGraphConfig } from "../../graph";
 import type { TGraphZoomTarget } from "../../graph";
 import type { TGraphColors, TGraphConstants } from "../../graphConfig";
-import type { Layer } from "../../services/Layer";
+import type { Layer, LayerPublicProps } from "../../services/Layer";
 import type { TConnection } from "../../store/connection/ConnectionState";
 import { RecursivePartial } from "../../utils/types/helpers";
 import { useFn } from "../utils/hooks/useFn";
@@ -77,9 +77,7 @@ export function useGraph(config: HookGraphParams) {
     addLayer: useFn(
       <T extends Constructor<Layer> = Constructor<Layer>>(
         layerCtor: T,
-        props: T extends Constructor<Layer<infer Props>>
-          ? Omit<Props, "root" | "camera" | "graph" | "emitter"> & { root?: Props["root"] }
-          : never
+        props: LayerPublicProps<T>
       ): InstanceType<T> => {
         return graph.addLayer(layerCtor, props);
       }

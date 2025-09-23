@@ -145,7 +145,7 @@ export const GraphPortal = forwardRef<GraphPortalLayer, GraphPortalProps>(functi
   });
 
   // Expose layer through ref
-  useImperativeHandle(ref, () => layer!, [layer]);
+  useImperativeHandle(ref, () => layer, [layer]);
 
   // If graph is not ready or layer not yet created, don't render portal
   if (!graph || graphState < GraphState.ATTACHED || !layer) {

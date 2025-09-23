@@ -1,24 +1,11 @@
 import React, { forwardRef, useImperativeHandle, useState } from "react";
 
 import { GraphState } from "../graph";
-import type { Layer } from "../services/Layer";
+import type { Layer, LayerPublicProps } from "../services/Layer";
 
 import { useGraphContext } from "./GraphContext";
 import { useGraphEvent } from "./hooks/useGraphEvents";
 import { useLayer } from "./hooks/useLayer";
-
-/**
- * Type constructor for Layer class
- */
-type Constructor<T = {}> = new (...args: any[]) => T;
-
-/**
- * Extracts property types from Layer constructor
- */
-type LayerPropsForConstructor<TLayer extends Constructor<Layer>> =
-  TLayer extends Constructor<Layer<infer LayerProps>>
-    ? Omit<LayerProps, "root" | "camera" | "graph" | "emitter"> & { root?: LayerProps["root"] }
-    : never;
 
 /**
  * Extracts layer instance type from constructor
@@ -37,7 +24,7 @@ export interface GraphLayerProps<TLayer extends Constructor<Layer> = Constructor
   /**
    * Props to pass to layer constructor
    */
-  props?: LayerPropsForConstructor<TLayer>;
+  props?: LayerPublicProps<TLayer>;
   /**
    * Ref to access layer instance
    */
@@ -64,10 +51,10 @@ export const GraphLayer = forwardRef<LayerInstanceForConstructor<Constructor<Lay
     });
 
     // Always create layer using useLayer (hooks must be called unconditionally)
-    const layer = useLayer(graph, LayerClass, (props as any) || {});
+    const layer = useLayer(graph, LayerClass, props);
 
     // Expose layer through ref
-    useImperativeHandle(ref, () => layer!, [layer]);
+    useImperativeHandle(ref, () => layer, [layer]);
 
     // GraphLayer doesn't render any visible content
     return null;

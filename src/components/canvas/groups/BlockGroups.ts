@@ -90,7 +90,7 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
       constants: this.props.graph.graphConstants,
       colors: this.props.graph.graphColors,
       graph: this.props.graph,
-      ownerDocument: this.props.root!,
+      ownerDocument: this.props.root,
     });
   }
 

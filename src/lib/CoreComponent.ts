@@ -4,7 +4,7 @@ import { ITree, Tree } from "./Tree";
 
 type TOptions = {
   readonly key?: string;
-  readonly ref?: ((inst: any) => void) | string;
+  readonly ref?: ((inst: unknown) => void) | string;
 };
 
 export type TCoreComponent = CoreComponent<CoreComponentProps, CoreComponentContext>;

@@ -6,6 +6,35 @@ const rIC = globalObject.requestIdleCallback || globalObject.setTimeout;
 
 const getTime = () => performance.now();
 type EmitterEventsDefinition = Record<string, (...args: unknown[]) => void>;
+
+type EmitterFn = (...args: unknown[]) => void;
+
+class FnWrapper<Fn extends EmitterFn> {
+  public fn: Fn;
+
+  public once: boolean;
+
+  public canBeDeleted: boolean;
+
+  constructor(fn: Fn, once: boolean) {
+    this.fn = fn;
+    this.once = once;
+    this.canBeDeleted = false;
+  }
+
+  public run(...args: Parameters<Fn>) {
+    this.fn.apply(null, Array.from(args));
+    if (this.once) {
+      this.destroy();
+    }
+  }
+
+  public destroy() {
+    this.fn = noop as Fn;
+    this.canBeDeleted = true;
+  }
+}
+
 export class Emitter<T extends EmitterEventsDefinition = EmitterEventsDefinition> {
   private gcLaunched: boolean;
 
@@ -63,7 +92,7 @@ export class Emitter<T extends EmitterEventsDefinition = EmitterEventsDefinition
   }
 
   public emit<Name extends keyof T>(event: Name, ...args: Parameters<T[Name]>) {
-    if (!this.mapEventToFnWrapper?.has(event)) return;
+    if (!this.mapEventToFnWrapper?.has(event)) return this;
 
     const fnWrappers = this.mapEventToFnWrapper.get(event) ?? [];
 
@@ -123,33 +152,5 @@ export class Emitter<T extends EmitterEventsDefinition = EmitterEventsDefinition
         return;
       }
     }
-  }
-}
-
-type EmitterFn = (...args: unknown[]) => void;
-
-class FnWrapper<Fn extends EmitterFn> {
-  public fn: Fn;
-
-  public once: boolean;
-
-  public canBeDeleted: boolean;
-
-  constructor(fn: Fn, once: boolean) {
-    this.fn = fn;
-    this.once = once;
-    this.canBeDeleted = false;
-  }
-
-  public run(...args: Parameters<Fn>) {
-    this.fn.apply(null, Array.from(args));
-    if (this.once) {
-      this.destroy();
-    }
-  }
-
-  public destroy() {
-    this.fn = noop as Fn;
-    this.canBeDeleted = true;
   }
 }

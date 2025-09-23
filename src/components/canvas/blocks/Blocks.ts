@@ -1,4 +1,5 @@
 import { Component } from "../../../lib/Component";
+import { CoreComponent } from "../../../lib/CoreComponent";
 import { BlockState } from "../../../store/block/Block";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
@@ -14,7 +15,7 @@ export class Blocks extends Component {
 
   private font: string;
 
-  constructor(props: {}, context: any) {
+  constructor(props: {}, context: CoreComponent) {
     super(props, context);
 
     this.unsubscribe = this.subscribe();
