@@ -190,10 +190,6 @@ export class HitTest extends Emitter {
   protected updateUsableRect() {
     // Use optimized tracker for elements affecting usableRect
     const rect = this.usableRectTracker.toJSON();
-    if (rect.length === 0) {
-      this.$usableRect.value = { x: 0, y: 0, width: 0, height: 0 };
-      return;
-    }
     const usableRect = {
       x: Number.isFinite(rect.minX) ? rect.minX : 0,
       y: Number.isFinite(rect.minY) ? rect.minY : 0,
