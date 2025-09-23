@@ -3,6 +3,8 @@ import { ECanChangeBlockGeometry } from "../../store/settings";
 import { EVENTS_DETAIL, SELECTION_EVENT_TYPES } from "../types/events";
 import { Rect, TRect } from "../types/shapes";
 
+import { isTouchDevice } from "./touchUtils";
+
 export { parseClassNames } from "./classNames";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -21,11 +23,11 @@ export function getXY(root: HTMLElement, event: Event | WheelEvent | MouseEvent)
 }
 
 export function getCoord(event: TouchEvent | MouseEvent, coord: string) {
-  const name = `page${coord.toUpperCase()}`;
-
-  if (isTouchEvent(event)) {
-    return event.touches[0][name];
+  if (isTouchEvent(event) && (event.touches.length > 0 || event.changedTouches.length > 0)) {
+    const name = `screen${coord.toUpperCase()}`;
+    return event.touches?.[0]?.[name] || event.changedTouches?.[0]?.[name];
   }
+  const name = `page${coord.toUpperCase()}`;
   return event[name];
 }
 
@@ -192,6 +194,9 @@ function isTrackpadDetector() {
   let cleanStateTimer = setTimeout(() => {}, 0);
 
   return (e: WheelEvent, dpr: number = globalThis.devicePixelRatio || 1) => {
+    if (isTouchDevice()) {
+      return true;
+    }
     const normalizedDeltaY = e.deltaY * dpr;
     const normalizedDeltaX = e.deltaX * dpr;
     // deltaX in the trackpad scroll usually is not zero.
@@ -273,3 +278,17 @@ export function computeCssVariable(name: string) {
 
 // Re-export scheduler utilities
 export { schedule, debounce, throttle } from "../utils/schedule";
+
+// Export drag listener for mouse and touch events
+export { dragListener } from "./dragListener";
+
+// Export touch utilities
+export {
+  isTouchDevice,
+  getEventPageCoordinates,
+  getEventClientCoordinates,
+  getTouchDistance,
+  getTouchCenter,
+  preventDefaultForMultiTouch,
+  isMultiTouch,
+} from "./touchUtils";
