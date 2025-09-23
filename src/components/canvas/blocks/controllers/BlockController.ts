@@ -44,25 +44,31 @@ export class BlockController {
 
       event.stopPropagation();
 
-      const selectedBlocksComponents = block.context.graph.rootStore.blocksList.$selectedBlocks.value.map((block) =>
+      const draggingElements = block.context.graph.rootStore.blocksList.$selectedBlocks.value.map((block) =>
         block.getViewComponent()
       );
 
-      if (!selectedBlocksComponents.includes(block)) {
+      // Prevent drag if user selected multiple blocks but start drag from non-selected block
+      if (draggingElements.length && !draggingElements.includes(block)) {
         return;
+      }
+
+      // Add current block to list of dragging elements
+      if (!draggingElements.includes(block)) {
+        draggingElements.push(block);
       }
 
       dragListener(block.context.ownerDocument)
         .on(EVENTS.DRAG_START, (_event: MouseEvent) => {
           block.context.graph.getGraphLayer().captureEvents(block);
-          dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_START, _event));
+          dispatchEvents(draggingElements, createCustomDragEvent(EVENTS.DRAG_START, _event));
         })
         .on(EVENTS.DRAG_UPDATE, (_event: MouseEvent) => {
-          dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_UPDATE, _event));
+          dispatchEvents(draggingElements, createCustomDragEvent(EVENTS.DRAG_UPDATE, _event));
         })
         .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
           block.context.graph.getGraphLayer().releaseCapture();
-          dispatchEvents(selectedBlocksComponents, createCustomDragEvent(EVENTS.DRAG_END, _event));
+          dispatchEvents(draggingElements, createCustomDragEvent(EVENTS.DRAG_END, _event));
         });
     });
   }
