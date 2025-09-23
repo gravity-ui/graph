@@ -8,14 +8,14 @@ import { ESelectionStrategy, ISelectionBucket, TMultiEntitySelection, TSelection
  * Service responsible for managing selection across different entity types
  * Acts as a central registry and coordinator for ISelectionBucket instances
  *
- * SelectionService  управляет состоянием выбора для всех элементов графа.
- * При процедуре выбора стратегия определяет как будет изменяться выбор.
- * - REPLACE: заменяет текущий выбор на новый, влияет на все
- * - APPEND: добавляет новые элементы к текущему выбору
- * - SUBTRACT: удаляет элементы из текущего выбора
- * - TOGGLE: переключает выбор элементов
+ * The SelectionService manages selection state for all graph elements.
+ * During selection operations, the strategy determines how the selection will change:
+ * - REPLACE: replaces current selection with new one, affects all entity types
+ * - APPEND: adds new elements to current selection
+ * - SUBTRACT: removes elements from current selection
+ * - TOGGLE: toggles selection state of elements
  *
- * Поддерживает два API:
+ * Supports two APIs:
  * 1. Single-type selection: select(entityType, ids, strategy)
  * 2. Multi-type selection: select({ type1: ids1, type2: ids2 }, strategy)
  *

@@ -53,9 +53,6 @@ declare module "../../graphEvents" {
 
 /**
  * Storage for managing blocks state
- *
- * Этот стор хранит и управляет состоянием блоков.
- * Определяет способ управления выбором блоков и анкоров.
  */
 export class BlockListStore {
   public $blocksMap = signal<Map<BlockState["id"], BlockState>>(new Map());
@@ -84,8 +81,6 @@ export class BlockListStore {
   );
 
   public readonly anchorSelectionBucket = new SingleSelectionBucket<TAnchorId>("anchor", (diff, defaultAction) => {
-    // diff: { added: Set<ID>, removed: Set<ID> }
-    // Для single selection максимум один id в added/removed
     if (diff.changes.add.length > 0) {
       const anchorId = diff.changes.add[0];
       const anchor = this.$blocks.value.flatMap((block) => block.$anchors.value).find((a) => a.id === anchorId);
