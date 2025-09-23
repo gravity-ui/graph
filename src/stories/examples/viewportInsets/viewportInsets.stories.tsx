@@ -126,10 +126,11 @@ const InsetsOverlay = ({ graph, maintain }: { graph: Graph; maintain: "center" |
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {
       const cam = graph.cameraService.getCameraState();
-      const size = 300;
-      const x = Math.max(0, Math.floor((cam.width - size) / 2));
-      const y = Math.max(0, Math.floor((cam.height - size) / 2));
-      const centered = { x, y, width: size, height: size };
+      const sizeW = cam.width / 2;
+      const sizeH = cam.height / 2;
+      const x = Math.max(0, Math.floor((cam.width - sizeW) / 2));
+      const y = Math.max(0, Math.floor((cam.height - sizeW) / 2));
+      const centered = { x, y, width: sizeW, height: sizeH };
       setRect(centered);
       const insets = {
         left: centered.x,
