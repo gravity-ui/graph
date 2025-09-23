@@ -5,6 +5,7 @@ import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
 import { GraphComponent } from "./components/canvas/GraphComponent";
 import { TBlock } from "./components/canvas/blocks/Block";
 import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
+import { CursorLayer, CursorLayerCursorTypes } from "./components/canvas/layers/cursorLayer";
 import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
 import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
@@ -64,6 +65,8 @@ export class Graph {
 
   protected selectionLayer: SelectionLayer;
 
+  protected cursorLayer: CursorLayer;
+
   public getGraphCanvas() {
     return this.graphLayer.getCanvas();
   }
@@ -107,6 +110,7 @@ export class Graph {
     this.belowLayer = this.addLayer(BelowLayer, {});
     this.graphLayer = this.addLayer(GraphLayer, {});
     this.selectionLayer = this.addLayer(SelectionLayer, {});
+    this.cursorLayer = this.addLayer(CursorLayer, {});
 
     this.selectionLayer.hide();
     this.graphLayer.hide();
@@ -384,6 +388,7 @@ export class Graph {
       this.selectionLayer.show();
       this.graphLayer.show();
       this.belowLayer.show();
+      this.cursorLayer.show();
     });
   }
 
@@ -430,5 +435,88 @@ export class Graph {
     clearTextCache();
     this.rootStore.reset();
     this.scheduler.stop();
+  }
+
+  /**
+   * Locks the cursor to a specific type, disabling automatic cursor changes.
+   *
+   * When the cursor is locked, it will remain fixed to the specified type
+   * and will not change automatically based on component interactions until
+   * unlockCursor() is called. This is useful during drag operations, loading
+   * states, or other situations where you want to override the default
+   * interactive cursor behavior.
+   *
+   * @param cursor - The cursor type to lock to
+   *
+   * @example
+   * ```typescript
+   * // Lock to loading cursor during async operation
+   * graph.lockCursor("wait");
+   *
+   * // Lock to grabbing cursor during drag operation
+   * graph.lockCursor("grabbing");
+   *
+   * // Lock to copy cursor for duplication operations
+   * graph.lockCursor("copy");
+   * ```
+   *
+   * @see {@link CursorLayer.lockCursor} for more details
+   * @see {@link unlockCursor} to return to automatic behavior
+   */
+  public lockCursor(cursor: CursorLayerCursorTypes): void {
+    this.cursorLayer.lockCursor(cursor);
+  }
+
+  /**
+   * Unlocks the cursor and returns to automatic cursor management.
+   *
+   * The cursor will immediately update to reflect the current state
+   * based on the component under the mouse (if any). This provides
+   * smooth transitions when ending drag operations or async tasks.
+   *
+   * @example
+   * ```typescript
+   * // After completing a drag operation
+   * graph.unlockCursor(); // Will show appropriate cursor for current hover state
+   *
+   * // After finishing an async operation
+   * await someAsyncTask();
+   * graph.unlockCursor(); // Returns to interactive cursor behavior
+   * ```
+   *
+   * @see {@link CursorLayer.unlockCursor} for more details
+   * @see {@link lockCursor} to override automatic behavior
+   */
+  public unlockCursor(): void {
+    this.cursorLayer.unlockCursor();
+  }
+
+  /**
+   * Returns the CursorLayer instance for advanced cursor management.
+   *
+   * Use this method when you need direct access to cursor layer functionality
+   * beyond the basic setCursor/unsetCursor API, such as checking the current
+   * mode or getting the component under the cursor.
+   *
+   * @returns The CursorLayer instance
+   *
+   * @example
+   * ```typescript
+   * const cursorLayer = graph.getCursorLayer();
+   *
+   * // Check current mode
+   * if (cursorLayer.isManual()) {
+   *   console.log("Manual cursor:", cursorLayer.getManualCursor());
+   * }
+   *
+   * // Get component under cursor for debugging
+   * const target = cursorLayer.getCurrentTarget();
+   * console.log("Hovering over:", target?.constructor.name);
+   * ```
+   *
+   * @see {@link CursorLayer} for available methods and properties
+   */
+  public getCursorLayer(): CursorLayer {
+    return this.cursorLayer;
   }
 }

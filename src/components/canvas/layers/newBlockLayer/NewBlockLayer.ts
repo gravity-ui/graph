@@ -111,11 +111,15 @@ export class NewBlockLayer extends Layer<
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
       dragListener(this.root.ownerDocument)
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onStartNewBlock(event, target))
+        .on(EVENTS.DRAG_START, (event: MouseEvent) => {
+          this.context.graph.lockCursor("copy");
+          this.onStartNewBlock(event, target);
+        })
         .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onMoveNewBlock(event))
-        .on(EVENTS.DRAG_END, (event: MouseEvent) =>
-          this.onEndNewBlock(event, this.context.graph.getPointInCameraSpace(event))
-        );
+        .on(EVENTS.DRAG_END, (event: MouseEvent) => {
+          this.context.graph.unlockCursor();
+          this.onEndNewBlock(event, this.context.graph.getPointInCameraSpace(event));
+        });
     }
   };
 

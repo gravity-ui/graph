@@ -133,6 +133,7 @@ export class GraphComponent<
             return;
           }
           this.context.graph.getGraphLayer().captureEvents(this);
+          this.context.graph.lockCursor("grabbing");
           const xy = getXY(this.context.canvas, event);
           startDragCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
         })
@@ -150,6 +151,7 @@ export class GraphComponent<
         })
         .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
           this.context.graph.getGraphLayer().releaseCapture();
+          this.context.graph.unlockCursor();
           startDragCoords = undefined;
           onDrop?.(_event);
         });
