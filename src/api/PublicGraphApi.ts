@@ -10,7 +10,7 @@ import { TConnection, TConnectionId } from "../store/connection/ConnectionState"
 import { selectConnectionById } from "../store/connection/selectors";
 import { TGraphSettingsConfig } from "../store/settings";
 import { getBlocksRect, startAnimation } from "../utils/functions";
-import { TRect } from "../utils/types/shapes";
+import { Rect, TRect } from "../utils/types/shapes";
 
 export type ZoomConfig = {
   transition?: number;
@@ -40,6 +40,21 @@ export class PublicGraphApi {
    */
   public zoomToViewPort(zoomConfig?: ZoomConfig) {
     this.graph.hitTest.waitUsableRectUpdate((rect) => {
+      /**
+       * if there no usableRect (maybe no blocks and connections on graph)
+       * and user call zoomToViewPort
+       * we zoom him around 0,0 point with USABLE_RECT_GAP gap
+       */
+      if (rect.width === 0 && rect.height === 0 && rect.x === 0 && rect.y === 0) {
+        const x = 0 - this.graph.graphConstants.system.USABLE_RECT_GAP;
+        const y = 0 - this.graph.graphConstants.system.USABLE_RECT_GAP;
+        const width = 0 + this.graph.graphConstants.system.USABLE_RECT_GAP * 2;
+        const height = 0 + this.graph.graphConstants.system.USABLE_RECT_GAP * 2;
+
+        const initRect = new Rect(x, y, width, height);
+        this.zoomToRect(initRect, zoomConfig);
+        return;
+      }
       this.zoomToRect(rect, zoomConfig);
     });
   }

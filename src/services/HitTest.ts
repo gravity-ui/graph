@@ -62,14 +62,7 @@ export class HitTest extends Emitter {
   protected queue = new Map<HitBox, HitBoxData | null>();
 
   public get isUnstable() {
-    return (
-      this.processQueue.isScheduled() ||
-      this.queue.size > 0 ||
-      (this.$usableRect.value.height === 0 &&
-        this.$usableRect.value.width === 0 &&
-        this.$usableRect.value.x === 0 &&
-        this.$usableRect.value.y === 0)
-    );
+    return this.processQueue.isScheduled() || this.queue.size > 0;
   }
 
   /**
