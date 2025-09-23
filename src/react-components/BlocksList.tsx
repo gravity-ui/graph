@@ -30,7 +30,7 @@ export type TBlockProps = {
 export const Block: React.FC<TBlockProps> = memo((props: TBlockProps) => {
   const block = useSignal(props.blockState.$state);
 
-  if (!block) return;
+  if (!block) return null;
 
   return props.renderBlock(props.graphObject, block, props.blockState);
 });
@@ -40,8 +40,8 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
   const [isRenderAllowed, setRenderAllowed] = useCompareState(false);
   const [graphState, setGraphState] = useCompareState(graphObject.state);
 
-  const render = useFn((graphObject: Graph, block: TBlock) => {
-    return renderBlock(graphObject, block);
+  const render = useFn((graph: Graph, block: TBlock) => {
+    return renderBlock(graph, block);
   });
 
   const updateBlockList = useFn(() => {
@@ -97,18 +97,28 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
     };
   }, []);
 
-  // init list
+  // Subscribe to hitTest updates to catch when blocks become available in viewport
   useEffect(() => {
-    graphObject.hitTest.waitUsableRectUpdate(() => {
+    const handler = () => {
+      if (!isRenderAllowed) return;
       if (graphObject.cameraService.getCameraBlockScaleLevel() !== ECameraScaleLevel.Detailed) {
-        setRenderAllowed(false);
         return;
       }
-      setRenderAllowed(true);
+
+      scheduleListUpdate();
+    };
+
+    graphObject.hitTest.on("update", handler);
+
+    // Initial update when component mounts
+    if (isRenderAllowed && graphObject.cameraService.getCameraBlockScaleLevel() === ECameraScaleLevel.Detailed) {
       scheduleListUpdate.flush();
-    });
-    return graphObject.hitTest.onUsableRectUpdate(updateBlockList);
-  }, [graphObject.hitTest, isRenderAllowed, graphState]);
+    }
+
+    return () => {
+      graphObject.hitTest.off("update", handler);
+    };
+  }, [graphObject, isRenderAllowed, scheduleListUpdate]);
 
   return (
     <>
