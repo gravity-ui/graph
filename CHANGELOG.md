@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.0](https://github.com/gravity-ui/graph/compare/v1.2.2...v1.3.0) (2025-09-24)
+
+
+### Features
+
+* **CameraService:** add viewport insets management and update related methods ([#141](https://github.com/gravity-ui/graph/issues/141)) ([ce7afbc](https://github.com/gravity-ui/graph/commit/ce7afbc2914950aa802dcbe61ebf27bf0879aae8))
+* Introduce CursorLayer ([#149](https://github.com/gravity-ui/graph/issues/149)) ([2bcb7d9](https://github.com/gravity-ui/graph/commit/2bcb7d9310ba419547ca296e0477ac807fe4e9ca))
+* Unified Selection service ([#133](https://github.com/gravity-ui/graph/issues/133)) ([f267984](https://github.com/gravity-ui/graph/commit/f2679842d1df616ea66ba87ad7a5b18d8f951ae6))
+
+
+### Bug Fixes
+
+* **BlocksList:** improve hitTest update handling ([#145](https://github.com/gravity-ui/graph/issues/145)) ([5c8bfc7](https://github.com/gravity-ui/graph/commit/5c8bfc789239dda666656067ca80f3b9d7baef99))
+* fix drag block on multiple selection ([0a5ca66](https://github.com/gravity-ui/graph/commit/0a5ca66206e26998687a9fea794dfa58e866b20d))
+* fix resolve unstable state on empty graph ([#151](https://github.com/gravity-ui/graph/issues/151)) ([0559302](https://github.com/gravity-ui/graph/commit/055930293661e1b9cb1a1f5f46436f3d3946c333))
+
 ## [1.2.2](https://github.com/gravity-ui/graph/compare/v1.2.1...v1.2.2) (2025-09-17)
 
 
