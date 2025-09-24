@@ -1,5 +1,6 @@
 export { Anchor, type TAnchor, type TAnchorProps } from "./components/canvas/anchors";
 export { Block as CanvasBlock, type TBlock } from "./components/canvas/blocks/Block";
+export { GraphComponent } from "./components/canvas/GraphComponent";
 export * from "./components/canvas/connections";
 export * from "./graph";
 export type { TGraphColors, TGraphConstants } from "./graphConfig";
