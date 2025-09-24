@@ -1,6 +1,7 @@
 import { signal } from "@preact/signals-core";
 import RBush from "rbush";
 
+import { Graph } from "../graph";
 import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
@@ -61,15 +62,38 @@ export class HitTest extends Emitter {
   // Single queue replaces all complex state tracking
   protected queue = new Map<HitBox, HitBoxData | null>();
 
-  public get isUnstable() {
+  constructor(protected graph: Graph) {
+    super();
+  }
+
+  /**
+   * Check if graph has any elements (blocks or connections)
+   * @returns true if graph has elements, false if empty
+   */
+  private hasGraphElements(): boolean {
+    if (!this.graph) {
+      return false;
+    }
     return (
-      this.processQueue.isScheduled() ||
-      this.queue.size > 0 ||
-      (this.$usableRect.value.height === 0 &&
-        this.$usableRect.value.width === 0 &&
-        this.$usableRect.value.x === 0 &&
-        this.$usableRect.value.y === 0)
+      this.graph.rootStore.blocksList.$blocks.value.length > 0 ||
+      this.graph.rootStore.connectionsList.$connections.value.length > 0
     );
+  }
+
+  public get isUnstable() {
+    const hasProcessingQueue = this.processQueue.isScheduled() || this.queue.size > 0;
+    const hasZeroUsableRect =
+      this.$usableRect.value.height === 0 &&
+      this.$usableRect.value.width === 0 &&
+      this.$usableRect.value.x === 0 &&
+      this.$usableRect.value.y === 0;
+
+    // If graph has no elements, it's stable even with zero usableRect
+    if (hasZeroUsableRect && !this.hasGraphElements()) {
+      return hasProcessingQueue;
+    }
+
+    return hasProcessingQueue || hasZeroUsableRect;
   }
 
   /**
@@ -172,6 +196,12 @@ export class HitTest extends Emitter {
    * @returns Unsubscribe function
    */
   public waitUsableRectUpdate(callback: (rect: TRect) => void): () => void {
+    // For empty graphs, immediately call callback with current usableRect
+    if (!this.hasGraphElements()) {
+      callback(this.$usableRect.value);
+      return noop;
+    }
+
     if (this.isUnstable) {
       const removeListener = this.$usableRect.subscribe(() => {
         if (!this.isUnstable) {
