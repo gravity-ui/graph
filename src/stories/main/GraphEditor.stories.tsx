@@ -13,6 +13,7 @@ import { CustomLayerConfig } from "../configurations/CustomLayerConfig";
 import { oneBezierConnectionConfig } from "../configurations/bezierConnection";
 import { coloredConnections } from "../configurations/coloredConnections";
 import { customSchematicViewConfig } from "../configurations/customBlocksView";
+import { emptyGraphConfig } from "../configurations/emptyGraph";
 import { generatePrettyBlocks } from "../configurations/generatePretty";
 import { oneBlockConfig } from "../configurations/oneBlock";
 import { oneStraightConfig } from "../configurations/oneConnection";
@@ -198,11 +199,14 @@ export const SnappingGraph: Story = {
   ),
 };
 
-//
-// export const ThousandBlocksAnd9000Connections: Story = {
-//   render: () => <GraphApp config={generatePrettyBlocks(25, 15)}></GraphApp>,
-// };
-//
-// export const FiveThousandBlocksAnd5000Connections: Story = {
-//   render: () => <GraphApp config={generatePrettyBlocks(40, 500)}></GraphApp>,
-// };
+export const EmptyGraph: Story = {
+  render: (args) => <GraphApp config={emptyGraphConfig} {...args}></GraphApp>,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Demonstrates behavior of an empty graph. This tests the fix for HitTest service where waitUsableRectUpdate would never resolve for graphs initialized without elements.",
+      },
+    },
+  },
+};

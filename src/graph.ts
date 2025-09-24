@@ -28,8 +28,17 @@ export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConn
   configurationName?: string;
   blocks?: Block[];
   connections?: TConnection[];
+  /**
+   * @deprecated use Graph.zoom api
+   */
   rect?: TRect;
+  /**
+   * @deprecated use Graph.zoom api
+   * */
   cameraXY?: TPoint;
+  /**
+   * @deprecated use Graph.zoom api
+   * */
   cameraScale?: number;
   settings?: Partial<TGraphSettingsConfig<Block, Connection>>;
   layers?: LayerConfig[];
@@ -56,7 +65,7 @@ export class Graph {
 
   public rootStore: RootStore = new RootStore(this);
 
-  public hitTest = new HitTest();
+  public hitTest = new HitTest(this);
 
   protected graphLayer: GraphLayer;
 
