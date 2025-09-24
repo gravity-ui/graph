@@ -200,14 +200,16 @@ export class ConnectionLayer extends Layer<
       nativeEvent.stopPropagation();
       dragListener(this.root.ownerDocument)
         .on(EVENTS.DRAG_START, (dStartEvent: MouseEvent) => {
+          this.context.graph.lockCursor("crosshair");
           this.onStartConnection(dStartEvent, this.context.graph.getPointInCameraSpace(dStartEvent));
         })
         .on(EVENTS.DRAG_UPDATE, (dUpdateEvent: MouseEvent) =>
           this.onMoveNewConnection(dUpdateEvent, this.context.graph.getPointInCameraSpace(dUpdateEvent))
         )
-        .on(EVENTS.DRAG_END, (dEndEvent: MouseEvent) =>
-          this.onEndNewConnection(this.context.graph.getPointInCameraSpace(dEndEvent))
-        );
+        .on(EVENTS.DRAG_END, (dEndEvent: MouseEvent) => {
+          this.context.graph.unlockCursor();
+          this.onEndNewConnection(this.context.graph.getPointInCameraSpace(dEndEvent));
+        });
     }
   };
 

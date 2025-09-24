@@ -93,6 +93,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 > {
   public static IS = IS_BLOCK_TYPE;
 
+  public cursor?: string = "pointer";
+
   // from controller mixin
   public readonly isBlock = true;
 
