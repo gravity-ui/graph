@@ -67,7 +67,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     super({
       canvas: {
         zIndex: 2,
-        classNames: ["no-user-select"],
+        classNames: ["no-user-select", "no-pointer-events"],
         transformByCameraPosition: true,
       },
       // HTML element creation is now separated into framework-specific layers

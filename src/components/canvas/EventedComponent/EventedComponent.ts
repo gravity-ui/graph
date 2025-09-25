@@ -87,12 +87,13 @@ export class EventedComponent<
   }
 
   public dispatchEvent(event: Event): boolean {
-    const bubbles = event.bubbles || false;
-
-    if (bubbles || !this.isInteractive()) {
+    if (!this.isInteractive()) {
       return this._dipping(this, event);
     } else if (this._hasListener(this, event.type)) {
       this._fireEvent(this, event);
+      if (event.bubbles) {
+        return this._dipping(this, event);
+      }
       return false;
     }
     return false;
