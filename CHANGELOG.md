@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/gravity-ui/graph/compare/v1.3.1...v1.3.2) (2025-09-25)
+
+
+### Bug Fixes
+
+* cursorLayer blocking propagation events ([#153](https://github.com/gravity-ui/graph/issues/153)) ([6b03a6d](https://github.com/gravity-ui/graph/commit/6b03a6dd118385d3d90dfed572d485151f4a2709))
+
 ## [1.3.1](https://github.com/gravity-ui/graph/compare/v1.3.0...v1.3.1) (2025-09-24)
 
 
