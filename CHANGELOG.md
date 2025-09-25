@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.3](https://github.com/gravity-ui/graph/compare/v1.3.2...v1.3.3) (2025-09-25)
+
+
+### Bug Fixes
+
+* **Event:** fix handling events on phase `AT_TARGET` ([0576d99](https://github.com/gravity-ui/graph/commit/0576d99040f5af75f44b92561cfd97f69ef11267))
+
 ## [1.3.2](https://github.com/gravity-ui/graph/compare/v1.3.1...v1.3.2) (2025-09-25)
 
 
