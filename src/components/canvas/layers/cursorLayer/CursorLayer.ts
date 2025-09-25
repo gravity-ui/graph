@@ -61,16 +61,15 @@ export type TCursorLayerProps = LayerProps & {
  * Context provided to CursorLayer during rendering.
  */
 export type TCursorLayerContext = LayerContext & {
-  html: HTMLDivElement;
   graph: Graph;
 };
 
 /**
  * CursorLayer provides cursor management for graph components.
  *
- * This layer solves performance issues with cursor changes by using a dedicated
- * HTML overlay instead of modifying the root element's cursor style, which can
- * cause expensive style recalculations.
+ * This layer manages cursor changes by applying cursor styles directly to the
+ * graph root element, avoiding event blocking issues while maintaining
+ * performance.
  *
  * ## Features:
  * - **Automatic mode**: Dynamically sets cursor based on component under mouse
@@ -82,8 +81,8 @@ export type TCursorLayerContext = LayerContext & {
  * graph.getCursorLayer().isAuto(); // true
  *
  * // Manual mode
- * graph.setCursor("grabbing");
- * graph.unsetCursor(); // returns to auto mode
+ * graph.lockCursor("grabbing");
+ * graph.unlockCursor(); // returns to auto mode
  * ```
  *
  * @example
@@ -95,10 +94,10 @@ export type TCursorLayerContext = LayerContext & {
  * console.log(cursorLayer.getMode()); // "auto" | "manual"
  *
  * // Set manual cursor
- * cursorLayer.setCursor("wait");
+ * cursorLayer.lockCursor("wait");
  *
  * // Return to automatic behavior
- * cursorLayer.unsetCursor();
+ * cursorLayer.unlockCursor();
  * ```
  */
 export class CursorLayer extends Layer<TCursorLayerProps, TCursorLayerContext> {
@@ -118,10 +117,7 @@ export class CursorLayer extends Layer<TCursorLayerProps, TCursorLayerContext> {
    */
   constructor(props: TCursorLayerProps) {
     super({
-      html: {
-        zIndex: 1000, // Above all other layers
-        classNames: ["cursor-layer"],
-      },
+      // No HTML element needed - we'll apply cursor to the root element
       ...props,
     });
   }
@@ -186,15 +182,23 @@ export class CursorLayer extends Layer<TCursorLayerProps, TCursorLayerContext> {
   }
 
   /**
-   * Applies the specified cursor to the HTML layer element.
+   * Applies the specified cursor to the graph root element.
    *
    * @param cursor - The cursor type to apply
    * @private
    */
   private applyCursor(cursor: CursorLayerCursorTypes): void {
-    const htmlElement = this.getHTML();
-    if (htmlElement) {
-      htmlElement.style.cursor = cursor;
+    const rootElement = this.props.graph.layers.$root;
+    if (rootElement) {
+      rootElement.style.cursor = cursor;
+    }
+  }
+
+  protected unmountLayer(): void {
+    super.unmountLayer();
+    const rootElement = this.props.graph.layers.$root;
+    if (rootElement) {
+      rootElement.style.cursor = "auto";
     }
   }
 
