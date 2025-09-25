@@ -154,7 +154,10 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
       return;
     }
 
-    if (e.eventPhase === Event.BUBBLING_PHASE && rootBubblingEventTypes.has(e.type)) {
+    if (
+      (e.eventPhase === Event.AT_TARGET || e.eventPhase === Event.BUBBLING_PHASE) &&
+      rootBubblingEventTypes.has(e.type)
+    ) {
       switch (e.type) {
         case "mousedown":
         case "touchstart": {
