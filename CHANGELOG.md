@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.4](https://github.com/gravity-ui/graph/compare/v1.3.3...v1.3.4) (2025-09-26)
+
+
+### Bug Fixes
+
+* fix events bubbling ([#157](https://github.com/gravity-ui/graph/issues/157)) ([add1fa7](https://github.com/gravity-ui/graph/commit/add1fa74c9dec852ee8a28d66d486fda5132b89b))
+* fix propagating events ([f4bdb08](https://github.com/gravity-ui/graph/commit/f4bdb08ae783aa44cd488c91e6bf0cf2b1b24160))
+
 ## [1.3.3](https://github.com/gravity-ui/graph/compare/v1.3.2...v1.3.3) (2025-09-25)
 
 
