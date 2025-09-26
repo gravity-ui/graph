@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.5](https://github.com/gravity-ui/graph/compare/v1.3.4...v1.3.5) (2025-09-26)
+
+
+### Bug Fixes
+
+* attempt to fix double click on element and stopPropagation ([#158](https://github.com/gravity-ui/graph/issues/158)) ([f60360b](https://github.com/gravity-ui/graph/commit/f60360b257f37bebf04eac09f0c39c62db82c07b))
+* **react:** add no-pointer-event to React Layer to prevent stop mouse event on the lower html-layers ([ab346f1](https://github.com/gravity-ui/graph/commit/ab346f1cc5afbccb33c79a685860d0185e1e079b))
+
 ## [1.3.4](https://github.com/gravity-ui/graph/compare/v1.3.3...v1.3.4) (2025-09-26)
 
 
