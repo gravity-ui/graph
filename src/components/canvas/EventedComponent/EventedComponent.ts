@@ -87,15 +87,7 @@ export class EventedComponent<
   }
 
   public dispatchEvent(event: Event): boolean {
-    if (!this.isInteractive()) {
-      return this._dipping(this, event);
-    } else if (this._hasListener(this, event.type)) {
-      this._fireEvent(this, event);
-      return this._dipping(this, event);
-    } else if (event.bubbles) {
-      return this._dipping(this, event);
-    }
-    return false;
+    return this._dipping(this, event);
   }
 
   protected _dipping(startParent: Component, event: Event) {
@@ -106,6 +98,13 @@ export class EventedComponent<
     };
 
     do {
+      if (
+        (parent instanceof EventedComponent && !parent.isInteractive?.()) ||
+        !this._hasListener(parent as EventedComponent, event.type)
+      ) {
+        parent = parent.getParent() as Component;
+        continue;
+      }
       this._fireEvent(parent, event);
       if (stopPropagation) {
         return false;
