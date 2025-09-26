@@ -9,7 +9,7 @@ describe("ReactLayer", () => {
   let rootElement: HTMLDivElement;
 
   // Constants for default classes
-  const DEFAULT_LAYER_CLASSES = ["layer", "layer-html", "no-user-select", "layer-with-camera"];
+  const DEFAULT_LAYER_CLASSES = ["layer", "layer-html", "no-user-select", "no-pointer-events", "layer-with-camera"];
 
   beforeEach(() => {
     graph = new Graph({});
