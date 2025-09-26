@@ -14,19 +14,8 @@ import { TBlock } from "../../components/canvas/blocks/Block";
 import { random } from "../../components/canvas/blocks/generate";
 import { ConnectionLayer } from "../../components/canvas/layers/connectionLayer/ConnectionLayer";
 import { Graph, GraphState, TGraphConfig } from "../../graph";
-import { TComponentState } from "../../lib/Component";
-import {
-  GraphBlock,
-  GraphCanvas,
-  GraphLayer,
-  GraphPortal,
-  HookGraphParams,
-  useGraph,
-  useGraphEvent,
-  useLayer,
-} from "../../react-components";
+import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "../../react-components";
 import { useFn } from "../../react-components/utils/hooks/useFn";
-import { Layer, LayerContext, LayerProps } from "../../services/Layer";
 import { ECanChangeBlockGeometry } from "../../store/settings";
 import { EAnchorType } from "../configurations/definitions";
 
@@ -342,14 +331,7 @@ export function GraphPLayground() {
               <Toolbox graph={graph} className="graph-tools-zoom button-group" />
               <GraphSettings className="graph-tools-settings" graph={graph} />
             </Flex>
-            <GraphCanvas graph={graph} renderBlock={renderBlockFn}>
-              <GraphPortal className="no-pointer-events" zIndex={1} transformByCameraPosition={true}>
-                <div>
-                  <h1>DevTools</h1>
-                </div>
-              </GraphPortal>
-              <GraphLayer layer={SomeLayer} />
-            </GraphCanvas>
+            <GraphCanvas graph={graph} renderBlock={renderBlockFn} />
           </Flex>
         </Flex>
         <Flex direction="column" grow={1} className="content" gap={6}>
@@ -367,24 +349,6 @@ export function GraphPLayground() {
       </Flex>
     </ThemeProvider>
   );
-}
-
-class SomeLayer extends Layer<LayerProps, LayerContext, TComponentState> {
-  constructor(props: LayerProps) {
-    super({
-      canvas: {
-        zIndex: 100,
-        transformByCameraPosition: true,
-      },
-      ...props,
-    });
-  }
-
-  protected render(): void {
-    super.render();
-    this.context.ctx.fillStyle = "red";
-    this.context.ctx.fillRect(0, 0, 100, 100);
-  }
 }
 
 export const Default: StoryFn = () => <GraphPLayground />;

@@ -91,10 +91,9 @@ export class EventedComponent<
       return this._dipping(this, event);
     } else if (this._hasListener(this, event.type)) {
       this._fireEvent(this, event);
-      if (event.bubbles) {
-        return this._dipping(this, event);
-      }
-      return false;
+      return this._dipping(this, event);
+    } else if (event.bubbles) {
+      return this._dipping(this, event);
     }
     return false;
   }

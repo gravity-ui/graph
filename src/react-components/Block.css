@@ -12,6 +12,7 @@
   /* Creates a composite layer */
   backface-visibility: hidden;
   transform-style: preserve-3d;
+  pointer-events: all;
 }
 
 .graph-block-wrapper {
