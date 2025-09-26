@@ -34,7 +34,7 @@ const rootBubblingEventTypes = new Set([
   "dblclick",
   "contextmenu",
 ]);
-const rootCapturingEventTypes = new Set(["mousedown", "touchstart", "mouseup", "touchend"]);
+// const rootCapturingEventTypes = new Set(["mousedown", "touchstart", "mouseup", "touchend"]);
 
 export type GraphMouseEvent = CustomEvent<{
   target: EventedComponent;
@@ -121,12 +121,10 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   private attachListeners() {
     if (!this.root) return;
 
-    rootBubblingEventTypes.forEach((type) =>
-      this.onRootEvent(type as keyof HTMLElementEventMap, this, { capture: true })
-    );
-    rootCapturingEventTypes.forEach((type) =>
-      this.onRootEvent(type as keyof HTMLElementEventMap, this, { capture: true })
-    );
+    rootBubblingEventTypes.forEach((type) => this.onRootEvent(type as keyof HTMLElementEventMap, this));
+    // rootCapturingEventTypes.forEach((type) =>
+    //   this.onRootEvent(type as keyof HTMLElementEventMap, this, { capture: true })
+    // );
     this.onRootEvent("mousemove", this);
   }
 
@@ -154,16 +152,22 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
       case "mousedown":
       case "touchstart": {
         this.updateTargetComponent(e as MouseEvent, true);
+        this.tryEmulateClick(e as MouseEvent);
         this.handleMouseDownEvent(e as MouseEvent);
         break;
       }
       case "mouseup":
       case "touchend": {
+        this.tryEmulateClick(e as MouseEvent);
         this.onRootPointerEnd(e as MouseEvent);
         break;
       }
+      case "click":
+      case "dblclick": {
+        this.tryEmulateClick(e as MouseEvent);
+        break;
+      }
     }
-    this.tryEmulateClick(e as MouseEvent);
 
     return;
   }
