@@ -25,7 +25,7 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
     super({
       html: {
         zIndex: 3,
-        classNames: ["no-user-select"],
+        classNames: ["no-user-select", "no-pointer-events"],
         transformByCameraPosition: true,
       },
       ...props,
