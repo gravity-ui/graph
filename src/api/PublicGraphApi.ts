@@ -40,7 +40,18 @@ export class PublicGraphApi {
    */
   public zoomToViewPort(zoomConfig?: ZoomConfig) {
     this.graph.hitTest.waitUsableRectUpdate((rect) => {
-      this.zoomToRect(rect, zoomConfig);
+      let zoomRect = rect;
+      // if rect is empty we need apply usable rect gap
+      // or zoom to center will be applied at position {0,0} with width/height 0/0
+      if (rect.width === 0 && rect.height === 0 && rect.x === 0 && rect.y === 0) {
+        zoomRect = {
+          x: 0 - this.graph.graphConstants.system.USABLE_RECT_GAP,
+          y: 0 - this.graph.graphConstants.system.USABLE_RECT_GAP,
+          width: 0 + this.graph.graphConstants.system.USABLE_RECT_GAP * 2,
+          height: 0 + this.graph.graphConstants.system.USABLE_RECT_GAP * 2,
+        };
+      }
+      this.zoomToRect(zoomRect, zoomConfig);
     });
   }
 
