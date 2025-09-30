@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.6](https://github.com/gravity-ui/graph/compare/v1.3.5...v1.3.6) (2025-09-29)
+
+
+### Bug Fixes
+
+* **PublicGraphApi:** handle empty rectangle case in zoomToViewPort method ([#160](https://github.com/gravity-ui/graph/issues/160)) ([3918896](https://github.com/gravity-ui/graph/commit/39188967372f3a020aeafdd02660452770f54a84))
+
 ## [1.3.5](https://github.com/gravity-ui/graph/compare/v1.3.4...v1.3.5) (2025-09-26)
 
 
