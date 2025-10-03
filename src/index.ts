@@ -4,7 +4,7 @@ export { GraphComponent } from "./components/canvas/GraphComponent";
 export * from "./components/canvas/connections";
 export * from "./graph";
 export type { TGraphColors, TGraphConstants } from "./graphConfig";
-export { type UnwrapGraphEventsDetail } from "./graphEvents";
+export { type UnwrapGraphEventsDetail, type SelectionEvent } from "./graphEvents";
 export * from "./plugins";
 export { ECameraScaleLevel } from "./services/camera/CameraService";
 export * from "./services/Layer";
