@@ -136,7 +136,7 @@ export class BatchPath2DRenderer {
 
   public orderedPaths = cache(() => {
     return Array.from(this.indexes.entries())
-      .sort(([indexA], [indexB]) => indexB - indexA)
+      .sort(([indexA], [indexB]) => indexA - indexB)
       .reduce((acc, [_, items]) => {
         acc.push(...Array.from(items.values()));
         return acc;
