@@ -80,7 +80,7 @@ export class BlockConnection<T extends TConnection>
     // Handle arrow visibility based on the provided props
     if (props.showConnectionArrows) {
       // Update will handle adding if not already in batch or updating if it is
-      this.context.batch.update(this.arrowShape, { zIndex: zIndex, group: `arrow/${this.getClassName(state)}` });
+      this.context.batch.update(this.arrowShape, { zIndex: zIndex - 1, group: `arrow/${this.getClassName(state)}` });
     } else {
       // Remove arrow from batch if showConnectionArrows is false
       this.context.batch.delete(this.arrowShape);
@@ -284,16 +284,6 @@ export class BlockConnection<T extends TConnection>
 
     this.labelGeometry = { x, y, width, height };
 
-    ctx.fillStyle = this.context.colors.connectionLabel.text;
-
-    if (this.state.hovered) ctx.fillStyle = this.context.colors.connectionLabel.hoverText;
-    if (this.state.selected) ctx.fillStyle = this.context.colors.connectionLabel.selectedText;
-
-    ctx.textBaseline = "top";
-    ctx.textAlign = aligment;
-    ctx.font = font;
-    ctx.fillText(this.state.label, x + padding, y + padding);
-
     ctx.fillStyle = this.context.colors.connectionLabel.background;
 
     if (this.state.hovered) ctx.fillStyle = this.context.colors.connectionLabel.hoverBackground;
@@ -305,6 +295,16 @@ export class BlockConnection<T extends TConnection>
       measure.width + labelInnerLeftPadding + labelInnerRightPadding,
       measure.height + labelInnerTopPadding + labelInnerBottomPadding
     );
+
+    ctx.fillStyle = this.context.colors.connectionLabel.text;
+
+    if (this.state.hovered) ctx.fillStyle = this.context.colors.connectionLabel.hoverText;
+    if (this.state.selected) ctx.fillStyle = this.context.colors.connectionLabel.selectedText;
+
+    ctx.textBaseline = "top";
+    ctx.textAlign = aligment;
+    ctx.font = font;
+    ctx.fillText(this.state.label, x + padding, y + padding);
   }
 
   public getStrokeColor(state: TConnection) {

@@ -10,8 +10,6 @@ import { Blocks } from "../../blocks/Blocks";
 import { BlockConnection } from "../../connections/BlockConnection";
 import { BlockConnections } from "../../connections/BlockConnections";
 
-import { DrawBelow, DrawOver } from "./helpers";
-
 export type TGraphLayerProps = LayerProps & {
   camera: ICamera;
   root: HTMLDivElement;
@@ -329,8 +327,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   public updateChildren() {
     const cameraProps: TCameraProps = {
-      /* Blocks must be initialized before connections as connections need Block instances to access their geometry */
-      children: [DrawOver.create(), Blocks.create(), DrawBelow.create(), BlockConnections.create()],
+      children: [BlockConnections.create(), Blocks.create()],
       root: this.root,
     };
 
