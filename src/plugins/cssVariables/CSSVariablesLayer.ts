@@ -1,4 +1,4 @@
-import { merge } from "lodash";
+import merge from "lodash/merge";
 import StyleObserver from "style-observer";
 
 import { Layer, LayerContext } from "../../services/Layer";
