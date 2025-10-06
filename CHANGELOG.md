@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/gravity-ui/graph/compare/v1.3.6...v1.4.0) (2025-10-06)
+
+
+### Features
+
+* add SelectionEvent export ([#162](https://github.com/gravity-ui/graph/issues/162)) ([c0a58d1](https://github.com/gravity-ui/graph/commit/c0a58d17276bcd948d4185f8b48954aecf1d2408))
+
 ## [1.3.6](https://github.com/gravity-ui/graph/compare/v1.3.5...v1.3.6) (2025-09-29)
 
 
