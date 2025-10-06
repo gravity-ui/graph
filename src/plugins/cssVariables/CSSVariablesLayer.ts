@@ -107,6 +107,29 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
     this.containerElement = null;
   }
 
+  protected createStyleObserver(): StyleObserver {
+    return new StyleObserver(
+      (records) => {
+        // Convert StyleObserver records to our CSSVariableChange format
+        const changes: CSSVariableChange[] = records.map((record) => ({
+          name: record.property,
+          value: record.value,
+          oldValue: record.oldValue,
+        }));
+
+        if (this.props.debug) {
+          console.log("CSSVariablesLayer: CSS variable changes detected:", changes);
+        }
+
+        this.handleCSSVariableChanges(changes);
+      },
+      {
+        targets: [this.containerElement],
+        properties: Array.from(SUPPORTED_CSS_VARIABLES),
+      }
+    );
+  }
+
   /**
    * Starts observing CSS variable changes using style-observer
    */
@@ -126,26 +149,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
       // Convert Set to Array for style-observer
       const variablesToObserve = Array.from(SUPPORTED_CSS_VARIABLES);
 
-      this.styleObserver = new StyleObserver(
-        (records) => {
-          // Convert StyleObserver records to our CSSVariableChange format
-          const changes: CSSVariableChange[] = records.map((record) => ({
-            name: record.property,
-            value: record.value,
-            oldValue: record.oldValue,
-          }));
-
-          if (this.props.debug) {
-            console.log("CSSVariablesLayer: CSS variable changes detected:", changes);
-          }
-
-          this.handleCSSVariableChanges(changes);
-        },
-        {
-          targets: [this.containerElement],
-          properties: variablesToObserve,
-        }
-      );
+      this.styleObserver = this.createStyleObserver();
 
       this.setState({ isObserving: true });
 
