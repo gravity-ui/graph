@@ -26,6 +26,8 @@ export type TCameraState = {
   relativeHeight: number;
   // Optional UI focus area (screen-space paddings inside canvas)
   viewportInsets: { left: number; right: number; top: number; bottom: number };
+  // Auto-panning mode enabled state
+  autoPanningEnabled: boolean;
 };
 ```
 
@@ -44,6 +46,42 @@ export type TCameraState = {
 - `getCameraRect()` – screen-space camera rect.
 - `getCameraScale()` – scale value.
 - `getCameraBlockScaleLevel(scale?)` – qualitative zoom tiers for switching rendering modes.
+
+### Auto-panning
+
+Auto-panning automatically moves the camera when the cursor is near viewport edges during drag operations. This feature is built into the camera system and activates automatically for block dragging, area selection, connection creation, and block duplication.
+
+- `enableAutoPanning()` – enable auto-panning mode.
+- `disableAutoPanning()` – disable auto-panning mode.
+- `isAutoPanningEnabled()` – check if auto-panning is currently enabled.
+
+**How it works:**
+- When enabled, the camera monitors mouse position relative to viewport edges (respecting `viewportInsets`).
+- If the cursor is within the threshold distance from any edge, the camera pans in the corresponding direction.
+
+**Configuration:**
+Auto-panning behavior can be customized via configuration:
+```ts
+const graph = new Graph(canvas, {
+  constants: {
+    camera: {
+      AUTO_PAN_THRESHOLD: 50,  // pixels from edge to activate (default: 50)
+      AUTO_PAN_SPEED: 10,      // base pixels per frame (default: 10)
+    }
+  }
+});
+```
+
+**Example:**
+```ts
+// Enable auto-panning (typically called at drag start)
+graph.cameraService.enableAutoPanning();
+
+// ... user drags something near the edge, camera auto-pans ...
+
+// Disable auto-panning (typically called at drag end)
+graph.cameraService.disableAutoPanning();
+```
 
 ## Viewports and fitting
 

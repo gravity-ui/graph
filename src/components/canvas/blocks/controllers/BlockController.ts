@@ -60,6 +60,7 @@ export class BlockController {
 
       dragListener(block.context.ownerDocument)
         .on(EVENTS.DRAG_START, (_event: MouseEvent) => {
+          block.context.graph.cameraService.enableAutoPanning();
           block.context.graph.getGraphLayer().captureEvents(block);
           block.context.graph.lockCursor("grabbing");
           dispatchEvents(draggingElements, createCustomDragEvent(EVENTS.DRAG_START, _event));
@@ -68,6 +69,7 @@ export class BlockController {
           dispatchEvents(draggingElements, createCustomDragEvent(EVENTS.DRAG_UPDATE, _event));
         })
         .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
+          block.context.graph.cameraService.disableAutoPanning();
           block.context.graph.getGraphLayer().releaseCapture();
           block.context.graph.unlockCursor();
           dispatchEvents(draggingElements, createCustomDragEvent(EVENTS.DRAG_END, _event));

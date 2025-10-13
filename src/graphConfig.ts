@@ -95,7 +95,9 @@ export type TGraphConstants = {
 
   system: {
     GRID_SIZE: number;
-    /* @deprecated this config is not used anymore, Layers checks devicePixelRatio internally */
+    /**
+     * @deprecated this config is not used anymore, Layers checks devicePixelRatio internally
+     */
     PIXEL_RATIO: number;
     USABLE_RECT_GAP: number;
     /** For preload blocks on the html layer (camera dimensions * (1 + this value)) */
@@ -107,6 +109,16 @@ export type TGraphConstants = {
     SPEED: number;
     /* Step on camera scale */
     STEP: number;
+    /**
+     * Auto-panning threshold: distance from edge in pixels to activate auto-panning
+     * @default 50
+     */
+    AUTO_PAN_THRESHOLD: number;
+    /**
+     * Auto-panning speed: base pixels per frame for camera movement
+     * @default 10
+     */
+    AUTO_PAN_SPEED: number;
   };
 
   block: {
@@ -155,6 +167,8 @@ export const initGraphConstants: TGraphConstants = {
   camera: {
     SPEED: 1,
     STEP: 0.008,
+    AUTO_PAN_THRESHOLD: 50,
+    AUTO_PAN_SPEED: 5,
   },
   block: {
     WIDTH_MIN: 16 * 10,

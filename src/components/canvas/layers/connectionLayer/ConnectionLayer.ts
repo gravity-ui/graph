@@ -3,7 +3,7 @@ import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { ESelectionStrategy } from "../../../../services/selection/types";
 import { AnchorState } from "../../../../store/anchor/Anchor";
 import { BlockState, TBlockId } from "../../../../store/block/Block";
-import { getXY, isBlock, isShiftKeyEvent } from "../../../../utils/functions";
+import { isBlock, isShiftKeyEvent } from "../../../../utils/functions";
 import { dragListener } from "../../../../utils/functions/dragListener";
 import { render } from "../../../../utils/renderers/render";
 import { renderSVG } from "../../../../utils/renderers/svgPath";
@@ -132,6 +132,7 @@ export class ConnectionLayer extends Layer<
       canvas: {
         zIndex: 4,
         classNames: ["no-pointer-events"],
+        transformByCameraPosition: true, // Automatically apply camera transformation
         ...props.canvas,
       },
       ...props,
@@ -200,6 +201,7 @@ export class ConnectionLayer extends Layer<
       nativeEvent.stopPropagation();
       dragListener(this.root.ownerDocument)
         .on(EVENTS.DRAG_START, (dStartEvent: MouseEvent) => {
+          this.context.graph.cameraService.enableAutoPanning();
           this.context.graph.lockCursor("crosshair");
           this.onStartConnection(dStartEvent, this.context.graph.getPointInCameraSpace(dStartEvent));
         })
@@ -207,6 +209,7 @@ export class ConnectionLayer extends Layer<
           this.onMoveNewConnection(dUpdateEvent, this.context.graph.getPointInCameraSpace(dUpdateEvent))
         )
         .on(EVENTS.DRAG_END, (dEndEvent: MouseEvent) => {
+          this.context.graph.cameraService.disableAutoPanning();
           this.context.graph.unlockCursor();
           this.onEndNewConnection(this.context.graph.getPointInCameraSpace(dEndEvent));
         });
@@ -215,6 +218,12 @@ export class ConnectionLayer extends Layer<
 
   protected renderEndpoint(ctx: CanvasRenderingContext2D) {
     ctx.beginPath();
+
+    // Icons should remain constant size on screen, so scale them inversely to camera scale
+    const scale = this.context.camera.getCameraScale();
+    const iconSize = 24 / scale;
+    const iconOffset = 12 / scale;
+
     if (!this.target && this.props.createIcon) {
       renderSVG(
         {
@@ -225,7 +234,7 @@ export class ConnectionLayer extends Layer<
           initialHeight: this.props.createIcon.viewHeight,
         },
         ctx,
-        { x: this.connectionState.tx, y: this.connectionState.ty - 12, width: 24, height: 24 }
+        { x: this.connectionState.tx, y: this.connectionState.ty - iconOffset, width: iconSize, height: iconSize }
       );
     } else if (this.props.point) {
       ctx.fillStyle = this.props.point.fill || this.context.colors.canvas.belowLayerBackground;
@@ -242,7 +251,7 @@ export class ConnectionLayer extends Layer<
           initialHeight: this.props.point.viewHeight,
         },
         ctx,
-        { x: this.connectionState.tx, y: this.connectionState.ty - 12, width: 24, height: 24 }
+        { x: this.connectionState.tx, y: this.connectionState.ty - iconOffset, width: iconSize, height: iconSize }
       );
     }
     ctx.closePath();
@@ -253,6 +262,10 @@ export class ConnectionLayer extends Layer<
     if (!this.connectionState.sx && !this.connectionState.sy && !this.connectionState.tx && !this.connectionState.ty) {
       return;
     }
+
+    // Line width should remain constant on screen regardless of camera scale
+    const scale = this.context.camera.getCameraScale();
+    this.context.ctx.lineWidth = Math.round(2 / scale);
 
     if (this.props.drawLine) {
       const { path, style } = this.props.drawLine(
@@ -300,11 +313,11 @@ export class ConnectionLayer extends Layer<
 
     this.sourceComponent = sourceComponent.connectedState;
 
-    const xy = getXY(this.context.graphCanvas, event);
+    // Use world coordinates from point instead of screen coordinates
     this.connectionState = {
       ...this.connectionState,
-      sx: xy[0],
-      sy: xy[1],
+      sx: point.x,
+      sy: point.y,
     };
 
     this.context.graph.executеDefaultEventAction(
@@ -330,12 +343,12 @@ export class ConnectionLayer extends Layer<
 
   private onMoveNewConnection(event: MouseEvent, point: Point) {
     const newTargetComponent = this.context.graph.getElementOverPoint(point, [Block, Anchor]);
-    const xy = getXY(this.context.graphCanvas, event);
 
+    // Use world coordinates from point instead of screen coordinates
     this.connectionState = {
       ...this.connectionState,
-      tx: xy[0],
-      ty: xy[1],
+      tx: point.x,
+      ty: point.y,
     };
     this.performRender();
 

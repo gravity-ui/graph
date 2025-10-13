@@ -27,6 +27,11 @@ export type TCameraState = {
     top: number;
     bottom: number;
   };
+  /**
+   * Auto-panning mode enabled state
+   * When enabled, the camera will automatically pan when the mouse is near the viewport edges
+   */
+  autoPanningEnabled: boolean;
 };
 
 export enum ECameraScaleLevel {
@@ -61,6 +66,7 @@ export const getInitCameraState = (): TCameraState => {
     scaleMax: 1,
     scaleMin: 0.01,
     viewportInsets: { left: 0, right: 0, top: 0, bottom: 0 },
+    autoPanningEnabled: false,
   };
 };
 
@@ -360,5 +366,30 @@ export class CameraService extends Emitter {
    */
   public getViewportInsets(): TCameraState["viewportInsets"] {
     return this.state.viewportInsets;
+  }
+
+  /**
+   * Enable auto-panning mode.
+   * When enabled, the camera will automatically pan when the mouse is near the viewport edges.
+   * @returns {void}
+   */
+  public enableAutoPanning(): void {
+    this.set({ autoPanningEnabled: true });
+  }
+
+  /**
+   * Disable auto-panning mode.
+   * @returns {void}
+   */
+  public disableAutoPanning(): void {
+    this.set({ autoPanningEnabled: false });
+  }
+
+  /**
+   * Check if auto-panning mode is enabled.
+   * @returns {boolean} True if auto-panning is enabled
+   */
+  public isAutoPanningEnabled(): boolean {
+    return this.state.autoPanningEnabled;
   }
 }
