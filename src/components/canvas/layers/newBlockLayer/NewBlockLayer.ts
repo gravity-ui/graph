@@ -110,16 +110,16 @@ export class NewBlockLayer extends Layer<
 
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
-      dragListener(this.root.ownerDocument)
+      dragListener(this.root.ownerDocument, {
+        graph: this.context.graph,
+        dragCursor: "copy",
+        autopanning: true,
+      })
         .on(EVENTS.DRAG_START, (event: MouseEvent) => {
-          this.context.graph.cameraService.enableAutoPanning();
-          this.context.graph.lockCursor("copy");
           this.onStartNewBlock(event, target);
         })
         .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onMoveNewBlock(event))
         .on(EVENTS.DRAG_END, (event: MouseEvent) => {
-          this.context.graph.cameraService.disableAutoPanning();
-          this.context.graph.unlockCursor();
           this.onEndNewBlock(event, this.context.graph.getPointInCameraSpace(event));
         });
     }

@@ -103,7 +103,10 @@ export class SelectionLayer extends Layer<
     if (event && isMetaKeyEvent(event)) {
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
-      dragListener(this.root.ownerDocument)
+      dragListener(this.root.ownerDocument, {
+        graph: this.context.graph,
+        autopanning: true,
+      })
         .on(EVENTS.DRAG_START, this.startSelectionRender)
         .on(EVENTS.DRAG_UPDATE, this.updateSelectionRender)
         .on(EVENTS.DRAG_END, this.endSelectionRender);
@@ -121,8 +124,6 @@ export class SelectionLayer extends Layer<
   };
 
   private startSelectionRender = (_event: MouseEvent) => {
-    this.context.graph.cameraService.enableAutoPanning();
-
     // Convert screen coordinates to world coordinates
     const [screenX, screenY] = getXY(this.context.canvas, _event);
     const camera = this.context.graph.cameraService;
@@ -133,8 +134,6 @@ export class SelectionLayer extends Layer<
   };
 
   private endSelectionRender = (_event: MouseEvent) => {
-    this.context.graph.cameraService.disableAutoPanning();
-
     if (!this.selectionStartWorld || !this.selectionEndWorld) {
       return;
     }

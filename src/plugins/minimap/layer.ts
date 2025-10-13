@@ -324,6 +324,8 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     rootEvent.stopPropagation();
     this.onCameraDrag(rootEvent);
 
-    dragListener(this.getCanvas(), true).on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onCameraDrag(event));
+    dragListener(this.getCanvas(), { stopOnMouseLeave: true }).on(EVENTS.DRAG_UPDATE, (event: MouseEvent) =>
+      this.onCameraDrag(event)
+    );
   };
 }

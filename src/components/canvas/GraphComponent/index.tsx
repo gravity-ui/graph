@@ -9,6 +9,7 @@ import { getXY } from "../../../utils/functions";
 import { dragListener } from "../../../utils/functions/dragListener";
 import { EVENTS } from "../../../utils/types/events";
 import { EventedComponent } from "../EventedComponent/EventedComponent";
+import { CursorLayerCursorTypes } from "../layers/cursorLayer";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
 export type GraphComponentContext = TComponentContext &
@@ -107,6 +108,8 @@ export class GraphComponent<
     onDragUpdate,
     onDrop,
     isDraggable,
+    autopanning,
+    dragCursor,
   }: {
     onDragStart?: (_event: MouseEvent) => void | boolean;
     onDragUpdate?: (
@@ -120,6 +123,8 @@ export class GraphComponent<
     ) => void;
     onDrop?: (_event: MouseEvent) => void;
     isDraggable?: (event: MouseEvent) => boolean;
+    autopanning?: boolean;
+    dragCursor?: CursorLayerCursorTypes;
   }) {
     let startDragCoords: [number, number];
     return this.addEventListener("mousedown", (event: MouseEvent) => {
@@ -127,13 +132,16 @@ export class GraphComponent<
         return;
       }
       event.stopPropagation();
-      dragListener(this.context.ownerDocument)
+      dragListener(this.context.ownerDocument, {
+        graph: this.context.graph,
+        component: this,
+        autopanning: autopanning ?? true,
+        dragCursor: dragCursor ?? "grabbing",
+      })
         .on(EVENTS.DRAG_START, (event: MouseEvent) => {
           if (onDragStart?.(event) === false) {
             return;
           }
-          this.context.graph.getGraphLayer().captureEvents(this);
-          this.context.graph.lockCursor("grabbing");
           const xy = getXY(this.context.canvas, event);
           startDragCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
         })
@@ -150,8 +158,6 @@ export class GraphComponent<
           startDragCoords = currentCoords;
         })
         .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
-          this.context.graph.getGraphLayer().releaseCapture();
-          this.context.graph.unlockCursor();
           startDragCoords = undefined;
           onDrop?.(_event);
         });

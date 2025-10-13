@@ -199,18 +199,18 @@ export class ConnectionLayer extends Layer<
 
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
-      dragListener(this.root.ownerDocument)
+      dragListener(this.root.ownerDocument, {
+        graph: this.context.graph,
+        dragCursor: "crosshair",
+        autopanning: true,
+      })
         .on(EVENTS.DRAG_START, (dStartEvent: MouseEvent) => {
-          this.context.graph.cameraService.enableAutoPanning();
-          this.context.graph.lockCursor("crosshair");
           this.onStartConnection(dStartEvent, this.context.graph.getPointInCameraSpace(dStartEvent));
         })
         .on(EVENTS.DRAG_UPDATE, (dUpdateEvent: MouseEvent) =>
           this.onMoveNewConnection(dUpdateEvent, this.context.graph.getPointInCameraSpace(dUpdateEvent))
         )
         .on(EVENTS.DRAG_END, (dEndEvent: MouseEvent) => {
-          this.context.graph.cameraService.disableAutoPanning();
-          this.context.graph.unlockCursor();
           this.onEndNewConnection(this.context.graph.getPointInCameraSpace(dEndEvent));
         });
     }
