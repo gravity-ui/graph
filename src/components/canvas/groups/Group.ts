@@ -110,6 +110,10 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
 
     this.onDrag({
       isDraggable: () => this.isDraggable(),
+      onDragStart: () => {
+        this.context.graph.cameraService.enableAutoPanning();
+        this.context.graph.lockCursor("grabbing");
+      },
       onDragUpdate: ({ diffX, diffY }) => {
         const rect = {
           x: this.state.rect.x - diffX,
@@ -122,6 +126,10 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
         });
         this.updateHitBox(rect);
         this.props.onDragUpdate(this.props.id, { diffX, diffY });
+      },
+      onDrop: () => {
+        this.context.graph.cameraService.disableAutoPanning();
+        this.context.graph.unlockCursor();
       },
     });
   }

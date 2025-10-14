@@ -6,7 +6,6 @@ import { getXY, isMetaKeyEvent } from "../../../../utils/functions";
 import { dragListener } from "../../../../utils/functions/dragListener";
 import { render } from "../../../../utils/renderers/render";
 import { EVENTS } from "../../../../utils/types/events";
-import { TRect } from "../../../../utils/types/shapes";
 
 function getSelectionRect(sx: number, sy: number, ex: number, ey: number): number[] {
   if (sx > ex) [sx, ex] = [ex, sx];
@@ -17,18 +16,16 @@ export class SelectionLayer extends Layer<
   LayerProps,
   LayerContext & { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }
 > {
-  private readonly selection: TRect = {
-    x: 0,
-    y: 0,
-    width: 0,
-    height: 0,
-  };
+  // Store selection in world coordinates to handle auto-panning correctly
+  private selectionStartWorld: { x: number; y: number } | null = null;
+  private selectionEndWorld: { x: number; y: number } | null = null;
 
   constructor(props: LayerProps) {
     super({
       canvas: {
         zIndex: 4,
         classNames: ["no-pointer-events"],
+        transformByCameraPosition: true, // Automatically apply camera transformation
         ...props.canvas,
       },
       ...props,
@@ -64,21 +61,27 @@ export class SelectionLayer extends Layer<
   }
 
   private hasActiveSelection(): boolean {
-    return this.selection.width !== 0 || this.selection.height !== 0;
+    return this.selectionStartWorld !== null && this.selectionEndWorld !== null;
   }
 
   private drawSelectionArea(): void {
+    if (!this.selectionStartWorld || !this.selectionEndWorld) {
+      return;
+    }
+
+    // Calculate selection rectangle in world coordinates
+    // Layer will automatically apply camera transformation thanks to transformByCameraPosition
+    const x = Math.min(this.selectionStartWorld.x, this.selectionEndWorld.x);
+    const y = Math.min(this.selectionStartWorld.y, this.selectionEndWorld.y);
+    const width = Math.abs(this.selectionEndWorld.x - this.selectionStartWorld.x);
+    const height = Math.abs(this.selectionEndWorld.y - this.selectionStartWorld.y);
+
     render(this.context.ctx, (ctx) => {
       ctx.fillStyle = this.context.colors.selection.background;
       ctx.strokeStyle = this.context.colors.selection.border;
       ctx.beginPath();
-      ctx.roundRect(
-        this.selection.x,
-        this.selection.y,
-        this.selection.width,
-        this.selection.height,
-        Number(this.context.graph.layers.getDPR())
-      );
+      ctx.lineWidth = Math.round(1 / this.context.graph.cameraService.getCameraScale());
+      ctx.roundRect(x, y, width, height, Number(this.context.graph.layers.getDPR()));
       ctx.closePath();
 
       ctx.fill();
@@ -100,7 +103,10 @@ export class SelectionLayer extends Layer<
     if (event && isMetaKeyEvent(event)) {
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
-      dragListener(this.root.ownerDocument)
+      dragListener(this.root.ownerDocument, {
+        graph: this.context.graph,
+        autopanning: true,
+      })
         .on(EVENTS.DRAG_START, this.startSelectionRender)
         .on(EVENTS.DRAG_UPDATE, this.updateSelectionRender)
         .on(EVENTS.DRAG_END, this.endSelectionRender);
@@ -108,34 +114,54 @@ export class SelectionLayer extends Layer<
   };
 
   private updateSelectionRender = (event: MouseEvent) => {
-    const [x, y] = getXY(this.context.canvas, event);
-    this.selection.width = x - this.selection.x;
-    this.selection.height = y - this.selection.y;
+    // Convert screen coordinates to world coordinates
+    const [screenX, screenY] = getXY(this.context.canvas, event);
+    const camera = this.context.graph.cameraService;
+    const [worldX, worldY] = camera.getRelativeXY(screenX, screenY);
+
+    this.selectionEndWorld = { x: worldX, y: worldY };
     this.performRender();
   };
 
-  private startSelectionRender = (event: MouseEvent) => {
-    const [x, y] = getXY(this.context.canvas, event);
-    this.selection.x = x;
-    this.selection.y = y;
+  private startSelectionRender = (_event: MouseEvent) => {
+    // Convert screen coordinates to world coordinates
+    const [screenX, screenY] = getXY(this.context.canvas, _event);
+    const camera = this.context.graph.cameraService;
+    const [worldX, worldY] = camera.getRelativeXY(screenX, screenY);
+
+    this.selectionStartWorld = { x: worldX, y: worldY };
+    this.selectionEndWorld = { x: worldX, y: worldY };
   };
 
-  private endSelectionRender = (event: MouseEvent) => {
-    if (this.selection.width === 0 && this.selection.height === 0) {
+  private endSelectionRender = (_event: MouseEvent) => {
+    if (!this.selectionStartWorld || !this.selectionEndWorld) {
       return;
     }
 
-    const [x, y] = getXY(this.context.canvas, event);
-    const selectionRect = getSelectionRect(this.selection.x, this.selection.y, x, y);
-    const cameraRect = this.context.graph.cameraService.applyToRect(
-      selectionRect[0],
-      selectionRect[1],
-      selectionRect[2],
-      selectionRect[3]
+    // Check if selection has any size
+    const hasSizeX = Math.abs(this.selectionEndWorld.x - this.selectionStartWorld.x) > 0.1;
+    const hasSizeY = Math.abs(this.selectionEndWorld.y - this.selectionStartWorld.y) > 0.1;
+
+    if (!hasSizeX || !hasSizeY) {
+      this.selectionStartWorld = null;
+      this.selectionEndWorld = null;
+      this.performRender();
+      return;
+    }
+
+    // Calculate selection rect in world coordinates
+    const worldRect = getSelectionRect(
+      this.selectionStartWorld.x,
+      this.selectionStartWorld.y,
+      this.selectionEndWorld.x,
+      this.selectionEndWorld.y
     );
-    this.applySelectedArea(cameraRect[0], cameraRect[1], cameraRect[2], cameraRect[3]);
-    this.selection.width = 0;
-    this.selection.height = 0;
+
+    this.applySelectedArea(worldRect[0], worldRect[1], worldRect[2], worldRect[3]);
+
+    // Clear selection
+    this.selectionStartWorld = null;
+    this.selectionEndWorld = null;
     this.performRender();
   };
 

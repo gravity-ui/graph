@@ -1,14 +1,15 @@
 import { EventedComponent } from "../../components/canvas/EventedComponent/EventedComponent";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
-import { Component } from "../../lib";
+import { Component, ESchedulerPriority } from "../../lib";
 import { TComponentProps, TComponentState } from "../../lib/Component";
 import { ComponentDescriptor } from "../../lib/CoreComponent";
 import { getXY, isMetaKeyEvent, isTrackpadWheelEvent, isWindows } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
 import { dragListener } from "../../utils/functions/dragListener";
 import { EVENTS } from "../../utils/types/events";
+import { schedule } from "../../utils/utils/schedule";
 
-import { ICamera } from "./CameraService";
+import { ICamera, TCameraState } from "./CameraService";
 
 export type TCameraProps = TComponentProps & {
   root?: HTMLDivElement;
@@ -22,6 +23,10 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
   private lastDragEvent?: MouseEvent;
 
+  private removeAutoPanScheduler?: () => void;
+
+  private lastMouseEvent?: MouseEvent;
+
   constructor(props: TCameraProps, parent: Component) {
     super(props, parent);
 
@@ -31,7 +36,21 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     this.addWheelListener();
     this.addEventListener("click", this.handleClick);
     this.addEventListener("mousedown", this.handleMouseDownEvent);
+
+    // Subscribe to auto-panning state changes
+    this.context.graph.on("camera-change", this.handleCameraStateChange);
   }
+
+  private handleCameraStateChange = (event: CustomEvent<TCameraState>) => {
+    const state = event.detail;
+    const isAutoPanningEnabled = state.autoPanningEnabled;
+
+    if (isAutoPanningEnabled) {
+      this.startAutoPanning();
+    } else {
+      this.stopAutoPanning();
+    }
+  };
 
   protected handleClick = () => {
     this.context.graph.api.unsetSelection();
@@ -59,8 +78,97 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   protected unmount() {
     super.unmount();
 
+    this.stopAutoPanning();
     this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
     this.removeEventListener("mousedown", this.handleMouseDownEvent);
+    this.context.graph.off("camera-change", this.handleCameraStateChange);
+  }
+
+  private startAutoPanning(): void {
+    if (this.removeAutoPanScheduler) {
+      return; // Already running
+    }
+
+    // Add mousemove listener to track cursor position
+    this.props.root?.addEventListener("mousemove", this.handleMouseMoveForAutoPan);
+
+    // Start scheduler to check and perform auto-panning at ~60fps
+    this.removeAutoPanScheduler = schedule(
+      () => {
+        this.performAutoPan();
+      },
+      {
+        priority: ESchedulerPriority.HIGH,
+        frameInterval: 1, // Execute every frame
+      }
+    );
+  }
+
+  private stopAutoPanning(): void {
+    if (this.removeAutoPanScheduler) {
+      this.removeAutoPanScheduler();
+      this.removeAutoPanScheduler = undefined;
+    }
+
+    this.props.root?.removeEventListener("mousemove", this.handleMouseMoveForAutoPan);
+    this.lastMouseEvent = undefined;
+  }
+
+  private handleMouseMoveForAutoPan = (event: MouseEvent): void => {
+    this.lastMouseEvent = event;
+  };
+
+  private performAutoPan(): void {
+    if (!this.lastMouseEvent || !this.props.root) {
+      return;
+    }
+
+    const rect = this.props.root.getBoundingClientRect();
+    const mouseX = this.lastMouseEvent.clientX - rect.left;
+    const mouseY = this.lastMouseEvent.clientY - rect.top;
+
+    const cameraState = this.camera.getCameraState();
+    const insets = cameraState.viewportInsets;
+
+    // Get auto-panning constants from graph config
+    const AUTO_PAN_THRESHOLD = this.context.constants.camera.AUTO_PAN_THRESHOLD;
+    const AUTO_PAN_SPEED = this.context.constants.camera.AUTO_PAN_SPEED;
+
+    // Calculate effective viewport bounds (accounting for insets)
+    const viewportLeft = insets.left;
+    const viewportRight = cameraState.width - insets.right;
+    const viewportTop = insets.top;
+    const viewportBottom = cameraState.height - insets.bottom;
+
+    let deltaX = 0;
+    let deltaY = 0;
+
+    // Check left edge - move camera right to show more content on the left
+    if (mouseX < viewportLeft + AUTO_PAN_THRESHOLD && mouseX >= viewportLeft) {
+      const ratio = 1 - (mouseX - viewportLeft) / AUTO_PAN_THRESHOLD;
+      deltaX = AUTO_PAN_SPEED * ratio;
+    }
+    // Check right edge - move camera left to show more content on the right
+    else if (mouseX > viewportRight - AUTO_PAN_THRESHOLD && mouseX <= viewportRight) {
+      const ratio = 1 - (viewportRight - mouseX) / AUTO_PAN_THRESHOLD;
+      deltaX = -AUTO_PAN_SPEED * ratio;
+    }
+
+    // Check top edge - move camera down to show more content on the top
+    if (mouseY < viewportTop + AUTO_PAN_THRESHOLD && mouseY >= viewportTop) {
+      const ratio = 1 - (mouseY - viewportTop) / AUTO_PAN_THRESHOLD;
+      deltaY = AUTO_PAN_SPEED * ratio;
+    }
+    // Check bottom edge - move camera up to show more content on the bottom
+    else if (mouseY > viewportBottom - AUTO_PAN_THRESHOLD && mouseY <= viewportBottom) {
+      const ratio = 1 - (viewportBottom - mouseY) / AUTO_PAN_THRESHOLD;
+      deltaY = -AUTO_PAN_SPEED * ratio;
+    }
+
+    // Apply camera movement if needed
+    if (deltaX !== 0 || deltaY !== 0) {
+      this.camera.move(deltaX, deltaY);
+    }
   }
 
   private handleMouseDownEvent = (event: MouseEvent) => {
@@ -68,7 +176,8 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
       return;
     }
     if (!isMetaKeyEvent(event)) {
-      dragListener(this.ownerDocument)
+      // Camera drag doesn't need graph sync since it IS the camera
+      dragListener(this.ownerDocument, { graph: this.context.graph, autopanning: false, dragCursor: "grabbing" })
         .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onDragStart(event))
         .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onDragUpdate(event))
         .on(EVENTS.DRAG_END, () => this.onDragEnd());

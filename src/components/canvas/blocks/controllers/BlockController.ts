@@ -58,18 +58,19 @@ export class BlockController {
         draggingElements.push(block);
       }
 
-      dragListener(block.context.ownerDocument)
+      dragListener(block.context.ownerDocument, {
+        graph: block.context.graph,
+        dragCursor: "grabbing",
+        component: block,
+        autopanning: true,
+      })
         .on(EVENTS.DRAG_START, (_event: MouseEvent) => {
-          block.context.graph.getGraphLayer().captureEvents(block);
-          block.context.graph.lockCursor("grabbing");
           dispatchEvents(draggingElements, createCustomDragEvent(EVENTS.DRAG_START, _event));
         })
         .on(EVENTS.DRAG_UPDATE, (_event: MouseEvent) => {
           dispatchEvents(draggingElements, createCustomDragEvent(EVENTS.DRAG_UPDATE, _event));
         })
         .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
-          block.context.graph.getGraphLayer().releaseCapture();
-          block.context.graph.unlockCursor();
           dispatchEvents(draggingElements, createCustomDragEvent(EVENTS.DRAG_END, _event));
         });
     });
