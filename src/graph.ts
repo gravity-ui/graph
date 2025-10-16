@@ -23,6 +23,7 @@ import { getXY } from "./utils/functions";
 import { clearTextCache } from "./utils/renderers/text";
 import { RecursivePartial } from "./utils/types/helpers";
 import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
+import { HighlightService, THighlightTargets } from "./services/highlight";
 
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
 export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
@@ -95,6 +96,8 @@ export class Graph {
   public state: GraphState = GraphState.INIT;
 
   protected config: TGraphConfig;
+
+  public readonly highlightService: HighlightService = new HighlightService(this);
 
   protected startRequested = false;
 
@@ -527,5 +530,26 @@ export class Graph {
    */
   public getCursorLayer(): CursorLayer {
     return this.cursorLayer;
+  }
+
+  /**
+   * Highlight specified entities only, others stay unchanged.
+   */
+  public highlight(targets: THighlightTargets): void {
+    this.highlightService.highlight(targets);
+  }
+
+  /**
+   * Focus on specified entities and lowlight all others.
+   */
+  public focus(targets: THighlightTargets): void {
+    this.highlightService.focus(targets);
+  }
+
+  /**
+   * Clear all highlight/focus states.
+   */
+  public clearHighlight(): void {
+    this.highlightService.clear();
   }
 }

@@ -4,6 +4,7 @@ import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
 import { TGraphColors, TGraphConstants } from "../graphConfig";
 import { ESelectionStrategy } from "../services/selection/types";
+import { THighlightTargets } from "../services/highlight";
 import { TBlockId } from "../store/block/Block";
 import { selectBlockById } from "../store/block/selectors";
 import { TConnection, TConnectionId } from "../store/connection/ConnectionState";
@@ -194,5 +195,17 @@ export class PublicGraphApi {
 
   public unsetSelection() {
     this.graph.rootStore.selectionService.resetAllSelections();
+  }
+
+  public highlight(targets: THighlightTargets) {
+    this.graph.highlight(targets);
+  }
+
+  public focus(targets: THighlightTargets) {
+    this.graph.focus(targets);
+  }
+
+  public clearHighlight() {
+    this.graph.clearHighlight();
   }
 }

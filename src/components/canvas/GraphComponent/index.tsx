@@ -38,6 +38,11 @@ export class GraphComponent<
     throw new Error("GraphComponent.getEntityId() is not implemented");
   }
 
+  public getHighlightId(): string {
+    const id = this.getEntityId();
+    return String(id);
+  }
+
   public get affectsUsableRect() {
     return this.props.affectsUsableRect ?? this.context.affectsUsableRect ?? true;
   }
@@ -50,6 +55,12 @@ export class GraphComponent<
     const affectsUsableRect = props.affectsUsableRect ?? this.context.affectsUsableRect ?? true;
     this.setProps({ affectsUsableRect });
     this.setContext({ affectsUsableRect });
+
+    // Subscribe to highlight state updates
+    this.subscribeSignal(this.context.graph.highlightService.$state, () => {
+      const mode = this.context.graph.highlightService.getEntityHighlightMode(this.getHighlightId());
+      this.setState({ highlightMode: mode });
+    });
   }
 
   public createPort(id: TPortId) {

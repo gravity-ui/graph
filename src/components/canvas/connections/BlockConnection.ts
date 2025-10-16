@@ -1,6 +1,7 @@
 import intersects from "intersects";
 
 import { HitBoxData } from "../../../services/HitTest";
+import { HighlightVisualMode } from "../../../services/highlight/HighlightService";
 import { ESelectionStrategy } from "../../../services/selection/types";
 import { TConnection } from "../../../store/connection/ConnectionState";
 import { isMetaKeyEvent } from "../../../utils/functions";
@@ -114,8 +115,20 @@ export class BlockConnection<T extends TConnection>
   }
 
   public styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
-    ctx.lineWidth = this.state.hovered || this.state.selected ? 4 : 2;
+    // Determine line width based on highlight mode
+    let lineWidth = this.state.hovered || this.state.selected ? 4 : 2;
+    if (this.state.highlightMode === HighlightVisualMode.Highlight) {
+      lineWidth = this.context.constants.connection.HIGHLIGHT_LINE_WIDTH;
+    }
+
+    ctx.lineWidth = lineWidth;
     ctx.strokeStyle = this.getStrokeColor(this.state);
+
+    // Apply lowlight opacity
+    if (this.state.highlightMode === HighlightVisualMode.Lowlight) {
+      ctx.globalAlpha = this.context.colors.connection.lowlightOpacity;
+    }
+
     return { type: "stroke" };
   }
 
@@ -163,8 +176,20 @@ export class BlockConnection<T extends TConnection>
   }
 
   protected setRenderStyles(ctx: CanvasRenderingContext2D, state = this.state, withDashed = true) {
-    ctx.lineWidth = state.hovered || state.selected ? 4 : 2;
+    // Determine line width based on highlight mode
+    let lineWidth = state.hovered || state.selected ? 4 : 2;
+    if (this.state.highlightMode === HighlightVisualMode.Highlight) {
+      lineWidth = this.context.constants.connection.HIGHLIGHT_LINE_WIDTH;
+    }
+
+    ctx.lineWidth = lineWidth;
     ctx.strokeStyle = this.getStrokeColor(state);
+
+    // Apply lowlight opacity
+    if (this.state.highlightMode === HighlightVisualMode.Lowlight) {
+      ctx.globalAlpha = this.context.colors.connection.lowlightOpacity;
+    }
+
     if (withDashed && state.dashed) {
       ctx.setLineDash(state.styles?.dashes || [6, 4]);
     }
@@ -179,14 +204,18 @@ export class BlockConnection<T extends TConnection>
     }
   }
 
+  protected hasChanges = false;
+
   protected override propsChanged(nextProps: TConnectionProps) {
-    super.propsChanged(nextProps);
+    this.hasChanges = true;
+    // super.propsChanged(nextProps);
     this.applyShape(this.state, nextProps);
   }
 
   protected override stateChanged(nextState: TBaseConnectionState) {
+    this.hasChanges = true;
     super.stateChanged(nextState);
-    this.applyShape(nextState);
+    // this.applyShape(nextState);
   }
 
   public get zIndex() {
@@ -284,6 +313,11 @@ export class BlockConnection<T extends TConnection>
 
     this.labelGeometry = { x, y, width, height };
 
+    // Apply lowlight opacity to the entire label
+    if (this.state.highlightMode === HighlightVisualMode.Lowlight) {
+      ctx.globalAlpha = this.context.colors.connectionLabel.lowlightOpacity;
+    }
+
     ctx.fillStyle = this.context.colors.connectionLabel.background;
 
     if (this.state.hovered) ctx.fillStyle = this.context.colors.connectionLabel.hoverBackground;
@@ -305,12 +339,30 @@ export class BlockConnection<T extends TConnection>
     ctx.textAlign = aligment;
     ctx.font = font;
     ctx.fillText(this.state.label, x + padding, y + padding);
+
+    // Reset alpha
+    if (this.state.highlightMode === HighlightVisualMode.Lowlight) {
+      ctx.globalAlpha = 1.0;
+    }
   }
 
   public getStrokeColor(state: TConnection) {
+    // Highlight mode takes priority over selection
+    if (this.state.highlightMode === HighlightVisualMode.Highlight) {
+      return this.context.colors.connection.highlightStroke;
+    }
+
     if (state.selected) return state.styles?.selectedBackground || this.context.colors.connection.selectedBackground;
 
     return state.styles?.background || this.context.colors.connection.background;
+  }
+
+  protected override render(): void {
+    if (this.hasChanges) {
+      this.applyShape();
+      this.hasChanges = false;
+    }
+    super.render();
   }
 
   protected unmount(): void {

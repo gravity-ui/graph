@@ -1,5 +1,6 @@
 import { ESchedulerPriority } from "../../../lib";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
+import { HighlightVisualMode } from "../../../services/highlight/HighlightService";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { selectBlockAnchor } from "../../../store/block/selectors";
@@ -28,6 +29,7 @@ type TAnchorState = {
   size: number;
   raised: boolean;
   selected: boolean;
+  highlightMode?: HighlightVisualMode;
 };
 
 export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponent<T, TAnchorState> {
@@ -77,6 +79,14 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
 
     this.computeRenderSize(this.props.size, this.state.raised);
     this.shift = this.props.size / 2 + props.lineWidth;
+  }
+
+  public getEntityId() {
+    return `${this.props.blockId}:${this.props.id}`;
+  }
+
+  public getHighlightId(): string {
+    return `anchor:${this.props.blockId}:${this.props.id}`;
   }
 
   public getPosition() {
@@ -143,16 +153,33 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     }
     const { x, y } = this.props.getPosition(this.props);
     const ctx = this.context.ctx;
+
+    // Apply lowlight opacity if needed
+    if (this.state.highlightMode === HighlightVisualMode.Lowlight) {
+      ctx.globalAlpha = this.context.colors.anchor.lowlightOpacity;
+    }
+
     ctx.fillStyle = this.context.colors.anchor.background;
     ctx.beginPath();
     ctx.arc(x, y, this.state.size * 0.5, 0, 2 * Math.PI);
     ctx.fill();
 
-    if (this.state.selected) {
-      ctx.strokeStyle = this.context.colors.anchor.selectedBorder;
-      ctx.lineWidth = this.props.lineWidth + 3;
+    // Draw border for selected or highlighted anchors
+    if (this.state.selected || this.state.highlightMode === HighlightVisualMode.Highlight) {
+      if (this.state.highlightMode === HighlightVisualMode.Highlight) {
+        ctx.strokeStyle = this.context.colors.anchor.highlightBorder;
+        ctx.lineWidth = this.context.constants.anchor.HIGHLIGHT_BORDER_SIZE;
+      } else {
+        ctx.strokeStyle = this.context.colors.anchor.selectedBorder;
+        ctx.lineWidth = this.props.lineWidth + 3;
+      }
       ctx.stroke();
     }
     ctx.closePath();
+
+    // Reset alpha
+    if (this.state.highlightMode === HighlightVisualMode.Lowlight) {
+      ctx.globalAlpha = 1.0;
+    }
   }
 }

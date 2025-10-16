@@ -1,5 +1,6 @@
 import { TBlock } from "./components/canvas/blocks/Block";
 import { Graph } from "./graph";
+import { HighlightVisualMode } from "./services/highlight/HighlightService";
 
 describe("Graph export/import and updateBlock integration", () => {
   function createBlock(): TBlock {
@@ -35,5 +36,22 @@ describe("Graph export/import and updateBlock integration", () => {
       expect(updatedBlock.height).toBe(updatedHeight);
       done();
     }, 1000);
+  });
+
+  it("should delegate highlight api to service and emit event", () => {
+    const graph = new Graph({});
+    const spy = jest.fn();
+    graph.on("highlight-changed", spy);
+
+    graph.highlight({ block: ["a"] });
+
+    expect(graph.highlightService.getEntityHighlightMode("block:a")).toBe(HighlightVisualMode.Highlight);
+    expect(spy).toHaveBeenCalled();
+
+    graph.focus({ block: ["a"] });
+    expect(graph.highlightService.getEntityHighlightMode("block:x")).toBe(HighlightVisualMode.Lowlight);
+
+    graph.clearHighlight();
+    expect(graph.highlightService.getEntityHighlightMode("block:a")).toBeUndefined();
   });
 });

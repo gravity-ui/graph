@@ -144,6 +144,10 @@ export class BaseConnection<
     return this.props.id;
   }
 
+  public getHighlightId(): string {
+    return `connection:${this.props.id}`;
+  }
+
   protected willMount(): void {
     // Subscribe to connection state changes for automatic updates
     this.subscribeSignal(this.connectedState.$selected, (selected) => {

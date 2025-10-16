@@ -1,7 +1,11 @@
+import type { HighlightVisualMode } from "../services/highlight/HighlightService";
+
 import { CoreComponent, CoreComponentContext, CoreComponentProps } from "./CoreComponent";
 import { assign } from "./utils";
 
-export type TComponentState = Record<string, unknown>;
+export type TComponentState = Record<string, unknown> & {
+  highlightMode?: HighlightVisualMode;
+};
 export type TComponentProps = CoreComponentProps;
 export type TComponentContext = CoreComponentContext;
 

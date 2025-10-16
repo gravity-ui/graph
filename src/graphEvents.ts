@@ -42,6 +42,13 @@ export interface GraphEventsDefinitions extends BaseGraphEventDefinition {
   "constants-changed": (event: CustomEvent<{ constants: TGraphConstants }>) => void;
   "colors-changed": (event: CustomEvent<{ colors: TGraphColors }>) => void;
   "state-change": (event: CustomEvent<{ state: GraphState }>) => void;
+  "highlight-changed": (
+    event: CustomEvent<{
+      mode: "highlight" | "focus" | undefined;
+      entities: string[];
+      previous?: { mode?: "highlight" | "focus"; entities: string[] };
+    }>
+  ) => void;
 }
 const graphMouseEvents = ["mousedown", "click", "dblclick", "mouseenter", "mousemove", "mouseleave"];
 

@@ -4,6 +4,7 @@ import isObject from "lodash/isObject";
 
 import { Component } from "../../../lib/Component";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
+import { HighlightVisualMode } from "../../../services/highlight/HighlightService";
 import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
 import { BlockState, IS_BLOCK_TYPE, TBlockId } from "../../../store/block/Block";
@@ -47,6 +48,7 @@ export type TBlock<T extends Record<string, unknown> = {}> = {
   anchors?: TAnchor[];
   settings?: TBlockSettings;
   meta?: T;
+  highlightMode?: HighlightVisualMode;
 };
 
 export type TBlockProps = TGraphComponentProps & {
@@ -138,6 +140,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   public getEntityId() {
     return this.props.id;
+  }
+
+  public getHighlightId(): string {
+    return `block:${this.props.id}`;
   }
 
   public isRendered() {
@@ -441,9 +447,19 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected renderStroke(color: string) {
-    this.context.ctx.lineWidth = Math.round(3 / this.context.camera.getCameraScale());
-    this.context.ctx.strokeStyle = color;
-    this.context.ctx.strokeRect(this.state.x, this.state.y, this.state.width, this.state.height);
+    const ctx = this.context.ctx;
+    const scale = this.context.camera.getCameraScale();
+
+    // Use highlight styles if in highlight mode
+    if (this.state.highlightMode === HighlightVisualMode.Highlight) {
+      ctx.lineWidth = Math.round(this.context.constants.block.HIGHLIGHT_BORDER_SIZE / scale);
+      ctx.strokeStyle = this.context.colors.block.highlightBorder;
+    } else {
+      ctx.lineWidth = Math.round(3 / scale);
+      ctx.strokeStyle = color;
+    }
+
+    ctx.strokeRect(this.state.x, this.state.y, this.state.width, this.state.height);
   }
 
   /* Returns rect of block size with padding */
@@ -472,6 +488,11 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected renderBody(ctx: CanvasRenderingContext2D) {
+    // Apply lowlight opacity if needed
+    if (this.state.highlightMode === HighlightVisualMode.Lowlight) {
+      ctx.globalAlpha = this.context.colors.block.lowlightOpacity;
+    }
+
     ctx.fillStyle = this.context.colors.block.background;
     ctx.strokeStyle = this.context.colors.block.border;
 
@@ -479,15 +500,32 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.renderStroke(
       this.state.selected ? this.context.colors.block.selectedBorder : this.context.colors.block.border
     );
+
+    // Reset alpha
+    if (this.state.highlightMode === HighlightVisualMode.Lowlight) {
+      ctx.globalAlpha = 1.0;
+    }
   }
 
   public renderSchematicView(ctx: CanvasRenderingContext2D) {
+    console.log("renderSchematicView", this.state.highlightMode);
+    // Apply lowlight for the entire rendering
+    const isLowlight = this.state.highlightMode === HighlightVisualMode.Lowlight;
+    if (isLowlight) {
+      ctx.save();
+      ctx.globalAlpha = this.context.colors.block.lowlightOpacity;
+    }
+
     this.renderBody(ctx);
 
     if (this.shouldRenderText) {
       ctx.fillStyle = this.context.colors.block.text;
       ctx.textAlign = "center";
       this.renderText(this.state.name, ctx);
+    }
+
+    if (isLowlight) {
+      ctx.restore();
     }
   }
 

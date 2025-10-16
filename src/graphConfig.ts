@@ -22,16 +22,26 @@ export type TConnectionLabelColors = {
   text: string;
   hoverText: string;
   selectedText: string;
+  /** Opacity for lowlighted connection labels (0-1) */
+  lowlightOpacity: number;
 };
 
 export type TConnectionColors = {
   background: string;
   selectedBackground: string;
+  /** Stroke color for highlighted connections */
+  highlightStroke: string;
+  /** Opacity for lowlighted connections (0-1) */
+  lowlightOpacity: number;
 };
 
 export type TAnchorColors = {
   background: string;
   selectedBorder: string;
+  /** Border color for highlighted anchors */
+  highlightBorder: string;
+  /** Opacity for lowlighted anchors (0-1) */
+  lowlightOpacity: number;
 };
 
 export type TBlockColors = {
@@ -39,6 +49,10 @@ export type TBlockColors = {
   border: string;
   text: string;
   selectedBorder: string;
+  /** Border color for highlighted blocks */
+  highlightBorder: string;
+  /** Opacity for lowlighted blocks (0-1) */
+  lowlightOpacity: number;
 };
 
 export type TCanvasColors = {
@@ -52,12 +66,16 @@ export const initGraphColors: TGraphColors = {
   anchor: {
     background: "#4a4a4a",
     selectedBorder: "#FFCC00",
+    highlightBorder: "#00BFFF",
+    lowlightOpacity: 0.3,
   },
   block: {
     background: "#e0e0e0",
     border: "#dfdfdf",
     text: "#272727",
     selectedBorder: "#FFCC00",
+    highlightBorder: "#00BFFF",
+    lowlightOpacity: 0.3,
   },
   canvas: {
     belowLayerBackground: "#eaeaea",
@@ -68,6 +86,8 @@ export const initGraphColors: TGraphColors = {
   connection: {
     background: "#272727",
     selectedBackground: "#ecc113",
+    highlightStroke: "#00BFFF",
+    lowlightOpacity: 0.3,
   },
   connectionLabel: {
     background: "#EAEAEA",
@@ -76,6 +96,7 @@ export const initGraphColors: TGraphColors = {
     text: "#777677",
     hoverText: "#777677",
     selectedText: "#777677",
+    lowlightOpacity: 0.3,
   },
   selection: {
     background: "rgba(0, 0, 0, 0.051)",
@@ -132,6 +153,13 @@ export type TGraphConstants = {
     WIDTH: number;
     HEIGHT: number;
     SNAPPING_GRID_SIZE: number;
+    /** Border width for highlighted blocks */
+    HIGHLIGHT_BORDER_SIZE: number;
+  };
+
+  anchor: {
+    /** Border width for highlighted anchors */
+    HIGHLIGHT_BORDER_SIZE: number;
   };
 
   connection: {
@@ -142,6 +170,8 @@ export type TGraphConstants = {
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: number;
     /** Size of Path2D chunks for batch rendering */
     PATH2D_CHUNK_SIZE: number;
+    /** Line width for highlighted connections */
+    HIGHLIGHT_LINE_WIDTH: number;
     LABEL: {
       INNER_PADDINGS: [number, number, number, number];
     };
@@ -181,6 +211,10 @@ export const initGraphConstants: TGraphConstants = {
     WIDTH: 200,
     HEIGHT: 160,
     SNAPPING_GRID_SIZE: 1,
+    HIGHLIGHT_BORDER_SIZE: 4,
+  },
+  anchor: {
+    HIGHLIGHT_BORDER_SIZE: 3,
   },
   connection: {
     MUTED_CANVAS_CONNECTION_WIDTH: 0.8,
@@ -189,6 +223,7 @@ export const initGraphConstants: TGraphConstants = {
     THRESHOLD_LINE_HIT: 8,
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: 0.25,
     PATH2D_CHUNK_SIZE: 100,
+    HIGHLIGHT_LINE_WIDTH: 3,
     LABEL: {
       INNER_PADDINGS: [0, 0, 0, 0],
     },

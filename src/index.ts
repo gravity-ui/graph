@@ -7,6 +7,7 @@ export type { TGraphColors, TGraphConstants } from "./graphConfig";
 export { type UnwrapGraphEventsDetail, type SelectionEvent } from "./graphEvents";
 export * from "./plugins";
 export { ECameraScaleLevel } from "./services/camera/CameraService";
+export { HighlightVisualMode, type THighlightServiceMode, type THighlightTargets } from "./services/highlight";
 export * from "./services/Layer";
 export * from "./store";
 export { EAnchorType } from "./store/anchor/Anchor";
@@ -22,6 +23,7 @@ export { EVENTS } from "./utils/types/events";
 export { type TPoint, type TRect } from "./utils/types/shapes";
 export { ESelectionStrategy } from "./services/selection/types";
 export * from "./utils/shapes";
+export * from "./utils/graph";
 
 export * from "./components/canvas/groups";
 
