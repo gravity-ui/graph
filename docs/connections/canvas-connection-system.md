@@ -327,12 +327,12 @@ class SimpleLineConnection extends BaseConnection {
     const ctx = this.context.ctx;
     
     // Custom rendering logic
-    ctx.strokeStyle = this.state.selected ? "#ff0000" : "#000000";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(source.x, source.y);
-    ctx.lineTo(target.x, target.y);
-    ctx.stroke();
+    this.context.ctx.strokeStyle = this.state.selected ? "#ff0000" : "#000000";
+    this.context.ctx.lineWidth = 3;
+    this.context.ctx.beginPath();
+    this.context.ctx.moveTo(source.x, source.y);
+    this.context.ctx.lineTo(target.x, target.y);
+    this.context.ctx.stroke();
   }
 }
 ```
@@ -364,9 +364,9 @@ class CustomPathConnection extends BlockConnection {
   
   // Override styling
   public style(ctx: CanvasRenderingContext2D) {
-    ctx.strokeStyle = this.state.hovered ? "#ff6b6b" : "#4285f4";
-    ctx.lineWidth = this.state.selected ? 4 : 2;
-    ctx.setLineDash(this.state.dashed ? [8, 4] : []);
+    this.context.ctx.strokeStyle = this.state.hovered ? "#ff6b6b" : "#4285f4";
+    this.context.ctx.lineWidth = this.state.selected ? 4 : 2;
+    this.context.ctx.setLineDash(this.state.dashed ? [8, 4] : []);
     return { type: "stroke" };
   }
 }
@@ -388,10 +388,10 @@ class AnimatedConnection extends BlockConnection {
       const x = source.x + (target.x - source.x) * progress;
       const y = source.y + (target.y - source.y) * progress;
       
-      ctx.fillStyle = "#ffeb3b";
-      ctx.beginPath();
-      ctx.arc(x, y, 4, 0, Math.PI * 2);
-      ctx.fill();
+      this.context.ctx.fillStyle = "#ffeb3b";
+      this.context.ctx.beginPath();
+      this.context.ctx.arc(x, y, 4, 0, Math.PI * 2);
+      this.context.ctx.fill();
     }
     
     this.animationPhase += 0.02;
