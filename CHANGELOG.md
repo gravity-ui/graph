@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/gravity-ui/graph/compare/v1.4.0...v1.5.0) (2025-10-17)
+
+
+### Features
+
+* **Camera:** add auto-panning ([#165](https://github.com/gravity-ui/graph/issues/165)) ([562dbbc](https://github.com/gravity-ui/graph/commit/562dbbc6a7eb2819e205f583d775a009ef100c19))
+
 ## [1.4.0](https://github.com/gravity-ui/graph/compare/v1.3.6...v1.4.0) (2025-10-06)
 
 
