@@ -5,6 +5,8 @@ const jestConfig: Config = {
   setupFiles: ["<rootDir>/setupJest.js", "jest-canvas-mock"],
   transformIgnorePatterns: [],
   moduleNameMapper: {
+    '^@gravity-ui/graph$': '<rootDir>/packages/graph/src',
+    '^@gravity-ui/graph-react$': '<rootDir>/packages/react/src',
     '\\.(css|less)$': '<rootDir>/__mocks__/styleMock.js',
   },
   transform: {

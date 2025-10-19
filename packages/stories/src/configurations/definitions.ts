@@ -1,0 +1,20 @@
+import { ECanChangeBlockGeometry } from "@gravity-ui/graph";
+
+export enum EAnchorType {
+  IN = "IN",
+  OUT = "OUT",
+}
+
+export const storiesSettings = {
+  canDragCamera: true,
+  canZoomCamera: true,
+  canDuplicateBlocks: false,
+  canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
+  canCreateNewConnections: true,
+  showConnectionArrows: true,
+  scaleFontSize: 1,
+  useBezierConnections: true,
+  useBlocksAnchors: true,
+  connectivityComponentOnClickRaise: true,
+  showConnectionLabels: true,
+};

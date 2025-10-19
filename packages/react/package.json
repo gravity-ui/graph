@@ -1,0 +1,51 @@
+{
+  "name": "@gravity-ui/graph-react",
+  "version": "1.4.0",
+  "description": "React components and hooks for @gravity-ui/graph integration",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "keywords": [
+    "gravity-ui",
+    "graph",
+    "graph-editor",
+    "react",
+    "react-components",
+    "flowchart",
+    "workflow",
+    "canvas"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gravity-ui/graph",
+    "directory": "packages/react"
+  },
+  "homepage": "https://github.com/gravity-ui/graph#readme",
+  "bugs": {
+    "url": "https://github.com/gravity-ui/graph/issues"
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "lodash": "^4.17.21"
+  },
+  "dependencies": {
+    "@gravity-ui/graph": "^1.4.0",
+    "@preact/signals-core": "^1.2.2",
+    "lodash": "^4.17.21"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}
+

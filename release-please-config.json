@@ -1,0 +1,24 @@
+{
+  "packages": {
+    "packages/graph": {
+      "package-name": "@gravity-ui/graph",
+      "release-type": "node",
+      "changelog-path": "CHANGELOG.md",
+      "component": "@gravity-ui/graph"
+    },
+    "packages/react": {
+      "package-name": "@gravity-ui/graph-react",
+      "release-type": "node",
+      "changelog-path": "CHANGELOG.md",
+      "component": "@gravity-ui/graph-react"
+    }
+  },
+  "release-type": "node",
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": false,
+  "separate-pull-requests": true,
+  "group-pull-request-title-pattern": "chore: release ${component}",
+  "release-search-depth": 500,
+  "tag-separator": "-"
+}
+

@@ -1,0 +1,20 @@
+{
+  "name": "@gravity-ui/graph-stories",
+  "version": "1.4.0",
+  "description": "Internal package for Storybook examples",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@gravity-ui/graph": "*",
+    "@gravity-ui/graph-react": "*",
+    "@floating-ui/react": "^0.27.13",
+    "@gravity-ui/icons": "^2.15.0",
+    "@gravity-ui/uikit": "^7.19.0",
+    "@monaco-editor/react": "^4.6.0",
+    "elkjs": "^0.9.3",
+    "monaco-editor": "^0.52.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}
+
