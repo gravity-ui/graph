@@ -3,10 +3,10 @@ import React, { useEffect } from "react";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 import groupBy from "lodash/groupBy";
 
-import { BlockGroups, Group } from "../../../components/canvas/groups";
-import { BlockState, ECanChangeBlockGeometry, Graph, GraphState, TBlock } from "../../../index";
-import { GraphCanvas, useGraph, useGraphEvent } from "../../../react-components";
-import { useFn } from "../../../react-components/utils/hooks/useFn";
+import { BlockGroups, Group } from "@gravity-ui/graph";
+import { BlockState, ECanChangeBlockGeometry, Graph, GraphState, TBlock } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
+import { useFn } from "@gravity-ui/graph-react";
 import { BlockStory } from "../../main/Block";
 
 const createConfig = () => {

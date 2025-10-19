@@ -3,11 +3,11 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Flex, Hotkey, Switch, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { TBlock } from "../../../components/canvas/blocks/Block";
-import { NewBlockLayer } from "../../../components/canvas/layers/newBlockLayer/NewBlockLayer";
-import { Graph } from "../../../index";
-import { GraphCanvas, useGraph } from "../../../react-components";
-import { useFn } from "../../../react-components/utils/hooks/useFn";
+import { TBlock } from "@gravity-ui/graph";
+import { NewBlockLayer } from "@gravity-ui/graph";
+import { Graph } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
+import { useFn } from "@gravity-ui/graph-react";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 

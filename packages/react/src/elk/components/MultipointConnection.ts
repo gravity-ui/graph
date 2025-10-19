@@ -1,11 +1,13 @@
+import {
+  HitBoxData,
+  Path2DRenderStyleResult,
+  BlockConnection,
+  isPointInStroke,
+  curvePolyline,
+  trangleArrowForVector,
+} from "@gravity-ui/graph";
 import intersects from "intersects";
 
-import { Path2DRenderStyleResult } from "@gravity-ui/graphcanvas/connections/BatchPath2D";
-import { BlockConnection } from "@gravity-ui/graphcanvas/connections/BlockConnection";
-import { isPointInStroke } from "@gravity-ui/graphcanvas/connections/bezierHelpers";
-import { HitBoxData } from "@gravity-ui/graphHitTest";
-import { curvePolyline } from "@gravity-ui/graphshapes/curvePolyline";
-import { trangleArrowForVector } from "@gravity-ui/graphshapes/triangle";
 import { TMultipointConnection } from "../types";
 
 const DEFAULT_FONT_SIZE = 14;

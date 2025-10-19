@@ -1,10 +1,9 @@
 import React, { useState } from "react";
 
-import { MagnifierMinus, MagnifierPlus, SquareDashed } from "@gravity-ui/icons";
-import { Button, Flex, Icon, Tooltip } from "@gravity-ui/uikit";
-
 import { Graph } from "@gravity-ui/graph";
 import { useGraphEvent } from "@gravity-ui/graph-react";
+import { MagnifierMinus, MagnifierPlus, SquareDashed } from "@gravity-ui/icons";
+import { Button, Flex, Icon, Tooltip } from "@gravity-ui/uikit";
 
 export function Toolbox({ className, graph }: { className: string; graph: Graph }) {
   const [scale, setScale] = useState(1);
