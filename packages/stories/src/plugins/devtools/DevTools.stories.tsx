@@ -2,12 +2,8 @@ import React, { useCallback, useEffect } from "react";
 
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
-import { TBlock } from "../../../components/canvas/blocks/Block";
-import { Graph } from "../../../graph";
-import { DevToolsLayer } from "../../../plugins/devtools/DevToolsLayer";
-import { DEFAULT_DEVTOOLS_LAYER_PROPS } from "../../../plugins/devtools/constants";
-import { TDevToolsLayerProps } from "../../../plugins/devtools/types";
-import { GraphBlock, GraphCanvas, useGraph, useLayer } from "../../../react-components";
+import { Graph, TBlock, DevToolsLayer, DEFAULT_DEVTOOLS_LAYER_PROPS, TDevToolsLayerProps } from "@gravity-ui/graph";
+import { GraphBlock, GraphCanvas, useGraph, useLayer } from "@gravity-ui/graph-react";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 
 // Define some basic global styles directly or assume they exist globally

@@ -1,7 +1,7 @@
 import { useLayoutEffect } from "react";
 
-import { Graph } from "@gravity-ui/graph";
-import { GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } from "@gravity-ui/graph";
+import { Graph, GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } from "@gravity-ui/graph";
+
 import { GraphCallbacksMap, TGraphEventCallbacks } from "../events";
 import { useFn } from "../utils/hooks/useFn";
 

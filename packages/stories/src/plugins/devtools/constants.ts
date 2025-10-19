@@ -1,4 +1,4 @@
-import { TBlock } from "../../../components/canvas/blocks/Block";
+import { TBlock } from "@gravity-ui/graph";
 
 export const DEVTOOLS_STORY_BLOCKS: TBlock[] = [
   {
