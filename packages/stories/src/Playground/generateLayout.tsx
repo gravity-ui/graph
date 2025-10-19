@@ -1,6 +1,4 @@
-import { TBlock } from "@gravity-ui/graphcanvas/blocks/Block";
-import { TGraphConfig } from "@gravity-ui/graph";
-import { EAnchorType } from "@gravity-ui/graphanchor/Anchor";
+import { TGraphConfig, EAnchorType, TBlock } from "@gravity-ui/graph";
 
 export const GravityActionBlockIS = "block-action";
 export type TGravityActionBlock = TBlock<{ description: string }> & { is: typeof GravityActionBlockIS };

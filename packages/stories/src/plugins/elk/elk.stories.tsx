@@ -5,10 +5,8 @@ import { Description, Meta as StorybookMeta, Title } from "@storybook/addon-docs
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 import ELK, { ElkNode } from "elkjs";
 
-import { Graph, GraphState, TBlock, TConnection, TGraphConfig } from "../../../index";
-import { GraphCanvas, MultipointConnection, useElk, useGraph, useGraphEvent } from "../../../react-components";
-import { TMultipointConnection } from "../../../react-components/elk/types";
-import { useFn } from "../../../react-components/utils/hooks/useFn";
+import { Graph, GraphState, TBlock, TConnection, TGraphConfig } from "@gravity-ui/graph";
+import { GraphCanvas, MultipointConnection, useElk, useGraph, useGraphEvent, useFn, TMultipointConnection } from "@gravity-ui/graph-react";
 import { BlockStory } from "../../main/Block";
 
 import { getExampleConfig } from "./getExampleConfig";

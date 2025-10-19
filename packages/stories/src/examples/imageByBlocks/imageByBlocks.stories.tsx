@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { CanvasBlock, Graph, TBlock, TGraphConfig } from "../../../index";
+import { CanvasBlock, Graph, TBlock, TGraphConfig } from "@gravity-ui/graph";
 import { storiesSettings } from "../../../stories/configurations/definitions";
 import { GraphComponentStory } from "../../main/GraphEditor";
 

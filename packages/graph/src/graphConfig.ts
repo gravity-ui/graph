@@ -1,6 +1,5 @@
 import { GraphComponent } from "./components/canvas/GraphComponent";
 import { Block } from "./components/canvas/blocks/Block";
-import type { Constructor } from "./utils/types/helpers";
 
 export type TGraphColors = {
   canvas?: Partial<TCanvasColors>;
