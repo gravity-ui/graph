@@ -7,7 +7,8 @@
   ],
   "parserOptions": {
     "project": [
-      "./tsconfig.json"
+      "./tsconfig.json",
+      "./packages/*/tsconfig.json"
     ]
   },
   "root": true,
@@ -48,7 +49,7 @@
     },
     {
       "files": [
-        "src/stories/**/*.tsx"
+        "packages/stories/src/**/*.tsx"
       ],
       "rules": {
         "no-console": "off"
