@@ -1,0 +1,50 @@
+name: Publish to NPM
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+      
+      - run: npm ci
+      
+      - run: npm run build
+      
+      - name: Determine which package to publish
+        id: package
+        run: |
+          TAG_NAME="${{ github.event.release.tag_name }}"
+          echo "Tag: $TAG_NAME"
+          
+          if [[ "$TAG_NAME" == *"@gravity-ui/graph-react"* ]]; then
+            echo "package=react" >> $GITHUB_OUTPUT
+          elif [[ "$TAG_NAME" == *"@gravity-ui/graph"* ]]; then
+            echo "package=graph" >> $GITHUB_OUTPUT
+          else
+            echo "Unknown package tag format"
+            exit 1
+          fi
+      
+      - name: Publish @gravity-ui/graph
+        if: steps.package.outputs.package == 'graph'
+        run: npm publish --access public
+        working-directory: packages/graph
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GRAVITY_UI_BOT_NPM_TOKEN }}
+      
+      - name: Publish @gravity-ui/graph-react
+        if: steps.package.outputs.package == 'react'
+        run: npm publish --access public
+        working-directory: packages/react
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GRAVITY_UI_BOT_NPM_TOKEN }}
+
