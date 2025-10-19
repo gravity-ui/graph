@@ -1,8 +1,9 @@
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 
-import { TGraphColors } from "..";
 import { Graph } from "@gravity-ui/graph";
 import { setCssProps } from "@gravity-ui/graphfunctions/cssProp";
+
+import { TGraphColors } from "..";
 
 import { TBlockListProps } from "./BlocksList";
 import { GraphContextProvider } from "./GraphContext";

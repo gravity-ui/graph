@@ -1,12 +1,8 @@
 import React from "react";
 
+import { Graph, ICamera, Layer, LayerContext, LayerProps, TBlock, parseClassNames } from "@gravity-ui/graph";
 import { createPortal } from "react-dom";
 
-import { TBlock } from "@gravity-ui/graph";
-import { Graph } from "@gravity-ui/graph";
-import { Layer, LayerContext, LayerProps } from "@gravity-ui/graph";
-import { ICamera } from "@gravity-ui/graph";
-import { parseClassNames } from "@gravity-ui/graph";
 import { BlocksList } from "../BlocksList";
 
 export type TReactLayerProps = LayerProps & {

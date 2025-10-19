@@ -1,4 +1,4 @@
-import { TGraphConfig } from "../../../index";
+import { TGraphConfig } from "@gravity-ui/graph";
 import { storiesSettings } from "../../configurations/definitions";
 
 export const graphConfig: TGraphConfig = {

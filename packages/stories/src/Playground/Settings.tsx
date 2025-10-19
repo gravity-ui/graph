@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 
+import { Graph } from "@gravity-ui/graph";
 import { Gear } from "@gravity-ui/icons";
 import {
   Button,
@@ -10,8 +11,6 @@ import {
   SegmentedRadioGroupOptionProps,
   Text,
 } from "@gravity-ui/uikit";
-
-import { Graph } from "@gravity-ui/graph";
 
 import { useRerender } from "./hooks";
 

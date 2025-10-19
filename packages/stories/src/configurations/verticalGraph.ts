@@ -1,5 +1,4 @@
-import { Block } from "@gravity-ui/graphcanvas/blocks/Block";
-import { TPoint } from "@gravity-ui/graphtypes/shapes";
+import { Block, TPoint } from "@gravity-ui/graph";
 
 import { storiesSettings } from "./definitions";
 

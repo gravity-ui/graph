@@ -2,9 +2,9 @@ import { signal } from "@preact/signals-core";
 
 import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
-import type { Constructor } from "../utils/types/helpers";
 import { Emitter } from "../utils/Emitter";
 import { throttle } from "../utils/functions";
+import type { Constructor } from "../utils/types/helpers";
 
 import { Layer } from "./Layer";
 

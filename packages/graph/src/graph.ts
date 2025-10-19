@@ -2,7 +2,6 @@ import { batch, signal } from "@preact/signals-core";
 import merge from "lodash/merge";
 
 import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
-import type { Constructor } from "./utils/types/helpers";
 import { GraphComponent } from "./components/canvas/GraphComponent";
 import { TBlock } from "./components/canvas/blocks/Block";
 import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
@@ -22,6 +21,7 @@ import { TConnection } from "./store/connection/ConnectionState";
 import { TGraphSettingsConfig } from "./store/settings";
 import { getXY } from "./utils/functions";
 import { clearTextCache } from "./utils/renderers/text";
+import type { Constructor } from "./utils/types/helpers";
 import { RecursivePartial } from "./utils/types/helpers";
 import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
 

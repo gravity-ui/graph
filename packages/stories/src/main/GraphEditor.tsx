@@ -1,10 +1,7 @@
 import React, { useLayoutEffect } from "react";
 
-import { TBlock } from "@gravity-ui/graphcanvas/blocks/Block";
-import { Graph, GraphState, TGraphConfig } from "@gravity-ui/graph";
-import { TGraphColors, TGraphConstants } from "../../graphConfig";
-import { GraphCanvas, TGraphEventCallbacks, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
-import { useFn } from "@gravity-ui/graph-react/utils/hooks/useFn";
+import { Graph, GraphState, TGraphConfig, TBlock, TGraphColors, TGraphConstants } from "@gravity-ui/graph";
+import { GraphCanvas, TGraphEventCallbacks, useGraph, useGraphEvent, useFn } from "@gravity-ui/graph-react";
 
 import { BlockStory } from "./Block";
 

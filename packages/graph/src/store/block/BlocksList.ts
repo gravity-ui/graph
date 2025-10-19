@@ -1,5 +1,4 @@
 import { batch, computed, signal } from "@preact/signals-core";
-
 import { AnchorState } from "store/anchor/Anchor";
 
 import { TAnchor, TAnchorId } from "../../components/canvas/anchors";

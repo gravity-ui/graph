@@ -1,8 +1,5 @@
 /* eslint-disable no-console */
-import { TBlock } from "@gravity-ui/graphcanvas/blocks/Block";
-import { random } from "@gravity-ui/graphcanvas/blocks/generate";
-import { TGraphConfig } from "@gravity-ui/graph";
-import { IS_BLOCK_TYPE } from "@gravity-ui/graphblock/Block";
+import { TGraphConfig, IS_BLOCK_TYPE, TBlock, random } from "@gravity-ui/graph";
 
 import { storiesSettings } from "./definitions";
 

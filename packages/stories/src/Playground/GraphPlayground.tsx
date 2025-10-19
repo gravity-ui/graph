@@ -1,5 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { Graph, GraphState, TGraphConfig, TBlock, random, ConnectionLayer, ECanChangeBlockGeometry } from "@gravity-ui/graph";
+import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer, useFn } from "@gravity-ui/graph-react";
 import {
   Flex,
   SegmentedRadioGroup,
@@ -10,13 +12,6 @@ import {
 } from "@gravity-ui/uikit";
 import { StoryFn } from "storybook/internal/types";
 
-import { TBlock } from "@gravity-ui/graphcanvas/blocks/Block";
-import { random } from "@gravity-ui/graphcanvas/blocks/generate";
-import { ConnectionLayer } from "@gravity-ui/graphcanvas/layers/connectionLayer/ConnectionLayer";
-import { Graph, GraphState, TGraphConfig } from "@gravity-ui/graph";
-import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph-react";
-import { useFn } from "@gravity-ui/graph-react/utils/hooks/useFn";
-import { ECanChangeBlockGeometry } from "@gravity-ui/graphsettings";
 import { EAnchorType } from "../configurations/definitions";
 
 import { ActionBlock } from "./ActionBlock";
