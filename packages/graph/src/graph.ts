@@ -95,7 +95,7 @@ export class Graph {
 
   public state: GraphState = GraphState.INIT;
 
-  protected config: TGraphConfig;
+  protected config!: TGraphConfig;
 
   protected startRequested = false;
 
