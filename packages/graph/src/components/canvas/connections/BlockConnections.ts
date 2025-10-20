@@ -1,6 +1,5 @@
-import { CoreComponentProps } from "lib/CoreComponent";
-
 import { Component, TComponentState } from "../../../lib/Component";
+import { CoreComponentProps } from "../../../lib/CoreComponent";
 import { ConnectionState } from "../../../store/connection/ConnectionState";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
@@ -63,7 +62,7 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
     const ConnectionCtop = this.context.graph.rootStore.settings.$connection.value || BlockConnection;
     return this.connections.map((connection) => {
       const props: TConnectionProps = {
-        id: connection.id,
+        id: connection.id!,
         useBezier: settings.useBezierConnections,
         bezierDirection: settings.bezierConnectionDirection,
         showConnectionLabels: settings.showConnectionLabels,

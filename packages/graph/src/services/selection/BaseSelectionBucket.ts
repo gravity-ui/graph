@@ -96,7 +96,7 @@ export abstract class BaseSelectionBucket<
       .filter((component): component is GraphComponent => component !== undefined);
   });
 
-  protected manager: SelectionService;
+  protected manager: SelectionService | undefined;
 
   /**
    * Check if an entity is a GraphComponent

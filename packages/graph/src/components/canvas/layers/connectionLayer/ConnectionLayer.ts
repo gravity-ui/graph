@@ -138,7 +138,7 @@ export class ConnectionLayer extends Layer<
     this.setContext({
       canvas: this.getCanvas(),
       graphCanvas: props.graph.getGraphCanvas(),
-      ctx: this.getCanvas().getContext("2d"),
+      ctx: this.getCanvas().getContext("2d") ?? undefined,
       camera: props.camera,
       constants: this.props.graph.graphConstants,
       colors: this.props.graph.graphColors,
@@ -201,13 +201,16 @@ export class ConnectionLayer extends Layer<
         dragCursor: "crosshair",
         autopanning: true,
       })
-        .on(EVENTS.DRAG_START, (dStartEvent: MouseEvent) => {
+        .on(EVENTS.DRAG_START, (...args: unknown[]) => {
+          const dStartEvent = args[0] as MouseEvent;
           this.onStartConnection(dStartEvent, this.context.graph.getPointInCameraSpace(dStartEvent));
         })
-        .on(EVENTS.DRAG_UPDATE, (dUpdateEvent: MouseEvent) =>
-          this.onMoveNewConnection(dUpdateEvent, this.context.graph.getPointInCameraSpace(dUpdateEvent))
-        )
-        .on(EVENTS.DRAG_END, (dEndEvent: MouseEvent) => {
+        .on(EVENTS.DRAG_UPDATE, (...args: unknown[]) => {
+          const dUpdateEvent = args[0] as MouseEvent;
+          this.onMoveNewConnection(dUpdateEvent, this.context.graph.getPointInCameraSpace(dUpdateEvent));
+        })
+        .on(EVENTS.DRAG_END, (...args: unknown[]) => {
+          const dEndEvent = args[0] as MouseEvent;
           this.onEndNewConnection(this.context.graph.getPointInCameraSpace(dEndEvent));
         });
     }
@@ -234,7 +237,8 @@ export class ConnectionLayer extends Layer<
         { x: this.endState.x, y: this.endState.y - iconOffset, width: iconSize, height: iconSize }
       );
     } else if (this.props.point) {
-      ctx.fillStyle = this.props.point.fill || this.context.colors.canvas.belowLayerBackground;
+      const defaultFill = this.context.colors?.canvas?.belowLayerBackground ?? "#fff";
+      ctx.fillStyle = this.props.point.fill || defaultFill;
       if (this.props.point.stroke) {
         ctx.strokeStyle = this.props.point.stroke;
       }
@@ -272,7 +276,8 @@ export class ConnectionLayer extends Layer<
       this.context.ctx.stroke(path);
     } else {
       this.context.ctx.beginPath();
-      this.context.ctx.strokeStyle = this.context.colors.connection.selectedBackground;
+      const defaultStroke = this.context.colors?.connection?.selectedBackground ?? "#000";
+      this.context.ctx.strokeStyle = defaultStroke;
       this.context.ctx.moveTo(this.startState.x, this.startState.y);
       this.context.ctx.lineTo(this.endState.x, this.endState.y);
       this.context.ctx.stroke();
@@ -291,7 +296,7 @@ export class ConnectionLayer extends Layer<
     return component.id;
   }
 
-  private getAnchorId(component: BlockState | AnchorState) {
+  private getAnchorId(component: BlockState | AnchorState): string | undefined {
     if (component instanceof AnchorState) {
       return component.id;
     }
@@ -301,7 +306,7 @@ export class ConnectionLayer extends Layer<
   private onStartConnection(event: MouseEvent, point: Point) {
     const sourceComponent = this.context.graph.getElementOverPoint(point, [Block, Anchor]);
 
-    if (!sourceComponent) {
+    if (!sourceComponent || (!(sourceComponent instanceof Block) && !(sourceComponent instanceof Anchor))) {
       return;
     }
 
@@ -315,12 +320,12 @@ export class ConnectionLayer extends Layer<
       {
         blockId:
           sourceComponent instanceof Anchor
-            ? sourceComponent.connectedState.blockId
+            ? sourceComponent.connectedState.blockId ?? ""
             : sourceComponent.connectedState.id,
         anchorId: sourceComponent instanceof Anchor ? sourceComponent.connectedState.id : undefined,
       },
       () => {
-        if (sourceComponent instanceof Block) {
+        if (sourceComponent instanceof Block && this.sourceComponent) {
           this.context.graph.api.selectBlocks([this.sourceComponent.id], true, ESelectionStrategy.REPLACE);
         } else if (sourceComponent instanceof Anchor) {
           this.context.graph.api.setAnchorSelection(sourceComponent.props.blockId, sourceComponent.props.id, true);
@@ -357,19 +362,23 @@ export class ConnectionLayer extends Layer<
 
       const target = newTargetComponent.connectedState;
 
-      this.target = newTargetComponent;
+      this.target = newTargetComponent as Block | Anchor;
 
       this.context.graph.executеDefaultEventAction(
         "connection-create-hover",
         {
           sourceBlockId:
-            this.sourceComponent instanceof AnchorState ? this.sourceComponent.blockId : this.sourceComponent.id,
+            this.sourceComponent instanceof AnchorState
+              ? this.sourceComponent?.blockId ?? ""
+              : this.sourceComponent?.id ?? "",
           sourceAnchorId: this.sourceComponent instanceof AnchorState ? this.sourceComponent.id : undefined,
           targetAnchorId: target instanceof AnchorState ? target.id : undefined,
-          targetBlockId: target instanceof AnchorState ? target.blockId : target.id,
+          targetBlockId: target instanceof AnchorState ? target.blockId ?? "" : target.id,
         },
         () => {
-          this.target.connectedState.setSelection(true);
+          if (this.target?.connectedState) {
+            this.target.connectedState.setSelection(true);
+          }
         }
       );
     }
@@ -389,8 +398,8 @@ export class ConnectionLayer extends Layer<
       this.context.graph.executеDefaultEventAction(
         "connection-create-drop",
         {
-          sourceBlockId: this.getBlockId(this.sourceComponent),
-          sourceAnchorId: this.getAnchorId(this.sourceComponent),
+          sourceBlockId: this.getBlockId(this.sourceComponent) ?? "",
+          sourceAnchorId: this.getAnchorId(this.sourceComponent) as string,
           point,
         },
         () => {}
@@ -429,10 +438,10 @@ export class ConnectionLayer extends Layer<
     this.context.graph.executеDefaultEventAction(
       "connection-create-drop",
       {
-        sourceBlockId: this.getBlockId(this.sourceComponent),
-        sourceAnchorId: this.getAnchorId(this.sourceComponent),
-        targetBlockId: this.getBlockId(targetComponent.connectedState),
-        targetAnchorId: this.getAnchorId(targetComponent.connectedState),
+        sourceBlockId: this.getBlockId(this.sourceComponent) ?? "",
+        sourceAnchorId: this.getAnchorId(this.sourceComponent) as string,
+        targetBlockId: targetComponent.connectedState ? this.getBlockId(targetComponent.connectedState) ?? "" : "",
+        targetAnchorId: targetComponent.connectedState ? this.getAnchorId(targetComponent.connectedState) : undefined,
         point,
       },
       () => {}

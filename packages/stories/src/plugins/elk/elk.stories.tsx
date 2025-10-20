@@ -1,12 +1,20 @@
 import React, { useEffect, useMemo } from "react";
 
+import { Graph, GraphState, TBlock, TConnection, TGraphConfig } from "@gravity-ui/graph";
+import {
+  GraphCanvas,
+  MultipointConnection,
+  TMultipointConnection,
+  useElk,
+  useFn,
+  useGraph,
+  useGraphEvent,
+} from "@gravity-ui/graph-react";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import { Description, Meta as StorybookMeta, Title } from "@storybook/addon-docs/blocks";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 import ELK, { ElkNode } from "elkjs";
 
-import { Graph, GraphState, TBlock, TConnection, TGraphConfig } from "@gravity-ui/graph";
-import { GraphCanvas, MultipointConnection, useElk, useGraph, useGraphEvent, useFn, TMultipointConnection } from "@gravity-ui/graph-react";
 import { BlockStory } from "../../main/Block";
 
 import { getExampleConfig } from "./getExampleConfig";

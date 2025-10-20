@@ -21,8 +21,8 @@ export function getXY(root: HTMLElement, event: Event | WheelEvent | MouseEvent)
   return [event.pageX - rect.left - window.scrollX, event.pageY - rect.top - window.scrollY];
 }
 
-export function getCoord(event: TouchEvent | MouseEvent, coord: string) {
-  const name = `page${coord.toUpperCase()}`;
+export function getCoord(event: TouchEvent | MouseEvent, coord: string): number {
+  const name = `page${coord.toUpperCase()}` as "pageX" | "pageY";
 
   if (isTouchEvent(event)) {
     return event.touches[0][name];
@@ -55,7 +55,7 @@ export function isBlock(component: unknown): component is Block {
   return (component as Block)?.isBlock;
 }
 
-export function createCustomDragEvent(eventType: string, e): CustomEvent {
+export function createCustomDragEvent(eventType: string, e: MouseEvent): CustomEvent {
   return new CustomEvent(eventType, {
     detail: {
       ...EVENTS_DETAIL[eventType](e.pageX, e.pageY),
@@ -81,9 +81,9 @@ export function createObject(simpleObject: object, forDefineProperties: Property
   return simpleObject;
 }
 
-export function dispatchEvents(comps, e) {
+export function dispatchEvents(comps: EventTarget[], e: Event): void {
   for (let i = 0; i < comps.length; i += 1) {
-    if (comps[i] !== this && comps[i].dispatchEvent) {
+    if (comps[i] !== this && "dispatchEvent" in comps[i]) {
       comps[i].dispatchEvent(e);
     }
   }
@@ -95,7 +95,7 @@ export function addEventListeners(
 ): () => void {
   if (mapEventsToFn === undefined) return noop;
 
-  const subs = [];
+  const subs: (() => void)[] = [];
   const events = Object.keys(mapEventsToFn);
 
   for (let i = 0; i < events.length; i += 1) {

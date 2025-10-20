@@ -1,7 +1,9 @@
 import { Tree } from "./Tree";
 
-const rAF: Function = typeof window !== "undefined" ? window.requestAnimationFrame : (fn) => global.setTimeout(fn, 16);
-const cAF: Function = typeof window !== "undefined" ? window.cancelAnimationFrame : global.clearTimeout;
+const rAF: (cb: () => void) => number =
+  typeof window !== "undefined" ? window.requestAnimationFrame : (fn) => global.setTimeout(fn, 16);
+const cAF: (id: number | undefined) => void =
+  typeof window !== "undefined" ? window.cancelAnimationFrame : global.clearTimeout;
 const getNow =
   typeof window !== "undefined" ? window.performance.now.bind(window.performance) : global.Date.now.bind(global.Date);
 
@@ -18,7 +20,7 @@ export enum ESchedulerPriority {
 }
 export class GlobalScheduler {
   private schedulers: [IScheduler[], IScheduler[], IScheduler[], IScheduler[], IScheduler[]];
-  private _cAFID: number;
+  private _cAFID: number | undefined;
   private toRemove: Array<[IScheduler, ESchedulerPriority]> = [];
   private visibilityChangeHandler: (() => void) | null = null;
 
@@ -132,7 +134,7 @@ export const globalScheduler = new GlobalScheduler();
 export const scheduler = globalScheduler;
 export class Scheduler {
   private sheduled: boolean;
-  private root: Tree;
+  private root!: Tree;
 
   constructor() {
     this.performUpdate = this.performUpdate.bind(this);
