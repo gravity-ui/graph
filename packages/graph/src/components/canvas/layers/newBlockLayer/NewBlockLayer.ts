@@ -51,7 +51,7 @@ export class NewBlockLayer extends Layer<
   LayerContext & { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }
 > {
   private copyBlocks: BlockState[] = [];
-  private initialPoint: TPoint;
+  private initialPoint!: TPoint;
   private blockStates: Array<{
     x: number;
     y: number;
@@ -74,7 +74,7 @@ export class NewBlockLayer extends Layer<
     this.setContext({
       canvas: this.getCanvas(),
       graphCanvas: props.graph.getGraphCanvas(),
-      ctx: this.getCanvas().getContext("2d"),
+      ctx: this.getCanvas().getContext("2d") ?? undefined,
       camera: props.camera,
       constants: this.props.graph.graphConstants,
       colors: this.props.graph.graphColors,
@@ -115,13 +115,18 @@ export class NewBlockLayer extends Layer<
         dragCursor: "copy",
         autopanning: true,
       })
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => {
+        .on(EVENTS.DRAG_START, ((...args: unknown[]) => {
+          const event = args[0] as MouseEvent;
           this.onStartNewBlock(event, target);
-        })
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onMoveNewBlock(event))
-        .on(EVENTS.DRAG_END, (event: MouseEvent) => {
+        }) as (...args: unknown[]) => void)
+        .on(EVENTS.DRAG_UPDATE, ((...args: unknown[]) => {
+          const event = args[0] as MouseEvent;
+          this.onMoveNewBlock(event);
+        }) as (...args: unknown[]) => void)
+        .on(EVENTS.DRAG_END, ((...args: unknown[]) => {
+          const event = args[0] as MouseEvent;
           this.onEndNewBlock(event, this.context.graph.getPointInCameraSpace(event));
-        });
+        }) as (...args: unknown[]) => void);
     }
   };
 
@@ -132,9 +137,10 @@ export class NewBlockLayer extends Layer<
       return;
     }
 
+    const colors = this.context.colors;
     render(this.context.ctx, (ctx) => {
       ctx.beginPath();
-      ctx.fillStyle = this.props.ghostBackground || this.context.colors.block.border;
+      ctx.fillStyle = this.props.ghostBackground || colors?.block.border || "#ccc";
 
       // Draw each block ghost
       for (const blockState of this.blockStates) {
@@ -158,9 +164,10 @@ export class NewBlockLayer extends Layer<
 
       // If we have a validation function, filter out blocks that can't be duplicated
       if (this.props.isDuplicateAllowed) {
-        blockStates = selectedBlockStates.filter((blockState) =>
-          this.props.isDuplicateAllowed(blockState.getViewComponent())
-        );
+        blockStates = selectedBlockStates.filter((blockState) => {
+          const viewComponent = blockState.getViewComponent();
+          return viewComponent && this.props.isDuplicateAllowed?.(viewComponent);
+        });
 
         // If no blocks can be duplicated, exit
         if (blockStates.length === 0) return;
@@ -219,8 +226,8 @@ export class NewBlockLayer extends Layer<
     });
   }
 
-  private lastMouseX: number;
-  private lastMouseY: number;
+  private lastMouseX?: number;
+  private lastMouseY?: number;
 
   private onMoveNewBlock(event: MouseEvent) {
     if (!this.copyBlocks.length) {
@@ -258,7 +265,7 @@ export class NewBlockLayer extends Layer<
     this.performRender();
   }
 
-  private onEndNewBlock(event: MouseEvent, point: TPoint) {
+  private onEndNewBlock(event: MouseEvent, point: TPoint | null) {
     if (!this.copyBlocks.length) {
       return;
     }
@@ -268,6 +275,10 @@ export class NewBlockLayer extends Layer<
     this.lastMouseX = undefined;
     this.lastMouseY = undefined;
     this.performRender();
+
+    if (!point) {
+      return;
+    }
 
     // Calculate the offset from the initial point to the final point
     const offsetX = point.x - this.initialPoint.x;
@@ -343,7 +354,7 @@ export class NewBlockLayer extends Layer<
             const targetId = connection.targetBlockId;
 
             // If both source and target blocks were duplicated, create a new connection
-            if (blockIdMap.has(sourceId.toString()) && blockIdMap.has(targetId.toString())) {
+            if (sourceId && targetId && blockIdMap.has(sourceId.toString()) && blockIdMap.has(targetId.toString())) {
               const newSourceId = blockIdMap.get(sourceId.toString());
               const newTargetId = blockIdMap.get(targetId.toString());
 
