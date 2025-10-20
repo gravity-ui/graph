@@ -59,9 +59,9 @@ export class Layer<
 > extends Component<Props, State, Context> {
   public static id?: string;
 
-  protected canvas: HTMLCanvasElement;
+  protected canvas!: HTMLCanvasElement;
 
-  protected html: HTMLElement;
+  protected html!: HTMLElement;
 
   protected root?: HTMLDivElement;
 
@@ -321,6 +321,9 @@ export class Layer<
     if (this.canvas) {
       const cameraState = this.context.camera.getCameraState();
       const context = this.canvas.getContext("2d");
+      if (!context) {
+        return;
+      }
       context.setTransform(1, 0, 0, 1, 0, 0);
 
       context.clearRect(0, 0, cameraState.width, cameraState.height);

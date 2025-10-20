@@ -117,13 +117,13 @@ export class BaseConnection<
    * Reference to the reactive connection state from the store
    * Provides access to connection data and port references
    */
-  protected connectedState: ConnectionState<Connection>;
+  protected connectedState!: ConnectionState<Connection>;
 
   /**
    * Bounding box for the connection [minX, minY, maxX, maxY]
    * Used for hit detection and rendering optimizations
    */
-  protected bBox: [minX: number, minY: number, maxX: number, maxY: number];
+  protected bBox!: [minX: number, minY: number, maxX: number, maxY: number];
 
   constructor(props: Props, parent: Component) {
     super(props, parent);
@@ -162,7 +162,7 @@ export class BaseConnection<
     this.listenEvents(["mouseenter", "mouseleave"]);
   }
 
-  protected override handleEvent(event) {
+  protected override handleEvent(event: Event) {
     event.stopPropagation();
     super.handleEvent(event);
 

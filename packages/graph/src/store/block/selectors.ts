@@ -1,5 +1,4 @@
-import { TBlock } from "components/canvas/blocks/Block";
-
+import { TBlock } from "../../components/canvas/blocks/Block";
 import { Graph } from "../../graph";
 
 import { BlockState, TBlockId } from "./Block";

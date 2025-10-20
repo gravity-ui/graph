@@ -24,6 +24,15 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
   private horizontalRulerBgEl: HTMLDivElement | null = null;
   private verticalRulerBgEl: HTMLDivElement | null = null;
 
+  // Helper method to get property values with defaults
+  private getProp<K extends keyof typeof DEFAULT_DEVTOOLS_LAYER_PROPS>(
+    key: K
+  ): NonNullable<(typeof DEFAULT_DEVTOOLS_LAYER_PROPS)[K]> {
+    return (this.props[key] ?? DEFAULT_DEVTOOLS_LAYER_PROPS[key]) as NonNullable<
+      (typeof DEFAULT_DEVTOOLS_LAYER_PROPS)[K]
+    >;
+  }
+
   constructor(props: TDevToolsLayerProps) {
     const finalProps = { ...DEFAULT_DEVTOOLS_LAYER_PROPS, ...props };
     super({
@@ -52,18 +61,19 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
 
     // Update CSS variables on the container (used by devtools-layer.css)
     if (this.props.rulerBackgroundColor !== nextProps.rulerBackgroundColor) {
-      const bgColorValue = nextProps.rulerBackgroundColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackgroundColor;
+      const bgColorValue = (nextProps.rulerBackgroundColor ??
+        DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackgroundColor) as string;
       htmlContainer.style.setProperty("--devtools-ruler-bg-color", bgColorValue);
     }
 
     if (this.props.rulerBackdropBlur !== nextProps.rulerBackdropBlur) {
-      const blurValue = nextProps.rulerBackdropBlur ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackdropBlur;
+      const blurValue = (nextProps.rulerBackdropBlur ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackdropBlur) as number;
       htmlContainer.style.setProperty("--devtools-ruler-blur", `${blurValue}px`);
     }
 
     // Rerender still needed if ruler size or visibility changes to update div positions/display
     if (this.props.rulerSize !== nextProps.rulerSize) {
-      const sizeValue = nextProps.rulerSize ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize;
+      const sizeValue = (nextProps.rulerSize ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize) as number;
       htmlContainer.style.setProperty("--devtools-ruler-size", `${sizeValue}px`);
     }
 
@@ -99,9 +109,9 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     const htmlContainer = this.getHTML();
     if (htmlContainer) {
       // Set initial CSS variables on the container (can still be useful)
-      const initialBlur = this.props.rulerBackdropBlur ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackdropBlur;
-      const initialSize = this.props.rulerSize ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize;
-      const initialBgColor = this.props.rulerBackgroundColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackgroundColor;
+      const initialBlur = this.getProp("rulerBackdropBlur");
+      const initialSize = this.getProp("rulerSize");
+      const initialBgColor = this.getProp("rulerBackgroundColor");
       const initialDisplay = this.props.showRuler ? "block" : "none";
       htmlContainer.style.setProperty("--devtools-ruler-blur", `${initialBlur}px`);
       htmlContainer.style.setProperty("--devtools-ruler-bg-color", initialBgColor);
@@ -137,7 +147,7 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     const { ctx, camera, graphCanvas } = this.context;
     const cameraState = camera.getCameraState();
     const dpr = this.getDRP();
-    const rulerSize = this.props.rulerSize ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize;
+    const rulerSize = this.getProp("rulerSize");
     const viewWidth = graphCanvas.width / dpr; // Logical width
     const viewHeight = graphCanvas.height / dpr; // Logical height
 
@@ -168,7 +178,7 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
   // --- Drawing Helpers ---
 
   private calculateTickInfo(scale: number): TickInfo {
-    const minMajorTickDistance = this.props.minMajorTickDistance ?? DEFAULT_DEVTOOLS_LAYER_PROPS.minMajorTickDistance;
+    const minMajorTickDistance = this.getProp("minMajorTickDistance");
     const minWorldStep = minMajorTickDistance / scale;
     const majorTickStep = calculateNiceNumber(minWorldStep);
 
@@ -208,9 +218,11 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
 
     const firstMinorTickWorldX = Math.floor(worldViewLeft / minorTickStep) * minorTickStep;
 
-    const currentFont = this.props.rulerTextFont ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTextFont;
-    ctx.strokeStyle = this.props.rulerTickColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTickColor;
-    ctx.fillStyle = this.props.rulerTextColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTextColor;
+    const currentFont = this.getProp("rulerTextFont");
+    const tickColor = this.getProp("rulerTickColor");
+    const textColor = this.getProp("rulerTextColor");
+    ctx.strokeStyle = tickColor;
+    ctx.fillStyle = textColor;
     ctx.font = currentFont;
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
@@ -263,9 +275,11 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
 
     const firstMinorTickWorldY = Math.floor(worldViewTop / minorTickStep) * minorTickStep;
 
-    const currentFont = this.props.rulerTextFont ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTextFont;
-    ctx.strokeStyle = this.props.rulerTickColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTickColor;
-    ctx.fillStyle = this.props.rulerTextColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTextColor;
+    const currentFont = this.getProp("rulerTextFont");
+    const tickColor = this.getProp("rulerTickColor");
+    const textColor = this.getProp("rulerTextColor");
+    ctx.strokeStyle = tickColor;
+    ctx.fillStyle = textColor;
     ctx.font = currentFont;
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
@@ -324,7 +338,8 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     const [worldX, worldY] = camera.applyToPoint(logicalMouseX, logicalMouseY);
 
     // Draw Lines
-    ctx.strokeStyle = this.props.crosshairColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairColor;
+    const crosshairColor = this.getProp("crosshairColor");
+    ctx.strokeStyle = crosshairColor;
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
@@ -337,7 +352,7 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
 
     // Draw Coordinate Text
     const coordText = `X: ${worldX.toFixed(1)}, Y: ${worldY.toFixed(1)}`;
-    const currentFont = this.props.crosshairTextFont ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextFont;
+    const currentFont = this.getProp("crosshairTextFont");
     ctx.font = currentFont;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
@@ -352,11 +367,12 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     const textRectWidth = logicalTextWidth + 2 * logicalPadding;
     const textRectHeight = logicalTextHeight + 2 * logicalPadding;
 
-    ctx.fillStyle =
-      this.props.crosshairTextBackgroundColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextBackgroundColor;
+    const textBackgroundColor = this.getProp("crosshairTextBackgroundColor");
+    const textColor = this.getProp("crosshairTextColor");
+    ctx.fillStyle = textBackgroundColor;
     ctx.fillRect(textRectX, textRectY, textRectWidth, textRectHeight);
 
-    ctx.fillStyle = this.props.crosshairTextColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextColor;
+    ctx.fillStyle = textColor;
     ctx.fillText(coordText, textRectX + logicalPadding, textRectY + logicalPadding);
   }
 }

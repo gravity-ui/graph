@@ -18,9 +18,9 @@ type TPrivateComponentData = {
     scheduler: Scheduler;
     globalIterateId: number;
   };
-  children: object;
+  children: Record<string, CoreComponent | undefined>;
   childrenKeys: string[];
-  prevChildrenArr: object[];
+  prevChildrenArr: ComponentDescriptor[];
   updated: boolean;
   iterateId: number;
 };
@@ -49,7 +49,7 @@ export class CoreComponent<
   Context extends CoreComponentContext = CoreComponentContext,
 > implements ITree
 {
-  public $: object = {};
+  public $: Record<string, CoreComponent | undefined> = {};
 
   public context: Context = {} as Context;
 
@@ -156,7 +156,7 @@ export class CoreComponent<
 
     if (nextChildrenArr === __comp.prevChildrenArr) return;
 
-    let key;
+    let key: string;
     let ref;
     let child;
     let currentChild;
@@ -170,10 +170,10 @@ export class CoreComponent<
       if (childrenKeys.length > 0) {
         for (let i = 0; i < childrenKeys.length; i += 1) {
           key = childrenKeys[i];
-          child = children[key];
-
-          child.__unmount();
-          children[key] = undefined;
+          if (children[key]) {
+            children[key].__unmount();
+            children[key] = undefined;
+          }
         }
       }
 
@@ -184,8 +184,11 @@ export class CoreComponent<
       if (nextChildrenArr.length > 0) {
         for (let i = 0; i < nextChildrenArr.length; i += 1) {
           child = nextChildrenArr[i];
-          // eslint-disable-next-line no-prototype-builtins
-          key = child.options.hasOwnProperty("key") ? child.options.key : `${child.klass.name}|${i}|defaultKey`;
+          key =
+            // eslint-disable-next-line no-prototype-builtins
+            child.options.hasOwnProperty("key") && child.options.key
+              ? child.options.key
+              : `${child.klass.name}|${i}|defaultKey`;
           ref = child.options.ref;
           // eslint-disable-next-line new-cap
           children[key] = new child.klass(child.props, this);

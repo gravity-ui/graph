@@ -82,6 +82,7 @@ declare module "../../../graphEvents" {
 }
 
 export type BlockViewState = {
+  [key: string]: unknown;
   zIndex: number;
   order: number;
 };
@@ -104,19 +105,19 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   public declare props: Props;
 
-  public connectedState: BlockState<T>;
+  public connectedState!: BlockState<T>;
 
   protected lastDragEvent?: MouseEvent;
 
   protected startDragCoords: number[] = [];
 
-  protected shouldRenderText: boolean;
+  protected shouldRenderText!: boolean;
 
-  protected shouldRenderHtml: boolean;
+  protected shouldRenderHtml!: boolean;
 
-  protected raised: boolean;
+  protected raised!: boolean;
 
-  protected hidden: boolean;
+  protected hidden!: boolean;
 
   protected currentState(): T {
     return this.connectedState.$state.value;
@@ -177,7 +178,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected subscribe(id: TBlockId) {
-    this.connectedState = selectBlockById<T>(this.context.graph, id);
+    this.connectedState = selectBlockById<T>(this.context.graph, id)!;
     this.state = cloneDeep(this.connectedState.$state.value);
     this.connectedState.setViewComponent(this);
     this.setState({
@@ -424,7 +425,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   };
 
   protected updateChildren() {
-    if (!this.isAnchorsAllowed()) {
+    if (!this.isAnchorsAllowed() || !this.state.anchors) {
       return undefined;
     }
 
@@ -472,20 +473,22 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected renderBody(ctx: CanvasRenderingContext2D) {
-    ctx.fillStyle = this.context.colors.block.background;
-    ctx.strokeStyle = this.context.colors.block.border;
+    const colors = this.context.colors;
+    if (!colors) return;
+
+    ctx.fillStyle = colors.block.background;
+    ctx.strokeStyle = colors.block.border;
 
     ctx.fillRect(this.state.x, this.state.y, this.state.width, this.state.height);
-    this.renderStroke(
-      this.state.selected ? this.context.colors.block.selectedBorder : this.context.colors.block.border
-    );
+    this.renderStroke(this.state.selected ? colors.block.selectedBorder : colors.block.border);
   }
 
   public renderSchematicView(ctx: CanvasRenderingContext2D) {
     this.renderBody(ctx);
 
-    if (this.shouldRenderText) {
-      ctx.fillStyle = this.context.colors.block.text;
+    const colors = this.context.colors;
+    if (this.shouldRenderText && colors) {
+      ctx.fillStyle = colors.block.text;
       ctx.textAlign = "center";
       this.renderText(this.state.name, ctx);
     }
@@ -534,7 +537,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     connectionsList.releasePort(createBlockPointPortId(this.state.id, true), this);
     connectionsList.releasePort(createBlockPointPortId(this.state.id, false), this);
 
-    this.state.anchors.forEach((anchor) => {
+    this.state.anchors?.forEach((anchor) => {
       connectionsList.releasePort(createAnchorPortId(this.state.id, anchor.id), this);
     });
 

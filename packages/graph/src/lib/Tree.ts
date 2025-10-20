@@ -8,7 +8,7 @@ export interface ITree {
 
 export class Tree<T extends ITree = ITree> {
   public data: T;
-  public parent: Tree;
+  public parent: Tree | undefined;
 
   public children: Set<Tree> = new Set();
 
@@ -45,7 +45,10 @@ export class Tree<T extends ITree = ITree> {
     if (!this.zIndexGroups.has(node.zIndex)) {
       this.zIndexGroups.set(node.zIndex, new Set());
     }
-    this.zIndexGroups.get(node.zIndex).add(node);
+    const group = this.zIndexGroups.get(node.zIndex);
+    if (group) {
+      group.add(node);
+    }
     this.zIndexChildrenCache.reset();
   }
 
@@ -105,7 +108,7 @@ export class Tree<T extends ITree = ITree> {
   }
 
   private _traverse(iterator: TIterator, strategyName: string) {
-    this[strategyName](iterator);
+    (this as Record<string, unknown>)[strategyName](iterator);
   }
 
   protected getChildrenArray() {

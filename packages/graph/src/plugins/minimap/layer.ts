@@ -35,7 +35,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   private scale: number;
   private cameraBorderSize: number;
   private cameraBorderColor: string;
-  private unSubscribeUsableRectLoaded: typeof noop;
+  private unSubscribeUsableRectLoaded: typeof noop = noop;
 
   constructor(props: MiniMapLayerProps) {
     const classNames = Array.isArray(props.classNames) ? props.classNames : [];
@@ -60,7 +60,8 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   }
 
   protected afterInit(): void {
-    const minimapPosition = this.getPositionOfMiniMap(this.props.location);
+    const location = this.props.location ?? "topLeft";
+    const minimapPosition = this.getPositionOfMiniMap(location);
     const style = document.createElement("style");
     style.innerHTML = `
       .layer.graph-minimap {
@@ -232,9 +233,13 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
       canvas.style.width = `${this.minimapWidth}px`;
       canvas.style.height = `${this.minimapHeight}px`;
 
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("Failed to get 2D context");
+      }
       this.setContext({
         canvas,
-        ctx: canvas.getContext("2d"),
+        ctx,
         camera: this.props.camera,
         constants: this.props.graph.graphConstants,
         colors: this.props.graph.graphColors,

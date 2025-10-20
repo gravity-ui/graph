@@ -183,9 +183,12 @@ export class Graph {
     this.api.zoomToBlocks(target, config);
   }
 
-  public getElementsOverPoint<T extends Constructor<GraphComponent>>(point: IPoint, filter?: T[]): InstanceType<T>[] {
+  public getElementsOverPoint<T extends Constructor<GraphComponent>>(
+    point: IPoint,
+    filter: T[] = []
+  ): InstanceType<T>[] {
     const items = this.hitTest.testPoint(point, this.layers.getDPR());
-    if (filter && items.length > 0) {
+    if (filter.length > 0 && items.length > 0) {
       return items.filter((item) => filter.some((Component) => item instanceof Component)) as InstanceType<T>[];
     }
     return items as InstanceType<T>[];

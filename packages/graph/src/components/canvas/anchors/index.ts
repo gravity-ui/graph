@@ -1,4 +1,4 @@
-import { ESchedulerPriority } from "../../../lib";
+import { Component, ESchedulerPriority } from "../../../lib";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
@@ -44,11 +44,11 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
 
   public declare context: TGraphLayerContext;
 
-  public connectedState: AnchorState;
+  public connectedState!: AnchorState;
 
-  private shift: number;
+  private shift!: number;
 
-  private hitBoxHash: string;
+  private hitBoxHash!: string;
 
   private debouncedSetHitBox = debounce(
     () => {
@@ -62,10 +62,10 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   );
 
   constructor(props: T, parent: GraphLayer) {
-    super(props, parent);
+    super(props, parent as unknown as Component);
     this.state = { size: props.size, raised: false, selected: false };
 
-    this.connectedState = selectBlockAnchor(this.context.graph, props.blockId, props.id);
+    this.connectedState = selectBlockAnchor(this.context.graph, props.blockId, props.id)!;
     this.subscribeSignal(this.connectedState.$selected, (selected) => {
       this.setState({ selected });
     });
@@ -143,13 +143,16 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     }
     const { x, y } = this.props.getPosition(this.props);
     const ctx = this.context.ctx;
-    ctx.fillStyle = this.context.colors.anchor.background;
+    const colors = this.context.colors;
+    if (!ctx || !colors) return;
+
+    ctx.fillStyle = colors.anchor.background;
     ctx.beginPath();
     ctx.arc(x, y, this.state.size * 0.5, 0, 2 * Math.PI);
     ctx.fill();
 
     if (this.state.selected) {
-      ctx.strokeStyle = this.context.colors.anchor.selectedBorder;
+      ctx.strokeStyle = colors.anchor.selectedBorder;
       ctx.lineWidth = this.props.lineWidth + 3;
       ctx.stroke();
     }

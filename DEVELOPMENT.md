@@ -124,15 +124,23 @@ npm run watch
 ```
 
 **How it works:**
+- Automatically cleans `dist/` and `build/` directories before building
 - Uses Rollup to build ESM modules
 - Outputs to `packages/*/dist/` directories
 - Preserves module structure with `preserveModules`
 - Copies CSS files to dist
+- Generates TypeScript declaration files (`.d.ts`)
 
 **When to build:**
 - Before publishing to npm
 - When testing the built output
 - For production deployments
+- After modifying exports in package index files
+
+**Important Notes:**
+- Build scripts now automatically clean before building to avoid stale `.d.ts` files
+- If you modify exports, the clean step ensures TypeScript sees updated type definitions
+- Old `.d.ts` files can cause "Module has no exported member" errors
 
 ### 5. Linting
 
@@ -150,11 +158,31 @@ npm run lint:fix
 
 ### 6. Cleaning Build Artifacts
 
+Clean all packages:
+
 ```bash
 npm run clean
 ```
 
-This removes all `dist` and `build` directories from packages.
+Clean individual packages:
+
+```bash
+npm run clean:graph    # Clean @gravity-ui/graph
+npm run clean:react    # Clean @gravity-ui/graph-react
+```
+
+**What it does:**
+- Removes all `dist/` and `build/` directories from packages
+- Clears compiled JavaScript and TypeScript declaration files
+- Ensures fresh builds without stale artifacts
+
+**When to clean:**
+- Before making a fresh build
+- After modifying package exports
+- When troubleshooting TypeScript type errors
+- When seeing unexpected "Module has no exported member" errors
+
+**Note:** Build scripts (`npm run build`, `npm run build:graph`, `npm run build:react`) now automatically clean before building, so manual cleaning is rarely needed.
 
 ## Package Development
 
@@ -308,12 +336,35 @@ npm publish --access public
 
 ## Troubleshooting
 
-### TypeScript Can't Find Types
+### TypeScript Can't Find Types or "Module has no exported member"
 
+This usually happens when TypeScript declaration files (`.d.ts`) are stale or out of sync with source code.
+
+**Solution:**
 ```bash
-# Clean and rebuild TypeScript project references
+# Build scripts now automatically clean, so just rebuild
+npm run build
+
+# Or manually clean and rebuild if needed
 npm run clean
-npm run typecheck
+npm run build
+```
+
+**Why this happens:**
+- TypeScript uses `.d.ts` files from `dist/` directories for type checking
+- Old `.d.ts` files can contain outdated exports
+- Build process now automatically cleans before building to prevent this
+
+**Example scenario:**
+```typescript
+// You add a new export in packages/react/src/index.ts:
+export { useFn } from "./utils/hooks/useFn";
+
+// Stories try to import it:
+import { useFn } from "@gravity-ui/graph-react";
+
+// TypeScript error: Module has no exported member 'useFn'
+// Solution: npm run build:react (automatically cleans first)
 ```
 
 ### Jest Tests Failing with Import Errors
