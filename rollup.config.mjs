@@ -7,7 +7,10 @@ import postcss from "rollup-plugin-postcss";
 const packageConfigs = [
   {
     name: "graph",
-    input: "packages/graph/src/index.ts",
+    input: {
+      index: "packages/graph/src/index.ts",
+      utils: "packages/graph/src/utils.ts",
+    },
     external: (id) => {
       return /^lodash/.test(id) || /^@preact/.test(id) || ["intersects", "rbush"].includes(id);
     },
@@ -32,14 +35,15 @@ export default packageConfigs.map(({ name, input, external }) => ({
   },
   external,
   plugins: [
-    resolve(),
-    commonjs(),
+    resolve({
+      extensions: [".ts", ".tsx", ".js", ".jsx", ".json"],
+    }),
     typescript({
       tsconfig: `packages/${name}/tsconfig.json`,
       declaration: true,
       declarationDir: `packages/${name}/dist`,
-      outDir: `packages/${name}/dist`,
     }),
+    commonjs(),
     postcss({
       extract: false,
       inject: false,

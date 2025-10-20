@@ -1,7 +1,6 @@
 import React, { createRef } from "react";
 
-import { Graph } from "@gravity-ui/graph";
-import { Layer } from "@gravity-ui/graphLayer";
+import { Graph, Layer } from "@gravity-ui/graph";
 import { act, render, waitFor } from "@testing-library/react";
 
 import { GraphCanvas } from "./GraphCanvas";

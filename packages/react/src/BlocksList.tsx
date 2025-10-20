@@ -8,8 +8,8 @@ import {
   Graph,
   GraphState,
   TBlock,
-  debounce,
 } from "@gravity-ui/graph";
+import { debounce } from "@gravity-ui/graph/utils";
 import isEqual from "lodash/isEqual";
 
 import { useSignal } from "./hooks";

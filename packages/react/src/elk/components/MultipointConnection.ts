@@ -1,11 +1,5 @@
-import {
-  HitBoxData,
-  Path2DRenderStyleResult,
-  BlockConnection,
-  isPointInStroke,
-  curvePolyline,
-  trangleArrowForVector,
-} from "@gravity-ui/graph";
+import { BlockConnection, HitBoxData, Path2DRenderStyleResult, isPointInStroke } from "@gravity-ui/graph";
+import { curvePolyline, trangleArrowForVector } from "@gravity-ui/graph/utils";
 import intersects from "intersects";
 
 import { TMultipointConnection } from "../types";
