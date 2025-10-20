@@ -44,7 +44,7 @@ export abstract class BaseSelectionBucket<IDType extends TSelectionEntityId> imp
   protected readonly $selectedIds: Signal<Set<IDType>> = signal(new Set<IDType>());
   public readonly $selected: ReadonlySignal<Set<IDType>> = computed(() => new Set(this.$selectedIds.value));
 
-  protected manager: SelectionService;
+  protected manager: SelectionService | undefined;
 
   constructor(
     public readonly entityType: string,

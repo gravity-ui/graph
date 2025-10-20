@@ -7,13 +7,13 @@ import { Block } from "./Block";
 
 export class Blocks extends Component {
   protected blocks: BlockState[] = [];
-  protected blocksView = {};
+  protected blocksView: Record<string, unknown> = {};
 
   public declare context: TGraphLayerContext;
 
-  protected readonly unsubscribe: (() => void)[];
+  protected readonly unsubscribe!: (() => void)[];
 
-  private font: string;
+  private font!: string;
 
   constructor(props: {}, context: CoreComponent) {
     super(props, context);
@@ -48,7 +48,7 @@ export class Blocks extends Component {
     ];
   }
 
-  private prepareFont(scaleFontSize) {
+  private prepareFont(scaleFontSize: number) {
     this.font = `bold ${Math.round(this.context.constants.text.BASE_FONT_SIZE * scaleFontSize)}px sans-serif`;
   }
 

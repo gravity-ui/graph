@@ -50,12 +50,14 @@ export class FrameDebouncer {
         bindedFn.inOrder = true;
       }
       bindedFn.args = args;
-      bindedFn.delay = options.throttle || options.leading ? bindedFn.delay : options.delay;
+      bindedFn.delay = options.throttle || options.leading ? bindedFn.delay : options.delay ?? 0;
     };
   }
 
   public delete(fn: any) {
     const bindedFn = this.mapOriginalToBindedFn.get(fn);
+    if (!bindedFn) return;
+
     const i = this.nextFrameFns.indexOf(bindedFn);
 
     if (i !== -1) {
@@ -75,35 +77,37 @@ export class FrameDebouncer {
 
   private createBindedFunction(fn: any, options: Options): any {
     const bindedFn: any = (frameTime: number) => {
-      const hardFrame = options.lightFrame ? frameTime > 16 : frameTime > options.frameTime;
-      const skip = options.leading ? bindedFn.delay < options.delay : bindedFn.delay > 0;
+      const frameTimeLimit = options.frameTime ?? 16;
+      const hardFrame = options.lightFrame ? frameTime > 16 : frameTime > frameTimeLimit;
+      const delayLimit = options.delay ?? 0;
+      const skip = options.leading ? (bindedFn.delay ?? 0) < delayLimit : (bindedFn.delay ?? 0) > 0;
 
       if (hardFrame || skip) {
         // skip original function
         if (options.leading) {
-          bindedFn.delay += 1;
+          bindedFn.delay = (bindedFn.delay ?? 0) + 1;
 
-          if (hardFrame || bindedFn.delay < options.delay) {
+          if (hardFrame || (bindedFn.delay ?? 0) < delayLimit) {
             this.tmpFns.push(bindedFn);
           } else {
             bindedFn.inOrder = false;
           }
         } else {
           this.tmpFns.push(bindedFn);
-          bindedFn.delay -= 1;
+          bindedFn.delay = (bindedFn.delay ?? 0) - 1;
         }
 
         return;
       }
 
-      const run = options.leading ? bindedFn.delay >= options.delay : bindedFn.delay < 1;
+      const run = options.leading ? (bindedFn.delay ?? 0) >= delayLimit : (bindedFn.delay ?? 0) < 1;
 
       if (run) {
         // perform original function
         fn(...bindedFn.args);
 
         if (options.throttle) {
-          bindedFn.delay = options.delay;
+          bindedFn.delay = delayLimit;
         }
 
         if (options.leading) {
