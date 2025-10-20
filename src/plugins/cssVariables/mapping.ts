@@ -1,9 +1,8 @@
 import get from "lodash/get";
 import set from "lodash/set";
 
-import { RecursivePartial } from "@/utils/types/helpers";
-
 import type { TGraphColors, TGraphConstants } from "../../graphConfig";
+import { RecursivePartial } from "../../utils/types/helpers";
 
 import { CSS_VARIABLE_MAPPINGS, SUPPORTED_CSS_VARIABLES } from "./constants";
 import type { CSSVariableChange } from "./types";

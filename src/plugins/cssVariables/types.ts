@@ -1,8 +1,7 @@
-import { RecursivePartial } from "@/utils/types/helpers";
-
 import type { TGraphColors, TGraphConstants } from "../../graphConfig";
 import type { TComponentState } from "../../lib/Component";
 import type { LayerProps } from "../../services/Layer";
+import { RecursivePartial } from "../../utils/types/helpers";
 
 /**
  * Describes a change to a CSS variable
