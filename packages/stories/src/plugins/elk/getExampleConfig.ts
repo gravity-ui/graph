@@ -1,4 +1,5 @@
-import { TGraphConfig, measureText } from "@gravity-ui/graph";
+import { TGraphConfig } from "@gravity-ui/graph";
+import { measureText } from "@gravity-ui/graph/utils";
 import { ElkExtendedEdge, ElkNode, LayoutOptions } from "elkjs";
 
 import { createBlock, generatePrettyBlocks } from "../../configurations/generatePretty";

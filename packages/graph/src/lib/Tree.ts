@@ -104,11 +104,7 @@ export class Tree<T extends ITree = ITree> {
   }
 
   public traverseDown(iterator: TIterator) {
-    this._traverse(iterator, "_walkDown");
-  }
-
-  private _traverse(iterator: TIterator, strategyName: string) {
-    (this as Record<string, unknown>)[strategyName](iterator);
+    this._walkDown(iterator);
   }
 
   protected getChildrenArray() {
@@ -119,7 +115,7 @@ export class Tree<T extends ITree = ITree> {
     return this.childrenArray;
   }
 
-  protected _walkDown(iterator: TIterator, order: number) {
+  protected _walkDown(iterator: TIterator, order = 0) {
     this.renderOrder = order;
     if (iterator(this)) {
       if (!this.children.size) {

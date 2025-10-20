@@ -1,3 +1,5 @@
+import { Constructor } from "../utils/types/helpers";
+
 import { CoreComponent, CoreComponentContext, CoreComponentProps } from "./CoreComponent";
 import { assign } from "./utils";
 

@@ -1,7 +1,8 @@
 import React from "react";
 
-import { Anchor, CanvasBlock, EAnchorType, TAnchor, TBlockId, TPoint, layoutText } from "@gravity-ui/graph";
-import { renderSVG } from "@gravity-ui/graph";
+import { Anchor, CanvasBlock, EAnchorType, TAnchor, TBlockId } from "@gravity-ui/graph";
+import { TPoint, layoutText, renderSVG } from "@gravity-ui/graph/utils";
+
 import { TGravityActionBlock } from "../generateLayout";
 
 import { ActionBlockHtml } from "./ActionBlockHtml";

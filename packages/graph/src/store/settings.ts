@@ -1,9 +1,10 @@
 import { computed, signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
-import type { Block, TBlock } from "../components/canvas/blocks/Block";
+import type { Block as CanvasBlock, TBlock } from "../components/canvas/blocks/Block";
 import { BlockConnection } from "../components/canvas/connections/BlockConnection";
 import { Component } from "../lib";
+import { ComponentConstructor } from "../lib/CoreComponent";
 
 import { TConnection } from "./connection/ConnectionState";
 
@@ -29,7 +30,7 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   useBlocksAnchors: boolean;
   connectivityComponentOnClickRaise: boolean;
   showConnectionLabels: boolean;
-  blockComponents: Record<string, typeof Block<Block>>;
+  blockComponents: Record<string, ComponentConstructor<CanvasBlock>>;
   connection?: typeof BlockConnection<Connection>;
   background?: typeof Component;
 };
@@ -77,7 +78,7 @@ export class GraphEditorSettings {
     }
   }
 
-  public getConfigFlag(flagPath: keyof TGraphSettingsConfig) {
+  public getConfigFlag<K extends keyof TGraphSettingsConfig>(flagPath: K): TGraphSettingsConfig[K] {
     return this.$settings.value[flagPath];
   }
 

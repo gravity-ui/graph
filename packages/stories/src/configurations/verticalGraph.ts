@@ -1,8 +1,8 @@
-import { Block, TPoint } from "@gravity-ui/graph";
+import { CanvasBlock, TPoint } from "@gravity-ui/graph";
 
 import { storiesSettings } from "./definitions";
 
-class VerticalBlock extends Block {
+class VerticalBlock extends CanvasBlock {
   public override getConnectionPoint(direction: "in" | "out"): TPoint {
     return {
       x: (this.state.x + this.state.width / 2) | 0,

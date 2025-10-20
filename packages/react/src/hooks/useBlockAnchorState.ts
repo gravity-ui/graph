@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo } from "react";
 
-import { AnchorState, Graph, TAnchor, noop } from "@gravity-ui/graph";
+import { AnchorState, Graph, TAnchor } from "@gravity-ui/graph";
+import { noop } from "@gravity-ui/graph/utils";
 import { computed } from "@preact/signals-core";
 
 import { useBlockState } from "./useBlockState";
