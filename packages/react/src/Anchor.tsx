@@ -1,8 +1,6 @@
 import React, { useMemo } from "react";
 
-import { Graph } from "@gravity-ui/graph";
-import { AnchorState } from "@gravity-ui/graphanchor/Anchor";
-import { TAnchor } from "@gravity-ui/graphcanvas/anchors";
+import { AnchorState, Graph, TAnchor } from "@gravity-ui/graph";
 
 import { useSignal } from "./hooks";
 import { useBlockAnchorPosition, useBlockAnchorState } from "./hooks/useBlockAnchorState";

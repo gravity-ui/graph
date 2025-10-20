@@ -5,7 +5,7 @@ import { Scheduler } from "./Scheduler";
 import { ITree, Tree } from "./Tree";
 
 type TOptions = {
-  readonly key?: string;
+  readonly key?: string | number | Symbol;
   readonly ref?: ((inst: unknown) => void) | string;
 };
 
@@ -298,7 +298,24 @@ export class CoreComponent<
     return root;
   }
 
-  public static unmount(instance) {
+  public static unmount<Props extends CoreComponentProps, Context extends CoreComponentContext>(
+    instance: CoreComponent<Props, Context>
+  ) {
     instance.__unmount();
   }
+}
+
+export interface ComponentConstructor<
+  C extends CoreComponent = CoreComponent,
+  Props extends CoreComponentProps = C extends CoreComponent<infer P> ? P : never,
+  Context extends CoreComponentContext = C extends CoreComponent<Props, infer C> ? C : never,
+> extends Constructor<C> {
+  create(props: Props, options: TOptions): ComponentDescriptor<Props, Context>;
+  mount<Props extends CoreComponentProps, Context extends CoreComponentContext>(
+    Component: Constructor<CoreComponent<Props, Context>>,
+    props?: Props
+  ): ComponentDescriptor<Props, Context>;
+  unmount<Props extends CoreComponentProps, Context extends CoreComponentContext>(
+    instance: Constructor<CoreComponent<Props, Context>>
+  ): void;
 }

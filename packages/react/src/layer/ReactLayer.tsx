@@ -1,20 +1,16 @@
 import React from "react";
 
-import { Graph, ICamera, Layer, LayerContext, LayerProps, TBlock, parseClassNames } from "@gravity-ui/graph";
+import { Graph, Layer, LayerContext, LayerProps, TBlock } from "@gravity-ui/graph";
 import { createPortal } from "react-dom";
 
 import { BlocksList } from "../BlocksList";
+import { parseClassNames } from "../utils/classNames";
 
 export type TReactLayerProps = LayerProps & {
-  camera: ICamera;
-  root: HTMLDivElement;
   blockListClassName?: string;
 };
 
-export type TReactLayerContext = LayerContext & {
-  graph: Graph;
-  camera: ICamera;
-};
+export type TReactLayerContext = LayerContext;
 
 export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
   constructor(props: TReactLayerProps) {
@@ -64,7 +60,8 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
    * @returns React Portal with BlocksList component
    */
   public renderPortal(renderBlock: <T extends TBlock>(graphObject: Graph, block: T) => React.JSX.Element) {
-    if (!this.getHTML()) {
+    const portalTarget = this.getHTML();
+    if (!portalTarget) {
       return null;
     }
 
@@ -73,7 +70,7 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
         graphObject: this.context.graph,
         renderBlock: renderBlock,
       }),
-      this.getHTML() as HTMLDivElement,
+      portalTarget,
       "graph-blocks-list"
     );
   }

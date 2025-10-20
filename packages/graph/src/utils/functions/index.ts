@@ -4,8 +4,6 @@ import { ECanChangeBlockGeometry } from "../../store/settings";
 import { EVENTS_DETAIL, SELECTION_EVENT_TYPES } from "../types/events";
 import { Rect, TRect } from "../types/shapes";
 
-export { parseClassNames } from "./classNames";
-
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function noop(...args: unknown[]) {
   // noop

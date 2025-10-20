@@ -140,7 +140,7 @@ export class NewBlockLayer extends Layer<
     const colors = this.context.colors;
     render(this.context.ctx, (ctx) => {
       ctx.beginPath();
-      ctx.fillStyle = this.props.ghostBackground || colors?.block.border || "#ccc";
+      ctx.fillStyle = this.props.ghostBackground || colors.block.border || "#ccc";
 
       // Draw each block ghost
       for (const blockState of this.blockStates) {

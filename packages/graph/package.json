@@ -24,6 +24,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./utils": {
+      "types": "./dist/utils.d.ts",
+      "default": "./dist/utils.js"
+    },
     "./devtools": {
       "types": "./dist/plugins/devtools/index.d.ts",
       "default": "./dist/plugins/devtools/index.js"

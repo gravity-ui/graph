@@ -1,5 +1,5 @@
 import { Component } from "../../../lib/Component";
-import { CoreComponent } from "../../../lib/CoreComponent";
+import { ComponentConstructor, CoreComponent } from "../../../lib/CoreComponent";
 import { BlockState } from "../../../store/block/Block";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
@@ -7,7 +7,7 @@ import { Block } from "./Block";
 
 export class Blocks extends Component {
   protected blocks: BlockState[] = [];
-  protected blocksView: Record<string, unknown> = {};
+  protected blocksView: Record<string, ComponentConstructor<Block>> = {};
 
   public declare context: TGraphLayerContext;
 
@@ -24,7 +24,7 @@ export class Blocks extends Component {
   }
 
   protected getFontScale() {
-    return this.context.graph.rootStore.settings.getConfigFlag("scaleFontSize");
+    return this.context.graph.rootStore.settings.getConfigFlag("scaleFontSize") as number;
   }
 
   protected rerender() {
@@ -59,7 +59,8 @@ export class Blocks extends Component {
 
   protected updateChildren() {
     return this.blocks.map((block, index) => {
-      return (this.blocksView[block.$state.value.is] || Block).create(
+      const Component = this.blocksView[block.$state.value.is] || Block;
+      return Component.create(
         {
           id: block.id,
           initialIndex: index,
