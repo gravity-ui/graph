@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 
+import { CanvasBlock, Graph, TBlock, TGraphConfig } from "@gravity-ui/graph";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { CanvasBlock, Graph, TBlock, TGraphConfig } from "@gravity-ui/graph";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { GraphComponentStory } from "../../main/GraphEditor";
 
@@ -34,10 +34,11 @@ type TBlockMeta = {
 class SpecificBlockView extends CanvasBlock<TBlock<TBlockMeta>> {
   public override renderSchematicView() {
     const blockMetaState = this.state.meta;
-    if (blockMetaState.shouldInitImage) {
+    if (blockMetaState && blockMetaState.shouldInitImage) {
       blockMetaState.img = new Image();
 
       blockMetaState.img.onload = () => {
+        if (!blockMetaState.img) return;
         const hRatio = this.state.width / blockMetaState.img.width;
         const vRatio = this.state.height / blockMetaState.img.height;
         const imageRatio = Math.min(hRatio, vRatio);
@@ -64,6 +65,7 @@ class SpecificBlockView extends CanvasBlock<TBlock<TBlockMeta>> {
 
       blockMetaState.img.src = getImageByStatus(this.state.meta.status);
     } else {
+      if (!blockMetaState.img) return;
       this.context.ctx.drawImage(
         blockMetaState.img,
         0,

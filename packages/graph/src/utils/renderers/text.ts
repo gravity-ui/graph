@@ -31,7 +31,7 @@ export function layoutText(text: string, ctx: CanvasRenderingContext2D, rect: TT
     }
     case "right":
     case "end": {
-      x = rect.x + rect.width || 0;
+      x = rect.x + (rect.width ?? 0);
       break;
     }
   }
@@ -39,20 +39,23 @@ export function layoutText(text: string, ctx: CanvasRenderingContext2D, rect: TT
   ctx.textBaseline = "top";
   let y = rect.y;
 
-  ctx.font = params.font;
-  const lineHeight = params.lineHeight || parseInt(params.font.replace(/\D/gi, ""), 10);
+  const font = params.font ?? "12px sans-serif";
+  ctx.font = font;
+  const lineHeight = params.lineHeight || parseInt(font.replace(/\D/gi, ""), 10);
   const measures = cachedMeasureText(text, {
     wordWrap: true,
     maxWidth: rect.width,
     maxHeight: rect.height,
     ...params,
   });
-  const lines = [];
-  for (const line of measures.linesWords) {
-    lines.push([line, x, y]);
-    y += lineHeight;
-    if (rect.height && y > rect.y + rect.height - lineHeight) {
-      break;
+  const lines: [string, number, number][] = [];
+  if (measures) {
+    for (const line of measures.linesWords) {
+      lines.push([line, x, y]);
+      y += lineHeight;
+      if (rect.height && y > rect.y + rect.height - lineHeight) {
+        break;
+      }
     }
   }
   return {
@@ -67,7 +70,7 @@ export function renderText(text: string, ctx: CanvasRenderingContext2D, rect: TT
   const { lines, measures } = layoutText(text, ctx, rect, params);
 
   for (const [line, x, y] of lines) {
-    ctx.fillText(line, x, y);
+    ctx.fillText(String(line), x, y);
   }
 
   return measures;

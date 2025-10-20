@@ -1,4 +1,4 @@
-import { CanvasBlock, TGraphConfig } from "../../index";
+import { CanvasBlock, TGraphConfig } from "@gravity-ui/graph";
 
 import { storiesSettings } from "./definitions";
 
@@ -22,12 +22,12 @@ class SpecificBlockView extends CanvasBlock {
     this.context.ctx.stroke();
 
     if (this.shouldRenderText) {
-      this.context.ctx.fillStyle = this.context.colors.block.text;
+      this.context.ctx.fillStyle = this.context.colors.block!.text;
       this.context.ctx.textAlign = "center";
       this.renderText(this.state.name);
     }
     if (this.state.selected) {
-      this.renderStroke(this.context.colors.block.selectedBorder);
+      this.renderStroke(this.context.colors.block!.selectedBorder!);
     }
 
     this.context.ctx.restore();

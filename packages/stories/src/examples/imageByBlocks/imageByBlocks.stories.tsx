@@ -1,11 +1,11 @@
 /* eslint-disable no-console */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
+import { CanvasBlock, Graph, TBlock, TGraphConfig } from "@gravity-ui/graph";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { CanvasBlock, Graph, TBlock, TGraphConfig } from "@gravity-ui/graph";
-import { storiesSettings } from "../../../stories/configurations/definitions";
+import { storiesSettings } from "../../configurations/definitions";
 import { GraphComponentStory } from "../../main/GraphEditor";
 
 import image from "./image.png";
