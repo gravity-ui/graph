@@ -139,7 +139,7 @@ export class Layer<
       throw new Error("Attempt to add event listener to non-existent HTML element");
     }
 
-    this.html.addEventListener(eventName, handler, {
+    this.html.addEventListener(eventName, handler as EventListenerOrEventListenerObject, {
       ...options,
       signal: this.eventAbortController.signal,
     });
@@ -169,7 +169,7 @@ export class Layer<
       throw new Error("Attempt to add event listener to non-existent canvas element");
     }
 
-    this.canvas.addEventListener(eventName, handler, {
+    this.canvas.addEventListener(eventName, handler as EventListenerOrEventListenerObject, {
       ...options,
       signal: this.eventAbortController.signal,
     });
@@ -199,7 +199,7 @@ export class Layer<
       throw new Error("Attempt to add event listener to non-existent root element");
     }
 
-    this.root.addEventListener(eventName, handler, {
+    this.root.addEventListener(eventName, handler as EventListenerOrEventListenerObject, {
       ...options,
       signal: this.eventAbortController.signal,
     });
@@ -231,7 +231,7 @@ export class Layer<
   }
 
   constructor(props: Props, parent?: CoreComponent) {
-    super(props, parent);
+    super(props, parent as CoreComponent);
 
     this.eventAbortController = new AbortController();
 
@@ -380,11 +380,11 @@ export class Layer<
   protected createCanvas(params: LayerProps["canvas"]) {
     const canvas = document.createElement("canvas");
     canvas.classList.add("layer", "layer-canvas");
-    if (Array.isArray(params.classNames)) canvas.classList.add(...params.classNames);
-    canvas.style.zIndex = `${Number(params.zIndex)}`;
+    if (params && Array.isArray(params.classNames)) canvas.classList.add(...params.classNames);
+    canvas.style.zIndex = `${Number(params?.zIndex ?? 0)}`;
     this.setContext({
       graphCanvas: canvas,
-      ctx: canvas.getContext("2d"),
+      ctx: canvas.getContext("2d") ?? undefined,
     });
     return canvas;
   }
@@ -392,9 +392,9 @@ export class Layer<
   protected createHTML(params: LayerProps["html"]) {
     const div = document.createElement("div");
     div.classList.add("layer", "layer-html");
-    if (Array.isArray(params.classNames)) div.classList.add(...params.classNames);
-    div.style.zIndex = `${Number(params.zIndex)}`;
-    if (params.transformByCameraPosition) {
+    if (params && Array.isArray(params.classNames)) div.classList.add(...params.classNames);
+    div.style.zIndex = `${Number(params?.zIndex ?? 0)}`;
+    if (params?.transformByCameraPosition) {
       div.classList.add("layer-with-camera");
     }
     return div;
@@ -409,7 +409,7 @@ export class Layer<
     x: number,
     y: number,
     scale: number,
-    respectPixelRatio: boolean = this.props.canvas?.respectPixelRatio
+    respectPixelRatio: boolean = this.props.canvas?.respectPixelRatio ?? true
   ) {
     const ctx = this.context.ctx;
     const dpr = respectPixelRatio ? this.getDRP() : 1;
