@@ -65,13 +65,13 @@ export class BlockController {
         autopanning: true,
       })
         .on(EVENTS.DRAG_START, (_event: MouseEvent) => {
-          dispatchEvents(draggingElements, createCustomDragEvent(EVENTS.DRAG_START, _event));
+          dispatchEvents(draggingElements as EventTarget[], createCustomDragEvent(EVENTS.DRAG_START, _event));
         })
         .on(EVENTS.DRAG_UPDATE, (_event: MouseEvent) => {
-          dispatchEvents(draggingElements, createCustomDragEvent(EVENTS.DRAG_UPDATE, _event));
+          dispatchEvents(draggingElements as EventTarget[], createCustomDragEvent(EVENTS.DRAG_UPDATE, _event));
         })
         .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
-          dispatchEvents(draggingElements, createCustomDragEvent(EVENTS.DRAG_END, _event));
+          dispatchEvents(draggingElements as EventTarget[], createCustomDragEvent(EVENTS.DRAG_END, _event));
         });
     });
   }

@@ -1,17 +1,19 @@
 import { useLayoutEffect, useMemo } from "react";
 
 import type {
-  Constructor,
   Layer,
   LayerPublicProps,
   TBlock,
   TConnection,
   TGraphColors,
+  TGraphConfig,
   TGraphConstants,
   TGraphSettingsConfig,
   TGraphZoomTarget,
+  ZoomConfig,
 } from "@gravity-ui/graph";
-import { Graph, GraphState, RecursivePartial, TGraphConfig, ZoomConfig } from "@gravity-ui/graph";
+import { Graph, GraphState } from "@gravity-ui/graph";
+import type { Constructor, RecursivePartial } from "@gravity-ui/graph/utils";
 
 import { useFn } from "../utils/hooks/useFn";
 

@@ -11,6 +11,6 @@
  * parseClassNames("") // []
  * parseClassNames("   ") // []
  */
-export function parseClassNames(className: string): string[] {
+export function parseClassNames(className: string) {
   return className.trim().split(/\s+/).filter(Boolean);
 }

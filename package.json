@@ -32,8 +32,8 @@
   "scripts": {
     "dev": "npm run storybook",
     "build": "npm run clean && npm run build:graph && npm run build:react",
-    "build:graph": "npm run clean:graph && rollup -c --config-package graph",
-    "build:react": "npm run clean:react && rollup -c --config-package react",
+    "build:graph": "npm run clean:graph && rollup -c --config-package graph && tsc --project packages/graph/tsconfig.json --emitDeclarationOnly",
+    "build:react": "npm run clean:react && rollup -c --config-package react && tsc --project packages/react/tsconfig.json --emitDeclarationOnly",
     "watch": "rollup -c --watch",
     "typecheck": "tsc -b",
     "typecheck:watch": "tsc -b --watch",

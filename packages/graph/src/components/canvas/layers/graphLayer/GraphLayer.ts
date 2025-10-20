@@ -41,9 +41,7 @@ export type GraphMouseEvent = CustomEvent<{
 }>;
 
 export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
-  public declare $: Component & { camera: Camera };
-
-  private camera: ICamera;
+  public declare $: Record<string, Component | undefined> & { camera: Camera };
 
   private targetComponent: EventedComponent;
 
@@ -88,8 +86,6 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     if (this.context.root) {
       this.attachListeners();
     }
-
-    this.camera = this.props.camera;
 
     this.performRender = this.performRender.bind(this);
   }

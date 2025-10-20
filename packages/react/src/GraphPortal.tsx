@@ -135,7 +135,7 @@ export const GraphPortal = forwardRef<GraphPortalLayer, GraphPortalProps>(functi
   });
 
   // Always create internal layer using useLayer (hooks must be called unconditionally)
-  const layer = useLayer<GraphPortalLayer>(graph, GraphPortalLayer, {
+  const layer = useLayer(graph, GraphPortalLayer, {
     className,
     zIndex,
     transformByCameraPosition,

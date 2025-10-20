@@ -473,14 +473,13 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected renderBody(ctx: CanvasRenderingContext2D) {
-    const colors = this.context.colors;
-    if (!colors) return;
-
-    ctx.fillStyle = colors.block.background;
-    ctx.strokeStyle = colors.block.border;
+    ctx.fillStyle = this.context.colors.block.background;
+    ctx.strokeStyle = this.context.colors.block.border;
 
     ctx.fillRect(this.state.x, this.state.y, this.state.width, this.state.height);
-    this.renderStroke(this.state.selected ? colors.block.selectedBorder : colors.block.border);
+    this.renderStroke(
+      this.state.selected ? this.context.colors.block.selectedBorder : this.context.colors.block.border
+    );
   }
 
   public renderSchematicView(ctx: CanvasRenderingContext2D) {

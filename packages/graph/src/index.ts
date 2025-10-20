@@ -6,7 +6,14 @@ export * from "./graph";
 export type { ZoomConfig } from "./api/PublicGraphApi";
 export type { TGraphColors, TGraphConstants, TMouseWheelBehavior } from "./graphConfig";
 export { initGraphColors, initGraphConstants } from "./graphConfig";
-export { type UnwrapGraphEventsDetail, type SelectionEvent } from "./graphEvents";
+export type {
+  GraphEventsDefinitions,
+  UnwrapGraphEvents,
+  UnwrapGraphEventsDetail,
+  UnwrapBaseGraphEvents,
+  UnwrapBaseGraphEventsDetail,
+  SelectionEvent,
+} from "./graphEvents";
 export * from "./plugins";
 export { ECameraScaleLevel } from "./services/camera/CameraService";
 export * from "./services/Layer";
@@ -16,17 +23,11 @@ export type { BlockState, TBlockId } from "./store/block/Block";
 export type { ConnectionState, TConnection, TConnectionId } from "./store/connection/ConnectionState";
 export type { AnchorState } from "./store/anchor/Anchor";
 export { ECanChangeBlockGeometry } from "./store/settings";
-export { type TMeasureTextOptions, type TWrapText, measureText } from "./utils/functions/text";
 export { ESchedulerPriority } from "./lib/Scheduler";
-export { debounce, throttle, schedule } from "./utils/functions";
-export type { RecursivePartial, Constructor } from "./utils/types/helpers";
-export * from "./utils/renderers/text";
-export { renderSVG } from "./utils/renderers/svgPath";
 export { random } from "./components/canvas/blocks/generate";
-export { EVENTS } from "./utils/types/events";
-export { type TPoint, type TRect } from "./utils/types/shapes";
 export { ESelectionStrategy } from "./services/selection/types";
-export * from "./utils/shapes";
+export { type HitBoxData } from "./services/HitTest";
+export { isPointInStroke } from "./components/canvas/connections/bezierHelpers";
 
 export * from "./components/canvas/groups";
 

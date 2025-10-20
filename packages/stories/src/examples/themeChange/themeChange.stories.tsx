@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
+import { Graph, TGraphColors } from "@gravity-ui/graph";
+import { computeCssVariable } from "@gravity-ui/graph/utils";
 import {
   Flex,
   SegmentedRadioGroup,
@@ -9,9 +11,6 @@ import {
 } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { Graph } from "@gravity-ui/graph";
-import { TGraphColors } from "@gravity-ui/graph";
-import { computeCssVariable } from "@gravity-ui/graph";
 import { withAnchorsAndConnectionConfig } from "../../configurations/withAnchorAndConnection";
 import { GraphComponentStory } from "../../main/GraphEditor";
 

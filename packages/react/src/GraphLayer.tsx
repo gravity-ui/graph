@@ -1,7 +1,8 @@
 import React, { forwardRef, useImperativeHandle, useState } from "react";
 
 import { GraphState } from "@gravity-ui/graph";
-import type { Constructor, Layer, LayerPublicProps } from "@gravity-ui/graph";
+import type { Layer, LayerPublicProps } from "@gravity-ui/graph";
+import type { Constructor } from "@gravity-ui/graph/utils";
 
 import { useGraphContext } from "./GraphContext";
 import { useGraphEvent } from "./hooks/useGraphEvents";
