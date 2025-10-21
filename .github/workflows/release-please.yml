@@ -3,7 +3,7 @@ name: release-please
 on:
   push:
     branches:
-      - main
+      - graph_workspace
 
 permissions:
   contents: write
@@ -18,4 +18,5 @@ jobs:
           token: ${{ secrets.GRAVITY_UI_BOT_GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          target-branch: graph_workspace
 

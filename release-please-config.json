@@ -4,13 +4,17 @@
       "package-name": "@gravity-ui/graph",
       "release-type": "node",
       "changelog-path": "CHANGELOG.md",
-      "component": "@gravity-ui/graph"
+      "component": "@gravity-ui/graph",
+      "prerelease": true,
+      "prerelease-type": "beta"
     },
     "packages/react": {
       "package-name": "@gravity-ui/graph-react",
       "release-type": "node",
       "changelog-path": "CHANGELOG.md",
-      "component": "@gravity-ui/graph-react"
+      "component": "@gravity-ui/graph-react",
+      "prerelease": true,
+      "prerelease-type": "beta"
     }
   },
   "release-type": "node",
