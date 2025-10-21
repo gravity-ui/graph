@@ -170,7 +170,7 @@ export class Graph {
     this.cameraService.zoom(zoomConfig.x || width / 2, zoomConfig.y || height / 2, zoomConfig.scale);
   }
 
-  public zoomTo(target: TGraphZoomTarget, config?: ZoomConfig): Promise<void> | void {
+  public zoomTo(target: TGraphZoomTarget, config?: ZoomConfig) {
     if (target === "center") {
       this.api.zoomToViewPort(config);
       return;
