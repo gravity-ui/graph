@@ -48,6 +48,9 @@ export type TCanvasColors = {
   border: string;
 };
 
+export type TMouseWheelBehavior = "zoom" | "scroll";
+export type TMouseWheelScrollAxis = "vertical" | "horizontal";
+
 export const initGraphColors: TGraphColors = {
   anchor: {
     background: "#4a4a4a",
@@ -119,6 +122,33 @@ export type TGraphConstants = {
      * @default 10
      */
     AUTO_PAN_SPEED: number;
+    /**
+     * Controls the behavior of mouse wheel events.
+     *
+     * When set to "zoom", mouse wheel will zoom in/out the graph.
+     * When set to "scroll", mouse wheel will scroll the graph along the specified axis.
+     *
+     * @remarks
+     * This setting only affects mouse wheel behavior. Trackpad gestures remain unchanged
+     * and continue to use their native behavior (pinch to zoom, swipe to scroll).
+     *
+     * @default "zoom"
+     * @see MOUSE_WHEEL_SCROLL_AXIS for axis configuration when using "scroll" mode
+     */
+    MOUSE_WHEEL_BEHAVIOR: TMouseWheelBehavior;
+    /**
+     * Specifies the scroll axis when MOUSE_WHEEL_BEHAVIOR is set to "scroll".
+     *
+     * - "vertical": Scrolls along Y axis (up/down)
+     * - "horizontal": Scrolls along X axis (left/right)
+     *
+     * @remarks
+     * This setting is only used when MOUSE_WHEEL_BEHAVIOR is "scroll".
+     * Has no effect when MOUSE_WHEEL_BEHAVIOR is "zoom".
+     *
+     * @default "vertical"
+     */
+    MOUSE_WHEEL_SCROLL_AXIS: TMouseWheelScrollAxis;
   };
 
   block: {
@@ -169,6 +199,8 @@ export const initGraphConstants: TGraphConstants = {
     STEP: 0.008,
     AUTO_PAN_THRESHOLD: 50,
     AUTO_PAN_SPEED: 5,
+    MOUSE_WHEEL_BEHAVIOR: "zoom",
+    MOUSE_WHEEL_SCROLL_AXIS: "vertical",
   },
   block: {
     WIDTH_MIN: 16 * 10,

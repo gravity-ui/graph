@@ -200,29 +200,48 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     this.lastDragEvent = undefined;
   }
 
-  private handleWheelEvent = (event: WheelEvent) => {
-    if (!this.context.graph.rootStore.settings.getConfigFlag("canZoomCamera")) {
-      return;
+  /**
+   * Handles trackpad swipe gestures for camera movement
+   */
+  private handleTrackpadMove(event: WheelEvent): void {
+    const windows = isWindows();
+
+    this.moveWithEdges(
+      windows && event.shiftKey ? -event.deltaY : -event.deltaX,
+      windows && event.shiftKey ? -event.deltaX : -event.deltaY
+    );
+  }
+
+  /**
+   * Handles mouse wheel scroll based on configured axis
+   */
+  private handleMouseWheelScroll(event: WheelEvent): void {
+    const scrollAxis = this.context.constants.camera.MOUSE_WHEEL_SCROLL_AXIS;
+
+    let deltaX = 0;
+    let deltaY = 0;
+
+    switch (scrollAxis) {
+      case "vertical":
+        deltaY = -event.deltaY;
+        break;
+      case "horizontal":
+        deltaX = -event.deltaY;
+        break;
     }
 
-    event.stopPropagation();
-    event.preventDefault();
+    this.moveWithEdges(deltaX, deltaY);
+  }
 
-    const isMoveEvent = isTrackpadWheelEvent(event) && !isMetaKeyEvent(event);
-
-    if (isMoveEvent) {
-      const windows = isWindows();
-
-      this.moveWithEdges(
-        windows && event.shiftKey ? -event.deltaY : -event.deltaX,
-        windows && event.shiftKey ? -event.deltaX : -event.deltaY
-      );
+  /**
+   * Handles zoom behavior for both trackpad pinch and mouse wheel
+   */
+  private handleWheelZoom(event: WheelEvent): void {
+    if (!event.deltaY) {
       return;
     }
 
     const xy = getXY(this.context.canvas, event);
-
-    if (!event.deltaY) return;
 
     /**
      * Speed of wheel/trackpad pinch
@@ -239,6 +258,37 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     // Smooth scale. The closer you get, the higher the speed
     const smoothDScale = dScale * cameraScale;
     this.camera.zoom(xy[0], xy[1], cameraScale - smoothDScale);
+  }
+
+  private handleWheelEvent = (event: WheelEvent) => {
+    if (!this.context.graph.rootStore.settings.getConfigFlag("canZoomCamera")) {
+      return;
+    }
+
+    event.stopPropagation();
+    event.preventDefault();
+
+    const isTrackpad = isTrackpadWheelEvent(event);
+    const isTrackpadMove = isTrackpad && !isMetaKeyEvent(event);
+
+    // Trackpad swipe gesture - always moves camera
+    if (isTrackpadMove) {
+      this.handleTrackpadMove(event);
+      return;
+    }
+
+    // Mouse wheel behavior - check configuration
+    if (!isTrackpad) {
+      const mouseWheelBehavior = this.context.constants.camera.MOUSE_WHEEL_BEHAVIOR;
+
+      if (mouseWheelBehavior === "scroll") {
+        this.handleMouseWheelScroll(event);
+        return;
+      }
+    }
+
+    // Default: zoom behavior (trackpad pinch or mouse wheel with "zoom" mode)
+    this.handleWheelZoom(event);
   };
 
   protected moveWithEdges(deltaX: number, deltaY: number) {
