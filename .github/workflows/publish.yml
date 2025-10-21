@@ -1,14 +1,17 @@
 name: Publish to NPM
 
 on:
-  release:
-    types: [published]
-  push:
-    branches:
-      - graph_workspace
-    tags:
-      - '@gravity-ui/graph@2.0.0-beta*'
-      - '@gravity-ui/graph-react@2.0.0-beta*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to publish (e.g., @gravity-ui/graph@2.0.0-beta.1)'
+        required: true
+        type: string
+      target_branch:
+        description: 'Target branch for the release'
+        required: false
+        default: 'graph_workspace'
+        type: string
 
 jobs:
   publish:
@@ -25,33 +28,37 @@ jobs:
       
       - run: npm run build
       
-      - name: Determine which package to publish
+      - name: Check release branch and determine package
         id: package
         run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
+          # Определяем источник данных (автоматический релиз или ручной запуск)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_NAME="${{ github.event.inputs.release_tag }}"
+            TARGET_COMMITISH="${{ github.event.inputs.target_branch }}"
+            echo "Manual run - Release tag: $TAG_NAME"
+            echo "Manual run - Target branch: $TARGET_COMMITISH"
+          else
             TAG_NAME="${{ github.event.release.tag_name }}"
-            echo "Release tag: $TAG_NAME"
-            
-            if [[ "$TAG_NAME" == *"@gravity-ui/graph-react"* ]]; then
-              echo "package=react" >> $GITHUB_OUTPUT
-            elif [[ "$TAG_NAME" == *"@gravity-ui/graph"* ]]; then
-              echo "package=graph" >> $GITHUB_OUTPUT
-            else
-              echo "Unknown package tag format"
-              exit 1
-            fi
-          elif [ "${{ github.event_name }}" = "push" ]; then
-            TAG_NAME="${{ github.ref_name }}"
-            echo "Push tag: $TAG_NAME"
-            
-            if [[ "$TAG_NAME" == *"@gravity-ui/graph-react@2.0.0-beta"* ]]; then
-              echo "package=react" >> $GITHUB_OUTPUT
-            elif [[ "$TAG_NAME" == *"@gravity-ui/graph@2.0.0-beta"* ]]; then
-              echo "package=graph" >> $GITHUB_OUTPUT
-            else
-              echo "Unknown package tag format"
-              exit 1
-            fi
+            TARGET_COMMITISH="${{ github.event.release.target_commitish }}"
+            echo "Automatic release - Release tag: $TAG_NAME"
+            echo "Automatic release - Target commitish: $TARGET_COMMITISH"
+          fi
+          
+          # Проверяем, что релиз создан из ветки graph_workspace
+          if [[ "$TARGET_COMMITISH" != "graph_workspace" ]]; then
+            echo "Release is not from graph_workspace branch (target: $TARGET_COMMITISH), skipping publish"
+            echo "package=skip" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Определяем пакет по тегу
+          if [[ "$TAG_NAME" == *"@gravity-ui/graph-react"* ]]; then
+            echo "package=react" >> $GITHUB_OUTPUT
+          elif [[ "$TAG_NAME" == *"@gravity-ui/graph"* ]]; then
+            echo "package=graph" >> $GITHUB_OUTPUT
+          else
+            echo "Unknown package tag format: $TAG_NAME"
+            exit 1
           fi
       
       - name: Publish @gravity-ui/graph
