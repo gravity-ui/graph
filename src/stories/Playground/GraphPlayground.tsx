@@ -146,6 +146,10 @@ export function GraphPLayground() {
     drawLine,
   });
 
+  const getNextBlockIndex = useFn(() => {
+    return Date.now();
+  });
+
   const updateVisibleConfig = useFn(() => {
     const config = graph.rootStore.getAsConfig();
     editorRef?.current.setContent({
@@ -203,8 +207,9 @@ export function GraphPLayground() {
     }
     let block: TBlock;
     const pullSourceAnchor = graph.rootStore.blocksList.getBlockState(sourceBlockId).getAnchorById(sourceAnchorId);
+    const nextIndex = getNextBlockIndex();
     if (pullSourceAnchor?.state.type === EAnchorType.IN) {
-      block = createActionBlock(point.x - 126, point.y - 63, graph.rootStore.blocksList.$blocksMap.value.size + 1);
+      block = createActionBlock(point.x - 126, point.y - 63, nextIndex);
       graph.api.addBlock(block);
       graph.api.addConnection({
         sourceBlockId: block.id,
@@ -213,7 +218,7 @@ export function GraphPLayground() {
         targetAnchorId: sourceAnchorId,
       });
     } else {
-      block = createActionBlock(point.x, point.y - 63, graph.rootStore.blocksList.$blocksMap.value.size + 1);
+      block = createActionBlock(point.x, point.y - 63, nextIndex);
       graph.api.addBlock(block);
       graph.api.addConnection({
         sourceBlockId: sourceBlockId,
@@ -243,7 +248,8 @@ export function GraphPLayground() {
     const rect = graph.api.getUsableRect();
     const x = random(rect.x, rect.x + rect.width + 100);
     const y = random(rect.y, rect.y + rect.height + 100);
-    const block = createActionBlock(x, y, graph.rootStore.blocksList.$blocksMap.value.size + 1);
+    const nextIndex = getNextBlockIndex();
+    const block = createActionBlock(x, y, nextIndex);
     graph.api.addBlock(block);
     graph.zoomTo([block.id], { transition: 250 });
     updateVisibleConfig();
