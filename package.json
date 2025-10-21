@@ -19,7 +19,8 @@
   "scripts": {
     "dev": "npm run storybook",
     "build": "npm run clean && npm run build:graph && npm run build:react",
-    "build:graph": "npm run clean:graph && rollup -c --config-package graph && tsc --project packages/graph/tsconfig.json --emitDeclarationOnly",
+    "build:graph": "npm run clean:graph && rollup -c --config-package graph && tsc --project packages/graph/tsconfig.json --emitDeclarationOnly && npm run build:graph:umd",
+    "build:graph:umd": "rollup -c rollup.config.umd.mjs",
     "build:react": "npm run clean:react && rollup -c --config-package react && tsc --project packages/react/tsconfig.json --emitDeclarationOnly",
     "watch": "rollup -c --watch",
     "typecheck": "tsc -b",
@@ -67,6 +68,7 @@
     "@monaco-editor/react": "^4.6.0",
     "@rollup/plugin-commonjs": "^28.0.8",
     "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-terser": "^0.4.4",
     "@rollup/plugin-typescript": "^12.1.4",
     "@size-limit/preset-big-lib": "^11.2.0",
     "@storybook/addon-docs": "^9.1.2",
