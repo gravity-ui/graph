@@ -26,7 +26,23 @@ export type HookGraphParams = Pick<TGraphConfig, "settings" | "layers"> & {
   };
 };
 
-export function useGraph(config: HookGraphParams) {
+export type UseGraphResult = {
+  graph: Graph;
+  api: Graph["api"];
+  setSettings: (settings: Partial<TGraphSettingsConfig>) => void;
+  start: () => void;
+  stop: () => void;
+  setViewConfiguration: (viewConfiguration: HookGraphParams["viewConfiguration"]) => void;
+  addLayer: <T extends Constructor<Layer> = Constructor<Layer>>(
+    layerCtor: T,
+    props: LayerPublicProps<T>
+  ) => InstanceType<T>;
+  setEntities: <B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => void;
+  updateEntities: <B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => void;
+  zoomTo: (target: TGraphZoomTarget, config?: ZoomConfig) => void;
+};
+
+export function useGraph(config: HookGraphParams): UseGraphResult {
   const graph = useMemo(() => {
     if (config.graph) {
       return config.graph;
@@ -98,5 +114,5 @@ export function useGraph(config: HookGraphParams) {
     zoomTo: useFn((target: TGraphZoomTarget, config?: ZoomConfig) => {
       graph.zoomTo(target, config);
     }),
-  };
+  } as const;
 }
