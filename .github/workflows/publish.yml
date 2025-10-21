@@ -3,6 +3,12 @@ name: Publish to NPM
 on:
   release:
     types: [published]
+  push:
+    branches:
+      - graph_workspace
+    tags:
+      - '@gravity-ui/graph@2.0.0-beta*'
+      - '@gravity-ui/graph-react@2.0.0-beta*'
 
 jobs:
   publish:
@@ -22,28 +28,42 @@ jobs:
       - name: Determine which package to publish
         id: package
         run: |
-          TAG_NAME="${{ github.event.release.tag_name }}"
-          echo "Tag: $TAG_NAME"
-          
-          if [[ "$TAG_NAME" == *"@gravity-ui/graph-react"* ]]; then
-            echo "package=react" >> $GITHUB_OUTPUT
-          elif [[ "$TAG_NAME" == *"@gravity-ui/graph"* ]]; then
-            echo "package=graph" >> $GITHUB_OUTPUT
-          else
-            echo "Unknown package tag format"
-            exit 1
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG_NAME="${{ github.event.release.tag_name }}"
+            echo "Release tag: $TAG_NAME"
+            
+            if [[ "$TAG_NAME" == *"@gravity-ui/graph-react"* ]]; then
+              echo "package=react" >> $GITHUB_OUTPUT
+            elif [[ "$TAG_NAME" == *"@gravity-ui/graph"* ]]; then
+              echo "package=graph" >> $GITHUB_OUTPUT
+            else
+              echo "Unknown package tag format"
+              exit 1
+            fi
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            TAG_NAME="${{ github.ref_name }}"
+            echo "Push tag: $TAG_NAME"
+            
+            if [[ "$TAG_NAME" == *"@gravity-ui/graph-react@2.0.0-beta"* ]]; then
+              echo "package=react" >> $GITHUB_OUTPUT
+            elif [[ "$TAG_NAME" == *"@gravity-ui/graph@2.0.0-beta"* ]]; then
+              echo "package=graph" >> $GITHUB_OUTPUT
+            else
+              echo "Unknown package tag format"
+              exit 1
+            fi
           fi
       
       - name: Publish @gravity-ui/graph
         if: steps.package.outputs.package == 'graph'
-        run: npm publish --access public
+        run: npm publish --access public --tag beta
         working-directory: packages/graph
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GRAVITY_UI_BOT_NPM_TOKEN }}
       
       - name: Publish @gravity-ui/graph-react
         if: steps.package.outputs.package == 'react'
-        run: npm publish --access public
+        run: npm publish --access public --tag beta
         working-directory: packages/react
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GRAVITY_UI_BOT_NPM_TOKEN }}
