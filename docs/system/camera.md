@@ -49,15 +49,14 @@ export type TCameraState = {
 
 ### Mouse wheel behavior
 
-Mouse wheel interactions can be configured to either zoom the graph or scroll it along a specified axis.
+Mouse wheel interactions can be configured to either zoom the graph or scroll it.
 
 **Configuration:**
 ```ts
 const graph = new Graph(canvas, {
   constants: {
     camera: {
-      MOUSE_WHEEL_BEHAVIOR: "zoom",      // "zoom" | "scroll" (default: "zoom")
-      MOUSE_WHEEL_SCROLL_AXIS: "vertical" // "vertical" | "horizontal" | "both" (default: "vertical")
+      MOUSE_WHEEL_BEHAVIOR: "zoom" // "zoom" | "scroll" (default: "zoom")
     }
   }
 });
@@ -65,24 +64,27 @@ const graph = new Graph(canvas, {
 
 **Behavior modes:**
 - `"zoom"` (default) – Mouse wheel zooms the graph in/out at the cursor position.
-- `"scroll"` – Mouse wheel scrolls the graph along the configured axis.
+- `"scroll"` – Mouse wheel scrolls the graph vertically by default, or horizontally when Shift key is pressed.
 
-**Scroll axes:**
-- `"vertical"` – Scrolls along Y axis (up/down).
-- `"horizontal"` – Scrolls along X axis (left/right).
+**Scroll direction:**
+- Default: Vertical scrolling (up/down along Y axis)
+- With Shift: Horizontal scrolling (left/right along X axis)
 
 **Important notes:**
 - This configuration only affects mouse wheel behavior.
-- Trackpad gestures remain unchanged (pinch to zoom, swipe to scroll).
+- Scroll direction switching with Shift is an environment-dependent behavior according to [W3C UI Events specification](https://w3c.github.io/uievents/#events-wheelevents).
+- Different browsers and operating systems may handle Shift+wheel differently.
+- Trackpad gestures remain unchanged and use their native behavior:
+  - Pinch to zoom
+  - Two-finger swipe to scroll in any direction
 - Settings can be updated at runtime using `graph.setConstants()`.
 
 **Example:**
 ```ts
-// Configure mouse wheel to scroll vertically instead of zooming
+// Configure mouse wheel to scroll instead of zooming
 graph.setConstants({
   camera: {
-    MOUSE_WHEEL_BEHAVIOR: "scroll",
-    MOUSE_WHEEL_SCROLL_AXIS: "vertical"
+    MOUSE_WHEEL_BEHAVIOR: "scroll"
   }
 });
 

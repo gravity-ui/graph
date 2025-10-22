@@ -213,27 +213,6 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   }
 
   /**
-   * Handles mouse wheel scroll based on configured axis
-   */
-  private handleMouseWheelScroll(event: WheelEvent): void {
-    const scrollAxis = this.context.constants.camera.MOUSE_WHEEL_SCROLL_AXIS;
-
-    let deltaX = 0;
-    let deltaY = 0;
-
-    switch (scrollAxis) {
-      case "vertical":
-        deltaY = -event.deltaY;
-        break;
-      case "horizontal":
-        deltaX = -event.deltaY;
-        break;
-    }
-
-    this.moveWithEdges(deltaX, deltaY);
-  }
-
-  /**
    * Handles zoom behavior for both trackpad pinch and mouse wheel
    */
   private handleWheelZoom(event: WheelEvent): void {
@@ -282,7 +261,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
       const mouseWheelBehavior = this.context.constants.camera.MOUSE_WHEEL_BEHAVIOR;
 
       if (mouseWheelBehavior === "scroll") {
-        this.handleMouseWheelScroll(event);
+        this.handleTrackpadMove(event);
         return;
       }
     }
