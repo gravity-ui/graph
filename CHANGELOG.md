@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.0](https://github.com/gravity-ui/graph/compare/v1.4.0...v1.5.0) (2025-10-22)
+
+
+### Features
+
+* **Camera:** add auto-panning ([#165](https://github.com/gravity-ui/graph/issues/165)) ([562dbbc](https://github.com/gravity-ui/graph/commit/562dbbc6a7eb2819e205f583d775a009ef100c19))
+* **Camera:** implement configurable mouse wheel behavior for zooming and scrolling ([#173](https://github.com/gravity-ui/graph/issues/173)) ([c769d55](https://github.com/gravity-ui/graph/commit/c769d55fc91b979a8fa242d5dece17cbf14c653c))
+* introduce CSSVariablesLayer ([#142](https://github.com/gravity-ui/graph/issues/142)) ([f66ee7b](https://github.com/gravity-ui/graph/commit/f66ee7bb1daf77118b86bc7878c5161fe0dc1572))
+
+
+### Bug Fixes
+
+* **GraphPlayground:** implement unique block index generation using timestamp ([81ea6c2](https://github.com/gravity-ui/graph/commit/81ea6c27e8665543f2c815037b00443a8db96553))
+
 ## [1.4.0](https://github.com/gravity-ui/graph/compare/v1.3.6...v1.4.0) (2025-10-06)
 
 
