@@ -48,6 +48,8 @@ export type TCanvasColors = {
   border: string;
 };
 
+export type TMouseWheelBehavior = "zoom" | "scroll";
+
 export const initGraphColors: TGraphColors = {
   anchor: {
     background: "#4a4a4a",
@@ -119,6 +121,29 @@ export type TGraphConstants = {
      * @default 10
      */
     AUTO_PAN_SPEED: number;
+    /**
+     * Controls the behavior of mouse wheel events.
+     *
+     * - **"zoom"**: Mouse wheel will zoom in/out the graph
+     * - **"scroll"**: Mouse wheel will scroll the graph vertically by default, or horizontally when Shift is pressed
+     *
+     * @remarks
+     * **Mouse wheel scrolling behavior:**
+     * - Default scroll direction is vertical (up/down)
+     * - Holding Shift key switches to horizontal scrolling (left/right)
+     * - This is an environment-dependent behavior as per W3C UI Events specification
+     * - Different browsers and operating systems may handle Shift+wheel differently
+     *
+     * **Trackpad behavior:**
+     * - This setting only affects mouse wheel behavior
+     * - Trackpad gestures remain unchanged and use their native behavior:
+     *   - Pinch to zoom
+     *   - Two-finger swipe to scroll in any direction
+     *
+     * @default "zoom"
+     * @see https://w3c.github.io/uievents/#events-wheelevents - W3C UI Events Wheel Events specification
+     */
+    MOUSE_WHEEL_BEHAVIOR: TMouseWheelBehavior;
   };
 
   block: {
@@ -169,6 +194,7 @@ export const initGraphConstants: TGraphConstants = {
     STEP: 0.008,
     AUTO_PAN_THRESHOLD: 50,
     AUTO_PAN_SPEED: 5,
+    MOUSE_WHEEL_BEHAVIOR: "zoom",
   },
   block: {
     WIDTH_MIN: 16 * 10,

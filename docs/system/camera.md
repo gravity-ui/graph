@@ -47,6 +47,55 @@ export type TCameraState = {
 - `getCameraScale()` – scale value.
 - `getCameraBlockScaleLevel(scale?)` – qualitative zoom tiers for switching rendering modes.
 
+### Mouse wheel behavior
+
+Mouse wheel interactions can be configured to either zoom the graph or scroll it.
+
+**Configuration:**
+```ts
+const graph = new Graph(canvas, {
+  constants: {
+    camera: {
+      MOUSE_WHEEL_BEHAVIOR: "zoom" // "zoom" | "scroll" (default: "zoom")
+    }
+  }
+});
+```
+
+**Behavior modes:**
+- `"zoom"` (default) – Mouse wheel zooms the graph in/out at the cursor position.
+- `"scroll"` – Mouse wheel scrolls the graph vertically by default, or horizontally when Shift key is pressed.
+
+**Scroll direction:**
+- Default: Vertical scrolling (up/down along Y axis)
+- With Shift: Horizontal scrolling (left/right along X axis)
+
+**Important notes:**
+- This configuration only affects mouse wheel behavior.
+- Scroll direction switching with Shift is an environment-dependent behavior according to [W3C UI Events specification](https://w3c.github.io/uievents/#events-wheelevents).
+- Different browsers and operating systems may handle Shift+wheel differently.
+- Trackpad gestures remain unchanged and use their native behavior:
+  - Pinch to zoom
+  - Two-finger swipe to scroll in any direction
+- Settings can be updated at runtime using `graph.setConstants()`.
+
+**Example:**
+```ts
+// Configure mouse wheel to scroll instead of zooming
+graph.setConstants({
+  camera: {
+    MOUSE_WHEEL_BEHAVIOR: "scroll"
+  }
+});
+
+// Switch back to zoom mode
+graph.setConstants({
+  camera: {
+    MOUSE_WHEEL_BEHAVIOR: "zoom"
+  }
+});
+```
+
 ### Auto-panning
 
 Auto-panning automatically moves the camera when the cursor is near viewport edges during drag operations. This feature is built into the camera system and activates automatically for block dragging, area selection, connection creation, and block duplication.

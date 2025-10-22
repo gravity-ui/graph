@@ -174,48 +174,6 @@ export function isWindows() {
 }
 
 /**
- * Detects if the event is from a trackpad.
- * Way to detect is a bit of a hack, but it's the easiest way to detect a mouse.
- *
- * The deltaY in the trackpad scroll USUALLY is not zero.
- * The deltaX in the trackpad scroll USUALLY is not zero.
- * The deltaY in the mouse scroll event USUALLY is a float number.
- *
- * ISSUE: When user use the browser zoom, deltaY is a float number.
- * It is may be cause of the false-negative detection.
- * For this case deltaY have to be normalized by devicePixelRatio.
- *
- * @returns true if the event is from a trackpad, false otherwise.
- */
-function isTrackpadDetector() {
-  let isTrackpadDetected = false;
-  let cleanStateTimer = setTimeout(() => {}, 0);
-
-  return (e: WheelEvent, dpr: number = globalThis.devicePixelRatio || 1) => {
-    const normalizedDeltaY = e.deltaY * dpr;
-    const normalizedDeltaX = e.deltaX * dpr;
-    // deltaX in the trackpad scroll usually is not zero.
-    if (normalizedDeltaX) {
-      isTrackpadDetected = true;
-      clearTimeout(cleanStateTimer);
-      cleanStateTimer = setTimeout(() => {
-        isTrackpadDetected = false;
-      }, 1000 * 60);
-
-      return true;
-    }
-
-    if (normalizedDeltaY && !Number.isInteger(normalizedDeltaY)) {
-      return false;
-    }
-
-    return isTrackpadDetected;
-  };
-}
-
-export const isTrackpadWheelEvent = isTrackpadDetector();
-
-/**
  * Calculates a "nice" number approximately equal to the range.
  * Useful for determining tick spacing on axes or rulers.
  * Algorithm adapted from "Nice Numbers for Graph Labels" by Paul Heckbert
@@ -273,3 +231,4 @@ export function computeCssVariable(name: string) {
 
 // Re-export scheduler utilities
 export { schedule, debounce, throttle } from "../utils/schedule";
+export { isTrackpadWheelEvent } from "./isTrackpadDetector";
