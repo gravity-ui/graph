@@ -6,8 +6,7 @@ const baseConfig: Config = {
   transformIgnorePatterns: ["/node_modules/(?!@preact/signals-core)"],
   testPathIgnorePatterns: ["/node_modules/", "/build/", "/dist/", "/.rollup.cache/"],
   moduleNameMapper: {
-    "^@preact/signals-core$":
-      "<rootDir>/../../node_modules/@preact/signals-core/dist/signals-core.mjs",
+    "^@preact/signals-core$": "<rootDir>/../../node_modules/@preact/signals-core/dist/signals-core.mjs",
     "\\.(css|less)$": "<rootDir>/../../__mocks__/styleMock.js",
   },
   transform: {
@@ -17,4 +16,3 @@ const baseConfig: Config = {
 };
 
 export default baseConfig;
-

@@ -1,12 +1,11 @@
+import { Graph } from "@gravity-ui/graph";
 import { jest } from "@jest/globals";
-
-import { CameraService, Graph } from "@gravity-ui/graph";
 
 import { ReactLayer } from "./ReactLayer";
 
 describe("ReactLayer", () => {
   let graph: Graph;
-  let camera: CameraService;
+  let camera: Graph["cameraService"];
   let rootElement: HTMLDivElement;
 
   // Constants for default classes

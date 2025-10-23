@@ -1,8 +1,7 @@
 import React, { createRef } from "react";
 
-import { jest } from "@jest/globals";
-
 import { Graph } from "@gravity-ui/graph";
+import { jest } from "@jest/globals";
 import { act, render, waitFor } from "@testing-library/react";
 
 import { GraphCanvas } from "./GraphCanvas";
