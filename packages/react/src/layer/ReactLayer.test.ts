@@ -1,5 +1,6 @@
-import { Graph } from "@gravity-ui/graph";
-import { CameraService } from "@gravity-ui/graph";
+import { jest } from "@jest/globals";
+
+import { CameraService, Graph } from "@gravity-ui/graph";
 
 import { ReactLayer } from "./ReactLayer";
 

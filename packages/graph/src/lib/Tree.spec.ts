@@ -1,3 +1,5 @@
+import { jest } from "@jest/globals";
+
 import { ITree, Tree } from "./Tree";
 
 describe("Tree", () => {

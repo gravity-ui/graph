@@ -1,9 +1,9 @@
 import React, { useCallback, useRef, useState } from "react";
 
+import { Graph } from "@gravity-ui/graph";
 import { Button, ButtonButtonProps, Flex, TextInput, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { Graph } from "@gravity-ui/graph";
 import { oneBlockConfig } from "../../configurations/oneBlock";
 import { GraphComponentStory } from "../../main/GraphEditor";
 

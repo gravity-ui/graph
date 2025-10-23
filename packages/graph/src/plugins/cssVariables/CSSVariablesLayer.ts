@@ -14,6 +14,7 @@ import type { CSSVariableChange, CSSVariablesLayerProps, CSSVariablesLayerState 
  * using style-observer package. Automatically maps CSS variables to TGraphColors and
  * TGraphConstants and applies changes via graph.setColors() and graph.setConstants().
  */
+/* eslint-disable no-console */
 export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContext, CSSVariablesLayerState> {
   public state: CSSVariablesLayerState = {
     isObserving: false,

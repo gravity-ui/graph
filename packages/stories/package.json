@@ -5,6 +5,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@storybook/react-webpack5": "^9.1.2",
     "@gravity-ui/graph": "*",
     "@gravity-ui/graph-react": "*",
     "@floating-ui/react": "^0.27.13",
@@ -15,6 +16,10 @@
     "monaco-editor": "^0.52.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@storybook/react-webpack5": "^9.1.2",
+    "@types/lodash": "^4.17.13"
   }
 }
 

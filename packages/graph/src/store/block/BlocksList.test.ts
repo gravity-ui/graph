@@ -1,7 +1,12 @@
+import { jest } from "@jest/globals";
+
 import { TBlock } from "../../components/canvas/blocks/Block";
 import { Graph } from "../../graph";
+import { SelectionEvent } from "../../graphEvents";
+import { ESelectionStrategy } from "../../services/selection/types";
 import { EAnchorType } from "../anchor/Anchor";
 
+import { TBlockId } from "./Block";
 import { BlockListStore } from "./BlocksList";
 
 const generateBlock = (): TBlock => {
@@ -118,7 +123,7 @@ describe("Blocks selection", () => {
 
   it("Should select multiple blocks", () => {
     store.updateBlocksSelection([block1.id], true);
-    store.updateBlocksSelection([block2.id], true, require("../../services/selection/types").ESelectionStrategy.APPEND);
+    store.updateBlocksSelection([block2.id], true, ESelectionStrategy.APPEND);
     expect(store.$selectedBlocks.value.map((b) => b.id).sort()).toEqual([block1.id, block2.id].sort());
     expect(store.getBlockState(block1.id)?.selected).toBe(true);
     expect(store.getBlockState(block2.id)?.selected).toBe(true);
@@ -153,8 +158,8 @@ describe("Blocks selection", () => {
     expect(handler).toHaveBeenCalledTimes(1);
     const eventArg = handler.mock.calls[0][0];
     // Проверяем, что в eventArg есть нужные id
-    expect(eventArg.detail.changes.add).toEqual([block1.id]);
-    expect(eventArg.detail.changes.removed).toEqual([]);
+    expect((eventArg as SelectionEvent<TBlockId>).detail.changes.add).toEqual([block1.id]);
+    expect((eventArg as SelectionEvent<TBlockId>).detail.changes.removed).toEqual([]);
   });
 
   it("Should prevent selection change if preventDefault called", () => {
@@ -187,7 +192,7 @@ describe("Anchors selection", () => {
     // Проставляем blockId в блоке для якоря
     block.id = "block-1";
     store.setBlocks([block]);
-    anchorId = block.anchors[0].id;
+    anchorId = block.anchors?.[0]?.id ?? "anchor-1";
   });
 
   it("Should select anchor", () => {

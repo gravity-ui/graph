@@ -3,12 +3,12 @@ import React, { useEffect, useMemo, useRef } from "react";
 import {
   ECanChangeBlockGeometry,
   Graph,
-  RecursivePartial,
   TGraphConfig,
   TGraphConstants,
   TGraphSettingsConfig,
   initGraphConstants,
 } from "@gravity-ui/graph";
+import { RecursivePartial } from "@gravity-ui/graph/utils";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 import merge from "lodash/merge";

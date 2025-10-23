@@ -178,6 +178,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected subscribe(id: TBlockId) {
+    // Block state is guaranteed to exist when subscribe is called
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     this.connectedState = selectBlockById<T>(this.context.graph, id)!;
     this.state = cloneDeep(this.connectedState.$state.value);
     this.connectedState.setViewComponent(this);

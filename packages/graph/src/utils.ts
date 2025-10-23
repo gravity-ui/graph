@@ -45,4 +45,3 @@ export { EVENTS, SELECTION_EVENT_TYPES, EVENTS_DETAIL, MOUSE_ENTER_DELAY_IN_FRAM
 
 // Emitter
 export { Emitter } from "./utils/Emitter";
-
