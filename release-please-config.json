@@ -23,6 +23,7 @@
   "separate-pull-requests": true,
   "group-pull-request-title-pattern": "chore: release ${component}",
   "release-search-depth": 500,
-  "tag-separator": "-"
+  "tag-separator": "-",
+  "bootstrap-sha": "6d2ed06"
 }
 
