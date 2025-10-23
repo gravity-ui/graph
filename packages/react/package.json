@@ -1,6 +1,6 @@
 {
   "name": "@gravity-ui/graph-react",
-  "version": "1.4.0",
+  "version": "2.0.0-beta.0",
   "description": "React components and hooks for @gravity-ui/graph integration",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
