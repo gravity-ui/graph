@@ -62,6 +62,8 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
     const ConnectionCtop = this.context.graph.rootStore.settings.$connection.value || BlockConnection;
     return this.connections.map((connection) => {
       const props: TConnectionProps = {
+        // Connection ID is guaranteed to exist in stored connections
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         id: connection.id!,
         useBezier: settings.useBezierConnections,
         bezierDirection: settings.bezierConnectionDirection,

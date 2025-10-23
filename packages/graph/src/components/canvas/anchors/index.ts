@@ -65,6 +65,8 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     super(props, parent as unknown as Component);
     this.state = { size: props.size, raised: false, selected: false };
 
+    // Anchor state is guaranteed to exist when anchor component is constructed
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     this.connectedState = selectBlockAnchor(this.context.graph, props.blockId, props.id)!;
     this.subscribeSignal(this.connectedState.$selected, (selected) => {
       this.setState({ selected });

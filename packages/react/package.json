@@ -41,8 +41,9 @@
   "dependencies": {
     "@gravity-ui/graph": "^1.4.0",
     "@preact/signals-core": "^1.2.2",
-    "lodash": "^4.17.21",
-    "intersects": "^2.7.2"
+    "elkjs": "^0.9.3",
+    "intersects": "^2.7.2",
+    "lodash": "^4.17.21"
   },
   "peerDependencies": {
     "react": "^18.0.0",

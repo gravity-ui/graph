@@ -1,5 +1,6 @@
 import React, { useCallback, useRef } from "react";
 
+import { Graph, TConnection } from "@gravity-ui/graph";
 import {
   Checkbox,
   CheckboxProps,
@@ -17,8 +18,6 @@ import {
 } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { Graph } from "@gravity-ui/graph";
-import { TConnection } from "@gravity-ui/graph";
 import { GraphComponentStory } from "../../main/GraphEditor";
 
 import { graphConfig } from "./config";

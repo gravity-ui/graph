@@ -7,6 +7,7 @@ import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
 import { SingleSelectionBucket } from "../../services/selection/SingleSelectionBucket";
 import { ESelectionStrategy } from "../../services/selection/types";
+import { isNonEmpty } from "../../utils/functions";
 import { AnchorState } from "../anchor/Anchor";
 import { RootStore } from "../index";
 
@@ -111,7 +112,7 @@ export class BlockListStore {
   public $selectedBlocks = computed(() => {
     return Array.from(this.blockSelectionBucket.$selected.value)
       .map((id) => this.getBlockState(id))
-      .filter(Boolean);
+      .filter(isNonEmpty);
   });
 
   /**

@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { Graph, GraphState, TBlock } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import { Button, Flex, Switch } from "@gravity-ui/uikit";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
-import { TBlock } from "@gravity-ui/graph";
-import { Graph, GraphState } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 

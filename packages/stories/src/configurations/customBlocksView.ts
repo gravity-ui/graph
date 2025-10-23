@@ -22,11 +22,15 @@ class SpecificBlockView extends CanvasBlock {
     this.context.ctx.stroke();
 
     if (this.shouldRenderText) {
+      // Colors are guaranteed to be configured in the story
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       this.context.ctx.fillStyle = this.context.colors.block!.text;
       this.context.ctx.textAlign = "center";
       this.renderText(this.state.name);
     }
     if (this.state.selected) {
+      // Colors are guaranteed to be configured in the story
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       this.renderStroke(this.context.colors.block!.selectedBorder!);
     }
 

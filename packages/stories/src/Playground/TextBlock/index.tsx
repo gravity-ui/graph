@@ -1,6 +1,7 @@
 import React from "react";
 
 import { CanvasBlock, TBlockId, layoutText } from "@gravity-ui/graph";
+
 import { TGravityTextBlock } from "../generateLayout";
 
 import { TextBlockHtml } from "./TextBlockHtml";

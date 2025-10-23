@@ -1,5 +1,5 @@
 import { TConnection, TConnectionId } from "@gravity-ui/graph";
-import { type TPoint } from "@gravity-ui/graph/utils";
+import type { TPoint } from "@gravity-ui/graph/utils";
 
 export type TLabel = {
   height?: number;

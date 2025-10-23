@@ -18,4 +18,3 @@ export { Graph } from "./graph";
 export { GraphComponent } from "./components/canvas/GraphComponent";
 export { Group } from "./components/canvas/groups";
 export { Layer } from "./services/Layer";
-
