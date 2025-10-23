@@ -55,10 +55,22 @@
     {
       "files": [
         "**/*.test.ts",
-        "**/*.test.tsx"
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx"
       ],
       "rules": {
         "@typescript-eslint/no-explicit-any": "off",
+        "import/no-extraneous-dependencies": "off"
+      }
+    },
+    {
+      "files": [
+        "jest.config.ts",
+        "jest.config.base.ts",
+        "**/jest.config.ts"
+      ],
+      "rules": {
         "import/no-extraneous-dependencies": "off"
       }
     }

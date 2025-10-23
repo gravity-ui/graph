@@ -7,7 +7,10 @@
   "include": [
     "packages/graph/src/**/*",
     "packages/react/src/**/*",
-    "packages/stories/src/**/*"
+    "packages/stories/src/**/*",
+    "jest.config.ts",
+    "jest.config.base.ts",
+    "packages/*/jest.config.ts"
   ]
 }
 
