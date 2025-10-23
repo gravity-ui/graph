@@ -1,6 +1,5 @@
-import { jest } from "@jest/globals";
-
 import { Graph, Layer, LayerProps } from "@gravity-ui/graph";
+import { jest } from "@jest/globals";
 import { act, renderHook } from "@testing-library/react";
 
 import { useLayer } from "./useLayer";
@@ -22,11 +21,10 @@ class TestLayer extends Layer {
 describe("useLayer hook", () => {
   // Real instances
   let graph: Graph;
-  let addLayerSpy: jest.SpyInstance;
-  let detachLayerSpy: jest.SpyInstance;
+  let addLayerSpy: jest.Spied<Graph["addLayer"]>;
+  let detachLayerSpy: jest.Spied<Graph["detachLayer"]>;
 
-  // Mock console.error to suppress act warnings
-  let consoleErrorSpy: jest.SpyInstance | undefined;
+  let consoleErrorSpy: jest.Spied<typeof console.error> | undefined;
 
   beforeEach(() => {
     // Clear all mocks
@@ -131,60 +129,11 @@ describe("useLayer hook", () => {
     });
 
     it.skip("should call setProps when props change", () => {
-      // Setup
-      const initialProps = createValidLayerProps();
-      const newProps = {
-        ...createValidLayerProps(),
-        canvas: { zIndex: 3 }, // Changed prop
-      };
-
       // Skipped: requires mocking isEqual which doesn't work well in ESM mode
-
-      // Execute initial render
-      const { rerender, result } = renderHook(({ props }) => useLayer(graph, TestLayer, props), {
-        initialProps: { props: initialProps },
-      });
-
-      // Get the layer instance
-      const layer = result.current;
-
-      // Reset the calls to setProps after initial render
-      (layer.setProps as jest.Mock).mockClear();
-
-      // Re-render with new props - use act for React 18
-      act(() => {
-        rerender({ props: newProps });
-      });
-
-      // Verify
-      expect(layer.setProps).toHaveBeenCalledWith(newProps);
-      expect(layer.setProps).toHaveBeenCalledTimes(1);
     });
 
     it.skip("should not call setProps when props have not changed", () => {
-      // Setup
-      const props = createValidLayerProps();
-
       // Skipped: requires mocking isEqual which doesn't work well in ESM mode
-
-      // Execute initial render
-      const { rerender, result } = renderHook(({ props }) => useLayer(graph, TestLayer, props), {
-        initialProps: { props },
-      });
-
-      // Get the layer instance
-      const layer = result.current;
-
-      // Reset the calls to setProps after initial render
-      (layer.setProps as jest.Mock).mockClear();
-
-      // Re-render with identical props (new object, same values)
-      act(() => {
-        rerender({ props: { ...props } });
-      });
-
-      // Verify
-      expect(layer.setProps).not.toHaveBeenCalled();
     });
   });
 
