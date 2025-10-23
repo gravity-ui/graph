@@ -107,9 +107,42 @@ export type TGraphConstants = {
   };
 
   camera: {
-    /* Speed camera scale */
+    /**
+     * Zoom speed multiplier that affects how fast the camera zooms in/out.
+     * Higher values make zoom faster, lower values make it slower.
+     *
+     * @remarks
+     * This value is multiplied by STEP and the wheel delta to calculate the zoom change.
+     * The formula is: `zoom_change = STEP * SPEED * wheel_delta * current_scale`
+     * where current_scale provides smooth acceleration (zoom is faster when more zoomed in).
+     *
+     * @default 1
+     * @example
+     * // Double the zoom speed
+     * SPEED: 2
+     *
+     * // Half the zoom speed (smoother, more controlled)
+     * SPEED: 0.5
+     */
     SPEED: number;
-    /* Step on camera scale */
+    /**
+     * Base zoom step per mouse wheel tick or trackpad pinch unit.
+     * This is the fundamental increment of scale change before applying speed multipliers.
+     *
+     * @remarks
+     * This value determines the granularity of zoom changes.
+     * - Smaller values (e.g., 0.004) result in finer, more gradual zoom
+     * - Larger values (e.g., 0.016) result in more aggressive, faster zoom
+     * - Works together with SPEED: `zoom_change = STEP * SPEED * wheel_delta * current_scale`
+     *
+     * @default 0.008
+     * @example
+     * // Finer zoom control
+     * STEP: 0.004
+     *
+     * // More aggressive zoom
+     * STEP: 0.016
+     */
     STEP: number;
     /**
      * Auto-panning threshold: distance from edge in pixels to activate auto-panning
