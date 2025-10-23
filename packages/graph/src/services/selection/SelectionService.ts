@@ -336,6 +336,8 @@ export class SelectionService {
     if (typeof entityTypeOrQueries === "string") {
       // Single entity type API
       const entityType = entityTypeOrQueries;
+      // When first param is string, id parameter is required
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const finalId = id!;
 
       const bucket = this.getBucket(entityType);

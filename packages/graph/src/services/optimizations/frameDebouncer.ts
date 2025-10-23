@@ -76,6 +76,8 @@ export class FrameDebouncer {
   }
 
   private createBindedFunction(fn: any, options: Options): any {
+    // Complex debouncing algorithm with frame time optimization - complexity is necessary
+    // eslint-disable-next-line complexity
     const bindedFn: any = (frameTime: number) => {
       const frameTimeLimit = options.frameTime ?? 16;
       const hardFrame = options.lightFrame ? frameTime > 16 : frameTime > frameTimeLimit;

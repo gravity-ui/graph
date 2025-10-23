@@ -2,7 +2,7 @@ import { Component, TComponentContext, TComponentProps, TComponentState } from "
 
 export type TEventedComponentListener<E extends Event = Event> = Component | ((e: E) => void);
 
-const listeners = new WeakMap<Component, Map<string, Set<TEventedComponentListener<any>>>>();
+const listeners = new WeakMap<Component, Map<string, Set<TEventedComponentListener<Event>>>>();
 
 export type TEventedComponentProps = TComponentProps & { interactive?: boolean };
 
@@ -34,10 +34,12 @@ export class EventedComponent<
   }
 
   private get events() {
-    if (!listeners.has(this)) {
-      listeners.set(this, new Map());
+    let listenersMap = listeners.get(this);
+    if (!listenersMap) {
+      listenersMap = new Map();
+      listeners.set(this, listenersMap);
     }
-    return listeners.get(this)!;
+    return listenersMap;
   }
 
   protected unmount() {
@@ -58,7 +60,7 @@ export class EventedComponent<
 
   public addEventListener<E extends Event = Event>(type: string, cbOrObject: TEventedComponentListener<E>) {
     const cbs = this.events.get(type) || new Set();
-    cbs.add(cbOrObject as TEventedComponentListener<any>);
+    cbs.add(cbOrObject as TEventedComponentListener<Event>);
     this.events.set(type, cbs);
     return () => this.removeEventListener(type, cbOrObject);
   }
@@ -66,7 +68,7 @@ export class EventedComponent<
   public removeEventListener<E extends Event = Event>(type: string, cbOrObject: TEventedComponentListener<E>) {
     const cbs = this.events.get(type);
     if (cbs) {
-      cbs.delete(cbOrObject as TEventedComponentListener<any>);
+      cbs.delete(cbOrObject as TEventedComponentListener<Event>);
     }
   }
 

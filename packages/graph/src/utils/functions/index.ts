@@ -13,6 +13,10 @@ export function isTouchEvent(event: Event): event is TouchEvent {
   return globalThis.TouchEvent ? event instanceof globalThis.TouchEvent : event.type?.startsWith("touch");
 }
 
+export function isNonEmpty<T>(value: T | null | undefined): value is NonNullable<T> {
+  return value !== undefined && value !== null;
+}
+
 export function getXY(root: HTMLElement, event: Event | WheelEvent | MouseEvent): [number, number] {
   if (!("pageX" in event)) return [-1, -1];
   const rect = root.getBoundingClientRect();

@@ -6,10 +6,7 @@
     "prettier"
   ],
   "parserOptions": {
-    "project": [
-      "./tsconfig.json",
-      "./packages/*/tsconfig.json"
-    ]
+    "project": "./tsconfig.eslint.json"
   },
   "root": true,
   "env": {
@@ -61,7 +58,8 @@
         "**/*.test.tsx"
       ],
       "rules": {
-        "@typescript-eslint/no-explicit-any": "off"
+        "@typescript-eslint/no-explicit-any": "off",
+        "import/no-extraneous-dependencies": "off"
       }
     }
   ],

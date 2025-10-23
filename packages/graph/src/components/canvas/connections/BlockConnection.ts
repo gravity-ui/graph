@@ -300,7 +300,8 @@ export class BlockConnection<T extends TConnection>
     const hoverTextColor = connectionLabelColors.hoverText ?? textColor;
     const selectedTextColor = connectionLabelColors.selectedText ?? textColor;
 
-    ctx.fillStyle = this.state.selected ? selectedBgColor : this.state.hovered ? hoverBgColor : bgColor;
+    const backgroundFillStyle = this.state.hovered ? hoverBgColor : bgColor;
+    ctx.fillStyle = this.state.selected ? selectedBgColor : backgroundFillStyle;
 
     ctx.fillRect(
       x - labelInnerLeftPadding,
@@ -309,7 +310,8 @@ export class BlockConnection<T extends TConnection>
       measure.height + labelInnerTopPadding + labelInnerBottomPadding
     );
 
-    ctx.fillStyle = this.state.selected ? selectedTextColor : this.state.hovered ? hoverTextColor : textColor;
+    const textFillStyle = this.state.hovered ? hoverTextColor : textColor;
+    ctx.fillStyle = this.state.selected ? selectedTextColor : textFillStyle;
 
     ctx.textBaseline = "top";
     ctx.textAlign = aligment;
@@ -320,10 +322,10 @@ export class BlockConnection<T extends TConnection>
   public getStrokeColor(state: TConnection): string {
     const connectionColors = this.context.colors.connection;
     if (state.selected) {
-      return state.styles?.selectedBackground || connectionColors!.selectedBackground!;
+      return state.styles?.selectedBackground || connectionColors.selectedBackground;
     }
 
-    return state.styles?.background || connectionColors!.background!;
+    return state.styles?.background || connectionColors.background;
   }
 
   protected unmount(): void {

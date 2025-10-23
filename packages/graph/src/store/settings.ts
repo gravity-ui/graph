@@ -1,7 +1,7 @@
 import { computed, signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
-import type { Block as CanvasBlock, TBlock } from "../components/canvas/blocks/Block";
+import type { TBlock } from "../components/canvas/blocks/Block";
 import { BlockConnection } from "../components/canvas/connections/BlockConnection";
 import { Component } from "../lib";
 import { ComponentConstructor } from "../lib/CoreComponent";
@@ -16,7 +16,10 @@ export enum ECanChangeBlockGeometry {
   NONE = "none",
 }
 
-export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
+export type TGraphSettingsConfig<
+  TGraphBlock extends TBlock = TBlock,
+  TGraphConnection extends TConnection = TConnection,
+> = {
   canDragCamera: boolean;
   canZoomCamera: boolean;
   /** @deprecated Use NewBlockLayer parameters instead */
@@ -30,8 +33,8 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   useBlocksAnchors: boolean;
   connectivityComponentOnClickRaise: boolean;
   showConnectionLabels: boolean;
-  blockComponents: Record<string, ComponentConstructor<CanvasBlock>>;
-  connection?: typeof BlockConnection<Connection>;
+  blockComponents: Record<string, ComponentConstructor<TGraphBlock>>;
+  connection?: typeof BlockConnection<TGraphConnection>;
   background?: typeof Component;
 };
 

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-import { CSSVariablesLayer, Graph, GraphState } from "@gravity-ui/graph";
+import { CSSVariablesLayer, Graph, GraphState, TBlock } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph-react";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
@@ -58,7 +58,7 @@ function CSSVariablesExample() {
     }
   });
 
-  const renderBlockFn = React.useCallback((graphObject: Graph, block: any) => {
+  const renderBlockFn = React.useCallback((graphObject: Graph, block: TBlock) => {
     return <BlockStory graph={graphObject} block={block} />;
   }, []);
 
@@ -67,7 +67,7 @@ function CSSVariablesExample() {
       <div className="controls">
         <div className="control-group">
           <label>Theme:</label>
-          <select value={theme} onChange={(e) => setTheme(e.target.value as any)}>
+          <select value={theme} onChange={(e) => setTheme(e.target.value as "light" | "dark" | "custom")}>
             <option value="light">Light</option>
             <option value="dark">Dark</option>
             <option value="custom">Custom</option>
@@ -153,7 +153,7 @@ function AdvancedExample() {
     }
   });
 
-  const renderBlockFn = React.useCallback((graphObject: Graph, block: any) => {
+  const renderBlockFn = React.useCallback((graphObject: Graph, block: TBlock) => {
     return <BlockStory graph={graphObject} block={block} />;
   }, []);
 

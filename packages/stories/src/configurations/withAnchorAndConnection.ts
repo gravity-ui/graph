@@ -1,4 +1,4 @@
-import { TGraphConfig, TAnchor } from "@gravity-ui/graph";
+import { TAnchor, TGraphConfig } from "@gravity-ui/graph";
 
 import { EAnchorType, storiesSettings } from "./definitions";
 

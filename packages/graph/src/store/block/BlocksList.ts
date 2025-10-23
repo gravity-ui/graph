@@ -7,6 +7,7 @@ import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
 import { SingleSelectionBucket } from "../../services/selection/SingleSelectionBucket";
 import { ESelectionStrategy } from "../../services/selection/types";
+import { isNonEmpty } from "../../utils/functions";
 import { AnchorState } from "../anchor/Anchor";
 import { RootStore } from "../index";
 

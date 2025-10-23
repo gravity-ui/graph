@@ -1,11 +1,10 @@
 import React, { Ref, useImperativeHandle, useRef, useState } from "react";
 
+import type { TBlock, TBlockId, TConnection } from "@gravity-ui/graph";
+import { useFn } from "@gravity-ui/graph-react";
 import { Button, Flex, Hotkey, Text } from "@gravity-ui/uikit";
 import { Editor, OnMount, OnValidate, loader } from "@monaco-editor/react";
 import { KeyCode, KeyMod } from "monaco-editor/esm/vs/editor/editor.api";
-
-import type { TBlock, TBlockId, TConnection } from "@gravity-ui/graph";
-import { useFn } from "@gravity-ui/graph-react";
 
 import { defineConigSchema } from "./schema";
 import { GravityTheme, defineTheme } from "./theme";

@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { TGraphConfig, IS_BLOCK_TYPE, TBlock, random } from "@gravity-ui/graph";
+import { IS_BLOCK_TYPE, TBlock, TGraphConfig, random } from "@gravity-ui/graph";
 
 import { storiesSettings } from "./definitions";
 
