@@ -5,7 +5,7 @@ import { jest } from "@jest/globals";
 import { act, render, waitFor } from "@testing-library/react";
 
 import { GraphCanvas } from "./GraphCanvas";
-import { GraphPortal } from "./GraphPortal";
+import { GraphPortal, TGraphPortalChildren } from "./GraphPortal";
 
 describe("GraphPortal", () => {
   let graph: Graph;
@@ -66,7 +66,7 @@ describe("GraphPortal", () => {
   });
 
   it("should render children as function with layer parameter", async () => {
-    const childrenFn = jest.fn().mockReturnValue(<div>Function Content</div>);
+    const childrenFn = jest.fn<TGraphPortalChildren>().mockReturnValue(<div>Function Content</div>);
 
     render(
       <GraphCanvas graph={graph} renderBlock={() => <div>Block</div>}>

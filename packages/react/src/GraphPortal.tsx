@@ -51,6 +51,8 @@ class GraphPortalLayer extends Layer<GraphPortalLayerProps, LayerContext, TCompo
   }
 }
 
+export type TGraphPortalChildren = (layer: GraphPortalLayer, graph: Graph) => React.ReactNode;
+
 /**
  * GraphPortal component properties
  */
@@ -71,7 +73,7 @@ export interface GraphPortalProps {
   /**
    * Function for rendering portal content
    */
-  children: React.ReactNode | ((layer: GraphPortalLayer, graph: Graph) => React.ReactNode);
+  children: React.ReactNode | TGraphPortalChildren;
 }
 
 /**
