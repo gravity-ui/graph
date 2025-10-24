@@ -5,9 +5,9 @@ import typescript from "@rollup/plugin-typescript";
 import postcss from "rollup-plugin-postcss";
 
 const createConfig = (minify = false) => ({
-  input: "packages/graph/src/index.umd.ts",
+  input: "src/index.umd.ts",
   output: {
-    file: minify ? "packages/graph/dist/graph.umd.min.js" : "packages/graph/dist/graph.umd.js",
+    file: minify ? "dist/graph.umd.min.js" : "dist/graph.umd.js",
     format: "umd",
     name: "GravityGraph",
     sourcemap: true,
@@ -18,7 +18,7 @@ const createConfig = (minify = false) => ({
       browser: true,
     }),
     typescript({
-      tsconfig: "packages/graph/tsconfig.json",
+      tsconfig: "./tsconfig.json",
       declaration: false,
     }),
     commonjs(),
@@ -37,7 +37,6 @@ const createConfig = (minify = false) => ({
               ecma: 2015,
             },
             format: {
-              // Нужно уточнить, нужно ли Добавить copyright лицензию
               comments: false,
             },
           }),
