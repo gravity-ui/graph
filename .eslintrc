@@ -5,9 +5,6 @@
     "@gravity-ui/eslint-config/prettier",
     "prettier"
   ],
-  "parserOptions": {
-    "project": "./tsconfig.eslint.json"
-  },
   "root": true,
   "env": {
     "node": true,
@@ -15,7 +12,6 @@
   },
   "overrides": [
     {
-      // enable the rule specifically for TypeScript files
       "files": [
         "*.ts",
         "*.mts",
@@ -32,8 +28,8 @@
               "constructors": "no-public",
               "methods": "explicit",
               "properties": "off",
-              "parameterProperties": "explicit",
-            },
+              "parameterProperties": "explicit"
+            }
           }
         ],
         "no-bitwise": [
@@ -46,29 +42,8 @@
     },
     {
       "files": [
-        "packages/stories/src/**/*.tsx"
-      ],
-      "rules": {
-        "no-console": "off"
-      }
-    },
-    {
-      "files": [
-        "**/*.test.ts",
-        "**/*.test.tsx",
-        "**/*.spec.ts",
-        "**/*.spec.tsx"
-      ],
-      "rules": {
-        "@typescript-eslint/no-explicit-any": "off",
-        "import/no-extraneous-dependencies": "off"
-      }
-    },
-    {
-      "files": [
         "jest.config.ts",
-        "jest.config.base.ts",
-        "**/jest.config.ts"
+        "jest.config.base.ts"
       ],
       "rules": {
         "import/no-extraneous-dependencies": "off"
