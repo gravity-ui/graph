@@ -29,6 +29,8 @@ describe("Graph export/import and updateBlock integration", () => {
       graph2.start();
       const updatedHeight = block.height + 10;
       expect(() => {
+        // First block is guaranteed to exist in exported config
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         graph2.api.updateBlock({ ...exportedConfig.blocks![0]!, height: updatedHeight });
       }).not.toThrow();
       const updatedBlock = graph2.rootStore.blocksList.$blocks.value[0];

@@ -1,6 +1,8 @@
 import { Graph } from "@gravity-ui/graph";
 import { jest } from "@jest/globals";
 
+import { TBlockListProps } from "../BlocksList";
+
 import { ReactLayer } from "./ReactLayer";
 
 describe("ReactLayer", () => {
@@ -238,7 +240,7 @@ describe("ReactLayer", () => {
   describe("renderPortal", () => {
     it("should return null when HTML element is forcibly removed", () => {
       const layer = createUnattachedLayer();
-      const renderBlock = jest.fn();
+      const renderBlock = jest.fn<TBlockListProps["renderBlock"]>();
 
       // Mock getHTML to return null
       jest.spyOn(layer, "getHTML").mockReturnValue(null);

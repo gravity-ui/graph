@@ -2,11 +2,10 @@ import { jest } from "@jest/globals";
 
 import { TBlock } from "../../components/canvas/blocks/Block";
 import { Graph } from "../../graph";
-import { SelectionEvent } from "../../graphEvents";
+import { GraphEventsDefinitions } from "../../graphEvents";
 import { ESelectionStrategy } from "../../services/selection/types";
 import { EAnchorType } from "../anchor/Anchor";
 
-import { TBlockId } from "./Block";
 import { BlockListStore } from "./BlocksList";
 
 const generateBlock = (): TBlock => {
@@ -150,7 +149,7 @@ describe("Blocks selection", () => {
   it.todo("Should emit event on select anchor");
 
   it("Should emit blocks-selection-change event with correct params", () => {
-    const handler = jest.fn();
+    const handler = jest.fn<GraphEventsDefinitions["blocks-selection-change"]>();
     graph.on("blocks-selection-change", handler);
 
     store.updateBlocksSelection([block1.id], true);
@@ -158,8 +157,8 @@ describe("Blocks selection", () => {
     expect(handler).toHaveBeenCalledTimes(1);
     const eventArg = handler.mock.calls[0][0];
     // Проверяем, что в eventArg есть нужные id
-    expect((eventArg as SelectionEvent<TBlockId>).detail.changes.add).toEqual([block1.id]);
-    expect((eventArg as SelectionEvent<TBlockId>).detail.changes.removed).toEqual([]);
+    expect(eventArg.detail.changes.add).toEqual([block1.id]);
+    expect(eventArg.detail.changes.removed).toEqual([]);
   });
 
   it("Should prevent selection change if preventDefault called", () => {
@@ -208,7 +207,7 @@ describe("Anchors selection", () => {
   });
 
   it("Should emit block-anchor-selection-change event with correct params", () => {
-    const handler = jest.fn();
+    const handler = jest.fn<GraphEventsDefinitions["block-anchor-selection-change"]>();
     graph.on("block-anchor-selection-change", handler);
 
     store.setAnchorSelection(block.id, anchorId, true);

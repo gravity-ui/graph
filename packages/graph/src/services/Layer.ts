@@ -59,9 +59,9 @@ export class Layer<
 > extends Component<Props, State, Context> {
   public static id?: string;
 
-  protected canvas!: HTMLCanvasElement;
+  protected canvas?: HTMLCanvasElement;
 
-  protected html!: HTMLElement;
+  protected html?: HTMLElement;
 
   protected root?: HTMLDivElement;
 

@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true
+  },
+  "references": [
+    { "path": "../graph/tsconfig.dev.json" },
+    { "path": "../react/tsconfig.dev.json" }
+  ]
+}
+
