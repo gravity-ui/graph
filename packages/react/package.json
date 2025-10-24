@@ -35,6 +35,16 @@
   "files": [
     "dist"
   ],
+  "scripts": {
+    "build": "npm run clean && npm run build:esm && npm run build:types",
+    "build:esm": "rollup -c rollup.config.mjs",
+    "build:types": "tsc --emitDeclarationOnly",
+    "watch": "rollup -c rollup.config.mjs --watch",
+    "clean": "rm -rf dist",
+    "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
+    "lint:fix": "npm run lint -- --fix",
+    "typecheck": "tsc -b"
+  },
   "devDependencies": {
     "lodash": "^4.17.21"
   },

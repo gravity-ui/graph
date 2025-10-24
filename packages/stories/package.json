@@ -17,6 +17,11 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
+  "scripts": {
+    "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
+    "lint:fix": "npm run lint -- --fix",
+    "typecheck": "tsc -b"
+  },
   "devDependencies": {
     "@storybook/react-webpack5": "^9.1.2",
     "@types/lodash": "^4.17.13"
