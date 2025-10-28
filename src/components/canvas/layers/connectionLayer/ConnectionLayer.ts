@@ -116,12 +116,9 @@ export class ConnectionLayer extends Layer<
   ConnectionLayerProps,
   LayerContext & { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }
 > {
-  private connectionState = {
-    sx: 0,
-    sy: 0,
-    tx: 0,
-    ty: 0,
-  };
+  private startState: Point | null = null;
+  private endState: Point | null = null;
+
   protected target?: Block | Anchor;
   protected sourceComponent?: BlockState | AnchorState;
   protected enabled: boolean;
@@ -224,7 +221,7 @@ export class ConnectionLayer extends Layer<
     const iconSize = 24 / scale;
     const iconOffset = 12 / scale;
 
-    if (!this.target && this.props.createIcon) {
+    if (!this.target && this.props.createIcon && this.endState) {
       renderSVG(
         {
           path: this.props.createIcon.path,
@@ -234,7 +231,7 @@ export class ConnectionLayer extends Layer<
           initialHeight: this.props.createIcon.viewHeight,
         },
         ctx,
-        { x: this.connectionState.tx, y: this.connectionState.ty - iconOffset, width: iconSize, height: iconSize }
+        { x: this.endState.x, y: this.endState.y - iconOffset, width: iconSize, height: iconSize }
       );
     } else if (this.props.point) {
       ctx.fillStyle = this.props.point.fill || this.context.colors.canvas.belowLayerBackground;
@@ -251,7 +248,7 @@ export class ConnectionLayer extends Layer<
           initialHeight: this.props.point.viewHeight,
         },
         ctx,
-        { x: this.connectionState.tx, y: this.connectionState.ty - iconOffset, width: iconSize, height: iconSize }
+        { x: this.endState.x, y: this.endState.y - iconOffset, width: iconSize, height: iconSize }
       );
     }
     ctx.closePath();
@@ -259,7 +256,7 @@ export class ConnectionLayer extends Layer<
 
   protected render() {
     this.resetTransform();
-    if (!this.connectionState.sx && !this.connectionState.sy && !this.connectionState.tx && !this.connectionState.ty) {
+    if (!this.startState || !this.endState) {
       return;
     }
 
@@ -268,10 +265,7 @@ export class ConnectionLayer extends Layer<
     this.context.ctx.lineWidth = Math.round(2 / scale);
 
     if (this.props.drawLine) {
-      const { path, style } = this.props.drawLine(
-        { x: this.connectionState.sx, y: this.connectionState.sy },
-        { x: this.connectionState.tx, y: this.connectionState.ty }
-      );
+      const { path, style } = this.props.drawLine(this.startState, this.endState);
 
       this.context.ctx.strokeStyle = style.color;
       this.context.ctx.setLineDash(style.dash);
@@ -279,8 +273,8 @@ export class ConnectionLayer extends Layer<
     } else {
       this.context.ctx.beginPath();
       this.context.ctx.strokeStyle = this.context.colors.connection.selectedBackground;
-      this.context.ctx.moveTo(this.connectionState.sx, this.connectionState.sy);
-      this.context.ctx.lineTo(this.connectionState.tx, this.connectionState.ty);
+      this.context.ctx.moveTo(this.startState.x, this.startState.y);
+      this.context.ctx.lineTo(this.endState.x, this.endState.y);
       this.context.ctx.stroke();
       this.context.ctx.closePath();
     }
@@ -314,11 +308,7 @@ export class ConnectionLayer extends Layer<
     this.sourceComponent = sourceComponent.connectedState;
 
     // Use world coordinates from point instead of screen coordinates
-    this.connectionState = {
-      ...this.connectionState,
-      sx: point.x,
-      sy: point.y,
-    };
+    this.startState = new Point(point.x, point.y);
 
     this.context.graph.executеDefaultEventAction(
       "connection-create-start",
@@ -342,14 +332,14 @@ export class ConnectionLayer extends Layer<
   }
 
   private onMoveNewConnection(event: MouseEvent, point: Point) {
+    if (!this.startState) {
+      return;
+    }
+
     const newTargetComponent = this.context.graph.getElementOverPoint(point, [Block, Anchor]);
 
     // Use world coordinates from point instead of screen coordinates
-    this.connectionState = {
-      ...this.connectionState,
-      tx: point.x,
-      ty: point.y,
-    };
+    this.endState = new Point(point.x, point.y);
     this.performRender();
 
     if (!newTargetComponent || !newTargetComponent.connectedState) {
@@ -386,17 +376,13 @@ export class ConnectionLayer extends Layer<
   }
 
   private onEndNewConnection(point: Point) {
-    if (!this.sourceComponent) {
+    if (!this.sourceComponent || !this.startState || !this.endState) {
       return;
     }
 
     const targetComponent = this.context.graph.getElementOverPoint(point, [Block, Anchor]);
-    this.connectionState = {
-      sx: 0,
-      sy: 0,
-      tx: 0,
-      ty: 0,
-    };
+    this.startState = null;
+    this.endState = null;
     this.performRender();
 
     if (!(targetComponent instanceof Block) && !(targetComponent instanceof Anchor)) {
