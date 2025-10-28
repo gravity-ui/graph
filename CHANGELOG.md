@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1](https://github.com/gravity-ui/graph/compare/v1.5.0...v1.5.1) (2025-10-28)
+
+
+### Bug Fixes
+
+* **ConnectionLayers:** fix start point rendering ([#180](https://github.com/gravity-ui/graph/issues/180)) ([636743e](https://github.com/gravity-ui/graph/commit/636743e80e5c200757917a51909d2c5b51728a87))
+* mouse wheel behavior scroll on linux and windows ([#181](https://github.com/gravity-ui/graph/issues/181)) ([c186515](https://github.com/gravity-ui/graph/commit/c1865159a25d093449d46c8e196a7a642fb19d12))
+
 ## [1.5.0](https://github.com/gravity-ui/graph/compare/v1.4.0...v1.5.0) (2025-10-22)
 
 
