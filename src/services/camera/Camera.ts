@@ -204,7 +204,12 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
    * Handles trackpad swipe gestures for camera movement
    */
   private handleTrackpadMove(event: WheelEvent): void {
-    this.moveWithEdges(-event.deltaX, -event.deltaY);
+    const hasWrongHorizontalScroll = event.shiftKey && Math.abs(event.deltaY) > 0.001;
+
+    this.moveWithEdges(
+      hasWrongHorizontalScroll ? -event.deltaY : -event.deltaX,
+      hasWrongHorizontalScroll ? -event.deltaX : -event.deltaY
+    );
   }
 
   /**
