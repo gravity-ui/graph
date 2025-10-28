@@ -3,7 +3,7 @@ import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/Gr
 import { Component, ESchedulerPriority } from "../../lib";
 import { TComponentProps, TComponentState } from "../../lib/Component";
 import { ComponentDescriptor } from "../../lib/CoreComponent";
-import { getXY, isMetaKeyEvent, isTrackpadWheelEvent, isWindows } from "../../utils/functions";
+import { getXY, isMetaKeyEvent, isTrackpadWheelEvent } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
 import { dragListener } from "../../utils/functions/dragListener";
 import { EVENTS } from "../../utils/types/events";
@@ -204,11 +204,11 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
    * Handles trackpad swipe gestures for camera movement
    */
   private handleTrackpadMove(event: WheelEvent): void {
-    const windows = isWindows();
+    const hasWrongHorizontalScroll = event.shiftKey && Math.abs(event.deltaY) > 0.001;
 
     this.moveWithEdges(
-      windows && event.shiftKey ? -event.deltaY : -event.deltaX,
-      windows && event.shiftKey ? -event.deltaX : -event.deltaY
+      hasWrongHorizontalScroll ? -event.deltaY : -event.deltaX,
+      hasWrongHorizontalScroll ? -event.deltaX : -event.deltaY
     );
   }
 
@@ -257,7 +257,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     }
 
     // Mouse wheel behavior - check configuration
-    if (!isTrackpad) {
+    if (!isTrackpad && !isMetaKeyEvent(event)) {
       const mouseWheelBehavior = this.context.constants.camera.MOUSE_WHEEL_BEHAVIOR;
 
       if (mouseWheelBehavior === "scroll") {

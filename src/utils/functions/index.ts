@@ -169,10 +169,6 @@ export function startAnimation(duration: number, draw: (progress: number) => voi
   });
 }
 
-export function isWindows() {
-  return navigator.appVersion.indexOf("Win") !== -1;
-}
-
 /**
  * Calculates a "nice" number approximately equal to the range.
  * Useful for determining tick spacing on axes or rulers.
