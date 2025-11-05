@@ -23,26 +23,13 @@ import { getXY } from "./utils/functions";
 import { clearTextCache } from "./utils/renderers/text";
 import type { Constructor } from "./utils/types/helpers";
 import { RecursivePartial } from "./utils/types/helpers";
-import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
+import { IPoint, IRect, Point, TRect, isTRect } from "./utils/types/shapes";
 
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
 export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
-  configurationName?: string;
   blocks?: Block[];
-  connections?: TConnection[];
-  /**
-   * @deprecated use Graph.zoom api
-   */
-  rect?: TRect;
-  /**
-   * @deprecated use Graph.zoom api
-   * */
-  cameraXY?: TPoint;
-  /**
-   * @deprecated use Graph.zoom api
-   * */
-  cameraScale?: number;
-  settings?: Partial<TGraphSettingsConfig<Block, Connection>>;
+  connections?: Connection[];
+  settings?: Partial<TGraphSettingsConfig>;
   layers?: LayerConfig[];
 };
 
@@ -137,6 +124,21 @@ export class Graph {
     }
 
     this.setupGraph(config);
+
+    // Subscribe to usableRect changes to update camera bounds
+    this.hitTest.$usableRect.subscribe((usableRect) => {
+      if (this.rootStore.settings.getConfigFlag("constrainCameraToGraph")) {
+        this.cameraService.updateCameraBounds(usableRect);
+      }
+    });
+
+    // Subscribe to settings changes to update camera bounds when constrainCameraToGraph is enabled
+    this.rootStore.settings.$settings.subscribe((settings) => {
+      if (settings.constrainCameraToGraph) {
+        const usableRect = this.hitTest.getUsableRect();
+        this.cameraService.updateCameraBounds(usableRect);
+      }
+    });
   }
 
   protected onUpdateSize = (event: IRect) => {
@@ -231,20 +233,28 @@ export class Graph {
    * Returns the current viewport rectangle in camera space, expanded by threshold.
    * @returns {TRect} Viewport rect in camera-relative coordinates
    */
-  public getViewportRect(): TRect {
-    const CAMERA_VIEWPORT_TRESHOLD = this.graphConstants.system.CAMERA_VIEWPORT_TRESHOLD;
+  public getViewportRect(
+    {
+      threshold,
+    }: {
+      threshold?: number;
+    } = { threshold: this.graphConstants.system.CAMERA_VIEWPORT_TRESHOLD }
+  ): TRect {
     const rel = this.cameraService.getRelativeViewportRect(); // full viewport, ignores insets
 
-    const x = -rel.x - rel.width * CAMERA_VIEWPORT_TRESHOLD;
-    const y = -rel.y - rel.height * CAMERA_VIEWPORT_TRESHOLD;
-    const width = -rel.x + rel.width * (1 + CAMERA_VIEWPORT_TRESHOLD) - x;
-    const height = -rel.y + rel.height * (1 + CAMERA_VIEWPORT_TRESHOLD) - y;
+    const x = -rel.x - rel.width * threshold;
+    const y = -rel.y - rel.height * threshold;
+    const width = -rel.x + rel.width * (1 + threshold) - x;
+    const height = -rel.y + rel.height * (1 + threshold) - y;
 
     return { x, y, width, height };
   }
 
-  public getElementsInViewport<T extends Constructor<GraphComponent>>(filter?: T[]): InstanceType<T>[] {
-    const viewportRect = this.getViewportRect();
+  public getElementsInViewport<T extends Constructor<GraphComponent>>(
+    filter?: T[],
+    { threshold }: { threshold?: number } = { threshold: this.graphConstants.system.CAMERA_VIEWPORT_TRESHOLD }
+  ): InstanceType<T>[] {
+    const viewportRect = this.getViewportRect({ threshold });
     return this.getElementsOverRect(viewportRect, filter);
   }
 
@@ -364,7 +374,6 @@ export class Graph {
 
   public setupGraph(config: TGraphConfig = {}) {
     this.config = config;
-    this.rootStore.configurationName = config.configurationName;
     this.setEntities({
       blocks: config.blocks,
       connections: config.connections,

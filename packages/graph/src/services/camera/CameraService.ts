@@ -5,6 +5,15 @@ import { Emitter } from "../../utils/Emitter";
 import { clamp } from "../../utils/functions/clamp";
 import { TRect } from "../../utils/types/shapes";
 
+export type TCameraBounds = {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  minScale: number;
+  maxScale: number;
+};
+
 export type TCameraState = {
   x: number;
   y: number;
@@ -32,6 +41,11 @@ export type TCameraState = {
    * When enabled, the camera will automatically pan when the mouse is near the viewport edges
    */
   autoPanningEnabled: boolean;
+  /**
+   * Camera bounds for constraining camera movement and zoom
+   * Applied when constrainCameraToGraph setting is enabled
+   */
+  cameraBounds?: TCameraBounds;
 };
 
 export enum ECameraScaleLevel {
@@ -70,7 +84,7 @@ export const getInitCameraState = (): TCameraState => {
   };
 };
 
-export type ICamera = Interface<CameraService>;
+export type ICamera = { [P in keyof CameraService]: CameraService[P] };
 
 export class CameraService extends Emitter {
   constructor(
@@ -85,11 +99,19 @@ export class CameraService extends Emitter {
     const diffY = newState.height - this.state.height;
     this.set(newState);
     this.move(diffX, diffY);
+
+    // Update camera bounds after resize if constraining is enabled
+    if (this.graph.rootStore.settings.getConfigFlag("constrainCameraToGraph") && this.state.cameraBounds) {
+      this.updateCameraBounds(this.graph.hitTest.getUsableRect());
+    }
   }
 
   public set(newState: Partial<TCameraState>) {
-    this.graph.executеDefaultEventAction("camera-change", Object.assign({}, this.state, newState), () => {
-      this.state = Object.assign(this.state, newState);
+    // Apply camera bounds if constraining is enabled
+    const constrainedState = this.applyCameraBounds(newState);
+
+    this.graph.executеDefaultEventAction("camera-change", Object.assign({}, this.state, constrainedState), () => {
+      this.state = Object.assign(this.state, constrainedState);
       this.updateRelative();
     });
   }
@@ -222,7 +244,14 @@ export class CameraService extends Emitter {
    * @returns {void}
    */
   public zoom(x: number, y: number, scale: number) {
-    const normalizedScale = clamp(scale, this.state.scaleMin, this.state.scaleMax);
+    // Use camera bounds if constraining is enabled, otherwise use static min/max
+    const shouldConstrain = this.graph.rootStore.settings.getConfigFlag("constrainCameraToGraph");
+    const minScale =
+      shouldConstrain && this.state.cameraBounds ? this.state.cameraBounds.minScale : this.state.scaleMin;
+    const maxScale =
+      shouldConstrain && this.state.cameraBounds ? this.state.cameraBounds.maxScale : this.state.scaleMax;
+
+    const normalizedScale = clamp(scale, minScale, maxScale);
 
     const dx = this.getRelative(x - this.state.x);
     const dy = this.getRelative(y - this.state.y);
@@ -243,7 +272,7 @@ export class CameraService extends Emitter {
   public getScaleRelativeDimensionsBySide(
     size: number,
     axis: "width" | "height",
-    options?: { respectInsets?: boolean }
+    options?: { respectInsets?: boolean; noClamp?: boolean }
   ) {
     const useVisible = Boolean(options?.respectInsets);
     const insets = this.state.viewportInsets;
@@ -253,10 +282,15 @@ export class CameraService extends Emitter {
     } else {
       viewportSize = useVisible ? Math.max(0, this.state.height - insets.top - insets.bottom) : this.state.height;
     }
-    return clamp(Number(viewportSize / size), this.state.scaleMin, this.state.scaleMax);
+    const calculatedScale = Number(viewportSize / size);
+    return options?.noClamp ? calculatedScale : clamp(calculatedScale, this.state.scaleMin, this.state.scaleMax);
   }
 
-  public getScaleRelativeDimensions(width: number, height: number, options?: { respectInsets?: boolean }) {
+  public getScaleRelativeDimensions(
+    width: number,
+    height: number,
+    options?: { respectInsets?: boolean; noClamp?: boolean }
+  ) {
     return Math.min(
       this.getScaleRelativeDimensionsBySide(width, "width", options),
       this.getScaleRelativeDimensionsBySide(height, "height", options)
@@ -354,10 +388,20 @@ export class CameraService extends Emitter {
       const nextY = newCenterY - anchorWorldY * this.state.scale;
 
       this.set({ viewportInsets: nextInsets, x: nextX, y: nextY });
+
+      // Update camera bounds after insets change if constraining is enabled
+      if (this.graph.rootStore.settings.getConfigFlag("constrainCameraToGraph") && this.state.cameraBounds) {
+        this.updateCameraBounds(this.graph.hitTest.getUsableRect());
+      }
       return;
     }
 
     this.set({ viewportInsets: nextInsets });
+
+    // Update camera bounds after insets change if constraining is enabled
+    if (this.graph.rootStore.settings.getConfigFlag("constrainCameraToGraph") && this.state.cameraBounds) {
+      this.updateCameraBounds(this.graph.hitTest.getUsableRect());
+    }
   }
 
   /**
@@ -391,5 +435,164 @@ export class CameraService extends Emitter {
    */
   public isAutoPanningEnabled(): boolean {
     return this.state.autoPanningEnabled;
+  }
+
+  /**
+   * Extends a rectangle with USABLE_RECT_GAP padding on all sides.
+   * This follows the same pattern used throughout the codebase for extending rects.
+   * @param {TRect} rect The rectangle to extend
+   * @returns {TRect} Extended rectangle with gap applied
+   * @private
+   */
+  private extendRectWithGap(rect: TRect): TRect {
+    const gap = this.graph.graphConstants.system.USABLE_RECT_GAP;
+    return {
+      x: rect.x - gap * 1.5,
+      y: rect.y - gap * 1.5,
+      width: rect.width + gap * 3,
+      height: rect.height + gap * 3,
+    };
+  }
+
+  /**
+   * Update camera bounds based on usable rect of the graph.
+   * For empty graphs: limits zoom to 0.5, allows pan within 50% of viewport from center
+   * For non-empty graphs: calculates bounds to keep graph content visible with USABLE_RECT_GAP padding
+   * @param {TRect} usableRect The usable rectangle from hitTest
+   * @returns {void}
+   */
+  public updateCameraBounds(usableRect: TRect): void {
+    const isEmptyGraph = usableRect.x === 0 && usableRect.y === 0 && usableRect.width === 0 && usableRect.height === 0;
+
+    if (isEmptyGraph) {
+      // For empty graph: allow zoom to 0.5 and pan within 50% of viewport
+      const halfViewportWidth = this.state.relativeWidth * 0.5;
+      const halfViewportHeight = this.state.relativeHeight * 0.5;
+
+      this.state.cameraBounds = {
+        minX: -halfViewportWidth,
+        maxX: halfViewportWidth,
+        minY: -halfViewportHeight,
+        maxY: halfViewportHeight,
+        minScale: this.state.scaleMin,
+        maxScale: 0.5,
+      };
+    } else {
+      // For non-empty graph: extend usable rect with USABLE_RECT_GAP (same pattern as minimap, background, etc.)
+      const extendedRect = this.extendRectWithGap(usableRect);
+
+      // Calculate minimum scale to fit entire graph with gap
+      // Use visible viewport for scale calculation (respectInsets)
+      // Use noClamp to allow scales smaller than scaleMin for very large graphs
+      const minScaleToFit = this.getScaleRelativeDimensions(extendedRect.width, extendedRect.height, {
+        respectInsets: true,
+        noClamp: true,
+      });
+
+      // Camera bounds are the extended rect boundaries
+      this.state.cameraBounds = {
+        minX: extendedRect.x,
+        maxX: extendedRect.x + extendedRect.width,
+        minY: extendedRect.y,
+        maxY: extendedRect.y + extendedRect.height,
+        minScale: minScaleToFit,
+        maxScale: this.state.scaleMax,
+      };
+    }
+  }
+
+  /**
+   * Apply camera bounds constraints to a partial camera state.
+   * Only applies constraints if constrainCameraToGraph setting is enabled and bounds are set.
+   * Does not apply when autoPanningEnabled is active.
+   * @param {Partial<TCameraState>} state The partial state to constrain
+   * @returns {Partial<TCameraState>} The constrained state
+   */
+  public applyCameraBounds(state: Partial<TCameraState>): Partial<TCameraState> {
+    // Check if constraining is enabled
+    const shouldConstrain = this.graph.rootStore.settings.getConfigFlag("constrainCameraToGraph");
+    const isAutoPanning = state.autoPanningEnabled ?? this.state.autoPanningEnabled;
+
+    // Don't apply constraints when auto-panning is enabled or constraints are disabled
+    if (!shouldConstrain || !this.state.cameraBounds || isAutoPanning) {
+      return state;
+    }
+
+    const bounds = this.state.cameraBounds;
+    const constrainedState = { ...state };
+
+    // Constrain scale
+    if (constrainedState.scale !== undefined) {
+      constrainedState.scale = clamp(constrainedState.scale, bounds.minScale, bounds.maxScale);
+    }
+
+    // Only constrain position if position or scale was changed
+    const positionChanged = constrainedState.x !== undefined || constrainedState.y !== undefined;
+    const scaleChanged = constrainedState.scale !== undefined;
+    const viewportChanged =
+      constrainedState.width !== undefined ||
+      constrainedState.height !== undefined ||
+      constrainedState.viewportInsets !== undefined;
+
+    // Skip position constraint if nothing that affects position was changed
+    if (!positionChanged && !scaleChanged && !viewportChanged) {
+      return constrainedState;
+    }
+
+    // Calculate current or new scale
+    const scale = constrainedState.scale ?? this.state.scale;
+    const insets = constrainedState.viewportInsets ?? this.state.viewportInsets;
+    const width = constrainedState.width ?? this.state.width;
+    const height = constrainedState.height ?? this.state.height;
+
+    // Calculate visible viewport size in world space
+    const visibleWidth = Math.max(0, width - insets.left - insets.right);
+    const visibleHeight = Math.max(0, height - insets.top - insets.bottom);
+    const worldVisibleWidth = visibleWidth / scale;
+    const worldVisibleHeight = visibleHeight / scale;
+
+    // Get current camera position in world space
+    // Use new x/y if provided, otherwise use current state
+    const currentX = constrainedState.x ?? this.state.x;
+    const currentY = constrainedState.y ?? this.state.y;
+
+    // Calculate viewport rectangle in world space
+    // -currentX/scale gives top-left corner of viewport
+    const viewportLeft = -currentX / scale;
+    const viewportTop = -currentY / scale;
+    const viewportRight = viewportLeft + worldVisibleWidth;
+    const viewportBottom = viewportTop + worldVisibleHeight;
+
+    // Constrain viewport to always intersect with bounds (graph is always at least partially visible)
+    let constrainedLeft = viewportLeft;
+    let constrainedTop = viewportTop;
+
+    // Horizontal constraints:
+    // - From left: can't scroll beyond right edge of graph (viewportLeft <= bounds.maxX)
+    // - From right: can't scroll beyond left edge of graph (viewportRight >= bounds.minX)
+    if (viewportLeft > bounds.maxX) {
+      // Scrolled too far left - bring back so right edge of graph is at left edge of viewport
+      constrainedLeft = bounds.maxX;
+    } else if (viewportRight < bounds.minX) {
+      // Scrolled too far right - bring back so left edge of graph is at right edge of viewport
+      constrainedLeft = bounds.minX - worldVisibleWidth;
+    }
+
+    // Vertical constraints:
+    // - From top: can't scroll beyond bottom edge of graph (viewportTop <= bounds.maxY)
+    // - From bottom: can't scroll beyond top edge of graph (viewportBottom >= bounds.minY)
+    if (viewportTop > bounds.maxY) {
+      // Scrolled too far up - bring back so bottom edge of graph is at top edge of viewport
+      constrainedTop = bounds.maxY;
+    } else if (viewportBottom < bounds.minY) {
+      // Scrolled too far down - bring back so top edge of graph is at bottom edge of viewport
+      constrainedTop = bounds.minY - worldVisibleHeight;
+    }
+
+    // Convert constrained top-left back to screen space
+    constrainedState.x = -constrainedLeft * scale;
+    constrainedState.y = -constrainedTop * scale;
+
+    return constrainedState;
   }
 }

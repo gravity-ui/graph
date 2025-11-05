@@ -2,13 +2,14 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@gravity-ui/graph": ["../graph/src"],
+      "@gravity-ui/graph/*": ["../graph/src/*"],
+      "@gravity-ui/graph-react": ["../react/src"],
+      "@gravity-ui/graph-react/*": ["../react/src/*"]
+    }
   },
-  "include": ["src/**/*"],
-  "references": [
-    { "path": "../graph" },
-    { "path": "../react" }
-  ]
+  "include": ["src/**/*"]
 }
 

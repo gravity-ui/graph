@@ -43,19 +43,30 @@
     "clean": "rm -rf dist",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
     "lint:fix": "npm run lint -- --fix",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc --noEmit --project tsconfig.json"
   },
   "devDependencies": {
-    "lodash": "^4.17.21"
+    "@gravity-ui/graph": "*",
+    "@rollup/plugin-commonjs": "^28.0.8",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-typescript": "^12.1.4",
+    "@types/jest": "^30.0.0",
+    "@types/lodash": "^4.17.13",
+    "@types/react": "^18.2.14",
+    "@types/react-dom": "^18.2.6",
+    "lodash": "^4.17.21",
+    "rollup": "^4.52.5",
+    "rollup-plugin-copy": "^3.5.0",
+    "rollup-plugin-postcss": "^4.0.2"
   },
   "dependencies": {
-    "@gravity-ui/graph": "^1.4.0",
     "@preact/signals-core": "^1.2.2",
     "elkjs": "^0.9.3",
     "intersects": "^2.7.2",
     "lodash": "^4.17.21"
   },
   "peerDependencies": {
+    "@gravity-ui/graph": "^2.0.0-beta.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
   }

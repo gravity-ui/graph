@@ -62,7 +62,7 @@
     "clean": "rm -rf dist",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
     "lint:fix": "npm run lint -- --fix",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc --noEmit --project tsconfig.json"
   },
   "dependencies": {
     "@preact/signals-core": "^1.5.1",
@@ -70,6 +70,19 @@
     "lodash": "^4.17.21",
     "rbush": "^3.0.1",
     "style-observer": "^0.1.2"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.8",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^12.1.4",
+    "@types/intersects": "^2.5.0",
+    "@types/jest": "^30.0.0",
+    "@types/lodash": "^4.17.13",
+    "@types/rbush": "^3.0.0",
+    "rollup": "^4.52.5",
+    "rollup-plugin-copy": "^3.5.0",
+    "rollup-plugin-postcss": "^4.0.2"
   }
 }
 

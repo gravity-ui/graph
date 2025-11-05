@@ -1,7 +1,7 @@
 import { Tree } from "./Tree";
 
 const rAF: (cb: () => void) => number =
-  typeof window !== "undefined" ? window.requestAnimationFrame : (fn) => global.setTimeout(fn, 16);
+  typeof window !== "undefined" ? window.requestAnimationFrame : (fn) => global.setTimeout(fn, 16) as unknown as number;
 const cAF: (id: number | undefined) => void =
   typeof window !== "undefined" ? window.cancelAnimationFrame : global.clearTimeout;
 const getNow =

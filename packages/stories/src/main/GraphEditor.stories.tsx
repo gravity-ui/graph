@@ -95,7 +95,6 @@ const meta: Meta<typeof GraphApp> = {
     canZoomCamera: true,
     canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
     canCreateNewConnections: true,
-    scaleFontSize: 1,
     showConnectionArrows: true,
   },
 };

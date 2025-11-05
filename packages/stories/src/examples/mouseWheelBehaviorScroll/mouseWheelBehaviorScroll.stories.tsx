@@ -1,12 +1,8 @@
 import React, { useLayoutEffect } from "react";
 
+import { ECanChangeBlockGeometry, Graph, GraphState, TBlock } from "@gravity-ui/graph";
+import { GraphBlock, GraphCanvas, HookGraphParams, useFn, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
-
-import { TBlock } from "../../../components/canvas/blocks/Block";
-import { Graph, GraphState } from "../../../graph";
-import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "../../../react-components";
-import { useFn } from "../../../react-components/utils/hooks/useFn";
-import { ECanChangeBlockGeometry } from "../../../store/settings";
 
 const config: HookGraphParams = {
   viewConfiguration: {
@@ -19,11 +15,9 @@ const config: HookGraphParams = {
   settings: {
     canDragCamera: true,
     canZoomCamera: true,
-    canDuplicateBlocks: false,
     canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
     canCreateNewConnections: true,
     showConnectionArrows: false,
-    scaleFontSize: 1,
     useBezierConnections: true,
     useBlocksAnchors: true,
     showConnectionLabels: false,

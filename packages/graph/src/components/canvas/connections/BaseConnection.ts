@@ -1,5 +1,5 @@
 import { Component } from "../../../lib";
-import { TComponentState } from "../../../lib/Component";
+import { TComponentProps, TComponentState } from "../../../lib/Component";
 import { ConnectionState, TConnection, TConnectionId } from "../../../store/connection/ConnectionState";
 import { selectConnectionById } from "../../../store/connection/selectors";
 import { TPoint } from "../../../utils/types/shapes";
@@ -10,7 +10,7 @@ import { Block } from "../blocks/Block";
 /**
  * Properties for BaseConnection component
  */
-export type TBaseConnectionProps = {
+export type TBaseConnectionProps = TComponentProps & {
   /** Unique identifier for the connection */
   id: TConnectionId;
 };

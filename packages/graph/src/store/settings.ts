@@ -1,12 +1,11 @@
 import { computed, signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
+import merge from "lodash/merge";
 
-import type { TBlock } from "../components/canvas/blocks/Block";
-import { BlockConnection } from "../components/canvas/connections/BlockConnection";
+import { Block } from "../components/canvas/blocks/Block";
+import { BaseConnection } from "../components/canvas/connections";
 import { Component } from "../lib";
-import { ComponentConstructor } from "../lib/CoreComponent";
-
-import { TConnection } from "./connection/ConnectionState";
+import { Constructor } from "../utils";
 
 import { RootStore } from "./index";
 
@@ -16,32 +15,47 @@ export enum ECanChangeBlockGeometry {
   NONE = "none",
 }
 
-export type TGraphSettingsConfig<
-  TGraphBlock extends TBlock = TBlock,
-  TGraphConnection extends TConnection = TConnection,
-> = {
+export type TGraphSettingsConfig = {
   canDragCamera: boolean;
   canZoomCamera: boolean;
-  /** @deprecated Use NewBlockLayer parameters instead */
-  canDuplicateBlocks?: boolean;
   canChangeBlockGeometry: ECanChangeBlockGeometry;
   canCreateNewConnections: boolean;
   scaleFontSize: number;
   showConnectionArrows: boolean;
+  /*
+   * @deprecated Use connection component instead
+   * This flag will be removed in the future
+   * Please use connection component instead
+   */
   useBezierConnections: boolean;
+  /**
+   * @deprecated Use connection component instead
+   * This flag will be removed in the future
+   * Please use connection component instead
+   */
   bezierConnectionDirection: "vertical" | "horizontal";
   useBlocksAnchors: boolean;
-  connectivityComponentOnClickRaise: boolean;
+  /**
+   * @deprecated Use connection component instead
+   * This flag will be removed in the future
+   * Please use connection component instead
+   */
   showConnectionLabels: boolean;
-  blockComponents: Record<string, ComponentConstructor<TGraphBlock>>;
-  connection?: typeof BlockConnection<TGraphConnection>;
+  blockComponents: Record<string, Constructor<Block>>;
+  connection?: Constructor<BaseConnection>;
   background?: typeof Component;
+  /**
+   * Constrain camera movement and zoom to keep the graph content visible.
+   * When enabled, prevents the user from panning or zooming out to a point
+   * where the graph is no longer visible.
+   * @default false
+   */
+  constrainCameraToGraph: boolean;
 };
 
 const getInitState: TGraphSettingsConfig = {
   canDragCamera: true,
   canZoomCamera: true,
-  canDuplicateBlocks: false,
   canChangeBlockGeometry: ECanChangeBlockGeometry.NONE,
   canCreateNewConnections: false,
   showConnectionArrows: true,
@@ -49,9 +63,9 @@ const getInitState: TGraphSettingsConfig = {
   useBezierConnections: true,
   bezierConnectionDirection: "horizontal",
   useBlocksAnchors: true,
-  connectivityComponentOnClickRaise: true,
   showConnectionLabels: false,
   blockComponents: {},
+  constrainCameraToGraph: true,
 };
 
 export class GraphEditorSettings {
@@ -72,7 +86,7 @@ export class GraphEditorSettings {
   constructor(public rootStore: RootStore) {}
 
   public setupSettings(config: Partial<TGraphSettingsConfig>) {
-    this.$settings.value = Object.assign({}, this.$settings.value, config);
+    this.$settings.value = merge({}, this.$settings.value, config);
   }
 
   public setConfigFlag<K extends keyof TGraphSettingsConfig>(flagPath: K, value: TGraphSettingsConfig[K]) {

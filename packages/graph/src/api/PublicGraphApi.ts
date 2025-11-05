@@ -167,10 +167,6 @@ export class PublicGraphApi {
     this.graph.rootStore.settings.setConfigFlag(flagPath, value);
   }
 
-  public setCurrentConfigurationName(newName: string) {
-    this.graph.rootStore.configurationName = newName;
-  }
-
   public deleteSelected() {
     batch(() => {
       this.graph.rootStore.connectionsList.deleteSelectedConnections();

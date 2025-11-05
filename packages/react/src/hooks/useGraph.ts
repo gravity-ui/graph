@@ -19,7 +19,6 @@ import { useFn } from "../utils/hooks/useFn";
 
 export type HookGraphParams = Pick<TGraphConfig, "settings" | "layers"> & {
   graph?: Graph;
-  name?: string;
   viewConfiguration?: {
     colors?: RecursivePartial<TGraphColors>;
     constants?: RecursivePartial<TGraphConstants>;
@@ -48,7 +47,6 @@ export function useGraph(config: HookGraphParams): UseGraphResult {
       return config.graph;
     }
     return new Graph({
-      configurationName: config.name || "",
       blocks: [],
       connections: [],
       settings: {},

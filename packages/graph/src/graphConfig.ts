@@ -98,11 +98,41 @@ export type TGraphConstants = {
   system: {
     GRID_SIZE: number;
     /**
-     * @deprecated this config is not used anymore, Layers checks devicePixelRatio internally
+     * Gap (padding) applied around the usable rect in world space coordinates.
+     *
+     * This constant is used throughout the codebase to extend rectangles by adding
+     * padding on all sides: x - gap, y - gap, width + gap * 2, height + gap * 2.
+     *
+     * **Used for:**
+     * - Background rendering bounds (extended usable rect)
+     * - Camera constraint boundaries (keeps graph visible with padding)
+     * - Empty graph zoom area (creates a default rect when no elements exist)
+     *
+     * @default 400
      */
-    PIXEL_RATIO: number;
     USABLE_RECT_GAP: number;
-    /** For preload blocks on the html layer (camera dimensions * (1 + this value)) */
+    /**
+     * Threshold for expanding the viewport rectangle to preload elements outside visible area.
+     *
+     * This relative value (0.0 - 1.0+) multiplies the viewport dimensions to create a buffer zone
+     * around the visible area. Elements within this expanded viewport are preloaded and ready
+     * to render before they become visible.
+     *
+     * **Formula:** `expandedViewport = viewport + (viewport * threshold)` on each side
+     *
+     * **Example:** With threshold = 0.5 and viewport 1000x1000:
+     * - Expands by 500px on each side
+     * - Total expanded viewport becomes 2000x2000
+     *
+     * **Used for:**
+     * - Preloading HTML blocks before they enter viewport (prevents flickering during pan/zoom)
+     * - Determining which elements to mount in React layer at detailed zoom level
+     * - Smooth transitions between Canvas and HTML rendering modes
+     *
+     * @default 0.5
+     * @see {@link Graph.getViewportRect} - Expands viewport by this threshold
+     * @see {@link Graph.getElementsInViewport} - Gets elements in expanded viewport
+     */
     CAMERA_VIEWPORT_TRESHOLD: number;
   };
 
@@ -217,8 +247,6 @@ export const initGraphConstants: TGraphConstants = {
   },
   system: {
     GRID_SIZE: 16,
-    /* @deprecated this config is not used anymore, Layers checks devicePixelRatio internally */
-    PIXEL_RATIO: typeof globalThis !== "undefined" ? globalThis.devicePixelRatio || 1 : 1,
     USABLE_RECT_GAP: 400,
     CAMERA_VIEWPORT_TRESHOLD: 0.5,
   },

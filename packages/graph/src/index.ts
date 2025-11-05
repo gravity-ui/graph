@@ -16,10 +16,12 @@ export type {
 } from "./graphEvents";
 export * from "./plugins";
 export { ECameraScaleLevel } from "./services/camera/CameraService";
+export type { TCameraBounds, TCameraState } from "./services/camera/CameraService";
 export * from "./services/Layer";
 export * from "./store";
 export { EAnchorType } from "./store/anchor/Anchor";
 export type { BlockState, TBlockId } from "./store/block/Block";
+export { IS_BLOCK_TYPE } from "./store/block/Block";
 export type { ConnectionState, TConnection, TConnectionId } from "./store/connection/ConnectionState";
 export type { AnchorState } from "./store/anchor/Anchor";
 export { ECanChangeBlockGeometry } from "./store/settings";
@@ -30,9 +32,11 @@ export { type HitBoxData } from "./services/HitTest";
 export { isPointInStroke } from "./components/canvas/connections/bezierHelpers";
 
 export * from "./components/canvas/groups";
+export type { TGroup } from "./store/group/Group";
 
 export * from "./components/canvas/layers/newBlockLayer/NewBlockLayer";
 export * from "./components/canvas/layers/connectionLayer/ConnectionLayer";
 export * from "./lib/Component";
 
 export * from "./services/selection/index.public";
+export * from "./utils";

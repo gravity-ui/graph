@@ -90,11 +90,9 @@ const config: HookGraphParams = {
   settings: {
     canDragCamera: true,
     canZoomCamera: true,
-    canDuplicateBlocks: false,
     canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
     canCreateNewConnections: true,
     showConnectionArrows: false,
-    scaleFontSize: 1,
     useBezierConnections: true,
     useBlocksAnchors: true,
     showConnectionLabels: false,

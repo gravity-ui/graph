@@ -13,8 +13,6 @@ import { GraphEditorSettings } from "./settings";
 export class RootStore {
   public blocksList: BlockListStore;
 
-  public configurationName: string;
-
   public connectionsList: ConnectionsStore;
 
   public settings: GraphEditorSettings;
@@ -35,7 +33,6 @@ export class RootStore {
 
   public getAsConfig(): TGraphConfig {
     return cloneDeep({
-      configurationName: this.configurationName,
       blocks: this.blocksList.toJSON(),
       connections: this.connectionsList.toJSON(),
       settings: this.settings.toJSON(),

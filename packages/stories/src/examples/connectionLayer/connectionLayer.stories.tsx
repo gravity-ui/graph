@@ -1,7 +1,7 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { ConnectionLayer, Graph, TBlock } from "@gravity-ui/graph";
-import { GraphCanvas, useFn, useGraph } from "@gravity-ui/graph-react";
+import { GraphCanvas, useFn, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph-react";
 import { Flex, Hotkey, Switch, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
@@ -11,7 +11,7 @@ import { BlockStory } from "../../main/Block";
 import "@gravity-ui/uikit/styles/styles.css";
 
 const GraphApp = () => {
-  const { graph, setEntities, start, addLayer, zoomTo } = useGraph({
+  const { graph, setEntities, start, zoomTo } = useGraph({
     settings: {
       canCreateNewConnections: true,
     },
@@ -23,21 +23,16 @@ const GraphApp = () => {
     zoomTo("center", { padding: 300 });
   }, [graph]);
 
-  const connectionLayerRef = useRef<ConnectionLayer>(null);
-
-  useLayoutEffect(() => {
-    // Create icon for creating connections
-    const createIcon = {
+  const connectionLayer = useLayer(graph, ConnectionLayer, {
+    createIcon: {
       path: "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z", // Plus icon
       fill: "#FFFFFF",
       width: 24,
       height: 24,
       viewWidth: 24,
       viewHeight: 24,
-    };
-
-    // Icon for connection point
-    const pointIcon = {
+    },
+    point: {
       path: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z", // Circle icon
       fill: "#FFFFFF",
       stroke: "#000000",
@@ -45,10 +40,8 @@ const GraphApp = () => {
       height: 24,
       viewWidth: 24,
       viewHeight: 24,
-    };
-
-    // Function for drawing connection line
-    const drawLine = (start, end) => {
+    },
+    drawLine: (start, end) => {
       const path = new Path2D();
       path.moveTo(start.x, start.y);
       path.lineTo(end.x, end.y);
@@ -59,76 +52,66 @@ const GraphApp = () => {
           dash: [5, 5], // Dashed line
         },
       };
-    };
-
-    connectionLayerRef.current = addLayer(ConnectionLayer, {
-      createIcon,
-      point: pointIcon,
-      drawLine,
-    });
-
-    return () => {
-      connectionLayerRef.current?.detachLayer();
-    };
-  }, []);
+    },
+  });
 
   const [enabled, setEnabled] = useState(true);
 
-  useEffect(() => {
-    // Listen for connection creation events
-    graph.on("connection-created", (event) => {
-      console.log("Connection created:", event.detail);
-    });
+  useGraphEvent(graph, "connection-created", (data) => {
+    console.log("Connection created:", data);
+  });
 
-    // Listen for connection creation start events
-    graph.on("connection-create-start", (event) => {
-      console.log("Connection creation started:", event.detail);
-    });
+  useGraphEvent(graph, "connection-create-start", (data) => {
+    console.log("Connection creation started:", data);
+  });
 
-    // Listen for hover events during connection creation
-    graph.on("connection-create-hover", (event) => {
-      console.log("Hover during connection creation:", event.detail);
-    });
+  useGraphEvent(graph, "connection-create-hover", (data) => {
+    console.log("Hover during connection creation:", data);
+  });
 
-    // Listen for connection creation completion events
-    graph.on("connection-create-drop", (event) => {
-      if (!event.detail.targetBlockId) {
-        const source = graph.rootStore.blocksList.getBlock(event.detail.sourceBlockId);
-        const block = graph.api.addBlock({
-          id: `${graph.rootStore.blocksList.$blocksMap.value.size}`,
-          name: `from ${source.name}`,
-          x: event.detail.point.x,
-          y: event.detail.point.y,
-          width: source.width,
-          height: source.height,
-          is: "block",
-          selected: false,
-          anchors: [],
-        });
-        graph.api.addConnection({
-          id: `${String(source.id)}-${String(block)}`,
-          sourceBlockId: event.detail.sourceBlockId,
-          sourceAnchorId: event.detail.sourceAnchorId,
-          targetBlockId: block,
-          targetAnchorId: "bottom",
-        });
-      }
-      console.log("Connection creation completed:", event.detail);
-    });
-  }, [graph]);
+  useGraphEvent(graph, "connection-create-drop", (data) => {
+    console.log("Connection creation completed:", data);
+  });
+
+  useGraphEvent(graph, "connection-create-drop", (data) => {
+    if (!data.targetBlockId) {
+      const source = graph.rootStore.blocksList.getBlock(data.sourceBlockId);
+      const block = graph.api.addBlock({
+        id: `${graph.rootStore.blocksList.$blocksMap.value.size}`,
+        name: `from ${source.name}`,
+        x: data.point.x,
+        y: data.point.y,
+        width: source.width,
+        height: source.height,
+        is: "block",
+        selected: false,
+        anchors: [],
+      });
+      graph.api.addConnection({
+        id: `${String(source.id)}-${String(block)}`,
+        sourceBlockId: data.sourceBlockId,
+        sourceAnchorId: data.sourceAnchorId,
+        targetBlockId: block,
+        targetAnchorId: "bottom",
+      });
+    }
+    console.log("Connection creation completed:", data);
+  });
 
   const switchConnectionEnabled = useFn((enabled: boolean) => {
-    if (enabled) {
-      connectionLayerRef.current.enable();
-      setEnabled(true);
-    } else {
-      connectionLayerRef.current.disable(); // Обратите внимание, что в оригинале метод назван disabled, а не disable
-      setEnabled(false);
+    if (connectionLayer) {
+      if (enabled) {
+        connectionLayer.enable();
+        setEnabled(true);
+      } else {
+        connectionLayer.disable();
+        setEnabled(false);
+      }
     }
   });
 
-  const renderBlock = (graphInstance: Graph, block: TBlock) => {
-    return <BlockStory graph={graphInstance} block={block} />;
+  const renderBlock = (graphObject: Graph, block: TBlock) => {
+    return <BlockStory graph={graphObject} block={block} />;
   };
 
   return (

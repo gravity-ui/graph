@@ -20,7 +20,6 @@ export {
   getBlocksRect,
   isGeometryHaveInfinity,
   startAnimation,
-  isWindows,
   isTrackpadWheelEvent,
   calculateNiceNumber,
   alignToPixelGrid,

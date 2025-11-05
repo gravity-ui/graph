@@ -42,7 +42,6 @@ class SpecificBlockView extends CanvasBlock {
 
 const SpecificBlockIs = "some-specific-view";
 export const customSchematicViewConfig: TGraphConfig = {
-  configurationName: "custom-schematic",
   blocks: [
     {
       x: 265,
@@ -57,13 +56,6 @@ export const customSchematicViewConfig: TGraphConfig = {
     },
   ],
   connections: [],
-  cameraScale: 0.9,
-  rect: {
-    x: -156,
-    y: 0,
-    width: 631,
-    height: 494,
-  },
   settings: {
     ...storiesSettings,
     blockComponents: {
