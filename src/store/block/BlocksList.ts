@@ -71,67 +71,98 @@ export class BlockListStore {
 
   /**
    * Bucket for managing block selection state
+   * Resolves IDs to BlockState instances (not GraphComponent)
    */
-  public readonly blockSelectionBucket = new MultipleSelectionBucket<TBlockId>(
-    "block",
-    (payload, defaultAction) => {
-      return this.graph.executеDefaultEventAction("blocks-selection-change", payload, defaultAction);
-    },
-    (element) => element instanceof Block
-  );
-
-  public readonly anchorSelectionBucket = new SingleSelectionBucket<TAnchorId>("anchor", (diff, defaultAction) => {
-    if (diff.changes.add.length > 0) {
-      const anchorId = diff.changes.add[0];
-      const anchor = this.$blocks.value.flatMap((block) => block.$anchors.value).find((a) => a.id === anchorId);
-      if (anchor) {
-        return this.graph.executеDefaultEventAction(
-          "block-anchor-selection-change",
-          { anchor: anchor, selected: true },
-          defaultAction
-        );
-      }
-    }
-    if (diff.changes.removed.length > 0) {
-      const anchorId = diff.changes.removed[0];
-      const anchor = this.$blocks.value.flatMap((block) => block.$anchors.value).find((a) => a.id === anchorId);
-      if (anchor) {
-        return this.graph.executеDefaultEventAction(
-          "block-anchor-selection-change",
-          { anchor: anchor, selected: false },
-          defaultAction
-        );
-      }
-    }
-    return defaultAction();
-  });
+  public readonly blockSelectionBucket: MultipleSelectionBucket<TBlockId, BlockState>;
 
   /**
+   * Computed signal that returns selected blocks as Block GraphComponent instances
+   * Automatically resolves BlockState to Block components via getViewComponent()
+   * Use this when you need to work with rendered Block components
+   */
+  public $selectedBlockComponents = computed(() => {
+    // Use the built-in $selectedComponents from BaseSelectionBucket
+    return this.blockSelectionBucket.$selectedComponents.value as Block[];
+  });
+
+  public readonly anchorSelectionBucket: SingleSelectionBucket<TAnchorId, AnchorState>;
+
+  /**
+   * @deprecated Use blockSelectionBucket.$selectedEntities instead
    * Computed signal that returns the currently selected blocks
    */
   public $selectedBlocks = computed(() => {
-    return Array.from(this.blockSelectionBucket.$selected.value)
-      .map((id) => this.getBlockState(id))
-      .filter(Boolean);
+    return this.blockSelectionBucket.$selectedEntities.value;
   });
 
   /**
+   * @deprecated Use anchorSelectionBucket.$selectedEntities instead
    * Computed signal that returns the currently selected anchor
    */
   public $selectedAnchor = computed(() => {
-    if (!this.rootStore.settings.getConfigFlag("useBlocksAnchors")) return undefined;
-    const selectedIds = this.anchorSelectionBucket.$selected.value;
-    for (const block of this.$blocks.value) {
-      const anchor = block.$anchors.value.find((a) => selectedIds.has(a.id));
-      if (anchor) return anchor;
-    }
-    return undefined;
+    const entities = this.anchorSelectionBucket.$selectedEntities.value;
+    return entities.length > 0 ? entities[0] : undefined;
   });
 
   constructor(
     public rootStore: RootStore,
     protected graph: Graph
   ) {
+    this.blockSelectionBucket = new MultipleSelectionBucket<TBlockId, BlockState>(
+      "block",
+      (payload, defaultAction) => {
+        return this.graph.executеDefaultEventAction("blocks-selection-change", payload, defaultAction);
+      },
+      (element) => element instanceof Block,
+      (ids) => ids.map((id) => this.getBlockState(id)).filter((block): block is BlockState => block !== undefined)
+    );
+
+    this.anchorSelectionBucket = new SingleSelectionBucket<TAnchorId, AnchorState>(
+      "anchor",
+      (diff, defaultAction) => {
+        if (diff.changes.add.length > 0) {
+          const anchorId = diff.changes.add[0];
+          const anchor = this.$blocks.value
+            .flatMap((block) => block.$anchorStates.value)
+            .find((a) => a.id === anchorId);
+          if (anchor) {
+            return this.graph.executеDefaultEventAction(
+              "block-anchor-selection-change",
+              { anchor: anchor.asTAnchor(), selected: true },
+              defaultAction
+            );
+          }
+        }
+        if (diff.changes.removed.length > 0) {
+          const anchorId = diff.changes.removed[0];
+          const anchor = this.$blocks.value
+            .flatMap((block) => block.$anchorStates.value)
+            .find((a) => a.id === anchorId);
+          if (anchor) {
+            return this.graph.executеDefaultEventAction(
+              "block-anchor-selection-change",
+              { anchor: anchor.asTAnchor(), selected: false },
+              defaultAction
+            );
+          }
+        }
+        return defaultAction();
+      },
+      undefined,
+      (ids) => {
+        if (!this.rootStore.settings.getConfigFlag("useBlocksAnchors")) return [];
+        const result: AnchorState[] = [];
+        for (const block of this.$blocks.value) {
+          for (const anchor of block.$anchorStates.value) {
+            if (ids.includes(anchor.id)) {
+              result.push(anchor);
+            }
+          }
+        }
+        return result;
+      }
+    );
+
     this.blockSelectionBucket.attachToManager(this.rootStore.selectionService);
     this.anchorSelectionBucket.attachToManager(this.rootStore.selectionService);
   }

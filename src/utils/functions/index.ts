@@ -1,3 +1,4 @@
+import { GraphComponent } from "../../components/canvas/GraphComponent";
 import { Block, TBlock } from "../../components/canvas/blocks/Block";
 import { ECanChangeBlockGeometry } from "../../store/settings";
 import { EVENTS_DETAIL, SELECTION_EVENT_TYPES } from "../types/events";
@@ -142,6 +143,31 @@ export function getBlocksRect(blocks: TBlock[]): TRect {
   }
 
   return rect;
+}
+
+export function getElementsRect<T extends GraphComponent = GraphComponent>(elements: T[]): TRect {
+  if (elements.length === 0) {
+    return new Rect(0, 0, 0, 0);
+  }
+
+  const elementsRect = elements.reduce(
+    (acc, item) => {
+      const [x, y, width, height] = item.getHitBox();
+      acc.minX = Math.min(acc.minX, x);
+      acc.minY = Math.min(acc.minY, y);
+      acc.maxX = Math.max(acc.maxX, x + width);
+      acc.maxY = Math.max(acc.maxY, y + height);
+      return acc;
+    },
+    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+  );
+
+  return new Rect(
+    elementsRect.minX,
+    elementsRect.minY,
+    elementsRect.maxX - elementsRect.minX,
+    elementsRect.maxY - elementsRect.minY
+  );
 }
 
 export function isGeometryHaveInfinity(geometry: TRect): boolean {

@@ -45,7 +45,7 @@ export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConn
   layers?: LayerConfig[];
 };
 
-export type TGraphZoomTarget = "center" | TRect | TBlockId[];
+export type TGraphZoomTarget = "center" | TRect | TBlockId[] | GraphComponent[];
 
 export enum GraphState {
   INIT,
@@ -177,6 +177,10 @@ export class Graph {
     }
     if (isTRect(target)) {
       this.api.zoomToRect(target, config);
+      return;
+    }
+    if (Array.isArray(target) && target.every((item) => item instanceof GraphComponent)) {
+      this.api.zoomToElements(target, config);
       return;
     }
     this.api.zoomToBlocks(target, config);

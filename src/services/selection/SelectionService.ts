@@ -2,7 +2,13 @@ import { computed, signal } from "@preact/signals-core";
 
 import { GraphComponent } from "../../components/canvas/GraphComponent";
 
-import { ESelectionStrategy, ISelectionBucket, TMultiEntitySelection, TSelectionEntityId } from "./types";
+import {
+  ESelectionStrategy,
+  IEntityWithComponent,
+  ISelectionBucket,
+  TMultiEntitySelection,
+  TSelectionEntityId,
+} from "./types";
 
 /**
  * Service responsible for managing selection across different entity types
@@ -51,6 +57,41 @@ export class SelectionService {
     for (const [type, bucket] of this.buckets.value.entries()) {
       // $selected всегда ReadonlySignal<Set<TEntityId>>
       result.set(type, bucket.$selected.value);
+    }
+    return result;
+  });
+
+  /**
+   * Computed signal aggregating resolved entities from all buckets
+   * Returns a flat array of all selected entities that have resolvers
+   */
+  public readonly $selectedEntities = computed(() => {
+    const result: unknown[] = [];
+    for (const bucket of this.buckets.value.values()) {
+      const entities = bucket.$selectedEntities.value;
+      result.push(...entities);
+    }
+    return result;
+  });
+
+  /**
+   * Computed signal aggregating GraphComponent instances from all buckets
+   * Returns a flat array of all selected GraphComponent instances that have resolvers and return GraphComponent
+   */
+  public readonly $selectedComponents = computed(() => {
+    const result: GraphComponent[] = [];
+    for (const bucket of this.buckets.value.values()) {
+      const entities = bucket.$selectedEntities.value;
+      for (const entity of entities) {
+        if (entity instanceof GraphComponent) {
+          result.push(entity as GraphComponent);
+        } else {
+          const component = (entity as IEntityWithComponent).getViewComponent();
+          if (component) {
+            result.push(component);
+          }
+        }
+      }
     }
     return result;
   });

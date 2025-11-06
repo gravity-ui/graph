@@ -1,15 +1,19 @@
 import { BaseSelectionBucket } from "./BaseSelectionBucket";
-import { ESelectionStrategy, TSelectionEntityId } from "./types";
+import { ESelectionStrategy, TSelectionEntity, TSelectionEntityId } from "./types";
 
 /**
  * A selection bucket implementation that allows only a single entity of a specific type to be selected at a time.
  * @template IDType The type of the unique identifier for the entities managed by this bucket (e.g., `string`, `number`)
- * @extends BaseSelectionBucket<IDType>
+ * @template TEntity The type of the entity that IDs resolve to. Must extend TSelectionEntity (GraphComponent or IEntityWithComponent).
+ * @extends BaseSelectionBucket<IDType, TEntity>
  * @see {@link BaseSelectionBucket}
  * @see {@link ISelectionBucket}
  * @see {@link MultipleSelectionBucket}
  */
-export class SingleSelectionBucket<IDType extends TSelectionEntityId> extends BaseSelectionBucket<IDType> {
+export class SingleSelectionBucket<
+  IDType extends TSelectionEntityId,
+  TEntity extends TSelectionEntity = TSelectionEntity,
+> extends BaseSelectionBucket<IDType, TEntity> {
   public updateSelection(ids: IDType[], select: boolean, strategy: ESelectionStrategy, silent?: boolean): void {
     if (ids.length === 0) {
       if (strategy === ESelectionStrategy.REPLACE) {

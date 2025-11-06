@@ -1,5 +1,6 @@
 import { batch } from "@preact/signals-core";
 
+import { GraphComponent } from "../components/canvas/GraphComponent";
 import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
 import { TGraphColors, TGraphConstants } from "../graphConfig";
@@ -9,7 +10,7 @@ import { selectBlockById } from "../store/block/selectors";
 import { TConnection, TConnectionId } from "../store/connection/ConnectionState";
 import { selectConnectionById } from "../store/connection/selectors";
 import { TGraphSettingsConfig } from "../store/settings";
-import { getBlocksRect, startAnimation } from "../utils/functions";
+import { getBlocksRect, getElementsRect, startAnimation } from "../utils/functions";
 import { TRect } from "../utils/types/shapes";
 
 export type ZoomConfig = {
@@ -29,6 +30,11 @@ export class PublicGraphApi {
     }
     const blocksRect = getBlocksRect(blocks.map((block) => block.asTBlock()));
     this.zoomToRect(blocksRect, zoomConfig);
+  }
+
+  public zoomToElements<T extends GraphComponent = GraphComponent>(elements: T[], zoomConfig?: ZoomConfig) {
+    const elementsRect = getElementsRect(elements);
+    this.zoomToRect(elementsRect, zoomConfig);
   }
 
   /**

@@ -26,19 +26,26 @@ export class ConnectionsStore {
 
   /**
    * Bucket for managing connection selection state
+   * Resolves IDs to ConnectionState instances
    */
-  public readonly connectionSelectionBucket = new MultipleSelectionBucket<string | number>(
-    "connection",
-    (payload, defaultAction) => {
-      return this.graph.executеDefaultEventAction("connection-selection-change", payload, defaultAction);
-    }
-  );
+  public readonly connectionSelectionBucket: MultipleSelectionBucket<string | number, ConnectionState>;
 
+  /**
+   * @deprecated Use connectionSelectionBucket.$selectedEntities instead
+   * Computed signal that returns selected connections as ConnectionState instances
+   */
   public $selectedConnections = computed(() => {
-    const items = this.connectionSelectionBucket.$selected.value;
-    return Array.from(items)
-      .map((id) => this.getConnectionState(id))
-      .filter(Boolean);
+    return this.connectionSelectionBucket.$selectedEntities.value;
+  });
+
+  /**
+   * Computed signal that returns selected connections as BaseConnection GraphComponent instances
+   * Automatically resolves ConnectionState to BaseConnection components via getViewComponent()
+   * Use this when you need to work with rendered Connection components
+   */
+  public $selectedConnectionComponents = computed(() => {
+    // Use the built-in $selectedComponents from BaseSelectionBucket
+    return this.connectionSelectionBucket.$selectedComponents.value as BaseConnection[];
   });
 
   protected ports: PortsStore;
@@ -49,12 +56,14 @@ export class ConnectionsStore {
   ) {
     this.ports = new PortsStore(this.rootStore, this.graph);
     // Create and register a selection bucket for connections
-    this.connectionSelectionBucket = new MultipleSelectionBucket<string | number>(
+    this.connectionSelectionBucket = new MultipleSelectionBucket<string | number, ConnectionState>(
       "connection",
       (payload, defaultAction) => {
         return this.graph.executеDefaultEventAction("connection-selection-change", payload, defaultAction);
       },
-      (element) => element instanceof BaseConnection
+      (element) => element instanceof BaseConnection,
+      (ids) =>
+        ids.map((id) => this.getConnectionState(id)).filter((conn): conn is ConnectionState => conn !== undefined)
     );
 
     this.connectionSelectionBucket.attachToManager(this.rootStore.selectionService);
