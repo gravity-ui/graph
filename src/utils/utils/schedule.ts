@@ -66,12 +66,16 @@ export const debounce = <T extends (...args: unknown[]) => void>(
       const elapsedTime = currentTime - startTime;
 
       if (frameCounter >= frameInterval && elapsedTime >= frameTimeout) {
+        // Save the current removeScheduler before resetting state
+        // to prevent race condition when fn() triggers new debounced calls
+        const currentRemoveScheduler = removeScheduler;
         isScheduled = false;
         frameCounter = 0;
         startTime = 0;
+        removeScheduler = null;
         fn(...latestArgs);
-        if (removeScheduler) {
-          removeScheduler();
+        if (currentRemoveScheduler) {
+          currentRemoveScheduler();
         }
       }
     },
@@ -148,13 +152,16 @@ export const throttle = <T extends (...args: unknown[]) => void>(
       const elapsedTime = currentTime - startTime;
 
       if (frameCounter >= frameInterval && elapsedTime >= frameTimeout) {
+        // Save the current removeScheduler before resetting state
+        // to prevent race condition when new throttled calls happen
+        const currentRemoveScheduler = removeScheduler;
         canExecute = true;
         isScheduled = false;
         frameCounter = 0;
         startTime = 0;
-        if (removeScheduler) {
-          removeScheduler();
-          removeScheduler = null;
+        removeScheduler = null;
+        if (currentRemoveScheduler) {
+          currentRemoveScheduler();
         }
       }
     },

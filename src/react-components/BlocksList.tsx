@@ -49,18 +49,23 @@ const hasBlockListChanged = (newStates: BlockState<TBlock>[], oldStates: BlockSt
 
 export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }: TBlockListProps) {
   const [blockStates, setBlockStates] = useState<BlockState<TBlock>[]>([]);
-  const [isRenderAllowed, setRenderAllowed] = useCompareState(false);
   const [graphState, setGraphState] = useCompareState(graphObject.state);
+  const [cameraScaleLevel, setCameraScaleLevel] = useState(graphObject.cameraService.getCameraBlockScaleLevel());
 
   // Pure function to check if rendering is allowed
-  const isDetailedScale = useFn(() => {
-    return graphObject.cameraService.getCameraBlockScaleLevel() === ECameraScaleLevel.Detailed;
+  const isDetailedScale = useFn((scale: number = graphObject.cameraService.getCameraScale()) => {
+    return graphObject.cameraService.getCameraBlockScaleLevel(scale) === ECameraScaleLevel.Detailed;
   });
-
   const updateBlockList = useFn(() => {
-    const statesInRect = graphObject.getElementsInViewport([CanvasBlock]).map((component) => component.connectedState);
+    if (!isDetailedScale()) {
+      setBlockStates([]);
+      return;
+    }
 
     setBlockStates((prevStates) => {
+      const statesInRect = graphObject
+        .getElementsInViewport([CanvasBlock])
+        .map((component) => component.connectedState);
       return hasBlockListChanged(statesInRect, prevStates) ? statesInRect : prevStates;
     });
   });
@@ -82,29 +87,18 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
   }, [graphObject, setGraphState]);
 
   // Handle camera changes and render mode switching
-  useGraphEvent(graphObject, "camera-change", () => {
-    const wasAllowed = isRenderAllowed;
-    const isAllowed = isDetailedScale();
-
-    setRenderAllowed(isAllowed);
-
-    if (!isAllowed) {
-      // Clear blocks when switching out of detailed mode
-      setBlockStates([]);
-      return;
-    }
-
+  useGraphEvent(graphObject, "camera-change", ({ scale }) => {
+    setCameraScaleLevel((level) =>
+      level === graphObject.cameraService.getCameraBlockScaleLevel(scale)
+        ? level
+        : graphObject.cameraService.getCameraBlockScaleLevel(scale)
+    );
     scheduleListUpdate();
-    if (!wasAllowed) {
-      // Immediate flush on first transition to Detailed mode
-      scheduleListUpdate.flush();
-    }
   });
 
   // Subscribe to hitTest updates to catch when blocks become available in viewport
   useEffect(() => {
     const handler = () => {
-      if (!isDetailedScale()) return;
       scheduleListUpdate();
     };
 
@@ -113,30 +107,21 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
     return () => {
       graphObject.hitTest.off("update", handler);
     };
-  }, [graphObject, isDetailedScale, scheduleListUpdate]);
+  }, [graphObject, scheduleListUpdate]);
 
   // Check initial camera scale on mount to handle cases where zoomTo() is called
   // during initialization before the camera-change event subscription is active
   useLayoutEffect(() => {
-    const isAllowed = isDetailedScale();
-    setRenderAllowed(isAllowed);
-
-    if (isAllowed) {
-      scheduleListUpdate.flush();
-    }
-  }, [graphObject, isDetailedScale, scheduleListUpdate, setRenderAllowed]);
-
-  // Cleanup scheduled updates on unmount
-  useEffect(() => {
+    scheduleListUpdate();
     return () => {
       scheduleListUpdate.cancel();
     };
-  }, [scheduleListUpdate]);
+  }, [graphObject, scheduleListUpdate]);
 
   return (
     <>
       {graphState === GraphState.READY &&
-        isRenderAllowed &&
+        cameraScaleLevel === ECameraScaleLevel.Detailed &&
         blockStates.map((blockState) => {
           return (
             <Block key={blockState.id} renderBlock={renderBlock} graphObject={graphObject} blockState={blockState} />
