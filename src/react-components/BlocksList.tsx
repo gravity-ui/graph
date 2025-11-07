@@ -1,11 +1,9 @@
-import React, { memo, useEffect, useMemo, useState } from "react";
-
-import isEqual from "lodash/isEqual";
+import React, { memo, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import { Block as CanvasBlock, TBlock } from "../components/canvas/blocks/Block";
 import { Graph, GraphState } from "../graph";
 import { ESchedulerPriority } from "../lib";
-import { ECameraScaleLevel, TCameraState } from "../services/camera/CameraService";
+import { ECameraScaleLevel } from "../services/camera/CameraService";
 import { BlockState } from "../store/block/Block";
 import { debounce } from "../utils/functions";
 
@@ -35,32 +33,35 @@ export const Block: React.FC<TBlockProps> = memo((props: TBlockProps) => {
   return props.renderBlock(props.graphObject, block, props.blockState);
 });
 
+/**
+ * Optimized comparison using Set instead of map.sort + lodash.isEqual
+ * For proof that Set is faster than map.sort + lodash.isEqual run `node benchmarks/blocklist-comparison.bench.js`
+ *
+ * Note: lodash.isEqual is more memory-efficient for large lists, but we expect no more than 100 blocks
+ * in detailed view, where Set-based comparison significantly outperforms map.sort + lodash.isEqual
+ */
+const hasBlockListChanged = (newStates: BlockState<TBlock>[], oldStates: BlockState<TBlock>[]): boolean => {
+  if (newStates.length !== oldStates.length) return true;
+
+  const oldIds = new Set(oldStates.map((state) => state.id));
+  return newStates.some((state) => !oldIds.has(state.id));
+};
+
 export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }: TBlockListProps) {
-  const [blockStates, setBlockStates] = useState([]);
+  const [blockStates, setBlockStates] = useState<BlockState<TBlock>[]>([]);
   const [isRenderAllowed, setRenderAllowed] = useCompareState(false);
   const [graphState, setGraphState] = useCompareState(graphObject.state);
 
-  const render = useFn((graph: Graph, block: TBlock) => {
-    return renderBlock(graph, block);
+  // Pure function to check if rendering is allowed
+  const isDetailedScale = useFn(() => {
+    return graphObject.cameraService.getCameraBlockScaleLevel() === ECameraScaleLevel.Detailed;
   });
 
   const updateBlockList = useFn(() => {
-    if (graphObject.cameraService.getCameraBlockScaleLevel() !== ECameraScaleLevel.Detailed) {
-      setBlockStates([]);
-      return;
-    }
     const statesInRect = graphObject.getElementsInViewport([CanvasBlock]).map((component) => component.connectedState);
 
-    setBlockStates((blocks) => {
-      if (
-        !isEqual(
-          statesInRect.map((state: BlockState<TBlock>) => state.id).sort(),
-          blocks.map((state: BlockState<TBlock>) => state.id).sort()
-        )
-      ) {
-        return statesInRect;
-      }
-      return blocks;
+    setBlockStates((prevStates) => {
+      return hasBlockListChanged(statesInRect, prevStates) ? statesInRect : prevStates;
     });
   });
 
@@ -69,56 +70,68 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
       priority: ESchedulerPriority.HIGHEST,
       frameInterval: 1,
     });
-  }, []);
+  }, [updateBlockList]);
 
+  // Sync graph state
   useGraphEvent(graphObject, "state-change", () => {
     setGraphState(graphObject.state);
   });
 
   useEffect(() => {
     setGraphState(graphObject.state);
-  }, [graphObject]);
+  }, [graphObject, setGraphState]);
 
-  useGraphEvent(graphObject, "camera-change", ({ scale }: TCameraState) => {
-    if (graphObject.cameraService.getCameraBlockScaleLevel(scale) !== ECameraScaleLevel.Detailed) {
-      setRenderAllowed(false);
+  // Handle camera changes and render mode switching
+  useGraphEvent(graphObject, "camera-change", () => {
+    const wasAllowed = isRenderAllowed;
+    const isAllowed = isDetailedScale();
+
+    setRenderAllowed(isAllowed);
+
+    if (!isAllowed) {
+      // Clear blocks when switching out of detailed mode
+      setBlockStates([]);
       return;
     }
-    setRenderAllowed(true);
+
     scheduleListUpdate();
-    if (!isRenderAllowed) {
+    if (!wasAllowed) {
+      // Immediate flush on first transition to Detailed mode
       scheduleListUpdate.flush();
     }
   });
 
-  useEffect(() => {
-    return () => {
-      scheduleListUpdate.cancel();
-    };
-  }, []);
-
   // Subscribe to hitTest updates to catch when blocks become available in viewport
   useEffect(() => {
     const handler = () => {
-      if (!isRenderAllowed) return;
-      if (graphObject.cameraService.getCameraBlockScaleLevel() !== ECameraScaleLevel.Detailed) {
-        return;
-      }
-
+      if (!isDetailedScale()) return;
       scheduleListUpdate();
     };
 
     graphObject.hitTest.on("update", handler);
 
-    // Initial update when component mounts
-    if (isRenderAllowed && graphObject.cameraService.getCameraBlockScaleLevel() === ECameraScaleLevel.Detailed) {
-      scheduleListUpdate.flush();
-    }
-
     return () => {
       graphObject.hitTest.off("update", handler);
     };
-  }, [graphObject, isRenderAllowed, scheduleListUpdate]);
+  }, [graphObject, isDetailedScale, scheduleListUpdate]);
+
+  // Check initial camera scale on mount to handle cases where zoomTo() is called
+  // during initialization before the camera-change event subscription is active
+  useLayoutEffect(() => {
+    const isAllowed = isDetailedScale();
+    setRenderAllowed(isAllowed);
+
+    if (isAllowed) {
+      scheduleListUpdate.flush();
+    }
+  }, [graphObject, isDetailedScale, scheduleListUpdate, setRenderAllowed]);
+
+  // Cleanup scheduled updates on unmount
+  useEffect(() => {
+    return () => {
+      scheduleListUpdate.cancel();
+    };
+  }, [scheduleListUpdate]);
 
   return (
     <>
@@ -126,7 +139,7 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
         isRenderAllowed &&
         blockStates.map((blockState) => {
           return (
-            <Block key={blockState.id} renderBlock={render} graphObject={graphObject} blockState={blockState}></Block>
+            <Block key={blockState.id} renderBlock={renderBlock} graphObject={graphObject} blockState={blockState} />
           );
         })}
     </>
