@@ -1,11 +1,9 @@
-import React, { memo, useEffect, useMemo, useState } from "react";
-
-import isEqual from "lodash/isEqual";
+import React, { memo, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import { Block as CanvasBlock, TBlock } from "../components/canvas/blocks/Block";
 import { Graph, GraphState } from "../graph";
 import { ESchedulerPriority } from "../lib";
-import { ECameraScaleLevel, TCameraState } from "../services/camera/CameraService";
+import { ECameraScaleLevel } from "../services/camera/CameraService";
 import { BlockState } from "../store/block/Block";
 import { debounce } from "../utils/functions";
 
@@ -35,32 +33,40 @@ export const Block: React.FC<TBlockProps> = memo((props: TBlockProps) => {
   return props.renderBlock(props.graphObject, block, props.blockState);
 });
 
+/**
+ * Optimized comparison using Set instead of map.sort + lodash.isEqual
+ * For proof that Set is faster than map.sort + lodash.isEqual run `node benchmarks/blocklist-comparison.bench.js`
+ *
+ * Note: lodash.isEqual is more memory-efficient for large lists, but we expect no more than 100 blocks
+ * in detailed view, where Set-based comparison significantly outperforms map.sort + lodash.isEqual
+ */
+const hasBlockListChanged = (newStates: BlockState<TBlock>[], oldStates: BlockState<TBlock>[]): boolean => {
+  if (newStates.length !== oldStates.length) return true;
+
+  const oldIds = new Set(oldStates.map((state) => state.id));
+  return newStates.some((state) => !oldIds.has(state.id));
+};
+
 export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }: TBlockListProps) {
-  const [blockStates, setBlockStates] = useState([]);
-  const [isRenderAllowed, setRenderAllowed] = useCompareState(false);
+  const [blockStates, setBlockStates] = useState<BlockState<TBlock>[]>([]);
   const [graphState, setGraphState] = useCompareState(graphObject.state);
+  const [cameraScaleLevel, setCameraScaleLevel] = useState(graphObject.cameraService.getCameraBlockScaleLevel());
 
-  const render = useFn((graph: Graph, block: TBlock) => {
-    return renderBlock(graph, block);
+  // Pure function to check if rendering is allowed
+  const isDetailedScale = useFn((scale: number = graphObject.cameraService.getCameraScale()) => {
+    return graphObject.cameraService.getCameraBlockScaleLevel(scale) === ECameraScaleLevel.Detailed;
   });
-
   const updateBlockList = useFn(() => {
-    if (graphObject.cameraService.getCameraBlockScaleLevel() !== ECameraScaleLevel.Detailed) {
+    if (!isDetailedScale()) {
       setBlockStates([]);
       return;
     }
-    const statesInRect = graphObject.getElementsInViewport([CanvasBlock]).map((component) => component.connectedState);
 
-    setBlockStates((blocks) => {
-      if (
-        !isEqual(
-          statesInRect.map((state: BlockState<TBlock>) => state.id).sort(),
-          blocks.map((state: BlockState<TBlock>) => state.id).sort()
-        )
-      ) {
-        return statesInRect;
-      }
-      return blocks;
+    setBlockStates((prevStates) => {
+      const statesInRect = graphObject
+        .getElementsInViewport([CanvasBlock])
+        .map((component) => component.connectedState);
+      return hasBlockListChanged(statesInRect, prevStates) ? statesInRect : prevStates;
     });
   });
 
@@ -69,64 +75,56 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
       priority: ESchedulerPriority.HIGHEST,
       frameInterval: 1,
     });
-  }, []);
+  }, [updateBlockList]);
 
+  // Sync graph state
   useGraphEvent(graphObject, "state-change", () => {
     setGraphState(graphObject.state);
   });
 
   useEffect(() => {
     setGraphState(graphObject.state);
-  }, [graphObject]);
+  }, [graphObject, setGraphState]);
 
-  useGraphEvent(graphObject, "camera-change", ({ scale }: TCameraState) => {
-    if (graphObject.cameraService.getCameraBlockScaleLevel(scale) !== ECameraScaleLevel.Detailed) {
-      setRenderAllowed(false);
-      return;
-    }
-    setRenderAllowed(true);
+  // Handle camera changes and render mode switching
+  useGraphEvent(graphObject, "camera-change", ({ scale }) => {
+    setCameraScaleLevel((level) =>
+      level === graphObject.cameraService.getCameraBlockScaleLevel(scale)
+        ? level
+        : graphObject.cameraService.getCameraBlockScaleLevel(scale)
+    );
     scheduleListUpdate();
-    if (!isRenderAllowed) {
-      scheduleListUpdate.flush();
-    }
   });
-
-  useEffect(() => {
-    return () => {
-      scheduleListUpdate.cancel();
-    };
-  }, []);
 
   // Subscribe to hitTest updates to catch when blocks become available in viewport
   useEffect(() => {
     const handler = () => {
-      if (!isRenderAllowed) return;
-      if (graphObject.cameraService.getCameraBlockScaleLevel() !== ECameraScaleLevel.Detailed) {
-        return;
-      }
-
       scheduleListUpdate();
     };
 
     graphObject.hitTest.on("update", handler);
 
-    // Initial update when component mounts
-    if (isRenderAllowed && graphObject.cameraService.getCameraBlockScaleLevel() === ECameraScaleLevel.Detailed) {
-      scheduleListUpdate.flush();
-    }
-
     return () => {
       graphObject.hitTest.off("update", handler);
     };
-  }, [graphObject, isRenderAllowed, scheduleListUpdate]);
+  }, [graphObject, scheduleListUpdate]);
+
+  // Check initial camera scale on mount to handle cases where zoomTo() is called
+  // during initialization before the camera-change event subscription is active
+  useLayoutEffect(() => {
+    scheduleListUpdate();
+    return () => {
+      scheduleListUpdate.cancel();
+    };
+  }, [graphObject, scheduleListUpdate]);
 
   return (
     <>
       {graphState === GraphState.READY &&
-        isRenderAllowed &&
+        cameraScaleLevel === ECameraScaleLevel.Detailed &&
         blockStates.map((blockState) => {
           return (
-            <Block key={blockState.id} renderBlock={render} graphObject={graphObject} blockState={blockState}></Block>
+            <Block key={blockState.id} renderBlock={renderBlock} graphObject={graphObject} blockState={blockState} />
           );
         })}
     </>

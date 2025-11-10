@@ -20,11 +20,50 @@ export class GlobalScheduler {
   private schedulers: [IScheduler[], IScheduler[], IScheduler[], IScheduler[], IScheduler[]];
   private _cAFID: number;
   private toRemove: Array<[IScheduler, ESchedulerPriority]> = [];
+  private visibilityChangeHandler: (() => void) | null = null;
 
   constructor() {
     this.tick = this.tick.bind(this);
+    this.handleVisibilityChange = this.handleVisibilityChange.bind(this);
 
     this.schedulers = [[], [], [], [], []];
+    this.setupVisibilityListener();
+  }
+
+  /**
+   * Setup listener for page visibility changes.
+   * When tab becomes visible after being hidden, force immediate update.
+   * This fixes the issue where tabs opened in background don't render HTML until interaction.
+   */
+  private setupVisibilityListener(): void {
+    if (typeof document === "undefined") {
+      return; // Not in browser environment
+    }
+
+    this.visibilityChangeHandler = this.handleVisibilityChange;
+    document.addEventListener("visibilitychange", this.visibilityChangeHandler);
+  }
+
+  /**
+   * Handle page visibility changes.
+   * When page becomes visible, perform immediate update if scheduler is running.
+   */
+  private handleVisibilityChange(): void {
+    // Only update if page becomes visible and scheduler is running
+    if (!document.hidden && this._cAFID) {
+      // Perform immediate update when tab becomes visible
+      this.performUpdate();
+    }
+  }
+
+  /**
+   * Cleanup visibility listener
+   */
+  private cleanupVisibilityListener(): void {
+    if (this.visibilityChangeHandler && typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", this.visibilityChangeHandler);
+      this.visibilityChangeHandler = null;
+    }
   }
 
   public getSchedulers() {
@@ -49,6 +88,15 @@ export class GlobalScheduler {
   public stop() {
     cAF(this._cAFID);
     this._cAFID = undefined;
+  }
+
+  /**
+   * Cleanup method to be called when GlobalScheduler is no longer needed.
+   * Stops the scheduler and removes event listeners.
+   */
+  public destroy(): void {
+    this.stop();
+    this.cleanupVisibilityListener();
   }
 
   public tick() {

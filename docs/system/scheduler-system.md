@@ -22,12 +22,17 @@ classDiagram
     class GlobalScheduler {
         -schedulers: IScheduler[][]
         -_cAFID: number
+        -visibilityChangeHandler: Function | null
         +addScheduler(scheduler, index)
         +removeScheduler(scheduler, index)
         +start()
         +stop()
+        +destroy()
         +tick()
         +performUpdate()
+        -setupVisibilityListener()
+        -handleVisibilityChange()
+        -cleanupVisibilityListener()
     }
     
     class Scheduler {
@@ -81,6 +86,78 @@ sequenceDiagram
     Tree->>Component: iterate()
     Component->>Component: process lifecycle
     Browser->>GlobalScheduler: requestAnimationFrame (next frame)
+```
+
+## Browser Background Behavior and Page Visibility
+
+> ⚠️ **Important:** Browsers throttle or completely pause `requestAnimationFrame` execution when a tab is in the background. This is a critical consideration for the scheduler system.
+
+### Background Tab Behavior
+
+When a browser tab is not visible (e.g., opened in background, user switched to another tab), browsers implement the following optimizations:
+
+| Browser | Behavior | Impact on Scheduler |
+|---------|----------|---------------------|
+| **Chrome** | Throttles rAF to 1 FPS | Severe slowdown, ~60x slower |
+| **Firefox** | Pauses rAF completely | Complete halt until tab visible |
+| **Safari** | Pauses rAF completely | Complete halt until tab visible |
+| **Edge** | Throttles rAF to 1 FPS | Severe slowdown, ~60x slower |
+
+### Why Browsers Do This
+
+Browsers pause or throttle `requestAnimationFrame` in background tabs for several reasons:
+
+1. **Battery Life** - Reduces CPU usage on mobile devices and laptops
+2. **Performance** - Frees up resources for the active tab
+3. **Fairness** - Prevents background tabs from consuming too many resources
+4. **User Experience** - Prioritizes the visible tab
+
+### Page Visibility API Integration
+
+To handle this behavior, `GlobalScheduler` integrates with the [Page Visibility API](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API):
+
+```typescript
+// In GlobalScheduler constructor
+private setupVisibilityListener(): void {
+  if (typeof document === "undefined") {
+    return; // Not in browser environment
+  }
+
+  this.visibilityChangeHandler = this.handleVisibilityChange;
+  document.addEventListener("visibilitychange", this.visibilityChangeHandler);
+}
+
+private handleVisibilityChange(): void {
+  // Only update if page becomes visible and scheduler is running
+  if (!document.hidden && this._cAFID) {
+    // Perform immediate update when tab becomes visible
+    this.performUpdate();
+  }
+}
+```
+
+### Visibility Change Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Browser
+    participant Document
+    participant GlobalScheduler
+    participant Components
+    
+    User->>Browser: Switch to another tab
+    Browser->>Document: Set document.hidden = true
+    Browser->>GlobalScheduler: Pause requestAnimationFrame
+    Note over GlobalScheduler: rAF callbacks stop executing
+    
+    User->>Browser: Switch back to graph tab
+    Browser->>Document: Set document.hidden = false
+    Document->>GlobalScheduler: Fire 'visibilitychange' event
+    GlobalScheduler->>GlobalScheduler: handleVisibilityChange()
+    GlobalScheduler->>GlobalScheduler: performUpdate() (immediate)
+    GlobalScheduler->>Components: Update all components
+    Browser->>GlobalScheduler: Resume requestAnimationFrame
 ```
 
 ## Update Scheduling
@@ -244,6 +321,17 @@ export const scheduler = globalScheduler;
 ```
 
 This allows components to share a single scheduler instance and animation frame loop.
+
+### Cleanup
+
+In rare cases where you need to completely destroy the scheduler (e.g., testing, cleanup):
+
+```typescript
+// Stop scheduler and remove all event listeners
+globalScheduler.destroy();
+```
+
+> **Note:** In normal application usage, you don't need to call `destroy()`. The global scheduler is designed to run for the entire lifetime of the application.
 
 ## Debugging the Scheduler
 
