@@ -377,3 +377,148 @@ export function selectBlocksWithConnections(
   }, ESelectionStrategy.REPLACE);
 }
 ```
+
+## 7. Component Resolution
+
+### Overview
+
+Selection buckets support automatic resolution of selected IDs to their corresponding GraphComponent instances. This provides three levels of selection data:
+
+1. **IDs** (`$selected`) - Set of selected entity IDs
+2. **Entities** (`$selectedEntities`) - Resolved entity objects (e.g., `BlockState`, `ConnectionState`)  
+3. **Components** (`$selectedComponents`) - Resolved `GraphComponent` instances (e.g., `Block`, `BaseConnection`)
+
+### Resolution Flow
+
+```
+ID → Entity (via resolver) → Component (via getViewComponent())
+```
+
+### Creating Buckets with Resolvers
+
+```typescript
+// In BlockListStore
+this.blockSelectionBucket = new MultipleSelectionBucket<TBlockId, BlockState>(
+  "block",
+  (payload, defaultAction) => {
+    return this.graph.executеDefaultEventAction("blocks-selection-change", payload, defaultAction);
+  },
+  (element) => element instanceof Block,
+  // Resolver function: converts IDs to BlockState instances
+  (ids) => ids.map((id) => this.getBlockState(id)).filter((block) => block !== undefined)
+);
+```
+
+### Using Component Resolution
+
+```typescript
+// Get selected block IDs
+const selectedIds = blockBucket.$selected.value;
+// Type: Set<string | number>
+
+// Get selected BlockState instances
+const selectedStates = blockBucket.$selectedEntities.value;
+// Type: BlockState[]
+
+// Get selected Block components (GraphComponent)
+const selectedComponents = blockBucket.$selectedComponents.value;
+// Type: GraphComponent[] (actually Block[])
+```
+
+### Collecting All Selected Components
+
+```typescript
+// Collect selected components from all buckets
+const allSelectedComponents: GraphComponent[] = [];
+const selection = graph.selectionService.$selection.value;
+
+for (const entityType of selection.keys()) {
+  const bucket = graph.selectionService.getBucket(entityType);
+  if (bucket) {
+    allSelectedComponents.push(...bucket.$selectedComponents.value);
+  }
+}
+
+// Now work with all selected components (blocks, connections, etc.)
+allSelectedComponents.forEach((component) => {
+  const [minX, minY, maxX, maxY] = component.getHitBox();
+  // ... use component data
+});
+```
+
+### Store Computed Signals
+
+Stores provide convenient computed signals for accessing selected components:
+
+```typescript
+// In BlockListStore
+public $selectedBlockComponents = computed(() => {
+  return this.blockSelectionBucket.$selectedComponents.value as Block[];
+});
+
+// Usage
+const selectedBlocks = graph.rootStore.blocksList.$selectedBlockComponents.value;
+// Type: Block[]
+
+// In ConnectionsStore  
+public $selectedConnectionComponents = computed(() => {
+  return this.connectionSelectionBucket.$selectedComponents.value as BaseConnection[];
+});
+
+// Usage
+const selectedConnections = graph.rootStore.connectionsList.$selectedConnectionComponents.value;
+// Type: BaseConnection[]
+```
+
+### React Integration
+
+```typescript
+import { useEffect, useState } from "react";
+import type { Block } from "@gravity-ui/graph";
+
+function SelectedBlocksPanel({ graph }) {
+  const [selectedBlocks, setSelectedBlocks] = useState<Block[]>([]);
+
+  useEffect(() => {
+    if (!graph) return;
+
+    const bucket = graph.rootStore.blocksList.blockSelectionBucket;
+
+    // Subscribe to component changes
+    const unsubscribe = bucket.$selectedComponents.subscribe((components) => {
+      setSelectedBlocks(components as Block[]);
+    });
+
+    return () => unsubscribe();
+  }, [graph]);
+
+  return (
+    <div>
+      <h3>Selected: {selectedBlocks.length}</h3>
+      {selectedBlocks.map((block) => (
+        <div key={block.getEntityId()}>
+          Block: {block.getEntityId()}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### Type Constraints
+
+All selection buckets have a generic constraint on `TEntity`:
+
+```typescript
+class BaseSelectionBucket<
+  IDType extends TSelectionEntityId,
+  TEntity extends TSelectionEntity = TSelectionEntity
+>
+
+// TSelectionEntity allows: GraphComponent | IEntityWithComponent | object
+interface IEntityWithComponent<T extends GraphComponent = GraphComponent> {
+  getViewComponent(): T | undefined;
+}
+```
+
+This ensures type safety while maintaining flexibility for different entity types (BlockState, ConnectionState, etc.).

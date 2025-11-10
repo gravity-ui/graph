@@ -1,5 +1,6 @@
 import { batch } from "@preact/signals-core";
 
+import { GraphComponent } from "../components/canvas/GraphComponent";
 import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
 import { TGraphColors, TGraphConstants } from "../graphConfig";
@@ -9,7 +10,7 @@ import { selectBlockById } from "../store/block/selectors";
 import { TConnection, TConnectionId } from "../store/connection/ConnectionState";
 import { selectConnectionById } from "../store/connection/selectors";
 import { TGraphSettingsConfig } from "../store/settings";
-import { getBlocksRect, startAnimation } from "../utils/functions";
+import { getElementsRect, startAnimation } from "../utils/functions";
 import { TRect } from "../utils/types/shapes";
 
 export type ZoomConfig = {
@@ -22,13 +23,44 @@ export class PublicGraphApi {
     // noop
   }
 
+  /**
+   * Zooms to blocks
+   * @param blockIds - block ids to zoom to
+   * @param zoomConfig - {@link ZoomConfig} zoom config
+   * @returns {boolean} true if zoom is successful, false otherwise
+   *
+   * @example
+   * ```typescript
+   * graph.zoomToBlocks([block1.id, block2.id]);
+   * graph.zoomToBlocks([block1.id, block2.id], { transition: 1000, padding: 50 });
+   * ```
+   */
   public zoomToBlocks(blockIds: TBlockId[], zoomConfig?: ZoomConfig) {
-    const blocks = blockIds.map((id) => this.graph.rootStore.blocksList.$blocksMap.value.get(id)).filter(Boolean);
-    if (blocks.length === 0) {
-      return;
+    return this.zoomToElements(
+      this.graph.rootStore.blocksList.getBlockStates(blockIds).map((blockState) => blockState.getViewComponent()),
+      zoomConfig
+    );
+  }
+
+  /**
+   * Zooms to GraphComponent instances
+   * @param instances -  {@link GraphComponent} instances to zoom to
+   * @param zoomConfig - {@link ZoomConfig} zoom config
+   * @returns {boolean} true if zoom is successful, false otherwise
+   *
+   * @example
+   * ```typescript
+   * graph.zoomToElements([component1, component2]);
+   * graph.zoomToElements([component1, component2], { transition: 1000, padding: 50 });
+   * ```
+   */
+  public zoomToElements<T extends GraphComponent = GraphComponent>(elements: T[], zoomConfig?: ZoomConfig) {
+    if (elements.length === 0) {
+      return false;
     }
-    const blocksRect = getBlocksRect(blocks.map((block) => block.asTBlock()));
-    this.zoomToRect(blocksRect, zoomConfig);
+    const elementsRect = getElementsRect(elements);
+    this.zoomToRect(elementsRect, zoomConfig);
+    return true;
   }
 
   /**
@@ -55,6 +87,21 @@ export class PublicGraphApi {
     });
   }
 
+  /**
+   * Zooms to the specified rectangle in camera coordinates
+   *
+   * Zooms the camera to fit the specified rectangle in the viewport. The rectangle will be scaled
+   * to fill the visible area (respecting camera insets) and centered in the viewport.
+   *
+   * @param rect - {@link TRect} rectangle to zoom to in camera coordinates
+   * @param zoomConfig - {@link ZoomConfig} zoom config
+   * @returns {undefined}
+   *
+   * @example
+   * ```typescript
+   * graph.zoomToRect({ x: 0, y: 0, width: 100, height: 100 });
+   * graph.zoomToRect({ x: 0, y: 0, width: 100, height: 100 }, { transition: 1000, padding: 50 });
+   */
   public zoomToRect(rect: TRect, zoomConfig?: ZoomConfig) {
     const transition = zoomConfig?.transition || 0;
     const padding = zoomConfig?.padding || 0;

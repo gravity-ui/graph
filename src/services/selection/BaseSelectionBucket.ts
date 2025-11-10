@@ -1,14 +1,22 @@
 import { computed, signal } from "@preact/signals-core";
 import type { ReadonlySignal, Signal } from "@preact/signals-core";
 
-import { GraphComponent } from "../../components/canvas/GraphComponent";
+import type { GraphComponent } from "../../components/canvas/GraphComponent";
 
 import type { SelectionService } from "./SelectionService";
-import { ESelectionStrategy, ISelectionBucket, TSelectionDiff, TSelectionEntityId } from "./types";
+import {
+  ESelectionStrategy,
+  IEntityWithComponent,
+  ISelectionBucket,
+  TSelectionDiff,
+  TSelectionEntity,
+  TSelectionEntityId,
+} from "./types";
 
 /**
  * @abstract
  * @template IDType The type of the unique identifier for the entities managed by this bucket (e.g., `string`, `number`).
+ * @template TEntity The type of the entity that IDs resolve to. Must extend TSelectionEntity (GraphComponent or IEntityWithComponent).
  *
  * Base class for selection buckets.
  *
@@ -26,25 +34,93 @@ import { ESelectionStrategy, ISelectionBucket, TSelectionDiff, TSelectionEntityI
  *
  * @example
  * ```typescript
- * class MySelectionBucket extends BaseSelectionBucket<string> {
+ * class MySelectionBucket extends BaseSelectionBucket<string, MyEntity> {
  *   public updateSelection(ids: string[], select: boolean, strategy: ESelectionStrategy, silent?: boolean): void {
  *     // implementation
  *   }
  * }
  * ```
  *
- * @implements {ISelectionBucket<IDType>}
+ * @implements {ISelectionBucket<IDType, TEntity>}
  * @see {@link SelectionService}
  * @see {@link ISelectionBucket}
  * @see {@link MultipleSelectionBucket}
  * @see {@link SingleSelectionBucket}
  * @see {@linkplain ../../docs/system/selection-manager.md SelectionManager Documentation} for more details on selection architecture.
  */
-export abstract class BaseSelectionBucket<IDType extends TSelectionEntityId> implements ISelectionBucket<IDType> {
+export abstract class BaseSelectionBucket<
+  IDType extends TSelectionEntityId,
+  TEntity extends TSelectionEntity = TSelectionEntity,
+> implements ISelectionBucket<IDType, TEntity>
+{
   protected readonly $selectedIds: Signal<Set<IDType>> = signal(new Set<IDType>());
   public readonly $selected: ReadonlySignal<Set<IDType>> = computed(() => new Set(this.$selectedIds.value));
 
+  /**
+   * Computed signal that resolves selected IDs to their corresponding entities.
+   * Returns an empty array if no resolver function is provided.
+   */
+  public readonly $selectedEntities: ReadonlySignal<TEntity[]> = computed(() => {
+    if (!this.resolver) {
+      return [];
+    }
+    const ids = Array.from(this.$selectedIds.value);
+    return this.resolver(ids);
+  });
+
+  /**
+   * Computed signal that resolves selected entities to their GraphComponent views.
+   * Works with entities that:
+   * - Are GraphComponent instances themselves
+   * - Implement IEntityWithComponent interface (have getViewComponent() method)
+   * Returns an empty array if entities cannot be resolved to components.
+   */
+  public readonly $selectedComponents: ReadonlySignal<GraphComponent[]> = computed(() => {
+    const entities = this.$selectedEntities.value;
+    if (entities.length === 0) {
+      return [];
+    }
+
+    return entities
+      .map((entity) => {
+        // Check if entity is already a GraphComponent
+        if (this.isGraphComponent(entity)) {
+          return entity as unknown as GraphComponent;
+        }
+        // Check if entity has getViewComponent method
+        if (this.hasViewComponent(entity)) {
+          return (entity as unknown as IEntityWithComponent).getViewComponent();
+        }
+        return undefined;
+      })
+      .filter((component): component is GraphComponent => component !== undefined);
+  });
+
   protected manager: SelectionService;
+
+  /**
+   * Check if an entity is a GraphComponent
+   */
+  private isGraphComponent(entity: TEntity): boolean {
+    return (
+      typeof entity === "object" &&
+      entity !== null &&
+      "getEntityId" in entity &&
+      typeof (entity as { getEntityId?: unknown }).getEntityId === "function"
+    );
+  }
+
+  /**
+   * Check if an entity has getViewComponent method
+   */
+  private hasViewComponent(entity: TEntity): boolean {
+    return (
+      typeof entity === "object" &&
+      entity !== null &&
+      "getViewComponent" in entity &&
+      typeof (entity as { getViewComponent?: unknown }).getViewComponent === "function"
+    );
+  }
 
   constructor(
     public readonly entityType: string,
@@ -55,7 +131,8 @@ export abstract class BaseSelectionBucket<IDType extends TSelectionEntityId> imp
       const result = defaultAction();
       return result ?? true;
     },
-    public isRelatedElement?: (element: GraphComponent) => boolean
+    public isRelatedElement?: (element: GraphComponent) => boolean,
+    protected resolver?: (ids: IDType[]) => TEntity[]
   ) {}
 
   /**

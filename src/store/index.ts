@@ -22,6 +22,7 @@ export class RootStore {
   public groupsList: GroupsListStore;
 
   public portsList: PortsStore;
+
   public selectionService: SelectionService;
 
   constructor(graph: Graph) {
