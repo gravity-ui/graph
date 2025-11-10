@@ -15,51 +15,33 @@ const config = generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 10, 
 const GraphApp = () => {
   const [transition, setTransition] = useState("1000");
   const [padding, setPadding] = useState("50");
-  const [selectedCount, setSelectedCount] = useState(0);
+  const [selectedComponents, setSelectedComponents] = useState<GraphComponent[]>([]);
 
   const graphRef = useRef<Graph | undefined>(undefined);
 
   useEffect(() => {
     if (!graphRef.current) return undefined;
-    const selection = graphRef.current.selectionService.$selection.value;
-    const count = Array.from(selection.keys()).reduce((acc, key) => {
-      return acc + (selection.get(key)?.size ?? 0);
-    }, 0);
-    setSelectedCount(count);
-    const unsubscribe = graphRef.current.selectionService.$selection.subscribe(() => {
-      const selection = graphRef.current.selectionService.$selection.value;
-      const count = Array.from(selection.keys()).reduce((acc, key) => {
-        return acc + (selection.get(key)?.size ?? 0);
-      }, 0);
-      setSelectedCount(count);
+
+    // Get initial value
+    setSelectedComponents(graphRef.current.selectionService.$selectedComponents.value);
+
+    // Subscribe to changes
+    const unsubscribe = graphRef.current.selectionService.$selectedComponents.subscribe((components) => {
+      setSelectedComponents(components);
     });
+
     return () => unsubscribe();
   }, []);
 
   const onClick: ButtonButtonProps["onClick"] = useCallback(() => {
-    if (!graphRef.current) return;
+    if (!graphRef.current || selectedComponents.length === 0) return;
 
-    // Collect all selected components from all buckets
-    const allSelectedComponents: GraphComponent[] = [];
-    const selection = graphRef.current.selectionService.$selection.value;
-
-    // Iterate through all entity types in selection
-    for (const entityType of selection.keys()) {
-      const bucket = graphRef.current.selectionService.getBucket(entityType);
-      if (bucket) {
-        const components = bucket.$selectedComponents.value;
-        allSelectedComponents.push(...components);
-      }
-    }
-
-    if (allSelectedComponents.length === 0) return;
-
-    // Zoom to the calculated rect
-    graphRef.current.zoomTo(allSelectedComponents, {
+    // Zoom to the selected components
+    graphRef.current.zoomTo(selectedComponents, {
       transition: Number(transition),
       padding: Number(padding),
     });
-  }, [transition, padding]);
+  }, [selectedComponents, transition, padding]);
 
   return (
     <ThemeProvider theme={"light"}>
@@ -68,12 +50,12 @@ const GraphApp = () => {
           Select elements by clicking on them (use Cmd/Ctrl + Click to select multiple elements), then click the button
           below to zoom to the selected elements.
         </Text>
-        <Text color="secondary">Selected elements: {selectedCount}</Text>
+        <Text color="secondary">Selected elements: {selectedComponents.length}</Text>
         <Flex direction={"row"} gap={1}>
           <TextInput type="number" label="transition (ms)" value={transition} onUpdate={setTransition} />
           <TextInput type="number" label="padding (px)" value={padding} onUpdate={setPadding} />
         </Flex>
-        <Button onClick={onClick} view="action" disabled={selectedCount === 0}>
+        <Button onClick={onClick} view="action" disabled={selectedComponents.length === 0}>
           Zoom to Selected Elements
         </Button>
       </Flex>
