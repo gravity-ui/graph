@@ -446,6 +446,6 @@ export class BlockListStore {
    * @returns {BlockState[]} Block states
    */
   public getBlockStates(ids: BlockState["id"][]) {
-    return ids.map((id) => this.getBlockState(id)).filter(Boolean);
+    return ids.map((id) => this.getBlockState(id)).filter((block): block is BlockState => block !== undefined);
   }
 }

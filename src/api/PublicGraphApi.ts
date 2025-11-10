@@ -10,7 +10,7 @@ import { selectBlockById } from "../store/block/selectors";
 import { TConnection, TConnectionId } from "../store/connection/ConnectionState";
 import { selectConnectionById } from "../store/connection/selectors";
 import { TGraphSettingsConfig } from "../store/settings";
-import { getElementsRect, startAnimation } from "../utils/functions";
+import { getBlocksRect, getElementsRect, startAnimation } from "../utils/functions";
 import { TRect } from "../utils/types/shapes";
 
 export type ZoomConfig = {
@@ -36,10 +36,13 @@ export class PublicGraphApi {
    * ```
    */
   public zoomToBlocks(blockIds: TBlockId[], zoomConfig?: ZoomConfig) {
-    return this.zoomToElements(
-      this.graph.rootStore.blocksList.getBlockStates(blockIds).map((blockState) => blockState.getViewComponent()),
-      zoomConfig
-    );
+    const blocks = this.graph.rootStore.blocksList.getBlocks(blockIds);
+    if (blocks.length === 0) {
+      return false;
+    }
+    const blocksRect = getBlocksRect(blocks);
+    this.zoomToRect(blocksRect, zoomConfig);
+    return true;
   }
 
   /**
