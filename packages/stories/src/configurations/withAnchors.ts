@@ -3,8 +3,6 @@ import { TAnchor, TGraphConfig } from "@gravity-ui/graph";
 import { EAnchorType, storiesSettings } from "./definitions";
 
 export const withAnchorsConfig: TGraphConfig = {
-  configurationName: "simple",
-  cameraScale: 0.5,
   blocks: [
     {
       x: 265,
@@ -74,12 +72,6 @@ export const withAnchorsConfig: TGraphConfig = {
     },
   ],
   connections: [],
-  rect: {
-    x: -156,
-    y: 0,
-    width: 631,
-    height: 494,
-  },
   settings: {
     ...storiesSettings,
     useBezierConnections: true,

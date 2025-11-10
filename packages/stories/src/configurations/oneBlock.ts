@@ -3,7 +3,6 @@ import { TGraphConfig } from "@gravity-ui/graph";
 import { storiesSettings } from "./definitions";
 
 export const oneBlockConfig: TGraphConfig = {
-  configurationName: "simple",
   blocks: [
     {
       x: 265,
@@ -18,12 +17,5 @@ export const oneBlockConfig: TGraphConfig = {
     },
   ],
   connections: [],
-  cameraScale: 0.9,
-  rect: {
-    x: -156,
-    y: 0,
-    width: 631,
-    height: 494,
-  },
   settings: storiesSettings,
 };

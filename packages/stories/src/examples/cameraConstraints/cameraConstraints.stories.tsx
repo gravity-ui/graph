@@ -47,19 +47,19 @@ const Toolbar = ({ graph }: { graph: Graph }) => {
     const randomY = usableRect.y + Math.random() * usableRect.height;
 
     graph.api.addBlock({
-      name: `Block ${graph.blocks.$blocks.value.length + 1}`,
+      is: "block",
+      name: `Block ${graph.rootStore.blocksList.$blocks.value.length + 1}`,
       x: randomX,
       y: randomY,
       width: 200,
       height: 160,
+      anchors: [],
     });
   }, [graph]);
 
   const deleteAllBlocks = useCallback(() => {
-    const allBlocks = graph.blocks.$blocks.value.map((b) => b.id);
-    allBlocks.forEach((id) => {
-      graph.blocks.removeBlock(id);
-    });
+    const allBlocks = graph.rootStore.blocksList.$blocks.value.map((b) => b.id);
+    graph.rootStore.blocksList.deleteBlocks(allBlocks);
   }, [graph]);
 
   return (

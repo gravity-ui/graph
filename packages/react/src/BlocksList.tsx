@@ -10,6 +10,7 @@ import {
   TBlock,
   debounce,
 } from "@gravity-ui/graph";
+
 import { useSignal } from "./hooks";
 import { useGraphEvent } from "./hooks/useGraphEvents";
 import { useCompareState } from "./utils/hooks/useCompareState";

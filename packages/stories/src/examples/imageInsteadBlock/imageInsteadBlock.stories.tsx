@@ -109,7 +109,7 @@ const GraphApp = () => {
   useEffect(() => {
     const newConfig = generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 100, dashedLine: true });
     newConfig.settings.blockComponents = {};
-    newConfig.settings.blockComponents[SpecificBlockIs] = SpecificBlockView;
+    newConfig.settings.blockComponents[SpecificBlockIs] = SpecificBlockView as any;
 
     newConfig.blocks.forEach((block: TBlock<TBlockMeta>) => {
       block.is = SpecificBlockIs;

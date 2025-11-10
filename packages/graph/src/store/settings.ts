@@ -5,7 +5,7 @@ import merge from "lodash/merge";
 import { Block } from "../components/canvas/blocks/Block";
 import { BaseConnection } from "../components/canvas/connections";
 import { Component } from "../lib";
-import { Constructor } from "../utils";
+import { ComponentConstructor } from "../lib/CoreComponent";
 
 import { RootStore } from "./index";
 
@@ -41,8 +41,8 @@ export type TGraphSettingsConfig = {
    * Please use connection component instead
    */
   showConnectionLabels: boolean;
-  blockComponents: Record<string, Constructor<Block>>;
-  connection?: Constructor<BaseConnection>;
+  blockComponents: Record<string, ComponentConstructor<Block>>;
+  connection?: ComponentConstructor<BaseConnection>;
   background?: typeof Component;
   /**
    * Constrain camera movement and zoom to keep the graph content visible.

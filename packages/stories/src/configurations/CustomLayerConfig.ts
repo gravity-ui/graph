@@ -5,7 +5,6 @@ import { ToolboxLayer } from "../main/ToolboxLayer";
 import { storiesSettings } from "./definitions";
 
 export const CustomLayerConfig: TGraphConfig = {
-  configurationName: "simple",
   blocks: [
     {
       x: 265,
@@ -20,13 +19,6 @@ export const CustomLayerConfig: TGraphConfig = {
     },
   ],
   connections: [],
-  cameraScale: 0.9,
-  rect: {
-    x: -156,
-    y: 0,
-    width: 631,
-    height: 494,
-  },
   settings: storiesSettings,
   layers: [[ToolboxLayer, {}]],
 };

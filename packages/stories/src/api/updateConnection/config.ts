@@ -3,7 +3,6 @@ import { TGraphConfig } from "@gravity-ui/graph";
 import { storiesSettings } from "../../configurations/definitions";
 
 export const graphConfig: TGraphConfig = {
-  configurationName: "simple",
   blocks: [
     {
       x: 265,
@@ -63,12 +62,5 @@ export const graphConfig: TGraphConfig = {
   settings: {
     ...storiesSettings,
     useBezierConnections: true,
-  },
-  cameraScale: 0.5,
-  rect: {
-    x: -156,
-    y: 0,
-    width: 631,
-    height: 494,
   },
 };

@@ -16,7 +16,6 @@ let initialized = false;
 const GraphApp = () => {
   const exampleGraph = useMemo(() => {
     return new Graph({
-      configurationName: "start-stop",
       blocks: config.blocks,
       connections: config.connections,
       settings: config.settings,

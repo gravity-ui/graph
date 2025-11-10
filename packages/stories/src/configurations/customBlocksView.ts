@@ -59,7 +59,7 @@ export const customSchematicViewConfig: TGraphConfig = {
   settings: {
     ...storiesSettings,
     blockComponents: {
-      [SpecificBlockIs]: SpecificBlockView,
+      [SpecificBlockIs]: SpecificBlockView as any,
     },
   },
 };

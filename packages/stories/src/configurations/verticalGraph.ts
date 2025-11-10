@@ -12,7 +12,6 @@ class VerticalBlock extends CanvasBlock {
 }
 
 export const verticalGraphConfig = {
-  configurationName: "simple vertical graph",
   blocks: [
     {
       x: 250,
@@ -73,17 +72,10 @@ export const verticalGraphConfig = {
       targetBlockId: "block-1708813283240-4",
     },
   ],
-  rect: {
-    x: -500,
-    y: -2000,
-    width: 2000,
-    height: 2000,
-  },
   cameraXY: {
     x: 375,
     y: 98,
   },
-  cameraScale: 0.19,
   settings: {
     ...storiesSettings,
     showConnectionLabels: true,

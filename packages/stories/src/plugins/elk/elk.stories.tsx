@@ -44,7 +44,7 @@ const GraphApp = ({ elkConfig, graphConfig }: GraphAppProps) => {
 
   const { graph, setEntities, start } = useGraph({
     settings: {
-      connection: MultipointConnection,
+      connection: MultipointConnection as any,
     },
   });
 

@@ -38,16 +38,8 @@ export function generatePrettyBlocks({
   startIndex = 0,
 }: Props) {
   const config: TGraphConfig = {
-    configurationName: "power of 2",
     blocks: [],
     connections: [],
-    rect: {
-      x: -500,
-      y: -2000,
-      width: 2000,
-      height: 2000,
-    },
-    cameraScale: 0.05,
     settings: {
       ...storiesSettings,
       showConnectionLabels: true,

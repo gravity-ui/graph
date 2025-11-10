@@ -97,8 +97,8 @@ const config: HookGraphParams = {
     useBlocksAnchors: true,
     showConnectionLabels: false,
     blockComponents: {
-      [GravityActionBlockIS]: ActionBlock,
-      [GravityTextBlockIS]: TextBlock,
+      [GravityActionBlockIS]: ActionBlock as any,
+      [GravityTextBlockIS]: TextBlock as any,
     },
   },
 };
