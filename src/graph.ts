@@ -170,20 +170,42 @@ export class Graph {
     this.cameraService.zoom(zoomConfig.x || width / 2, zoomConfig.y || height / 2, zoomConfig.scale);
   }
 
-  public zoomTo(target: TGraphZoomTarget, config?: ZoomConfig) {
-    if (target === "center") {
-      this.api.zoomToViewPort(config);
-      return;
-    }
+  /**
+   * Zooms to the target
+   *
+   * - If target is rectangle, it will be zoomed({@link PublicGraphApi.zoomToRect}) to the rectangle and returns true.
+   * - If target is array of block ids, it will be zoomed({@link PublicGraphApi.zoomToBlocks}) to the blocks, if at least one block is found, returns true, otherwise returns false.
+   * - If target is array of {@link GraphComponent} instances, it will be zoomed({@link PublicGraphApi.zoomToElements}) to the rect containing all components and returns true.
+   * - If target is center, it will be zoomed({@link PublicGraphApi.zoomToViewPort}) to the center and returns true.
+   *
+   * @example
+   * ```typescript
+   * graph.zoomTo("center");
+   * graph.zoomTo([block1.id, block2.id]);
+   * graph.zoomTo([block1, block2]);
+   * graph.zoomTo({x: 100, y: 100, width: 100, height: 100 });
+   * ```
+   * @param target - target to zoom to
+   * @param config - zoom config, optional, optional
+   * @returns {boolean} true if zoom is successful, false otherwise
+   *
+   * */
+  public zoomTo(target: TGraphZoomTarget, config?: ZoomConfig): boolean {
     if (isTRect(target)) {
       this.api.zoomToRect(target, config);
-      return;
+      return true;
     }
-    if (Array.isArray(target) && target.every((item) => item instanceof GraphComponent)) {
-      this.api.zoomToElements(target, config);
-      return;
+    if (Array.isArray(target)) {
+      if (target.every((item) => item instanceof GraphComponent)) {
+        return this.api.zoomToElements(target, config);
+      }
+      if (target.every((item) => typeof item === "string")) {
+        return this.api.zoomToBlocks(target, config);
+      }
     }
-    this.api.zoomToBlocks(target, config);
+
+    this.api.zoomToViewPort(config);
+    return true;
   }
 
   public getElementsOverPoint<T extends Constructor<GraphComponent>>(point: IPoint, filter?: T[]): InstanceType<T>[] {
