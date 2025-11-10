@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/gravity-ui/graph/compare/v1.6.0...v1.6.1) (2025-11-10)
+
+
+### Bug Fixes
+
+* fix way to select rect for zoomToBlocks ([#187](https://github.com/gravity-ui/graph/issues/187)) ([7a51aa3](https://github.com/gravity-ui/graph/commit/7a51aa31f87894d00b06d8e502c1e130641135f6))
+
 ## [1.6.0](https://github.com/gravity-ui/graph/compare/v1.5.1...v1.6.0) (2025-11-10)
 
 
