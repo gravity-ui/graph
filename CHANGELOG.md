@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.6.0](https://github.com/gravity-ui/graph/compare/v1.5.1...v1.6.0) (2025-11-10)
+
+
+### Features
+
+* **SelectionManager:** add way to resolve selection ids to selection GraphComponents ([#184](https://github.com/gravity-ui/graph/issues/184)) ([cc51366](https://github.com/gravity-ui/graph/commit/cc5136621d5356159c66af1b5f6a405b6bd6f617))
+
+
+### Bug Fixes
+
+* **BlockList:** fix race condition in BlockList ([#185](https://github.com/gravity-ui/graph/issues/185)) ([b24f536](https://github.com/gravity-ui/graph/commit/b24f53662908dc9fa2bff63091eb80b7a2810ff0))
+
 ## [1.5.1](https://github.com/gravity-ui/graph/compare/v1.5.0...v1.5.1) (2025-10-28)
 
 
