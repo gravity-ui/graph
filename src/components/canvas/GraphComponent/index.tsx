@@ -1,6 +1,7 @@
 import { Signal } from "@preact/signals-core";
 
 import { Graph } from "../../../graph";
+import { GraphEventsDefinitions } from "../../../graphEvents";
 import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
@@ -162,6 +163,61 @@ export class GraphComponent<
           onDrop?.(_event);
         });
     });
+  }
+
+  /**
+   * Subscribes to a graph event and automatically unsubscribes on component unmount.
+   *
+   * This is a convenience wrapper around this.context.graph.on that also registers the
+   * returned unsubscribe function in the internal unsubscribe list, ensuring proper cleanup.
+   *
+   * @param eventName - Graph event name to subscribe to
+   * @param handler - Event handler callback
+   * @param options - Additional AddEventListener options
+   * @returns Unsubscribe function
+   */
+  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
+    eventName: EventName,
+    handler: Cb,
+    options?: AddEventListenerOptions | boolean
+  ): () => void {
+    const unsubscribe = this.context.graph.on(eventName, handler, options);
+    this.unsubscribe.push(unsubscribe);
+    return unsubscribe;
+  }
+
+  /**
+   * Subscribes to a DOM event on the graph root element and automatically unsubscribes on unmount.
+   *
+   * @param eventName - DOM event name to subscribe to
+   * @param handler - Event handler callback
+   * @param options - Additional AddEventListener options
+   * @returns Unsubscribe function
+   */
+  protected onRootEvent<K extends keyof HTMLElementEventMap>(
+    eventName: K,
+    handler: ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void) | EventListenerObject,
+    options?: AddEventListenerOptions | boolean
+  ): () => void {
+    const root = this.context.root;
+    if (!root) {
+      throw new Error("Attempt to add event listener to non-existent root element");
+    }
+
+    const listener =
+      typeof handler === "function"
+        ? (handler as (this: HTMLElement, ev: HTMLElementEventMap[K]) => void)
+        : (handler as EventListenerObject);
+
+    root.addEventListener(eventName, listener, options);
+
+    const unsubscribe = () => {
+      root.removeEventListener(eventName, listener, options);
+    };
+
+    this.unsubscribe.push(unsubscribe);
+
+    return unsubscribe;
   }
 
   protected subscribeSignal<T>(signal: Signal<T>, cb: (v: T) => void) {
