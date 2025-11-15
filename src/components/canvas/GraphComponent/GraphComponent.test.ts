@@ -29,7 +29,7 @@ class TestGraphComponent extends GraphComponent {
 
 type TestSetup = {
   component: TestGraphComponent;
-  graphOn: jest.Mock<() => () => void>;
+  graphOn: jest.Mock<() => void, Parameters<Graph["on"]>>;
   graphOff: jest.Mock<void, []>;
   rootEl: HTMLDivElement;
   hitTestRemove: jest.Mock<void, [HitBox]>;
@@ -37,7 +37,7 @@ type TestSetup = {
 
 function createTestComponent(root?: HTMLDivElement): TestSetup {
   const graphOff = jest.fn();
-  const graphOn = jest.fn<() => () => void, Parameters<Graph["on"]>>().mockReturnValue(graphOff);
+  const graphOn = jest.fn<() => void, Parameters<Graph["on"]>>().mockReturnValue(graphOff);
 
   const hitTestRemove = jest.fn();
   const fakeGraph = {
