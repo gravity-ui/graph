@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/gravity-ui/graph/compare/v1.6.1...v1.7.0) (2025-11-20)
+
+
+### Features
+
+* Add helpers to subsribe events for GraphComponent ([#189](https://github.com/gravity-ui/graph/issues/189)) ([25fd4c8](https://github.com/gravity-ui/graph/commit/25fd4c8287804fc45de524054cd923aa6afc1af2))
+
 ## [1.6.1](https://github.com/gravity-ui/graph/compare/v1.6.0...v1.6.1) (2025-11-10)
 
 
