@@ -111,12 +111,12 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
     return this.props.graph.getGraphLayer().$.camera as CoreComponent;
   }
 
-  public updateBlocks = (groupId: TGroupId, { diffX, diffY }: { diffX: number; diffY: number }) => {
+  public updateBlocks = (groupId: TGroupId, { deltaX, deltaY }: { deltaX: number; deltaY: number }) => {
     if ((this.props as BlockGroupsProps & { updateBlocksOnDrag?: boolean }).updateBlocksOnDrag) {
       const blocks = this.$groupsBlocksMap.value[groupId];
       if (blocks) {
         blocks.forEach((block) => {
-          block.updateXY(block.x - diffX, block.y - diffY, true);
+          block.updateXY(block.x + deltaX, block.y + deltaY, true);
         });
       }
     }
