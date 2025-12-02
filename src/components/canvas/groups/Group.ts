@@ -26,7 +26,7 @@ export type TGroupGeometry = {
 
 export type TGroupProps = {
   id: TGroupId;
-  onDragUpdate: (groupId: string, diff: { diffX: number; diffY: number }) => void;
+  onDragUpdate: (groupId: string, diff: { deltaX: number; deltaY: number }) => void;
   style?: Partial<TGroupStyle>;
   geometry?: Partial<TGroupGeometry>;
   draggable?: boolean;
@@ -114,10 +114,10 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
         this.context.graph.cameraService.enableAutoPanning();
         this.context.graph.lockCursor("grabbing");
       },
-      onDragUpdate: ({ diffX, diffY }) => {
+      onDragUpdate: ({ deltaX, deltaY }) => {
         const rect = {
-          x: this.state.rect.x - diffX,
-          y: this.state.rect.y - diffY,
+          x: this.state.rect.x + deltaX,
+          y: this.state.rect.y + deltaY,
           width: this.state.rect.width,
           height: this.state.rect.height,
         };
@@ -125,7 +125,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
           rect,
         });
         this.updateHitBox(rect);
-        this.props.onDragUpdate(this.props.id, { diffX, diffY });
+        this.props.onDragUpdate(this.props.id, { deltaX, deltaY });
       },
       onDrop: () => {
         this.context.graph.cameraService.disableAutoPanning();

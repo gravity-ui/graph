@@ -115,10 +115,13 @@ export class GraphComponent<
     onDragStart?: (_event: MouseEvent) => void | boolean;
     onDragUpdate?: (
       diff: {
+        startCoords: [number, number];
         prevCoords: [number, number];
         currentCoords: [number, number];
         diffX: number;
         diffY: number;
+        deltaX: number;
+        deltaY: number;
       },
       _event: MouseEvent
     ) => void;
@@ -127,7 +130,8 @@ export class GraphComponent<
     autopanning?: boolean;
     dragCursor?: CursorLayerCursorTypes;
   }) {
-    let startDragCoords: [number, number];
+    let startCoords: [number, number];
+    let prevCoords: [number, number];
     return this.addEventListener("mousedown", (event: MouseEvent) => {
       if (!isDraggable?.(event)) {
         return;
@@ -144,22 +148,29 @@ export class GraphComponent<
             return;
           }
           const xy = getXY(this.context.canvas, event);
-          startDragCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
+          startCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
+          prevCoords = startCoords;
         })
         .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => {
-          if (!startDragCoords.length) return;
+          if (!startCoords?.length) return;
 
           const [canvasX, canvasY] = getXY(this.context.canvas, event);
           const currentCoords = this.context.camera.applyToPoint(canvasX, canvasY);
 
-          const diffX = (startDragCoords[0] - currentCoords[0]) | 0;
-          const diffY = (startDragCoords[1] - currentCoords[1]) | 0;
+          // Absolute diff from drag start
+          const diffX = currentCoords[0] - startCoords[0];
+          const diffY = currentCoords[1] - startCoords[1];
 
-          onDragUpdate?.({ prevCoords: startDragCoords, currentCoords, diffX, diffY }, event);
-          startDragCoords = currentCoords;
+          // Incremental diff from previous frame
+          const deltaX = currentCoords[0] - prevCoords[0];
+          const deltaY = currentCoords[1] - prevCoords[1];
+
+          onDragUpdate?.({ startCoords, prevCoords, currentCoords, diffX, diffY, deltaX, deltaY }, event);
+          prevCoords = currentCoords;
         })
         .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
-          startDragCoords = undefined;
+          startCoords = undefined;
+          prevCoords = undefined;
           onDrop?.(_event);
         });
     });
