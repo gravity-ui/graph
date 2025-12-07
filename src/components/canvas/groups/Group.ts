@@ -1,4 +1,5 @@
 import { TComponentState } from "../../../lib/Component";
+import { DragContext, DragDiff } from "../../../services/drag";
 import { ESelectionStrategy } from "../../../services/selection/types";
 import { BlockState } from "../../../store/block/Block";
 import { GroupState, TGroup, TGroupId } from "../../../store/group/Group";
@@ -107,45 +108,54 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
         !isMetaKeyEvent(event) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
       );
     });
-
-    this.onDrag({
-      isDraggable: () => this.isDraggable(),
-      onDragStart: () => {
-        this.context.graph.cameraService.enableAutoPanning();
-        this.context.graph.lockCursor("grabbing");
-      },
-      onDragUpdate: ({ deltaX, deltaY }) => {
-        const rect = {
-          x: this.state.rect.x + deltaX,
-          y: this.state.rect.y + deltaY,
-          width: this.state.rect.width,
-          height: this.state.rect.height,
-        };
-        this.setState({
-          rect,
-        });
-        this.updateHitBox(rect);
-        this.props.onDragUpdate(this.props.id, { deltaX, deltaY });
-      },
-      onDrop: () => {
-        this.context.graph.cameraService.disableAutoPanning();
-        this.context.graph.unlockCursor();
-      },
-    });
   }
 
   public getEntityId() {
     return this.props.id;
   }
 
-  protected isDraggable() {
+  /**
+   * Check if group can be dragged based on props.draggable and canChangeBlockGeometry setting
+   */
+  public override isDraggable(): boolean {
     return (
-      this.props.draggable &&
+      Boolean(this.props.draggable) &&
       isAllowChangeBlockGeometry(
         this.context.graph.rootStore.settings.getConfigFlag("canChangeBlockGeometry") as ECanChangeBlockGeometry,
         this.state.selected
       )
     );
+  }
+
+  /**
+   * Handle drag start - nothing special needed, DragService handles autopanning and cursor
+   */
+  public override handleDragStart(_context: DragContext): void {
+    // DragService handles autopanning and cursor locking
+  }
+
+  /**
+   * Handle drag update - update group rect and notify via callback
+   */
+  public override handleDrag(diff: DragDiff, _context: DragContext): void {
+    const rect = {
+      x: this.state.rect.x + diff.deltaX,
+      y: this.state.rect.y + diff.deltaY,
+      width: this.state.rect.width,
+      height: this.state.rect.height,
+    };
+    this.setState({
+      rect,
+    });
+    this.updateHitBox(rect);
+    this.props.onDragUpdate(this.props.id, { deltaX: diff.deltaX, deltaY: diff.deltaY });
+  }
+
+  /**
+   * Handle drag end - nothing special needed, DragService handles cleanup
+   */
+  public override handleDragEnd(_context: DragContext): void {
+    // DragService handles autopanning disable and cursor unlock
   }
 
   protected getRect(rect = this.state.rect) {

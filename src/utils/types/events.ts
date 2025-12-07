@@ -25,15 +25,3 @@ export const SELECTION_EVENT_TYPES = {
   DELETE: 2,
   TOGGLE: 3,
 };
-
-export const EVENTS_DETAIL = {
-  [EVENTS.DRAG_START]: (x: number, y: number) => {
-    return { x, y };
-  },
-  [EVENTS.DRAG_UPDATE]: (x: number, y: number) => {
-    return { x, y };
-  },
-  [EVENTS.DRAG_END]: (x: number, y: number) => {
-    return { x, y };
-  },
-};

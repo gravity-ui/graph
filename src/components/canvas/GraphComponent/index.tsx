@@ -5,6 +5,7 @@ import { GraphEventsDefinitions } from "../../../graphEvents";
 import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
+import { DragContext, DragDiff } from "../../../services/drag";
 import { PortState, TPortId } from "../../../store/connection/port/Port";
 import { getXY } from "../../../utils/functions";
 import { dragListener } from "../../../utils/functions/dragListener";
@@ -37,6 +38,48 @@ export class GraphComponent<
 
   public getEntityId(): number | string {
     throw new Error("GraphComponent.getEntityId() is not implemented");
+  }
+
+  /**
+   * Returns whether this component can be dragged.
+   * Override in subclasses to enable drag behavior.
+   * Components that return true will participate in drag operations managed by DragService.
+   *
+   * @returns true if the component is draggable, false otherwise
+   */
+  public isDraggable(): boolean {
+    return false;
+  }
+
+  /**
+   * Called when a drag operation starts on this component.
+   * Override in subclasses to handle drag start logic.
+   *
+   * @param _context - The drag context containing coordinates and participating components
+   */
+  public handleDragStart(_context: DragContext): void {
+    // Default implementation does nothing
+  }
+
+  /**
+   * Called on each frame during a drag operation.
+   * Override in subclasses to update component position.
+   *
+   * @param _diff - The diff containing coordinate changes (deltaX/deltaY for incremental, diffX/diffY for absolute)
+   * @param _context - The drag context containing coordinates and participating components
+   */
+  public handleDrag(_diff: DragDiff, _context: DragContext): void {
+    // Default implementation does nothing
+  }
+
+  /**
+   * Called when a drag operation ends.
+   * Override in subclasses to finalize drag state.
+   *
+   * @param _context - The drag context containing final coordinates and participating components
+   */
+  public handleDragEnd(_context: DragContext): void {
+    // Default implementation does nothing
   }
 
   public get affectsUsableRect() {

@@ -4,16 +4,17 @@ import isObject from "lodash/isObject";
 
 import { Component } from "../../../lib/Component";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
+import { DragContext, DragDiff } from "../../../services/drag";
 import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
 import { BlockState, IS_BLOCK_TYPE, TBlockId } from "../../../store/block/Block";
 import { selectBlockById } from "../../../store/block/selectors";
 import { PortState } from "../../../store/connection/port/Port";
 import { createAnchorPortId, createBlockPointPortId } from "../../../store/connection/port/utils";
-import { getXY } from "../../../utils/functions";
+import { ECanChangeBlockGeometry } from "../../../store/settings";
+import { isAllowChangeBlockGeometry } from "../../../utils/functions";
 import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { TTExtRect, renderText } from "../../../utils/renderers/text";
-import { EVENTS } from "../../../utils/types/events";
 import { TPoint, TRect } from "../../../utils/types/shapes";
 import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
 import { Anchor, TAnchor } from "../anchors";
@@ -130,10 +131,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     super(props, parent);
 
     this.subscribe(props.id);
-
-    this.addEventListener(EVENTS.DRAG_START, this);
-    this.addEventListener(EVENTS.DRAG_UPDATE, this);
-    this.addEventListener(EVENTS.DRAG_END, this);
   }
 
   public getEntityId() {
@@ -282,53 +279,49 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.getPort(createAnchorPortId(this.state.id, anchorId));
   }
 
-  public handleEvent(event: CustomEvent) {
-    switch (event.type) {
-      case EVENTS.DRAG_START: {
-        this.onDragStart(event.detail.sourceEvent);
-        break;
-      }
-      case EVENTS.DRAG_UPDATE: {
-        this.onDragUpdate(event.detail.sourceEvent);
-        break;
-      }
-      case EVENTS.DRAG_END: {
-        this.onDragEnd(event.detail.sourceEvent);
-        break;
-      }
-    }
+  /**
+   * Check if block can be dragged based on canChangeBlockGeometry setting
+   */
+  public override isDraggable(): boolean {
+    return isAllowChangeBlockGeometry(
+      this.getConfigFlag("canChangeBlockGeometry") as ECanChangeBlockGeometry,
+      this.connectedState.$selected.value
+    );
   }
 
-  protected onDragStart(event: MouseEvent) {
+  /**
+   * Handle drag start - emit event and initialize drag state
+   */
+  public override handleDragStart(context: DragContext): void {
     this.context.graph.executеDefaultEventAction(
       "block-drag-start",
       {
-        nativeEvent: event,
+        nativeEvent: context.sourceEvent,
         block: this.connectedState.asTBlock(),
       },
       () => {
-        this.lastDragEvent = event;
-        const xy = getXY(this.context.canvas, event);
-        this.startDragCoords = this.context.camera.applyToPoint(xy[0], xy[1]).concat([this.state.x, this.state.y]);
+        this.lastDragEvent = context.sourceEvent;
+        // Store start coords: [worldX, worldY, blockX, blockY]
+        this.startDragCoords = [...context.startCoords, this.state.x, this.state.y];
         this.raiseBlock();
       }
     );
   }
 
-  protected onDragUpdate(event: MouseEvent) {
-    if (!this.startDragCoords) return;
+  /**
+   * Handle drag update - calculate new position and update block
+   */
+  public override handleDrag(diff: DragDiff, context: DragContext): void {
+    if (!this.startDragCoords.length) return;
 
-    this.lastDragEvent = event;
+    this.lastDragEvent = context.sourceEvent;
 
-    const [canvasX, canvasY] = getXY(this.context.canvas, event);
-    const [cameraSpaceX, cameraSpaceY] = this.context.camera.applyToPoint(canvasX, canvasY);
-
-    const [x, y] = this.calcNextDragPosition(cameraSpaceX, cameraSpaceY);
+    const [x, y] = this.calcNextDragPosition(context.currentCoords[0], context.currentCoords[1]);
 
     this.context.graph.executеDefaultEventAction(
       "block-drag",
       {
-        nativeEvent: event,
+        nativeEvent: context.sourceEvent,
         block: this.connectedState.asTBlock(),
         x,
         y,
@@ -337,12 +330,30 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     );
   }
 
-  protected calcNextDragPosition(x: number, y: number) {
-    const diffX = (this.startDragCoords[0] - x) | 0;
-    const diffY = (this.startDragCoords[1] - y) | 0;
+  /**
+   * Handle drag end - finalize drag state
+   */
+  public override handleDragEnd(context: DragContext): void {
+    if (!this.startDragCoords.length) return;
 
-    let nextX = this.startDragCoords[2] - diffX;
-    let nextY = this.startDragCoords[3] - diffY;
+    this.context.graph.emit("block-drag-end", {
+      nativeEvent: context.sourceEvent,
+      block: this.connectedState.asTBlock(),
+    });
+
+    this.lastDragEvent = undefined;
+    this.startDragCoords = [];
+    this.updateHitBox(this.state);
+  }
+
+  protected calcNextDragPosition(x: number, y: number): [number, number] {
+    // Calculate displacement from drag start (consistent with DragDiff API)
+    const diffX = (x - this.startDragCoords[0]) | 0;
+    const diffY = (y - this.startDragCoords[1]) | 0;
+
+    // Apply displacement to initial block position
+    let nextX = this.startDragCoords[2] + diffX;
+    let nextY = this.startDragCoords[3] + diffY;
 
     const spanGridSize = this.context.constants.block.SNAPPING_GRID_SIZE;
 
@@ -354,20 +365,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return [nextX, nextY];
   }
 
-  protected applyNextPosition(x: number, y: number) {
+  protected applyNextPosition(x: number, y: number): void {
     this.updatePosition(x, y);
-  }
-
-  protected onDragEnd(event: MouseEvent) {
-    if (!this.startDragCoords) return;
-    this.context.graph.emit("block-drag-end", {
-      nativeEvent: event,
-      block: this.connectedState.asTBlock(),
-    });
-
-    this.lastDragEvent = undefined;
-    this.startDragCoords = [];
-    this.updateHitBox(this.state);
   }
 
   public updateHitBox = (geometry: TRect, force?: boolean) => {
