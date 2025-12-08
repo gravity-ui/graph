@@ -3,23 +3,23 @@ import { signal } from "@preact/signals-core";
 import type { GraphComponent } from "../../components/canvas/GraphComponent";
 import type { Graph } from "../../graph";
 import type { GraphMouseEvent } from "../../graphEvents";
+import { Emitter } from "../../utils/Emitter";
 import { getXY } from "../../utils/functions";
+import { dragListener } from "../../utils/functions/dragListener";
+import { EVENTS } from "../../utils/types/events";
 
-import type { DragContext, DragDiff, DragState } from "./types";
+import type { DragContext, DragDiff, DragOperationCallbacks, DragOperationOptions, DragState } from "./types";
 
 /**
  * DragService manages drag operations for all draggable GraphComponents.
  *
  * When a user starts dragging a component:
  * 1. Collects all selected draggable components from SelectionService
- * 2. Manages the drag lifecycle (start, update, end)
+ * 2. Manages the drag lifecycle (start, update, end) via dragListener
  * 3. Handles autopanning, cursor locking, and camera-change synchronization
  * 4. Delegates actual movement logic to components via handleDragStart/handleDrag/handleDragEnd
  */
 export class DragService {
-  /** Whether a drag operation is currently in progress */
-  private dragging = false;
-
   /** Components participating in the current drag operation */
   private dragComponents: GraphComponent[] = [];
 
@@ -29,11 +29,8 @@ export class DragService {
   /** Previous frame coordinates in world space */
   private prevCoords: [number, number] | null = null;
 
-  /** Last mouse event for camera-change re-emission */
-  private lastMouseEvent: MouseEvent | null = null;
-
-  /** Reference to document for event listeners */
-  private doc: Document | null = null;
+  /** Current drag listener emitter (null when not dragging) */
+  private currentDragEmitter: Emitter | null = null;
 
   /** Unsubscribe function for graph mousedown event */
   private unsubscribeMouseDown: (() => void) | null = null;
@@ -100,9 +97,8 @@ export class DragService {
    * Handle mousedown on graph - determine if drag should start
    */
   private handleMouseDown = (event: GraphMouseEvent): void => {
-    // Prevent initiating new drag while one is already in progress or pending
-    // this.doc being set indicates we're waiting for first mousemove
-    if (this.dragging || this.doc) {
+    // Prevent initiating new drag while one is already in progress
+    if (this.currentDragEmitter) {
       return;
     }
 
@@ -122,10 +118,16 @@ export class DragService {
       return;
     }
 
-    // Setup document listeners for drag tracking
-    this.doc = this.graph.getGraphCanvas().ownerDocument;
-    this.doc.addEventListener("mousemove", this.handleFirstMove, { once: true, capture: true });
-    this.doc.addEventListener("mouseup", this.handleMouseUp, { once: true, capture: true });
+    // Use dragListener for consistent drag behavior
+    const doc = this.graph.getGraphCanvas().ownerDocument;
+    this.currentDragEmitter = dragListener(doc, {
+      graph: this.graph,
+      dragCursor: "grabbing",
+      autopanning: true,
+    })
+      .on(EVENTS.DRAG_START, this.handleDragStart)
+      .on(EVENTS.DRAG_UPDATE, this.handleDragUpdate)
+      .on(EVENTS.DRAG_END, this.handleDragEnd);
   };
 
   /**
@@ -149,23 +151,11 @@ export class DragService {
   }
 
   /**
-   * Handle first mousemove - this initiates the actual drag
+   * Handle drag start from dragListener
    */
-  private handleFirstMove = (event: MouseEvent): void => {
-    this.dragging = true;
-    this.lastMouseEvent = event;
-
+  private handleDragStart = (event: MouseEvent): void => {
     // Update reactive state
     this.$state.value = this.createDragState(this.dragComponents);
-
-    // Enable autopanning
-    this.graph.cameraService.enableAutoPanning();
-
-    // Lock cursor to grabbing
-    this.graph.lockCursor("grabbing");
-
-    // Subscribe to camera-change for autopanning synchronization
-    this.graph.on("camera-change", this.handleCameraChange);
 
     // Calculate starting coordinates in world space
     const coords = this.getWorldCoords(event);
@@ -185,29 +175,12 @@ export class DragService {
     this.dragComponents.forEach((component) => {
       component.handleDragStart(context);
     });
-
-    // Continue listening for mousemove
-    if (this.doc) {
-      this.doc.addEventListener("mousemove", this.handleMouseMove, { capture: true });
-    }
   };
 
   /**
-   * Handle mousemove during drag
+   * Handle drag update from dragListener
    */
-  private handleMouseMove = (event: MouseEvent): void => {
-    if (!this.dragging || !this.startCoords || !this.prevCoords) {
-      return;
-    }
-
-    this.lastMouseEvent = event;
-    this.emitDragUpdate(event);
-  };
-
-  /**
-   * Emit drag update to all components
-   */
-  private emitDragUpdate(event: MouseEvent): void {
+  private handleDragUpdate = (event: MouseEvent): void => {
     if (!this.startCoords || !this.prevCoords) {
       return;
     }
@@ -238,13 +211,13 @@ export class DragService {
     });
 
     this.prevCoords = currentCoords;
-  }
+  };
 
   /**
-   * Handle mouseup - end drag operation
+   * Handle drag end from dragListener
    */
-  private handleMouseUp = (event: MouseEvent): void => {
-    if (this.dragging && this.startCoords && this.prevCoords) {
+  private handleDragEnd = (event: MouseEvent): void => {
+    if (this.startCoords && this.prevCoords) {
       const currentCoords = this.getWorldCoords(event);
 
       const context: DragContext = {
@@ -265,17 +238,6 @@ export class DragService {
   };
 
   /**
-   * Handle camera-change during drag for autopanning synchronization
-   */
-  private handleCameraChange = (): void => {
-    if (this.dragging && this.lastMouseEvent) {
-      // Re-emit drag update with last known mouse position
-      // This ensures components update their positions when camera moves during autopanning
-      this.emitDragUpdate(this.lastMouseEvent);
-    }
-  };
-
-  /**
    * Convert screen coordinates to world coordinates
    */
   private getWorldCoords(event: MouseEvent): [number, number] {
@@ -288,31 +250,59 @@ export class DragService {
    * Cleanup after drag operation ends
    */
   private cleanup(): void {
-    // Remove event listeners
-    if (this.doc) {
-      this.doc.removeEventListener("mousemove", this.handleFirstMove, { capture: true });
-      this.doc.removeEventListener("mousemove", this.handleMouseMove, { capture: true });
-      this.doc.removeEventListener("mouseup", this.handleMouseUp, { capture: true });
-    }
-
-    // Unsubscribe from camera-change
-    this.graph.off("camera-change", this.handleCameraChange);
-
-    // Disable autopanning
-    if (this.dragging) {
-      this.graph.cameraService.disableAutoPanning();
-      this.graph.unlockCursor();
-    }
-
     // Reset state
-    this.dragging = false;
+    this.currentDragEmitter = null;
     this.dragComponents = [];
     this.startCoords = null;
     this.prevCoords = null;
-    this.lastMouseEvent = null;
-    this.doc = null;
 
     // Update reactive state
     this.$state.value = this.createIdleState();
+  }
+
+  /**
+   * Start a custom drag operation for specialized use cases like creating connections or new blocks.
+   * This provides a unified API for drag operations without exposing dragListener directly.
+   *
+   * @param callbacks - Lifecycle callbacks (onStart, onUpdate, onEnd)
+   * @param options - Drag options (document, cursor, autopanning, etc.)
+   *
+   * @example
+   * ```typescript
+   * // In ConnectionLayer
+   * graph.dragService.startOperation(
+   *   {
+   *     onStart: (event, coords) => this.onStartConnection(event, coords),
+   *     onUpdate: (event, coords) => this.onMoveConnection(event, coords),
+   *     onEnd: (event, coords) => this.onEndConnection(coords),
+   *   },
+   *   { cursor: "crosshair", autopanning: true }
+   * );
+   * ```
+   */
+  public startDrag(callbacks: DragOperationCallbacks, options: DragOperationOptions = {}): void {
+    const { document: doc, cursor, autopanning = true, stopOnMouseLeave } = options;
+    const { onStart, onUpdate, onEnd } = callbacks;
+
+    const targetDocument = doc ?? this.graph.getGraphCanvas().ownerDocument;
+
+    dragListener(targetDocument, {
+      graph: this.graph,
+      dragCursor: cursor,
+      autopanning,
+      stopOnMouseLeave,
+    })
+      .on(EVENTS.DRAG_START, (event: MouseEvent) => {
+        const coords = this.getWorldCoords(event);
+        onStart?.(event, coords);
+      })
+      .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => {
+        const coords = this.getWorldCoords(event);
+        onUpdate?.(event, coords);
+      })
+      .on(EVENTS.DRAG_END, (event: MouseEvent) => {
+        const coords = this.getWorldCoords(event);
+        onEnd?.(event, coords);
+      });
   }
 }

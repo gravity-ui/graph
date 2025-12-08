@@ -182,42 +182,45 @@ export class GraphComponent<
         return;
       }
       event.stopPropagation();
-      dragListener(this.context.ownerDocument, {
-        graph: this.context.graph,
-        component: this,
-        autopanning: autopanning ?? true,
-        dragCursor: dragCursor ?? "grabbing",
-      })
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => {
-          if (onDragStart?.(event) === false) {
-            return;
-          }
-          const xy = getXY(this.context.canvas, event);
-          startCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
-          prevCoords = startCoords;
-        })
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => {
-          if (!startCoords?.length) return;
+      this.context.graph.dragService.startDrag(
+        {
+          onStart: (event: MouseEvent) => {
+            if (onDragStart?.(event) === false) {
+              return;
+            }
+            const xy = getXY(this.context.canvas, event);
+            startCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
+            prevCoords = startCoords;
+          },
+          onUpdate: (event: MouseEvent) => {
+            if (!startCoords?.length) return;
 
-          const [canvasX, canvasY] = getXY(this.context.canvas, event);
-          const currentCoords = this.context.camera.applyToPoint(canvasX, canvasY);
+            const [canvasX, canvasY] = getXY(this.context.canvas, event);
+            const currentCoords = this.context.camera.applyToPoint(canvasX, canvasY);
 
-          // Absolute diff from drag start
-          const diffX = currentCoords[0] - startCoords[0];
-          const diffY = currentCoords[1] - startCoords[1];
+            // Absolute diff from drag start
+            const diffX = currentCoords[0] - startCoords[0];
+            const diffY = currentCoords[1] - startCoords[1];
 
-          // Incremental diff from previous frame
-          const deltaX = currentCoords[0] - prevCoords[0];
-          const deltaY = currentCoords[1] - prevCoords[1];
+            // Incremental diff from previous frame
+            const deltaX = currentCoords[0] - prevCoords[0];
+            const deltaY = currentCoords[1] - prevCoords[1];
 
-          onDragUpdate?.({ startCoords, prevCoords, currentCoords, diffX, diffY, deltaX, deltaY }, event);
-          prevCoords = currentCoords;
-        })
-        .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
-          startCoords = undefined;
-          prevCoords = undefined;
-          onDrop?.(_event);
-        });
+            onDragUpdate?.({ startCoords, prevCoords, currentCoords, diffX, diffY, deltaX, deltaY }, event);
+            prevCoords = currentCoords;
+          },
+          onEnd: (event: MouseEvent) => {
+            startCoords = undefined;
+            prevCoords = undefined;
+            onDrop?.(event);
+          },
+        },
+        {
+          component: this,
+          autopanning: autopanning ?? true,
+          cursor: dragCursor ?? "grabbing",
+        }
+      );
     });
   }
 

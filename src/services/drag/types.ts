@@ -1,4 +1,32 @@
 import type { GraphComponent } from "../../components/canvas/GraphComponent";
+import type { CursorLayerCursorTypes } from "../../components/canvas/layers/cursorLayer/CursorLayer";
+
+/**
+ * Options for creating a custom drag operation via DragService.startOperation()
+ */
+export type DragOperationOptions = {
+  /** Document to attach listeners to. Defaults to graph canvas document if not provided */
+  document?: Document;
+  /** Cursor to show during drag */
+  cursor?: CursorLayerCursorTypes;
+  component?: GraphComponent;
+  /** Enable autopanning when dragging near edges */
+  autopanning?: boolean;
+  /** Stop drag when mouse leaves the document */
+  stopOnMouseLeave?: boolean;
+};
+
+/**
+ * Callbacks for custom drag operation lifecycle
+ */
+export type DragOperationCallbacks = {
+  /** Called when drag starts (first mousemove after mousedown) */
+  onStart?: (event: MouseEvent, coords: [number, number]) => void;
+  /** Called on each mousemove during drag */
+  onUpdate?: (event: MouseEvent, coords: [number, number]) => void;
+  /** Called when drag ends (mouseup) */
+  onEnd?: (event: MouseEvent, coords: [number, number]) => void;
+};
 
 /**
  * Current state of drag operation, accessible via DragService.$state signal

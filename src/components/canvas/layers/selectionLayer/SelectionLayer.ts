@@ -2,10 +2,8 @@ import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graph
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { Camera } from "../../../../services/camera/Camera";
 import { ESelectionStrategy } from "../../../../services/selection";
-import { getXY, isMetaKeyEvent } from "../../../../utils/functions";
-import { dragListener } from "../../../../utils/functions/dragListener";
+import { isMetaKeyEvent } from "../../../../utils/functions";
 import { render } from "../../../../utils/renderers/render";
-import { EVENTS } from "../../../../utils/types/events";
 
 function getSelectionRect(sx: number, sy: number, ex: number, ey: number): number[] {
   if (sx > ex) [sx, ex] = [ex, sx];
@@ -103,32 +101,20 @@ export class SelectionLayer extends Layer<
     if (event && isMetaKeyEvent(event)) {
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
-      dragListener(this.root.ownerDocument, {
-        graph: this.context.graph,
-        autopanning: true,
-      })
-        .on(EVENTS.DRAG_START, this.startSelectionRender)
-        .on(EVENTS.DRAG_UPDATE, this.updateSelectionRender)
-        .on(EVENTS.DRAG_END, this.endSelectionRender);
+      this.context.graph.dragService.startDrag({
+        onStart: this.startSelectionRender,
+        onUpdate: this.updateSelectionRender,
+        onEnd: this.endSelectionRender,
+      });
     }
   };
 
-  private updateSelectionRender = (event: MouseEvent) => {
-    // Convert screen coordinates to world coordinates
-    const [screenX, screenY] = getXY(this.context.canvas, event);
-    const camera = this.context.graph.cameraService;
-    const [worldX, worldY] = camera.getRelativeXY(screenX, screenY);
-
+  private updateSelectionRender = (event: MouseEvent, [worldX, worldY]: [number, number]) => {
     this.selectionEndWorld = { x: worldX, y: worldY };
     this.performRender();
   };
 
-  private startSelectionRender = (_event: MouseEvent) => {
-    // Convert screen coordinates to world coordinates
-    const [screenX, screenY] = getXY(this.context.canvas, _event);
-    const camera = this.context.graph.cameraService;
-    const [worldX, worldY] = camera.getRelativeXY(screenX, screenY);
-
+  private startSelectionRender = (_event: MouseEvent, [worldX, worldY]: [number, number]) => {
     this.selectionStartWorld = { x: worldX, y: worldY };
     this.selectionEndWorld = { x: worldX, y: worldY };
   };

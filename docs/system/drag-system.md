@@ -500,3 +500,25 @@ type DragDiff = {
 | `handleDragStart()` | `(context: DragContext) => void` | Called when drag starts |
 | `handleDrag()` | `(diff: DragDiff, context: DragContext) => void` | Called on each drag frame |
 | `handleDragEnd()` | `(context: DragContext) => void` | Called when drag ends |
+
+### DragService.startDrag()
+
+For custom drag operations (like creating connections or duplicating blocks), use `startOperation`:
+
+```typescript
+type DragOperationCallbacks = {
+  onStart?: (event: MouseEvent, coords: [number, number]) => void;
+  onUpdate?: (event: MouseEvent, coords: [number, number]) => void;
+  onEnd?: (event: MouseEvent, coords: [number, number]) => void;
+};
+
+type DragOperationOptions = {
+  document?: Document;               // Defaults to graph canvas document
+  cursor?: CursorLayerCursorTypes;   // Cursor during drag
+  autopanning?: boolean;             // Enable edge autopanning (default: true)
+  stopOnMouseLeave?: boolean;        // Stop drag on mouse leave
+};
+
+// Usage
+graph.dragService.startDrag(callbacks, options);
+```

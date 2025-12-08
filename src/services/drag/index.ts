@@ -1,2 +1,2 @@
 export { DragService } from "./DragService";
-export type { DragContext, DragDiff, DragState } from "./types";
+export type { DragContext, DragDiff, DragOperationCallbacks, DragOperationOptions, DragState } from "./types";
