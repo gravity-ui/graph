@@ -43,6 +43,8 @@ export class GraphComponent<
     return this.props.affectsUsableRect ?? this.context.affectsUsableRect ?? true;
   }
 
+  private mounted = false;
+
   constructor(props: Props, parent: Component) {
     super(props, parent);
 
@@ -165,6 +167,15 @@ export class GraphComponent<
     });
   }
 
+  public isMounted() {
+    return this.mounted;
+  }
+
+  protected willMount() {
+    super.willMount();
+    this.mounted = true;
+  }
+
   /**
    * Subscribes to a graph event and automatically unsubscribes on component unmount.
    *
@@ -224,6 +235,10 @@ export class GraphComponent<
     this.unsubscribe.push(signal.subscribe(cb));
   }
 
+  public onUnmounted(cb: () => void) {
+    return this.addEventListener("graph-component-unmounted", cb);
+  }
+
   protected unmount() {
     super.unmount();
     this.unsubscribe.forEach((cb) => cb());
@@ -232,6 +247,8 @@ export class GraphComponent<
     });
     this.ports.clear();
     this.destroyHitBox();
+    this.mounted = false;
+    this.dispatchEvent(new CustomEvent("graph-component-unmounted", { detail: { component: this } }));
   }
 
   public setHitBox(minX: number, minY: number, maxX: number, maxY: number, force?: boolean) {
