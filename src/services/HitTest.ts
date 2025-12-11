@@ -326,7 +326,11 @@ export class HitTest extends Emitter {
       if (aZIndex !== bZIndex) {
         return bZIndex - aZIndex;
       }
-      return 0;
+
+      const aOrder = typeof a.renderOrder === "number" ? a.renderOrder : -1;
+      const bOrder = typeof b.renderOrder === "number" ? b.renderOrder : -1;
+
+      return bOrder - aOrder;
     });
 
     return res;
