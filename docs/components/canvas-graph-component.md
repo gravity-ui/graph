@@ -14,6 +14,7 @@ classDiagram
     GraphComponent <|-- Connection
     GraphComponent -- HitBox
     GraphComponent -- Camera
+    GraphComponent -- DragService
     
     class EventedComponent {
         +props: TComponentProps
@@ -29,11 +30,15 @@ classDiagram
         +getHitBox()
         +isVisible()
         +onDrag()
+        +isDraggable()
+        +handleDragStart()
+        +handleDrag()
+        +handleDragEnd()
         +subscribeSignal()
     }
 ```
 
-## The Four Core Capabilities
+## The Core Capabilities
 
 ### 1. Spatial Awareness with HitBox and R-tree
 
@@ -186,6 +191,110 @@ onDragUpdate: (diff: {
 
 - Use `diffX`/`diffY` when you need to calculate position relative to drag start (e.g., `initialPosition + diffX`)
 - Use `deltaX`/`deltaY` when you need frame-to-frame movement (e.g., `currentPosition + deltaX`)
+
+### 3.1 DragService Integration
+
+For components that need to participate in the centralized drag system (multi-selection drag, autopanning, etc.), GraphComponent provides lifecycle methods that integrate with [DragService](../system/drag-system.md).
+
+> **Note:** The `onDrag()` method is for simple, self-contained drag behavior. For components that need to work with multi-selection and the centralized drag system, override the `isDraggable()` and `handleDrag*()` methods instead.
+
+**Key differences:**
+| Feature | `onDrag()` method | DragService methods |
+|---------|-------------------|---------------------|
+| Multi-selection support | ❌ No | ✅ Yes |
+| Autopanning | Manual setup | ✅ Automatic |
+| Cursor management | Manual setup | ✅ Automatic |
+| Drag state tracking | ❌ No | ✅ Via `$state` signal |
+| Use case | Simple standalone drag | Blocks, groups, custom entities |
+
+**DragService lifecycle methods:**
+
+```typescript
+import { GraphComponent, DragContext, DragDiff } from "@gravity-ui/graph";
+
+class MyDraggableComponent extends GraphComponent {
+  private initialPosition: { x: number; y: number } | null = null;
+
+  /**
+   * Return true to enable dragging for this component.
+   * Components returning true will participate in DragService-managed operations.
+   */
+  public override isDraggable(): boolean {
+    return !this.props.locked;
+  }
+
+  /**
+   * Called when drag operation starts.
+   * Use this to store initial state needed for drag calculations.
+   */
+  public override handleDragStart(context: DragContext): void {
+    this.initialPosition = {
+      x: this.state.x,
+      y: this.state.y,
+    };
+  }
+
+  /**
+   * Called on each frame during drag.
+   * Update component position based on diff values.
+   */
+  public override handleDrag(diff: DragDiff, context: DragContext): void {
+    if (!this.initialPosition) return;
+
+    // Option 1: Use absolute diff (stable positioning)
+    const newX = this.initialPosition.x + diff.diffX;
+    const newY = this.initialPosition.y + diff.diffY;
+
+    // Option 2: Use incremental delta (frame-to-frame)
+    // const newX = this.state.x + diff.deltaX;
+    // const newY = this.state.y + diff.deltaY;
+
+    this.setState({ x: newX, y: newY });
+    this.updateHitBox();
+  }
+
+  /**
+   * Called when drag operation ends.
+   * Use this to finalize state and clean up.
+   */
+  public override handleDragEnd(context: DragContext): void {
+    this.initialPosition = null;
+    this.updateHitBox();
+  }
+}
+```
+
+**DragContext properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `sourceEvent` | `MouseEvent` | The native mouse event |
+| `startCoords` | `[number, number]` | World coordinates when drag started |
+| `prevCoords` | `[number, number]` | World coordinates from previous frame |
+| `currentCoords` | `[number, number]` | Current world coordinates |
+| `components` | `GraphComponent[]` | All components participating in this drag |
+
+**Checking drag state from anywhere:**
+
+```typescript
+// Access drag state via DragService
+const dragState = graph.dragService.$state.value;
+
+if (dragState.isDragging) {
+  console.log("Components being dragged:", dragState.components.length);
+  console.log("Is homogeneous drag:", dragState.isHomogeneous);
+  console.log("Component types:", [...dragState.componentTypes]);
+}
+
+// Subscribe to drag state changes
+graph.dragService.$state.subscribe((state) => {
+  if (state.isDragging && !state.isHomogeneous) {
+    // Disable snapping for heterogeneous multi-select drag
+  }
+});
+```
+
+For more details on the drag system, see [Drag System](../system/drag-system.md).
 
 ### 4. Reactive Data with Signal Subscriptions
 

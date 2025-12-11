@@ -1,4 +1,4 @@
-import { ECanChangeBlockGeometry } from "../../store/settings";
+import { ECanDrag } from "../../store/settings";
 
 export enum EAnchorType {
   IN = "IN",
@@ -8,8 +8,8 @@ export enum EAnchorType {
 export const storiesSettings = {
   canDragCamera: true,
   canZoomCamera: true,
+  canDrag: ECanDrag.ALL,
   canDuplicateBlocks: false,
-  canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
   canCreateNewConnections: true,
   showConnectionArrows: true,
   scaleFontSize: 1,

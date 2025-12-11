@@ -1,16 +1,11 @@
 import { ESelectionStrategy } from "../../../../services/selection/types";
-import { selectBlockById } from "../../../../store/block/selectors";
-import { ECanChangeBlockGeometry } from "../../../../store/settings";
-import {
-  createCustomDragEvent,
-  dispatchEvents,
-  isAllowChangeBlockGeometry,
-  isMetaKeyEvent,
-} from "../../../../utils/functions";
-import { dragListener } from "../../../../utils/functions/dragListener";
-import { EVENTS } from "../../../../utils/types/events";
+import { isMetaKeyEvent } from "../../../../utils/functions";
 import { Block } from "../Block";
 
+/**
+ * BlockController handles click events for block selection.
+ * Drag behavior is now managed by DragService.
+ */
 export class BlockController {
   constructor(block: Block) {
     block.addEventListener("click", (event: MouseEvent) => {
@@ -31,48 +26,6 @@ export class BlockController {
          */
         !isMetaKeyEvent(event) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
       );
-    });
-
-    block.addEventListener("mousedown", (event: MouseEvent) => {
-      const blockState = selectBlockById(block.context.graph, block.props.id);
-      const allowChangeBlockGeometry = isAllowChangeBlockGeometry(
-        block.getConfigFlag("canChangeBlockGeometry") as ECanChangeBlockGeometry,
-        blockState.$selected.value
-      );
-
-      if (!allowChangeBlockGeometry) return;
-
-      event.stopPropagation();
-
-      const draggingElements = block.context.graph.rootStore.blocksList.$selectedBlocks.value.map((block) =>
-        block.getViewComponent()
-      );
-
-      // Prevent drag if user selected multiple blocks but start drag from non-selected block
-      if (draggingElements.length && !draggingElements.includes(block)) {
-        return;
-      }
-
-      // Add current block to list of dragging elements
-      if (!draggingElements.includes(block)) {
-        draggingElements.push(block);
-      }
-
-      dragListener(block.context.ownerDocument, {
-        graph: block.context.graph,
-        dragCursor: "grabbing",
-        component: block,
-        autopanning: true,
-      })
-        .on(EVENTS.DRAG_START, (_event: MouseEvent) => {
-          dispatchEvents(draggingElements, createCustomDragEvent(EVENTS.DRAG_START, _event));
-        })
-        .on(EVENTS.DRAG_UPDATE, (_event: MouseEvent) => {
-          dispatchEvents(draggingElements, createCustomDragEvent(EVENTS.DRAG_UPDATE, _event));
-        })
-        .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
-          dispatchEvents(draggingElements, createCustomDragEvent(EVENTS.DRAG_END, _event));
-        });
     });
   }
 }

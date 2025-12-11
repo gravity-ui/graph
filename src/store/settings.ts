@@ -9,9 +9,19 @@ import { TConnection } from "./connection/ConnectionState";
 
 import { RootStore } from "./index";
 
+/** @deprecated Use ECanDrag and setting canDrag instead */
 export enum ECanChangeBlockGeometry {
   ALL = "all",
   ONLY_SELECTED = "onlySelected",
+  NONE = "none",
+}
+
+export enum ECanDrag {
+  /** Any component can be dragged. If component is in selection, all selected draggable components move together */
+  ALL = "all",
+  /** Only selected components can be dragged */
+  ONLY_SELECTED = "onlySelected",
+  /** Drag is disabled for all components (except manual drag via startDrag) */
   NONE = "none",
 }
 
@@ -20,7 +30,10 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   canZoomCamera: boolean;
   /** @deprecated Use NewBlockLayer parameters instead */
   canDuplicateBlocks?: boolean;
-  canChangeBlockGeometry: ECanChangeBlockGeometry;
+  /** @deprecated Use canDrag instead */
+  canChangeBlockGeometry?: ECanChangeBlockGeometry;
+  /** Controls which components can be dragged */
+  canDrag?: ECanDrag;
   canCreateNewConnections: boolean;
   scaleFontSize: number;
   showConnectionArrows: boolean;
@@ -38,7 +51,7 @@ const getInitState: TGraphSettingsConfig = {
   canDragCamera: true,
   canZoomCamera: true,
   canDuplicateBlocks: false,
-  canChangeBlockGeometry: ECanChangeBlockGeometry.NONE,
+  canDrag: ECanDrag.ALL,
   canCreateNewConnections: false,
   showConnectionArrows: true,
   scaleFontSize: 1,
@@ -89,6 +102,28 @@ export class GraphEditorSettings {
       showConnectionArrows: this.$settings.value.showConnectionArrows,
       bezierConnectionDirection: this.$settings.value.bezierConnectionDirection,
     };
+  });
+
+  /**
+   * Computed canDrag setting with backward compatibility.
+   * Priority: canChangeBlockGeometry (deprecated, for existing users) > canDrag > default ALL
+   */
+  public $canDrag = computed((): ECanDrag => {
+    const settings = this.$settings.value;
+
+    // 1. If deprecated canChangeBlockGeometry is set, use it (don't break existing users)
+    // Both enums have the same string values, so we can cast directly
+    if (settings.canChangeBlockGeometry !== undefined) {
+      return settings.canChangeBlockGeometry as unknown as ECanDrag;
+    }
+
+    // 2. Use canDrag if explicitly set (new users)
+    if (settings.canDrag !== undefined) {
+      return settings.canDrag;
+    }
+
+    // 3. Default to ALL if neither is set
+    return ECanDrag.ALL;
   });
 
   public toJSON() {

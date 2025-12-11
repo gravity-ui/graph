@@ -4,7 +4,7 @@ import type { Meta, StoryFn } from "@storybook/react-webpack5";
 import groupBy from "lodash/groupBy";
 
 import { BlockGroups, Group } from "../../../components/canvas/groups";
-import { BlockState, ECanChangeBlockGeometry, Graph, GraphState, TBlock } from "../../../index";
+import { BlockState, ECanDrag, Graph, GraphState, TBlock } from "../../../index";
 import { GraphCanvas, useGraph, useGraphEvent } from "../../../react-components";
 import { useFn } from "../../../react-components/utils/hooks/useFn";
 import { BlockStory } from "../../main/Block";
@@ -102,7 +102,7 @@ const GroupsLayer = BlockGroups.withBlockGrouping({
 const GraphApp = () => {
   const { graph, setEntities, start } = useGraph({
     settings: {
-      canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
+      canDrag: ECanDrag.ALL,
     },
   });
   const config = createConfig();

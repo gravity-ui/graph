@@ -4,10 +4,8 @@ import { ESelectionStrategy } from "../../../../services/selection/types";
 import { AnchorState } from "../../../../store/anchor/Anchor";
 import { BlockState, TBlockId } from "../../../../store/block/Block";
 import { isBlock, isShiftKeyEvent } from "../../../../utils/functions";
-import { dragListener } from "../../../../utils/functions/dragListener";
 import { render } from "../../../../utils/renderers/render";
 import { renderSVG } from "../../../../utils/renderers/svgPath";
-import { EVENTS } from "../../../../utils/types/events";
 import { Point, TPoint } from "../../../../utils/types/shapes";
 import { Anchor } from "../../../canvas/anchors";
 import { Block } from "../../../canvas/blocks/Block";
@@ -196,20 +194,14 @@ export class ConnectionLayer extends Layer<
 
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
-      dragListener(this.root.ownerDocument, {
-        graph: this.context.graph,
-        dragCursor: "crosshair",
-        autopanning: true,
-      })
-        .on(EVENTS.DRAG_START, (dStartEvent: MouseEvent) => {
-          this.onStartConnection(dStartEvent, this.context.graph.getPointInCameraSpace(dStartEvent));
-        })
-        .on(EVENTS.DRAG_UPDATE, (dUpdateEvent: MouseEvent) =>
-          this.onMoveNewConnection(dUpdateEvent, this.context.graph.getPointInCameraSpace(dUpdateEvent))
-        )
-        .on(EVENTS.DRAG_END, (dEndEvent: MouseEvent) => {
-          this.onEndNewConnection(this.context.graph.getPointInCameraSpace(dEndEvent));
-        });
+      this.context.graph.dragService.startDrag(
+        {
+          onStart: (event, coords) => this.onStartConnection(event, new Point(coords[0], coords[1])),
+          onUpdate: (event, coords) => this.onMoveNewConnection(event, new Point(coords[0], coords[1])),
+          onEnd: (_event, coords) => this.onEndNewConnection(new Point(coords[0], coords[1])),
+        },
+        { cursor: "crosshair" }
+      );
     }
   };
 

@@ -1,7 +1,7 @@
 import { GraphComponent } from "../../components/canvas/GraphComponent";
 import { Block, TBlock } from "../../components/canvas/blocks/Block";
-import { ECanChangeBlockGeometry } from "../../store/settings";
-import { EVENTS_DETAIL, SELECTION_EVENT_TYPES } from "../types/events";
+import { ECanDrag } from "../../store/settings";
+import { SELECTION_EVENT_TYPES } from "../types/events";
 import { Rect, TRect } from "../types/shapes";
 
 export { parseClassNames } from "./classNames";
@@ -55,15 +55,6 @@ export function isBlock(component: unknown): component is Block {
   return (component as Block)?.isBlock;
 }
 
-export function createCustomDragEvent(eventType: string, e): CustomEvent {
-  return new CustomEvent(eventType, {
-    detail: {
-      ...EVENTS_DETAIL[eventType](e.pageX, e.pageY),
-      sourceEvent: e,
-    },
-  });
-}
-
 export function createObject(simpleObject: object, forDefineProperties: PropertyDescriptorMap): object {
   const defaultProperties = {
     configurable: true,
@@ -79,14 +70,6 @@ export function createObject(simpleObject: object, forDefineProperties: Property
   Object.defineProperties(simpleObject, forDefineProperties);
 
   return simpleObject;
-}
-
-export function dispatchEvents(comps, e) {
-  for (let i = 0; i < comps.length; i += 1) {
-    if (comps[i] !== this && comps[i].dispatchEvent) {
-      comps[i].dispatchEvent(e);
-    }
-  }
 }
 
 export function addEventListeners(
@@ -106,10 +89,16 @@ export function addEventListeners(
   return () => subs.forEach((f) => f());
 }
 
-export function isAllowChangeBlockGeometry(globalCanChangeGeometry: ECanChangeBlockGeometry, blockSelected: boolean) {
-  if (globalCanChangeGeometry === ECanChangeBlockGeometry.ALL) return true;
+/**
+ * Check if drag is allowed based on canDrag setting and component selection state.
+ * @param canDrag - The canDrag setting value
+ * @param isSelected - Whether the component is currently selected
+ * @returns true if the component can be dragged
+ */
+export function isAllowDrag(canDrag: ECanDrag, isSelected: boolean): boolean {
+  if (canDrag === ECanDrag.ALL) return true;
 
-  return globalCanChangeGeometry === ECanChangeBlockGeometry.ONLY_SELECTED && blockSelected;
+  return canDrag === ECanDrag.ONLY_SELECTED && isSelected;
 }
 
 /**

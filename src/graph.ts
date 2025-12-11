@@ -15,6 +15,7 @@ import { HitTest } from "./services/HitTest";
 import { Layer, LayerPublicProps } from "./services/Layer";
 import { Layers } from "./services/LayersService";
 import { CameraService } from "./services/camera/CameraService";
+import { DragService } from "./services/drag";
 import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
@@ -68,6 +69,12 @@ export class Graph {
 
   public hitTest = new HitTest(this);
 
+  /**
+   * Service that manages drag operations for all draggable GraphComponents.
+   * Handles autopanning, cursor locking, and coordinates drag lifecycle across selected components.
+   */
+  public dragService: DragService;
+
   protected graphLayer: GraphLayer;
 
   protected belowLayer: BelowLayer;
@@ -120,6 +127,9 @@ export class Graph {
     this.graphLayer = this.addLayer(GraphLayer, {});
     this.selectionLayer = this.addLayer(SelectionLayer, {});
     this.cursorLayer = this.addLayer(CursorLayer, {});
+
+    // Initialize DragService for managing drag operations on GraphComponents
+    this.dragService = new DragService(this);
 
     this.selectionLayer.hide();
     this.graphLayer.hide();
@@ -470,6 +480,7 @@ export class Graph {
     clearTextCache();
     this.rootStore.reset();
     this.scheduler.stop();
+    this.dragService.destroy();
   }
 
   /**

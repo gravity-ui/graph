@@ -1,8 +1,6 @@
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
 import { Layer, LayerContext, LayerProps } from "../../services/Layer";
 import { computeCssVariable, noop } from "../../utils/functions";
-import { dragListener } from "../../utils/functions/dragListener";
-import { EVENTS } from "../../utils/types/events";
 
 export type TMiniMapLocation =
   | "topLeft"
@@ -324,8 +322,9 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     rootEvent.stopPropagation();
     this.onCameraDrag(rootEvent);
 
-    dragListener(this.getCanvas(), { stopOnMouseLeave: true }).on(EVENTS.DRAG_UPDATE, (event: MouseEvent) =>
-      this.onCameraDrag(event)
+    this.context.graph.dragService.startDrag(
+      { onUpdate: (event: MouseEvent) => this.onCameraDrag(event) },
+      { stopOnMouseLeave: true }
     );
   };
 }

@@ -6,7 +6,7 @@ import { TBlock } from "../../../components/canvas/blocks/Block";
 import { Graph, GraphState } from "../../../graph";
 import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "../../../react-components";
 import { useFn } from "../../../react-components/utils/hooks/useFn";
-import { ECanChangeBlockGeometry } from "../../../store/settings";
+import { ECanDrag } from "../../../store/settings";
 
 const config: HookGraphParams = {
   viewConfiguration: {
@@ -20,7 +20,7 @@ const config: HookGraphParams = {
     canDragCamera: true,
     canZoomCamera: true,
     canDuplicateBlocks: false,
-    canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
+    canDrag: ECanDrag.ALL,
     canCreateNewConnections: true,
     showConnectionArrows: false,
     scaleFontSize: 1,

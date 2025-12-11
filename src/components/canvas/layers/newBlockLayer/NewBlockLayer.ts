@@ -3,9 +3,7 @@ import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { ESelectionStrategy } from "../../../../services/selection/types";
 import { BlockState } from "../../../../store/block/Block";
 import { getXY, isAltKeyEvent, isBlock } from "../../../../utils/functions";
-import { dragListener } from "../../../../utils/functions/dragListener";
 import { render } from "../../../../utils/renderers/render";
-import { EVENTS } from "../../../../utils/types/events";
 import { TPoint } from "../../../../utils/types/shapes";
 import { Block } from "../../../canvas/blocks/Block";
 
@@ -110,18 +108,16 @@ export class NewBlockLayer extends Layer<
 
       nativeEvent.preventDefault();
       nativeEvent.stopPropagation();
-      dragListener(this.root.ownerDocument, {
-        graph: this.context.graph,
-        dragCursor: "copy",
-        autopanning: true,
-      })
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => {
-          this.onStartNewBlock(event, target);
-        })
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onMoveNewBlock(event))
-        .on(EVENTS.DRAG_END, (event: MouseEvent) => {
-          this.onEndNewBlock(event, this.context.graph.getPointInCameraSpace(event));
-        });
+      // Capture target in closure for onStart callback
+      const blockTarget = target;
+      this.context.graph.dragService.startDrag(
+        {
+          onStart: (event) => this.onStartNewBlock(event, blockTarget),
+          onUpdate: (event) => this.onMoveNewBlock(event),
+          onEnd: (event, coords) => this.onEndNewBlock(event, { x: coords[0], y: coords[1] }),
+        },
+        { cursor: "copy" }
+      );
     }
   };
 

@@ -5,10 +5,9 @@ import { GraphEventsDefinitions } from "../../../graphEvents";
 import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
+import { DragContext, DragDiff } from "../../../services/drag";
 import { PortState, TPortId } from "../../../store/connection/port/Port";
 import { getXY } from "../../../utils/functions";
-import { dragListener } from "../../../utils/functions/dragListener";
-import { EVENTS } from "../../../utils/types/events";
 import { EventedComponent } from "../EventedComponent/EventedComponent";
 import { CursorLayerCursorTypes } from "../layers/cursorLayer";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
@@ -37,6 +36,48 @@ export class GraphComponent<
 
   public getEntityId(): number | string {
     throw new Error("GraphComponent.getEntityId() is not implemented");
+  }
+
+  /**
+   * Returns whether this component can be dragged.
+   * Override in subclasses to enable drag behavior.
+   * Components that return true will participate in drag operations managed by DragService.
+   *
+   * @returns true if the component is draggable, false otherwise
+   */
+  public isDraggable(): boolean {
+    return false;
+  }
+
+  /**
+   * Called when a drag operation starts on this component.
+   * Override in subclasses to handle drag start logic.
+   *
+   * @param _context - The drag context containing coordinates and participating components
+   */
+  public handleDragStart(_context: DragContext): void {
+    // Default implementation does nothing
+  }
+
+  /**
+   * Called on each frame during a drag operation.
+   * Override in subclasses to update component position.
+   *
+   * @param _diff - The diff containing coordinate changes (deltaX/deltaY for incremental, diffX/diffY for absolute)
+   * @param _context - The drag context containing coordinates and participating components
+   */
+  public handleDrag(_diff: DragDiff, _context: DragContext): void {
+    // Default implementation does nothing
+  }
+
+  /**
+   * Called when a drag operation ends.
+   * Override in subclasses to finalize drag state.
+   *
+   * @param _context - The drag context containing final coordinates and participating components
+   */
+  public handleDragEnd(_context: DragContext): void {
+    // Default implementation does nothing
   }
 
   public get affectsUsableRect() {
@@ -139,42 +180,45 @@ export class GraphComponent<
         return;
       }
       event.stopPropagation();
-      dragListener(this.context.ownerDocument, {
-        graph: this.context.graph,
-        component: this,
-        autopanning: autopanning ?? true,
-        dragCursor: dragCursor ?? "grabbing",
-      })
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => {
-          if (onDragStart?.(event) === false) {
-            return;
-          }
-          const xy = getXY(this.context.canvas, event);
-          startCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
-          prevCoords = startCoords;
-        })
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => {
-          if (!startCoords?.length) return;
+      this.context.graph.dragService.startDrag(
+        {
+          onStart: (event: MouseEvent) => {
+            if (onDragStart?.(event) === false) {
+              return;
+            }
+            const xy = getXY(this.context.canvas, event);
+            startCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
+            prevCoords = startCoords;
+          },
+          onUpdate: (event: MouseEvent) => {
+            if (!startCoords?.length) return;
 
-          const [canvasX, canvasY] = getXY(this.context.canvas, event);
-          const currentCoords = this.context.camera.applyToPoint(canvasX, canvasY);
+            const [canvasX, canvasY] = getXY(this.context.canvas, event);
+            const currentCoords = this.context.camera.applyToPoint(canvasX, canvasY);
 
-          // Absolute diff from drag start
-          const diffX = currentCoords[0] - startCoords[0];
-          const diffY = currentCoords[1] - startCoords[1];
+            // Absolute diff from drag start
+            const diffX = currentCoords[0] - startCoords[0];
+            const diffY = currentCoords[1] - startCoords[1];
 
-          // Incremental diff from previous frame
-          const deltaX = currentCoords[0] - prevCoords[0];
-          const deltaY = currentCoords[1] - prevCoords[1];
+            // Incremental diff from previous frame
+            const deltaX = currentCoords[0] - prevCoords[0];
+            const deltaY = currentCoords[1] - prevCoords[1];
 
-          onDragUpdate?.({ startCoords, prevCoords, currentCoords, diffX, diffY, deltaX, deltaY }, event);
-          prevCoords = currentCoords;
-        })
-        .on(EVENTS.DRAG_END, (_event: MouseEvent) => {
-          startCoords = undefined;
-          prevCoords = undefined;
-          onDrop?.(_event);
-        });
+            onDragUpdate?.({ startCoords, prevCoords, currentCoords, diffX, diffY, deltaX, deltaY }, event);
+            prevCoords = currentCoords;
+          },
+          onEnd: (event: MouseEvent) => {
+            startCoords = undefined;
+            prevCoords = undefined;
+            onDrop?.(event);
+          },
+        },
+        {
+          component: this,
+          autopanning: autopanning ?? true,
+          cursor: dragCursor ?? "grabbing",
+        }
+      );
     });
   }
 
