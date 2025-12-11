@@ -139,8 +139,13 @@ this.onDrag({
     this.setState({ dragging: true });
     this.context.graph.emit('element-drag-start', { element: this });
   },
-  onDragUpdate: ({ diffX, diffY }, event) => {
-    this.updatePosition(this.state.x - diffX, this.state.y - diffY);
+  onDragUpdate: ({ startCoords, diffX, diffY, deltaX, deltaY }, event) => {
+    // diffX/diffY - absolute displacement from drag start position
+    // deltaX/deltaY - incremental change since previous frame
+    // Use diffX/diffY for absolute positioning from initial position
+    this.updatePosition(this.initialX + diffX, this.initialY + diffY);
+    // Or use deltaX/deltaY for incremental updates
+    // this.updatePosition(this.state.x + deltaX, this.state.y + deltaY);
   },
   onDrop: () => {
     this.setState({ dragging: false });
@@ -162,6 +167,25 @@ this.onDrag({
 - `mousedown`, `mouseup` - Mouse button press and release
 - `mouseenter`, `mouseleave` - Mouse pointer entering or leaving the component
 - Specialized `onDrag` system with precise coordinate handling
+
+**The `onDrag` callback structure:**
+
+```typescript
+onDragUpdate: (diff: {
+  startCoords: [number, number];    // Initial position when drag started
+  prevCoords: [number, number];     // Position on previous frame
+  currentCoords: [number, number];  // Current mouse position
+  
+  diffX: number;    // Absolute X displacement from start (currentCoords.x - startCoords.x)
+  diffY: number;    // Absolute Y displacement from start (currentCoords.y - startCoords.y)
+  
+  deltaX: number;   // Incremental X change since last frame (currentCoords.x - prevCoords.x)
+  deltaY: number;   // Incremental Y change since last frame (currentCoords.y - prevCoords.y)
+}, event: MouseEvent) => void;
+```
+
+- Use `diffX`/`diffY` when you need to calculate position relative to drag start (e.g., `initialPosition + diffX`)
+- Use `deltaX`/`deltaY` when you need frame-to-frame movement (e.g., `currentPosition + deltaX`)
 
 ### 4. Reactive Data with Signal Subscriptions
 
@@ -461,13 +485,14 @@ class BadgeComponent extends GraphComponent<BadgeComponentProps, BadgeComponentS
       }
     });
     
-    // Make it draggable
+    // Make it draggable using incremental delta values
     this.onDrag({
       isDraggable: () => !this.props.locked,
-      onDragUpdate: ({ diffX, diffY }) => {
+      onDragUpdate: ({ deltaX, deltaY }) => {
+        // deltaX/deltaY provide frame-to-frame movement
         this.setState({
-          x: this.state.x - diffX,
-          y: this.state.y - diffY
+          x: this.state.x + deltaX,
+          y: this.state.y + deltaY
         });
         this.updateHitBox();
       }
@@ -953,13 +978,14 @@ class EditorNode extends GraphComponent {
   constructor(props, parent) {
     super(props, parent);
     
-    // Make node draggable
+    // Make node draggable using incremental delta values
     this.onDrag({
       isDraggable: () => this.context.editMode === 'move',
-      onDragUpdate: ({ diffX, diffY }) => {
+      onDragUpdate: ({ deltaX, deltaY }) => {
+        // deltaX/deltaY provide frame-to-frame movement
         this.setState({
-          x: this.state.x - diffX,
-          y: this.state.y - diffY
+          x: this.state.x + deltaX,
+          y: this.state.y + deltaY
         });
       }
     });
