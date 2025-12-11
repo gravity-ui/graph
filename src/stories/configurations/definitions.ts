@@ -1,3 +1,5 @@
+import { ECanDrag } from "../../store/settings";
+
 export enum EAnchorType {
   IN = "IN",
   OUT = "OUT",
