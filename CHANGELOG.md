@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.7.0](https://github.com/gravity-ui/graph/compare/v1.6.1...v1.7.0) (2025-12-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* **GraphComponent:** `diffX`/`diffY` in `onDragUpdate` callback now represent absolute displacement from drag start position instead of incremental frame-to-frame values.
+
+### chore
+
+* release 1.7.0 ([aa6dadd](https://github.com/gravity-ui/graph/commit/aa6dadd01bd6beeba27be77f4558d36a3b86f2a4))
+
+
+### Features
+
+* Add helpers to subsribe events for GraphComponent ([#189](https://github.com/gravity-ui/graph/issues/189)) ([25fd4c8](https://github.com/gravity-ui/graph/commit/25fd4c8287804fc45de524054cd923aa6afc1af2))
+* **GraphComponent:** emit event on component unmount ([#196](https://github.com/gravity-ui/graph/issues/196)) ([0de6d11](https://github.com/gravity-ui/graph/commit/0de6d11b61e1d37848c8c0876a6cc4fd76344fd6))
+* **GraphComponent:** provide absolute diff from drag start in onDrag callback ([#194](https://github.com/gravity-ui/graph/issues/194)) ([696f4b7](https://github.com/gravity-ui/graph/commit/696f4b74f0cdc9994da083a16ed378b8351e783f))
+* introduce DragSystem ([#198](https://github.com/gravity-ui/graph/issues/198)) ([ab2b5ef](https://github.com/gravity-ui/graph/commit/ab2b5ef7b1d3a22bf29513b2667b0d7b934355d4))
+
+
+### Bug Fixes
+
+* consider renderOrder in hit test sorting for overlapping blocks ([#197](https://github.com/gravity-ui/graph/issues/197)) ([fa9c492](https://github.com/gravity-ui/graph/commit/fa9c49219d4c2fcae93e578986c19803ed938305))
+
 ## [1.6.1](https://github.com/gravity-ui/graph/compare/v1.6.0...v1.6.1) (2025-11-10)
 
 
