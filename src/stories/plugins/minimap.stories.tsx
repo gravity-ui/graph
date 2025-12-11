@@ -3,7 +3,7 @@ import React, { useRef } from "react";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { ECanChangeBlockGeometry, Graph, LayerConfig, MiniMapLayer } from "../../";
+import { ECanDrag, Graph, LayerConfig, MiniMapLayer } from "../../";
 import { generatePrettyBlocks } from "../configurations/generatePretty";
 import { GraphComponentStory } from "../main/GraphEditor";
 
@@ -32,7 +32,7 @@ const GraphApp = () => {
         config={{
           ...generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 10 }),
           layers,
-          settings: { canChangeBlockGeometry: ECanChangeBlockGeometry.ALL },
+          settings: { canDrag: ECanDrag.ALL },
         }}
       />
     </ThemeProvider>

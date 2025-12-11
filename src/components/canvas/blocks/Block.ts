@@ -11,8 +11,7 @@ import { BlockState, IS_BLOCK_TYPE, TBlockId } from "../../../store/block/Block"
 import { selectBlockById } from "../../../store/block/selectors";
 import { PortState } from "../../../store/connection/port/Port";
 import { createAnchorPortId, createBlockPointPortId } from "../../../store/connection/port/utils";
-import { ECanChangeBlockGeometry } from "../../../store/settings";
-import { isAllowChangeBlockGeometry } from "../../../utils/functions";
+import { isAllowDrag } from "../../../utils/functions";
 import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { TTExtRect, renderText } from "../../../utils/renderers/text";
 import { TPoint, TRect } from "../../../utils/types/shapes";
@@ -280,13 +279,11 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   /**
-   * Check if block can be dragged based on canChangeBlockGeometry setting
+   * Check if block can be dragged based on canDrag setting
    */
   public override isDraggable(): boolean {
-    return isAllowChangeBlockGeometry(
-      this.getConfigFlag("canChangeBlockGeometry") as ECanChangeBlockGeometry,
-      this.connectedState.$selected.value
-    );
+    const canDrag = this.context.graph.rootStore.settings.$canDrag.value;
+    return isAllowDrag(canDrag, this.connectedState.$selected.value);
   }
 
   /**

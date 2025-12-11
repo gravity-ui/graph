@@ -3,8 +3,7 @@ import { DragContext, DragDiff } from "../../../services/drag";
 import { ESelectionStrategy } from "../../../services/selection/types";
 import { BlockState } from "../../../store/block/Block";
 import { GroupState, TGroup, TGroupId } from "../../../store/group/Group";
-import { ECanChangeBlockGeometry } from "../../../store/settings";
-import { isAllowChangeBlockGeometry, isMetaKeyEvent } from "../../../utils/functions";
+import { isAllowDrag, isMetaKeyEvent } from "../../../utils/functions";
 import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { layoutText } from "../../../utils/renderers/text";
 import { TRect } from "../../../utils/types/shapes";
@@ -115,16 +114,11 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
   }
 
   /**
-   * Check if group can be dragged based on props.draggable and canChangeBlockGeometry setting
+   * Check if group can be dragged based on props.draggable and canDrag setting
    */
   public override isDraggable(): boolean {
-    return (
-      Boolean(this.props.draggable) &&
-      isAllowChangeBlockGeometry(
-        this.context.graph.rootStore.settings.getConfigFlag("canChangeBlockGeometry") as ECanChangeBlockGeometry,
-        this.state.selected
-      )
-    );
+    const canDrag = this.context.graph.rootStore.settings.$canDrag.value;
+    return Boolean(this.props.draggable) && isAllowDrag(canDrag, this.state.selected);
   }
 
   /**

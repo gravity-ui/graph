@@ -8,8 +8,6 @@ import { HitBox, HitBoxData } from "../../../services/HitTest";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { PortState, TPortId } from "../../../store/connection/port/Port";
 import { getXY } from "../../../utils/functions";
-import { dragListener } from "../../../utils/functions/dragListener";
-import { EVENTS } from "../../../utils/types/events";
 import { EventedComponent } from "../EventedComponent/EventedComponent";
 import { CursorLayerCursorTypes } from "../layers/cursorLayer";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";

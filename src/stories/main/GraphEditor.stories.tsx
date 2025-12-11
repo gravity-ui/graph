@@ -7,7 +7,7 @@ import merge from "lodash/merge";
 import { Graph, TGraphConfig } from "../../graph";
 import { TGraphConstants, initGraphConstants } from "../../graphConfig";
 import { TGraphSettingsConfig } from "../../store";
-import { ECanChangeBlockGeometry } from "../../store/settings";
+import { ECanDrag } from "../../store/settings";
 import { RecursivePartial } from "../../utils/types/helpers";
 import { CustomLayerConfig } from "../configurations/CustomLayerConfig";
 import { oneBezierConnectionConfig } from "../configurations/bezierConnection";
@@ -62,9 +62,9 @@ const meta: Meta<typeof GraphApp> = {
       control: "boolean",
       description: "Allow zoom camera",
     },
-    canChangeBlockGeometry: {
+    canDrag: {
       control: "select",
-      options: [ECanChangeBlockGeometry.ALL, ECanChangeBlockGeometry.ONLY_SELECTED, ECanChangeBlockGeometry.NONE],
+      options: [ECanDrag.ALL, ECanDrag.ONLY_SELECTED, ECanDrag.NONE],
       description: "allow drag blocks",
     },
     canCreateNewConnections: {
@@ -89,7 +89,7 @@ const meta: Meta<typeof GraphApp> = {
     showConnectionLabels: false,
     canDragCamera: true,
     canZoomCamera: true,
-    canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
+    canDrag: ECanDrag.ALL,
     canCreateNewConnections: true,
     scaleFontSize: 1,
     showConnectionArrows: true,

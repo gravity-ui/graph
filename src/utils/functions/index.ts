@@ -1,6 +1,6 @@
 import { GraphComponent } from "../../components/canvas/GraphComponent";
 import { Block, TBlock } from "../../components/canvas/blocks/Block";
-import { ECanChangeBlockGeometry } from "../../store/settings";
+import { ECanDrag } from "../../store/settings";
 import { SELECTION_EVENT_TYPES } from "../types/events";
 import { Rect, TRect } from "../types/shapes";
 
@@ -89,10 +89,16 @@ export function addEventListeners(
   return () => subs.forEach((f) => f());
 }
 
-export function isAllowChangeBlockGeometry(globalCanChangeGeometry: ECanChangeBlockGeometry, blockSelected: boolean) {
-  if (globalCanChangeGeometry === ECanChangeBlockGeometry.ALL) return true;
+/**
+ * Check if drag is allowed based on canDrag setting and component selection state.
+ * @param canDrag - The canDrag setting value
+ * @param isSelected - Whether the component is currently selected
+ * @returns true if the component can be dragged
+ */
+export function isAllowDrag(canDrag: ECanDrag, isSelected: boolean): boolean {
+  if (canDrag === ECanDrag.ALL) return true;
 
-  return globalCanChangeGeometry === ECanChangeBlockGeometry.ONLY_SELECTED && blockSelected;
+  return canDrag === ECanDrag.ONLY_SELECTED && isSelected;
 }
 
 /**

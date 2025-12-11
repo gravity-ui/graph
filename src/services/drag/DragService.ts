@@ -3,6 +3,7 @@ import { signal } from "@preact/signals-core";
 import type { GraphComponent } from "../../components/canvas/GraphComponent";
 import type { Graph } from "../../graph";
 import type { GraphMouseEvent } from "../../graphEvents";
+import { ECanDrag } from "../../store/settings";
 import { Emitter } from "../../utils/Emitter";
 import { getXY } from "../../utils/functions";
 import { dragListener } from "../../utils/functions/dragListener";
@@ -98,7 +99,15 @@ export class DragService {
    */
   private handleMouseDown = (event: GraphMouseEvent): void => {
     // Prevent initiating new drag while one is already in progress
-    if (this.currentDragEmitter) {
+    // Check actual drag state, not just emitter presence (emitter may exist but drag not started yet)
+    if (this.currentDragEmitter && this.$state.value.isDragging) {
+      return;
+    }
+
+    const canDrag = this.graph.rootStore.settings.$canDrag.value;
+
+    // If drag is disabled, don't start drag operation
+    if (canDrag === ECanDrag.NONE) {
       return;
     }
 
@@ -108,15 +117,18 @@ export class DragService {
       return;
     }
 
-    // Prevent camera drag when dragging components
-    event.preventDefault();
-
     // Collect all draggable components that should participate
-    this.dragComponents = this.collectDragComponents(target);
+    this.dragComponents = this.collectDragComponents(target, canDrag);
 
     if (this.dragComponents.length === 0) {
       return;
     }
+
+    // Prevent camera drag when dragging components
+    event.preventDefault();
+
+    // Reset stale emitter from previous mousedown that didn't result in drag
+    this.currentDragEmitter = null;
 
     // Use dragListener for consistent drag behavior
     const doc = this.graph.getGraphCanvas().ownerDocument;
@@ -132,17 +144,27 @@ export class DragService {
 
   /**
    * Collect all components that should participate in drag operation.
-   * If target is in selection, drag all selected draggable components.
-   * If target is not in selection, drag only the target.
+   * Behavior depends on canDrag setting:
+   * - ALL: If target is in selection, drag all selected draggable components. Otherwise drag only target.
+   * - ONLY_SELECTED: Only selected components can be dragged. If target is not selected, returns empty array.
    */
-  private collectDragComponents(target: GraphComponent): GraphComponent[] {
+  private collectDragComponents(target: GraphComponent, canDrag: ECanDrag): GraphComponent[] {
     const selectedComponents = this.graph.selectionService.$selectedComponents.value;
 
     // Check if target is among selected components
     const targetInSelection = selectedComponents.some((c) => c === target);
 
-    if (targetInSelection && selectedComponents.length > 0) {
+    if (canDrag === ECanDrag.ONLY_SELECTED) {
+      // In ONLY_SELECTED mode, target must be in selection to start drag
+      if (!targetInSelection) {
+        return [];
+      }
       // Drag all selected draggable components
+      return selectedComponents.filter((c) => typeof c.isDraggable === "function" && c.isDraggable());
+    }
+
+    // ALL mode: if target is in selection, drag all selected draggable components
+    if (targetInSelection && selectedComponents.length > 0) {
       return selectedComponents.filter((c) => typeof c.isDraggable === "function" && c.isDraggable());
     }
 

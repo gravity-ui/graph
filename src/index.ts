@@ -13,7 +13,7 @@ export { EAnchorType } from "./store/anchor/Anchor";
 export type { BlockState, TBlockId } from "./store/block/Block";
 export type { ConnectionState, TConnection, TConnectionId } from "./store/connection/ConnectionState";
 export type { AnchorState } from "./store/anchor/Anchor";
-export { ECanChangeBlockGeometry } from "./store/settings";
+export { ECanChangeBlockGeometry, ECanDrag } from "./store/settings";
 export { type TMeasureTextOptions, type TWrapText } from "./utils/functions/text";
 export { ESchedulerPriority } from "./lib/Scheduler";
 export { debounce, throttle, schedule } from "./utils/functions";

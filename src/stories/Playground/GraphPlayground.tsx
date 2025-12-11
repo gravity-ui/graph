@@ -16,7 +16,7 @@ import { ConnectionLayer } from "../../components/canvas/layers/connectionLayer/
 import { Graph, GraphState, TGraphConfig } from "../../graph";
 import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "../../react-components";
 import { useFn } from "../../react-components/utils/hooks/useFn";
-import { ECanChangeBlockGeometry } from "../../store/settings";
+import { ECanDrag } from "../../store/settings";
 import { EAnchorType } from "../configurations/definitions";
 
 import { ActionBlock } from "./ActionBlock";
@@ -80,7 +80,7 @@ const config: HookGraphParams = {
     canDragCamera: true,
     canZoomCamera: true,
     canDuplicateBlocks: false,
-    canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
+    canDrag: ECanDrag.ALL,
     canCreateNewConnections: true,
     showConnectionArrows: false,
     scaleFontSize: 1,
