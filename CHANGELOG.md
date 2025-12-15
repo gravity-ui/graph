@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/gravity-ui/graph/compare/v1.7.0...v1.7.1) (2025-12-15)
+
+
+### Bug Fixes
+
+* **anchor:** delegate drag events to parent block ([#199](https://github.com/gravity-ui/graph/issues/199)) ([bc95c4b](https://github.com/gravity-ui/graph/commit/bc95c4b0f031c534587f8616a56e8853cd661995))
+
 ## [1.7.0](https://github.com/gravity-ui/graph/compare/v1.6.1...v1.7.0) (2025-12-11)
 
 
