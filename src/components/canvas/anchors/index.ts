@@ -1,5 +1,6 @@
 import { ESchedulerPriority } from "../../../lib";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
+import { DragContext, DragDiff } from "../../../services/drag";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { selectBlockAnchor } from "../../../store/block/selectors";
@@ -66,6 +67,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     this.state = { size: props.size, raised: false, selected: false };
 
     this.connectedState = selectBlockAnchor(this.context.graph, props.blockId, props.id);
+    this.connectedState.setViewComponent(this);
     this.subscribeSignal(this.connectedState.$selected, (selected) => {
       this.setState({ selected });
     });
@@ -85,6 +87,22 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
 
   public toggleSelected() {
     this.connectedState.setSelection(!this.state.selected);
+  }
+
+  public override isDraggable(): boolean {
+    return true;
+  }
+
+  public override handleDragStart(context: DragContext): void {
+    this.connectedState.block.getViewComponent()?.handleDragStart(context);
+  }
+
+  public override handleDrag(diff: DragDiff, context: DragContext): void {
+    this.connectedState.block.getViewComponent()?.handleDrag(diff, context);
+  }
+
+  public override handleDragEnd(context: DragContext): void {
+    this.connectedState.block.getViewComponent()?.handleDragEnd(context);
   }
 
   protected isVisible() {
