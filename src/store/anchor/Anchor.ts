@@ -1,6 +1,6 @@
 import { computed, signal } from "@preact/signals-core";
 
-import { TAnchor } from "../../components/canvas/anchors";
+import { Anchor, TAnchor } from "../../components/canvas/anchors";
 import { BlockState } from "../block/Block";
 
 export enum EAnchorType {
@@ -12,6 +12,8 @@ export class AnchorState {
   protected $state = signal<TAnchor>(undefined);
 
   public $selected = computed(() => this.block.store.anchorSelectionBucket.isSelected(this.id));
+
+  private anchorView: Anchor;
 
   public get id() {
     return this.$state.value.id;
@@ -37,6 +39,14 @@ export class AnchorState {
 
   public setSelection(selected: boolean) {
     this.block.onAnchorSelected(this.id, selected);
+  }
+
+  public setViewComponent(anchorComponent: Anchor) {
+    this.anchorView = anchorComponent;
+  }
+
+  public getViewComponent() {
+    return this.anchorView;
   }
 
   public asTAnchor(): TAnchor {
