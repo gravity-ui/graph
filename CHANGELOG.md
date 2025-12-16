@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.2](https://github.com/gravity-ui/graph/compare/v1.7.1...v1.7.2) (2025-12-16)
+
+
+### Bug Fixes
+
+* disable drag anchors and create connection in one time ([#201](https://github.com/gravity-ui/graph/issues/201)) ([2ac585f](https://github.com/gravity-ui/graph/commit/2ac585fb6e7cfa33f5e7a4517f689671cac94e7a))
+
 ## [1.7.1](https://github.com/gravity-ui/graph/compare/v1.7.0...v1.7.1) (2025-12-15)
 
 
