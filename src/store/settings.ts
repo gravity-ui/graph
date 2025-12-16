@@ -34,6 +34,10 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   canChangeBlockGeometry?: ECanChangeBlockGeometry;
   /** Controls which components can be dragged */
   canDrag?: ECanDrag;
+  /**
+   * Controls if connections can be created via anchors
+   * If this connection is enabled, then anchors are not draggable and connection creation is handled by ConnectionLayer.
+   * */
   canCreateNewConnections: boolean;
   scaleFontSize: number;
   showConnectionArrows: boolean;

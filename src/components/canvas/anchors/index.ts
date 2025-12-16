@@ -89,7 +89,18 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     this.connectedState.setSelection(!this.state.selected);
   }
 
+  /**
+   * Anchor is draggable only when connection creation is disabled.
+   * When connections can be created via anchors, dragging is handled by ConnectionLayer.
+   */
   public override isDraggable(): boolean {
+    // If connection creation via anchors is enabled, anchor is not draggable
+    // (ConnectionLayer handles the interaction instead)
+    if (this.context.graph.rootStore.settings.getConfigFlag("canCreateNewConnections")) {
+      return false;
+    }
+
+    // Otherwise, delegate drag to parent block
     return true;
   }
 
