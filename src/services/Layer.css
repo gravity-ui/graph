@@ -25,6 +25,8 @@
   transform-origin: 0 0;
   transform-style: preserve-3d;
   will-change: transform;
+  transform: translateZ(0);
+  transform: matrix(var(--scale), 0, 0, var(--scale), var(--x), var(--y));
 }
 
 .hidden {
