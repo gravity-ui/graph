@@ -1,8 +1,9 @@
 import { Graph } from "../graph";
 import { TGraphColors, TGraphConstants } from "../graphConfig";
 import { GraphEventsDefinitions } from "../graphEvents";
-import { CoreComponent } from "../lib";
+import { CoreComponent, ESchedulerPriority } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
+import { throttle } from "../utils/utils/schedule";
 
 import { ICamera, TCameraState } from "./camera/CameraService";
 
@@ -15,9 +16,24 @@ export type LayerPropsElementProps = {
   transformByCameraPosition?: boolean;
 };
 
+export type LayerPropsHtmlElementProps = LayerPropsElementProps & {
+  /**
+   * Minimum camera scale at which the HTML layer becomes active.
+   * When camera scale is below this value, the HTML layer is disabled
+   * and won't receive updates (improving performance when zoomed out).
+   *
+   * @example
+   * ```typescript
+   * // HTML layer only active when zoomed in (scale >= 0.5)
+   * html: { zIndex: 1, activationScale: 0.5 }
+   * ```
+   */
+  activationScale?: number;
+};
+
 export type LayerProps = {
   canvas?: LayerPropsElementProps & { respectPixelRatio?: boolean };
-  html?: LayerPropsElementProps;
+  html?: LayerPropsHtmlElementProps;
   root?: HTMLElement;
   camera: ICamera;
   graph: Graph;
@@ -65,6 +81,12 @@ export class Layer<
   protected root?: HTMLDivElement;
 
   protected attached = false;
+
+  /**
+   * Indicates whether the HTML layer is currently active based on camera scale.
+   * When false, the HTML layer is hidden and won't receive updates.
+   */
+  protected htmlActive = true;
 
   /**
    * AbortController used to manage event listeners.
@@ -286,17 +308,68 @@ export class Layer<
 
     this.shouldRenderChildren = true;
     this.shouldUpdateChildren = true;
+
+    // Initialize htmlActive state based on current camera scale
+    if (this.html && this.props.html?.activationScale !== undefined) {
+      const cameraState = this.context.camera.getCameraState();
+      this.htmlActive = cameraState.scale >= this.props.html.activationScale;
+      if (!this.htmlActive) {
+        this.html.classList.add("hidden");
+      }
+    }
+
     this.onCameraChange(this.context.camera.getCameraState());
     this.updateSize();
   }
 
+  protected scheduleCameraChange(camera: TCameraState) {
+    // const camera = this.context.camera.getCameraState();
+    this.html.style.setProperty("--scale", camera.scale.toString());
+    this.html.style.setProperty("--x", camera.x.toString());
+    this.html.style.setProperty("--y", camera.y.toString());
+  }
+
   protected onCameraChange(camera: TCameraState) {
-    if (this.props.html?.transformByCameraPosition && this.html) {
-      this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
+    // Check if HTML layer should be active based on activationScale
+    if (this.html && this.props.html?.activationScale !== undefined) {
+      const shouldBeActive = camera.scale >= this.props.html.activationScale;
+      if (shouldBeActive !== this.htmlActive) {
+        this.htmlActive = shouldBeActive;
+        this.onHtmlActiveChange(shouldBeActive);
+      }
+    }
+
+    if (this.props.html?.transformByCameraPosition && this.html && this.htmlActive) {
+      this.scheduleCameraChange(camera);
+      // this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
     }
     if (this.props.canvas?.transformByCameraPosition) {
       this.performRender();
     }
+  }
+
+  /**
+   * Called when the HTML layer's active state changes based on camera scale.
+   * Override this method to implement custom behavior when the layer activates/deactivates.
+   *
+   * @param active - Whether the HTML layer is now active
+   */
+  protected onHtmlActiveChange(active: boolean) {
+    if (active) {
+      this.html.classList.remove("hidden");
+      // Update transform immediately when becoming active
+      this.scheduleCameraChange(this.context.camera.getCameraState());
+    } else {
+      this.html.classList.add("hidden");
+    }
+  }
+
+  /**
+   * Returns whether the HTML layer is currently active.
+   * The layer is inactive when camera scale is below the activationScale threshold.
+   */
+  public isHtmlActive(): boolean {
+    return this.htmlActive;
   }
 
   protected init() {
