@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.7.3](https://github.com/gravity-ui/graph/compare/v1.7.2...v1.7.3) (2025-12-23)
+
+
+### chore
+
+* release 1.7.3 ([41f0055](https://github.com/gravity-ui/graph/commit/41f00550d54ed28c8fb9d7deace62f27ab731eb5))
+
+
+### Features
+
+* add threshold for dragListener and set default threshold=5 ([dbdefa9](https://github.com/gravity-ui/graph/commit/dbdefa9f2c8b5909df11ad77ca74c405bd4dd57f))
+
+
+### Bug Fixes
+
+* prevent preventDefault of native event. ([#205](https://github.com/gravity-ui/graph/issues/205)) ([dbdefa9](https://github.com/gravity-ui/graph/commit/dbdefa9f2c8b5909df11ad77ca74c405bd4dd57f))
+
 ## [1.7.2](https://github.com/gravity-ui/graph/compare/v1.7.1...v1.7.2) (2025-12-16)
 
 
