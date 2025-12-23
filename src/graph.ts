@@ -9,7 +9,7 @@ import { CursorLayer, CursorLayerCursorTypes } from "./components/canvas/layers/
 import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
 import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
-import { GraphEventParams, GraphEventsDefinitions } from "./graphEvents";
+import { GraphEvent, GraphEventParams, GraphEventsDefinitions } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
 import { Layer, LayerPublicProps } from "./services/Layer";
@@ -329,7 +329,7 @@ export class Graph {
     Cb extends GraphEventsDefinitions[EventName] = GraphEventsDefinitions[EventName],
     P extends Parameters<Cb>[0] = Parameters<Cb>[0],
   >(eventName: EventName, detail: GraphEventParams<P>) {
-    const event = new CustomEvent(eventName, {
+    const event = new GraphEvent(eventName, {
       detail,
       bubbles: false,
       cancelable: true,

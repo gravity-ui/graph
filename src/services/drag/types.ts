@@ -14,6 +14,11 @@ export type DragOperationOptions = {
   autopanning?: boolean;
   /** Stop drag when mouse leaves the document */
   stopOnMouseLeave?: boolean;
+  /**
+   * Minimum distance in pixels the mouse must move before drag starts.
+   * If not set, uses graph's dragThreshold setting.
+   */
+  threshold?: number;
 };
 
 /**

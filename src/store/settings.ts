@@ -35,6 +35,11 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   /** Controls which components can be dragged */
   canDrag?: ECanDrag;
   /**
+   * Minimum distance in pixels the mouse must move before a drag operation starts.
+   * Helps prevent accidental drags during clicks. Default: 3
+   */
+  dragThreshold?: number;
+  /**
    * Controls if connections can be created via anchors
    * If this connection is enabled, then anchors are not draggable and connection creation is handled by ConnectionLayer.
    * */
@@ -51,11 +56,12 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   background?: typeof Component;
 };
 
-const getInitState: TGraphSettingsConfig = {
+export const DefaultSettings: TGraphSettingsConfig = {
   canDragCamera: true,
   canZoomCamera: true,
   canDuplicateBlocks: false,
   canDrag: ECanDrag.ALL,
+  dragThreshold: 5,
   canCreateNewConnections: false,
   showConnectionArrows: true,
   scaleFontSize: 1,
@@ -68,7 +74,7 @@ const getInitState: TGraphSettingsConfig = {
 };
 
 export class GraphEditorSettings {
-  public $settings = signal(getInitState);
+  public $settings = signal(DefaultSettings);
 
   public $blockComponents = computed(() => {
     return this.$settings.value.blockComponents;
@@ -130,6 +136,13 @@ export class GraphEditorSettings {
     return ECanDrag.ALL;
   });
 
+  /**
+   * Drag threshold in pixels. Default: 3
+   */
+  public $dragThreshold = computed((): number => {
+    return this.$settings.value.dragThreshold ?? 3;
+  });
+
   public toJSON() {
     return cloneDeep(this.$settings.toJSON());
   }
@@ -139,6 +152,6 @@ export class GraphEditorSettings {
   }
 
   public reset() {
-    this.setupSettings(getInitState);
+    this.setupSettings(DefaultSettings);
   }
 }

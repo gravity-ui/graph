@@ -2,6 +2,7 @@ import { signal } from "@preact/signals-core";
 
 import type { GraphComponent } from "../../components/canvas/GraphComponent";
 import type { Graph } from "../../graph";
+import { isGraphEvent } from "../../graphEvents";
 import type { GraphMouseEvent } from "../../graphEvents";
 import { ECanDrag } from "../../store/settings";
 import { Emitter } from "../../utils/Emitter";
@@ -124,8 +125,9 @@ export class DragService {
       return;
     }
 
-    // Prevent camera drag when dragging components
-    event.preventDefault();
+    if (isGraphEvent(event)) {
+      event.stopGraphEventPropagation();
+    }
 
     // Reset stale emitter from previous mousedown that didn't result in drag
     this.currentDragEmitter = null;
@@ -303,7 +305,7 @@ export class DragService {
    * ```
    */
   public startDrag(callbacks: DragOperationCallbacks, options: DragOperationOptions = {}): void {
-    const { document: doc, cursor, autopanning = true, stopOnMouseLeave } = options;
+    const { document: doc, cursor, autopanning = true, stopOnMouseLeave, threshold } = options;
     const { onStart, onUpdate, onEnd } = callbacks;
 
     const targetDocument = doc ?? this.graph.getGraphCanvas().ownerDocument;
@@ -313,6 +315,7 @@ export class DragService {
       dragCursor: cursor,
       autopanning,
       stopOnMouseLeave,
+      threshold,
     })
       .on(EVENTS.DRAG_START, (event: MouseEvent) => {
         const coords = this.getWorldCoords(event);
