@@ -1,6 +1,6 @@
 import { Graph } from "../graph";
 
-import { ECanChangeBlockGeometry, ECanDrag, GraphEditorSettings } from "./settings";
+import { DefaultSettings, ECanChangeBlockGeometry, ECanDrag, GraphEditorSettings } from "./settings";
 
 describe("Settings store", () => {
   let graph: Graph;
@@ -14,21 +14,7 @@ describe("Settings store", () => {
   });
 
   it("Should init with default settings", () => {
-    expect(store.asConfig).toEqual({
-      canDragCamera: true,
-      canZoomCamera: true,
-      canDuplicateBlocks: false,
-      canDrag: ECanDrag.ALL,
-      canCreateNewConnections: false,
-      showConnectionArrows: true,
-      scaleFontSize: 1,
-      useBezierConnections: true,
-      bezierConnectionDirection: "horizontal",
-      useBlocksAnchors: true,
-      connectivityComponentOnClickRaise: true,
-      showConnectionLabels: false,
-      blockComponents: {},
-    });
+    expect(store.asConfig).toEqual(DefaultSettings);
   });
 
   it("Should get config via key", () => {

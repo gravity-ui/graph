@@ -10,6 +10,12 @@ export type DragListenerOptions = {
   dragCursor?: CursorLayerCursorTypes;
   component?: EventedComponent;
   autopanning?: boolean;
+  /**
+   * Minimum distance in pixels the mouse must move before drag starts.
+   * If graph is provided and threshold is not set, uses graph's dragThreshold setting.
+   * Default: 0 (drag starts immediately on first mousemove)
+   */
+  threshold?: number;
 };
 
 export function dragListener(document: Document | HTMLDivElement | HTMLCanvasElement, options?: DragListenerOptions) {
@@ -19,9 +25,14 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   const dragCursor = options?.dragCursor;
   const component = options?.component;
   const autopanning = options?.autopanning ?? Boolean(graph);
+  // Use provided threshold, or get from graph settings, or default to 0
+  const threshold = options?.threshold ?? graph?.rootStore.settings.$dragThreshold.value ?? 0;
 
   let started = false;
   let finished = false;
+  let thresholdExceeded = false;
+  let startX: number | null = null;
+  let startY: number | null = null;
   let lastMouseEvent: MouseEvent | undefined;
   const emitter = new Emitter();
   const mousemoveBinded = (event: MouseEvent) => {
@@ -42,11 +53,74 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     graph.on("camera-change", handleCameraChange);
   }
 
+  /**
+   * Check if the mouse has moved beyond the threshold distance
+   */
+  const checkThreshold = (event: MouseEvent): boolean => {
+    if (startX === null || startY === null) {
+      startX = event.clientX;
+      startY = event.clientY;
+    }
+
+    if (threshold <= 0) {
+      return true;
+    }
+
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    return distance >= threshold;
+  };
+
+  /**
+   * Start the actual drag operation
+   */
+  const startDrag = (event: MouseEvent): void => {
+    started = true;
+    thresholdExceeded = true;
+
+    // Setup drag state
+    if (graph) {
+      if (autopanning) {
+        graph.cameraService.enableAutoPanning();
+      }
+      if (dragCursor) {
+        graph.lockCursor(dragCursor);
+      }
+      if (component) {
+        graph.getGraphLayer().captureEvents(component);
+      }
+    }
+
+    emitter.emit(EVENTS.DRAG_START, event);
+    document.addEventListener("mousemove", mousemoveBinded);
+  };
+
+  /**
+   * Handle mousemove events while accumulating threshold
+   */
+  const handleThresholdMove = (event: MouseEvent): void => {
+    if (finished || thresholdExceeded) {
+      return;
+    }
+
+    if (checkThreshold(event)) {
+      // Threshold exceeded - start drag and remove this listener
+      document.removeEventListener("mousemove", handleThresholdMove, { capture: true });
+      startDrag(event);
+    }
+  };
+
   const cleanup = () => {
     if (graph && autopanning) {
       graph.off("camera-change", handleCameraChange);
     }
     document.removeEventListener("mousemove", mousemoveBinded);
+    // Also remove threshold listener if it was added
+    if (threshold > 0) {
+      document.removeEventListener("mousemove", handleThresholdMove, { capture: true });
+    }
   };
 
   const cleanupDragState = () => {
@@ -78,32 +152,22 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     );
   }
 
-  document.addEventListener(
-    "mousemove",
-    (event) => {
-      if (finished) {
-        return;
-      }
-      started = true;
-
-      // Setup drag state
-      if (graph) {
-        if (autopanning) {
-          graph.cameraService.enableAutoPanning();
+  // If threshold > 0, we need to accumulate movement before starting drag
+  if (threshold > 0) {
+    document.addEventListener("mousemove", handleThresholdMove, { capture: true });
+  } else {
+    // No threshold - start drag on first mousemove (original behavior)
+    document.addEventListener(
+      "mousemove",
+      (event: Event) => {
+        if (finished) {
+          return;
         }
-        if (dragCursor) {
-          graph.lockCursor(dragCursor);
-        }
-        if (component) {
-          graph.getGraphLayer().captureEvents(component);
-        }
-      }
-
-      emitter.emit(EVENTS.DRAG_START, event);
-      document.addEventListener("mousemove", mousemoveBinded);
-    },
-    { once: true, capture: true }
-  );
+        startDrag(event as MouseEvent);
+      },
+      { once: true, capture: true }
+    );
+  }
 
   document.addEventListener(
     "mouseup",

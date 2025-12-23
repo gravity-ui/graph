@@ -1,5 +1,5 @@
 import { Graph } from "../../../../graph";
-import { GraphMouseEventNames, isNativeGraphEventName } from "../../../../graphEvents";
+import { GraphMouseEventNames, isGraphEvent, isNativeGraphEventName } from "../../../../graphEvents";
 import { Component } from "../../../../lib/Component";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { Camera, TCameraProps } from "../../../../services/camera/Camera";
@@ -182,6 +182,9 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     });
     if (graphEvent.defaultPrevented) {
       event.preventDefault();
+      return false;
+    }
+    if (isGraphEvent(graphEvent) && graphEvent.graphEventPropagationStopped) {
       return false;
     }
     return true;

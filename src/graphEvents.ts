@@ -61,3 +61,21 @@ export type SelectionEvent<T extends TSelectionEntityId> = CustomEvent<TSelectio
 export function isNativeGraphEventName(eventType: string): eventType is GraphMouseEventNames {
   return graphMouseEvents.includes(eventType);
 }
+export class GraphEvent<T = unknown> extends CustomEvent<T> {
+  public graphEventDefaultPrevented = false;
+  public graphEventPropagationStopped = false;
+
+  public preventGraphEventDefault() {
+    this.graphEventDefaultPrevented = true;
+  }
+
+  public stopGraphEventPropagation() {
+    this.graphEventPropagationStopped = true;
+  }
+}
+
+export function isGraphEvent<T = unknown>(event: CustomEvent<T>): event is GraphEvent<T> {
+  return (
+    event instanceof CustomEvent && "graphEventDefaultPrevented" in event && "graphEventPropagationStopped" in event
+  );
+}
