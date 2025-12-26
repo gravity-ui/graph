@@ -27,6 +27,7 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
         zIndex: 3,
         classNames: ["no-user-select", "no-pointer-events"],
         transformByCameraPosition: true,
+        activationScale: props.graph.graphConstants.block.SCALES[2],
       },
       ...props,
     });
@@ -34,6 +35,18 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
 
   protected afterInit(): void {
     super.afterInit();
+    this.onSignal(this.props.graph.$graphConstants, (settings) => {
+      const scales = settings.block.SCALES;
+      if (scales.length > 0) {
+        this.setProps({
+          ...this.props,
+          html: {
+            ...this.props.html,
+            activationScale: scales[2],
+          },
+        });
+      }
+    });
     this.applyBlockListClassName(undefined, this.props.blockListClassName);
   }
 
