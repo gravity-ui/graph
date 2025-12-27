@@ -39,6 +39,10 @@ export type DragOperationCallbacks = {
 export type DragState = {
   /** Whether a drag operation is currently in progress */
   isDragging: boolean;
+  /** The initial mouse event that started the drag operation (for checking modifiers like shiftKey) */
+  initialEvent: MouseEvent | null;
+  /** The current mouse event (updated on each drag move) */
+  currentEvent: MouseEvent | null;
   /** Components participating in the current drag operation */
   components: GraphComponent[];
   /** Set of component type names (constructor names) participating in drag */
@@ -47,6 +51,10 @@ export type DragState = {
   isMultiple: boolean;
   /** Whether all dragged components are of the same type */
   isHomogeneous: boolean;
+  /** Starting coordinates in world space when drag began */
+  startCoords: [number, number] | null;
+  /** Current coordinates in world space */
+  currentCoords: [number, number] | null;
 };
 
 /**
