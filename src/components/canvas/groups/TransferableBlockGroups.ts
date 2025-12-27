@@ -280,18 +280,27 @@ export class TransferableBlockGroups<
   }
 
   /**
-   * End transfer on drag end (mouseup) - cancel without applying
-   * Transfer is applied when Shift is released, not on mouseup
+   * End transfer on drag end (mouseup) - apply transfer if in transfer mode
    */
   private endTransfer(): void {
-    const { highlightedGroupId } = this.transferState;
+    const { highlightedGroupId, targetGroupId, blocks } = this.transferState;
 
     // Unhighlight the group
     if (highlightedGroupId) {
       this.setGroupHighlight(highlightedGroupId, false);
     }
 
-    // Unlock all groups (transfer not applied - user didn't release Shift)
+    // Apply the group change for all blocks
+    for (const block of blocks) {
+      const currentGroupId = block.group ?? null;
+
+      // Only change if target is different from current
+      if (currentGroupId !== targetGroupId) {
+        this.applyGroupChange(block.id, targetGroupId);
+      }
+    }
+
+    // Unlock all groups
     this.unlockAllGroups();
 
     this.transferState = this.createIdleState();
