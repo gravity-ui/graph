@@ -215,7 +215,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   /**
    * Handles zoom behavior for both trackpad pinch and mouse wheel
    */
-  private handleWheelZoom(event: WheelEvent): void {
+  private handleWheelZoom(event: WheelEvent, acceleration = 1): void {
     if (!event.deltaY) {
       return;
     }
@@ -230,7 +230,8 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
      * Therefore, we have to round the value of deltaY to 1 if it is less than or equal to 1.
      */
     const pinchSpeed = Math.sign(event.deltaY) * clamp(Math.abs(event.deltaY), 1, 20);
-    const dScale = this.context.constants.camera.STEP * this.context.constants.camera.SPEED * pinchSpeed;
+
+    const dScale = this.context.constants.camera.STEP * this.context.constants.camera.SPEED * pinchSpeed * acceleration;
 
     const cameraScale = this.camera.getCameraScale();
 
@@ -266,8 +267,11 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
       }
     }
 
+    // Calculate acceleration based on trackpad pinch-to-zoom gesture
+    const isPinchToZoom = isTrackpad && isMetaKeyEvent(event);
+    const acceleration = isPinchToZoom ? this.context.constants.camera.PINCH_ZOOM_SPEED : 1;
     // Default: zoom behavior (trackpad pinch or mouse wheel with "zoom" mode)
-    this.handleWheelZoom(event);
+    this.handleWheelZoom(event, acceleration);
   };
 
   protected moveWithEdges(deltaX: number, deltaY: number) {
