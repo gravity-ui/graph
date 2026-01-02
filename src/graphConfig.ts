@@ -144,6 +144,13 @@ export type TGraphConstants = {
      * @see https://w3c.github.io/uievents/#events-wheelevents - W3C UI Events Wheel Events specification
      */
     MOUSE_WHEEL_BEHAVIOR: TMouseWheelBehavior;
+    /**
+     * Multiplier for trackpad pinch-to-zoom gesture speed.
+     * Applied when zooming with trackpad using pinch gesture (Cmd/Ctrl + scroll).
+     *
+     * @default 1
+     */
+    PINCH_ZOOM_FACTOR: number;
   };
 
   block: {
@@ -195,6 +202,7 @@ export const initGraphConstants: TGraphConstants = {
     AUTO_PAN_THRESHOLD: 50,
     AUTO_PAN_SPEED: 5,
     MOUSE_WHEEL_BEHAVIOR: "zoom",
+    PINCH_ZOOM_FACTOR: 1,
   },
   block: {
     WIDTH_MIN: 16 * 10,
