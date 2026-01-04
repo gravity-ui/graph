@@ -59,7 +59,12 @@
     "copy-styles": "copyfiles -u 1 \"src/**/*.css\" build/",
     "build:publish": "tsc -p tsconfig.publish.json && npm run copy-styles",
     "build": "tsc --declaration && npm run copy-styles",
-    "prepublishOnly": "npm run typecheck && npm run test && npm run build:publish"
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build:publish",
+    "dev": "concurrently \"tsc --watch --declaration\" \"chokidar 'src/**/*.css' -c 'npm run copy-styles'\""
+  },
+  "peerDependencies": {
+    "react": "^17.0.0 || ^18.0.0",
+    "react-dom": "^17.0.0 || ^18.0.0"
   },
   "dependencies": {
     "@preact/signals-core": "^1.5.1",
