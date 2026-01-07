@@ -51,8 +51,10 @@ export class DragService {
    */
   public readonly $state = signal<DragState>(this.createIdleState());
 
-  constructor(private graph: Graph) {
-    this.unsubscribeMouseDown = graph.on("mousedown", this.handleMouseDown, {
+  constructor(private graph: Graph) {}
+
+  public start() {
+    this.unsubscribeMouseDown = this.graph.on("mousedown", this.handleMouseDown, {
       capture: true,
     });
   }
@@ -63,24 +65,32 @@ export class DragService {
   private createIdleState(): DragState {
     return {
       isDragging: false,
+      initialEvent: null,
+      currentEvent: null,
       components: [],
       componentTypes: new Set(),
       isMultiple: false,
       isHomogeneous: true,
+      startCoords: null,
+      currentCoords: null,
     };
   }
 
   /**
    * Create active drag state from components
    */
-  private createDragState(components: GraphComponent[]): DragState {
+  private createDragState(event: MouseEvent, components: GraphComponent[], startCoords: [number, number]): DragState {
     const componentTypes = new Set(components.map((c) => c.constructor.name));
     return {
       isDragging: true,
+      initialEvent: event,
+      currentEvent: event,
       components,
       componentTypes,
       isMultiple: components.length > 1,
       isHomogeneous: componentTypes.size <= 1,
+      startCoords,
+      currentCoords: startCoords,
     };
   }
 
@@ -89,10 +99,6 @@ export class DragService {
    */
   public destroy(): void {
     this.cleanup();
-    if (this.unsubscribeMouseDown) {
-      this.unsubscribeMouseDown();
-      this.unsubscribeMouseDown = null;
-    }
   }
 
   /**
@@ -178,13 +184,13 @@ export class DragService {
    * Handle drag start from dragListener
    */
   private handleDragStart = (event: MouseEvent): void => {
-    // Update reactive state
-    this.$state.value = this.createDragState(this.dragComponents);
-
     // Calculate starting coordinates in world space
     const coords = this.getWorldCoords(event);
     this.startCoords = coords;
     this.prevCoords = coords;
+
+    // Update reactive state with event and coordinates
+    this.$state.value = this.createDragState(event, this.dragComponents, coords);
 
     // Create context for drag start
     const context: DragContext = {
@@ -210,6 +216,13 @@ export class DragService {
     }
 
     const currentCoords = this.getWorldCoords(event);
+
+    // Update reactive state with current event and coordinates
+    this.$state.value = {
+      ...this.$state.value,
+      currentEvent: event,
+      currentCoords,
+    };
 
     const diff: DragDiff = {
       startCoords: this.startCoords,
@@ -279,6 +292,10 @@ export class DragService {
     this.dragComponents = [];
     this.startCoords = null;
     this.prevCoords = null;
+    if (this.unsubscribeMouseDown) {
+      this.unsubscribeMouseDown();
+      this.unsubscribeMouseDown = null;
+    }
 
     // Update reactive state
     this.$state.value = this.createIdleState();

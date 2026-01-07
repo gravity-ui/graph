@@ -27,12 +27,40 @@ export class GroupState {
     component: Group,
   });
 
+  /**
+   * When true, the group's rect should not be auto-updated based on contained blocks.
+   * Used during Shift+drag to keep the group visually stable.
+   * Note: This is NOT a signal to avoid cycle detection issues in computed signals.
+   */
+  private sizeLocked = false;
+
   constructor(
     protected store: GroupsListStore,
     state: TGroup,
     private readonly groupSelectionBucket: ISelectionBucket<string | number>
   ) {
     this.$state.value = state;
+  }
+
+  /**
+   * Check if the group's size is locked
+   */
+  public isSizeLocked(): boolean {
+    return this.sizeLocked;
+  }
+
+  /**
+   * Lock the group's size to prevent auto-resize during block transfer
+   */
+  public lockSize(): void {
+    this.sizeLocked = true;
+  }
+
+  /**
+   * Unlock the group's size to allow auto-resize
+   */
+  public unlockSize(): void {
+    this.sizeLocked = false;
   }
 
   public get id() {
