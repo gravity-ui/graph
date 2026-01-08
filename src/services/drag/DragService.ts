@@ -52,9 +52,9 @@ export class DragService {
   public readonly $state = signal<DragState>(this.createIdleState());
 
   constructor(private graph: Graph) {
-    this.unsubscribeMouseDown = graph.on("mousedown", this.handleMouseDown, {
-      capture: true,
-    });
+    // this.unsubscribeMouseDown = graph.on("mousedown", this.handleMouseDown, {
+    //   capture: true,
+    // });
   }
 
   /**
@@ -98,7 +98,7 @@ export class DragService {
   /**
    * Handle mousedown on graph - determine if drag should start
    */
-  private handleMouseDown = (event: GraphMouseEvent): void => {
+  public handleMouseDown = (event: GraphMouseEvent): void => {
     // Prevent initiating new drag while one is already in progress
     // Check actual drag state, not just emitter presence (emitter may exist but drag not started yet)
     if (this.currentDragEmitter && this.$state.value.isDragging) {

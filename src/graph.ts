@@ -9,7 +9,7 @@ import { CursorLayer, CursorLayerCursorTypes } from "./components/canvas/layers/
 import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
 import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
-import { GraphEvent, GraphEventParams, GraphEventsDefinitions } from "./graphEvents";
+import { GraphEvent, GraphEventParams, GraphEventsDefinitions, isGraphEvent } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
 import { Layer, LayerPublicProps } from "./services/Layer";
@@ -335,6 +335,25 @@ export class Graph {
       cancelable: true,
     });
     this.eventEmitter.dispatchEvent(event);
+
+    /*
+     * !!!IMPORTANT!!!
+     * Users or layers must be able to prevent the default drag action.
+     * Simply subscribing to the "mousedown" event does not allow handling the event at the very end of the chain,
+     * so manual handling of the event is required here.
+     *
+     * In example - NewBlockLayer prevent default drag action to allow duplicate blocks with Alt key.
+     *
+     * @example
+     * ```typescript
+     * graph.on("mousedown", (event) => {
+     *   event.preventDefault(); // Prevent drag
+     * });
+     * ```
+     * */
+    if (eventName === "mousedown" && isGraphEvent(event) && !event.isDefaultPrevented()) {
+      this.dragService.handleMouseDown(event);
+    }
     return event;
   }
 
