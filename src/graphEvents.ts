@@ -72,6 +72,10 @@ export class GraphEvent<T = unknown> extends CustomEvent<T> {
   public stopGraphEventPropagation() {
     this.graphEventPropagationStopped = true;
   }
+
+  public isDefaultPrevented() {
+    return this.graphEventDefaultPrevented || this.defaultPrevented;
+  }
 }
 
 export function isGraphEvent<T = unknown>(event: CustomEvent<T>): event is GraphEvent<T> {
