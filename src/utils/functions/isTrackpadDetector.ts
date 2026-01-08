@@ -1,3 +1,6 @@
+import { ESchedulerPriority } from "../../lib";
+import { debounce } from "../utils/schedule";
+
 // Time in milliseconds to keep trackpad detection state
 const TRACKPAD_DETECTION_STATE_TIMEOUT = 60_000; // 1 minute
 
@@ -34,18 +37,28 @@ const TRACKPAD_DETECTION_STATE_TIMEOUT = 60_000; // 1 minute
  */
 function isTrackpadDetector() {
   let isTrackpadDetected = false;
-  let cleanStateTimer: number | null = null;
 
   /**
-   * Marks the current input device as trackpad and resets the state timeout.
+   * Debounced function to reset trackpad detection state.
+   * Uses scheduler-based timing instead of setTimeout for consistency with the rest of the library.
+   */
+  const resetState = debounce(
+    () => {
+      isTrackpadDetected = false;
+    },
+    {
+      priority: ESchedulerPriority.LOWEST,
+      frameTimeout: TRACKPAD_DETECTION_STATE_TIMEOUT,
+    }
+  );
+
+  /**
+   * Marks the current input device as trackpad and schedules state reset.
    * This ensures consistent detection during continuous scroll operations.
    */
   const markAsTrackpad = (): void => {
     isTrackpadDetected = true;
-    clearTimeout(cleanStateTimer);
-    cleanStateTimer = setTimeout(() => {
-      isTrackpadDetected = false;
-    }, TRACKPAD_DETECTION_STATE_TIMEOUT) as unknown as number;
+    resetState();
   };
 
   /**
