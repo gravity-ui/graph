@@ -7,7 +7,7 @@ import { TComponentContext, TComponentProps, TComponentState } from "../../../li
 import { HitBox, HitBoxData } from "../../../services/HitTest";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { PortState, TPortId } from "../../../store/connection/port/Port";
-import { getXY } from "../../../utils/functions";
+import { applyAlpha, getXY } from "../../../utils/functions";
 import { EventedComponent } from "../EventedComponent/EventedComponent";
 import { CursorLayerCursorTypes } from "../layers/cursorLayer";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
@@ -94,6 +94,14 @@ export class GraphComponent<
     const affectsUsableRect = props.affectsUsableRect ?? this.context.affectsUsableRect ?? true;
     this.setProps({ affectsUsableRect });
     this.setContext({ affectsUsableRect });
+  }
+
+  /* Adopt color to the component alpha */
+  public adoptColor(color: string, { alpha }: { alpha?: number } = {}) {
+    if (alpha !== undefined) {
+      return applyAlpha(color, alpha);
+    }
+    return color;
   }
 
   public createPort(id: TPortId) {

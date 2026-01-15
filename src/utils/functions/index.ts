@@ -5,6 +5,7 @@ import { SELECTION_EVENT_TYPES } from "../types/events";
 import { Rect, TRect } from "../types/shapes";
 
 export { parseClassNames } from "./classNames";
+export { applyAlpha, clearColorCache } from "./color";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function noop(...args: unknown[]) {

@@ -20,7 +20,7 @@ import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
 import { TGraphSettingsConfig } from "./store/settings";
-import { getXY } from "./utils/functions";
+import { clearColorCache, getXY } from "./utils/functions";
 import { clearTextCache } from "./utils/renderers/text";
 import { RecursivePartial } from "./utils/types/helpers";
 import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
@@ -478,6 +478,7 @@ export class Graph {
     this.hitTest.clear();
     this.layers.unmount();
     clearTextCache();
+    clearColorCache();
     this.rootStore.reset();
     this.scheduler.stop();
     this.dragService.destroy();
