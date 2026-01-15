@@ -175,14 +175,15 @@ export class ConnectionLayer extends Layer<
 
   protected handleMouseDown = (nativeEvent: GraphMouseEvent) => {
     const target = nativeEvent.detail.target;
-    const event = extractNativeGraphMouseEvent(nativeEvent);
-    if (!event || !target || !this.root?.ownerDocument) {
+    const initEvent = extractNativeGraphMouseEvent(nativeEvent);
+    if (!initEvent || !target || !this.root?.ownerDocument) {
       return;
     }
+
     if (
       this.enabled &&
       ((this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors") && target instanceof Anchor) ||
-        (isShiftKeyEvent(event) && isBlock(target)))
+        (isShiftKeyEvent(initEvent) && isBlock(target)))
     ) {
       // Get the source component state
       const sourceComponent = target.connectedState;
@@ -196,7 +197,7 @@ export class ConnectionLayer extends Layer<
       nativeEvent.stopPropagation();
       this.context.graph.dragService.startDrag(
         {
-          onStart: (event, coords) => this.onStartConnection(event, new Point(coords[0], coords[1])),
+          onStart: (_event, coords) => this.onStartConnection(target, new Point(coords[0], coords[1])),
           onUpdate: (event, coords) => this.onMoveNewConnection(event, new Point(coords[0], coords[1])),
           onEnd: (_event, coords) => this.onEndNewConnection(new Point(coords[0], coords[1])),
         },
@@ -290,17 +291,10 @@ export class ConnectionLayer extends Layer<
     return undefined;
   }
 
-  private onStartConnection(event: MouseEvent, point: Point) {
-    const sourceComponent = this.context.graph.getElementOverPoint(point, [Block, Anchor]);
-
+  private onStartConnection(sourceComponent: Block | Anchor, worldCoords: Point) {
     if (!sourceComponent) {
       return;
     }
-
-    this.sourceComponent = sourceComponent.connectedState;
-
-    // Use world coordinates from point instead of screen coordinates
-    this.startState = new Point(point.x, point.y);
 
     this.context.graph.executеDefaultEventAction(
       "connection-create-start",
@@ -312,11 +306,17 @@ export class ConnectionLayer extends Layer<
         anchorId: sourceComponent instanceof Anchor ? sourceComponent.connectedState.id : undefined,
       },
       () => {
+        this.sourceComponent = sourceComponent.connectedState;
         if (sourceComponent instanceof Block) {
           this.context.graph.api.selectBlocks([this.sourceComponent.id], true, ESelectionStrategy.REPLACE);
+          this.startState = new Point(worldCoords.x, worldCoords.y);
         } else if (sourceComponent instanceof Anchor) {
+          const point = sourceComponent.getPosition();
+          this.startState = new Point(point.x, point.y);
           this.context.graph.api.setAnchorSelection(sourceComponent.props.blockId, sourceComponent.props.id, true);
         }
+
+        // Use world coordinates from point instead of screen coordinates
       }
     );
 
@@ -324,7 +324,7 @@ export class ConnectionLayer extends Layer<
   }
 
   private onMoveNewConnection(event: MouseEvent, point: Point) {
-    if (!this.startState) {
+    if (!this.startState || !this.sourceComponent) {
       return;
     }
 
