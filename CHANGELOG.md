@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.8.0-rc.1](https://github.com/gravity-ui/graph/compare/v1.7.3...v1.8.0-rc.1) (2026-01-15)
+
+
+### chore
+
+* release 1.8.0-rc.1 ([37570cd](https://github.com/gravity-ui/graph/commit/37570cd597942f3e566bf3ea500e9df0f917dd68))
+
+
+### Features
+
+* add raf debouncing for  useGraphEvent ([6fc3b55](https://github.com/gravity-ui/graph/commit/6fc3b555e36fe86f674aded44314a99a45dccb05))
+* **Camera:** add pinch-to-zoom speed factor to increase zoom speed on pinch ([#208](https://github.com/gravity-ui/graph/issues/208)) ([fc3dff0](https://github.com/gravity-ui/graph/commit/fc3dff08bae127ee24d325a74fa9bba941a9cd46))
+* fix border position, to prevent increasing a block size ([6fc3b55](https://github.com/gravity-ui/graph/commit/6fc3b555e36fe86f674aded44314a99a45dccb05))
+* **graph:** enhance event handling for mousedown to allow default prevention and improve drag functionality ([#209](https://github.com/gravity-ui/graph/issues/209)) ([2e2d443](https://github.com/gravity-ui/graph/commit/2e2d443de0e906b6a4bbea0da4b2b0a3b3aa2706))
+* lot of fixes ([#203](https://github.com/gravity-ui/graph/issues/203)) ([6fc3b55](https://github.com/gravity-ui/graph/commit/6fc3b555e36fe86f674aded44314a99a45dccb05))
+
+
+### Bug Fixes
+
+* **ConnectionLayer:** pre-save initial sourceComponent on start creating connection ([#212](https://github.com/gravity-ui/graph/issues/212)) ([930e663](https://github.com/gravity-ui/graph/commit/930e6636d20e82ae581c062b9e469c6050b34330))
+* **isTrackpadDetector:** added some accurate trackpad usage checks ([fc3dff0](https://github.com/gravity-ui/graph/commit/fc3dff08bae127ee24d325a74fa9bba941a9cd46))
+
 ## [1.7.3](https://github.com/gravity-ui/graph/compare/v1.7.2...v1.7.3) (2025-12-23)
 
 
