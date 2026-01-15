@@ -37,7 +37,7 @@ describe("ReactLayer", () => {
     return new ReactLayer({
       graph,
       camera,
-      root: undefined as any,
+      root: undefined as unknown as HTMLDivElement,
       blockListClassName,
     });
   };
@@ -51,10 +51,19 @@ describe("ReactLayer", () => {
   };
 
   // Helper function to check if element has only default classes
-  const hasOnlyDefaultClasses = (element: HTMLElement): boolean => {
+  const getExpectedLayerClasses = (layer: ReactLayer): string[] => {
+    const expectedClasses = [...DEFAULT_LAYER_CLASSES];
+    if (!layer.isHtmlActive()) {
+      expectedClasses.push("layer-hidden");
+    }
+    return expectedClasses;
+  };
+
+  const hasOnlyDefaultClasses = (element: HTMLElement, layer: ReactLayer): boolean => {
+    const expectedClasses = getExpectedLayerClasses(layer);
     return (
-      DEFAULT_LAYER_CLASSES.every((cls) => element.classList.contains(cls)) &&
-      element.classList.length === DEFAULT_LAYER_CLASSES.length
+      expectedClasses.every((cls) => element.classList.contains(cls)) &&
+      element.classList.length === expectedClasses.length
     );
   };
 
@@ -63,7 +72,8 @@ describe("ReactLayer", () => {
       const layer = createLayer();
       const htmlElement = getHTMLElement(layer);
 
-      DEFAULT_LAYER_CLASSES.forEach((className) => {
+      const expectedClasses = getExpectedLayerClasses(layer);
+      expectedClasses.forEach((className) => {
         expect(htmlElement.classList.contains(className)).toBe(true);
       });
     });
@@ -77,7 +87,7 @@ describe("ReactLayer", () => {
 
       // blockListClassName is not applied until attachLayer is called (which calls afterInit)
       expect(htmlElement.classList.contains("test-class")).toBe(false);
-      expect(hasOnlyDefaultClasses(htmlElement)).toBe(true);
+      expect(hasOnlyDefaultClasses(htmlElement, layer)).toBe(true);
     });
 
     it("should initialize with correct z-index", () => {
@@ -120,7 +130,7 @@ describe("ReactLayer", () => {
       const layer = createLayer(undefined);
       const htmlElement = getHTMLElement(layer);
 
-      expect(hasOnlyDefaultClasses(htmlElement)).toBe(true);
+      expect(hasOnlyDefaultClasses(htmlElement, layer)).toBe(true);
     });
 
     it("should remove class when changed to undefined", () => {
@@ -191,7 +201,7 @@ describe("ReactLayer", () => {
       const htmlElement = getHTMLElement(layer);
 
       // Should only have default classes
-      expect(hasOnlyDefaultClasses(htmlElement)).toBe(true);
+      expect(hasOnlyDefaultClasses(htmlElement, layer)).toBe(true);
     });
 
     it("should remove multiple classes when changed to undefined", () => {
@@ -353,6 +363,39 @@ describe("ReactLayer", () => {
 
       // Cleanup
       document.body.removeChild(newRoot);
+    });
+  });
+
+  describe("activationScale", () => {
+    it("should hide HTML layer when camera scale is below activationScale", () => {
+      const layer = createLayer();
+      const htmlElement = getHTMLElement(layer);
+      const activationScale = graph.graphConstants.block.SCALES[2];
+      const minScale = camera.getCameraState().scaleMin;
+      const belowScale = Math.max(activationScale - 0.05, minScale);
+
+      camera.set({ scale: belowScale });
+
+      expect(layer.isHtmlActive()).toBe(false);
+      expect(htmlElement.classList.contains("layer-hidden")).toBe(true);
+    });
+
+    it("should toggle visibility when camera scale crosses activationScale", () => {
+      const layer = createLayer();
+      const htmlElement = getHTMLElement(layer);
+      const activationScale = graph.graphConstants.block.SCALES[2];
+      const minScale = camera.getCameraState().scaleMin;
+      const maxScale = camera.getCameraState().scaleMax;
+      const belowScale = Math.max(activationScale - 0.05, minScale);
+      const aboveScale = Math.min(activationScale + 0.05, maxScale);
+
+      camera.set({ scale: belowScale });
+      expect(layer.isHtmlActive()).toBe(false);
+      expect(htmlElement.classList.contains("layer-hidden")).toBe(true);
+
+      camera.set({ scale: aboveScale });
+      expect(layer.isHtmlActive()).toBe(true);
+      expect(htmlElement.classList.contains("layer-hidden")).toBe(false);
     });
   });
 

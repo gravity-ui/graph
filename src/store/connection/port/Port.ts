@@ -1,6 +1,7 @@
-import { signal } from "@preact/signals-core";
+import { computed, signal } from "@preact/signals-core";
 
 import { Component } from "../../../lib";
+import { TPoint } from "../../../utils/types/shapes";
 
 export const IS_PORT_TYPE = "Port" as const;
 
@@ -92,6 +93,10 @@ export class PortState {
     return this.owner || this.$state.value.component;
   }
 
+  public $point = computed(() => {
+    return { x: this.x, y: this.y };
+  });
+
   /**
    * Get whether the port is in lookup state (waiting for coordinates)
    *
@@ -152,6 +157,10 @@ export class PortState {
    */
   public setPoint(x: number, y: number): void {
     this.updatePort({ x, y });
+  }
+
+  public getPoint(): TPoint {
+    return this.$point.value;
   }
 
   /**

@@ -1,13 +1,12 @@
-import { ESchedulerPriority } from "../../../lib";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { selectBlockAnchor } from "../../../store/block/selectors";
-import { debounce } from "../../../utils/functions";
+import { PortState } from "../../../store/connection/port/Port";
 import { TPoint } from "../../../utils/types/shapes";
 import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
-import { GraphLayer, TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
+import { GraphLayer } from "../layers/graphLayer/GraphLayer";
 
 export type TAnchorId = string | number;
 export type TAnchor = {
@@ -22,7 +21,7 @@ export type TAnchorProps = TGraphComponentProps &
     size: number;
     lineWidth: number;
     zIndex: number;
-    getPosition: (anchor: TAnchor) => TPoint;
+    port: PortState;
   };
 
 type TAnchorState = {
@@ -39,28 +38,9 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     return this.__comp.parent.zIndex + 1;
   }
 
-  public declare state: TAnchorState;
-
-  public declare props: T;
-
-  public declare context: TGraphLayerContext;
-
   public connectedState: AnchorState;
 
   private shift: number;
-
-  private hitBoxHash: string;
-
-  private debouncedSetHitBox = debounce(
-    () => {
-      const { x, y } = this.props.getPosition(this.props);
-      this.setHitBox(x - this.shift, y - this.shift, x + this.shift, y + this.shift);
-    },
-    {
-      priority: ESchedulerPriority.HIGHEST,
-      frameInterval: 4,
-    }
-  );
 
   constructor(props: T, parent: GraphLayer) {
     super(props, parent);
@@ -68,9 +48,6 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
 
     this.connectedState = selectBlockAnchor(this.context.graph, props.blockId, props.id);
     this.connectedState.setViewComponent(this);
-    this.subscribeSignal(this.connectedState.$selected, (selected) => {
-      this.setState({ selected });
-    });
 
     this.addEventListener("click", this);
     this.addEventListener("mouseenter", this);
@@ -81,8 +58,20 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     this.shift = this.props.size / 2 + props.lineWidth;
   }
 
+  protected willMount(): void {
+    this.props.port.addObserver(this);
+    this.subscribeSignal(this.connectedState.$selected, (selected) => {
+      this.setState({ selected });
+    });
+    this.subscribeSignal(this.props.port.$point, this.onPositionChanged);
+  }
+
+  protected onPositionChanged = (point: TPoint) => {
+    this.setHitBox(point.x - this.shift, point.y - this.shift, point.x + this.shift, point.y + this.shift);
+  };
+
   public getPosition() {
-    return this.props.getPosition(this.props);
+    return this.props.port.getPoint();
   }
 
   public toggleSelected() {
@@ -122,18 +111,8 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   }
 
   protected unmount() {
+    this.props.port.removeObserver(this);
     super.unmount();
-    this.debouncedSetHitBox.cancel();
-  }
-
-  public didIterate(): void {
-    const { x: poxX, y: posY } = this.props.getPosition(this.props);
-    const hash = `${poxX}/${posY}/${this.shift}`;
-
-    if (this.hitBoxHash !== hash) {
-      this.hitBoxHash = hash;
-      this.debouncedSetHitBox();
-    }
   }
 
   public handleEvent(event: MouseEvent | KeyboardEvent) {
@@ -170,7 +149,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     if (this.context.camera.getCameraBlockScaleLevel() === ECameraScaleLevel.Detailed) {
       return;
     }
-    const { x, y } = this.props.getPosition(this.props);
+    const { x, y } = this.getPosition();
     const ctx = this.context.ctx;
     ctx.fillStyle = this.context.colors.anchor.background;
     ctx.beginPath();

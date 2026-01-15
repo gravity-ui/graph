@@ -12,6 +12,7 @@ import { selectBlockById } from "../../../store/block/selectors";
 import { PortState } from "../../../store/connection/port/Port";
 import { createAnchorPortId, createBlockPointPortId } from "../../../store/connection/port/utils";
 import { isAllowDrag } from "../../../utils/functions";
+import { clamp } from "../../../utils/functions/clamp";
 import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { TTExtRect, renderText } from "../../../utils/renderers/text";
 import { TPoint, TRect } from "../../../utils/types/shapes";
@@ -396,14 +397,14 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     };
   }
 
-  protected renderAnchor(anchor: TAnchor, getPosition: (anchor: TAnchor) => TPoint) {
+  protected renderAnchor(anchor: TAnchor) {
     return Anchor.create(
       {
         ...anchor,
         zIndex: this.zIndex,
         size: 18,
         lineWidth: 2,
-        getPosition,
+        port: this.getAnchorPort(anchor.id),
       },
       {
         key: anchor.id,
@@ -416,7 +417,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected binderGetAnchorPosition = (anchor: TAnchor) => {
-    return this.getConnectionAnchorPosition(anchor);
+    return this.getAnchorPort(anchor.id).getPoint();
   };
 
   protected updateChildren() {
@@ -425,7 +426,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     }
 
     return this.state.anchors.map((anchor) => {
-      return this.renderAnchor(anchor, this.binderGetAnchorPosition);
+      return this.renderAnchor(anchor);
     });
   }
 
@@ -437,9 +438,19 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected renderStroke(color: string) {
-    this.context.ctx.lineWidth = Math.round(3 / this.context.camera.getCameraScale());
+    const lineWidth = clamp(
+      this.context.camera.getRelative(this.context.constants.block.BORDER_WIDTH),
+      this.context.constants.block.BORDER_WIDTH,
+      10
+    );
+    this.context.ctx.lineWidth = lineWidth;
     this.context.ctx.strokeStyle = color;
-    this.context.ctx.strokeRect(this.state.x, this.state.y, this.state.width, this.state.height);
+    this.context.ctx.strokeRect(
+      this.state.x + lineWidth / 2,
+      this.state.y + lineWidth / 2,
+      this.state.width - lineWidth,
+      this.state.height - lineWidth
+    );
   }
 
   /* Returns rect of block size with padding */

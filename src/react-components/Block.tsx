@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 
 import { computed } from "@preact/signals-core";
 
@@ -16,24 +16,36 @@ export const GraphBlock = <T extends TBlock>({
   children,
   className,
   containerClassName,
+  autoHideCanvas = true,
+  canvasVisible,
 }: {
   graph: Graph;
   block: T;
   children: React.ReactNode;
   className?: string;
   containerClassName?: string;
+  autoHideCanvas?: boolean;
+  canvasVisible?: boolean;
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const lastStateRef = useRef({ x: 0, y: 0, width: 0, height: 0, zIndex: 0 });
   const viewState = useBlockViewState(graph, block);
   const state = useBlockState(graph, block);
 
-  const selected = useSignal(computed(() => state?.$selected.value ?? false));
+  const $selected = useMemo(() => computed(() => state?.$selected.value ?? false), [state]);
+
+  const selected = useSignal($selected);
 
   useEffect(() => {
-    viewState?.setHiddenBlock(true);
+    if (!autoHideCanvas) {
+      if (canvasVisible !== undefined) {
+        viewState?.setHiddenBlock(Boolean(canvasVisible));
+      }
+    } else {
+      viewState?.setHiddenBlock(true);
+    }
     return () => viewState?.setHiddenBlock(false);
-  }, [viewState]);
+  }, [viewState, canvasVisible]);
 
   // Optimized updates only on actual changes
   useLayoutEffect(() => {
@@ -48,15 +60,16 @@ export const GraphBlock = <T extends TBlock>({
 
     if (hasPositionChange) {
       // Используем transform для позиции - самый быстрый способ
-      element.style.transform = `translate3d(${state.x}px, ${state.y}px, 0)`;
+      element.style.setProperty("--graph-block-geometry-x", `${state.x}px`);
+      element.style.setProperty("--graph-block-geometry-y", `${state.y}px`);
+      // element.style.transform = `translate3d(${state.x}px, ${state.y}px, 0)`;
       lastState.x = state.x;
       lastState.y = state.y;
     }
 
     if (hasSizeChange) {
-      // Размеры устанавливаем напрямую
-      element.style.width = `${state.width}px`;
-      element.style.height = `${state.height}px`;
+      element.style.setProperty("--graph-block-geometry-width", `${state.width}px`);
+      element.style.setProperty("--graph-block-geometry-height", `${state.height}px`);
       lastState.width = state.width;
       lastState.height = state.height;
     }

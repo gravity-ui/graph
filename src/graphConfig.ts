@@ -148,6 +148,7 @@ export type TGraphConstants = {
 
   block: {
     WIDTH_MIN: number;
+    BORDER_WIDTH: number;
     HEAD_HEIGHT: number;
     BODY_PADDING: number;
     SCALES: [number, number, number];
@@ -198,6 +199,7 @@ export const initGraphConstants: TGraphConstants = {
   },
   block: {
     WIDTH_MIN: 16 * 10,
+    BORDER_WIDTH: 3,
     HEAD_HEIGHT: 16 * 4,
     BODY_PADDING: 16 * 1.5,
     SCALES: [0.125, 0.225, 0.7],
