@@ -1,6 +1,3 @@
-import { ESchedulerPriority } from "../../lib";
-import { debounce } from "../utils/schedule";
-
 // Time in milliseconds to keep trackpad detection state
 const TRACKPAD_DETECTION_STATE_TIMEOUT = 60_000; // 1 minute
 
@@ -11,11 +8,11 @@ const TRACKPAD_DETECTION_STATE_TIMEOUT = 60_000; // 1 minute
  * the input device type. The detection is based on several behavioral patterns:
  *
  * - **Pinch-to-zoom gestures**: Trackpads generate wheel events with modifier keys (Ctrl/Meta)
- *   and continuous (non-integer) delta values
+ *   and continuous (usually fractional) delta values.
  * - **Horizontal scrolling**: Trackpads naturally produce horizontal scroll events (deltaX),
- *   while mice typically only scroll vertically
- * - **Continuous scrolling**: Trackpad scroll deltas are usually fractional values, while mouse
- *   wheels produce discrete integer values
+ *   while mice typically only scroll vertically (unless Shift is pressed).
+ * - **Continuous scrolling**: Trackpad scroll deltas are usually fractional or very small values,
+ *   while mouse wheels produce discrete larger integer values (typically 100 or 120).
  *
  * The detector maintains state across events to provide consistent results during a scroll session.
  * Once a trackpad is detected, the state persists for 60 seconds before resetting.
@@ -37,28 +34,17 @@ const TRACKPAD_DETECTION_STATE_TIMEOUT = 60_000; // 1 minute
  */
 function isTrackpadDetector() {
   let isTrackpadDetected = false;
+  let lastDetectionTime: number | null = null;
+  let lastDpr = 0;
 
   /**
-   * Debounced function to reset trackpad detection state.
-   * Uses scheduler-based timing instead of setTimeout for consistency with the rest of the library.
-   */
-  const resetState = debounce(
-    () => {
-      isTrackpadDetected = false;
-    },
-    {
-      priority: ESchedulerPriority.LOWEST,
-      frameTimeout: TRACKPAD_DETECTION_STATE_TIMEOUT,
-    }
-  );
-
-  /**
-   * Marks the current input device as trackpad and schedules state reset.
+   * Marks the current input device as trackpad and records the detection time.
    * This ensures consistent detection during continuous scroll operations.
    */
-  const markAsTrackpad = (): void => {
+  const markAsTrackpad = (dpr: number): void => {
     isTrackpadDetected = true;
-    resetState();
+    lastDetectionTime = performance.now();
+    lastDpr = dpr;
   };
 
   /**
@@ -66,44 +52,77 @@ function isTrackpadDetector() {
    *
    * @param e - The WheelEvent to analyze
    * @param dpr - Device pixel ratio for normalizing delta values. Defaults to window.devicePixelRatio.
-   *              This normalization accounts for browser zoom levels to improve detection accuracy.
+   *              This normalization accounts for browser zoom levels.
    * @returns `true` if the event is from a trackpad, `false` if from a mouse wheel
    */
   return (e: WheelEvent, dpr: number = globalThis.devicePixelRatio || 1) => {
+    const now = performance.now();
+
+    // Fast path: if we have valid cached detection state and DPR hasn't changed,
+    // we already know it's a trackpad. We refresh the detection if we see more evidence below.
+    if (isTrackpadDetected && lastDetectionTime !== null) {
+      if (now - lastDetectionTime < TRACKPAD_DETECTION_STATE_TIMEOUT && lastDpr === dpr) {
+        // We'll continue to check for new evidence to refresh the timeout
+      } else {
+        // State expired or DPR changed - need to re-evaluate
+        isTrackpadDetected = false;
+        lastDetectionTime = null;
+      }
+    }
+
     const normalizedDeltaY = e.deltaY * dpr;
     const normalizedDeltaX = e.deltaX * dpr;
-    const hasFractionalDelta = normalizedDeltaY && !Number.isInteger(normalizedDeltaY);
 
-    // Detection 1: Pinch-to-zoom gesture
+    // Detection 1: Small or fractional deltas
+    // Trackpads produce fractional values or very small integers.
+    // Mouse produce large integers
+    const hasFractionalDelta =
+      !Number.isInteger(e.deltaY) ||
+      !Number.isInteger(e.deltaX) ||
+      !Number.isInteger(normalizedDeltaY) ||
+      !Number.isInteger(normalizedDeltaX);
+
+    const isSmallDelta = Math.abs(e.deltaY) < 50 && Math.abs(e.deltaX) < 50;
+
+    // Detection 2: Pinch-to-zoom gesture
     // Trackpad pinch-to-zoom generates wheel events with ctrlKey or metaKey.
-    // Combined with non-integer deltaY, this is a strong indicator of trackpad.
-    const isPinchToZoomGesture = (e.ctrlKey || e.metaKey) && hasFractionalDelta;
-    if (isPinchToZoomGesture) {
-      markAsTrackpad();
+    // Combined with small or fractional deltas, this is a very strong indicator of trackpad.
+    // Note: Mouse wheel with Ctrl pressed usually has large delta (e.g., 100).
+    if ((e.ctrlKey || e.metaKey) && (hasFractionalDelta || isSmallDelta)) {
+      markAsTrackpad(dpr);
       return true;
     }
 
-    // Detection 2: Horizontal scroll (deltaX)
+    // Detection 3: Horizontal scroll (deltaX)
     // Trackpad naturally produces horizontal scroll events.
-    // Note: When Shift is pressed, browser swaps deltaX and deltaY for mouse wheel,
-    // so we skip this check to avoid false positives.
-    const hasHorizontalScroll = normalizedDeltaX !== 0;
-    const isShiftPressed = e.shiftKey;
-    if (hasHorizontalScroll && !isShiftPressed) {
-      markAsTrackpad();
+    // Note: When Shift is pressed, browsers swap deltaX and deltaY for mouse wheel,
+    // so we skip this check to avoid false positives from mouse.
+    if (normalizedDeltaX !== 0 && !e.shiftKey) {
+      markAsTrackpad(dpr);
       return true;
     }
 
-    // Detection 3: Fractional deltaY (mouse produces integer values)
-    // If we have non-integer deltaY without ctrl/meta keys, it's likely NOT trackpad
-    // (could be browser zoom or other factors), so we explicitly return false.
+    // Detection 4: Smooth scrolling
+    // If we have non-integer values, it's almost certainly a trackpad or high-precision scroll.
     if (hasFractionalDelta) {
-      return false;
+      markAsTrackpad(dpr);
+      return true;
     }
 
-    // Fallback: Return previously detected state
-    // This helps maintain consistency across rapid scroll events.
-    return isTrackpadDetected;
+    // Fallback: If we already detected a trackpad recently, stay in trackpad mode
+    // unless we see obvious mouse-like behavior (large integer deltas).
+    if (isTrackpadDetected && lastDetectionTime !== null) {
+      // If it's still small delta, refresh the timestamp to keep trackpad state alive
+      if (isSmallDelta) {
+        lastDetectionTime = now;
+      }
+      return true;
+    }
+
+    // No trackpad detected
+    isTrackpadDetected = false;
+    lastDetectionTime = null;
+    return false;
   };
 }
 
