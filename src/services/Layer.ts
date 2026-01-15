@@ -1,9 +1,8 @@
 import { Graph } from "../graph";
 import { TGraphColors, TGraphConstants } from "../graphConfig";
 import { GraphEventsDefinitions } from "../graphEvents";
-import { CoreComponent, ESchedulerPriority } from "../lib";
+import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
-import { throttle } from "../utils/utils/schedule";
 
 import { ICamera, TCameraState } from "./camera/CameraService";
 
@@ -32,7 +31,12 @@ export type LayerPropsHtmlElementProps = LayerPropsElementProps & {
 };
 
 export type LayerProps = {
-  canvas?: LayerPropsElementProps & { respectPixelRatio?: boolean };
+  canvas?: LayerPropsElementProps & {
+    respectPixelRatio?: boolean;
+    alpha?: boolean;
+    desynchronized?: boolean;
+    willReadFrequently?: boolean;
+  };
   html?: LayerPropsHtmlElementProps;
   root?: HTMLElement;
   camera: ICamera;
@@ -66,6 +70,8 @@ export type LayerPublicProps<T extends Constructor<Layer>> =
     : never;
 
 export type LayerConstructor<T extends Constructor<Layer>> = T extends Constructor<Layer> ? T : never;
+
+const HIDDEN_CLASS_NAME = "layer-hidden";
 
 export class Layer<
   Props extends LayerProps = LayerProps,
@@ -123,17 +129,17 @@ export class Layer<
   }
 
   public hide() {
-    this.canvas?.classList.add("hidden");
-    this.html?.classList.add("hidden");
+    this.canvas?.classList.add(HIDDEN_CLASS_NAME);
+    this.html?.classList.add(HIDDEN_CLASS_NAME);
   }
 
   public isHidden() {
-    return this.canvas?.classList.contains("hidden") || this.html?.classList.contains("hidden");
+    return this.canvas?.classList.contains(HIDDEN_CLASS_NAME) || this.html?.classList.contains(HIDDEN_CLASS_NAME);
   }
 
   public show() {
-    this.canvas?.classList.remove("hidden");
-    this.html?.classList.remove("hidden");
+    this.canvas?.classList.remove(HIDDEN_CLASS_NAME);
+    this.html?.classList.remove(HIDDEN_CLASS_NAME);
   }
 
   /**
@@ -314,7 +320,7 @@ export class Layer<
       const cameraState = this.context.camera.getCameraState();
       this.htmlActive = cameraState.scale >= this.props.html.activationScale;
       if (!this.htmlActive) {
-        this.html.classList.add("hidden");
+        this.onHtmlActiveChange(false);
       }
     }
 
@@ -323,10 +329,9 @@ export class Layer<
   }
 
   protected scheduleCameraChange(camera: TCameraState) {
-    // const camera = this.context.camera.getCameraState();
-    this.html.style.setProperty("--scale", camera.scale.toString());
-    this.html.style.setProperty("--x", camera.x.toString());
-    this.html.style.setProperty("--y", camera.y.toString());
+    if (this.html && this.htmlActive) {
+      this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
+    }
   }
 
   protected onCameraChange(camera: TCameraState) {
@@ -341,7 +346,6 @@ export class Layer<
 
     if (this.props.html?.transformByCameraPosition && this.html && this.htmlActive) {
       this.scheduleCameraChange(camera);
-      // this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
     }
     if (this.props.canvas?.transformByCameraPosition) {
       this.performRender();
@@ -356,11 +360,9 @@ export class Layer<
    */
   protected onHtmlActiveChange(active: boolean) {
     if (active) {
-      this.html.classList.remove("hidden");
-      // Update transform immediately when becoming active
-      this.scheduleCameraChange(this.context.camera.getCameraState());
+      this.html.classList.remove("layer-hidden");
     } else {
-      this.html.classList.add("hidden");
+      this.html.classList.add("layer-hidden");
     }
   }
 
@@ -453,7 +455,11 @@ export class Layer<
     canvas.style.zIndex = `${Number(params.zIndex)}`;
     this.setContext({
       graphCanvas: canvas,
-      ctx: canvas.getContext("2d"),
+      ctx: canvas.getContext("2d", {
+        desynchronized: params.desynchronized ?? true,
+        willReadFrequently: params.willReadFrequently ?? false,
+        alpha: params.alpha ?? true,
+      }),
     });
     return canvas;
   }

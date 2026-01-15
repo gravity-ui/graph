@@ -26,6 +26,7 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
         zIndex: 1,
         classNames: ["no-pointer-events"],
         transformByCameraPosition: true,
+        alpha: false, // disable alpha for better performance
         ...props.canvas,
       },
       ...props,
