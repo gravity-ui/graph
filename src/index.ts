@@ -22,6 +22,7 @@ export { EVENTS } from "./utils/types/events";
 export { type TPoint, type TRect } from "./utils/types/shapes";
 export { ESelectionStrategy } from "./services/selection/types";
 export * from "./utils/shapes";
+export { applyAlpha, clearColorCache } from "./utils/functions/color";
 
 export * from "./components/canvas/groups";
 

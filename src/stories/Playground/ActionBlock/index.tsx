@@ -48,14 +48,14 @@ export class ActionBlock extends CanvasBlock<TGravityActionBlock> {
     return <ActionBlockHtml graph={this.context.graph} block={this.connectedState.$state.value} />;
   }
 
-  protected renderAnchor(anchor: TAnchor, getPosition: (anchor: TAnchor) => TPoint) {
+  protected renderAnchor(anchor: TAnchor) {
     return Anchor.create(
       {
         ...anchor,
         zIndex: this.zIndex,
         size: 18,
         lineWidth: 2,
-        getPosition,
+        port: this.getAnchorPort(anchor.id),
       },
       {
         key: anchor.id,

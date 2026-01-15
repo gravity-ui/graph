@@ -8,6 +8,12 @@
   height: 100%;
 }
 
+canvas.layer {
+  outline: none;
+  filter: none;
+  border:none;
+}
+
 .no-user-select {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -20,6 +26,12 @@
   pointer-events: none;
 }
 
+.layer-html {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
 .layer-with-camera {
   isolation: isolate;
   transform-origin: 0 0;
@@ -27,6 +39,7 @@
   will-change: transform;
 }
 
-.hidden {
+.layer-hidden {
   visibility: hidden;
+  opacity: 0;
 }

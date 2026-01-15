@@ -29,7 +29,7 @@ export type TGraphEventCallbacks = {
 export type GraphEventDetail<T extends keyof TGraphEventCallbacks> = Parameters<TGraphEventCallbacks[T]>[0];
 export type GraphEvent<T extends keyof TGraphEventCallbacks> = Parameters<TGraphEventCallbacks[T]>[0];
 
-export const GraphCallbacksMap: Record<keyof TGraphEventCallbacks, keyof GraphEventsDefinitions> = {
+export const GraphCallbacksMap = {
   click: "click",
   dblclick: "dblclick",
   onCameraChange: "camera-change",
@@ -41,4 +41,4 @@ export const GraphCallbacksMap: Record<keyof TGraphEventCallbacks, keyof GraphEv
   onBlockChange: "block-change",
   onConnectionSelectionChange: "connection-selection-change",
   onStateChanged: "state-change",
-};
+} as const satisfies Record<keyof TGraphEventCallbacks, keyof GraphEventsDefinitions>;

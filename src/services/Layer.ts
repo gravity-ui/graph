@@ -15,9 +15,29 @@ export type LayerPropsElementProps = {
   transformByCameraPosition?: boolean;
 };
 
+export type LayerPropsHtmlElementProps = LayerPropsElementProps & {
+  /**
+   * Minimum camera scale at which the HTML layer becomes active.
+   * When camera scale is below this value, the HTML layer is disabled
+   * and won't receive updates (improving performance when zoomed out).
+   *
+   * @example
+   * ```typescript
+   * // HTML layer only active when zoomed in (scale >= 0.5)
+   * html: { zIndex: 1, activationScale: 0.5 }
+   * ```
+   */
+  activationScale?: number;
+};
+
 export type LayerProps = {
-  canvas?: LayerPropsElementProps & { respectPixelRatio?: boolean };
-  html?: LayerPropsElementProps;
+  canvas?: LayerPropsElementProps & {
+    respectPixelRatio?: boolean;
+    alpha?: boolean;
+    desynchronized?: boolean;
+    willReadFrequently?: boolean;
+  };
+  html?: LayerPropsHtmlElementProps;
   root?: HTMLElement;
   camera: ICamera;
   graph: Graph;
@@ -51,6 +71,8 @@ export type LayerPublicProps<T extends Constructor<Layer>> =
 
 export type LayerConstructor<T extends Constructor<Layer>> = T extends Constructor<Layer> ? T : never;
 
+const HIDDEN_CLASS_NAME = "layer-hidden";
+
 export class Layer<
   Props extends LayerProps = LayerProps,
   Context extends LayerContext = LayerContext,
@@ -65,6 +87,12 @@ export class Layer<
   protected root?: HTMLDivElement;
 
   protected attached = false;
+
+  /**
+   * Indicates whether the HTML layer is currently active based on camera scale.
+   * When false, the HTML layer is hidden and won't receive updates.
+   */
+  protected htmlActive = true;
 
   /**
    * AbortController used to manage event listeners.
@@ -101,17 +129,17 @@ export class Layer<
   }
 
   public hide() {
-    this.canvas?.classList.add("hidden");
-    this.html?.classList.add("hidden");
+    this.canvas?.classList.add(HIDDEN_CLASS_NAME);
+    this.html?.classList.add(HIDDEN_CLASS_NAME);
   }
 
   public isHidden() {
-    return this.canvas?.classList.contains("hidden") || this.html?.classList.contains("hidden");
+    return this.canvas?.classList.contains(HIDDEN_CLASS_NAME) || this.html?.classList.contains(HIDDEN_CLASS_NAME);
   }
 
   public show() {
-    this.canvas?.classList.remove("hidden");
-    this.html?.classList.remove("hidden");
+    this.canvas?.classList.remove(HIDDEN_CLASS_NAME);
+    this.html?.classList.remove(HIDDEN_CLASS_NAME);
   }
 
   /**
@@ -286,17 +314,64 @@ export class Layer<
 
     this.shouldRenderChildren = true;
     this.shouldUpdateChildren = true;
+
+    // Initialize htmlActive state based on current camera scale
+    if (this.html && this.props.html?.activationScale !== undefined) {
+      const cameraState = this.context.camera.getCameraState();
+      this.htmlActive = cameraState.scale >= this.props.html.activationScale;
+      if (!this.htmlActive) {
+        this.onHtmlActiveChange(false);
+      }
+    }
+
     this.onCameraChange(this.context.camera.getCameraState());
     this.updateSize();
   }
 
-  protected onCameraChange(camera: TCameraState) {
-    if (this.props.html?.transformByCameraPosition && this.html) {
+  protected scheduleCameraChange(camera: TCameraState) {
+    if (this.html && this.htmlActive) {
       this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
+    }
+  }
+
+  protected onCameraChange(camera: TCameraState) {
+    // Check if HTML layer should be active based on activationScale
+    if (this.html && this.props.html?.activationScale !== undefined) {
+      const shouldBeActive = camera.scale >= this.props.html.activationScale;
+      if (shouldBeActive !== this.htmlActive) {
+        this.htmlActive = shouldBeActive;
+        this.onHtmlActiveChange(shouldBeActive);
+      }
+    }
+
+    if (this.props.html?.transformByCameraPosition && this.html && this.htmlActive) {
+      this.scheduleCameraChange(camera);
     }
     if (this.props.canvas?.transformByCameraPosition) {
       this.performRender();
     }
+  }
+
+  /**
+   * Called when the HTML layer's active state changes based on camera scale.
+   * Override this method to implement custom behavior when the layer activates/deactivates.
+   *
+   * @param active - Whether the HTML layer is now active
+   */
+  protected onHtmlActiveChange(active: boolean) {
+    if (active) {
+      this.html.classList.remove("layer-hidden");
+    } else {
+      this.html.classList.add("layer-hidden");
+    }
+  }
+
+  /**
+   * Returns whether the HTML layer is currently active.
+   * The layer is inactive when camera scale is below the activationScale threshold.
+   */
+  public isHtmlActive(): boolean {
+    return this.htmlActive;
   }
 
   protected init() {
@@ -380,7 +455,11 @@ export class Layer<
     canvas.style.zIndex = `${Number(params.zIndex)}`;
     this.setContext({
       graphCanvas: canvas,
-      ctx: canvas.getContext("2d"),
+      ctx: canvas.getContext("2d", {
+        desynchronized: params.desynchronized ?? true,
+        willReadFrequently: params.willReadFrequently ?? false,
+        alpha: params.alpha ?? true,
+      }),
     });
     return canvas;
   }

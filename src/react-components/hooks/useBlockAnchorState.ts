@@ -28,9 +28,10 @@ export function useBlockAnchorPosition(
   anchorContainerRef: React.MutableRefObject<HTMLDivElement> | undefined
 ) {
   const refreshAnchorPosition = useCallback(() => {
-    const position = state.block.getViewComponent().getAnchorPosition(state.state) || { x: 0, y: 0 };
-    anchorContainerRef.current.style.setProperty("--graph-block-anchor-x", `${position.x}px`);
-    anchorContainerRef.current.style.setProperty("--graph-block-anchor-y", `${position.y}px`);
+    const position = state.block.getViewComponent().getAnchorPort(state.id).getPoint() || { x: 0, y: 0 };
+    const blockGeometry = state.block.$geometry.value;
+    anchorContainerRef.current.style.setProperty("--graph-block-anchor-x", `${position.x - blockGeometry.x}px`);
+    anchorContainerRef.current.style.setProperty("--graph-block-anchor-y", `${position.y - blockGeometry.y}px`);
   }, []);
 
   useLayoutEffect(() => {

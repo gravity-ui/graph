@@ -4,15 +4,18 @@
   top: 0;
   left: 0;
   box-sizing: content-box;
+  width: var(--graph-block-geometry-width);
+  height: var(--graph-block-geometry-height);
   
   will-change: transform;
   contain: layout size;
   isolation: isolate;
   
   /* Creates a composite layer */
-  backface-visibility: hidden;
   transform-style: preserve-3d;
+  transform: translate3d(0, 0, 0);
   pointer-events: all;
+  transform: translate3d(var(--graph-block-geometry-x), var(--graph-block-geometry-y), 0)
 }
 
 .graph-block-wrapper {
