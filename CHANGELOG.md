@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.0-rc.2](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.1...v1.8.0-rc.2) (2026-01-19)
+
+
+### chore
+
+* release 1.8.0-rc.2 ([8781a7d](https://github.com/gravity-ui/graph/commit/8781a7dc84f29ea0b573ab9e665ca41e02cfa853))
+
+
+### Bug Fixes
+
+* **color:** Changed canvas clearing method to prevent color compositing. ([15916fc](https://github.com/gravity-ui/graph/commit/15916fc8f270ee6cad25165209651eb61a6eadb3))
+
 ## [1.8.0-rc.1](https://github.com/gravity-ui/graph/compare/v1.7.3...v1.8.0-rc.1) (2026-01-15)
 
 
