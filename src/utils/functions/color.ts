@@ -1,5 +1,8 @@
-// Color cache sprite: stores already computed color conversions
-const colorCache = new Map<string, { r: number; g: number; b: number; a: number }>();
+// Cache for parsed colors
+const parseColorCache = new Map<string, { r: number; g: number; b: number; a: number }>();
+
+// Cache for colors with applied alpha
+const applyAlphaCache = new Map<string, string>();
 
 // Offscreen canvas for color parsing (created once and reused)
 let offscreenCanvas: OffscreenCanvas | null = null;
@@ -14,7 +17,6 @@ function getColorParsingContext(): OffscreenCanvasRenderingContext2D | null {
     offscreenCanvas = new OffscreenCanvas(1, 1);
     // Optimize context for frequent color reading
     offscreenCtx = offscreenCanvas.getContext("2d", {
-      alpha: false,
       willReadFrequently: true,
     });
   }
@@ -30,8 +32,8 @@ function getColorParsingContext(): OffscreenCanvasRenderingContext2D | null {
  * @returns RGBA components or null if parsing fails
  */
 function parseColor(color: string): { r: number; g: number; b: number; a: number } | null {
-  // Check cache first (sprite)
-  const cached = colorCache.get(color);
+  // Check cache first
+  const cached = parseColorCache.get(color);
   if (cached) {
     return cached;
   }
@@ -41,9 +43,8 @@ function parseColor(color: string): { r: number; g: number; b: number; a: number
     return null;
   }
 
-  // Clear previous color (fill with white since alpha is disabled)
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, 1, 1);
+  // Clear the canvas to prevent color compositing with previous pixel
+  ctx.clearRect(0, 0, 1, 1);
 
   // Set the color and draw a pixel
   ctx.fillStyle = color;
@@ -58,8 +59,8 @@ function parseColor(color: string): { r: number; g: number; b: number; a: number
     a: imageData[3] / 255,
   };
 
-  // Add to cache (sprite)
-  colorCache.set(color, result);
+  // Add to cache
+  parseColorCache.set(color, result);
 
   return result;
 }
@@ -85,11 +86,11 @@ export function applyAlpha(color: string, alpha: number): string {
   // Clamp alpha to valid range [0, 1]
   const clampedAlpha = Math.max(0, Math.min(1, alpha));
 
-  // Try to use cached sprite
+  // Try to use cached result
   const cacheKey = `${color}|${clampedAlpha}`;
-  const cachedResult = colorCache.get(cacheKey);
+  const cachedResult = applyAlphaCache.get(cacheKey);
   if (cachedResult) {
-    return `rgba(${cachedResult.r}, ${cachedResult.g}, ${cachedResult.b}, ${cachedResult.a})`;
+    return cachedResult;
   }
 
   const parsed = parseColor(color);
@@ -101,17 +102,12 @@ export function applyAlpha(color: string, alpha: number): string {
   // Multiply existing alpha with new alpha
   const finalAlpha = parsed.a * clampedAlpha;
 
-  const result = {
-    r: parsed.r,
-    g: parsed.g,
-    b: parsed.b,
-    a: finalAlpha,
-  };
+  const result = `rgba(${parsed.r}, ${parsed.g}, ${parsed.b}, ${finalAlpha})`;
 
   // Cache the final result
-  colorCache.set(cacheKey, result);
+  applyAlphaCache.set(cacheKey, result);
 
-  return `rgba(${result.r}, ${result.g}, ${result.b}, ${result.a})`;
+  return result;
 }
 
 /**
@@ -119,5 +115,6 @@ export function applyAlpha(color: string, alpha: number): string {
  * Use this if you've processed a large number of unique colors and want to reclaim memory.
  */
 export function clearColorCache(): void {
-  colorCache.clear();
+  parseColorCache.clear();
+  applyAlphaCache.clear();
 }
