@@ -13,6 +13,8 @@ export class Background extends Component<TComponentProps, TBackgroundState, TBe
 
   protected readonly unsubscribe: () => void;
 
+  protected usableRectPath = new Path2D();
+
   constructor(props: {}, parent: Component) {
     super(props, parent);
 
@@ -20,6 +22,7 @@ export class Background extends Component<TComponentProps, TBackgroundState, TBe
   }
 
   public render() {
+    super.render();
     const cameraState = this.context.camera.getCameraState();
     this.context.ctx.fillStyle = this.context.colors.canvas.belowLayerBackground;
     this.context.ctx.fillRect(
@@ -29,26 +32,33 @@ export class Background extends Component<TComponentProps, TBackgroundState, TBe
       cameraState.relativeHeight
     );
 
-    this.context.ctx.lineWidth = Math.floor(3 / cameraState.scale);
+    this.context.ctx.lineWidth = this.context.camera.limitScaleEffect(3, 15);
     this.context.ctx.strokeStyle = this.context.colors.canvas.border;
-    this.context.ctx.strokeRect(this.state.x, this.state.y, this.state.width, this.state.height);
-
     this.context.ctx.fillStyle = this.context.colors.canvas.layerBackground;
-
-    this.context.ctx.fillRect(this.state.x, this.state.y, this.state.width, this.state.height);
-
-    this.context.ctx.fillStyle = "black";
-    this.context.ctx.font = "48px serif";
-    return;
+    this.context.ctx.fill(this.usableRectPath);
+    this.context.ctx.stroke(this.usableRectPath);
   }
 
   protected subscribe() {
     return this.context.graph.hitTest.onUsableRectUpdate(this.setupExtendedUsableRect);
   }
 
-  protected stateChanged(_nextState: TBackgroundState): void {
-    this.shouldUpdateChildren = true;
-    super.stateChanged(_nextState);
+  protected isGeometryChanged(nextState: TBackgroundState) {
+    return (
+      nextState.x !== this.state.x ||
+      nextState.y !== this.state.y ||
+      nextState.height !== this.state.height ||
+      nextState.width !== this.state.width
+    );
+  }
+
+  protected stateChanged(nextState: TBackgroundState): void {
+    if (this.isGeometryChanged(nextState)) {
+      this.usableRectPath = new Path2D();
+      this.usableRectPath.rect(nextState.x, nextState.y, nextState.width, nextState.height);
+      this.shouldUpdateChildren = true;
+    }
+    super.stateChanged(nextState);
   }
 
   private setupExtendedUsableRect = debounce(

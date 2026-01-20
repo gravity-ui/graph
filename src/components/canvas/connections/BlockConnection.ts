@@ -75,14 +75,13 @@ export class BlockConnection<T extends TConnection>
    */
   protected applyShape(state: TBaseConnectionState = this.state, props: TConnectionProps = this.props) {
     const zIndex = state.selected || state.hovered ? this.zIndex + 10 : this.zIndex;
-    this.context.batch.update(this, { zIndex: zIndex, group: this.getClassName(state) });
+    const group = this.getClassName(state);
 
-    // Handle arrow visibility based on the provided props
+    this.context.batch.update(this, { zIndex, group });
+
     if (props.showConnectionArrows) {
-      // Update will handle adding if not already in batch or updating if it is
-      this.context.batch.update(this.arrowShape, { zIndex: zIndex - 1, group: `arrow/${this.getClassName(state)}` });
+      this.context.batch.update(this.arrowShape, { zIndex: zIndex - 1, group: `arrow/${group}` });
     } else {
-      // Remove arrow from batch if showConnectionArrows is false
       this.context.batch.delete(this.arrowShape);
     }
   }
@@ -210,18 +209,6 @@ export class BlockConnection<T extends TConnection>
 
     switch (event.type) {
       case "click": {
-        const { blocksList } = this.context.graph.rootStore;
-        const isAnyBlockSelected = blocksList.$selectedBlocks.value.length !== 0;
-        const isAnyAnchorSelected = Boolean(blocksList.$selectedAnchor.value);
-
-        if (!isMetaKeyEvent(event) && isAnyBlockSelected) {
-          blocksList.resetSelection();
-        }
-
-        if (!isMetaKeyEvent(event) && isAnyAnchorSelected) {
-          blocksList.resetSelection();
-        }
-
         this.context.graph.api.selectConnections(
           [this.props.id],
           !isMetaKeyEvent(event) ? true : !this.state.selected,
@@ -260,6 +247,9 @@ export class BlockConnection<T extends TConnection>
   }
 
   private renderLabelText(ctx: CanvasRenderingContext2D) {
+    if (!this.isVisible()) {
+      return;
+    }
     const [labelInnerTopPadding, labelInnerRightPadding, labelInnerBottomPadding, labelInnerLeftPadding] =
       this.context.constants.connection.LABEL.INNER_PADDINGS;
     const padding = this.context.constants.system.GRID_SIZE / 8;

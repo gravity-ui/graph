@@ -184,6 +184,28 @@ export class CameraService extends Emitter {
     });
   }
 
+  /**
+   * Limits the effect of camera scale on visual details to preserve their visibility.
+   * Prevents important details from becoming too large or too small during zoom.
+   * Converts absolute value to camera space with optional clamping.
+   * @param {number} value Absolute value in screen space
+   * @param {number} [max] Maximum allowed value
+   * @returns {number} Scale-compensated value in camera space
+   */
+  public limitScaleEffect(value: number, max?: number): number {
+    const result = this.getRelative(value);
+    if (max !== undefined) {
+      return clamp(result, value, max);
+    }
+    return result;
+  }
+
+  /**
+   * Converts a value from absolute (screen space) to relative (camera space).
+   * @param {number} n Absolute value
+   * @param {number} [scale=this.state.scale] Scale to use for conversion
+   * @returns {number} Relative value
+   */
   public getRelative(n: number, scale: number = this.state.scale): number {
     return n / scale;
   }

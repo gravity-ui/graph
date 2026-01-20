@@ -27,9 +27,7 @@ canvas.layer {
 }
 
 .layer-html {
-  opacity: 1;
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
+  contain: size style;
 }
 
 .layer-with-camera {
@@ -41,5 +39,4 @@ canvas.layer {
 
 .layer-hidden {
   visibility: hidden;
-  opacity: 0;
 }

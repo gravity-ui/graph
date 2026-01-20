@@ -143,16 +143,7 @@ export class BatchPath2DRenderer {
       }, [] satisfies Path2DGroup[]);
   });
 
-  protected requestRender = () => {
-    this.onChange?.();
-  }; /* debounce(
-    () => {
-      this.onChange?.();
-    },
-    {
-      priority: ESchedulerPriority.HIGHEST,
-    }
-  ); */
+  protected requestRender = () => this.onChange?.();
 
   protected getGroup(zIndex: number, group: string) {
     if (!this.indexes.has(zIndex)) {
@@ -179,7 +170,23 @@ export class BatchPath2DRenderer {
   }
 
   public update(item: Path2DRenderInstance, params: { zIndex: number; group: string }) {
-    this.delete(item);
+    if (this.itemParams.has(item)) {
+      const prev = this.itemParams.get(item);
+      /**
+       * Reasons to update path2d is different
+       * 1. zIndex changed
+       * 2. group changed
+       * 3. item changes geometry
+       *
+       * So is item change zIndex or group, we need recalculate groups
+       * But if item change geomertry we have ot only mark item as dirty to recalc groups path2d
+       * */
+      if (prev.zIndex === params.zIndex && prev.group === params.group) {
+        this.markDirty(item);
+        return;
+      }
+      this.delete(item);
+    }
     this.add(item, params);
   }
 
