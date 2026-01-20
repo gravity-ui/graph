@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.8.0-rc.3](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.2...v1.8.0-rc.3) (2026-01-20)
+
+
+### chore
+
+* release 1.8.0-rc.3 ([4a5fd70](https://github.com/gravity-ui/graph/commit/4a5fd70e83ce40de321221f3cfe07b9888d4404d))
+
+
+### Features
+
+* **BlockConnection:** optimize rendering and connection updates with caching and debouncing ([a443e0a](https://github.com/gravity-ui/graph/commit/a443e0af364488a90c2bfaf88db01abad99a4ee0))
+* **CameraService:** add method to increase some size with scale factor ([a443e0a](https://github.com/gravity-ui/graph/commit/a443e0af364488a90c2bfaf88db01abad99a4ee0))
+
+
+### Bug Fixes
+
+* **Layer:** some fixes in Layer.css ([a443e0a](https://github.com/gravity-ui/graph/commit/a443e0af364488a90c2bfaf88db01abad99a4ee0))
+
 ## [1.8.0-rc.2](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.1...v1.8.0-rc.2) (2026-01-19)
 
 
