@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.0-rc.4](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.3...v1.8.0-rc.4) (2026-01-21)
+
+
+### chore
+
+* release 1.8.0-rc.4 ([50f5cb4](https://github.com/gravity-ui/graph/commit/50f5cb48b8a6b8ff0a02422209bcce00bef1b002))
+
+
+### Bug Fixes
+
+* **Background:** remove border of BelowLayer(just add extra space to fill in Background) ([b8780fa](https://github.com/gravity-ui/graph/commit/b8780fa545ee0da0666ea944be0dd74e8dac9773))
+
 ## [1.8.0-rc.3](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.2...v1.8.0-rc.3) (2026-01-20)
 
 
