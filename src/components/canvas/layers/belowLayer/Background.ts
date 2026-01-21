@@ -26,10 +26,10 @@ export class Background extends Component<TComponentProps, TBackgroundState, TBe
     const cameraState = this.context.camera.getCameraState();
     this.context.ctx.fillStyle = this.context.colors.canvas.belowLayerBackground;
     this.context.ctx.fillRect(
-      -cameraState.relativeX,
-      -cameraState.relativeY,
-      cameraState.relativeWidth,
-      cameraState.relativeHeight
+      -cameraState.relativeX - 10,
+      -cameraState.relativeY - 10,
+      cameraState.relativeWidth + 20,
+      cameraState.relativeHeight + 20
     );
 
     this.context.ctx.lineWidth = this.context.camera.limitScaleEffect(3, 15);
