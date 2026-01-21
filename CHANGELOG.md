@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.0-rc.5](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.4...v1.8.0-rc.5) (2026-01-21)
+
+
+### chore
+
+* release 1.8.0-rc.5 ([ebe4bff](https://github.com/gravity-ui/graph/commit/ebe4bff0587fece34973e755f0645622d4055f05))
+
+
+### Bug Fixes
+
+* **BlockList:** render items to wrapper instead to portal direcly to improve reconcilation ([a3ea095](https://github.com/gravity-ui/graph/commit/a3ea0958097ef62c130678a6e3e2873e26b9e1de))
+* **useSignal:** useLayoutEffect to faster get signal-value ([a3ea095](https://github.com/gravity-ui/graph/commit/a3ea0958097ef62c130678a6e3e2873e26b9e1de))
+
 ## [1.8.0-rc.4](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.3...v1.8.0-rc.4) (2026-01-21)
 
 
