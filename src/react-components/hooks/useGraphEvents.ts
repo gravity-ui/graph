@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 
 import { Graph } from "../../graph";
 import { GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } from "../../graphEvents";
