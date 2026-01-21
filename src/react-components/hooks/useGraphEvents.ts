@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 
 import { Graph } from "../../graph";
 import { GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } from "../../graphEvents";
@@ -52,6 +52,7 @@ export function useGraphEvent<Event extends keyof GraphEventsDefinitions>(
     if (!graph) return undefined;
     return graph.on(event, onEvent);
   }, [graph, event, onEvent]);
+
   useLayoutEffect(() => {
     return () => {
       fn.cancel?.();

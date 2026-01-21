@@ -119,7 +119,7 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
   }, [graphObject, scheduleListUpdate]);
 
   return (
-    <>
+    <div>
       {graphState === GraphState.READY &&
         cameraScaleLevel === ECameraScaleLevel.Detailed &&
         blockStates.map((blockState) => {
@@ -127,6 +127,6 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
             <Block key={blockState.id} renderBlock={renderBlock} graphObject={graphObject} blockState={blockState} />
           );
         })}
-    </>
+    </div>
   );
 });
