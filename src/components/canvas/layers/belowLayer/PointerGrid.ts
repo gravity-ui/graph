@@ -39,14 +39,8 @@ export class PointerGrid extends Component<TRect, TBelowLayerContext> {
       this.currentDotsColor = this.context.colors.canvas.dots;
     }
 
-    const GRID_SIZE = this.context.constants.system.GRID_SIZE;
-    const x1 = ((this.props.x / GRID_SIZE) | 0) * GRID_SIZE;
-    const y1 = ((this.props.y / GRID_SIZE) | 0) * GRID_SIZE;
-    const x2 = (((this.props.x + this.props.width) / GRID_SIZE) | 0) * GRID_SIZE;
-    const y2 = (((this.props.y + this.props.height) / GRID_SIZE) | 0) * GRID_SIZE;
-
     this.context.ctx.fillStyle = this.activePattern;
-    this.context.ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
+    this.context.ctx.fillRect(this.props.x, this.props.y, this.props.width, this.props.height);
     return;
   }
 
