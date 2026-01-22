@@ -1,6 +1,7 @@
 import { signal } from "@preact/signals-core";
 import RBush from "rbush";
 
+import { Block } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
 import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
@@ -33,6 +34,8 @@ export interface IHitBox extends HitBoxData {
   destroy(): void;
   getRect(): [number, number, number, number];
 }
+
+const EMPTY_RESULT = [];
 
 /**
  * Hit Testing system with dual architecture for performance optimization:
@@ -299,6 +302,10 @@ export class HitTest extends Emitter {
     super.destroy();
   }
 
+  public collisionTest(item: HitBoxData): boolean {
+    return this.interactiveTree.collides(item);
+  }
+
   /**
    * Test hit box intersection with interactive elements and sort by z-index
    * @param item Hit box data to test
@@ -310,9 +317,14 @@ export class HitTest extends Emitter {
    * @returns Array of hit components sorted by z-index
    */
   public testHitBox(item: HitBoxData): Component[] {
+    if (!this.collisionTest(item)) {
+      EMPTY_RESULT.length = 0;
+      return EMPTY_RESULT;
+    }
+    EMPTY_RESULT.length = 0;
     // Use interactive elements tree for hit testing
     const hitBoxes = this.interactiveTree.search(item);
-    const result = [];
+    const result = EMPTY_RESULT;
 
     for (let i = 0; i < hitBoxes.length; i++) {
       if (hitBoxes[i].item.onHitBox(item)) {

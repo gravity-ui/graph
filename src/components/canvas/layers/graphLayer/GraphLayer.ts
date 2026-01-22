@@ -21,6 +21,7 @@ export type TGraphLayerContext = LayerContext & {
   root: HTMLDivElement;
   ownerDocument: Document;
   graph: Graph;
+  blockBatch?: import("../../connections/BatchPath2D").BatchPath2DRenderer;
 };
 
 const rootBubblingEventTypes = new Set([

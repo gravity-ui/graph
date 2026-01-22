@@ -165,6 +165,8 @@ export type TGraphConstants = {
     WIDTH: number;
     HEIGHT: number;
     SNAPPING_GRID_SIZE: number;
+    /** Size of Path2D chunks for batch rendering on minimalistic scale */
+    PATH2D_CHUNK_SIZE: number;
   };
 
   connection: {
@@ -217,6 +219,7 @@ export const initGraphConstants: TGraphConstants = {
     WIDTH: 200,
     HEIGHT: 160,
     SNAPPING_GRID_SIZE: 1,
+    PATH2D_CHUNK_SIZE: 400,
   },
   connection: {
     MUTED_CANVAS_CONNECTION_WIDTH: 0.8,
@@ -224,7 +227,7 @@ export const initGraphConstants: TGraphConstants = {
     DEFAULT_Z_INDEX: 0,
     THRESHOLD_LINE_HIT: 8,
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: 0.25,
-    PATH2D_CHUNK_SIZE: 100,
+    PATH2D_CHUNK_SIZE: 400,
     LABEL: {
       INNER_PADDINGS: [0, 0, 0, 0],
     },
