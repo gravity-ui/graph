@@ -1,5 +1,7 @@
 import { Graph } from "../../../../graph";
+import { ESchedulerPriority } from "../../../../lib";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
+import { debounce } from "../../../../utils/functions";
 import { EventedComponent } from "../../EventedComponent/EventedComponent";
 import { GraphComponent } from "../../GraphComponent";
 
@@ -110,6 +112,9 @@ export class CursorLayer extends Layer<TCursorLayerProps, TCursorLayerContext> {
   /** Component currently under the mouse cursor */
   private currentTarget?: GraphComponent;
 
+  /** Debounced cursor update function to prevent flickering on large scales */
+  private debouncedUpdateCursor: ReturnType<typeof debounce<(target?: EventedComponent) => void>>;
+
   /**
    * Creates a new CursorLayer instance.
    *
@@ -120,6 +125,17 @@ export class CursorLayer extends Layer<TCursorLayerProps, TCursorLayerContext> {
       // No HTML element needed - we'll apply cursor to the root element
       ...props,
     });
+
+    // Create debounced version with 10 frames delay to prevent cursor flickering
+    this.debouncedUpdateCursor = debounce(
+      (target?: EventedComponent) => {
+        this.updateCursorForTarget(target);
+      },
+      {
+        frameInterval: 3,
+        priority: ESchedulerPriority.LOW,
+      }
+    );
   }
 
   /**
@@ -152,11 +168,15 @@ export class CursorLayer extends Layer<TCursorLayerProps, TCursorLayerContext> {
 
       // Apply cursor only in automatic mode
       if (this.mode === "auto") {
-        this.updateCursorForTarget(target);
+        // Use debounced version to prevent cursor flickering on large scales
+        this.debouncedUpdateCursor(target);
       }
     });
 
     this.onGraphEvent("mouseleave", () => {
+      // Cancel any scheduled cursor updates from mouseenter
+      this.debouncedUpdateCursor.cancel();
+
       // Always track that mouse left the element
       this.currentTarget = undefined;
 
@@ -195,6 +215,9 @@ export class CursorLayer extends Layer<TCursorLayerProps, TCursorLayerContext> {
   }
 
   protected unmountLayer(): void {
+    // Cancel any pending cursor updates
+    this.debouncedUpdateCursor.cancel();
+
     super.unmountLayer();
     const rootElement = this.props.graph.layers.$root;
     if (rootElement) {

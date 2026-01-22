@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 
 import { TAnchor } from "../components/canvas/anchors";
 import { Graph } from "../graph";
@@ -35,6 +35,15 @@ export function GraphBlockAnchor({
       className || ""
     } ${selected ? "graph-block-anchor-selected" : ""}`;
   }, [anchor, position, className, selected]);
+
+  useEffect(() => {
+    if (anchorContainerRef.current) {
+      const hoverScale = anchorState.getViewComponent().getHoverFactor();
+      if (hoverScale !== undefined) {
+        anchorContainerRef.current.style.setProperty("--graph-block-anchor-hover-scale", hoverScale.toString());
+      }
+    }
+  }, [anchorState?.$selected.value]);
 
   if (!anchorState) return null;
 

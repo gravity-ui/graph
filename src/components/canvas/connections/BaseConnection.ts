@@ -1,7 +1,8 @@
-import { Component } from "../../../lib";
+import { Component, ESchedulerPriority } from "../../../lib";
 import { TComponentState } from "../../../lib/Component";
 import { ConnectionState, TConnection, TConnectionId } from "../../../store/connection/ConnectionState";
 import { selectConnectionById } from "../../../store/connection/selectors";
+import { debounce } from "../../../utils/functions";
 import { TPoint } from "../../../utils/types/shapes";
 import { GraphComponent, GraphComponentContext } from "../GraphComponent";
 import { TAnchor } from "../anchors";
@@ -168,13 +169,31 @@ export class BaseConnection<
 
     switch (event.type) {
       case "mouseenter":
-        this.setState({ hovered: true });
+        this.debounceHover(true);
         break;
       case "mouseleave":
-        this.setState({ hovered: false });
+        this.debounceHover(false);
         break;
     }
   }
+
+  protected onHoverChange(hoverState: boolean) {
+    if (hoverState === this.state.hovered) {
+      return;
+    }
+    this.setState({ hovered: hoverState });
+  }
+
+  protected debounceHover = debounce(
+    (hovered: boolean) => {
+      this.onHoverChange(hovered);
+    },
+    {
+      priority: ESchedulerPriority.LOWEST,
+      frameInterval: 3,
+      frameTimeout: 0,
+    }
+  );
 
   protected override unmount(): void {
     this.connectedState.$sourcePortState.value.removeObserver(this);

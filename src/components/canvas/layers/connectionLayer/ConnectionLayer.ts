@@ -295,6 +295,13 @@ export class ConnectionLayer extends Layer<
     if (!sourceComponent) {
       return;
     }
+    this.sourceComponent = sourceComponent.connectedState;
+    if (sourceComponent instanceof Block) {
+      this.startState = new Point(worldCoords.x, worldCoords.y);
+    } else if (sourceComponent instanceof Anchor) {
+      const point = sourceComponent.getPosition();
+      this.startState = new Point(point.x, point.y);
+    }
 
     this.context.graph.executеDefaultEventAction(
       "connection-create-start",
@@ -306,17 +313,11 @@ export class ConnectionLayer extends Layer<
         anchorId: sourceComponent instanceof Anchor ? sourceComponent.connectedState.id : undefined,
       },
       () => {
-        this.sourceComponent = sourceComponent.connectedState;
         if (sourceComponent instanceof Block) {
           this.context.graph.api.selectBlocks([this.sourceComponent.id], true, ESelectionStrategy.REPLACE);
-          this.startState = new Point(worldCoords.x, worldCoords.y);
         } else if (sourceComponent instanceof Anchor) {
-          const point = sourceComponent.getPosition();
-          this.startState = new Point(point.x, point.y);
           this.context.graph.api.setAnchorSelection(sourceComponent.props.blockId, sourceComponent.props.id, true);
         }
-
-        // Use world coordinates from point instead of screen coordinates
       }
     );
 
