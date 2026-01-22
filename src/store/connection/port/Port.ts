@@ -11,7 +11,7 @@ export type TPortId = string | number | symbol;
  * Port data structure
  * Represents a connection point that can be attached to blocks, anchors, or custom components
  */
-export type TPort = {
+export type TPort<T = unknown> = {
   /** Unique identifier for the port */
   id: TPortId;
   /** X coordinate of the port */
@@ -22,6 +22,8 @@ export type TPort = {
   component?: Component;
   /** Whether the port is waiting for position data from its component */
   lookup?: boolean;
+  /** Arbitrary metadata (port doesn't know what's inside) */
+  meta?: T;
 };
 
 /**
@@ -44,8 +46,8 @@ export type TPort = {
  * Tracks which components are listening to this port's changes. When no listeners
  * remain and no component owns the port, it can be safely garbage collected.
  */
-export class PortState {
-  public $state = signal<TPort>(undefined);
+export class PortState<T = unknown> {
+  public $state = signal<TPort<T>>(undefined);
 
   public owner?: Component;
 
@@ -106,7 +108,16 @@ export class PortState {
     return this.$state.value.lookup;
   }
 
-  constructor(port: TPort) {
+  /**
+   * Get the port's metadata
+   *
+   * @returns {T | undefined} The metadata attached to this port
+   */
+  public get meta(): T | undefined {
+    return this.$state.value.meta;
+  }
+
+  constructor(port: TPort<T>) {
     this.$state.value = { ...port };
     // Initialize owner if component was provided in the constructor
     if (port.component) {
@@ -167,8 +178,26 @@ export class PortState {
    * Update port state with partial data
    * @param port Partial port data to merge with current state
    */
-  public updatePort(port: Partial<TPort>): void {
+  public updatePort(port: Partial<TPort<T>>): void {
     this.$state.value = { ...this.$state.value, ...port };
+  }
+
+  /**
+   * Update port position and/or metadata
+   * @param x New X coordinate (optional)
+   * @param y New Y coordinate (optional)
+   * @param meta New metadata (optional)
+   */
+  public updatePortWithMeta(x?: number, y?: number, meta?: T): void {
+    const updates: Partial<TPort<T>> = {};
+
+    if (x !== undefined) updates.x = x;
+    if (y !== undefined) updates.y = y;
+    if (meta !== undefined) updates.meta = meta;
+
+    if (Object.keys(updates).length > 0) {
+      this.updatePort(updates);
+    }
   }
 
   /**

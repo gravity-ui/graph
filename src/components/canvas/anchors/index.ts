@@ -59,7 +59,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   }
 
   protected willMount(): void {
-    this.props.port.addObserver(this);
+    this.props.port.setOwner(this);
     this.subscribeSignal(this.connectedState.$selected, (selected) => {
       this.setState({ selected });
     });
@@ -111,7 +111,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   }
 
   protected unmount() {
-    this.props.port.removeObserver(this);
+    this.props.port.setOwner(this.connectedState.block.getViewComponent());
     super.unmount();
   }
 

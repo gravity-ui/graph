@@ -117,6 +117,18 @@ export class GraphComponent<
     return this.ports.get(id);
   }
 
+  /**
+   * Update port position and metadata
+   * @param id Port identifier
+   * @param x New X coordinate (optional)
+   * @param y New Y coordinate (optional)
+   * @param meta Port metadata (optional)
+   */
+  public updatePort<T = unknown>(id: TPortId, x?: number, y?: number, meta?: T): void {
+    const port = this.getPort(id);
+    port.updatePortWithMeta(x, y, meta);
+  }
+
   protected setAffectsUsableRect(affectsUsableRect: boolean) {
     this.setProps({ affectsUsableRect });
     this.setContext({ affectsUsableRect });
