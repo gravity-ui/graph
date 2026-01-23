@@ -29,7 +29,7 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
   private scheduleUpdate = debounce(
     () => {
       this.performRender();
-      this.shouldUpdateChildren = true;
+      // this.shouldUpdateChildren = true;
     },
     {
       priority: ESchedulerPriority.HIGHEST,
