@@ -4,7 +4,6 @@ import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { selectBlockAnchor } from "../../../store/block/selectors";
 import { PortState } from "../../../store/connection/port/Port";
-import { TPoint } from "../../../utils/types/shapes";
 import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
 import { GraphLayer } from "../layers/graphLayer/GraphLayer";
 
@@ -33,6 +32,9 @@ type TAnchorState = {
 export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponent<T, TAnchorState> {
   public readonly cursor = "pointer";
 
+  public static CANVAS_HOVER_FACTOR = 1.8;
+  public static DETAILED_HOVER_FACTOR = 1.2;
+
   public get zIndex() {
     // @ts-ignore this.__comp.parent instanceOf Block
     return this.__comp.parent.zIndex + 1;
@@ -40,7 +42,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
 
   public connectedState: AnchorState;
 
-  private shift: number;
+  private shift = 0;
 
   constructor(props: T, parent: GraphLayer) {
     super(props, parent);
@@ -55,7 +57,29 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     this.addEventListener("mouseleave", this);
 
     this.computeRenderSize(this.props.size, this.state.raised);
-    this.shift = this.props.size / 2 + props.lineWidth;
+  }
+
+  public getHoverFactor() {
+    if (this.context.camera.getCameraBlockScaleLevel() === ECameraScaleLevel.Detailed) {
+      return Anchor.DETAILED_HOVER_FACTOR;
+    }
+    return Anchor.CANVAS_HOVER_FACTOR;
+  }
+
+  protected stateChanged(_nextState: TAnchorState): void {
+    if (this.state.size !== _nextState.size) {
+      this.computeShift(_nextState, this.props);
+      this.onPositionChanged();
+    }
+    super.stateChanged(_nextState);
+  }
+
+  protected propsChanged(_nextProps: T): void {
+    if (this.props.lineWidth !== _nextProps.lineWidth) {
+      this.computeShift(this.state, _nextProps);
+      this.onPositionChanged();
+    }
+    super.propsChanged(_nextProps);
   }
 
   protected willMount(): void {
@@ -64,10 +88,18 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
       this.setState({ selected });
     });
     this.subscribeSignal(this.props.port.$point, this.onPositionChanged);
+    this.computeShift(this.state, this.props);
+    this.onPositionChanged();
+    super.willMount();
   }
 
-  protected onPositionChanged = (point: TPoint) => {
-    this.setHitBox(point.x - this.shift, point.y - this.shift, point.x + this.shift, point.y + this.shift);
+  protected computeShift(state = this.state, props = this.props) {
+    this.shift = state.size / 2 + props.lineWidth;
+  }
+
+  protected onPositionChanged = () => {
+    const { x, y } = this.getPosition();
+    this.setHitBox(x - this.shift, y - this.shift, x + this.shift, y + this.shift);
   };
 
   public getPosition() {
@@ -139,7 +171,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
 
   private computeRenderSize(size: number, raised: boolean) {
     if (raised) {
-      this.setState({ size: size * 1.8 });
+      this.setState({ size: size * this.getHoverFactor() });
     } else {
       this.setState({ size });
     }
