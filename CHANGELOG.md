@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.8.0-rc.6](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.5...v1.8.0-rc.6) (2026-01-23)
+
+
+### chore
+
+* release 1.8.0-rc.6 ([21abb71](https://github.com/gravity-ui/graph/commit/21abb710c2d4674434d15e71f55fe4cfd8ae941a))
+
+
+### Bug Fixes
+
+* **Anchor:** fix calculation hitbox of achor on hover ([efadf44](https://github.com/gravity-ui/graph/commit/efadf444bca7410487dfb097ea70f6179db93ad4))
+* **ConnectionLayer:** fix creating connection after preventDefault() ([efadf44](https://github.com/gravity-ui/graph/commit/efadf444bca7410487dfb097ea70f6179db93ad4))
+* **CursorLayer:** Add debounce to set cursor ([efadf44](https://github.com/gravity-ui/graph/commit/efadf444bca7410487dfb097ea70f6179db93ad4))
+* fix creating connections via ConnectionLayer ([#218](https://github.com/gravity-ui/graph/issues/218)) ([efadf44](https://github.com/gravity-ui/graph/commit/efadf444bca7410487dfb097ea70f6179db93ad4))
+
 ## [1.8.0-rc.5](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.4...v1.8.0-rc.5) (2026-01-21)
 
 
