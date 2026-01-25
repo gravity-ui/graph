@@ -48,7 +48,11 @@ export class ConnectionsStore {
     return this.connectionSelectionBucket.$selectedComponents.value as BaseConnection[];
   });
 
-  protected ports: PortsStore;
+  /**
+   * Ports store instance
+   * Note: Made public to allow subscription to port changes
+   */
+  public ports: PortsStore;
 
   constructor(
     public rootStore: RootStore,
@@ -126,6 +130,14 @@ export class ConnectionsStore {
    */
   public getPort(id: TPortId): PortState | undefined {
     return this.ports.getPort(id);
+  }
+
+  /**
+   * Get all ports
+   * @returns Array of all port states
+   */
+  public getAllPorts(): PortState[] {
+    return this.ports.$ports.value;
   }
 
   /**

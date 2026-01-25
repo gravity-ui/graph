@@ -117,6 +117,26 @@ export class GraphComponent<
     return this.ports.get(id);
   }
 
+  /**
+   * Get all ports of this component
+   * @returns Array of all port states
+   */
+  public getPorts(): PortState[] {
+    return Array.from(this.ports.values());
+  }
+
+  /**
+   * Update port position and metadata
+   * @param id Port identifier
+   * @param x New X coordinate (optional)
+   * @param y New Y coordinate (optional)
+   * @param meta Port metadata (optional)
+   */
+  public updatePort<T = unknown>(id: TPortId, x?: number, y?: number, meta?: T): void {
+    const port = this.getPort(id);
+    port.updatePortWithMeta(x, y, meta);
+  }
+
   protected setAffectsUsableRect(affectsUsableRect: boolean) {
     this.setProps({ affectsUsableRect });
     this.setContext({ affectsUsableRect });

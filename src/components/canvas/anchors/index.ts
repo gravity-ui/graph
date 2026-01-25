@@ -83,7 +83,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   }
 
   protected willMount(): void {
-    this.props.port.addObserver(this);
+    this.props.port.setOwner(this);
     this.subscribeSignal(this.connectedState.$selected, (selected) => {
       this.setState({ selected });
     });
@@ -101,6 +101,10 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     const { x, y } = this.getPosition();
     this.setHitBox(x - this.shift, y - this.shift, x + this.shift, y + this.shift);
   };
+
+  public override getPorts(): PortState[] {
+    return [this.props.port];
+  }
 
   public getPosition() {
     return this.props.port.getPoint();
@@ -143,7 +147,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   }
 
   protected unmount() {
-    this.props.port.removeObserver(this);
+    this.props.port.removeOwner();
     super.unmount();
   }
 
