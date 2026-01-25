@@ -19,6 +19,11 @@ export type DragOperationOptions = {
    * If not set, uses graph's dragThreshold setting.
    */
   threshold?: number;
+  /**
+   * Initial event to use for threshold calculation.
+   * If not set, uses the first mousemove event.
+   */
+  initialEvent?: MouseEvent;
 };
 
 /**

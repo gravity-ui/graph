@@ -118,6 +118,14 @@ export class GraphComponent<
   }
 
   /**
+   * Get all ports of this component
+   * @returns Array of all port states
+   */
+  public getPorts(): PortState[] {
+    return Array.from(this.ports.values());
+  }
+
+  /**
    * Update port position and metadata
    * @param id Port identifier
    * @param x New X coordinate (optional)

@@ -70,6 +70,10 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     this.setHitBox(point.x - this.shift, point.y - this.shift, point.x + this.shift, point.y + this.shift);
   };
 
+  public override getPorts(): PortState[] {
+    return [this.props.port];
+  }
+
   public getPosition() {
     return this.props.port.getPoint();
   }
@@ -111,7 +115,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   }
 
   protected unmount() {
-    this.props.port.setOwner(this.connectedState.block.getViewComponent());
+    this.props.port.removeOwner();
     super.unmount();
   }
 

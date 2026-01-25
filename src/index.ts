@@ -31,6 +31,7 @@ export * from "./components/canvas/groups";
 
 export * from "./components/canvas/layers/newBlockLayer/NewBlockLayer";
 export * from "./components/canvas/layers/connectionLayer/ConnectionLayer";
+export * from "./components/canvas/layers/portConnectionLayer/PortConnectionLayer";
 export * from "./lib/Component";
 
 export * from "./services/selection/index.public";
