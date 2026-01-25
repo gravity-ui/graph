@@ -102,6 +102,10 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     this.setHitBox(x - this.shift, y - this.shift, x + this.shift, y + this.shift);
   };
 
+  public override getPorts(): PortState[] {
+    return [this.props.port];
+  }
+
   /**
    * Get the position of the anchor.
    * Returns the position of the anchor in the coordinate system of the graph(ABSOLUTE).
@@ -159,7 +163,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   }
 
   protected unmount() {
-    this.props.port.setOwner(this.connectedState.block.getViewComponent());
+    this.props.port.removeOwner();
     super.unmount();
   }
 

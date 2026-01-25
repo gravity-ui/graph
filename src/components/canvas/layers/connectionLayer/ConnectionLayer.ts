@@ -7,7 +7,7 @@ import { AnchorState } from "../../../../store/anchor/Anchor";
 import { BlockState, TBlockId } from "../../../../store/block/Block";
 import { PortState } from "../../../../store/connection/port/Port";
 import { createAnchorPortId, createBlockPointPortId } from "../../../../store/connection/port/utils";
-import { isBlock, isShiftKeyEvent } from "../../../../utils/functions";
+import { isBlock, isShiftKeyEvent, vectorDistance } from "../../../../utils/functions";
 import { render } from "../../../../utils/renderers/render";
 import { renderSVG } from "../../../../utils/renderers/svgPath";
 import { Point, TPoint } from "../../../../utils/types/shapes";
@@ -229,6 +229,11 @@ export class ConnectionLayer extends Layer<
 
     // Subscribe through the Layer's onSignal helper which handles cleanup
     this.portsUnsubscribe = this.onSignal(this.context.graph.rootStore.connectionsList.ports.$ports, checkPortsChanged);
+
+    // Subscribe to camera changes to invalidate tree when viewport changes
+    this.onGraphEvent("camera-change", () => {
+      this.isSnappingTreeOutdated = true;
+    });
 
     // Call parent afterInit to ensure proper initialization
     super.afterInit();
@@ -630,9 +635,7 @@ export class ConnectionLayer extends Layer<
       }
 
       // Calculate vector distance
-      const dx = port.x - point.x;
-      const dy = port.y - point.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
+      const distance = vectorDistance(point, port);
 
       // Check custom condition if provided
       const meta = port.meta as IPortSnapMeta | undefined;
@@ -667,7 +670,8 @@ export class ConnectionLayer extends Layer<
   }
 
   /**
-   * Rebuild the RBush spatial index for snapping ports (lazy rebuild)
+   * Rebuild the RBush spatial index for snapping ports
+   * Optimization: Only includes ports from components visible in viewport + padding
    */
   private rebuildSnappingTree(): void {
     if (!this.isSnappingTreeOutdated) {
@@ -675,14 +679,22 @@ export class ConnectionLayer extends Layer<
     }
 
     const snappingBoxes: SnappingPortBox[] = [];
-    const connectionsList = this.context.graph.rootStore.connectionsList;
 
-    // Get all ports from connectionsList
-    const allPorts = connectionsList.getAllPorts();
-    for (const port of allPorts) {
-      const box = this.createSnappingPortBox(port, SNAP_SEARCH_RADIUS);
-      if (box) {
-        snappingBoxes.push(box);
+    // Get only visible components in viewport (with padding already applied)
+    const visibleComponents = this.context.graph.getElementsInViewport([GraphComponent]);
+
+    // Collect ports from visible components only
+    for (const component of visibleComponents) {
+      const ports = component.getPorts();
+
+      for (const port of ports) {
+        // Skip ports in lookup state (no valid coordinates)
+        if (port.lookup) continue;
+
+        const box = this.createSnappingPortBox(port, SNAP_SEARCH_RADIUS);
+        if (box) {
+          snappingBoxes.push(box);
+        }
       }
     }
 
