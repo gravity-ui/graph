@@ -10,12 +10,49 @@ import { Block, TBlock } from "../blocks/Block";
 import { BlockGroups, BlockGroupsProps } from "./BlockGroups";
 import { Group } from "./Group";
 
+/**
+ * Callback called when block transfer starts (Shift pressed during drag)
+ * @param blockIds - IDs of blocks being transferred
+ * @param sourceGroupIds - Set of source group IDs (groups blocks came from)
+ */
+export type OnTransferStart = (blockIds: string[], sourceGroupIds: Set<string>) => void;
+
+/**
+ * Callback called when block transfer ends (mouse released or Shift released)
+ * @param blockIds - IDs of blocks that were transferred
+ * @param targetGroupId - Target group ID (null if removed from group)
+ */
+export type OnTransferEnd = (blockIds: string[], targetGroupId: string | null) => void;
+
+/**
+ * Callback called when a block's group changes
+ * @param blockId - Block ID
+ * @param oldGroupId - Previous group ID (null if block was not in a group)
+ * @param newGroupId - New group ID (null if block removed from group)
+ */
+export type OnBlockGroupChange = (blockId: string, oldGroupId: string | null, newGroupId: string | null) => void;
+
 export type TransferableBlockGroupsProps = BlockGroupsProps & {
   /**
    * Enable/disable block transfer between groups with Shift+drag.
    * Default: true
    */
   transferEnabled?: boolean;
+
+  /**
+   * Called when block transfer starts (Shift pressed during drag)
+   */
+  onTransferStart?: OnTransferStart;
+
+  /**
+   * Called when block transfer ends (mouse released or Shift released)
+   */
+  onTransferEnd?: OnTransferEnd;
+
+  /**
+   * Called when a block's group changes
+   */
+  onBlockGroupChange?: OnBlockGroupChange;
 };
 
 type TransferState = {
@@ -33,12 +70,50 @@ type TransferState = {
 /**
  * BlockGroups layer with block-to-group transfer functionality.
  *
- * Features:
+ * ## Features
  * - Hold Shift during drag to activate transfer mode
  * - Release Shift to deactivate transfer mode and return to normal drag
  * - Groups highlight when blocks are dragged over them
  * - Multi-block transfer: all selected blocks are transferred together
  * - Source groups lock their size during transfer
+ * - Callbacks for state synchronization with external stores (Redux, MobX, etc.)
+ *
+ * ## Basic Usage
+ * ```typescript
+ * const layer = graph.addLayer(TransferableBlockGroups, {
+ *   transferEnabled: true,
+ *   draggable: true,
+ * });
+ * ```
+ *
+ * ## With Automatic Grouping
+ * ```typescript
+ * const GroupsLayer = TransferableBlockGroups.withBlockGrouping({
+ *   groupingFn: (blocks) => groupBy(blocks, (b) => b.$state.value.group),
+ *   mapToGroups: (groupId, { rect }) => ({ id: groupId, rect }),
+ * });
+ *
+ * graph.addLayer(GroupsLayer, {
+ *   transferEnabled: true,
+ *   updateBlocksOnDrag: true, // Blocks move with the group
+ * });
+ * ```
+ *
+ * ## With Redux Integration
+ * ```typescript
+ * graph.addLayer(GroupsLayer, {
+ *   onTransferStart: (blockIds, sourceGroupIds) => {
+ *     console.log('Transfer started:', blockIds);
+ *   },
+ *   onBlockGroupChange: (blockId, oldGroupId, newGroupId) => {
+ *     // Sync with Redux
+ *     store.dispatch(updateBlockGroup({ blockId, groupId: newGroupId }));
+ *   },
+ *   onTransferEnd: (blockIds, targetGroupId) => {
+ *     console.log('Transfer completed:', blockIds, 'to group:', targetGroupId);
+ *   },
+ * });
+ * ```
  *
  * Uses DragService.$state.currentEvent.shiftKey to track Shift state in real-time.
  */
@@ -47,7 +122,44 @@ export class TransferableBlockGroups<
 > extends BlockGroups<P> {
   /**
    * Create a TransferableBlockGroups layer with automatic block grouping.
-   * Same as BlockGroups.withBlockGrouping but with transfer support.
+   *
+   * This static method creates a specialized layer class that automatically groups blocks
+   * based on a grouping function and keeps the groups in sync with block changes.
+   *
+   * @param groupingFn - Function that takes all blocks and returns a map of group key to blocks array.
+   *                     For example, `(blocks) => groupBy(blocks, (b) => b.$state.value.group)`
+   * @param mapToGroups - Function that maps a group key and its blocks to a TGroup object.
+   *                      Receives the group key, blocks array, and calculated rect.
+   * @returns A TransferableBlockGroups class with automatic grouping support
+   *
+   * @example
+   * ```typescript
+   * // Group blocks by their 'group' field
+   * const GroupsLayer = TransferableBlockGroups.withBlockGrouping({
+   *   groupingFn: (blocks) => {
+   *     const grouped: Record<string, BlockState[]> = {};
+   *     blocks.forEach(block => {
+   *       const groupId = block.$state.value.group;
+   *       if (groupId) {
+   *         grouped[groupId] = grouped[groupId] || [];
+   *         grouped[groupId].push(block);
+   *       }
+   *     });
+   *     return grouped;
+   *   },
+   *   mapToGroups: (groupId, { blocks, rect }) => ({
+   *     id: groupId,
+   *     rect,
+   *     name: `Group ${groupId}`,
+   *   }),
+   * });
+   *
+   * // Use the layer with updateBlocksOnDrag to move blocks with groups
+   * graph.addLayer(GroupsLayer, {
+   *   transferEnabled: true,
+   *   updateBlocksOnDrag: true,
+   * });
+   * ```
    */
   public static withBlockGrouping({
     groupingFn,
@@ -88,6 +200,20 @@ export class TransferableBlockGroups<
         );
         super.afterInit();
       }
+
+      /**
+       * Override updateBlocks to support moving blocks with the group when updateBlocksOnDrag is enabled
+       */
+      public override updateBlocks = (groupId: string, delta: { deltaX: number; deltaY: number }) => {
+        if (this.props.updateBlocksOnDrag) {
+          const blocks = this.$groupsBlocksMap.value[groupId];
+          if (blocks) {
+            blocks.forEach((block) => {
+              block.updateXY(block.x + delta.deltaX, block.y + delta.deltaY, true);
+            });
+          }
+        }
+      };
     };
   }
 
@@ -180,6 +306,12 @@ export class TransferableBlockGroups<
     // Lock ALL groups' sizes during transfer mode
     this.lockAllGroups();
 
+    // Call onTransferStart callback
+    this.props.onTransferStart?.(
+      blocks.map((b) => b.id),
+      sourceGroupIds
+    );
+
     // Update highlight immediately if we have coordinates
     if (dragState.currentCoords) {
       this.updateHighlight(dragState.currentCoords);
@@ -210,6 +342,12 @@ export class TransferableBlockGroups<
 
     // Unlock all groups
     this.unlockAllGroups();
+
+    // Call onTransferEnd callback
+    this.props.onTransferEnd?.(
+      blocks.map((b) => b.id),
+      targetGroupId
+    );
 
     this.transferState = this.createIdleState();
   }
@@ -303,11 +441,30 @@ export class TransferableBlockGroups<
     // Unlock all groups
     this.unlockAllGroups();
 
+    // Call onTransferEnd callback
+    this.props.onTransferEnd?.(
+      blocks.map((b) => b.id),
+      targetGroupId
+    );
+
     this.transferState = this.createIdleState();
   }
 
   /**
-   * Cancel the transfer operation without applying changes
+   * Cancel the transfer operation without applying changes.
+   *
+   * This method can be called to abort an ongoing transfer without moving blocks to a new group.
+   * It will unhighlight groups, unlock sizes, and reset the transfer state.
+   *
+   * @example
+   * ```typescript
+   * // Cancel transfer on Escape key
+   * document.addEventListener('keydown', (e) => {
+   *   if (e.key === 'Escape' && layer.isTransferring()) {
+   *     layer.cancelTransfer();
+   *   }
+   * });
+   * ```
    */
   public cancelTransfer(): void {
     const { highlightedGroupId } = this.transferState;
@@ -349,20 +506,42 @@ export class TransferableBlockGroups<
    */
   private applyGroupChange(blockId: TBlock["id"], newGroupId: string | null): void {
     const blockState = this.props.graph.rootStore.blocksList.getBlockState(blockId);
+    const oldGroupId = blockState?.$state.value.group ?? null;
+
     if (blockState) {
       blockState.updateBlock({ group: newGroupId ?? undefined });
+
+      // Call onBlockGroupChange callback
+      this.props.onBlockGroupChange?.(blockId, oldGroupId, newGroupId);
     }
   }
 
   /**
-   * Check if a block transfer is currently in progress
+   * Check if a block transfer is currently in progress.
+   *
+   * @returns `true` if transfer mode is active (Shift is pressed during drag), `false` otherwise
+   *
+   * @example
+   * ```typescript
+   * if (layer.isTransferring()) {
+   *   console.log('Transferring', layer.getTransferringBlocksCount(), 'blocks');
+   * }
+   * ```
    */
   public isTransferring(): boolean {
     return this.transferState.isTransferring;
   }
 
   /**
-   * Get the number of blocks being transferred
+   * Get the number of blocks being transferred in the current operation.
+   *
+   * @returns Number of blocks currently being transferred, or 0 if no transfer is in progress
+   *
+   * @example
+   * ```typescript
+   * const count = layer.getTransferringBlocksCount();
+   * console.log(`Transferring ${count} block${count !== 1 ? 's' : ''}`);
+   * ```
    */
   public getTransferringBlocksCount(): number {
     return this.transferState.blocks.length;

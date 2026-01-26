@@ -128,6 +128,44 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     }
   }
 
+  /**
+   * Check if the group is currently highlighted (block is being dragged over it).
+   *
+   * This method is useful for custom group components that override the `render()` method
+   * and need to apply different styling when the group is highlighted during transfer mode.
+   *
+   * @returns `true` if the group is highlighted, `false` otherwise
+   *
+   * @example
+   * ```typescript
+   * class CustomGroup extends Group {
+   *   protected override render() {
+   *     const ctx = this.context.ctx;
+   *     const rect = this.getRect();
+   *
+   *     // Apply different styles based on state
+   *     if (this.isHighlighted()) {
+   *       ctx.strokeStyle = 'rgba(100, 200, 100, 1)';
+   *       ctx.lineWidth = 3;
+   *     } else if (this.state.selected) {
+   *       ctx.strokeStyle = 'rgba(100, 100, 100, 1)';
+   *       ctx.lineWidth = 2;
+   *     } else {
+   *       ctx.strokeStyle = 'rgba(100, 100, 100, 0.4)';
+   *       ctx.lineWidth = 1;
+   *     }
+   *
+   *     ctx.beginPath();
+   *     ctx.roundRect(rect.x, rect.y, rect.width, rect.height, 8);
+   *     ctx.stroke();
+   *   }
+   * }
+   * ```
+   */
+  public isHighlighted(): boolean {
+    return this.highlighted;
+  }
+
   public getEntityId() {
     return this.props.id;
   }
