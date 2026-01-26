@@ -448,9 +448,6 @@ export class Graph {
     this.layers.start();
     this.scheduler.start();
 
-    // Resubscribe services that may have been destroyed during React Strict Mode unmount
-    this.dragService.start();
-
     this.setGraphState(GraphState.READY);
     this.runAfterGraphReady(() => {
       this.selectionLayer.show();

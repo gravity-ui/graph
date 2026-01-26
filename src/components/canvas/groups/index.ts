@@ -1,4 +1,6 @@
 import { BlockState } from "../../../store/block/Block";
+import { TGroup } from "../../../store/group/Group";
+import { TRect } from "../../../utils/types/shapes";
 
 import { BlockGroups } from "./BlockGroups";
 import { Group } from "./Group";

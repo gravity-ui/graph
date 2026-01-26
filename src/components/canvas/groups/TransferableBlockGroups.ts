@@ -308,7 +308,7 @@ export class TransferableBlockGroups<
 
     // Call onTransferStart callback
     this.props.onTransferStart?.(
-      blocks.map((b) => b.id),
+      blocks.map((b) => b.id.toString()),
       sourceGroupIds
     );
 
@@ -345,7 +345,7 @@ export class TransferableBlockGroups<
 
     // Call onTransferEnd callback
     this.props.onTransferEnd?.(
-      blocks.map((b) => b.id),
+      blocks.map((b) => b.id.toString()),
       targetGroupId
     );
 
@@ -443,7 +443,7 @@ export class TransferableBlockGroups<
 
     // Call onTransferEnd callback
     this.props.onTransferEnd?.(
-      blocks.map((b) => b.id),
+      blocks.map((b) => b.id.toString()),
       targetGroupId
     );
 
@@ -512,7 +512,7 @@ export class TransferableBlockGroups<
       blockState.updateBlock({ group: newGroupId ?? undefined });
 
       // Call onBlockGroupChange callback
-      this.props.onBlockGroupChange?.(blockId, oldGroupId, newGroupId);
+      this.props.onBlockGroupChange?.(blockId.toString(), oldGroupId, newGroupId);
     }
   }
 
