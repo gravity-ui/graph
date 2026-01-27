@@ -447,6 +447,7 @@ export class Graph {
     this.layers.on("update-size", this.onUpdateSize);
     this.layers.start();
     this.scheduler.start();
+
     this.setGraphState(GraphState.READY);
     this.runAfterGraphReady(() => {
       this.selectionLayer.show();
