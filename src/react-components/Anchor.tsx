@@ -38,7 +38,8 @@ export function GraphBlockAnchor({
 
   useEffect(() => {
     if (anchorContainerRef.current) {
-      const hoverScale = anchorState.getViewComponent().getHoverFactor();
+      const viewComponent = anchorState?.getViewComponent();
+      const hoverScale = viewComponent?.getHoverFactor();
       if (hoverScale !== undefined) {
         anchorContainerRef.current.style.setProperty("--graph-block-anchor-hover-scale", hoverScale.toString());
       }
