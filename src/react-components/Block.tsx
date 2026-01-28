@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 
 import { computed } from "@preact/signals-core";
 
@@ -47,33 +47,44 @@ export const GraphBlock = <T extends TBlock>({
     return () => viewState?.setHiddenBlock(false);
   }, [viewState, canvasVisible]);
 
-  // Optimized updates only on actual changes
-  useLayoutEffect(() => {
-    if (!containerRef.current || !state) return;
+  // Subscribe directly to geometry signal to avoid extra React renders during drag
+  useEffect(() => {
+    if (!containerRef.current || !state) {
+      return;
+    }
 
     const element = containerRef.current;
     const lastState = lastStateRef.current;
 
-    // Проверяем, что действительно изменилось
-    const hasPositionChange = lastState.x !== state.x || lastState.y !== state.y;
-    const hasSizeChange = lastState.width !== state.width || lastState.height !== state.height;
+    const applyGeometry = (geometry: { x: number; y: number; width: number; height: number }) => {
+      const hasPositionChange = lastState.x !== geometry.x || lastState.y !== geometry.y;
+      const hasSizeChange = lastState.width !== geometry.width || lastState.height !== geometry.height;
 
-    if (hasPositionChange) {
-      // Используем transform для позиции - самый быстрый способ
-      element.style.setProperty("--graph-block-geometry-x", `${state.x}px`);
-      element.style.setProperty("--graph-block-geometry-y", `${state.y}px`);
-      // element.style.transform = `translate3d(${state.x}px, ${state.y}px, 0)`;
-      lastState.x = state.x;
-      lastState.y = state.y;
-    }
+      if (hasPositionChange) {
+        // Используем transform для позиции - самый быстрый способ
+        element.style.setProperty("--graph-block-geometry-x", `${geometry.x}px`);
+        element.style.setProperty("--graph-block-geometry-y", `${geometry.y}px`);
+        // element.style.transform = `translate3d(${state.x}px, ${state.y}px, 0)`;
+        lastState.x = geometry.x;
+        lastState.y = geometry.y;
+      }
 
-    if (hasSizeChange) {
-      element.style.setProperty("--graph-block-geometry-width", `${state.width}px`);
-      element.style.setProperty("--graph-block-geometry-height", `${state.height}px`);
-      lastState.width = state.width;
-      lastState.height = state.height;
-    }
-  }, [state?.x, state?.y, state?.width, state?.height]);
+      if (hasSizeChange) {
+        element.style.setProperty("--graph-block-geometry-width", `${geometry.width}px`);
+        element.style.setProperty("--graph-block-geometry-height", `${geometry.height}px`);
+        lastState.width = geometry.width;
+        lastState.height = geometry.height;
+      }
+    };
+
+    applyGeometry(state.$geometry.value);
+
+    const unsubscribe = state.$geometry.subscribe((geometry) => {
+      applyGeometry(geometry);
+    });
+
+    return unsubscribe;
+  }, [state]);
 
   useEffect(() => {
     if (viewState && containerRef.current) {
