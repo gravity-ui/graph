@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.1-rc.6](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.6...v1.8.1-rc.6) (2026-01-28)
+
+
+### Bug Fixes
+
+* **graph:** prevent race condition error in GraphBlockAnchor component ([#225](https://github.com/gravity-ui/graph/issues/225)) ([f1894f0](https://github.com/gravity-ui/graph/commit/f1894f00deb22afde703606183b46c76d93380c2))
+* make react block renders in sync with canvas ([#222](https://github.com/gravity-ui/graph/issues/222)) ([f930fa4](https://github.com/gravity-ui/graph/commit/f930fa41bd2f2bbb5f910b942be9cd6d5eed4b10))
+
 ## [1.8.0-rc.6](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.5...v1.8.0-rc.6) (2026-01-23)
 
 
