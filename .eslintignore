@@ -1,12 +1,7 @@
 node_modules
-.parcel-cache
-dist
-.idea
-.vscode
-.DS_Store
-storybook-static
-.tsbuildinfo
 build
+dist
+storybook-static
+e2e
 playwright-report
 test-results
-e2e/dist
