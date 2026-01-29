@@ -20,6 +20,7 @@ import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
 import { Anchor, TAnchor } from "../anchors";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
+import { BlockMinimalistic, TBlockMinimalisticParams } from "./BlockMinimalistic";
 import { BlockController } from "./controllers/BlockController";
 
 export type TBlockSettings = {
@@ -127,10 +128,21 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   public $viewState = signal<BlockViewState>({ zIndex: 0, order: 0 });
 
+  protected minimalisticFastView: BlockMinimalistic;
+
   constructor(props: Props, parent: Component) {
     super(props, parent);
 
+    this.minimalisticFastView = new BlockMinimalistic(
+      () => this.getGeometry(),
+      () => !this.hidden && this.shouldRender,
+      this.getMinimalisticParams()
+    );
+
     this.subscribe(props.id);
+
+    // Register in batch immediately - will be used only on minimalistic scale
+    this.registerInBatch();
   }
 
   public getEntityId() {
@@ -167,6 +179,63 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       width: this.state.width,
       height: this.state.height,
     };
+  }
+
+  protected getMinimalisticParams(): TBlockMinimalisticParams {
+    return {
+      fill: this.context.colors.block.background,
+      border: {
+        radius: 0,
+        color: this.state.selected ? this.context.colors.block.selectedBorder : this.context.colors.block.border,
+        width: clamp(
+          this.context.camera.getRelative(this.context.constants.block.BORDER_WIDTH),
+          this.context.constants.block.BORDER_WIDTH,
+          10
+        ),
+      },
+    };
+  }
+
+  protected updateMinimalisticParams(): void {
+    this.minimalisticFastView.setParams(this.getMinimalisticParams());
+  }
+
+  protected getBatchGroup(): string {
+    return this.state.selected ? "selected" : "default";
+  }
+
+  protected registerInBatch(): void {
+    const batch = this.context.blockBatch;
+    if (batch) {
+      batch.add(this.minimalisticFastView, {
+        zIndex: this.calcZIndex(),
+        group: this.getBatchGroup(),
+      });
+    }
+  }
+
+  protected unregisterFromBatch(): void {
+    const batch = this.context.blockBatch;
+    if (batch) {
+      batch.delete(this.minimalisticFastView);
+    }
+  }
+
+  protected updateInBatch(): void {
+    const batch = this.context.blockBatch;
+    if (batch) {
+      batch.update(this.minimalisticFastView, {
+        zIndex: this.calcZIndex(),
+        group: this.getBatchGroup(),
+      });
+    }
+  }
+
+  protected markBatchDirty(): void {
+    const batch = this.context.blockBatch;
+    if (batch) {
+      batch.markDirty(this.minimalisticFastView);
+    }
   }
 
   public getConfigFlag<K extends keyof TGraphSettingsConfig>(flagPath: K) {
@@ -232,6 +301,12 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   protected stateChanged(nextState: T): void {
     if (!this.firstRender && nextState.selected !== this.state.selected) {
       this.raiseBlock();
+      // Update batch group if selection changed
+      this.updateMinimalisticParams();
+      this.updateInBatch();
+    } else {
+      // Geometry or other state changed, mark as dirty
+      this.markBatchDirty();
     }
     return super.stateChanged(nextState);
   }
@@ -518,11 +593,14 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
     const scaleLevel = this.context.graph.cameraService.getCameraBlockScaleLevel();
 
+    // Skip individual rendering for minimalistic scale
+    // Blocks component will render all blocks via batch
+    if (scaleLevel === ECameraScaleLevel.Minimalistic) {
+      console.log("render minimalistic block", this.state.name);
+      return;
+    }
+
     switch (scaleLevel) {
-      case ECameraScaleLevel.Minimalistic: {
-        this.renderMinimalisticBlock(this.context.ctx);
-        break;
-      }
       case ECameraScaleLevel.Schematic: {
         this.renderSchematicView(this.context.ctx);
         break;
@@ -535,6 +613,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected override unmount(): void {
+    // Unregister from batch
+    this.unregisterFromBatch();
+
     // Release ownership of all ports owned by this block
     const connectionsList = this.context.graph.rootStore.connectionsList;
 
