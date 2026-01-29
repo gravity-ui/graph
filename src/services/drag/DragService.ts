@@ -305,10 +305,15 @@ export class DragService {
    * ```
    */
   public startDrag(callbacks: DragOperationCallbacks, options: DragOperationOptions = {}): void {
-    const { document: doc, cursor, autopanning = true, stopOnMouseLeave, threshold } = options;
+    const { document: doc, cursor, autopanning = true, stopOnMouseLeave, threshold, initialEvent } = options;
     const { onStart, onUpdate, onEnd } = callbacks;
 
     const targetDocument = doc ?? this.graph.getGraphCanvas().ownerDocument;
+    let initialCoords: [number, number] | null = null;
+    if (threshold && initialEvent) {
+      const coords = this.getWorldCoords(initialEvent);
+      initialCoords = coords;
+    }
 
     dragListener(targetDocument, {
       graph: this.graph,
@@ -318,8 +323,7 @@ export class DragService {
       threshold,
     })
       .on(EVENTS.DRAG_START, (event: MouseEvent) => {
-        const coords = this.getWorldCoords(event);
-        onStart?.(event, coords);
+        onStart?.(event, initialCoords ?? this.getWorldCoords(event));
       })
       .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => {
         const coords = this.getWorldCoords(event);
