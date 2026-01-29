@@ -1,51 +1,32 @@
-import { useCallback, useLayoutEffect, useMemo } from "react";
-
-import { computed } from "@preact/signals-core";
-
 import { TAnchor } from "../../components/canvas/anchors";
 import { Graph } from "../../graph";
 import { AnchorState } from "../../store/anchor/Anchor";
-import { noop } from "../../utils/functions";
 
 import { useBlockState } from "./useBlockState";
-import { useSignal } from "./useSignal";
+import { useComputedSignal, useSignalEffect } from "./useSignal";
 
 export function useBlockAnchorState(graph: Graph, anchor: TAnchor): AnchorState | undefined {
   const blockState = useBlockState(graph, anchor.blockId);
-  const signal = useMemo(() => {
-    return computed(() => {
-      if (!blockState) return undefined;
-      if (!Array.isArray(blockState.$anchorStates?.value)) return undefined;
+  return useComputedSignal(() => {
+    if (!blockState) return undefined;
+    if (!Array.isArray(blockState.$anchorStates?.value)) return undefined;
 
-      return blockState.$anchorStates.value.find((a) => a.id === anchor.id);
-    });
+    return blockState.$anchorStates.value.find((a) => a.id === anchor.id);
   }, [blockState, anchor]);
-  return useSignal(signal);
 }
 
 export function useBlockAnchorPosition(
   state: AnchorState | undefined,
   anchorContainerRef: React.MutableRefObject<HTMLDivElement> | undefined
 ) {
-  const refreshAnchorPosition = useCallback(() => {
-    const position = state.block.getViewComponent().getAnchorPort(state.id).getPoint() || { x: 0, y: 0 };
+  useSignalEffect(() => {
+    if (!state || !anchorContainerRef?.current) {
+      return;
+    }
+
+    const position = state.getViewComponent()?.getPosition();
     const blockGeometry = state.block.$geometry.value;
     anchorContainerRef.current.style.setProperty("--graph-block-anchor-x", `${position.x - blockGeometry.x}px`);
     anchorContainerRef.current.style.setProperty("--graph-block-anchor-y", `${position.y - blockGeometry.y}px`);
-  }, []);
-
-  useLayoutEffect(() => {
-    if (!state) {
-      return noop;
-    }
-    if (!anchorContainerRef || !anchorContainerRef.current) {
-      return noop;
-    }
-
-    refreshAnchorPosition();
-
-    return state.block.$geometry.subscribe(() => {
-      refreshAnchorPosition();
-    });
-  }, [state.block]);
+  }, [state?.block]);
 }

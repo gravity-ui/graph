@@ -1,17 +1,14 @@
-import { useMemo } from "react";
-
-import { computed } from "@preact/signals-core";
+import { useState } from "react";
 
 import { TBlock, isTBlock } from "../../components/canvas/blocks/Block";
 import { Graph } from "../../graph";
 
-import { useSignal } from "./useSignal";
+import { useComputedSignal } from "./useSignal";
 
 export function useBlockState<T extends TBlock>(graph: Graph, block: T | T["id"]) {
-  const signal = useMemo(() => {
-    return computed(() => graph.rootStore.blocksList.getBlockState(isTBlock(block) ? block.id : block));
+  return useComputedSignal(() => {
+    return graph.rootStore.blocksList.$blocksMap.value.get(isTBlock(block) ? block.id : block);
   }, [graph, block]);
-  return useSignal(signal);
 }
 
 export function useBlockViewState<T extends TBlock>(graph: Graph, block: T | T["id"]) {
