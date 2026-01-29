@@ -213,7 +213,7 @@ export class BaseConnection<
    *
    * @returns {void}
    */
-  protected updatePoints(): void {
+  protected updatePoints(additionalPoints?: TPoint[]): void {
     // Initialize with default points
     this.connectionPoints = [
       { x: 0, y: 0 },
@@ -232,6 +232,13 @@ export class BaseConnection<
     // Calculate bounding box from valid coordinates
     const x = [this.connectionPoints[0].x, this.connectionPoints[1].x].filter(Number.isFinite);
     const y = [this.connectionPoints[0].y, this.connectionPoints[1].y].filter(Number.isFinite);
+
+    if (additionalPoints) {
+      additionalPoints.forEach((point) => {
+        x.push(point.x);
+        y.push(point.y);
+      });
+    }
 
     this.bBox = [Math.min(...x), Math.min(...y), Math.max(...x), Math.max(...y)];
 
