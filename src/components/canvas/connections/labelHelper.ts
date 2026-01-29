@@ -8,7 +8,7 @@ export function getLabelCoords(
   width: number, // label width
   height: number, // label height
   GRID_SIZE: number // graph constant
-): { x: number; y: number; aligment: CanvasTextAlign } {
+): { x: number; y: number } {
   const alpha = x2 === x1 ? 0 : (y2 - y1) / (x2 - x1);
   const c = y2 - alpha * x2;
   const maxOffsetY = GRID_SIZE * 8;
@@ -55,7 +55,6 @@ export function getLabelCoords(
     const labelRightTopX = x2 - GRID_SIZE;
     const labelRightTopY = alpha * labelRightTopX + c - GRID_SIZE;
 
-    aligment = "left";
     x = labelRightTopX - width;
     y = clamp(labelRightTopY, y2 - maxOffsetY, y2 + maxOffsetY);
   }
@@ -64,5 +63,5 @@ export function getLabelCoords(
   // See https://en.wikipedia.org/wiki/Automatic_label_placement and
   // https://mikekling.com/comparing-algorithms-for-dispersing-overlapping-rectangles/
   // for possible solutions.
-  return { x, y, aligment };
+  return { x, y };
 }
