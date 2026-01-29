@@ -147,8 +147,15 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
           onDragUpdate: this.updateBlocks,
           draggable: this.props.draggable || false,
         },
-        { key: group.id }
+        { key: group.id, ref: group.id }
       );
     });
+  }
+
+  /**
+   * Find a Group component by its ID
+   */
+  public getGroupById(groupId: string): Group | null {
+    return this.$?.[groupId];
   }
 }
