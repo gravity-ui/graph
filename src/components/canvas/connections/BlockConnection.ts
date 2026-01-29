@@ -193,7 +193,17 @@ export class BlockConnection<T extends TConnection>
   }
 
   protected override updatePoints() {
-    super.updatePoints();
+    const additionalPoints = this.labelGeometry
+      ? [
+          { x: this.labelGeometry.x, y: this.labelGeometry.y },
+          {
+            x: this.labelGeometry.x + this.labelGeometry.width,
+            y: this.labelGeometry.y + this.labelGeometry.height,
+          },
+        ]
+      : undefined;
+
+    super.updatePoints(additionalPoints);
 
     this.geometry.x1 = this.connectionPoints[0].x;
     this.geometry.y1 = this.connectionPoints[0].y;
