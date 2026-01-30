@@ -153,8 +153,9 @@ export class SelectionLayer extends Layer<
 
   private applySelectedArea(x: number, y: number, w: number, h: number): void {
     const selectableEntityTypes = this.context.graph.$graphConstants.value.selectionLayer.SELECTABLE_ENTITY_TYPES;
+    const strategy = this.context.graph.$graphConstants.value.selectionLayer.STRATEGY || ESelectionStrategy.REPLACE;
 
     const elements = this.context.graph.getElementsOverRect({ x, y, width: w, height: h }, selectableEntityTypes);
-    this.context.graph.rootStore.selectionService.selectRelatedElements(elements, ESelectionStrategy.REPLACE);
+    this.context.graph.rootStore.selectionService.selectRelatedElements(elements, strategy);
   }
 }

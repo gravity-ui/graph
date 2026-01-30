@@ -1,5 +1,6 @@
 import { GraphComponent } from "./components/canvas/GraphComponent";
 import { Block } from "./components/canvas/blocks/Block";
+import { ESelectionStrategy } from "./services/selection";
 
 export type TGraphColors = {
   canvas?: Partial<TCanvasColors>;
@@ -91,8 +92,59 @@ export const initGraphColors: TGraphColors = {
 export type GraphComponentConstructor = new (...args: unknown[]) => GraphComponent;
 
 export type TGraphConstants = {
+  /**
+   * Configuration for the selection layer behavior.
+   * The selection layer is responsible for rendering the selection rectangle
+   * and managing which entities can be selected when the user draws a selection box on the canvas.
+   */
   selectionLayer: {
+    /**
+     * List of entity types that can be selected via the selection rectangle.
+     *
+     * Only entities whose constructors are included in this array will be selectable
+     * when the user draws a selection rectangle on the canvas. This allows fine-grained
+     * control over which types of graph components can be multi-selected.
+     *
+     * @remarks
+     * - By default, only `Block` entities are selectable
+     * - You can extend this to include other entity types like connections, anchors, etc.
+     * - Each entry must be a constructor (class) that extends `GraphComponent`
+     *
+     * @example
+     * ```typescript
+     * // Allow selecting both blocks and connections
+     * selectionLayer: {
+     *   SELECTABLE_ENTITY_TYPES: [GraphComponent, Block, Connection]
+     * }
+     * ```
+     *
+     * @default [Block]
+     */
     SELECTABLE_ENTITY_TYPES: GraphComponentConstructor[];
+    /**
+     * Selection strategy that determines how newly selected entities interact with existing selection.
+     *
+     * Available strategies:
+     * - **`REPLACE`** - New selection replaces the current selection entirely
+     * - **`APPEND`** - New selection is added to the current selection
+     * - **`SUBTRACT`** - New selection is removed from the current selection
+     * - **`TOGGLE`** - New selection toggles the selection state of entities
+     *
+     * @remarks
+     * This strategy is applied when the user completes drawing a selection rectangle
+     * and determines how the entities inside the rectangle affect the overall selection state.
+     *
+     * @example
+     * ```typescript
+     * // Additive selection mode
+     * selectionLayer: {
+     *   STRATEGY: ESelectionStrategy.APPEND
+     * }
+     * ```
+     *
+     * @default ESelectionStrategy.REPLACE
+     */
+    STRATEGY?: ESelectionStrategy;
   };
 
   system: {
@@ -189,6 +241,7 @@ export type TGraphConstants = {
 export const initGraphConstants: TGraphConstants = {
   selectionLayer: {
     SELECTABLE_ENTITY_TYPES: [Block],
+    STRATEGY: ESelectionStrategy.REPLACE,
   },
   system: {
     GRID_SIZE: 16,
