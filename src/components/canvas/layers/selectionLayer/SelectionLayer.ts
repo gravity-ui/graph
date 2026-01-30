@@ -155,6 +155,6 @@ export class SelectionLayer extends Layer<
     const selectableEntityTypes = this.context.graph.$graphConstants.value.selectionLayer.SELECTABLE_ENTITY_TYPES;
 
     const elements = this.context.graph.getElementsOverRect({ x, y, width: w, height: h }, selectableEntityTypes);
-    this.context.graph.rootStore.selectionService.selectRelatedElements(elements, ESelectionStrategy.REPLACE);
+    this.context.graph.rootStore.selectionService.selectRelatedElements(elements, ESelectionStrategy.APPEND);
   }
 }
