@@ -60,7 +60,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   canDragCamera: true,
   canZoomCamera: true,
   canDuplicateBlocks: false,
-  canDrag: ECanDrag.ALL,
+  canDrag: ECanDrag.NONE,
   dragThreshold: 5,
   canCreateNewConnections: false,
   showConnectionArrows: true,

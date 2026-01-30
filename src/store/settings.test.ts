@@ -29,8 +29,8 @@ describe("Settings store", () => {
 
   describe("$canDrag computed with backward compatibility", () => {
     describe("new setting (canDrag)", () => {
-      it("should default to ALL", () => {
-        expect(store.$canDrag.value).toBe(ECanDrag.ALL);
+      it("should default to NONE", () => {
+        expect(store.$canDrag.value).toBe(ECanDrag.NONE);
       });
 
       it("should use ALL when explicitly set", () => {
