@@ -67,7 +67,7 @@
     "react-dom": "^17.0.0 || ^18.0.0"
   },
   "dependencies": {
-    "@preact/signals-core": "^1.5.1",
+    "@preact/signals-core": "^1.12.2",
     "intersects": "^2.7.2",
     "lodash": "^4.17.21",
     "rbush": "^3.0.1",

@@ -263,7 +263,7 @@ function MyGraph() {
 
 ## Migration from useLayer
 
-If you're currently using `useLayer`, you can easily migrate to `GraphLayer`:
+If you're currently using `useLayer`, you can easily migrate to `GraphLayer`. For detailed information about all available hooks, see [React Hooks Reference](hooks.md).
 
 ```tsx
 // Before (imperative)

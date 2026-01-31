@@ -143,44 +143,54 @@ Anchor styling also uses CSS variables:
 }
 ```
 
-## Graph Configuration
+## React Hooks
 
-The graph can be extensively configured through the `useGraph` hook. See the [full configuration reference](https://gravity-ui.com/components/graph) for details.
+The library provides a comprehensive set of React hooks for working with the graph:
 
-### Layer Management
+| Hook | Description |
+|------|-------------|
+| `useGraph` | Create and manage a Graph instance |
+| `useGraphEvent` | Subscribe to a single graph event |
+| `useGraphEvents` | Subscribe to multiple graph events |
+| `useLayer` | Add and manage layers |
+| `useBlockState` | Subscribe to block state changes |
+| `useBlockViewState` | Get block view component |
+| `useBlockAnchorState` | Subscribe to anchor state changes |
+| `useSignal` | Subscribe to signal values |
+| `useComputedSignal` | Create computed signals |
+| `useSignalEffect` | Run effects on signal changes |
+| `useSchedulerDebounce` | Create debounced function with frame timing |
+| `useSchedulerThrottle` | Create throttled function with frame timing |
+| `useScheduledTask` | Schedule task for frame-based execution |
+| `useSceneChange` | React to scene updates (camera, viewport) |
 
-The `useLayer` hook provides a convenient way to add and manage layers in the graph:
+For detailed documentation of all hooks, see [React Hooks Reference](hooks.md).
+
+### Quick Example
 
 ```tsx
-import { useLayer } from '@gravity-ui/graph';
+import { useGraph, useGraphEvent, useBlockState } from '@gravity-ui/graph/react';
 
-function CustomGraph() {
-  const { graph } = useGraph();
-
-  // Add and manage a custom layer
-  const devToolsLayer = useLayer(graph, DevToolsLayer, {
-    showRuler: true,
-    rulerSize: 20,
+function MyGraph() {
+  const { graph, setEntities, start } = useGraph({
+    settings: { canDragBlocks: true },
   });
 
-  // Layer's props will be automatically updated when they change
-  const [rulerSize, setRulerSize] = useState(20);
-  
-  // No need to manually call setProps - useLayer handles this
-  const devToolsLayer = useLayer(graph, DevToolsLayer, {
-    showRuler: true,
-    rulerSize, // When this changes, layer will be updated
+  // Subscribe to events
+  useGraphEvent(graph, "block-change", ({ block }) => {
+    console.log("Block changed:", block);
   });
+
+  // Track block state
+  const blockState = useBlockState(graph, "block-1");
 
   return <GraphCanvas graph={graph} />;
 }
 ```
 
-The hook:
-- Automatically handles layer initialization and cleanup
-- Updates layer props when they change
-- Provides proper TypeScript types for layer props
-- Returns the layer instance for direct access if needed
+## Graph Configuration
+
+The graph can be extensively configured through the `useGraph` hook. See the [full configuration reference](https://gravity-ui.com/components/graph) for details.
 
 ## Declarative Components
 

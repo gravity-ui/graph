@@ -13,9 +13,12 @@
   
   /* Creates a composite layer */
   transform-style: preserve-3d;
-  transform: translate3d(0, 0, 0);
   pointer-events: all;
-  transform: translate3d(var(--graph-block-geometry-x), var(--graph-block-geometry-y), 0)
+  transform: translate3d(var(--graph-block-geometry-x, 0px), var(--graph-block-geometry-y, 0px), 0);
+}
+
+.graph-block-container-non-interactive {
+  pointer-events: none;
 }
 
 .graph-block-wrapper {
