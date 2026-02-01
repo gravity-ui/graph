@@ -1,10 +1,4 @@
-import { computed } from "@preact/signals-core";
-
 import type { DragState } from "../../../services/drag/types";
-import { BlockState } from "../../../store/block/Block";
-import { TGroup } from "../../../store/group/Group";
-import { getBlocksRect } from "../../../utils/functions";
-import { TRect } from "../../../utils/types/shapes";
 import { Block, TBlock } from "../blocks/Block";
 
 import { BlockGroups, BlockGroupsProps } from "./BlockGroups";
@@ -15,24 +9,31 @@ import { Group } from "./Group";
  * @param blockIds - IDs of blocks being transferred
  * @param sourceGroupIds - Set of source group IDs (groups blocks came from)
  */
-export type OnTransferStart = (blockIds: string[], sourceGroupIds: Set<string>) => void;
+export type OnTransferStart = (blockIds: TBlock["id"][], sourceGroupIds: Set<string>) => void;
 
 /**
  * Callback called when block transfer ends (mouse released or Shift released)
  * @param blockIds - IDs of blocks that were transferred
  * @param targetGroupId - Target group ID (null if removed from group)
  */
-export type OnTransferEnd = (blockIds: string[], targetGroupId: string | null) => void;
+export type OnTransferEnd = (blockIds: TBlock["id"][], targetGroupId: string | null) => void;
 
 /**
- * Callback called when a block's group changes
- * @param blockId - Block ID
- * @param oldGroupId - Previous group ID (null if block was not in a group)
- * @param newGroupId - New group ID (null if block removed from group)
+ * Object representing a change in block's group membership
  */
-export type OnBlockGroupChange = (blockId: string, oldGroupId: string | null, newGroupId: string | null) => void;
+export type TBlockGroupsTransferGroupChange = {
+  blockId: TBlock["id"];
+  sourceGroup?: string | null;
+  targetGroup?: string | null;
+};
 
-export type TransferableBlockGroupsProps = BlockGroupsProps & {
+/**
+ * Callback called when blocks' groups change
+ * @param changes - Array of changes to apply
+ */
+export type OnBlockGroupChange = (changes: TBlockGroupsTransferGroupChange[]) => void;
+
+export type BlockGroupsTransferLayerProps = BlockGroupsProps & {
   /**
    * Enable/disable block transfer between groups with Shift+drag.
    * Default: true
@@ -53,6 +54,11 @@ export type TransferableBlockGroupsProps = BlockGroupsProps & {
    * Called when a block's group changes
    */
   onBlockGroupChange?: OnBlockGroupChange;
+
+  /**
+   * If true, blocks will move when the group is dragged
+   */
+  updateBlocksOnDrag?: boolean;
 };
 
 type TransferState = {
@@ -80,7 +86,7 @@ type TransferState = {
  *
  * ## Basic Usage
  * ```typescript
- * const layer = graph.addLayer(TransferableBlockGroups, {
+ * const layer = graph.addLayer(BlockGroupsTransferLayer, {
  *   transferEnabled: true,
  *   draggable: true,
  * });
@@ -88,7 +94,7 @@ type TransferState = {
  *
  * ## With Automatic Grouping
  * ```typescript
- * const GroupsLayer = TransferableBlockGroups.withBlockGrouping({
+ * const GroupsLayer = BlockGroupsTransferLayer.withBlockGrouping({
  *   groupingFn: (blocks) => groupBy(blocks, (b) => b.$state.value.group),
  *   mapToGroups: (groupId, { rect }) => ({ id: groupId, rect }),
  * });
@@ -105,9 +111,11 @@ type TransferState = {
  *   onTransferStart: (blockIds, sourceGroupIds) => {
  *     console.log('Transfer started:', blockIds);
  *   },
- *   onBlockGroupChange: (blockId, oldGroupId, newGroupId) => {
+ *   onBlockGroupChange: (changes) => {
  *     // Sync with Redux
- *     store.dispatch(updateBlockGroup({ blockId, groupId: newGroupId }));
+ *     changes.forEach(({ blockId, targetGroup }) => {
+ *       store.dispatch(updateBlockGroup({ blockId, groupId: targetGroup }));
+ *     });
  *   },
  *   onTransferEnd: (blockIds, targetGroupId) => {
  *     console.log('Transfer completed:', blockIds, 'to group:', targetGroupId);
@@ -117,106 +125,9 @@ type TransferState = {
  *
  * Uses DragService.$state.currentEvent.shiftKey to track Shift state in real-time.
  */
-export class TransferableBlockGroups<
-  P extends TransferableBlockGroupsProps = TransferableBlockGroupsProps,
+export class BlockGroupsTransferLayer<
+  P extends BlockGroupsTransferLayerProps = BlockGroupsTransferLayerProps,
 > extends BlockGroups<P> {
-  /**
-   * Create a TransferableBlockGroups layer with automatic block grouping.
-   *
-   * This static method creates a specialized layer class that automatically groups blocks
-   * based on a grouping function and keeps the groups in sync with block changes.
-   *
-   * @param groupingFn - Function that takes all blocks and returns a map of group key to blocks array.
-   *                     For example, `(blocks) => groupBy(blocks, (b) => b.$state.value.group)`
-   * @param mapToGroups - Function that maps a group key and its blocks to a TGroup object.
-   *                      Receives the group key, blocks array, and calculated rect.
-   * @returns A TransferableBlockGroups class with automatic grouping support
-   *
-   * @example
-   * ```typescript
-   * // Group blocks by their 'group' field
-   * const GroupsLayer = TransferableBlockGroups.withBlockGrouping({
-   *   groupingFn: (blocks) => {
-   *     const grouped: Record<string, BlockState[]> = {};
-   *     blocks.forEach(block => {
-   *       const groupId = block.$state.value.group;
-   *       if (groupId) {
-   *         grouped[groupId] = grouped[groupId] || [];
-   *         grouped[groupId].push(block);
-   *       }
-   *     });
-   *     return grouped;
-   *   },
-   *   mapToGroups: (groupId, { blocks, rect }) => ({
-   *     id: groupId,
-   *     rect,
-   *     name: `Group ${groupId}`,
-   *   }),
-   * });
-   *
-   * // Use the layer with updateBlocksOnDrag to move blocks with groups
-   * graph.addLayer(GroupsLayer, {
-   *   transferEnabled: true,
-   *   updateBlocksOnDrag: true,
-   * });
-   * ```
-   */
-  public static withBlockGrouping({
-    groupingFn,
-    mapToGroups,
-  }: {
-    groupingFn: (blocks: BlockState[]) => Record<string, BlockState[]>;
-    mapToGroups: (key: string, params: { blocks: BlockState[]; rect: TRect }) => TGroup;
-  }): typeof TransferableBlockGroups<TransferableBlockGroupsProps & { updateBlocksOnDrag?: boolean }> {
-    return class TransferableBlockGroupWithGrouping extends TransferableBlockGroups<
-      TransferableBlockGroupsProps & { updateBlocksOnDrag?: boolean }
-    > {
-      public $groupsBlocksMap = computed(() => {
-        const blocks = this.props.graph.rootStore.blocksList.$blocks.value;
-        return groupingFn(blocks);
-      });
-
-      protected afterInit(): void {
-        this.onSignal(
-          computed<TGroup[]>(() => {
-            const groupedBlocks = this.$groupsBlocksMap.value;
-            return Object.entries(groupedBlocks).map(([key, blocks]) => {
-              const newRect = getBlocksRect(blocks.map((block) => block.asTBlock()));
-              return mapToGroups(key, { blocks, rect: newRect });
-            });
-          }),
-          (groups: TGroup[]) => {
-            // Filter out groups that are size-locked - don't update their rect
-            const groupsToUpdate = groups.map((group) => {
-              const existingGroupState = this.props.graph.rootStore.groupsList.getGroupState(group.id);
-              if (existingGroupState?.isSizeLocked()) {
-                // Keep the existing rect when size is locked
-                return { ...group, rect: existingGroupState.$state.value.rect };
-              }
-              return group;
-            });
-            this.setGroups(groupsToUpdate);
-          }
-        );
-        super.afterInit();
-      }
-
-      /**
-       * Override updateBlocks to support moving blocks with the group when updateBlocksOnDrag is enabled
-       */
-      public override updateBlocks = (groupId: string, delta: { deltaX: number; deltaY: number }) => {
-        if (this.props.updateBlocksOnDrag) {
-          const blocks = this.$groupsBlocksMap.value[groupId];
-          if (blocks) {
-            blocks.forEach((block) => {
-              block.updateXY(block.x + delta.deltaX, block.y + delta.deltaY, true);
-            });
-          }
-        }
-      };
-    };
-  }
-
   /** Current transfer state */
   private transferState: TransferState = this.createIdleState();
 
@@ -290,8 +201,9 @@ export class TransferableBlockGroups<
     // Collect unique source group IDs (for tracking which groups blocks came from)
     const sourceGroupIds = new Set<string>();
     for (const block of blocks) {
-      if (block.group) {
-        sourceGroupIds.add(block.group);
+      const groupId = this.$blockGroupsMap.value.get(block.id) ?? null;
+      if (groupId) {
+        sourceGroupIds.add(groupId);
       }
     }
 
@@ -331,14 +243,21 @@ export class TransferableBlockGroups<
     }
 
     // Apply the group change for all blocks (transfer happens on Shift release)
+    const changes: TBlockGroupsTransferGroupChange[] = [];
     for (const block of blocks) {
-      const currentGroupId = block.group ?? null;
+      const oldGroupId = this.$blockGroupsMap.value.get(block.id) ?? null;
 
       // Only change if target is different from current
-      if (currentGroupId !== targetGroupId) {
-        this.applyGroupChange(block.id, targetGroupId);
+      if (oldGroupId !== targetGroupId) {
+        changes.push({
+          blockId: block.id,
+          sourceGroup: oldGroupId,
+          targetGroup: targetGroupId,
+        });
       }
     }
+
+    this.applyGroupChange(changes);
 
     // Unlock all groups
     this.unlockAllGroups();
@@ -429,14 +348,21 @@ export class TransferableBlockGroups<
     }
 
     // Apply the group change for all blocks
+    const changes: TBlockGroupsTransferGroupChange[] = [];
     for (const block of blocks) {
-      const currentGroupId = block.group ?? null;
+      const currentGroupId = this.$blockGroupsMap.value.get(block.id) ?? null;
 
       // Only change if target is different from current
       if (currentGroupId !== targetGroupId) {
-        this.applyGroupChange(block.id, targetGroupId);
+        changes.push({
+          blockId: block.id,
+          sourceGroup: currentGroupId,
+          targetGroup: targetGroupId,
+        });
       }
     }
+
+    this.applyGroupChange(changes);
 
     // Unlock all groups
     this.unlockAllGroups();
@@ -504,15 +430,9 @@ export class TransferableBlockGroups<
   /**
    * Apply the group change to the block
    */
-  private applyGroupChange(blockId: TBlock["id"], newGroupId: string | null): void {
-    const blockState = this.props.graph.rootStore.blocksList.getBlockState(blockId);
-    const oldGroupId = blockState?.$state.value.group ?? null;
-
-    if (blockState) {
-      blockState.updateBlock({ group: newGroupId ?? undefined });
-
-      // Call onBlockGroupChange callback
-      this.props.onBlockGroupChange?.(blockId.toString(), oldGroupId, newGroupId);
+  private applyGroupChange(changes: TBlockGroupsTransferGroupChange[]): void {
+    if (changes.length > 0) {
+      this.props.onBlockGroupChange?.(changes);
     }
   }
 

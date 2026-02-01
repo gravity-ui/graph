@@ -3,11 +3,11 @@ import { TGroup } from "../../../store/group/Group";
 import { TRect } from "../../../utils/types/shapes";
 
 import { BlockGroups } from "./BlockGroups";
+import { BlockGroupsTransferLayer } from "./BlockGroupsTransferLayer";
 import { Group } from "./Group";
-import { TransferableBlockGroups } from "./TransferableBlockGroups";
 
 // Export components
-export { BlockGroups, Group, TransferableBlockGroups };
+export { BlockGroups, Group, BlockGroupsTransferLayer };
 
 // Export types from BlockGroups
 export type { BlockGroupsProps, BlockGroupsContext, BlockGroupsState } from "./BlockGroups";
@@ -17,11 +17,12 @@ export type { TGroupProps, TGroupStyle, TGroupGeometry } from "./Group";
 
 // Export types from TransferableBlockGroups
 export type {
-  TransferableBlockGroupsProps,
+  BlockGroupsTransferLayerProps,
   OnTransferStart,
   OnTransferEnd,
   OnBlockGroupChange,
-} from "./TransferableBlockGroups";
+  TBlockGroupsTransferGroupChange,
+} from "./BlockGroupsTransferLayer";
 
 // Export utility types for withBlockGrouping
 export type { BlockState } from "../../../store/block/Block";

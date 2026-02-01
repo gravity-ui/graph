@@ -1,11 +1,11 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
-import groupBy from "lodash/groupBy";
 
-import { Group, TransferableBlockGroups } from "../../../components/canvas/groups";
-import { BlockState, ECanDrag, Graph, GraphState, TBlock } from "../../../index";
-import { GraphCanvas, useGraph, useGraphEvent } from "../../../react-components";
+import { TDefinitionGroup } from "../../../components/canvas/groups/BlockGroups";
+import { BlockGroupsTransferLayer } from "../../../components/canvas/groups/BlockGroupsTransferLayer";
+import { ECanDrag, Graph, GraphState, Group, TBlock } from "../../../index";
+import { GraphCanvas, useGraph, useGraphEvent, useLayer } from "../../../react-components";
 import { useFn } from "../../../react-components/utils/hooks/useFn";
 import { BlockStory } from "../../main/Block";
 
@@ -20,7 +20,6 @@ const createConfig = () => {
       y: 50,
       width: 150,
       height: 80,
-      group: "group-a",
       selected: false,
       anchors: [],
     },
@@ -32,7 +31,6 @@ const createConfig = () => {
       y: 150,
       width: 150,
       height: 80,
-      group: "group-a",
       selected: false,
       anchors: [],
     },
@@ -44,7 +42,6 @@ const createConfig = () => {
       y: 250,
       width: 150,
       height: 80,
-      group: "group-a",
       selected: false,
       anchors: [],
     },
@@ -57,7 +54,6 @@ const createConfig = () => {
       y: 50,
       width: 150,
       height: 80,
-      group: "group-b",
       selected: false,
       anchors: [],
     },
@@ -69,7 +65,6 @@ const createConfig = () => {
       y: 150,
       width: 150,
       height: 80,
-      group: "group-b",
       selected: false,
       anchors: [],
     },
@@ -82,7 +77,6 @@ const createConfig = () => {
       y: 50,
       width: 150,
       height: 80,
-      group: "group-c",
       selected: false,
       anchors: [],
     },
@@ -153,25 +147,25 @@ const GroupC = Group.define({
   },
 });
 
-const groupComponentMap: Record<string, typeof Group> = {
-  "group-a": GroupA,
-  "group-b": GroupB,
-  "group-c": GroupC,
-};
-
-const GroupsLayer = TransferableBlockGroups.withBlockGrouping({
-  groupingFn: (blocks: BlockState[]) => {
-    return groupBy(
-      blocks.filter((block) => block.$state.value.group),
-      (block) => block.$state.value.group
-    );
+const groupsInfo: TDefinitionGroup[] = [
+  {
+    id: "group-a",
+    blocksIds: ["block-a1", "block-a2", "block-a3"],
+    component: GroupA,
   },
-  mapToGroups: (groupId: string, { rect }) => ({
-    id: groupId,
-    rect,
-    component: groupComponentMap[groupId] || Group,
-  }),
-});
+  {
+    id: "group-b",
+    blocksIds: ["block-b1", "block-b2"],
+    component: GroupB,
+  },
+  {
+    id: "group-c",
+    blocksIds: ["block-c1"],
+    component: GroupC,
+  },
+];
+
+const GroupsLayer = BlockGroupsTransferLayer.withPredefinedGroups();
 
 const GroupTransferApp = () => {
   const { graph, setEntities, start } = useGraph({
@@ -179,17 +173,45 @@ const GroupTransferApp = () => {
       canDrag: ECanDrag.ALL,
     },
   });
+
+  const [groups, setGroups] = useState<TDefinitionGroup[]>(groupsInfo);
   const config = createConfig();
 
-  useEffect(() => {
-    const layer = graph.addLayer(GroupsLayer, {
-      draggable: false,
-      updateBlocksOnDrag: false,
-    });
-    return () => {
-      layer.detachLayer();
-    };
-  }, [graph]);
+  const groupsLayer = useLayer(graph, GroupsLayer, {
+    draggable: true,
+    onBlockGroupChange: (changes) => {
+      setGroups((groups) => {
+        const newGroups = groups.map((g) => ({ ...g, blocksIds: [...g.blocksIds] }));
+
+        changes.forEach(({ blockId, sourceGroup, targetGroup }) => {
+          // Remove from source
+          if (sourceGroup) {
+            const source = newGroups.find((g) => g.id === sourceGroup);
+            if (source) {
+              source.blocksIds = source.blocksIds.filter((id) => id !== blockId);
+            }
+          }
+          // Add to target
+          if (targetGroup) {
+            const target = newGroups.find((g) => g.id === targetGroup);
+            if (target) {
+              target.blocksIds.push(blockId);
+            }
+          }
+        });
+
+        return newGroups;
+      });
+    },
+    onTransferEnd: (blockIds, targetGroupId) => {
+      console.log("onTransferEnd", blockIds, targetGroupId);
+    },
+    onTransferStart: (blockIds, sourceGroupIds) => {
+      console.log("onTransferStart", blockIds, sourceGroupIds);
+    },
+    transferEnabled: true,
+    updateBlocksOnDrag: true,
+  });
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {
@@ -198,6 +220,12 @@ const GroupTransferApp = () => {
       graph.zoomTo("center", { padding: 100 });
     }
   });
+
+  useEffect(() => {
+    if (groupsLayer) {
+      groupsLayer.defineGroups(groups);
+    }
+  }, [groupsLayer, groups]);
 
   const renderBlockFn = useFn((graphObject: Graph, block: TBlock) => {
     return <BlockStory graph={graphObject} block={block} />;
