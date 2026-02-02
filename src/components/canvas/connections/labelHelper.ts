@@ -30,7 +30,6 @@ export function getLabelCoords(
 
   let x: number;
   let y: number;
-  let aligment: CanvasTextAlign = "right";
 
   if (x1 <= x2 && y1 <= y2) {
     const labelRightBottomX = x2 - GRID_SIZE;
