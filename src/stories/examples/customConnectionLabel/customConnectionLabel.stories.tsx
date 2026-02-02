@@ -5,7 +5,7 @@ import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { TBlock } from "../../../components/canvas/blocks/Block";
 import { getLabelCoords } from "../../../components/canvas/connections/labelHelper";
-import { BlockConnection, cachedMeasureText, Graph, TConnection } from "../../../index";
+import { BlockConnection, cachedMeasureText, TConnection, Graph } from "../../../index";
 import { GraphCanvas, useGraph } from "../../../react-components";
 import { getFontSize } from "../../../utils/functions/text";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
