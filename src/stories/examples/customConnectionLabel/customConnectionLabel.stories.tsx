@@ -4,13 +4,13 @@ import { Flex, Switch, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { TBlock } from "../../../components/canvas/blocks/Block";
+import { getLabelCoords } from "../../../components/canvas/connections/labelHelper";
 import { BlockConnection, cachedMeasureText, Graph, TConnection } from "../../../index";
 import { GraphCanvas, useGraph } from "../../../react-components";
+import { getFontSize } from "../../../utils/functions/text";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 
-import { getLabelCoords } from "../../../components/canvas/connections/labelHelper";
-import { getFontSize } from "../../../utils/functions/text";
 import "@gravity-ui/uikit/styles/styles.css";
 
 const storyConfig = generatePrettyBlocks({ layersCount: 6, connectionsPerLayer: 80 });
