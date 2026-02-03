@@ -1,4 +1,7 @@
+import { effect } from "@preact/signals-core";
+
 import type { DragState } from "../../../services/drag/types";
+import { Point } from "../../../utils/types/shapes";
 import { Block, TBlock } from "../blocks/Block";
 
 import { BlockGroups, BlockGroupsProps } from "./BlockGroups";
@@ -129,10 +132,10 @@ export class BlockGroupsTransferLayer<
   P extends BlockGroupsTransferLayerProps = BlockGroupsTransferLayerProps,
 > extends BlockGroups<P> {
   /** Current transfer state */
-  private transferState: TransferState = this.createIdleState();
+  protected transferState: TransferState = this.createIdleState();
 
   /** Cleanup function for the drag state subscription */
-  private disposeSubscription: (() => void) | null = null;
+  protected disposeSubscription: (() => void) | null = null;
 
   protected get isTransferEnabled(): boolean {
     return this.props.transferEnabled !== false;
@@ -149,21 +152,20 @@ export class BlockGroupsTransferLayer<
   /**
    * Subscribe to DragService state changes
    */
-  private subscribeToDragState(): void {
+  protected subscribeToDragState(): void {
     const dragService = this.props.graph.dragService;
     if (!dragService) return;
 
-    this.disposeSubscription = dragService.$state.subscribe((dragState) => {
-      this.handleDragStateChange(dragState);
+    this.disposeSubscription = effect(() => {
+      const isShiftPressed = this.props.graph.keyboardService.isShiftPressed();
+      this.handleDragStateChange(dragService.$state.value, isShiftPressed ?? false);
     });
   }
 
   /**
    * Handle drag state changes - react to Shift key in real-time
    */
-  private handleDragStateChange(dragState: DragState): void {
-    const isShiftPressed = dragState.currentEvent?.shiftKey ?? false;
-
+  protected handleDragStateChange(dragState: DragState, isShiftPressed: boolean): void {
     // Drag ended
     if (!dragState.isDragging) {
       if (this.transferState.isTransferring) {
@@ -190,7 +192,7 @@ export class BlockGroupsTransferLayer<
   /**
    * Activate transfer mode for currently dragged blocks
    */
-  private activateTransfer(dragState: DragState): void {
+  protected activateTransfer(dragState: DragState): void {
     // Find all blocks among the dragged components
     const blocks = dragState.components
       .filter((c): c is Block => c instanceof Block)
@@ -234,7 +236,7 @@ export class BlockGroupsTransferLayer<
    * Deactivate transfer mode - apply transfer and unlock groups
    * Called when Shift is released during drag
    */
-  private deactivateTransfer(): void {
+  protected deactivateTransfer(): void {
     const { highlightedGroupId, targetGroupId, blocks } = this.transferState;
 
     // Unhighlight current group
@@ -274,7 +276,7 @@ export class BlockGroupsTransferLayer<
   /**
    * Lock all groups' sizes
    */
-  private lockAllGroups(): void {
+  protected lockAllGroups(): void {
     const groups = this.props.graph.rootStore.groupsList.$groups.value;
     for (const groupState of groups) {
       groupState.lockSize();
@@ -284,14 +286,14 @@ export class BlockGroupsTransferLayer<
   /**
    * Unlock all groups' sizes
    */
-  private unlockAllGroups(): void {
+  protected unlockAllGroups(): void {
     const groups = this.props.graph.rootStore.groupsList.$groups.value;
     for (const groupState of groups) {
       groupState.unlockSize();
     }
   }
 
-  private createIdleState(): TransferState {
+  protected createIdleState(): TransferState {
     return {
       isTransferring: false,
       blocks: [],
@@ -304,26 +306,22 @@ export class BlockGroupsTransferLayer<
   /**
    * Update highlighting based on cursor position
    */
-  private updateHighlight(point: [number, number]): void {
+  protected updateHighlight(point: [number, number]): void {
     if (!this.transferState.isTransferring) return;
 
     const targetGroup = this.findGroupAtPoint(point);
     const targetGroupId = targetGroup?.getEntityId() ?? null;
 
-    // For highlighting, skip source groups (don't highlight the group block is already in)
-    const shouldHighlight = targetGroupId && !this.transferState.sourceGroupIds.has(targetGroupId);
-    const highlightGroupId = shouldHighlight ? targetGroupId : null;
-
     // Update highlight visual if changed
-    if (this.transferState.highlightedGroupId !== highlightGroupId) {
+    if (this.transferState.highlightedGroupId !== targetGroupId) {
       // Unhighlight previous group
       if (this.transferState.highlightedGroupId) {
         this.setGroupHighlight(this.transferState.highlightedGroupId, false);
       }
 
       // Highlight new group
-      if (highlightGroupId) {
-        this.setGroupHighlight(highlightGroupId, true);
+      if (targetGroupId) {
+        this.setGroupHighlight(targetGroupId, true);
       }
     }
 
@@ -332,14 +330,14 @@ export class BlockGroupsTransferLayer<
     this.transferState = {
       ...this.transferState,
       targetGroupId, // Real target group under cursor
-      highlightedGroupId: highlightGroupId, // Only non-source groups for visual
+      highlightedGroupId: targetGroupId,
     };
   }
 
   /**
    * End transfer on drag end (mouseup) - apply transfer if in transfer mode
    */
-  private endTransfer(): void {
+  protected endTransfer(): void {
     const { highlightedGroupId, targetGroupId, blocks } = this.transferState;
 
     // Unhighlight the group
@@ -406,31 +404,23 @@ export class BlockGroupsTransferLayer<
   /**
    * Find a group at the given point
    */
-  private findGroupAtPoint(point: [number, number]): Group | null {
+  protected findGroupAtPoint(point: [number, number]): Group | null {
     const [x, y] = point;
-    const groups = this.props.graph.getElementsOverRect({ x, y, width: 0, height: 0 }, [Group]);
-    return groups[0] ?? null;
-  }
-
-  /**
-   * Find Group component by ID
-   */
-  private findGroupComponent(groupId: string): Group | null {
-    return this.getGroupById(groupId);
+    return this.props.graph.getElementOverPoint(new Point(x, y), [Group]) ?? null;
   }
 
   /**
    * Set highlight state for a group directly on the component
    */
-  private setGroupHighlight(groupId: string, highlighted: boolean): void {
-    const groupComponent = this.findGroupComponent(groupId);
+  protected setGroupHighlight(groupId: string, highlighted: boolean): void {
+    const groupComponent = this.getGroupById(groupId);
     groupComponent?.setHighlighted(highlighted);
   }
 
   /**
    * Apply the group change to the block
    */
-  private applyGroupChange(changes: TBlockGroupsTransferGroupChange[]): void {
+  protected applyGroupChange(changes: TBlockGroupsTransferGroupChange[]): void {
     if (changes.length > 0) {
       this.props.onBlockGroupChange?.(changes);
     }

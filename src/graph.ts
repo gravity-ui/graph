@@ -12,6 +12,7 @@ import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } fr
 import { GraphEvent, GraphEventParams, GraphEventsDefinitions, isGraphEvent } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
+import { KeyboardService } from "./services/KeyboardService";
 import { Layer, LayerPublicProps } from "./services/Layer";
 import { Layers } from "./services/LayersService";
 import { CameraService } from "./services/camera/CameraService";
@@ -57,15 +58,15 @@ export enum GraphState {
 export class Graph {
   private scheduler = scheduler;
 
-  public cameraService: CameraService = new CameraService(this);
+  public readonly cameraService: CameraService = new CameraService(this);
 
-  public layers: Layers = new Layers();
+  public readonly layers: Layers = new Layers();
 
-  public api = new PublicGraphApi(this);
+  public readonly api = new PublicGraphApi(this);
 
-  public eventEmitter = new EventTarget();
+  public readonly eventEmitter = new EventTarget();
 
-  public rootStore: RootStore = new RootStore(this);
+  public readonly rootStore: RootStore = new RootStore(this);
 
   public hitTest = new HitTest(this);
 
@@ -73,15 +74,17 @@ export class Graph {
    * Service that manages drag operations for all draggable GraphComponents.
    * Handles autopanning, cursor locking, and coordinates drag lifecycle across selected components.
    */
-  public dragService: DragService;
+  public readonly dragService: DragService;
 
-  protected graphLayer: GraphLayer;
+  public readonly keyboardService: KeyboardService;
 
-  protected belowLayer: BelowLayer;
+  protected readonly graphLayer: GraphLayer;
 
-  protected selectionLayer: SelectionLayer;
+  protected readonly belowLayer: BelowLayer;
 
-  protected cursorLayer: CursorLayer;
+  protected readonly selectionLayer: SelectionLayer;
+
+  protected readonly cursorLayer: CursorLayer;
 
   public getGraphCanvas() {
     return this.graphLayer.getCanvas();
@@ -130,6 +133,7 @@ export class Graph {
 
     // Initialize DragService for managing drag operations on GraphComponents
     this.dragService = new DragService(this);
+    this.keyboardService = new KeyboardService(this);
 
     this.selectionLayer.hide();
     this.graphLayer.hide();
