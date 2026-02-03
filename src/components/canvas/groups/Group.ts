@@ -18,6 +18,10 @@ export type TGroupStyle = {
   borderWidth: number;
   selectedBackground: string;
   selectedBorder: string;
+  /** Background color when group is highlighted (block is being dragged over it) */
+  highlightedBackground: string;
+  /** Border color when group is highlighted */
+  highlightedBorder: string;
 };
 
 export type TGroupGeometry = {
@@ -43,6 +47,8 @@ const defaultStyle: TGroupStyle = {
   borderWidth: 2,
   selectedBackground: "rgba(100, 100, 100, 1)",
   selectedBorder: "rgba(100, 100, 100, 1)",
+  highlightedBackground: "rgba(100, 200, 100, 0.3)",
+  highlightedBorder: "rgba(100, 200, 100, 0.8)",
 };
 
 const defaultGeometry: TGroupGeometry = {
@@ -85,6 +91,9 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
   protected style: TGroupStyle;
   protected geometry: TGroupGeometry;
 
+  /** Whether the group is highlighted (block is being dragged over it) */
+  protected highlighted = false;
+
   constructor(props: TGroupProps, parent: BlockGroups) {
     super(props, parent);
 
@@ -107,6 +116,54 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
         !isMetaKeyEvent(event) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
       );
     });
+  }
+
+  /**
+   * Set the highlighted state of the group
+   */
+  public setHighlighted(highlighted: boolean): void {
+    if (this.highlighted !== highlighted) {
+      this.highlighted = highlighted;
+      this.performRender();
+    }
+  }
+
+  /**
+   * Check if the group is currently highlighted (block is being dragged over it).
+   *
+   * This method is useful for custom group components that override the `render()` method
+   * and need to apply different styling when the group is highlighted during transfer mode.
+   *
+   * @returns `true` if the group is highlighted, `false` otherwise
+   *
+   * @example
+   * ```typescript
+   * class CustomGroup extends Group {
+   *   protected override render() {
+   *     const ctx = this.context.ctx;
+   *     const rect = this.getRect();
+   *
+   *     // Apply different styles based on state
+   *     if (this.isHighlighted()) {
+   *       ctx.strokeStyle = 'rgba(100, 200, 100, 1)';
+   *       ctx.lineWidth = 3;
+   *     } else if (this.state.selected) {
+   *       ctx.strokeStyle = 'rgba(100, 100, 100, 1)';
+   *       ctx.lineWidth = 2;
+   *     } else {
+   *       ctx.strokeStyle = 'rgba(100, 100, 100, 0.4)';
+   *       ctx.lineWidth = 1;
+   *     }
+   *
+   *     ctx.beginPath();
+   *     ctx.roundRect(rect.x, rect.y, rect.width, rect.height, 8);
+   *     ctx.stroke();
+   *   }
+   * }
+   * ```
+   */
+  public isHighlighted(): boolean {
+    return this.highlighted;
   }
 
   public getEntityId() {
@@ -194,11 +251,20 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
   }
 
   protected renderBody(ctx: CanvasRenderingContext2D, rect = this.getRect()) {
-    ctx.strokeStyle = this.state.selected ? this.style.selectedBorder : this.style.border;
-    ctx.fillStyle = this.state.selected ? this.style.selectedBackground : this.style.background;
-    ctx.lineWidth = this.style.borderWidth;
+    // Determine colors based on state priority: highlighted > selected > default
+    if (this.highlighted) {
+      ctx.strokeStyle = this.style.highlightedBorder;
+      ctx.fillStyle = this.style.highlightedBackground;
+    } else if (this.state.selected) {
+      ctx.strokeStyle = this.style.selectedBorder;
+      ctx.fillStyle = this.style.selectedBackground;
+    } else {
+      ctx.strokeStyle = this.style.border;
+      ctx.fillStyle = this.style.background;
+    }
+    ctx.lineWidth = this.highlighted ? this.style.borderWidth + 1 : this.style.borderWidth;
 
-    // Рисуем прямоугольник группы
+    // Draw group rectangle
     ctx.beginPath();
     ctx.roundRect(rect.x, rect.y, rect.width, rect.height, 8);
     ctx.fill();
