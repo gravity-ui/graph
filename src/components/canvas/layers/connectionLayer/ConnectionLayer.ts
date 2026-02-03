@@ -1,62 +1,15 @@
-import RBush from "rbush";
-
 import { GraphMouseEvent, extractNativeGraphMouseEvent, isGraphEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { ESelectionStrategy } from "../../../../services/selection/types";
 import { AnchorState } from "../../../../store/anchor/Anchor";
 import { BlockState, TBlockId } from "../../../../store/block/Block";
-import { PortState } from "../../../../store/connection/port/Port";
-import { createAnchorPortId, createBlockPointPortId } from "../../../../store/connection/port/utils";
-import { isBlock, isShiftKeyEvent, vectorDistance } from "../../../../utils/functions";
+import { isBlock, isShiftKeyEvent } from "../../../../utils/functions";
 import { render } from "../../../../utils/renderers/render";
 import { renderSVG } from "../../../../utils/renderers/svgPath";
 import { Point, TPoint } from "../../../../utils/types/shapes";
 import { Anchor } from "../../../canvas/anchors";
 import { Block } from "../../../canvas/blocks/Block";
 import { GraphComponent } from "../../GraphComponent";
-
-/**
- * Default search radius for port snapping in pixels
- * Ports within this radius will be considered for snapping
- */
-const SNAP_SEARCH_RADIUS = 20;
-
-/**
- * Snap condition function type
- * Used by ConnectionLayer to determine if a port can snap to another port
- * Note: sourceComponent and targetComponent can be accessed via sourcePort.component and targetPort.component
- */
-export type TPortSnapCondition = (context: {
-  sourcePort: PortState;
-  targetPort: PortState;
-  cursorPosition: TPoint;
-  distance: number;
-}) => boolean;
-
-/**
- * Optional metadata structure for port snapping
- * ConnectionLayer interprets this structure for port snapping behavior
- *
- * @example
- * ```typescript
- * const snapMeta: IPortSnapMeta = {
- *   snappable: true,
- *   snapCondition: (ctx) => {
- *     // Access components via ports
- *     const sourceComponent = ctx.sourcePort.component;
- *     const targetComponent = ctx.targetPort.component;
- *     // Custom validation logic
- *     return true;
- *   }
- * };
- * ```
- */
-export interface IPortSnapMeta {
-  /** Enable snapping for this port. If false or undefined, port will not participate in snapping */
-  snappable?: boolean;
-  /** Custom condition for snapping - access components via sourcePort.component and targetPort.component */
-  snapCondition?: TPortSnapCondition;
-}
 
 type TIcon = {
   path: string;
@@ -74,14 +27,6 @@ type LineStyle = {
 };
 
 type DrawLineFunction = (start: TPoint, end: TPoint) => { path: Path2D; style: LineStyle };
-
-type SnappingPortBox = {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-  port: PortState;
-};
 
 type ConnectionLayerProps = LayerProps & {
   createIcon?: TIcon;
@@ -178,11 +123,6 @@ export class ConnectionLayer extends Layer<
   protected enabled: boolean;
   private declare eventAborter: AbortController;
 
-  // Port snapping support
-  private snappingPortsTree: RBush<SnappingPortBox> | null = null;
-  private isSnappingTreeOutdated = true;
-  private portsUnsubscribe?: () => void;
-
   constructor(props: ConnectionLayerProps) {
     super({
       canvas: {
@@ -219,21 +159,6 @@ export class ConnectionLayer extends Layer<
   protected afterInit(): void {
     // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
     this.onGraphEvent("mousedown", this.handleMouseDown);
-
-    // Subscribe to ports changes to mark snapping tree as outdated
-    // We'll mark the tree as outdated when ports change by polling
-    // Note: Direct subscription to internal signal requires access to connectionsList.ports
-    const checkPortsChanged = () => {
-      this.isSnappingTreeOutdated = true;
-    };
-
-    // Subscribe through the Layer's onSignal helper which handles cleanup
-    this.portsUnsubscribe = this.onSignal(this.context.graph.rootStore.connectionsList.ports.$ports, checkPortsChanged);
-
-    // Subscribe to camera changes to invalidate tree when viewport changes
-    this.onGraphEvent("camera-change", () => {
-      this.isSnappingTreeOutdated = true;
-    });
 
     // Call parent afterInit to ensure proper initialization
     super.afterInit();
@@ -416,26 +341,10 @@ export class ConnectionLayer extends Layer<
       return;
     }
 
-    // Get source port
-    const sourcePort = this.getSourcePort(this.sourceComponent);
-
-    // Try to snap to nearby port first
-    const snapResult = this.findNearestSnappingPort(point, sourcePort);
-
-    let actualEndPoint = point;
-    let newTargetComponent: Block | Anchor;
-
-    if (snapResult) {
-      // Snap to port
-      actualEndPoint = new Point(snapResult.snapPoint.x, snapResult.snapPoint.y);
-      newTargetComponent = this.getComponentByPort(snapResult.port);
-    } else {
-      // Use existing logic - find element over point
-      newTargetComponent = this.context.graph.getElementOverPoint(point, [Block, Anchor]);
-    }
+    const newTargetComponent = this.context.graph.getElementOverPoint(point, [Block, Anchor]);
 
     // Use world coordinates from point instead of screen coordinates
-    this.endState = new Point(actualEndPoint.x, actualEndPoint.y);
+    this.endState = new Point(point.x, point.y);
     this.performRender();
 
     if (!newTargetComponent || !newTargetComponent.connectedState) {
@@ -533,187 +442,5 @@ export class ConnectionLayer extends Layer<
       },
       () => {}
     );
-  }
-
-  /**
-   * Get the source port from a component (block or anchor)
-   * @param component Block or Anchor component
-   * @returns Port state or undefined
-   */
-  private getSourcePort(component: BlockState | AnchorState): PortState | undefined {
-    const connectionsList = this.context.graph.rootStore.connectionsList;
-
-    if (component instanceof AnchorState) {
-      return connectionsList.getPort(createAnchorPortId(component.blockId, component.id));
-    }
-
-    // For block, use output port
-    return connectionsList.getPort(createBlockPointPortId(component.id, false));
-  }
-
-  /**
-   * Get the component (Block or Anchor) that owns a port
-   * @param port Port state
-   * @returns Block or Anchor component
-   */
-  private getComponentByPort(port: PortState): Block | Anchor | undefined {
-    const component = port.component;
-    if (!component) {
-      return undefined;
-    }
-
-    // Check if component is Block or Anchor by checking instance
-    if (component instanceof Block || component instanceof Anchor) {
-      return component;
-    }
-
-    return undefined;
-  }
-
-  /**
-   * Create a snapping port bounding box for RBush spatial indexing
-   * @param port Port to create bounding box for
-   * @param searchRadius Search radius for snapping area
-   * @returns SnappingPortBox or null if port doesn't have snapping enabled
-   */
-  private createSnappingPortBox(port: PortState, searchRadius: number): SnappingPortBox | null {
-    const meta = port.meta as IPortSnapMeta | undefined;
-
-    // Check if port has snapping enabled
-    if (!meta?.snappable) {
-      return null; // Port doesn't participate in snapping
-    }
-
-    return {
-      minX: port.x - searchRadius,
-      minY: port.y - searchRadius,
-      maxX: port.x + searchRadius,
-      maxY: port.y + searchRadius,
-      port: port,
-    };
-  }
-
-  /**
-   * Find the nearest snapping port to a given point
-   * @param point Point to search from
-   * @param sourcePort Source port to exclude from search
-   * @returns Nearest snapping port and snap point, or null if none found
-   */
-  private findNearestSnappingPort(
-    point: TPoint,
-    sourcePort?: PortState
-  ): { port: PortState; snapPoint: TPoint } | null {
-    // Rebuild RBush if outdated
-    this.rebuildSnappingTree();
-
-    if (!this.snappingPortsTree) {
-      return null;
-    }
-
-    // Search for ports in the area around cursor
-    const candidates = this.snappingPortsTree.search({
-      minX: point.x - SNAP_SEARCH_RADIUS,
-      minY: point.y - SNAP_SEARCH_RADIUS,
-      maxX: point.x + SNAP_SEARCH_RADIUS,
-      maxY: point.y + SNAP_SEARCH_RADIUS,
-    });
-
-    if (candidates.length === 0) {
-      return null;
-    }
-
-    // Find the nearest port by vector distance
-    let nearestPort: PortState | null = null;
-    let nearestDistance = Infinity;
-
-    for (const candidate of candidates) {
-      const port = candidate.port;
-
-      // Skip source port
-      if (sourcePort && port.id === sourcePort.id) {
-        continue;
-      }
-
-      // Calculate vector distance
-      const distance = vectorDistance(point, port);
-
-      // Check custom condition if provided
-      const meta = port.meta as IPortSnapMeta | undefined;
-      if (meta?.snapCondition && sourcePort) {
-        const canSnap = meta.snapCondition({
-          sourcePort: sourcePort,
-          targetPort: port,
-          cursorPosition: point,
-          distance,
-        });
-
-        if (!canSnap) {
-          continue;
-        }
-      }
-
-      // Update nearest port
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestPort = port;
-      }
-    }
-
-    if (!nearestPort) {
-      return null;
-    }
-
-    return {
-      port: nearestPort,
-      snapPoint: { x: nearestPort.x, y: nearestPort.y },
-    };
-  }
-
-  /**
-   * Rebuild the RBush spatial index for snapping ports
-   * Optimization: Only includes ports from components visible in viewport + padding
-   */
-  private rebuildSnappingTree(): void {
-    if (!this.isSnappingTreeOutdated) {
-      return;
-    }
-
-    const snappingBoxes: SnappingPortBox[] = [];
-
-    // Get only visible components in viewport (with padding already applied)
-    const visibleComponents = this.context.graph.getElementsInViewport([GraphComponent]);
-
-    // Collect ports from visible components only
-    for (const component of visibleComponents) {
-      const ports = component.getPorts();
-
-      for (const port of ports) {
-        // Skip ports in lookup state (no valid coordinates)
-        if (port.lookup) continue;
-
-        const box = this.createSnappingPortBox(port, SNAP_SEARCH_RADIUS);
-        if (box) {
-          snappingBoxes.push(box);
-        }
-      }
-    }
-
-    this.snappingPortsTree = new RBush<SnappingPortBox>(9);
-    if (snappingBoxes.length > 0) {
-      this.snappingPortsTree.load(snappingBoxes);
-    }
-
-    this.isSnappingTreeOutdated = false;
-  }
-
-  public override unmount(): void {
-    // Cleanup ports subscription
-    if (this.portsUnsubscribe) {
-      this.portsUnsubscribe();
-      this.portsUnsubscribe = undefined;
-    }
-    // Clear snapping tree
-    this.snappingPortsTree = null;
-    super.unmount();
   }
 }

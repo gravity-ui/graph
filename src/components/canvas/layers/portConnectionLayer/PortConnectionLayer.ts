@@ -2,6 +2,7 @@ import RBush from "rbush";
 
 import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
+import { EAnchorType } from "../../../../store/anchor/Anchor";
 import { TBlockId } from "../../../../store/block/Block";
 import { PortState } from "../../../../store/connection/port/Port";
 import { vectorDistance } from "../../../../utils/functions";
@@ -236,32 +237,29 @@ export class PortConnectionLayer extends Layer<
   };
 
   protected handleMouseDown = (nativeEvent: GraphMouseEvent): void => {
-    const initEvent = extractNativeGraphMouseEvent(nativeEvent);
-    if (!initEvent || !this.root?.ownerDocument) {
-      return;
-    }
-
     if (!this.enabled) {
       return;
     }
-
-    nativeEvent.preventDefault();
-    nativeEvent.stopPropagation();
-
+    const initEvent = extractNativeGraphMouseEvent(nativeEvent);
     const initialComponent = nativeEvent.detail.target as GraphComponent;
+    if (!initEvent || !this.root?.ownerDocument || !initialComponent) {
+      return;
+    }
+    if (!(initialComponent instanceof GraphComponent) || initialComponent.getPorts().length === 0) {
+      return;
+    }
     // DragService will provide world coordinates in callbacks
     this.context.graph.dragService.startDrag(
       {
         onStart: (_event, coords) => {
           const point = new Point(coords[0], coords[1]);
-          // Find port at cursor position
           const searchRadius = this.props.searchRadius || PORT_SEARCH_RADIUS;
+
           const port = this.context.graph.rootStore.connectionsList.ports.findPortAtPointByComponent(
             initialComponent,
             point,
             searchRadius
           );
-
           if (port) {
             this.onStartConnection(port, point);
           }
@@ -473,25 +471,40 @@ export class PortConnectionLayer extends Layer<
       return;
     }
 
-    const targetParams = this.getEventParams(targetPort);
+    // Determine port types to ensure correct connection direction (OUT -> IN)
+    const sourceType = this.getPortType(this.sourcePort);
+    const targetType = this.getPortType(targetPort);
+
+    // Determine actual source and target based on port types
+    let actualSourcePort = this.sourcePort;
+    let actualTargetPort = targetPort;
+
+    // If source is IN and target is OUT, swap them
+    if (sourceType === EAnchorType.IN && targetType === EAnchorType.OUT) {
+      actualSourcePort = targetPort;
+      actualTargetPort = this.sourcePort;
+    }
+
+    const actualSourceParams = this.getEventParams(actualSourcePort);
+    const actualTargetParams = this.getEventParams(actualTargetPort);
 
     // Create connection
     this.context.graph.executеDefaultEventAction(
       "port-connection-created",
       {
-        sourceBlockId: sourceParams.blockId,
-        sourceAnchorId: sourceParams.anchorId,
-        targetBlockId: targetParams.blockId,
-        targetAnchorId: targetParams.anchorId,
-        sourcePort: this.sourcePort,
-        targetPort: targetPort,
+        sourceBlockId: actualSourceParams.blockId,
+        sourceAnchorId: actualSourceParams.anchorId,
+        targetBlockId: actualTargetParams.blockId,
+        targetAnchorId: actualTargetParams.anchorId,
+        sourcePort: actualSourcePort,
+        targetPort: actualTargetPort,
       },
       () => {
         this.context.graph.rootStore.connectionsList.addConnection({
-          sourceBlockId: sourceParams.blockId,
-          sourceAnchorId: sourceParams.anchorId,
-          targetBlockId: targetParams.blockId,
-          targetAnchorId: targetParams.anchorId,
+          sourceBlockId: actualSourceParams.blockId,
+          sourceAnchorId: actualSourceParams.anchorId,
+          targetBlockId: actualTargetParams.blockId,
+          targetAnchorId: actualTargetParams.anchorId,
         });
       }
     );
@@ -503,6 +516,7 @@ export class PortConnectionLayer extends Layer<
       this.context.graph.api.setAnchorSelection(sourceParams.blockId, sourceParams.anchorId, false);
     }
 
+    const targetParams = this.getEventParams(targetPort);
     if (targetPort.owner instanceof Block) {
       this.context.graph.api.selectBlocks([targetParams.blockId], false);
     } else if (targetPort.owner instanceof Anchor) {
@@ -640,6 +654,30 @@ export class PortConnectionLayer extends Layer<
     }
 
     this.isSnappingTreeOutdated = false;
+  }
+
+  /**
+   * Determine the port type (IN or OUT)
+   * @param port Port to check
+   * @returns EAnchorType.IN, EAnchorType.OUT, or null if the port is a block point (no specific direction)
+   */
+  private getPortType(port: PortState): EAnchorType | null {
+    const component = port.owner;
+
+    if (!component) {
+      return null;
+    }
+
+    // For Anchor components, get the anchor type
+    if (component instanceof Anchor) {
+      const anchorType = component.connectedState.state.type;
+      if (anchorType === EAnchorType.IN || anchorType === EAnchorType.OUT) {
+        return anchorType;
+      }
+    }
+
+    // For Block points, return null (no specific direction)
+    return null;
   }
 
   /**

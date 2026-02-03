@@ -3,8 +3,8 @@ import React, { useEffect, useLayoutEffect, useRef } from "react";
 import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { Anchor, CanvasBlock, EAnchorType, Graph } from "../../../";
-import { Block, TBlock } from "../../../components/canvas/blocks/Block";
+import { Anchor, CanvasBlock, EAnchorType, ECanDrag, Graph } from "../../../";
+import { TBlock } from "../../../components/canvas/blocks/Block";
 import {
   IPortConnectionMeta,
   PortConnectionLayer,
@@ -19,33 +19,11 @@ import "@gravity-ui/uikit/styles/styles.css";
  * Helper function to check if two ports belong to the same block
  */
 function isSameBlock(sourcePort: { owner?: unknown }, targetPort: { owner?: unknown }): boolean {
-  const sourceComponent = sourcePort.owner;
-  const targetComponent = targetPort.owner;
-
-  if (!sourceComponent || !targetComponent) {
-    return false;
-  }
-
-  const isSourceBlock = sourceComponent instanceof Block;
-  const isTargetBlock = targetComponent instanceof Block;
-  const isSourceAnchor = sourceComponent instanceof Anchor;
-  const isTargetAnchor = targetComponent instanceof Anchor;
-
-  if (isSourceBlock && isTargetBlock) {
-    return sourceComponent.connectedState.id === targetComponent.connectedState.id;
-  } else if (isSourceAnchor && isTargetAnchor) {
-    return sourceComponent.connectedState.blockId === targetComponent.connectedState.blockId;
-  } else if (isSourceBlock && isTargetAnchor) {
-    return sourceComponent.connectedState.id === targetComponent.connectedState.blockId;
-  } else if (isSourceAnchor && isTargetBlock) {
-    return sourceComponent.connectedState.blockId === targetComponent.connectedState.id;
-  }
-
-  return false;
+  return sourcePort.owner === targetPort.owner;
 }
 
 /**
- * Helper function to check if connection is valid (IN to OUT or OUT to IN)
+ * Helper function to check if connection is valid (IN↔OUT bidirectional)
  */
 function isValidConnection(sourcePort: { owner?: unknown }, targetPort: { owner?: unknown }): boolean {
   const sourceComponent = sourcePort.owner;
@@ -61,11 +39,7 @@ function isValidConnection(sourcePort: { owner?: unknown }, targetPort: { owner?
   if (isSourceAnchor && isTargetAnchor) {
     const sourceType = sourceComponent.connectedState.state.type;
     const targetType = targetComponent.connectedState.state.type;
-
-    return (
-      (sourceType === EAnchorType.IN && targetType === EAnchorType.OUT) ||
-      (sourceType === EAnchorType.OUT && targetType === EAnchorType.IN)
-    );
+    return sourceType !== targetType;
   }
 
   return true;
@@ -75,8 +49,9 @@ function isValidConnection(sourcePort: { owner?: unknown }, targetPort: { owner?
  * Custom block with port-based snapping using PortConnectionLayer
  * Demonstrates the new port-centric approach
  * Rules:
- * - Can only connect IN to OUT (not IN to IN or OUT to OUT)
- * - Cannot connect input and output of the same block
+ * - Can connect IN to OUT or OUT to IN (bidirectional)
+ * - Cannot connect same types (IN to IN or OUT to OUT)
+ * - Cannot connect ports of the same block
  */
 class PortBasedBlock extends CanvasBlock {
   protected override willMount(): void {
@@ -94,7 +69,7 @@ class PortBasedBlock extends CanvasBlock {
             return false;
           }
 
-          // Can only connect IN to OUT
+          // Can connect IN↔OUT (bidirectional)
           return isValidConnection(ctx.sourcePort, ctx.targetPort);
         },
       };
@@ -110,6 +85,7 @@ class PortBasedBlock extends CanvasBlock {
 /**
  * Custom block with conditional snapping and data types
  * Demonstrates advanced port validation with metadata
+ * This block passes "number" type through - both IN and OUT have same type
  */
 class ConditionalPortBlock extends CanvasBlock {
   protected override willMount(): void {
@@ -117,7 +93,8 @@ class ConditionalPortBlock extends CanvasBlock {
 
     this.state.anchors?.forEach((anchor) => {
       const portId = createAnchorPortId(this.state.id, anchor.id);
-      const dataType = anchor.type === EAnchorType.IN ? "number" : "string";
+      // Both IN and OUT have the same data type so they can connect
+      const dataType = "number";
 
       const snapMeta: IPortConnectionMeta = {
         snappable: true,
@@ -127,7 +104,7 @@ class ConditionalPortBlock extends CanvasBlock {
             return false;
           }
 
-          // Can only connect IN to OUT
+          // Can connect IN↔OUT (bidirectional)
           if (!isValidConnection(ctx.sourcePort, ctx.targetPort)) {
             return false;
           }
@@ -167,9 +144,9 @@ const generatePortBlocks = (): TBlock[] => {
       is: "port-based-block",
       selected: false,
       anchors: [
-        { id: "input-1", blockId: "port-block-1", type: EAnchorType.IN },
-        { id: "input-2", blockId: "port-block-1", type: EAnchorType.IN },
-        { id: "output-1", blockId: "port-block-1", type: EAnchorType.OUT },
+        { id: "port-block-1/input-1", blockId: "port-block-1", type: EAnchorType.IN },
+        { id: "port-block-1/input-2", blockId: "port-block-1", type: EAnchorType.IN },
+        { id: "port-block-1/output-1", blockId: "port-block-1", type: EAnchorType.OUT },
       ],
     },
     {
@@ -182,9 +159,9 @@ const generatePortBlocks = (): TBlock[] => {
       is: "port-based-block",
       selected: false,
       anchors: [
-        { id: "input-1", blockId: "port-block-2", type: EAnchorType.IN },
-        { id: "output-1", blockId: "port-block-2", type: EAnchorType.OUT },
-        { id: "output-2", blockId: "port-block-2", type: EAnchorType.OUT },
+        { id: "port-block-2/input-1", blockId: "port-block-2", type: EAnchorType.IN },
+        { id: "port-block-2/output-1", blockId: "port-block-2", type: EAnchorType.OUT },
+        { id: "port-block-2/output-2", blockId: "port-block-2", type: EAnchorType.OUT },
       ],
     },
     {
@@ -197,9 +174,9 @@ const generatePortBlocks = (): TBlock[] => {
       is: "port-based-block",
       selected: false,
       anchors: [
-        { id: "input-1", blockId: "port-block-3", type: EAnchorType.IN },
-        { id: "input-2", blockId: "port-block-3", type: EAnchorType.IN },
-        { id: "output-1", blockId: "port-block-3", type: EAnchorType.OUT },
+        { id: "port-block-3/input-1", blockId: "port-block-3", type: EAnchorType.IN },
+        { id: "port-block-3/input-2", blockId: "port-block-3", type: EAnchorType.IN },
+        { id: "port-block-3/output-1", blockId: "port-block-3", type: EAnchorType.OUT },
       ],
     },
     {
@@ -212,8 +189,8 @@ const generatePortBlocks = (): TBlock[] => {
       is: "conditional-port-block",
       selected: false,
       anchors: [
-        { id: "input-1", blockId: "conditional-block-1", type: EAnchorType.IN },
-        { id: "output-1", blockId: "conditional-block-1", type: EAnchorType.OUT },
+        { id: "conditional-block-1/input-1", blockId: "conditional-block-1", type: EAnchorType.IN },
+        { id: "conditional-block-1/output-1", blockId: "conditional-block-1", type: EAnchorType.OUT },
       ],
     },
     {
@@ -226,8 +203,8 @@ const generatePortBlocks = (): TBlock[] => {
       is: "conditional-port-block",
       selected: false,
       anchors: [
-        { id: "input-1", blockId: "conditional-block-2", type: EAnchorType.IN },
-        { id: "output-1", blockId: "conditional-block-2", type: EAnchorType.OUT },
+        { id: "conditional-block-2/input-1", blockId: "conditional-block-2", type: EAnchorType.IN },
+        { id: "conditional-block-2/output-1", blockId: "conditional-block-2", type: EAnchorType.OUT },
       ],
     },
   ];
@@ -236,6 +213,7 @@ const generatePortBlocks = (): TBlock[] => {
 const GraphApp = () => {
   const { graph, setEntities, start, addLayer, zoomTo } = useGraph({
     settings: {
+      canDrag: ECanDrag.ALL,
       canCreateNewConnections: true,
       useBlocksAnchors: true,
       blockComponents: {
@@ -321,13 +299,15 @@ const GraphApp = () => {
             <Text variant="body-2">
               <strong>Правила подключения:</strong>
             </Text>
-            <Text variant="body-2">• Можно соединять только IN порты с OUT портами</Text>
+            <Text variant="body-2">• Можно соединять IN с OUT и OUT с IN (двунаправленные связи)</Text>
+            <Text variant="body-2">• Нельзя соединять одинаковые типы (IN→IN или OUT→OUT)</Text>
             <Text variant="body-2">• Нельзя соединять входные и выходные порты одного блока</Text>
             <Text variant="body-2">
               <strong>Port Blocks (верхний ряд):</strong> Используют базовую валидацию подключений через порты.
             </Text>
             <Text variant="body-2">
-              <strong>Conditional Blocks (нижний ряд):</strong> Дополнительно проверяют совместимость типов данных.
+              <strong>Conditional Blocks (нижний ряд):</strong> Дополнительно проверяют совместимость типов данных (все
+              используют тип "number").
             </Text>
             <Text variant="body-2" style={{ marginTop: 8, fontStyle: "italic" }}>
               <strong>Новые возможности:</strong> События теперь содержат прямые ссылки на sourcePort и targetPort, что
