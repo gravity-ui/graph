@@ -35,6 +35,7 @@ export function getLabelCoords(
   if (x1 <= x2 && y1 <= y2) {
     const labelRightBottomX = x2 - GRID_SIZE;
     const labelRightBottomY = alpha * labelRightBottomX + c - GRID_SIZE;
+
     aligment = "left";
     x = labelRightBottomX - width;
     y = clamp(labelRightBottomY, y2 - maxOffsetY, y2 + maxOffsetY) - height;

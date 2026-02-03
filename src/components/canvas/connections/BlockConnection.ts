@@ -35,7 +35,7 @@ export class BlockConnection<T extends TConnection>
 
   protected path2d: Path2D;
 
-  private labelGeometry = { x: 0, y: 0, width: 0, height: 0 };
+  protected labelGeometry = { x: 0, y: 0, width: 0, height: 0 };
 
   protected geometry: { x1: number; x2: number; y1: number; y2: number } = { x1: 0, x2: 0, y1: 0, y2: 0 };
 
@@ -193,7 +193,17 @@ export class BlockConnection<T extends TConnection>
   }
 
   protected override updatePoints() {
-    super.updatePoints();
+    const additionalPoints = this.labelGeometry
+      ? [
+          { x: this.labelGeometry.x, y: this.labelGeometry.y },
+          {
+            x: this.labelGeometry.x + this.labelGeometry.width,
+            y: this.labelGeometry.y + this.labelGeometry.height,
+          },
+        ]
+      : undefined;
+
+    super.updatePoints(additionalPoints);
 
     this.geometry.x1 = this.connectionPoints[0].x;
     this.geometry.y1 = this.connectionPoints[0].y;
@@ -232,6 +242,7 @@ export class BlockConnection<T extends TConnection>
       const x = (shape.minX + shape.maxX) / 2;
       const y = (shape.minY + shape.maxY) / 2;
       const relativeTreshold = THRESHOLD_LINE_HIT / this.context.camera.getCameraScale();
+
       return intersects.boxBox(
         x - relativeTreshold / 2,
         y - relativeTreshold / 2,
@@ -246,45 +257,48 @@ export class BlockConnection<T extends TConnection>
     return false;
   }
 
-  private renderLabelText(ctx: CanvasRenderingContext2D) {
+  protected renderLabelText(ctx: CanvasRenderingContext2D) {
     if (!this.isVisible()) {
       return;
     }
+
     const [labelInnerTopPadding, labelInnerRightPadding, labelInnerBottomPadding, labelInnerLeftPadding] =
       this.context.constants.connection.LABEL.INNER_PADDINGS;
-    const padding = this.context.constants.system.GRID_SIZE / 8;
     const fontSize = Math.max(14, getFontSize(9, this.context.camera.getCameraScale()));
     const font = `${fontSize}px sans-serif`;
 
     const measure = cachedMeasureText(this.state.label, {
       font,
     });
-    const height = measure.height;
-    const width = measure.width;
 
-    const { x, y, aligment } = getLabelCoords(
+    const { x, y } = getLabelCoords(
       this.geometry.x1,
       this.geometry.y1,
       this.geometry.x2,
       this.geometry.y2,
-      measure.width + padding * 2 + labelInnerLeftPadding + labelInnerRightPadding,
+      measure.width + labelInnerLeftPadding + labelInnerRightPadding,
       measure.height + labelInnerTopPadding + labelInnerBottomPadding,
       this.context.constants.system.GRID_SIZE
     );
-
-    this.labelGeometry = { x, y, width, height };
 
     ctx.fillStyle = this.context.colors.connectionLabel.background;
 
     if (this.state.hovered) ctx.fillStyle = this.context.colors.connectionLabel.hoverBackground;
     if (this.state.selected) ctx.fillStyle = this.context.colors.connectionLabel.selectedBackground;
 
-    ctx.fillRect(
-      x - labelInnerLeftPadding,
-      y - labelInnerTopPadding,
-      measure.width + labelInnerLeftPadding + labelInnerRightPadding,
-      measure.height + labelInnerTopPadding + labelInnerBottomPadding
-    );
+    const rectX = x;
+    const rectY = y;
+    const rectWidth = measure.width + labelInnerLeftPadding + labelInnerRightPadding;
+    const rectHeight = measure.height + labelInnerTopPadding + labelInnerBottomPadding;
+
+    this.labelGeometry = {
+      x: rectX,
+      y: rectY,
+      width: rectWidth,
+      height: rectHeight,
+    };
+
+    ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
 
     ctx.fillStyle = this.context.colors.connectionLabel.text;
 
@@ -292,9 +306,9 @@ export class BlockConnection<T extends TConnection>
     if (this.state.selected) ctx.fillStyle = this.context.colors.connectionLabel.selectedText;
 
     ctx.textBaseline = "top";
-    ctx.textAlign = aligment;
     ctx.font = font;
-    ctx.fillText(this.state.label, x + padding, y + padding);
+    ctx.textAlign = "left";
+    ctx.fillText(this.state.label, rectX + labelInnerLeftPadding, rectY + labelInnerTopPadding);
   }
 
   public getStrokeColor(state: TConnection) {
