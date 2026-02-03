@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import { TBlock, isTBlock } from "../../components/canvas/blocks/Block";
 import { Graph } from "../../graph";
 
