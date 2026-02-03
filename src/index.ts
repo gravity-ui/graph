@@ -15,7 +15,6 @@ export type { ConnectionState, TConnection, TConnectionId } from "./store/connec
 export type { AnchorState } from "./store/anchor/Anchor";
 export type { TPort, TPortId } from "./store/connection/port/Port";
 export { createAnchorPortId, createBlockPointPortId, createPortId } from "./store/connection/port/utils";
-export type { IPortSnapMeta, TPortSnapCondition } from "./components/canvas/layers/connectionLayer/ConnectionLayer";
 export { ECanChangeBlockGeometry, ECanDrag } from "./store/settings";
 export { type TMeasureTextOptions, type TWrapText } from "./utils/functions/text";
 export { ESchedulerPriority } from "./lib/Scheduler";
@@ -26,6 +25,8 @@ export { type TPoint, type TRect } from "./utils/types/shapes";
 export { ESelectionStrategy } from "./services/selection/types";
 export * from "./utils/shapes";
 export { applyAlpha, clearColorCache } from "./utils/functions/color";
+
+export * from "./components/canvas/layers/portConnectionLayer";
 
 export * from "./components/canvas/groups";
 

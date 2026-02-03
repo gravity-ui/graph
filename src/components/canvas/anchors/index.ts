@@ -35,6 +35,10 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   public static CANVAS_HOVER_FACTOR = 1.8;
   public static DETAILED_HOVER_FACTOR = 1.2;
 
+  public getEntityId(): number | string {
+    return this.props.id;
+  }
+
   public get zIndex() {
     // @ts-ignore this.__comp.parent instanceOf Block
     return this.__comp.parent.zIndex + 1;

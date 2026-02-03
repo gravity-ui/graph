@@ -75,9 +75,9 @@ class PortBasedBlock extends CanvasBlock {
       };
 
       // Use new API with PortMetaKey
-      this.updatePort(portId, undefined, undefined, {
-        [PortConnectionLayer.PortMetaKey]: snapMeta,
-      });
+      // this.updatePort(portId, undefined, undefined, {
+      //   [PortConnectionLayer.PortMetaKey]: snapMeta,
+      // });
     });
   }
 }
@@ -124,10 +124,10 @@ class ConditionalPortBlock extends CanvasBlock {
       };
 
       // Store both snap metadata and data type
-      this.updatePort(portId, undefined, undefined, {
-        [PortConnectionLayer.PortMetaKey]: snapMeta,
-        dataType: dataType,
-      });
+      // this.updatePort(portId, undefined, undefined, {
+      //   [PortConnectionLayer.PortMetaKey]: snapMeta,
+      //   dataType: dataType,
+      // });
     });
   }
 }

@@ -12,6 +12,7 @@ import { Point, TPoint } from "../../../../utils/types/shapes";
 import { Anchor } from "../../../canvas/anchors";
 import { Block } from "../../../canvas/blocks/Block";
 import { GraphComponent } from "../../GraphComponent";
+import { ESelectionStrategy } from "../../../../services/selection";
 
 /**
  * Default search radius for port detection and snapping in pixels
@@ -135,24 +136,24 @@ declare module "../../../../graphEvents" {
 }
 
 /**
- * PortConnectionLayer - новый слой для создания связей, работающий только с портами
+ * PortConnectionLayer - new layer for creating connections, working only with ports
  *
- * Основные отличия от ConnectionLayer:
- * - Работает только с портами, не зависит от компонентов Block/Anchor
- * - Использует findPortAtPoint для определения портов под курсором
- * - Метаданные хранятся под уникальным ключом PortConnectionLayer.PortMetaKey
- * - Более эффективный поиск через пространственный индекс
- * - События расширены параметрами sourcePort и targetPort
+ * Key differences from ConnectionLayer:
+ * - Works only with ports, (use Block and Anchor components only to pass more info about ports in Event)
+ * - Uses findPortAtPoint to detect ports under cursor
+ * - Metadata is stored under unique PortConnectionLayer.PortMetaKey key
+ * - More efficient search through spatial index
+ * - Events extended with sourcePort and targetPort parameters
  *
  * @example
  * ```typescript
- * // Настройка порта для снаппинга
+ * // Configure port for snapping
  * port.updatePort({
  *   meta: {
  *     [PortConnectionLayer.PortMetaKey]: {
  *       snappable: true,
  *       snapCondition: (ctx) => {
- *         // Кастомная логика валидации
+ *         // Custom validation logic
  *         return true;
  *       }
  *     }
@@ -165,8 +166,8 @@ export class PortConnectionLayer extends Layer<
   LayerContext & { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }
 > {
   /**
-   * Уникальный ключ для метаданных портов
-   * Использование символа предотвращает конфликты с другими слоями
+   * Unique key for port metadata
+   * Using a symbol prevents conflicts with other layers
    */
   static readonly PortMetaKey = Symbol.for("PortConnectionLayer.PortMeta");
 
@@ -358,12 +359,7 @@ export class PortConnectionLayer extends Layer<
         this.sourcePort = port;
         this.startState = new Point(port.x, port.y);
 
-        // Set selection on owner component
-        if (port.owner instanceof Block) {
-          this.context.graph.api.selectBlocks([params.blockId], true);
-        } else if (port.owner instanceof Anchor) {
-          this.context.graph.api.setAnchorSelection(params.blockId, params.anchorId, true);
-        }
+        this.context.graph.rootStore.selectionService.selectRelatedElements([port.owner as GraphComponent], ESelectionStrategy.REPLACE);
       }
     );
 
@@ -398,15 +394,7 @@ export class PortConnectionLayer extends Layer<
 
     // Handle target port change
     if (newTargetPort !== this.targetPort) {
-      // Deselect old target
-      if (this.targetPort?.owner) {
-        const oldParams = this.getEventParams(this.targetPort);
-        if (this.targetPort.owner instanceof Block) {
-          this.context.graph.api.selectBlocks([oldParams.blockId], false);
-        } else if (this.targetPort.owner instanceof Anchor) {
-          this.context.graph.api.setAnchorSelection(oldParams.blockId, oldParams.anchorId, false);
-        }
-      }
+      this.selectPort(this.targetPort, false);
 
       this.targetPort = newTargetPort;
 
@@ -425,14 +413,24 @@ export class PortConnectionLayer extends Layer<
             targetPort: newTargetPort,
           },
           () => {
-            // Select new target
-            if (newTargetPort.owner instanceof Block) {
-              this.context.graph.api.selectBlocks([targetParams.blockId], true);
-            } else if (newTargetPort.owner instanceof Anchor) {
-              this.context.graph.api.setAnchorSelection(targetParams.blockId, targetParams.anchorId, true);
-            }
+            this.selectPort(newTargetPort, true);
           }
         );
+      }
+    }
+  }
+
+  protected selectPort(port: PortState, select: boolean): void {
+    const component = port.owner;
+    if(component instanceof GraphComponent) {
+      const bucket = this.context.graph.rootStore.selectionService.getBucketByElement(component);
+      if(!bucket) {
+        return;
+      }
+      if(select) {
+        bucket.select([component.getEntityId()], ESelectionStrategy.REPLACE);
+      } else {
+        bucket.deselect([component.getEntityId()]);
       }
     }
   }
@@ -443,8 +441,16 @@ export class PortConnectionLayer extends Layer<
     }
 
     // Use the target port that was found during move (snapping)
-    // instead of searching again at the drop point
-    const targetPort = this.targetPort;
+    // If not found through snapping, try to find it at the drop point
+    let targetPort = this.targetPort;
+
+    // Fallback: if no targetPort from snapping, try to find at drop point
+    if (!targetPort) {
+      const searchRadius = this.props.searchRadius || PORT_SEARCH_RADIUS;
+      targetPort = this.context.graph.rootStore.connectionsList.ports.findPortAtPoint(point, searchRadius, (p) => {
+        return Boolean(p.owner) && p.id !== this.sourcePort?.id;
+      });
+    }
 
     this.startState = null;
     this.endState = null;
@@ -509,19 +515,10 @@ export class PortConnectionLayer extends Layer<
       }
     );
 
-    // Deselect both ports
-    if (this.sourcePort.owner instanceof Block) {
-      this.context.graph.api.selectBlocks([sourceParams.blockId], false);
-    } else if (this.sourcePort.owner instanceof Anchor) {
-      this.context.graph.api.setAnchorSelection(sourceParams.blockId, sourceParams.anchorId, false);
-    }
+    this.selectPort(this.sourcePort, false);
+    this.selectPort(targetPort, false);
 
     const targetParams = this.getEventParams(targetPort);
-    if (targetPort.owner instanceof Block) {
-      this.context.graph.api.selectBlocks([targetParams.blockId], false);
-    } else if (targetPort.owner instanceof Anchor) {
-      this.context.graph.api.setAnchorSelection(targetParams.blockId, targetParams.anchorId, false);
-    }
 
     // Drop event
     this.context.graph.executеDefaultEventAction(
