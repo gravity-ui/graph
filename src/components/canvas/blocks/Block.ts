@@ -385,7 +385,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     const index = this.connectedState.$anchorIndexs.value?.get(anchor.id) || 0;
     const offset = this.context.constants.block.HEAD_HEIGHT + this.context.constants.block.BODY_PADDING;
     return {
-      x: anchor.type === EAnchorType.OUT ? this.state.width : 0,
+      x: anchor.type === EAnchorType.OUT ? this.connectedState.width : 0,
       y: offset + index * this.context.constants.system.GRID_SIZE * 2,
     };
   }
@@ -415,10 +415,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   protected isAnchorsAllowed() {
     return Array.isArray(this.state.anchors) && this.state.anchors.length && this.getConfigFlag("useBlocksAnchors");
   }
-
-  protected binderGetAnchorPosition = (anchor: TAnchor) => {
-    return this.getAnchorPort(anchor.id).getPoint();
-  };
 
   protected updateChildren() {
     if (!this.isAnchorsAllowed()) {

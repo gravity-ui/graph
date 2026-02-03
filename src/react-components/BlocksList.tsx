@@ -1,16 +1,13 @@
-import React, { memo, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import React, { memo, useEffect, useState } from "react";
 
 import { Block as CanvasBlock, TBlock } from "../components/canvas/blocks/Block";
 import { Graph, GraphState } from "../graph";
-import { ESchedulerPriority } from "../lib";
 import { ECameraScaleLevel } from "../services/camera/CameraService";
 import { BlockState } from "../store/block/Block";
-import { debounce } from "../utils/functions";
 
 import { useSignal } from "./hooks";
-import { useGraphEvent } from "./hooks/useGraphEvents";
+import { useSceneChange } from "./hooks/useSceneChange";
 import { useCompareState } from "./utils/hooks/useCompareState";
-import { useFn } from "./utils/hooks/useFn";
 
 export type TRenderBlockFn = <T extends TBlock>(graphObject: Graph, block: T) => React.JSX.Element;
 
@@ -50,14 +47,10 @@ const hasBlockListChanged = (newStates: BlockState<TBlock>[], oldStates: BlockSt
 export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }: TBlockListProps) {
   const [blockStates, setBlockStates] = useState<BlockState<TBlock>[]>([]);
   const [graphState, setGraphState] = useCompareState(graphObject.state);
-  const [cameraScaleLevel, setCameraScaleLevel] = useState(graphObject.cameraService.getCameraBlockScaleLevel());
 
-  // Pure function to check if rendering is allowed
-  const isDetailedScale = useFn((scale: number = graphObject.cameraService.getCameraScale()) => {
-    return graphObject.cameraService.getCameraBlockScaleLevel(scale) === ECameraScaleLevel.Detailed;
-  });
-  const updateBlockList = useFn(() => {
-    if (!isDetailedScale()) {
+  useSceneChange(graphObject, () => {
+    const cameraLevel = graphObject.cameraService.getCameraBlockScaleLevel();
+    if (cameraLevel !== ECameraScaleLevel.Detailed) {
       setBlockStates([]);
       return;
     }
@@ -70,58 +63,17 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
     });
   });
 
-  const scheduleListUpdate = useMemo(() => {
-    return debounce(() => updateBlockList(), {
-      priority: ESchedulerPriority.HIGHEST,
-      frameInterval: 1,
+  useEffect(() => {
+    setGraphState(graphObject.state);
+
+    return graphObject.on("state-change", (event) => {
+      setGraphState(event.detail.state);
     });
-  }, [updateBlockList]);
-
-  // Sync graph state
-  useGraphEvent(graphObject, "state-change", () => {
-    setGraphState(graphObject.state);
-  });
-
-  useEffect(() => {
-    setGraphState(graphObject.state);
   }, [graphObject, setGraphState]);
-
-  // Handle camera changes and render mode switching
-  useGraphEvent(graphObject, "camera-change", ({ scale }) => {
-    setCameraScaleLevel((level) =>
-      level === graphObject.cameraService.getCameraBlockScaleLevel(scale)
-        ? level
-        : graphObject.cameraService.getCameraBlockScaleLevel(scale)
-    );
-    scheduleListUpdate();
-  });
-
-  // Subscribe to hitTest updates to catch when blocks become available in viewport
-  useEffect(() => {
-    const handler = () => {
-      scheduleListUpdate();
-    };
-
-    graphObject.hitTest.on("update", handler);
-
-    return () => {
-      graphObject.hitTest.off("update", handler);
-    };
-  }, [graphObject, scheduleListUpdate]);
-
-  // Check initial camera scale on mount to handle cases where zoomTo() is called
-  // during initialization before the camera-change event subscription is active
-  useLayoutEffect(() => {
-    scheduleListUpdate();
-    return () => {
-      scheduleListUpdate.cancel();
-    };
-  }, [graphObject, scheduleListUpdate]);
 
   return (
     <div>
       {graphState === GraphState.READY &&
-        cameraScaleLevel === ECameraScaleLevel.Detailed &&
         blockStates.map((blockState) => {
           return (
             <Block key={blockState.id} renderBlock={renderBlock} graphObject={graphObject} blockState={blockState} />

@@ -180,6 +180,236 @@ The GlobalScheduler supports multiple priority levels (0-4):
 - Default priority is 2
 - Multiple schedulers can exist at different priority levels
 
+### Priority Enum
+
+```typescript
+export enum ESchedulerPriority {
+  HIGHEST = 0,
+  HIGH = 1,
+  MEDIUM = 2,
+  LOW = 3,
+  LOWEST = 4,
+}
+```
+
+## Task Queue in Frame
+
+The scheduler system maintains a task queue that is processed each animation frame. Understanding how tasks are queued and executed is crucial for performance optimization.
+
+### Queue Structure
+
+The GlobalScheduler maintains **5 separate queues** (one per priority level):
+
+```typescript
+private schedulers: [
+  IScheduler[],  // Priority 0 (HIGHEST)
+  IScheduler[],  // Priority 1 (HIGH)
+  IScheduler[],  // Priority 2 (MEDIUM)
+  IScheduler[],  // Priority 3 (LOW)
+  IScheduler[]   // Priority 4 (LOWEST)
+];
+```
+
+### Frame Execution Order
+
+Within each animation frame, tasks are executed in this order:
+
+```mermaid
+flowchart TD
+    A[Animation Frame Start] --> B[Process HIGHEST Priority Queue]
+    B --> C[Process HIGH Priority Queue]
+    C --> D[Process MEDIUM Priority Queue]
+    D --> E[Process LOW Priority Queue]
+    E --> F[Process LOWEST Priority Queue]
+    F --> G[Process Deferred Removals]
+    G --> H[Wait for Next Frame]
+    H --> A
+```
+
+### How Tasks Enter the Queue
+
+Tasks can be added to the queue through several mechanisms:
+
+1. **Component Schedulers** - When `performRender()` is called on a component
+2. **Manual Schedule** - Using `schedule()` utility function
+3. **Debounced Functions** - Using `debounce()` with frame-based timing
+4. **Throttled Functions** - Using `throttle()` with frame-based timing
+
+```typescript
+// Example: Adding tasks to different priority queues
+
+// 1. Component rendering (uses component's scheduler priority)
+component.setState({ value: newValue });
+// Internally calls: scheduler.scheduleUpdate()
+
+// 2. Manual schedule - runs once after N frames
+const removeTask = schedule(
+  () => console.log('Task executed'),
+  {
+    priority: ESchedulerPriority.HIGH,
+    frameInterval: 2,  // Execute after 2 frames
+    once: true,
+  }
+);
+
+// 3. Debounced function - queues task when conditions met
+const debouncedUpdate = debounce(
+  () => updateUI(),
+  {
+    priority: ESchedulerPriority.LOW,
+    frameInterval: 3,
+    frameTimeout: 100,
+  }
+);
+// Each call resets the frame counter
+debouncedUpdate(); // Queues task
+
+// 4. Throttled function - executes immediately, then queues next execution
+const throttledScroll = throttle(
+  () => handleScroll(),
+  {
+    priority: ESchedulerPriority.MEDIUM,
+    frameInterval: 1,
+  }
+);
+throttledScroll(); // Executes immediately
+throttledScroll(); // Ignored, waiting for frame interval
+```
+
+### Task Execution Within a Frame
+
+Each task in the queue has a `performUpdate()` method that is called with the elapsed time since frame start:
+
+```typescript
+public performUpdate() {
+  const startTime = getNow();
+  
+  // Process each priority level sequentially
+  for (let i = 0; i < this.schedulers.length; i += 1) {
+    const schedulers = this.schedulers[i];
+    
+    // Execute all tasks at this priority level
+    for (let j = 0; j < schedulers.length; j += 1) {
+      const elapsedTime = getNow() - startTime;
+      schedulers[j].performUpdate(elapsedTime);
+    }
+  }
+  
+  // Clean up removed schedulers
+  this.processRemovals();
+}
+```
+
+### Frame Counter Mechanism
+
+The scheduler uses frame counters to implement frame-based delays:
+
+```typescript
+// Inside debounce implementation
+const debouncedScheduler = {
+  performUpdate: () => {
+    frameCounter++;  // Increment on each frame
+    const elapsedTime = getNow() - startTime;
+    
+    // Execute when BOTH conditions met
+    if (frameCounter >= frameInterval && elapsedTime >= frameTimeout) {
+      fn(...latestArgs);  // Execute the function
+      frameCounter = 0;   // Reset counter
+      removeScheduler();  // Remove from queue
+    }
+  },
+};
+```
+
+### Performance Characteristics
+
+| Aspect | Behavior | Impact |
+|--------|----------|--------|
+| **Tasks per frame** | All queued tasks execute each frame | O(n) where n = total tasks |
+| **Priority processing** | Sequential, highest to lowest | Higher priority tasks execute first |
+| **Frame budget** | No time limit per frame | Can cause frame drops if too many tasks |
+| **Task removal** | Deferred until after all tasks execute | Prevents array mutation during iteration |
+
+### Best Practices for Queue Management
+
+1. **Use Appropriate Priorities**
+   ```typescript
+   // ✅ Critical rendering updates
+   schedule(updateCanvas, { priority: ESchedulerPriority.HIGHEST });
+   
+   // ✅ UI feedback
+   schedule(updateSidebar, { priority: ESchedulerPriority.MEDIUM });
+   
+   // ✅ Analytics, logging
+   schedule(trackEvent, { priority: ESchedulerPriority.LOWEST });
+   ```
+
+2. **Avoid Queue Saturation**
+   ```typescript
+   // ❌ Bad: Creates new task every time
+   function onMouseMove(e) {
+     schedule(() => updatePosition(e.x, e.y), { frameInterval: 1 });
+   }
+   
+   // ✅ Good: Reuses same debounced function
+   const updatePosition = debounce(
+     (x, y) => console.log(x, y),
+     { frameInterval: 1 }
+   );
+   function onMouseMove(e) {
+     updatePosition(e.x, e.y);
+   }
+   ```
+
+3. **Clean Up Tasks**
+   ```typescript
+   // Always clean up when component unmounts
+   useEffect(() => {
+     const remove = schedule(task, { priority: ESchedulerPriority.LOW });
+     return () => remove(); // Cleanup
+   }, []);
+   
+   // Or use cancel method
+   const debounced = debounce(fn, { frameInterval: 5 });
+   return () => debounced.cancel();
+   ```
+
+4. **Monitor Frame Budget**
+   ```typescript
+   // In development, monitor task execution time
+   const debouncedScheduler = {
+     performUpdate: (elapsedTime: number) => {
+       if (elapsedTime > 16) {
+         console.warn('Frame budget exceeded:', elapsedTime);
+       }
+       // ... task logic
+     },
+   };
+   ```
+
+### Queue Visualization Example
+
+```mermaid
+sequenceDiagram
+    participant App
+    participant Queue
+    participant Frame
+    participant Tasks
+    
+    App->>Queue: debounce() - adds to MEDIUM queue
+    App->>Queue: schedule() - adds to HIGH queue
+    App->>Queue: component.setState() - adds to MEDIUM queue
+    
+    Frame->>Queue: requestAnimationFrame trigger
+    Queue->>Tasks: Execute HIGH priority (1 task)
+    Queue->>Tasks: Execute MEDIUM priority (2 tasks)
+    Tasks-->>App: Tasks completed
+    
+    Frame->>Queue: Next frame
+    Note over Queue: Queues may have new tasks
+    Queue->>Tasks: Process all priorities again
+```
+
 ## Tree Traversal
 
 The traversal process follows these rules:

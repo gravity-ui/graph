@@ -6,6 +6,7 @@ import { AnchorState } from "../store/anchor/Anchor";
 
 import { useSignal } from "./hooks";
 import { useBlockAnchorPosition, useBlockAnchorState } from "./hooks/useBlockAnchorState";
+import { cn } from "./utils/cn";
 
 import "./Anchor.css";
 
@@ -24,17 +25,19 @@ export function GraphBlockAnchor({
 }) {
   const anchorContainerRef = React.useRef<HTMLDivElement>(null);
   const anchorState = useBlockAnchorState(graph, anchor);
+  const selected = useSignal(anchorState?.$selected);
 
   useBlockAnchorPosition(anchorState, anchorContainerRef);
 
-  const selected = useSignal(anchorState?.$selected);
-
-  const render = typeof children === "function" ? children : () => children;
   const classNames = useMemo(() => {
-    return `graph-block-anchor ${`graph-block-anchor-${anchor.type.toLocaleLowerCase()}`} ${`graph-block-position-${position}`} ${
-      className || ""
-    } ${selected ? "graph-block-anchor-selected" : ""}`;
-  }, [anchor, position, className, selected]);
+    return cn(
+      "graph-block-anchor",
+      `graph-block-anchor-${anchor.type.toLocaleLowerCase()}`,
+      `graph-block-position-${position}`,
+      className,
+      selected ? "graph-block-anchor-selected" : ""
+    );
+  }, [anchor?.type, position, className, selected]);
 
   useEffect(() => {
     if (anchorContainerRef.current) {
@@ -47,6 +50,7 @@ export function GraphBlockAnchor({
   }, [anchorState?.$selected.value]);
 
   if (!anchorState) return null;
+  const render = typeof children === "function" ? children : () => children;
 
   return (
     <div ref={anchorContainerRef} className={classNames}>

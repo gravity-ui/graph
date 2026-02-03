@@ -102,6 +102,22 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     this.setHitBox(x - this.shift, y - this.shift, x + this.shift, y + this.shift);
   };
 
+  /**
+   * Get the position of the anchor.
+   * Returns the position of the anchor in the coordinate system of the graph(ABSOLUTE).
+   *
+   * Example:
+   * ```ts
+   * const pos = anchor.getPosition(); // { x: 100, y: 100 }
+   * ```
+   * port.getPoint is used port.$state.value so you can use this method in signals effect and compute.
+   * ```ts
+   * computed(() => {
+   *   return anchor.getPosition().x + 10; // { x: 110, y: 100 }
+   * });
+   * ```
+   * @returns The position of the anchor in the coordinate system of the graph(ABSOLUTE).
+   */
   public getPosition() {
     return this.props.port.getPoint();
   }

@@ -2,12 +2,18 @@ import { ESchedulerPriority, scheduler } from "../../lib";
 
 // Helper to get current time (similar to scheduler implementation)
 const getNow =
-  typeof window !== "undefined" ? window.performance.now.bind(window.performance) : global.Date.now.bind(global.Date);
+  typeof globalThis !== "undefined"
+    ? globalThis.performance.now.bind(globalThis.performance)
+    : global.Date.now.bind(global.Date);
 
-export const schedule = (
-  fn: Function,
-  { priority, frameInterval, once }: { priority: ESchedulerPriority; frameInterval: number; once?: boolean }
-) => {
+export type TScheduleOptions = {
+  priority: ESchedulerPriority;
+  frameInterval: number;
+  once?: boolean;
+};
+
+export const schedule = (fn: Function, options: TScheduleOptions) => {
+  const { priority, frameInterval, once } = options;
   let frameCounter = 0;
   let isRemoved = false;
   const debounceScheduler = {
@@ -30,6 +36,12 @@ export const schedule = (
   return scheduler.addScheduler(debounceScheduler, priority);
 };
 
+export type TDebounceOptions = {
+  priority?: ESchedulerPriority;
+  frameInterval?: number;
+  frameTimeout?: number;
+};
+
 /**
  * Creates a debounced function that delays execution until after frameInterval frames
  * and frameTimeout milliseconds have passed since it was last invoked.
@@ -43,15 +55,7 @@ export const schedule = (
  */
 export const debounce = <T extends (...args: unknown[]) => void>(
   fn: T,
-  {
-    priority = ESchedulerPriority.MEDIUM,
-    frameInterval = 1,
-    frameTimeout = 0,
-  }: {
-    priority?: ESchedulerPriority;
-    frameInterval?: number;
-    frameTimeout?: number;
-  } = {}
+  { priority = ESchedulerPriority.MEDIUM, frameInterval = 1, frameTimeout = 0 }: TDebounceOptions = {}
 ): T & { cancel: () => void; flush: () => void; isScheduled: () => boolean } => {
   let frameCounter = 0;
   let isScheduled = false;
@@ -129,15 +133,7 @@ export const debounce = <T extends (...args: unknown[]) => void>(
  */
 export const throttle = <T extends (...args: unknown[]) => void>(
   fn: T,
-  {
-    priority = ESchedulerPriority.MEDIUM,
-    frameInterval = 1,
-    frameTimeout = 0,
-  }: {
-    priority?: ESchedulerPriority;
-    frameInterval?: number;
-    frameTimeout?: number;
-  } = {}
+  { priority = ESchedulerPriority.MEDIUM, frameInterval = 1, frameTimeout = 0 }: TDebounceOptions = {}
 ): T & { cancel: () => void; flush: () => void } => {
   let frameCounter = 0;
   let canExecute = true;
