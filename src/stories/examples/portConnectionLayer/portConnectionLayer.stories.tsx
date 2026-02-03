@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 
-import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
+import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { Anchor, CanvasBlock, EAnchorType, ECanDrag, Graph } from "../../../";
@@ -69,15 +69,15 @@ class PortBasedBlock extends CanvasBlock {
             return false;
           }
 
-          // Can connect IN↔OUT (bidirectional)
+          // Can connect IN ↔ OUT (bidirectional)
           return isValidConnection(ctx.sourcePort, ctx.targetPort);
         },
       };
 
-      // Use new API with PortMetaKey
-      // this.updatePort(portId, undefined, undefined, {
-      //   [PortConnectionLayer.PortMetaKey]: snapMeta,
-      // });
+      // Configure port for snapping
+      this.updatePort(portId, undefined, undefined, {
+        [PortConnectionLayer.PortMetaKey]: snapMeta,
+      });
     });
   }
 }
@@ -104,7 +104,7 @@ class ConditionalPortBlock extends CanvasBlock {
             return false;
           }
 
-          // Can connect IN↔OUT (bidirectional)
+          // Can connect IN ↔ OUT (bidirectional)
           if (!isValidConnection(ctx.sourcePort, ctx.targetPort)) {
             return false;
           }
@@ -124,10 +124,10 @@ class ConditionalPortBlock extends CanvasBlock {
       };
 
       // Store both snap metadata and data type
-      // this.updatePort(portId, undefined, undefined, {
-      //   [PortConnectionLayer.PortMetaKey]: snapMeta,
-      //   dataType: dataType,
-      // });
+      this.updatePort(portId, undefined, undefined, {
+        [PortConnectionLayer.PortMetaKey]: snapMeta,
+        dataType: dataType,
+      });
     });
   }
 }
@@ -273,7 +273,7 @@ const GraphApp = () => {
       createIcon,
       point: pointIcon,
       drawLine,
-      searchRadius: 30, // Увеличенный радиус поиска портов
+      searchRadius: 30,
     });
 
     return () => {
@@ -287,38 +287,7 @@ const GraphApp = () => {
 
   return (
     <ThemeProvider theme="light">
-      <Flex direction="column" style={{ height: "100vh" }}>
-        <Flex direction="column" gap={2} style={{ padding: 16 }}>
-          <Text variant="header-1">PortConnectionLayer Demo</Text>
-          <Text variant="body-1">Демонстрация нового слоя PortConnectionLayer, работающего только с портами.</Text>
-          <Text variant="body-2">
-            Тяните от якоря одного блока к другому. Связь автоматически привязывается к ближайшим портам при
-            приближении.
-          </Text>
-          <Flex direction="column" gap={1} style={{ marginTop: 8 }}>
-            <Text variant="body-2">
-              <strong>Правила подключения:</strong>
-            </Text>
-            <Text variant="body-2">• Можно соединять IN с OUT и OUT с IN (двунаправленные связи)</Text>
-            <Text variant="body-2">• Нельзя соединять одинаковые типы (IN→IN или OUT→OUT)</Text>
-            <Text variant="body-2">• Нельзя соединять входные и выходные порты одного блока</Text>
-            <Text variant="body-2">
-              <strong>Port Blocks (верхний ряд):</strong> Используют базовую валидацию подключений через порты.
-            </Text>
-            <Text variant="body-2">
-              <strong>Conditional Blocks (нижний ряд):</strong> Дополнительно проверяют совместимость типов данных (все
-              используют тип "number").
-            </Text>
-            <Text variant="body-2" style={{ marginTop: 8, fontStyle: "italic" }}>
-              <strong>Новые возможности:</strong> События теперь содержат прямые ссылки на sourcePort и targetPort, что
-              дает прямой доступ к метаданным портов и их владельцам.
-            </Text>
-          </Flex>
-        </Flex>
-        <div style={{ flex: 1, position: "relative" }}>
-          <GraphCanvas graph={graph} className="graph-canvas" renderBlock={renderBlock} />
-        </div>
-      </Flex>
+      <GraphCanvas graph={graph} className="graph-canvas" renderBlock={renderBlock} />
     </ThemeProvider>
   );
 };

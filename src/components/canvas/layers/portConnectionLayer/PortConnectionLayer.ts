@@ -2,6 +2,7 @@ import RBush from "rbush";
 
 import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
+import { ESelectionStrategy } from "../../../../services/selection";
 import { EAnchorType } from "../../../../store/anchor/Anchor";
 import { TBlockId } from "../../../../store/block/Block";
 import { PortState } from "../../../../store/connection/port/Port";
@@ -12,7 +13,6 @@ import { Point, TPoint } from "../../../../utils/types/shapes";
 import { Anchor } from "../../../canvas/anchors";
 import { Block } from "../../../canvas/blocks/Block";
 import { GraphComponent } from "../../GraphComponent";
-import { ESelectionStrategy } from "../../../../services/selection";
 
 /**
  * Default search radius for port detection and snapping in pixels
@@ -359,7 +359,7 @@ export class PortConnectionLayer extends Layer<
         this.sourcePort = port;
         this.startState = new Point(port.x, port.y);
 
-        this.context.graph.rootStore.selectionService.selectRelatedElements([port.owner as GraphComponent], ESelectionStrategy.REPLACE);
+        this.selectPort(port, true);
       }
     );
 
@@ -422,12 +422,12 @@ export class PortConnectionLayer extends Layer<
 
   protected selectPort(port: PortState, select: boolean): void {
     const component = port.owner;
-    if(component instanceof GraphComponent) {
+    if (component instanceof GraphComponent) {
       const bucket = this.context.graph.rootStore.selectionService.getBucketByElement(component);
-      if(!bucket) {
+      if (!bucket) {
         return;
       }
-      if(select) {
+      if (select) {
         bucket.select([component.getEntityId()], ESelectionStrategy.REPLACE);
       } else {
         bucket.deselect([component.getEntityId()]);
@@ -440,12 +440,16 @@ export class PortConnectionLayer extends Layer<
       return;
     }
 
-    // Use the target port that was found during move (snapping)
-    // If not found through snapping, try to find it at the drop point
-    let targetPort = this.targetPort;
+    // Try to find target port at drop point using same logic as onMove
+    // First try snapping, then fallback to direct search
+    let targetPort: PortState | undefined;
 
-    // Fallback: if no targetPort from snapping, try to find at drop point
-    if (!targetPort) {
+    // Try snapping first
+    const snapResult = this.findNearestSnappingPort(point, this.sourcePort);
+    if (snapResult) {
+      targetPort = snapResult.port;
+    } else {
+      // Fallback: try to find port at drop point
       const searchRadius = this.props.searchRadius || PORT_SEARCH_RADIUS;
       targetPort = this.context.graph.rootStore.connectionsList.ports.findPortAtPoint(point, searchRadius, (p) => {
         return Boolean(p.owner) && p.id !== this.sourcePort?.id;
