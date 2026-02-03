@@ -1,4 +1,4 @@
-import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
+import { GraphMouseEvent, extractNativeGraphMouseEvent, isGraphEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { Camera } from "../../../../services/camera/Camera";
 import { ESelectionStrategy } from "../../../../services/selection";
@@ -99,8 +99,11 @@ export class SelectionLayer extends Layer<
     }
 
     if (event && isMetaKeyEvent(event)) {
-      nativeEvent.preventDefault();
-      nativeEvent.stopPropagation();
+      // nativeEvent.preventDefault();
+      // nativeEvent.stopPropagation();
+      if (isGraphEvent(nativeEvent)) {
+        nativeEvent.stopGraphEventPropagation();
+      }
       this.context.graph.dragService.startDrag({
         onStart: this.startSelectionRender,
         onUpdate: this.updateSelectionRender,

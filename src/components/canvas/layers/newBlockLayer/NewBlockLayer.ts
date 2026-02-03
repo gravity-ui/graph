@@ -1,4 +1,4 @@
-import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
+import { GraphMouseEvent, extractNativeGraphMouseEvent, isGraphEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { ESelectionStrategy } from "../../../../services/selection/types";
 import { BlockState } from "../../../../store/block/Block";
@@ -106,8 +106,11 @@ export class NewBlockLayer extends Layer<
         return;
       }
 
-      nativeEvent.preventDefault();
-      nativeEvent.stopPropagation();
+      // nativeEvent.preventDefault();
+      // nativeEvent.stopPropagation();
+      if (isGraphEvent(nativeEvent)) {
+        nativeEvent.stopGraphEventPropagation();
+      }
       // Capture target in closure for onStart callback
       const blockTarget = target;
       this.context.graph.dragService.startDrag(

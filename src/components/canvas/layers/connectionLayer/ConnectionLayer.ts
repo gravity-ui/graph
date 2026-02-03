@@ -1,4 +1,4 @@
-import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
+import { GraphMouseEvent, extractNativeGraphMouseEvent, isGraphEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { ESelectionStrategy } from "../../../../services/selection/types";
 import { AnchorState } from "../../../../store/anchor/Anchor";
@@ -9,6 +9,7 @@ import { renderSVG } from "../../../../utils/renderers/svgPath";
 import { Point, TPoint } from "../../../../utils/types/shapes";
 import { Anchor } from "../../../canvas/anchors";
 import { Block } from "../../../canvas/blocks/Block";
+import { GraphComponent } from "../../GraphComponent";
 
 type TIcon = {
   path: string;
@@ -157,9 +158,7 @@ export class ConnectionLayer extends Layer<
    */
   protected afterInit(): void {
     // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
-    this.onGraphEvent("mousedown", this.handleMouseDown, {
-      capture: true,
-    });
+    this.onGraphEvent("mousedown", this.handleMouseDown);
 
     // Call parent afterInit to ensure proper initialization
     super.afterInit();
@@ -173,6 +172,19 @@ export class ConnectionLayer extends Layer<
     this.enabled = false;
   };
 
+  protected checkIsShouldStartCreationConnection(target: GraphComponent, initEvent: MouseEvent) {
+    if (!this.enabled) {
+      return false;
+    }
+    if (this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors")) {
+      return target instanceof Anchor;
+    }
+    if (isShiftKeyEvent(initEvent) && isBlock(target)) {
+      return true;
+    }
+    return false;
+  }
+
   protected handleMouseDown = (nativeEvent: GraphMouseEvent) => {
     const target = nativeEvent.detail.target;
     const initEvent = extractNativeGraphMouseEvent(nativeEvent);
@@ -181,9 +193,8 @@ export class ConnectionLayer extends Layer<
     }
 
     if (
-      this.enabled &&
-      ((this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors") && target instanceof Anchor) ||
-        (isShiftKeyEvent(initEvent) && isBlock(target)))
+      this.checkIsShouldStartCreationConnection(target as GraphComponent, initEvent) &&
+      (isBlock(target) || target instanceof Anchor)
     ) {
       // Get the source component state
       const sourceComponent = target.connectedState;
@@ -193,8 +204,9 @@ export class ConnectionLayer extends Layer<
         return;
       }
 
-      nativeEvent.preventDefault();
-      nativeEvent.stopPropagation();
+      if (isGraphEvent(nativeEvent)) {
+        nativeEvent.stopGraphEventPropagation();
+      }
       this.context.graph.dragService.startDrag(
         {
           onStart: (_event, coords) => this.onStartConnection(target, new Point(coords[0], coords[1])),
