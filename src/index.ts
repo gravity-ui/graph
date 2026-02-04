@@ -26,13 +26,11 @@ export { ESelectionStrategy } from "./services/selection/types";
 export * from "./utils/shapes";
 export { applyAlpha, clearColorCache } from "./utils/functions/color";
 
-export * from "./components/canvas/layers/portConnectionLayer";
-
 export * from "./components/canvas/groups";
 
+export * from "./components/canvas/layers/portConnectionLayer";
 export * from "./components/canvas/layers/newBlockLayer/NewBlockLayer";
 export * from "./components/canvas/layers/connectionLayer/ConnectionLayer";
-export * from "./components/canvas/layers/portConnectionLayer/PortConnectionLayer";
 export * from "./lib/Component";
 
 export * from "./services/selection/index.public";

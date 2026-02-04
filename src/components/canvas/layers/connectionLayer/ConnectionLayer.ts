@@ -112,7 +112,6 @@ declare module "../../../../graphEvents" {
  * all mouse interactions for connection creation.
  */
 
-type TConnectableComponent = Block | Anchor;
 export class ConnectionLayer extends Layer<
   ConnectionLayerProps,
   LayerContext & { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }

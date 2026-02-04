@@ -1,5 +1,4 @@
 import { computed, signal } from "@preact/signals-core";
-import merge from "lodash/merge";
 
 import { Component } from "../../../lib";
 import { TPoint } from "../../../utils/types/shapes";

@@ -19,16 +19,13 @@ import { GraphComponent } from "../../GraphComponent";
  */
 const PORT_SEARCH_RADIUS = 20;
 
-/**
- * Snap condition function type
- * Used by PortConnectionLayer to determine if a port can snap to another port
- */
-export type TPortSnapCondition = (context: {
+export type TPortSnapConditionContext = {
   sourcePort: PortState;
   targetPort: PortState;
   cursorPosition: TPoint;
   distance: number;
-}) => boolean;
+};
+export type TPortSnapCondition = (context: TPortSnapConditionContext) => boolean;
 
 /**
  * Port metadata structure for PortConnectionLayer
