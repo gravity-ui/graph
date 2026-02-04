@@ -75,8 +75,10 @@ class PortBasedBlock extends CanvasBlock {
       };
 
       // Configure port for snapping
-      this.updatePort(portId, undefined, undefined, {
-        [PortConnectionLayer.PortMetaKey]: snapMeta,
+      this.updatePort(portId, {
+        meta: {
+          [PortConnectionLayer.PortMetaKey]: snapMeta,
+        },
       });
     });
   }
@@ -124,9 +126,11 @@ class ConditionalPortBlock extends CanvasBlock {
       };
 
       // Store both snap metadata and data type
-      this.updatePort(portId, undefined, undefined, {
-        [PortConnectionLayer.PortMetaKey]: snapMeta,
-        dataType: dataType,
+      this.updatePort(portId, {
+        meta: {
+          [PortConnectionLayer.PortMetaKey]: snapMeta,
+          dataType: dataType,
+        },
       });
     });
   }

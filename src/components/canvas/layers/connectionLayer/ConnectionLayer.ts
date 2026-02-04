@@ -111,6 +111,8 @@ declare module "../../../../graphEvents" {
  * The layer renders on a separate canvas with a higher z-index and handles
  * all mouse interactions for connection creation.
  */
+
+type TConnectableComponent = Block | Anchor;
 export class ConnectionLayer extends Layer<
   ConnectionLayerProps,
   LayerContext & { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }
@@ -176,13 +178,17 @@ export class ConnectionLayer extends Layer<
     if (!this.enabled) {
       return false;
     }
-    if (this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors")) {
-      return target instanceof Anchor;
+    const isTargetAllowed =
+      (target instanceof Anchor && this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors")) ||
+      (isShiftKeyEvent(initEvent) && isBlock(target));
+
+    if (!isTargetAllowed) {
+      return false;
     }
-    if (isShiftKeyEvent(initEvent) && isBlock(target)) {
-      return true;
+    if (this.props.isConnectionAllowed && !this.props.isConnectionAllowed(target.connectedState)) {
+      return false;
     }
-    return false;
+    return true;
   }
 
   protected handleMouseDown = (nativeEvent: GraphMouseEvent) => {
@@ -196,14 +202,6 @@ export class ConnectionLayer extends Layer<
       this.checkIsShouldStartCreationConnection(target as GraphComponent, initEvent) &&
       (isBlock(target) || target instanceof Anchor)
     ) {
-      // Get the source component state
-      const sourceComponent = target.connectedState;
-
-      // Check if connection is allowed using the validation function if provided
-      if (this.props.isConnectionAllowed && !this.props.isConnectionAllowed(sourceComponent)) {
-        return;
-      }
-
       if (isGraphEvent(nativeEvent)) {
         nativeEvent.stopGraphEventPropagation();
       }

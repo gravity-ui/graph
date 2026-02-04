@@ -1,4 +1,5 @@
 import { computed, signal } from "@preact/signals-core";
+import merge from "lodash/merge";
 
 import { Component } from "../../../lib";
 import { TPoint } from "../../../utils/types/shapes";
@@ -179,25 +180,14 @@ export class PortState<T = unknown> {
    * @param port Partial port data to merge with current state
    */
   public updatePort(port: Partial<TPort<T>>): void {
-    this.$state.value = { ...this.$state.value, ...port };
-  }
-
-  /**
-   * Update port position and/or metadata
-   * @param x New X coordinate (optional)
-   * @param y New Y coordinate (optional)
-   * @param meta New metadata (optional)
-   */
-  public updatePortWithMeta(x?: number, y?: number, meta?: T): void {
-    const updates: Partial<TPort<T>> = {};
-
-    if (x !== undefined) updates.x = x;
-    if (y !== undefined) updates.y = y;
-    if (meta !== undefined) updates.meta = meta;
-
-    if (Object.keys(updates).length > 0) {
-      this.updatePort(updates);
-    }
+    this.$state.value = {
+      ...this.$state.value,
+      ...port,
+      meta: {
+        ...this.$state.value.meta,
+        ...port.meta,
+      },
+    };
   }
 
   /**
