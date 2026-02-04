@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.0](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.8...v1.8.0) (2026-02-04)
+
+
+### chore
+
+* release 1.8.0 ([4500891](https://github.com/gravity-ui/graph/commit/45008919601610ecab95b7c4e12516fee3adfc36))
+
+
+### Features
+
+* Introduce PortConnectionLayer ([#219](https://github.com/gravity-ui/graph/issues/219)) ([130ff1e](https://github.com/gravity-ui/graph/commit/130ff1e8f6e1d2b5464ac3dca83bd24dd1c7b600))
+
 ## [1.8.0-rc.8](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.7...v1.8.0-rc.8) (2026-02-04)
 
 
