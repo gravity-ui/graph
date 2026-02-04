@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.0-rc.8](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.7...v1.8.0-rc.8) (2026-02-04)
+
+
+### chore
+
+* release 1.8.0-rc.8 ([e82120b](https://github.com/gravity-ui/graph/commit/e82120b8355a274c5e2a18a4f6f0e366593ee758))
+
+
+### Bug Fixes
+
+* fix release ([c1a7b32](https://github.com/gravity-ui/graph/commit/c1a7b32f1bb346f8f6e7412d2e4be6f049f1f81e))
+
 ## [1.8.0-rc.7](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.6...v1.8.0-rc.7) (2026-02-04)
 
 
