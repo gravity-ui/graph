@@ -6,7 +6,7 @@ import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
 import { DragContext, DragDiff } from "../../../services/drag";
-import { PortState, TPortId } from "../../../store/connection/port/Port";
+import { PortState, TPort, TPortId } from "../../../store/connection/port/Port";
 import { applyAlpha, getXY } from "../../../utils/functions";
 import { EventedComponent } from "../EventedComponent/EventedComponent";
 import { CursorLayerCursorTypes } from "../layers/cursorLayer";
@@ -115,6 +115,24 @@ export class GraphComponent<
       return this.createPort(id);
     }
     return this.ports.get(id);
+  }
+
+  /**
+   * Get all ports of this component
+   * @returns Array of all port states
+   */
+  public getPorts(): PortState[] {
+    return Array.from(this.ports.values());
+  }
+
+  /**
+   * Update port position and metadata
+   * @param id Port identifier
+   * @param portChanges port changes {x?, y?, meta?}
+   */
+  public updatePort<T = unknown>(id: TPortId, portChanges: Partial<TPort<T>>): void {
+    const port = this.getPort(id);
+    port.updatePort(portChanges);
   }
 
   protected setAffectsUsableRect(affectsUsableRect: boolean) {

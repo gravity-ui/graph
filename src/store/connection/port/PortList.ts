@@ -3,6 +3,8 @@ import { computed, signal } from "@preact/signals-core";
 import { GraphComponent } from "../../../components/canvas/GraphComponent";
 import { Graph } from "../../../graph";
 import { Component, ESchedulerPriority } from "../../../lib";
+import { vectorDistance } from "../../../utils/functions";
+import { Point, TPoint } from "../../../utils/types/shapes";
 import { debounce } from "../../../utils/utils/schedule";
 import { RootStore } from "../../index";
 
@@ -104,5 +106,72 @@ export class PortsStore {
 
   public reset(): void {
     this.clearPorts();
+  }
+
+  /**
+   * Find the nearest port at given world coordinates
+   * First finds components under cursor, then checks their ports
+   *
+   * @param point World coordinates to search from
+   * @param searchRadius Maximum search radius in pixels (default: 0 - exact match)
+   * @param filter Optional filter function to validate ports
+   * @returns Nearest port within radius, or undefined if none found
+   *
+   * @example
+   * ```typescript
+   * const port = portsStore.findPortAtPoint(
+   *   { x: 100, y: 200 },
+   *   30,
+   *   (port) => !port.lookup && port.owner !== undefined
+   * );
+   * ```
+   */
+  public findPortAtPoint(
+    point: TPoint,
+    searchRadius = 0,
+    filter?: (port: PortState) => boolean
+  ): PortState | undefined {
+    // Get all components under cursor (GraphComponent only)
+    const pointObj = new Point(point.x, point.y);
+    const component = this.graph.getElementOverPoint(pointObj, [GraphComponent]);
+    if (!component) {
+      return undefined;
+    }
+    return this.findPortAtPointByComponent(component, point, searchRadius, filter);
+  }
+
+  /**
+   * Find the nearest port at given world coordinates for a specific component
+   *
+   * @param component Component to search in
+   * @param point World coordinates to search from
+   * @param searchRadius Maximum search radius in pixels (default: 0 - exact match)
+   * @param filter Optional filter function to validate ports
+   * @returns Nearest port within radius, or undefined if none found
+   */
+  public findPortAtPointByComponent(
+    component: GraphComponent,
+    point: TPoint,
+    searchRadius = 0,
+    filter?: (port: PortState) => boolean
+  ): PortState | undefined {
+    const ports = component.getPorts();
+
+    for (const port of ports) {
+      // Skip ports in lookup state (no valid coordinates)
+      if (port.lookup) continue;
+
+      // Calculate vector distance
+      const distance = vectorDistance(point, port);
+
+      // Check if within radius and closer than previous
+      if (distance <= searchRadius) {
+        // Apply optional filter
+        if (filter && !filter(port)) continue;
+        return port;
+      }
+    }
+
+    return undefined;
   }
 }

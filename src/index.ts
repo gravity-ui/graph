@@ -13,6 +13,8 @@ export { EAnchorType } from "./store/anchor/Anchor";
 export type { BlockState, TBlockId } from "./store/block/Block";
 export type { ConnectionState, TConnection, TConnectionId } from "./store/connection/ConnectionState";
 export type { AnchorState } from "./store/anchor/Anchor";
+export type { TPort, TPortId } from "./store/connection/port/Port";
+export { createAnchorPortId, createBlockPointPortId, createPortId } from "./store/connection/port/utils";
 export { ECanChangeBlockGeometry, ECanDrag } from "./store/settings";
 export { type TMeasureTextOptions, type TWrapText } from "./utils/functions/text";
 export { ESchedulerPriority } from "./lib/Scheduler";
@@ -26,6 +28,7 @@ export { applyAlpha, clearColorCache } from "./utils/functions/color";
 
 export * from "./components/canvas/groups";
 
+export * from "./components/canvas/layers/portConnectionLayer";
 export * from "./components/canvas/layers/newBlockLayer/NewBlockLayer";
 export * from "./components/canvas/layers/connectionLayer/ConnectionLayer";
 export * from "./lib/Component";

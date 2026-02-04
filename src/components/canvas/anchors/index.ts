@@ -35,6 +35,10 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   public static CANVAS_HOVER_FACTOR = 1.8;
   public static DETAILED_HOVER_FACTOR = 1.2;
 
+  public getEntityId(): number | string {
+    return this.props.id;
+  }
+
   public get zIndex() {
     // @ts-ignore this.__comp.parent instanceOf Block
     return this.__comp.parent.zIndex + 1;
@@ -83,7 +87,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   }
 
   protected willMount(): void {
-    this.props.port.addObserver(this);
+    this.props.port.setOwner(this);
     this.subscribeSignal(this.connectedState.$selected, (selected) => {
       this.setState({ selected });
     });
@@ -101,6 +105,10 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     const { x, y } = this.getPosition();
     this.setHitBox(x - this.shift, y - this.shift, x + this.shift, y + this.shift);
   };
+
+  public override getPorts(): PortState[] {
+    return [this.props.port];
+  }
 
   /**
    * Get the position of the anchor.
@@ -159,7 +167,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   }
 
   protected unmount() {
-    this.props.port.removeObserver(this);
+    this.props.port.removeOwner();
     super.unmount();
   }
 
