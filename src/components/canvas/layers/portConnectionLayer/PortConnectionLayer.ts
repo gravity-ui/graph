@@ -1,6 +1,6 @@
 import RBush from "rbush";
 
-import { GraphMouseEvent, extractNativeGraphMouseEvent } from "../../../../graphEvents";
+import { GraphMouseEvent, extractNativeGraphMouseEvent, isGraphEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { ESelectionStrategy } from "../../../../services/selection";
 import { EAnchorType } from "../../../../store/anchor/Anchor";
@@ -53,6 +53,7 @@ type TIcon = {
 
 type LineStyle = {
   color: string;
+  width?: number;
   dash: number[];
 };
 
@@ -71,6 +72,8 @@ type PortConnectionLayerProps = LayerProps & {
   point?: TIcon;
   drawLine?: DrawLineFunction;
   searchRadius?: number;
+  lineWidth?: number;
+  lineDash?: number[];
 };
 
 declare module "../../../../graphEvents" {
@@ -249,6 +252,9 @@ export class PortConnectionLayer extends Layer<
     if (!(initialComponent instanceof GraphComponent) || initialComponent.getPorts().length === 0) {
       return;
     }
+    if (isGraphEvent(nativeEvent)) {
+      nativeEvent.stopGraphEventPropagation();
+    }
     // DragService will provide world coordinates in callbacks
     this.context.graph.dragService.startDrag(
       {
@@ -318,17 +324,16 @@ export class PortConnectionLayer extends Layer<
       return;
     }
 
-    const scale = this.context.camera.getCameraScale();
-    this.context.ctx.lineWidth = Math.round(2 / scale);
-
     if (this.props.drawLine) {
       const { path, style } = this.props.drawLine(this.startState, this.endState);
 
+      this.context.ctx.lineWidth = this.context.camera.limitScaleEffect(style.width || 3);
       this.context.ctx.strokeStyle = style.color;
       this.context.ctx.setLineDash(style.dash);
       this.context.ctx.stroke(path);
     } else {
       this.context.ctx.beginPath();
+      this.context.ctx.lineWidth = this.context.camera.limitScaleEffect(3);
       this.context.ctx.strokeStyle = this.context.colors.connection.selectedBackground;
       this.context.ctx.moveTo(this.startState.x, this.startState.y);
       this.context.ctx.lineTo(this.endState.x, this.endState.y);
@@ -348,6 +353,9 @@ export class PortConnectionLayer extends Layer<
 
     const params = this.getEventParams(port);
 
+    this.sourcePort = port;
+    this.startState = new Point(port.x, port.y);
+
     this.context.graph.executеDefaultEventAction(
       "port-connection-create-start",
       {
@@ -356,9 +364,6 @@ export class PortConnectionLayer extends Layer<
         sourcePort: port,
       },
       () => {
-        this.sourcePort = port;
-        this.startState = new Point(port.x, port.y);
-
         this.selectPort(port, true);
       }
     );
@@ -421,6 +426,7 @@ export class PortConnectionLayer extends Layer<
   }
 
   protected selectPort(port: PortState, select: boolean): void {
+    if (!port) return;
     const component = port.owner;
     if (component instanceof GraphComponent) {
       const bucket = this.context.graph.rootStore.selectionService.getBucketByElement(component);
