@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.8.0-rc.7](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.6...v1.8.0-rc.7) (2026-02-04)
+
+
+### chore
+
+* release 1.8.0-rc.7 ([3f2170c](https://github.com/gravity-ui/graph/commit/3f2170cec6b11e3beede3a558f15e8b9fe0bf876))
+
+
+### Features
+
+* made renderLabelText and labelGeometry protected, fix: backgrou… ([#227](https://github.com/gravity-ui/graph/issues/227)) ([691479d](https://github.com/gravity-ui/graph/commit/691479d13fdb691c932fcb6c97d366886f34a4a6))
+* Support for transferring blocks between groups ([#207](https://github.com/gravity-ui/graph/issues/207)) ([b3116a8](https://github.com/gravity-ui/graph/commit/b3116a890adc91a9f68607b25dc47174a66ea9ba))
+* **useSignal:** add lots of hooks for React wrapper ([#228](https://github.com/gravity-ui/graph/issues/228)) ([f12c224](https://github.com/gravity-ui/graph/commit/f12c2242a01cd48fe11382b1c3e72e1456ac9c33))
+
+
+### Bug Fixes
+
+* allow configure strategy the SelectionLayer to apply selection ([#229](https://github.com/gravity-ui/graph/issues/229)) ([9464d44](https://github.com/gravity-ui/graph/commit/9464d44da7b06547e6785e78e83fe60c54206d2f))
+* **graph:** prevent race condition error in GraphBlockAnchor component ([#225](https://github.com/gravity-ui/graph/issues/225)) ([f1894f0](https://github.com/gravity-ui/graph/commit/f1894f00deb22afde703606183b46c76d93380c2))
+* make react block renders in sync with canvas ([#222](https://github.com/gravity-ui/graph/issues/222)) ([f930fa4](https://github.com/gravity-ui/graph/commit/f930fa41bd2f2bbb5f910b942be9cd6d5eed4b10))
+* prevent preventDefault on mousedown on some Layers ([#231](https://github.com/gravity-ui/graph/issues/231)) ([a7ac7ba](https://github.com/gravity-ui/graph/commit/a7ac7baf1d175e5993bf2d6a20d024a9d9e2b9bc))
+* set canDrag=ECanDrag.NONE, as default(as before) ([#230](https://github.com/gravity-ui/graph/issues/230)) ([4b6f593](https://github.com/gravity-ui/graph/commit/4b6f5936d4284b16297ef96963fde9fb3443901f))
+
 ## [1.8.0-rc.6](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.5...v1.8.0-rc.6) (2026-01-23)
 
 
