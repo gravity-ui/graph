@@ -319,7 +319,7 @@ export class DragService {
    * );
    * ```
    */
-  public startDrag(callbacks: DragOperationCallbacks, options: DragOperationOptions = {}): void {
+  public startDrag(callbacks: DragOperationCallbacks, options: DragOperationOptions = {}) {
     const { document: doc, cursor, autopanning = true, stopOnMouseLeave, threshold, initialEvent } = options;
     const { onStart, onUpdate, onEnd } = callbacks;
 
@@ -330,7 +330,7 @@ export class DragService {
       initialCoords = coords;
     }
 
-    dragListener(targetDocument, {
+    return dragListener(targetDocument, {
       graph: this.graph,
       dragCursor: cursor,
       autopanning,

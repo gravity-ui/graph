@@ -6,7 +6,9 @@ import { ESelectionStrategy } from "../../../../services/selection";
 import { EAnchorType } from "../../../../store/anchor/Anchor";
 import { TBlockId } from "../../../../store/block/Block";
 import { PortState } from "../../../../store/connection/port/Port";
+import type { Emitter } from "../../../../utils/Emitter";
 import { vectorDistance } from "../../../../utils/functions";
+import { stopDragListening } from "../../../../utils/functions/dragListener";
 import { render } from "../../../../utils/renderers/render";
 import { renderSVG } from "../../../../utils/renderers/svgPath";
 import { Point, TPoint } from "../../../../utils/types/shapes";
@@ -112,6 +114,13 @@ declare module "../../../../graphEvents" {
         sourceAnchorId?: string;
         targetBlockId: TBlockId;
         targetAnchorId?: string;
+        sourcePort: PortState;
+        targetPort: PortState;
+      }>
+    ) => void;
+
+    "port-connection-cancel": (
+      event: CustomEvent<{
         sourcePort: PortState;
         targetPort: PortState;
       }>
@@ -226,6 +235,18 @@ export class PortConnectionLayer extends Layer<
       this.isSnappingTreeOutdated = true;
     });
 
+    this.context.graph.keyboardService.onPress(
+      "Escape",
+      () => {
+        if (this.currentListener) {
+          this.cancelNewConnection();
+        }
+      },
+      {
+        signal: this.eventAbortController.signal,
+      }
+    );
+
     super.afterInit();
   }
 
@@ -236,6 +257,8 @@ export class PortConnectionLayer extends Layer<
   public disable = (): void => {
     this.enabled = false;
   };
+
+  protected currentListener: Emitter | null = null;
 
   protected handleMouseDown = (nativeEvent: GraphMouseEvent): void => {
     if (!this.enabled) {
@@ -253,7 +276,7 @@ export class PortConnectionLayer extends Layer<
       nativeEvent.stopGraphEventPropagation();
     }
     // DragService will provide world coordinates in callbacks
-    this.context.graph.dragService.startDrag(
+    this.currentListener = this.context.graph.dragService.startDrag(
       {
         onStart: (_event, coords) => {
           const point = new Point(coords[0], coords[1]);
@@ -400,25 +423,25 @@ export class PortConnectionLayer extends Layer<
 
       this.targetPort = newTargetPort;
 
-      if (newTargetPort) {
-        const sourceParams = this.getEventParams(this.sourcePort);
-        const targetParams = this.getEventParams(newTargetPort);
+      const sourceParams = this.getEventParams(this.sourcePort);
+      const targetParams = this.getEventParams(newTargetPort);
 
-        this.context.graph.executеDefaultEventAction(
-          "port-connection-create-hover",
-          {
-            sourceBlockId: sourceParams.blockId,
-            sourceAnchorId: sourceParams.anchorId,
-            targetBlockId: targetParams.blockId,
-            targetAnchorId: targetParams.anchorId,
-            sourcePort: this.sourcePort,
-            targetPort: newTargetPort,
-          },
-          () => {
-            this.selectPort(newTargetPort, true);
+      this.context.graph.executеDefaultEventAction(
+        "port-connection-create-hover",
+        {
+          sourceBlockId: sourceParams.blockId,
+          sourceAnchorId: sourceParams.anchorId,
+          targetBlockId: targetParams?.blockId,
+          targetAnchorId: targetParams?.anchorId,
+          sourcePort: this.sourcePort,
+          targetPort: newTargetPort || undefined,
+        },
+        () => {
+          if (this.targetPort) {
+            this.selectPort(this.targetPort, true);
           }
-        );
-      }
+        }
+      );
     }
   }
 
@@ -436,6 +459,23 @@ export class PortConnectionLayer extends Layer<
         bucket.deselect([component.getEntityId()]);
       }
     }
+  }
+
+  protected cancelNewConnection(): void {
+    if (this.currentListener) {
+      stopDragListening(this.currentListener);
+    }
+    this.startState = null;
+    this.endState = null;
+    this.performRender();
+    this.context.graph.executеDefaultEventAction(
+      "port-connection-cancel",
+      {
+        sourcePort: this.sourcePort,
+        targetPort: this.targetPort,
+      },
+      () => {}
+    );
   }
 
   private onEndNewConnection(point: Point): void {
@@ -688,10 +728,13 @@ export class PortConnectionLayer extends Layer<
    * Get full event parameters from a port
    * Includes both legacy parameters (blockId, anchorId) and new port reference
    */
-  private getEventParams(port: PortState): {
-    blockId: TBlockId;
+  protected getEventParams(port?: PortState): {
+    blockId?: TBlockId;
     anchorId?: string;
   } {
+    if (!port) {
+      return {};
+    }
     const component = port.owner;
 
     if (!component) {
@@ -711,7 +754,7 @@ export class PortConnectionLayer extends Layer<
       };
     }
 
-    throw new Error("Port owner is not Block or Anchor");
+    return {};
   }
 
   public override unmount(): void {

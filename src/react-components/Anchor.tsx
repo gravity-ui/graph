@@ -26,6 +26,7 @@ export function GraphBlockAnchor({
   const anchorContainerRef = React.useRef<HTMLDivElement>(null);
   const anchorState = useBlockAnchorState(graph, anchor);
   const selected = useSignal(anchorState?.$selected);
+  const [raised, setRaised] = React.useState(false);
 
   useBlockAnchorPosition(anchorState, anchorContainerRef);
 
@@ -34,10 +35,23 @@ export function GraphBlockAnchor({
       "graph-block-anchor",
       `graph-block-anchor-${anchor.type.toLocaleLowerCase()}`,
       `graph-block-position-${position}`,
-      className,
-      selected ? "graph-block-anchor-selected" : ""
+      {
+        "graph-block-anchor-hover": selected,
+        "graph-block-anchor-raised": raised,
+      },
+      className
     );
-  }, [anchor?.type, position, className, selected]);
+  }, [anchor?.type, position, className, selected, raised]);
+
+  useEffect(() => {
+    const component = anchorState?.getViewComponent();
+    if (!component) {
+      return () => {};
+    }
+    return component.onChange(() => {
+      setRaised(component.state.raised);
+    });
+  }, [anchorState]);
 
   useEffect(() => {
     if (anchorContainerRef.current) {
@@ -50,11 +64,11 @@ export function GraphBlockAnchor({
   }, [anchorState?.$selected.value]);
 
   if (!anchorState) return null;
-  const render = typeof children === "function" ? children : () => children;
+  const layout = typeof children === "function" ? children(anchorState) : children;
 
   return (
     <div ref={anchorContainerRef} className={classNames}>
-      {render(anchorState)}
+      {layout}
     </div>
   );
 }

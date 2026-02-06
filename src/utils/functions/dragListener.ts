@@ -190,7 +190,19 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     { once: true, capture: true }
   );
 
+  emitter.on("cancel", () => {
+    if (started) {
+      cleanupDragState();
+    }
+    finished = true;
+    cleanup();
+  });
+
   return emitter;
+}
+
+export function stopDragListening(emitter: Emitter) {
+  emitter.emit("cancel");
 }
 
 function mousemove(emitter: Emitter, event: MouseEvent) {
