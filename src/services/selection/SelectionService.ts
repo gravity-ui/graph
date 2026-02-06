@@ -1,4 +1,4 @@
-import { computed, signal } from "@preact/signals-core";
+import { batch, computed, signal } from "@preact/signals-core";
 
 import { GraphComponent } from "../../components/canvas/GraphComponent";
 
@@ -186,64 +186,66 @@ export class SelectionService {
     idsOrStrategy: TSelectionEntityId[] | ESelectionStrategy,
     strategy?: ESelectionStrategy
   ): void {
-    // Detect which API is being used
-    if (typeof entityTypeOrSelection === "string") {
-      // Single entity type API
-      const entityType = entityTypeOrSelection;
-      const ids = idsOrStrategy as TSelectionEntityId[];
-      const finalStrategy = strategy || ESelectionStrategy.REPLACE;
+    batch(() => {
+      // Detect which API is being used
+      if (typeof entityTypeOrSelection === "string") {
+        // Single entity type API
+        const entityType = entityTypeOrSelection;
+        const ids = idsOrStrategy as TSelectionEntityId[];
+        const finalStrategy = strategy || ESelectionStrategy.REPLACE;
 
-      if (finalStrategy === ESelectionStrategy.REPLACE) {
-        // Reset selection in all other buckets
-        for (const [type, bucket] of this.buckets.value.entries()) {
-          if (type !== entityType) {
-            bucket.reset();
+        if (finalStrategy === ESelectionStrategy.REPLACE) {
+          // Reset selection in all other buckets
+          for (const [type, bucket] of this.buckets.value.entries()) {
+            if (type !== entityType) {
+              bucket.reset();
+            }
           }
         }
-      }
-      const bucket = this.getBucket(entityType);
-      if (bucket) {
-        bucket.updateSelection(ids, true, finalStrategy);
-      }
-    } else {
-      // Multi-entity selection API
-      const selection = entityTypeOrSelection as TMultiEntitySelection;
-      const finalStrategy = idsOrStrategy as ESelectionStrategy;
-
-      if (finalStrategy === ESelectionStrategy.REPLACE) {
-        // Reset selection in all buckets that are not in the selection
-        const selectedTypes = Object.keys(selection);
-        for (const [type, bucket] of this.buckets.value.entries()) {
-          if (!selectedTypes.includes(type)) {
-            bucket.reset();
-          }
-        }
-      }
-
-      // Apply selection to each entity type
-      for (const [entityType, ids] of Object.entries(selection)) {
         const bucket = this.getBucket(entityType);
         if (bucket) {
-          if (finalStrategy === ESelectionStrategy.REPLACE) {
-            // For REPLACE, clear the bucket first
-            bucket.updateSelection(ids, true, ESelectionStrategy.REPLACE);
-          } else {
-            // For APPEND and SUBTRACT, we need to get current selection and modify it
-            const currentIds = bucket.$selected.value;
-            const newIds = new Set(currentIds);
+          bucket.updateSelection(ids, true, finalStrategy);
+        }
+      } else {
+        // Multi-entity selection API
+        const selection = entityTypeOrSelection as TMultiEntitySelection;
+        const finalStrategy = idsOrStrategy as ESelectionStrategy;
 
-            if (finalStrategy === ESelectionStrategy.APPEND) {
-              ids.forEach((id) => newIds.add(id));
-            } else if (finalStrategy === ESelectionStrategy.SUBTRACT) {
-              ids.forEach((id) => newIds.delete(id));
+        if (finalStrategy === ESelectionStrategy.REPLACE) {
+          // Reset selection in all buckets that are not in the selection
+          const selectedTypes = Object.keys(selection);
+          for (const [type, bucket] of this.buckets.value.entries()) {
+            if (!selectedTypes.includes(type)) {
+              bucket.reset();
             }
+          }
+        }
 
-            // Use REPLACE strategy to set the final state
-            bucket.updateSelection(Array.from(newIds), true, ESelectionStrategy.REPLACE);
+        // Apply selection to each entity type
+        for (const [entityType, ids] of Object.entries(selection)) {
+          const bucket = this.getBucket(entityType);
+          if (bucket) {
+            if (finalStrategy === ESelectionStrategy.REPLACE) {
+              // For REPLACE, clear the bucket first
+              bucket.updateSelection(ids, true, ESelectionStrategy.REPLACE);
+            } else {
+              // For APPEND and SUBTRACT, we need to get current selection and modify it
+              const currentIds = bucket.$selected.value;
+              const newIds = new Set(currentIds);
+
+              if (finalStrategy === ESelectionStrategy.APPEND) {
+                ids.forEach((id) => newIds.add(id));
+              } else if (finalStrategy === ESelectionStrategy.SUBTRACT) {
+                ids.forEach((id) => newIds.delete(id));
+              }
+
+              // Use REPLACE strategy to set the final state
+              bucket.updateSelection(Array.from(newIds), true, ESelectionStrategy.REPLACE);
+            }
           }
         }
       }
-    }
+    });
   }
 
   /**
@@ -271,32 +273,34 @@ export class SelectionService {
    * @returns void
    */
   public deselect(entityTypeOrSelection: string | TMultiEntitySelection, ids?: TSelectionEntityId[]): void {
-    // Detect which API is being used
-    if (typeof entityTypeOrSelection === "string") {
-      // Single entity type API
-      const entityType = entityTypeOrSelection;
-      const finalIds = ids || [];
+    batch(() => {
+      // Detect which API is being used
+      if (typeof entityTypeOrSelection === "string") {
+        // Single entity type API
+        const entityType = entityTypeOrSelection;
+        const finalIds = ids || [];
 
-      const bucket = this.getBucket(entityType);
-      if (bucket) {
-        bucket.updateSelection(finalIds, false, ESelectionStrategy.SUBTRACT);
-      }
-    } else {
-      // Multi-entity deselection API
-      const selection = entityTypeOrSelection as TMultiEntitySelection;
-
-      // Deselect entities from each entity type
-      for (const [entityType, entityIds] of Object.entries(selection)) {
         const bucket = this.getBucket(entityType);
         if (bucket) {
-          const currentIds = bucket.$selected.value;
-          const newIds = new Set(currentIds);
+          bucket.updateSelection(finalIds, false, ESelectionStrategy.SUBTRACT);
+        }
+      } else {
+        // Multi-entity deselection API
+        const selection = entityTypeOrSelection as TMultiEntitySelection;
 
-          entityIds.forEach((id) => newIds.delete(id));
-          bucket.updateSelection(Array.from(newIds), true, ESelectionStrategy.REPLACE);
+        // Deselect entities from each entity type
+        for (const [entityType, entityIds] of Object.entries(selection)) {
+          const bucket = this.getBucket(entityType);
+          if (bucket) {
+            const currentIds = bucket.$selected.value;
+            const newIds = new Set(currentIds);
+
+            entityIds.forEach((id) => newIds.delete(id));
+            bucket.updateSelection(Array.from(newIds), true, ESelectionStrategy.REPLACE);
+          }
         }
       }
-    }
+    });
   }
 
   /**
@@ -375,29 +379,33 @@ export class SelectionService {
    * @param entityTypeOrTypes Either single entity type or array of entity types
    */
   public resetSelection(entityTypeOrTypes: string | string[]): void {
-    if (typeof entityTypeOrTypes === "string") {
-      // Single entity type
-      const bucket = this.getBucket(entityTypeOrTypes);
-      if (bucket) {
-        bucket.reset();
-      }
-    } else {
-      // Multiple entity types
-      for (const entityType of entityTypeOrTypes) {
-        const bucket = this.getBucket(entityType);
+    batch(() => {
+      if (typeof entityTypeOrTypes === "string") {
+        // Single entity type
+        const bucket = this.getBucket(entityTypeOrTypes);
         if (bucket) {
           bucket.reset();
         }
+      } else {
+        // Multiple entity types
+        for (const entityType of entityTypeOrTypes) {
+          const bucket = this.getBucket(entityType);
+          if (bucket) {
+            bucket.reset();
+          }
+        }
       }
-    }
+    });
   }
 
   /**
    * Resets the selection for all registered buckets
    */
   public resetAllSelections(): void {
-    for (const bucket of this.buckets.value.values()) {
-      bucket.reset();
-    }
+    batch(() => {
+      for (const bucket of this.buckets.value.values()) {
+        bucket.reset();
+      }
+    });
   }
 }
