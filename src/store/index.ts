@@ -6,7 +6,6 @@ import { SelectionService } from "../services/selection/SelectionService";
 
 import { BlockListStore } from "./block/BlocksList";
 import { ConnectionsStore } from "./connection/ConnectionList";
-import { PortsStore } from "./connection/port/PortList";
 import { GroupsListStore } from "./group/GroupsList";
 import { GraphEditorSettings } from "./settings";
 
@@ -20,8 +19,6 @@ export class RootStore {
   public settings: GraphEditorSettings;
 
   public groupsList: GroupsListStore;
-
-  public portsList: PortsStore;
 
   public selectionService: SelectionService;
 

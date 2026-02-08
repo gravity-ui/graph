@@ -75,6 +75,9 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
       this.computeShift(_nextState, this.props);
       this.onPositionChanged();
     }
+    if (this.state.raised !== _nextState.raised) {
+      this.computeRenderSize(this.props.size, _nextState.raised);
+    }
     super.stateChanged(_nextState);
   }
 
@@ -182,12 +185,10 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
       }
       case "mouseenter": {
         this.setState({ raised: true });
-        this.computeRenderSize(this.props.size, true);
         break;
       }
       case "mouseleave": {
         this.setState({ raised: false });
-        this.computeRenderSize(this.props.size, false);
         break;
       }
     }

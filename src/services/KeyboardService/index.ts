@@ -63,6 +63,8 @@ export class KeyboardService {
     return this.$keyboardState.value.altKey;
   }
 
+  protected keybordEvents = new EventTarget();
+
   protected startListening(): void {
     this.graph.layers.$root?.ownerDocument?.addEventListener("keydown", this.handleKeyDown, {
       capture: true,
@@ -78,6 +80,20 @@ export class KeyboardService {
         capture: true,
       });
     });
+  }
+
+  public onPress(key: string, cb: (event: CustomEvent<KeyboardEvent>) => void, options?: AddEventListenerOptions) {
+    this.keybordEvents.addEventListener(`press-${key}`, cb, options);
+    return () => {
+      this.keybordEvents.removeEventListener(`press-${key}`, cb);
+    };
+  }
+
+  public onRelease(key: string, cb: (event: CustomEvent<KeyboardEvent>) => void, options?: AddEventListenerOptions) {
+    this.keybordEvents.addEventListener(`release-${key}`, cb, options);
+    return () => {
+      this.keybordEvents.removeEventListener(`release-${key}`, cb);
+    };
   }
 
   protected stopListening(): void {
@@ -102,6 +118,14 @@ export class KeyboardService {
     );
   }
 
+  protected notifyKeyCode(event: KeyboardEvent): void {
+    if (event.type === "keydown") {
+      this.keybordEvents.dispatchEvent(new CustomEvent(`press-${event.key}`, { detail: event }));
+    } else if (event.type === "keyup") {
+      this.keybordEvents.dispatchEvent(new CustomEvent(`release-${event.key}`, { detail: event }));
+    }
+  }
+
   protected handleKeyDown = (event: KeyboardEvent): void => {
     if (this.hasChanged(event)) {
       this.lastEvent = event;
@@ -112,6 +136,7 @@ export class KeyboardService {
         altKey: event.altKey,
       };
     }
+    this.notifyKeyCode(event);
   };
 
   protected cleanup(): void {

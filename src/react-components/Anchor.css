@@ -15,7 +15,8 @@
   border: 2px solid var(--graph-block-anchor-border-selected);
   transform: scale(var(--graph-block-anchor-hover-scale, 1.2));
 }
-.graph-block-anchor:hover {
+.graph-block-anchor:hover,
+.graph-block-anchor.graph-block-anchor-raised {
   transform: scale(var(--graph-block-anchor-hover-scale, 1.2));
 }
 
