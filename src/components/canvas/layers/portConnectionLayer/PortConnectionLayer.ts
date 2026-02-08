@@ -476,6 +476,9 @@ export class PortConnectionLayer extends Layer<
       },
       () => {}
     );
+    // Cleanup ports to prevent stale state
+    this.sourcePort = undefined;
+    this.targetPort = undefined;
   }
 
   private onEndNewConnection(point: Point): void {

@@ -36,8 +36,8 @@ export function GraphBlockAnchor({
       `graph-block-anchor-${anchor.type.toLocaleLowerCase()}`,
       `graph-block-position-${position}`,
       {
-        "graph-block-anchor-hover": selected,
         "graph-block-anchor-raised": raised,
+        "graph-block-anchor-selected": selected,
       },
       className
     );

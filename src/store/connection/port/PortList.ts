@@ -156,9 +156,6 @@ export class PortsStore {
     filter?: (port: PortState) => boolean
   ): PortState | undefined {
     const ports = component.getPorts();
-    if (ports.length === 1) {
-      return ports[0];
-    }
 
     for (const port of ports) {
       // Skip ports in lookup state (no valid coordinates)
