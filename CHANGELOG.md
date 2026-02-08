@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.1](https://github.com/gravity-ui/graph/compare/v1.8.0...v1.8.1) (2026-02-08)
+
+
+### Bug Fixes
+
+* Lot of fixes for PortConnectionLayer ([#235](https://github.com/gravity-ui/graph/issues/235)) ([5e0db8c](https://github.com/gravity-ui/graph/commit/5e0db8c4dad391a13f0acf27f9e182d6408f2d73))
+* **SelectionService:** batch signal updates to prevent intermediate notifications ([#234](https://github.com/gravity-ui/graph/issues/234)) ([8a912b3](https://github.com/gravity-ui/graph/commit/8a912b3b82b17153130699d9ba5e64d0564cc8c5))
+
 ## [1.8.0](https://github.com/gravity-ui/graph/compare/v1.8.0-rc.8...v1.8.0) (2026-02-04)
 
 
