@@ -52,9 +52,9 @@ export class DragService {
   public readonly $state = signal<DragState>(this.createIdleState());
 
   constructor(private graph: Graph) {
-    // this.unsubscribeMouseDown = graph.on("mousedown", this.handleMouseDown, {
-    //   capture: true,
-    // });
+    this.unsubscribeMouseDown = graph.on("mousedown", this.handleMouseDown, {
+      capture: true,
+    });
   }
 
   /**
@@ -125,6 +125,7 @@ export class DragService {
     // Collect all draggable components that should participate
     this.dragComponents = this.collectDragComponents(target, canDrag);
 
+    console.log("DragService handleMouseDown", this.dragComponents);
     if (this.dragComponents.length === 0) {
       return;
     }

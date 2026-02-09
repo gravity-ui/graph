@@ -1,28 +1,12 @@
 import { Page } from "@playwright/test";
 import { CameraState } from "../utils/CoordinateTransformer";
+import type { GraphPageObject } from "./GraphPageObject";
 
 export class CameraPageObject {
-  constructor(private page: Page) {}
-
-  /**
-   * Wait for animation frames
-   */
-  private async waitForFrames(count: number = 1): Promise<void> {
-    await this.page.evaluate((frameCount) => {
-      return new Promise<void>((resolve) => {
-        let remaining = frameCount;
-        const tick = () => {
-          remaining--;
-          if (remaining <= 0) {
-            resolve();
-          } else {
-            requestAnimationFrame(tick);
-          }
-        };
-        requestAnimationFrame(tick);
-      });
-    }, count);
-  }
+  constructor(
+    private page: Page,
+    private graphPO: GraphPageObject
+  ) {}
 
   /**
    * Get camera state from the graph
@@ -48,7 +32,7 @@ export class CameraPageObject {
     }, scale);
     
     // Wait for zoom animation to complete
-    await this.waitForFrames(3);
+    await this.graphPO.waitForFrames(3);
   }
 
   /**
@@ -63,7 +47,7 @@ export class CameraPageObject {
     );
     
     // Wait for pan to be processed
-    await this.waitForFrames(2);
+    await this.graphPO.waitForFrames(2);
   }
 
   /**
@@ -75,7 +59,7 @@ export class CameraPageObject {
     });
     
     // Wait for zoom animation
-    await this.waitForFrames(3);
+    await this.graphPO.waitForFrames(20);
   }
 
   /**
@@ -87,7 +71,7 @@ export class CameraPageObject {
     }, blockIds);
     
     // Wait for zoom animation
-    await this.waitForFrames(3);
+    await this.graphPO.waitForFrames(20);
   }
 
   /**
@@ -131,7 +115,7 @@ export class CameraPageObject {
     await this.page.mouse.wheel(0, deltaY);
 
     // Wait for zoom to be processed
-    await this.waitForFrames(3);
+    await this.graphPO.waitForFrames(3);
   }
 
   /**
@@ -153,15 +137,15 @@ export class CameraPageObject {
 
     // Perform drag operation
     await this.page.mouse.move(startX, startY);
-    await this.waitForFrames(1);
+    await this.graphPO.waitForFrames(1);
 
     await this.page.mouse.down();
-    await this.waitForFrames(1);
+    await this.graphPO.waitForFrames(1);
 
     await this.page.mouse.move(startX + deltaX, startY + deltaY, { steps: 10 });
-    await this.waitForFrames(2);
+    await this.graphPO.waitForFrames(2);
 
     await this.page.mouse.up();
-    await this.waitForFrames(2);
+    await this.graphPO.waitForFrames(2);
   }
 }

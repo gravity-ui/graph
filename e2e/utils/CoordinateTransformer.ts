@@ -23,8 +23,9 @@ export interface Rect {
 
 export class CoordinateTransformer {
   /**
-   * Transforms world coordinates to screen coordinates
+   * Transforms world coordinates to screen coordinates  
    * Formula: screenX = worldX * scale + cameraX
+   * (inverse of CameraService.applyToPoint)
    */
   static worldToScreen(
     world: WorldCoordinates,

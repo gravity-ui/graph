@@ -1,9 +1,11 @@
-import { test } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { GraphPageObject } from "../page-objects/GraphPageObject";
 
-test.describe("Debug Coordinates", () => {
-  test("debug block coordinates and hit test", async ({ page }) => {
-    const graphPO = new GraphPageObject(page);
+test.describe("Debug Modifier Keys", () => {
+  let graphPO: GraphPageObject;
+
+  test.beforeEach(async ({ page }) => {
+    graphPO = new GraphPageObject(page);
 
     await graphPO.initialize({
       blocks: [
@@ -18,62 +20,110 @@ test.describe("Debug Coordinates", () => {
           anchors: [],
           selected: false,
         },
+        {
+          id: "block-2",
+          is: "Block",
+          x: 400,
+          y: 200,
+          width: 200,
+          height: 100,
+          name: "Block 2",
+          anchors: [],
+          selected: false,
+        },
       ],
       connections: [],
     });
 
-    // Get debug info
-    const debugInfo = await page.evaluate(() => {
-      const blockState = window.graph.blocks.getBlockState("block-1");
-      const geometry = blockState.$geometry.value;
-      const camera = window.graph.cameraService.getCameraState();
-      
-      const worldCenterX = geometry.x + geometry.width / 2;
-      const worldCenterY = geometry.y + geometry.height / 2;
-      
-      const screenX = worldCenterX * camera.scale + camera.x;
-      const screenY = worldCenterY * camera.scale + camera.y;
-
-      // Test hit detection
-      const elementsAtPoint = window.graph.getElementsOverPoint({ x: worldCenterX, y: worldCenterY });
-
-      return {
-        blockGeometry: geometry,
-        cameraState: { x: camera.x, y: camera.y, scale: camera.scale },
-        worldCenter: { x: worldCenterX, y: worldCenterY },
-        screenCenter: { x: screenX, y: screenY },
-        canvasBounds: {
-          width: camera.width,
-          height: camera.height,
-        },
-        elementsAtWorldCenter: elementsAtPoint.map((el: any) => el.id || el.constructor.name),
+    // Add event listeners to log all click events
+    await page.evaluate(() => {
+      // Override applyEventToTargetComponent to log events
+      const graphLayer = window.graph.getGraphLayer();
+      const originalApply = graphLayer.applyEventToTargetComponent.bind(graphLayer);
+      graphLayer.applyEventToTargetComponent = function(event: MouseEvent, target: any) {
+        console.log("applyEventToTargetComponent:", {
+          eventType: event.type,
+          metaKey: event.metaKey,
+          ctrlKey: event.ctrlKey,
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+          target: target?.constructor?.name,
+        });
+        return originalApply(event, target);
       };
+
+      // Log canvas clicks with capture to see original event
+      const canvas = window.graph.getGraphCanvas();
+      canvas.addEventListener("click", (e: MouseEvent) => {
+        console.log("Canvas click (original):", {
+          metaKey: e.metaKey,
+          ctrlKey: e.ctrlKey,
+          shiftKey: e.shiftKey,
+          altKey: e.altKey,
+        });
+      }, { capture: true });
+    });
+  });
+
+  test("should log modifier keys on click", async ({ page }) => {
+    // Listen to console logs
+    page.on("console", (msg) => {
+      console.log("Browser console:", msg.text());
     });
 
-    console.log("Debug Info:", JSON.stringify(debugInfo, null, 2));
+    // Click with Meta key
+    await graphPO.blocks.click("block-1", { ctrl: true });
 
-    // Try clicking
-    await page.mouse.click(debugInfo.screenCenter.x, debugInfo.screenCenter.y);
-    await page.waitForTimeout(200);
+    // Wait for event processing
+    await graphPO.waitForFrames(2);
 
-    const isSelected = await graphPO.blocks.isSelected("block-1");
-    console.log("Is block selected:", isSelected);
+    // Check selection
+    const selectedBlocks = await graphPO.blocks.getSelected();
+    console.log("Selected blocks:", selectedBlocks);
+  });
 
-    // Check what element is at click position
-    const elementAtClick = await page.evaluate((coords) => {
-      const point = window.graph.getPointInCameraSpace({
-        pageX: coords.screenX + window.scrollX,
-        pageY: coords.screenY + window.scrollY,
-        target: window.graph.getGraphCanvas(),
-      } as any);
-      
-      const elements = window.graph.getElementsOverPoint(point);
-      return elements.map((el: any) => el.id || el.constructor.name);
-    }, { screenX: debugInfo.screenCenter.x, screenY: debugInfo.screenCenter.y });
+  test("should test drag coordinates after zoomToBlocks", async ({ page }) => {
+    // Zoom to blocks to ensure they're visible
+    await graphPO.camera.zoomToBlocks(["block-1", "block-2"]);
+    await graphPO.waitForFrames(3);
 
-    console.log("Elements at click position:", elementAtClick);
+    // Get camera state after zoom
+    const cameraStateAfterZoom = await graphPO.camera.getState();
+    console.log("Camera state after zoom:", cameraStateAfterZoom);
 
-    // Take screenshot
-    await page.screenshot({ path: "test-results/debug-screenshot.png" });
+    // Get initial geometry
+    const initialGeometry = await graphPO.blocks.getGeometry("block-1");
+    console.log("Initial geometry:", initialGeometry);
+
+    // Calculate screen position of block center after zoom
+    const fromScreen = {
+      x: (initialGeometry.x + initialGeometry.width / 2 - cameraStateAfterZoom.x) * cameraStateAfterZoom.scale,
+      y: (initialGeometry.y + initialGeometry.height / 2 - cameraStateAfterZoom.y) * cameraStateAfterZoom.scale,
+    };
+    console.log("From screen (after zoom):", fromScreen);
+
+    // Select block first
+    await graphPO.blocks.click("block-1");
+    await graphPO.waitForFrames(2);
+
+    // Target position in world coordinates
+    const targetWorld = { x: 500, y: 300 };
+    console.log("Target world:", targetWorld);
+
+    // Calculate screen position of target
+    const toScreen = {
+      x: (targetWorld.x - cameraStateAfterZoom.x) * cameraStateAfterZoom.scale,
+      y: (targetWorld.y - cameraStateAfterZoom.y) * cameraStateAfterZoom.scale,
+    };
+    console.log("To screen:", toScreen);
+
+    // Perform drag
+    await graphPO.blocks.dragTo("block-1", targetWorld);
+
+    // Check final position
+    const finalGeometry = await graphPO.blocks.getGeometry("block-1");
+    console.log("Final geometry:", finalGeometry);
+    console.log("Difference X:", Math.abs(finalGeometry.x - targetWorld.x));
+    console.log("Difference Y:", Math.abs(finalGeometry.y - targetWorld.y));
   });
 });

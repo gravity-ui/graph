@@ -6,32 +6,16 @@ import {
   Rect,
 } from "../utils/CoordinateTransformer";
 import { CameraPageObject } from "./CameraPageObject";
+import type { GraphPageObject } from "./GraphPageObject";
 
 export class BlockPageObject {
+  private get camera(): CameraPageObject {
+    return this.graphPO.camera;
+  }
   constructor(
     private page: Page,
-    private camera: CameraPageObject,
-    private getGraphPO?: () => { waitForFrames: (count: number) => Promise<void> }
-  ) {}
-
-  /**
-   * Wait for animation frames
-   */
-  private async waitForFrames(count: number = 1): Promise<void> {
-    await this.page.evaluate((frameCount) => {
-      return new Promise<void>((resolve) => {
-        let remaining = frameCount;
-        const tick = () => {
-          remaining--;
-          if (remaining <= 0) {
-            resolve();
-          } else {
-            requestAnimationFrame(tick);
-          }
-        };
-        requestAnimationFrame(tick);
-      });
-    }, count);
+    private graphPO: GraphPageObject
+  ) {
   }
 
   /**
@@ -83,46 +67,33 @@ export class BlockPageObject {
     const viewportX = canvasPos.x + canvasBounds.left;
     const viewportY = canvasPos.y + canvasBounds.top;
 
-    // Emulate full click sequence with correct coordinates and modifiers
-    await this.page.evaluate(
-      ({ canvasX, canvasY, viewportX, viewportY, modifiers }) => {
-        const canvas = window.graph.getGraphCanvas();
+    // Determine modifier key based on platform
+    // On macOS, Cmd (Meta) is used for multi-selection, not Ctrl
+    let modifierKey: "Shift" | "Control" | "Meta" | null = null;
+    if (options?.shift) {
+      modifierKey = "Shift";
+    } else if (options?.ctrl || options?.meta) {
+      const isMac = await this.page.evaluate(() =>
+        navigator.platform.toLowerCase().includes("mac")
+      );
+      modifierKey = isMac ? "Meta" : "Control";
+    }
 
-        const createMouseEvent = (type: string) => {
-          return new MouseEvent(type, {
-            bubbles: true,
-            cancelable: true,
-            view: window,
-            clientX: viewportX,
-            clientY: viewportY,
-            screenX: viewportX,
-            screenY: viewportY,
-            pageX: viewportX + window.scrollX,
-            pageY: viewportY + window.scrollY,
-            button: 0,
-            shiftKey: modifiers.shift || false,
-            ctrlKey: modifiers.ctrl || false,
-            metaKey: modifiers.meta || false,
-          });
-        };
+    // Press modifier key before click (Playwright's modifiers array doesn't work properly)
+    if (modifierKey) {
+      await this.page.keyboard.down(modifierKey);
+    }
 
-        // Full sequence for proper click emulation
-        canvas.dispatchEvent(createMouseEvent("mousemove"));
-        canvas.dispatchEvent(createMouseEvent("mousedown"));
-        canvas.dispatchEvent(createMouseEvent("mouseup"));
-        canvas.dispatchEvent(createMouseEvent("click"));
-      },
-      {
-        canvasX: canvasPos.x,
-        canvasY: canvasPos.y,
-        viewportX,
-        viewportY,
-        modifiers: options || {},
-      }
-    );
+    // Perform the click
+    await this.page.mouse.click(viewportX, viewportY);
+
+    // Release modifier key after click
+    if (modifierKey) {
+      await this.page.keyboard.up(modifierKey);
+    }
 
     // Wait for scheduler to process the click
-    await this.waitForFrames(2);
+    await this.graphPO.waitForFrames(2);
   }
 
   /**
@@ -137,24 +108,56 @@ export class BlockPageObject {
    * Drag block to new world position
    */
   async dragTo(blockId: string, toWorldPos: WorldCoordinates): Promise<void> {
-    const fromScreen = await this.getScreenCenter(blockId);
+    // Get block geometry in world coordinates
+    const geometry = await this.getGeometry(blockId);
+    const fromWorldPos = CoordinateTransformer.getRectCenter(geometry);
+
+    // Get camera state for coordinate transformation
     const cameraState = await this.camera.getState();
+
+    // Transform both positions to screen coordinates (canvas-relative)
+    const fromScreen = CoordinateTransformer.worldToScreen(
+      fromWorldPos,
+      cameraState
+    );
     const toScreen = CoordinateTransformer.worldToScreen(
       toWorldPos,
       cameraState
     );
 
-    await this.page.mouse.move(fromScreen.x, fromScreen.y);
-    await this.waitForFrames(1);
-    
+    // Get canvas bounds to convert to viewport coordinates
+    const canvasBounds = await this.page.evaluate(() => {
+      const canvas = window.graph.getGraphCanvas();
+      const rect = canvas.getBoundingClientRect();
+      return {
+        left: rect.left,
+        top: rect.top,
+      };
+    });
+
+    // Convert canvas-relative to viewport coordinates
+    const fromViewportX = fromScreen.x + canvasBounds.left;
+    const fromViewportY = fromScreen.y + canvasBounds.top;
+    const toViewportX = toScreen.x + canvasBounds.left;
+    const toViewportY = toScreen.y + canvasBounds.top;
+
+    // Perform drag using Playwright's mouse API
+    // Step 1: Move to start position
+    await this.page.mouse.move(fromViewportX, fromViewportY);
+    // Step 2: Press mouse button
     await this.page.mouse.down();
-    await this.waitForFrames(1);
+    await this.graphPO.waitForFrames(5);
     
-    await this.page.mouse.move(toScreen.x, toScreen.y, { steps: 10 });
-    await this.waitForFrames(2);
+    // Step 3: Move to end position with steps for smooth drag
+    await this.page.mouse.move(toViewportX, toViewportY, { steps: 10 });
+
+    await this.graphPO.waitForFrames(5);
     
+    // Step 4: Release mouse button
     await this.page.mouse.up();
-    await this.waitForFrames(2);
+
+    // Wait for drag to be processed and changes to be applied
+    await this.graphPO.waitForFrames(20);
   }
 
   /**
