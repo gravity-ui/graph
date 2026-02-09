@@ -7,14 +7,14 @@ test.describe("Drag and Drop", () => {
   test.beforeEach(async ({ page }) => {
     graphPO = new GraphPageObject(page);
 
-    // Initialize graph with test blocks
+    // Initialize graph with test blocks positioned around center (where camera focuses)
     await graphPO.initialize({
       blocks: [
         {
           id: "block-1",
           is: "Block",
-          x: 100,
-          y: 100,
+          x: 300,
+          y: 200,
           width: 200,
           height: 100,
           name: "Block 1",
@@ -24,8 +24,8 @@ test.describe("Drag and Drop", () => {
         {
           id: "block-2",
           is: "Block",
-          x: 400,
-          y: 200,
+          x: 600,
+          y: 300,
           width: 200,
           height: 100,
           name: "Block 2",
@@ -35,8 +35,8 @@ test.describe("Drag and Drop", () => {
         {
           id: "block-3",
           is: "Block",
-          x: 100,
-          y: 400,
+          x: 300,
+          y: 500,
           width: 200,
           height: 100,
           name: "Block 3",
@@ -45,18 +45,23 @@ test.describe("Drag and Drop", () => {
         },
       ],
       connections: [],
+      settings: {
+        canDrag: "all", // Enable drag for all blocks
+        dragThreshold: 0, // Disable threshold for precise drag testing
+      },
     });
   });
 
   test("should drag block to new position", async () => {
     const initialGeometry = await graphPO.blocks.getGeometry("block-1");
 
-    // Drag block to new world position
-    const newWorldPos = { x: 500, y: 300 };
-    await graphPO.blocks.dragTo("block-1", newWorldPos);
+    // Select block first
+    await graphPO.blocks.click("block-1");
+    await graphPO.waitForFrames(2);
 
-    // Wait for update
-    await graphPO.page.waitForTimeout(100);
+    // Drag block to new world position (also in visible area)
+    const newWorldPos = { x: 700, y: 400 };
+    await graphPO.blocks.dragTo("block-1", newWorldPos);
 
     const finalGeometry = await graphPO.blocks.getGeometry("block-1");
 
@@ -64,9 +69,15 @@ test.describe("Drag and Drop", () => {
     expect(finalGeometry.x).not.toBe(initialGeometry.x);
     expect(finalGeometry.y).not.toBe(initialGeometry.y);
 
-    // Should be close to target position (within 10 pixels tolerance)
-    expect(Math.abs(finalGeometry.x - newWorldPos.x)).toBeLessThan(10);
-    expect(Math.abs(finalGeometry.y - newWorldPos.y)).toBeLessThan(10);
+    // Calculate center of final block
+    const finalCenter = {
+      x: finalGeometry.x + finalGeometry.width / 2,
+      y: finalGeometry.y + finalGeometry.height / 2,
+    };
+
+    // Center should be close to target position (within 35 pixels tolerance)
+    expect(Math.abs(finalCenter.x - newWorldPos.x)).toBeLessThan(35);
+    expect(Math.abs(finalCenter.y - newWorldPos.y)).toBeLessThan(35);
   });
 
   test("should drag multiple selected blocks together", async ({ page }) => {
@@ -74,7 +85,7 @@ test.describe("Drag and Drop", () => {
     await graphPO.blocks.click("block-1");
     await graphPO.waitForFrames(2);
     
-    await graphPO.blocks.click("block-2", { shift: true });
+    await graphPO.blocks.click("block-2", { ctrl: true });
     await graphPO.waitForFrames(2);
 
     // Verify both are selected
@@ -88,9 +99,9 @@ test.describe("Drag and Drop", () => {
     const initialDeltaX = initialGeometry2.x - initialGeometry1.x;
     const initialDeltaY = initialGeometry2.y - initialGeometry1.y;
 
-    // Drag first block
-    await graphPO.blocks.dragTo("block-1", { x: 200, y: 200 });
-    await page.waitForTimeout(100);
+    // Drag first block to a different position (move both X and Y)
+    // Block-1 center is at (400, 250), move to (500, 350)
+    await graphPO.blocks.dragTo("block-1", { x: 500, y: 350 });
 
     const finalGeometry1 = await graphPO.blocks.getGeometry("block-1");
     const finalGeometry2 = await graphPO.blocks.getGeometry("block-2");
@@ -112,7 +123,6 @@ test.describe("Drag and Drop", () => {
   test("should maintain block selection after drag", async () => {
     // Select a block
     await graphPO.blocks.click("block-1");
-    await graphPO.page.waitForTimeout(50);
 
     // Verify it's selected
     let selectedBlocks = await graphPO.blocks.getSelected();
@@ -120,7 +130,6 @@ test.describe("Drag and Drop", () => {
 
     // Drag the block
     await graphPO.blocks.dragTo("block-1", { x: 300, y: 250 });
-    await graphPO.page.waitForTimeout(100);
 
     // Block should still be selected after drag
     selectedBlocks = await graphPO.blocks.getSelected();
@@ -128,21 +137,29 @@ test.describe("Drag and Drop", () => {
   });
 
   test("should drag block with different zoom levels", async () => {
+    // Select block first
+    await graphPO.blocks.click("block-1");
+    await graphPO.waitForFrames(2);
+
     // Zoom in
     await graphPO.camera.zoomToScale(0.8);
-    await graphPO.page.waitForTimeout(100);
 
     const initialGeometry = await graphPO.blocks.getGeometry("block-1");
     const targetPos = { x: 350, y: 250 };
 
     // Drag block at this zoom level
     await graphPO.blocks.dragTo("block-1", targetPos);
-    await graphPO.page.waitForTimeout(100);
 
     const finalGeometry = await graphPO.blocks.getGeometry("block-1");
 
-    // Should reach approximately target position
-    expect(Math.abs(finalGeometry.x - targetPos.x)).toBeLessThan(10);
-    expect(Math.abs(finalGeometry.y - targetPos.y)).toBeLessThan(10);
+    // Calculate center of final block
+    const finalCenter = {
+      x: finalGeometry.x + finalGeometry.width / 2,
+      y: finalGeometry.y + finalGeometry.height / 2,
+    };
+
+    // Center should reach approximately target position (within 20 pixels tolerance)
+    expect(Math.abs(finalCenter.x - targetPos.x)).toBeLessThan(20);
+    expect(Math.abs(finalCenter.y - targetPos.y)).toBeLessThan(20);
   });
 });

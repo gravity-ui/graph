@@ -1,4 +1,5 @@
 import { Page } from "@playwright/test";
+import type { GraphPageObject } from "./GraphPageObject";
 
 export interface ConnectionData {
   id: string | number;
@@ -9,7 +10,10 @@ export interface ConnectionData {
 }
 
 export class ConnectionPageObject {
-  constructor(private page: Page) {}
+  constructor(
+    private page: Page,
+    private graphPO: GraphPageObject
+  ) {}
 
   /**
    * Get all connections

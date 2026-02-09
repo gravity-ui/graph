@@ -19,9 +19,9 @@ export class GraphPageObject {
 
   constructor(page: Page) {
     this.page = page;
-    this.camera = new CameraPageObject(page);
-    this.blocks = new BlockPageObject(page, this.camera);
-    this.connections = new ConnectionPageObject(page);
+    this.camera = new CameraPageObject(page, this);
+    this.blocks = new BlockPageObject(page, this);
+    this.connections = new ConnectionPageObject(page, this);
   }
 
   /**
@@ -73,34 +73,34 @@ export class GraphPageObject {
   }
 
   /**
-   * Wait for N animation frames to complete
+   * Wait for N animation frames to complete using graph's scheduler
    * This is necessary because the library uses Scheduler with requestAnimationFrame
    */
   async waitForFrames(count: number = 1): Promise<void> {
     await this.page.evaluate((frameCount) => {
       return new Promise<void>((resolve) => {
-        let remaining = frameCount;
-        const tick = () => {
-          remaining--;
-          if (remaining <= 0) {
-            resolve();
-          } else {
-            requestAnimationFrame(tick);
+        const { schedule, ESchedulerPriority } = window.GraphModule;
+        schedule(
+          () => resolve(),
+          {
+            priority: ESchedulerPriority.LOWEST,
+            frameInterval: frameCount,
+            once: true,
           }
-        };
-        requestAnimationFrame(tick);
+        );
       });
     }, count);
   }
 
   /**
-   * Wait for scheduler to be idle
+   * Wait for scheduler to be idle using graph's scheduler
    * Waits until there are no more scheduled tasks
    */
   async waitForSchedulerIdle(timeout: number = 5000): Promise<void> {
     await this.page.evaluate((timeoutMs) => {
       return new Promise<void>((resolve, reject) => {
         const startTime = Date.now();
+        const { schedule, ESchedulerPriority } = window.GraphModule;
         
         const check = () => {
           if (Date.now() - startTime > timeoutMs) {
@@ -108,13 +108,15 @@ export class GraphPageObject {
             return;
           }
 
-          // Wait for RAF to ensure all scheduled tasks are processed
-          requestAnimationFrame(() => {
-            // Give scheduler one more frame to be sure
-            requestAnimationFrame(() => {
-              resolve();
-            });
-          });
+          // Use graph's scheduler to wait for a frame
+          schedule(
+            () => resolve(),
+            {
+              priority: ESchedulerPriority.LOWEST,
+              frameInterval: 2,
+              once: true,
+            }
+          );
         };
 
         check();

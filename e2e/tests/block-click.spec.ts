@@ -54,7 +54,6 @@ test.describe("Block Click Selection", () => {
 
     // Check if block is selected
     const isSelected = await graphPO.blocks.isSelected("block-1");
-    await graphPO.page.pause();
     expect(isSelected).toBe(true);
 
     // Check selected blocks list
@@ -80,13 +79,13 @@ test.describe("Block Click Selection", () => {
     expect(selectedBlocks).toHaveLength(0);
   });
 
-  test("should select multiple blocks with Shift+Click", async () => {
+  test("should select multiple blocks with Ctrl+Click", async () => {
     // Select first block
     await graphPO.blocks.click("block-1");
     await graphPO.waitForFrames(2);
 
-    // Click second block with Shift modifier
-    await graphPO.blocks.click("block-2", { shift: true });
+    // Click second block with Ctrl modifier (Cmd on Mac)
+    await graphPO.blocks.click("block-2", { ctrl: true });
 
     // Check that both blocks are selected
     const selectedBlocks = await graphPO.blocks.getSelected();
