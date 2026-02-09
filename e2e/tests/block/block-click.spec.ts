@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { GraphPageObject } from "../page-objects/GraphPageObject";
+import { GraphPageObject } from "../../page-objects/GraphPageObject";
 
 test.describe("Block Click Selection", () => {
   let graphPO: GraphPageObject;
@@ -49,25 +49,31 @@ test.describe("Block Click Selection", () => {
   });
 
   test("should select block on click", async () => {
-    // Click on block-1
-    await graphPO.blocks.click("block-1");
+    // Get block COM
+    const block1 = graphPO.getBlockCOM("block-1");
+
+    // Click on block
+    await block1.click();
 
     // Check if block is selected
-    const isSelected = await graphPO.blocks.isSelected("block-1");
+    const isSelected = await block1.isSelected();
     expect(isSelected).toBe(true);
 
     // Check selected blocks list
-    const selectedBlocks = await graphPO.blocks.getSelected();
+    const selectedBlocks = await graphPO.getSelectedBlocks();
     expect(selectedBlocks).toContain("block-1");
     expect(selectedBlocks).toHaveLength(1);
   });
 
   test("should deselect block when clicking on empty space", async () => {
+    // Get block COM
+    const block1 = graphPO.getBlockCOM("block-1");
+
     // Select block first
-    await graphPO.blocks.click("block-1");
-    
+    await block1.click();
+
     // Verify it's selected
-    let selectedBlocks = await graphPO.blocks.getSelected();
+    let selectedBlocks = await graphPO.getSelectedBlocks();
     expect(selectedBlocks).toContain("block-1");
 
     // Click on empty space (top-left corner)
@@ -75,20 +81,23 @@ test.describe("Block Click Selection", () => {
     await graphPO.waitForFrames(2);
 
     // Check that no blocks are selected
-    selectedBlocks = await graphPO.blocks.getSelected();
+    selectedBlocks = await graphPO.getSelectedBlocks();
     expect(selectedBlocks).toHaveLength(0);
   });
 
   test("should select multiple blocks with Ctrl+Click", async () => {
+    // Get block COMs
+    const block1 = graphPO.getBlockCOM("block-1");
+    const block2 = graphPO.getBlockCOM("block-2");
+
     // Select first block
-    await graphPO.blocks.click("block-1");
-    await graphPO.waitForFrames(2);
+    await block1.click();
 
     // Click second block with Ctrl modifier (Cmd on Mac)
-    await graphPO.blocks.click("block-2", { ctrl: true });
+    await block2.click({ ctrl: true });
 
     // Check that both blocks are selected
-    const selectedBlocks = await graphPO.blocks.getSelected();
+    const selectedBlocks = await graphPO.getSelectedBlocks();
     expect(selectedBlocks).toHaveLength(2);
     expect(selectedBlocks).toContain("block-1");
     expect(selectedBlocks).toContain("block-2");

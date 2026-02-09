@@ -27,15 +27,21 @@ test.describe("Selection Test", () => {
       const blockState = window.graph.blocks.getBlockState("block-1");
       console.log("BlockState exists:", !!blockState);
       console.log("SelectionService:", window.graph.selectionService);
-      
+
       // Try to select the block using correct API
-      window.graph.selectionService.select("block", ["block-1"], 0); // ESelectionStrategy.REPLACE = 0
+      const { ESelectionStrategy } = window.GraphModule;
+      window.graph.selectionService.select(
+        "block",
+        ["block-1"],
+        ESelectionStrategy.REPLACE
+      );
     });
 
     await page.waitForTimeout(200);
 
-    const isSelected = await graphPO.blocks.isSelected("block-1");
-    console.log("Is block selected after programmatic selection:", isSelected);
+    // Get block COM
+    const block1 = graphPO.getBlockCOM("block-1");
+    const isSelected = await block1.isSelected();
 
     expect(isSelected).toBe(true);
   });

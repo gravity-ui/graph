@@ -42,44 +42,53 @@ test.describe("Camera Control", () => {
   });
 
   test("should zoom in with mouse wheel and update camera scale", async () => {
-    // First zoom out to make room for zoom in
-    await graphPO.camera.emulateZoom(300); // Zoom out
+    // Get camera COM
+    const camera = graphPO.getCamera();
 
-    const initialCamera = await graphPO.camera.getState();
+    // First zoom out to make room for zoom in
+    await camera.emulateZoom(300); // Zoom out
+
+    const initialCamera = await camera.getState();
     const initialScale = initialCamera.scale;
 
     // Now zoom in
-    await graphPO.camera.emulateZoom(-100); // Zoom in
+    await camera.emulateZoom(-100); // Zoom in
 
-    const newCamera = await graphPO.camera.getState();
-    
+    const newCamera = await camera.getState();
+
     // Scale should have increased
     expect(newCamera.scale).toBeGreaterThan(initialScale);
   });
 
   test("should zoom out with mouse wheel and update camera scale", async () => {
-    // First zoom in to make room for zoom out
-    await graphPO.camera.emulateZoom(-300); // Zoom in
+    // Get camera COM
+    const camera = graphPO.getCamera();
 
-    const initialCamera = await graphPO.camera.getState();
+    // First zoom in to make room for zoom out
+    await camera.emulateZoom(-300); // Zoom in
+
+    const initialCamera = await camera.getState();
     const initialScale = initialCamera.scale;
 
     // Now zoom out
-    await graphPO.camera.emulateZoom(100); // Zoom out
+    await camera.emulateZoom(100); // Zoom out
 
-    const newCamera = await graphPO.camera.getState();
-    
+    const newCamera = await camera.getState();
+
     // Scale should have decreased
     expect(newCamera.scale).toBeLessThan(initialScale);
   });
 
   test("should pan camera with mouse drag", async () => {
-    const initialCamera = await graphPO.camera.getState();
+    // Get camera COM
+    const camera = graphPO.getCamera();
+
+    const initialCamera = await camera.getState();
 
     // Pan camera by dragging
-    await graphPO.camera.emulatePan(100, 50);
+    await camera.emulatePan(100, 50);
 
-    const newCamera = await graphPO.camera.getState();
+    const newCamera = await camera.getState();
 
     // Camera position should have changed
     expect(newCamera.x).not.toBe(initialCamera.x);
@@ -87,19 +96,23 @@ test.describe("Camera Control", () => {
   });
 
   test("should maintain world coordinates after zoom", async () => {
-    const initialGeometry = await graphPO.blocks.getGeometry("block-1");
+    // Get block and camera COMs
+    const block1 = graphPO.getBlockCOM("block-1");
+    const camera = graphPO.getCamera();
+
+    const initialGeometry = await block1.getGeometry();
 
     // Zoom in multiple times using helper
     for (let i = 0; i < 3; i++) {
-      await graphPO.camera.emulateZoom(-100);
+      await camera.emulateZoom(-100);
     }
 
     // Zoom out back
     for (let i = 0; i < 3; i++) {
-      await graphPO.camera.emulateZoom(100);
+      await camera.emulateZoom(100);
     }
 
-    const finalGeometry = await graphPO.blocks.getGeometry("block-1");
+    const finalGeometry = await block1.getGeometry();
 
     // World coordinates should remain the same
     expect(finalGeometry.x).toBe(initialGeometry.x);
@@ -109,17 +122,21 @@ test.describe("Camera Control", () => {
   });
 
   test("should transform screen coordinates correctly after zoom", async () => {
-    // First zoom out to have room for zoom in
-    await graphPO.camera.emulateZoom(300);
+    // Get block and camera COMs
+    const block1 = graphPO.getBlockCOM("block-1");
+    const camera = graphPO.getCamera();
 
-    const initialCamera = await graphPO.camera.getState();
-    const blockGeometry = await graphPO.blocks.getGeometry("block-1");
+    // First zoom out to have room for zoom in
+    await camera.emulateZoom(300);
+
+    const initialCamera = await camera.getState();
+    const blockGeometry = await block1.getGeometry();
 
     // Zoom in
-    await graphPO.camera.emulateZoom(-100);
+    await camera.emulateZoom(-100);
 
-    const newCamera = await graphPO.camera.getState();
-    const sameBlockGeometry = await graphPO.blocks.getGeometry("block-1");
+    const newCamera = await camera.getState();
+    const sameBlockGeometry = await block1.getGeometry();
 
     // World coordinates should be unchanged
     expect(sameBlockGeometry.x).toBe(blockGeometry.x);
@@ -130,14 +147,18 @@ test.describe("Camera Control", () => {
   });
 
   test("should pan camera and maintain block world positions", async () => {
-    const initialGeometry = await graphPO.blocks.getGeometry("block-1");
-    const initialCamera = await graphPO.camera.getState();
+    // Get block and camera COMs
+    const block1 = graphPO.getBlockCOM("block-1");
+    const camera = graphPO.getCamera();
+
+    const initialGeometry = await block1.getGeometry();
+    const initialCamera = await camera.getState();
 
     // Pan by dragging using helper
-    await graphPO.camera.emulatePan(150, 100);
+    await camera.emulatePan(150, 100);
 
-    const newCamera = await graphPO.camera.getState();
-    const finalGeometry = await graphPO.blocks.getGeometry("block-1");
+    const newCamera = await camera.getState();
+    const finalGeometry = await block1.getGeometry();
 
     // Camera position should have changed
     expect(newCamera.x).not.toBe(initialCamera.x);

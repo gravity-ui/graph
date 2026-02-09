@@ -1,9 +1,9 @@
 import { Page } from "@playwright/test";
 import { TBlock } from "../../src/components/canvas/blocks/Block";
 import { TConnection } from "../../src/store/connection/ConnectionState";
-import { BlockPageObject } from "./BlockPageObject";
-import { CameraPageObject } from "./CameraPageObject";
-import { ConnectionPageObject } from "./ConnectionPageObject";
+import { GraphBlockComponentObject } from "./GraphBlockComponentObject";
+import { GraphConnectionComponentObject } from "./GraphConnectionComponentObject";
+import { GraphCameraComponentObject } from "./GraphCameraComponentObject";
 
 export interface GraphConfig {
   blocks?: TBlock[];
@@ -12,16 +12,33 @@ export interface GraphConfig {
 }
 
 export class GraphPageObject {
-  public readonly camera: CameraPageObject;
-  public readonly blocks: BlockPageObject;
-  public readonly connections: ConnectionPageObject;
   public readonly page: Page;
+  private cameraComponent: GraphCameraComponentObject;
 
   constructor(page: Page) {
     this.page = page;
-    this.camera = new CameraPageObject(page, this);
-    this.blocks = new BlockPageObject(page, this);
-    this.connections = new ConnectionPageObject(page, this);
+    this.cameraComponent = new GraphCameraComponentObject(page, this);
+  }
+
+  /**
+   * Get Component Object Model for a specific block
+   */
+  getBlockCOM(blockId: string): GraphBlockComponentObject {
+    return new GraphBlockComponentObject(blockId, this.page, this);
+  }
+
+  /**
+   * Get Component Object Model for a specific connection
+   */
+  getConnectionCOM(connectionId: string): GraphConnectionComponentObject {
+    return new GraphConnectionComponentObject(connectionId, this.page, this);
+  }
+
+  /**
+   * Get Component Object Model for camera
+   */
+  getCamera(): GraphCameraComponentObject {
+    return this.cameraComponent;
   }
 
   /**
@@ -152,33 +169,225 @@ export class GraphPageObject {
   }
 
   /**
-   * Emit custom event on graph
+   * Click at world coordinates
    */
-  async event(
-    type: "click" | "mouseover" | "mousedown" | "mouseup",
-    xy: { x: number; y: number }
-  ): Promise<void> {
-    await this.page.mouse.move(xy.x, xy.y);
-    if (type === "click") {
-      await this.page.mouse.click(xy.x, xy.y);
-    } else if (type === "mousedown") {
-      await this.page.mouse.down();
-    } else if (type === "mouseup") {
-      await this.page.mouse.up();
+  async click(
+    worldX: number,
+    worldY: number,
+    options?: {
+      shift?: boolean;
+      ctrl?: boolean;
+      meta?: boolean;
+      waitFrames?: number;
     }
+  ): Promise<void> {
+    // Transform world coordinates to screen and perform click
+    const { screenX, screenY, canvasBounds } = await this.page.evaluate(
+      ({ wx, wy }) => {
+        const [sx, sy] = window.graph.cameraService.getAbsoluteXY(wx, wy);
+        const canvas = window.graph.getGraphCanvas();
+        const rect = canvas.getBoundingClientRect();
+        return {
+          screenX: sx,
+          screenY: sy,
+          canvasBounds: { left: rect.left, top: rect.top },
+        };
+      },
+      { wx: worldX, wy: worldY }
+    );
+
+    // Convert to viewport coordinates
+    const viewportX = screenX + canvasBounds.left;
+    const viewportY = screenY + canvasBounds.top;
+
+    // Determine modifier key based on platform
+    let modifierKey: "Shift" | "Control" | "Meta" | null = null;
+    if (options?.shift) {
+      modifierKey = "Shift";
+    } else if (options?.ctrl || options?.meta) {
+      const isMac = await this.page.evaluate(() =>
+        navigator.platform.toLowerCase().includes("mac")
+      );
+      modifierKey = isMac ? "Meta" : "Control";
+    }
+
+    // Press modifier key before click
+    if (modifierKey) {
+      await this.page.keyboard.down(modifierKey);
+    }
+
+    // Perform the click
+    await this.page.mouse.click(viewportX, viewportY);
+
+    // Release modifier key after click
+    if (modifierKey) {
+      await this.page.keyboard.up(modifierKey);
+    }
+
+    // Wait for scheduler to process the click
+    const framesToWait = options?.waitFrames ?? 2;
+    await this.waitForFrames(framesToWait);
   }
 
   /**
-   * Get blocks store
+   * Double click at world coordinates
    */
-  get blocksStore() {
-    return this.blocks;
+  async doubleClick(
+    worldX: number,
+    worldY: number,
+    options?: { waitFrames?: number }
+  ): Promise<void> {
+    const { screenX, screenY, canvasBounds } = await this.page.evaluate(
+      ({ wx, wy }) => {
+        const [sx, sy] = window.graph.cameraService.getAbsoluteXY(wx, wy);
+        const canvas = window.graph.getGraphCanvas();
+        const rect = canvas.getBoundingClientRect();
+        return {
+          screenX: sx,
+          screenY: sy,
+          canvasBounds: { left: rect.left, top: rect.top },
+        };
+      },
+      { wx: worldX, wy: worldY }
+    );
+
+    const viewportX = screenX + canvasBounds.left;
+    const viewportY = screenY + canvasBounds.top;
+
+    await this.page.mouse.dblclick(viewportX, viewportY);
+
+    // Wait for scheduler to process the double click
+    const framesToWait = options?.waitFrames ?? 2;
+    await this.waitForFrames(framesToWait);
   }
 
   /**
-   * Get connections store
+   * Hover at world coordinates
    */
-  get connectionsStore() {
-    return this.connections;
+  async hover(
+    worldX: number,
+    worldY: number,
+    options?: { waitFrames?: number }
+  ): Promise<void> {
+    const { screenX, screenY, canvasBounds } = await this.page.evaluate(
+      ({ wx, wy }) => {
+        const [sx, sy] = window.graph.cameraService.getAbsoluteXY(wx, wy);
+        const canvas = window.graph.getGraphCanvas();
+        const rect = canvas.getBoundingClientRect();
+        return {
+          screenX: sx,
+          screenY: sy,
+          canvasBounds: { left: rect.left, top: rect.top },
+        };
+      },
+      { wx: worldX, wy: worldY }
+    );
+
+    const viewportX = screenX + canvasBounds.left;
+    const viewportY = screenY + canvasBounds.top;
+
+    await this.page.mouse.move(viewportX, viewportY);
+
+    // Wait for hover to be processed
+    const framesToWait = options?.waitFrames ?? 1;
+    await this.waitForFrames(framesToWait);
+  }
+
+  /**
+   * Drag from one world position to another
+   */
+  async dragTo(
+    fromWorldX: number,
+    fromWorldY: number,
+    toWorldX: number,
+    toWorldY: number,
+    options?: { waitFrames?: number }
+  ): Promise<void> {
+    const { fromScreen, toScreen, canvasBounds } = await this.page.evaluate(
+      ({ fx, fy, tx, ty }) => {
+        const [fromSX, fromSY] = window.graph.cameraService.getAbsoluteXY(
+          fx,
+          fy
+        );
+        const [toSX, toSY] = window.graph.cameraService.getAbsoluteXY(tx, ty);
+
+        const canvas = window.graph.getGraphCanvas();
+        const rect = canvas.getBoundingClientRect();
+
+        return {
+          fromScreen: { x: fromSX, y: fromSY },
+          toScreen: { x: toSX, y: toSY },
+          canvasBounds: { left: rect.left, top: rect.top },
+        };
+      },
+      { fx: fromWorldX, fy: fromWorldY, tx: toWorldX, ty: toWorldY }
+    );
+
+    // Convert to viewport coordinates
+    const fromViewportX = fromScreen.x + canvasBounds.left;
+    const fromViewportY = fromScreen.y + canvasBounds.top;
+    const toViewportX = toScreen.x + canvasBounds.left;
+    const toViewportY = toScreen.y + canvasBounds.top;
+
+    // Perform drag
+    await this.page.mouse.move(fromViewportX, fromViewportY);
+    await this.page.mouse.down();
+    await this.waitForFrames(5);
+
+    await this.page.mouse.move(toViewportX, toViewportY, { steps: 10 });
+    await this.waitForFrames(5);
+
+    await this.page.mouse.up();
+
+    // Wait for drag to be processed and changes to be applied
+    const framesToWait = options?.waitFrames ?? 20;
+    await this.waitForFrames(framesToWait);
+  }
+
+  /**
+   * Get all selected block IDs
+   */
+  async getSelectedBlocks(): Promise<Array<string | number>> {
+    return await this.page.evaluate(() => {
+      const selection = window.graph.selectionService.$selection.value;
+      const blockSelection = selection.get("block");
+      return blockSelection ? Array.from(blockSelection) : [];
+    });
+  }
+
+  /**
+   * Get all connections
+   */
+  async getAllConnections(): Promise<any[]> {
+    return await this.page.evaluate(() => {
+      return window.graph.connections.toJSON();
+    });
+  }
+
+  /**
+   * Check if connection exists between two blocks
+   */
+  async hasConnectionBetween(
+    sourceBlockId: string,
+    targetBlockId: string
+  ): Promise<boolean> {
+    return await this.page.evaluate(
+      ({ sourceBlockId, targetBlockId }) => {
+        const connections = window.graph.connections.toJSON();
+        return connections.some(
+          (conn: any) =>
+            conn.sourceBlockId === sourceBlockId &&
+            conn.targetBlockId === targetBlockId
+        );
+      },
+      { sourceBlockId, targetBlockId }
+    );
+  }
+
+  async getCursor(): Promise<string> {
+    return await this.page.evaluate(() => {
+      const root = window.graph.layers.$root;
+      return window.getComputedStyle(root).cursor;
+    });
   }
 }
