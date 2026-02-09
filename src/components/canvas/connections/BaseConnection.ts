@@ -163,7 +163,7 @@ export class BaseConnection<
     this.listenEvents(["mouseenter", "mouseleave"]);
   }
 
-  protected override handleEvent(event) {
+  protected override handleEvent(event: MouseEvent) {
     event.stopPropagation();
     super.handleEvent(event);
 

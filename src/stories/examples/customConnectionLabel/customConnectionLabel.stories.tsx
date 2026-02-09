@@ -15,13 +15,13 @@ import "@gravity-ui/uikit/styles/styles.css";
 
 const storyConfig = generatePrettyBlocks({ layersCount: 6, connectionsPerLayer: 80 });
 
-storyConfig.connections.forEach((connection) => {
+storyConfig.connections?.forEach((connection) => {
   connection.label = "Custom Label";
 });
 
-function getRenderLabelText(showLabelOnlyOnSelected: boolean) {
+function getRenderLabelText(this: BlockConnection<TConnection>, showLabelOnlyOnSelected: boolean) {
   return (ctx: CanvasRenderingContext2D) => {
-    if (!this.isVisible()) {
+    if (!this.isVisible() || !this.state.label) {
       return;
     }
 
@@ -33,6 +33,10 @@ function getRenderLabelText(showLabelOnlyOnSelected: boolean) {
     const measure = cachedMeasureText(this.state.label, {
       font,
     });
+
+    if (!measure) {
+      return;
+    }
 
     const { x, y } = getLabelCoords(
       this.geometry.x1,
@@ -49,10 +53,17 @@ function getRenderLabelText(showLabelOnlyOnSelected: boolean) {
       return;
     }
 
-    ctx.fillStyle = this.context.colors.connectionLabel.background;
+    if (this.context.colors.connectionLabel?.background) {
+      ctx.fillStyle = this.context.colors.connectionLabel.background;
+    }
 
-    if (this.state.hovered) ctx.fillStyle = this.context.colors.connectionLabel.hoverBackground;
-    if (this.state.selected) ctx.fillStyle = this.context.colors.connectionLabel.selectedBackground;
+    if (this.state.hovered && this.context.colors.connectionLabel?.hoverBackground) {
+      ctx.fillStyle = this.context.colors.connectionLabel.hoverBackground;
+    }
+
+    if (this.state.selected && this.context.colors.connectionLabel?.selectedBackground) {
+      ctx.fillStyle = this.context.colors.connectionLabel.selectedBackground;
+    }
 
     const rectX = x;
     const rectY = y;
@@ -73,10 +84,17 @@ function getRenderLabelText(showLabelOnlyOnSelected: boolean) {
     // draw a border around the rectangle
     ctx.strokeRect(rectX, rectY, rectWidth, rectHeight);
 
-    ctx.fillStyle = this.context.colors.connectionLabel.text;
+    if (this.context.colors.connectionLabel?.text) {
+      ctx.fillStyle = this.context.colors.connectionLabel.text;
+    }
 
-    if (this.state.hovered) ctx.fillStyle = this.context.colors.connectionLabel.hoverText;
-    if (this.state.selected) ctx.fillStyle = this.context.colors.connectionLabel.selectedText;
+    if (this.state.hovered && this.context.colors.connectionLabel?.hoverText) {
+      ctx.fillStyle = this.context.colors.connectionLabel.hoverText;
+    }
+
+    if (this.state.selected && this.context.colors.connectionLabel?.selectedText) {
+      ctx.fillStyle = this.context.colors.connectionLabel.selectedText;
+    }
 
     ctx.textBaseline = "top";
     ctx.font = font;

@@ -35,7 +35,7 @@ export class BlockConnection<T extends TConnection>
 
   protected path2d: Path2D;
 
-  protected labelGeometry = { x: 0, y: 0, width: 0, height: 0 };
+  protected labelGeometry: { x: number; y: number; width: number; height: number } | undefined = undefined;
 
   protected geometry: { x1: number; x2: number; y1: number; y2: number } = { x1: 0, x2: 0, y1: 0, y2: 0 };
 
@@ -114,7 +114,10 @@ export class BlockConnection<T extends TConnection>
 
   public styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
     ctx.lineWidth = this.state.hovered || this.state.selected ? 4 : 2;
-    ctx.strokeStyle = this.getStrokeColor(this.state);
+    const strokeColor = this.getStrokeColor(this.state);
+    if (strokeColor) {
+      ctx.strokeStyle = strokeColor;
+    }
     return { type: "stroke" };
   }
 
@@ -163,7 +166,13 @@ export class BlockConnection<T extends TConnection>
 
   protected setRenderStyles(ctx: CanvasRenderingContext2D, state = this.state, withDashed = true) {
     ctx.lineWidth = state.hovered || state.selected ? 4 : 2;
-    ctx.strokeStyle = this.getStrokeColor(state);
+
+    const strokeColor = this.getStrokeColor(state);
+
+    if (strokeColor) {
+      ctx.strokeStyle = strokeColor;
+    }
+
     if (withDashed && state.dashed) {
       ctx.setLineDash(state.styles?.dashes || [6, 4]);
     }
@@ -205,6 +214,10 @@ export class BlockConnection<T extends TConnection>
 
     super.updatePoints(additionalPoints);
 
+    if (!this.connectionPoints) {
+      return;
+    }
+
     this.geometry.x1 = this.connectionPoints[0].x;
     this.geometry.y1 = this.connectionPoints[0].y;
     this.geometry.x2 = this.connectionPoints[1].x;
@@ -213,7 +226,7 @@ export class BlockConnection<T extends TConnection>
     this.applyShape();
   }
 
-  protected override handleEvent(event) {
+  protected override handleEvent(event: MouseEvent) {
     event.stopPropagation();
     super.handleEvent(event);
 
@@ -258,7 +271,7 @@ export class BlockConnection<T extends TConnection>
   }
 
   protected renderLabelText(ctx: CanvasRenderingContext2D) {
-    if (!this.isVisible()) {
+    if (!this.isVisible() || !this.state.label) {
       return;
     }
 
@@ -271,6 +284,10 @@ export class BlockConnection<T extends TConnection>
       font,
     });
 
+    if (!measure) {
+      return;
+    }
+
     const { x, y } = getLabelCoords(
       this.geometry.x1,
       this.geometry.y1,
@@ -281,10 +298,17 @@ export class BlockConnection<T extends TConnection>
       this.context.constants.system.GRID_SIZE
     );
 
-    ctx.fillStyle = this.context.colors.connectionLabel.background;
+    if (this.context.colors.connectionLabel?.background) {
+      ctx.fillStyle = this.context.colors.connectionLabel.background;
+    }
 
-    if (this.state.hovered) ctx.fillStyle = this.context.colors.connectionLabel.hoverBackground;
-    if (this.state.selected) ctx.fillStyle = this.context.colors.connectionLabel.selectedBackground;
+    if (this.state.hovered && this.context.colors.connectionLabel?.hoverBackground) {
+      ctx.fillStyle = this.context.colors.connectionLabel.hoverBackground;
+    }
+
+    if (this.state.selected && this.context.colors.connectionLabel?.selectedBackground) {
+      ctx.fillStyle = this.context.colors.connectionLabel.selectedBackground;
+    }
 
     const rectX = x;
     const rectY = y;
@@ -300,10 +324,17 @@ export class BlockConnection<T extends TConnection>
 
     ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
 
-    ctx.fillStyle = this.context.colors.connectionLabel.text;
+    if (this.context.colors.connectionLabel?.text) {
+      ctx.fillStyle = this.context.colors.connectionLabel.text;
+    }
 
-    if (this.state.hovered) ctx.fillStyle = this.context.colors.connectionLabel.hoverText;
-    if (this.state.selected) ctx.fillStyle = this.context.colors.connectionLabel.selectedText;
+    if (this.state.hovered && this.context.colors.connectionLabel?.hoverText) {
+      ctx.fillStyle = this.context.colors.connectionLabel.hoverText;
+    }
+
+    if (this.state.selected && this.context.colors.connectionLabel?.selectedText) {
+      ctx.fillStyle = this.context.colors.connectionLabel.selectedText;
+    }
 
     ctx.textBaseline = "top";
     ctx.font = font;
@@ -312,9 +343,9 @@ export class BlockConnection<T extends TConnection>
   }
 
   public getStrokeColor(state: TConnection) {
-    if (state.selected) return state.styles?.selectedBackground || this.context.colors.connection.selectedBackground;
+    if (state.selected) return state.styles?.selectedBackground || this.context.colors.connection?.selectedBackground;
 
-    return state.styles?.background || this.context.colors.connection.background;
+    return state.styles?.background || this.context.colors.connection?.background;
   }
 
   protected unmount(): void {
