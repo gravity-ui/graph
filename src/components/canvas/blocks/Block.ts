@@ -5,13 +5,14 @@ import isObject from "lodash/isObject";
 import { Component } from "../../../lib/Component";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { DragContext, DragDiff } from "../../../services/drag";
+import { ESelectionStrategy } from "../../../services/selection";
 import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
 import { BlockState, IS_BLOCK_TYPE, TBlockId } from "../../../store/block/Block";
 import { selectBlockById } from "../../../store/block/selectors";
 import { PortState } from "../../../store/connection/port/Port";
 import { createAnchorPortId, createBlockPointPortId } from "../../../store/connection/port/utils";
-import { isAllowDrag } from "../../../utils/functions";
+import { isAllowDrag, isMetaKeyEvent } from "../../../utils/functions";
 import { clamp } from "../../../utils/functions/clamp";
 import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { TTExtRect, renderText } from "../../../utils/renderers/text";
@@ -19,8 +20,6 @@ import { TPoint, TRect } from "../../../utils/types/shapes";
 import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
 import { Anchor, TAnchor } from "../anchors";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
-
-import { BlockController } from "./controllers/BlockController";
 
 export type TBlockSettings = {
   /** Phantom blocks are blocks whose dimensions and position
@@ -123,8 +122,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.connectedState.$state.value;
   }
 
-  protected blockController = new BlockController(this);
-
   public $viewState = signal<BlockViewState>({ zIndex: 0, order: 0 });
 
   constructor(props: Props, parent: Component) {
@@ -219,6 +216,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     }
   }
 
+  protected willMount(): void {
+    this.addEventListener("click", this.handleClick);
+  }
+
   protected calcZIndex() {
     const raised = this.connectedState.$selected.value || this.lastDragEvent ? 1 : 0;
     return this.context.constants.block.DEFAULT_Z_INDEX + raised;
@@ -305,6 +306,22 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       }
     );
   }
+
+  /**
+   * Handle click event
+   */
+  protected handleClick = (event: MouseEvent) => {
+    event.stopPropagation();
+    /* Handle selection change */
+    this.handleSelectionChange(event);
+  };
+
+  protected handleSelectionChange = (event: MouseEvent) => {
+    this.connectedState.setSelection(
+      !isMetaKeyEvent(event) ? true : !this.connectedState.selected,
+      !isMetaKeyEvent(event) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
+    );
+  };
 
   /**
    * Handle drag update - calculate new position and update block
