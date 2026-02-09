@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.8.2](https://github.com/gravity-ui/graph/compare/v1.8.1...v1.8.2) (2026-02-09)
+
+
+### chore
+
+* release 1.8.2 ([3f3b14f](https://github.com/gravity-ui/graph/commit/3f3b14f39929a3c5d5e1579cc100c02ab9a03fe7))
+
+
+### Features
+
+* added custom behaviour for SelectionLayer on press Shift ([#239](https://github.com/gravity-ui/graph/issues/239)) ([e6b48e8](https://github.com/gravity-ui/graph/commit/e6b48e80109267feca054c655d602930ab56c942))
+* **CanvasBlock:** allow to override click and selection block ([#240](https://github.com/gravity-ui/graph/issues/240)) ([b81dc0c](https://github.com/gravity-ui/graph/commit/b81dc0c0affa28c43eaa1072fd2b564084876fec))
+
+
+### Bug Fixes
+
+* Label type checks ([#238](https://github.com/gravity-ui/graph/issues/238)) ([92d9f3e](https://github.com/gravity-ui/graph/commit/92d9f3ecae9c634b777675b15e516285dbe89ad4))
+
 ## [1.8.1](https://github.com/gravity-ui/graph/compare/v1.8.0...v1.8.1) (2026-02-08)
 
 
