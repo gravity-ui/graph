@@ -1,8 +1,18 @@
 import { Page } from "@playwright/test";
-import { CameraState } from "../utils/CoordinateTransformer";
 import type { GraphPageObject } from "./GraphPageObject";
+import { ECanDrag } from "../entry";
 
-export class CameraPageObject {
+export interface CameraState {
+  x: number;
+  y: number;
+  scale: number;
+}
+
+/**
+ * Component Object Model for graph camera
+ * Provides methods to control and query the camera state
+ */
+export class GraphCameraComponentObject {
   constructor(
     private page: Page,
     private graphPO: GraphPageObject
@@ -25,12 +35,11 @@ export class CameraPageObject {
   /**
    * Zoom camera to a specific scale
    */
-  async zoomToScale(scale: number): Promise<void> { 
-
+  async zoomToScale(scale: number): Promise<void> {
     await this.page.evaluate((s) => {
       window.graph.zoom({ scale: s });
     }, scale);
-    
+
     // Wait for zoom animation to complete
     await this.graphPO.waitForFrames(3);
   }
@@ -45,7 +54,7 @@ export class CameraPageObject {
       },
       { dx, dy }
     );
-    
+
     // Wait for pan to be processed
     await this.graphPO.waitForFrames(2);
   }
@@ -57,7 +66,7 @@ export class CameraPageObject {
     await this.page.evaluate(() => {
       window.graph.zoomTo("center");
     });
-    
+
     // Wait for zoom animation
     await this.graphPO.waitForFrames(20);
   }
@@ -69,7 +78,7 @@ export class CameraPageObject {
     await this.page.evaluate((ids) => {
       window.graph.zoomTo(ids);
     }, blockIds);
-    
+
     // Wait for zoom animation
     await this.graphPO.waitForFrames(20);
   }
@@ -105,7 +114,7 @@ export class CameraPageObject {
     position?: { x: number; y: number }
   ): Promise<void> {
     const canvasBounds = await this.getCanvasBounds();
-    
+
     // Use provided position or default to canvas center
     const mouseX = position?.x ?? canvasBounds.x + canvasBounds.width / 2;
     const mouseY = position?.y ?? canvasBounds.y + canvasBounds.height / 2;
@@ -129,6 +138,13 @@ export class CameraPageObject {
     deltaY: number,
     startPosition?: { x: number; y: number }
   ): Promise<void> {
+    // Temporarily disable block dragging to prevent accidentally dragging blocks
+    const previousCanDrag = await this.page.evaluate(() => {
+      const currentSetting = window.graph.rootStore.settings.$canDrag.value;
+      window.graph.updateSettings({ canDrag: window.GraphModule.ECanDrag.NONE });
+      return currentSetting;
+    });
+
     const canvasBounds = await this.getCanvasBounds();
 
     // Use provided position or default to canvas center
@@ -142,10 +158,17 @@ export class CameraPageObject {
     await this.page.mouse.down();
     await this.graphPO.waitForFrames(1);
 
-    await this.page.mouse.move(startX + deltaX, startY + deltaY, { steps: 10 });
+    await this.page.mouse.move(startX + deltaX, startY + deltaY, {
+      steps: 10,
+    });
     await this.graphPO.waitForFrames(2);
 
     await this.page.mouse.up();
     await this.graphPO.waitForFrames(2);
+
+    // Restore previous canDrag setting
+    await this.page.evaluate((canDrag) => {
+      window.graph.updateSettings({ canDrag });
+    }, previousCanDrag);
   }
 }

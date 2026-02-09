@@ -67,6 +67,7 @@
     "e2e:test": "playwright test",
     "e2e:test:ui": "playwright test --ui",
     "e2e:test:debug": "playwright test --debug",
+    "e2e:test:ci": "playwright test",
     "e2e:dev": "concurrently \"tsc --watch --declaration\" \"chokidar 'src/**/*.css' -c 'npm run copy-styles'\" \"npm run e2e:serve\""
   },
   "peerDependencies": {
