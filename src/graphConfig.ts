@@ -145,6 +145,19 @@ export type TGraphConstants = {
      * @default ESelectionStrategy.REPLACE
      */
     STRATEGY?: ESelectionStrategy;
+
+    /**
+     * Selection strategy that determines how newly selected entities interact with existing selection when Shift key is pressed.
+     *
+     * Available strategies:
+     * - **`REPLACE`** - New selection replaces the current selection entirely
+     * - **`APPEND`** - New selection is added to the current selection
+     * - **`SUBTRACT`** - New selection is removed from the current selection
+     * - **`TOGGLE`** - New selection toggles the selection state of entities
+     *
+     * @default ESelectionStrategy.APPEND
+     */
+    SHIFT_STRATEGY?: ESelectionStrategy;
   };
 
   system: {

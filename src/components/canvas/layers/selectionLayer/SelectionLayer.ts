@@ -122,7 +122,7 @@ export class SelectionLayer extends Layer<
     this.selectionEndWorld = { x: worldX, y: worldY };
   };
 
-  private endSelectionRender = (_event: MouseEvent) => {
+  private endSelectionRender = (event: MouseEvent) => {
     if (!this.selectionStartWorld || !this.selectionEndWorld) {
       return;
     }
@@ -146,7 +146,7 @@ export class SelectionLayer extends Layer<
       this.selectionEndWorld.y
     );
 
-    this.applySelectedArea(worldRect[0], worldRect[1], worldRect[2], worldRect[3]);
+    this.applySelectedArea(worldRect[0], worldRect[1], worldRect[2], worldRect[3], event.shiftKey);
 
     // Clear selection
     this.selectionStartWorld = null;
@@ -154,11 +154,16 @@ export class SelectionLayer extends Layer<
     this.performRender();
   };
 
-  private applySelectedArea(x: number, y: number, w: number, h: number): void {
+  private applySelectedArea(x: number, y: number, w: number, h: number, shiftPressed: boolean): void {
     const selectableEntityTypes = this.context.graph.$graphConstants.value.selectionLayer.SELECTABLE_ENTITY_TYPES;
-    const strategy = this.context.graph.$graphConstants.value.selectionLayer.STRATEGY || ESelectionStrategy.REPLACE;
+    const shiftStrategy = this.context.graph.$graphConstants.value.selectionLayer.SHIFT_STRATEGY;
+    const strategy =
+      shiftPressed && shiftStrategy ? shiftStrategy : this.context.graph.$graphConstants.value.selectionLayer.STRATEGY;
 
     const elements = this.context.graph.getElementsOverRect({ x, y, width: w, height: h }, selectableEntityTypes);
-    this.context.graph.rootStore.selectionService.selectRelatedElements(elements, strategy);
+    this.context.graph.rootStore.selectionService.selectRelatedElements(
+      elements,
+      strategy || ESelectionStrategy.REPLACE
+    );
   }
 }
