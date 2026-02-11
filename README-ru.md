@@ -64,9 +64,10 @@ npm install @gravity-ui/graph
 [Подробная документация по React компонентам](docs/react/usage.md)
 
 ```typescript
-import { Graph } from "@gravity-ui/graph";
-import { GraphCanvas, GraphState, GraphBlock, useGraph } from "@gravity-ui/graph/react";
-import React from "react";
+import React, { useEffect } from "react";
+import type { Graph, TBlock } from "@gravity-ui/graph";
+import { EAnchorType, GraphState } from "@gravity-ui/graph";
+import { GraphCanvas, GraphBlock, useGraph } from "@gravity-ui/graph/react";
 
 const config = {};
 
@@ -84,8 +85,15 @@ export function GraphEditor() {
           width: 126,
           height: 126,
           selected: true,
-          name: "Блок #1",
-          anchors: [],
+          name: "Block #1",
+          anchors: [
+            {
+              id: "out1",
+              blockId: "action_1",
+              type: EAnchorType.OUT,
+              index: 0,
+            },
+          ],
         },
         {
           id: "action_2",
@@ -95,21 +103,34 @@ export function GraphEditor() {
           width: 126,
           height: 126,
           selected: false,
-          name: "Блок #2",
-          anchors: [],
-        }
+          name: "Block #2",
+          anchors: [
+            {
+              id: "in1",
+              blockId: "action_2",
+              type: EAnchorType.IN,
+              index: 0,
+            },
+          ],
+        },
       ],
       connections: [
         {
           sourceBlockId: "action_1",
+          sourceAnchorId: "out1",
           targetBlockId: "action_2",
-        }
-      ]
+          targetAnchorId: "in1",
+        },
+      ],
     });
   }, [setEntities]);
 
-  const renderBlockFn = (graph, block) => {
-    return <GraphBlock graph={graph} block={block}>{block.id}</GraphBlock>;
+  const renderBlockFn = (graph: Graph, block: TBlock) => {
+    return (
+      <GraphBlock graph={graph} block={block}>
+        {block.id}
+      </GraphBlock>
+    );
   };
 
   return (
