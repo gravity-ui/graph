@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.3](https://github.com/gravity-ui/graph/compare/v1.8.2...v1.8.3) (2026-02-12)
+
+
+### Bug Fixes
+
+* **useBlockAnchorPosition:** handle error on anchor's view not ready ([#242](https://github.com/gravity-ui/graph/issues/242)) ([20c2e68](https://github.com/gravity-ui/graph/commit/20c2e680c9ac664056b8e4ecb1aa4153cdb008d8))
+
 ## [1.8.2](https://github.com/gravity-ui/graph/compare/v1.8.1...v1.8.2) (2026-02-09)
 
 
