@@ -26,7 +26,13 @@ export function useBlockAnchorPosition(
 
     const position = state.getViewComponent()?.getPosition();
     const blockGeometry = state.block.$geometry.value;
-    anchorContainerRef.current.style.setProperty("--graph-block-anchor-x", `${position.x - blockGeometry.x}px`);
-    anchorContainerRef.current.style.setProperty("--graph-block-anchor-y", `${position.y - blockGeometry.y}px`);
+
+    if (!position || !blockGeometry) {
+      anchorContainerRef.current?.style.removeProperty("--graph-block-anchor-x");
+      anchorContainerRef.current?.style.removeProperty("--graph-block-anchor-y");
+      return;
+    }
+    anchorContainerRef.current?.style.setProperty("--graph-block-anchor-x", `${position.x - blockGeometry.x}px`);
+    anchorContainerRef.current?.style.setProperty("--graph-block-anchor-y", `${position.y - blockGeometry.y}px`);
   }, [state?.block]);
 }
