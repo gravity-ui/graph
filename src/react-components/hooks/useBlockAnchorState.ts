@@ -24,7 +24,20 @@ export function useBlockAnchorPosition(
       return;
     }
 
-    const position = state.getViewComponent()?.getPosition();
+    if (!state.$viewComponentReady.value) {
+      return;
+    }
+
+    const viewComponent = state.getViewComponent();
+    if (!viewComponent) {
+      return;
+    }
+
+    const position = viewComponent.getPosition();
+    if (!position) {
+      return;
+    }
+
     const blockGeometry = state.block.$geometry.value;
     anchorContainerRef.current.style.setProperty("--graph-block-anchor-x", `${position.x - blockGeometry.x}px`);
     anchorContainerRef.current.style.setProperty("--graph-block-anchor-y", `${position.y - blockGeometry.y}px`);
