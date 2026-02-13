@@ -94,22 +94,22 @@ export class NewBlockLayer extends Layer<
   }
 
   protected handleMouseDown = (nativeEvent: GraphMouseEvent) => {
+    if (!this.enabled) {
+      return;
+    }
     const event = extractNativeGraphMouseEvent(nativeEvent);
     const target = nativeEvent.detail.target;
-    if (event && isAltKeyEvent(event) && isBlock(target) && this.enabled) {
+    if (event && isAltKeyEvent(event) && isBlock(target)) {
       // Check if duplication is allowed for this block
       if (this.props.isDuplicateAllowed && !this.props.isDuplicateAllowed(target)) {
         return; // Exit if duplication is not allowed
       }
 
-      if (!this.root?.ownerDocument) {
-        return;
-      }
-
-      // nativeEvent.preventDefault();
-      // nativeEvent.stopPropagation();
+      // Prevent opening context menu
+      event.preventDefault();
       if (isGraphEvent(nativeEvent)) {
         nativeEvent.stopGraphEventPropagation();
+        nativeEvent.preventGraphEventDefault();
       }
       // Capture target in closure for onStart callback
       const blockTarget = target;
