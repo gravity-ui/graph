@@ -1,0 +1,17 @@
+{
+  "extends": "../../tools/tsconfig/react.json",
+  "compilerOptions": {
+    "baseUrl": "./src",
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "references": [
+    { "path": "../../packages/graph-canvas-core" },
+    { "path": "../../packages/graph" },
+    { "path": "../../packages/graph-react" }
+  ],
+  "include": ["src/**/*", ".storybook/**/*"],
+  "exclude": ["node_modules"]
+}
