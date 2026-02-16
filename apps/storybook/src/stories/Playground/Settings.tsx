@@ -11,7 +11,7 @@ import {
   Text,
 } from "@gravity-ui/uikit";
 
-import { Graph } from "../../graph";
+import { Graph } from "@gravity-ui/graph";
 
 import { useRerender } from "./hooks";
 

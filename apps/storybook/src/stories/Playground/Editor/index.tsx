@@ -4,10 +4,10 @@ import { Button, Flex, Hotkey, Text } from "@gravity-ui/uikit";
 import { Editor, OnMount, OnValidate, loader } from "@monaco-editor/react";
 import { KeyCode, KeyMod } from "monaco-editor/esm/vs/editor/editor.api";
 
-import type { TBlock } from "../../../components/canvas/blocks/Block";
-import { useFn } from "../../../react-components/utils/hooks/useFn";
-import { TBlockId } from "../../../store/block/Block";
-import type { TConnection } from "../../../store/connection/ConnectionState";
+import type { TBlock } from "@gravity-ui/graph";
+import { useFn } from "@gravity-ui/graph-react/utils/hooks/useFn";
+import { TBlockId } from "@gravity-ui/graph";
+import type { TConnection } from "@gravity-ui/graph";
 
 import { defineConigSchema } from "./schema";
 import { GravityTheme, defineTheme } from "./theme";

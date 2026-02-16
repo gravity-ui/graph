@@ -3,9 +3,9 @@ import React, { useCallback, useRef, useState } from "react";
 import { Button, ButtonButtonProps, Flex, TextInput, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { Graph } from "../../../graph";
-import { generatePrettyBlocks } from "../../configurations/generatePretty";
-import { GraphComponentStory } from "../../main/GraphEditor";
+import { Graph } from "@gravity-ui/graph";
+import { generatePrettyBlocks } from "@gravity-ui/graph";
+import { GraphComponentStory } from "@gravity-ui/graph";
 
 import "@gravity-ui/uikit/styles/styles.css";
 

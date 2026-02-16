@@ -1,5 +1,5 @@
-import { TGraphConfig } from "../../../graph";
-import { createBlock } from "../../configurations/generatePretty";
+import { TGraphConfig } from "@gravity-ui/graph";
+import { createBlock } from "@gravity-ui/graph";
 
 export function generateExampleTree(levels: number) {
   const tree: Pick<TGraphConfig, "blocks" | "connections"> = {

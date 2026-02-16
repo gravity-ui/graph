@@ -2,12 +2,12 @@ import React, { useEffect, useState } from "react";
 
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { TDefinitionGroup } from "../../../components/canvas/groups/BlockGroups";
-import { BlockGroupsTransferLayer } from "../../../components/canvas/groups/BlockGroupsTransferLayer";
-import { ECanDrag, Graph, GraphState, Group, TBlock } from "../../../index";
-import { GraphCanvas, useGraph, useGraphEvent, useLayer } from "../../../react-components";
-import { useFn } from "../../../react-components/utils/hooks/useFn";
-import { BlockStory } from "../../main/Block";
+import { TDefinitionGroup } from "@gravity-ui/graph";
+import { BlockGroupsTransferLayer } from "@gravity-ui/graph";
+import { ECanDrag, Graph, GraphState, Group, TBlock } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph-react";
+import { useFn } from "@gravity-ui/graph-react/utils/hooks/useFn";
+import { BlockStory } from "@gravity-ui/graph";
 
 const createConfig = () => {
   const blocks: TBlock[] = [

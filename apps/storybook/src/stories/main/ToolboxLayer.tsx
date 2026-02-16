@@ -1,9 +1,8 @@
+import { Graph, Layer, LayerContext, LayerProps } from "@gravity-ui/graph";
 import React, { ChangeEvent, useCallback } from "react";
 
 import ReactDOM from "react-dom/client";
 
-import { Graph } from "../../graph";
-import { Layer } from "../../services/Layer";
 
 function Toolbox(props: { graph: Graph }) {
   const onChange = useCallback(
@@ -20,14 +19,14 @@ function Toolbox(props: { graph: Graph }) {
 }
 
 export class ToolboxLayer extends Layer {
-  protected reactRoot: ReactDOM.Root;
+  protected reactRoot: ReactDOM.Root | null = null;
 
-  constructor(props, context) {
+  constructor(props: LayerProps, context: LayerContext) {
     super(
       {
         html: {
           zIndex: 300,
-          className: "custom-control",
+          classNames: ["custom-control"],
         },
         ...props,
       },

@@ -2,12 +2,12 @@ import React, { useState } from "react";
 
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
-import { Graph, GraphState } from "../../../graph";
-import { CSSVariablesLayer } from "../../../plugins/cssVariables";
-import { GraphCanvas, useGraphEvent } from "../../../react-components";
-import { useGraph, useLayer } from "../../../react-components/hooks";
-import { generatePrettyBlocks } from "../../../stories/configurations/generatePretty";
-import { BlockStory } from "../../main/Block";
+import { Graph, GraphState } from "@gravity-ui/graph";
+import { CSSVariablesLayer } from "@gravity-ui/graph";
+import { GraphCanvas, useGraphEvent } from "@gravity-ui/graph-react";
+import { useGraph, useLayer } from "@gravity-ui/graph-react/hooks";
+import { generatePrettyBlocks } from "@gravity-ui/graph";
+import { BlockStory } from "@gravity-ui/graph";
 
 import "./cssVariables.stories.css";
 

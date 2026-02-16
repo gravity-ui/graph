@@ -3,15 +3,15 @@ import React, { useEffect, useLayoutEffect, useRef } from "react";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { Anchor, CanvasBlock, EAnchorType, ECanDrag, Graph } from "../../../";
-import { TBlock } from "../../../components/canvas/blocks/Block";
+import { Anchor, CanvasBlock, EAnchorType, ECanDrag, Graph } from "@gravity-ui/graph";
+import { TBlock } from "@gravity-ui/graph";
 import {
   IPortConnectionMeta,
   PortConnectionLayer,
-} from "../../../components/canvas/layers/portConnectionLayer/PortConnectionLayer";
-import { GraphCanvas, useGraph } from "../../../react-components";
-import { createAnchorPortId } from "../../../store/connection/port/utils";
-import { BlockStory } from "../../main/Block";
+} from "@gravity-ui/graph";
+import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
+import { createAnchorPortId } from "@gravity-ui/graph";
+import { BlockStory } from "@gravity-ui/graph";
 
 import "@gravity-ui/uikit/styles/styles.css";
 

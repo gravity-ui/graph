@@ -2,11 +2,11 @@ import React, { useLayoutEffect } from "react";
 
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { TBlock } from "../../../components/canvas/blocks/Block";
-import { Graph, GraphState } from "../../../graph";
-import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "../../../react-components";
-import { useFn } from "../../../react-components/utils/hooks/useFn";
-import { ECanDrag } from "../../../store/settings";
+import { TBlock } from "@gravity-ui/graph";
+import { Graph, GraphState } from "@gravity-ui/graph";
+import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
+import { useFn } from "@gravity-ui/graph-react/utils/hooks/useFn";
+import { ECanDrag } from "@gravity-ui/graph";
 
 const config: HookGraphParams = {
   viewConfiguration: {

@@ -3,11 +3,11 @@ import React, { useCallback, useRef, useState } from "react";
 import { Button, ButtonButtonProps, Flex, TextInput, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { Graph } from "../../../graph";
-import { oneBlockConfig } from "../../configurations/oneBlock";
-import { GraphComponentStory } from "../../main/GraphEditor";
+import { oneBlockConfig } from "@gravity-ui/graph";
+import { GraphComponentStory } from "@gravity-ui/graph";
 
 import "@gravity-ui/uikit/styles/styles.css";
+import { Graph } from "@gravity-ui/graph";
 
 const config = JSON.parse(JSON.stringify(oneBlockConfig));
 const blockConfig = config.blocks[0];
@@ -20,7 +20,7 @@ const GraphApp = () => {
   const [height, setHeight] = useState(blockConfig.height.toString());
 
   const onClick: ButtonButtonProps["onClick"] = useCallback(() => {
-    graphRef.current.api.updateBlock({
+    graphRef.current?.api.updateBlock({
       ...blockConfig,
       x: Number(x),
       y: Number(y),

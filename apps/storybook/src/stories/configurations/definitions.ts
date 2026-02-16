@@ -1,4 +1,4 @@
-import { ECanDrag } from "../../store/settings";
+import { ECanDrag } from "@gravity-ui/graph";
 
 export enum EAnchorType {
   IN = "IN",

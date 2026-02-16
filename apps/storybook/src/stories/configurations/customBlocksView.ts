@@ -1,4 +1,4 @@
-import { CanvasBlock, TGraphConfig } from "../../index";
+import { CanvasBlock, TGraphConfig } from "@gravity-ui/graph";
 
 import { storiesSettings } from "./definitions";
 
