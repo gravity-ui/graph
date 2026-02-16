@@ -1,12 +1,10 @@
 import React, { useLayoutEffect } from "react";
 
-import { TBlock } from "../../components/canvas/blocks/Block";
-import { Graph, GraphState, TGraphConfig } from "../../graph";
-import { TGraphColors, TGraphConstants } from "../../graphConfig";
-import { GraphCanvas, TGraphEventCallbacks, useGraph, useGraphEvent } from "../../react-components";
-import { useFn } from "../../react-components/utils/hooks/useFn";
+import { GraphCanvas, TGraphEventCallbacks, useGraph, useGraphEvent } from "@gravity-ui/graph";
+import { useFn } from "@gravity-ui/graph";
 
 import { BlockStory } from "./Block";
+import { TGraphConfig, Graph, TGraphColors, TGraphConstants, TBlock, GraphState } from "@gravity-ui/graph";
 
 export type TGraphComponentProps = {
   config: TGraphConfig;
@@ -18,7 +16,7 @@ export type TGraphComponentProps = {
 
 const action =
   (name: string) =>
-  (...args) => {
+  (...args: unknown[]) => {
     console.log(name, "[", ...args, "]");
   };
 

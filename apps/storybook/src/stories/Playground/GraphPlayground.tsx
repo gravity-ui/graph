@@ -10,13 +10,13 @@ import {
 } from "@gravity-ui/uikit";
 import { StoryFn } from "storybook/internal/types";
 
-import { TBlock } from "../../components/canvas/blocks/Block";
-import { random } from "../../components/canvas/blocks/generate";
-import { ConnectionLayer } from "../../components/canvas/layers/connectionLayer/ConnectionLayer";
-import { Graph, GraphState, TGraphConfig } from "../../graph";
-import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "../../react-components";
-import { useFn } from "../../react-components/utils/hooks/useFn";
-import { ECanDrag } from "../../store/settings";
+import { TBlock } from "@gravity-ui/graph";
+import { random } from "@gravity-ui/graph";
+import { ConnectionLayer } from "@gravity-ui/graph";
+import { Graph, GraphState, TGraphConfig } from "@gravity-ui/graph";
+import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph";
+import { useFn } from "@gravity-ui/graph";
+import { ECanDrag } from "@gravity-ui/graph";
 import { EAnchorType } from "../configurations/definitions";
 
 import { ActionBlock } from "./ActionBlock";

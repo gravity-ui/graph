@@ -3,12 +3,12 @@ import React, { useEffect } from "react";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 import groupBy from "lodash/groupBy";
 
-import { BlockGroups, Group } from "../../../components/canvas/groups";
-import { BlockState, Graph, GraphState, TBlock } from "../../../index";
-import { GraphCanvas, useGraph, useGraphEvent } from "../../../react-components";
-import { useFn } from "../../../react-components/utils/hooks/useFn";
-import { generatePrettyBlocks } from "../../configurations/generatePretty";
-import { BlockStory } from "../../main/Block";
+import { BlockGroups, Group } from "@gravity-ui/graph";
+import { BlockState, Graph, GraphState, TBlock } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
+import { useFn } from "@gravity-ui/graph-react/utils/hooks/useFn";
+import { generatePrettyBlocks } from "@gravity-ui/graph";
+import { BlockStory } from "@gravity-ui/graph";
 
 const MyGroup = Group.define({
   style: {

@@ -3,9 +3,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { CanvasBlock, Graph, TBlock, TGraphConfig } from "../../../index";
-import { generatePrettyBlocks } from "../../configurations/generatePretty";
-import { GraphComponentStory } from "../../main/GraphEditor";
+import { CanvasBlock, Graph, TBlock, TGraphConfig } from "@gravity-ui/graph";
+import { generatePrettyBlocks } from "@gravity-ui/graph";
+import { GraphComponentStory } from "@gravity-ui/graph";
 
 import imageDone from "./done.png";
 import imageFail from "./fail.png";

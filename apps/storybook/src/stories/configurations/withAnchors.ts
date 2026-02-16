@@ -1,5 +1,5 @@
-import { TAnchor } from "../../components/canvas/anchors";
-import { TGraphConfig } from "../../graph";
+import { TAnchor } from "@gravity-ui/graph";
+import { TGraphConfig } from "@gravity-ui/graph";
 
 import { EAnchorType, storiesSettings } from "./definitions";
 

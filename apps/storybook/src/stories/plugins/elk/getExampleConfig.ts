@@ -1,8 +1,8 @@
 import { ElkExtendedEdge, ElkNode, LayoutOptions } from "elkjs";
 
-import { TGraphConfig } from "../../../graph";
-import { measureText } from "../../../utils/functions/text";
-import { createBlock, generatePrettyBlocks } from "../../configurations/generatePretty";
+import { TGraphConfig } from "@gravity-ui/graph";
+import { measureText } from "@gravity-ui/graph";
+import { createBlock, generatePrettyBlocks } from "@gravity-ui/graph";
 
 import { Algorithm } from "./elk.stories";
 import { generateExampleTree } from "./generateExampleTree";

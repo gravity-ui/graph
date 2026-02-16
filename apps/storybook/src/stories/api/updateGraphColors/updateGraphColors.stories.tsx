@@ -5,9 +5,9 @@ import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { TGraphColors } from "graphConfig";
 
-import { Graph } from "../../../graph";
-import { oneBlockConfig } from "../../configurations/oneBlock";
-import { GraphComponentStory } from "../../main/GraphEditor";
+import { Graph } from "@gravity-ui/graph";
+import { oneBlockConfig } from "@gravity-ui/graph";
+import { GraphComponentStory } from "@gravity-ui/graph";
 
 import "@gravity-ui/uikit/styles/styles.css";
 

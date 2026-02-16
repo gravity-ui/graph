@@ -3,7 +3,7 @@ import React, { useRef } from "react";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { ECanDrag, Graph, LayerConfig, MiniMapLayer } from "../../";
+import { ECanDrag, Graph, LayerConfig, MiniMapLayer } from "@gravity-ui/graph";
 import { generatePrettyBlocks } from "../configurations/generatePretty";
 import { GraphComponentStory } from "../main/GraphEditor";
 
