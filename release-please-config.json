@@ -1,0 +1,29 @@
+{
+  "release-type": "node",
+  "changelog-type": "github",
+  "bump-minor-pre-major": false,
+  "bump-patch-for-minor-pre-major": false,
+  "separate-pull-requests": false,
+  "packages": {
+    "packages/graph-canvas-core": {
+      "release-type": "node",
+      "changelog-path": "CHANGELOG.md",
+      "version-file": "package.json"
+    },
+    "packages/graph": {
+      "release-type": "node",
+      "changelog-path": "CHANGELOG.md",
+      "version-file": "package.json"
+    },
+    "packages/graph-react": {
+      "release-type": "node",
+      "changelog-path": "CHANGELOG.md",
+      "version-file": "package.json"
+    },
+    "apps/storybook": {
+      "release-type": "node",
+      "changelog-path": null,
+      "skip-github-release": true
+    }
+  }
+}

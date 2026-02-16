@@ -1,0 +1,19 @@
+{
+  "extends": "../../tools/tsconfig/react.json",
+  "compilerOptions": {
+    "baseUrl": "./src",
+    "outDir": "./build",
+    "declaration": true,
+    "declarationDir": "./build",
+    "declarationMap": true,
+    "composite": true,
+    "tsBuildInfoFile": "./.tsbuildinfo",
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": ["./*"],
+    },
+  },
+  "references": [{ "path": "../graph-canvas-core" }, { "path": "../graph" }],
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "**/*.test.ts"],
+}

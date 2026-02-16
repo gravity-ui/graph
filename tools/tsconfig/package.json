@@ -1,0 +1,6 @@
+{
+  "name": "@gravity-ui/graph-tsconfig",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared TypeScript configurations for @gravity-ui/graph monorepo"
+}
