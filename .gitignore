@@ -5,5 +5,13 @@ dist
 .vscode
 .DS_Store
 storybook-static
-.tsbuildinfo
+
+# Build outputs
 build
+*.tsbuildinfo
+
+# Rollup cache
+.rollup.cache
+
+# pnpm
+pnpm-lock.yaml

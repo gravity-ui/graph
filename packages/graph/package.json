@@ -1,0 +1,55 @@
+{
+  "name": "@gravity-ui/graph",
+  "version": "1.8.3",
+  "description": "Modern graph editor component",
+  "type": "module",
+  "main": "./build/index.cjs",
+  "module": "./build/index.js",
+  "types": "./build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "import": "./build/index.js",
+      "require": "./build/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["build"],
+  "scripts": {
+    "build": "rollup -c",
+    "build:watch": "rollup -c -w",
+    "dev": "rollup -c -w",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "test": "jest",
+    "clean": "rm -rf build .tsbuildinfo"
+  },
+  "dependencies": {
+    "@gravity-ui/graph-canvas-core": "workspace:*",
+    "@preact/signals-core": "^1.12.2",
+    "lodash": "^4.17.21",
+    "rbush": "^3.0.1",
+    "intersects": "^2.7.2",
+    "style-observer": "^0.1.1"
+  },
+  "peerDependencies": {
+    "react": "^17.0.0 || ^18.0.0",
+    "react-dom": "^17.0.0 || ^18.0.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-terser": "^0.4.0",
+    "@rollup/plugin-typescript": "^11.1.0",
+    "rollup": "^4.0.0",
+    "rollup-plugin-dts": "^6.0.0",
+    "rollup-plugin-postcss": "^4.0.0",
+    "typescript": "^5.9.2"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gravity-ui/graph",
+    "directory": "packages/graph"
+  }
+}

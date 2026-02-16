@@ -1,0 +1,28 @@
+# Source files
+src/
+
+# Tests
+*.test.ts
+*.spec.ts
+*.test.tsx
+*.spec.tsx
+**/__tests__/
+**/__snapshots__/
+
+# Build artifacts
+.rollup.cache/
+*.tsbuildinfo
+
+# Config files
+tsconfig.json
+rollup.config.js
+.eslintrc.js
+.prettierrc
+
+# Documentation
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/

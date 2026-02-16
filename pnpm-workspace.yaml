@@ -1,0 +1,9 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+  - 'tools/*'
+
+pnpm:
+  sharedWorkspaceLockfile: true
+  saveWorkspaceProtocol: "rolling"
+  strictPeerDependencies: true
