@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.8.4](https://github.com/gravity-ui/graph/compare/v1.8.3...v1.8.4) (2026-02-17)
+
+
+### Bug Fixes
+
+* apply initial styles on init CssVariablesLayer ([#248](https://github.com/gravity-ui/graph/issues/248)) ([f33a1d7](https://github.com/gravity-ui/graph/commit/f33a1d7e2c0b04e9df99ca40797a82714a8b73b6))
+* **NewBlockLayer:** prevent opening context menu and start drag on alt+click on a block  ([#245](https://github.com/gravity-ui/graph/issues/245)) ([7adef5b](https://github.com/gravity-ui/graph/commit/7adef5b972c04464537dfa276707182d672d6b3b))
+* resolve race condition in anchor positioning for newly created anchors ([#244](https://github.com/gravity-ui/graph/issues/244)) ([9ce95c5](https://github.com/gravity-ui/graph/commit/9ce95c54f717b4f2670d876ca7bfe154682f5c36))
+
 ## [1.8.3](https://github.com/gravity-ui/graph/compare/v1.8.2...v1.8.3) (2026-02-12)
 
 
