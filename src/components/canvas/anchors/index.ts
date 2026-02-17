@@ -171,6 +171,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
 
   protected unmount() {
     this.props.port.removeOwner();
+    this.connectedState.unsetViewComponent();
     super.unmount();
   }
 

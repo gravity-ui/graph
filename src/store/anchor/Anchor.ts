@@ -48,6 +48,11 @@ export class AnchorState {
     this.$viewComponentReady.value = true;
   }
 
+  public unsetViewComponent() {
+    this.anchorView = undefined;
+    this.$viewComponentReady.value = false;
+  }
+
   public getViewComponent() {
     return this.anchorView;
   }
