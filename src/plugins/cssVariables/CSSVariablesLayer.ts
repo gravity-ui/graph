@@ -52,6 +52,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
 
   protected afterInit(): void {
     this.createContainerElement();
+    this.readInitialCSSVariables();
     this.startObserving();
     super.afterInit();
   }
@@ -128,6 +129,49 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
         properties: Array.from(SUPPORTED_CSS_VARIABLES),
       }
     );
+  }
+
+  /**
+   * Reads initial CSS variable values and applies them to the graph
+   * This ensures that CSS variables set before the observer starts are applied
+   */
+  private readInitialCSSVariables(): void {
+    if (!this.containerElement) {
+      if (this.props.debug) {
+        console.warn("CSSVariablesLayer: Cannot read initial CSS variables - container element not available");
+      }
+      return;
+    }
+
+    try {
+      const computedStyle = window.getComputedStyle(this.containerElement);
+      const changes: CSSVariableChange[] = [];
+
+      // Read all supported CSS variables
+      for (const cssVariable of SUPPORTED_CSS_VARIABLES) {
+        const value = computedStyle.getPropertyValue(cssVariable).trim();
+
+        // Only include variables that have non-empty values
+        if (value) {
+          changes.push({
+            name: cssVariable,
+            value,
+            oldValue: "",
+          });
+        }
+      }
+
+      if (this.props.debug) {
+        console.log("CSSVariablesLayer: Initial CSS variables read:", changes);
+      }
+
+      // Apply initial values to graph
+      if (changes.length > 0) {
+        this.handleCSSVariableChanges(changes);
+      }
+    } catch (error) {
+      console.error("CSSVariablesLayer: Failed to read initial CSS variables:", error);
+    }
   }
 
   /**
