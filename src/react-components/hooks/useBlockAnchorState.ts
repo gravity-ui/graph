@@ -24,7 +24,20 @@ export function useBlockAnchorPosition(
       return;
     }
 
-    const position = state.getViewComponent()?.getPosition();
+    if (!state.$viewComponentReady.value) {
+      return;
+    }
+
+    const viewComponent = state.getViewComponent();
+    if (!viewComponent) {
+      return;
+    }
+
+    const position = viewComponent.getPosition();
+    if (!position) {
+      return;
+    }
+
     const blockGeometry = state.block.$geometry.value;
 
     if (!position || !blockGeometry) {

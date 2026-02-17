@@ -13,6 +13,8 @@ export class AnchorState {
 
   public $selected = computed(() => this.block.store.anchorSelectionBucket.isSelected(this.id));
 
+  public $viewComponentReady = signal<boolean>(false);
+
   private anchorView: Anchor;
 
   public get id() {
@@ -43,6 +45,12 @@ export class AnchorState {
 
   public setViewComponent(anchorComponent: Anchor) {
     this.anchorView = anchorComponent;
+    this.$viewComponentReady.value = true;
+  }
+
+  public unsetViewComponent() {
+    this.anchorView = undefined;
+    this.$viewComponentReady.value = false;
   }
 
   public getViewComponent() {
