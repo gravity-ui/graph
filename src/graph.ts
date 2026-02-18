@@ -56,7 +56,7 @@ export enum GraphState {
 }
 
 export class Graph {
-  private scheduler = scheduler;
+  public readonly scheduler = scheduler;
 
   public readonly cameraService: CameraService = new CameraService(this);
 
