@@ -1,6 +1,6 @@
 import { Signal } from "@preact/signals-core";
 
-import { Graph } from "../../../graph";
+import type { Graph } from "../../../graph";
 import { GraphEventsDefinitions } from "../../../graphEvents";
 import { Component } from "@gravity-ui/graph-canvas-core";
 import { TComponentContext, TComponentProps, TComponentState } from "@gravity-ui/graph-canvas-core";

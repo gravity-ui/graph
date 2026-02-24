@@ -1,5 +1,5 @@
 import { EventedComponent } from "./components/canvas/EventedComponent/EventedComponent";
-import { GraphState } from "./graph";
+import type { GraphState } from "./graphState";
 import { TGraphColors, TGraphConstants } from "./graphConfig";
 import { TCameraState } from "./services/camera/CameraService";
 import { TSelectionDiff, TSelectionEntityId } from "./services/selection/types";

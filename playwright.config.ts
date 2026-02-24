@@ -24,7 +24,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run e2e:build && npm run e2e:serve",
+    command: "pnpm e2e:build && pnpm e2e:serve",
     url: "http://localhost:6006",
     reuseExistingServer: !process.env.CI,
     timeout: 120000,

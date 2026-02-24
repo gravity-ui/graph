@@ -8,6 +8,9 @@
     "url": "https://github.com/gravity-ui/graph"
   },
   "scripts": {
+    "e2e": "playwright test",
+    "e2e:build": "pnpm build:core && pnpm build:graph",
+    "e2e:serve": "node e2e/server.js",
     "build": "pnpm --filter '@gravity-ui/graph-canvas-core' run build && pnpm --filter '@gravity-ui/graph' run build && pnpm --filter '@gravity-ui/graph-react' run build",
     "build:core": "pnpm --filter '@gravity-ui/graph-canvas-core' run build",
     "build:graph": "pnpm --filter '@gravity-ui/graph' run build",

@@ -25,6 +25,7 @@ import { clearColorCache, getXY } from "./utils/functions";
 import { clearTextCache } from "./utils/renderers/text";
 import { RecursivePartial } from "./utils/types/helpers";
 import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
+import { GraphState } from "./graphState";
 
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
 export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
@@ -49,11 +50,7 @@ export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConn
 
 export type TGraphZoomTarget = "center" | TRect | TBlockId[] | GraphComponent[];
 
-export enum GraphState {
-  INIT,
-  ATTACHED,
-  READY,
-}
+export { GraphState } from "./graphState";
 
 export class Graph {
   public readonly scheduler = scheduler;

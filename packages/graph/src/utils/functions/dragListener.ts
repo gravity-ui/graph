@@ -1,6 +1,6 @@
 import { EventedComponent } from "../../components/canvas/EventedComponent/EventedComponent";
 import { CursorLayerCursorTypes } from "../../components/canvas/layers/cursorLayer/CursorLayer";
-import { Graph } from "../../graph";
+import type { Graph } from "../../graph";
 import { Emitter } from "../Emitter";
 import { EVENTS } from "../types/events";
 

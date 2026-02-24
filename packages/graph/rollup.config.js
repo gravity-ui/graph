@@ -1,85 +1,128 @@
-import typescript from '@rollup/plugin-typescript';
-import resolve from '@rollup/plugin-node-resolve';
-import commonjs from '@rollup/plugin-commonjs';
-import terser from '@rollup/plugin-terser';
-import postcss from 'rollup-plugin-postcss';
-import dts from 'rollup-plugin-dts';
-import { readFileSync } from 'fs';
+import { readFileSync } from "fs";
 
-const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
+import commonjs from "@rollup/plugin-commonjs";
+import resolve from "@rollup/plugin-node-resolve";
+import terser from "@rollup/plugin-terser";
+import typescript from "@rollup/plugin-typescript";
+import dts from "rollup-plugin-dts";
+import postcss from "rollup-plugin-postcss";
+
+const pkg = JSON.parse(readFileSync("./package.json", "utf-8"));
 
 const external = [
   ...Object.keys(pkg.dependencies || {}),
   ...Object.keys(pkg.peerDependencies || {}),
-  'react/jsx-runtime'
+  "react/jsx-runtime",
 ];
+
+const browserExternal = [...Object.keys(pkg.peerDependencies || {}), "react/jsx-runtime"];
 
 export default [
   // ESM and CJS builds
   {
-    input: 'src/index.ts',
+    input: "src/index.ts",
     output: [
       {
-        file: 'build/index.js',
-        format: 'es',
-        sourcemap: true,
-        preserveModules: false
-      },
-      {
-        file: 'build/index.cjs',
-        format: 'cjs',
+        file: "build/index.js",
+        format: "es",
         sourcemap: true,
         preserveModules: false,
-        exports: 'named'
-      }
+      },
+      {
+        file: "build/index.cjs",
+        format: "cjs",
+        sourcemap: true,
+        preserveModules: false,
+        exports: "named",
+      },
     ],
     external,
     plugins: [
       resolve({
         browser: true,
         preferBuiltins: false,
-        extensions: ['.ts', '.tsx', '.js', '.jsx']
+        extensions: [".ts", ".tsx", ".js", ".jsx"],
       }),
       commonjs(),
       typescript({
-        tsconfig: './tsconfig.json',
+        tsconfig: "./tsconfig.json",
         declaration: false,
         declarationMap: false,
-        sourceMap: true
+        sourceMap: true,
       }),
       postcss({
-        extract: 'build/styles.css',
+        extract: "build/styles.css",
         minimize: true,
         sourceMap: true,
-        modules: false
+        modules: false,
       }),
       terser({
         compress: {
           passes: 2,
-          drop_console: false
+          drop_console: false,
         },
         mangle: {
-          reserved: []
-        }
-      })
-    ]
+          reserved: [],
+        },
+      }),
+    ],
+  },
+  // Standalone browser bundle (IIFE) with all dependencies bundled
+  // Used for browser environments without a bundler (e.g. e2e tests)
+  {
+    input: "src/index.ts",
+    output: {
+      file: "build/graph.standalone.js",
+      format: "iife",
+      name: "GraphModule",
+      sourcemap: true,
+    },
+    external: browserExternal,
+    plugins: [
+      resolve({
+        browser: true,
+        preferBuiltins: false,
+        extensions: [".ts", ".tsx", ".js", ".jsx"],
+      }),
+      commonjs(),
+      typescript({
+        tsconfig: "./tsconfig.json",
+        declaration: false,
+        declarationMap: false,
+        sourceMap: true,
+      }),
+      postcss({
+        inject: true,
+        minimize: true,
+        modules: false,
+      }),
+      terser({
+        compress: {
+          passes: 2,
+          drop_console: false,
+        },
+        mangle: {
+          reserved: [],
+        },
+      }),
+    ],
   },
   // Type definitions
   {
-    input: 'src/index.ts',
+    input: "src/index.ts",
     output: {
-      file: 'build/index.d.ts',
-      format: 'es'
+      file: "build/index.d.ts",
+      format: "es",
     },
     external: [...external, /\.css$/],
     plugins: [
       postcss({
         extract: false,
-        inject: false
+        inject: false,
       }),
       dts({
-        respectExternal: true
-      })
-    ]
-  }
+        respectExternal: true,
+      }),
+    ],
+  },
 ];

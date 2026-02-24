@@ -1,6 +1,7 @@
 import { signal } from "@preact/signals-core";
 
-import { Graph, GraphState } from "../../graph";
+import type { Graph } from "../../graph";
+import { GraphState } from "../../graphState";
 
 /**
  * KeyboardService
