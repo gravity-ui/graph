@@ -27,7 +27,7 @@ jobs:
         run: npx playwright install --with-deps chromium
         
       - name: Run E2E tests
-        run: npm run e2e:test:ci
+        run: npm run test:e2e:ci
         env:
           CI: true
         

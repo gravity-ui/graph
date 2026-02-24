@@ -216,7 +216,6 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
    * Handles zoom behavior for both trackpad pinch and mouse wheel
    */
   private handleWheelZoom(event: WheelEvent, acceleration = 1): void {
-    console.log("handleWheelZoom", event, event.deltaY);
     if (!event.deltaY) {
       return;
     }
@@ -242,13 +241,9 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   }
 
   private handleWheelEvent = (event: WheelEvent) => {
-    console.log("handleWheelEvent", event);
     if (!this.context.graph.rootStore.settings.getConfigFlag("canZoomCamera")) {
-      console.log("canZoomCamera is false");
       return;
     }
-
-    console.log("canZoomCamera is true");
 
     event.stopPropagation();
     event.preventDefault();
@@ -256,7 +251,6 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     const isTrackpad = isTrackpadWheelEvent(event);
     const isTrackpadMove = isTrackpad && !isMetaKeyEvent(event);
 
-    console.log("isTrackpadMove", isTrackpadMove);
     // Trackpad swipe gesture - always moves camera
     if (isTrackpadMove) {
       this.handleTrackpadMove(event);
@@ -266,7 +260,6 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     // Mouse wheel behavior - check configuration
     if (!isTrackpad && !isMetaKeyEvent(event)) {
       const mouseWheelBehavior = this.context.constants.camera.MOUSE_WHEEL_BEHAVIOR;
-      console.log("isTrackpad is false and isMetaKeyEvent is false", mouseWheelBehavior);
 
       if (mouseWheelBehavior === "scroll") {
         this.handleTrackpadMove(event);

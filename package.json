@@ -51,7 +51,8 @@
   "scripts": {
     "typecheck": "npm run build:publish -- --noEmit",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
-    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests --updateSnapshot",
+    "test:unit": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests --updateSnapshot",
+    "test": "npm run test:unit",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook -c .storybook -o storybook-static -s .storybook/public",
     "build-storybook": "storybook build",
@@ -64,10 +65,10 @@
     "e2e:bundle": "node e2e/build-bundle.js",
     "e2e:serve": "node e2e/server.js",
     "e2e:build": "npm run build && npm run e2e:bundle",
-    "e2e:test": "playwright test",
-    "e2e:test:ui": "playwright test --ui",
-    "e2e:test:debug": "playwright test --debug",
-    "e2e:test:ci": "playwright test",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:ci": "playwright test",
     "e2e:dev": "concurrently \"tsc --watch --declaration\" \"chokidar 'src/**/*.css' -c 'npm run copy-styles'\" \"npm run e2e:serve\""
   },
   "peerDependencies": {

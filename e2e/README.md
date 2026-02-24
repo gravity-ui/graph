@@ -40,7 +40,7 @@ The project will be automatically built before running tests. No manual build st
 ### Run all tests (with automatic build)
 
 ```bash
-npm run e2e:test
+npm run test:e2e
 ```
 
 This will automatically:
@@ -52,13 +52,13 @@ This will automatically:
 ### Run tests in UI mode (interactive)
 
 ```bash
-npm run e2e:test:ui
+npm run test:e2e:ui
 ```
 
 ### Run tests in debug mode
 
 ```bash
-npm run e2e:test:debug
+npm run test:e2e:debug
 ```
 
 ### Development mode with watch
@@ -410,7 +410,7 @@ Benefits:
 Use UI mode to see tests running in real-time:
 
 ```bash
-npm run e2e:test:ui
+npm run test:e2e:ui
 ```
 
 ### Debug Mode
@@ -418,7 +418,7 @@ npm run e2e:test:ui
 Run with debugging enabled:
 
 ```bash
-npm run e2e:test:debug
+npm run test:e2e:debug
 ```
 
 ### Screenshots

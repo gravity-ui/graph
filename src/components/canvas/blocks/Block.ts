@@ -128,21 +128,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     super(props, parent);
 
     this.subscribe(props.id);
-    this.addEventListener("click", this.handleEvent);
-    this.addEventListener("mousedown", this.handleEvent);
-    this.addEventListener("mouseup", this.handleEvent);
-    this.addEventListener("mousemove", this.handleEvent);
-    this.addEventListener("mouseenter", this.handleEvent);
-    this.addEventListener("mouseleave", this.handleEvent);
-    this.addEventListener("mouseover", this.handleEvent);
-    this.addEventListener("mouseout", this.handleEvent);
-    this.addEventListener("mousewheel", this.handleEvent);
-    this.addEventListener("contextmenu", this.handleEvent);
   }
-
-  protected handleEvent = (event: MouseEvent) => {
-    console.log("Block handleEvent", event);
-  };
 
   public getEntityId() {
     return this.props.id;
