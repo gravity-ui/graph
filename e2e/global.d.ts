@@ -1,4 +1,4 @@
-import type { Graph } from "../src/graph";
+import type { Graph } from "@gravity-ui/graph";
 
 declare global {
   interface Window {

@@ -1,0 +1,36 @@
+{
+  "name": "@gravity-ui/graph-storybook",
+  "version": "1.8.3",
+  "private": true,
+  "scripts": {
+    "storybook": "storybook dev -p 6006",
+    "build": "storybook build",
+    "build-storybook": "storybook build"
+  },
+  "dependencies": {
+    "@gravity-ui/graph": "workspace:*",
+    "@gravity-ui/graph-react": "workspace:*",
+    "@gravity-ui/icons": "^2.15.0",
+    "@gravity-ui/uikit": "^7.32.0",
+    "@floating-ui/react": "^0.27.18",
+    "@monaco-editor/react": "^4.6.0",
+    "elkjs": "^0.9.3",
+    "monaco-editor": "^0.52.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@chromatic-com/storybook": "^5.0.1",
+    "@storybook/addon-docs": "^10.2.12",
+    "@storybook/addon-links": "^10.2.12",
+    "@storybook/addon-styling-webpack": "^3.0.0",
+    "@storybook/addon-webpack5-compiler-swc": "^4.0.2",
+    "@storybook/react-webpack5": "^10.2.12",
+    "@github-ui/storybook-addon-performance-panel": "^1.0.1",
+    "@swc/core": "^1.13.3",
+    "sass": "^1.77.1",
+    "storybook": "^10.2.12",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3"
+  }
+}

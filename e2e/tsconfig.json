@@ -12,7 +12,11 @@
     "noEmit": true,
     "resolveJsonModule": true,
     "lib": ["es2020", "dom"],
-    "types": ["@playwright/test", "node"]
+    "types": ["@playwright/test", "node"],
+    "paths": {
+      "@gravity-ui/graph": ["../packages/graph/src/index.ts"],
+      "@gravity-ui/graph/*": ["../packages/graph/*"]
+    }
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules"]

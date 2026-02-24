@@ -5,8 +5,16 @@ dist
 .vscode
 .DS_Store
 storybook-static
-.tsbuildinfo
+
+# Build outputs
 build
 playwright-report
 test-results
 e2e/dist
+*.tsbuildinfo
+
+# Rollup cache
+.rollup.cache
+
+# pnpm
+pnpm-lock.yaml

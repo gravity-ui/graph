@@ -1,0 +1,45 @@
+{
+  "name": "@gravity-ui/graph-canvas-core",
+  "version": "1.0.0",
+  "description": "Core Canvas rendering primitives for @gravity-ui/graph",
+  "type": "module",
+  "main": "./build/index.cjs",
+  "module": "./build/index.js",
+  "types": "./build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "import": "./build/index.js",
+      "require": "./build/index.cjs"
+    }
+  },
+  "files": ["build"],
+  "scripts": {
+    "build": "rollup -c",
+    "build:watch": "rollup -c -w",
+    "dev": "rollup -c -w",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "test": "jest",
+    "clean": "rm -rf build .tsbuildinfo"
+  },
+  "dependencies": {
+    "@preact/signals-core": "^1.12.2"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-typescript": "^11.1.0",
+    "rollup": "^4.0.0",
+    "rollup-plugin-dts": "^6.0.0",
+    "typescript": "^5.9.2",
+    "eslint": "^8.0.0",
+    "jest": "^30.0.5"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gravity-ui/graph",
+    "directory": "packages/graph-canvas-core"
+  }
+}

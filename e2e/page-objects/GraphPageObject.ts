@@ -1,6 +1,5 @@
 import { Page } from "@playwright/test";
-import { TBlock } from "../../src/components/canvas/blocks/Block";
-import { TConnection } from "../../src/store/connection/ConnectionState";
+import type { TBlock, TConnection } from "@gravity-ui/graph";
 import { GraphBlockComponentObject } from "./GraphBlockComponentObject";
 import { GraphConnectionComponentObject } from "./GraphConnectionComponentObject";
 import { GraphCameraComponentObject } from "./GraphCameraComponentObject";

@@ -1,0 +1,6 @@
+{
+  "packages/graph-canvas-core": "1.0.0",
+  "packages/graph": "1.8.3",
+  "packages/graph-react": "1.8.3",
+  "apps/storybook": "1.8.3"
+}

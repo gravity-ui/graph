@@ -4,64 +4,44 @@ const path = require("path");
 
 const PORT = 6006;
 const PAGES_DIR = path.join(__dirname, "pages");
-const BUILD_DIR = path.join(__dirname, "..", "build");
-const E2E_DIST = path.join(__dirname, "dist");
+const ROOT_DIR = path.join(__dirname, "..");
 
-const server = http.createServer((req, res) => {
-  // Serve e2e dist files (bundle)
-  if (req.url.startsWith("/e2e/dist/")) {
-    const filePath = path.join(__dirname, "..", req.url);
-    if (fs.existsSync(filePath)) {
-      const stat = fs.statSync(filePath);
+const CONTENT_TYPES = {
+  ".js": "application/javascript; charset=utf-8",
+  ".mjs": "application/javascript; charset=utf-8",
+  ".css": "text/css",
+  ".map": "application/json",
+  ".html": "text/html",
+};
 
-      if (stat.isDirectory()) {
-        res.writeHead(403);
-        res.end("Forbidden");
-        return;
-      }
-
-      const ext = path.extname(filePath);
-      const contentType = {
-        ".js": "application/javascript; charset=utf-8",
-        ".map": "application/json",
-      }[ext] || "text/plain";
-
-      res.writeHead(200, {
-        "Content-Type": contentType,
-        "Access-Control-Allow-Origin": "*",
-      });
-      fs.createReadStream(filePath).pipe(res);
-      return;
-    }
+function serveFile(res, filePath) {
+  if (!fs.existsSync(filePath)) {
+    return false;
   }
 
-  // Serve build files
-  if (req.url.startsWith("/build/")) {
-    const filePath = path.join(__dirname, "..", req.url);
-    if (fs.existsSync(filePath)) {
-      const stat = fs.statSync(filePath);
+  const stat = fs.statSync(filePath);
+  if (stat.isDirectory()) {
+    res.writeHead(403);
+    res.end("Forbidden");
+    return true;
+  }
 
-      // Skip if it's a directory
-      if (stat.isDirectory()) {
-        res.writeHead(403);
-        res.end("Forbidden");
-        return;
-      }
+  const ext = path.extname(filePath);
+  const contentType = CONTENT_TYPES[ext] || "text/plain";
 
-      const ext = path.extname(filePath);
-      const contentType = {
-        ".js": "application/javascript; charset=utf-8",
-        ".css": "text/css",
-        ".map": "application/json",
-      }[ext] || "text/plain";
+  res.writeHead(200, {
+    "Content-Type": contentType,
+    "Access-Control-Allow-Origin": "*",
+  });
+  fs.createReadStream(filePath).pipe(res);
+  return true;
+}
 
-      res.writeHead(200, {
-        "Content-Type": contentType,
-        "Access-Control-Allow-Origin": "*",
-      });
-      fs.createReadStream(filePath).pipe(res);
-      return;
-    }
+const server = http.createServer((req, res) => {
+  // Serve files from packages/ directory (library builds)
+  if (req.url.startsWith("/packages/")) {
+    const filePath = path.join(ROOT_DIR, req.url);
+    if (serveFile(res, filePath)) return;
   }
 
   // Serve HTML pages
@@ -70,29 +50,10 @@ const server = http.createServer((req, res) => {
     req.url === "/" ? "base.html" : req.url
   );
 
-  if (fs.existsSync(filePath)) {
-    const stat = fs.statSync(filePath);
-    
-    // Skip if it's a directory
-    if (stat.isDirectory()) {
-      res.writeHead(403);
-      res.end("Forbidden");
-      return;
-    }
+  if (serveFile(res, filePath)) return;
 
-    const ext = path.extname(filePath);
-    const contentType = {
-      ".html": "text/html",
-      ".js": "text/javascript",
-      ".css": "text/css",
-    }[ext] || "text/plain";
-
-    res.writeHead(200, { "Content-Type": contentType });
-    fs.createReadStream(filePath).pipe(res);
-  } else {
-    res.writeHead(404);
-    res.end("Not found");
-  }
+  res.writeHead(404);
+  res.end("Not found");
 });
 
 server.listen(PORT, () => {

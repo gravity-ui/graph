@@ -1,0 +1,18 @@
+{
+  "extends": "../../tools/tsconfig/base.json",
+  "compilerOptions": {
+    "baseUrl": "./src",
+    "outDir": "./build",
+    "declaration": true,
+    "declarationDir": "./build",
+    "declarationMap": true,
+    "composite": true,
+    "tsBuildInfoFile": "./.tsbuildinfo",
+    "lib": ["ES2020", "DOM"],
+    "paths": {
+      "@/*": ["./*"],
+    },
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.spec.ts"],
+}
