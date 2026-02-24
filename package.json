@@ -51,7 +51,8 @@
   "scripts": {
     "typecheck": "npm run build:publish -- --noEmit",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
-    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests --updateSnapshot",
+    "test:unit": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests --updateSnapshot",
+    "test": "npm run test:unit",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook -c .storybook -o storybook-static -s .storybook/public",
     "build-storybook": "storybook build",
@@ -60,7 +61,15 @@
     "build:publish": "tsc -p tsconfig.publish.json && npm run copy-styles",
     "build": "tsc --declaration && npm run copy-styles",
     "prepublishOnly": "npm run typecheck && npm run test && npm run build:publish",
-    "dev": "concurrently \"tsc --watch --declaration\" \"chokidar 'src/**/*.css' -c 'npm run copy-styles'\""
+    "dev": "concurrently \"tsc --watch --declaration\" \"chokidar 'src/**/*.css' -c 'npm run copy-styles'\"",
+    "e2e:bundle": "node e2e/build-bundle.js",
+    "e2e:serve": "node e2e/server.js",
+    "e2e:build": "npm run build && npm run e2e:bundle",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:ci": "playwright test",
+    "e2e:dev": "concurrently \"tsc --watch --declaration\" \"chokidar 'src/**/*.css' -c 'npm run copy-styles'\" \"npm run e2e:serve\""
   },
   "peerDependencies": {
     "react": "^17.0.0 || ^18.0.0",
@@ -89,6 +98,7 @@
     "@gravity-ui/tsconfig": "^1.0.0",
     "@gravity-ui/uikit": "^7.19.0",
     "@monaco-editor/react": "^4.6.0",
+    "@playwright/test": "^1.58.0",
     "@storybook/addon-docs": "^9.1.2",
     "@storybook/addon-links": "^9.1.2",
     "@storybook/addon-styling-webpack": "^2.0.0",
@@ -108,6 +118,7 @@
     "copyfiles": "^2.4.1",
     "cross-env": "^7.0.3",
     "elkjs": "^0.9.3",
+    "esbuild": "^0.27.2",
     "eslint": "^8.0.0",
     "eslint-config-prettier": "^8.10.0",
     "eslint-import-resolver-typescript": "2.5.0",

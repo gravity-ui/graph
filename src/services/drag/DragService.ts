@@ -51,11 +51,7 @@ export class DragService {
    */
   public readonly $state = signal<DragState>(this.createIdleState());
 
-  constructor(private graph: Graph) {
-    // this.unsubscribeMouseDown = graph.on("mousedown", this.handleMouseDown, {
-    //   capture: true,
-    // });
-  }
+  constructor(private graph: Graph) {}
 
   /**
    * Create idle (not dragging) state
