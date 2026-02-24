@@ -3,7 +3,12 @@ import type { Options } from "@swc/core";
 const config: StorybookConfig = {
   stories: ["../src/**/*.mdx", "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
 
-  addons: ["@storybook/addon-styling-webpack", "@storybook/addon-webpack5-compiler-swc", "@storybook/addon-docs"],
+  addons: [
+    "@storybook/addon-styling-webpack",
+    "@storybook/addon-webpack5-compiler-swc",
+    "@storybook/addon-docs",
+    "@github-ui/storybook-addon-performance-panel",
+  ],
 
   framework: {
     name: "@storybook/react-webpack5",

@@ -12,8 +12,8 @@ import type { Meta, StoryFn } from "@storybook/react-webpack5";
 import { Graph } from "@gravity-ui/graph";
 import { TGraphColors } from "@gravity-ui/graph";
 import { computeCssVariable } from "@gravity-ui/graph";
-import { withAnchorsAndConnectionConfig } from "@gravity-ui/graph";
-import { GraphComponentStory } from "@gravity-ui/graph";
+import { withAnchorsAndConnectionConfig } from "../../configurations/withAnchorAndConnection";
+import { GraphComponentStory } from "../../main/GraphEditor";
 
 import "@gravity-ui/uikit/styles/styles.css";
 

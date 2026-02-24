@@ -12,9 +12,11 @@
       "import": "./build/index.js",
       "require": "./build/index.cjs"
     },
-    "./styles": "./build/styles/index.css"
+    "./styles": "./build/build/styles/index.css"
   },
-  "files": ["build"],
+  "files": [
+    "build"
+  ],
   "scripts": {
     "build": "rollup -c",
     "build:watch": "rollup -c -w",
@@ -30,8 +32,8 @@
     "@preact/signals-core": "^1.12.2"
   },
   "peerDependencies": {
-    "react": "^17.0.0 || ^18.0.0",
-    "react-dom": "^17.0.0 || ^18.0.0"
+    "react": "^17.0.0 || ^18.0.0 || ^19.0.0",
+    "react-dom": "^17.0.0 || ^18.0.0  || ^19.0.0"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.0",

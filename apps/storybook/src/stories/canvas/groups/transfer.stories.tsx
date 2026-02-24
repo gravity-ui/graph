@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
@@ -6,8 +6,7 @@ import { TDefinitionGroup } from "@gravity-ui/graph";
 import { BlockGroupsTransferLayer } from "@gravity-ui/graph";
 import { ECanDrag, Graph, GraphState, Group, TBlock } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph-react";
-import { useFn } from "@gravity-ui/graph-react/utils/hooks/useFn";
-import { BlockStory } from "@gravity-ui/graph";
+import { BlockStory } from "../../main/Block";
 
 const createConfig = () => {
   const blocks: TBlock[] = [
@@ -227,9 +226,9 @@ const GroupTransferApp = () => {
     }
   }, [groupsLayer, groups]);
 
-  const renderBlockFn = useFn((graphObject: Graph, block: TBlock) => {
+  const renderBlockFn = useCallback((graphObject: Graph, block: TBlock) => {
     return <BlockStory graph={graphObject} block={block} />;
-  });
+  }, []);
 
   return (
     <div style={{ display: "flex", height: "100%", gap: "16px" }}>

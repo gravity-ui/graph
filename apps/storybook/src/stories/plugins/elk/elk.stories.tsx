@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 
 import { ThemeProvider } from "@gravity-ui/uikit";
 import { Description, Meta as StorybookMeta, Title } from "@storybook/addon-docs/blocks";
@@ -6,10 +6,14 @@ import type { Meta, StoryFn } from "@storybook/react-webpack5";
 import ELK, { ElkNode } from "elkjs";
 
 import { Graph, GraphState, TBlock, TConnection, TGraphConfig } from "@gravity-ui/graph";
-import { GraphCanvas, MultipointConnection, useElk, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
-import { TMultipointConnection } from "@gravity-ui/graph-react/elk/types";
-import { useFn } from "@gravity-ui/graph-react/utils/hooks/useFn";
-import { BlockStory } from "@gravity-ui/graph";
+import {
+  GraphCanvas,
+  MultipointConnection,
+  TMultipointConnection,
+  useElk,
+  useGraph,
+  useGraphEvent} from "@gravity-ui/graph-react";
+import { BlockStory } from "../../main/Block";
 
 import { getExampleConfig } from "./getExampleConfig";
 
@@ -80,9 +84,9 @@ const GraphApp = ({ elkConfig, graphConfig }: GraphAppProps) => {
     }
   });
 
-  const renderBlockFn = useFn((graphObject: Graph, block: TBlock) => {
+  const renderBlockFn = useCallback((graphObject: Graph, block: TBlock) => {
     return <BlockStory graph={graphObject} block={block} />;
-  });
+  }, []);
 
   return (
     <ThemeProvider theme={"light"}>

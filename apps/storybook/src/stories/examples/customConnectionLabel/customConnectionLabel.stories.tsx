@@ -8,8 +8,8 @@ import { getLabelCoords } from "@gravity-ui/graph";
 import { BlockConnection, Graph, TConnection, cachedMeasureText } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 import { getFontSize } from "@gravity-ui/graph";
-import { generatePrettyBlocks } from "@gravity-ui/graph";
-import { BlockStory } from "@gravity-ui/graph";
+import { generatePrettyBlocks } from "../../configurations/generatePretty";
+import { BlockStory } from "../../main/Block";
 
 import "@gravity-ui/uikit/styles/styles.css";
 

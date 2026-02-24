@@ -1,14 +1,13 @@
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect } from "react";
 
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { BlockGroups, Group } from "@gravity-ui/graph";
 import { Graph, GraphState, TBlock } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
-import { useFn } from "@gravity-ui/graph-react/utils/hooks/useFn";
 import { TGroup } from "@gravity-ui/graph";
-import { generatePrettyBlocks } from "@gravity-ui/graph";
-import { BlockStory } from "@gravity-ui/graph";
+import { generatePrettyBlocks } from "../../configurations/generatePretty";
+import { BlockStory } from "../../main/Block";
 
 interface ExtendedTGroup extends TGroup {
   description: string;
@@ -73,9 +72,9 @@ const ExtendedGroupsApp = () => {
     }
   });
 
-  const renderBlockFn = useFn((graphObject: Graph, block: TBlock) => {
+  const renderBlockFn = useCallback((graphObject: Graph, block: TBlock) => {
     return <BlockStory graph={graphObject} block={block} />;
-  });
+  }, []);
 
   return <GraphCanvas className="graph" graph={graph} renderBlock={renderBlockFn} />;
 };

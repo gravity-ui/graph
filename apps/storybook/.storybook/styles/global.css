@@ -1,4 +1,3 @@
-
 @mixin nv-legacy-text {
   @font-face {
     font-family: "YS Text";
@@ -37,7 +36,6 @@
   }
 }
 
-
 .sb-show-main {
   padding: 0 !important;
   margin: 0;
@@ -54,6 +52,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .graph {

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 
 import { Button, Flex, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
@@ -6,13 +6,13 @@ import type { Meta, StoryFn } from "@storybook/react-webpack5";
 // import { TBlock } from "@gravity-ui/graph";
 // import { Graph, GraphState } from "@gravity-ui/graph";
 // import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
-// import { useFn } from "@gravity-ui/graph-react/utils/hooks/useFn";
-import { generatePrettyBlocks } from "@gravity-ui/graph";
-import { BlockStory } from "@gravity-ui/graph";
+// import { generatePrettyBlocks } from "../../configurations/generatePretty";
+import { BlockStory } from "../../main/Block";
 import { Graph, GraphState, TBlock } from "@gravity-ui/graph";
 import { useGraph, GraphCanvas } from "@gravity-ui/graph-react";
 
 import "@gravity-ui/uikit/styles/styles.css";
+import { generatePrettyBlocks } from "../../configurations/generatePretty";
 
 const config = generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 10, dashedLine: true });
 
@@ -43,9 +43,9 @@ const GraphApp = () => {
     }
   };
 
-  const renderBlockFn = useFn((graphObject: Graph, block: TBlock) => {
+  const renderBlockFn = useCallback((graphObject: Graph, block: TBlock) => {
     return <BlockStory graph={graphObject} block={block} />;
-  });
+  }, []);
 
   const update = () => {
     const { blocks, connections } = generatePrettyBlocks({

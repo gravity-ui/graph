@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Flex, Hotkey, Switch, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
@@ -7,9 +7,8 @@ import { TBlock } from "@gravity-ui/graph";
 import { NewBlockLayer } from "@gravity-ui/graph";
 import { Graph } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
-import { useFn } from "@gravity-ui/graph-react/utils/hooks/useFn";
-import { generatePrettyBlocks } from "@gravity-ui/graph";
-import { BlockStory } from "@gravity-ui/graph";
+import { generatePrettyBlocks } from "../../configurations/generatePretty";
+import { BlockStory } from "../../main/Block";
 
 import "@gravity-ui/uikit/styles/styles.css";
 
@@ -33,7 +32,7 @@ const GraphApp = () => {
 
   const [enabled, setEnabled] = useState(true);
 
-  const switchNewBlockEnabled = useFn((addEnabled: boolean) => {
+  const switchNewBlockEnabled = useCallback((addEnabled: boolean) => {
     if (addEnabled) {
       newBlockLayerRef.current.enable();
       setEnabled(true);
@@ -41,7 +40,7 @@ const GraphApp = () => {
       newBlockLayerRef.current.disable();
       setEnabled(false);
     }
-  });
+  }, []);
 
   const renderBlock = (graphInstance: Graph, block: TBlock) => {
     return <BlockStory graph={graphInstance} block={block} />;

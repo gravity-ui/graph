@@ -11,7 +11,7 @@ import {
 } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 import { createAnchorPortId } from "@gravity-ui/graph";
-import { BlockStory } from "@gravity-ui/graph";
+import { BlockStory } from "../../main/Block";
 
 import "@gravity-ui/uikit/styles/styles.css";
 

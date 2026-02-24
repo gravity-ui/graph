@@ -1,11 +1,10 @@
-import React, { useLayoutEffect } from "react";
+import React, { useCallback, useLayoutEffect } from "react";
 
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { TBlock } from "@gravity-ui/graph";
 import { Graph, GraphState } from "@gravity-ui/graph";
 import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
-import { useFn } from "@gravity-ui/graph-react/utils/hooks/useFn";
 import { ECanDrag } from "@gravity-ui/graph";
 
 const config: HookGraphParams = {
@@ -75,13 +74,13 @@ function GraphWithMouseWheelBehaviorScroll() {
     });
   }, [setEntities]);
 
-  const renderBlockFn = useFn((graph: Graph, block: TBlock) => {
+  const renderBlockFn = useCallback((graph: Graph, block: TBlock) => {
     return (
       <GraphBlock graph={graph} block={block}>
         {block.id.toLocaleString()}
       </GraphBlock>
     );
-  });
+  }, []);
 
   return <GraphCanvas graph={graph} renderBlock={renderBlockFn} />;
 }

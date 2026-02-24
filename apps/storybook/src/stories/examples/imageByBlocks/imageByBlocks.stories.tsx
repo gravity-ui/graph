@@ -5,8 +5,8 @@ import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { CanvasBlock, Graph, TBlock, TGraphConfig } from "@gravity-ui/graph";
-import { storiesSettings } from "@gravity-ui/graph";
-import { GraphComponentStory } from "@gravity-ui/graph";
+import { storiesSettings } from "../../configurations/definitions";
+import { GraphComponentStory } from "../../main/GraphEditor";
 
 import image from "./image.png";
 

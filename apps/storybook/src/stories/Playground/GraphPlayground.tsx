@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
   Flex,
@@ -6,16 +6,14 @@ import {
   SegmentedRadioGroupOptionProps,
   SegmentedRadioGroupProps,
   Text,
-  ThemeProvider,
-} from "@gravity-ui/uikit";
+  ThemeProvider} from "@gravity-ui/uikit";
 import { StoryFn } from "storybook/internal/types";
 
 import { TBlock } from "@gravity-ui/graph";
 import { random } from "@gravity-ui/graph";
 import { ConnectionLayer } from "@gravity-ui/graph";
 import { Graph, GraphState, TGraphConfig } from "@gravity-ui/graph";
-import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph";
-import { useFn } from "@gravity-ui/graph";
+import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph-react";
 import { ECanDrag } from "@gravity-ui/graph";
 import { EAnchorType } from "../configurations/definitions";
 
@@ -146,17 +144,17 @@ export function GraphPLayground() {
     drawLine,
   });
 
-  const getNextBlockIndex = useFn(() => {
+  const getNextBlockIndex = useCallback(() => {
     return Date.now();
-  });
+  }, []);
 
-  const updateVisibleConfig = useFn(() => {
+  const updateVisibleConfig = useCallback(() => {
     const config = graph.rootStore.getAsConfig();
     editorRef?.current.setContent({
       blocks: config.blocks || [],
       connections: config.connections || [],
     });
-  });
+  }, []);
 
   useGraphEvent(graph, "block-change", ({ block }) => {
     editorRef?.current.updateBlocks([block]);
@@ -244,7 +242,7 @@ export function GraphPLayground() {
     }
   });
 
-  const addNewBlock = useFn(() => {
+  const addNewBlock = useCallback(() => {
     const rect = graph.api.getUsableRect();
     const x = random(rect.x, rect.x + rect.width + 100);
     const y = random(rect.y, rect.y + rect.height + 100);
@@ -254,9 +252,9 @@ export function GraphPLayground() {
     graph.zoomTo([block.id], { transition: 250 });
     updateVisibleConfig();
     editorRef?.current.scrollTo(block.id);
-  });
+  }, []);
 
-  const renderBlockFn = useFn((graph: Graph, block: TBlock) => {
+  const renderBlockFn = useCallback((graph: Graph, block: TBlock) => {
     const view = graph.rootStore.blocksList.getBlockState(block.id)?.getViewComponent();
     if (view instanceof ActionBlock) {
       return view.renderHTML();
@@ -269,7 +267,7 @@ export function GraphPLayground() {
         Unknown block <>{block.id.toLocaleString()}</>
       </GraphBlock>
     );
-  });
+  }, []);
 
   useGraphEvent(graph, "blocks-selection-change", ({ list }) => {
     if (list.length === 1) {
@@ -288,7 +286,7 @@ export function GraphPLayground() {
     return () => document.body.removeEventListener("keydown", fn);
   });
 
-  const updateGraphSize = useFn<Parameters<SegmentedRadioGroupProps["onUpdate"]>, void>((value) => {
+  const updateGraphSize = useCallback((value) => {
     let config: TGraphConfig<TGravityActionBlock | TGravityTextBlock>;
     setGraphSize(value);
 
@@ -316,7 +314,7 @@ export function GraphPLayground() {
     setEntities(config);
     graph.zoomTo("center", { transition: 500 });
     updateVisibleConfig();
-  });
+  }, []);
 
   return (
     <ThemeProvider theme="dark">

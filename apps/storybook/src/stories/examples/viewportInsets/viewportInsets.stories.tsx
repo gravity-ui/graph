@@ -6,8 +6,8 @@ import type { Meta, StoryObj } from "@storybook/react-webpack5";
 import { TBlock } from "@gravity-ui/graph";
 import { Graph, GraphState } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
-import { generatePrettyBlocks } from "@gravity-ui/graph";
-import { BlockStory } from "@gravity-ui/graph";
+import { generatePrettyBlocks } from "../../configurations/generatePretty";
+import { BlockStory } from "../../main/Block";
 
 type TRect = { x: number; y: number; width: number; height: number };
 

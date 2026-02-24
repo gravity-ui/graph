@@ -1,12 +1,11 @@
-import React, { MouseEvent } from "react";
+import React, { useCallback, MouseEvent } from "react";
 
 import { AbbrApi, Bug, Database } from "@gravity-ui/icons";
 import { Button, Icon, Text } from "@gravity-ui/uikit";
 
 import { TBlock } from "@gravity-ui/graph";
 import { Graph } from "@gravity-ui/graph";
-import { GraphBlock, GraphBlockAnchor } from "@gravity-ui/graph";
-import { useFn } from "@gravity-ui/graph";
+import { GraphBlock, GraphBlockAnchor } from "@gravity-ui/graph-react";
 
 import "./Block.css";
 
@@ -16,10 +15,10 @@ export type TBlockStoryProps = {
 };
 
 export const BlockStory: React.FC<TBlockStoryProps> = ({ graph, block }) => {
-  const onClick = useFn((e: MouseEvent) => {
+  const onClick = useCallback((e: MouseEvent) => {
     console.log("Propagation stopped. Event should not ");
     e.stopPropagation();
-  });
+  }, []);
   return (
     <GraphBlock graph={graph} block={block} className="example-block">
       <div className="block-header" style={{ textAlign: "center" }}>

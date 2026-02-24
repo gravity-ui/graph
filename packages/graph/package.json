@@ -12,6 +12,7 @@
       "import": "./build/index.js",
       "require": "./build/index.cjs"
     },
+    "./styles": "./build/build/styles.css",
     "./package.json": "./package.json"
   },
   "files": ["build"],

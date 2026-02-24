@@ -1,11 +1,10 @@
-import React, { Ref, useImperativeHandle, useRef, useState } from "react";
+import React, { useCallback, Ref, useImperativeHandle, useRef, useState } from "react";
 
 import { Button, Flex, Hotkey, Text } from "@gravity-ui/uikit";
 import { Editor, OnMount, OnValidate, loader } from "@monaco-editor/react";
 import { KeyCode, KeyMod } from "monaco-editor/esm/vs/editor/editor.api";
 
 import type { TBlock } from "@gravity-ui/graph";
-import { useFn } from "@gravity-ui/graph-react/utils/hooks/useFn";
 import { TBlockId } from "@gravity-ui/graph";
 import type { TConnection } from "@gravity-ui/graph";
 
@@ -95,7 +94,7 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(
     },
   }));
 
-  const applyChanges = useFn(() => {
+  const applyChanges = useCallback(() => {
     try {
       const data = JSON.parse(monacoRef.current.getModel().getValue());
       props?.onChange?.({ blocks: data.blocks, connections: data.conections });
@@ -103,7 +102,7 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(
       // eslint-disable-next-line no-console
       console.error(e);
     }
-  });
+  }, []);
 
   return (
     <Flex direction="column" className="editor-wrap">

@@ -1,5 +1,5 @@
 import { TGraphConfig } from "@gravity-ui/graph";
-import { storiesSettings } from "@gravity-ui/graph";
+import { storiesSettings } from "../../configurations/definitions";
 
 export const graphConfig: TGraphConfig = {
   configurationName: "simple",

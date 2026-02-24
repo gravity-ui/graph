@@ -8,7 +8,7 @@ import { DevToolsLayer } from "@gravity-ui/graph";
 import { DEFAULT_DEVTOOLS_LAYER_PROPS } from "@gravity-ui/graph";
 import { TDevToolsLayerProps } from "@gravity-ui/graph";
 import { GraphBlock, GraphCanvas, useGraph, useLayer } from "@gravity-ui/graph-react";
-import { generatePrettyBlocks } from "@gravity-ui/graph";
+import { generatePrettyBlocks } from "../../configurations/generatePretty";
 
 // Define some basic global styles directly or assume they exist globally
 const storyContainerStyle: React.CSSProperties = {

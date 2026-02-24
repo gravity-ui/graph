@@ -19,7 +19,7 @@ import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { Graph } from "@gravity-ui/graph";
 import { TConnection } from "@gravity-ui/graph";
-import { GraphComponentStory } from "@gravity-ui/graph";
+import { GraphComponentStory } from "../../main/GraphEditor";
 
 import { graphConfig } from "./config";
 
