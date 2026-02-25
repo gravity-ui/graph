@@ -3,6 +3,8 @@ import { TGraphColors, TGraphConstants } from "../graphConfig";
 import { GraphEventsDefinitions } from "../graphEvents";
 import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
+import { ESchedulerPriority } from "../lib/Scheduler";
+import { debounce } from "../utils/utils/schedule";
 
 import { ICamera, TCameraState } from "./camera/CameraService";
 
@@ -328,9 +330,24 @@ export class Layer<
     this.updateSize();
   }
 
+  private readonly stopCameraMoving = debounce(
+    () => {
+      this.html?.classList.remove("layer-with-camera-moving");
+      this.moving = false;
+    },
+    { priority: ESchedulerPriority.LOW, frameTimeout: 150 }
+  );
+
+  protected moving = false;
+
   protected scheduleCameraChange(camera: TCameraState) {
     if (this.html && this.htmlActive) {
+      if (!this.moving) {
+        this.html.classList.add("layer-with-camera-moving");
+        this.moving = true;
+      }
       this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${camera.x}, ${camera.y})`;
+      this.stopCameraMoving();
     }
   }
 
@@ -413,6 +430,7 @@ export class Layer<
   }
 
   protected unmount(): void {
+    this.stopCameraMoving.cancel();
     this.unmountLayer();
     super.unmount();
   }
