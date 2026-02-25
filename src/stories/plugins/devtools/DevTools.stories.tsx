@@ -13,7 +13,7 @@ import { generatePrettyBlocks } from "../../configurations/generatePretty";
 // Define some basic global styles directly or assume they exist globally
 const storyContainerStyle: React.CSSProperties = {
   width: "100%",
-  height: "100%",
+  height: "600px",
   minHeight: "600px",
   position: "relative",
   display: "flex",
@@ -101,12 +101,12 @@ import React from 'react';
 import { GraphCanvas, useGraph, useLayer, DevToolsLayer } from '@gravity-ui/graph';
 
 function MyGraphWithDevTools() {
-  const { graph } = useGraph({ 
+  const { graph } = useGraph({
     settings: {
       canZoomCamera: true,
       canDragCamera: true,
     }
-    /* Other graph config */ 
+    /* Other graph config */
   });
 
   // Add the DevToolsLayer with desired options
