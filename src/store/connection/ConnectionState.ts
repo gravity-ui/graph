@@ -1,6 +1,7 @@
 import { computed, signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
+import { Anchor } from "../../components/canvas/anchors";
 import { Block } from "../../components/canvas/blocks/Block";
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "../../components/canvas/connections";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
@@ -115,16 +116,33 @@ export class ConnectionState<T extends TConnection = TConnection> {
 
   /* @deprecated use $sourcePortState instead */
   public readonly $sourceBlock = computed(() => {
-    if (this.$sourcePortState.value.component && this.$sourcePortState.value.component instanceof Block) {
-      return this.$sourcePortState.value.component.connectedState;
+    const component = this.$sourcePortState.value.component;
+
+    if (!component) {
+      return undefined;
+    }
+
+    if (component instanceof Block) {
+      return component.connectedState;
+    }
+    if (component instanceof Anchor) {
+      return component.connectedState.block;
     }
     return undefined;
   });
 
   /* @deprecated use $targetPortState instead */
   public readonly $targetBlock = computed(() => {
-    if (this.$targetPortState.value.component && this.$targetPortState.value.component instanceof Block) {
-      return this.$targetPortState.value.component.connectedState;
+    const component = this.$targetPortState.value.component;
+    if (!component) {
+      return undefined;
+    }
+
+    if (component instanceof Block) {
+      return component.connectedState;
+    }
+    if (component instanceof Anchor) {
+      return component.connectedState.block;
     }
     return undefined;
   });
