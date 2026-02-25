@@ -6,15 +6,17 @@
   box-sizing: content-box;
   width: var(--graph-block-geometry-width);
   height: var(--graph-block-geometry-height);
-  
-  will-change: transform;
+
   contain: layout size;
   isolation: isolate;
-  
   /* Creates a composite layer */
-  transform-style: preserve-3d;
+  transform-style: flat;
   pointer-events: all;
   transform: translate3d(var(--graph-block-geometry-x, 0px), var(--graph-block-geometry-y, 0px), 0);
+}
+
+.graph-block-container-moving {
+  /*will-change: transform;*/
 }
 
 .graph-block-container-non-interactive {
@@ -29,11 +31,11 @@
   box-sizing: border-box;
 
   background: var(--graph-block-bg);
-  border: 1px solid var(--graph-block-border)
+  border: 1px solid var(--graph-block-border);
 }
 
 .graph-block-wrapper.selected {
-  border-color: var(--graph-block-border-selected)
+  border-color: var(--graph-block-border-selected);
 }
 
 .graph-block-wrapper.selected:hover {

@@ -2,11 +2,11 @@ import { TAnchor } from "../../components/canvas/anchors";
 import { Graph } from "../../graph";
 import { AnchorState } from "../../store/anchor/Anchor";
 
-import { useBlockState } from "./useBlockState";
+import { useSyncBlockState } from "./useBlockState";
 import { useComputedSignal, useSignalEffect } from "./useSignal";
 
 export function useBlockAnchorState(graph: Graph, anchor: TAnchor): AnchorState | undefined {
-  const blockState = useBlockState(graph, anchor.blockId);
+  const blockState = useSyncBlockState(graph, anchor.blockId);
   return useComputedSignal(() => {
     if (!blockState) return undefined;
     if (!Array.isArray(blockState.$anchorStates?.value)) return undefined;
