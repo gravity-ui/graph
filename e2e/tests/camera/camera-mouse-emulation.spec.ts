@@ -55,28 +55,20 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       await graphPO.page.mouse.move(screenCenterX, screenCenterY);
       await graphPO.waitForFrames(3);
 
-      await graphPO.page.evaluate(() => {
-        (window as any).__enterCount = 0;
-        window.graph.on("mouseenter" as any, (event: any) => {
-          // Only count events targeting actual blocks (they have props.id)
-          if (event.detail?.target?.props?.id) {
-            (window as any).__enterCount++;
-          }
-        });
-      });
+      const listener = await graphPO.listenGraphEvents("mouseenter");
 
-      // Trackpad-pan block-1 center under the cursor
       await camera.panWorldPointUnderCursor(
         BLOCK_1.x + BLOCK_1.width / 2,
         BLOCK_1.y + BLOCK_1.height / 2,
         screenCenterX,
         screenCenterY
       );
-      
       await graphPO.waitForFrames(5);
 
-      const enterCount = await graphPO.page.evaluate(() => (window as any).__enterCount);
-      expect(enterCount).toBe(0);
+      const count = await listener.analyze((events) =>
+        events.filter((e) => e.detail?.target?.props?.id).length
+      );
+      expect(count).toBe(0);
     });
   });
 
@@ -105,19 +97,11 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       const screenCenterX = canvasBounds.x + canvasBounds.width / 2;
       const screenCenterY = canvasBounds.y + canvasBounds.height / 2;
 
-      // Place mouse at canvas center (empty space)
       await graphPO.page.mouse.move(screenCenterX, screenCenterY);
       await graphPO.waitForFrames(3);
 
-      await graphPO.page.evaluate(() => {
-        (window as any).__enterIds = [];
-        window.graph.on("mouseenter" as any, (event: any) => {
-          const id = event.detail?.target?.props?.id;
-          if (id) (window as any).__enterIds.push(id);
-        });
-      });
+      const listener = await graphPO.listenGraphEvents("mouseenter");
 
-      // Trackpad-pan block-1 center under the cursor
       await camera.panWorldPointUnderCursor(
         BLOCK_1.x + BLOCK_1.width / 2,
         BLOCK_1.y + BLOCK_1.height / 2,
@@ -126,7 +110,9 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       );
       await graphPO.waitForFrames(5);
 
-      const enterIds = await graphPO.page.evaluate(() => (window as any).__enterIds);
+      const enterIds = await listener.analyze((events) =>
+        events.map((e) => e.detail?.target?.props?.id).filter(Boolean)
+      );
       expect(enterIds).toContain(BLOCK_1.id);
     });
 
@@ -150,19 +136,14 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       await graphPO.page.mouse.move(blockScreenPos.x, blockScreenPos.y);
       await graphPO.waitForFrames(2);
 
-      await graphPO.page.evaluate(() => {
-        (window as any).__leaveIds = [];
-        window.graph.on("mouseleave" as any, (event: any) => {
-          const id = event.detail?.target?.props?.id;
-          if (id) (window as any).__leaveIds.push(id);
-        });
-      });
+      const listener = await graphPO.listenGraphEvents("mouseleave");
 
-      // Trackpad-pan the camera so block-1 moves away from cursor
       await camera.trackpadPan(400, 0);
       await graphPO.waitForFrames(5);
 
-      const leaveIds = await graphPO.page.evaluate(() => (window as any).__leaveIds);
+      const leaveIds = await listener.analyze((events) =>
+        events.map((e) => e.detail?.target?.props?.id).filter(Boolean)
+      );
       expect(leaveIds).toContain(BLOCK_1.id);
     });
 
@@ -178,18 +159,8 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       await graphPO.page.mouse.move(screenCenterX, screenCenterY);
       await graphPO.waitForFrames(3);
 
-      await graphPO.page.evaluate(() => {
-        (window as any).__enterIds = [];
-        (window as any).__leaveIds = [];
-        window.graph.on("mouseenter" as any, (event: any) => {
-          const id = event.detail?.target?.props?.id;
-          if (id) (window as any).__enterIds.push(id);
-        });
-        window.graph.on("mouseleave" as any, (event: any) => {
-          const id = event.detail?.target?.props?.id;
-          if (id) (window as any).__leaveIds.push(id);
-        });
-      });
+      const enterListener = await graphPO.listenGraphEvents("mouseenter");
+      const leaveListener = await graphPO.listenGraphEvents("mouseleave");
 
       // Phase 1: pan block-1 under cursor → mouseenter
       await camera.panWorldPointUnderCursor(
@@ -204,8 +175,12 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       await camera.trackpadPan(400, 0);
       await graphPO.waitForFrames(5);
 
-      const enterIds = await graphPO.page.evaluate(() => (window as any).__enterIds);
-      const leaveIds = await graphPO.page.evaluate(() => (window as any).__leaveIds);
+      const enterIds = await enterListener.analyze((events) =>
+        events.map((e) => e.detail?.target?.props?.id).filter(Boolean)
+      );
+      const leaveIds = await leaveListener.analyze((events) =>
+        events.map((e) => e.detail?.target?.props?.id).filter(Boolean)
+      );
 
       expect(enterIds).toContain(BLOCK_1.id);
       expect(leaveIds).toContain(BLOCK_1.id);
@@ -224,22 +199,22 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       await graphPO.page.mouse.move(emptyAreaX, emptyAreaY);
       await graphPO.waitForFrames(3);
 
-      await graphPO.page.evaluate(() => {
-        (window as any).__blockEventCount = 0;
-        window.graph.on("mouseenter" as any, (event: any) => {
-          if (event.detail?.target?.props?.id) (window as any).__blockEventCount++;
-        });
-        window.graph.on("mouseleave" as any, (event: any) => {
-          if (event.detail?.target?.props?.id) (window as any).__blockEventCount++;
-        });
-      });
+      const enterListener = await graphPO.listenGraphEvents("mouseenter");
+      const leaveListener = await graphPO.listenGraphEvents("mouseleave");
 
       // Pan camera — cursor stays over empty space, no block should enter/leave
       await camera.trackpadPan(40, 0);
       await graphPO.waitForFrames(5);
 
-      const count = await graphPO.page.evaluate(() => (window as any).__blockEventCount);
-      expect(count).toBe(0);
+      const enterCount = await enterListener.analyze((events) =>
+        events.filter((e) => Boolean(e.detail?.target?.props?.id)).length
+      );
+      const leaveCount = await leaveListener.analyze((events) =>
+        events.filter((e) => Boolean(e.detail?.target?.props?.id)).length
+      );
+
+      expect(enterCount).toBe(0);
+      expect(leaveCount).toBe(0);
     });
 
     test("cursor should change to pointer when trackpad pans block under static cursor", async () => {
@@ -304,18 +279,8 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       await graphPO.page.mouse.move(screenCenterX, screenCenterY);
       await graphPO.waitForFrames(3);
 
-      await graphPO.page.evaluate(() => {
-        (window as any).__enterIds = [];
-        (window as any).__leaveIds = [];
-        window.graph.on("mouseenter" as any, (event: any) => {
-          const id = event.detail?.target?.props?.id;
-          if (id) (window as any).__enterIds.push(id);
-        });
-        window.graph.on("mouseleave" as any, (event: any) => {
-          const id = event.detail?.target?.props?.id;
-          if (id) (window as any).__leaveIds.push(id);
-        });
-      });
+      const enterListener = await graphPO.listenGraphEvents("mouseenter");
+      const leaveListener = await graphPO.listenGraphEvents("mouseleave");
 
       // Pan block-1 under cursor
       await camera.panWorldPointUnderCursor(
@@ -335,8 +300,12 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       );
       await graphPO.waitForFrames(5);
 
-      const enterIds = await graphPO.page.evaluate(() => (window as any).__enterIds);
-      const leaveIds = await graphPO.page.evaluate(() => (window as any).__leaveIds);
+      const enterIds = await enterListener.analyze((events) =>
+        events.map((e) => e.detail?.target?.props?.id).filter(Boolean)
+      );
+      const leaveIds = await leaveListener.analyze((events) =>
+        events.map((e) => e.detail?.target?.props?.id).filter(Boolean)
+      );
 
       expect(enterIds).toContain(BLOCK_1.id);
       expect(enterIds).toContain(BLOCK_2.id);
@@ -355,13 +324,7 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       const block1Center = await block1.getWorldCenter();
       await graphPO.hover(block1Center.x, block1Center.y, { waitFrames: 3 });
 
-      await graphPO.page.evaluate(() => {
-        (window as any).__enterIds = [];
-        window.graph.on("mouseenter" as any, (event: any) => {
-          const id = event.detail?.target?.props?.id;
-          if (id) (window as any).__enterIds.push(id);
-        });
-      });
+      const listener = await graphPO.listenGraphEvents("mouseenter");
 
       // Position mouse over block-1's screen position before zooming
       const mouseScreenPos = await graphPO.page.evaluate(() => {
@@ -384,7 +347,9 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       }
       await graphPO.waitForFrames(5);
 
-      const enterIds = await graphPO.page.evaluate(() => (window as any).__enterIds);
+      const enterIds = await listener.analyze((events) =>
+        events.map((e) => e.detail?.target?.props?.id).filter(Boolean)
+      );
       expect(enterIds).toContain(BLOCK_1.id);
     });
   });

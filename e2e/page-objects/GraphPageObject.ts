@@ -5,6 +5,65 @@ import { GraphBlockComponentObject } from "./GraphBlockComponentObject";
 import { GraphConnectionComponentObject } from "./GraphConnectionComponentObject";
 import { GraphCameraComponentObject } from "./GraphCameraComponentObject";
 
+let listenerIdCounter = 0;
+
+/**
+ * Collects graph events fired in the browser context and allows analyzing them
+ * via a callback that runs in the browser — no DOM serialization needed.
+ *
+ * Usage:
+ *   const listener = await graphPO.listenGraphEvents("mouseenter");
+ *   // ... trigger actions ...
+ *   const ids = await listener.analyze((events) =>
+ *     events.map((e) => e.detail?.target?.props?.id).filter(Boolean)
+ *   );
+ */
+export class GraphEventListener<TDetail = unknown> {
+  private readonly storageKey: string;
+
+  constructor(
+    private readonly page: Page,
+    storageKey: string
+  ) {
+    this.storageKey = storageKey;
+  }
+
+  /**
+   * Runs `fn` inside the browser with the collected events array as the first argument.
+   * Additional serializable values from Node.js can be passed as extra arguments.
+   * Returns whatever `fn` returns (must be serializable).
+   */
+  async analyze<TResult, TArgs extends unknown[]>(
+    fn: (events: CustomEvent<TDetail>[], ...args: TArgs) => TResult,
+    ...args: TArgs
+  ): Promise<TResult> {
+    return this.page.evaluate(
+      ({ key, fnStr, args }) => {
+        const events = (window as any)[key] ?? [];
+        // eslint-disable-next-line no-new-func
+        return new Function("events", "...args", `return (${fnStr})(events, ...args)`)(
+          events,
+          ...args
+        );
+      },
+      { key: this.storageKey, fnStr: fn.toString(), args }
+    );
+  }
+
+  /** Removes the event listener and cleans up the storage key from window. */
+  async stop(): Promise<void> {
+    await this.page.evaluate((key) => {
+      const handler = (window as any)[`${key}_handler`];
+      if (handler) {
+        window.graph.off((window as any)[`${key}_eventName`], handler);
+      }
+      delete (window as any)[key];
+      delete (window as any)[`${key}_handler`];
+      delete (window as any)[`${key}_eventName`];
+    }, this.storageKey);
+  }
+}
+
 export interface GraphConfig {
   blocks?: TBlock[];
   connections?: TConnection[];
@@ -389,5 +448,39 @@ export class GraphPageObject {
       const root = window.graph.layers.$root;
       return window.getComputedStyle(root).cursor;
     });
+  }
+
+  /**
+   * Starts collecting graph events of the given name in the browser context.
+   * Returns a {@link GraphEventListener} whose `analyze()` method lets you
+   * inspect the collected events inside the browser — no DOM serialization needed.
+   *
+   * @example
+   * const listener = await graphPO.listenGraphEvents("mouseenter");
+   * // ... trigger actions ...
+   * const ids = await listener.analyze((events) =>
+   *   events.map((e) => e.detail?.target?.props?.id).filter(Boolean)
+   * );
+   * expect(ids).toContain("block-1");
+   */
+  async listenGraphEvents<TDetail = unknown>(
+    eventName: string
+  ): Promise<GraphEventListener<TDetail>> {
+    const key = `__graphListener_${listenerIdCounter++}_${eventName}`;
+
+    await this.page.evaluate(
+      ({ key, eventName }) => {
+        (window as any)[key] = [];
+        (window as any)[`${key}_eventName`] = eventName;
+        const handler = (event: CustomEvent) => {
+          (window as any)[key].push(event);
+        };
+        (window as any)[`${key}_handler`] = handler;
+        window.graph.on(eventName as any, handler);
+      },
+      { key, eventName }
+    );
+
+    return new GraphEventListener<TDetail>(this.page, key);
   }
 }
