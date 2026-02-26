@@ -128,6 +128,83 @@ export class GraphCameraComponentObject {
   }
 
   /**
+   * Pan the camera via trackpad wheel events so that the given world point ends up
+   * under the mouse cursor.
+   *
+   * handleTrackpadMove does camera.move(-deltaX, -deltaY), so to shift the camera by
+   * (dx, dy) screen pixels we pass wheel(dx, dy) directly. A non-zero deltaX triggers
+   * trackpad detection in isTrackpadWheelEvent() (horizontal scroll → trackpad).
+   *
+   * Fires multiple small steps (≤8 px) to stay within Camera's edge-guard limits.
+   *
+   * @param worldX - Target world X coordinate to bring under cursor
+   * @param worldY - Target world Y coordinate to bring under cursor
+   * @param viewportX - Cursor viewport X (defaults to canvas center)
+   * @param viewportY - Cursor viewport Y (defaults to canvas center)
+   */
+  async panWorldPointUnderCursor(
+    worldX: number,
+    worldY: number,
+    viewportX?: number,
+    viewportY?: number
+  ): Promise<void> {
+    const canvasBounds = await this.getCanvasBounds();
+    const vx = viewportX ?? canvasBounds.x + canvasBounds.width / 2;
+    const vy = viewportY ?? canvasBounds.y + canvasBounds.height / 2;
+
+    const delta = await this.page.evaluate(
+      ({ wx, wy, vx, vy }) => {
+        const canvas = window.graph.getGraphCanvas();
+        const rect = canvas.getBoundingClientRect();
+        const [currentWX, currentWY] = window.graph.cameraService.getRelativeXY(
+          vx - rect.left,
+          vy - rect.top
+        );
+        const { scale } = window.graph.cameraService.getCameraState();
+        return {
+          dx: (wx - currentWX) * scale,
+          dy: (wy - currentWY) * scale,
+        };
+      },
+      { wx: worldX, wy: worldY, vx, vy }
+    );
+
+    await this.page.mouse.move(vx, vy);
+
+    const STEP = 8;
+    const steps = Math.ceil(Math.max(Math.abs(delta.dx), Math.abs(delta.dy)) / STEP);
+    const stepDx = steps > 0 ? delta.dx / steps : 0;
+    const stepDy = steps > 0 ? delta.dy / steps : 0;
+
+    for (let i = 0; i < steps; i++) {
+      const wheelDx = stepDx !== 0 ? stepDx : 0.1;
+      await this.page.mouse.wheel(wheelDx, stepDy);
+      await this.graphPO.waitForFrames(1);
+    }
+  }
+
+  /**
+   * Pan the camera via trackpad wheel events by the given screen-pixel amount.
+   * Positive dx moves content to the left (camera right), positive dy moves content up.
+   * Mouse must already be positioned on the canvas before calling.
+   *
+   * @param dx - Horizontal pan amount in screen pixels
+   * @param dy - Vertical pan amount in screen pixels
+   */
+  async trackpadPan(dx: number, dy: number): Promise<void> {
+    const STEP = 8;
+    const totalSteps = Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / STEP);
+    const stepDx = totalSteps > 0 ? dx / totalSteps : 0;
+    const stepDy = totalSteps > 0 ? dy / totalSteps : 0;
+
+    for (let moved = 0; moved < totalSteps; moved++) {
+      const wheelDx = stepDx !== 0 ? -stepDx : -0.1;
+      await this.page.mouse.wheel(wheelDx, -stepDy);
+      await this.graphPO.waitForFrames(1);
+    }
+  }
+
+  /**
    * Emulate camera pan with mouse drag
    * @param deltaX - Horizontal drag distance in pixels
    * @param deltaY - Vertical drag distance in pixels

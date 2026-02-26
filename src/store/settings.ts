@@ -54,6 +54,13 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   blockComponents: Record<string, typeof Block<Block>>;
   connection?: typeof BlockConnection<Connection>;
   background?: typeof Component;
+  /**
+   * When enabled, mouseenter/mouseleave events are re-evaluated after each camera change.
+   * Useful for trackpads where panning does not trigger native mousemove events,
+   * so hovering over elements requires this emulation to work correctly.
+   * Default: false
+   */
+  emulateMouseEventsOnCameraChange?: boolean;
 };
 
 export const DefaultSettings: TGraphSettingsConfig = {
