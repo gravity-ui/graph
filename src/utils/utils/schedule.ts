@@ -59,12 +59,18 @@ export const debounce = <T extends (...args: unknown[]) => void>(
 ): T & { cancel: () => void; flush: () => void; isScheduled: () => boolean } => {
   let frameCounter = 0;
   let isScheduled = false;
+  let cancelled = false;
   let removeScheduler: (() => void) | null = null;
-  let latestArgs: Parameters<T>;
+  let latestArgs: Parameters<T> | undefined;
   let startTime = 0;
 
   const debouncedScheduler = {
     performUpdate: () => {
+      // cancel() was called before this frame's performUpdate ran — skip execution
+      if (cancelled) {
+        cancelled = false;
+        return;
+      }
       frameCounter++;
       const currentTime = getNow();
       const elapsedTime = currentTime - startTime;
@@ -77,7 +83,9 @@ export const debounce = <T extends (...args: unknown[]) => void>(
         frameCounter = 0;
         startTime = 0;
         removeScheduler = null;
-        fn(...latestArgs);
+        const args = latestArgs;
+        latestArgs = undefined;
+        fn(...args);
         if (currentRemoveScheduler) {
           currentRemoveScheduler();
         }
@@ -87,11 +95,16 @@ export const debounce = <T extends (...args: unknown[]) => void>(
 
   const cancel = () => {
     if (isScheduled && removeScheduler) {
+      // Mark as cancelled so performUpdate skips execution if it runs this frame
+      // before GlobalScheduler processes the deferred removal from toRemove
+      cancelled = true;
       removeScheduler();
     }
     isScheduled = false;
     frameCounter = 0;
     startTime = 0;
+    removeScheduler = null;
+    latestArgs = undefined;
   };
 
   const flush = () => {
@@ -105,6 +118,7 @@ export const debounce = <T extends (...args: unknown[]) => void>(
     latestArgs = args; // Store latest arguments
     frameCounter = 0; // Reset counter on each call
     startTime = getNow(); // Reset start time on each call
+    cancelled = false; // A new call overrides any pending cancel
 
     if (!isScheduled) {
       isScheduled = true;
