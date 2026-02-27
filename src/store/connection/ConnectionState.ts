@@ -7,6 +7,7 @@ import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "../.
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
 import { TConnectionColors } from "../../graphConfig";
 import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
+import { TPoint } from "../../utils/types/shapes";
 import { TBlockId } from "../block/Block";
 
 import { ConnectionsStore } from "./ConnectionList";
@@ -38,6 +39,19 @@ export type TConnection = {
   dashed?: boolean;
   selected?: boolean;
 } & (TConnectionBlockPoint | TConnectionPortPoint);
+
+export type TLabel = {
+  height?: number;
+  width?: number;
+  x?: number;
+  y?: number;
+  text?: string;
+};
+
+export type TMultipointConnection = TConnection & {
+  points?: TPoint[];
+  labels?: TLabel[];
+};
 
 export class ConnectionState<T extends TConnection = TConnection> {
   public $state = signal<T>(undefined);
