@@ -300,41 +300,55 @@ export class HitTest extends Emitter {
   }
 
   /**
-   * Test hit box intersection with interactive elements and sort by z-index
-   * @param item Hit box data to test
-   * @returns Array of hit components sorted by z-index
-   */
-  /**
-   * Test hit box intersection with interactive elements and sort by z-index
-   * @param item Hit box data to test
-   * @returns Array of hit components sorted by z-index
+   * Test hit box intersection with interactive elements and sort by visual stacking order.
+   *
+   * Sorting uses two criteria (both descending — highest value = topmost component):
+   *
+   * 1. **zIndex** — component *type* priority. Different component classes are assigned
+   *    different base zIndex values to express their relative importance in the UI:
+   *    blocks render above connections, which render above group backgrounds, etc.
+   *    When two components of different types overlap, the one with the higher zIndex
+   *    wins regardless of render order.
+   *
+   * 2. **renderOrder** — visual stacking order *within the same zIndex tier*.
+   *    Set by the scheduler during tree traversal (`_walkDown`): the later a component
+   *    is traversed, the higher its renderOrder. Because the most recently interacted
+   *    component is moved to the end of the children Set (see `Tree.updateChildZIndex`),
+   *    it gets the highest renderOrder in its tier and therefore appears on top visually.
+   *    Hit testing mirrors this: the component that renders last (on top) is returned first.
+   *
+   * The first element of the returned array is the component the user most likely
+   * intended to interact with.
+   *
+   * @param item Hit box data to test (must include x, y as canvas click coordinates)
+   * @returns Components sorted by visual stacking order (topmost first)
    */
   public testHitBox(item: HitBoxData): Component[] {
-    // Use interactive elements tree for hit testing
     const hitBoxes = this.interactiveTree.search(item);
-    const result = [];
-
-    for (let i = 0; i < hitBoxes.length; i++) {
-      if (hitBoxes[i].item.onHitBox(item)) {
-        result.push(hitBoxes[i].item);
+    const result = hitBoxes.reduce<Component[]>((acc, hitbox) => {
+      if (hitbox.item.onHitBox(item)) {
+        acc.push(hitbox.item);
       }
-    }
+      return acc;
+    }, []);
 
-    const res = result.sort((a, b) => {
-      const aZIndex = typeof a.zIndex === "number" ? a.zIndex : -1;
-      const bZIndex = typeof b.zIndex === "number" ? b.zIndex : -1;
+    return result.sort((a, b) => {
+      const aZIndex = getNumberOr(a.zIndex, -1);
+      const bZIndex = getNumberOr(b.zIndex, -1);
       if (aZIndex !== bZIndex) {
         return bZIndex - aZIndex;
       }
 
-      const aOrder = typeof a.renderOrder === "number" ? a.renderOrder : -1;
-      const bOrder = typeof b.renderOrder === "number" ? b.renderOrder : -1;
+      const aOrder = getNumberOr(a.renderOrder, -1);
+      const bOrder = getNumberOr(b.renderOrder, -1);
 
       return bOrder - aOrder;
     });
-
-    return res;
   }
+}
+
+function getNumberOr(number: unknown, orNumber: number): number {
+  return typeof number === "number" ? number : orNumber;
 }
 
 export class HitBox implements IHitBox {

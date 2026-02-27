@@ -80,10 +80,7 @@ export class GraphPageObject {
     }, config);
 
     // Wait for graph to be ready
-    await this.page.waitForFunction(
-      () => window.graphInitialized === true,
-      { timeout: 5000 }
-    );
+    await this.page.waitForFunction(() => window.graphInitialized === true, { timeout: 5000 });
 
     // Wait for initial render frames
     await this.waitForFrames(3);
@@ -97,14 +94,11 @@ export class GraphPageObject {
     await this.page.evaluate((frameCount) => {
       return new Promise<void>((resolve) => {
         const { schedule, ESchedulerPriority } = window.GraphModule;
-        schedule(
-          () => resolve(),
-          {
-            priority: ESchedulerPriority.LOWEST,
-            frameInterval: frameCount,
-            once: true,
-          }
-        );
+        schedule(() => resolve(), {
+          priority: ESchedulerPriority.LOWEST,
+          frameInterval: frameCount,
+          once: true,
+        });
       });
     }, count);
   }
@@ -118,7 +112,7 @@ export class GraphPageObject {
       return new Promise<void>((resolve, reject) => {
         const startTime = Date.now();
         const { schedule, ESchedulerPriority } = window.GraphModule;
-        
+
         const check = () => {
           if (Date.now() - startTime > timeoutMs) {
             reject(new Error(`Scheduler did not become idle within ${timeoutMs}ms`));
@@ -126,14 +120,11 @@ export class GraphPageObject {
           }
 
           // Use graph's scheduler to wait for a frame
-          schedule(
-            () => resolve(),
-            {
-              priority: ESchedulerPriority.LOWEST,
-              frameInterval: 2,
-              once: true,
-            }
-          );
+          schedule(() => resolve(), {
+            priority: ESchedulerPriority.LOWEST,
+            frameInterval: 2,
+            once: true,
+          });
         };
 
         check();
@@ -149,11 +140,7 @@ export class GraphPageObject {
       ({ eventName, timeout }) => {
         return new Promise((resolve, reject) => {
           const timer = setTimeout(() => {
-            reject(
-              new Error(
-                `Event ${eventName} did not fire within ${timeout}ms`
-              )
-            );
+            reject(new Error(`Event ${eventName} did not fire within ${timeout}ms`));
           }, timeout);
 
           const handler = (event: any) => {
@@ -205,9 +192,7 @@ export class GraphPageObject {
     if (options?.shift) {
       modifierKey = "Shift";
     } else if (options?.ctrl || options?.meta) {
-      const isMac = await this.page.evaluate(() =>
-        navigator.platform.toLowerCase().includes("mac")
-      );
+      const isMac = await this.page.evaluate(() => navigator.platform.toLowerCase().includes("mac"));
       modifierKey = isMac ? "Meta" : "Control";
     }
 
@@ -232,11 +217,7 @@ export class GraphPageObject {
   /**
    * Double click at world coordinates
    */
-  async doubleClick(
-    worldX: number,
-    worldY: number,
-    options?: { waitFrames?: number }
-  ): Promise<void> {
+  async doubleClick(worldX: number, worldY: number, options?: { waitFrames?: number }): Promise<void> {
     const { screenX, screenY, canvasBounds } = await this.page.evaluate(
       ({ wx, wy }) => {
         const [sx, sy] = window.graph.cameraService.getAbsoluteXY(wx, wy);
@@ -264,11 +245,7 @@ export class GraphPageObject {
   /**
    * Hover at world coordinates
    */
-  async hover(
-    worldX: number,
-    worldY: number,
-    options?: { waitFrames?: number }
-  ): Promise<void> {
+  async hover(worldX: number, worldY: number, options?: { waitFrames?: number }): Promise<void> {
     const { screenX, screenY, canvasBounds } = await this.page.evaluate(
       ({ wx, wy }) => {
         const [sx, sy] = window.graph.cameraService.getAbsoluteXY(wx, wy);
@@ -305,10 +282,7 @@ export class GraphPageObject {
   ): Promise<void> {
     const { fromScreen, toScreen, canvasBounds } = await this.page.evaluate(
       ({ fx, fy, tx, ty }) => {
-        const [fromSX, fromSY] = window.graph.cameraService.getAbsoluteXY(
-          fx,
-          fy
-        );
+        const [fromSX, fromSY] = window.graph.cameraService.getAbsoluteXY(fx, fy);
         const [toSX, toSY] = window.graph.cameraService.getAbsoluteXY(tx, ty);
 
         const canvas = window.graph.getGraphCanvas();
@@ -367,17 +341,12 @@ export class GraphPageObject {
   /**
    * Check if connection exists between two blocks
    */
-  async hasConnectionBetween(
-    sourceBlockId: string,
-    targetBlockId: string
-  ): Promise<boolean> {
+  async hasConnectionBetween(sourceBlockId: string, targetBlockId: string): Promise<boolean> {
     return await this.page.evaluate(
       ({ sourceBlockId, targetBlockId }) => {
         const connections = window.graph.connections.toJSON();
         return connections.some(
-          (conn: any) =>
-            conn.sourceBlockId === sourceBlockId &&
-            conn.targetBlockId === targetBlockId
+          (conn: any) => conn.sourceBlockId === sourceBlockId && conn.targetBlockId === targetBlockId
         );
       },
       { sourceBlockId, targetBlockId }

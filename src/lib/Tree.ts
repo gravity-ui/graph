@@ -19,10 +19,18 @@ export class Tree<T extends ITree = ITree> {
   protected zIndexGroups: Map<number, Set<Tree>> = new Map();
 
   protected zIndexChildrenCache = cache(() => {
+    // Sort by zIndex group, then within each group maintain the original
+    // insertion order from the children Set (which is stable and never
+    // changes when a block temporarily moves to a higher zIndex group).
+    // This ensures a selected/dragged block returns to its natural position
+    // in the render stack after being deselected or released.
+    const childrenInOrder = this.getChildrenArray();
     return Array.from(this.zIndexGroups.keys())
       .sort((a, b) => a - b)
-      .map((index) => Array.from(this.zIndexGroups.get(index) || []))
-      .flat(2) as Tree[];
+      .flatMap((index) => {
+        const group = this.zIndexGroups.get(index)!;
+        return childrenInOrder.filter((node) => group.has(node));
+      }) as Tree[];
   });
 
   public renderOrder = 0;
@@ -80,15 +88,27 @@ export class Tree<T extends ITree = ITree> {
     if (this.zIndex === index) {
       return;
     }
+    const oldZIndex = this.zIndex;
     this.zIndex = index;
-    this.parent?.updateChildZIndex(this);
+    this.parent?.updateChildZIndex(this, oldZIndex);
   }
 
-  public updateChildZIndex(child: Tree) {
+  public updateChildZIndex(child: Tree, oldZIndex: number) {
     if (!this.children.has(child)) {
       return;
     }
-    this.removeZIndex(child);
+    const set = this.zIndexGroups.get(oldZIndex);
+    if (set) {
+      set.delete(child);
+      if (!set.size) {
+        this.zIndexGroups.delete(oldZIndex);
+      }
+    }
+    // Bring child to the end of the insertion-order Set so it gets the
+    // highest renderOrder within its new zIndex group after re-sorting.
+    this.children.delete(child);
+    this.children.add(child);
+    this.childrenDirty = true;
     this.addInZIndex(child);
   }
 
