@@ -301,6 +301,10 @@ export class BlockListStore {
   public setBlocks(blocks: TBlock[]) {
     const blockStates = blocks.map((block) => this.getOrCraeateBlockState(block));
     this.applyBlocksState(blockStates);
+    // Sync selection state from the raw block data so that blocks initialized
+    // with selected:true are properly reflected in the selection bucket.
+    const selectedIds = blocks.filter((block) => block.selected).map((block) => block.id);
+    this.blockSelectionBucket.select(selectedIds, ESelectionStrategy.REPLACE);
   }
 
   protected getOrCraeateBlockState(block: TBlock) {

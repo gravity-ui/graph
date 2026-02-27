@@ -183,6 +183,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       ...this.connectedState.$state.value,
       anchors: this.connectedState.$anchors.value,
     });
+    // Initialize zIndex based on current selection state so that blocks
+    // initialized as selected are properly elevated in rendering order.
+    this.zIndex = this.calcZIndex();
     this.updateViewState({
       zIndex: this.zIndex,
       order: this.renderOrder,
@@ -370,6 +373,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
     this.lastDragEvent = undefined;
     this.startDragCoords = [];
+    this.raiseBlock();
     this.updateHitBox(this.state);
   }
 

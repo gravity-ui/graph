@@ -137,4 +137,29 @@ export class GraphBlockComponentObject {
   getId(): string {
     return this.blockId;
   }
+
+  /**
+   * Get the block's viewState (zIndex and renderOrder) from the canvas component.
+   * zIndex: 1 = normal, 2 = elevated (selected or being dragged)
+   * order: position in the sorted render list
+   */
+  async getViewState(): Promise<{ zIndex: number; order: number }> {
+    return await this.page.evaluate((id) => {
+      const blockState = window.graph.blocks.getBlockState(id);
+      if (!blockState) throw new Error(`Block ${id} not found`);
+      const viewComponent = blockState.$viewComponent.value;
+      if (!viewComponent) throw new Error(`Block ${id} has no canvas view component`);
+      return viewComponent.$viewState.value;
+    }, this.blockId);
+  }
+
+  /**
+   * Get combined z-index value (zIndex + renderOrder).
+   * Higher value means the block renders on top of blocks with lower values.
+   * This mirrors the CSS z-index calculation used in the React/HTML layer.
+   */
+  async getCombinedZIndex(): Promise<number> {
+    const { zIndex, order } = await this.getViewState();
+    return zIndex + order;
+  }
 }
