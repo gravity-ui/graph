@@ -106,6 +106,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   public connectedState: BlockState<T>;
 
+  private connectedStateUnsubscribers: (() => void)[] = [];
+
   protected lastDragEvent?: MouseEvent;
 
   protected startDragCoords: number[] = [];
@@ -171,6 +173,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected subscribe(id: TBlockId) {
+    this.connectedStateUnsubscribers.forEach((unsub) => unsub());
+    this.connectedStateUnsubscribers = [];
+
     this.connectedState = selectBlockById<T>(this.context.graph, id);
     this.state = cloneDeep(this.connectedState.$state.value);
     this.connectedState.setViewComponent(this);
@@ -183,15 +188,14 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       order: this.renderOrder,
     });
 
-    // Initialize ports
-    return [
-      this.subscribeSignal(this.connectedState.$anchors, () => {
+    this.connectedStateUnsubscribers = [
+      this.connectedState.$anchors.subscribe(() => {
         this.setState({
           anchors: this.connectedState.$anchors.value,
         });
         this.shouldUpdateChildren = true;
       }),
-      this.subscribeSignal(this.connectedState.$state, () => {
+      this.connectedState.$state.subscribe(() => {
         this.setState({
           ...this.connectedState.$state.value,
           anchors: this.connectedState.$anchors.value,
@@ -200,6 +204,14 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
         this.updatePortPositions();
       }),
     ];
+  }
+
+  protected propsChanged(nextProps: Props): void {
+    const nextBlockState = this.context.graph.rootStore.blocksList.$blocksMap.value.get(nextProps.id);
+    if (nextBlockState && nextBlockState !== this.connectedState) {
+      this.subscribe(nextProps.id);
+    }
+    super.propsChanged(nextProps);
   }
 
   protected getNextState() {
@@ -548,6 +560,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected override unmount(): void {
+    this.connectedStateUnsubscribers.forEach((unsub) => unsub());
+    this.connectedStateUnsubscribers = [];
+
     // Release ownership of all ports owned by this block
     const connectionsList = this.context.graph.rootStore.connectionsList;
 

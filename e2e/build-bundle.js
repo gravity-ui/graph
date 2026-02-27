@@ -18,7 +18,7 @@ const cssPlugin = {
   },
 };
 
-esbuild
+const baseBundle = esbuild
   .build({
     entryPoints: [path.join(__dirname, "entry.ts")],
     bundle: true,
@@ -37,3 +37,26 @@ esbuild
     console.error("E2E bundle failed:", err);
     process.exit(1);
   });
+
+const reactBundle = esbuild
+  .build({
+    entryPoints: [path.join(__dirname, "react-entry.ts")],
+    bundle: true,
+    outfile: path.join(__dirname, "dist/graph-react.bundle.js"),
+    format: "iife",
+    globalName: "GraphModule",
+    platform: "browser",
+    target: ["es2020"],
+    sourcemap: true,
+    plugins: [cssPlugin],
+    jsx: "automatic",
+  })
+  .then(() => {
+    console.log("E2E React bundle created successfully with CSS");
+  })
+  .catch((err) => {
+    console.error("E2E React bundle failed:", err);
+    process.exit(1);
+  });
+
+Promise.all([baseBundle, reactBundle]).catch(() => process.exit(1));
