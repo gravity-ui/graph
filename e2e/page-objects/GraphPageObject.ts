@@ -390,4 +390,16 @@ export class GraphPageObject {
       return window.getComputedStyle(root).cursor;
     });
   }
+
+  /**
+   * Call setEntities on the graph with new blocks and connections
+   */
+  async setEntities(config: GraphConfig): Promise<void> {
+    await this.page.evaluate((cfg) => {
+      window.graph.setEntities({
+        blocks: cfg.blocks || [],
+        connections: cfg.connections || [],
+      });
+    }, config);
+  }
 }

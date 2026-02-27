@@ -5,7 +5,7 @@ import { noop } from "lodash";
 import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
 
-import { useSignalEffect } from "./hooks";
+import { useComputedSignal, useSignalEffect } from "./hooks";
 import { useBlockState } from "./hooks/useBlockState";
 import { cn } from "./utils/cn";
 
@@ -97,7 +97,7 @@ export const GraphBlock = <T extends TBlock>({
   const lastStateRef = useRef({ x: 0, y: 0, width: 0, height: 0, zIndex: 0 });
   const state = useBlockState(graph, block);
 
-  const viewState = state?.getViewComponent();
+  const viewState = useComputedSignal(() => state?.$viewComponent.value, [state]);
   const [interactive, setInteractive] = useState(viewState?.isInteractive() ?? false);
 
   /**
