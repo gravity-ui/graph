@@ -1,6 +1,6 @@
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
 import { Layer, LayerContext, LayerProps } from "../../services/Layer";
-import { computeCssVariable, noop } from "../../utils/functions";
+import { computeCssVariable } from "../../utils/functions";
 
 export type TMiniMapLocation =
   | "topLeft"
@@ -23,7 +23,7 @@ export type MiniMapLayerContext = LayerContext & {
   ctx: CanvasRenderingContext2D;
 };
 
-export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> {
+export class MiniMapLayer extends Layer<MiniMapLayerProps> {
   public declare context: Omit<TGraphLayerContext, "ownerDocument" | "root">;
 
   private minimapWidth: number;
@@ -33,11 +33,9 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   private scale: number;
   private cameraBorderSize: number;
   private cameraBorderColor: string;
-  private unSubscribeUsableRectLoaded: typeof noop;
 
   constructor(props: MiniMapLayerProps) {
-    const classNames = Array.isArray(props.classNames) ? props.classNames : [];
-    classNames.push("graph-minimap");
+    const classNames = [...(Array.isArray(props.classNames) ? props.classNames : []), "graph-minimap"];
 
     super({
       canvas: {
@@ -48,16 +46,74 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
       ...props,
     });
 
-    this.minimapWidth = this.props.width || 200;
-    this.minimapHeight = this.props.height || 200;
-    this.cameraBorderSize = this.props.cameraBorderSize || 2;
-    this.cameraBorderColor = this.props.cameraBorderColor || "rgba(255, 119, 0, 0.9)";
+    this.minimapWidth = this.props.width ?? 200;
+    this.minimapHeight = this.props.height ?? 200;
+    this.cameraBorderSize = this.props.cameraBorderSize ?? 2;
+    this.cameraBorderColor = this.props.cameraBorderColor ?? "rgba(255, 119, 0, 0.9)";
     this.relativeX = 0;
     this.relativeY = 0;
     this.scale = 1;
   }
 
   protected afterInit(): void {
+    this.injectPositionStyle();
+
+    // Fires immediately with the current value — initialises scale/relativeX/Y before the first render.
+    // Also fires on every subsequent usableRect change (blocks moved/resized/added/removed).
+    this.onSignal(this.props.graph.hitTest.$usableRect, () => {
+      this.calculateViewPortCoords();
+      this.performRender();
+    });
+
+    this.onGraphEvent("camera-change", () => this.performRender());
+    this.onGraphEvent("colors-changed", () => this.performRender());
+
+    // block-change recalculates coords: blocks may change size/position
+    // without the usableRect bounding box itself changing.
+    this.onGraphEvent("block-change", () => {
+      this.calculateViewPortCoords();
+      this.performRender();
+    });
+
+    if (this.canvas) {
+      this.onCanvasEvent("mousedown", this.handleMouseDownEvent);
+    }
+
+    super.afterInit();
+  }
+
+  protected updateCanvasSize(): void {
+    const dpr = this.getDRP();
+    this.canvas.width = this.minimapWidth * dpr;
+    this.canvas.height = this.minimapHeight * dpr;
+  }
+
+  protected willRender(): void {
+    if (this.firstRender) {
+      this.canvas.style.width = `${this.minimapWidth}px`;
+      this.canvas.style.height = `${this.minimapHeight}px`;
+    }
+  }
+
+  protected render(): void {
+    if (!this.context?.ctx) return;
+
+    const usableRect = this.props.graph.api.getUsableRect();
+    if (usableRect.width === 0 && usableRect.height === 0) {
+      this.resetTransform();
+      return;
+    }
+
+    this.resetTransform();
+    this.context.ctx.scale(this.scale, this.scale);
+    this.context.ctx.translate(-this.relativeX, -this.relativeY);
+
+    this.renderUsableRectBelow();
+    this.renderBlocks();
+    this.drawCameraBorderFrame();
+  }
+
+  private injectPositionStyle(): void {
     const minimapPosition = this.getPositionOfMiniMap(this.props.location);
     const style = document.createElement("style");
     style.innerHTML = `
@@ -66,44 +122,15 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
         left: ${minimapPosition.left};
         bottom: ${minimapPosition.bottom};
         right: ${minimapPosition.right};
-        width: ${this.props.width || 200}px;
-        height: ${this.props.height || 200}px;
+        width: ${this.minimapWidth}px;
+        height: ${this.minimapHeight}px;
         border: 2px solid var(--g-color-private-cool-grey-1000-solid);
         background: lightgrey;
       }`;
-
     this.root.appendChild(style);
-
-    // Set up event subscriptions here if usableRect is already loaded
-    const usableRect = this.props.graph.api.getUsableRect();
-    if (!(usableRect.height === 0 && usableRect.width === 0 && usableRect.x === 0 && usableRect.y === 0)) {
-      this.calculateViewPortCoords();
-      this.rerenderMapContent();
-
-      // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
-      this.onGraphEvent("camera-change", this.rerenderMapContent);
-      this.onGraphEvent("colors-changed", this.rerenderMapContent);
-      this.onGraphEvent("block-change", this.onBlockUpdated);
-
-      // Use canvasOn wrapper method for DOM event listeners to ensure proper cleanup
-      if (this.canvas) {
-        this.onCanvasEvent("mousedown", this.handleMouseDownEvent);
-      }
-    }
-    this.onSignal(this.props.graph.hitTest.$usableRect, () => {
-      this.onBlockUpdated();
-      this.calculateViewPortCoords();
-      this.rerenderMapContent();
-    });
-
-    super.afterInit();
   }
 
-  protected updateCanvasSize(): void {
-    this.rerenderMapContent();
-  }
-
-  private calculateViewPortCoords() {
+  private calculateViewPortCoords(): void {
     const usableRect = this.props.graph.api.getUsableRect();
 
     const xPos = usableRect.x - this.context.constants.system.USABLE_RECT_GAP;
@@ -126,7 +153,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   }
 
   // eslint-disable-next-line complexity
-  private drawCameraBorderFrame() {
+  private drawCameraBorderFrame(): void {
     const cameraState = this.props.camera.getCameraState();
 
     const relativeXRight = this.relativeX + this.minimapWidth / this.scale;
@@ -219,72 +246,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     return position;
   }
 
-  protected willRender(): void {
-    if (this.firstRender) {
-      const canvas = this.getCanvas();
-      const dpr = this.getDRP();
-
-      canvas.width = this.minimapWidth * dpr;
-      canvas.height = this.minimapHeight * dpr;
-
-      canvas.style.width = `${this.minimapWidth}px`;
-      canvas.style.height = `${this.minimapHeight}px`;
-
-      this.setContext({
-        canvas,
-        ctx: canvas.getContext("2d"),
-        camera: this.props.camera,
-        constants: this.props.graph.graphConstants,
-        colors: this.props.graph.graphColors,
-      });
-    }
-  }
-
-  protected didRender(): void {
-    if (this.firstRender) {
-      this.unSubscribeUsableRectLoaded = this.props.graph.hitTest.onUsableRectUpdate((usableRect) => {
-        if (usableRect.height === 0 && usableRect.width === 0 && usableRect.x === 0 && usableRect.y === 0) return;
-
-        this.calculateViewPortCoords();
-        this.rerenderMapContent();
-
-        // If the layer is already attached, set up event subscriptions here
-        if (this.root) {
-          // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
-          this.onGraphEvent("camera-change", this.rerenderMapContent);
-          this.onGraphEvent("colors-changed", this.rerenderMapContent);
-          this.onGraphEvent("block-change", this.onBlockUpdated);
-
-          // Use canvasOn wrapper method for DOM event listeners to ensure proper cleanup
-          if (this.canvas) {
-            this.onCanvasEvent("mousedown", this.handleMouseDownEvent);
-          }
-        }
-
-        this.unSubscribeUsableRectLoaded?.();
-      });
-    }
-  }
-
-  private onBlockUpdated = () => {
-    this.calculateViewPortCoords();
-    this.rerenderMapContent();
-  };
-
-  private rerenderMapContent = () => {
-    if (!this.context?.ctx) return;
-
-    this.resetTransform();
-
-    this.context.ctx.scale(this.scale, this.scale);
-    this.context.ctx.translate(-this.relativeX, -this.relativeY);
-
-    this.renderUsableRectBelow();
-    this.renderBlocks();
-    this.drawCameraBorderFrame();
-  };
-
-  private renderUsableRectBelow() {
+  private renderUsableRectBelow(): void {
     const usableRect = this.props.graph.api.getUsableRect();
 
     this.context.ctx.fillStyle = computeCssVariable(this.context.colors.canvas.layerBackground);
@@ -296,7 +258,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     this.context.ctx.fillRect(xPos, yPos, width, height);
   }
 
-  private renderBlocks() {
+  private renderBlocks(): void {
     const blocks = this.props.graph.rootStore.blocksList.$blocks.value;
 
     blocks.forEach((block) => {
@@ -306,7 +268,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     });
   }
 
-  private onCameraDrag(event: MouseEvent) {
+  private onCameraDrag(event: MouseEvent): void {
     const cameraState = this.props.camera.getCameraState();
 
     const x = -(this.relativeX + event.offsetX / this.scale) + cameraState.relativeWidth / 2;
@@ -318,13 +280,13 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     this.context.camera.move(dx, dy);
   }
 
-  private handleMouseDownEvent = (rootEvent: MouseEvent) => {
+  private handleMouseDownEvent = (rootEvent: MouseEvent): void => {
     rootEvent.stopPropagation();
     this.onCameraDrag(rootEvent);
 
     this.context.graph.dragService.startDrag(
       { onUpdate: (event: MouseEvent) => this.onCameraDrag(event) },
-      { stopOnMouseLeave: true }
+      { stopOnMouseLeave: true, autopanning: false, cursor: "move" }
     );
   };
 }
