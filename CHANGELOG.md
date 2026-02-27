@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.5](https://github.com/gravity-ui/graph/compare/v1.8.4...v1.8.5) (2026-02-27)
+
+
+### Bug Fixes
+
+* **ConnectionState:** fix resolving BlockState ([#252](https://github.com/gravity-ui/graph/issues/252)) ([e81896f](https://github.com/gravity-ui/graph/commit/e81896f0aeee90cfcefc2ee3d7c8dcf1592779ae))
+* **debounce:** fix canceling debounce function ([#254](https://github.com/gravity-ui/graph/issues/254)) ([b2db0b2](https://github.com/gravity-ui/graph/commit/b2db0b29811d3742ba20953778d95cadd1260da2))
+
 ## [1.8.4](https://github.com/gravity-ui/graph/compare/v1.8.3...v1.8.4) (2026-02-17)
 
 
