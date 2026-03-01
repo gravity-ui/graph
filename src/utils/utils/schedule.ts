@@ -53,7 +53,7 @@ export type TDebounceOptions = {
  * @param options.frameTimeout - Minimum time in milliseconds to wait before execution (default: 0)
  * @returns A debounced version of the function with cancel and flush methods
  */
-export const debounce = <T extends (...args: unknown[]) => void>(
+export const debounce = <T extends (...args: Parameters<T>) => void>(
   fn: T,
   { priority = ESchedulerPriority.MEDIUM, frameInterval = 1, frameTimeout = 0 }: TDebounceOptions = {}
 ): T & { cancel: () => void; flush: () => void; isScheduled: () => boolean } => {
@@ -145,7 +145,7 @@ export const debounce = <T extends (...args: unknown[]) => void>(
  * @param options.frameTimeout - Minimum time in milliseconds between executions (default: 0)
  * @returns A throttled version of the function with cancel and flush methods
  */
-export const throttle = <T extends (...args: unknown[]) => void>(
+export const throttle = <T extends (...args: Parameters<T>) => void>(
   fn: T,
   { priority = ESchedulerPriority.MEDIUM, frameInterval = 1, frameTimeout = 0 }: TDebounceOptions = {}
 ): T & { cancel: () => void; flush: () => void } => {

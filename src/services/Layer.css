@@ -11,7 +11,7 @@
 canvas.layer {
   outline: none;
   filter: none;
-  border:none;
+  border: none;
 }
 
 .no-user-select {
@@ -34,7 +34,10 @@ canvas.layer {
   isolation: isolate;
   transform-origin: 0 0;
   transform-style: preserve-3d;
-  will-change: transform;
+}
+
+.layer-with-camera-moving {
+  /*will-change: transform;*/
 }
 
 .layer-hidden {
