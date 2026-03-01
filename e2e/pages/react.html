@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Graph React E2E Test</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+      #root {
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="/e2e/dist/graph-react.bundle.js"></script>
+    <script>
+      // Bundle exposes GraphModule global
+      window.graphLibraryLoaded = true;
+    </script>
+  </body>
+</html>
