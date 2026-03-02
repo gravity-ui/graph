@@ -111,12 +111,14 @@ function GraphBlockInner<T extends TBlock>(
   useEffect(() => {
     if (!autoHideCanvas) {
       if (canvasVisible !== undefined) {
-        viewState?.setHiddenBlock(Boolean(canvasVisible));
+        // Manual control: delegate canvas rendering when canvasVisible=false
+        viewState?.setRenderDelegated(!canvasVisible);
       }
     } else {
-      viewState?.setHiddenBlock(true);
+      // Auto: suppress canvas rendering once React has mounted the block
+      viewState?.setRenderDelegated(true);
     }
-    return () => viewState?.setHiddenBlock(false);
+    return () => viewState?.setRenderDelegated(false);
   }, [viewState, canvasVisible]);
 
   /**

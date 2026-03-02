@@ -149,6 +149,14 @@ export class ConnectionState<T extends TConnection = TConnection> {
     return undefined;
   });
 
+  /**
+   * True when both source and target blocks are hidden (e.g. both inside a
+   * collapsed group). When true the connection should not be rendered.
+   */
+  public readonly $hidden = computed(() => {
+    return (this.$sourceBlock.value?.$hidden.value ?? false) && (this.$targetBlock.value?.$hidden.value ?? false);
+  });
+
   public $geometry = computed(() => {
     if (!this.$sourcePort.value.lookup && !this.$targetPort.value.lookup) {
       return [this.$sourcePort.value, this.$targetPort.value];

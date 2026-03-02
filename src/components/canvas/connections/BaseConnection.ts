@@ -159,8 +159,19 @@ export class BaseConnection<
       this.updatePoints();
     });
 
+    // When both endpoints are hidden (e.g. both blocks inside a collapsed group)
+    // schedule a re-render so willIterate() picks up the new isVisible() result.
+    this.subscribeSignal(this.connectedState.$hidden, () => {
+      this.performRender();
+    });
+
     // Enable hover interaction
     this.listenEvents(["mouseenter", "mouseleave"]);
+  }
+
+  protected override isVisible(): boolean {
+    if (this.connectedState.$hidden.value) return false;
+    return super.isVisible();
   }
 
   protected override handleEvent(event: MouseEvent) {
