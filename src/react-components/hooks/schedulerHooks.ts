@@ -4,7 +4,6 @@ import { debounce } from "../../utils/functions";
 import { TDebounceOptions, TScheduleOptions, schedule, throttle } from "../../utils/utils/schedule";
 import { useFn } from "../utils/hooks/useFn";
 
-type TSchedulerDebounceFn = (...args: unknown[]) => void;
 /**
  * Hook to create a debounced function that delays execution until both frame and time conditions are met.
  *
@@ -31,7 +30,7 @@ type TSchedulerDebounceFn = (...args: unknown[]) => void;
  * debouncedSearch.cancel();
  * ```
  */
-export function useSchedulerDebounce<T extends TSchedulerDebounceFn>(fn: T, options: TDebounceOptions) {
+export function useSchedulerDebounce<T extends (...args: Parameters<T>) => void>(fn: T, options: TDebounceOptions) {
   const handle = useFn(fn);
 
   /* Use memo to avoid re-creation of the debounce options on each render */
@@ -52,7 +51,6 @@ export function useSchedulerDebounce<T extends TSchedulerDebounceFn>(fn: T, opti
   return debouncedFn;
 }
 
-type TSchedulerThrottleFn = (...args: unknown[]) => void;
 /**
  * Hook to create a throttled function that limits execution frequency.
  *
@@ -78,7 +76,7 @@ type TSchedulerThrottleFn = (...args: unknown[]) => void;
  * );
  * ```
  */
-export function useSchedulerThrottle<T extends TSchedulerThrottleFn>(fn: T, options: TDebounceOptions) {
+export function useSchedulerThrottle<T extends (...args: Parameters<T>) => void>(fn: T, options: TDebounceOptions) {
   const handle = useFn(fn);
 
   /* Use memo to avoid re-creation of the throttle options on each render */

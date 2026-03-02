@@ -1,11 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { ForwardedRef, forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
 import { noop } from "lodash";
 
 import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
+import { ESchedulerPriority } from "../lib/Scheduler";
 
-import { useComputedSignal, useSignalEffect } from "./hooks";
+import { useComputedSignal, useSchedulerDebounce, useSignalEffect } from "./hooks";
 import { useBlockState } from "./hooks/useBlockState";
 import { cn } from "./utils/cn";
 
@@ -84,18 +85,21 @@ export type TGraphBlockProps<T extends TBlock> = {
  * ```
  *
  */
-export const GraphBlock = <T extends TBlock>({
-  graph,
-  block,
-  children,
-  className,
-  containerClassName,
-  autoHideCanvas = true,
-  canvasVisible,
-}: TGraphBlockProps<T>) => {
+function GraphBlockInner<T extends TBlock>(
+  { graph, block, children, className, containerClassName, autoHideCanvas = true, canvasVisible }: TGraphBlockProps<T>,
+  ref: ForwardedRef<HTMLDivElement>
+) {
   const containerRef = useRef<HTMLDivElement>(null);
+  useImperativeHandle(ref, () => containerRef.current!);
   const lastStateRef = useRef({ x: 0, y: 0, width: 0, height: 0, zIndex: 0 });
   const state = useBlockState(graph, block);
+
+  const stopMoving = useSchedulerDebounce(
+    (container: HTMLDivElement) => {
+      container.classList.remove("graph-block-container-moving");
+    },
+    { priority: ESchedulerPriority.LOW, frameTimeout: 150 }
+  );
 
   const viewState = useComputedSignal(() => state?.$viewComponent.value, [state]);
   const [interactive, setInteractive] = useState(viewState?.isInteractive() ?? false);
@@ -124,7 +128,7 @@ export const GraphBlock = <T extends TBlock>({
     const geometry = state?.$geometry.value;
     const container = containerRef.current;
     const lastState = lastStateRef.current;
-    if (!container || !geometry) {
+    if (!container || !geometry || !viewState) {
       return;
     }
 
@@ -135,6 +139,10 @@ export const GraphBlock = <T extends TBlock>({
       container.style.setProperty("--graph-block-geometry-y", `${geometry.y}px`);
       lastState.x = geometry.x;
       lastState.y = geometry.y;
+      if (!container.classList.contains("graph-block-container-moving")) {
+        container.classList.add("graph-block-container-moving");
+      }
+      stopMoving(container);
     }
 
     const hasSizeChange = lastState.width !== geometry.width || lastState.height !== geometry.height;
@@ -146,7 +154,6 @@ export const GraphBlock = <T extends TBlock>({
     }
 
     const { zIndex, order } = viewState.$viewState.value;
-
     const newZIndex = (zIndex || 0) + (order || 0);
 
     if (lastState.zIndex !== newZIndex) {
@@ -185,4 +192,8 @@ export const GraphBlock = <T extends TBlock>({
       <div className={wrapperClassNames}>{children}</div>
     </div>
   );
-};
+}
+
+export const GraphBlock = forwardRef(GraphBlockInner) as <T extends TBlock>(
+  props: TGraphBlockProps<T> & { ref?: React.Ref<HTMLDivElement> }
+) => React.ReactElement | null;
