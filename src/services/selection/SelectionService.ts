@@ -340,7 +340,10 @@ export class SelectionService {
     if (typeof entityTypeOrQueries === "string") {
       // Single entity type API
       const entityType = entityTypeOrQueries;
-      const finalId = id!;
+      if (!id) {
+        throw new Error(`id must be provided for single entity selection: ${entityType}`);
+      }
+      const finalId = id;
 
       const bucket = this.getBucket(entityType);
       return bucket ? bucket.isSelected(finalId) : false;

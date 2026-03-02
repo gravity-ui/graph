@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
 import { Graph, GraphState } from "../../../graph";
+import type { TBlock } from "../../../index";
 import { CSSVariablesLayer } from "../../../plugins/cssVariables";
 import { GraphCanvas, useGraphEvent } from "../../../react-components";
 import { useGraph, useLayer } from "../../../react-components/hooks";
@@ -60,7 +61,7 @@ function CSSVariablesExample() {
     }
   });
 
-  const renderBlockFn = React.useCallback((graphObject: Graph, block: any) => {
+  const renderBlockFn = React.useCallback((graphObject: Graph, block: TBlock) => {
     return <BlockStory graph={graphObject} block={block} />;
   }, []);
 
@@ -69,7 +70,7 @@ function CSSVariablesExample() {
       <div className="controls">
         <div className="control-group">
           <label>Theme:</label>
-          <select value={theme} onChange={(e) => setTheme(e.target.value as any)}>
+          <select value={theme} onChange={(e) => setTheme(e.target.value as typeof theme)}>
             <option value="light">Light</option>
             <option value="dark">Dark</option>
             <option value="custom">Custom</option>
@@ -111,7 +112,7 @@ This example demonstrates the CSS Variables Layer plugin which allows styling th
 
 Key features:
 - Real-time CSS variable monitoring
-- Automatic mapping to graph colors and constants  
+- Automatic mapping to graph colors and constants
 - Live debugging in DevTools
 - Theme switching support
 - Performance optimized with empty container div
@@ -155,7 +156,7 @@ function AdvancedExample() {
     }
   });
 
-  const renderBlockFn = React.useCallback((graphObject: Graph, block: any) => {
+  const renderBlockFn = React.useCallback((graphObject: Graph, block: TBlock) => {
     return <BlockStory graph={graphObject} block={block} />;
   }, []);
 

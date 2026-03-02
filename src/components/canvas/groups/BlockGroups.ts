@@ -50,11 +50,6 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
     }
   ): new (props: P) => Instance & { $groupsBlocksMap: ReadonlySignal<Record<string, BlockState[]>> } {
     const Base = this as new (props: P) => BlockGroups<P>;
-    /**
-     * We use `as any` here because TypeScript has trouble inferring the correct type
-     * for an anonymous class extending a generic base with protected members.
-     * The public method signature ensures strict type safety for consumers.
-     */
     return class BlockGroupWithGrouping extends Base {
       public $groupsBlocksMap = computed(() => {
         const blocks = this.props.graph.rootStore.blocksList.$blocks.value;
@@ -78,6 +73,12 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
         );
         super.afterInit();
       }
+      /**
+       * We use `as any` here because TypeScript has trouble inferring the correct type
+       * for an anonymous class extending a generic base with protected members.
+       * The public method signature ensures strict type safety for consumers.
+       */
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
   }
 
@@ -93,11 +94,6 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
     defineGroups(groups: P[]): void;
   } {
     const Base = this as new (props: Props) => BlockGroups<Props>;
-    /**
-     * We use `as any` here because TypeScript has trouble inferring the correct type
-     * for an anonymous class extending a generic base with protected members.
-     * The public method signature ensures strict type safety for consumers.
-     */
     return class BlockGroupWithPredefinedGroups extends Base {
       private $predefinedGroups = new Signal<P[]>([]);
 
@@ -140,6 +136,12 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
         );
         super.afterInit();
       }
+      /**
+       * We use `as any` here because TypeScript has trouble inferring the correct type
+       * for an anonymous class extending a generic base with protected members.
+       * The public method signature ensures strict type safety for consumers.
+       */
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
   }
 
