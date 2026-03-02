@@ -25,16 +25,10 @@ test.describe("Selection Test", () => {
     // Try selecting programmatically first
     await page.evaluate(() => {
       const blockState = window.graph.blocks.getBlockState("block-1");
-      console.log("BlockState exists:", !!blockState);
-      console.log("SelectionService:", window.graph.selectionService);
 
       // Try to select the block using correct API
       const { ESelectionStrategy } = window.GraphModule;
-      window.graph.selectionService.select(
-        "block",
-        ["block-1"],
-        ESelectionStrategy.REPLACE
-      );
+      window.graph.selectionService.select("block", ["block-1"], ESelectionStrategy.REPLACE);
     });
 
     await page.waitForTimeout(200);

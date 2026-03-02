@@ -101,17 +101,18 @@ export class GraphPageObject {
   }
 
   /**
-   * Initialize graph with config
+   * Returns the URL of the HTML page to navigate to for initialization.
+   * Override in subclasses to use a different page (e.g. /react.html).
    */
-  async initialize(config: GraphConfig): Promise<void> {
-    await this.page.goto("/base.html");
+  protected getUrl(): string {
+    return "/base.html";
+  }
 
-    // Wait for Graph library to load from the HTML page
-    await this.page.waitForFunction(() => {
-      return (window as any).graphLibraryLoaded === true;
-    });
-
-    // Initialize graph using the loaded module
+  /**
+   * Creates and configures the graph instance in the browser context.
+   * Override in subclasses to use a different rendering setup (e.g. React).
+   */
+  protected async setupGraph(config: GraphConfig): Promise<void> {
     await this.page.evaluate((cfg) => {
       const rootEl = document.getElementById("root");
       if (!rootEl) {
@@ -137,6 +138,20 @@ export class GraphPageObject {
       window.graph = graph;
       window.graphInitialized = true;
     }, config);
+  }
+
+  /**
+   * Initialize graph with config
+   */
+  async initialize(config: GraphConfig): Promise<void> {
+    await this.page.goto(this.getUrl());
+
+    // Wait for Graph library to load from the HTML page
+    await this.page.waitForFunction(() => {
+      return (window as any).graphLibraryLoaded === true;
+    });
+
+    await this.setupGraph(config);
 
     // Wait for graph to be ready
     await this.page.waitForFunction(
@@ -146,6 +161,15 @@ export class GraphPageObject {
 
     // Wait for initial render frames
     await this.waitForFrames(3);
+  }
+
+  /**
+   * Set camera zoom to a specific scale level
+   */
+  async setZoom(scale: number): Promise<void> {
+    await this.page.evaluate((s) => {
+      window.graph.zoom({ scale: s });
+    }, scale);
   }
 
   /**

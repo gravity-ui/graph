@@ -12,19 +12,14 @@ export class ReactGraphPageObject extends GraphPageObject {
     super(page);
   }
 
+  protected getUrl(): string {
+    return "/react.html";
+  }
+
   /**
-   * Initialize React-based graph with GraphCanvas + BlocksList
-   * Uses the react.html page which loads the React bundle
+   * Creates graph wrapped in React GraphCanvas (enables HTML block rendering via BlocksList).
    */
-  async initialize(config: GraphConfig): Promise<void> {
-    await this.page.goto("/react.html");
-
-    // Wait for React bundle to load
-    await this.page.waitForFunction(() => {
-      return (window as any).graphLibraryLoaded === true;
-    });
-
-    // Initialize React graph using GraphCanvas component
+  protected async setupGraph(config: GraphConfig): Promise<void> {
     await this.page.evaluate((cfg) => {
       const { Graph, GraphCanvas, GraphBlock, React, ReactDOM } = (window as any).GraphModule;
 
@@ -69,15 +64,6 @@ export class ReactGraphPageObject extends GraphPageObject {
       window.graph = graph;
       window.graphInitialized = true;
     }, config);
-
-    // Wait for graph to be ready
-    await this.page.waitForFunction(
-      () => window.graphInitialized === true,
-      { timeout: 5000 }
-    );
-
-    // Wait for initial render
-    await this.waitForFrames(5);
   }
 
   /**
