@@ -3,8 +3,9 @@ import { GraphMouseEventNames, isGraphEvent, isNativeGraphEventName } from "../.
 import { Component } from "../../../../lib/Component";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { Camera, TCameraProps } from "../../../../services/camera/Camera";
-import { ICamera } from "../../../../services/camera/CameraService";
+import { ICamera, TCameraState } from "../../../../services/camera/CameraService";
 import { getEventDelta } from "../../../../utils/functions";
+import { Point } from "../../../../utils/types/shapes";
 import { EventedComponent } from "../../EventedComponent/EventedComponent";
 import { Blocks } from "../../blocks/Blocks";
 import { BlockConnection } from "../../connections/BlockConnection";
@@ -61,6 +62,11 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private capturedTargetComponent?: EventedComponent;
 
+  /** Last known canvas-relative mouse coordinates, used for camera-change emulation */
+  private lastMouseCanvasX?: number;
+
+  private lastMouseCanvasY?: number;
+
   constructor(props: TGraphLayerProps) {
     super({
       canvas: {
@@ -102,6 +108,11 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
     // Subscribe to graph events here instead of in the constructor
     this.onGraphEvent("camera-change", this.performRender);
+    this.onGraphEvent("camera-change", (event) => {
+      if (this.context.graph.rootStore.settings.getConfigFlag("emulateMouseEventsOnCameraChange")) {
+        this.onCameraChangeEmulateMouseEvents(event.detail);
+      }
+    });
     this.context.graph.rootStore.blocksList.$blocks.subscribe(() => {
       this.performRender();
     });
@@ -218,7 +229,35 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
     const point = this.context.graph.getPointInCameraSpace(event);
 
+    // Store canvas-relative coordinates for camera-change emulation
+    if (point.origPoint) {
+      this.lastMouseCanvasX = point.origPoint.x;
+      this.lastMouseCanvasY = point.origPoint.y;
+    }
+
     this.targetComponent = this.context.graph.getElementOverPoint(point) || this.$.camera;
+  }
+
+  private onCameraChangeEmulateMouseEvents(camera: TCameraState) {
+    if (this.lastMouseCanvasX === undefined || this.lastMouseCanvasY === undefined) return;
+    if (this.capturedTargetComponent) return;
+
+    const [worldX, worldY] = this.context.camera.applyToPoint(this.lastMouseCanvasX, this.lastMouseCanvasY);
+    const point = new Point(worldX, worldY, { x: this.lastMouseCanvasX, y: this.lastMouseCanvasY });
+    const newTarget = this.context.graph.getElementOverPoint(point) || this.$.camera;
+
+    if (newTarget === this.targetComponent) return;
+
+    const fakeEvent = new MouseEvent("mousemove", {
+      clientX: camera.x,
+      clientY: camera.y,
+      bubbles: false,
+      cancelable: false,
+    });
+
+    this.prevTargetComponent = this.targetComponent;
+    this.targetComponent = newTarget;
+    this.onRootPointerMove(fakeEvent);
   }
 
   private onRootPointerMove(event: MouseEvent) {
