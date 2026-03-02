@@ -85,7 +85,7 @@ export const debounce = <T extends (...args: unknown[]) => void>(
         removeScheduler = null;
         const args = latestArgs;
         latestArgs = undefined;
-        fn(...args);
+        fn(...(args ?? []));
         if (currentRemoveScheduler) {
           currentRemoveScheduler();
         }
@@ -194,7 +194,7 @@ export const throttle = <T extends (...args: unknown[]) => void>(
 
   const throttledFn = ((...args: Parameters<T>) => {
     if (canExecute) {
-      fn(...args);
+      fn(...(args ?? []));
       canExecute = false;
       frameCounter = 0;
       startTime = getNow(); // Start timing from this execution
