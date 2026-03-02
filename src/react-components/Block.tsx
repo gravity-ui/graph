@@ -126,10 +126,9 @@ function GraphBlockInner<T extends TBlock>(
    */
   useSignalEffect(() => {
     const geometry = state?.$geometry.value;
-    const { zIndex, order } = viewState.$viewState.value;
     const container = containerRef.current;
     const lastState = lastStateRef.current;
-    if (!container || !geometry) {
+    if (!container || !geometry || !viewState) {
       return;
     }
 
@@ -154,6 +153,7 @@ function GraphBlockInner<T extends TBlock>(
       lastState.height = geometry.height;
     }
 
+    const { zIndex, order } = viewState.$viewState.value;
     const newZIndex = (zIndex || 0) + (order || 0);
 
     if (lastState.zIndex !== newZIndex) {
