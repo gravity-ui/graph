@@ -138,7 +138,7 @@ export class BlockState<T extends TBlock = TBlock> {
     );
   });
 
-  private blockView: Block;
+  public readonly $viewComponent = signal<Block | undefined>(undefined);
 
   constructor(
     public readonly store: BlockListStore,
@@ -168,16 +168,16 @@ export class BlockState<T extends TBlock = TBlock> {
   public updateXY(x: number, y: number, forceUpdate = false) {
     this.store.updatePosition(this.id, { x, y });
     if (forceUpdate) {
-      this.blockView.updatePosition(x, y, true);
+      this.$viewComponent.value?.updatePosition(x, y, true);
     }
   }
 
   public setViewComponent(blockComponent: Block) {
-    this.blockView = blockComponent;
+    this.$viewComponent.value = blockComponent;
   }
 
   public getViewComponent() {
-    return this.blockView;
+    return this.$viewComponent.value;
   }
 
   public getConnections() {
