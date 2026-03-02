@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.8.5](https://github.com/gravity-ui/graph/compare/v1.8.4...v1.8.5) (2026-03-02)
+
+
+### chore
+
+* release 1.8.5 ([357f5b0](https://github.com/gravity-ui/graph/commit/357f5b08636be84b2d7418cb4b10da71e882e7ed))
+
+
+### Features
+
+* Add setting emulateMouseEventsOnCameraChange ([#255](https://github.com/gravity-ui/graph/issues/255)) ([253007b](https://github.com/gravity-ui/graph/commit/253007b1550643d034c05d5af03ae3a57cafafe2))
+* **GraphBlock:** Add ref prop ([69079bc](https://github.com/gravity-ui/graph/commit/69079bc3935277f423aa7a87af7d9e67cfbd3ea1))
+* some improvements ([#251](https://github.com/gravity-ui/graph/issues/251)) ([69079bc](https://github.com/gravity-ui/graph/commit/69079bc3935277f423aa7a87af7d9e67cfbd3ea1))
+
+
+### Bug Fixes
+
+* **Block:** make block.viewComponent signal ([#256](https://github.com/gravity-ui/graph/issues/256)) ([89e4fd2](https://github.com/gravity-ui/graph/commit/89e4fd2388b9e057ff99a4ca1ac67cc9bfae393c))
+* **ConnectionState:** fix resolving BlockState ([#252](https://github.com/gravity-ui/graph/issues/252)) ([e81896f](https://github.com/gravity-ui/graph/commit/e81896f0aeee90cfcefc2ee3d7c8dcf1592779ae))
+* **debounce:** fix `undefined is not iterable` issue ([725440f](https://github.com/gravity-ui/graph/commit/725440fb850674fcc29376f11109e1eb73247a7e))
+* **debounce:** fix canceling debounce function ([#254](https://github.com/gravity-ui/graph/issues/254)) ([b2db0b2](https://github.com/gravity-ui/graph/commit/b2db0b29811d3742ba20953778d95cadd1260da2))
+* **MiniMapLayer:** refactor MinimapLayer ([#258](https://github.com/gravity-ui/graph/issues/258)) ([085cd23](https://github.com/gravity-ui/graph/commit/085cd230d80be261868e117017db6b412a9c7a2c))
+
 ## [1.8.4](https://github.com/gravity-ui/graph/compare/v1.8.3...v1.8.4) (2026-02-17)
 
 
