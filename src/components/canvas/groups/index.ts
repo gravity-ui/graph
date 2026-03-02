@@ -8,6 +8,8 @@ import { Group } from "./Group";
 
 // Export components
 export { BlockGroups, Group, BlockGroupsTransferLayer };
+export { CollapsibleGroup } from "./CollapsibleGroup";
+export type { TCollapsibleGroup, TCollapseAnchorX, TCollapseAnchorY } from "./CollapsibleGroup";
 
 // Export types from BlockGroups
 export type { BlockGroupsProps, BlockGroupsContext, BlockGroupsState } from "./BlockGroups";

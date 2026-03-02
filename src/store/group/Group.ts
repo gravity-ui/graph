@@ -12,6 +12,10 @@ export interface TGroup {
   rect: TRect;
   selected?: boolean;
   component?: typeof Group;
+  /** Whether this group is currently collapsed */
+  collapsed?: boolean;
+  /** The rect dimensions used when collapsed, stored for expand reversal */
+  collapsedRect?: TRect;
 }
 
 export class GroupState {

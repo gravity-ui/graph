@@ -120,6 +120,17 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   protected hidden: boolean;
 
+  /**
+   * True when an external component (e.g. GraphBlock / React layer) has taken
+   * over rendering of this block.  Only canvas rendering is suppressed —
+   * the hit box and port positions are left intact so the rest of the canvas
+   * system (connections, selection, drag) keeps working correctly.
+   *
+   * This is intentionally separate from `hidden`, which is used for group
+   * collapse and also removes the hit box + delegates connection ports.
+   */
+  private renderDelegated = false;
+
   protected currentState(): T {
     return this.connectedState.$state.value;
   }
@@ -201,7 +212,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
           anchors: this.connectedState.$anchors.value,
         });
         this.updateHitBox(this.connectedState.$geometry.value);
-        this.updatePortPositions();
+        if (!this.hidden) {
+          this.updatePortPositions();
+        }
       }),
     ];
   }
@@ -262,6 +275,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected updatePortPositions(): void {
+    if (this.hidden) {
+      return;
+    }
     // Update input port position
     const inputPoint = this.getConnectionPoint("in");
     this.getInputPort().setPoint(inputPoint.x, inputPoint.y);
@@ -455,6 +471,16 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     });
   }
 
+  /**
+   * Override isVisible so that willIterate() (in GraphComponent) keeps
+   * shouldRender = false while the block is hidden, even if the block's
+   * bounding rect happens to be within the camera viewport.
+   */
+  protected override isVisible(): boolean {
+    if (this.hidden || this.renderDelegated) return false;
+    return super.isVisible();
+  }
+
   protected willRender() {
     super.willRender();
 
@@ -523,10 +549,34 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     }
   }
 
-  public setHiddenBlock(hidden: boolean) {
+  public setHiddenBlock(hidden: boolean): void {
     if (this.hidden !== hidden) {
       this.hidden = hidden;
       this.shouldRender = !hidden;
+      if (hidden) {
+        this.removeHitBox();
+      } else {
+        this.updateHitBox(this.connectedState.$geometry.value);
+        // Restore port positions to their correct values now that the block
+        // is visible again (delegatePorts() moved them while it was hidden).
+        this.updatePortPositions();
+      }
+      this.performRender();
+    }
+  }
+
+  /**
+   * Notify the canvas block that an external component (React / HTML layer) is
+   * now rendering it.  Only the canvas draw pass is suppressed — the hit box,
+   * ports, and all store state remain untouched so connections, drag, and
+   * selection keep working as usual.
+   *
+   * Use this instead of `setHiddenBlock` when the block is NOT logically
+   * hidden — it is simply displayed through a different render path.
+   */
+  public setRenderDelegated(delegated: boolean): void {
+    if (this.renderDelegated !== delegated) {
+      this.renderDelegated = delegated;
       this.performRender();
     }
   }
@@ -537,7 +587,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected render() {
-    if (this.hidden) {
+    if (this.hidden || this.renderDelegated) {
       return;
     }
 
