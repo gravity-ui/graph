@@ -3,7 +3,7 @@ import { signal } from "@preact/signals-core";
 import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
-import { throttle } from "../utils/functions";
+import { observeDPR, throttle } from "../utils/functions";
 
 import { Layer } from "./Layer";
 
@@ -13,6 +13,8 @@ export class Layers extends Emitter {
   public readonly rootSize = signal({ width: 0, height: 0, dpr: globalThis.devicePixelRatio || 1 });
 
   protected layers: Set<Layer> = new Set();
+
+  private unwatchDPR?: () => void;
 
   constructor(public $root?: HTMLDivElement) {
     super();
@@ -68,6 +70,7 @@ export class Layers extends Emitter {
     this.updateSize();
     this.resizeObserver.observe(this.$root, { box: "border-box" });
     window.addEventListener("resize", this.handleRootResize);
+    this.unwatchDPR = observeDPR(() => this.updateSize());
     this.attached = true;
   }
 
@@ -79,6 +82,7 @@ export class Layers extends Emitter {
     this.attached = false;
 
     window.removeEventListener("resize", this.handleRootResize);
+    this.unwatchDPR?.();
 
     this.handleRootResize.cancel();
     this.resizeObserver.disconnect();
