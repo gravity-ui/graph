@@ -3,7 +3,7 @@ import { signal } from "@preact/signals-core";
 import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
-import { throttle } from "../utils/functions";
+import { observeDPR, throttle } from "../utils/functions";
 
 import { Layer } from "./Layer";
 
@@ -14,7 +14,7 @@ export class Layers extends Emitter {
 
   protected layers: Set<Layer> = new Set();
 
-  private dprMediaQuery?: MediaQueryList;
+  private unwatchDPR?: () => void;
 
   constructor(public $root?: HTMLDivElement) {
     super();
@@ -70,7 +70,7 @@ export class Layers extends Emitter {
     this.updateSize();
     this.resizeObserver.observe(this.$root, { box: "border-box" });
     window.addEventListener("resize", this.handleRootResize);
-    this.watchDPR();
+    this.unwatchDPR = observeDPR(() => this.updateSize());
     this.attached = true;
   }
 
@@ -82,7 +82,7 @@ export class Layers extends Emitter {
     this.attached = false;
 
     window.removeEventListener("resize", this.handleRootResize);
-    this.unwatchDPR();
+    this.unwatchDPR?.();
 
     this.handleRootResize.cancel();
     this.resizeObserver.disconnect();
@@ -95,29 +95,6 @@ export class Layers extends Emitter {
   public unmount() {
     this.detach(true);
     this.destroy();
-  }
-
-  private handleDPRChange = (): void => {
-    this.updateSize();
-    this.watchDPR();
-  };
-
-  /**
-   * When the window moves to a monitor with a different DPR, devicePixelRatio changes
-   * and the current media query no longer matches. We use `once: true` because this
-   * specific query becomes stale after firing; handleDPRChange re-calls watchDPR
-   * with the updated devicePixelRatio to set up a fresh listener.
-   */
-  private watchDPR(): void {
-    this.unwatchDPR();
-    const mqString = `(resolution: ${globalThis.devicePixelRatio || 1}dppx)`;
-    this.dprMediaQuery = globalThis.matchMedia?.(mqString);
-    this.dprMediaQuery?.addEventListener("change", this.handleDPRChange, { once: true });
-  }
-
-  private unwatchDPR(): void {
-    this.dprMediaQuery?.removeEventListener("change", this.handleDPRChange);
-    this.dprMediaQuery = undefined;
   }
 
   protected resizeObserver = new ResizeObserver(() => {
