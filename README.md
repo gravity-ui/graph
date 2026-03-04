@@ -8,6 +8,8 @@ A graph visualization library that combines the best of both worlds:
 
 No more choosing between performance and interactivity. Perfect for large diagrams, flowcharts, and node-based editors.
 
+![preview graph.](docs/_static/graph_preview.png)
+
 ## Motivation
 
 Modern web applications often require complex visualization and interactivity, but existing solutions typically focus on a single rendering technology:
@@ -39,8 +41,8 @@ const MyGraph = () => {
     <GraphCanvas
       graph={graph}
       renderBlock={(graph, block) => (
-        <MyCustomBlockComponent 
-          graph={graph} 
+        <MyCustomBlockComponent
+          graph={graph}
           block={block}
         />
       )}
