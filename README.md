@@ -8,7 +8,7 @@ A graph visualization library that combines the best of both worlds:
 
 No more choosing between performance and interactivity. Perfect for large diagrams, flowcharts, and node-based editors.
 
-![preview graph.](/graph_preview.png)
+![preview graph.](docs/_static/graph_preview.png)
 
 ## Motivation
 

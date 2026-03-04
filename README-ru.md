@@ -8,6 +8,8 @@
 
 Больше не нужно выбирать между производительностью и интерактивностью. Идеально подходит для больших графов, блок-схем и редакторов на основе узлов.
 
+![preview graph.](docs/_static/graph_preview.png)
+
 ## Мотивация
 
 Современные веб-приложения часто требуют сложной визуализации и интерактивности, но существующие решения обычно используют только одну технологию отрисовки:
@@ -39,8 +41,8 @@ const MyGraph = () => {
     <GraphCanvas
       graph={graph}
       renderBlock={(graph, block) => (
-        <MyCustomBlockComponent 
-          graph={graph} 
+        <MyCustomBlockComponent
+          graph={graph}
           block={block}
         />
       )}
