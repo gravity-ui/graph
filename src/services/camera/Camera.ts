@@ -302,10 +302,6 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     this.camera.move(deltaX, deltaY);
   }
 
-  public render() {
-    this.context.layer.resetTransform();
-  }
-
   public updateChildren() {
     return this.props.children;
   }

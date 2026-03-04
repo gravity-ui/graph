@@ -9,7 +9,6 @@ import { Point } from "../../../../utils/types/shapes";
 import { EventedComponent } from "../../EventedComponent/EventedComponent";
 import { Blocks } from "../../blocks/Blocks";
 import { BlockConnection } from "../../connections/BlockConnection";
-import { BlockConnections } from "../../connections/BlockConnections";
 
 export type TGraphLayerProps = LayerProps & {
   camera: ICamera;
@@ -114,9 +113,6 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
       }
     });
     this.context.graph.rootStore.blocksList.$blocks.subscribe(() => {
-      this.performRender();
-    });
-    this.context.graph.rootStore.connectionsList.$connections.subscribe(() => {
       this.performRender();
     });
     super.afterInit();
@@ -369,7 +365,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   public updateChildren() {
     const cameraProps: TCameraProps = {
-      children: [BlockConnections.create(), Blocks.create()],
+      children: [Blocks.create()],
       root: this.root,
     };
 

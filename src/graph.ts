@@ -5,6 +5,7 @@ import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
 import { GraphComponent } from "./components/canvas/GraphComponent";
 import { TBlock } from "./components/canvas/blocks/Block";
 import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
+import { ConnectionsLayer } from "./components/canvas/layers/connectionsLayer/ConnectionsLayer";
 import { CursorLayer, CursorLayerCursorTypes } from "./components/canvas/layers/cursorLayer";
 import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
@@ -82,6 +83,8 @@ export class Graph {
 
   protected readonly belowLayer: BelowLayer;
 
+  public readonly connectionsLayer: ConnectionsLayer;
+
   protected readonly selectionLayer: SelectionLayer;
 
   protected readonly cursorLayer: CursorLayer;
@@ -127,6 +130,7 @@ export class Graph {
     graphConstants?: TGraphConstants
   ) {
     this.belowLayer = this.addLayer(BelowLayer, {});
+    this.connectionsLayer = this.addLayer(ConnectionsLayer, {});
     this.graphLayer = this.addLayer(GraphLayer, {});
     this.selectionLayer = this.addLayer(SelectionLayer, {});
     this.cursorLayer = this.addLayer(CursorLayer, {});
@@ -137,6 +141,7 @@ export class Graph {
 
     this.selectionLayer.hide();
     this.graphLayer.hide();
+    this.connectionsLayer.hide();
     this.belowLayer.hide();
 
     if (rootEl) {
@@ -456,6 +461,7 @@ export class Graph {
     this.runAfterGraphReady(() => {
       this.selectionLayer.show();
       this.graphLayer.show();
+      this.connectionsLayer.show();
       this.belowLayer.show();
       this.cursorLayer.show();
     });

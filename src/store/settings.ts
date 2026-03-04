@@ -3,6 +3,7 @@ import cloneDeep from "lodash/cloneDeep";
 
 import type { Block, TBlock } from "../components/canvas/blocks/Block";
 import { BlockConnection } from "../components/canvas/connections/BlockConnection";
+import { BlockConnections } from "../components/canvas/connections/BlockConnections";
 import { Component } from "../lib";
 
 import { TConnection } from "./connection/ConnectionState";
@@ -53,6 +54,7 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   showConnectionLabels: boolean;
   blockComponents: Record<string, typeof Block<Block>>;
   connection?: typeof BlockConnection<Connection>;
+  blockConnections?: typeof BlockConnections;
   background?: typeof Component;
   /**
    * When enabled, mouseenter/mouseleave events are re-evaluated after each camera change.
@@ -93,6 +95,10 @@ export class GraphEditorSettings {
 
   public $connection = computed(() => {
     return this.$settings.value.connection;
+  });
+
+  public $blockConnections = computed(() => {
+    return this.$settings.value.blockConnections;
   });
 
   constructor(public rootStore: RootStore) {}

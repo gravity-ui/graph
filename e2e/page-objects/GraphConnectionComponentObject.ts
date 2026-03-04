@@ -9,6 +9,11 @@ export interface ConnectionState {
   targetAnchorId?: string;
 }
 
+export interface WorldCoordinates {
+  x: number;
+  y: number;
+}
+
 /**
  * Component Object Model for a specific graph connection
  * Provides methods to interact with and query a single connection
@@ -55,12 +60,53 @@ export class GraphConnectionComponentObject {
   }
 
   /**
-   * Check if connection is selected
+   * Check if connection is selected.
+   * Uses the reactive selection bucket ($selected signal) for accurate state.
    */
   async isSelected(): Promise<boolean> {
     return await this.page.evaluate((id) => {
-      const conn = window.graph.connections.getConnection(id);
-      return conn?.selected || false;
+      const connState = window.graph.connections.getConnectionState(id);
+      return connState?.$selected?.value || false;
     }, this.connectionId);
+  }
+
+  /**
+   * Get the world-space midpoint of the connection line.
+   * Returns null if the connection doesn't exist or ports are not yet resolved.
+   */
+  async getWorldMidpoint(): Promise<WorldCoordinates | null> {
+    return await this.page.evaluate((id) => {
+      const connState = window.graph.connections.getConnectionState(id);
+      if (!connState) return null;
+      const geometry = connState.$geometry?.value;
+      if (!geometry) return null;
+      const [source, target] = geometry;
+      return {
+        x: (source.x + target.x) / 2,
+        y: (source.y + target.y) / 2,
+      };
+    }, this.connectionId);
+  }
+
+  /**
+   * Hover over the midpoint of the connection
+   */
+  async hover(options?: { waitFrames?: number }): Promise<void> {
+    const midpoint = await this.getWorldMidpoint();
+    if (!midpoint) {
+      throw new Error(`Cannot hover: midpoint for connection "${this.connectionId}" is not available`);
+    }
+    await this.graphPO.hover(midpoint.x, midpoint.y, options);
+  }
+
+  /**
+   * Click the midpoint of the connection
+   */
+  async click(options?: { shift?: boolean; ctrl?: boolean; meta?: boolean; waitFrames?: number }): Promise<void> {
+    const midpoint = await this.getWorldMidpoint();
+    if (!midpoint) {
+      throw new Error(`Cannot click: midpoint for connection "${this.connectionId}" is not available`);
+    }
+    await this.graphPO.click(midpoint.x, midpoint.y, options);
   }
 }
