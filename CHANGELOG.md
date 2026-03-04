@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.6](https://github.com/gravity-ui/graph/compare/v1.8.5...v1.8.6) (2026-03-04)
+
+
+### Bug Fixes
+
+* **LayersService:** handle devicePixelRatio changes when moving window between monitors ([#260](https://github.com/gravity-ui/graph/issues/260)) ([a6f52f8](https://github.com/gravity-ui/graph/commit/a6f52f8d3ea66ff26d933b06de8c4f59ef5de603))
+
 ## [1.8.5](https://github.com/gravity-ui/graph/compare/v1.8.4...v1.8.5) (2026-03-02)
 
 
