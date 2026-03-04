@@ -32,6 +32,9 @@ export * from "./components/canvas/layers/portConnectionLayer";
 export * from "./components/canvas/layers/newBlockLayer/NewBlockLayer";
 export * from "./components/canvas/layers/connectionLayer/ConnectionLayer";
 export * from "./components/canvas/layers/connectionsLayer/ConnectionsLayer";
+export * from "./components/canvas/layers/webGLConnectionsLayer/WebGLConnectionsLayer";
+export * from "./components/canvas/layers/webGLConnectionsLayer/WebGLConnection";
+export * from "./components/canvas/layers/webGLConnectionsLayer/WebGLBlockConnections";
 export * from "./lib/Component";
 
 export * from "./services/selection/index.public";

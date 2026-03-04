@@ -5,7 +5,6 @@ import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
 import { GraphComponent } from "./components/canvas/GraphComponent";
 import { TBlock } from "./components/canvas/blocks/Block";
 import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
-import { ConnectionsLayer } from "./components/canvas/layers/connectionsLayer/ConnectionsLayer";
 import { CursorLayer, CursorLayerCursorTypes } from "./components/canvas/layers/cursorLayer";
 import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
@@ -26,7 +25,7 @@ import { clearColorCache, getXY } from "./utils/functions";
 import { clearTextCache } from "./utils/renderers/text";
 import { RecursivePartial } from "./utils/types/helpers";
 import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
-
+import { WebGLConnectionsLayer } from "./components/canvas/layers/webGLConnectionsLayer/WebGLConnectionsLayer";
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
 export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   configurationName?: string;
@@ -83,7 +82,7 @@ export class Graph {
 
   protected readonly belowLayer: BelowLayer;
 
-  public readonly connectionsLayer: ConnectionsLayer;
+  public readonly connectionsLayer: Layer;
 
   protected readonly selectionLayer: SelectionLayer;
 
@@ -130,7 +129,7 @@ export class Graph {
     graphConstants?: TGraphConstants
   ) {
     this.belowLayer = this.addLayer(BelowLayer, {});
-    this.connectionsLayer = this.addLayer(ConnectionsLayer, {});
+    this.connectionsLayer = this.addLayer(WebGLConnectionsLayer, {});
     this.graphLayer = this.addLayer(GraphLayer, {});
     this.selectionLayer = this.addLayer(SelectionLayer, {});
     this.cursorLayer = this.addLayer(CursorLayer, {});
