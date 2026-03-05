@@ -18,51 +18,62 @@ export class ReactGraphPageObject extends GraphPageObject {
 
   /**
    * Creates graph wrapped in React GraphCanvas (enables HTML block rendering via BlocksList).
+   * GraphCanvas handles graph.attach() via its own useEffect, so we do NOT pass rootEl
+   * to the Graph constructor to avoid a double-attach conflict.
    */
   protected async setupGraph(config: GraphConfig): Promise<void> {
     await this.page.evaluate((cfg) => {
-      const { Graph, GraphCanvas, GraphBlock, React, ReactDOM } = (window as any).GraphModule;
+      return new Promise<void>((resolve) => {
+        const { Graph, GraphCanvas, GraphBlock, React, ReactDOM, GraphState } = (window as any).GraphModule;
 
-      const rootEl = document.getElementById("root");
-      if (!rootEl) {
-        throw new Error("Root element not found");
-      }
+        const rootEl = document.getElementById("root");
+        if (!rootEl) {
+          throw new Error("Root element not found");
+        }
 
-      const graph = new Graph(cfg, rootEl);
+        // Do NOT pass rootEl here — GraphCanvas.useEffect calls graph.attach(containerRef)
+        const graph = new Graph(cfg);
 
-      // Render with React and GraphCanvas (enables HTML block rendering via BlocksList)
-      const reactRoot = ReactDOM.createRoot(rootEl);
+        const renderBlock = (g: unknown, block: { id: string; name?: string }) => {
+          return React.createElement(
+            GraphBlock,
+            { graph: g, block },
+            React.createElement(
+              "div",
+              { "data-testid": `block-${block.id}`, style: { padding: "8px" } },
+              block.name || block.id
+            )
+          );
+        };
 
-      const renderBlock = (g: unknown, block: { id: string; name?: string }) => {
-        return React.createElement(
-          GraphBlock,
-          { graph: g, block },
-          React.createElement("div", { "data-testid": `block-${block.id}`, style: { padding: "8px" } }, block.name || block.id)
-        );
-      };
+        const reactRoot = ReactDOM.createRoot(rootEl);
+        reactRoot.render(React.createElement(GraphCanvas, { graph, renderBlock }));
 
-      reactRoot.render(
-        React.createElement(GraphCanvas, {
-          graph,
-          renderBlock,
-          style: { width: "100%", height: "100vh" },
-        })
-      );
+        // Set initial entities if provided
+        if (cfg.blocks || cfg.connections) {
+          graph.setEntities({
+            blocks: cfg.blocks || [],
+            connections: cfg.connections || [],
+          });
+        }
 
-      // Set initial entities if provided
-      if (cfg.blocks || cfg.connections) {
-        graph.setEntities({
-          blocks: cfg.blocks || [],
-          connections: cfg.connections || [],
-        });
-      }
+        // graph.start() defers until graph.attach() is called inside GraphCanvas.useEffect.
+        // After attach, start() fires automatically via startRequested flag.
+        graph.start();
 
-      graph.start();
-      graph.zoomTo("center");
-
-      // Expose to window for tests
-      window.graph = graph;
-      window.graphInitialized = true;
+        // Expose to window and resolve when graph is truly READY (attached + started)
+        window.graph = graph;
+        const waitForReady = () => {
+          if (graph.state === GraphState.READY) {
+            graph.zoomTo("center");
+            window.graphInitialized = true;
+            resolve();
+          } else {
+            requestAnimationFrame(waitForReady);
+          }
+        };
+        requestAnimationFrame(waitForReady);
+      });
     }, config);
   }
 

@@ -178,7 +178,7 @@ export class BlockState<T extends TBlock = TBlock> {
   }
 
   public setViewComponent(blockComponent: Block): void {
-    this.blockView = blockComponent;
+    this.$viewComponent.value = blockComponent;
     if (this.pendingHidden !== undefined) {
       blockComponent.setHiddenBlock(this.pendingHidden);
       this.pendingHidden = undefined;
