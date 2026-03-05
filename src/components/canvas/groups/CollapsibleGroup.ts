@@ -9,11 +9,8 @@ import { TRect } from "../../../utils/types/shapes";
 import { BlockGroups } from "./BlockGroups";
 import { Group, TGroupProps } from "./Group";
 
-/** Horizontal anchor: which X-axis point of the full rect stays fixed during collapse. */
-export type TCollapseAnchorX = "left" | "center" | "right";
-
-/** Vertical anchor: which Y-axis point of the full rect stays fixed during collapse. */
-export type TCollapseAnchorY = "top" | "center" | "bottom";
+/** A single collapse direction axis value. */
+export type TCollapseDirection = "start" | "center" | "end";
 
 export interface TCollapsibleGroup extends TGroup {
   /** Whether this group is currently collapsed */
@@ -30,26 +27,20 @@ export interface TCollapsibleGroup extends TGroup {
    */
   expandedRect?: TRect;
   /**
-   * Horizontal anchor point for collapse (default: "left").
-   * "left"   → top-left corner is pinned (freed space is to the right)
-   * "center" → group shrinks symmetrically from both sides
-   * "right"  → top-right corner is pinned (freed space is to the left)
+   * Where the collapsed header appears relative to the full group rect.
+   *
+   * - `x`: `"start"` → left edge  |  `"center"` → centered  |  `"end"` → right edge
+   * - `y`: `"start"` → top edge   |  `"center"` → centered  |  `"end"` → bottom edge
+   *
+   * Defaults to `{ x: "start", y: "start" }` (top-left corner).
    */
-  collapseAnchorX?: TCollapseAnchorX;
-  /**
-   * Vertical anchor point for collapse (default: "top").
-   * "top"    → top edge is pinned (freed space is below)
-   * "center" → group shrinks symmetrically from both sides
-   * "bottom" → bottom edge is pinned (freed space is above)
-   */
-  collapseAnchorY?: TCollapseAnchorY;
+  collapseDirection?: { x?: TCollapseDirection; y?: TCollapseDirection };
 }
 
 const DEFAULT_COLLAPSED_WIDTH = 200;
 const DEFAULT_COLLAPSED_HEIGHT = 48;
 
-const ANCHOR_X_FACTOR: Record<TCollapseAnchorX, number> = { left: 0, center: 0.5, right: 1 };
-const ANCHOR_Y_FACTOR: Record<TCollapseAnchorY, number> = { top: 0, center: 0.5, bottom: 1 };
+const DIRECTION_FACTOR: Record<TCollapseDirection, number> = { start: 0, center: 0.5, end: 1 };
 
 /**
  * A Group component that supports collapsing and expanding.
@@ -64,21 +55,21 @@ const ANCHOR_Y_FACTOR: Record<TCollapseAnchorY, number> = { top: 0, center: 0.5,
  *
  * Toggle collapse/expand by double-clicking the group.
  *
- * ### Collapse anchor
+ * ### Collapse direction
  *
- * Set `collapseAnchorX` / `collapseAnchorY` on the TCollapsibleGroup data to
- * control where the shrunken header appears:
+ * Set `collapseDirection` on the TCollapsibleGroup data to control where the
+ * shrunken header appears relative to the full group rect:
  *
  * ```
- *  collapseAnchorX: "left"   → header at left edge   (freed space on the right)
- *  collapseAnchorX: "center" → header at center       (freed space on both sides)
- *  collapseAnchorX: "right"  → header at right edge   (freed space on the left)
- *  collapseAnchorY: "top"    → header at top edge     (freed space below)
- *  collapseAnchorY: "center" → header at center       (freed space above & below)
- *  collapseAnchorY: "bottom" → header at bottom edge  (freed space above)
+ *  collapseDirection.x: "start"  → header at left edge   (freed space on the right)
+ *  collapseDirection.x: "center" → header at center       (freed space on both sides)
+ *  collapseDirection.x: "end"    → header at right edge   (freed space on the left)
+ *  collapseDirection.y: "start"  → header at top edge     (freed space below)
+ *  collapseDirection.y: "center" → header at center       (freed space above & below)
+ *  collapseDirection.y: "end"    → header at bottom edge  (freed space above)
  * ```
  *
- * Default: `"left"` / `"top"` — same as the original behaviour.
+ * Default: `{ x: "start", y: "start" }` — top-left corner.
  *
  * ### Usage
  * ```typescript
@@ -87,8 +78,7 @@ const ANCHOR_Y_FACTOR: Record<TCollapseAnchorY, number> = { top: 0, center: 0.5,
  *   rect: { x: 0, y: 0, width: 0, height: 0 }, // auto-computed from blocks
  *   component: CollapsibleGroup,
  *   collapsed: false,
- *   collapseAnchorX: "left",
- *   collapseAnchorY: "top",
+ *   collapseDirection: { x: "start", y: "start" },
  * };
  * ```
  * Blocks must carry `group: "my-group"` in their TBlock data.
@@ -140,15 +130,15 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
 
   /**
    * Compute the collapsed rect for a given full rect, respecting the configured
-   * collapseAnchorX / collapseAnchorY values.
+   * collapseDirection values.
    *
-   * The anchor point in the full rect is mapped to the same anchor point in
-   * the collapsed rect, so the "pinned" corner/edge does not move.
+   * The direction point in the full rect maps to the same point in the
+   * collapsed rect, so the "pinned" corner/edge does not move.
    */
   private computeCollapsedRect(fullRect: TRect): TRect {
     const state = this.groupState.$state.value as T;
-    const ax = ANCHOR_X_FACTOR[state.collapseAnchorX ?? "left"];
-    const ay = ANCHOR_Y_FACTOR[state.collapseAnchorY ?? "top"];
+    const ax = DIRECTION_FACTOR[state.collapseDirection?.x ?? "start"];
+    const ay = DIRECTION_FACTOR[state.collapseDirection?.y ?? "start"];
     return {
       x: fullRect.x + ax * (fullRect.width - DEFAULT_COLLAPSED_WIDTH),
       y: fullRect.y + ay * (fullRect.height - DEFAULT_COLLAPSED_HEIGHT),

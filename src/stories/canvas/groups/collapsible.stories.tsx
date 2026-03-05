@@ -176,8 +176,7 @@ const CollapsibleBlockGroups = BlockGroups.withBlockGrouping<BlockGroupsProps, B
       height: rect.height + GROUP_PAD * 2,
     },
     component: CollapsibleGroup,
-    collapseAnchorX: "left",
-    collapseAnchorY: "top",
+    collapseDirection: { x: "center", y: "center" },
     // `collapsed` is intentionally omitted: existing state is preserved by
     // updateGroup()'s spread, and newly created groups default to false.
   }),
