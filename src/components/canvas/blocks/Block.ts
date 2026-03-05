@@ -118,6 +118,14 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   protected raised: boolean;
 
+  /**
+   * True when the block is fully hidden by CollapsibleGroup (hitbox removed).
+   * This is separate from `this.hidden` which is set by setRenderDelegated
+   * (React overlay mode, hitbox kept). Both flags make isVisible() return false,
+   * but only blockHidden removes the hitbox.
+   */
+  private blockHidden = false;
+
   protected currentState(): T {
     return this.connectedState.$state.value;
   }
@@ -170,6 +178,11 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.connectedState.$geometry.value;
   }
 
+  protected override isVisible(): boolean {
+    if (this.blockHidden) return false;
+    return super.isVisible();
+  }
+
   public getConfigFlag<K extends keyof TGraphSettingsConfig>(flagPath: K) {
     return this.context.graph.rootStore.settings.getConfigFlag(flagPath);
   }
@@ -203,7 +216,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
           anchors: this.connectedState.$anchors.value,
         });
         this.updateHitBox(this.connectedState.$geometry.value);
-        if (!this.hidden) {
+        if (!this.blockHidden) {
           this.updatePortPositions();
         }
       }),
@@ -266,7 +279,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected updatePortPositions(): void {
-    if (this.hidden) {
+    if (this.blockHidden) {
       return;
     }
     // Update input port position
@@ -404,7 +417,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   public updateHitBox = (geometry: TRect, force?: boolean) => {
-    if (this.hidden) return;
+    if (this.blockHidden) return;
     this.setHitBox(geometry.x, geometry.y, geometry.x + geometry.width, geometry.y + geometry.height, force);
   };
 
@@ -532,13 +545,21 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   public setHiddenBlock(hidden: boolean): void {
-    const wasHidden = this.hidden;
-    this.setVisibility(!hidden, { removeHitbox: true });
-    if (wasHidden && !hidden) {
-      // Restore port positions to their correct values now that the block
-      // is visible again (delegatePorts() moved them while it was hidden).
-      this.updatePortPositions();
+    const wasBlockHidden = this.blockHidden;
+    this.blockHidden = hidden;
+    if (hidden) {
+      this.removeHitBox();
+      this.shouldRender = false;
+    } else {
+      const { x, y, width, height } = this.getHitBoxRect();
+      this.setHitBox(x, y, x + width, y + height, true);
+      if (wasBlockHidden && !this.hidden) {
+        // Restore port positions to their correct values now that the block
+        // is visible again (delegatePorts() moved them while it was hidden).
+        this.updatePortPositions();
+      }
     }
+    this.performRender();
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
