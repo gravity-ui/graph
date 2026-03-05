@@ -25,6 +25,16 @@ const QUAD_SIDE: number[] = [-0.5, 0.5, -0.5, 0.5, 0.5, -0.5];
 const DASH_PERIOD = 20.0;
 const DASH_LENGTH = 12.0;
 
+// Vertex layout (offsets in bytes):
+//   a_point_a:    0  (2 floats = 8 bytes)
+//   a_point_b:    8  (2 floats = 8 bytes)
+//   a_is_b:       16 (1 float  = 4 bytes)
+//   a_side:       20 (1 float  = 4 bytes)
+//   a_color:      24 (4 floats = 16 bytes)
+//   a_width:      40 (1 float  = 4 bytes)
+//   a_dashed:     44 (1 float  = 4 bytes)
+//   a_dist_along: 48 (1 float  = 4 bytes)
+
 // Camera uniforms (u_resolution, u_camera, u_scale) are NOT declared here —
 // they are inherited from the parent cameraScope set up by WebGLConnectionsLayer.
 const VERT_SHADER = `
@@ -37,6 +47,8 @@ const VERT_SHADER = `
   varying vec4 v_color;
   varying float v_dist_along;
   varying float v_dashed;
+  varying float v_side;
+  varying float v_screen_width;
   void main() {
     vec2 sa = a_point_a * u_scale + u_camera;
     vec2 sb = a_point_b * u_scale + u_camera;
@@ -45,7 +57,11 @@ const VERT_SHADER = `
     float len = length(seg);
     if (len > 0.001) {
       vec2 n = vec2(-seg.y, seg.x) / len;
-      pos += n * a_side * a_width * u_scale;
+      // Expand geometry to at least 1px so thin lines always cover a pixel.
+      // The fragment shader compensates with thin_alpha.
+      float screenWidth = a_width * u_scale;
+      float renderWidth = max(screenWidth, 1.0);
+      pos += n * a_side * renderWidth;
     }
     vec2 ndc = pos / u_resolution * 2.0 - 1.0;
     ndc.y = -ndc.y;
@@ -53,6 +69,8 @@ const VERT_SHADER = `
     v_color = a_color;
     v_dist_along = a_dist_along;
     v_dashed = a_dashed;
+    v_side = a_side;
+    v_screen_width = a_width * u_scale;
   }
 `;
 
@@ -63,9 +81,29 @@ const FRAG_SHADER = `
   varying vec4 v_color;
   varying float v_dist_along;
   varying float v_dashed;
+  varying float v_side;
+  varying float v_screen_width;
   void main() {
     if (v_dashed > 0.5 && mod(v_dist_along, u_dash_period) > u_dash_length) discard;
-    gl_FragColor = v_color;
+
+    // Analytical anti-aliasing.
+    // Convert v_edge_dist [0..1] to screen-pixel distance from the physical edge.
+    // halfWidth is the half-width of the rendered geometry in screen pixels;
+    // clamped to 0.5 so sub-pixel lines still map to a sensible range.
+    float v_edge_dist = 1.0 - abs(v_side) * 2.0;
+    float halfWidth = max(v_screen_width * 0.5, 0.5);
+    float dist_from_edge_px = v_edge_dist * halfWidth;
+
+    // Fixed 0.5px feather: only the outermost half-pixel fades.
+    // This keeps 2px and 4px lines looking their full width while still
+    // anti-aliasing the edge.
+    float edge_alpha = smoothstep(0.0, 0.5, dist_from_edge_px);
+
+    // Thin-line fade: lines narrower than 1px keep their geometry at 1px
+    // but fade out proportionally so they appear to thin naturally.
+    float thin_alpha = min(v_screen_width, 1.0);
+
+    gl_FragColor = vec4(v_color.rgb, v_color.a * edge_alpha * thin_alpha);
   }
 `;
 
@@ -108,11 +146,9 @@ export class LineWebGLEngine {
         a_dist_along: { buffer: this.dataBuffer, stride: STRIDE, offset: 48, size: 1 },
       },
       uniforms: {
-        // dash constants are engine-local and never change
         u_dash_period: DASH_PERIOD,
         u_dash_length: DASH_LENGTH,
       },
-      // count is dynamic — no props needed when calling draw()
       count: () => this.connectionCount * VERTS_PER_CONN,
       primitive: "triangles",
       depth: { enable: true },
@@ -128,7 +164,10 @@ export class LineWebGLEngine {
     if (!this.dataBuffer) return;
     this.writeSlot(slotIndex, src, tgt, style);
     const floatOffset = slotIndex * VERTS_PER_CONN * FLOATS_PER_VERT;
-    const slotData = this.vertexData.subarray(floatOffset, floatOffset + VERTS_PER_CONN * FLOATS_PER_VERT);
+    const slotData = this.vertexData.subarray(
+      floatOffset,
+      floatOffset + VERTS_PER_CONN * FLOATS_PER_VERT
+    );
     this.dataBuffer.subdata(slotData, floatOffset * 4);
   }
 

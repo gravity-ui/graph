@@ -1,9 +1,11 @@
 import { LayerProps } from "../../../../services/Layer";
-import { TGraphLayerContext } from "../graphLayer/GraphLayer";
 import { WebGLLayer } from "../WebGLLayer";
+import { TGraphLayerContext } from "../graphLayer/GraphLayer";
+
+import { HoverGlowEngine } from "./HoverGlowEngine";
+import { LineWebGLEngine, TConnectionStyle, TEngineSlot } from "./LineWebGLEngine";
 import { WebGLBlockConnections } from "./WebGLBlockConnections";
 import { WebGLConnection } from "./WebGLConnection";
-import { LineWebGLEngine, TConnectionStyle, TEngineSlot } from "./LineWebGLEngine";
 
 function parseCSSColor(css: string): [number, number, number, number] {
   const m = css.match(/rgba?\(([^)]+)\)/);
@@ -34,6 +36,7 @@ export type TWebGLConnectionsLayerProps = LayerProps;
 
 export class WebGLConnectionsLayer extends WebGLLayer<TWebGLConnectionsLayerProps, TGraphLayerContext> {
   private engine: LineWebGLEngine | null = null;
+  private glowEngine: HoverGlowEngine | null = null;
 
   constructor(props: TWebGLConnectionsLayerProps) {
     super({
@@ -47,14 +50,24 @@ export class WebGLConnectionsLayer extends WebGLLayer<TWebGLConnectionsLayerProp
   }
 
   protected override afterWebGLInit(): void {
-    this.engine = new LineWebGLEngine(this.regl!);
+    this.engine = new LineWebGLEngine(this.regl);
     this.engine.init();
+
+    this.glowEngine = new HoverGlowEngine(this.regl);
+    this.glowEngine.init();
+
     this.onGraphEvent("colors-changed", () => this.assignSlots());
+
+    // Canvas has no-pointer-events, so we listen on the root element instead.
+    this.onRootEvent("mousemove", this.handleMouseMove);
+    this.onRootEvent("mouseleave", this.handleMouseLeave);
   }
 
   protected override unmountLayer(): void {
     this.engine?.destroy();
     this.engine = null;
+    this.glowEngine?.destroy();
+    this.glowEngine = null;
     super.unmountLayer();
   }
 
@@ -69,7 +82,16 @@ export class WebGLConnectionsLayer extends WebGLLayer<TWebGLConnectionsLayerProp
   public updateSlot(slotIndex: number, conn: WebGLConnection): void {
     if (!this.engine || !conn.connectionPoints) return;
     const [src, tgt] = conn.connectionPoints;
-    this.engine.updateSlot(slotIndex, src, tgt, this.getConnectionStyle(conn));
+    const style = this.getConnectionStyle(conn);
+
+    this.engine.updateSlot(slotIndex, src, tgt, style);
+
+    if (conn.isHovered) {
+      this.glowEngine?.setHovered(src, tgt, style.width);
+    } else {
+      this.glowEngine?.clear();
+    }
+
     this.performRender();
   }
 
@@ -99,14 +121,26 @@ export class WebGLConnectionsLayer extends WebGLLayer<TWebGLConnectionsLayerProp
     const selectedColor = parseCSSColor(colors.connection?.selectedBackground ?? "#ecc113");
     const isActive = conn.isSelected || conn.isHovered;
     return {
-      color: isActive ? selectedColor : normalColor,
+      color: conn.isSelected ? selectedColor : normalColor,
       width: isActive ? 4 : 2,
       dashed: conn.state.dashed ? 1 : 0,
     };
   }
 
+  private handleMouseMove = (e: MouseEvent): void => {
+    if (!this.glowEngine) return;
+    const rect = this.root.getBoundingClientRect();
+    const [worldX, worldY] = this.context.camera.applyToPoint(e.clientX - rect.left, e.clientY - rect.top);
+    this.glowEngine.setMouseWorld(worldX, worldY);
+    this.performRender();
+  };
+
+  private handleMouseLeave = (): void => {
+    this.performRender();
+  };
+
   protected override drawScene(): void {
-    this.engine?.draw();
-    // this.bezierEngine?.draw();
+    this.engine?.draw(); // pass 1: все связи, alpha blending
+    // this.glowEngine?.draw(); // pass 2: hovered связь, additive blending
   }
 }
