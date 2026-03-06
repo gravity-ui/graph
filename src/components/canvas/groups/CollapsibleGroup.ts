@@ -149,8 +149,7 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
   constructor(props: TGroupProps, parent: BlockGroups) {
     super(props, parent);
 
-    this.shiftStrategy =
-      (this.groupState.$state.value as T).shiftStrategy ?? new DirectionalShiftStrategy();
+    this.shiftStrategy = (this.groupState.$state.value as T).shiftStrategy ?? new DirectionalShiftStrategy();
 
     this.addEventListener("dblclick", (event: MouseEvent) => {
       event.stopPropagation();
