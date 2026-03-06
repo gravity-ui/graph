@@ -24,6 +24,8 @@ export type TGraphComponentProps = TComponentProps & {
   affectsUsableRect?: boolean;
 };
 
+
+
 export class GraphComponent<
   Props extends TGraphComponentProps = TGraphComponentProps,
   State extends TComponentState = TComponentState,
@@ -389,7 +391,8 @@ export class GraphComponent<
     this.hitBox.destroy();
   }
 
-  public onHitBox(_: HitBoxData) {
+  public onHitBox(data: HitBoxData) {
+    this._lastHitBoxData = data;
     return this.isIterated();
   }
 }
