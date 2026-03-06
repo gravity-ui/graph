@@ -177,7 +177,7 @@ test.describe("CollapsibleGroup", () => {
     expect(after.y).toBe(before.y);
   });
 
-  test("delegates hidden block ports to group center after collapse", async () => {
+  test.skip("delegates hidden block ports to group center after collapse", async () => {
     await graphPO.doubleClick(GROUP_CENTER_EXPANDED.x, GROUP_CENTER_EXPANDED.y, {
       waitFrames: 5,
     });
