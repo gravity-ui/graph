@@ -11,34 +11,22 @@ import { GraphPageObject } from "../../page-objects/GraphPageObject";
  * Block positions:
  *
  *   [L-A 260,0]     ┌──────────────────────────────────────────┐   [R-A 1500,0]
- *                   │ GROUP A  [A1 600,0] [A2 880,0] [A3 1160,0]│
- *                   └──────────────────────────────────────────┘
+ *                    │ GROUP A  [A1 600,0] [A2 880,0] [A3 1160,0]│
+ *                    └──────────────────────────────────────────┘
  *
  *   [L-B 540,300]        ┌──────────────────────────────────────────┐  [R-B 1780,300]
- *                        │ GROUP B  [B1 880,300][B2 1160,300][B3 1440,300]│
- *                        └──────────────────────────────────────────┘
+ *                         │ GROUP B  [B1 880,300][B2 1160,300][B3 1440,300]│
+ *                         └──────────────────────────────────────────┘
  *
  * Group A fullRect  = {x:540, y:-60, w:880, h:220}
  * Group B fullRect  = {x:820, y:240, w:880, h:220}
  *
  * collapseDirection: {x:"center", y:"center"}  →  ax=0.5, ay=0.5
  *
- * After group-A collapses (deltaX=680, deltaY=172, refX=[540,1420], refY=[-60,160]):
- *
- *   Perpendicular-overlap rule:
- *     X shift applied only if block's Y extent overlaps group A's Y extent [-60,160]
- *     Y shift applied only if block's X extent overlaps group A's X extent [540,1420]
- *
- *   Ungrouped blocks:
- *     L-A  y=[0,100]   overlaps refY → xShift=+340; x=[260,460]  no xOverlap → yShift=0   → (600, 0)
- *     R-A  y=[0,100]   overlaps refY → xShift=-340; x=[1500,1700] no xOverlap → yShift=0  → (1160, 0)
- *     L-B  y=[300,400] no yOverlap   → xShift=0;   x=[540,740]  overlaps refX → yShift=-86 → (540, 214)
- *     R-B  y=[300,400] no yOverlap   → xShift=0;   x=[1780,1980] no xOverlap → yShift=0   → (1780, 300) ✓ no overlap!
- *
- *   Group-B as unit (rect x=[820,1700], y=[240,460]):
- *     yOverlap with refY [-60,160]: NO → shiftX=0
- *     xOverlap with refX [540,1420]: YES → shiftY=-86
- *     B1→(880,214)  B2→(1160,214)  B3→(1440,214)
+ * This test validates the event-driven collapse architecture:
+ * - dblclick triggers collapse/expand via user-registered handler
+ * - group-collapse-change event fires with correct rects
+ * - shiftBlocksOnGroupCollapse utility shifts outer blocks in the event handler
  */
 
 const BLOCK_W = 200;
@@ -155,33 +143,20 @@ const GROUP_B_RECT = {
 };
 
 // Group A center (stays fixed for center collapse)
-// Used for the EXPAND click: collapsed header is at {x:880, y:26, w:200, h:48}, center=(980,50)
 const GA_CENTER_WORLD = {
-  x: GROUP_A_RECT.x + GROUP_A_RECT.width / 2,  // 980
+  x: GROUP_A_RECT.x + GROUP_A_RECT.width / 2, // 980
   y: GROUP_A_RECT.y + GROUP_A_RECT.height / 2, // 50
 };
 
-// Group B center (stays fixed for center collapse)
-const GB_CENTER_WORLD = {
-  x: GROUP_B_RECT.x + GROUP_B_RECT.width / 2,  // 1260
-  y: GROUP_B_RECT.y + GROUP_B_RECT.height / 2, // 350
-};
-
-// Collapse click points: top area of each group (above its inner blocks).
-// Blocks have z-index > 0 and groups have z-index = 0, so clicking on any
-// point that overlaps a block will hit the block instead of the group.
-// Group A inner blocks are at y=0..100; the group's padded hitbox starts at y=-80.
-// Clicking at y=-50 is inside the group hitbox but above all blocks.
+// Collapse click points: above inner blocks but inside group hitbox
 const GA_COLLAPSE_CLICK = {
   x: GROUP_A_RECT.x + GROUP_A_RECT.width / 2, // 980
-  y: GROUP_A_RECT.y + 10,                      // -50  (above inner blocks at y=0)
+  y: GROUP_A_RECT.y + 10, // -50
 };
 
-// Group B inner blocks are at y=300..400; the group's padded hitbox starts at y=220.
-// Clicking at y=250 is inside the group hitbox but above all blocks.
 const GB_COLLAPSE_CLICK = {
   x: GROUP_B_RECT.x + GROUP_B_RECT.width / 2, // 1260
-  y: GROUP_B_RECT.y + 10,                      // 250  (above inner blocks at y=300)
+  y: GROUP_B_RECT.y + 10, // 250
 };
 
 test.describe("CollapsibleGroup — wide two-group layout", () => {
@@ -194,7 +169,7 @@ test.describe("CollapsibleGroup — wide two-group layout", () => {
 
     await graphPO.page.evaluate(
       ({ groupA, groupB }) => {
-        const { CollapsibleGroup, BlockGroups } = (window as any).GraphModule;
+        const { CollapsibleGroup, BlockGroups, shiftBlocksOnGroupCollapse } = (window as any).GraphModule;
         const graph = window.graph;
 
         graph.addLayer(BlockGroups, { draggable: false });
@@ -215,8 +190,32 @@ test.describe("CollapsibleGroup — wide two-group layout", () => {
             collapseDirection: { x: "center", y: "center" },
           },
         ]);
+
+        // Register dblclick handler for toggle
+        graph.on("dblclick", (event: any) => {
+          const target = event.detail?.target;
+          if (target instanceof CollapsibleGroup) {
+            if (target.isCollapsed()) {
+              target.expand();
+            } else {
+              target.collapse();
+            }
+          }
+        });
+
+        // Register collapse event handler to shift outer blocks
+        graph.on("group-collapse-change", (event: any) => {
+          const { groupId, currentRect, nextRect } = event.detail;
+          const groupBlocks = graph.rootStore.groupsList.$blockGroups.value[groupId] ?? [];
+          shiftBlocksOnGroupCollapse({
+            graph,
+            currentRect,
+            nextRect,
+            groupBlockIds: new Set(groupBlocks.map((b: any) => b.id)),
+          });
+        });
       },
-      { groupA: GROUP_A_RECT, groupB: GROUP_B_RECT }
+      { groupA: GROUP_A_RECT, groupB: GROUP_B_RECT },
     );
 
     await graphPO.waitForFrames(5);
@@ -234,33 +233,9 @@ test.describe("CollapsibleGroup — wide two-group layout", () => {
     }, id);
   }
 
-  async function getAllPositions() {
-    return graphPO.page.evaluate(() => {
-      const store = window.graph.rootStore;
-      const result: Record<string, { x: number; y: number }> = {};
-      store.blocksList.$blocks.value.forEach((b: any) => {
-        result[b.id] = { x: b.$geometry.value.x, y: b.$geometry.value.y };
-      });
-      return result;
-    });
-  }
-
-  // -------------------------------------------------------------------------
-  // Screenshot: initial state
-  // -------------------------------------------------------------------------
-
-  test("screenshot: initial state", async ({ page }) => {
-    await page.screenshot({ path: "e2e/screenshots/wide-layout-initial.png", fullPage: false });
-  });
-
   // -------------------------------------------------------------------------
   // Collapse group-A
   // -------------------------------------------------------------------------
-
-  test("screenshot: after group-A collapse", async ({ page }) => {
-    await graphPO.doubleClick(GA_COLLAPSE_CLICK.x, GA_COLLAPSE_CLICK.y, { waitFrames: 5 });
-    await page.screenshot({ path: "e2e/screenshots/wide-layout-after-collapse-A.png", fullPage: false });
-  });
 
   test("group-A blocks are hidden after collapse", async () => {
     await graphPO.doubleClick(GA_COLLAPSE_CLICK.x, GA_COLLAPSE_CLICK.y, { waitFrames: 5 });
@@ -294,7 +269,7 @@ test.describe("CollapsibleGroup — wide two-group layout", () => {
     }
   });
 
-  test("outer-l-a shifts right (fills freed left space)", async () => {
+  test("outer-l-a shifts right via event handler (fills freed left space)", async () => {
     const before = await getBlockXY("outer-l-a");
     await graphPO.doubleClick(GA_COLLAPSE_CLICK.x, GA_COLLAPSE_CLICK.y, { waitFrames: 5 });
     const after = await getBlockXY("outer-l-a");
@@ -304,7 +279,7 @@ test.describe("CollapsibleGroup — wide two-group layout", () => {
     expect(after.y).toBe(before.y);
   });
 
-  test("outer-r-a shifts left (fills freed right space)", async () => {
+  test("outer-r-a shifts left via event handler (fills freed right space)", async () => {
     const before = await getBlockXY("outer-r-a");
     await graphPO.doubleClick(GA_COLLAPSE_CLICK.x, GA_COLLAPSE_CLICK.y, { waitFrames: 5 });
     const after = await getBlockXY("outer-r-a");
@@ -314,13 +289,11 @@ test.describe("CollapsibleGroup — wide two-group layout", () => {
     expect(after.y).toBe(before.y);
   });
 
-  test("outer-l-b shifts up (fills freed bottom space)", async () => {
+  test("outer-l-b shifts up via event handler (fills freed bottom space)", async () => {
     const before = await getBlockXY("outer-l-b");
     await graphPO.doubleClick(GA_COLLAPSE_CLICK.x, GA_COLLAPSE_CLICK.y, { waitFrames: 5 });
     const after = await getBlockXY("outer-l-b");
 
-    // x=[540,740] overlaps group-A x=[540,1420] → Y shift applies; cy=350>160 → shiftY=-86
-    // y=[300,400] no overlap with group-A y=[-60,160] → X shift suppressed
     expect(after.x).toBe(before.x);
     expect(after.y).toBe(before.y - 86);
   });
@@ -330,8 +303,6 @@ test.describe("CollapsibleGroup — wide two-group layout", () => {
     await graphPO.doubleClick(GA_COLLAPSE_CLICK.x, GA_COLLAPSE_CLICK.y, { waitFrames: 5 });
     const after = await getBlockXY("outer-r-b");
 
-    // outer-r-b y=[300,400] does NOT overlap group-A y=[-60,160] → no X shift
-    // outer-r-b x=[1780,1980] does NOT overlap group-A x=[540,1420] → no Y shift
     expect(after.x).toBe(before.x);
     expect(after.y).toBe(before.y);
   });
@@ -347,9 +318,6 @@ test.describe("CollapsibleGroup — wide two-group layout", () => {
     const afterB2 = await getBlockXY("gb-2");
     const afterB3 = await getBlockXY("gb-3");
 
-    // Group-B center (cx=1260) is inside group-A's X range → shiftX=0
-    // Group-B center (cy=350) is below group-A → shiftY=-86
-    // All three blocks should move identically
     expect(afterB1.x).toBe(beforeB1.x);
     expect(afterB1.y).toBe(beforeB1.y - 86);
     expect(afterB2.x).toBe(beforeB2.x);
@@ -358,51 +326,9 @@ test.describe("CollapsibleGroup — wide two-group layout", () => {
     expect(afterB3.y).toBe(beforeB3.y - 86);
   });
 
-  test("print all positions before and after collapse for visual inspection", async () => {
-    const before = await getAllPositions();
-
-    await graphPO.doubleClick(GA_COLLAPSE_CLICK.x, GA_COLLAPSE_CLICK.y, { waitFrames: 5 });
-
-    const after = await getAllPositions();
-
-    // Print a diff table — visible in the test report when test passes
-    const ids = Object.keys(before);
-    console.log("\n=== Block positions: before → after group-A collapse ===");
-    for (const id of ids.sort()) {
-      const b = before[id];
-      const a = after[id];
-      const dxStr = a.x - b.x !== 0 ? ` (Δx=${a.x - b.x})` : "";
-      const dyStr = a.y - b.y !== 0 ? ` (Δy=${a.y - b.y})` : "";
-      console.log(`  ${id.padEnd(12)}: (${b.x},${b.y}) → (${a.x},${a.y})${dxStr}${dyStr}`);
-    }
-    console.log("");
-
-    // With the perpendicular-overlap rule, outer-r-b should NOT shift:
-    // its y=[300,400] doesn't overlap group A's y=[-60,160], so no X shift;
-    // its x=[1780,1980] doesn't overlap group A's x=[540,1420], so no Y shift.
-    const rbPos = after["outer-r-b"];
-    const gb3Pos = after["gb-3"];
-    console.log(`outer-r-b after: (${rbPos.x}, ${rbPos.y})  (expected no shift → 1780,300)`);
-    console.log(`gb-3 after:      (${gb3Pos.x}, ${gb3Pos.y})  (expected shift (0,-86) → 1440,214)`);
-
-    // This test always passes — it's for inspection only
-    expect(true).toBe(true);
-  });
-
   // -------------------------------------------------------------------------
   // Expand back
   // -------------------------------------------------------------------------
-
-  test("screenshot: after group-A expand", async ({ page }) => {
-    await graphPO.doubleClick(GA_COLLAPSE_CLICK.x, GA_COLLAPSE_CLICK.y, { waitFrames: 5 });
-
-    // Collapsed rect center for group-A (collapseDirection center):
-    // collapsedX = 540 + 0.5*(880-200) = 880, collapsedY = -60 + 0.5*(220-48) = 26
-    // center = (980, 50) — same as GA_CENTER_WORLD; blocks are hidden so no intercept
-    await graphPO.doubleClick(GA_CENTER_WORLD.x, GA_CENTER_WORLD.y, { waitFrames: 5 });
-
-    await page.screenshot({ path: "e2e/screenshots/wide-layout-after-expand-A.png", fullPage: false });
-  });
 
   test("outer-l-a returns to original position after expand", async () => {
     const initial = await getBlockXY("outer-l-a");
@@ -441,11 +367,17 @@ test.describe("CollapsibleGroup — wide two-group layout", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Screenshot: collapse group-B separately
+  // Connections
   // -------------------------------------------------------------------------
 
-  test("screenshot: after group-B collapse (group-A expanded)", async ({ page }) => {
-    await graphPO.doubleClick(GB_COLLAPSE_CLICK.x, GB_COLLAPSE_CLICK.y, { waitFrames: 5 });
-    await page.screenshot({ path: "e2e/screenshots/wide-layout-after-collapse-B.png", fullPage: false });
+  test("all connections persist after group-A collapse", async () => {
+    await graphPO.doubleClick(GA_COLLAPSE_CLICK.x, GA_COLLAPSE_CLICK.y, { waitFrames: 5 });
+
+    const connections = await graphPO.getAllConnections();
+    expect(connections).toHaveLength(5);
+
+    expect(await graphPO.hasConnectionBetween("outer-l-a", "ga-1")).toBe(true);
+    expect(await graphPO.hasConnectionBetween("ga-3", "outer-r-a")).toBe(true);
+    expect(await graphPO.hasConnectionBetween("ga-2", "gb-2")).toBe(true);
   });
 });

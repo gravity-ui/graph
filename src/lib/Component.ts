@@ -54,6 +54,13 @@ export class Component<
     }
   }
 
+  public getState() {
+    if (this.__data.nextState) {
+      return Object.assign({}, this.state, this.__data.nextState);
+    }
+    return this.state;
+  }
+
   protected setState<K extends keyof State>(state: Pick<State, K>) {
     const data = this.__data;
 
