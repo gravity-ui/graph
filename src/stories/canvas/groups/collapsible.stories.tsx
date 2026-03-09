@@ -2,10 +2,10 @@ import React, { useEffect } from "react";
 
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { BlockGroups, CollapsibleGroup } from "../../../components/canvas/groups";
+import { BlockGroups, CollapsibleGroup, shiftBlocksOnGroupCollapse } from "../../../components/canvas/groups";
 import type { BlockGroupsProps, BlockState } from "../../../components/canvas/groups";
 import type { TCollapsibleGroup } from "../../../components/canvas/groups/CollapsibleGroup";
-import { Graph, GraphState, TBlock, TConnection } from "../../../index";
+import { ECanDrag, Graph, GraphState, TBlock, TConnection } from "../../../index";
 import { GraphCanvas, useGraph, useGraphEvent } from "../../../react-components";
 import { useFn } from "../../../react-components/utils/hooks/useFn";
 import { BlockStory } from "../../main/Block";
@@ -28,8 +28,8 @@ import { BlockStory } from "../../main/Block";
 // is locked so the compact header stays; on expand, the lock is released and
 // the rect snaps back to the block bounding box.
 //
-// Double-click any group to collapse it.  Surrounding blocks shift inward.
-// Double-click the collapsed header to expand.
+// Double-click any group to collapse it. Double-click the collapsed header
+// to expand. Outer blocks shift via the `group-collapse-change` event handler.
 // ---------------------------------------------------------------------------
 
 const BLOCK_W = 200;
@@ -187,10 +187,17 @@ const CollapsibleBlockGroups = BlockGroups.withBlockGrouping<BlockGroupsProps, B
 // ---------------------------------------------------------------------------
 
 const CollapsibleGroupsApp = () => {
-  const { graph, setEntities, start } = useGraph({});
+  const { graph, setEntities, start } = useGraph({
+    settings: {
+      canDrag: ECanDrag.ALL,
+    },
+  });
 
   useEffect(() => {
-    const blockGroups = graph.addLayer(CollapsibleBlockGroups, {});
+    const blockGroups = graph.addLayer(CollapsibleBlockGroups, {
+      draggable: true,
+      updateBlocksOnDrag: true,
+    });
     return () => {
       blockGroups.detachLayer();
     };
@@ -204,9 +211,30 @@ const CollapsibleGroupsApp = () => {
     }
   });
 
-  const renderBlockFn = useFn((graphObject: Graph, block: TBlock) => (
-    <BlockStory graph={graphObject} block={block} />
-  ));
+  // Toggle collapse/expand on double-click
+  useGraphEvent(graph, "dblclick", ({ target }) => {
+    if (target instanceof CollapsibleGroup) {
+      if (target.isCollapsed()) {
+        target.expand();
+      } else {
+        target.collapse();
+      }
+    }
+  });
+
+  // Shift outer blocks to fill freed space on collapse/expand
+  useGraphEvent(graph, "group-collapse-change", ({ groupId, currentRect, nextRect }) => {
+    console.log("EMIT: group-collapse-change", { groupId, currentRect, nextRect });
+    // const groupBlocks = graph.rootStore.groupsList.$blockGroups.value[groupId] ?? [];
+    // shiftBlocksOnGroupCollapse({
+    //   graph,
+    //   currentRect,
+    //   nextRect,
+    //   groupBlockIds: new Set(groupBlocks.map((b) => b.id)),
+    // });
+  });
+
+  const renderBlockFn = useFn((graphObject: Graph, block: TBlock) => <BlockStory graph={graphObject} block={block} />);
 
   return <GraphCanvas className="graph" graph={graph} renderBlock={renderBlockFn} />;
 };
@@ -225,7 +253,8 @@ const meta: Meta = {
           "Two wide `CollapsibleGroup` instances with outer blocks on both sides. " +
           "Group rects are auto-computed from block positions via `withBlockGrouping`. " +
           "**Double-click** a group to collapse it: blocks hide, connections redirect " +
-          "to group edges, outer blocks shift inward. Double-click the header to expand.",
+          "to group edges. Outer blocks shift via `group-collapse-change` event handler. " +
+          "Double-click the header to expand.",
       },
     },
   },

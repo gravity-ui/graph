@@ -484,6 +484,51 @@ export class GraphPageObject {
   }
 
   /**
+   * Starts collecting serializable `event.detail` for the given graph event.
+   * Returns an async function that retrieves the collected details array.
+   *
+   * Unlike {@link listenGraphEvents}, this method stores only the event detail
+   * (serialized via JSON), making it safe for events with non-serializable
+   * event objects (e.g. events emitted via `executеDefaultEventAction`).
+   *
+   * @example
+   * const getEvents = await graphPO.collectGraphEventDetails("group-collapse-change");
+   * // ... trigger actions ...
+   * const details = await getEvents();
+   * expect(details).toHaveLength(1);
+   * expect(details[0].groupId).toBe("group-1");
+   */
+  async collectGraphEventDetails<TDetail = unknown>(
+    eventName: string,
+  ): Promise<() => Promise<TDetail[]>> {
+    const key = `__graphCollector_${listenerIdCounter++}_${eventName}`;
+
+    await this.page.evaluate(
+      ({ key, eventName }) => {
+        (window as any)[key] = [];
+        (window as any)[`${key}_eventName`] = eventName;
+        const handler = (event: CustomEvent) => {
+          (window as any)[key].push(event.detail);
+        };
+        (window as any)[`${key}_handler`] = handler;
+        window.graph.on(eventName as any, handler);
+      },
+      { key, eventName },
+    );
+
+    return async () => {
+      const json = await this.page.evaluate((k) => {
+        return JSON.stringify((window as any)[k] ?? []);
+      }, key);
+      try {
+        return JSON.parse(json) as TDetail[];
+      } catch {
+        return [];
+      }
+    };
+  }
+
+  /**
    * Call setEntities on the graph with new blocks and connections
    */
   async setEntities(config: GraphConfig): Promise<void> {

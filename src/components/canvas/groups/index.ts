@@ -16,7 +16,9 @@ export {
   ConstraintLayoutStrategy,
 } from "./CollapsibleGroup";
 export { CollapseShiftStrategy } from "./CollapsibleGroup";
+export { computeDefaultCollapseRect } from "./CollapsibleGroup";
 export type { TCollapsibleGroup, TCollapseDirection, TShiftStrategyContext } from "./CollapsibleGroup";
+export { shiftBlocksOnGroupCollapse } from "./collapseRelayout";
 
 // Export types from BlockGroups
 export type { BlockGroupsProps, BlockGroupsContext, BlockGroupsState } from "./BlockGroups";
