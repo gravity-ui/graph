@@ -2,19 +2,10 @@ import { batch } from "@preact/signals-core";
 
 import { EAnchorType } from "../../../store/anchor/Anchor";
 import { BlockState } from "../../../store/block/Block";
-import { getBlocksRect } from "../../../utils/functions";
+import { TGroup, TGroupId } from "../../../store/group/Group";
 import { TRect } from "../../../utils/types/shapes";
 
-import { TGroup } from "../../../store/group/Group";
-
-import { BlockGroups } from "./BlockGroups";
-import { Group, TGroupProps } from "./Group";
-import {
-  CollapseShiftStrategy,
-  ConstraintLayoutStrategy,
-  DirectionalShiftStrategy,
-  TShiftStrategyContext,
-} from "./strategies";
+import { Group } from "./Group";
 
 // Re-export strategies and types so groups/index.ts can aggregate them from
 // a single import without reaching into the strategies sub-directory.
@@ -27,6 +18,23 @@ export {
 } from "./strategies";
 export type { TShiftStrategyContext } from "./strategies";
 
+// ---------------------------------------------------------------------------
+// Event declaration
+// ---------------------------------------------------------------------------
+
+declare module "../../../graphEvents" {
+  interface GraphEventsDefinitions {
+    "group-collapse-change": (
+      event: CustomEvent<{
+        groupId: TGroupId;
+        collapsed: boolean;
+        currentRect: TRect;
+        nextRect: TRect;
+      }>
+    ) => void;
+  }
+}
+
 /** A single collapse direction axis value. */
 export type TCollapseDirection = "start" | "center" | "end";
 
@@ -38,22 +46,13 @@ export interface TCollapsibleGroup extends TGroup {
   /** Whether this group is currently collapsed */
   collapsed?: boolean;
   /**
-   * The rect used when collapsed, stored so expand() can compute the reverse
-   * shift even after a page reload with collapsed: true.
+   * The visual rect used when collapsed. When set, the group renders and
+   * responds to hit-tests using this rect instead of the normal `rect`.
+   *
+   * `rect` itself continues to be managed by `withBlockGrouping` (or
+   * manually) and always reflects the real block bounding box.
    */
   collapsedRect?: TRect;
-  /**
-   * The full rect before collapsing (including any padding around blocks).
-   * Stored on collapse so expand() can restore the exact original rect rather
-   * than recomputing a tight bounding box from block positions.
-   */
-  expandedRect?: TRect;
-  /**
-   * Positions of all outer blocks (not members of this group) captured before
-   * the collapse shift. Used by expand() to restore positions exactly, since
-   * pure positional reconstruction is ambiguous after blocks move inward.
-   */
-  expandedOuterPositions?: Record<string, { x: number; y: number }>;
   /**
    * Where the collapsed header appears relative to the full group rect.
    *
@@ -61,27 +60,34 @@ export interface TCollapsibleGroup extends TGroup {
    * - `y`: `"start"` → top edge   |  `"center"` → centered  |  `"end"` → bottom edge
    *
    * Defaults to `{ x: "start", y: "start" }` (top-left corner).
+   *
+   * Only used by the default collapse rect computation. Ignored when
+   * {@link getCollapseRect} is provided.
    */
   collapseDirection?: { x?: TCollapseDirection; y?: TCollapseDirection };
   /**
-   * Strategy instance controlling how outer blocks shift on collapse/expand.
-   * Defaults to {@link DirectionalShiftStrategy}.
+   * User-defined function to compute the collapsed rect from the expanded rect.
    *
-   * Pass a pre-configured instance so strategies with constructor parameters
-   * (e.g. {@link ScanlineCompactionStrategy}) can be tuned per group.
+   * When not provided, a default implementation computes a
+   * {@link DEFAULT_COLLAPSED_WIDTH}×{@link DEFAULT_COLLAPSED_HEIGHT} rect
+   * pinned at the position determined by {@link collapseDirection}.
    *
    * @example
    * ```typescript
    * const group: TCollapsibleGroup = {
    *   id: "my-group",
-   *   // ...
-   *   shiftStrategy: new CompactLayoutStrategy(),
-   *   // or:
-   *   shiftStrategy: new ConstraintLayoutStrategy(),
+   *   rect: { x: 0, y: 0, width: 400, height: 300 },
+   *   component: CollapsibleGroup,
+   *   getCollapseRect: (_group, rect) => ({
+   *     x: rect.x + rect.width / 2 - 100,
+   *     y: rect.y,
+   *     width: 200,
+   *     height: 48,
+   *   }),
    * };
    * ```
    */
-  shiftStrategy?: CollapseShiftStrategy;
+  getCollapseRect?: (group: TCollapsibleGroup, expandedRect: TRect) => TRect;
 }
 
 const DEFAULT_COLLAPSED_WIDTH = 200;
@@ -90,73 +96,74 @@ const DEFAULT_COLLAPSED_HEIGHT = 48;
 const DIRECTION_FACTOR: Record<TCollapseDirection, number> = { start: 0, center: 0.5, end: 1 };
 
 /**
+ * Default collapse rect computation. Produces a rect of the given size
+ * pinned at the position determined by `direction`.
+ *
+ * Exported so users can call it from their custom `getCollapseRect` and
+ * extend or modify the default behavior.
+ *
+ * @param expandedRect - The full group rect before collapsing.
+ * @param direction - Where the header is pinned (defaults to top-left).
+ * @param collapsedWidth - Header width (defaults to 200).
+ * @param collapsedHeight - Header height (defaults to 48).
+ */
+export function computeDefaultCollapseRect(
+  expandedRect: TRect,
+  direction?: { x?: TCollapseDirection; y?: TCollapseDirection },
+  collapsedWidth?: number,
+  collapsedHeight?: number
+): TRect {
+  const w = collapsedWidth ?? DEFAULT_COLLAPSED_WIDTH;
+  const h = collapsedHeight ?? DEFAULT_COLLAPSED_HEIGHT;
+  const ax = DIRECTION_FACTOR[direction?.x ?? "start"];
+  const ay = DIRECTION_FACTOR[direction?.y ?? "start"];
+  return {
+    x: expandedRect.x + ax * (expandedRect.width - w),
+    y: expandedRect.y + ay * (expandedRect.height - h),
+    width: w,
+    height: h,
+  };
+}
+
+/**
  * A Group component that supports collapsing and expanding.
  *
  * When collapsed:
  * - All blocks in the group are hidden (not deleted from the store)
  * - Connection ports of hidden blocks are redirected to the group edges
- * - The group rect shrinks to a compact header, pinned at the configured direction
- * - Outer blocks shift inward to fill the freed space
+ * - The group renders as a compact header using `collapsedRect`
+ * - The real `rect` (block bounding box) is NOT locked — `withBlockGrouping`
+ *   continues to track block positions normally
  *
  * When expanded, all of the above is reversed.
  *
- * Toggle collapse/expand by double-clicking the group.
+ * Collapse/expand is triggered programmatically via {@link collapse} and
+ * {@link expand}. There is no built-in UI trigger — subscribe to graph
+ * events (e.g. `dblclick`) and call these methods from your handler.
  *
- * ### Collapse direction
+ * A cancelable `group-collapse-change` event is emitted before each
+ * transition. Call `event.preventDefault()` to cancel the operation.
  *
- * Set `collapseDirection` on the TCollapsibleGroup data to control where the
- * shrunken header appears relative to the full group rect:
+ * ### Collapse rect
  *
- * ```
- *  collapseDirection.x: "start"  → header at left edge   (freed space on the right)
- *  collapseDirection.x: "center" → header at center       (freed space on both sides)
- *  collapseDirection.x: "end"    → header at right edge   (freed space on the left)
- *  collapseDirection.y: "start"  → header at top edge     (freed space below)
- *  collapseDirection.y: "center" → header at center       (freed space above & below)
- *  collapseDirection.y: "end"    → header at bottom edge  (freed space above)
- * ```
- *
- * Default: `{ x: "start", y: "start" }` — top-left corner.
- *
- * ### Shift strategy
- *
- * Set `shiftStrategy` on the TCollapsibleGroup data to choose how outer blocks
- * move when the group collapses or expands:
- *
- * ```
- *  shiftStrategy: new DirectionalShiftStrategy()          (default) — fixed delta per side
- *  shiftStrategy: new CompactLayoutStrategy()                       — gap-preserving compaction
- *  shiftStrategy: new ScanlineCompactionStrategy(gap)               — global void-removal
- *  shiftStrategy: new ConstraintLayoutStrategy()                    — DAG-based, fully reversible
- * ```
+ * Provide `getCollapseRect` on the TCollapsibleGroup data to control
+ * where the group collapses to. If not provided, the default
+ * implementation uses `collapseDirection` to pin a 200×48 header.
  *
  * ### Usage
  * ```typescript
  * const group: TCollapsibleGroup = {
  *   id: "my-group",
- *   rect: { x: 0, y: 0, width: 0, height: 0 }, // auto-computed from blocks
+ *   rect: { x: 0, y: 0, width: 0, height: 0 },
  *   component: CollapsibleGroup,
  *   collapsed: false,
  *   collapseDirection: { x: "start", y: "start" },
- *   shiftStrategy: new ConstraintLayoutStrategy(),
  * };
  * ```
+ *
  * Blocks must carry `group: "my-group"` in their TBlock data.
  */
 export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> extends Group<T> {
-  private readonly shiftStrategy: CollapseShiftStrategy;
-
-  constructor(props: TGroupProps, parent: BlockGroups) {
-    super(props, parent);
-
-    this.shiftStrategy = (this.groupState.$state.value as T).shiftStrategy ?? new DirectionalShiftStrategy();
-
-    this.addEventListener("dblclick", (event: MouseEvent) => {
-      event.stopPropagation();
-      this.toggleCollapsed();
-    });
-  }
-
   /**
    * Extend base subscription to also react to collapsed state on init.
    * subscribeSignal fires immediately with the current value, so a group
@@ -176,6 +183,61 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
   }
 
   // ---------------------------------------------------------------------------
+  // Overrides — use collapsedRect for rendering and hit-testing when collapsed
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Returns the visual rect. When collapsed, returns `collapsedRect`
+   * (with padding) so the group renders as a compact header.
+   */
+  protected override getRect(rect?: TRect): TRect {
+    const state = this.getState() as T;
+    if (state.collapsed && state.collapsedRect) {
+      return super.getRect(state.collapsedRect);
+    }
+    return super.getRect(rect);
+  }
+
+  /**
+   * Sets the hitbox from collapsedRect when collapsed.
+   */
+  protected override updateHitBox(rect: TRect): void {
+    super.updateHitBox(this.getRect(rect));
+  }
+
+  /**
+   * When dragging a collapsed group, also move the collapsedRect.
+   */
+  public override handleDrag(
+    diff: import("../../../services/drag").DragDiff,
+    context: import("../../../services/drag").DragContext
+  ): void {
+    const state = this.state as T;
+    if (state.collapsed && state.collapsedRect) {
+      // Update collapsedRect in the store so it persists
+      this.groupState.updateGroup({
+        collapsedRect: {
+          x: state.collapsedRect.x + diff.deltaX,
+          y: state.collapsedRect.y + diff.deltaY,
+          width: state.collapsedRect.width,
+          height: state.collapsedRect.height,
+        },
+      } as Partial<T>);
+    }
+    // Let base Group handle the rest (update rect, hitbox, onDragUpdate)
+    super.handleDrag(diff, context);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Public API
+  // ---------------------------------------------------------------------------
+
+  /** Whether this group is currently in the collapsed state. */
+  public isCollapsed(): boolean {
+    return (this.groupState.$state.value as T).collapsed ?? false;
+  }
+
+  // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
@@ -183,207 +245,98 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
     return this.context.graph.rootStore.groupsList.$blockGroups.value[this.props.id] ?? [];
   }
 
-  private toggleCollapsed(): void {
-    const collapsed = (this.groupState.$state.value as T).collapsed ?? false;
-    if (collapsed) {
-      this.expand();
-    } else {
-      this.collapse();
-    }
-  }
-
-  /** Read direction factors from current state. */
-  private getDirectionFactors(): { ax: number; ay: number } {
-    const state = this.groupState.$state.value as T;
-    return {
-      ax: DIRECTION_FACTOR[state.collapseDirection?.x ?? "start"],
-      ay: DIRECTION_FACTOR[state.collapseDirection?.y ?? "start"],
-    };
-  }
-
   /**
-   * Compute the collapsed rect for a given full rect, respecting the configured
-   * collapseDirection values.
+   * Compute the collapsed rect for a given full rect.
    *
-   * The direction point in the full rect maps to the same point in the
-   * collapsed rect, so the "pinned" corner/edge does not move.
+   * Uses the user-provided `getCollapseRect` if available, otherwise falls
+   * back to the direction-based default.
    */
   private computeCollapsedRect(fullRect: TRect): TRect {
-    const { ax, ay } = this.getDirectionFactors();
-    return {
-      x: fullRect.x + ax * (fullRect.width - DEFAULT_COLLAPSED_WIDTH),
-      y: fullRect.y + ay * (fullRect.height - DEFAULT_COLLAPSED_HEIGHT),
-      width: DEFAULT_COLLAPSED_WIDTH,
-      height: DEFAULT_COLLAPSED_HEIGHT,
-    };
+    const state = this.groupState.$state.value as T;
+    if (state.getCollapseRect) {
+      return state.getCollapseRect(state, fullRect);
+    }
+    return computeDefaultCollapseRect(fullRect, state.collapseDirection);
   }
 
   // ---------------------------------------------------------------------------
   // Collapse
   // ---------------------------------------------------------------------------
 
+  /**
+   * Collapse the group: set collapsedRect, hide member blocks,
+   * and redirect their ports to the group edges.
+   *
+   * Emits a cancelable `group-collapse-change` event before applying changes.
+   * If a listener calls `event.preventDefault()`, the collapse is cancelled.
+   */
   public collapse(): void {
-    const groupBlocks = this.getGroupBlocks();
-    if (groupBlocks.length === 0) return;
+    const currentRect = this.groupState.$state.value.rect;
+    const nextRect = this.computeCollapsedRect(currentRect);
 
-    const fullRect = this.groupState.$state.value.rect;
-    const collapsedRect = this.computeCollapsedRect(fullRect);
-    const { ax, ay } = this.getDirectionFactors();
-
-    // Capture outer block positions BEFORE shifting so expand() can restore
-    // them exactly (positional reconstruction from post-collapse coords is ambiguous).
-    const groupBlockIds = new Set(this.getGroupBlocks().map((b) => b.id));
-    const expandedOuterPositions: Record<string, { x: number; y: number }> = {};
-    this.context.graph.rootStore.blocksList.$blocks.value.forEach((blockState) => {
-      if (!groupBlockIds.has(blockState.id)) {
-        expandedOuterPositions[String(blockState.id)] = { x: blockState.x, y: blockState.y };
-      }
-    });
-
-    // Prevent withBlockGrouping auto-rect from overriding the collapsed rect
-    this.groupState.lockSize();
-
-    batch(() => {
-      // 1. Hide all blocks inside the group
-      this.applyBlockVisibility(true);
-
-      // 2. Redirect their ports to the collapsed group edges
-      this.delegatePorts(collapsedRect);
-
-      // 3. Shift outer components inward to fill the freed space.
-      //    Reference rect = fullRect (blocks are still at pre-collapse positions).
-      //    Delta is positive: group is shrinking.
-      this.shiftOuterComponents(
-        fullRect,
-        ax,
-        ay,
-        fullRect.width - DEFAULT_COLLAPSED_WIDTH,
-        fullRect.height - DEFAULT_COLLAPSED_HEIGHT
-      );
-
-      // 4. Shrink group rect and persist state.
-      //    expandedRect stores the full rect (with any padding) so expand()
-      //    can restore it exactly instead of recomputing from block positions.
-      //    expandedOuterPositions stores outer block coords for exact restore.
-      this.groupState.updateGroup({
-        rect: collapsedRect,
+    this.context.graph.executеDefaultEventAction(
+      "group-collapse-change",
+      {
+        groupId: this.props.id as TGroupId,
         collapsed: true,
-        collapsedRect: collapsedRect,
-        expandedRect: fullRect,
-        expandedOuterPositions,
-      } as Partial<T>);
-    });
+        currentRect,
+        nextRect,
+      },
+      () => {
+        batch(() => {
+          this.applyBlockVisibility(true);
+          this.delegatePorts(nextRect);
+          this.groupState.updateGroup({
+            collapsed: true,
+            collapsedRect: nextRect,
+          } as Partial<T>);
+        });
+
+        // Explicitly update hitbox to the collapsed rect.
+        this.updateHitBox(nextRect);
+      }
+    );
   }
 
   // ---------------------------------------------------------------------------
   // Expand
   // ---------------------------------------------------------------------------
 
+  /**
+   * Expand the group: remove collapsedRect, show member blocks, and let
+   * them resume managing their own ports.
+   *
+   * Emits a cancelable `group-collapse-change` event before applying changes.
+   * If a listener calls `event.preventDefault()`, the expand is cancelled.
+   */
   public expand(): void {
     const state = this.groupState.$state.value as T;
-    const groupBlocks = this.getGroupBlocks();
+    const currentRect = state.collapsedRect ?? state.rect;
+    const nextRect = state.rect;
 
-    // Prefer the stored full rect (preserves original padding around blocks).
-    // Fall back to recomputing from block positions only if the group was
-    // created with collapsed: true (no expandedRect persisted yet).
-    const fullRect = state.expandedRect ?? getBlocksRect(groupBlocks.map((b) => b.asTBlock()));
-
-    // The reference rect for position checks is the current collapsed rect —
-    // outer blocks are already at shifted positions relative to it.
-    const collapsedRect = state.collapsedRect ?? this.groupState.$state.value.rect;
-
-    const { ax, ay } = this.getDirectionFactors();
-    const expandedOuterPositions = state.expandedOuterPositions;
-
-    // Re-enable withBlockGrouping auto-rect now that blocks will be visible again
-    this.groupState.unlockSize();
-
-    batch(() => {
-      // 1. Restore block visibility (they resume managing their own ports)
-      this.applyBlockVisibility(false);
-
-      // 2. Restore outer block positions.
-      //
-      //    Priority order:
-      //    a) Strategy handles it via expandOuterComponents() — fully self-
-      //       contained strategies like ConstraintLayoutStrategy recompute
-      //       positions from their internal DAG and return true here.
-      //    b) Snapshot from collapse — exact positions captured before shifting.
-      //    c) Fallback shiftOuterComponents — for groups loaded with
-      //       collapsed: true where no snapshot was persisted.
-      const strategyHandled = this.shiftStrategy.expandOuterComponents(
-        collapsedRect,
-        ax,
-        ay,
-        -(fullRect.width - DEFAULT_COLLAPSED_WIDTH),
-        -(fullRect.height - DEFAULT_COLLAPSED_HEIGHT),
-        {
-          groupBlockIds: new Set(this.getGroupBlocks().map((b) => b.id)),
-          allBlocks: this.context.graph.rootStore.blocksList.$blocks.value,
-          getGroupState: (id) => this.context.graph.rootStore.groupsList.getGroupState(id),
-        }
-      );
-
-      if (!strategyHandled) {
-        if (expandedOuterPositions) {
-          this.context.graph.rootStore.blocksList.$blocks.value.forEach((blockState) => {
-            const saved = expandedOuterPositions[String(blockState.id)];
-            if (saved) {
-              blockState.updateXY(saved.x, saved.y);
-            }
-          });
-        } else {
-          // Fallback for groups that were loaded with collapsed: true (no snapshot).
-          this.shiftOuterComponents(
-            collapsedRect,
-            ax,
-            ay,
-            -(fullRect.width - DEFAULT_COLLAPSED_WIDTH),
-            -(fullRect.height - DEFAULT_COLLAPSED_HEIGHT)
-          );
-        }
-      }
-
-      // 3. Restore group rect and clear collapsed state
-      this.groupState.updateGroup({
-        rect: fullRect,
+    this.context.graph.executеDefaultEventAction(
+      "group-collapse-change",
+      {
+        groupId: this.props.id as TGroupId,
         collapsed: false,
-        collapsedRect: undefined,
-        expandedRect: undefined,
-        expandedOuterPositions: undefined,
-      } as Partial<T>);
-    });
-  }
+        currentRect,
+        nextRect,
+      },
+      () => {
+        batch(() => {
+          this.applyBlockVisibility(false);
+          this.groupState.updateGroup({
+            collapsed: false,
+            collapsedRect: undefined,
+          } as Partial<T>);
+        });
 
-  // ---------------------------------------------------------------------------
-  // Outer component shifting
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Shift all outer blocks (not members of this group) toward or away from
-   * the group to fill / restore the freed space on collapse / expand.
-   *
-   * The active {@link CollapseShiftStrategy} (set via `TCollapsibleGroup.shiftStrategy`,
-   * defaults to {@link DirectionalShiftStrategy}) performs the actual work.
-   *
-   * Override this method in subclasses to also shift other groups or apply
-   * additional custom displacement logic.
-   *
-   * @param referenceRect - Group rect used as the boundary for side detection:
-   *   - collapse: use the full (pre-collapse) rect
-   *   - expand:   use the collapsed rect (blocks are already at shifted positions)
-   * @param ax - X direction factor (0 = start/left, 0.5 = center, 1 = end/right)
-   * @param ay - Y direction factor (0 = start/top,  0.5 = center, 1 = end/bottom)
-   * @param deltaX - Freed X space: positive on collapse, negative on expand
-   * @param deltaY - Freed Y space: positive on collapse, negative on expand
-   */
-  protected shiftOuterComponents(referenceRect: TRect, ax: number, ay: number, deltaX: number, deltaY: number): void {
-    if (deltaX === 0 && deltaY === 0) return;
-    this.shiftStrategy.shiftOuterComponents(referenceRect, ax, ay, deltaX, deltaY, {
-      groupBlockIds: new Set(this.getGroupBlocks().map((b) => b.id)),
-      allBlocks: this.context.graph.rootStore.blocksList.$blocks.value,
-      getGroupState: (id) => this.context.graph.rootStore.groupsList.getGroupState(id),
-    });
+        // Explicitly update hitbox to the full rect. The signal
+        // subscription also calls updateHitBox, but our override
+        // may see stale `this.state.collapsed` during the batch.
+        this.updateHitBox(this.groupState.$state.value.rect);
+      }
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -402,7 +355,7 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
 
   /**
    * Redirect all ports of group blocks to the edges of targetRect (or the
-   * current group rect when no rect is provided).
+   * current collapsedRect / group rect when no rect is provided).
    *
    * - Input port  → left-center edge  (rect.x,           rect.y + height/2)
    * - Output port → right-center edge (rect.x + width,   rect.y + height/2)
@@ -410,7 +363,8 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
    * - OUT anchors → right-center edge
    */
   private delegatePorts(targetRect?: TRect): void {
-    const rect = targetRect ?? this.groupState.$state.value.rect;
+    const state = this.groupState.$state.value as T;
+    const rect = this.getRect(targetRect); //targetRect ?? state.collapsedRect ?? state.rect;
     const leftX = rect.x;
     const rightX = rect.x + rect.width;
     const midY = rect.y + rect.height / 2;
