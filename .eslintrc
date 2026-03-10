@@ -34,8 +34,8 @@
               "constructors": "no-public",
               "methods": "explicit",
               "properties": "off",
-              "parameterProperties": "explicit",
-            },
+              "parameterProperties": "explicit"
+            }
           }
         ],
         "no-bitwise": [
@@ -76,6 +76,17 @@
     "import/consistent-type-specifier-style": [
       "error",
       "prefer-top-level"
+    ],
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "lodash",
+            "message": "Import from lodash leads to bundle pollute. Use import from submodules, for example 'lodash/isEqual'."
+          }
+        ]
+      }
     ]
   }
 }

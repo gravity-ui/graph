@@ -1,7 +1,5 @@
 import React, { ForwardedRef, forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 
-import { noop } from "lodash";
-
 import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
 import { ESchedulerPriority } from "../lib/Scheduler";
@@ -168,7 +166,7 @@ function GraphBlockInner<T extends TBlock>(
    * So to handle update this props we use onChange callback from view state.
    */
   useEffect(() => {
-    if (!viewState) return noop;
+    if (!viewState) return;
     setInteractive(viewState.isInteractive());
     return viewState.onChange(() => {
       setInteractive(viewState.isInteractive());
