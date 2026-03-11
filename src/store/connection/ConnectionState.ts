@@ -3,10 +3,10 @@ import cloneDeep from "lodash/cloneDeep";
 
 import { Block } from "../../components/canvas/blocks/Block";
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "../../components/canvas/connections";
+import type { TLabel, TMultipointConnection } from "../../components/canvas/connections/types";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
 import { TConnectionColors } from "../../graphConfig";
 import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
-import { TPoint } from "../../utils/types/shapes";
 import { TBlockId } from "../block/Block";
 
 import { ConnectionsStore } from "./ConnectionList";
@@ -14,6 +14,7 @@ import { TPortId } from "./port/Port";
 import { createAnchorPortId, createBlockPointPortId } from "./port/utils";
 
 export const IS_CONNECTION_TYPE = "Connection" as const;
+export type { TLabel, TMultipointConnection };
 
 export type TConnectionId = string | number;
 
@@ -38,19 +39,6 @@ export type TConnection = {
   dashed?: boolean;
   selected?: boolean;
 } & (TConnectionBlockPoint | TConnectionPortPoint);
-
-export type TLabel = {
-  height?: number;
-  width?: number;
-  x?: number;
-  y?: number;
-  text?: string;
-};
-
-export type TMultipointConnection = TConnection & {
-  points?: TPoint[];
-  labels?: TLabel[];
-};
 
 export class ConnectionState<T extends TConnection = TConnection> {
   public $state = signal<T>(undefined);

@@ -4,12 +4,12 @@ import { ThemeProvider } from "@gravity-ui/uikit";
 import { Description, Meta as StorybookMeta, Title } from "@storybook/addon-docs/blocks";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
+import type { TMultipointConnection } from "../../../components/canvas/connections/types";
 import { BezierMultipointConnection, Graph, GraphState, TBlock, TConnection } from "../../../index";
 import type { LayeredLayoutOptions } from "../../../plugins/layered";
 import { useLayeredLayout } from "../../../plugins/layered";
 import { GraphCanvas, useGraph, useGraphEvent } from "../../../react-components";
 import { useFn } from "../../../react-components/utils/hooks/useFn";
-import { TMultipointConnection } from "../../../store/connection/ConnectionState";
 import { BlockStory } from "../../main/Block";
 
 import { layeredConfig } from "./config";

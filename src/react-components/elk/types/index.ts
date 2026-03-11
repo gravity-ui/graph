@@ -1,5 +1,6 @@
-import { TConnectionId, TMultipointConnection } from "../../../store/connection/ConnectionState";
-import { TPoint } from "../../../utils/types/shapes";
+import type { TMultipointConnection } from "../../../components/canvas/connections/types";
+import type { TConnectionId } from "../../../store/connection/ConnectionState";
+import type { TPoint } from "../../../utils/types/shapes";
 
 export type ConverterResult = {
   edges: Record<TConnectionId, Pick<TMultipointConnection, "points" | "labels">>;

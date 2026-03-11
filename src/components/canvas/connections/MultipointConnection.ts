@@ -1,13 +1,13 @@
 import intersects from "intersects";
 
 import { HitBoxData } from "../../../services/HitTest";
-import { TMultipointConnection } from "../../../store/connection/ConnectionState";
 import { curvePolyline } from "../../../utils/shapes/curvePolyline";
 import { trangleArrowForVector } from "../../../utils/shapes/triangle";
 
 import { Path2DRenderStyleResult } from "./BatchPath2D";
 import { BlockConnection } from "./BlockConnection";
 import { isPointInStroke } from "./bezierHelpers";
+import type { TMultipointConnection } from "./types";
 
 const DEFAULT_FONT_SIZE = 14;
 
