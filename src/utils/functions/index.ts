@@ -26,7 +26,8 @@ export function getCoord(event: TouchEvent | MouseEvent, coord: string) {
   const name = `page${coord.toUpperCase()}`;
 
   if (isTouchEvent(event)) {
-    return event.touches[0][name];
+    const touch = event.touches[0] ?? event.changedTouches[0];
+    return touch?.[name] ?? 0;
   }
   return event[name];
 }
