@@ -77,7 +77,8 @@ export class EventedComponent<
       const area = this._eventedAreas.get(this._hoveredEventedAreaKey);
       if (area) {
         const handler = area.params.mouseleave;
-        this._prevHoveredAreaLeaveHandler = typeof handler === "function" ? handler as (event: Event) => void : undefined;
+        this._prevHoveredAreaLeaveHandler =
+          typeof handler === "function" ? (handler as (event: Event) => void) : undefined;
       }
     }
     this._eventedAreas.clear();
@@ -99,9 +100,14 @@ export class EventedComponent<
 
     const { x, y, width, height } = area.rect;
     return intersects.boxBox(
-      x, y, width, height,
-      hitBoxData.minX, hitBoxData.minY,
-      hitBoxData.maxX - hitBoxData.minX, hitBoxData.maxY - hitBoxData.minY
+      x,
+      y,
+      width,
+      height,
+      hitBoxData.minX,
+      hitBoxData.minY,
+      hitBoxData.maxX - hitBoxData.minX,
+      hitBoxData.maxY - hitBoxData.minY
     );
   }
 
@@ -123,7 +129,8 @@ export class EventedComponent<
 
     if (newHoveredKey === this._hoveredEventedAreaKey) return;
 
-    const prevArea = this._hoveredEventedAreaKey !== undefined ? this._eventedAreas.get(this._hoveredEventedAreaKey) : undefined;
+    const prevArea =
+      this._hoveredEventedAreaKey !== undefined ? this._eventedAreas.get(this._hoveredEventedAreaKey) : undefined;
     if (prevArea) {
       const leaveHandler = prevArea.params.mouseleave;
       if (typeof leaveHandler === "function") {

@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { BlockGroups, CollapsibleGroup, shiftBlocksOnGroupCollapse } from "../../../components/canvas/groups";
+import { BlockGroups, CollapsibleGroup } from "../../../components/canvas/groups";
 import type { BlockGroupsProps, BlockState } from "../../../components/canvas/groups";
 import type { TCollapsibleGroup } from "../../../components/canvas/groups/CollapsibleGroup";
 import { ECanDrag, Graph, GraphState, TBlock, TConnection } from "../../../index";
@@ -175,6 +175,7 @@ const CollapsibleBlockGroups = BlockGroups.withBlockGrouping<BlockGroupsProps, B
       width: rect.width + GROUP_PAD * 2,
       height: rect.height + GROUP_PAD * 2,
     },
+    collapsed: !!(Math.floor(Math.random() * 10) % 2),
     component: CollapsibleGroup,
     collapseDirection: { x: "center", y: "center" },
     // `collapsed` is intentionally omitted: existing state is preserved by
@@ -225,13 +226,6 @@ const CollapsibleGroupsApp = () => {
   // Shift outer blocks to fill freed space on collapse/expand
   useGraphEvent(graph, "group-collapse-change", ({ groupId, currentRect, nextRect }) => {
     console.log("EMIT: group-collapse-change", { groupId, currentRect, nextRect });
-    // const groupBlocks = graph.rootStore.groupsList.$blockGroups.value[groupId] ?? [];
-    // shiftBlocksOnGroupCollapse({
-    //   graph,
-    //   currentRect,
-    //   nextRect,
-    //   groupBlockIds: new Set(groupBlocks.map((b) => b.id)),
-    // });
   });
 
   const renderBlockFn = useFn((graphObject: Graph, block: TBlock) => <BlockStory graph={graphObject} block={block} />);

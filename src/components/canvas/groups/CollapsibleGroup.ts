@@ -1,22 +1,13 @@
 import { batch } from "@preact/signals-core";
 
+import { DragContext, DragDiff } from "../../../services/drag";
 import { EAnchorType } from "../../../store/anchor/Anchor";
 import { BlockState } from "../../../store/block/Block";
+import { PortState } from "../../../store/connection/port/Port";
 import { TGroup, TGroupId } from "../../../store/group/Group";
 import { TRect } from "../../../utils/types/shapes";
 
 import { Group } from "./Group";
-
-// Re-export strategies and types so groups/index.ts can aggregate them from
-// a single import without reaching into the strategies sub-directory.
-export {
-  CollapseShiftStrategy,
-  DirectionalShiftStrategy,
-  CompactLayoutStrategy,
-  ScanlineCompactionStrategy,
-  ConstraintLayoutStrategy,
-} from "./strategies";
-export type { TShiftStrategyContext } from "./strategies";
 
 // ---------------------------------------------------------------------------
 // Event declaration
@@ -163,6 +154,11 @@ export function computeDefaultCollapseRect(
  *
  * Blocks must carry `group: "my-group"` in their TBlock data.
  */
+/** Port ID suffix for the group's left-edge delegation target. */
+const GROUP_PORT_LEFT = "_left";
+/** Port ID suffix for the group's right-edge delegation target. */
+const GROUP_PORT_RIGHT = "_right";
+
 export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> extends Group<T> {
   /**
    * Extend base subscription to also react to collapsed state on init.
@@ -175,7 +171,13 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
     this.subscribeSignal(this.groupState.$state, (group: T) => {
       if (group.collapsed) {
         this.applyBlockVisibility(true);
-        this.delegatePorts();
+        const rect = group.collapsedRect ?? this.computeCollapsedRect(group.rect);
+        if (!group.collapsedRect) {
+          this.groupState.updateGroup({
+            collapsedRect: rect,
+          } as Partial<T>);
+        }
+        this.delegatePorts(rect);
       }
     });
 
@@ -208,21 +210,21 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
   /**
    * When dragging a collapsed group, also move the collapsedRect.
    */
-  public override handleDrag(
-    diff: import("../../../services/drag").DragDiff,
-    context: import("../../../services/drag").DragContext
-  ): void {
+  public override handleDrag(diff: DragDiff, context: DragContext): void {
     const state = this.state as T;
     if (state.collapsed && state.collapsedRect) {
+      const newCollapsedRect = {
+        x: state.collapsedRect.x + diff.deltaX,
+        y: state.collapsedRect.y + diff.deltaY,
+        width: state.collapsedRect.width,
+        height: state.collapsedRect.height,
+      };
       // Update collapsedRect in the store so it persists
       this.groupState.updateGroup({
-        collapsedRect: {
-          x: state.collapsedRect.x + diff.deltaX,
-          y: state.collapsedRect.y + diff.deltaY,
-          width: state.collapsedRect.width,
-          height: state.collapsedRect.height,
-        },
+        collapsedRect: newCollapsedRect,
       } as Partial<T>);
+      // Move group edge ports — all delegated block ports follow automatically
+      this.updateGroupPortPositions(newCollapsedRect);
     }
     // Let base Group handle the rest (update rect, hitbox, onDragUpdate)
     super.handleDrag(diff, context);
@@ -234,7 +236,7 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
 
   /** Whether this group is currently in the collapsed state. */
   public isCollapsed(): boolean {
-    return (this.groupState.$state.value as T).collapsed ?? false;
+    return this.groupState.$state.value.collapsed ?? false;
   }
 
   // ---------------------------------------------------------------------------
@@ -252,11 +254,14 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
    * back to the direction-based default.
    */
   private computeCollapsedRect(fullRect: TRect): TRect {
-    const state = this.groupState.$state.value as T;
+    const state = this.groupState.$state.value;
+    console.log(state.getCollapseRect);
     if (state.getCollapseRect) {
       return state.getCollapseRect(state, fullRect);
     }
-    return computeDefaultCollapseRect(fullRect, state.collapseDirection);
+    const a = computeDefaultCollapseRect(fullRect, state.collapseDirection);
+    console.log(a);
+    return a;
   }
 
   // ---------------------------------------------------------------------------
@@ -324,6 +329,7 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
       },
       () => {
         batch(() => {
+          this.undelegatePorts();
           this.applyBlockVisibility(false);
           this.groupState.updateGroup({
             collapsed: false,
@@ -354,31 +360,96 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
   // ---------------------------------------------------------------------------
 
   /**
-   * Redirect all ports of group blocks to the edges of targetRect (or the
-   * current collapsedRect / group rect when no rect is provided).
+   * Get (or create) the group's left-edge port used as a delegation target.
+   * Input ports and IN anchors delegate to this port when collapsed.
+   */
+  private getLeftEdgePort(): PortState {
+    return this.getPort(`${String(this.props.id)}${GROUP_PORT_LEFT}`);
+  }
+
+  /**
+   * Get (or create) the group's right-edge port used as a delegation target.
+   * Output ports and OUT anchors delegate to this port when collapsed.
+   */
+  private getRightEdgePort(): PortState {
+    return this.getPort(`${String(this.props.id)}${GROUP_PORT_RIGHT}`);
+  }
+
+  /**
+   * Update the group's edge port positions to match the given rect.
+   */
+  private updateGroupPortPositions(rect: TRect): void {
+    const midY = rect.y + rect.height / 2;
+    this.getLeftEdgePort().setPoint(rect.x, midY);
+    this.getRightEdgePort().setPoint(rect.x + rect.width, midY);
+  }
+
+  /**
+   * Delegate all ports of group blocks to the group's edge ports.
    *
-   * - Input port  → left-center edge  (rect.x,           rect.y + height/2)
-   * - Output port → right-center edge (rect.x + width,   rect.y + height/2)
-   * - IN anchors  → left-center edge
-   * - OUT anchors → right-center edge
+   * - Input port  → left-edge port
+   * - Output port → right-edge port
+   * - IN anchors  → left-edge port
+   * - OUT anchors → right-edge port
+   *
+   * While delegated, block ports mirror the group edge positions.
+   * When the group is dragged, only the group edge ports need to be
+   * updated — all delegated ports follow automatically.
    */
   private delegatePorts(targetRect?: TRect): void {
-    const state = this.groupState.$state.value as T;
-    const rect = this.getRect(targetRect); //targetRect ?? state.collapsedRect ?? state.rect;
-    const leftX = rect.x;
-    const rightX = rect.x + rect.width;
-    const midY = rect.y + rect.height / 2;
+    const rect = this.getRect(targetRect);
+    this.updateGroupPortPositions(rect);
+
+    const leftPort = this.getLeftEdgePort();
+    const rightPort = this.getRightEdgePort();
 
     this.getGroupBlocks().forEach((blockState) => {
       const canvasBlock = blockState.getViewComponent();
       if (!canvasBlock) return;
 
-      canvasBlock.getInputPort()?.setPoint(leftX, midY);
-      canvasBlock.getOutputPort()?.setPoint(rightX, midY);
+      const inputPort = canvasBlock.getInputPort();
+      if (inputPort && !inputPort.isDelegated) {
+        inputPort.delegate(leftPort);
+      }
+
+      const outputPort = canvasBlock.getOutputPort();
+      if (outputPort && !outputPort.isDelegated) {
+        outputPort.delegate(rightPort);
+      }
 
       blockState.$anchors.value.forEach((anchor) => {
-        const x = anchor.type === EAnchorType.OUT ? rightX : leftX;
-        canvasBlock.getAnchorPort(anchor.id)?.setPoint(x, midY);
+        const port = canvasBlock.getAnchorPort(anchor.id);
+        if (port && !port.isDelegated) {
+          port.delegate(anchor.type === EAnchorType.OUT ? rightPort : leftPort);
+        }
+      });
+    });
+  }
+
+  /**
+   * Remove delegation from all ports of group blocks, restoring their
+   * original positions (saved automatically by the delegation mechanism).
+   */
+  private undelegatePorts(): void {
+    this.getGroupBlocks().forEach((blockState) => {
+      const canvasBlock = blockState.getViewComponent();
+      if (!canvasBlock) return;
+
+      const inputPort = canvasBlock.getInputPort();
+      if (inputPort?.isDelegated) {
+        inputPort.undelegate();
+      }
+
+      const outputPort = canvasBlock.getOutputPort();
+      if (outputPort?.isDelegated) {
+        outputPort.undelegate();
+      }
+
+      blockState.$anchors.value.forEach((anchor) => {
+        const port = canvasBlock.getAnchorPort(anchor.id);
+        if (port?.isDelegated) {
+          port.undelegate();
+        }
       });
     });
   }
