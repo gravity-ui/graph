@@ -306,24 +306,25 @@ test.describe("CollapsibleGroup", () => {
     test("connections redirect to group edges after collapse (port delegation)", async () => {
       await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
 
-      const result = await graphPO.page.evaluate(() => {
+      const result = await graphPO.page.evaluate((pad) => {
         const store = window.graph.rootStore;
         const b1 = store.blocksList.$blocksMap.value.get("block-1");
         const canvasBlock = b1?.getViewComponent();
         const outputPort = canvasBlock?.getOutputPort();
-        const portState = outputPort?.$state?.value;
+        const point = outputPort?.$point?.value;
         const groupState = store.groupsList.getGroupState("group-1")?.$state.value;
         const collapsedRect = groupState?.collapsedRect ?? groupState?.rect;
 
+        // Group.getRect() adds padding, so port positions are at padded rect edges
         return {
-          portX: portState?.x,
-          portY: portState?.y,
-          expectedX: collapsedRect ? collapsedRect.x + collapsedRect.width : null,
+          portX: point?.x,
+          portY: point?.y,
+          expectedX: collapsedRect ? collapsedRect.x + collapsedRect.width + pad : null,
           expectedY: collapsedRect ? collapsedRect.y + collapsedRect.height / 2 : null,
         };
-      });
+      }, GROUP_PAD);
 
-      // Output port should be at the right edge of collapsedRect, vertically centered
+      // Output port should be at the right edge of the padded collapsedRect
       expect(result.portX).toBe(result.expectedX);
       expect(result.portY).toBe(result.expectedY);
 
@@ -574,23 +575,24 @@ test.describe("CollapsibleGroup", () => {
     test("anchor OUT port redirects to right edge on collapse", async () => {
       await graphPO.doubleClick(ANCHOR_GROUP_CLICK.x, ANCHOR_GROUP_CLICK.y, { waitFrames: 5 });
 
-      const result = await graphPO.page.evaluate(() => {
+      const result = await graphPO.page.evaluate((pad) => {
         const store = window.graph.rootStore;
         const blockA = store.blocksList.$blocksMap.value.get("block-a");
         const canvasBlock = blockA?.getViewComponent();
 
         const anchorPort = canvasBlock?.getAnchorPort("anchor-out");
-        const portState = anchorPort?.$state?.value;
+        const point = anchorPort?.$point?.value;
         const gs = store.groupsList.getGroupState("group-anchors")?.$state.value;
         const groupRect = gs?.collapsedRect ?? gs?.rect;
 
+        // Group.getRect() adds padding, so port positions are at padded rect edges
         return {
-          portX: portState?.x,
-          portY: portState?.y,
-          expectedX: groupRect ? groupRect.x + groupRect.width : null,
+          portX: point?.x,
+          portY: point?.y,
+          expectedX: groupRect ? groupRect.x + groupRect.width + pad : null,
           expectedY: groupRect ? groupRect.y + groupRect.height / 2 : null,
         };
-      });
+      }, GROUP_PAD);
 
       expect(result.portX).toBe(result.expectedX);
       expect(result.portY).toBe(result.expectedY);
@@ -599,23 +601,24 @@ test.describe("CollapsibleGroup", () => {
     test("anchor IN port redirects to left edge on collapse", async () => {
       await graphPO.doubleClick(ANCHOR_GROUP_CLICK.x, ANCHOR_GROUP_CLICK.y, { waitFrames: 5 });
 
-      const result = await graphPO.page.evaluate(() => {
+      const result = await graphPO.page.evaluate((pad) => {
         const store = window.graph.rootStore;
         const blockA = store.blocksList.$blocksMap.value.get("block-a");
         const canvasBlock = blockA?.getViewComponent();
 
         const anchorPort = canvasBlock?.getAnchorPort("anchor-in");
-        const portState = anchorPort?.$state?.value;
+        const point = anchorPort?.$point?.value;
         const gs = store.groupsList.getGroupState("group-anchors")?.$state.value;
         const groupRect = gs?.collapsedRect ?? gs?.rect;
 
+        // Group.getRect() adds padding, left edge is shifted by -padding
         return {
-          portX: portState?.x,
-          portY: portState?.y,
-          expectedX: groupRect ? groupRect.x : null,
+          portX: point?.x,
+          portY: point?.y,
+          expectedX: groupRect ? groupRect.x - pad : null,
           expectedY: groupRect ? groupRect.y + groupRect.height / 2 : null,
         };
-      });
+      }, GROUP_PAD);
 
       expect(result.portX).toBe(result.expectedX);
       expect(result.portY).toBe(result.expectedY);

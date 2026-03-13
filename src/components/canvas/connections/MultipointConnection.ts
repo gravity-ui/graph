@@ -1,7 +1,6 @@
 import intersects from "intersects";
 
 import { HitBoxData } from "../../../services/HitTest";
-import { TRect } from "../../../utils/types/shapes";
 import { curvePolyline } from "../../../utils/shapes/curvePolyline";
 import { trangleArrowForVector } from "../../../utils/shapes/triangle";
 

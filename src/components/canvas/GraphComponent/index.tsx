@@ -24,8 +24,6 @@ export type TGraphComponentProps = TComponentProps & {
   affectsUsableRect?: boolean;
 };
 
-
-
 export class GraphComponent<
   Props extends TGraphComponentProps = TGraphComponentProps,
   State extends TComponentState = TComponentState,

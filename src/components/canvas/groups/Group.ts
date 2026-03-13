@@ -85,7 +85,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
 
   public declare context: TGraphLayerContext;
   protected blocks: BlockState[] = [];
-  protected groupState: GroupState | undefined;
+  protected groupState: GroupState<T> | undefined;
   public cursor = "pointer";
 
   protected style: TGroupStyle;
