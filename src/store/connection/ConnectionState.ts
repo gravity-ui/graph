@@ -158,8 +158,10 @@ export class ConnectionState<T extends TConnection = TConnection> {
   });
 
   public $geometry = computed(() => {
-    if (!this.$sourcePort.value.lookup && !this.$targetPort.value.lookup) {
-      return [this.$sourcePort.value, this.$targetPort.value];
+    const sourcePort = this.$sourcePortState.value;
+    const targetPort = this.$targetPortState.value;
+    if (!sourcePort.lookup && !targetPort.lookup) {
+      return [sourcePort.$point.value, targetPort.$point.value];
     }
     return undefined;
   });

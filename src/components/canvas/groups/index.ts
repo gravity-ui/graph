@@ -8,17 +8,9 @@ import { Group } from "./Group";
 
 // Export components
 export { BlockGroups, Group, BlockGroupsTransferLayer };
-export {
-  CollapsibleGroup,
-  DirectionalShiftStrategy,
-  CompactLayoutStrategy,
-  ScanlineCompactionStrategy,
-  ConstraintLayoutStrategy,
-} from "./CollapsibleGroup";
-export { CollapseShiftStrategy } from "./CollapsibleGroup";
+export { CollapsibleGroup } from "./CollapsibleGroup";
 export { computeDefaultCollapseRect } from "./CollapsibleGroup";
-export type { TCollapsibleGroup, TCollapseDirection, TShiftStrategyContext } from "./CollapsibleGroup";
-export { shiftBlocksOnGroupCollapse } from "./collapseRelayout";
+export type { TCollapsibleGroup, TCollapseDirection } from "./CollapsibleGroup";
 
 // Export types from BlockGroups
 export type { BlockGroupsProps, BlockGroupsContext, BlockGroupsState } from "./BlockGroups";

@@ -12,16 +12,11 @@ export interface TGroup {
   rect: TRect;
   selected?: boolean;
   component?: typeof Group;
-  /** Whether this group is currently collapsed */
-  collapsed?: boolean;
-  /** The rect dimensions used when collapsed, stored for expand reversal */
-  collapsedRect?: TRect;
 }
 
-export class GroupState {
-  public $state = signal<TGroup>({
-    id: "" as TGroupId,
-    selected: false,
+export class GroupState<T extends TGroup = TGroup> {
+  public $state = signal<T>({
+    id: "",
     rect: {
       x: 0,
       y: 0,
@@ -29,7 +24,7 @@ export class GroupState {
       height: 0,
     },
     component: Group,
-  });
+  } as T);
 
   public readonly $viewComponent = signal<Group | undefined>(undefined);
 
@@ -42,7 +37,7 @@ export class GroupState {
 
   constructor(
     protected store: GroupsListStore,
-    state: TGroup,
+    state: T,
     private readonly groupSelectionBucket: ISelectionBucket<string | number>
   ) {
     this.$state.value = state;
@@ -89,7 +84,7 @@ export class GroupState {
     return this.groupSelectionBucket.isSelected(this.id);
   });
 
-  public updateGroup(group: Partial<TGroup>) {
+  public updateGroup(group: Partial<T>) {
     this.$state.value = {
       ...this.$state.value,
       ...group,
@@ -100,11 +95,11 @@ export class GroupState {
     this.store.updateGroupsSelection([this.id], selected, strategy);
   }
 
-  public asTGroup(): TGroup {
+  public asTGroup(): T {
     return this.$state.value;
   }
 
-  public static fromTGroup(store: GroupsListStore, group: TGroup) {
-    return new GroupState(store, group, store.groupSelectionBucket);
+  public static fromTGroup<T extends TGroup>(store: GroupsListStore, group: T) {
+    return new GroupState<T>(store, group, store.groupSelectionBucket);
   }
 }
