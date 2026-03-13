@@ -5,9 +5,9 @@ import { Description, Meta as StorybookMeta, Title } from "@storybook/addon-docs
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 import ELK, { ElkNode } from "elkjs";
 
-import { Graph, GraphState, TBlock, TConnection, TGraphConfig } from "../../../index";
-import { GraphCanvas, MultipointConnection, useElk, useGraph, useGraphEvent } from "../../../react-components";
-import { TMultipointConnection } from "../../../react-components/elk/types";
+import type { TMultipointConnection } from "../../../components/canvas/connections/types";
+import { Graph, GraphState, MultipointConnection, TBlock, TConnection, TGraphConfig } from "../../../index";
+import { GraphCanvas, useElk, useGraph, useGraphEvent } from "../../../react-components";
 import { useFn } from "../../../react-components/utils/hooks/useFn";
 import { BlockStory } from "../../main/Block";
 
