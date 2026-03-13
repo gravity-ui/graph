@@ -3,6 +3,7 @@ import intersects from "intersects";
 import { HitBoxData } from "../../../services/HitTest";
 import { curvePolyline } from "../../../utils/shapes/curvePolyline";
 import { trangleArrowForVector } from "../../../utils/shapes/triangle";
+import { TRect } from "../../../utils/types/shapes";
 
 import { Path2DRenderStyleResult } from "./BatchPath2D";
 import { BlockConnection } from "./BlockConnection";

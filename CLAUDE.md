@@ -151,11 +151,23 @@ BlockState {
 }
 ```
 
+**Port State** (`src/store/connection/port/Port.ts`):
+```typescript
+PortState {
+  $state: Signal<TPort>              // Raw port data (id, x, y, component, lookup)
+  $point: computed(() => ...)         // Effective position (respects delegation)
+  delegate(target): void              // Mirror another port's position
+  undelegate(): void                  // Restore own position
+  isDelegated: boolean                // Whether currently delegated
+}
+```
+
 **Key Patterns**:
 - Components subscribe to signals via `onSignal()` in `afterInit()`
 - Use `batch(() => { ... })` to wrap multiple signal updates
 - React integration via `useSignal()` hook
 - Automatic cleanup via AbortController
+- Port delegation: `port.delegate(targetPort)` makes port mirror target's `$point`; `port.undelegate()` restores saved position
 
 ### Camera System
 
