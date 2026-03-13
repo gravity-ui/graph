@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.9.0](https://github.com/gravity-ui/graph/compare/v1.8.6...v1.9.0) (2026-03-13)
+
+
+### Features
+
+* **Plugin:** add layered plugin ([#250](https://github.com/gravity-ui/graph/issues/250)) ([080bbbd](https://github.com/gravity-ui/graph/commit/080bbbd01ca35e1e11fcdce9d13090c59e8ca63b))
+
+
+### Bug Fixes
+
+* **Block:** remove lodash dependency and update noop usage ([#263](https://github.com/gravity-ui/graph/issues/263)) ([04a0ecc](https://github.com/gravity-ui/graph/commit/04a0eccde75195a62a1b57b8f2065bbe2cc062af))
+* **Events:** fix resolve coords for touch event ([#266](https://github.com/gravity-ui/graph/issues/266)) ([329db95](https://github.com/gravity-ui/graph/commit/329db95a8482447a5d04cdafb3b29e728b0da496))
+
 ## [1.8.6](https://github.com/gravity-ui/graph/compare/v1.8.5...v1.8.6) (2026-03-04)
 
 
