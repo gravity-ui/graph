@@ -7,7 +7,8 @@ import { PortState } from "../../../store/connection/port/Port";
 import { TGroup, TGroupId } from "../../../store/group/Group";
 import { TRect } from "../../../utils/types/shapes";
 
-import { Group } from "./Group";
+import { BlockGroups } from "./BlockGroups";
+import { Group, TGroupGeometry, TGroupProps, TGroupStyle } from "./Group";
 
 // ---------------------------------------------------------------------------
 // Event declaration
@@ -159,7 +160,46 @@ const GROUP_PORT_LEFT = "_left";
 /** Port ID suffix for the group's right-edge delegation target. */
 const GROUP_PORT_RIGHT = "_right";
 
+const defaultStyle: TGroupStyle = {
+  background: "rgba(100, 100, 100, 0.1)",
+  border: "rgba(100, 100, 100, 0.3)",
+  borderWidth: 2,
+  selectedBackground: "rgba(100, 100, 100, 1)",
+  selectedBorder: "rgba(100, 100, 100, 1)",
+  highlightedBackground: "rgba(100, 200, 100, 0.3)",
+  highlightedBorder: "rgba(100, 200, 100, 0.8)",
+};
+
+const defaultGeometry: TGroupGeometry = {
+  padding: [20, 20, 20, 20],
+};
+
 export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> extends Group<T> {
+  public static define(config: {
+    style?: Partial<TGroupStyle>;
+    geometry?: Partial<TGroupGeometry>;
+  }): typeof CollapsibleGroup {
+    return class SpecificGroup<T extends TCollapsibleGroup = TCollapsibleGroup> extends this<T> {
+      constructor(props: TGroupProps, parent: BlockGroups) {
+        super(
+          {
+            ...props,
+            style: {
+              ...defaultStyle,
+              ...config.style,
+              ...props.style,
+            },
+            geometry: {
+              ...defaultGeometry,
+              ...config.geometry,
+              ...props.geometry,
+            },
+          },
+          parent
+        );
+      }
+    };
+  }
   /**
    * Extend base subscription to also react to collapsed state on init.
    * subscribeSignal fires immediately with the current value, so a group
@@ -255,13 +295,10 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
    */
   private computeCollapsedRect(fullRect: TRect): TRect {
     const state = this.groupState.$state.value;
-    console.log(state.getCollapseRect);
     if (state.getCollapseRect) {
       return state.getCollapseRect(state, fullRect);
     }
-    const a = computeDefaultCollapseRect(fullRect, state.collapseDirection);
-    console.log(a);
-    return a;
+    return computeDefaultCollapseRect(fullRect, state.collapseDirection);
   }
 
   // ---------------------------------------------------------------------------
