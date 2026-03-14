@@ -3,6 +3,7 @@ import intersects from "intersects";
 import { HitBoxData } from "../../../services/HitTest";
 import { curvePolyline } from "../../../utils/shapes/curvePolyline";
 import { trangleArrowForVector } from "../../../utils/shapes/triangle";
+import { TRect } from "../../../utils/types/shapes";
 
 import { Path2DRenderStyleResult } from "./BatchPath2D";
 import { BlockConnection } from "./BlockConnection";
@@ -60,14 +61,19 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
       return super.getBBox();
     }
 
-    const x = [];
-    const y = [];
+    const x: number[] = [];
+    const y: number[] = [];
     points.forEach((point) => {
       x.push(point.x);
       y.push(point.y);
     });
 
     return [Math.min(...x), Math.min(...y), Math.max(...x), Math.max(...y)] as const;
+  }
+
+  protected override getHitBoxRect(): TRect {
+    const [minX, minY, maxX, maxY] = this.getBBox();
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   }
 
   public onHitBox(shape: HitBoxData): boolean {

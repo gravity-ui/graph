@@ -8,6 +8,7 @@ import { HitBox, HitBoxData } from "../../../services/HitTest";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { PortState, TPort, TPortId } from "../../../store/connection/port/Port";
 import { applyAlpha, getXY } from "../../../utils/functions";
+import { TRect } from "../../../utils/types/shapes";
 import { EventedComponent } from "../EventedComponent/EventedComponent";
 import { CursorLayerCursorTypes } from "../layers/cursorLayer";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
@@ -85,6 +86,8 @@ export class GraphComponent<
   }
 
   private mounted = false;
+
+  protected hidden = false;
 
   constructor(props: Props, parent: Component) {
     super(props, parent);
@@ -343,8 +346,35 @@ export class GraphComponent<
     }
   }
 
-  protected isVisible() {
+  protected isVisible(): boolean {
+    if (this.hidden) return false;
     return this.context.camera.isRectVisible(...this.getHitBox());
+  }
+
+  protected getHitBoxRect(): TRect {
+    const [x, y, maxX, maxY] = this.getHitBox();
+    return { x, y, width: maxX - x, height: maxY - y };
+  }
+
+  protected setVisibility(visible: boolean, { removeHitbox }: { removeHitbox: boolean }): void {
+    const hidden = !visible;
+    if (this.hidden !== hidden) {
+      this.hidden = hidden;
+      this.shouldRender = visible;
+      if (removeHitbox) {
+        if (hidden) {
+          this.removeHitBox();
+        } else {
+          const { x, y, width, height } = this.getHitBoxRect();
+          this.setHitBox(x, y, x + width, y + height, true);
+        }
+      }
+      this.performRender();
+    }
+  }
+
+  public setRenderDelegated(delegated: boolean): void {
+    this.setVisibility(!delegated, { removeHitbox: false });
   }
 
   public getHitBox() {
@@ -359,7 +389,8 @@ export class GraphComponent<
     this.hitBox.destroy();
   }
 
-  public onHitBox(_: HitBoxData) {
+  public onHitBox(data: HitBoxData) {
+    this._lastHitBoxData = data;
     return this.isIterated();
   }
 }

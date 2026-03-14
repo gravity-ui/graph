@@ -140,6 +140,11 @@ export class BlockState<T extends TBlock = TBlock> {
 
   public readonly $viewComponent = signal<Block | undefined>(undefined);
 
+  private pendingHidden?: boolean;
+
+  /** Reactive flag that mirrors the canvas component's hidden state. */
+  public readonly $hidden = signal<boolean>(false);
+
   constructor(
     public readonly store: BlockListStore,
     block: T,
@@ -172,8 +177,27 @@ export class BlockState<T extends TBlock = TBlock> {
     }
   }
 
-  public setViewComponent(blockComponent: Block) {
+  public setViewComponent(blockComponent: Block): void {
     this.$viewComponent.value = blockComponent;
+    if (this.pendingHidden !== undefined) {
+      blockComponent.setHiddenBlock(this.pendingHidden);
+      this.pendingHidden = undefined;
+    }
+  }
+
+  /**
+   * Request to hide or show this block's canvas component.
+   * Safe to call before the canvas component is mounted — the request is
+   * deferred and applied automatically in setViewComponent().
+   */
+  public requestHidden(hidden: boolean): void {
+    this.$hidden.value = hidden;
+    const canvasBlock = this.getViewComponent();
+    if (canvasBlock) {
+      canvasBlock.setHiddenBlock(hidden);
+    } else {
+      this.pendingHidden = hidden;
+    }
   }
 
   public getViewComponent() {

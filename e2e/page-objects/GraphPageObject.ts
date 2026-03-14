@@ -4,6 +4,7 @@ import { TConnection } from "../../src/store/connection/ConnectionState";
 import { GraphBlockComponentObject } from "./GraphBlockComponentObject";
 import { GraphConnectionComponentObject } from "./GraphConnectionComponentObject";
 import { GraphCameraComponentObject } from "./GraphCameraComponentObject";
+import type { Graph } from "../../src/graph";
 
 let listenerIdCounter = 0;
 
@@ -41,10 +42,7 @@ export class GraphEventListener<TDetail = unknown> {
       ({ key, fnStr, args }) => {
         const events = (window as any)[key] ?? [];
         // eslint-disable-next-line no-new-func
-        return new Function("events", "...args", `return (${fnStr})(events, ...args)`)(
-          events,
-          ...args
-        );
+        return new Function("events", "...args", `return (${fnStr})(events, ...args)`)(events, ...args);
       },
       { key: this.storageKey, fnStr: fn.toString(), args }
     );
@@ -77,6 +75,16 @@ export class GraphPageObject {
   constructor(page: Page) {
     this.page = page;
     this.cameraComponent = new GraphCameraComponentObject(page, this);
+  }
+
+  async evaluateInGraph<T>(fn: (graph: Graph) => T): Promise<T> {
+    return await this.page.evaluate((fnStr) => {
+      if (!window.graph) {
+        throw new Error("Graph is not defined");
+      }
+      // eslint-disable-next-line no-new-func
+      return new Function("graph", `return (${fnStr})(graph)`)(window.graph) as T;
+    }, fn.toString());
   }
 
   /**
@@ -154,10 +162,7 @@ export class GraphPageObject {
     await this.setupGraph(config);
 
     // Wait for graph to be ready
-    await this.page.waitForFunction(
-      () => window.graphInitialized === true,
-      { timeout: 5000 }
-    );
+    await this.page.waitForFunction(() => window.graphInitialized === true, { timeout: 5000 });
 
     // Wait for initial render frames
     await this.waitForFrames(3);
@@ -180,14 +185,11 @@ export class GraphPageObject {
     await this.page.evaluate((frameCount) => {
       return new Promise<void>((resolve) => {
         const { schedule, ESchedulerPriority } = window.GraphModule;
-        schedule(
-          () => resolve(),
-          {
-            priority: ESchedulerPriority.LOWEST,
-            frameInterval: frameCount,
-            once: true,
-          }
-        );
+        schedule(() => resolve(), {
+          priority: ESchedulerPriority.LOWEST,
+          frameInterval: frameCount,
+          once: true,
+        });
       });
     }, count);
   }
@@ -201,7 +203,7 @@ export class GraphPageObject {
       return new Promise<void>((resolve, reject) => {
         const startTime = Date.now();
         const { schedule, ESchedulerPriority } = window.GraphModule;
-        
+
         const check = () => {
           if (Date.now() - startTime > timeoutMs) {
             reject(new Error(`Scheduler did not become idle within ${timeoutMs}ms`));
@@ -209,14 +211,11 @@ export class GraphPageObject {
           }
 
           // Use graph's scheduler to wait for a frame
-          schedule(
-            () => resolve(),
-            {
-              priority: ESchedulerPriority.LOWEST,
-              frameInterval: 2,
-              once: true,
-            }
-          );
+          schedule(() => resolve(), {
+            priority: ESchedulerPriority.LOWEST,
+            frameInterval: 2,
+            once: true,
+          });
         };
 
         check();
@@ -232,11 +231,7 @@ export class GraphPageObject {
       ({ eventName, timeout }) => {
         return new Promise((resolve, reject) => {
           const timer = setTimeout(() => {
-            reject(
-              new Error(
-                `Event ${eventName} did not fire within ${timeout}ms`
-              )
-            );
+            reject(new Error(`Event ${eventName} did not fire within ${timeout}ms`));
           }, timeout);
 
           const handler = (event: any) => {
@@ -288,9 +283,7 @@ export class GraphPageObject {
     if (options?.shift) {
       modifierKey = "Shift";
     } else if (options?.ctrl || options?.meta) {
-      const isMac = await this.page.evaluate(() =>
-        navigator.platform.toLowerCase().includes("mac")
-      );
+      const isMac = await this.page.evaluate(() => navigator.platform.toLowerCase().includes("mac"));
       modifierKey = isMac ? "Meta" : "Control";
     }
 
@@ -315,11 +308,7 @@ export class GraphPageObject {
   /**
    * Double click at world coordinates
    */
-  async doubleClick(
-    worldX: number,
-    worldY: number,
-    options?: { waitFrames?: number }
-  ): Promise<void> {
+  async doubleClick(worldX: number, worldY: number, options?: { waitFrames?: number }): Promise<void> {
     const { screenX, screenY, canvasBounds } = await this.page.evaluate(
       ({ wx, wy }) => {
         const [sx, sy] = window.graph.cameraService.getAbsoluteXY(wx, wy);
@@ -347,11 +336,7 @@ export class GraphPageObject {
   /**
    * Hover at world coordinates
    */
-  async hover(
-    worldX: number,
-    worldY: number,
-    options?: { waitFrames?: number }
-  ): Promise<void> {
+  async hover(worldX: number, worldY: number, options?: { waitFrames?: number }): Promise<void> {
     const { screenX, screenY, canvasBounds } = await this.page.evaluate(
       ({ wx, wy }) => {
         const [sx, sy] = window.graph.cameraService.getAbsoluteXY(wx, wy);
@@ -388,10 +373,7 @@ export class GraphPageObject {
   ): Promise<void> {
     const { fromScreen, toScreen, canvasBounds } = await this.page.evaluate(
       ({ fx, fy, tx, ty }) => {
-        const [fromSX, fromSY] = window.graph.cameraService.getAbsoluteXY(
-          fx,
-          fy
-        );
+        const [fromSX, fromSY] = window.graph.cameraService.getAbsoluteXY(fx, fy);
         const [toSX, toSY] = window.graph.cameraService.getAbsoluteXY(tx, ty);
 
         const canvas = window.graph.getGraphCanvas();
@@ -450,17 +432,12 @@ export class GraphPageObject {
   /**
    * Check if connection exists between two blocks
    */
-  async hasConnectionBetween(
-    sourceBlockId: string,
-    targetBlockId: string
-  ): Promise<boolean> {
+  async hasConnectionBetween(sourceBlockId: string, targetBlockId: string): Promise<boolean> {
     return await this.page.evaluate(
       ({ sourceBlockId, targetBlockId }) => {
         const connections = window.graph.connections.toJSON();
         return connections.some(
-          (conn: any) =>
-            conn.sourceBlockId === sourceBlockId &&
-            conn.targetBlockId === targetBlockId
+          (conn: any) => conn.sourceBlockId === sourceBlockId && conn.targetBlockId === targetBlockId
         );
       },
       { sourceBlockId, targetBlockId }
@@ -487,9 +464,7 @@ export class GraphPageObject {
    * );
    * expect(ids).toContain("block-1");
    */
-  async listenGraphEvents<TDetail = unknown>(
-    eventName: string
-  ): Promise<GraphEventListener<TDetail>> {
+  async listenGraphEvents<TDetail = unknown>(eventName: string): Promise<GraphEventListener<TDetail>> {
     const key = `__graphListener_${listenerIdCounter++}_${eventName}`;
 
     await this.page.evaluate(
@@ -506,6 +481,51 @@ export class GraphPageObject {
     );
 
     return new GraphEventListener<TDetail>(this.page, key);
+  }
+
+  /**
+   * Starts collecting serializable `event.detail` for the given graph event.
+   * Returns an async function that retrieves the collected details array.
+   *
+   * Unlike {@link listenGraphEvents}, this method stores only the event detail
+   * (serialized via JSON), making it safe for events with non-serializable
+   * event objects (e.g. events emitted via `executеDefaultEventAction`).
+   *
+   * @example
+   * const getEvents = await graphPO.collectGraphEventDetails("group-collapse-change");
+   * // ... trigger actions ...
+   * const details = await getEvents();
+   * expect(details).toHaveLength(1);
+   * expect(details[0].groupId).toBe("group-1");
+   */
+  async collectGraphEventDetails<TDetail = unknown>(
+    eventName: string,
+  ): Promise<() => Promise<TDetail[]>> {
+    const key = `__graphCollector_${listenerIdCounter++}_${eventName}`;
+
+    await this.page.evaluate(
+      ({ key, eventName }) => {
+        (window as any)[key] = [];
+        (window as any)[`${key}_eventName`] = eventName;
+        const handler = (event: CustomEvent) => {
+          (window as any)[key].push(event.detail);
+        };
+        (window as any)[`${key}_handler`] = handler;
+        window.graph.on(eventName as any, handler);
+      },
+      { key, eventName },
+    );
+
+    return async () => {
+      const json = await this.page.evaluate((k) => {
+        return JSON.stringify((window as any)[k] ?? []);
+      }, key);
+      try {
+        return JSON.parse(json) as TDetail[];
+      } catch {
+        return [];
+      }
+    };
   }
 
   /**
