@@ -140,3 +140,11 @@ const meta: Meta = {
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story:
+        "BlockGroups.withBlockGrouping() groups blocks by a custom key. Groups are draggable and update block positions.",
+    },
+  },
+};

@@ -65,10 +65,18 @@ const GraphApp = () => {
 };
 
 const meta: Meta = {
-  title: "Api/zoomToElements",
+  title: "API/Camera & Zoom/zoomToElements",
   component: GraphApp,
 };
 
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story:
+        "Zooms to selected elements via `graph.zoomTo(components, { transition, padding })`. Select blocks or connections (Cmd/Ctrl+Click for multiple), then click the button.",
+    },
+  },
+};

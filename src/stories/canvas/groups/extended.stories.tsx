@@ -88,3 +88,10 @@ const meta: Meta = {
 export default meta;
 
 export const ExtendedGroups: StoryFn = () => <ExtendedGroupsApp />;
+ExtendedGroups.parameters = {
+  docs: {
+    description: {
+      story: "Custom Group component with extended fields (e.g. description). Group.define() for custom styling.",
+    },
+  },
+};

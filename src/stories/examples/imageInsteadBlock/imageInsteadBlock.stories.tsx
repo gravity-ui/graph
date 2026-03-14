@@ -160,3 +160,10 @@ const meta: Meta = {
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story: "Custom block rendering with images based on block status. Uses renderBlock for React content.",
+    },
+  },
+};

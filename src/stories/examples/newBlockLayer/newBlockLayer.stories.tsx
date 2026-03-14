@@ -86,3 +86,10 @@ const meta: Meta = {
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story: "NewBlockLayer allows duplicating blocks via Alt+drag. Creates a copy at drop position.",
+    },
+  },
+};

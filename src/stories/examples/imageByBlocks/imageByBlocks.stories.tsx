@@ -116,3 +116,10 @@ const meta: Meta = {
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story: "Generates blocks from image data. Demonstrates programmatic block creation from external sources.",
+    },
+  },
+};

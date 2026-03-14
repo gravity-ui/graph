@@ -174,3 +174,10 @@ const meta: Meta = {
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story: "ConnectionLayer enables creating new connections via Shift+drag from block to block or anchor to anchor.",
+    },
+  },
+};

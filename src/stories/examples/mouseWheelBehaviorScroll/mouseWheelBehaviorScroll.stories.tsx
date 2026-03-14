@@ -87,6 +87,13 @@ function GraphWithMouseWheelBehaviorScroll() {
 }
 
 export const Default: StoryFn = () => <GraphWithMouseWheelBehaviorScroll />;
+Default.parameters = {
+  docs: {
+    description: {
+      story: "MOUSE_WHEEL_BEHAVIOR: 'scroll' — mouse wheel scrolls the viewport instead of zooming.",
+    },
+  },
+};
 
 const meta: Meta = {
   title: "Examples/MouseWheelBehaviorScroll",

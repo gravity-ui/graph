@@ -56,10 +56,18 @@ const GraphApp = () => {
 };
 
 const meta: Meta = {
-  title: "Api/updateGraphColors",
+  title: "API/Styling/updateGraphColors",
   component: GraphApp,
 };
 
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story:
+        "Updates graph theme colors at runtime via `graph.api.updateGraphColors(colors)`. Use the buttons to change block background color.",
+    },
+  },
+};

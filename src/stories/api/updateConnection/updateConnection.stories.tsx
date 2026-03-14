@@ -149,10 +149,18 @@ const GraphApp = () => {
 };
 
 const meta: Meta = {
-  title: "Api/updateConnection",
+  title: "API/Blocks & Connections/updateConnection",
   component: GraphApp,
 };
 
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story:
+        "Updates connection properties via `graph.api.updateConnection(id, connection)`. Change source/target blocks, label, dashed style, and colors using the controls above.",
+    },
+  },
+};

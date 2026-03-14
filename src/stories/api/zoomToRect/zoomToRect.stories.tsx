@@ -51,10 +51,18 @@ const GraphApp = () => {
 };
 
 const meta: Meta = {
-  title: "Api/zoomToRect",
+  title: "API/Camera & Zoom/zoomToRect",
   component: GraphApp,
 };
 
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story:
+        "Zooms the camera to a specific rectangle in world coordinates via `graph.api.zoomToRect(rect, { transition, padding })`.",
+    },
+  },
+};

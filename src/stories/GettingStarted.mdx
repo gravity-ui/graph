@@ -1,0 +1,76 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+
+import * as PlaygroundStories from "./Playground/Playground.stories";
+
+<Meta title="Getting Started" />
+
+# Getting Started
+
+## Installation
+
+```bash
+npm install @gravity-ui/graph
+```
+
+## Minimal Example
+
+```typescript
+import React, { useEffect } from "react";
+import { GraphCanvas, GraphBlock, useGraph } from "@gravity-ui/graph/react";
+import { EAnchorType } from "@gravity-ui/graph";
+
+const config = {};
+
+export function MyGraph() {
+  const { graph, setEntities, start } = useGraph(config);
+
+  useEffect(() => {
+    setEntities({
+      blocks: [
+        {
+          is: "Block",
+          id: "block-1",
+          x: 100,
+          y: 100,
+          width: 120,
+          height: 60,
+          selected: false,
+          name: "Block 1",
+          anchors: [{ id: "out1", blockId: "block-1", type: EAnchorType.OUT, index: 0 }],
+        },
+        {
+          is: "Block",
+          id: "block-2",
+          x: 300,
+          y: 100,
+          width: 120,
+          height: 60,
+          selected: false,
+          name: "Block 2",
+          anchors: [{ id: "in1", blockId: "block-2", type: EAnchorType.IN, index: 0 }],
+        },
+      ],
+      connections: [{ sourceBlockId: "block-1", targetBlockId: "block-2" }],
+    });
+    start();
+  }, [setEntities, start]);
+
+  return (
+    <div style={{ width: "100%", height: "400px" }}>
+      <GraphCanvas graph={graph} renderBlock={(g, block) => <GraphBlock graph={g} block={block}>{block.name}</GraphBlock>} />
+    </div>
+  );
+}
+```
+
+## Try the Playground
+
+Explore the full-featured interactive editor with blocks, connections, and settings:
+
+<Canvas of={PlaygroundStories.Default} />
+
+## Next Steps
+
+- **Documentation** — Full API and architecture docs (see sidebar)
+- **Examples** — Custom blocks, layers, themes
+- **API** — Graph API methods (updateBlock, zoomTo, etc.)

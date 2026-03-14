@@ -73,3 +73,10 @@ const meta: Meta = {
 export default meta;
 
 export const LargeGroupedGraph: StoryFn = () => <LargeGraphApp />;
+LargeGroupedGraph.parameters = {
+  docs: {
+    description: {
+      story: "Large graph with block grouping. Demonstrates groups at scale.",
+    },
+  },
+};

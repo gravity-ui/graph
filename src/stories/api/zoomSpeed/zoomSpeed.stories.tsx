@@ -41,10 +41,18 @@ const GraphApp = () => {
 };
 
 const meta: Meta = {
-  title: "Api/zoomSpeed",
+  title: "API/Camera & Zoom/zoomSpeed",
   component: GraphApp,
 };
 
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story:
+        "Configures zoom speed and step via `graph.setConstants({ camera: { SPEED, STEP } })`. Adjust values and click Apply to change zoom behavior.",
+    },
+  },
+};

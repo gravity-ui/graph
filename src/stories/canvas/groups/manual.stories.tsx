@@ -76,3 +76,10 @@ const meta: Meta = {
 export default meta;
 
 export const ManualGroups: StoryFn = () => <ManualGroupsApp />;
+ManualGroups.parameters = {
+  docs: {
+    description: {
+      story: "Manual groups via graph.setGroups(). Groups are defined programmatically, not from block data.",
+    },
+  },
+};

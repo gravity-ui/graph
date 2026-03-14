@@ -1,0 +1,29 @@
+import { Canvas, Meta } from "@storybook/addon-docs/blocks";
+
+import * as GraphEditorStories from "./main/GraphEditor.stories";
+
+<Meta title="Introduction" />
+
+# @gravity-ui/graph
+
+A graph visualization library that combines the best of both worlds: **Canvas** for high performance when viewing the full graph and **HTML/React** for rich interactions when zoomed in.
+
+No more choosing between performance and interactivity. Perfect for large diagrams, flowcharts, and node-based editors.
+
+## Key Features
+
+- **Hybrid rendering** — Automatically switches between Canvas (zoomed out) and React (zoomed in)
+- **High performance** — Handles thousands of blocks and connections smoothly
+- **Customizable** — Custom blocks, layers, connections, and themes
+- **React integration** — `useGraph`, `GraphCanvas`, `GraphBlock`, and event hooks
+- **Extensible** — Layer system, plugins (MiniMap, DevTools, ELK layout)
+
+## Try it
+
+<Canvas of={GraphEditorStories.OneBlock} />
+
+## Links
+
+- [npm package](https://www.npmjs.com/package/@gravity-ui/graph)
+- [GitHub](https://github.com/gravity-ui/graph)
+- [Migration Guide (0.x → 1.x)](https://github.com/gravity-ui/graph/blob/main/docs/migration-guides/v0-to-v1.md)

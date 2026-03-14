@@ -307,3 +307,10 @@ const meta: Meta = {
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story: "PortConnectionLayer with IN/OUT ports for creating connections between specific anchors.",
+    },
+  },
+};

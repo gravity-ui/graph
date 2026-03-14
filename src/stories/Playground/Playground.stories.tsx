@@ -7,6 +7,9 @@ import { GraphPLayground } from "./GraphPlayground";
 const meta: Meta = {
   title: "Playground",
   component: GraphPLayground,
+  parameters: {
+    layout: "fullscreen",
+  },
 };
 
 export default meta;

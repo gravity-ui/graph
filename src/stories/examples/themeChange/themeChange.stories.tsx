@@ -99,3 +99,10 @@ const meta: Meta = {
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story: "Dynamic theme switching (Light/Dark) via graph.api.updateGraphColors().",
+    },
+  },
+};

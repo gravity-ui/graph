@@ -94,10 +94,18 @@ const GraphApp = () => {
 };
 
 const meta: Meta = {
-  title: "Api/startStop",
+  title: "API/Graph Lifecycle/startStop",
   component: GraphApp,
 };
 
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story:
+        "Demonstrates graph lifecycle: `graph.start()` / `graph.stop()` for the rendering loop, and mount/unmount of the GraphCanvas component.",
+    },
+  },
+};

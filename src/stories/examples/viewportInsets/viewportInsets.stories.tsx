@@ -368,4 +368,12 @@ type Story = StoryObj<typeof InsetsDemo>;
 
 export const ViewportInsetsPlayground: Story = {
   render: () => <InsetsDemo />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "graph.setViewportInsets() reserves space for UI overlays (toolbars, panels) so the graph stays visible.",
+      },
+    },
+  },
 };

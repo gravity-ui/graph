@@ -160,3 +160,10 @@ const meta: Meta = {
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story: "Custom labels on connections. Connection label styling and positioning.",
+    },
+  },
+};

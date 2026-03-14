@@ -49,6 +49,7 @@ const GraphApp = ({
 };
 
 const meta: Meta<typeof GraphApp> = {
+  title: "Examples",
   component: GraphApp,
   parameters: {
     layout: "fullscreen",
@@ -101,6 +102,9 @@ type Story = StoryObj<typeof GraphApp>;
 
 export const OneBlock: Story = {
   render: (args) => <GraphApp config={oneBlockConfig} {...args}></GraphApp>,
+  parameters: {
+    docs: { description: { story: "Single block with default styling. Basic building block of the graph." } },
+  },
 };
 
 export const OneStraightConnection: Story = {
@@ -108,18 +112,34 @@ export const OneStraightConnection: Story = {
     useBezierConnections: false,
   },
   render: (args) => <GraphApp config={oneStraightConfig} {...args}></GraphApp>,
+  parameters: {
+    docs: { description: { story: "Two blocks connected with a straight line (polyline)." } },
+  },
 };
 
 export const OneBezierConnection: Story = {
   render: (args) => <GraphApp config={oneBezierConnectionConfig} {...args}></GraphApp>,
+  parameters: {
+    docs: {
+      description: {
+        story: "Two blocks connected with a Bezier curve. Smoother appearance, better for complex layouts.",
+      },
+    },
+  },
 };
 
 export const ColoredConnections: Story = {
   render: (args) => <GraphApp config={coloredConnections} {...args}></GraphApp>,
+  parameters: {
+    docs: { description: { story: "Connections with custom colors and styles per connection." } },
+  },
 };
 
 export const WithAnchors: Story = {
   render: (args) => <GraphApp config={withAnchorsConfig} {...args}></GraphApp>,
+  parameters: {
+    docs: { description: { story: "Blocks with multiple anchors (IN/OUT ports) for connection points." } },
+  },
 };
 
 export const HundredBlocks: Story = {
@@ -129,12 +149,18 @@ export const HundredBlocks: Story = {
       {...args}
     ></GraphApp>
   ),
+  parameters: {
+    docs: { description: { story: "~100 blocks. Tests performance at moderate scale." } },
+  },
 };
 
 export const ThousandBlocks: Story = {
   render: (args) => (
     <GraphApp config={generatePrettyBlocks({ layersCount: 25, connectionsPerLayer: 200 })} {...args}></GraphApp>
   ),
+  parameters: {
+    docs: { description: { story: "~1000 blocks. Stress test for Canvas rendering performance." } },
+  },
 };
 
 export const FiveThousandsBlocks: Story = {
@@ -144,6 +170,9 @@ export const FiveThousandsBlocks: Story = {
   render: (args) => (
     <GraphApp config={generatePrettyBlocks({ layersCount: 40, connectionsPerLayer: 300 })} {...args}></GraphApp>
   ),
+  parameters: {
+    docs: { description: { story: "~5000 blocks. Extreme performance test. Bezier disabled for speed." } },
+  },
 };
 
 export const GraphStressTest: Story = {
@@ -162,6 +191,9 @@ export const GraphStressTest: Story = {
       ></GraphApp>
     );
   },
+  parameters: {
+    docs: { description: { story: "~110 layers, 1000 connections per layer. Maximum stress test." } },
+  },
 };
 export const NirvanaMaxGraphTest: Story = {
   render: (args) => {
@@ -176,17 +208,29 @@ export const NirvanaMaxGraphTest: Story = {
       ></GraphApp>
     );
   },
+  parameters: {
+    docs: { description: { story: "Large graph with Bezier connections. Tests rendering quality at scale." } },
+  },
 };
 
 export const CustomSchematicBlock: Story = {
   render: (args) => <GraphApp config={customSchematicViewConfig} {...args}></GraphApp>,
+  parameters: {
+    docs: { description: { story: "Custom block appearance at different zoom levels (schematic vs detailed view)." } },
+  },
 };
 export const CustomLayer: Story = {
   render: (args) => <GraphApp config={CustomLayerConfig} {...args}></GraphApp>,
+  parameters: {
+    docs: { description: { story: "Custom layer that draws additional content on the canvas." } },
+  },
 };
 
 export const VerticalGraph: Story = {
   render: (args) => <GraphApp config={verticalGraphConfig} {...args}></GraphApp>,
+  parameters: {
+    docs: { description: { story: "Vertical layout with top-to-bottom flow." } },
+  },
 };
 
 export const SnappingGraph: Story = {
@@ -197,6 +241,9 @@ export const SnappingGraph: Story = {
       constants={{ block: { SNAPPING_GRID_SIZE: 60 } }}
     ></GraphApp>
   ),
+  parameters: {
+    docs: { description: { story: "Blocks snap to a 60px grid when dragging." } },
+  },
 };
 
 export const EmptyGraph: Story = {

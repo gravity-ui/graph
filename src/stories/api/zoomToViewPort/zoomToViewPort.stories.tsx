@@ -36,10 +36,18 @@ const GraphApp = () => {
 };
 
 const meta: Meta = {
-  title: "Api/zoomToViewPort",
+  title: "API/Camera & Zoom/zoomToViewPort",
   component: GraphApp,
 };
 
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story:
+        "Fits the entire graph into the viewport via `graph.api.zoomToViewPort({ transition, padding })`. Use the form to set transition duration and padding.",
+    },
+  },
+};

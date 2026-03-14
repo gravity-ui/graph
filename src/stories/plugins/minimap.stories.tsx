@@ -47,3 +47,10 @@ const meta: Meta = {
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story: "MiniMapLayer shows a thumbnail overview of the graph. Useful for navigation in large diagrams.",
+    },
+  },
+};

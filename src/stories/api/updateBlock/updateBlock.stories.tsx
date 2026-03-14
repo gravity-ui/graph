@@ -46,10 +46,18 @@ const GraphApp = () => {
 };
 
 const meta: Meta = {
-  title: "Api/updateBlock",
+  title: "API/Blocks & Connections/updateBlock",
   component: GraphApp,
 };
 
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story:
+        "Updates block position and size via `graph.api.updateBlock()`. Use the form below to change x, y, width, and height.",
+    },
+  },
+};

@@ -41,10 +41,18 @@ const GraphApp = () => {
 };
 
 const meta: Meta = {
-  title: "Api/zoomToBlocks",
+  title: "API/Camera & Zoom/zoomToBlocks",
   component: GraphApp,
 };
 
 export default meta;
 
 export const Default: StoryFn = () => <GraphApp />;
+Default.parameters = {
+  docs: {
+    description: {
+      story:
+        "Zooms the camera to fit specified blocks via `graph.api.zoomToBlocks(blockIds, { transition, padding })`. Enter comma-separated block IDs.",
+    },
+  },
+};
