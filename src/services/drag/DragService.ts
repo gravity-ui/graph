@@ -10,6 +10,7 @@ import { getXY } from "../../utils/functions";
 import { dragListener } from "../../utils/functions/dragListener";
 import { EVENTS } from "../../utils/types/events";
 
+import type { DragStrategy } from "./strategies";
 import type { DragContext, DragDiff, DragOperationCallbacks, DragOperationOptions, DragState } from "./types";
 
 /**
@@ -24,6 +25,9 @@ import type { DragContext, DragDiff, DragOperationCallbacks, DragOperationOption
 export class DragService {
   /** Components participating in the current drag operation */
   private dragComponents: GraphComponent[] = [];
+
+  /** Strategy to apply during drag (from first component's getDragStrategy) */
+  private dragStrategy: DragStrategy | null = null;
 
   /** Starting coordinates in world space */
   private startCoords: [number, number] | null = null;
@@ -195,6 +199,11 @@ export class DragService {
       components: this.dragComponents,
     };
 
+    // Determine strategy from first component
+    const firstComponent = this.dragComponents[0];
+    this.dragStrategy =
+      typeof firstComponent.getDragStrategy === "function" ? firstComponent.getDragStrategy(this.$state.value) : null;
+
     // Notify all components about drag start
     this.dragComponents.forEach((component) => {
       component.handleDragStart(context);
@@ -221,18 +230,37 @@ export class DragService {
     const diff: DragDiff = {
       startCoords: this.startCoords,
       prevCoords: this.prevCoords,
-      currentCoords,
+      currentCoords: [...currentCoords],
       diffX: currentCoords[0] - this.startCoords[0],
       diffY: currentCoords[1] - this.startCoords[1],
       deltaX: currentCoords[0] - this.prevCoords[0],
       deltaY: currentCoords[1] - this.prevCoords[1],
     };
 
+    // Apply drag strategy (modifies diff in place)
+    if (this.dragStrategy && this.dragComponents.length > 0) {
+      const firstComponent = this.dragComponents[0];
+      const strategyContext: DragContext = {
+        sourceEvent: event,
+        startCoords: this.startCoords,
+        prevCoords: this.prevCoords,
+        currentCoords: diff.currentCoords,
+        components: this.dragComponents,
+      };
+      this.dragStrategy.apply(diff, strategyContext, firstComponent);
+
+      // Update currentCoords and delta from modified diff
+      diff.currentCoords[0] = this.startCoords[0] + diff.diffX;
+      diff.currentCoords[1] = this.startCoords[1] + diff.diffY;
+      diff.deltaX = diff.diffX - (diff.prevCoords[0] - diff.startCoords[0]);
+      diff.deltaY = diff.diffY - (diff.prevCoords[1] - diff.startCoords[1]);
+    }
+
     const context: DragContext = {
       sourceEvent: event,
       startCoords: this.startCoords,
       prevCoords: this.prevCoords,
-      currentCoords,
+      currentCoords: diff.currentCoords,
       components: this.dragComponents,
     };
 
@@ -241,7 +269,7 @@ export class DragService {
       component.handleDrag(diff, context);
     });
 
-    this.prevCoords = currentCoords;
+    this.prevCoords = diff.currentCoords;
   };
 
   /**
@@ -263,6 +291,8 @@ export class DragService {
       this.dragComponents.forEach((component) => {
         component.handleDragEnd(context);
       });
+
+      this.dragStrategy?.reset?.();
     }
 
     this.cleanup();
@@ -284,6 +314,7 @@ export class DragService {
     // Reset state
     this.currentDragEmitter = null;
     this.dragComponents = [];
+    this.dragStrategy = null;
     this.startCoords = null;
     this.prevCoords = null;
     if (this.unsubscribeMouseDown) {

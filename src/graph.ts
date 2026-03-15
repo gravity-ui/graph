@@ -7,6 +7,7 @@ import { TBlock } from "./components/canvas/blocks/Block";
 import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
 import { CursorLayer, CursorLayerCursorTypes } from "./components/canvas/layers/cursorLayer";
 import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
+import { MagneticVisualizationLayer } from "./components/canvas/layers/magneticVisualizationLayer/MagneticVisualizationLayer";
 import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
 import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
 import { GraphEvent, GraphEventParams, GraphEventsDefinitions, isGraphEvent } from "./graphEvents";
@@ -86,6 +87,8 @@ export class Graph {
 
   protected readonly cursorLayer: CursorLayer;
 
+  protected readonly magneticVisualizationLayer: MagneticVisualizationLayer;
+
   public getGraphCanvas() {
     return this.graphLayer.getCanvas();
   }
@@ -130,6 +133,7 @@ export class Graph {
     this.graphLayer = this.addLayer(GraphLayer, {});
     this.selectionLayer = this.addLayer(SelectionLayer, {});
     this.cursorLayer = this.addLayer(CursorLayer, {});
+    this.magneticVisualizationLayer = this.addLayer(MagneticVisualizationLayer, {});
 
     // Initialize DragService for managing drag operations on GraphComponents
     this.dragService = new DragService(this);
@@ -265,7 +269,7 @@ export class Graph {
       maxX: rect.x + rect.width,
       maxY: rect.y + rect.height,
     }) as InstanceType<T>[] | [];
-    if (filter.length && items.length > 0) {
+    if (filter && filter.length > 0 && items.length > 0) {
       return items.filter((item: InstanceType<T>) =>
         filter.some((Component) => item instanceof Component)
       ) as InstanceType<T>[];

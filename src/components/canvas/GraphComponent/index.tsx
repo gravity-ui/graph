@@ -6,6 +6,8 @@ import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
 import { DragContext, DragDiff } from "../../../services/drag";
+import type { DragState } from "../../../services/drag";
+import type { DragStrategy } from "../../../services/drag/strategies";
 import { PortState, TPort, TPortId } from "../../../store/connection/port/Port";
 import { applyAlpha, getXY } from "../../../utils/functions";
 import { EventedComponent } from "../EventedComponent/EventedComponent";
@@ -47,6 +49,17 @@ export class GraphComponent<
    */
   public isDraggable(): boolean {
     return false;
+  }
+
+  /**
+   * Returns the drag strategy for this component. Override to customize snapping behavior.
+   * Strategy is applied before handleDrag - it can modify diffX, diffY.
+   *
+   * @param dragState - Current drag state (isMultiple, components, etc.)
+   * @returns DragStrategy or null to use raw diff without modification
+   */
+  public getDragStrategy(_dragState: DragState): DragStrategy | null {
+    return null;
   }
 
   /**

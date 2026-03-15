@@ -31,6 +31,8 @@ export * from "./components/canvas/groups";
 export * from "./components/canvas/layers/portConnectionLayer";
 export * from "./components/canvas/layers/newBlockLayer/NewBlockLayer";
 export * from "./components/canvas/layers/connectionLayer/ConnectionLayer";
+export { MagneticVisualizationLayer } from "./components/canvas/layers/magneticVisualizationLayer/MagneticVisualizationLayer";
+export * from "./services/drag";
 export * from "./lib/Component";
 
 export * from "./services/selection/index.public";

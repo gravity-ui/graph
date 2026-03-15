@@ -5,6 +5,8 @@ import isObject from "lodash/isObject";
 import { Component } from "../../../lib/Component";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { DragContext, DragDiff } from "../../../services/drag";
+import type { DragState } from "../../../services/drag";
+import { GridDragStrategy, MagneticDragStrategy, NoopDragStrategy } from "../../../services/drag/strategies";
 import { ESelectionStrategy } from "../../../services/selection";
 import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
@@ -110,7 +112,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   protected lastDragEvent?: MouseEvent;
 
-  protected startDragCoords: number[] = [];
+  /** Block position at drag start. Set in handleDragStart, used with diff.diffX/diffY in handleDrag. */
+  protected dragStartPosition: [number, number] | null = null;
 
   protected shouldRenderText: boolean;
 
@@ -293,6 +296,35 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   /**
+   * Returns block position at drag start. Used by MagneticDragStrategy for snapping.
+   */
+  public getDragStartPosition(): [number, number] | undefined {
+    return this.dragStartPosition ?? undefined;
+  }
+
+  /**
+   * Returns drag strategy. Uses GridDragStrategy when SNAPPING_GRID_SIZE > 1.
+   * Override to use MagneticDragStrategy or custom strategy.
+   */
+  public override getDragStrategy(dragState: DragState) {
+    return new MagneticDragStrategy({
+      gridSize: 1,
+      minDistanceToSnap: 10,
+      maxDistanceToSnap: 40,
+      neighborTypes: [Block],
+      neighborSearchPadding: 100,
+    });
+    if (dragState.isMultiple) {
+      return new NoopDragStrategy();
+    }
+    const gridSize = this.context.constants.block.SNAPPING_GRID_SIZE;
+    if (gridSize > 1) {
+      return new GridDragStrategy({ gridSize });
+    }
+    return new NoopDragStrategy();
+  }
+
+  /**
    * Check if block can be dragged based on canDrag setting
    */
   public override isDraggable(): boolean {
@@ -312,8 +344,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       },
       () => {
         this.lastDragEvent = context.sourceEvent;
-        // Store start coords: [worldX, worldY, blockX, blockY]
-        this.startDragCoords = [...context.startCoords, this.state.x, this.state.y];
+        this.dragStartPosition = [this.state.x, this.state.y];
         this.raiseBlock();
       }
     );
@@ -339,11 +370,11 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
    * Handle drag update - calculate new position and update block
    */
   public override handleDrag(diff: DragDiff, context: DragContext): void {
-    if (!this.startDragCoords.length) return;
+    if (!this.dragStartPosition) return;
 
     this.lastDragEvent = context.sourceEvent;
 
-    const [x, y] = this.calcNextDragPosition(context.currentCoords[0], context.currentCoords[1]);
+    const [x, y] = this.calcNextDragPosition(diff);
 
     this.context.graph.executеDefaultEventAction(
       "block-drag",
@@ -361,7 +392,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
    * Handle drag end - finalize drag state
    */
   public override handleDragEnd(context: DragContext): void {
-    if (!this.startDragCoords.length) return;
+    if (!this.dragStartPosition) return;
 
     this.context.graph.emit("block-drag-end", {
       nativeEvent: context.sourceEvent,
@@ -369,27 +400,16 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     });
 
     this.lastDragEvent = undefined;
-    this.startDragCoords = [];
+    this.dragStartPosition = null;
     this.updateHitBox(this.state);
   }
 
-  protected calcNextDragPosition(x: number, y: number): [number, number] {
-    // Calculate displacement from drag start (consistent with DragDiff API)
-    const diffX = (x - this.startDragCoords[0]) | 0;
-    const diffY = (y - this.startDragCoords[1]) | 0;
-
-    // Apply displacement to initial block position
-    let nextX = this.startDragCoords[2] + diffX;
-    let nextY = this.startDragCoords[3] + diffY;
-
-    const spanGridSize = this.context.constants.block.SNAPPING_GRID_SIZE;
-
-    if (spanGridSize > 1) {
-      nextX = Math.round(nextX / spanGridSize) * spanGridSize;
-      nextY = Math.round(nextY / spanGridSize) * spanGridSize;
-    }
-
-    return [nextX, nextY];
+  /**
+   * Calculates next block position from DragDiff.
+   * Uses diff.deltaX, diff.deltaY (snapped increment from previous frame when strategy is applied).
+   */
+  protected calcNextDragPosition(diff: DragDiff): [number, number] {
+    return [this.state.x + diff.deltaX, this.state.y + diff.deltaY];
   }
 
   protected applyNextPosition(x: number, y: number): void {
