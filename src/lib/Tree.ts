@@ -2,6 +2,8 @@ import { cache } from "./utils";
 
 type TIterator = (node: Tree) => boolean;
 
+export type TIterationFilter = (allChildren: Tree[]) => Tree[] | null;
+
 export interface ITree {
   iterate(): boolean;
 }
@@ -28,6 +30,9 @@ export class Tree<T extends ITree = ITree> {
   public renderOrder = 0;
 
   public zIndex = 1;
+
+  /** Optional filter applied during iteration. When set, only the returned nodes are walked. Return null to use all children. */
+  public iterationFilter: TIterationFilter | null = null;
 
   constructor(data: T, parent?: Tree) {
     this.data = data;
@@ -116,13 +121,21 @@ export class Tree<T extends ITree = ITree> {
     return this.childrenArray;
   }
 
+  protected getChildrenForIteration(): Tree[] {
+    const children = this.zIndexChildrenCache.get();
+    if (this.iterationFilter) {
+      return this.iterationFilter(children) ?? children;
+    }
+    return children;
+  }
+
   protected _walkDown(iterator: TIterator, order: number) {
     this.renderOrder = order;
     if (iterator(this)) {
       if (!this.children.size) {
         return;
       }
-      const children = this.zIndexChildrenCache.get();
+      const children = this.getChildrenForIteration();
       for (let i = 0; i < children.length; i++) {
         children[i]._walkDown(iterator, i);
       }

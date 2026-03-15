@@ -5,6 +5,7 @@ import { GraphEventsDefinitions } from "../../../graphEvents";
 import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
+import { ICullingAwareParent } from "../../../services/SpatialCullingService";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { PortState, TPort, TPortId } from "../../../store/connection/port/Port";
 import { applyAlpha, getXY } from "../../../utils/functions";
@@ -34,8 +35,23 @@ export class GraphComponent<
 
   protected ports: Map<TPortId, PortState> = new Map();
 
+  /** Set to true by SpatialCullingService when this component is within the visible viewport. Lasts for one frame. */
+  public visibleThisFrame = false;
+
   public getEntityId(): number | string {
     throw new Error("GraphComponent.getEntityId() is not implemented");
+  }
+
+  /**
+   * Called by SpatialCullingService to mark this component as visible for the current frame
+   * and propagate the registration up to a culling-aware parent (e.g. Blocks).
+   */
+  public markVisibleThisFrame(): void {
+    this.visibleThisFrame = true;
+    const parent = this.getParent();
+    if (parent !== undefined && "registerVisibleChild" in parent) {
+      (parent as unknown as ICullingAwareParent).registerVisibleChild(this);
+    }
   }
 
   /**

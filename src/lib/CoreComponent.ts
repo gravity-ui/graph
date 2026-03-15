@@ -68,6 +68,11 @@ export class CoreComponent<
     return this.__comp.treeNode.renderOrder;
   }
 
+  /** Returns the Tree node associated with this component. Used for spatial culling integration. */
+  public getTreeNode() {
+    return this.__comp.treeNode;
+  }
+
   constructor(props: Props, parent?: CoreComponent) {
     this.context = (parent?.context as Context) || ({} as Context);
 

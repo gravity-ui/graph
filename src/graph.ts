@@ -15,6 +15,7 @@ import { HitTest } from "./services/HitTest";
 import { KeyboardService } from "./services/KeyboardService";
 import { Layer, LayerPublicProps } from "./services/Layer";
 import { Layers } from "./services/LayersService";
+import { SpatialCullingService } from "./services/SpatialCullingService";
 import { CameraService } from "./services/camera/CameraService";
 import { DragService } from "./services/drag";
 import { RootStore } from "./store";
@@ -69,6 +70,9 @@ export class Graph {
   public readonly rootStore: RootStore = new RootStore(this);
 
   public hitTest = new HitTest(this);
+
+  /** Service that computes visible components each frame using RBush spatial queries. */
+  public readonly spatialCulling: SpatialCullingService = new SpatialCullingService(this);
 
   /**
    * Service that manages drag operations for all draggable GraphComponents.
@@ -506,6 +510,7 @@ export class Graph {
     this.rootStore.reset();
     this.scheduler.stop();
     this.dragService.destroy();
+    this.spatialCulling.destroy();
   }
 
   /**

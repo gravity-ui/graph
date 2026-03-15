@@ -14,6 +14,11 @@ export class Component<
   protected firstRender = true;
   protected firstUpdateChildren = true;
 
+  /** Returns true if this component has not been iterated yet (no hitBox in HitTest). */
+  public isFirstIterate(): boolean {
+    return this.firstIterate;
+  }
+
   protected shouldRender = true;
   protected shouldUpdateChildren = true;
   protected shouldRenderChildren = true;
