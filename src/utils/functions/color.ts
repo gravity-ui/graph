@@ -4,64 +4,85 @@ const parseColorCache = new Map<string, { r: number; g: number; b: number; a: nu
 // Cache for colors with applied alpha
 const applyAlphaCache = new Map<string, string>();
 
-// Offscreen canvas for color parsing (created once and reused)
-let offscreenCanvas: OffscreenCanvas | null = null;
-let offscreenCtx: OffscreenCanvasRenderingContext2D | null = null;
+// Shared canvas context used only for fillStyle normalization — no drawing, no getImageData.
+let colorNormCtx: CanvasRenderingContext2D | null = null;
 
-function getColorParsingContext(): OffscreenCanvasRenderingContext2D | null {
+function getColorNormContext(): CanvasRenderingContext2D | null {
   if (typeof document === "undefined") {
     return null;
   }
 
-  if (!offscreenCtx) {
-    offscreenCanvas = new OffscreenCanvas(1, 1);
-    // Optimize context for frequent color reading
-    offscreenCtx = offscreenCanvas.getContext("2d", {
-      willReadFrequently: true,
-    });
+  if (!colorNormCtx) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    colorNormCtx = canvas.getContext("2d");
   }
 
-  return offscreenCtx;
+  return colorNormCtx;
 }
 
 /**
  * Parses a color string and returns RGBA components.
- * Uses cached sprite for frequently used colors to avoid repeated canvas operations.
+ *
+ * Normalization works by assigning the color to a canvas `fillStyle` and
+ * reading the value back — the browser converts any CSS color format
+ * (named colors, hsl/hsla, hex, rgb/rgba) into either `#rrggbb` or
+ * `rgba(r, g, b, a)`. No pixels are drawn or read via getImageData,
+ * so there are no clearRect / compositing issues that affect Safari
+ * with OffscreenCanvas.
  *
  * @param color - Color in any valid CSS format
  * @returns RGBA components or null if parsing fails
  */
 function parseColor(color: string): { r: number; g: number; b: number; a: number } | null {
-  // Check cache first
   const cached = parseColorCache.get(color);
   if (cached) {
     return cached;
   }
 
-  const ctx = getColorParsingContext();
+  const ctx = getColorNormContext();
   if (!ctx) {
     return null;
   }
 
-  // Clear the canvas to prevent color compositing with previous pixel
-  ctx.clearRect(0, 0, 1, 1);
-
-  // Set the color and draw a pixel
+  // Assign the color — the browser normalises it immediately.
+  // Reading fillStyle back gives '#rrggbb' or 'rgba(r, g, b, a)'.
+  // No pixel is drawn; no getImageData is needed.
   ctx.fillStyle = color;
-  ctx.fillRect(0, 0, 1, 1);
+  const normalized = ctx.fillStyle as string;
 
-  // Get the parsed color data
-  const imageData = ctx.getImageData(0, 0, 1, 1).data;
-  const result = {
-    r: imageData[0],
-    g: imageData[1],
-    b: imageData[2],
-    a: imageData[3] / 255,
-  };
+  let result: { r: number; g: number; b: number; a: number } | null = null;
 
-  // Add to cache
+  // '#rrggbb' (opaque shorthand browsers emit for solid colors)
+  const hex = normalized.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (hex) {
+    result = {
+      r: parseInt(hex[1], 16),
+      g: parseInt(hex[2], 16),
+      b: parseInt(hex[3], 16),
+      a: 1,
+    };
+  }
+
+  if (!result) {
+    // 'rgba(r, g, b, a)' or 'rgb(r, g, b)'
+    const rgba = normalized.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)/);
+    if (rgba) {
+      result = {
+        r: parseInt(rgba[1], 10),
+        g: parseInt(rgba[2], 10),
+        b: parseInt(rgba[3], 10),
+        a: rgba[4] !== undefined ? parseFloat(rgba[4]) : 1,
+      };
+    }
+  }
+
+  if (!result) {
+    return null;
+  }
+
   parseColorCache.set(color, result);
-
   return result;
 }
 
@@ -69,8 +90,6 @@ function parseColor(color: string): { r: number; g: number; b: number; a: number
  * Applies alpha (opacity) to a color string.
  * This is useful as an alternative to using ctx.globalAlpha, which affects all drawing operations.
  * Instead, you can apply opacity directly to specific colors.
- *
- * Uses optimized offscreen canvas with caching for performance.
  *
  * @param color - Color in any valid CSS format (hex, rgb, rgba, hsl, hsla, named colors)
  * @param alpha - Alpha value between 0 (fully transparent) and 1 (fully opaque)
@@ -83,10 +102,8 @@ function parseColor(color: string): { r: number; g: number; b: number; a: number
  * applyAlpha('red', 0.5) // returns 'rgba(255, 0, 0, 0.5)'
  */
 export function applyAlpha(color: string, alpha: number): string {
-  // Clamp alpha to valid range [0, 1]
   const clampedAlpha = Math.max(0, Math.min(1, alpha));
 
-  // Try to use cached result
   const cacheKey = `${color}|${clampedAlpha}`;
   const cachedResult = applyAlphaCache.get(cacheKey);
   if (cachedResult) {
@@ -104,9 +121,7 @@ export function applyAlpha(color: string, alpha: number): string {
 
   const result = `rgba(${parsed.r}, ${parsed.g}, ${parsed.b}, ${finalAlpha})`;
 
-  // Cache the final result
   applyAlphaCache.set(cacheKey, result);
-
   return result;
 }
 
@@ -117,4 +132,5 @@ export function applyAlpha(color: string, alpha: number): string {
 export function clearColorCache(): void {
   parseColorCache.clear();
   applyAlphaCache.clear();
+  colorNormCtx = null;
 }
