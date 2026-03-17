@@ -4,7 +4,7 @@ import { HitBoxData } from "../../../services/HitTest";
 import { curvePolyline } from "../../../utils/shapes/curvePolyline";
 import { trangleArrowForVector } from "../../../utils/shapes/triangle";
 
-import { Path2DRenderStyleResult } from "./BatchPath2D";
+import { Path2DRenderStyleResult, TBBox } from "./BatchPath2D";
 import { BlockConnection } from "./BlockConnection";
 import { isPointInStroke } from "./bezierHelpers";
 import type { TMultipointConnection } from "./types";
@@ -67,7 +67,7 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
       y.push(point.y);
     });
 
-    return [Math.min(...x), Math.min(...y), Math.max(...x), Math.max(...y)] as const;
+    return [Math.min(...x), Math.min(...y), Math.max(...x), Math.max(...y)] as TBBox;
   }
 
   public onHitBox(shape: HitBoxData): boolean {

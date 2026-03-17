@@ -6,7 +6,7 @@ import { ConnectionState } from "../../../store/connection/ConnectionState";
 import { debounce } from "../../../utils/utils/schedule";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
-import { BatchPath2DRenderer } from "./BatchPath2D";
+import { BatchPath2DRenderer, TBBox } from "./BatchPath2D";
 import { BlockConnection, TConnectionProps } from "./BlockConnection";
 
 export type TGraphConnectionsContext = TGraphLayerContext & {
@@ -41,7 +41,8 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
     super(props, parent);
     this.batch = new BatchPath2DRenderer(
       () => this.performRender(),
-      this.context.constants.connection.PATH2D_CHUNK_SIZE || 100
+      10
+      // this.context.constants.connection.PATH2D_CHUNK_SIZE || 100
     );
     this.unsubscribe = this.subscribe();
     this.setContext({
@@ -87,9 +88,19 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
   }
 
   protected render(): void {
+    const camera = this.context.camera;
+    const isVisible = (bbox: TBBox) => {
+      return camera.isRectVisible(bbox[0], bbox[1], bbox[2] - bbox[0], bbox[3] - bbox[1]);
+    };
     const paths = this.batch.orderedPaths.get();
+    console.group("bath grops render");
+    console.info(
+      "count",
+      paths.reduce((acc, item) => acc + item.size, 0)
+    );
     for (const path of paths) {
-      path.render(this.context.ctx);
+      path.render(this.context.ctx, isVisible);
     }
+    console.groupEnd();
   }
 }

@@ -9,9 +9,15 @@ import { cachedMeasureText } from "../../../utils/renderers/text";
 
 import { ConnectionArrow } from "./Arrow";
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "./BaseConnection";
-import { Path2DRenderInstance, Path2DRenderStyleResult } from "./BatchPath2D";
+import { Path2DRenderInstance, Path2DRenderStyleResult, TBBox } from "./BatchPath2D";
 import { BlockConnections, TGraphConnectionsContext } from "./BlockConnections";
-import { bezierCurveLine, getArrowCoords, isPointInStroke } from "./bezierHelpers";
+import {
+  bezierCurveLineDashed,
+  bezierCurveLineSegmented,
+  buildDashedPath,
+  getArrowCoords,
+  isPointInStroke,
+} from "./bezierHelpers";
 import { getLabelCoords } from "./labelHelper";
 
 export type TConnectionProps = TBaseConnectionProps & {
@@ -34,6 +40,9 @@ export class BlockConnection<T extends TConnection>
   public readonly cursor = "pointer";
 
   protected path2d: Path2D;
+
+  /** Accurate bbox for bezier connections, computed from sampled curve points. */
+  private bezierBBox: TBBox | undefined = undefined;
 
   protected labelGeometry: { x: number; y: number; width: number; height: number } | undefined = undefined;
 
@@ -90,6 +99,10 @@ export class BlockConnection<T extends TConnection>
     return this.generatePath();
   }
 
+  public override getBBox(): TBBox | undefined {
+    return this.bezierBBox ?? this.bBox;
+  }
+
   /**
    * Creates the Path2D object for the arrow in the middle of the connection.
    * This is used by the ConnectionArrow component to render the arrow.
@@ -129,25 +142,32 @@ export class BlockConnection<T extends TConnection>
 
   protected createPath(): Path2D {
     if (!this.geometry) {
+      this.bezierBBox = undefined;
       return new Path2D();
     }
+
+    const start = { x: this.geometry.x1, y: this.geometry.y1 };
+    const end = { x: this.geometry.x2, y: this.geometry.y2 };
+    const dashes = [6, 4]; // this.state.dashed ? (this.state.styles?.dashes ?? [6, 4]) : undefined;
+
     if (this.props.useBezier) {
-      return bezierCurveLine(
-        {
-          x: this.geometry.x1,
-          y: this.geometry.y1,
-        },
-        {
-          x: this.geometry.x2,
-          y: this.geometry.y2,
-        },
-        this.props.bezierDirection
-      );
+      if (dashes) {
+        const { path, bbox } = bezierCurveLineDashed(start, end, this.props.bezierDirection, dashes);
+        this.bezierBBox = bbox;
+        return path;
+      }
+      const { path, bbox } = bezierCurveLineSegmented(start, end, this.props.bezierDirection);
+      this.bezierBBox = bbox;
+      return path;
+    }
+
+    this.bezierBBox = undefined;
+    if (dashes) {
+      return buildDashedPath([start, end], [10, 15]);
     }
     const path2d = new Path2D();
-    path2d.moveTo(this.geometry.x1, this.geometry.y1);
-    path2d.lineTo(this.geometry.x2, this.geometry.y2);
-
+    path2d.moveTo(start.x, start.y);
+    path2d.lineTo(end.x, end.y);
     return path2d;
   }
 
@@ -164,7 +184,7 @@ export class BlockConnection<T extends TConnection>
     return { type: "stroke" };
   }
 
-  protected setRenderStyles(ctx: CanvasRenderingContext2D, state = this.state, withDashed = true) {
+  protected setRenderStyles(ctx: CanvasRenderingContext2D, state = this.state) {
     ctx.lineWidth = state.hovered || state.selected ? 4 : 2;
 
     const strokeColor = this.getStrokeColor(state);
@@ -173,9 +193,8 @@ export class BlockConnection<T extends TConnection>
       ctx.strokeStyle = strokeColor;
     }
 
-    if (withDashed && state.dashed) {
-      ctx.setLineDash(state.styles?.dashes || [6, 4]);
-    }
+    // Dash pattern is embedded in Path2D geometry via buildDashedPath / bezierCurveLineDashed.
+    // ctx.setLineDash must not be used — it would apply to the entire merged batch path.
   }
 
   public afterRender?(ctx: CanvasRenderingContext2D): void {
