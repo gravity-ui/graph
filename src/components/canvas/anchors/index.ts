@@ -39,6 +39,10 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     return this.props.id;
   }
 
+  public getEntityType(): string {
+    return "anchor";
+  }
+
   public get zIndex() {
     // @ts-ignore this.__comp.parent instanceOf Block
     return this.__comp.parent.zIndex + 1;

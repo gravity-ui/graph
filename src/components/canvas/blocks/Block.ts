@@ -136,6 +136,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.props.id;
   }
 
+  public getEntityType(): string {
+    return "block";
+  }
+
   public isRendered() {
     return this.shouldRender;
   }
@@ -290,6 +294,17 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   public getAnchorPort(anchorId: string): PortState {
     return this.getPort(createAnchorPortId(this.state.id, anchorId));
+  }
+
+  public override getPorts(): PortState[] {
+    const ports = [
+      this.getInputPort(),
+      this.getOutputPort(),
+      ...this.connectedState.$anchors.value.map((anchor) => this.getAnchorPort(anchor.id)),
+      ...super.getPorts(),
+    ];
+
+    return Array.from(new Set(ports));
   }
 
   /**

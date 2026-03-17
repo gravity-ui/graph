@@ -22,6 +22,8 @@ import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
 import { TGraphSettingsConfig } from "./store/settings";
 import { clearColorCache, getXY } from "./utils/functions";
+import { getRelatedEntitiesByPorts } from "./utils/graph/getRelatedEntitiesByPorts";
+import type { TRelatedEntitiesByType, TRelatedEntitiesOptions } from "./utils/graph/getRelatedEntitiesByPorts";
 import { clearTextCache } from "./utils/renderers/text";
 import { RecursivePartial } from "./utils/types/helpers";
 import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
@@ -271,6 +273,13 @@ export class Graph {
       ) as InstanceType<T>[];
     }
     return items as InstanceType<T>[];
+  }
+
+  public getRelatedEntitiesByPorts(
+    component: GraphComponent,
+    options?: TRelatedEntitiesOptions
+  ): TRelatedEntitiesByType {
+    return getRelatedEntitiesByPorts(this, component, options);
   }
 
   public getPointInCameraSpace(event: MouseEvent) {

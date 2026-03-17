@@ -10,6 +10,10 @@ class TestGraphComponent extends GraphComponent {
     return "test-id";
   }
 
+  public getEntityType(): string {
+    return "test";
+  }
+
   public subscribeGraphEvent<EventName extends keyof GraphEventsDefinitions>(
     eventName: EventName,
     handler: GraphEventsDefinitions[EventName],

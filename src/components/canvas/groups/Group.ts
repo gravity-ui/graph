@@ -170,6 +170,10 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     return this.props.id;
   }
 
+  public getEntityType(): string {
+    return "group";
+  }
+
   /**
    * Check if group can be dragged based on props.draggable and canDrag setting
    */

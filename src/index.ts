@@ -25,6 +25,8 @@ export { type TPoint, type TRect } from "./utils/types/shapes";
 export { ESelectionStrategy } from "./services/selection/types";
 export * from "./utils/shapes";
 export { applyAlpha, clearColorCache } from "./utils/functions/color";
+export { getRelatedEntitiesByPorts } from "./utils/graph/getRelatedEntitiesByPorts";
+export type { TRelatedEntitiesByType, TRelatedEntitiesOptions } from "./utils/graph/getRelatedEntitiesByPorts";
 
 export * from "./components/canvas/groups";
 

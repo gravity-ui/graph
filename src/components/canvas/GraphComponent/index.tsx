@@ -38,6 +38,10 @@ export class GraphComponent<
     throw new Error("GraphComponent.getEntityId() is not implemented");
   }
 
+  public getEntityType(): string {
+    throw new Error("GraphComponent.getEntityType() is not implemented");
+  }
+
   /**
    * Returns whether this component can be dragged.
    * Override in subclasses to enable drag behavior.

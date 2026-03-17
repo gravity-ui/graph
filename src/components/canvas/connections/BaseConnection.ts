@@ -1,6 +1,7 @@
 import { Component, ESchedulerPriority } from "../../../lib";
 import { TComponentState } from "../../../lib/Component";
 import { ConnectionState, TConnection, TConnectionId } from "../../../store/connection/ConnectionState";
+import { PortState } from "../../../store/connection/port/Port";
 import { selectConnectionById } from "../../../store/connection/selectors";
 import { debounce } from "../../../utils/functions";
 import { TPoint } from "../../../utils/types/shapes";
@@ -143,6 +144,14 @@ export class BaseConnection<
 
   public getEntityId() {
     return this.props.id;
+  }
+
+  public getEntityType(): string {
+    return "connection";
+  }
+
+  public override getPorts(): PortState[] {
+    return [this.connectedState.$sourcePortState.value, this.connectedState.$targetPortState.value];
   }
 
   protected willMount(): void {
