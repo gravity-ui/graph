@@ -17,6 +17,7 @@ import { Layer, LayerPublicProps } from "./services/Layer";
 import { Layers } from "./services/LayersService";
 import { CameraService } from "./services/camera/CameraService";
 import { DragService } from "./services/drag";
+import { THighlightSelection } from "./services/highlight";
 import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
@@ -120,6 +121,10 @@ export class Graph {
 
   public get selectionService() {
     return this.rootStore.selectionService;
+  }
+
+  public get highlightService() {
+    return this.rootStore.highlightService;
   }
 
   constructor(
@@ -280,6 +285,18 @@ export class Graph {
     options?: TRelatedEntitiesOptions
   ): TRelatedEntitiesByType {
     return getRelatedEntitiesByPorts(this, component, options);
+  }
+
+  public highlight(selection: THighlightSelection): void {
+    this.rootStore.highlightService.highlight(selection);
+  }
+
+  public focus(selection: THighlightSelection): void {
+    this.rootStore.highlightService.focus(selection);
+  }
+
+  public clearHighlight(): void {
+    this.rootStore.highlightService.clearHighlight();
   }
 
   public getPointInCameraSpace(event: MouseEvent) {

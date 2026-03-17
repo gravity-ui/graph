@@ -44,58 +44,53 @@ function resolveObserverComponent(observer: unknown): GraphComponent | undefined
   return undefined;
 }
 
-function collectImmediateRelatedEntities(start: GraphComponent, sourceKey: string): GraphComponent[] {
-  const queue: GraphComponent[] = [start];
-  const visited = new Set<string>([getEntityKey(start)]);
-  const related: GraphComponent[] = [];
+function collectPortLinkedComponents(component: GraphComponent): GraphComponent[] {
+  const linkedComponents: GraphComponent[] = [];
+  const visited = new Set<string>();
 
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current) {
-      continue;
+  for (const port of component.getPorts()) {
+    if (port.owner instanceof GraphComponent) {
+      const ownerKey = getEntityKey(port.owner);
+      if (!visited.has(ownerKey)) {
+        visited.add(ownerKey);
+        linkedComponents.push(port.owner);
+      }
     }
 
-    const ports = current.getPorts();
-    for (const port of ports) {
-      if (port.owner instanceof GraphComponent) {
-        const ownerKey = getEntityKey(port.owner);
-        if (!visited.has(ownerKey)) {
-          visited.add(ownerKey);
-
-          if (port.owner.getEntityType() === "connection") {
-            queue.push(port.owner);
-          } else if (ownerKey !== sourceKey) {
-            related.push(port.owner);
-          }
-        }
+    for (const observer of port.observers) {
+      const observerComponent = resolveObserverComponent(observer);
+      if (!observerComponent) {
+        continue;
       }
 
-      for (const observer of port.observers) {
-        const observerComponent = resolveObserverComponent(observer);
-        if (!observerComponent) {
-          continue;
-        }
-
-        const observerKey = getEntityKey(observerComponent);
-        if (visited.has(observerKey)) {
-          continue;
-        }
-
+      const observerKey = getEntityKey(observerComponent);
+      if (!visited.has(observerKey)) {
         visited.add(observerKey);
-
-        if (observerComponent.getEntityType() === "connection") {
-          queue.push(observerComponent);
-          continue;
-        }
-
-        if (observerKey !== sourceKey) {
-          related.push(observerComponent);
-        }
+        linkedComponents.push(observerComponent);
       }
     }
   }
 
-  return related;
+  return linkedComponents;
+}
+
+function getConnectionsByEntity(component: GraphComponent): GraphComponent[] {
+  const linkedComponents = collectPortLinkedComponents(component);
+  const connections = linkedComponents.filter((linked) => linked.getEntityType() === "connection");
+
+  if (component.getEntityType() === "connection") {
+    const componentKey = getEntityKey(component);
+    const alreadyIncluded = connections.some((item) => getEntityKey(item) === componentKey);
+    if (!alreadyIncluded) {
+      connections.push(component);
+    }
+  }
+
+  return connections;
+}
+
+function getEntitiesByConnection(connection: GraphComponent): GraphComponent[] {
+  return collectPortLinkedComponents(connection).filter((linked) => linked.getEntityType() !== "connection");
 }
 
 function addToResult(map: TRelatedEntitiesMap, component: GraphComponent): void {
@@ -140,15 +135,26 @@ export function getRelatedEntitiesByPorts(
     const nextFrontier: GraphComponent[] = [];
 
     for (const current of frontier) {
-      const directRelated = collectImmediateRelatedEntities(current, sourceKey);
+      const connections = getConnectionsByEntity(current);
 
-      for (const relatedComponent of directRelated) {
-        addToResult(resultMap, relatedComponent);
+      for (const connection of connections) {
+        const connectionKey = getEntityKey(connection);
+        if (connectionKey !== sourceKey) {
+          addToResult(resultMap, connection);
+        }
 
-        const relatedKey = getEntityKey(relatedComponent);
-        if (!expanded.has(relatedKey)) {
-          expanded.add(relatedKey);
-          nextFrontier.push(relatedComponent);
+        const boundEntities = getEntitiesByConnection(connection);
+        for (const entity of boundEntities) {
+          const entityKey = getEntityKey(entity);
+
+          if (entityKey !== sourceKey) {
+            addToResult(resultMap, entity);
+          }
+
+          if (!expanded.has(entityKey)) {
+            expanded.add(entityKey);
+            nextFrontier.push(entity);
+          }
         }
       }
     }

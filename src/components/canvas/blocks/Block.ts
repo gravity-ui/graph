@@ -5,6 +5,7 @@ import isObject from "lodash/isObject";
 import { Component } from "../../../lib/Component";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { DragContext, DragDiff } from "../../../services/drag";
+import { HighlightVisualMode } from "../../../services/highlight";
 import { ESelectionStrategy } from "../../../services/selection";
 import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
@@ -483,13 +484,15 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       this.context.constants.block.BORDER_WIDTH,
       10
     );
-    this.context.ctx.lineWidth = lineWidth;
-    this.context.ctx.strokeStyle = color;
+    const highlightLineWidth =
+      this.getHighlightVisualMode() === HighlightVisualMode.Highlight ? lineWidth + 2 : lineWidth;
+    this.context.ctx.lineWidth = highlightLineWidth;
+    this.context.ctx.strokeStyle = this.getHighlightBorderColor(color);
     this.context.ctx.strokeRect(
-      this.state.x + lineWidth / 2,
-      this.state.y + lineWidth / 2,
-      this.state.width - lineWidth,
-      this.state.height - lineWidth
+      this.state.x + highlightLineWidth / 2,
+      this.state.y + highlightLineWidth / 2,
+      this.state.width - highlightLineWidth,
+      this.state.height - highlightLineWidth
     );
   }
 
@@ -519,8 +522,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected renderBody(ctx: CanvasRenderingContext2D) {
-    ctx.fillStyle = this.context.colors.block.background;
-    ctx.strokeStyle = this.context.colors.block.border;
+    ctx.fillStyle = this.getHighlightAwareColor(this.context.colors.block.background);
+    ctx.strokeStyle = this.getHighlightAwareColor(this.context.colors.block.border);
 
     ctx.fillRect(this.state.x, this.state.y, this.state.width, this.state.height);
     this.renderStroke(
@@ -532,7 +535,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.renderBody(ctx);
 
     if (this.shouldRenderText) {
-      ctx.fillStyle = this.context.colors.block.text;
+      ctx.fillStyle = this.getHighlightAwareColor(this.context.colors.block.text);
       ctx.textAlign = "center";
       this.renderText(this.state.name, ctx);
     }

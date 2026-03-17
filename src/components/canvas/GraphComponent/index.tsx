@@ -6,6 +6,7 @@ import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
 import { DragContext, DragDiff } from "../../../services/drag";
+import { HighlightVisualMode } from "../../../services/highlight";
 import { PortState, TPort, TPortId } from "../../../store/connection/port/Port";
 import { applyAlpha, getXY } from "../../../utils/functions";
 import { EventedComponent } from "../EventedComponent/EventedComponent";
@@ -28,7 +29,12 @@ export class GraphComponent<
   State extends TComponentState = TComponentState,
   Context extends GraphComponentContext = GraphComponentContext,
 > extends EventedComponent<Props, State, Context> {
+  public static LOWLIGHT_ALPHA = 0.35;
+  public static HIGHLIGHT_BORDER_COLOR = "rgba(140, 82, 255, 1)";
+
   public hitBox: HitBox;
+
+  private highlightMode: HighlightVisualMode | undefined;
 
   private unsubscribe: (() => void)[] = [];
 
@@ -40,6 +46,49 @@ export class GraphComponent<
 
   public getEntityType(): string {
     throw new Error("GraphComponent.getEntityType() is not implemented");
+  }
+
+  public getHighlightVisualMode(): HighlightVisualMode | undefined {
+    return this.highlightMode;
+  }
+
+  public setHighlight(mode: HighlightVisualMode | undefined, value = true): boolean {
+    const nextMode = value ? mode : undefined;
+    // Set via setState
+    if (this.highlightMode === nextMode) {
+      return false;
+    }
+
+    this.highlightMode = nextMode;
+    if (this.isMounted()) {
+      this.performRender();
+    }
+    return true;
+  }
+
+  protected getHighlightAlpha(): number {
+    return this.getHighlightVisualMode() === HighlightVisualMode.Lowlight ? GraphComponent.LOWLIGHT_ALPHA : 1;
+  }
+
+  protected getHighlightAwareColor(color: string | undefined): string | undefined {
+    if (!color) {
+      return color;
+    }
+
+    const alpha = this.getHighlightAlpha();
+    if (alpha >= 1) {
+      return color;
+    }
+
+    return this.adoptColor(color, { alpha });
+  }
+
+  protected getHighlightBorderColor(color: string | undefined): string | undefined {
+    if (this.getHighlightVisualMode() === HighlightVisualMode.Highlight) {
+      return GraphComponent.HIGHLIGHT_BORDER_COLOR;
+    }
+
+    return this.getHighlightAwareColor(color);
   }
 
   /**
@@ -98,6 +147,7 @@ export class GraphComponent<
     const affectsUsableRect = props.affectsUsableRect ?? this.context.affectsUsableRect ?? true;
     this.setProps({ affectsUsableRect });
     this.setContext({ affectsUsableRect });
+    this.context.graph.rootStore.highlightService.registerComponent(this);
   }
 
   /* Adopt color to the component alpha */
@@ -325,6 +375,7 @@ export class GraphComponent<
   }
 
   protected unmount() {
+    this.context.graph.rootStore.highlightService.unregisterComponent(this);
     super.unmount();
     this.unsubscribe.forEach((cb) => cb());
     this.ports.forEach((port) => {

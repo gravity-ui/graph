@@ -46,6 +46,12 @@ function createTestComponent(root?: HTMLDivElement): TestSetup {
   const hitTestRemove = jest.fn();
   const fakeGraph = {
     on: graphOn,
+    rootStore: {
+      highlightService: {
+        registerComponent: jest.fn(),
+        unregisterComponent: jest.fn(),
+      },
+    },
     hitTest: {
       remove: hitTestRemove,
       update: jest.fn(),

@@ -91,6 +91,44 @@ async function getRelatedBlocksByDepth(
   );
 }
 
+async function getRelatedByDepth(
+  graphPO: GraphPageObject,
+  sourceBlockId: string,
+  depth: number,
+): Promise<Record<string, Array<string | number>>> {
+  return graphPO.page.evaluate(
+    ({ sourceId, depthLevel }) => {
+      const { GraphComponent } = window.GraphModule;
+      const graphComponents = window.graph.getElementsOverRect(
+        {
+          x: -100000,
+          y: -100000,
+          width: 200000,
+          height: 200000,
+        },
+        [GraphComponent],
+      ) as Array<{
+        getEntityType(): string;
+        getEntityId(): string | number;
+      }>;
+
+      const source = graphComponents.find((component) => {
+        return component.getEntityType() === "block" && component.getEntityId() === sourceId;
+      });
+
+      if (!source) {
+        throw new Error(`Source block component not found: ${sourceId}`);
+      }
+
+      return window.graph.getRelatedEntitiesByPorts(source, { depth: depthLevel }) as Record<
+        string,
+        Array<string | number>
+      >;
+    },
+    { sourceId: sourceBlockId, depthLevel: depth },
+  );
+}
+
 test.describe("Related entities by ports", () => {
   let graphPO: GraphPageObject;
 
@@ -116,37 +154,14 @@ test.describe("Related entities by ports", () => {
     expect(related).toEqual(["block-b", "block-c"]);
   });
 
-  test("connection type is transit-only and not included in result", async () => {
-    const related = await graphPO.page.evaluate(() => {
-      const { GraphComponent } = window.GraphModule;
-      const graphComponents = window.graph.getElementsOverRect(
-        {
-          x: -100000,
-          y: -100000,
-          width: 200000,
-          height: 200000,
-        },
-        [GraphComponent],
-      ) as Array<{
-        getEntityType(): string;
-        getEntityId(): string | number;
-      }>;
+  test("connections are included but do not increment depth", async () => {
+    const depth1 = await getRelatedByDepth(graphPO, "block-a", 1);
+    const depth2 = await getRelatedByDepth(graphPO, "block-a", 2);
 
-      const source = graphComponents.find((component) => {
-        return component.getEntityType() === "block" && component.getEntityId() === "block-a";
-      });
+    expect(depth1.block?.slice().sort()).toEqual(["block-b"]);
+    expect(depth1.connection?.slice().sort()).toEqual(["connection-a-b"]);
 
-      if (!source) {
-        throw new Error("Source block component not found: block-a");
-      }
-
-      return window.graph.getRelatedEntitiesByPorts(source, { depth: 2 }) as Record<
-        string,
-        Array<string | number>
-      >;
-    });
-
-    expect(related.connection).toBeUndefined();
-    expect(related.block?.slice().sort()).toEqual(["block-b", "block-c"]);
+    expect(depth2.block?.slice().sort()).toEqual(["block-b", "block-c"]);
+    expect(depth2.connection?.slice().sort()).toEqual(["connection-a-b", "connection-b-c"]);
   });
 });

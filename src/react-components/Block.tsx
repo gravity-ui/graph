@@ -3,6 +3,7 @@ import React, { ForwardedRef, forwardRef, useEffect, useImperativeHandle, useMem
 import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
 import { ESchedulerPriority } from "../lib/Scheduler";
+import { HighlightVisualMode, THighlightServiceMode } from "../services/highlight";
 
 import { useComputedSignal, useSchedulerDebounce, useSignalEffect } from "./hooks";
 import { useBlockState } from "./hooks/useBlockState";
@@ -101,6 +102,10 @@ function GraphBlockInner<T extends TBlock>(
 
   const viewState = useComputedSignal(() => state?.$viewComponent.value, [state]);
   const [interactive, setInteractive] = useState(viewState?.isInteractive() ?? false);
+  const [highlightMode, setHighlightMode] = useState<HighlightVisualMode | undefined>(
+    viewState?.getHighlightVisualMode()
+  );
+  const [serviceTargetMode, setServiceTargetMode] = useState<THighlightServiceMode | undefined>(undefined);
 
   /**
    * By reason of scheduler, canvas layer get the camera state before react will initialize the block
@@ -166,20 +171,52 @@ function GraphBlockInner<T extends TBlock>(
    * So to handle update this props we use onChange callback from view state.
    */
   useEffect(() => {
-    if (!viewState) return;
+    if (!viewState) {
+      return undefined;
+    }
     setInteractive(viewState.isInteractive());
     return viewState.onChange(() => {
       setInteractive(viewState.isInteractive());
     });
   }, [viewState]);
 
+  useEffect(() => {
+    // Read via component.onChange callback
+    if (!viewState) {
+      setHighlightMode(undefined);
+      setServiceTargetMode(undefined);
+      return undefined;
+    }
+
+    const updateHighlightMode = (): void => {
+      setHighlightMode(viewState.getHighlightVisualMode());
+
+      const state = graph.highlightService.$state.value;
+      const selectedBlocks = state.selection.block ?? [];
+      const isTargeted = selectedBlocks.includes(block.id);
+
+      setServiceTargetMode(isTargeted ? state.mode : undefined);
+    };
+
+    updateHighlightMode();
+
+    return graph.on("highlight-changed", () => {
+      updateHighlightMode();
+    });
+  }, [block.id, graph, viewState]);
+
   const containerClassNames = useMemo(() => {
     return cn("graph-block-container", containerClassName, !interactive ? "graph-block-container-non-interactive" : "");
   }, [containerClassName, interactive]);
 
   const wrapperClassNames = useMemo(() => {
-    return cn("graph-block-wrapper", className, state?.$selected.value ? "selected" : "");
-  }, [className, state?.$selected.value]);
+    return cn("graph-block-wrapper", className, state?.$selected.value ? "selected" : "", {
+      "graph-block-wrapper-highlighted": highlightMode === HighlightVisualMode.Highlight,
+      "graph-block-wrapper-lowlight": highlightMode === HighlightVisualMode.Lowlight,
+      "graph-block-wrapper-mode-highlight": serviceTargetMode === "highlight",
+      "graph-block-wrapper-mode-focus": serviceTargetMode === "focus",
+    });
+  }, [className, highlightMode, serviceTargetMode, state?.$selected.value]);
 
   if (!viewState || !state) {
     return null;

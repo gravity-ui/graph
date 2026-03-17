@@ -23,6 +23,7 @@ export * from "./utils/renderers/text";
 export { EVENTS } from "./utils/types/events";
 export { type TPoint, type TRect } from "./utils/types/shapes";
 export { ESelectionStrategy } from "./services/selection/types";
+export { HighlightVisualMode, type THighlightSelection, type THighlightServiceMode } from "./services/highlight";
 export * from "./utils/shapes";
 export { applyAlpha, clearColorCache } from "./utils/functions/color";
 export { getRelatedEntitiesByPorts } from "./utils/graph/getRelatedEntitiesByPorts";
