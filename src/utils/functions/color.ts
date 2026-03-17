@@ -49,6 +49,7 @@ function parseColor(color: string): { r: number; g: number; b: number; a: number
   // Assign the color — the browser normalises it immediately.
   // Reading fillStyle back gives '#rrggbb' or 'rgba(r, g, b, a)'.
   // No pixel is drawn; no getImageData is needed.
+  ctx.fillStyle = "#000000"; // fallback if user passes invalid color
   ctx.fillStyle = color;
   const normalized = ctx.fillStyle as string;
 
