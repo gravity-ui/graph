@@ -1,4 +1,4 @@
-import React, { ForwardedRef, forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import React, { ForwardedRef, forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
@@ -118,6 +118,32 @@ function GraphBlockInner<T extends TBlock>(
     }
     return () => viewState?.setHiddenBlock(false);
   }, [viewState, canvasVisible]);
+
+
+  /**
+   * Synchronously set initial block geometry before the browser paints
+   * to prevent blocks from flashing at position (0, 0) when mounting.
+   */
+  useLayoutEffect(() => {
+    const geometry = state?.$geometry.value;
+    const container = containerRef.current;
+    if (!container || !geometry || !viewState) {
+      return;
+    }
+    const lastState = lastStateRef.current;
+    container.style.setProperty("--graph-block-geometry-x", `${geometry.x}px`);
+    container.style.setProperty("--graph-block-geometry-y", `${geometry.y}px`);
+    container.style.setProperty("--graph-block-geometry-width", `${geometry.width}px`);
+    container.style.setProperty("--graph-block-geometry-height", `${geometry.height}px`);
+    lastState.x = geometry.x;
+    lastState.y = geometry.y;
+    lastState.width = geometry.width;
+    lastState.height = geometry.height;
+    const { zIndex, order } = viewState.$viewState.value;
+    const newZIndex = (zIndex || 0) + (order || 0);
+    container.style.zIndex = `${newZIndex}`;
+    lastState.zIndex = newZIndex;
+  }, [state, viewState]);
 
   /**
    * Update the block geometry and z-index when the state changes.
