@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/gravity-ui/graph/compare/v1.9.0...v1.9.1) (2026-03-18)
+
+
+### Bug Fixes
+
+* remove desynchronized layer canvas ([#271](https://github.com/gravity-ui/graph/issues/271)) ([ca955f1](https://github.com/gravity-ui/graph/commit/ca955f144745e8436f6b3712644036a950bec7b5))
+
 ## [1.9.0](https://github.com/gravity-ui/graph/compare/v1.8.6...v1.9.0) (2026-03-18)
 
 
