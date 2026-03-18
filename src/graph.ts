@@ -304,6 +304,11 @@ export class Graph {
     blocks?: TBlock[];
     connections?: TConnection[];
   }>) {
+    // Reset usableRect so that waitUsableRectUpdate (used by zoomToViewPort)
+    // treats hitTest as unstable and waits for new block components to register
+    // their hitboxes. Without this, a stale usableRect can make hitTest appear
+    // stable, causing the zoom callback to fire immediately with wrong data.
+    this.hitTest.resetUsableRect();
     batch(() => {
       this.rootStore.blocksList.setBlocks(blocks || []);
       this.rootStore.connectionsList.setConnections(connections || []);
