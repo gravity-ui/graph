@@ -474,7 +474,7 @@ export class Layer<
     this.setContext({
       graphCanvas: canvas,
       ctx: canvas.getContext("2d", {
-        desynchronized: params.desynchronized ?? true,
+        desynchronized: params.desynchronized ?? false,
         willReadFrequently: params.willReadFrequently ?? false,
         alpha: params.alpha ?? true,
       }),
