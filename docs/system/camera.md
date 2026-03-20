@@ -79,7 +79,24 @@ const graph = new Graph(canvas, {
   - Two-finger swipe to scroll in any direction
 - Settings can be updated at runtime using `graph.setConstants()`.
 
-**Example:**
+### Custom wheel device classification
+
+The camera distinguishes **trackpad-like** input (two-finger pan, pinch-zoom) from **mouse wheel** when routing `wheel` events. This is configured on **graph settings** (`resolveWheelDevice`). By default it uses `defaultResolveWheelDevice`, which wraps `isTrackpadWheelEvent`. Replace it with your own `(event: WheelEvent) => EWheelDeviceKind` if needed:
+
+```ts
+import { defaultResolveWheelDevice, EWheelDeviceKind } from "@gravity-ui/graph";
+
+graph.updateSettings({
+  resolveWheelDevice: (event) => {
+    // Example: always treat as mouse wheel
+    return EWheelDeviceKind.Mouse;
+    // Or extend the default:
+    // return defaultResolveWheelDevice(event);
+  },
+});
+```
+
+**Example (MOUSE_WHEEL_BEHAVIOR):**
 ```ts
 // Configure mouse wheel to scroll instead of zooming
 graph.setConstants({

@@ -4,6 +4,8 @@ export { GraphComponent } from "./components/canvas/GraphComponent";
 export * from "./components/canvas/connections";
 export * from "./graph";
 export type { TGraphColors, TGraphConstants, TMouseWheelBehavior } from "./graphConfig";
+export type { TResolveWheelDevice } from "./utils/functions/isTrackpadDetector";
+export { defaultResolveWheelDevice, EWheelDeviceKind } from "./utils/functions/isTrackpadDetector";
 export { type UnwrapGraphEventsDetail, type SelectionEvent } from "./graphEvents";
 export * from "./plugins";
 export { ECameraScaleLevel } from "./services/camera/CameraService";

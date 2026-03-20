@@ -3,9 +3,10 @@ import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/Gr
 import { Component, ESchedulerPriority } from "../../lib";
 import { TComponentProps, TComponentState } from "../../lib/Component";
 import { ComponentDescriptor } from "../../lib/CoreComponent";
-import { getXY, isMetaKeyEvent, isTrackpadWheelEvent } from "../../utils/functions";
+import { getXY, isMetaKeyEvent } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
 import { dragListener } from "../../utils/functions/dragListener";
+import { EWheelDeviceKind } from "../../utils/functions/isTrackpadDetector";
 import { EVENTS } from "../../utils/types/events";
 import { schedule } from "../../utils/utils/schedule";
 
@@ -248,7 +249,8 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     event.stopPropagation();
     event.preventDefault();
 
-    const isTrackpad = isTrackpadWheelEvent(event);
+    const wheelDevice = this.context.graph.rootStore.settings.wheelDeviceFromEvent(event);
+    const isTrackpad = wheelDevice === EWheelDeviceKind.Trackpad;
     const isTrackpadMove = isTrackpad && !isMetaKeyEvent(event);
 
     // Trackpad swipe gesture - always moves camera
