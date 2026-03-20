@@ -1,4 +1,5 @@
 import type { Graph } from "../../graph";
+import { initGraphConstants } from "../../graphConfig";
 
 import { getInitCameraState } from "./CameraService";
 import type { TCameraState } from "./CameraService";
@@ -55,7 +56,6 @@ describe("defaultGetCameraBlockScaleLevel", () => {
 
   describe("matches initGraphConstants.block.SCALES", () => {
     it("uses library default SCALES [0.125, 0.225, 0.7] semantics", async () => {
-      const { initGraphConstants } = await import("../../graphConfig");
       const graph = createGraphWithBlockScales(initGraphConstants.block.SCALES);
 
       expect(defaultGetCameraBlockScaleLevel(graph, cameraStateWithScale(0.1))).toBe(ECameraScaleLevel.Minimalistic);
