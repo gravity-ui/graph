@@ -8,7 +8,11 @@ export type { TResolveWheelDevice } from "./utils/functions/isTrackpadDetector";
 export { defaultResolveWheelDevice, EWheelDeviceKind } from "./utils/functions/isTrackpadDetector";
 export { type UnwrapGraphEventsDetail, type SelectionEvent } from "./graphEvents";
 export * from "./plugins";
-export { ECameraScaleLevel } from "./services/camera/CameraService";
+export {
+  defaultGetCameraBlockScaleLevel,
+  ECameraScaleLevel,
+  type TGetCameraBlockScaleLevel,
+} from "./services/camera/CameraService";
 export * from "./services/Layer";
 export * from "./store";
 export { EAnchorType } from "./store/anchor/Anchor";

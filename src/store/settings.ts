@@ -4,6 +4,8 @@ import cloneDeep from "lodash/cloneDeep";
 import type { Block, TBlock } from "../components/canvas/blocks/Block";
 import { BlockConnection } from "../components/canvas/connections/BlockConnection";
 import { Component } from "../lib";
+import { defaultGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
+import type { TGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
 import type { EWheelDeviceKind, TResolveWheelDevice } from "../utils/functions/isTrackpadDetector";
 import { defaultResolveWheelDevice } from "../utils/functions/isTrackpadDetector";
 
@@ -70,6 +72,11 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    * @default {@link defaultResolveWheelDevice} — built-in heuristics from `isTrackpadWheelEvent`.
    */
   resolveWheelDevice: TResolveWheelDevice;
+  /**
+   * Maps camera state to block zoom tier (minimalistic / schematic / detailed).
+   * Always set at runtime; `setupSettings` falls back to the exported `defaultGetCameraBlockScaleLevel` when omitted.
+   */
+  getCameraBlockScaleLevel: TGetCameraBlockScaleLevel;
 };
 
 export const DefaultSettings: TGraphSettingsConfig = {
@@ -88,6 +95,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   showConnectionLabels: false,
   blockComponents: {},
   resolveWheelDevice: defaultResolveWheelDevice,
+  getCameraBlockScaleLevel: defaultGetCameraBlockScaleLevel,
 };
 
 export class GraphEditorSettings {
@@ -108,7 +116,11 @@ export class GraphEditorSettings {
   constructor(public rootStore: RootStore) {}
 
   public setupSettings(config: Partial<TGraphSettingsConfig>) {
-    this.$settings.value = Object.assign({}, this.$settings.value, config);
+    const merged = Object.assign({}, this.$settings.value, config);
+    this.$settings.value = {
+      ...merged,
+      getCameraBlockScaleLevel: merged.getCameraBlockScaleLevel ?? defaultGetCameraBlockScaleLevel,
+    };
   }
 
   public setConfigFlag<K extends keyof TGraphSettingsConfig>(flagPath: K, value: TGraphSettingsConfig[K]) {

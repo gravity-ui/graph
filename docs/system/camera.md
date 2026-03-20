@@ -45,7 +45,7 @@ export type TCameraState = {
 - `zoom(x, y, scale)` – zoom anchored to a screen-space point `(x, y)`.
 - `getCameraRect()` – screen-space camera rect.
 - `getCameraScale()` – scale value.
-- `getCameraBlockScaleLevel(scale?)` – qualitative zoom tiers for switching rendering modes.
+- `getCameraBlockScaleLevel(scale?)` – qualitative zoom tiers for switching rendering modes. The mapping is configurable via settings `getCameraBlockScaleLevel(graph, cameraState)` (default: `defaultGetCameraBlockScaleLevel` using `graphConstants.block.SCALES`).
 
 ### Mouse wheel behavior
 
