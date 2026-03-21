@@ -229,21 +229,31 @@ export class BaseConnection<
       ];
     }
 
-    // Calculate bounding box from valid coordinates
-    const x = [this.connectionPoints[0].x, this.connectionPoints[1].x].filter(Number.isFinite);
-    const y = [this.connectionPoints[0].y, this.connectionPoints[1].y].filter(Number.isFinite);
+    // Calculate bounding box from connection points, additional points, and subclass points
+    const points = this.collectBBoxPoints();
 
     if (additionalPoints) {
-      additionalPoints.forEach((point) => {
-        x.push(point.x);
-        y.push(point.y);
-      });
+      points.push(...additionalPoints);
     }
+
+    const x = points.map((p) => p.x).filter(Number.isFinite);
+    const y = points.map((p) => p.y).filter(Number.isFinite);
 
     this.bBox = [Math.min(...x), Math.min(...y), Math.max(...x), Math.max(...y)];
 
     // Update interaction area
     this.updateHitBox();
+  }
+
+  /**
+   * Collects points that define the bounding box of the connection.
+   * Override in subclasses to include additional points (e.g., bezier control points, labels).
+   */
+  protected collectBBoxPoints(): TPoint[] {
+    if (!this.connectionPoints) {
+      return [];
+    }
+    return [this.connectionPoints[0], this.connectionPoints[1]];
   }
 
   /**
