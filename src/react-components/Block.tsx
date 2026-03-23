@@ -6,6 +6,7 @@ import { ESchedulerPriority } from "../lib/Scheduler";
 
 import { useComputedSignal, useSchedulerDebounce, useSignalEffect } from "./hooks";
 import { useBlockState } from "./hooks/useBlockState";
+import { applyBlockContainerLayout } from "./utils/applyBlockContainerLayout";
 import { cn } from "./utils/cn";
 
 import "./Block.css";
@@ -130,19 +131,7 @@ function GraphBlockInner<T extends TBlock>(
     if (!container || !geometry || !viewState) {
       return;
     }
-    const lastState = lastStateRef.current;
-    container.style.setProperty("--graph-block-geometry-x", `${geometry.x}px`);
-    container.style.setProperty("--graph-block-geometry-y", `${geometry.y}px`);
-    container.style.setProperty("--graph-block-geometry-width", `${geometry.width}px`);
-    container.style.setProperty("--graph-block-geometry-height", `${geometry.height}px`);
-    lastState.x = geometry.x;
-    lastState.y = geometry.y;
-    lastState.width = geometry.width;
-    lastState.height = geometry.height;
-    const { zIndex, order } = viewState.$viewState.value;
-    const newZIndex = (zIndex || 0) + (order || 0);
-    container.style.zIndex = `${newZIndex}`;
-    lastState.zIndex = newZIndex;
+    applyBlockContainerLayout(container, geometry, viewState, lastStateRef.current);
   }, [state, viewState]);
 
   /**
@@ -151,38 +140,22 @@ function GraphBlockInner<T extends TBlock>(
   useSignalEffect(() => {
     const geometry = state?.$geometry.value;
     const container = containerRef.current;
-    const lastState = lastStateRef.current;
     if (!container || !geometry || !viewState) {
       return;
     }
 
-    const hasPositionChange = lastStateRef.current.x !== geometry.x || lastStateRef.current.y !== geometry.y;
+    const { hasPositionChange } = applyBlockContainerLayout(
+      container,
+      geometry,
+      viewState,
+      lastStateRef.current,
+    );
 
     if (hasPositionChange) {
-      container.style.setProperty("--graph-block-geometry-x", `${geometry.x}px`);
-      container.style.setProperty("--graph-block-geometry-y", `${geometry.y}px`);
-      lastState.x = geometry.x;
-      lastState.y = geometry.y;
       if (!container.classList.contains("graph-block-container-moving")) {
         container.classList.add("graph-block-container-moving");
       }
       stopMoving(container);
-    }
-
-    const hasSizeChange = lastState.width !== geometry.width || lastState.height !== geometry.height;
-    if (hasSizeChange) {
-      container.style.setProperty("--graph-block-geometry-width", `${geometry.width}px`);
-      container.style.setProperty("--graph-block-geometry-height", `${geometry.height}px`);
-      lastState.width = geometry.width;
-      lastState.height = geometry.height;
-    }
-
-    const { zIndex, order } = viewState.$viewState.value;
-    const newZIndex = (zIndex || 0) + (order || 0);
-
-    if (lastState.zIndex !== newZIndex) {
-      container.style.zIndex = `${newZIndex}`;
-      lastState.zIndex = newZIndex;
     }
   }, [containerRef, lastStateRef, state, viewState]);
 
