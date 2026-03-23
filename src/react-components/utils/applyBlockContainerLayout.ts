@@ -12,7 +12,7 @@ export function applyBlockContainerLayout(
   container: HTMLDivElement,
   geometry: BlockLayoutGeometry,
   viewState: { $viewState: { value: { zIndex?: number; order?: number } } },
-  lastState: BlockLayoutLastState,
+  lastState: BlockLayoutLastState
 ): { hasPositionChange: boolean; hasSizeChange: boolean } {
   const hasPositionChange = lastState.x !== geometry.x || lastState.y !== geometry.y;
   const hasSizeChange = lastState.width !== geometry.width || lastState.height !== geometry.height;

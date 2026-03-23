@@ -1,4 +1,13 @@
-import React, { ForwardedRef, forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, {
+  ForwardedRef,
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
@@ -120,7 +129,6 @@ function GraphBlockInner<T extends TBlock>(
     return () => viewState?.setHiddenBlock(false);
   }, [viewState, canvasVisible]);
 
-
   /**
    * Synchronously set initial block geometry before the browser paints
    * to prevent blocks from flashing at position (0, 0) when mounting.
@@ -144,12 +152,7 @@ function GraphBlockInner<T extends TBlock>(
       return;
     }
 
-    const { hasPositionChange } = applyBlockContainerLayout(
-      container,
-      geometry,
-      viewState,
-      lastStateRef.current,
-    );
+    const { hasPositionChange } = applyBlockContainerLayout(container, geometry, viewState, lastStateRef.current);
 
     if (hasPositionChange) {
       if (!container.classList.contains("graph-block-container-moving")) {
