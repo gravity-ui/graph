@@ -4,6 +4,8 @@ import cloneDeep from "lodash/cloneDeep";
 import type { Block, TBlock } from "../components/canvas/blocks/Block";
 import { BlockConnection } from "../components/canvas/connections/BlockConnection";
 import { Component } from "../lib";
+import type { EWheelDeviceKind, TResolveWheelDevice } from "../utils/functions/isTrackpadDetector";
+import { defaultResolveWheelDevice } from "../utils/functions/isTrackpadDetector";
 
 import { TConnection } from "./connection/ConnectionState";
 
@@ -61,6 +63,13 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    * Default: false
    */
   emulateMouseEventsOnCameraChange?: boolean;
+  /**
+   * Classifies wheel input so the camera can treat trackpad (pan, pinch-zoom) vs mouse wheel
+   * (see graph constants `MOUSE_WHEEL_BEHAVIOR`) differently.
+   *
+   * @default {@link defaultResolveWheelDevice} — built-in heuristics from `isTrackpadWheelEvent`.
+   */
+  resolveWheelDevice: TResolveWheelDevice;
 };
 
 export const DefaultSettings: TGraphSettingsConfig = {
@@ -78,6 +87,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   connectivityComponentOnClickRaise: true,
   showConnectionLabels: false,
   blockComponents: {},
+  resolveWheelDevice: defaultResolveWheelDevice,
 };
 
 export class GraphEditorSettings {
@@ -109,6 +119,13 @@ export class GraphEditorSettings {
 
   public getConfigFlag(flagPath: keyof TGraphSettingsConfig) {
     return this.$settings.value[flagPath];
+  }
+
+  /**
+   * Resolves wheel input using {@link TGraphSettingsConfig.resolveWheelDevice} (typed; prefer over getConfigFlag).
+   */
+  public wheelDeviceFromEvent(event: WheelEvent): EWheelDeviceKind {
+    return this.$settings.value.resolveWheelDevice(event);
   }
 
   public $connectionsSettings = computed(() => {

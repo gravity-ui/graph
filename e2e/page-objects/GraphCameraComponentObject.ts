@@ -105,6 +105,21 @@ export class GraphCameraComponentObject {
   }
 
   /**
+   * Forces `resolveWheelDevice` on graph settings for e2e.
+   * Simulates a wheel device kind (`mouse` | `trackpad`) in the page; it does not assert
+   * real browser/vendor wheel payloads. Playwright cannot serialize functions from Node.
+   */
+  async setResolveWheelDeviceOverride(kind: "mouse" | "trackpad"): Promise<void> {
+    await this.page.evaluate((k) => {
+      const { EWheelDeviceKind } = window.GraphModule;
+      window.graph.updateSettings({
+        resolveWheelDevice: () =>
+          k === "mouse" ? EWheelDeviceKind.Mouse : EWheelDeviceKind.Trackpad,
+      });
+    }, kind);
+  }
+
+  /**
    * Emulate zoom with mouse wheel
    * @param deltaY - Positive = zoom out, Negative = zoom in
    * @param position - Optional position to zoom at (defaults to canvas center)
