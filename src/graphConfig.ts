@@ -2,9 +2,6 @@ import { GraphComponent } from "./components/canvas/GraphComponent";
 import { Block } from "./components/canvas/blocks/Block";
 import { ESelectionStrategy } from "./services/selection";
 
-export type { TResolveWheelDevice } from "./utils/functions/isTrackpadDetector";
-export { defaultResolveWheelDevice, EWheelDeviceKind } from "./utils/functions/isTrackpadDetector";
-
 export type TGraphColors = {
   canvas?: Partial<TCanvasColors>;
   block?: Partial<TBlockColors>;
