@@ -164,10 +164,7 @@ export class CameraService extends Emitter {
    * @param cameraScale Optional scale override; defaults to current camera scale
    */
   public getCameraBlockScaleLevel(cameraScale = this.getCameraScale()): ECameraScaleLevel {
-    return this.graph.rootStore.settings.$settings.value.getCameraBlockScaleLevel(this.graph, {
-      ...this.state,
-      scale: cameraScale,
-    });
+    return this.graph.rootStore.settings.$settings.value.getCameraBlockScaleLevel(this.graph, cameraScale);
   }
 
   public getCameraState(): TCameraState {

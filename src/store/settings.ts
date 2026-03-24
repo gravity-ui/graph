@@ -73,7 +73,7 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    */
   resolveWheelDevice: TResolveWheelDevice;
   /**
-   * Maps camera state to block zoom tier (minimalistic / schematic / detailed).
+   * Maps camera scale to block zoom tier (minimalistic / schematic / detailed).
    * Always set at runtime; `setupSettings` falls back to the exported `defaultGetCameraBlockScaleLevel` when omitted.
    */
   getCameraBlockScaleLevel: TGetCameraBlockScaleLevel;

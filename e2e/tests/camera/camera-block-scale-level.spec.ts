@@ -88,7 +88,7 @@ test.describe("getCameraBlockScaleLevel setting", () => {
             blocks,
             connections: [],
             settings: {
-              getCameraBlockScaleLevel: () => ECameraScaleLevel.Detailed,
+              getCameraBlockScaleLevel: (_graph, _scale) => ECameraScaleLevel.Detailed,
             },
           },
           rootEl,

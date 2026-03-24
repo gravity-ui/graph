@@ -45,7 +45,39 @@ export type TCameraState = {
 - `zoom(x, y, scale)` – zoom anchored to a screen-space point `(x, y)`.
 - `getCameraRect()` – screen-space camera rect.
 - `getCameraScale()` – scale value.
-- `getCameraBlockScaleLevel(scale?)` – qualitative zoom tiers for switching rendering modes. The mapping is configurable via settings `getCameraBlockScaleLevel(graph, cameraState)` (default: `defaultGetCameraBlockScaleLevel` using `graphConstants.block.SCALES`).
+- `getCameraBlockScaleLevel(scale?)` – qualitative zoom tiers for switching rendering modes. The mapping is configurable via settings `getCameraBlockScaleLevel(graph, scale)` (default: `defaultGetCameraBlockScaleLevel` using `graphConstants.block.SCALES`).
+
+### Custom block scale level resolver
+
+`getCameraBlockScaleLevel(graph, scale)` is useful when zoom tiers should depend on product logic, not only on zoom thresholds.
+
+Example: force `Detailed` mode for very small graphs (where schematic/minimalistic rendering has little value), and keep the default behavior otherwise.
+
+```ts
+import {
+  defaultGetCameraBlockScaleLevel,
+  ECameraScaleLevel,
+} from "@gravity-ui/graph";
+
+const blocks = tinyGraphData.blocks;
+const isTinyGraph = blocks.length <= 20;
+
+const graph = new Graph(
+  {
+    blocks,
+    connections: tinyGraphData.connections,
+    settings: {
+      getCameraBlockScaleLevel: (graph, scale) => {
+        if (isTinyGraph) {
+          return ECameraScaleLevel.Detailed;
+        }
+        return defaultGetCameraBlockScaleLevel(graph, scale);
+      },
+    },
+  },
+  rootEl,
+);
+```
 
 ### Mouse wheel behavior
 
