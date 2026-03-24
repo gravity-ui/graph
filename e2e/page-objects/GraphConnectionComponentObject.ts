@@ -1,5 +1,6 @@
 import { Page } from "@playwright/test";
 import type { GraphPageObject } from "./GraphPageObject";
+import type { WorldCoordinates } from "./GraphBlockComponentObject";
 
 export interface ConnectionState {
   id: string | number;
@@ -59,8 +60,80 @@ export class GraphConnectionComponentObject {
    */
   async isSelected(): Promise<boolean> {
     return await this.page.evaluate((id) => {
-      const conn = window.graph.connections.getConnection(id);
-      return conn?.selected || false;
+      const connState = window.graph.connections.getConnectionState(id);
+      if (!connState) return false;
+      return connState.$selected.value;
     }, this.connectionId);
+  }
+
+  /**
+   * Get the world coordinates of a point on the connection's bezier curve at a given time (0..1).
+   * Falls back to linear interpolation for non-bezier connections.
+   */
+  async getPointOnCurve(time: number = 0.5): Promise<WorldCoordinates> {
+    return await this.page.evaluate(
+      ({ connectionId, curveTime }) => {
+        const connState = window.graph.connections.getConnectionState(connectionId);
+        if (!connState) {
+          throw new Error(`Connection ${connectionId} not found`);
+        }
+        const view = connState.getViewComponent();
+        if (!view || !view.connectionPoints) {
+          throw new Error(`Connection ${connectionId} has no rendered view`);
+        }
+        const start = view.connectionPoints[0];
+        const end = view.connectionPoints[1];
+
+        const settings = window.graph.rootStore.settings;
+        const useBezier = settings.getConfigFlag("useBezierConnections");
+
+        if (useBezier) {
+          const direction = settings.getConfigFlag("bezierConnectionDirection") || "horizontal";
+          const { generateBezierParams } = window.GraphModule;
+          const [p0, p1, p2, p3] = generateBezierParams(start, end, direction);
+          const inverseTime = 1 - curveTime;
+          const startWeight = Math.pow(inverseTime, 3);
+          const startControlWeight = 3 * Math.pow(inverseTime, 2) * curveTime;
+          const endControlWeight = 3 * inverseTime * Math.pow(curveTime, 2);
+          const endWeight = Math.pow(curveTime, 3);
+          return {
+            x: startWeight * p0.x + startControlWeight * p1.x + endControlWeight * p2.x + endWeight * p3.x,
+            y: startWeight * p0.y + startControlWeight * p1.y + endControlWeight * p2.y + endWeight * p3.y,
+          };
+        }
+
+        // Linear fallback
+        return {
+          x: start.x + (end.x - start.x) * curveTime,
+          y: start.y + (end.y - start.y) * curveTime,
+        };
+      },
+      { connectionId: this.connectionId, curveTime: time }
+    );
+  }
+
+  /**
+   * Click on the connection at a point along its curve
+   */
+  async click(options?: {
+    shift?: boolean;
+    ctrl?: boolean;
+    meta?: boolean;
+    waitFrames?: number;
+    curveTime?: number;
+  }): Promise<void> {
+    const point = await this.getPointOnCurve(options?.curveTime ?? 0.5);
+    await this.graphPO.click(point.x, point.y, options);
+  }
+
+  /**
+   * Hover over the connection at a point along its curve
+   */
+  async hover(options?: {
+    waitFrames?: number;
+    curveTime?: number;
+  }): Promise<void> {
+    const point = await this.getPointOnCurve(options?.curveTime ?? 0.5);
+    await this.graphPO.hover(point.x, point.y, options);
   }
 }

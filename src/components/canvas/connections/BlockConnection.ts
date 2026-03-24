@@ -11,7 +11,7 @@ import { ConnectionArrow } from "./Arrow";
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "./BaseConnection";
 import { Path2DRenderInstance, Path2DRenderStyleResult } from "./BatchPath2D";
 import { BlockConnections, TGraphConnectionsContext } from "./BlockConnections";
-import { bezierCurveLine, getArrowCoords, isPointInStroke } from "./bezierHelpers";
+import { bezierCurveLine, generateBezierParams, getArrowCoords, isPointInStroke } from "./bezierHelpers";
 import { getLabelCoords } from "./labelHelper";
 
 export type TConnectionProps = TBaseConnectionProps & {
@@ -201,18 +201,33 @@ export class BlockConnection<T extends TConnection>
     return this.context.constants.connection.DEFAULT_Z_INDEX;
   }
 
-  protected override updatePoints() {
-    const additionalPoints = this.labelGeometry
-      ? [
-          { x: this.labelGeometry.x, y: this.labelGeometry.y },
-          {
-            x: this.labelGeometry.x + this.labelGeometry.width,
-            y: this.labelGeometry.y + this.labelGeometry.height,
-          },
-        ]
-      : undefined;
+  protected override collectBBoxPoints() {
+    const points = super.collectBBoxPoints();
 
-    super.updatePoints(additionalPoints);
+    if (this.labelGeometry) {
+      points.push(
+        { x: this.labelGeometry.x, y: this.labelGeometry.y },
+        {
+          x: this.labelGeometry.x + this.labelGeometry.width,
+          y: this.labelGeometry.y + this.labelGeometry.height,
+        }
+      );
+    }
+
+    if (this.props.useBezier && this.connectionPoints) {
+      const bezierParams = generateBezierParams(
+        this.connectionPoints[0],
+        this.connectionPoints[1],
+        this.props.bezierDirection
+      );
+      points.push(bezierParams[1], bezierParams[2]);
+    }
+
+    return points;
+  }
+
+  protected override updatePoints() {
+    super.updatePoints();
 
     if (!this.connectionPoints) {
       return;
