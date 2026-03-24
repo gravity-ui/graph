@@ -25,9 +25,7 @@ describe("defaultGetCameraBlockScaleLevel", () => {
 
     it("returns Schematic when scale >= SCALES[1] and scale < SCALES[2]", () => {
       expect(defaultGetCameraBlockScaleLevel(graph, s1)).toBe(ECameraScaleLevel.Schematic);
-      expect(defaultGetCameraBlockScaleLevel(graph, (s1 + s2) / 2)).toBe(
-        ECameraScaleLevel.Schematic
-      );
+      expect(defaultGetCameraBlockScaleLevel(graph, (s1 + s2) / 2)).toBe(ECameraScaleLevel.Schematic);
       expect(defaultGetCameraBlockScaleLevel(graph, s2 - 1e-6)).toBe(ECameraScaleLevel.Schematic);
     });
 
