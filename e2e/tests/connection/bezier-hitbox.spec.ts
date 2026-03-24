@@ -50,7 +50,7 @@ test.describe("Bezier Connection Hitbox", () => {
       });
     });
 
-    test("should select connection when clicking near the source control point (right of source)", async () => {
+    test("should select connection on click near source control point", async () => {
       const conn = graphPO.getConnectionCOM("source:target");
 
       expect(await conn.exists()).toBe(true);
@@ -62,7 +62,7 @@ test.describe("Bezier Connection Hitbox", () => {
       expect(await conn.isSelected()).toBe(true);
     });
 
-    test("should select connection when clicking near the target control point (left of target)", async () => {
+    test("should select connection on click near target control point", async () => {
       const conn = graphPO.getConnectionCOM("source:target");
 
       // t≈0.85 — curve near the target, where it extends to the left beyond the target block
@@ -71,7 +71,7 @@ test.describe("Bezier Connection Hitbox", () => {
       expect(await conn.isSelected()).toBe(true);
     });
 
-    test("should not select connection when clicking away from the curve", async () => {
+    test("should not select connection on click away from curve", async () => {
       const conn = graphPO.getConnectionCOM("source:target");
 
       // Click far from any connection or block
@@ -177,7 +177,7 @@ test.describe("Bezier Connection Hitbox", () => {
       await graphPO.waitForFrames(3);
     });
 
-    test("should select connection when clicking near the source control point (below source)", async () => {
+    test("should select connection on click near source control point", async () => {
       const conn = graphPO.getConnectionCOM("source:target");
 
       expect(await conn.exists()).toBe(true);
@@ -189,7 +189,7 @@ test.describe("Bezier Connection Hitbox", () => {
       expect(await conn.isSelected()).toBe(true);
     });
 
-    test("should select connection when clicking near the target control point (above target)", async () => {
+    test("should select connection on click near target control point", async () => {
       const conn = graphPO.getConnectionCOM("source:target");
 
       // t≈0.85 — curve near target, extending above the target block
@@ -198,7 +198,7 @@ test.describe("Bezier Connection Hitbox", () => {
       expect(await conn.isSelected()).toBe(true);
     });
 
-    test("should not select connection when clicking away from the curve", async () => {
+    test("should not select connection on click away from curve", async () => {
       const conn = graphPO.getConnectionCOM("source:target");
 
       // Click far from any connection or block
