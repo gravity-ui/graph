@@ -5,6 +5,11 @@ import { Emitter } from "../../utils/Emitter";
 import { clamp } from "../../utils/functions/clamp";
 import { TRect } from "../../utils/types/shapes";
 
+import { ECameraScaleLevel } from "./cameraScaleEnums";
+
+export { ECameraScaleLevel } from "./cameraScaleEnums";
+export { defaultGetCameraBlockScaleLevel } from "./defaultGetCameraBlockScaleLevel";
+
 export type TCameraState = {
   x: number;
   y: number;
@@ -34,11 +39,7 @@ export type TCameraState = {
   autoPanningEnabled: boolean;
 };
 
-export enum ECameraScaleLevel {
-  Minimalistic = 100,
-  Schematic = 200,
-  Detailed = 300,
-}
+export type { TGetCameraBlockScaleLevel } from "./defaultGetCameraBlockScaleLevel";
 
 export const getInitCameraState = (): TCameraState => {
   return {
@@ -157,17 +158,13 @@ export class CameraService extends Emitter {
     return this.state.scale;
   }
 
-  public getCameraBlockScaleLevel(cameraScale = this.getCameraScale()) {
-    const scales = this.graph.graphConstants.block.SCALES;
-    let scaleLevel = ECameraScaleLevel.Minimalistic;
-    if (cameraScale >= scales[1]) {
-      scaleLevel = ECameraScaleLevel.Schematic;
-    }
-    if (cameraScale >= scales[2]) {
-      scaleLevel = ECameraScaleLevel.Detailed;
-    }
-
-    return scaleLevel;
+  /**
+   * Qualitative zoom tier for blocks. Delegates to `settings.getCameraBlockScaleLevel` (always set; defaults to
+   * the exported `defaultGetCameraBlockScaleLevel` strategy).
+   * @param cameraScale Optional scale override; defaults to current camera scale
+   */
+  public getCameraBlockScaleLevel(cameraScale = this.getCameraScale()): ECameraScaleLevel {
+    return this.graph.rootStore.settings.$settings.value.getCameraBlockScaleLevel(this.graph, cameraScale);
   }
 
   public getCameraState(): TCameraState {

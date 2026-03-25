@@ -83,6 +83,7 @@ export type LayeredConverterParams = {
  * Converts the result of layoutGraph() into the same format as ELK plugin (ConverterResult)
  * so it can be used with setEntities(blocks, connections) the same way.
  */
+// eslint-disable-next-line complexity
 export function layeredConverter({
   layoutResult,
   connectionIdBySourceTarget,

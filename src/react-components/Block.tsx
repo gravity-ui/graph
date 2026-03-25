@@ -98,7 +98,7 @@ function GraphBlockInner<T extends TBlock>(
   ref: ForwardedRef<HTMLDivElement>
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
-  useImperativeHandle(ref, () => containerRef.current!);
+  useImperativeHandle(ref, () => containerRef.current);
   const lastStateRef = useRef({ x: 0, y: 0, width: 0, height: 0, zIndex: 0 });
   const state = useBlockState(graph, block);
 
@@ -170,6 +170,7 @@ function GraphBlockInner<T extends TBlock>(
   useEffect(() => {
     if (!viewState) return;
     setInteractive(viewState.isInteractive());
+    // eslint-disable-next-line consistent-return
     return viewState.onChange(() => {
       setInteractive(viewState.isInteractive());
     });
