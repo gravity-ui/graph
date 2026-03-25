@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.9.2](https://github.com/gravity-ui/graph/compare/v1.9.1...v1.9.2) (2026-03-25)
+
+
+### Bug Fixes
+
+* **Camera:** fix device detector. add setting to override device detector ([#273](https://github.com/gravity-ui/graph/issues/273)) ([d9a3ad7](https://github.com/gravity-ui/graph/commit/d9a3ad7718c6e761808a15537dac9be6554990c9))
+* fix blocks flashing on mount at zero-zero position ([#268](https://github.com/gravity-ui/graph/issues/268)) ([055ce4f](https://github.com/gravity-ui/graph/commit/055ce4f362d6b877b179921f06cf93c7e53b4e01))
+* include bezier control points in connection hitbox calculation ([#275](https://github.com/gravity-ui/graph/issues/275)) ([93b718e](https://github.com/gravity-ui/graph/commit/93b718e94812da92962fe86d934b7b0d7b77b48a))
+
 ## [1.9.1](https://github.com/gravity-ui/graph/compare/v1.9.0...v1.9.1) (2026-03-18)
 
 
