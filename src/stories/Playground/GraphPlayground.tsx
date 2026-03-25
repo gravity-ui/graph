@@ -146,6 +146,88 @@ export function GraphPLayground() {
     drawLine,
   });
 
+  useEffect(() => {
+    graph.canvasStyles.registerMany([
+      {
+        selector: ".block-action",
+        style: {
+          fill: {
+            color: graph.graphColors.block.background,
+          },
+          stroke: {
+            color: graph.graphColors.block.border,
+            width: 2,
+            maxWidth: 12,
+            scaleWithCamera: false,
+          },
+          text: {
+            color: graph.graphColors.block.text,
+            family: "YS Text",
+            weight: 500,
+            size: 9,
+          },
+        },
+      },
+      {
+        selector: ".block-action.hovered",
+        style: {
+          fill: {
+            color: "rgba(57, 47, 57, 1)",
+          },
+          stroke: {
+            color: "rgba(229, 229, 229, 0.4)",
+          },
+        },
+      },
+      {
+        selector: ".block-action.selected",
+        style: {
+          stroke: {
+            color: graph.graphColors.block.selectedBorder,
+          },
+        },
+      },
+      {
+        selector: ".block-text",
+        style: {
+          fill: {
+            color: "rgba(189, 142, 75, 0.1)",
+          },
+          stroke: {
+            color: "rgba(189, 142, 75, 1)",
+            width: 2,
+            maxWidth: 12,
+          },
+          text: {
+            color: "rgba(189, 142, 75, 1)",
+            family: "YS Text",
+            weight: 500,
+            size: 13,
+            baseline: "bottom",
+          },
+        },
+      },
+      {
+        selector: ".block-text.selected",
+        style: {
+          stroke: {
+            scaleWithCamera: false,
+            dash: [],
+          },
+        },
+      },
+      {
+        selector: ".block-text.not-selected",
+        style: {
+          stroke: {
+            scaleWithCamera: true,
+            dash: [4, 4],
+          },
+        },
+      },
+    ]);
+  }, [graph]);
+
   const getNextBlockIndex = useFn(() => {
     return Date.now();
   });

@@ -2,6 +2,7 @@ import { Graph } from "../../../graph";
 import { GraphEventsDefinitions } from "../../../graphEvents";
 import { Component } from "../../../lib/Component";
 import { HitBox } from "../../../services/HitTest";
+import { CanvasStyles } from "../../../services/canvasStyles";
 
 import { GraphComponent, GraphComponentContext } from "./index";
 
@@ -25,6 +26,10 @@ class TestGraphComponent extends GraphComponent {
   ): () => void {
     return this.onRootEvent(eventName, handler, options);
   }
+
+  public resolveStyles(classes: string[]): Readonly<Record<string, unknown>> {
+    return this.resolveCanvasStyles(classes);
+  }
 }
 
 type TestSetup = {
@@ -40,8 +45,10 @@ function createTestComponent(root?: HTMLDivElement): TestSetup {
   const graphOn = jest.fn<() => void, Parameters<Graph["on"]>>().mockReturnValue(graphOff);
 
   const hitTestRemove = jest.fn();
+  const canvasStyles = new CanvasStyles();
   const fakeGraph = {
     on: graphOn,
+    canvasStyles,
     hitTest: {
       remove: hitTestRemove,
       update: jest.fn(),
@@ -61,6 +68,8 @@ function createTestComponent(root?: HTMLDivElement): TestSetup {
     ownerDocument: document,
     camera: {
       isRectVisible: () => true,
+      getCameraScale: () => 1,
+      limitScaleEffect: (value: number) => value,
     },
     constants: {} as GraphComponentContext["constants"],
     colors: {} as GraphComponentContext["colors"],
@@ -125,5 +134,25 @@ describe("GraphComponent event helpers", () => {
     const [removedEventName, removeListener] = removeSpy.mock.calls[0];
     expect(removedEventName).toBe("click");
     expect(typeof removeListener).toBe("function");
+  });
+
+  it("applies runtime style classes in resolveCanvasStyles", () => {
+    const { component } = createTestComponent();
+
+    component.context.graph.canvasStyles.register({
+      selector: ".base.highlighted",
+      style: {
+        composite: {
+          opacity: 0.6,
+        },
+      },
+    });
+
+    const before = component.resolveStyles(["base"]);
+    expect(before.composite).toBeUndefined();
+
+    component.addStyleClass("highlighted");
+    const after = component.resolveStyles(["base"]);
+    expect((after.composite as { opacity?: number } | undefined)?.opacity).toBe(0.6);
   });
 });

@@ -1,12 +1,15 @@
 import React from "react";
 
 import { Anchor, CanvasBlock, EAnchorType, TAnchor, TBlockId, TPoint, layoutText } from "../../..";
+import { TCanvasStyleDeclaration } from "../../../services/canvasStyles";
 import { renderSVG } from "../../../utils/renderers/svgPath";
 import { TGravityActionBlock } from "../generateLayout";
 
 import { ActionBlockHtml } from "./ActionBlockHtml";
 
 import "./ActionBlock.css";
+
+type TActionBlockCanvasStyle = TCanvasStyleDeclaration;
 
 function getAnchorY(index) {
   let y = 18 * index;
@@ -82,11 +85,15 @@ export class ActionBlock extends CanvasBlock<TGravityActionBlock> {
   protected renderTextAtCenter(name: string, ctx: CanvasRenderingContext2D) {
     const rect = this.getContentRect();
     const scale = this.context.camera.getCameraScale();
-    ctx.fillStyle = this.context.colors.block.text;
+    const styles = this.getActionBlockCanvasStyles();
+    ctx.fillStyle = styles.text?.color ?? this.context.colors.block.text;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
+    const textSize = typeof styles.text?.size === "number" ? styles.text.size : 9;
+    const textWeight = styles.text?.weight ?? 500;
+    const textFamily = styles.text?.family ?? "YS Text";
     const { lines, measures } = layoutText(name, ctx, rect, {
-      font: `500 ${9 / scale}px YS Text`,
+      font: `${textWeight} ${textSize}px ${textFamily}`,
       lineHeight: 9 / scale,
     });
     const shiftY = rect.height / 2 - measures.height / 2;
@@ -98,19 +105,15 @@ export class ActionBlock extends CanvasBlock<TGravityActionBlock> {
   }
 
   public renderBody(ctx: CanvasRenderingContext2D) {
-    const scale = this.context.camera.getCameraScale();
-
-    ctx.lineWidth = Math.min(Math.round(2 / scale), 12);
-    ctx.fillStyle = this.hovered ? "rgba(57, 47, 57, 1)" : this.context.colors.block.background;
+    const styles = this.getActionBlockCanvasStyles();
+    const strokeWidth = typeof styles.stroke?.width === "number" ? styles.stroke.width : 2;
+    ctx.lineWidth = strokeWidth;
+    ctx.fillStyle = styles.fill?.color ?? this.context.colors.block.background;
 
     ctx.beginPath();
     ctx.roundRect(this.state.x, this.state.y, this.state.width, this.state.height, 8);
     ctx.fill();
-    if (this.state.selected) {
-      ctx.strokeStyle = this.context.colors.block.selectedBorder;
-    } else {
-      ctx.strokeStyle = this.hovered ? "rgba(229, 229, 229, 0.4)" : this.context.colors.block.border;
-    }
+    ctx.strokeStyle = styles.stroke?.color ?? this.context.colors.block.border;
     ctx.stroke();
     ctx.closePath();
   }
@@ -143,9 +146,11 @@ export class ActionBlock extends CanvasBlock<TGravityActionBlock> {
     const shouldRenderText = scale > this.context.constants.block.SCALES[0];
 
     if (shouldRenderText) {
-      ctx.fillStyle = this.context.colors.block.text;
-      ctx.textAlign = "center";
       this.renderTextAtCenter(this.state.name, ctx);
     }
+  }
+
+  protected getActionBlockCanvasStyles(): Readonly<TActionBlockCanvasStyle> {
+    return this.resolveCanvasStyles(["block-action", this.hovered && "hovered", this.state.selected && "selected"]);
   }
 }
