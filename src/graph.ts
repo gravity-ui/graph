@@ -161,12 +161,12 @@ export class Graph {
   }
 
   public setColors(colors: RecursivePartial<TGraphColors>) {
-    this.$graphColors.value = merge({}, initGraphColors, colors);
+    this.$graphColors.value = merge({}, this.$graphColors.value, colors);
     this.emit("colors-changed", { colors: this.graphColors });
   }
 
   public setConstants(constants: RecursivePartial<TGraphConstants>) {
-    this.$graphConstants.value = merge({}, initGraphConstants, constants);
+    this.$graphConstants.value = merge({}, this.$graphConstants.value, constants);
     this.emit("constants-changed", { constants: this.graphConstants });
   }
 

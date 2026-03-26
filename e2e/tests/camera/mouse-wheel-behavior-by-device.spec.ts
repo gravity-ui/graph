@@ -87,4 +87,31 @@ test.describe("MOUSE_WHEEL_BEHAVIOR for simulated wheel device kinds", () => {
 
     expect(after.scale).toBeCloseTo(before.scale, 10);
   });
+
+  test("simulated mouse + runtime scroll survives unrelated setConstants update", async () => {
+    const camera = graphPO.getCamera();
+    await camera.zoomToCenter();
+    await graphPO.waitForFrames(3);
+    await camera.emulateZoom(300);
+    await graphPO.waitForFrames(2);
+
+    await graphPO.page.evaluate(() => {
+      window.graph.setConstants({
+        camera: { MOUSE_WHEEL_BEHAVIOR: "scroll" },
+      });
+
+      // Reproduces user flow: later partial constants update in another namespace.
+      window.graph.setConstants({
+        block: { WIDTH: 220 },
+      });
+    });
+
+    await camera.setResolveWheelDeviceOverride("mouse");
+
+    const before = await camera.getState();
+    await camera.emulateZoom(-100);
+    const after = await camera.getState();
+
+    expect(after.scale).toBeCloseTo(before.scale, 10);
+  });
 });
