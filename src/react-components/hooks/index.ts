@@ -6,3 +6,4 @@ export * from "./useBlockAnchorState";
 export * from "./useLayer";
 export * from "./schedulerHooks";
 export * from "./useSceneChange";
+export * from "./useHoveredGraphComponent";

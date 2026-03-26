@@ -110,6 +110,7 @@ function GraphBlockInner<T extends TBlock>(
   );
 
   const viewState = useComputedSignal(() => state?.$viewComponent.value, [state]);
+  const hovered = useComputedSignal(() => viewState?.$hovered.value ?? false, [viewState]);
   const [interactive, setInteractive] = useState(viewState?.isInteractive() ?? false);
 
   /**
@@ -181,8 +182,8 @@ function GraphBlockInner<T extends TBlock>(
   }, [containerClassName, interactive]);
 
   const wrapperClassNames = useMemo(() => {
-    return cn("graph-block-wrapper", className, state?.$selected.value ? "selected" : "");
-  }, [className, state?.$selected.value]);
+    return cn("graph-block-wrapper", className, state?.$selected.value ? "selected" : "", hovered ? "hovered" : "");
+  }, [className, hovered, state?.$selected.value]);
 
   if (!viewState || !state) {
     return null;

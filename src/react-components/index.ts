@@ -3,6 +3,7 @@ export * from "./Block";
 export * from "./Anchor";
 export * from "./GraphLayer";
 export * from "./GraphPortal";
+export * from "./GraphTooltip";
 export * from "./GraphContext";
 export * from "./hooks";
 export * from "./events";

@@ -1,4 +1,4 @@
-import { Signal } from "@preact/signals-core";
+import { Signal, signal } from "@preact/signals-core";
 
 import { Graph } from "../../../graph";
 import { GraphEventsDefinitions } from "../../../graphEvents";
@@ -31,6 +31,12 @@ export class GraphComponent<
   public hitBox: HitBox;
 
   private unsubscribe: (() => void)[] = [];
+
+  public readonly $hovered: Signal<boolean> = signal(false);
+
+  private hoverLocked = false;
+
+  private hoverByPointer = false;
 
   protected ports: Map<TPortId, PortState> = new Map();
 
@@ -94,7 +100,52 @@ export class GraphComponent<
     const affectsUsableRect = props.affectsUsableRect ?? this.context.affectsUsableRect ?? true;
     this.setProps({ affectsUsableRect });
     this.setContext({ affectsUsableRect });
+
+    this.addEventListener("mouseenter", this.handleMouseEnter);
+    this.addEventListener("mouseleave", this.handleMouseLeave);
   }
+
+  /**
+   * Returns current hover state.
+   */
+  public isHovered(): boolean {
+    return this.$hovered.value;
+  }
+
+  /**
+   * Lock/unlock hover reset on mouseleave.
+   * When locked, mouseleave will not reset hovered state.
+   * When unlocked, hovered state is synchronized with the current pointer-in-component flag.
+   */
+  public lockHover(lock: boolean): void {
+    if (this.hoverLocked === lock) {
+      return;
+    }
+
+    this.hoverLocked = lock;
+    if (!lock) {
+      this.updateHovered(this.hoverByPointer);
+    }
+  }
+
+  private updateHovered(hovered: boolean): void {
+    if (this.$hovered.value === hovered) {
+      return;
+    }
+    this.$hovered.value = hovered;
+  }
+
+  private handleMouseEnter = (): void => {
+    this.hoverByPointer = true;
+    this.updateHovered(true);
+  };
+
+  private handleMouseLeave = (): void => {
+    this.hoverByPointer = false;
+    if (!this.hoverLocked) {
+      this.updateHovered(false);
+    }
+  };
 
   /* Adopt color to the component alpha */
   public adoptColor(color: string, { alpha }: { alpha?: number } = {}) {
@@ -321,6 +372,9 @@ export class GraphComponent<
   }
 
   protected unmount() {
+    this.lockHover(false);
+    this.hoverByPointer = false;
+    this.updateHovered(false);
     super.unmount();
     this.unsubscribe.forEach((cb) => cb());
     this.ports.forEach((port) => {

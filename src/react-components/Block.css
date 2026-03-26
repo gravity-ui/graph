@@ -41,3 +41,7 @@
 .graph-block-wrapper.selected:hover {
   border-color: var(--graph-block-border-selected);
 }
+
+.graph-block-wrapper.hovered:not(.selected) {
+  border-color: var(--graph-block-border-selected);
+}
