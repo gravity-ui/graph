@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.3](https://github.com/gravity-ui/graph/compare/v1.9.2...v1.9.3) (2026-03-27)
+
+
+### Bug Fixes
+
+* **Graph:** enhance color and constant management to preserve updates across unrelated changes ([#278](https://github.com/gravity-ui/graph/issues/278)) ([6bd7f3d](https://github.com/gravity-ui/graph/commit/6bd7f3d4b2ed685bdbe51c62959567fb515ea935))
+
 ## [1.9.2](https://github.com/gravity-ui/graph/compare/v1.9.1...v1.9.2) (2026-03-25)
 
 
