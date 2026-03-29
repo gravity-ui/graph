@@ -14,6 +14,7 @@ export {
   type TGetCameraBlockScaleLevel,
 } from "./services/camera/CameraService";
 export * from "./services/Layer";
+export * from "./services/canvasStyles";
 export * from "./store";
 export { EAnchorType } from "./store/anchor/Anchor";
 export type { BlockState, TBlockId } from "./store/block/Block";

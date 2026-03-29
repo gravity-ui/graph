@@ -4,6 +4,7 @@ import isObject from "lodash/isObject";
 
 import { Component } from "../../../lib/Component";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
+import { TCanvasStyleDeclaration } from "../../../services/canvasStyles";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { ESelectionStrategy } from "../../../services/selection";
 import { TGraphSettingsConfig } from "../../../store";
@@ -13,7 +14,6 @@ import { selectBlockById } from "../../../store/block/selectors";
 import { PortState } from "../../../store/connection/port/Port";
 import { createAnchorPortId, createBlockPointPortId } from "../../../store/connection/port/utils";
 import { isAllowDrag, isMetaKeyEvent } from "../../../utils/functions";
-import { clamp } from "../../../utils/functions/clamp";
 import { TMeasureTextOptions } from "../../../utils/functions/text";
 import { TTExtRect, renderText } from "../../../utils/renderers/text";
 import { TPoint, TRect } from "../../../utils/types/shapes";
@@ -85,6 +85,8 @@ export type BlockViewState = {
   zIndex: number;
   order: number;
 };
+
+type TBlockCanvasStyle = TCanvasStyleDeclaration;
 
 export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlockProps> extends GraphComponent<
   Props,
@@ -462,12 +464,13 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.shouldRenderText = scale > this.context.constants.block.SCALES[0];
   }
 
-  protected renderStroke(color: string) {
-    const lineWidth = clamp(
-      this.context.camera.getRelative(this.context.constants.block.BORDER_WIDTH),
-      this.context.constants.block.BORDER_WIDTH,
-      10
-    );
+  protected renderStroke(
+    color: string,
+    width = this.context.constants.block.BORDER_WIDTH,
+    _scaleWithCamera = false,
+    _maxWidth = 10
+  ) {
+    const lineWidth = width;
     this.context.ctx.lineWidth = lineWidth;
     this.context.ctx.strokeStyle = color;
     this.context.ctx.strokeRect(
@@ -476,6 +479,14 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       this.state.width - lineWidth,
       this.state.height - lineWidth
     );
+  }
+
+  protected getBlockCanvasStyles(): Readonly<TBlockCanvasStyle> {
+    return this.resolveCanvasStyles([
+      "block",
+      this.state.selected && "selected",
+      this.state.selected && "block-selected",
+    ]);
   }
 
   /* Returns rect of block size with padding */
@@ -499,27 +510,56 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     renderText(text, ctx, rect, renderParams);
   }
 
-  public renderMinimalisticBlock(ctx: CanvasRenderingContext2D) {
-    this.renderSchematicView(ctx);
+  public renderMinimalisticBlock(ctx: CanvasRenderingContext2D, styles = this.getBlockCanvasStyles()) {
+    this.renderSchematicView(ctx, styles);
   }
 
-  protected renderBody(ctx: CanvasRenderingContext2D) {
-    ctx.fillStyle = this.context.colors.block.background;
-    ctx.strokeStyle = this.context.colors.block.border;
+  protected renderBody(ctx: CanvasRenderingContext2D, styles = this.getBlockCanvasStyles()) {
+    if (styles.fill?.color) {
+      ctx.fillStyle = styles.fill.color;
+    }
+    if (styles.stroke?.color) {
+      ctx.strokeStyle = styles.stroke.color;
+    }
 
     ctx.fillRect(this.state.x, this.state.y, this.state.width, this.state.height);
+    const strokeColor = this.state.selected
+      ? this.context.colors.block.selectedBorder
+      : this.context.colors.block.border;
+    const borderWidth = typeof styles.stroke?.width === "number" ? styles.stroke.width : undefined;
+    const borderMaxWidth = typeof styles.stroke?.maxWidth === "number" ? styles.stroke.maxWidth : undefined;
     this.renderStroke(
-      this.state.selected ? this.context.colors.block.selectedBorder : this.context.colors.block.border
+      styles.stroke?.color ?? strokeColor,
+      borderWidth,
+      Boolean(styles.stroke?.scaleWithCamera),
+      borderMaxWidth
     );
   }
 
-  public renderSchematicView(ctx: CanvasRenderingContext2D) {
-    this.renderBody(ctx);
+  protected resolveTextFont(styles: Readonly<TBlockCanvasStyle>): string | undefined {
+    if (!styles.text?.size && !styles.text?.family && !styles.text?.weight && !styles.text?.style) {
+      return this.props.font;
+    }
+
+    const size = typeof styles.text?.size === "number" ? `${styles.text.size}px` : styles.text?.size ?? "12px";
+    const family = styles.text?.family ?? "sans-serif";
+    const weight = styles.text?.weight ?? "normal";
+    const fontStyle = styles.text?.style ?? "normal";
+
+    return `${fontStyle} ${weight} ${size} ${family}`;
+  }
+
+  public renderSchematicView(ctx: CanvasRenderingContext2D, styles = this.getBlockCanvasStyles()) {
+    this.renderBody(ctx, styles);
 
     if (this.shouldRenderText) {
-      ctx.fillStyle = this.context.colors.block.text;
-      ctx.textAlign = "center";
-      this.renderText(this.state.name, ctx);
+      ctx.fillStyle = styles.text?.color ?? this.context.colors.block.text;
+      ctx.textAlign = styles.text?.align ?? "center";
+      ctx.textBaseline = styles.text?.baseline ?? "alphabetic";
+      this.renderText(this.state.name, ctx, {
+        rect: this.getContentRect(),
+        renderParams: { font: this.resolveTextFont(styles) },
+      });
     }
   }
 
@@ -532,8 +572,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  public renderDetailedView(ctx: CanvasRenderingContext2D) {
-    return this.renderBody(ctx);
+  public renderDetailedView(ctx: CanvasRenderingContext2D, styles = this.getBlockCanvasStyles()) {
+    return this.renderBody(ctx, styles);
   }
 
   protected render() {
@@ -542,21 +582,29 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     }
 
     const scaleLevel = this.context.graph.cameraService.getCameraBlockScaleLevel();
+    const styles = this.getBlockCanvasStyles();
+    this.context.ctx.save();
+    this.context.ctx.globalAlpha = styles.composite?.opacity ?? 1;
+    if (styles.composite?.blendMode) {
+      this.context.ctx.globalCompositeOperation = styles.composite.blendMode;
+    }
 
     switch (scaleLevel) {
       case ECameraScaleLevel.Minimalistic: {
-        this.renderMinimalisticBlock(this.context.ctx);
+        this.renderMinimalisticBlock(this.context.ctx, styles);
         break;
       }
       case ECameraScaleLevel.Schematic: {
-        this.renderSchematicView(this.context.ctx);
+        this.renderSchematicView(this.context.ctx, styles);
         break;
       }
       case ECameraScaleLevel.Detailed: {
-        this.renderDetailedView(this.context.ctx);
+        this.renderDetailedView(this.context.ctx, styles);
         break;
       }
     }
+
+    this.context.ctx.restore();
   }
 
   protected override unmount(): void {

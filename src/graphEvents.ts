@@ -41,6 +41,7 @@ export interface GraphEventsDefinitions extends BaseGraphEventDefinition {
   "camera-change": (event: CustomEvent<TCameraState>) => void;
   "constants-changed": (event: CustomEvent<{ constants: TGraphConstants }>) => void;
   "colors-changed": (event: CustomEvent<{ colors: TGraphColors }>) => void;
+  "canvas-styles-changed": (event: CustomEvent<{ version: number }>) => void;
   "state-change": (event: CustomEvent<{ state: GraphState }>) => void;
 }
 const graphMouseEvents = ["mousedown", "click", "dblclick", "mouseenter", "mousemove", "mouseleave"];

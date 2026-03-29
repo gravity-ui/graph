@@ -16,6 +16,7 @@ import { KeyboardService } from "./services/KeyboardService";
 import { Layer, LayerPublicProps } from "./services/Layer";
 import { Layers } from "./services/LayersService";
 import { CameraService } from "./services/camera/CameraService";
+import { CanvasStyles } from "./services/canvasStyles";
 import { DragService } from "./services/drag";
 import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
@@ -78,6 +79,8 @@ export class Graph {
 
   public readonly keyboardService: KeyboardService;
 
+  public readonly canvasStyles: CanvasStyles;
+
   protected readonly graphLayer: GraphLayer;
 
   protected readonly belowLayer: BelowLayer;
@@ -85,6 +88,44 @@ export class Graph {
   protected readonly selectionLayer: SelectionLayer;
 
   protected readonly cursorLayer: CursorLayer;
+
+  private registerBuiltInCanvasStyles() {
+    const colors = this.graphColors;
+    const constants = this.graphConstants;
+
+    this.canvasStyles.registerMany([
+      {
+        selector: ".block",
+        style: {
+          fill: {
+            color: colors.block.background,
+          },
+          stroke: {
+            color: colors.block.border,
+            width: constants.block.BORDER_WIDTH,
+            maxWidth: 10,
+            scaleWithCamera: false,
+          },
+          text: {
+            color: colors.block.text,
+            align: "center",
+            baseline: "alphabetic",
+          },
+          composite: {
+            opacity: 1,
+          },
+        },
+      },
+      {
+        selector: ".block.selected",
+        style: {
+          stroke: {
+            color: colors.block.selectedBorder,
+          },
+        },
+      },
+    ]);
+  }
 
   public getGraphCanvas() {
     return this.graphLayer.getCanvas();
@@ -126,6 +167,14 @@ export class Graph {
     graphColors?: TGraphColors,
     graphConstants?: TGraphConstants
   ) {
+    this.canvasStyles = new CanvasStyles((version) => {
+      this.emit("canvas-styles-changed", { version });
+      this.layers.getLayers().forEach((layer) => {
+        layer.performRender();
+      });
+    });
+    this.registerBuiltInCanvasStyles();
+
     this.belowLayer = this.addLayer(BelowLayer, {});
     this.graphLayer = this.addLayer(GraphLayer, {});
     this.selectionLayer = this.addLayer(SelectionLayer, {});

@@ -5,6 +5,7 @@ import { GraphEventsDefinitions } from "../../../graphEvents";
 import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
+import { TCanvasScaleAdapter, TCanvasStyleDeclaration } from "../../../services/canvasStyles";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { PortState, TPort, TPortId } from "../../../store/connection/port/Port";
 import { applyAlpha, getXY } from "../../../utils/functions";
@@ -29,6 +30,7 @@ export class GraphComponent<
   Context extends GraphComponentContext = GraphComponentContext,
 > extends EventedComponent<Props, State, Context> {
   public hitBox: HitBox;
+  private readonly styleClasses: Set<string> = new Set();
 
   private unsubscribe: (() => void)[] = [];
 
@@ -361,5 +363,59 @@ export class GraphComponent<
 
   public onHitBox(_: HitBoxData) {
     return this.isIterated();
+  }
+
+  protected getCanvasScaleAdapter(): TCanvasScaleAdapter {
+    return this.context.camera;
+  }
+
+  protected resolveCanvasStyles(classes: Array<string | false | null | undefined>): Readonly<TCanvasStyleDeclaration> {
+    const normalizedClasses = classes.filter((item): item is string => typeof item === "string");
+    this.styleClasses.forEach((className) => normalizedClasses.push(className));
+    return this.context.graph.canvasStyles.resolve(normalizedClasses, {
+      scaleAdapter: this.getCanvasScaleAdapter(),
+    });
+  }
+
+  public addStyleClass(className: string): void {
+    if (!className) {
+      return;
+    }
+    const changed = !this.styleClasses.has(className);
+    this.styleClasses.add(className);
+    if (changed) {
+      this.performRender();
+    }
+  }
+
+  public removeStyleClass(className: string): void {
+    if (this.styleClasses.delete(className)) {
+      this.performRender();
+    }
+  }
+
+  public toggleStyleClass(className: string, force?: boolean): void {
+    const shouldHave = force ?? !this.styleClasses.has(className);
+    if (shouldHave) {
+      this.addStyleClass(className);
+      return;
+    }
+    this.removeStyleClass(className);
+  }
+
+  public clearStyleClasses(): void {
+    if (this.styleClasses.size === 0) {
+      return;
+    }
+    this.styleClasses.clear();
+    this.performRender();
+  }
+
+  public hasStyleClass(className: string): boolean {
+    return this.styleClasses.has(className);
+  }
+
+  public getStyleClasses(): string[] {
+    return Array.from(this.styleClasses);
   }
 }
