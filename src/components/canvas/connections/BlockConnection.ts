@@ -1,6 +1,7 @@
 import intersects from "intersects";
 
 import { HitBoxData } from "../../../services/HitTest";
+import { HighlightVisualMode } from "../../../services/highlight";
 import { ESelectionStrategy } from "../../../services/selection/types";
 import { TConnection } from "../../../store/connection/ConnectionState";
 import { isMetaKeyEvent } from "../../../utils/functions";
@@ -90,6 +91,14 @@ export class BlockConnection<T extends TConnection>
     return this.generatePath();
   }
 
+  public override setHighlight(mode: HighlightVisualMode | undefined, value?: boolean): boolean {
+    const changed = super.setHighlight(mode, value);
+    if (changed) {
+      this.applyShape();
+    }
+    return changed;
+  }
+
   /**
    * Creates the Path2D object for the arrow in the middle of the connection.
    * This is used by the ConnectionArrow component to render the arrow.
@@ -116,7 +125,7 @@ export class BlockConnection<T extends TConnection>
     ctx.lineWidth = this.state.hovered || this.state.selected ? 4 : 2;
     const strokeColor = this.getStrokeColor(this.state);
     if (strokeColor) {
-      ctx.strokeStyle = strokeColor;
+      ctx.strokeStyle = this.getHighlightBorderColor(strokeColor);
     }
     return { type: "stroke" };
   }
@@ -156,7 +165,8 @@ export class BlockConnection<T extends TConnection>
     const selected = state.selected ? "selected" : "none";
     const stroke = this.getStrokeColor(state);
     const dash = state.dashed ? (state.styles?.dashes || [6, 4]).join(",") : "";
-    return `connection/${hovered}/${selected}/${stroke}/${dash}`;
+    const highlightMode = this.getHighlightVisualMode() ?? "none";
+    return `connection/${hovered}/${selected}/${stroke}/${dash}/${highlightMode}`;
   }
 
   public style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
@@ -170,7 +180,7 @@ export class BlockConnection<T extends TConnection>
     const strokeColor = this.getStrokeColor(state);
 
     if (strokeColor) {
-      ctx.strokeStyle = strokeColor;
+      ctx.strokeStyle = this.getHighlightBorderColor(strokeColor);
     }
 
     if (withDashed && state.dashed) {
@@ -314,15 +324,15 @@ export class BlockConnection<T extends TConnection>
     );
 
     if (this.context.colors.connectionLabel?.background) {
-      ctx.fillStyle = this.context.colors.connectionLabel.background;
+      ctx.fillStyle = this.getHighlightAwareColor(this.context.colors.connectionLabel.background);
     }
 
     if (this.state.hovered && this.context.colors.connectionLabel?.hoverBackground) {
-      ctx.fillStyle = this.context.colors.connectionLabel.hoverBackground;
+      ctx.fillStyle = this.getHighlightAwareColor(this.context.colors.connectionLabel.hoverBackground);
     }
 
     if (this.state.selected && this.context.colors.connectionLabel?.selectedBackground) {
-      ctx.fillStyle = this.context.colors.connectionLabel.selectedBackground;
+      ctx.fillStyle = this.getHighlightAwareColor(this.context.colors.connectionLabel.selectedBackground);
     }
 
     const rectX = x;
@@ -340,15 +350,15 @@ export class BlockConnection<T extends TConnection>
     ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
 
     if (this.context.colors.connectionLabel?.text) {
-      ctx.fillStyle = this.context.colors.connectionLabel.text;
+      ctx.fillStyle = this.getHighlightAwareColor(this.context.colors.connectionLabel.text);
     }
 
     if (this.state.hovered && this.context.colors.connectionLabel?.hoverText) {
-      ctx.fillStyle = this.context.colors.connectionLabel.hoverText;
+      ctx.fillStyle = this.getHighlightAwareColor(this.context.colors.connectionLabel.hoverText);
     }
 
     if (this.state.selected && this.context.colors.connectionLabel?.selectedText) {
-      ctx.fillStyle = this.context.colors.connectionLabel.selectedText;
+      ctx.fillStyle = this.getHighlightAwareColor(this.context.colors.connectionLabel.selectedText);
     }
 
     ctx.textBaseline = "top";

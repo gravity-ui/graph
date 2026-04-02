@@ -41,3 +41,20 @@
 .graph-block-wrapper.selected:hover {
   border-color: var(--graph-block-border-selected);
 }
+
+.graph-block-wrapper.graph-block-wrapper-highlighted {
+  border-color: rgba(140, 82, 255, 1);
+  box-shadow: inset 0 0 0 2px rgba(140, 82, 255, 0.95);
+}
+
+.graph-block-wrapper.graph-block-wrapper-mode-highlight {
+  border-color: rgba(140, 82, 255, 1);
+}
+
+.graph-block-wrapper.graph-block-wrapper-mode-focus {
+  border-color: rgba(140, 82, 255, 1);
+}
+
+.graph-block-wrapper.graph-block-wrapper-lowlight {
+  opacity: 0.35;
+}

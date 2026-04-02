@@ -1,5 +1,6 @@
 import { TComponentState } from "../../../lib/Component";
 import { DragContext, DragDiff } from "../../../services/drag";
+import { HighlightVisualMode } from "../../../services/highlight";
 import { ESelectionStrategy } from "../../../services/selection/types";
 import { BlockState } from "../../../store/block/Block";
 import { GroupState, TGroup, TGroupId } from "../../../store/group/Group";
@@ -170,6 +171,10 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     return this.props.id;
   }
 
+  public getEntityType(): string {
+    return "group";
+  }
+
   /**
    * Check if group can be dragged based on props.draggable and canDrag setting
    */
@@ -253,16 +258,21 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
   protected renderBody(ctx: CanvasRenderingContext2D, rect = this.getRect()) {
     // Determine colors based on state priority: highlighted > selected > default
     if (this.highlighted) {
-      ctx.strokeStyle = this.style.highlightedBorder;
-      ctx.fillStyle = this.style.highlightedBackground;
+      ctx.strokeStyle = this.getHighlightAwareColor(this.style.highlightedBorder);
+      ctx.fillStyle = this.getHighlightAwareColor(this.style.highlightedBackground);
     } else if (this.state.selected) {
-      ctx.strokeStyle = this.style.selectedBorder;
-      ctx.fillStyle = this.style.selectedBackground;
+      ctx.strokeStyle = this.getHighlightAwareColor(this.style.selectedBorder);
+      ctx.fillStyle = this.getHighlightAwareColor(this.style.selectedBackground);
     } else {
-      ctx.strokeStyle = this.style.border;
-      ctx.fillStyle = this.style.background;
+      ctx.strokeStyle = this.getHighlightAwareColor(this.style.border);
+      ctx.fillStyle = this.getHighlightAwareColor(this.style.background);
     }
-    ctx.lineWidth = this.highlighted ? this.style.borderWidth + 1 : this.style.borderWidth;
+    const isHighlightedMode = this.getHighlightVisualMode() === HighlightVisualMode.Highlight;
+    ctx.lineWidth = this.highlighted || isHighlightedMode ? this.style.borderWidth + 1 : this.style.borderWidth;
+
+    if (isHighlightedMode) {
+      ctx.strokeStyle = this.getHighlightBorderColor(ctx.strokeStyle as string);
+    }
 
     // Draw group rectangle
     ctx.beginPath();

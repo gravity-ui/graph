@@ -33,9 +33,11 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
   }
 
   public styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult {
-    ctx.fillStyle = this.state.selected
-      ? this.context.colors.connection.selectedBackground
-      : this.context.colors.connection.background;
+    ctx.fillStyle = this.getHighlightBorderColor(
+      this.state.selected
+        ? this.context.colors.connection.selectedBackground
+        : this.context.colors.connection.background
+    );
     ctx.strokeStyle = ctx.fillStyle;
     ctx.lineWidth = this.state.selected || this.state.hovered ? -1 : 1;
     return { type: "both" };
@@ -120,19 +122,23 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
         height,
       });
 
-      ctx.fillStyle = this.context.colors.connectionLabel.text;
+      ctx.fillStyle = this.getHighlightAwareColor(this.context.colors.connectionLabel.text);
 
-      if (this.state.hovered) ctx.fillStyle = this.context.colors.connectionLabel.hoverText;
-      if (this.state.selected) ctx.fillStyle = this.context.colors.connectionLabel.selectedText;
+      if (this.state.hovered)
+        ctx.fillStyle = this.getHighlightAwareColor(this.context.colors.connectionLabel.hoverText);
+      if (this.state.selected)
+        ctx.fillStyle = this.getHighlightAwareColor(this.context.colors.connectionLabel.selectedText);
 
       ctx.textAlign = "left";
       ctx.font = `${DEFAULT_FONT_SIZE}px sans-serif`;
       ctx.fillText(text, x, y, width);
 
-      ctx.fillStyle = this.context.colors.connectionLabel.background;
+      ctx.fillStyle = this.getHighlightAwareColor(this.context.colors.connectionLabel.background);
 
-      if (this.state.hovered) ctx.fillStyle = this.context.colors.connectionLabel.hoverBackground;
-      if (this.state.selected) ctx.fillStyle = this.context.colors.connectionLabel.selectedBackground;
+      if (this.state.hovered)
+        ctx.fillStyle = this.getHighlightAwareColor(this.context.colors.connectionLabel.hoverBackground);
+      if (this.state.selected)
+        ctx.fillStyle = this.getHighlightAwareColor(this.context.colors.connectionLabel.selectedBackground);
 
       ctx.fillRect(
         x - labelInnerLeftPadding,
