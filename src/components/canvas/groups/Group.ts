@@ -290,8 +290,12 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
         const { rect: _rect, ...groupWithoutRect } = group;
         this.setState(groupWithoutRect);
       } else {
-        this.setState(group);
-        this.updateHitBox(this.getRect(group.rect));
+        this.setState({
+          ...this.state,
+          ...group,
+        } as T);
+        // Inner blocks-area rect; updateHitBox applies geometry padding via getRect().
+        this.updateHitBox(group.rect);
       }
     });
   }
@@ -301,8 +305,9 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     super.unmount();
   }
 
-  protected updateHitBox(rect: TRect) {
-    this.setHitBox(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
+  protected updateHitBox(rect: TRect): void {
+    const hitArea = this.getRect(rect);
+    this.setHitBox(hitArea.x, hitArea.y, hitArea.x + hitArea.width, hitArea.y + hitArea.height);
   }
 
   protected layoutText(text: string, textParams?: TMeasureTextOptions) {

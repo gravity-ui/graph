@@ -788,6 +788,167 @@ test.describe("CollapsibleGroup", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Initial collapsed state
+  // ---------------------------------------------------------------------------
+  //
+  // These tests cover the fix where `subscribeToGroup` now calls
+  // `updateHitBox(rect)` immediately after `delegatePorts` so that a group
+  // mounted with `collapsed: true` has the correct collapsed hitbox from the
+  // very first frame — without needing an explicit `collapse()` call.
+  // ---------------------------------------------------------------------------
+
+  test.describe("initial collapsed state", () => {
+    /**
+     * Layout used across all tests in this section:
+     * Same blocks/connections as the outer suite.
+     * Group starts with collapsed: true — no dblclick needed to collapse.
+     *
+     * Default collapsed rect: { x:80, y:80, w:200, h:48 }
+     * Expanded visual rect (after padding): { x:60, y:60, w:380, h:310 }
+     *   (GROUP_RECT + 20px padding on each side via Group.getRect)
+     */
+    test.beforeEach(async ({ page }) => {
+      graphPO = new GraphPageObject(page);
+
+      await graphPO.initialize({
+        blocks: BLOCKS,
+        connections: CONNECTIONS,
+      });
+
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          const { CollapsibleGroup, BlockGroups } = (window as any).GraphModule;
+          const graph = window.graph;
+
+          graph.addLayer(BlockGroups, { draggable: false });
+
+          // Mount with collapsed: true — the hitbox must be set to the
+          // collapsed rect immediately, without a separate collapse() call.
+          graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: CollapsibleGroup,
+              collapsed: true,
+            },
+          ]);
+
+          // Register dblclick handler so expand works in tests that need it
+          graph.on("dblclick", (event: any) => {
+            const target = event.detail?.target;
+            if (target instanceof CollapsibleGroup) {
+              if (target.isCollapsed()) {
+                target.expand();
+              } else {
+                target.collapse();
+              }
+            }
+          });
+        },
+        { groupRect: GROUP_RECT }
+      );
+
+      await graphPO.waitForFrames(5);
+    });
+
+    test("isCollapsed() returns true immediately after mount", async () => {
+      const isCollapsed = await graphPO.page.evaluate(() => {
+        const { CollapsibleGroup } = (window as any).GraphModule;
+        for (const layer of window.graph.layers.getLayers()) {
+          const group = layer.$?.["group-1"];
+          if (group instanceof CollapsibleGroup) {
+            return group.isCollapsed();
+          }
+        }
+        return null;
+      });
+
+      expect(isCollapsed).toBe(true);
+    });
+
+    test("inner blocks are hidden immediately after mount", async () => {
+      const { b1Hidden, b2Hidden } = await graphPO.page.evaluate(() => {
+        const store = window.graph.rootStore;
+        const b1 = store.blocksList.$blocksMap.value.get("block-1");
+        const b2 = store.blocksList.$blocksMap.value.get("block-2");
+        return {
+          b1Hidden: b1?.getViewComponent()?.isRendered() === false,
+          b2Hidden: b2?.getViewComponent()?.isRendered() === false,
+        };
+      });
+
+      expect(b1Hidden).toBe(true);
+      expect(b2Hidden).toBe(true);
+    });
+
+    test("collapsedRect is stored in group state immediately after mount", async () => {
+      const state = await graphPO.page.evaluate(() => {
+        return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+      });
+
+      expect(state.collapsed).toBe(true);
+      expect(state.collapsedRect).toBeTruthy();
+      // Default collapsed rect aligns top-left with expanded rect
+      expect(state.collapsedRect.x).toBe(GROUP_RECT.x);
+      expect(state.collapsedRect.y).toBe(GROUP_RECT.y);
+      expect(state.collapsedRect.width).toBe(200); // DEFAULT_COLLAPSED_WIDTH
+      expect(state.collapsedRect.height).toBe(48); // DEFAULT_COLLAPSED_HEIGHT
+    });
+
+    test("click inside collapsed header rect registers on the group", async () => {
+      // Collapsed header center: (80 + 100, 80 + 24) = (180, 104)
+      const collapsedCenter = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 24 };
+
+      const listener = await graphPO.listenGraphEvents("click");
+      await graphPO.click(collapsedCenter.x, collapsedCenter.y);
+
+      const targets = await listener.analyze((events) =>
+        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+      );
+      expect(targets).toContain("group-1");
+      await listener.stop();
+    });
+
+    test("click in expanded-only area (outside collapsed rect) does NOT hit group", async () => {
+      // The expanded visual rect spans ~310px tall but the collapsed rect is
+      // only 48px tall. A point at y = GROUP_RECT.y + 150 is outside the
+      // collapsed hitbox but inside the old expanded hitbox.
+      const belowCollapsedHeader = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 150 };
+
+      const listener = await graphPO.listenGraphEvents("click");
+      await graphPO.click(belowCollapsedHeader.x, belowCollapsedHeader.y);
+
+      const targets = await listener.analyze((events) =>
+        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+      );
+      // Without the fix, the hitbox was the expanded visual rect so this click
+      // would incorrectly land on the group.
+      expect(targets).not.toContain("group-1");
+      await listener.stop();
+    });
+
+    test("expand after initial-collapsed mount restores hitbox to expanded area", async () => {
+      const collapsedCenter = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 24 };
+      await graphPO.doubleClick(collapsedCenter.x, collapsedCenter.y, { waitFrames: 5 });
+
+      const state = await graphPO.page.evaluate(() => {
+        return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+      });
+      expect(state.collapsed).toBeFalsy();
+
+      // After expand, a click in the original expanded padding area should hit
+      const listener = await graphPO.listenGraphEvents("click");
+      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+
+      const targets = await listener.analyze((events) =>
+        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+      );
+      expect(targets).toContain("group-1");
+      await listener.stop();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Custom getCollapseRect
   // ---------------------------------------------------------------------------
 
