@@ -232,7 +232,10 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
           ...this.state,
           ...group,
         } as T);
-        this.updateHitBox(this.getRect(group.rect));
+        // Pass state.rect (inner blocks area), not getRect() (visual rect).
+        // CollapsibleGroup.updateHitBox calls getRect() internally, so passing
+        // an already-padded rect here would cause double-padding of the hitbox.
+        this.updateHitBox(group.rect);
       }
     });
   }

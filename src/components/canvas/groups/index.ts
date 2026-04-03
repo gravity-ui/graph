@@ -13,7 +13,7 @@ export { computeDefaultCollapseRect } from "./CollapsibleGroup";
 export type { TCollapsibleGroup, TCollapseDirection } from "./CollapsibleGroup";
 
 // Export types from BlockGroups
-export type { BlockGroupsProps, BlockGroupsContext, BlockGroupsState } from "./BlockGroups";
+export type { BlockGroupsProps, BlockGroupsContext, BlockGroupsState, TDefinitionGroup } from "./BlockGroups";
 
 // Export types from Group
 export type { TGroupProps, TGroupStyle, TGroupGeometry } from "./Group";

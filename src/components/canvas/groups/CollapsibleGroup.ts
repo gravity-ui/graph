@@ -218,6 +218,13 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
           } as Partial<T>);
         }
         this.delegatePorts(rect);
+        // Correct the hitbox immediately. super.subscribeToGroup already ran
+        // updateHitBox(group.rect) but at that point state.collapsedRect may
+        // not yet be populated, so getRect() returned the expanded visual rect.
+        // Passing the collapsed rect here forces the correct visual rect regardless
+        // of whether state.collapsedRect is set yet (getRect falls through to
+        // super.getRect(rect) when state.collapsedRect is undefined).
+        this.updateHitBox(rect);
       }
     });
 
@@ -283,8 +290,39 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
   // Helpers
   // ---------------------------------------------------------------------------
 
-  private getGroupBlocks(): BlockState[] {
+  protected getGroupBlocks(): BlockState[] {
     return this.context.graph.rootStore.groupsList.$blockGroups.value[this.props.id] ?? [];
+  }
+
+  /**
+   * Returns the number of ports currently delegated to the left and right
+   * group edge ports. Only meaningful when the group is collapsed.
+   *
+   * Use this inside `renderCollapsedView` to render anchor chip indicators
+   * showing how many connections enter/leave the collapsed group.
+   */
+  protected getPortDelegationCounts(): { left: number; right: number } {
+    let left = 0;
+    let right = 0;
+    this.getGroupBlocks().forEach((blockState) => {
+      const canvasBlock = blockState.getViewComponent();
+      if (!canvasBlock) return;
+
+      const inputPort = canvasBlock.getInputPort();
+      if (inputPort?.isDelegated) left++;
+
+      const outputPort = canvasBlock.getOutputPort();
+      if (outputPort?.isDelegated) right++;
+
+      blockState.$anchors.value.forEach((anchor) => {
+        const port = canvasBlock.getAnchorPort(anchor.id);
+        if (port?.isDelegated) {
+          if (anchor.type === EAnchorType.OUT) right++;
+          else left++;
+        }
+      });
+    });
+    return { left, right };
   }
 
   /**
