@@ -154,7 +154,15 @@ export class ConnectionState<T extends TConnection = TConnection> {
    * collapsed group). When true the connection should not be rendered.
    */
   public readonly $hidden = computed(() => {
-    return (this.$sourceBlock.value?.$hidden.value ?? false) && (this.$targetBlock.value?.$hidden.value ?? false);
+    const getBlockHidden = (component: Block | Anchor | undefined): boolean => {
+      if (component instanceof Block) return component.connectedState.$hidden.value;
+      if (component instanceof Anchor) return component.connectedState.block.$hidden.value;
+      return false;
+    };
+    return (
+      getBlockHidden(this.$sourcePortState.value.component as Block | Anchor | undefined) &&
+      getBlockHidden(this.$targetPortState.value.component as Block | Anchor | undefined)
+    );
   });
 
   public $geometry = computed(() => {
