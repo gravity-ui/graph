@@ -204,6 +204,9 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
    * Extend base subscription to also react to collapsed state on init.
    * subscribeSignal fires immediately with the current value, so a group
    * that starts with collapsed: true will hide its blocks on mount.
+   *
+   * Also handles external collapse state changes: if setGroups() is called
+   * with collapsed: false while the group is currently collapsed, it expands.
    */
   protected override subscribeToGroup(): ReturnType<Group["subscribeToGroup"]> {
     const unsub = super.subscribeToGroup();
@@ -225,6 +228,11 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
         // of whether state.collapsedRect is set yet (getRect falls through to
         // super.getRect(rect) when state.collapsedRect is undefined).
         this.updateHitBox(rect);
+      } else if ((this.state as T).collapsed) {
+        // Transition: collapsed → expanded triggered externally (e.g. via setGroups).
+        this.undelegatePorts();
+        this.applyBlockVisibility(false);
+        this.updateHitBox(group.rect);
       }
     });
 
@@ -248,10 +256,13 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
   }
 
   /**
-   * Sets the hitbox from collapsedRect when collapsed.
+   * Sets the hitbox to the collapsed rect when collapsed, or the expanded
+   * rect otherwise. Passes the raw inner rect to super so that base Group's
+   * updateHitBox can apply padding exactly once.
    */
   protected override updateHitBox(rect: TRect): void {
-    super.updateHitBox(this.getRect(rect));
+    const state = this.getState() as T;
+    super.updateHitBox(state.collapsed && state.collapsedRect ? state.collapsedRect : rect);
   }
 
   /**
@@ -270,8 +281,9 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
       this.groupState.updateGroup({
         collapsedRect: newCollapsedRect,
       } as Partial<T>);
-      // Move group edge ports — all delegated block ports follow automatically
-      this.updateGroupPortPositions(newCollapsedRect);
+      // Move group edge ports — use getRect so port positions stay consistent
+      // with where delegatePorts() originally placed them (both use getRect).
+      this.updateGroupPortPositions(this.getRect(newCollapsedRect));
     }
     // Let base Group handle the rest (update rect, hitbox, onDragUpdate)
     super.handleDrag(diff, context);
@@ -418,6 +430,19 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
         this.updateHitBox(this.groupState.$state.value.rect);
       }
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
+  protected override unmount(): void {
+    // When a collapsed group is removed, undelegate ports before releasing them
+    // so that block ports do not retain stale $delegate references.
+    if ((this.state as T).collapsed) {
+      this.undelegatePorts();
+    }
+    super.unmount();
   }
 
   // ---------------------------------------------------------------------------

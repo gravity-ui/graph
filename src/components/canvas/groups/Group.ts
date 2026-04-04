@@ -240,8 +240,9 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     });
   }
 
-  protected updateHitBox(rect: TRect) {
-    this.setHitBox(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
+  protected updateHitBox(rect: TRect): void {
+    const visual = this.getRect(rect);
+    this.setHitBox(visual.x, visual.y, visual.x + visual.width, visual.y + visual.height);
   }
 
   protected layoutText(text: string, textParams?: TMeasureTextOptions) {
