@@ -444,6 +444,37 @@ export class GraphPageObject {
     );
   }
 
+  /**
+   * Get the resolved source and target point coordinates for a connection.
+   * Returns `null` if the connection does not exist or its geometry is not yet resolved.
+   *
+   * Use this to verify that port delegation actually moved the connection endpoints,
+   * not just that the connection record exists in the store.
+   */
+  async getConnectionGeometry(
+    sourceBlockId: string,
+    targetBlockId: string
+  ): Promise<{ source: { x: number; y: number }; target: { x: number; y: number } } | null> {
+    return await this.page.evaluate(
+      ({ sourceBlockId, targetBlockId }) => {
+        const cl = window.graph.rootStore.connectionsList;
+        const conn = Array.from((cl.$connectionsMap as any).value.values()).find(
+          (c: any) =>
+            c.$state?.value?.sourceBlockId === sourceBlockId &&
+            c.$state?.value?.targetBlockId === targetBlockId
+        ) as any;
+        if (!conn) return null;
+        const geo = conn.$geometry?.value;
+        if (!geo || geo.length < 2) return null;
+        return {
+          source: { x: geo[0].x, y: geo[0].y },
+          target: { x: geo[1].x, y: geo[1].y },
+        };
+      },
+      { sourceBlockId, targetBlockId }
+    );
+  }
+
   async getCursor(): Promise<string> {
     return await this.page.evaluate(() => {
       const root = window.graph.layers.$root;

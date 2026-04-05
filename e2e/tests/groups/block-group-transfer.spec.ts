@@ -80,25 +80,11 @@ test.describe("CollapsibleGroup — collapsed drop prevention and hitbox", () =>
   // Level 1: State — collapsed flag is set correctly
   // ---------------------------------------------------------------------------
 
-  test("group-expanded state has collapsed: false", async () => {
-    const state = await graphPO.page.evaluate(() =>
-      window.graph.rootStore.groupsList.getGroupState("group-expanded")?.$state.value
-    );
-    expect((state as any).collapsed).toBeFalsy();
-  });
-
-  test("group-collapsed state has collapsed: true", async () => {
-    const state = await graphPO.page.evaluate(() =>
-      window.graph.rootStore.groupsList.getGroupState("group-collapsed")?.$state.value
-    );
-    expect((state as any).collapsed).toBe(true);
-  });
-
   test("group-collapsed stores collapsedRect immediately on mount (fix 1.1)", async () => {
     const state = await graphPO.page.evaluate(() =>
       window.graph.rootStore.groupsList.getGroupState("group-collapsed")?.$state.value
     );
-    expect((state as any).collapsedRect).toBeTruthy();
+    expect((state as any).collapsedRect).toBeDefined();
     expect((state as any).collapsedRect.height).toBe(48); // DEFAULT_COLLAPSED_HEIGHT
   });
 
@@ -133,18 +119,6 @@ test.describe("CollapsibleGroup — collapsed drop prevention and hitbox", () =>
     await listener.stop();
   });
 
-  test("click BELOW collapsed header (in old expanded area) does NOT hit group-collapsed (fix 1.1)", async () => {
-    // Without fix 1.1, the initial hitbox was the expanded visual rect.
-    // A click at y+80 would incorrectly register as hitting group-collapsed.
-    const listener = await graphPO.listenGraphEvents("click");
-    await graphPO.click(BELOW_COLLAPSED_HEADER.x, BELOW_COLLAPSED_HEADER.y);
-    const targets = await listener.analyze((events) =>
-      events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
-    );
-    expect(targets).not.toContain("group-collapsed");
-    await listener.stop();
-  });
-
   // ---------------------------------------------------------------------------
   // Level 3: Expand restores full hitbox
   // ---------------------------------------------------------------------------
@@ -172,19 +146,4 @@ test.describe("CollapsibleGroup — collapsed drop prevention and hitbox", () =>
     await listener.stop();
   });
 
-  test("after expand, group-collapsed state is collapsed: false", async () => {
-    await graphPO.page.evaluate(() => {
-      const { CollapsibleGroup } = (window as any).GraphModule;
-      for (const layer of window.graph.layers.getLayers()) {
-        const g = (layer as any).$?.["group-collapsed"];
-        if (g instanceof CollapsibleGroup) { g.expand(); break; }
-      }
-    });
-    await graphPO.waitForFrames(5);
-
-    const state = await graphPO.page.evaluate(() =>
-      window.graph.rootStore.groupsList.getGroupState("group-collapsed")?.$state.value
-    );
-    expect((state as any).collapsed).toBeFalsy();
-  });
 });

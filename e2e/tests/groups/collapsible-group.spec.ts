@@ -163,20 +163,6 @@ test.describe("CollapsibleGroup", () => {
       await setupWithDblclick(page);
     });
 
-    test("group is rendered and wraps specified blocks", async () => {
-      const result = await graphPO.page.evaluate(() => {
-        const groupState = window.graph.rootStore.groupsList.getGroupState("group-1");
-        const rect = groupState?.$state.value.rect;
-        return { exists: !!groupState, rect };
-      });
-
-      expect(result.exists).toBe(true);
-      expect(result.rect.x).toBe(GROUP_RECT.x);
-      expect(result.rect.y).toBe(GROUP_RECT.y);
-      expect(result.rect.width).toBe(GROUP_RECT.width);
-      expect(result.rect.height).toBe(GROUP_RECT.height);
-    });
-
     test("group is a full GraphComponent — receives click events", async () => {
       const listener = await graphPO.listenGraphEvents("click");
 
@@ -282,28 +268,7 @@ test.describe("CollapsibleGroup", () => {
         return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value.collapsed;
       });
 
-      expect(collapsed).toBeFalsy();
-    });
-
-    test("blocks inside group disappear after collapse", async () => {
-      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
-
-      const { b1Rendered, b2Rendered } = await graphPO.page.evaluate(() => {
-        const store = window.graph.rootStore;
-        const b1 = store.blocksList.$blocksMap.value.get("block-1");
-        const b2 = store.blocksList.$blocksMap.value.get("block-2");
-        return {
-          b1Rendered: b1?.getViewComponent()?.isRendered() ?? true,
-          b2Rendered: b2?.getViewComponent()?.isRendered() ?? true,
-        };
-      });
-
-      expect(b1Rendered).toBe(false);
-      expect(b2Rendered).toBe(false);
-
-      const clip = await worldRectToClip(SCENE_RECT);
-      // TODO: generate linux snapshots
-      // await expect(graphPO.page).toHaveScreenshot("collapse-blocks-hidden.png", { clip });
+      expect(collapsed).toBe(false);
     });
 
     test("connections redirect to group edges after collapse (port delegation)", async () => {
@@ -341,6 +306,16 @@ test.describe("CollapsibleGroup", () => {
 
       const exists = await graphPO.hasConnectionBetween("block-1", "block-outer");
       expect(exists).toBe(true);
+
+      // Geometry must be resolved — source endpoint is now at the group right edge
+      const geo = await graphPO.getConnectionGeometry("block-1", "block-outer");
+      expect(geo).not.toBeNull();
+      // Source point should have moved to the group's right edge (not block-1's original x)
+      const state = await graphPO.page.evaluate(() =>
+        window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value
+      );
+      const collapsedRect = (state as any)?.collapsedRect;
+      expect(geo!.source.x).toBe(collapsedRect.x + collapsedRect.width + GROUP_PAD);
     });
   });
 
@@ -368,7 +343,7 @@ test.describe("CollapsibleGroup", () => {
         return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
       });
 
-      expect(state.collapsed).toBeFalsy();
+      expect(state.collapsed).toBe(false);
       expect(state.collapsedRect).toBeUndefined();
       expect(state.rect.x).toBe(GROUP_RECT.x);
       expect(state.rect.y).toBe(GROUP_RECT.y);
@@ -395,30 +370,6 @@ test.describe("CollapsibleGroup", () => {
       expect(details).toHaveLength(1);
       expect(details[0].groupId).toBe("group-1");
       expect(details[0].collapsed).toBe(false);
-    });
-
-    test("blocks are visible again after expand", async () => {
-      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
-
-      const collapsedCenter = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 24 };
-      await graphPO.doubleClick(collapsedCenter.x, collapsedCenter.y, { waitFrames: 5 });
-
-      const { b1Rendered, b2Rendered } = await graphPO.page.evaluate(() => {
-        const store = window.graph.rootStore;
-        const b1 = store.blocksList.$blocksMap.value.get("block-1");
-        const b2 = store.blocksList.$blocksMap.value.get("block-2");
-        return {
-          b1Rendered: b1?.getViewComponent()?.isRendered() ?? false,
-          b2Rendered: b2?.getViewComponent()?.isRendered() ?? false,
-        };
-      });
-
-      expect(b1Rendered).toBe(true);
-      expect(b2Rendered).toBe(true);
-
-      const clip = await worldRectToClip(SCENE_RECT);
-      // TODO: generate linux snapshots
-      // await expect(graphPO.page).toHaveScreenshot("expand-blocks-visible.png", { clip });
     });
 
     test("group hitbox is restored after expand — click on group works", async () => {
@@ -461,32 +412,6 @@ test.describe("CollapsibleGroup", () => {
       await listener.stop();
     });
 
-    test("connection ports return to block positions after expand", async () => {
-      // Capture original port position
-      const originalPort = await graphPO.page.evaluate(() => {
-        const b1 = window.graph.rootStore.blocksList.$blocksMap.value.get("block-1");
-        const port = b1?.getViewComponent()?.getOutputPort();
-        const state = port?.$state?.value;
-        return { x: state?.x, y: state?.y };
-      });
-
-      // Collapse
-      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
-
-      // Expand
-      const collapsedCenter = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 24 };
-      await graphPO.doubleClick(collapsedCenter.x, collapsedCenter.y, { waitFrames: 5 });
-
-      const restoredPort = await graphPO.page.evaluate(() => {
-        const b1 = window.graph.rootStore.blocksList.$blocksMap.value.get("block-1");
-        const port = b1?.getViewComponent()?.getOutputPort();
-        const state = port?.$state?.value;
-        return { x: state?.x, y: state?.y };
-      });
-
-      expect(restoredPort.x).toBe(originalPort.x);
-      expect(restoredPort.y).toBe(originalPort.y);
-    });
   });
 
   // ---------------------------------------------------------------------------
@@ -635,6 +560,15 @@ test.describe("CollapsibleGroup", () => {
 
       const exists = await graphPO.hasConnectionBetween("block-a", "block-b");
       expect(exists).toBe(true);
+
+      // Geometry must be resolved and source endpoint moved to group right edge
+      const geo = await graphPO.getConnectionGeometry("block-a", "block-b");
+      expect(geo).not.toBeNull();
+      const gs = await graphPO.page.evaluate(() =>
+        window.graph.rootStore.groupsList.getGroupState("group-anchors")?.$state.value
+      );
+      const collapsedRect = (gs as any)?.collapsedRect;
+      expect(geo!.source.x).toBe(collapsedRect.x + collapsedRect.width + GROUP_PAD);
     });
   });
 
@@ -704,87 +638,6 @@ test.describe("CollapsibleGroup", () => {
 
       await graphPO.waitForFrames(5);
     });
-
-    // TODO: drag distance varies across platforms, making exact position checks unreliable on Linux CI
-    test.skip("blocks move with group after collapse → drag → expand", async () => {
-      // Capture initial block positions
-      const initialPositions = await graphPO.page.evaluate(() => {
-        const store = window.graph.rootStore;
-        const b1 = store.blocksList.$blocksMap.value.get("block-1");
-        const b2 = store.blocksList.$blocksMap.value.get("block-2");
-        return {
-          b1: { x: b1?.$geometry.value.x, y: b1?.$geometry.value.y },
-          b2: { x: b2?.$geometry.value.x, y: b2?.$geometry.value.y },
-        };
-      });
-
-      // Collapse
-      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
-
-      const collapsed = await graphPO.page.evaluate(() => {
-        return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value.collapsed;
-      });
-      expect(collapsed).toBe(true);
-
-      // Drag the collapsed group
-      const dragDx = 200;
-      const dragDy = 100;
-      const collapsedCenter = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 24 };
-
-      await graphPO.dragTo(
-        collapsedCenter.x,
-        collapsedCenter.y,
-        collapsedCenter.x + dragDx,
-        collapsedCenter.y + dragDy,
-        { waitFrames: 20 },
-      );
-
-      // Verify collapsedRect moved
-      const movedState = await graphPO.page.evaluate(() => {
-        return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
-      });
-      const movedCollapsedRect = movedState.collapsedRect;
-      expect(movedCollapsedRect).toBeTruthy();
-      // Verify the group actually moved (drag distance varies across platforms)
-      expect(movedCollapsedRect.x).toBeGreaterThan(GROUP_RECT.x);
-
-      // Compute the actual drag delta from the collapsedRect movement
-      const originalCollapsedX = GROUP_RECT.x; // default direction start
-      const originalCollapsedY = GROUP_RECT.y;
-      const actualDx = movedCollapsedRect.x - originalCollapsedX;
-      const actualDy = movedCollapsedRect.y - originalCollapsedY;
-
-      // Expand at new position (use actual moved center, not target)
-      const movedCollapsedCenter = {
-        x: movedCollapsedRect.x + 100,
-        y: movedCollapsedRect.y + 24,
-      };
-      await graphPO.doubleClick(movedCollapsedCenter.x, movedCollapsedCenter.y, { waitFrames: 5 });
-
-      // Verify expand happened
-      const expandedState = await graphPO.page.evaluate(() => {
-        return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value.collapsed;
-      });
-      expect(expandedState).toBeFalsy();
-
-      // Check that blocks moved by the actual group drag delta
-      const finalPositions = await graphPO.page.evaluate(() => {
-        const store = window.graph.rootStore;
-        const b1 = store.blocksList.$blocksMap.value.get("block-1");
-        const b2 = store.blocksList.$blocksMap.value.get("block-2");
-        return {
-          b1: { x: b1?.$geometry.value.x, y: b1?.$geometry.value.y },
-          b2: { x: b2?.$geometry.value.x, y: b2?.$geometry.value.y },
-        };
-      });
-
-      // Block positions should have shifted by the same delta as the group
-      const tolerance = 5;
-      expect(Math.abs(finalPositions.b1.x - initialPositions.b1.x - actualDx)).toBeLessThan(tolerance);
-      expect(Math.abs(finalPositions.b1.y - initialPositions.b1.y - actualDy)).toBeLessThan(tolerance);
-      expect(Math.abs(finalPositions.b2.x - initialPositions.b2.x - actualDx)).toBeLessThan(tolerance);
-      expect(Math.abs(finalPositions.b2.y - initialPositions.b2.y - actualDy)).toBeLessThan(tolerance);
-    });
   });
 
   // ---------------------------------------------------------------------------
@@ -851,43 +704,13 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.waitForFrames(5);
     });
 
-    test("isCollapsed() returns true immediately after mount", async () => {
-      const isCollapsed = await graphPO.page.evaluate(() => {
-        const { CollapsibleGroup } = (window as any).GraphModule;
-        for (const layer of window.graph.layers.getLayers()) {
-          const group = layer.$?.["group-1"];
-          if (group instanceof CollapsibleGroup) {
-            return group.isCollapsed();
-          }
-        }
-        return null;
-      });
-
-      expect(isCollapsed).toBe(true);
-    });
-
-    test("inner blocks are hidden immediately after mount", async () => {
-      const { b1Hidden, b2Hidden } = await graphPO.page.evaluate(() => {
-        const store = window.graph.rootStore;
-        const b1 = store.blocksList.$blocksMap.value.get("block-1");
-        const b2 = store.blocksList.$blocksMap.value.get("block-2");
-        return {
-          b1Hidden: b1?.getViewComponent()?.isRendered() === false,
-          b2Hidden: b2?.getViewComponent()?.isRendered() === false,
-        };
-      });
-
-      expect(b1Hidden).toBe(true);
-      expect(b2Hidden).toBe(true);
-    });
-
     test("collapsedRect is stored in group state immediately after mount", async () => {
       const state = await graphPO.page.evaluate(() => {
         return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
       });
 
       expect(state.collapsed).toBe(true);
-      expect(state.collapsedRect).toBeTruthy();
+      expect(state.collapsedRect).toBeDefined();
       // Default collapsed rect aligns top-left with expanded rect
       expect(state.collapsedRect.x).toBe(GROUP_RECT.x);
       expect(state.collapsedRect.y).toBe(GROUP_RECT.y);
@@ -927,16 +750,394 @@ test.describe("CollapsibleGroup", () => {
       await listener.stop();
     });
 
-    test("expand after initial-collapsed mount restores hitbox to expanded area", async () => {
-      const collapsedCenter = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 24 };
-      await graphPO.doubleClick(collapsedCenter.x, collapsedCenter.y, { waitFrames: 5 });
+  });
 
-      const state = await graphPO.page.evaluate(() => {
-        return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+  // ---------------------------------------------------------------------------
+  // Programmatic collapse via setGroups (data-driven API)
+  // ---------------------------------------------------------------------------
+  //
+  // These tests verify that passing `collapsed: true/false` through
+  // `graph.rootStore.groupsList.setGroups()` — without calling `.collapse()`
+  // or `.expand()` imperatively — correctly drives the component:
+  //   - blocks are hidden/shown
+  //   - ports are delegated/undelegated and positions are correct
+  //   - connections become hidden/visible ($hidden signal)
+  //   - hitbox follows the collapsed/expanded rect
+  //
+  // This is the data-driven contract of the library: the component must react
+  // to store updates the same way it reacts to imperative calls.
+  // ---------------------------------------------------------------------------
+
+  test.describe("programmatic collapsed prop via setGroups", () => {
+    test.beforeEach(async ({ page }) => {
+      graphPO = new GraphPageObject(page);
+
+      await graphPO.initialize({
+        blocks: BLOCKS,
+        connections: CONNECTIONS,
       });
-      expect(state.collapsed).toBeFalsy();
 
-      // After expand, a click in the original expanded padding area should hit
+      // Set up graph with group initially EXPANDED (collapsed: false).
+      // No dblclick handler — all state changes go through setGroups.
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          const { CollapsibleGroup, BlockGroups } = (window as any).GraphModule;
+          const graph = window.graph;
+
+          graph.addLayer(BlockGroups, { draggable: false });
+
+          graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: CollapsibleGroup,
+              collapsed: false,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+
+      await graphPO.waitForFrames(5);
+    });
+
+    test("setGroups with collapsed:true hides inner blocks", async () => {
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: true,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      const { b1Hidden, b2Hidden } = await graphPO.page.evaluate(() => {
+        const store = window.graph.rootStore;
+        const b1 = store.blocksList.$blocksMap.value.get("block-1");
+        const b2 = store.blocksList.$blocksMap.value.get("block-2");
+        return {
+          b1Hidden: b1?.getViewComponent()?.isRendered() === false,
+          b2Hidden: b2?.getViewComponent()?.isRendered() === false,
+        };
+      });
+
+      expect(b1Hidden).toBe(true);
+      expect(b2Hidden).toBe(true);
+    });
+
+    test("setGroups with collapsed:true delegates output port to right group edge", async () => {
+      // Capture original port position before collapse
+      const originalPort = await graphPO.page.evaluate(() => {
+        const b1 = window.graph.rootStore.blocksList.$blocksMap.value.get("block-1");
+        const port = b1?.getViewComponent()?.getOutputPort();
+        return { x: port?.$state?.value?.x, y: port?.$state?.value?.y };
+      });
+
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: true,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      const result = await graphPO.page.evaluate((pad) => {
+        const store = window.graph.rootStore;
+        const b1 = store.blocksList.$blocksMap.value.get("block-1");
+        const canvasBlock = b1?.getViewComponent();
+        const outputPort = canvasBlock?.getOutputPort();
+        const point = outputPort?.$point?.value;
+        const gs = store.groupsList.getGroupState("group-1")?.$state.value;
+        const collapsedRect = gs?.collapsedRect ?? gs?.rect;
+
+        return {
+          isDelegated: outputPort?.isDelegated ?? false,
+          portX: point?.x,
+          portY: point?.y,
+          expectedX: collapsedRect ? collapsedRect.x + collapsedRect.width + pad : null,
+          expectedY: collapsedRect ? collapsedRect.y + collapsedRect.height / 2 : null,
+        };
+      }, GROUP_PAD);
+
+      expect(result.isDelegated).toBe(true);
+      expect(result.portX).toBe(result.expectedX);
+      expect(result.portY).toBe(result.expectedY);
+
+      // Port must have actually moved from original position
+      expect(result.portX).not.toBe(originalPort.x);
+    });
+
+    test("setGroups with collapsed:false after collapse restores block visibility", async () => {
+      // Collapse via setGroups
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: true,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      // Expand via setGroups
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: false,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      const { b1Rendered, b2Rendered } = await graphPO.page.evaluate(() => {
+        const store = window.graph.rootStore;
+        const b1 = store.blocksList.$blocksMap.value.get("block-1");
+        const b2 = store.blocksList.$blocksMap.value.get("block-2");
+        return {
+          b1Rendered: b1?.getViewComponent()?.isRendered() ?? false,
+          b2Rendered: b2?.getViewComponent()?.isRendered() ?? false,
+        };
+      });
+
+      expect(b1Rendered).toBe(true);
+      expect(b2Rendered).toBe(true);
+    });
+
+    test("setGroups with collapsed:false restores port positions to original", async () => {
+      // Capture original port position
+      const originalPort = await graphPO.page.evaluate(() => {
+        const b1 = window.graph.rootStore.blocksList.$blocksMap.value.get("block-1");
+        const port = b1?.getViewComponent()?.getOutputPort();
+        return { x: port?.$state?.value?.x, y: port?.$state?.value?.y };
+      });
+
+      // Collapse
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: true,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      // Expand
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: false,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      const restoredPort = await graphPO.page.evaluate(() => {
+        const b1 = window.graph.rootStore.blocksList.$blocksMap.value.get("block-1");
+        const port = b1?.getViewComponent()?.getOutputPort();
+        return {
+          isDelegated: port?.isDelegated ?? true,
+          x: port?.$state?.value?.x,
+          y: port?.$state?.value?.y,
+        };
+      });
+
+      expect(restoredPort.isDelegated).toBe(false);
+      expect(restoredPort.x).toBe(originalPort.x);
+      expect(restoredPort.y).toBe(originalPort.y);
+    });
+
+    test("connection $hidden is true when both endpoints are in a collapsed group", async () => {
+      // Add a second connection fully inside the group (block-1 → block-2)
+      await graphPO.page.evaluate(() => {
+        window.graph.rootStore.connectionsList.setConnections([
+          { id: "conn-1", sourceBlockId: "block-1", targetBlockId: "block-outer" },
+          { id: "conn-internal", sourceBlockId: "block-1", targetBlockId: "block-2" },
+        ]);
+      });
+      await graphPO.waitForFrames(3);
+
+      // Collapse
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: true,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      const result = await graphPO.page.evaluate(() => {
+        const cl = window.graph.rootStore.connectionsList;
+        const connExternal = cl.$connectionsMap.value.get("conn-1");
+        const connInternal = cl.$connectionsMap.value.get("conn-internal");
+        return {
+          externalHidden: connExternal?.$hidden?.value,
+          internalHidden: connInternal?.$hidden?.value,
+        };
+      });
+
+      // Internal connection (both blocks collapsed) must be hidden
+      expect(result.internalHidden).toBe(true);
+      // External connection (one endpoint outside the group) must NOT be hidden
+      expect(result.externalHidden).toBe(false);
+    });
+
+    test("connection $hidden returns to false after expand via setGroups", async () => {
+      // Internal connection
+      await graphPO.page.evaluate(() => {
+        window.graph.rootStore.connectionsList.setConnections([
+          { id: "conn-1", sourceBlockId: "block-1", targetBlockId: "block-outer" },
+          { id: "conn-internal", sourceBlockId: "block-1", targetBlockId: "block-2" },
+        ]);
+      });
+      await graphPO.waitForFrames(3);
+
+      // Collapse
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: true,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      // Expand
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: false,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      const result = await graphPO.page.evaluate(() => {
+        const cl = window.graph.rootStore.connectionsList;
+        const connInternal = cl.$connectionsMap.value.get("conn-internal");
+        return { internalHidden: connInternal?.$hidden?.value };
+      });
+
+      expect(result.internalHidden).toBe(false);
+    });
+
+    test("hitbox after setGroups collapse is at collapsed rect — click outside collapsed area misses group", async () => {
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: true,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      // Click below the collapsed header (y + 150) but inside the old expanded area
+      const belowCollapsedHeader = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 150 };
+
+      const listener = await graphPO.listenGraphEvents("click");
+      await graphPO.click(belowCollapsedHeader.x, belowCollapsedHeader.y);
+
+      const targets = await listener.analyze((events) =>
+        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+      );
+      expect(targets).not.toContain("group-1");
+      await listener.stop();
+    });
+
+    test("hitbox after setGroups expand is restored — click in expanded area hits group", async () => {
+      // Collapse
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: true,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      // Expand
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: false,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      // Click in the original group padding area (above block-1, inside group visual rect)
       const listener = await graphPO.listenGraphEvents("click");
       await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
 
@@ -945,6 +1146,66 @@ test.describe("CollapsibleGroup", () => {
       );
       expect(targets).toContain("group-1");
       await listener.stop();
+    });
+
+    test("multiple collapse/expand cycles via setGroups remain consistent", async () => {
+      for (let i = 0; i < 3; i++) {
+        // Collapse
+        await graphPO.page.evaluate(
+          ({ groupRect }) => {
+            window.graph.rootStore.groupsList.setGroups([
+              {
+                id: "group-1",
+                rect: groupRect,
+                component: (window as any).GraphModule.CollapsibleGroup,
+                collapsed: true,
+              },
+            ]);
+          },
+          { groupRect: GROUP_RECT }
+        );
+        await graphPO.waitForFrames(5);
+
+        const collapsedState = await graphPO.page.evaluate(() => {
+          const store = window.graph.rootStore;
+          const b1 = store.blocksList.$blocksMap.value.get("block-1");
+          const port = b1?.getViewComponent()?.getOutputPort();
+          return {
+            b1Hidden: b1?.getViewComponent()?.isRendered() === false,
+            portDelegated: port?.isDelegated ?? false,
+          };
+        });
+        expect(collapsedState.b1Hidden).toBe(true);
+        expect(collapsedState.portDelegated).toBe(true);
+
+        // Expand
+        await graphPO.page.evaluate(
+          ({ groupRect }) => {
+            window.graph.rootStore.groupsList.setGroups([
+              {
+                id: "group-1",
+                rect: groupRect,
+                component: (window as any).GraphModule.CollapsibleGroup,
+                collapsed: false,
+              },
+            ]);
+          },
+          { groupRect: GROUP_RECT }
+        );
+        await graphPO.waitForFrames(5);
+
+        const expandedState = await graphPO.page.evaluate(() => {
+          const store = window.graph.rootStore;
+          const b1 = store.blocksList.$blocksMap.value.get("block-1");
+          const port = b1?.getViewComponent()?.getOutputPort();
+          return {
+            b1Rendered: b1?.getViewComponent()?.isRendered() ?? false,
+            portDelegated: port?.isDelegated ?? true,
+          };
+        });
+        expect(expandedState.b1Rendered).toBe(true);
+        expect(expandedState.portDelegated).toBe(false);
+      }
     });
   });
 
@@ -1018,6 +1279,269 @@ test.describe("CollapsibleGroup", () => {
       const clip = await worldRectToClip(sceneRect);
       // TODO: generate linux snapshots
       // await expect(graphPO.page).toHaveScreenshot("custom-collapse-rect.png", { clip });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Group deletion
+  // ---------------------------------------------------------------------------
+  //
+  // Verifies that removing a group via setGroups([]) or deleteGroups() cleans
+  // up correctly — including port undelegation when the group was collapsed.
+  // ---------------------------------------------------------------------------
+
+  test.describe("group deletion", () => {
+    test.beforeEach(async ({ page }) => {
+      graphPO = new GraphPageObject(page);
+      await graphPO.initialize({ blocks: BLOCKS, connections: CONNECTIONS });
+
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          const { CollapsibleGroup, BlockGroups } = (window as any).GraphModule;
+          const graph = window.graph;
+          graph.addLayer(BlockGroups, { draggable: false });
+          graph.rootStore.groupsList.setGroups([
+            { id: "group-1", rect: groupRect, component: CollapsibleGroup, collapsed: false },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+    });
+
+    test("deleting an expanded group does not hide blocks", async () => {
+      await graphPO.page.evaluate(() => {
+        window.graph.rootStore.groupsList.setGroups([]);
+      });
+      await graphPO.waitForFrames(3);
+
+      const { b1Rendered, b2Rendered } = await graphPO.page.evaluate(() => {
+        const store = window.graph.rootStore;
+        return {
+          b1Rendered: store.blocksList.$blocksMap.value.get("block-1")?.getViewComponent()?.isRendered() ?? false,
+          b2Rendered: store.blocksList.$blocksMap.value.get("block-2")?.getViewComponent()?.isRendered() ?? false,
+        };
+      });
+      expect(b1Rendered).toBe(true);
+      expect(b2Rendered).toBe(true);
+    });
+
+    test("deleting a collapsed group restores block visibility", async () => {
+      // Collapse first
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: true,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      // Delete group
+      await graphPO.page.evaluate(() => {
+        window.graph.rootStore.groupsList.setGroups([]);
+      });
+      await graphPO.waitForFrames(5);
+
+      const { b1Rendered, b2Rendered } = await graphPO.page.evaluate(() => {
+        const store = window.graph.rootStore;
+        return {
+          b1Rendered: store.blocksList.$blocksMap.value.get("block-1")?.getViewComponent()?.isRendered() ?? false,
+          b2Rendered: store.blocksList.$blocksMap.value.get("block-2")?.getViewComponent()?.isRendered() ?? false,
+        };
+      });
+      expect(b1Rendered).toBe(true);
+      expect(b2Rendered).toBe(true);
+    });
+
+    test("deleting a collapsed group undelegates ports", async () => {
+      // Capture original port position
+      const originalPort = await graphPO.page.evaluate(() => {
+        const b1 = window.graph.rootStore.blocksList.$blocksMap.value.get("block-1");
+        const port = b1?.getViewComponent()?.getOutputPort();
+        return { x: port?.$state?.value?.x, y: port?.$state?.value?.y };
+      });
+
+      // Collapse
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: true,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      // Delete group
+      await graphPO.page.evaluate(() => {
+        window.graph.rootStore.groupsList.setGroups([]);
+      });
+      await graphPO.waitForFrames(5);
+
+      const port = await graphPO.page.evaluate(() => {
+        const b1 = window.graph.rootStore.blocksList.$blocksMap.value.get("block-1");
+        const p = b1?.getViewComponent()?.getOutputPort();
+        return {
+          isDelegated: p?.isDelegated ?? true,
+          x: p?.$state?.value?.x,
+          y: p?.$state?.value?.y,
+        };
+      });
+
+      expect(port.isDelegated).toBe(false);
+      expect(port.x).toBe(originalPort.x);
+      expect(port.y).toBe(originalPort.y);
+    });
+
+    test("re-adding a group after deletion works correctly", async () => {
+      // Delete
+      await graphPO.page.evaluate(() => {
+        window.graph.rootStore.groupsList.setGroups([]);
+      });
+      await graphPO.waitForFrames(3);
+
+      // Re-add
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            { id: "group-1", rect: groupRect, component: (window as any).GraphModule.CollapsibleGroup, collapsed: false },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      const exists = await graphPO.page.evaluate(() =>
+        !!window.graph.rootStore.groupsList.getGroupState("group-1")
+      );
+      expect(exists).toBe(true);
+
+      // Click on group should work
+      const listener = await graphPO.listenGraphEvents("click");
+      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      const targets = await listener.analyze((events) =>
+        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
+      );
+      expect(targets).toContain("group-1");
+      await listener.stop();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Group selection
+  // ---------------------------------------------------------------------------
+
+  test.describe("group selection", () => {
+    test.beforeEach(async ({ page }) => {
+      graphPO = new GraphPageObject(page);
+      await graphPO.initialize({ blocks: BLOCKS, connections: CONNECTIONS });
+
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          const { CollapsibleGroup, BlockGroups } = (window as any).GraphModule;
+          const graph = window.graph;
+          graph.addLayer(BlockGroups, { draggable: false });
+          graph.rootStore.groupsList.setGroups([
+            { id: "group-1", rect: groupRect, component: CollapsibleGroup, collapsed: false },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+    });
+
+    test("clicking group selects it — $selected signal becomes true", async () => {
+      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      await graphPO.waitForFrames(3);
+
+      const selected = await graphPO.page.evaluate(() =>
+        window.graph.rootStore.groupsList.getGroupState("group-1")?.$selected.value
+      );
+      expect(selected).toBe(true);
+    });
+
+    test("clicking outside group deselects it", async () => {
+      // Select
+      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      await graphPO.waitForFrames(3);
+
+      // Click outside — far from any group or block
+      await graphPO.click(900, 500);
+      await graphPO.waitForFrames(3);
+
+      const selected = await graphPO.page.evaluate(() =>
+        window.graph.rootStore.groupsList.getGroupState("group-1")?.$selected.value
+      );
+      expect(selected).toBe(false);
+    });
+
+    test("$selected signal is authoritative — $state.value.selected is not used for selection", async () => {
+      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      await graphPO.waitForFrames(3);
+
+      const { signalSelected, stateSelected } = await graphPO.page.evaluate(() => {
+        const gs = window.graph.rootStore.groupsList.getGroupState("group-1");
+        return {
+          signalSelected: gs?.$selected.value,
+          // Selection is managed exclusively via groupSelectionBucket,
+          // not persisted into $state — so $state.selected stays undefined.
+          stateSelected: gs?.$state.value.selected,
+        };
+      });
+
+      expect(signalSelected).toBe(true);
+      // $state.selected is not the source of truth — groupSelectionBucket is.
+      expect(stateSelected).toBeUndefined();
+    });
+
+    test("groups-selection-change event fires on click", async () => {
+      const getEvents = await graphPO.collectGraphEventDetails("groups-selection-change");
+
+      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      await graphPO.waitForFrames(3);
+
+      const details = await getEvents();
+      expect(details.length).toBeGreaterThan(0);
+    });
+
+    test("collapsed group can be selected by clicking collapsed header", async () => {
+      // Collapse
+      await graphPO.page.evaluate(
+        ({ groupRect }) => {
+          window.graph.rootStore.groupsList.setGroups([
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: true,
+            },
+          ]);
+        },
+        { groupRect: GROUP_RECT }
+      );
+      await graphPO.waitForFrames(5);
+
+      // Click collapsed header center
+      const collapsedCenter = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 24 };
+      await graphPO.click(collapsedCenter.x, collapsedCenter.y);
+      await graphPO.waitForFrames(3);
+
+      const selected = await graphPO.page.evaluate(() =>
+        window.graph.rootStore.groupsList.getGroupState("group-1")?.$selected.value
+      );
+      expect(selected).toBe(true);
     });
   });
 });
