@@ -85,7 +85,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
 
   public declare context: TGraphLayerContext;
   protected blocks: BlockState[] = [];
-  protected groupState: GroupState<T> | undefined;
+  protected groupState!: GroupState<T>;
   public cursor = "pointer";
 
   protected style: TGroupStyle;
@@ -109,11 +109,11 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
 
     this.subscribeToGroup();
 
-    this.addEventListener("click", (event: MouseEvent) => {
+    this.addEventListener("click", (event) => {
       event.stopPropagation();
       this.groupState.setSelection(
         true,
-        !isMetaKeyEvent(event) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
+        !isMetaKeyEvent(event as MouseEvent | KeyboardEvent) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
       );
     });
   }
@@ -175,7 +175,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
    */
   public override isDraggable(): boolean {
     const canDrag = this.context.graph.rootStore.settings.$canDrag.value;
-    return Boolean(this.props.draggable) && isAllowDrag(canDrag, this.state.selected);
+    return Boolean(this.props.draggable) && isAllowDrag(canDrag, Boolean(this.state.selected));
   }
 
   /**

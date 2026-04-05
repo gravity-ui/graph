@@ -437,9 +437,11 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
   // ---------------------------------------------------------------------------
 
   protected override unmount(): void {
-    // When a collapsed group is removed, undelegate ports before releasing them
-    // so that block ports do not retain stale $delegate references.
+    // When a collapsed group is removed, restore block visibility and undelegate
+    // ports before releasing them so blocks are shown and ports have no stale
+    // $delegate references pointing to the now-destroyed edge ports.
     if ((this.state as T).collapsed) {
+      this.applyBlockVisibility(false);
       this.undelegatePorts();
     }
     super.unmount();
