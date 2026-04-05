@@ -211,4 +211,139 @@ describe("PortsStore", () => {
       expect(port2.lookup).toBe(false);
     });
   });
+
+  describe("Port Delegation", () => {
+    it("should mirror target port position after delegate()", () => {
+      const port = store.createPort("port-a", mockComponent);
+      const target = store.createPort("port-b", mockComponent);
+
+      port.setPoint(10, 20);
+      target.setPoint(100, 200);
+
+      port.delegate(target);
+
+      expect(port.getPoint()).toEqual({ x: 100, y: 200 });
+      expect(port.x).toBe(100);
+      expect(port.y).toBe(200);
+    });
+
+    it("should save position on setPoint when delegated", () => {
+      const port = store.createPort("port-a", mockComponent);
+      const target = store.createPort("port-b", mockComponent);
+
+      target.setPoint(100, 200);
+      port.delegate(target);
+
+      // setPoint on delegated port does not change getPoint
+      port.setPoint(50, 60);
+      expect(port.getPoint()).toEqual({ x: 100, y: 200 });
+    });
+
+    it("should restore saved position after undelegate()", () => {
+      const port = store.createPort("port-a", mockComponent);
+      const target = store.createPort("port-b", mockComponent);
+
+      port.setPoint(10, 20);
+      target.setPoint(100, 200);
+
+      port.delegate(target);
+
+      // setPoint during delegation saves the value
+      port.setPoint(50, 60);
+
+      port.undelegate();
+
+      // Restores the last setPoint value during delegation
+      expect(port.getPoint()).toEqual({ x: 50, y: 60 });
+      expect(port.x).toBe(50);
+      expect(port.y).toBe(60);
+    });
+
+    it("should restore pre-delegation position if setPoint was not called during delegation", () => {
+      const port = store.createPort("port-a", mockComponent);
+      const target = store.createPort("port-b", mockComponent);
+
+      port.setPoint(10, 20);
+      target.setPoint(100, 200);
+
+      port.delegate(target);
+      port.undelegate();
+
+      expect(port.getPoint()).toEqual({ x: 10, y: 20 });
+    });
+
+    it("should reactively update when target port position changes", () => {
+      const port = store.createPort("port-a", mockComponent);
+      const target = store.createPort("port-b", mockComponent);
+
+      target.setPoint(100, 200);
+      port.delegate(target);
+
+      expect(port.getPoint()).toEqual({ x: 100, y: 200 });
+
+      // Target moves — delegated port should reflect the change
+      target.setPoint(300, 400);
+
+      expect(port.getPoint()).toEqual({ x: 300, y: 400 });
+      expect(port.x).toBe(300);
+      expect(port.y).toBe(400);
+    });
+
+    it("should track isDelegated correctly", () => {
+      const port = store.createPort("port-a", mockComponent);
+      const target = store.createPort("port-b", mockComponent);
+
+      expect(port.isDelegated).toBe(false);
+
+      port.delegate(target);
+      expect(port.isDelegated).toBe(true);
+
+      port.undelegate();
+      expect(port.isDelegated).toBe(false);
+    });
+
+    it("should use last setPoint during delegation on undelegate", () => {
+      const port = store.createPort("port-a", mockComponent);
+      const target = store.createPort("port-b", mockComponent);
+
+      port.setPoint(10, 20);
+      port.delegate(target);
+
+      // Multiple setPoint calls during delegation — last one wins
+      port.setPoint(50, 60);
+      port.setPoint(70, 80);
+      port.setPoint(90, 100);
+
+      port.undelegate();
+      expect(port.getPoint()).toEqual({ x: 90, y: 100 });
+    });
+
+    it("should update $point signal reactively for subscribers", () => {
+      const port = store.createPort("port-a", mockComponent);
+      const target = store.createPort("port-b", mockComponent);
+
+      const points: Array<{ x: number; y: number }> = [];
+      port.$point.subscribe((point) => {
+        points.push({ ...point });
+      });
+
+      port.setPoint(10, 20);
+      target.setPoint(100, 200);
+
+      port.delegate(target);
+
+      target.setPoint(300, 400);
+
+      port.undelegate();
+
+      // Verify key transitions happened in order
+      // Initial (0,0), setPoint(10,20), delegate→(100,200), target moves→(300,400), undelegate→(10,20)
+      expect(points[0]).toEqual({ x: 0, y: 0 });
+      expect(points[1]).toEqual({ x: 10, y: 20 });
+      expect(points[2]).toEqual({ x: 100, y: 200 });
+      expect(points[3]).toEqual({ x: 300, y: 400 });
+      // Last value after undelegate should be the restored position
+      expect(points[points.length - 1]).toEqual({ x: 10, y: 20 });
+    });
+  });
 });

@@ -51,6 +51,10 @@ export class PortState<T = unknown> {
 
   public owner?: Component;
 
+  private $delegate = signal<PortState | undefined>(undefined);
+
+  private savedPoint: TPoint | undefined;
+
   /**
    * Set of references observing this port's changes
    *
@@ -69,21 +73,21 @@ export class PortState<T = unknown> {
   }
 
   /**
-   * Get the port's X coordinate
+   * Get the port's effective X coordinate (respects delegation)
    *
    * @returns {number} The X coordinate
    */
   public get x(): number {
-    return this.$state.value.x;
+    return this.$point.value.x;
   }
 
   /**
-   * Get the port's Y coordinate
+   * Get the port's effective Y coordinate (respects delegation)
    *
    * @returns {number} The Y coordinate
    */
   public get y(): number {
-    return this.$state.value.y;
+    return this.$point.value.y;
   }
 
   /**
@@ -96,7 +100,11 @@ export class PortState<T = unknown> {
   }
 
   public $point = computed(() => {
-    return { x: this.x, y: this.y };
+    const delegate = this.$delegate.value;
+    if (delegate) {
+      return delegate.$point.value;
+    }
+    return { x: this.$state.value.x, y: this.$state.value.y };
   });
 
   /**
@@ -162,16 +170,53 @@ export class PortState<T = unknown> {
   }
 
   /**
-   * Update the port's position coordinates
+   * Update the port's position coordinates.
+   * When delegated, the position is saved but does not affect getPoint() —
+   * the effective position comes from the delegate port.
    * @param x New X coordinate
    * @param y New Y coordinate
    */
   public setPoint(x: number, y: number): void {
+    if (this.$delegate.value) {
+      this.savedPoint = { x, y };
+      return;
+    }
     this.updatePort({ x, y });
   }
 
   public getPoint(): TPoint {
     return this.$point.value;
+  }
+
+  /**
+   * Delegate this port to mirror another port's position.
+   * While delegated, getPoint() returns the target port's position.
+   * Any setPoint() calls are saved and restored on undelegate().
+   * @param target The port to mirror
+   */
+  public delegate(target: PortState): void {
+    this.savedPoint = { x: this.$state.value.x, y: this.$state.value.y };
+    this.$delegate.value = target;
+  }
+
+  /**
+   * Remove delegation and restore the last saved position.
+   * If setPoint() was called during delegation, the last value is used.
+   * Otherwise, the position from before delegation is restored.
+   */
+  public undelegate(): void {
+    this.$delegate.value = undefined;
+    if (this.savedPoint) {
+      this.updatePort({ x: this.savedPoint.x, y: this.savedPoint.y });
+      this.savedPoint = undefined;
+    }
+  }
+
+  /**
+   * Whether this port is currently delegated to another port
+   */
+  public get isDelegated(): boolean {
+    return this.$delegate.value !== undefined;
   }
 
   /**

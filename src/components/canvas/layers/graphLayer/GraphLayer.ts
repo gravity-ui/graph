@@ -155,6 +155,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     if (e.type === "mousemove") {
       this.updateTargetComponent(e as MouseEvent);
       this.onRootPointerMove(e as MouseEvent);
+      this.targetComponent?._trackAreaHover();
       return;
     }
     switch (e.type) {
@@ -262,6 +263,8 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private onRootPointerMove(event: MouseEvent) {
     if (this.targetComponent !== this.prevTargetComponent) {
+      this.prevTargetComponent?._clearAreaHover(true);
+
       this.applyEventToTargetComponent(
         new CustomEvent("mouseleave", {
           bubbles: false,

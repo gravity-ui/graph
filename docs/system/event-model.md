@@ -104,6 +104,12 @@ Key points from `GraphLayer`:
 
 Bottom line: local handlers do not consume events automatically; call `stopPropagation` explicitly to stop further propagation.
 
+#### Evented Areas
+
+`EventedComponent` supports **evented areas** — sub-regions within a component that respond to events independently. During `render()`, a component calls `eventedArea(fn, params)` to register a rectangular area with its own event handlers and optional hit-test logic. When `_fireEvent` dispatches an event, it also checks all registered evented areas on the target component: if the last known hit-test coordinates fall within an area (via its `onHitBox` callback or a default AABB check), the area's matching handler is invoked.
+
+Areas are cleared and rebuilt on every render cycle (`willRender`), so they always reflect the current visual state. See [Canvas GraphComponent — Evented Areas](../components/canvas-graph-component.md#5-evented-areas) for API details and examples.
+
 ### How a click on an element works (step by step)
 
 Scenario for a typical left‑click where press and release occur nearly at the same spot:

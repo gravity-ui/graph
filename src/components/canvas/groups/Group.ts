@@ -85,7 +85,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
 
   public declare context: TGraphLayerContext;
   protected blocks: BlockState[] = [];
-  protected groupState: GroupState | undefined;
+  protected groupState!: GroupState<T>;
   public cursor = "pointer";
 
   protected style: TGroupStyle;
@@ -109,11 +109,11 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
 
     this.subscribeToGroup();
 
-    this.addEventListener("click", (event: MouseEvent) => {
+    this.addEventListener("click", (event) => {
       event.stopPropagation();
       this.groupState.setSelection(
         true,
-        !isMetaKeyEvent(event) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
+        !isMetaKeyEvent(event as MouseEvent | KeyboardEvent) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
       );
     });
   }
@@ -175,7 +175,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
    */
   public override isDraggable(): boolean {
     const canDrag = this.context.graph.rootStore.settings.$canDrag.value;
-    return Boolean(this.props.draggable) && isAllowDrag(canDrag, this.state.selected);
+    return Boolean(this.props.draggable) && isAllowDrag(canDrag, Boolean(this.state.selected));
   }
 
   /**
@@ -232,13 +232,17 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
           ...this.state,
           ...group,
         } as T);
-        this.updateHitBox(this.getRect(group.rect));
+        // Pass state.rect (inner blocks area), not getRect() (visual rect).
+        // CollapsibleGroup.updateHitBox calls getRect() internally, so passing
+        // an already-padded rect here would cause double-padding of the hitbox.
+        this.updateHitBox(group.rect);
       }
     });
   }
 
-  protected updateHitBox(rect: TRect) {
-    this.setHitBox(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
+  protected updateHitBox(rect: TRect): void {
+    const visual = this.getRect(rect);
+    this.setHitBox(visual.x, visual.y, visual.x + visual.width, visual.y + visual.height);
   }
 
   protected layoutText(text: string, textParams?: TMeasureTextOptions) {

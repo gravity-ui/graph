@@ -83,12 +83,12 @@ export class GroupsListStore {
     );
   }
 
-  public setGroups(groups: TGroup[]) {
+  public setGroups<T extends TGroup>(groups: T[]) {
     const groupStates = groups.map((group) => this.getOrCreateGroupState(group));
     this.applyGroupsState(groupStates);
   }
 
-  protected getOrCreateGroupState(group: TGroup) {
+  protected getOrCreateGroupState<T extends TGroup>(group: T) {
     const groupState = this.$groupsMap.value.get(group.id);
     if (groupState) {
       groupState.updateGroup(group);
@@ -101,8 +101,8 @@ export class GroupsListStore {
     this.updateGroupsMap(groups.map((group) => [group.id, group]));
   }
 
-  public getGroupState(id: TGroupId) {
-    return this.$groupsMap.value.get(id);
+  public getGroupState<T extends TGroup>(id: TGroupId): GroupState<T> | undefined {
+    return this.$groupsMap.value.get(id) as GroupState<T>;
   }
 
   public getGroup(id: TGroupId): TGroup | undefined {
