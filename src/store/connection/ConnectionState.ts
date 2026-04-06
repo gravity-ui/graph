@@ -1,4 +1,5 @@
 import { computed, signal } from "@preact/signals-core";
+import type { Signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
 import { Anchor } from "../../components/canvas/anchors";
@@ -42,12 +43,14 @@ export type TConnection = {
 } & (TConnectionBlockPoint | TConnectionPortPoint);
 
 export class ConnectionState<T extends TConnection = TConnection> {
-  public $state = signal<T>(undefined);
+  public $state: Signal<T>;
 
-  private isDestroyed = false;
-
-  public get id() {
-    return this.$state.value.id;
+  public get id(): TConnectionId {
+    const raw = this.$state.value.id;
+    if (raw !== undefined) {
+      return raw;
+    }
+    return ConnectionState.getConnectionId(this.$state.value);
   }
 
   public get sourceBlockId() {
@@ -67,23 +70,31 @@ export class ConnectionState<T extends TConnection = TConnection> {
   }
 
   public $sourcePortId = computed(() => {
-    if (this.$state.value.sourcePortId) {
-      return this.$state.value.sourcePortId;
+    const s = this.$state.value;
+    if (s.sourcePortId) {
+      return s.sourcePortId;
     }
-    if (this.$state.value.sourceAnchorId) {
-      return createAnchorPortId(this.$state.value.sourceBlockId, this.$state.value.sourceAnchorId);
+    if (s.sourceAnchorId !== undefined && s.sourceBlockId !== undefined) {
+      return createAnchorPortId(s.sourceBlockId, s.sourceAnchorId);
     }
-    return createBlockPointPortId(this.$state.value.sourceBlockId, false);
+    if (s.sourceBlockId !== undefined) {
+      return createBlockPointPortId(s.sourceBlockId, false);
+    }
+    return createBlockPointPortId("", false);
   });
 
   public $targetPortId = computed(() => {
-    if (this.$state.value.targetPortId) {
-      return this.$state.value.targetPortId;
+    const s = this.$state.value;
+    if (s.targetPortId) {
+      return s.targetPortId;
     }
-    if (this.$state.value.targetAnchorId) {
-      return createAnchorPortId(this.$state.value.targetBlockId, this.$state.value.targetAnchorId);
+    if (s.targetAnchorId !== undefined && s.targetBlockId !== undefined) {
+      return createAnchorPortId(s.targetBlockId, s.targetAnchorId);
     }
-    return createBlockPointPortId(this.$state.value.targetBlockId, true);
+    if (s.targetBlockId !== undefined) {
+      return createBlockPointPortId(s.targetBlockId, true);
+    }
+    return createBlockPointPortId("", true);
   });
 
   public readonly $sourcePortState = computed(() => {
@@ -125,10 +136,10 @@ export class ConnectionState<T extends TConnection = TConnection> {
     }
 
     if (component instanceof Block) {
-      return component.connectedState;
+      return component.connectedState ?? undefined;
     }
     if (component instanceof Anchor) {
-      return component.connectedState.block;
+      return component.connectedState?.block;
     }
     return undefined;
   });
@@ -141,10 +152,10 @@ export class ConnectionState<T extends TConnection = TConnection> {
     }
 
     if (component instanceof Block) {
-      return component.connectedState;
+      return component.connectedState ?? undefined;
     }
     if (component instanceof Anchor) {
-      return component.connectedState.block;
+      return component.connectedState?.block;
     }
     return undefined;
   });
@@ -164,15 +175,17 @@ export class ConnectionState<T extends TConnection = TConnection> {
     return this.connectionSelectionBucket.$selected.value.has(this.id);
   });
 
-  public static getConnectionId(connection: TConnection) {
-    if (connection.id) return connection.id;
+  public static getConnectionId(connection: TConnection): TConnectionId {
+    if (connection.id !== undefined) {
+      return connection.id;
+    }
     if (connection.sourceAnchorId && connection.targetAnchorId) {
       return [connection.sourceAnchorId, connection.targetAnchorId].join(":");
     }
-    return [connection.sourceBlockId, connection.targetBlockId].join(":");
+    return [String(connection.sourceBlockId), String(connection.targetBlockId)].join(":");
   }
 
-  private viewComponent: BaseConnection<TBaseConnectionProps, TBaseConnectionState, TGraphLayerContext, T>;
+  private viewComponent?: BaseConnection<TBaseConnectionProps, TBaseConnectionState, TGraphLayerContext, T>;
 
   constructor(
     public store: ConnectionsStore,
@@ -180,7 +193,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
     private readonly connectionSelectionBucket: ISelectionBucket<string | number>
   ) {
     const id = ConnectionState.getConnectionId(connectionState);
-    this.$state.value = { ...connectionState, id };
+    this.$state = signal({ ...connectionState, id } as T);
   }
 
   /**
@@ -198,7 +211,9 @@ export class ConnectionState<T extends TConnection = TConnection> {
    * Gets the view component associated with this connection state.
    * @returns The BaseConnection view component or undefined if not set.
    */
-  public getViewComponent() {
+  public getViewComponent():
+    | BaseConnection<TBaseConnectionProps, TBaseConnectionState, TGraphLayerContext, T>
+    | undefined {
     return this.viewComponent;
   }
 

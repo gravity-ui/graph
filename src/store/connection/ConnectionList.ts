@@ -13,7 +13,7 @@ import { PortsStore } from "./port/PortList";
 
 declare module "../../graphEvents" {
   interface GraphEventsDefinitions {
-    "connection-selection-change": (event: SelectionEvent<TConnection["id"]>) => void;
+    "connection-selection-change": (event: SelectionEvent<TConnectionId>) => void;
   }
 }
 
@@ -184,18 +184,19 @@ export class ConnectionsStore {
   }
 
   public updateConnections(connections: TConnection[]) {
-    this.$connectionsMap.value = connections.reduce((acc, connection) => {
-      const c = this.getOrCreateConnection(connection);
-      acc.set(c.id, c);
-      return acc;
-    }, this.$connectionsMap.value);
+    const nextMap = new Map(this.$connectionsMap.value);
+    for (const connection of connections) {
+      const state = this.getOrCreateConnection(connection);
+      nextMap.set(state.id, state);
+    }
+    this.$connectionsMap.value = nextMap;
   }
 
   public setConnections(connections: TConnection[]) {
     this.$connectionsMap.value = new Map(
       connections.map((connection) => {
-        const c = this.getOrCreateConnection(connection);
-        return [c.id, c];
+        const state = this.getOrCreateConnection(connection);
+        return [state.id, state] as const;
       })
     );
   }
@@ -203,9 +204,11 @@ export class ConnectionsStore {
   protected getOrCreateConnection(connections: TConnection) {
     const id = ConnectionState.getConnectionId(connections);
     if (this.$connectionsMap.value.has(id)) {
-      const c = this.$connectionsMap.value.get(id);
-      c.updateConnection(connections);
-      return c;
+      const existing = this.$connectionsMap.value.get(id);
+      if (existing) {
+        existing.updateConnection(connections);
+        return existing;
+      }
     }
     return new ConnectionState(this, connections, this.connectionSelectionBucket);
   }
