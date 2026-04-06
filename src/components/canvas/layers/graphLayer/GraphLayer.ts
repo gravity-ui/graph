@@ -42,6 +42,14 @@ export type GraphMouseEvent = CustomEvent<{
 }>;
 
 export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
+  public override getCanvas(): HTMLCanvasElement {
+    const el = super.getCanvas();
+    if (!el) {
+      throw new Error("GraphLayer: expected canvas to exist");
+    }
+    return el;
+  }
+
   public declare $: Component & { camera: Camera };
 
   private camera: ICamera;
@@ -79,10 +87,17 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     });
 
     const canvas = this.getCanvas();
+    if (!canvas) {
+      throw new Error("GraphLayer: canvas was not created");
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("GraphLayer: failed to acquire Canvas 2D context");
+    }
 
     this.setContext({
-      canvas: canvas,
-      ctx: canvas.getContext("2d"),
+      canvas,
+      ctx,
       root: this.props.root,
       camera: this.props.camera,
       ownerDocument: canvas.ownerDocument,

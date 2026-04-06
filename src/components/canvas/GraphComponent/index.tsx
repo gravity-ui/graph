@@ -218,20 +218,24 @@ export class GraphComponent<
             prevCoords = startCoords;
           },
           onUpdate: (updateEvent: MouseEvent) => {
-            if (startCoords === undefined) return;
+            if (startCoords === undefined || prevCoords === undefined) {
+              return;
+            }
 
             const [canvasX, canvasY] = getXY(this.context.canvas, updateEvent);
             const currentCoords = this.context.camera.applyToPoint(canvasX, canvasY);
+
+            const prev = prevCoords;
 
             // Absolute diff from drag start
             const diffX = currentCoords[0] - startCoords[0];
             const diffY = currentCoords[1] - startCoords[1];
 
             // Incremental diff from previous frame
-            const deltaX = currentCoords[0] - prevCoords[0];
-            const deltaY = currentCoords[1] - prevCoords[1];
+            const deltaX = currentCoords[0] - prev[0];
+            const deltaY = currentCoords[1] - prev[1];
 
-            onDragUpdate?.({ startCoords, prevCoords, currentCoords, diffX, diffY, deltaX, deltaY }, updateEvent);
+            onDragUpdate?.({ startCoords, prevCoords: prev, currentCoords, diffX, diffY, deltaX, deltaY }, updateEvent);
             prevCoords = currentCoords;
           },
           onEnd: (endEvent: MouseEvent) => {

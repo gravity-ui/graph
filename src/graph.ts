@@ -19,7 +19,7 @@ import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
 import { KeyboardService } from "./services/KeyboardService";
 import { Layer, LayerPublicProps } from "./services/Layer";
-import { Layers } from "./services/LayersService";
+import { Layers, TLayersRootSize } from "./services/LayersService";
 import { CameraService } from "./services/camera/CameraService";
 import { DragService } from "./services/drag";
 import { RootStore } from "./store";
@@ -29,7 +29,7 @@ import { TGraphSettingsConfig } from "./store/settings";
 import { clearColorCache, getXY } from "./utils/functions";
 import { clearTextCache } from "./utils/renderers/text";
 import { RecursivePartial } from "./utils/types/helpers";
-import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
+import { IPoint, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
 
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
 export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
@@ -91,7 +91,7 @@ export class Graph {
 
   protected readonly cursorLayer: CursorLayer;
 
-  public getGraphCanvas() {
+  public getGraphCanvas(): HTMLCanvasElement {
     return this.graphLayer.getCanvas();
   }
 
@@ -109,7 +109,7 @@ export class Graph {
 
   public state: GraphState = GraphState.INIT;
 
-  protected config: TGraphConfig;
+  protected config!: TGraphConfig;
 
   protected startRequested = false;
 
@@ -157,8 +157,8 @@ export class Graph {
     this.setupGraph(config);
   }
 
-  protected onUpdateSize = (event: IRect) => {
-    this.cameraService.set(event);
+  protected onUpdateSize = (size: TLayersRootSize): void => {
+    this.cameraService.set({ width: size.width, height: size.height });
   };
 
   public getGraphLayer() {
@@ -270,7 +270,7 @@ export class Graph {
       maxX: rect.x + rect.width,
       maxY: rect.y + rect.height,
     }) as InstanceType<T>[] | [];
-    if (filter.length && items.length > 0) {
+    if (filter?.length && items.length > 0) {
       return items.filter((item: InstanceType<T>) =>
         filter.some((Component) => item instanceof Component)
       ) as InstanceType<T>[];
@@ -324,7 +324,7 @@ export class Graph {
     EventName extends keyof GraphEventsDefinitions = keyof GraphEventsDefinitions,
     Cb extends GraphEventsDefinitions[EventName] = GraphEventsDefinitions[EventName],
   >(type: EventName, cb: Cb, options?: AddEventListenerOptions | boolean) {
-    this.eventEmitter.addEventListener(type, cb, options);
+    this.eventEmitter.addEventListener(type, cb as EventListener, options);
     return () => this.off(type, cb);
   }
 
@@ -332,7 +332,7 @@ export class Graph {
     EventName extends keyof GraphEventsDefinitions = keyof GraphEventsDefinitions,
     Cb extends GraphEventsDefinitions[EventName] = GraphEventsDefinitions[EventName],
   >(type: EventName, cb: Cb) {
-    this.eventEmitter.removeEventListener(type, cb);
+    this.eventEmitter.removeEventListener(type, cb as EventListener);
   }
 
   /*
@@ -403,7 +403,7 @@ export class Graph {
 
   public setupGraph(config: TGraphConfig = {}) {
     this.config = config;
-    this.rootStore.configurationName = config.configurationName;
+    this.rootStore.configurationName = config.configurationName ?? "";
     this.setEntities({
       blocks: config.blocks,
       connections: config.connections,
@@ -432,7 +432,12 @@ export class Graph {
     if (this.state === GraphState.READY) {
       return;
     }
-    rootEl[Symbol.for("graph")] = this;
+    Object.defineProperty(rootEl, Symbol.for("graph"), {
+      value: this,
+      enumerable: false,
+      writable: true,
+      configurable: true,
+    });
     this.layers.attach(rootEl);
 
     const { width: rootWidth, height: rootHeight } = this.layers.getRootSize();
@@ -447,7 +452,7 @@ export class Graph {
     }
   }
 
-  public start(rootEl: HTMLDivElement = this.layers.$root): void {
+  public start(rootEl?: HTMLDivElement): void {
     if (this.state !== GraphState.ATTACHED) {
       this.startRequested = true;
       return;
@@ -455,8 +460,9 @@ export class Graph {
     if (this.state >= GraphState.READY) {
       throw new Error("Graph already started");
     }
-    if (rootEl) {
-      this.attach(rootEl);
+    const attachRoot = rootEl ?? this.layers.$root;
+    if (attachRoot) {
+      this.attach(attachRoot);
     }
     this.layers.on("update-size", this.onUpdateSize);
     this.layers.start();

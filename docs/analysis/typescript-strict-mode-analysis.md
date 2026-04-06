@@ -153,13 +153,13 @@ Stories дают **~33%** всех ошибок; сфокусированная 
 ### Шаг 2. Функции нормализации
 
 - `**resolveGraphColors(patch: TGraphColors): TResolvedGraphColors`** — внутри `merge({}, initGraphColors, patch)` (или эквивалент) и возврат с типом `TResolvedGraphColors`. Одна точка правды рядом с `initGraphColors` в `graphConfig.ts` (или рядом с `Graph`).
-- `**resolveGraphConstants(patch: RecursivePartial<TGraphConstants>): TResolvedGraphConstants**` — то же для констант и `initGraphConstants`.
+- `**resolveGraphConstants(patch: RecursivePartial<TGraphConstants>): TResolvedGraphConstants`** — то же для констант и `initGraphConstants`.
 
 Так рантайм не меняется концептуально: нормализация уже делается в `setColors` / `setConstants`; функции либо **оборачивают** существующий merge, либо заменяют его с явным приведением результата к разрешённому типу (после проверки, что дефолты покрывают все ключи).
 
 ### Шаг 3. Подключить типы в состоянии графа
 
-- Тип значения `**$graphColors`** и геттера `**graphColors**`: `TResolvedGraphColors`.
+- Тип значения `**$graphColors`** и геттера `**graphColors`**: `TResolvedGraphColors`.
 - Тип значения `**$graphConstants**` и геттера `**graphConstants**`: `TResolvedGraphConstants`.
 - Сигнатуры `**setColors` / `setConstants**`: принимают partial / recursive partial; присваивают результату нормализованное значение.
 - `**LayerContext.colors**`, payload события `**colors-changed**`, аргументы колбэков в `**GraphCanvas**`: использовать разрешённый тип, чтобы не размножать `?.` и `??` по canvas-компонентам.

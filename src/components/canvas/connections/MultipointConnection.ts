@@ -99,8 +99,12 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
   }
 
   private renderLabelsText(ctx: CanvasRenderingContext2D) {
-    const [labelInnerTopPadding, labelInnerRightPadding, labelInnerBottomPadding, labelInnerLeftPadding] =
-      this.context.constants.connection.LABEL.INNER_PADDINGS;
+    const [
+      labelInnerTopPadding = 0,
+      labelInnerRightPadding = 0,
+      labelInnerBottomPadding = 0,
+      labelInnerLeftPadding = 0,
+    ] = this.context.constants.connection.LABEL.INNER_PADDINGS;
 
     const { labels } = this.connectedState.$state.value;
     if (!labels || !labels.length) {
@@ -108,8 +112,9 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
     }
 
     this.labelsGeometry = [];
-    labels.forEach(({ x, y, text, height, width }) => {
-      if ([x, y, text].some((i) => i === undefined) || (x === 0 && y === 0)) {
+    labels.forEach((label) => {
+      const { x, y, text, height, width } = label;
+      if (x === undefined || y === undefined || text === undefined || (x === 0 && y === 0)) {
         return;
       }
 

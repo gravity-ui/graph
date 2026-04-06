@@ -109,11 +109,12 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
 
     this.subscribeToGroup();
 
-    this.addEventListener("click", (event: MouseEvent) => {
-      event.stopPropagation();
-      this.groupState.setSelection(
+    this.addEventListener("click", (event: Event) => {
+      const mouseEvent = event as MouseEvent;
+      mouseEvent.stopPropagation();
+      this.groupState?.setSelection(
         true,
-        !isMetaKeyEvent(event) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
+        !isMetaKeyEvent(mouseEvent) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
       );
     });
   }
@@ -175,7 +176,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
    */
   public override isDraggable(): boolean {
     const canDrag = this.context.graph.rootStore.settings.$canDrag.value;
-    return Boolean(this.props.draggable) && isAllowDrag(canDrag, this.state.selected);
+    return Boolean(this.props.draggable) && isAllowDrag(canDrag, this.state.selected ?? false);
   }
 
   /**
@@ -219,19 +220,27 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     };
   }
 
-  protected subscribeToGroup() {
-    this.groupState = this.context.graph.rootStore.groupsList.getGroupState(this.props.id);
-    this.subscribeSignal(this.groupState.$selected, (selected) => {
+  protected subscribeToGroup(): void {
+    const nextGroupState = this.context.graph.rootStore.groupsList.getGroupState(this.props.id);
+    this.groupState = nextGroupState;
+    if (!nextGroupState) {
+      return;
+    }
+
+    this.subscribeSignal(nextGroupState.$selected, (selected) => {
       this.setState({
         selected,
       });
     });
-    return this.subscribeSignal(this.groupState.$state, (group) => {
-      if (group) {
-        this.setState({
-          ...this.state,
-          ...group,
-        } as T);
+    this.subscribeSignal(nextGroupState.$state, (group) => {
+      if (!group) {
+        return;
+      }
+      this.setState({
+        ...this.state,
+        ...group,
+      } as T);
+      if (group.rect) {
         this.updateHitBox(this.getRect(group.rect));
       }
     });
