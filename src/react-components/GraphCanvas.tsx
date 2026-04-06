@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 
-import { TResolvedGraphColors } from "..";
 import { Graph } from "../graph";
+import type { TResolvedGraphColors } from "../graphConfig";
 import { setCssProps } from "../utils/functions/cssProp";
 
 import { TBlockListProps } from "./BlocksList";
