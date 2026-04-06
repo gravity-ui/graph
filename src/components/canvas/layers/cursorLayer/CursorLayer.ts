@@ -120,7 +120,7 @@ export class CursorLayer extends Layer<TCursorLayerProps, TCursorLayerContext> {
     {
       frameInterval: 3,
       priority: ESchedulerPriority.LOW,
-    },
+    }
   );
 
   /**

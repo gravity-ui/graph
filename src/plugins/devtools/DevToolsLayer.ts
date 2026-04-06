@@ -338,9 +338,7 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     // Draw Coordinate Text
     const coordText = `X: ${worldX.toFixed(1)}, Y: ${worldY.toFixed(1)}`;
     const currentFont =
-      this.props.crosshairTextFont ??
-      DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextFont ??
-      "11px Helvetica";
+      this.props.crosshairTextFont ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextFont ?? "11px Helvetica";
     ctx.font = currentFont;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
@@ -362,9 +360,7 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     ctx.fillRect(textRectX, textRectY, textRectWidth, textRectHeight);
 
     ctx.fillStyle =
-      this.props.crosshairTextColor ??
-      DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextColor ??
-      "rgba(255, 255, 255, 1)";
+      this.props.crosshairTextColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextColor ?? "rgba(255, 255, 255, 1)";
     ctx.fillText(coordText, textRectX + logicalPadding, textRectY + logicalPadding);
   }
 }

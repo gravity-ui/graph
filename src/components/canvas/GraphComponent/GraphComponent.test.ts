@@ -18,7 +18,7 @@ class TestGraphComponent extends GraphComponent {
   public subscribeGraphEvent<EventName extends keyof GraphEventsDefinitions>(
     eventName: EventName,
     handler: GraphEventListener<EventName>,
-    options?: AddEventListenerOptions | boolean,
+    options?: AddEventListenerOptions | boolean
   ): () => void {
     return this.onGraphEvent(eventName, handler, options);
   }

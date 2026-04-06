@@ -44,8 +44,7 @@ export function layoutText(text: string, ctx: CanvasRenderingContext2D, rect: TT
   const resolvedFont = params.font ?? ctx.font;
   ctx.font = resolvedFont;
   const parsedFromFont = Number.parseInt(resolvedFont.replace(/\D/gi, ""), 10);
-  const lineHeight =
-    params.lineHeight ?? (Number.isFinite(parsedFromFont) ? parsedFromFont : 12);
+  const lineHeight = params.lineHeight ?? (Number.isFinite(parsedFromFont) ? parsedFromFont : 12);
   const measures = cachedMeasureText(text, {
     wordWrap: true,
     maxWidth: rect.width,

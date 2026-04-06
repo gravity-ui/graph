@@ -80,12 +80,8 @@ export class FrameDebouncer {
     const bindedFn: any = (frameTime: number) => {
       const delayOpt = options.delay;
       const frameTimeOpt = options.frameTime;
-      const hardFrame = options.lightFrame
-        ? frameTime > 16
-        : frameTimeOpt !== undefined && frameTime > frameTimeOpt;
-      const skip = options.leading
-        ? delayOpt !== undefined && bindedFn.delay < delayOpt
-        : bindedFn.delay > 0;
+      const hardFrame = options.lightFrame ? frameTime > 16 : frameTimeOpt !== undefined && frameTime > frameTimeOpt;
+      const skip = options.leading ? delayOpt !== undefined && bindedFn.delay < delayOpt : bindedFn.delay > 0;
 
       if (hardFrame || skip) {
         // skip original function
@@ -105,9 +101,7 @@ export class FrameDebouncer {
         return;
       }
 
-      const run = options.leading
-        ? delayOpt !== undefined && bindedFn.delay >= delayOpt
-        : bindedFn.delay < 1;
+      const run = options.leading ? delayOpt !== undefined && bindedFn.delay >= delayOpt : bindedFn.delay < 1;
 
       if (run) {
         // perform original function

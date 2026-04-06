@@ -7,6 +7,7 @@ import {
   IEntityWithComponent,
   ISelectionBucket,
   TMultiEntitySelection,
+  TSelectionEntity,
   TSelectionEntityId,
 } from "./types";
 
@@ -101,12 +102,15 @@ export class SelectionService {
    * @param bucket The selection bucket to register
    * @returns void
    */
-  public registerBucket(bucket: ISelectionBucket): void {
+  public registerBucket<
+    IDType extends TSelectionEntityId = TSelectionEntityId,
+    TEntity extends TSelectionEntity = TSelectionEntity,
+  >(bucket: ISelectionBucket<IDType, TEntity>): void {
     if (this.buckets.value.has(bucket.entityType)) {
       throw new Error(`Selection bucket for entityType '${bucket.entityType}' is already registered`);
     }
     const newMap = new Map(this.buckets.value);
-    newMap.set(bucket.entityType, bucket);
+    newMap.set(bucket.entityType, bucket as unknown as ISelectionBucket);
     this.buckets.value = newMap;
   }
 
@@ -116,7 +120,10 @@ export class SelectionService {
    * @param bucket The selection bucket to unregister
    * @returns void
    */
-  public unregisterBucket(bucket: ISelectionBucket): void {
+  public unregisterBucket<
+    IDType extends TSelectionEntityId = TSelectionEntityId,
+    TEntity extends TSelectionEntity = TSelectionEntity,
+  >(bucket: ISelectionBucket<IDType, TEntity>): void {
     const newMap = new Map(this.buckets.value);
     newMap.delete(bucket.entityType);
     this.buckets.value = newMap;

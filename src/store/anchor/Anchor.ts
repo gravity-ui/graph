@@ -31,7 +31,7 @@ export class AnchorState {
 
   constructor(
     public readonly block: BlockState,
-    anchor: TAnchor,
+    anchor: TAnchor
   ) {
     this.$state = signal(anchor);
   }

@@ -7,11 +7,11 @@ import type { SelectionService } from "./SelectionService";
 import {
   ESelectionStrategy,
   IEntityWithComponent,
-  type ISelectionBucket,
   TSelectionDiff,
   TSelectionEntity,
   TSelectionEntityId,
 } from "./types";
+import type { ISelectionBucket } from "./types";
 
 /**
  * @abstract
@@ -142,9 +142,7 @@ export abstract class BaseSelectionBucket<
    * @returns void
    */
   public attachToManager(manager: SelectionService): void {
-    manager.registerBucket(
-      this as unknown as ISelectionBucket<TSelectionEntityId, TSelectionEntity>,
-    );
+    manager.registerBucket(this);
     this.manager = manager;
   }
 
@@ -154,9 +152,7 @@ export abstract class BaseSelectionBucket<
    * @returns void
    */
   public detachFromManager(manager: SelectionService): void {
-    manager.unregisterBucket(
-      this as unknown as ISelectionBucket<TSelectionEntityId, TSelectionEntity>,
-    );
+    manager.unregisterBucket(this);
     this.manager = undefined;
   }
 

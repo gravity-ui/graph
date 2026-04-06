@@ -14,10 +14,7 @@ declare module "style-observer" {
   }
 
   export default class StyleObserver {
-    public constructor(
-      callback: (records: StyleObserverRecord[]) => void,
-      options: StyleObserverConstructorOptions,
-    );
+    constructor(callback: (records: StyleObserverRecord[]) => void, options: StyleObserverConstructorOptions);
 
     public unobserve(target: Element | null): void;
   }
