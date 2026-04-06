@@ -3,8 +3,7 @@
   "compilerOptions": {
     "declaration": true,
     "allowJs": true,
-    "paths": {},
-    "strict": false
+    "paths": {}
   },
   "exclude": ["**/*.test.ts", "**/*.test.tsx", "src/stories"]
 }

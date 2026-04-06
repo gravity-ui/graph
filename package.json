@@ -50,7 +50,6 @@
   },
   "scripts": {
     "typecheck": "npm run build:publish -- --noEmit",
-    "typecheck:strict": "tsc --noEmit -p tsconfig.json",
     "typecheck:stories": "tsc --noEmit -p src/stories/tsconfig.json",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
     "test:unit": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests --updateSnapshot",
