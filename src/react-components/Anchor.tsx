@@ -4,7 +4,7 @@ import { TAnchor } from "../components/canvas/anchors";
 import { Graph } from "../graph";
 import { AnchorState } from "../store/anchor/Anchor";
 
-import { useSignal } from "./hooks";
+import { useComputedSignal } from "./hooks";
 import { useBlockAnchorPosition, useBlockAnchorState } from "./hooks/useBlockAnchorState";
 import { cn } from "./utils/cn";
 
@@ -25,7 +25,7 @@ export function GraphBlockAnchor({
 }) {
   const anchorContainerRef = React.useRef<HTMLDivElement>(null);
   const anchorState = useBlockAnchorState(graph, anchor);
-  const selected = useSignal(anchorState?.$selected);
+  const selected = useComputedSignal(() => anchorState?.$selected.value ?? false, [anchorState]);
   const [raised, setRaised] = React.useState(false);
 
   useBlockAnchorPosition(anchorState, anchorContainerRef);

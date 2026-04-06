@@ -48,7 +48,7 @@ describe("ReactLayer", () => {
     layer.attachLayer(rootElement);
     const htmlElement = layer.getHTML();
     expect(htmlElement).toBeTruthy();
-    return htmlElement;
+    return htmlElement as HTMLElement;
   };
 
   // Helper function to check if element has only default classes
@@ -84,11 +84,12 @@ describe("ReactLayer", () => {
       const htmlElement = layer.getHTML();
 
       expect(htmlElement).toBeTruthy();
-      expect(htmlElement.parentNode).toBeNull(); // Not attached to DOM
+      const el = htmlElement as HTMLElement;
+      expect(el.parentNode).toBeNull(); // Not attached to DOM
 
       // blockListClassName is not applied until attachLayer is called (which calls afterInit)
-      expect(htmlElement.classList.contains("test-class")).toBe(false);
-      expect(hasOnlyDefaultClasses(htmlElement, layer)).toBe(true);
+      expect(el.classList.contains("test-class")).toBe(false);
+      expect(hasOnlyDefaultClasses(el, layer)).toBe(true);
     });
 
     it("should initialize with correct z-index", () => {
@@ -252,7 +253,7 @@ describe("ReactLayer", () => {
       const renderBlock = jest.fn();
 
       // Mock getHTML to return null
-      jest.spyOn(layer, "getHTML").mockReturnValue(null);
+      jest.spyOn(layer, "getHTML").mockReturnValue(undefined);
 
       const portal = layer.renderPortal(renderBlock);
       expect(portal).toBeNull();
@@ -292,6 +293,9 @@ describe("ReactLayer", () => {
       expect(portal).toHaveProperty("containerInfo", _htmlElement);
       expect(portal).toHaveProperty("key", "graph-blocks-list");
       // Check that children is a React element (BlocksList)
+      if (!portal) {
+        throw new Error("Expected portal");
+      }
       expect(portal.children).toBeTruthy();
     });
   });
@@ -331,15 +335,17 @@ describe("ReactLayer", () => {
       // because afterInit() hasn't been called yet
       const htmlElementBefore = layer.getHTML();
       expect(htmlElementBefore).toBeTruthy();
-      expect(htmlElementBefore.parentNode).toBeNull();
-      expect(htmlElementBefore.classList.contains(className)).toBe(false);
+      const beforeEl = htmlElementBefore as HTMLElement;
+      expect(beforeEl.parentNode).toBeNull();
+      expect(beforeEl.classList.contains(className)).toBe(false);
 
       // After attachLayer - HTML element should be in DOM and have the class
       // because attachLayer calls afterInit() which applies blockListClassName
       layer.attachLayer(rootElement);
       const htmlElementAfter = layer.getHTML();
-      expect(htmlElementAfter.classList.contains(className)).toBe(true);
-      expect(htmlElementAfter.parentNode).toBe(rootElement);
+      const afterEl = htmlElementAfter as HTMLElement;
+      expect(afterEl.classList.contains(className)).toBe(true);
+      expect(afterEl.parentNode).toBe(rootElement);
     });
 
     it("should handle detach and reattach correctly", () => {
@@ -348,7 +354,7 @@ describe("ReactLayer", () => {
 
       // First attachment
       layer.attachLayer(rootElement);
-      let htmlElement = layer.getHTML();
+      let htmlElement = layer.getHTML() as HTMLElement;
       expect(htmlElement.classList.contains(className)).toBe(true);
 
       // Detach
@@ -359,7 +365,7 @@ describe("ReactLayer", () => {
       document.body.appendChild(newRoot);
 
       layer.attachLayer(newRoot);
-      htmlElement = layer.getHTML();
+      htmlElement = layer.getHTML() as HTMLElement;
       expect(htmlElement.classList.contains(className)).toBe(true);
 
       // Cleanup

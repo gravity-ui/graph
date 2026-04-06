@@ -5,6 +5,7 @@ import type { TResolvedGraphColors } from "../graphConfig";
 import { setCssProps } from "../utils/functions/cssProp";
 
 import { TBlockListProps } from "./BlocksList";
+import type { TRenderBlockFn } from "./BlocksList";
 import { GraphContextProvider } from "./GraphContext";
 import { TGraphEventCallbacks } from "./events";
 import { useLayer } from "./hooks";
@@ -14,6 +15,8 @@ import { cn } from "./utils/cn";
 import { useFn } from "./utils/hooks/useFn";
 
 import "./graph-canvas.css";
+
+const fallbackRenderBlock: TRenderBlockFn = () => <></>;
 
 export type GraphProps = Pick<Partial<TBlockListProps>, "renderBlock"> &
   Partial<TGraphEventCallbacks> & {
@@ -33,7 +36,7 @@ export function GraphCanvas({
   children,
   ...cbs
 }: GraphProps) {
-  const containerRef = useRef<HTMLDivElement>();
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const reactLayer = useLayer(graph, ReactLayer, {
     blockListClassName,
@@ -56,7 +59,7 @@ export function GraphCanvas({
   useGraphEvents(graph, cbs);
 
   const setColors = useFn((colors: TResolvedGraphColors) => {
-    setCssProps(containerRef.current, {
+    setCssProps(containerRef.current ?? null, {
       "--graph-block-bg": colors.block.background,
       "--graph-block-border": colors.block.border,
       "--graph-block-border-selected": colors.block.selectedBorder,
@@ -77,7 +80,7 @@ export function GraphCanvas({
     <GraphContextProvider graph={graph}>
       <div className={cn("graph-wrapper", className)}>
         <div className="graph-canvas" ref={containerRef}>
-          {graph && reactLayer && reactLayer.renderPortal(renderBlock)}
+          {graph && reactLayer && reactLayer.renderPortal(renderBlock ?? fallbackRenderBlock)}
         </div>
         {children}
       </div>

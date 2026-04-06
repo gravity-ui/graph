@@ -31,7 +31,7 @@ import { usePrevious } from "./usePrevious";
 export function useLayer<T extends Constructor<Layer> = Constructor<Layer>>(
   graph: Graph | null,
   layerCtor: T,
-  props: LayerPublicProps<T>
+  props: LayerPublicProps<T> = {} as LayerPublicProps<T>
 ) {
   const [layer, setLayer] = useState<InstanceType<T> | null>(null);
   const deferredLayer = useDeferredValue(layer);

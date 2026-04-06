@@ -7,6 +7,7 @@ import type { TGraphZoomTarget } from "../../graph";
 import type { TGraphColors, TGraphConstants } from "../../graphConfig";
 import type { Layer, LayerPublicProps } from "../../services/Layer";
 import type { TConnection } from "../../store/connection/ConnectionState";
+import type { TGraphSettingsConfig } from "../../store/settings";
 import { RecursivePartial } from "../../utils/types/helpers";
 import { useFn } from "../utils/hooks/useFn";
 
@@ -52,7 +53,9 @@ export function useGraph(config: HookGraphParams) {
   });
 
   useLayoutEffect(() => {
-    graph.updateSettings(config.settings);
+    if (config.settings !== undefined) {
+      graph.updateSettings(config.settings);
+    }
   }, [graph, config.settings]);
 
   useLayoutEffect(() => {
@@ -64,7 +67,7 @@ export function useGraph(config: HookGraphParams) {
   return {
     graph,
     api: graph.api,
-    setSettings: useFn((settings) => graph.updateSettings(settings)),
+    setSettings: useFn((settings: Partial<TGraphSettingsConfig>) => graph.updateSettings(settings)),
     start: useFn(() => {
       if (graph.state !== GraphState.READY) {
         graph.start();

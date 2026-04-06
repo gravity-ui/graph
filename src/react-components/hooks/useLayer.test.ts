@@ -107,9 +107,13 @@ describe("useLayer hook", () => {
 
     it("should handle null graph safely on unmount", () => {
       // First render with a graph
-      const { rerender, unmount } = renderHook(({ g }) => useLayer(g, TestLayer, createValidLayerProps()), {
-        initialProps: { g: graph },
-      });
+      const initialProps: { g: Graph | null } = { g: graph };
+      const { rerender, unmount } = renderHook(
+        ({ g }: { g: Graph | null }) => useLayer(g, TestLayer, createValidLayerProps()),
+        {
+          initialProps,
+        }
+      );
 
       // Then change to null graph
       act(() => {
@@ -156,6 +160,9 @@ describe("useLayer hook", () => {
 
       // Get the layer instance
       const layer = result.current;
+      if (!layer) {
+        throw new Error("Expected layer instance");
+      }
 
       // Reset the calls to setProps after initial render
       (layer.setProps as jest.Mock).mockClear();
@@ -184,6 +191,9 @@ describe("useLayer hook", () => {
 
       // Get the layer instance
       const layer = result.current;
+      if (!layer) {
+        throw new Error("Expected layer instance");
+      }
 
       // Reset the calls to setProps after initial render
       (layer.setProps as jest.Mock).mockClear();
@@ -260,6 +270,9 @@ describe("useLayer hook", () => {
 
       // Get the layer instance
       const layer = result.current;
+      if (!layer) {
+        throw new Error("Expected layer instance");
+      }
 
       // Clear calls from initial render
       mockedIsEqual.mockClear();

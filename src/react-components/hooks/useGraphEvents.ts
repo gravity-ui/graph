@@ -50,7 +50,7 @@ export function useGraphEvent<Event extends keyof GraphEventsDefinitions>(
   });
   useLayoutEffect(() => {
     if (!graph) return undefined;
-    return graph.on(event, onEvent);
+    return graph.on(event, onEvent as GraphEventsDefinitions[Event]);
   }, [graph, event, onEvent]);
 
   useLayoutEffect(() => {
@@ -64,15 +64,16 @@ export function useGraphEvents(graph: Graph | null, events: Partial<TGraphEventC
   useLayoutEffect(() => {
     if (!graph) return undefined;
 
-    const unsubscribe = [];
+    const unsubscribeFns: Array<() => void> = [];
     const subscribe = <K extends keyof TGraphEventCallbacks>(
       key: K,
       cb: (data: TEventDetailForCallback<K>, event: TEventForCallback<K>) => void
     ): (() => void) => {
       const eventName = GraphCallbacksMap[key];
-      return graph.on(eventName, (event: TEventForCallback<K>) => {
-        cb(event.detail, event);
-      });
+      type EvName = (typeof GraphCallbacksMap)[K];
+      return graph.on(eventName, ((event: UnwrapGraphEvents<EvName>) => {
+        cb(event.detail as TEventDetailForCallback<K>, event as TEventForCallback<K>);
+      }) as GraphEventsDefinitions[EvName]);
     };
     const eventKeys = Object.keys(events) as Array<keyof TGraphEventCallbacks>;
     eventKeys.forEach(<K extends keyof TGraphEventCallbacks>(key: K) => {
@@ -80,10 +81,12 @@ export function useGraphEvents(graph: Graph | null, events: Partial<TGraphEventC
       if (!cb) {
         return;
       }
-      unsubscribe.push(subscribe(key, cb));
+      unsubscribeFns.push(
+        subscribe(key, cb as (data: TEventDetailForCallback<K>, event: TEventForCallback<K>) => void)
+      );
     });
     return () => {
-      unsubscribe.forEach((unsubscribe) => unsubscribe());
+      unsubscribeFns.forEach((unsub) => unsub());
     };
   }, [graph, events]);
 }

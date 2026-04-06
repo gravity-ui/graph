@@ -25,6 +25,10 @@ const config: StorybookConfig = {
 
   typescript: {
     reactDocgen: "react-docgen-typescript",
+    reactDocgenTypescriptOptions: {
+      // Stories use a dedicated tsconfig with strict off (see src/stories/tsconfig.json).
+      tsconfigPath: "src/stories/tsconfig.json",
+    },
   },
 };
 export default config;

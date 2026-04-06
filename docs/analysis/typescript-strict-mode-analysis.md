@@ -4,8 +4,10 @@
 
 ## Методология
 
-- **Команда:** `npx tsc --noEmit -p tsconfig.json --strict`
-- **Базовый конфиг:** `tsconfig.json` (в репозитории **не** задан `"strict": true`; проверка выполнялась с флагом CLI).
+- **Основной конфиг:** `tsconfig.json` задаёт `**"strict": true`** и **исключает** `src/stories`, `**/*.test.ts`, `**/*.test.tsx` (пакет без примеров и unit-тестов в этом проходе).
+- **Строгая проверка:** `npm run typecheck:strict` → `tsc --noEmit -p tsconfig.json` (те же правила, что в основном конфиге).
+- **Сборка / `npm run typecheck`:** `tsconfig.publish.json` расширяет основной конфиг, но пока переопределяет `**"strict": false`**, чтобы `build:publish` проходил до завершения миграции по ошибкам. После исправления всех strict-диагностик **удалить** это переопределение.
+- **Stories отдельно:** в `src/stories/tsconfig.json` задано `strict: false`; подключено в Storybook (`reactDocgenTypescriptOptions.tsconfigPath`). Прогон: `npm run typecheck:stories` или `tsc --noEmit -p src/stories/tsconfig.json`.
 - **Что фактически включает `--strict`** (по `tsc --showConfig`):  
 `strictNullChecks`, `strictFunctionTypes`, `strictBindCallApply`, `strictPropertyInitialization`, `strictBuiltinIteratorReturn`, `alwaysStrict`, `noImplicitAny`, `noImplicitThis`, `useUnknownInCatchVariables`.
 
@@ -160,7 +162,7 @@ Stories дают **~33%** всех ошибок; сфокусированная 
 ### Шаг 3. Подключить типы в состоянии графа
 
 - Тип значения `**$graphColors`** и геттера `**graphColors`**: `TResolvedGraphColors`.
-- Тип значения `**$graphConstants**` и геттера `**graphConstants**`: `TResolvedGraphConstants`.
+- Тип значения `**$graphConstants`** и геттера `**graphConstants`**: `TResolvedGraphConstants`.
 - Сигнатуры `**setColors` / `setConstants**`: принимают partial / recursive partial; присваивают результату нормализованное значение.
 - `**LayerContext.colors**`, payload события `**colors-changed**`, аргументы колбэков в `**GraphCanvas**`: использовать разрешённый тип, чтобы не размножать `?.` и `??` по canvas-компонентам.
 
@@ -178,7 +180,7 @@ Stories дают **~33%** всех ошибок; сфокусированная 
 
 ## Практические рекомендации по миграции (без правок кода в этом шаге)
 
-- **Поэтапное включение в `tsconfig`:** сначала отдельные флаги (`strictNullChecks`, затем `strictPropertyInitialization`, затем полный `strict`) снижают шок от объёма; либо отдельный `tsconfig.strict.json` для CI.
+- **Поэтапное включение в `tsconfig`:** при необходимости сначала отдельные флаги (`strictNullChecks`, затем `strictPropertyInitialization`, затем полный `strict`) снижают шок от объёма; основной конфиг уже с `strict: true`, прогресс смотрите через `typecheck:strict`.
 - **Разделение проектов:** `src/`** под strict, stories — отдельная компиляция или отложенный этап, чтобы не блокировать библиотеку.
 - **Colors / constants:** следовать разделу **«План: нормализация `colors` и `constants`»** до массового добавления `?.`/`??` в рендер.
 - **Паттерны исправлений (ожидаемые):** сужение типов guard’ами, `??`/`!` только там, где есть инвариант, инициализаторы полей или `declare`/assign в `init`, явные типы вместо неявного `any`, для событий — слушатели с `Event` + `instanceof` или обёртки, для динамических ключей — `Record<…>` / mapped types вместо `{}`.
@@ -186,7 +188,7 @@ Stories дают **~33%** всех ошибок; сфокусированная 
 ## Артефакт проверки
 
 Полный лог компилятора можно воспроизвести командой выше; при необходимости сохранить вывод:  
-`npx tsc --noEmit -p tsconfig.json --strict 2>&1 | tee typescript-strict-errors.log`.
+`npm run typecheck:strict 2>&1 | tee typescript-strict-errors.log`.
 
 ---
 

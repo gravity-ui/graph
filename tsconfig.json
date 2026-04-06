@@ -5,6 +5,7 @@
     "moduleResolution": "node",
     "module": "esnext",
     "target": "es2020",
+    "strict": true,
     "noEmitOnError": true,
     "allowJs": true,
     "esModuleInterop": true,
@@ -17,5 +18,6 @@
     }
   },
   "outDir": "./dist/",
-  "include": ["./src/**/*.ts", "src/**/*.tsx"],
+  "include": ["./src/**/*.ts", "./src/**/*.tsx"],
+  "exclude": ["node_modules", "src/stories", "**/*.test.ts", "**/*.test.tsx"]
 }

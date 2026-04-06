@@ -41,6 +41,9 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
         this.setProps({
           ...this.props,
           html: {
+            zIndex: 3,
+            classNames: ["no-user-select", "no-pointer-events"],
+            transformByCameraPosition: true,
             ...this.props.html,
             activationScale: scales[2],
           },
