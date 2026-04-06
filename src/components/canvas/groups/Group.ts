@@ -110,11 +110,13 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     this.subscribeToGroup();
 
     this.addEventListener("click", (event: Event) => {
-      const mouseEvent = event as MouseEvent;
-      mouseEvent.stopPropagation();
+      if (!(event instanceof MouseEvent)) {
+        return;
+      }
+      event.stopPropagation();
       this.groupState?.setSelection(
         true,
-        !isMetaKeyEvent(mouseEvent) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
+        !isMetaKeyEvent(event) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
       );
     });
   }

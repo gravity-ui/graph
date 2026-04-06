@@ -18,7 +18,7 @@ export class BlockState<T extends TBlock = TBlock> {
     return new BlockState(store, block, store.blockSelectionBucket);
   }
 
-  protected $rawState = signal<T>(undefined);
+  protected $rawState: Signal<T>;
 
   /**
    * Block state signal
@@ -145,7 +145,7 @@ export class BlockState<T extends TBlock = TBlock> {
     block: T,
     private readonly blockSelectionBucket: ISelectionBucket<string | number>
   ) {
-    this.$rawState.value = block;
+    this.$rawState = signal(block);
     this.$anchorStates.value = block.anchors?.map((anchor) => new AnchorState(this, anchor)) ?? [];
   }
 

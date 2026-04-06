@@ -185,6 +185,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       previousConnected?.unsetViewComponent(this);
       return;
     }
+    if (previousConnected !== undefined && previousConnected !== nextConnected) {
+      previousConnected.unsetViewComponent(this);
+    }
     this.connectedState = nextConnected;
     this.state = cloneDeep(this.connectedState.$state.value);
     this.connectedState.setViewComponent(this);
