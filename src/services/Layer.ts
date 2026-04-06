@@ -1,6 +1,6 @@
 import { Graph } from "../graph";
 import { TGraphConstants, TResolvedGraphColors } from "../graphConfig";
-import { GraphEventsDefinitions } from "../graphEvents";
+import { GraphEventListener, GraphEventsDefinitions } from "../graphEvents";
 import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
 import { ESchedulerPriority } from "../lib/Scheduler";
@@ -119,11 +119,11 @@ export class Layer<
    * @param options - Additional options (optional)
    * @returns The result of graph.on call (an unsubscribe function)
    */
-  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
+  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions>(
     eventName: EventName,
-    handler: Cb,
+    handler: GraphEventListener<EventName>,
     options?: Omit<AddEventListenerOptions, "signal">
-  ) {
+  ): () => void {
     return this.props.graph.on(eventName, handler, {
       ...options,
       signal: this.eventAbortController.signal,

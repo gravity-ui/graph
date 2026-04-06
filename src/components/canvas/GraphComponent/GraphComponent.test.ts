@@ -1,6 +1,6 @@
 import type { Graph } from "../../../graph";
 import { createInitialResolvedGraphColors, initGraphConstants } from "../../../graphConfig";
-import { GraphEventsDefinitions } from "../../../graphEvents";
+import { GraphEventListener, GraphEventsDefinitions } from "../../../graphEvents";
 import { Component, TComponentState } from "../../../lib/Component";
 import type { CoreComponentProps } from "../../../lib/CoreComponent";
 import { CoreComponent } from "../../../lib/CoreComponent";
@@ -17,8 +17,8 @@ class TestGraphComponent extends GraphComponent {
 
   public subscribeGraphEvent<EventName extends keyof GraphEventsDefinitions>(
     eventName: EventName,
-    handler: GraphEventsDefinitions[EventName],
-    options?: AddEventListenerOptions | boolean
+    handler: GraphEventListener<EventName>,
+    options?: AddEventListenerOptions | boolean,
   ): () => void {
     return this.onGraphEvent(eventName, handler, options);
   }

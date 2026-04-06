@@ -6,7 +6,7 @@ export * from "./graph";
 export type { TGraphColors, TGraphConstants, TMouseWheelBehavior, TResolvedGraphColors } from "./graphConfig";
 export type { TResolveWheelDevice } from "./utils/functions/isTrackpadDetector";
 export { defaultResolveWheelDevice, EWheelDeviceKind } from "./utils/functions/isTrackpadDetector";
-export { type UnwrapGraphEventsDetail, type SelectionEvent } from "./graphEvents";
+export { type GraphEventListener, type SelectionEvent, type UnwrapGraphEventsDetail } from "./graphEvents";
 export * from "./plugins";
 export {
   defaultGetCameraBlockScaleLevel,

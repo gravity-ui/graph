@@ -1,7 +1,7 @@
 import { Signal } from "@preact/signals-core";
 
 import { Graph } from "../../../graph";
-import { GraphEventsDefinitions } from "../../../graphEvents";
+import { GraphEventListener, GraphEventsDefinitions } from "../../../graphEvents";
 import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
@@ -276,9 +276,9 @@ export class GraphComponent<
    * @param options - Additional AddEventListener options
    * @returns Unsubscribe function
    */
-  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
+  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions>(
     eventName: EventName,
-    handler: Cb,
+    handler: GraphEventListener<EventName>,
     options?: AddEventListenerOptions | boolean
   ): () => void {
     const unsubscribe = this.context.graph.on(eventName, handler, options);

@@ -50,6 +50,11 @@ export type UnwrapGraphEvents<
   T extends GraphEventsDefinitions[Key] = GraphEventsDefinitions[Key],
   P extends Parameters<T>[0] = Parameters<T>[0],
 > = P extends CustomEvent ? P : never;
+
+/** Single-argument listener used by `Graph.on` / `Graph.off` and the DOM emitter. */
+export type GraphEventListener<EventName extends keyof GraphEventsDefinitions> = (
+  event: UnwrapGraphEvents<EventName>
+) => void;
 export type UnwrapGraphEventsDetail<
   Key extends keyof GraphEventsDefinitions,
   T extends GraphEventsDefinitions[Key] = GraphEventsDefinitions[Key],

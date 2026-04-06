@@ -14,7 +14,7 @@ import {
   mergeResolvedGraphConstants,
 } from "./graphConfig";
 import type { TGraphColors, TGraphConstants, TResolvedGraphColors } from "./graphConfig";
-import { GraphEvent, GraphEventParams, GraphEventsDefinitions, isGraphEvent } from "./graphEvents";
+import { GraphEvent, GraphEventListener, GraphEventParams, GraphEventsDefinitions, isGraphEvent } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
 import { KeyboardService } from "./services/KeyboardService";
@@ -320,18 +320,16 @@ export class Graph {
     });
   }
 
-  public on<
-    EventName extends keyof GraphEventsDefinitions = keyof GraphEventsDefinitions,
-    Cb extends GraphEventsDefinitions[EventName] = GraphEventsDefinitions[EventName],
-  >(type: EventName, cb: Cb, options?: AddEventListenerOptions | boolean) {
+  public on<EventName extends keyof GraphEventsDefinitions>(
+    type: EventName,
+    cb: GraphEventListener<EventName>,
+    options?: AddEventListenerOptions | boolean
+  ): () => void {
     this.eventEmitter.addEventListener(type, cb as EventListener, options);
     return () => this.off(type, cb);
   }
 
-  public off<
-    EventName extends keyof GraphEventsDefinitions = keyof GraphEventsDefinitions,
-    Cb extends GraphEventsDefinitions[EventName] = GraphEventsDefinitions[EventName],
-  >(type: EventName, cb: Cb) {
+  public off<EventName extends keyof GraphEventsDefinitions>(type: EventName, cb: GraphEventListener<EventName>): void {
     this.eventEmitter.removeEventListener(type, cb as EventListener);
   }
 
