@@ -137,11 +137,15 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.shouldRender;
   }
 
-  protected updateViewState(params: Partial<BlockViewState>) {
+  protected updateViewState(params: Partial<BlockViewState>): void {
     let hasChanges = false;
+    const prev = this.$viewState.value;
     for (const key of Object.keys(params) as (keyof BlockViewState)[]) {
+      if (!Object.prototype.hasOwnProperty.call(params, key)) {
+        continue;
+      }
       const value = params[key];
-      if (value !== undefined && this.$viewState.value[key] !== value) {
+      if (prev[key] !== value) {
         hasChanges = true;
         break;
       }
@@ -152,7 +156,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     }
 
     this.$viewState.value = {
-      ...this.$viewState.value,
+      ...prev,
       ...params,
     };
   }
@@ -170,13 +174,15 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.context.graph.rootStore.settings.getConfigFlag(flagPath);
   }
 
-  protected subscribe(id: TBlockId) {
+  protected subscribe(id: TBlockId): void {
     this.connectedStateUnsubscribers.forEach((unsub) => unsub());
     this.connectedStateUnsubscribers = [];
 
+    const previousConnected = this.connectedState;
     const nextConnected = selectBlockById<T>(this.context.graph, id);
     if (!nextConnected) {
       logDev(`BlockState not found for id "${String(id)}"`);
+      previousConnected?.unsetViewComponent(this);
       return;
     }
     this.connectedState = nextConnected;
@@ -233,7 +239,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   protected willMount(): void {
     this.addEventListener("click", (event: Event) => {
-      this.handleClick(event as MouseEvent);
+      if (event instanceof MouseEvent) {
+        this.handleClick(event);
+      }
     });
   }
 

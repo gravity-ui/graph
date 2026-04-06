@@ -176,6 +176,16 @@ export class BlockState<T extends TBlock = TBlock> {
     this.$viewComponent.value = blockComponent;
   }
 
+  /**
+   * Clears the canvas Block view reference when it is the current owner.
+   * Used when the view rebinds to another BlockState or the store row is gone.
+   */
+  public unsetViewComponent(canvasBlock: Block): void {
+    if (this.$viewComponent.value === canvasBlock) {
+      this.$viewComponent.value = undefined;
+    }
+  }
+
   public getViewComponent() {
     return this.$viewComponent.value;
   }

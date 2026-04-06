@@ -111,10 +111,11 @@ export class GraphComponent<
   }
 
   public getPort(id: TPortId): PortState {
-    if (!this.ports.has(id)) {
-      return this.createPort(id);
+    const existing = this.ports.get(id);
+    if (existing !== undefined) {
+      return existing;
     }
-    return this.ports.get(id) as PortState;
+    return this.createPort(id);
   }
 
   /**
@@ -202,11 +203,13 @@ export class GraphComponent<
     let startCoords: [number, number] | undefined;
     let prevCoords: [number, number] | undefined;
     return this.addEventListener("mousedown", (event: Event) => {
-      const mouseEvent = event as MouseEvent;
-      if (!isDraggable?.(mouseEvent)) {
+      if (!(event instanceof MouseEvent)) {
         return;
       }
-      mouseEvent.stopPropagation();
+      if (!isDraggable?.(event)) {
+        return;
+      }
+      event.stopPropagation();
       this.context.graph.dragService.startDrag(
         {
           onStart: (startEvent: MouseEvent) => {

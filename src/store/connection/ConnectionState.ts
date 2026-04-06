@@ -80,7 +80,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
     if (s.sourceBlockId !== undefined) {
       return createBlockPointPortId(s.sourceBlockId, false);
     }
-    return createBlockPointPortId("", false);
+    return createBlockPointPortId(`__orphan_src__${String(this.id)}`, false);
   });
 
   public $targetPortId = computed(() => {
@@ -94,7 +94,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
     if (s.targetBlockId !== undefined) {
       return createBlockPointPortId(s.targetBlockId, true);
     }
-    return createBlockPointPortId("", true);
+    return createBlockPointPortId(`__orphan_tgt__${String(this.id)}`, true);
   });
 
   public readonly $sourcePortState = computed(() => {
