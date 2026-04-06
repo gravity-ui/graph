@@ -376,10 +376,14 @@ export class Layer<
    * @param active - Whether the HTML layer is now active
    */
   protected onHtmlActiveChange(active: boolean) {
+    const html = this.html;
+    if (!html) {
+      return;
+    }
     if (active) {
-      this.html.classList.remove("layer-hidden");
+      html.classList.remove("layer-hidden");
     } else {
-      this.html.classList.add("layer-hidden");
+      html.classList.add("layer-hidden");
     }
   }
 

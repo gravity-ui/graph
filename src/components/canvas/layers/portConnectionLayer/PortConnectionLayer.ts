@@ -66,6 +66,11 @@ type SnappingPortBox = {
   port: PortState;
 };
 
+type TPortEventIds = {
+  blockId: TBlockId;
+  anchorId: string | undefined;
+};
+
 type PortConnectionLayerProps = LayerProps & {
   createIcon?: TIcon;
   point?: TIcon;
@@ -121,8 +126,8 @@ declare module "../../../../graphEvents" {
 
     "port-connection-cancel": (
       event: CustomEvent<{
-        sourcePort: PortState;
-        targetPort: PortState;
+        sourcePort?: PortState;
+        targetPort?: PortState;
       }>
     ) => void;
 
@@ -133,7 +138,7 @@ declare module "../../../../graphEvents" {
     "port-connection-create-drop": (
       event: CustomEvent<{
         sourceBlockId: TBlockId;
-        sourceAnchorId: string;
+        sourceAnchorId: string | undefined;
         targetBlockId?: TBlockId;
         targetAnchorId?: string;
         point: Point;
@@ -203,10 +208,18 @@ export class PortConnectionLayer extends Layer<
       ...props,
     });
 
+    const canvas = this.getCanvas();
+    if (!canvas) {
+      throw new Error("PortConnectionLayer: canvas is required");
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("PortConnectionLayer: 2d context is required");
+    }
     this.setContext({
-      canvas: this.getCanvas(),
+      canvas,
       graphCanvas: props.graph.getGraphCanvas(),
-      ctx: this.getCanvas().getContext("2d"),
+      ctx,
       camera: props.camera,
       constants: this.props.graph.graphConstants,
       colors: this.props.graph.graphColors,
@@ -304,8 +317,13 @@ export class PortConnectionLayer extends Layer<
     const scale = this.context.camera.getCameraScale();
     const iconSize = 24 / scale;
     const iconOffset = 12 / scale;
+    const endState = this.endState;
+    if (!endState) {
+      ctx.closePath();
+      return;
+    }
 
-    if (!this.targetPort && this.props.createIcon && this.endState) {
+    if (!this.targetPort && this.props.createIcon) {
       renderSVG(
         {
           path: this.props.createIcon.path,
@@ -315,7 +333,7 @@ export class PortConnectionLayer extends Layer<
           initialHeight: this.props.createIcon.viewHeight,
         },
         ctx,
-        { x: this.endState.x, y: this.endState.y - iconOffset, width: iconSize, height: iconSize }
+        { x: endState.x, y: endState.y - iconOffset, width: iconSize, height: iconSize }
       );
     } else if (this.props.point) {
       ctx.fillStyle = this.props.point.fill || this.context.colors.canvas.belowLayerBackground;
@@ -332,7 +350,7 @@ export class PortConnectionLayer extends Layer<
           initialHeight: this.props.point.viewHeight,
         },
         ctx,
-        { x: this.endState.x, y: this.endState.y - iconOffset, width: iconSize, height: iconSize }
+        { x: endState.x, y: endState.y - iconOffset, width: iconSize, height: iconSize }
       );
     }
     ctx.closePath();
@@ -371,7 +389,7 @@ export class PortConnectionLayer extends Layer<
       return;
     }
 
-    const params = this.getEventParams(port);
+    const params = this.getRequiredEventParams(port);
 
     this.sourcePort = port;
     this.startState = new Point(port.x, port.y);
@@ -423,8 +441,8 @@ export class PortConnectionLayer extends Layer<
 
       this.targetPort = newTargetPort;
 
-      const sourceParams = this.getEventParams(this.sourcePort);
-      const targetParams = this.getEventParams(newTargetPort);
+      const sourceParams = this.getRequiredEventParams(this.sourcePort);
+      const targetParams = newTargetPort ? this.getRequiredEventParams(newTargetPort) : undefined;
 
       this.context.graph.executеDefaultEventAction(
         "port-connection-create-hover",
@@ -445,7 +463,7 @@ export class PortConnectionLayer extends Layer<
     }
   }
 
-  protected selectPort(port: PortState, select: boolean): void {
+  protected selectPort(port: PortState | undefined, select: boolean): void {
     if (!port) return;
     const component = port.owner;
     if (component instanceof GraphComponent) {
@@ -506,7 +524,7 @@ export class PortConnectionLayer extends Layer<
     this.endState = null;
     this.performRender();
 
-    const sourceParams = this.getEventParams(this.sourcePort);
+    const sourceParams = this.getRequiredEventParams(this.sourcePort);
 
     if (!targetPort) {
       // Drop without target
@@ -541,8 +559,8 @@ export class PortConnectionLayer extends Layer<
       actualTargetPort = this.sourcePort;
     }
 
-    const actualSourceParams = this.getEventParams(actualSourcePort);
-    const actualTargetParams = this.getEventParams(actualTargetPort);
+    const actualSourceParams = this.getRequiredEventParams(actualSourcePort);
+    const actualTargetParams = this.getRequiredEventParams(actualTargetPort);
 
     // Create connection
     this.context.graph.executеDefaultEventAction(
@@ -568,7 +586,7 @@ export class PortConnectionLayer extends Layer<
     this.selectPort(this.sourcePort, false);
     this.selectPort(targetPort, false);
 
-    const targetParams = this.getEventParams(targetPort);
+    const targetParams = this.getRequiredEventParams(targetPort);
 
     // Drop event
     this.context.graph.executеDefaultEventAction(
@@ -627,7 +645,8 @@ export class PortConnectionLayer extends Layer<
       const distance = vectorDistance(point, port);
 
       // Check custom condition if provided
-      const meta = port.meta?.[PortConnectionLayer.PortMetaKey] as IPortConnectionMeta | undefined;
+      const portMeta = port.meta as Record<PropertyKey, unknown> | undefined;
+      const meta = portMeta?.[PortConnectionLayer.PortMetaKey] as IPortConnectionMeta | undefined;
       if (meta?.snapCondition && sourcePort) {
         const canSnap = meta.snapCondition({
           sourcePort: sourcePort,
@@ -681,7 +700,8 @@ export class PortConnectionLayer extends Layer<
         // Skip ports in lookup state (no valid coordinates)
         if (port.lookup) continue;
 
-        const meta = port.meta?.[PortConnectionLayer.PortMetaKey] as IPortConnectionMeta | undefined;
+        const portMeta = port.meta as Record<PropertyKey, unknown> | undefined;
+        const meta = portMeta?.[PortConnectionLayer.PortMetaKey] as IPortConnectionMeta | undefined;
 
         if (meta?.snappable) {
           snappingBoxes.push({
@@ -717,7 +737,11 @@ export class PortConnectionLayer extends Layer<
 
     // For Anchor components, get the anchor type
     if (component instanceof Anchor) {
-      const anchorType = component.connectedState.state.type;
+      const connected = component.connectedState;
+      if (!connected) {
+        return null;
+      }
+      const anchorType = connected.state.type;
       if (anchorType === EAnchorType.IN || anchorType === EAnchorType.OUT) {
         return anchorType;
       }
@@ -745,9 +769,13 @@ export class PortConnectionLayer extends Layer<
     }
 
     if (component instanceof Anchor) {
+      const connected = component.connectedState;
+      if (!connected) {
+        throw new Error("Port has anchor owner without connected state");
+      }
       return {
-        blockId: component.connectedState.blockId,
-        anchorId: component.connectedState.id,
+        blockId: connected.blockId,
+        anchorId: connected.id,
       };
     }
 
@@ -758,6 +786,17 @@ export class PortConnectionLayer extends Layer<
     }
 
     return {};
+  }
+
+  /**
+   * Same as {@link getEventParams} but ensures {@link TBlockId} is present (throws if missing).
+   */
+  protected getRequiredEventParams(port: PortState): TPortEventIds {
+    const params = this.getEventParams(port);
+    if (params.blockId === undefined) {
+      throw new Error("Port connection: missing block id for port owner");
+    }
+    return { blockId: params.blockId, anchorId: params.anchorId };
   }
 
   public override unmount(): void {

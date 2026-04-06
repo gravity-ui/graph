@@ -11,12 +11,12 @@ export class PointerGrid extends Component<TRect, TBelowLayerContext> {
 
   private fakeCanvasContext?: CanvasRenderingContext2D;
 
-  private pattern: {
+  private pattern!: {
     normal: CanvasPattern;
     simple: CanvasPattern;
   };
 
-  private activePattern: CanvasPattern;
+  private activePattern!: CanvasPattern;
 
   // need to understand when should remake pattern
   private currentDotsColor: string;
@@ -60,10 +60,12 @@ export class PointerGrid extends Component<TRect, TBelowLayerContext> {
   private initPattern() {
     this.fakeCanvasContext = this.createFakeCanvasContext();
 
-    this.pattern = {
-      normal: this.createPattern(false, this.fakeCanvasContext),
-      simple: this.createPattern(true, this.fakeCanvasContext),
-    };
+    const normal = this.createPattern(false, this.fakeCanvasContext);
+    const simple = this.createPattern(true, this.fakeCanvasContext);
+    if (!normal || !simple) {
+      throw new Error("PointerGrid: failed to create canvas pattern");
+    }
+    this.pattern = { normal, simple };
 
     this.activePattern = this.pattern.normal;
 
@@ -98,6 +100,10 @@ export class PointerGrid extends Component<TRect, TBelowLayerContext> {
   }
 
   private createFakeCanvasContext(): CanvasRenderingContext2D {
-    return document.createElement("canvas").getContext("2d");
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (!ctx) {
+      throw new Error("PointerGrid: 2d context is required");
+    }
+    return ctx;
   }
 }

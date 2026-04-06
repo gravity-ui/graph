@@ -20,18 +20,15 @@ describe("useSchedulerDebounce hook", () => {
 
   /**
    * Advance animation frames. By default, each frame is 16ms (~60fps).
-   * Jest fake timers automatically sync performance.now() with timer advancement.
-   * We manually trigger scheduler.performUpdate() because our Scheduler
-   * uses a custom rAF implementation.
+   * Jest fake timers advance `performance.now()` and run `requestAnimationFrame` callbacks,
+   * which drives `GlobalScheduler.tick()` → one `performUpdate()` per frame.
+   * Avoid calling `scheduler.performUpdate()` here — it would double-count frames.
    * @param count - Number of frames to advance
    * @param timePerFrame - Time per frame in milliseconds (default: 16ms)
    */
   const advanceFrames = (count: number, timePerFrame = 16) => {
     for (let i = 0; i < count; i++) {
-      // Advance Jest timers - this also advances performance.now() automatically
       jest.advanceTimersByTime(timePerFrame);
-      // Manually trigger scheduler update (our Scheduler uses custom rAF)
-      scheduler.performUpdate();
     }
   };
 
@@ -163,7 +160,7 @@ describe("useSchedulerDebounce hook", () => {
      * NOTE: Skipped due to complex timing synchronization between frameInterval and frameTimeout.
      * The debounce/throttle logic requires BOTH conditions to be met (frames AND time),
      * but testing this reliably with Jest fake timers is challenging due to the interaction
-     * between scheduler.performUpdate() and performance.now() timing.
+     * between rAF-driven scheduler ticks and performance.now() timing.
      * Frame-only tests (frameTimeout: 0) work correctly and cover the main use cases.
      */
     it.skip("should respect frameTimeout option", () => {
@@ -529,18 +526,15 @@ describe("useSchedulerThrottle hook", () => {
 
   /**
    * Advance animation frames. By default, each frame is 16ms (~60fps).
-   * Jest fake timers automatically sync performance.now() with timer advancement.
-   * We manually trigger scheduler.performUpdate() because our Scheduler
-   * uses a custom rAF implementation.
+   * Jest fake timers advance `performance.now()` and run `requestAnimationFrame` callbacks,
+   * which drives `GlobalScheduler.tick()` → one `performUpdate()` per frame.
+   * Avoid calling `scheduler.performUpdate()` here — it would double-count frames.
    * @param count - Number of frames to advance
    * @param timePerFrame - Time per frame in milliseconds (default: 16ms)
    */
   const advanceFrames = (count: number, timePerFrame = 16) => {
     for (let i = 0; i < count; i++) {
-      // Advance Jest timers - this also advances performance.now() automatically
       jest.advanceTimersByTime(timePerFrame);
-      // Manually trigger scheduler update (our Scheduler uses custom rAF)
-      scheduler.performUpdate();
     }
   };
 

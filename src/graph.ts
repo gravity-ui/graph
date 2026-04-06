@@ -157,7 +157,8 @@ export class Graph {
     this.setupGraph(config);
   }
 
-  protected onUpdateSize = (size: TLayersRootSize): void => {
+  protected onUpdateSize = (...args: unknown[]): void => {
+    const size = args[0] as TLayersRootSize;
     this.cameraService.set({ width: size.width, height: size.height });
   };
 

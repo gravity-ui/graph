@@ -54,9 +54,9 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private camera: ICamera;
 
-  private targetComponent: EventedComponent;
+  private targetComponent!: EventedComponent;
 
-  private prevTargetComponent: EventedComponent;
+  private prevTargetComponent!: EventedComponent;
 
   private canEmulateClick?: boolean;
 
@@ -116,6 +116,8 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   }
 
   protected afterInit(): void {
+    this.targetComponent = this.$.camera;
+    this.prevTargetComponent = this.$.camera;
     this.setContext({
       root: this.root as HTMLDivElement,
     });

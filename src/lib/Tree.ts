@@ -8,7 +8,8 @@ export interface ITree {
 
 export class Tree<T extends ITree = ITree> {
   public data: T;
-  public parent: Tree;
+
+  public parent?: Tree;
 
   public children: Set<Tree> = new Set();
 
@@ -31,7 +32,9 @@ export class Tree<T extends ITree = ITree> {
 
   constructor(data: T, parent?: Tree) {
     this.data = data;
-    this.parent = parent;
+    if (parent !== undefined) {
+      this.parent = parent;
+    }
   }
 
   public append(node: Tree) {
@@ -45,7 +48,7 @@ export class Tree<T extends ITree = ITree> {
     if (!this.zIndexGroups.has(node.zIndex)) {
       this.zIndexGroups.set(node.zIndex, new Set());
     }
-    this.zIndexGroups.get(node.zIndex).add(node);
+    this.zIndexGroups.get(node.zIndex)?.add(node);
     this.zIndexChildrenCache.reset();
   }
 
@@ -61,7 +64,9 @@ export class Tree<T extends ITree = ITree> {
   }
 
   public remove(node: Tree = this) {
-    if (node.parent === null) return;
+    if (node.parent === undefined) {
+      return;
+    }
     this.children.delete(node);
     this.childrenDirty = true;
     this.removeZIndex(node);
@@ -100,12 +105,8 @@ export class Tree<T extends ITree = ITree> {
     this.zIndexChildrenCache.clear();
   }
 
-  public traverseDown(iterator: TIterator) {
-    this._traverse(iterator, "_walkDown");
-  }
-
-  private _traverse(iterator: TIterator, strategyName: string) {
-    this[strategyName](iterator);
+  public traverseDown(iterator: TIterator): void {
+    this._walkDown(iterator, 0);
   }
 
   protected getChildrenArray() {
@@ -124,7 +125,10 @@ export class Tree<T extends ITree = ITree> {
       }
       const children = this.zIndexChildrenCache.get();
       for (let i = 0; i < children.length; i++) {
-        children[i]._walkDown(iterator, i);
+        const child = children[i];
+        if (child !== undefined) {
+          child._walkDown(iterator, i);
+        }
       }
     }
   }

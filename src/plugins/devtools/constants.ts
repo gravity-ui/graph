@@ -1,7 +1,24 @@
 import type { TDevToolsLayerProps, TDevToolsLayerState } from "./types";
 
-/** Default properties for the DevToolsLayer */
-export const DEFAULT_DEVTOOLS_LAYER_PROPS: Omit<TDevToolsLayerProps, "graph" | "camera" | "root" | "emitter"> = {
+/** Default theme/visual options for DevToolsLayer (excludes Layer canvas/html) */
+export const DEFAULT_DEVTOOLS_LAYER_PROPS: Required<
+  Pick<
+    TDevToolsLayerProps,
+    | "showRuler"
+    | "showCrosshair"
+    | "rulerSize"
+    | "minMajorTickDistance"
+    | "rulerBackgroundColor"
+    | "rulerTickColor"
+    | "rulerTextColor"
+    | "rulerTextFont"
+    | "crosshairColor"
+    | "crosshairTextColor"
+    | "crosshairTextFont"
+    | "crosshairTextBackgroundColor"
+    | "rulerBackdropBlur"
+  >
+> = {
   showRuler: true,
   showCrosshair: true,
   rulerSize: 25,

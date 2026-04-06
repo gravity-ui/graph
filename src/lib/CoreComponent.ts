@@ -157,7 +157,8 @@ export class CoreComponent<
     const __comp = this.__comp;
     const children = __comp.children;
     const childrenKeys = __comp.childrenKeys;
-    const nextChildrenKeys = (__comp.childrenKeys = []);
+    const nextChildrenKeys: string[] = [];
+    __comp.childrenKeys = nextChildrenKeys;
 
     if (nextChildrenArr === __comp.prevChildrenArr) return;
 

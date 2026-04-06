@@ -103,12 +103,12 @@ export class BlockState<T extends TBlock = TBlock> {
    * @returns {ReadonlySignal<Map<string, number>>} Block anchor indexes
    */
   public $anchorIndexs = computed(() => {
-    const typeIndex = {};
+    const typeIndex: Record<string, number> = {};
     return new Map(
       this.$anchorStates.value
         ?.sort((a, b) => (a.state.index || 0) - (b.state.index || 0))
         .map((anchorState) => {
-          if (!typeIndex[anchorState.state.type]) {
+          if (typeIndex[anchorState.state.type] === undefined) {
             typeIndex[anchorState.state.type] = 0;
           }
           return [anchorState.id, typeIndex[anchorState.state.type]++];
@@ -208,10 +208,10 @@ export class BlockState<T extends TBlock = TBlock> {
   public updateAnchors(anchors: TAnchor[]) {
     const anchorsMap = new Map(this.$anchorStates.value.map((a) => [a.id, a]));
     this.$anchorStates.value = anchors.map((anchor) => {
-      if (anchorsMap.has(anchor.id)) {
-        const anchorState = anchorsMap.get(anchor.id);
-        anchorState.update(anchor);
-        return anchorState;
+      const existing = anchorsMap.get(anchor.id);
+      if (existing) {
+        existing.update(anchor);
+        return existing;
       }
       return new AnchorState(this, anchor);
     });

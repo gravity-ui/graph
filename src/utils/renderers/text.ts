@@ -11,12 +11,14 @@ export function clearTextCache() {
   cache.clear();
 }
 
-export function cachedMeasureText(text: string, params: TMeasureTextOptions) {
+export function cachedMeasureText(text: string, params: TMeasureTextOptions): TWrapText {
   const key = getMeasureKey(text, params);
-  if (!cache.has(key)) {
-    cache.set(key, measureMultilineText(text, params.font, params));
+  let result = cache.get(key);
+  if (result === undefined) {
+    result = measureMultilineText(text, params.font, params);
+    cache.set(key, result);
   }
-  return cache.get(key);
+  return result;
 }
 
 export function layoutText(text: string, ctx: CanvasRenderingContext2D, rect: TTExtRect, params: TMeasureTextOptions) {
@@ -31,7 +33,7 @@ export function layoutText(text: string, ctx: CanvasRenderingContext2D, rect: TT
     }
     case "right":
     case "end": {
-      x = rect.x + rect.width || 0;
+      x = rect.x + (rect.width ?? 0);
       break;
     }
   }
@@ -39,15 +41,18 @@ export function layoutText(text: string, ctx: CanvasRenderingContext2D, rect: TT
   ctx.textBaseline = "top";
   let y = rect.y;
 
-  ctx.font = params.font;
-  const lineHeight = params.lineHeight || parseInt(params.font.replace(/\D/gi, ""), 10);
+  const resolvedFont = params.font ?? ctx.font;
+  ctx.font = resolvedFont;
+  const parsedFromFont = Number.parseInt(resolvedFont.replace(/\D/gi, ""), 10);
+  const lineHeight =
+    params.lineHeight ?? (Number.isFinite(parsedFromFont) ? parsedFromFont : 12);
   const measures = cachedMeasureText(text, {
     wordWrap: true,
     maxWidth: rect.width,
     maxHeight: rect.height,
     ...params,
   });
-  const lines = [];
+  const lines: [string, number, number][] = [];
   for (const line of measures.linesWords) {
     lines.push([line, x, y]);
     y += lineHeight;

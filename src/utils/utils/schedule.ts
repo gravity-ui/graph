@@ -43,6 +43,24 @@ export type TDebounceOptions = {
 };
 
 /**
+ * Debounced wrapper: same parameter list as `F`, return type `void`, plus scheduler controls.
+ * Uses `Parameters<F>` so optional and rest parameters infer correctly.
+ */
+export type DebouncedFunction<F extends (...args: never[]) => unknown> = ((...args: Parameters<F>) => void) & {
+  cancel: () => void;
+  flush: () => void;
+  isScheduled: () => boolean;
+};
+
+/**
+ * Throttled wrapper: same parameter list as `F`, return type `void`, plus cancel/flush.
+ */
+export type ThrottledFunction<F extends (...args: never[]) => unknown> = ((...args: Parameters<F>) => void) & {
+  cancel: () => void;
+  flush: () => void;
+};
+
+/**
  * Creates a debounced function that delays execution until after frameInterval frames
  * and frameTimeout milliseconds have passed since it was last invoked.
  * Both conditions must be met for execution.
@@ -53,15 +71,16 @@ export type TDebounceOptions = {
  * @param options.frameTimeout - Minimum time in milliseconds to wait before execution (default: 0)
  * @returns A debounced version of the function with cancel and flush methods
  */
-export const debounce = <T extends (...args: Parameters<T>) => void>(
-  fn: T,
+export const debounce = <F extends (...args: never[]) => unknown>(
+  fn: F,
   { priority = ESchedulerPriority.MEDIUM, frameInterval = 1, frameTimeout = 0 }: TDebounceOptions = {}
-): T & { cancel: () => void; flush: () => void; isScheduled: () => boolean } => {
+): DebouncedFunction<F> => {
+  type Args = Parameters<F>;
   let frameCounter = 0;
   let isScheduled = false;
   let cancelled = false;
   let removeScheduler: (() => void) | null = null;
-  let latestArgs: Parameters<T> | undefined;
+  let latestArgs: Args | undefined;
   let startTime = 0;
 
   const debouncedScheduler = {
@@ -85,7 +104,8 @@ export const debounce = <T extends (...args: Parameters<T>) => void>(
         removeScheduler = null;
         const args = latestArgs;
         latestArgs = undefined;
-        fn(...((args ?? []) as Parameters<T>));
+        const invokeArgs = (args ?? ([] as unknown as Args)) as Args;
+        fn(...invokeArgs);
         if (currentRemoveScheduler) {
           currentRemoveScheduler();
         }
@@ -108,23 +128,23 @@ export const debounce = <T extends (...args: Parameters<T>) => void>(
   };
 
   const flush = () => {
-    if (isScheduled && latestArgs) {
+    if (isScheduled && latestArgs !== undefined) {
       fn(...latestArgs);
       cancel();
     }
   };
 
-  const debouncedFn = ((...args: Parameters<T>) => {
-    latestArgs = args; // Store latest arguments
-    frameCounter = 0; // Reset counter on each call
-    startTime = getNow(); // Reset start time on each call
-    cancelled = false; // A new call overrides any pending cancel
+  const debouncedFn = ((...args: Args) => {
+    latestArgs = args;
+    frameCounter = 0;
+    startTime = getNow();
+    cancelled = false;
 
     if (!isScheduled) {
       isScheduled = true;
       removeScheduler = scheduler.addScheduler(debouncedScheduler, priority);
     }
-  }) as T & { cancel: () => void; flush: () => void; isScheduled: () => boolean };
+  }) as DebouncedFunction<F>;
 
   debouncedFn.cancel = cancel;
   debouncedFn.flush = flush;
@@ -145,10 +165,11 @@ export const debounce = <T extends (...args: Parameters<T>) => void>(
  * @param options.frameTimeout - Minimum time in milliseconds between executions (default: 0)
  * @returns A throttled version of the function with cancel and flush methods
  */
-export const throttle = <T extends (...args: Parameters<T>) => void>(
-  fn: T,
+export const throttle = <F extends (...args: never[]) => unknown>(
+  fn: F,
   { priority = ESchedulerPriority.MEDIUM, frameInterval = 1, frameTimeout = 0 }: TDebounceOptions = {}
-): T & { cancel: () => void; flush: () => void } => {
+): ThrottledFunction<F> => {
+  type Args = Parameters<F>;
   let frameCounter = 0;
   let canExecute = true;
   let isScheduled = false;
@@ -192,7 +213,7 @@ export const throttle = <T extends (...args: Parameters<T>) => void>(
     cancel(); // Reset the timer and allow immediate execution
   };
 
-  const throttledFn = ((...args: Parameters<T>) => {
+  const throttledFn = ((...args: Args) => {
     if (canExecute) {
       fn(...args);
       canExecute = false;
@@ -204,7 +225,7 @@ export const throttle = <T extends (...args: Parameters<T>) => void>(
         removeScheduler = scheduler.addScheduler(throttledScheduler, priority);
       }
     }
-  }) as T & { cancel: () => void; flush: () => void };
+  }) as ThrottledFunction<F>;
 
   throttledFn.cancel = cancel;
   throttledFn.flush = flush;

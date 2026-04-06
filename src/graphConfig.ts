@@ -1,7 +1,9 @@
 import merge from "lodash/merge";
 
+import type { TGraphComponentProps } from "./components/canvas/GraphComponent";
 import { GraphComponent } from "./components/canvas/GraphComponent";
 import { Block } from "./components/canvas/blocks/Block";
+import type { Component } from "./lib/Component";
 import { ESelectionStrategy } from "./services/selection";
 import type { RecursivePartial } from "./utils/types/helpers";
 
@@ -118,7 +120,7 @@ export function mergeResolvedGraphColors(
 /**
  * Constructor type for any class that extends GraphComponent
  */
-export type GraphComponentConstructor = new (...args: unknown[]) => GraphComponent;
+export type GraphComponentConstructor = new (props: TGraphComponentProps, parent: Component) => GraphComponent;
 
 export type TGraphConstants = {
   /**
@@ -282,7 +284,8 @@ export type TGraphConstants = {
 
 export const initGraphConstants: TGraphConstants = {
   selectionLayer: {
-    SELECTABLE_ENTITY_TYPES: [Block],
+    /* Block ctor is stricter (TBlockProps) than GraphComponentConstructor's first arg; safe for selection. */
+    SELECTABLE_ENTITY_TYPES: [Block as GraphComponentConstructor],
     STRATEGY: ESelectionStrategy.REPLACE,
   },
   system: {

@@ -23,6 +23,7 @@ export class RootStore {
   public selectionService: SelectionService;
 
   constructor(graph: Graph) {
+    this.configurationName = "";
     this.selectionService = new SelectionService();
     this.blocksList = new BlockListStore(this, graph);
     this.connectionsList = new ConnectionsStore(this, graph);

@@ -13,9 +13,11 @@ export type TLayersRootSize = {
   dpr: number;
 };
 
-export class Layers extends Emitter<{
-  "update-size": (size: TLayersRootSize) => void;
-}> {
+type TLayersEmitterEvents = {
+  "update-size": (...args: unknown[]) => void;
+};
+
+export class Layers extends Emitter<TLayersEmitterEvents> {
   private attached = false;
 
   public readonly rootSize = signal({ width: 0, height: 0, dpr: globalThis.devicePixelRatio || 1 });
@@ -42,6 +44,9 @@ export class Layers extends Emitter<{
     }) as InstanceType<T>;
     this.layers.add(layer);
     if (this.attached) {
+      if (!this.$root) {
+        throw new Error("Layers root is not set");
+      }
       layer.attachLayer(this.$root);
     }
     return layer;
@@ -60,14 +65,18 @@ export class Layers extends Emitter<{
     return Array.from(this.layers);
   }
 
-  public attach(root: HTMLDivElement = this.$root) {
-    this.$root = root;
+  public attach(root?: HTMLDivElement): void {
+    const nextRoot = root ?? this.$root;
+    if (!nextRoot) {
+      throw new Error("Root required to attach layers");
+    }
+    this.$root = nextRoot;
     this.layers.forEach((layer) => {
-      layer.attachLayer(this.$root);
+      layer.attachLayer(nextRoot);
     });
   }
 
-  public start(root: HTMLDivElement = this.$root) {
+  public start(root?: HTMLDivElement): void {
     if (this.attached) {
       return;
     }

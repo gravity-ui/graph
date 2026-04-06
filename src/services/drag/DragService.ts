@@ -139,9 +139,15 @@ export class DragService {
       dragCursor: "grabbing",
       autopanning: true,
     })
-      .on(EVENTS.DRAG_START, this.handleDragStart)
-      .on(EVENTS.DRAG_UPDATE, this.handleDragUpdate)
-      .on(EVENTS.DRAG_END, this.handleDragEnd);
+      .on(EVENTS.DRAG_START, (...args: unknown[]) => {
+        this.handleDragStart(args[0] as MouseEvent);
+      })
+      .on(EVENTS.DRAG_UPDATE, (...args: unknown[]) => {
+        this.handleDragUpdate(args[0] as MouseEvent);
+      })
+      .on(EVENTS.DRAG_END, (...args: unknown[]) => {
+        this.handleDragEnd(args[0] as MouseEvent);
+      });
   };
 
   /**
@@ -328,14 +334,17 @@ export class DragService {
       stopOnMouseLeave,
       threshold,
     })
-      .on(EVENTS.DRAG_START, (event: MouseEvent) => {
+      .on(EVENTS.DRAG_START, (...args: unknown[]) => {
+        const event = args[0] as MouseEvent;
         onStart?.(event, initialEvent ? this.getWorldCoords(initialEvent) : this.getWorldCoords(event));
       })
-      .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => {
+      .on(EVENTS.DRAG_UPDATE, (...args: unknown[]) => {
+        const event = args[0] as MouseEvent;
         const coords = this.getWorldCoords(event);
         onUpdate?.(event, coords);
       })
-      .on(EVENTS.DRAG_END, (event: MouseEvent) => {
+      .on(EVENTS.DRAG_END, (...args: unknown[]) => {
+        const event = args[0] as MouseEvent;
         const coords = this.getWorldCoords(event);
         onEnd?.(event, coords);
       });

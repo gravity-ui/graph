@@ -35,8 +35,8 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     this.ownerDocument = this.context.ownerDocument;
 
     this.addWheelListener();
-    this.addEventListener("click", this.handleClick);
-    this.addEventListener("mousedown", this.handleMouseDownEvent);
+    this.addEventListener("click", this.handleClick as (e: Event) => void);
+    this.addEventListener("mousedown", this.handleMouseDownEvent as (e: Event) => void);
 
     // Subscribe to auto-panning state changes
     this.context.graph.on("camera-change", this.handleCameraStateChange);
@@ -53,7 +53,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     }
   };
 
-  protected handleClick = () => {
+  protected handleClick = (_event: Event): void => {
     this.context.graph.api.unsetSelection();
   };
 
@@ -65,12 +65,12 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   }
 
   protected addWheelListener(root = this.props.root) {
-    root?.addEventListener("wheel", this.handleWheelEvent, { passive: false });
+    root?.addEventListener("wheel", this.handleWheelEvent as EventListener, { passive: false });
   }
 
   protected propsChanged(nextProps: TCameraProps) {
     if (this.props.root !== nextProps.root) {
-      this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
+      this.props.root?.removeEventListener("wheel", this.handleWheelEvent as EventListener);
       this.addWheelListener(nextProps.root);
     }
     super.propsChanged(nextProps);
@@ -80,8 +80,8 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     super.unmount();
 
     this.stopAutoPanning();
-    this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
-    this.removeEventListener("mousedown", this.handleMouseDownEvent);
+    this.props.root?.removeEventListener("wheel", this.handleWheelEvent as EventListener);
+    this.removeEventListener("mousedown", this.handleMouseDownEvent as (e: Event) => void);
     this.context.graph.off("camera-change", this.handleCameraStateChange);
   }
 
@@ -172,16 +172,22 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     }
   }
 
-  private handleMouseDownEvent = (event: MouseEvent) => {
+  private handleMouseDownEvent = (event: Event): void => {
     if (!this.context.graph.rootStore.settings.getConfigFlag("canDragCamera") || !(event instanceof MouseEvent)) {
       return;
     }
     if (!isMetaKeyEvent(event)) {
       // Camera drag doesn't need graph sync since it IS the camera
       dragListener(this.ownerDocument, { graph: this.context.graph, autopanning: false, dragCursor: "grabbing" })
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onDragStart(event))
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onDragUpdate(event))
-        .on(EVENTS.DRAG_END, () => this.onDragEnd());
+        .on(EVENTS.DRAG_START, (...args: unknown[]) => {
+          this.onDragStart(args[0] as MouseEvent);
+        })
+        .on(EVENTS.DRAG_UPDATE, (...args: unknown[]) => {
+          this.onDragUpdate(args[0] as MouseEvent);
+        })
+        .on(EVENTS.DRAG_END, () => {
+          this.onDragEnd();
+        });
     }
   };
 
@@ -241,7 +247,10 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     this.camera.zoom(xy[0], xy[1], cameraScale - smoothDScale);
   }
 
-  private handleWheelEvent = (event: WheelEvent) => {
+  private handleWheelEvent = (event: Event): void => {
+    if (!(event instanceof WheelEvent)) {
+      return;
+    }
     if (!this.context.graph.rootStore.settings.getConfigFlag("canZoomCamera")) {
       return;
     }

@@ -7,7 +7,7 @@ import type { SelectionService } from "./SelectionService";
 import {
   ESelectionStrategy,
   IEntityWithComponent,
-  ISelectionBucket,
+  type ISelectionBucket,
   TSelectionDiff,
   TSelectionEntity,
   TSelectionEntityId,
@@ -96,7 +96,7 @@ export abstract class BaseSelectionBucket<
       .filter((component): component is GraphComponent => component !== undefined);
   });
 
-  protected manager: SelectionService;
+  protected manager?: SelectionService;
 
   /**
    * Check if an entity is a GraphComponent
@@ -142,7 +142,9 @@ export abstract class BaseSelectionBucket<
    * @returns void
    */
   public attachToManager(manager: SelectionService): void {
-    manager.registerBucket(this);
+    manager.registerBucket(
+      this as unknown as ISelectionBucket<TSelectionEntityId, TSelectionEntity>,
+    );
     this.manager = manager;
   }
 
@@ -152,7 +154,9 @@ export abstract class BaseSelectionBucket<
    * @returns void
    */
   public detachFromManager(manager: SelectionService): void {
-    manager.unregisterBucket(this);
+    manager.unregisterBucket(
+      this as unknown as ISelectionBucket<TSelectionEntityId, TSelectionEntity>,
+    );
     this.manager = undefined;
   }
 
