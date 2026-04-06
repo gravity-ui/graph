@@ -33,11 +33,13 @@ export class EventedComponent<
     this.setProps({ interactive });
   }
 
-  private get events() {
-    if (!listeners.has(this)) {
-      listeners.set(this, new Map());
+  private get events(): Map<string, Set<TEventedComponentListener>> {
+    let map = listeners.get(this);
+    if (!map) {
+      map = new Map();
+      listeners.set(this, map);
     }
-    return listeners.get(this);
+    return map;
   }
 
   protected unmount() {

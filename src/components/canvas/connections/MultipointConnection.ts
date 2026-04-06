@@ -25,7 +25,7 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
   public createArrowPath(): Path2D {
     const points = this.getPoints();
     if (!points.length) {
-      return undefined;
+      return super.createArrowPath();
     }
 
     const [start, end] = points.slice(points.length - 2);
@@ -60,8 +60,8 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
       return super.getBBox();
     }
 
-    const x = [];
-    const y = [];
+    const x: number[] = [];
+    const y: number[] = [];
     points.forEach((point) => {
       x.push(point.x);
       y.push(point.y);
@@ -113,11 +113,14 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
         return;
       }
 
+      const labelWidth = width ?? 0;
+      const labelHeight = height ?? 0;
+
       this.labelsGeometry.push({
         x,
         y,
-        width,
-        height,
+        width: labelWidth,
+        height: labelHeight,
       });
 
       ctx.fillStyle = this.context.colors.connectionLabel.text;
@@ -127,7 +130,7 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
 
       ctx.textAlign = "left";
       ctx.font = `${DEFAULT_FONT_SIZE}px sans-serif`;
-      ctx.fillText(text, x, y, width);
+      ctx.fillText(text, x, y, labelWidth);
 
       ctx.fillStyle = this.context.colors.connectionLabel.background;
 
@@ -137,8 +140,8 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
       ctx.fillRect(
         x - labelInnerLeftPadding,
         y - labelInnerTopPadding,
-        width + labelInnerLeftPadding + labelInnerRightPadding,
-        height + labelInnerTopPadding + labelInnerBottomPadding
+        labelWidth + labelInnerLeftPadding + labelInnerRightPadding,
+        labelHeight + labelInnerTopPadding + labelInnerBottomPadding
       );
     });
 

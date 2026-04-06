@@ -1,7 +1,12 @@
-import { Graph } from "../../../graph";
+import type { Graph } from "../../../graph";
+import { createInitialResolvedGraphColors, initGraphConstants } from "../../../graphConfig";
 import { GraphEventsDefinitions } from "../../../graphEvents";
-import { Component } from "../../../lib/Component";
+import { Component, TComponentState } from "../../../lib/Component";
+import type { CoreComponentProps } from "../../../lib/CoreComponent";
+import { CoreComponent } from "../../../lib/CoreComponent";
 import { HitBox } from "../../../services/HitTest";
+import type { Layer } from "../../../services/Layer";
+import type { ICamera } from "../../../services/camera/CameraService";
 
 import { GraphComponent, GraphComponentContext } from "./index";
 
@@ -46,28 +51,38 @@ function createTestComponent(root?: HTMLDivElement): TestSetup {
       remove: hitTestRemove,
       update: jest.fn(),
     },
-    // The rest of Graph API is not needed for these tests
   };
 
   const rootEl = root ?? document.createElement("div");
+  const canvasEl = document.createElement("canvas");
+  const ctx = canvasEl.getContext("2d");
+  if (!ctx) {
+    throw new Error("Canvas 2D context is required for GraphComponent tests");
+  }
 
-  const parent = new Component({}, undefined);
+  const rootHost = new CoreComponent<CoreComponentProps, GraphComponentContext>({}, undefined);
+  const parent = new Component<CoreComponentProps, TComponentState, GraphComponentContext>({}, rootHost);
+
+  const minimalCamera: Pick<ICamera, "isRectVisible"> = {
+    isRectVisible: () => true,
+  };
+
+  const layerPlaceholder = {} as Layer;
 
   parent.setContext({
+    // @ts-expect-error — test stub: partial Graph (only on / hitTest are used)
     graph: fakeGraph,
     root: rootEl,
-    canvas: document.createElement("canvas"),
-    ctx: document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D,
+    canvas: canvasEl,
+    ctx,
     ownerDocument: document,
-    camera: {
-      isRectVisible: () => true,
-    },
-    constants: {} as GraphComponentContext["constants"],
-    colors: {} as GraphComponentContext["colors"],
-    graphCanvas: document.createElement("canvas"),
-    layer: {} as GraphComponentContext["layer"],
+    camera: minimalCamera as ICamera,
+    constants: initGraphConstants,
+    colors: createInitialResolvedGraphColors(),
+    graphCanvas: canvasEl,
+    layer: layerPlaceholder,
     affectsUsableRect: true,
-  } as unknown as GraphComponentContext);
+  });
 
   const component = new TestGraphComponent({}, parent);
 
@@ -104,7 +119,6 @@ describe("GraphComponent event helpers", () => {
     const { component } = createTestComponent(rootEl);
 
     const handler = jest.fn((event: MouseEvent) => {
-      // Use event to keep types happy
       expect(event).toBeInstanceOf(MouseEvent);
     });
 

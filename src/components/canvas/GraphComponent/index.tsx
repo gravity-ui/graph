@@ -114,7 +114,7 @@ export class GraphComponent<
     if (!this.ports.has(id)) {
       return this.createPort(id);
     }
-    return this.ports.get(id);
+    return this.ports.get(id) as PortState;
   }
 
   /**
@@ -142,7 +142,7 @@ export class GraphComponent<
 
   protected propsChanged(_nextProps: Props): void {
     if (this.affectsUsableRect !== _nextProps.affectsUsableRect) {
-      this.hitBox.setAffectsUsableRect(_nextProps.affectsUsableRect);
+      this.hitBox.setAffectsUsableRect(_nextProps.affectsUsableRect ?? true);
       this.setContext({ affectsUsableRect: _nextProps.affectsUsableRect });
     }
     super.propsChanged(_nextProps);
@@ -154,7 +154,7 @@ export class GraphComponent<
       this.firstRender ||
       (this.context.affectsUsableRect !== _nextContext.affectsUsableRect && this.props.affectsUsableRect === undefined)
     ) {
-      this.hitBox.setAffectsUsableRect(_nextContext.affectsUsableRect);
+      this.hitBox.setAffectsUsableRect(_nextContext.affectsUsableRect ?? true);
     }
     super.contextChanged(_nextContext);
   }
@@ -199,27 +199,28 @@ export class GraphComponent<
     autopanning?: boolean;
     dragCursor?: CursorLayerCursorTypes;
   }) {
-    let startCoords: [number, number];
-    let prevCoords: [number, number];
-    return this.addEventListener("mousedown", (event: MouseEvent) => {
-      if (!isDraggable?.(event)) {
+    let startCoords: [number, number] | undefined;
+    let prevCoords: [number, number] | undefined;
+    return this.addEventListener("mousedown", (event: Event) => {
+      const mouseEvent = event as MouseEvent;
+      if (!isDraggable?.(mouseEvent)) {
         return;
       }
-      event.stopPropagation();
+      mouseEvent.stopPropagation();
       this.context.graph.dragService.startDrag(
         {
-          onStart: (event: MouseEvent) => {
-            if (onDragStart?.(event) === false) {
+          onStart: (startEvent: MouseEvent) => {
+            if (onDragStart?.(startEvent) === false) {
               return;
             }
-            const xy = getXY(this.context.canvas, event);
+            const xy = getXY(this.context.canvas, startEvent);
             startCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
             prevCoords = startCoords;
           },
-          onUpdate: (event: MouseEvent) => {
-            if (!startCoords?.length) return;
+          onUpdate: (updateEvent: MouseEvent) => {
+            if (startCoords === undefined) return;
 
-            const [canvasX, canvasY] = getXY(this.context.canvas, event);
+            const [canvasX, canvasY] = getXY(this.context.canvas, updateEvent);
             const currentCoords = this.context.camera.applyToPoint(canvasX, canvasY);
 
             // Absolute diff from drag start
@@ -230,13 +231,13 @@ export class GraphComponent<
             const deltaX = currentCoords[0] - prevCoords[0];
             const deltaY = currentCoords[1] - prevCoords[1];
 
-            onDragUpdate?.({ startCoords, prevCoords, currentCoords, diffX, diffY, deltaX, deltaY }, event);
+            onDragUpdate?.({ startCoords, prevCoords, currentCoords, diffX, diffY, deltaX, deltaY }, updateEvent);
             prevCoords = currentCoords;
           },
-          onEnd: (event: MouseEvent) => {
+          onEnd: (endEvent: MouseEvent) => {
             startCoords = undefined;
             prevCoords = undefined;
-            onDrop?.(event);
+            onDrop?.(endEvent);
           },
         },
         {
@@ -296,14 +297,12 @@ export class GraphComponent<
       throw new Error("Attempt to add event listener to non-existent root element");
     }
 
-    const listener =
-      typeof handler === "function"
-        ? (handler as (this: HTMLElement, ev: HTMLElementEventMap[K]) => void)
-        : (handler as EventListenerObject);
+    const listener: EventListenerOrEventListenerObject =
+      typeof handler === "function" ? (handler as EventListener) : (handler as EventListenerObject);
 
     root.addEventListener(eventName, listener, options);
 
-    const unsubscribe = () => {
+    const unsubscribe = (): void => {
       root.removeEventListener(eventName, listener, options);
     };
 

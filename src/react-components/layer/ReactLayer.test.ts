@@ -34,10 +34,11 @@ describe("ReactLayer", () => {
 
   // Helper function to create ReactLayer without root (unattached)
   const createUnattachedLayer = (blockListClassName?: string) => {
+    const detachedRoot = document.createElement("div");
     return new ReactLayer({
       graph,
       camera,
-      root: undefined as unknown as HTMLDivElement,
+      root: detachedRoot,
       blockListClassName,
     });
   };

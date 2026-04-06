@@ -9,7 +9,7 @@ function createGraphWithBlockScales(scales: [number, number, number]): Graph {
     graphConstants: {
       block: { SCALES: scales },
     },
-  } as unknown as Graph;
+  } as Graph;
 }
 
 describe("defaultGetCameraBlockScaleLevel", () => {
