@@ -98,14 +98,22 @@ export class BaseConnection<
    * @deprecated use port system instead
    */
   protected get sourceAnchor(): TAnchor | undefined {
-    return this.sourceBlock.connectedState.getAnchorById(this.connectedState.sourceAnchorId)?.asTAnchor();
+    const anchorId = this.connectedState.sourceAnchorId;
+    if (anchorId === undefined) {
+      return undefined;
+    }
+    return this.sourceBlock.connectedState.getAnchorById(anchorId)?.asTAnchor();
   }
 
   /**
    * @deprecated use port system instead
    */
   protected get targetAnchor(): TAnchor | undefined {
-    return this.targetBlock.connectedState.getAnchorById(this.connectedState.targetAnchorId)?.asTAnchor();
+    const anchorId = this.connectedState.targetAnchorId;
+    if (anchorId === undefined) {
+      return undefined;
+    }
+    return this.targetBlock.connectedState.getAnchorById(anchorId)?.asTAnchor();
   }
 
   /**
@@ -124,7 +132,7 @@ export class BaseConnection<
    * Bounding box for the connection [minX, minY, maxX, maxY]
    * Used for hit detection and rendering optimizations
    */
-  protected bBox: [minX: number, minY: number, maxX: number, maxY: number];
+  protected bBox: [minX: number, minY: number, maxX: number, maxY: number] = [0, 0, 0, 0];
 
   constructor(props: Props, parent: Component) {
     super(props, parent);

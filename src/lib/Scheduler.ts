@@ -1,7 +1,23 @@
 import { Tree } from "./Tree";
 
-const rAF: Function = typeof window !== "undefined" ? window.requestAnimationFrame : (fn) => global.setTimeout(fn, 16);
-const cAF: Function = typeof window !== "undefined" ? window.cancelAnimationFrame : global.clearTimeout;
+type TFrameCallback = (time: number) => void;
+
+const rAF =
+  typeof window !== "undefined"
+    ? (callback: TFrameCallback): number => window.requestAnimationFrame(callback)
+    : (callback: TFrameCallback): number =>
+        global.setTimeout(() => {
+          callback(0);
+        }, 16) as unknown as number;
+
+const cAF =
+  typeof window !== "undefined"
+    ? (id: number): void => {
+        window.cancelAnimationFrame(id);
+      }
+    : (id: number): void => {
+        global.clearTimeout(id);
+      };
 const getNow =
   typeof window !== "undefined" ? window.performance.now.bind(window.performance) : global.Date.now.bind(global.Date);
 
@@ -18,7 +34,7 @@ export enum ESchedulerPriority {
 }
 export class GlobalScheduler {
   private schedulers: [IScheduler[], IScheduler[], IScheduler[], IScheduler[], IScheduler[]];
-  private _cAFID: number;
+  private _cAFID: number | undefined;
   private toRemove: Array<[IScheduler, ESchedulerPriority]> = [];
   private visibilityChangeHandler: (() => void) | null = null;
 
@@ -85,8 +101,10 @@ export class GlobalScheduler {
     }
   }
 
-  public stop() {
-    cAF(this._cAFID);
+  public stop(): void {
+    if (this._cAFID !== undefined) {
+      cAF(this._cAFID);
+    }
     this._cAFID = undefined;
   }
 
@@ -131,18 +149,17 @@ export const globalScheduler = new GlobalScheduler();
 
 export const scheduler = globalScheduler;
 export class Scheduler {
-  private sheduled: boolean;
-  private root: Tree;
+  private sheduled = false;
+
+  private root!: Tree;
 
   constructor() {
     this.performUpdate = this.performUpdate.bind(this);
 
-    this.sheduled = false;
-
     globalScheduler.addScheduler(this);
   }
 
-  public setRoot(root: Tree) {
+  public setRoot(root: Tree): void {
     this.root = root;
   }
 

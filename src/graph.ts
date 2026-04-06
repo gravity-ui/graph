@@ -1,5 +1,4 @@
 import { batch, signal } from "@preact/signals-core";
-import merge from "lodash/merge";
 
 import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
 import { GraphComponent } from "./components/canvas/GraphComponent";
@@ -8,13 +7,19 @@ import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
 import { CursorLayer, CursorLayerCursorTypes } from "./components/canvas/layers/cursorLayer";
 import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
-import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
-import { GraphEvent, GraphEventParams, GraphEventsDefinitions, isGraphEvent } from "./graphEvents";
+import {
+  createInitialResolvedGraphColors,
+  initGraphConstants,
+  mergeResolvedGraphColors,
+  mergeResolvedGraphConstants,
+} from "./graphConfig";
+import type { TGraphColors, TGraphConstants, TResolvedGraphColors } from "./graphConfig";
+import { GraphEvent, GraphEventListener, GraphEventParams, GraphEventsDefinitions, isGraphEvent } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
 import { KeyboardService } from "./services/KeyboardService";
 import { Layer, LayerPublicProps } from "./services/Layer";
-import { Layers } from "./services/LayersService";
+import { Layers, TLayersRootSize } from "./services/LayersService";
 import { CameraService } from "./services/camera/CameraService";
 import { DragService } from "./services/drag";
 import { RootStore } from "./store";
@@ -24,7 +29,7 @@ import { TGraphSettingsConfig } from "./store/settings";
 import { clearColorCache, getXY } from "./utils/functions";
 import { clearTextCache } from "./utils/renderers/text";
 import { RecursivePartial } from "./utils/types/helpers";
-import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
+import { IPoint, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
 
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
 export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
@@ -86,7 +91,7 @@ export class Graph {
 
   protected readonly cursorLayer: CursorLayer;
 
-  public getGraphCanvas() {
+  public getGraphCanvas(): HTMLCanvasElement {
     return this.graphLayer.getCanvas();
   }
 
@@ -94,7 +99,7 @@ export class Graph {
     return this.$graphColors.value;
   }
 
-  public $graphColors = signal<TGraphColors>(initGraphColors);
+  public $graphColors = signal<TResolvedGraphColors>(createInitialResolvedGraphColors());
 
   public get graphConstants() {
     return this.$graphConstants.value;
@@ -104,7 +109,7 @@ export class Graph {
 
   public state: GraphState = GraphState.INIT;
 
-  protected config: TGraphConfig;
+  protected config!: TGraphConfig;
 
   protected startRequested = false;
 
@@ -123,8 +128,8 @@ export class Graph {
   constructor(
     config: TGraphConfig,
     rootEl?: HTMLDivElement,
-    graphColors?: TGraphColors,
-    graphConstants?: TGraphConstants
+    graphColors?: RecursivePartial<TGraphColors>,
+    graphConstants?: RecursivePartial<TGraphConstants>
   ) {
     this.belowLayer = this.addLayer(BelowLayer, {});
     this.graphLayer = this.addLayer(GraphLayer, {});
@@ -152,21 +157,22 @@ export class Graph {
     this.setupGraph(config);
   }
 
-  protected onUpdateSize = (event: IRect) => {
-    this.cameraService.set(event);
+  protected onUpdateSize = (...args: unknown[]): void => {
+    const size = args[0] as TLayersRootSize;
+    this.cameraService.set({ width: size.width, height: size.height });
   };
 
   public getGraphLayer() {
     return this.graphLayer;
   }
 
-  public setColors(colors: RecursivePartial<TGraphColors>) {
-    this.$graphColors.value = merge({}, this.$graphColors.value, colors);
+  public setColors(colors: RecursivePartial<TGraphColors>): void {
+    this.$graphColors.value = mergeResolvedGraphColors(this.$graphColors.value, colors);
     this.emit("colors-changed", { colors: this.graphColors });
   }
 
-  public setConstants(constants: RecursivePartial<TGraphConstants>) {
-    this.$graphConstants.value = merge({}, this.$graphConstants.value, constants);
+  public setConstants(constants: RecursivePartial<TGraphConstants>): void {
+    this.$graphConstants.value = mergeResolvedGraphConstants(this.$graphConstants.value, constants);
     this.emit("constants-changed", { constants: this.graphConstants });
   }
 
@@ -265,7 +271,7 @@ export class Graph {
       maxX: rect.x + rect.width,
       maxY: rect.y + rect.height,
     }) as InstanceType<T>[] | [];
-    if (filter.length && items.length > 0) {
+    if (filter?.length && items.length > 0) {
       return items.filter((item: InstanceType<T>) =>
         filter.some((Component) => item instanceof Component)
       ) as InstanceType<T>[];
@@ -315,19 +321,17 @@ export class Graph {
     });
   }
 
-  public on<
-    EventName extends keyof GraphEventsDefinitions = keyof GraphEventsDefinitions,
-    Cb extends GraphEventsDefinitions[EventName] = GraphEventsDefinitions[EventName],
-  >(type: EventName, cb: Cb, options?: AddEventListenerOptions | boolean) {
-    this.eventEmitter.addEventListener(type, cb, options);
+  public on<EventName extends keyof GraphEventsDefinitions>(
+    type: EventName,
+    cb: GraphEventListener<EventName>,
+    options?: AddEventListenerOptions | boolean
+  ): () => void {
+    this.eventEmitter.addEventListener(type, cb as EventListener, options);
     return () => this.off(type, cb);
   }
 
-  public off<
-    EventName extends keyof GraphEventsDefinitions = keyof GraphEventsDefinitions,
-    Cb extends GraphEventsDefinitions[EventName] = GraphEventsDefinitions[EventName],
-  >(type: EventName, cb: Cb) {
-    this.eventEmitter.removeEventListener(type, cb);
+  public off<EventName extends keyof GraphEventsDefinitions>(type: EventName, cb: GraphEventListener<EventName>): void {
+    this.eventEmitter.removeEventListener(type, cb as EventListener);
   }
 
   /*
@@ -398,7 +402,7 @@ export class Graph {
 
   public setupGraph(config: TGraphConfig = {}) {
     this.config = config;
-    this.rootStore.configurationName = config.configurationName;
+    this.rootStore.configurationName = config.configurationName ?? "";
     this.setEntities({
       blocks: config.blocks,
       connections: config.connections,
@@ -427,7 +431,12 @@ export class Graph {
     if (this.state === GraphState.READY) {
       return;
     }
-    rootEl[Symbol.for("graph")] = this;
+    Object.defineProperty(rootEl, Symbol.for("graph"), {
+      value: this,
+      enumerable: false,
+      writable: true,
+      configurable: true,
+    });
     this.layers.attach(rootEl);
 
     const { width: rootWidth, height: rootHeight } = this.layers.getRootSize();
@@ -442,7 +451,7 @@ export class Graph {
     }
   }
 
-  public start(rootEl: HTMLDivElement = this.layers.$root): void {
+  public start(rootEl?: HTMLDivElement): void {
     if (this.state !== GraphState.ATTACHED) {
       this.startRequested = true;
       return;
@@ -450,8 +459,9 @@ export class Graph {
     if (this.state >= GraphState.READY) {
       throw new Error("Graph already started");
     }
-    if (rootEl) {
-      this.attach(rootEl);
+    const attachRoot = rootEl ?? this.layers.$root;
+    if (attachRoot) {
+      this.attach(attachRoot);
     }
     this.layers.on("update-size", this.onUpdateSize);
     this.layers.start();

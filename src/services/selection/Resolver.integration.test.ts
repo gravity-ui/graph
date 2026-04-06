@@ -1,3 +1,5 @@
+import type { GraphComponent } from "../../components/canvas/GraphComponent";
+
 import { MultipleSelectionBucket } from "./MultipleSelectionBucket";
 import { SingleSelectionBucket } from "./SingleSelectionBucket";
 import { ESelectionStrategy } from "./types";
@@ -211,8 +213,8 @@ describe("Selection Resolver Integration", () => {
       const components = bucket.$selectedComponents.value;
 
       expect(components).toHaveLength(2);
-      expect((components[0] as unknown as MockComponent).name).toBe("Component 1");
-      expect((components[1] as unknown as MockComponent).name).toBe("Component 2");
+      expect(components[0]).toEqual(expect.objectContaining({ name: "Component 1" }));
+      expect(components[1]).toEqual(expect.objectContaining({ name: "Component 2" }));
     });
 
     it("should resolve entities that are already components", () => {
@@ -232,7 +234,7 @@ describe("Selection Resolver Integration", () => {
       const resolvedComponents = bucket.$selectedComponents.value;
 
       expect(resolvedComponents).toHaveLength(1);
-      expect((resolvedComponents[0] as unknown as MockComponent).name).toBe("Component 1");
+      expect(resolvedComponents[0]).toEqual(expect.objectContaining({ name: "Component 1" }));
     });
 
     it("should return empty array for entities without components", () => {
@@ -268,10 +270,10 @@ describe("Selection Resolver Integration", () => {
       };
 
       const bucket = new MultipleSelectionBucket<string, MockState>("test", undefined, undefined, resolver);
-      const updates: MockComponent[][] = [];
+      const updates: GraphComponent[][] = [];
 
       const unsubscribe = bucket.$selectedComponents.subscribe((components) => {
-        updates.push([...(components as unknown as MockComponent[])]);
+        updates.push([...components]);
       });
 
       bucket.select(["state1"], ESelectionStrategy.REPLACE);
@@ -283,7 +285,7 @@ describe("Selection Resolver Integration", () => {
       expect(updates).toHaveLength(4); // Initial + 3 changes
       expect(updates[0]).toHaveLength(0); // Initial empty
       expect(updates[1]).toHaveLength(1);
-      expect(updates[1][0].name).toBe("Component 1");
+      expect(updates[1][0]).toEqual(expect.objectContaining({ name: "Component 1" }));
       expect(updates[2]).toHaveLength(2);
       expect(updates[3]).toHaveLength(0); // Cleared
     });

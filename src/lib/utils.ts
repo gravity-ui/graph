@@ -1,30 +1,31 @@
-export function assign<T extends Object, S extends Object>(target: T, source: S): T & S {
-  const props = Object.keys(source);
-  let prop;
+export function assign<T extends object, S extends object>(target: T, source: S): T & S {
+  const keys = Object.keys(source) as (keyof S & string)[];
+  const src = source as Record<string, unknown>;
+  const dst = target as Record<string, unknown>;
 
-  for (let i = 0; i < props.length; i += 1) {
-    prop = props[i];
-    target[prop] = source[prop];
+  for (let i = 0; i < keys.length; i += 1) {
+    const key = keys[i];
+    dst[key] = src[key];
   }
 
   return target as T & S;
 }
 
 export function cache<T>(fn: () => T) {
-  let result: T;
+  let result: T | undefined;
   let touched = true;
   return {
-    get: () => {
+    get: (): T => {
       if (touched) {
         result = fn();
         touched = false;
       }
-      return result;
+      return result as T;
     },
-    reset() {
+    reset(): void {
       touched = true;
     },
-    clear() {
+    clear(): void {
       touched = true;
       result = undefined;
     },

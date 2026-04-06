@@ -268,8 +268,8 @@ export class HitTest extends Emitter {
       minY: point.y - 1,
       maxX: point.x + 1,
       maxY: point.y + 1,
-      x: point.origPoint?.x * pixelRatio,
-      y: point.origPoint?.y * pixelRatio,
+      x: (point.origPoint?.x ?? 0) * pixelRatio,
+      y: (point.origPoint?.y ?? 0) * pixelRatio,
     });
   }
 
@@ -350,17 +350,17 @@ export class HitTest extends Emitter {
 export class HitBox implements IHitBox {
   public destroyed = false;
 
-  public maxX: number;
+  public maxX = 0;
 
-  public maxY: number;
+  public maxY = 0;
 
-  public minX: number;
+  public minX = 0;
 
-  public minY: number;
+  public minY = 0;
 
-  public x: number;
+  public x = 0;
 
-  public y: number;
+  public y = 0;
 
   /**
    * AffectsUsableRect flag uses to determine if the element affects the usableRect

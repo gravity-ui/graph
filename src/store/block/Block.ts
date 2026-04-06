@@ -18,7 +18,7 @@ export class BlockState<T extends TBlock = TBlock> {
     return new BlockState(store, block, store.blockSelectionBucket);
   }
 
-  protected $rawState = signal<T>(undefined);
+  protected $rawState: Signal<T>;
 
   /**
    * Block state signal
@@ -103,12 +103,12 @@ export class BlockState<T extends TBlock = TBlock> {
    * @returns {ReadonlySignal<Map<string, number>>} Block anchor indexes
    */
   public $anchorIndexs = computed(() => {
-    const typeIndex = {};
+    const typeIndex: Record<string, number> = {};
     return new Map(
       this.$anchorStates.value
         ?.sort((a, b) => (a.state.index || 0) - (b.state.index || 0))
         .map((anchorState) => {
-          if (!typeIndex[anchorState.state.type]) {
+          if (typeIndex[anchorState.state.type] === undefined) {
             typeIndex[anchorState.state.type] = 0;
           }
           return [anchorState.id, typeIndex[anchorState.state.type]++];
@@ -145,7 +145,7 @@ export class BlockState<T extends TBlock = TBlock> {
     block: T,
     private readonly blockSelectionBucket: ISelectionBucket<string | number>
   ) {
-    this.$rawState.value = block;
+    this.$rawState = signal(block);
     this.$anchorStates.value = block.anchors?.map((anchor) => new AnchorState(this, anchor)) ?? [];
   }
 
@@ -176,6 +176,16 @@ export class BlockState<T extends TBlock = TBlock> {
     this.$viewComponent.value = blockComponent;
   }
 
+  /**
+   * Clears the canvas Block view reference when it is the current owner.
+   * Used when the view rebinds to another BlockState or the store row is gone.
+   */
+  public unsetViewComponent(canvasBlock: Block): void {
+    if (this.$viewComponent.value === canvasBlock) {
+      this.$viewComponent.value = undefined;
+    }
+  }
+
   public getViewComponent() {
     return this.$viewComponent.value;
   }
@@ -198,10 +208,10 @@ export class BlockState<T extends TBlock = TBlock> {
   public updateAnchors(anchors: TAnchor[]) {
     const anchorsMap = new Map(this.$anchorStates.value.map((a) => [a.id, a]));
     this.$anchorStates.value = anchors.map((anchor) => {
-      if (anchorsMap.has(anchor.id)) {
-        const anchorState = anchorsMap.get(anchor.id);
-        anchorState.update(anchor);
-        return anchorState;
+      const existing = anchorsMap.get(anchor.id);
+      if (existing) {
+        existing.update(anchor);
+        return existing;
       }
       return new AnchorState(this, anchor);
     });

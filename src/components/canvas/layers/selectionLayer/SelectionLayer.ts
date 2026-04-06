@@ -29,9 +29,17 @@ export class SelectionLayer extends Layer<
       ...props,
     });
 
+    const canvas = this.getCanvas();
+    if (!canvas) {
+      throw new Error("SelectionLayer: canvas is required");
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("SelectionLayer: 2d context is required");
+    }
     this.setContext({
-      canvas: this.getCanvas(),
-      ctx: this.getCanvas().getContext("2d"),
+      canvas,
+      ctx,
     });
   }
 

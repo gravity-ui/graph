@@ -99,6 +99,21 @@ export const DefaultSettings: TGraphSettingsConfig = {
 };
 
 export class GraphEditorSettings {
+  private static mapLegacyCanDrag(value: ECanChangeBlockGeometry): ECanDrag {
+    switch (value) {
+      case ECanChangeBlockGeometry.ALL:
+        return ECanDrag.ALL;
+      case ECanChangeBlockGeometry.ONLY_SELECTED:
+        return ECanDrag.ONLY_SELECTED;
+      case ECanChangeBlockGeometry.NONE:
+        return ECanDrag.NONE;
+      default: {
+        const _exhaustive: never = value;
+        return _exhaustive;
+      }
+    }
+  }
+
   public $settings = signal(DefaultSettings);
 
   public $blockComponents = computed(() => {
@@ -158,9 +173,8 @@ export class GraphEditorSettings {
     const settings = this.$settings.value;
 
     // 1. If deprecated canChangeBlockGeometry is set, use it (don't break existing users)
-    // Both enums have the same string values, so we can cast directly
     if (settings.canChangeBlockGeometry !== undefined) {
-      return settings.canChangeBlockGeometry as unknown as ECanDrag;
+      return GraphEditorSettings.mapLegacyCanDrag(settings.canChangeBlockGeometry);
     }
 
     // 2. Use canDrag if explicitly set (new users)

@@ -49,7 +49,7 @@ export class NewBlockLayer extends Layer<
   LayerContext & { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }
 > {
   private copyBlocks: BlockState[] = [];
-  private initialPoint: TPoint;
+  private initialPoint: TPoint | null = null;
   private blockStates: Array<{
     x: number;
     y: number;
@@ -69,10 +69,18 @@ export class NewBlockLayer extends Layer<
       ...props,
     });
 
+    const canvas = this.getCanvas();
+    if (!canvas) {
+      throw new Error("NewBlockLayer: canvas is required");
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("NewBlockLayer: 2d context is required");
+    }
     this.setContext({
-      canvas: this.getCanvas(),
+      canvas,
       graphCanvas: props.graph.getGraphCanvas(),
-      ctx: this.getCanvas().getContext("2d"),
+      ctx,
       camera: props.camera,
       constants: this.props.graph.graphConstants,
       colors: this.props.graph.graphColors,
@@ -156,10 +164,12 @@ export class NewBlockLayer extends Layer<
       const selectedBlockStates = this.context.graph.rootStore.blocksList.$selectedBlocks.value;
 
       // If we have a validation function, filter out blocks that can't be duplicated
-      if (this.props.isDuplicateAllowed) {
-        blockStates = selectedBlockStates.filter((blockState) =>
-          this.props.isDuplicateAllowed(blockState.getViewComponent())
-        );
+      const isDuplicateAllowed = this.props.isDuplicateAllowed;
+      if (isDuplicateAllowed) {
+        blockStates = selectedBlockStates.filter((blockState) => {
+          const view = blockState.getViewComponent();
+          return view !== undefined && isDuplicateAllowed(view);
+        });
 
         // If no blocks can be duplicated, exit
         if (blockStates.length === 0) return;
@@ -172,7 +182,9 @@ export class NewBlockLayer extends Layer<
     }
 
     // Map BlockState to Block for the event
-    const blocks = isBlockSelected ? blockStates.map((blockState) => blockState.getViewComponent()) : [block];
+    const blocks: Block[] = isBlockSelected
+      ? blockStates.map((blockState) => blockState.getViewComponent()).filter((b): b is Block => b !== undefined)
+      : [block];
 
     // Use the already filtered blockStates
     this.copyBlocks = blockStates;
@@ -218,8 +230,8 @@ export class NewBlockLayer extends Layer<
     });
   }
 
-  private lastMouseX: number;
-  private lastMouseY: number;
+  private lastMouseX?: number;
+  private lastMouseY?: number;
 
   private onMoveNewBlock(event: MouseEvent) {
     if (!this.copyBlocks.length) {
@@ -231,15 +243,18 @@ export class NewBlockLayer extends Layer<
     const mouseY = xy[1];
 
     // If this is the first move event, initialize the last mouse position
-    if (this.lastMouseX === undefined) {
+    if (this.lastMouseX === undefined || this.lastMouseY === undefined) {
       this.lastMouseX = mouseX;
       this.lastMouseY = mouseY;
       return;
     }
 
+    const prevX = this.lastMouseX;
+    const prevY = this.lastMouseY;
+
     // Calculate the movement delta
-    const deltaX = mouseX - this.lastMouseX;
-    const deltaY = mouseY - this.lastMouseY;
+    const deltaX = mouseX - prevX;
+    const deltaY = mouseY - prevY;
 
     // Update positions of all ghost blocks by applying the delta
     this.blockStates = this.blockStates.map((blockState) => {
@@ -258,9 +273,11 @@ export class NewBlockLayer extends Layer<
   }
 
   private onEndNewBlock(event: MouseEvent, point: TPoint) {
-    if (!this.copyBlocks.length) {
+    if (!this.copyBlocks.length || this.initialPoint === null) {
       return;
     }
+
+    const initialPoint = this.initialPoint;
 
     // Clear the block states and reset mouse tracking
     this.blockStates = [];
@@ -269,22 +286,24 @@ export class NewBlockLayer extends Layer<
     this.performRender();
 
     // Calculate the offset from the initial point to the final point
-    const offsetX = point.x - this.initialPoint.x;
-    const offsetY = point.y - this.initialPoint.y;
+    const offsetX = point.x - initialPoint.x;
+    const offsetY = point.y - initialPoint.y;
 
     // Collect all blocks and their new coordinates as items
-    const items = this.copyBlocks.map((blockState) => {
-      // Calculate the new position for each block based on its original position plus the offset
-      const newCoord = {
-        x: blockState.x + offsetX,
-        y: blockState.y + offsetY,
-      };
-
-      return {
-        block: blockState.getViewComponent(),
-        coord: newCoord,
-      };
-    });
+    const items: Array<{ block: Block; coord: TPoint }> = [];
+    for (const blockState of this.copyBlocks) {
+      const view = blockState.getViewComponent();
+      if (!view) {
+        continue;
+      }
+      items.push({
+        block: view,
+        coord: {
+          x: blockState.x + offsetX,
+          y: blockState.y + offsetY,
+        },
+      });
+    }
 
     // Calculate the delta between start and end positions
     const delta = {
@@ -340,23 +359,27 @@ export class NewBlockLayer extends Layer<
           connections.forEach((connection) => {
             const sourceId = connection.sourceBlockId;
             const targetId = connection.targetBlockId;
+            if (sourceId === undefined || targetId === undefined) {
+              return;
+            }
 
             // If both source and target blocks were duplicated, create a new connection
             if (blockIdMap.has(sourceId.toString()) && blockIdMap.has(targetId.toString())) {
               const newSourceId = blockIdMap.get(sourceId.toString());
               const newTargetId = blockIdMap.get(targetId.toString());
-
-              // Create a new connection between the duplicated blocks
-              this.context.graph.api.addConnection({
-                sourceBlockId: newSourceId,
-                targetBlockId: newTargetId,
-                sourceAnchorId: connection.sourceAnchorId,
-                targetAnchorId: connection.targetAnchorId,
-                // Copy any other connection properties
-                styles: connection.$state.value.styles,
-                dashed: connection.$state.value.dashed,
-                label: connection.$state.value.label,
-              });
+              if (newSourceId !== undefined && newTargetId !== undefined) {
+                // Create a new connection between the duplicated blocks
+                this.context.graph.api.addConnection({
+                  sourceBlockId: newSourceId,
+                  targetBlockId: newTargetId,
+                  sourceAnchorId: connection.sourceAnchorId,
+                  targetAnchorId: connection.targetAnchorId,
+                  // Copy any other connection properties
+                  styles: connection.$state.value.styles,
+                  dashed: connection.$state.value.dashed,
+                  label: connection.$state.value.label,
+                });
+              }
             }
           });
         }

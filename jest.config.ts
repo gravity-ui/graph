@@ -1,7 +1,8 @@
 import type { Config } from "jest";
 
 const jestConfig: Config = {
-  testPathIgnorePatterns: ["/node_modules/", "/e2e/"],
+  // Ignore compiled `build/` output: tests must live under `src/` to avoid duplicates and stale suites.
+  testPathIgnorePatterns: ["/node_modules/", "/e2e/", "<rootDir>/build/"],
   testEnvironment: "jsdom",
   setupFiles: ["<rootDir>/setupJest.js", "jest-canvas-mock"],
   transformIgnorePatterns: [],

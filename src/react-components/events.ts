@@ -1,33 +1,10 @@
 import { GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } from "../graphEvents";
 
-export type TGraphEventCallbacks = {
-  click: (data: UnwrapGraphEventsDetail<"click">, event: UnwrapGraphEvents<"click">) => void;
-  dblclick: (data: UnwrapGraphEventsDetail<"dblclick">, event: UnwrapGraphEvents<"dblclick">) => void;
-  onCameraChange: (data: UnwrapGraphEventsDetail<"camera-change">, event: UnwrapGraphEvents<"camera-change">) => void;
-  onBlockDragStart: (
-    data: UnwrapGraphEventsDetail<"block-drag-start">,
-    event: UnwrapGraphEvents<"block-drag-start">
-  ) => void;
-  onBlockDrag: (data: UnwrapGraphEventsDetail<"block-drag">, event: UnwrapGraphEvents<"block-drag">) => void;
-  onBlockDragEnd: (data: UnwrapGraphEventsDetail<"block-drag-end">, event: UnwrapGraphEvents<"block-drag-end">) => void;
-  onBlockSelectionChange: (
-    data: UnwrapGraphEventsDetail<"blocks-selection-change">,
-    event: UnwrapGraphEvents<"blocks-selection-change">
-  ) => void;
-  onBlockAnchorSelectionChange: (
-    data: UnwrapGraphEventsDetail<"block-anchor-selection-change">,
-    event: UnwrapGraphEvents<"block-anchor-selection-change">
-  ) => void;
-  onBlockChange: (data: UnwrapGraphEventsDetail<"block-change">, event: UnwrapGraphEvents<"block-change">) => void;
-  onConnectionSelectionChange: (
-    data: UnwrapGraphEventsDetail<"connection-selection-change">,
-    event: UnwrapGraphEvents<"connection-selection-change">
-  ) => void;
-  onStateChanged: (data: UnwrapGraphEventsDetail<"state-change">, event: UnwrapGraphEvents<"state-change">) => void;
-};
-
-export type GraphEventDetail<T extends keyof TGraphEventCallbacks> = Parameters<TGraphEventCallbacks[T]>[0];
-export type GraphEvent<T extends keyof TGraphEventCallbacks> = Parameters<TGraphEventCallbacks[T]>[0];
+/** React-style handler: `(detail, fullEvent)` for the graph event named `N`. */
+export type GraphReactHandler<N extends keyof GraphEventsDefinitions> = (
+  data: UnwrapGraphEventsDetail<N>,
+  event: UnwrapGraphEvents<N>
+) => void;
 
 export const GraphCallbacksMap = {
   click: "click",
@@ -41,4 +18,14 @@ export const GraphCallbacksMap = {
   onBlockChange: "block-change",
   onConnectionSelectionChange: "connection-selection-change",
   onStateChanged: "state-change",
-} as const satisfies Record<keyof TGraphEventCallbacks, keyof GraphEventsDefinitions>;
+} as const;
+
+export type GraphCallbackKey = keyof typeof GraphCallbacksMap;
+
+export type TGraphEventCallbacks = {
+  [K in GraphCallbackKey]: GraphReactHandler<(typeof GraphCallbacksMap)[K]>;
+};
+
+export type GraphEventDetail<T extends keyof TGraphEventCallbacks> = Parameters<TGraphEventCallbacks[T]>[0];
+/** Full `CustomEvent` instance passed as the second argument to React-style graph callbacks. */
+export type GraphEvent<T extends keyof TGraphEventCallbacks> = Parameters<TGraphEventCallbacks[T]>[1];

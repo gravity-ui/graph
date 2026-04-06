@@ -1,6 +1,11 @@
+import merge from "lodash/merge";
+
+import type { TGraphComponentProps } from "./components/canvas/GraphComponent";
 import { GraphComponent } from "./components/canvas/GraphComponent";
 import { Block } from "./components/canvas/blocks/Block";
+import type { Component } from "./lib/Component";
 import { ESelectionStrategy } from "./services/selection";
+import type { RecursivePartial } from "./utils/types/helpers";
 
 export type { TResolveWheelDevice } from "./utils/functions/isTrackpadDetector";
 export { defaultResolveWheelDevice, EWheelDeviceKind } from "./utils/functions/isTrackpadDetector";
@@ -52,6 +57,18 @@ export type TCanvasColors = {
   border: string;
 };
 
+/**
+ * Colors after merge with defaults (`initGraphColors`). All sections and keys are defined.
+ */
+export type TResolvedGraphColors = {
+  canvas: TCanvasColors;
+  block: TBlockColors;
+  anchor: TAnchorColors;
+  connection: TConnectionColors;
+  connectionLabel: TConnectionLabelColors;
+  selection: TSelectionColors;
+};
+
 export type TMouseWheelBehavior = "zoom" | "scroll";
 
 export const initGraphColors: TGraphColors = {
@@ -89,10 +106,21 @@ export const initGraphColors: TGraphColors = {
   },
 };
 
+export function createInitialResolvedGraphColors(): TResolvedGraphColors {
+  return merge({}, initGraphColors) as TResolvedGraphColors;
+}
+
+export function mergeResolvedGraphColors(
+  current: TResolvedGraphColors,
+  patch: RecursivePartial<TGraphColors>
+): TResolvedGraphColors {
+  return merge({}, current, patch) as TResolvedGraphColors;
+}
+
 /**
  * Constructor type for any class that extends GraphComponent
  */
-export type GraphComponentConstructor = new (...args: unknown[]) => GraphComponent;
+export type GraphComponentConstructor = new (props: TGraphComponentProps, parent: Component) => GraphComponent;
 
 export type TGraphConstants = {
   /**
@@ -256,7 +284,8 @@ export type TGraphConstants = {
 
 export const initGraphConstants: TGraphConstants = {
   selectionLayer: {
-    SELECTABLE_ENTITY_TYPES: [Block],
+    /* Block ctor is stricter (TBlockProps) than GraphComponentConstructor's first arg; safe for selection. */
+    SELECTABLE_ENTITY_TYPES: [Block as GraphComponentConstructor],
     STRATEGY: ESelectionStrategy.REPLACE,
   },
   system: {
@@ -303,3 +332,10 @@ export const initGraphConstants: TGraphConstants = {
     PADDING: 10,
   },
 };
+
+export function mergeResolvedGraphConstants(
+  current: TGraphConstants,
+  patch: RecursivePartial<TGraphConstants>
+): TGraphConstants {
+  return merge({}, current, patch) as TGraphConstants;
+}

@@ -1,7 +1,8 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 
 import { Graph } from "../../graph";
-import { GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } from "../../graphEvents";
+import type { GraphEventListener, GraphEventsDefinitions } from "../../graphEvents";
+import { UnwrapGraphEvents, UnwrapGraphEventsDetail } from "../../graphEvents";
 import { ESchedulerPriority } from "../../lib";
 import { debounce } from "../../utils/utils/schedule";
 import { GraphCallbacksMap, TGraphEventCallbacks } from "../events";
@@ -11,21 +12,30 @@ type TDebouncedFn = (() => void) & {
   cancel?: () => void;
 };
 
-type TEventNameForCallback<K extends keyof TGraphEventCallbacks> = (typeof GraphCallbacksMap)[K];
-type TEventForCallback<K extends keyof TGraphEventCallbacks> = UnwrapGraphEvents<TEventNameForCallback<K>>;
-type TEventDetailForCallback<K extends keyof TGraphEventCallbacks> = UnwrapGraphEventsDetail<TEventNameForCallback<K>>;
+function bindReactGraphCallback<K extends keyof TGraphEventCallbacks>(
+  graph: Graph,
+  key: K,
+  cb: TGraphEventCallbacks[K]
+): () => void {
+  type EvName = (typeof GraphCallbacksMap)[K];
+  const eventName = GraphCallbacksMap[key];
+  const listener: GraphEventListener<EvName> = (event) => {
+    cb(event.detail, event);
+  };
+  return graph.on(eventName, listener);
+}
 
-export function useGraphEvent<Event extends keyof GraphEventsDefinitions>(
+export function useGraphEvent<EvName extends keyof GraphEventsDefinitions>(
   graph: Graph | null,
-  event: Event,
-  cb: (data: UnwrapGraphEventsDetail<Event>, event: UnwrapGraphEvents<Event>) => void,
+  event: EvName,
+  cb: (data: UnwrapGraphEventsDetail<EvName>, graphEvent: UnwrapGraphEvents<EvName>) => void,
   debounceParams?: {
     priority?: ESchedulerPriority;
     frameInterval?: number;
     frameTimeout?: number;
   }
 ): void {
-  const lastEventRef = useRef<UnwrapGraphEvents<Event> | null>(null);
+  const lastEventRef = useRef<UnwrapGraphEvents<EvName> | null>(null);
   const fn = useMemo<TDebouncedFn>(() => {
     const invoke = () => {
       const lastEvent = lastEventRef.current;
@@ -44,7 +54,7 @@ export function useGraphEvent<Event extends keyof GraphEventsDefinitions>(
       ...debounceParams,
     });
   }, [cb, debounceParams]);
-  const onEvent = useFn((e: UnwrapGraphEvents<Event>) => {
+  const onEvent = useFn<[UnwrapGraphEvents<EvName>], void>((e) => {
     lastEventRef.current = e;
     fn();
   });
@@ -64,26 +74,16 @@ export function useGraphEvents(graph: Graph | null, events: Partial<TGraphEventC
   useLayoutEffect(() => {
     if (!graph) return undefined;
 
-    const unsubscribe = [];
-    const subscribe = <K extends keyof TGraphEventCallbacks>(
-      key: K,
-      cb: (data: TEventDetailForCallback<K>, event: TEventForCallback<K>) => void
-    ): (() => void) => {
-      const eventName = GraphCallbacksMap[key];
-      return graph.on(eventName, (event: TEventForCallback<K>) => {
-        cb(event.detail, event);
-      });
-    };
+    const unsubscribeFns: Array<() => void> = [];
     const eventKeys = Object.keys(events) as Array<keyof TGraphEventCallbacks>;
-    eventKeys.forEach(<K extends keyof TGraphEventCallbacks>(key: K) => {
+    for (const key of eventKeys) {
       const cb = events[key];
-      if (!cb) {
-        return;
+      if (cb) {
+        unsubscribeFns.push(bindReactGraphCallback(graph, key, cb));
       }
-      unsubscribe.push(subscribe(key, cb));
-    });
+    }
     return () => {
-      unsubscribe.forEach((unsubscribe) => unsubscribe());
+      unsubscribeFns.forEach((unsub) => unsub());
     };
   }, [graph, events]);
 }

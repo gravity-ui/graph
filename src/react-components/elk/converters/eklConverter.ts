@@ -3,10 +3,11 @@ import { ElkExtendedEdge, ElkNode } from "elkjs";
 import { ConverterResult } from "../types";
 
 const convertElkEdges = (edges?: ElkExtendedEdge[]): ConverterResult["edges"] => {
-  return edges.reduce<ConverterResult["edges"]>((acc, edge) => {
-    if ("sections" in edge) {
+  return (edges ?? []).reduce<ConverterResult["edges"]>((acc, edge) => {
+    const firstSection = "sections" in edge ? edge.sections?.[0] : undefined;
+    if (firstSection) {
       acc[edge.id] = {
-        points: [edge.sections[0].startPoint, ...(edge.sections[0].bendPoints || []), edge.sections[0].endPoint],
+        points: [firstSection.startPoint, ...(firstSection.bendPoints ?? []), firstSection.endPoint],
         labels: edge.labels,
       };
     }
@@ -16,10 +17,10 @@ const convertElkEdges = (edges?: ElkExtendedEdge[]): ConverterResult["edges"] =>
 };
 
 const convertElkChildren = (childrens: ElkNode[]): ConverterResult["blocks"] => {
-  return childrens.reduce((acc, children) => {
+  return childrens.reduce<ConverterResult["blocks"]>((acc, children) => {
     acc[children.id] = {
-      x: children.x,
-      y: children.y,
+      x: children.x ?? 0,
+      y: children.y ?? 0,
     };
     return acc;
   }, {});
@@ -28,6 +29,6 @@ const convertElkChildren = (childrens: ElkNode[]): ConverterResult["blocks"] => 
 export const elkConverter = (node: ElkNode): ConverterResult => {
   return {
     edges: convertElkEdges(node.edges),
-    blocks: convertElkChildren(node.children),
+    blocks: convertElkChildren(node.children ?? []),
   };
 };

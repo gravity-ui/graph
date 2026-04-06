@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import merge from "lodash/merge";
+
 import StyleObserver from "style-observer";
 
 import { Layer, LayerContext } from "../../services/Layer";

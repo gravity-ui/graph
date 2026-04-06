@@ -1,7 +1,7 @@
 import { Signal } from "@preact/signals-core";
 
 import { Graph } from "../../../graph";
-import { GraphEventsDefinitions } from "../../../graphEvents";
+import { GraphEventListener, GraphEventsDefinitions } from "../../../graphEvents";
 import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
@@ -111,10 +111,11 @@ export class GraphComponent<
   }
 
   public getPort(id: TPortId): PortState {
-    if (!this.ports.has(id)) {
-      return this.createPort(id);
+    const existing = this.ports.get(id);
+    if (existing !== undefined) {
+      return existing;
     }
-    return this.ports.get(id);
+    return this.createPort(id);
   }
 
   /**
@@ -142,7 +143,7 @@ export class GraphComponent<
 
   protected propsChanged(_nextProps: Props): void {
     if (this.affectsUsableRect !== _nextProps.affectsUsableRect) {
-      this.hitBox.setAffectsUsableRect(_nextProps.affectsUsableRect);
+      this.hitBox.setAffectsUsableRect(_nextProps.affectsUsableRect ?? true);
       this.setContext({ affectsUsableRect: _nextProps.affectsUsableRect });
     }
     super.propsChanged(_nextProps);
@@ -154,7 +155,7 @@ export class GraphComponent<
       this.firstRender ||
       (this.context.affectsUsableRect !== _nextContext.affectsUsableRect && this.props.affectsUsableRect === undefined)
     ) {
-      this.hitBox.setAffectsUsableRect(_nextContext.affectsUsableRect);
+      this.hitBox.setAffectsUsableRect(_nextContext.affectsUsableRect ?? true);
     }
     super.contextChanged(_nextContext);
   }
@@ -199,44 +200,51 @@ export class GraphComponent<
     autopanning?: boolean;
     dragCursor?: CursorLayerCursorTypes;
   }) {
-    let startCoords: [number, number];
-    let prevCoords: [number, number];
-    return this.addEventListener("mousedown", (event: MouseEvent) => {
+    let startCoords: [number, number] | undefined;
+    let prevCoords: [number, number] | undefined;
+    return this.addEventListener("mousedown", (event: Event) => {
+      if (!(event instanceof MouseEvent)) {
+        return;
+      }
       if (!isDraggable?.(event)) {
         return;
       }
       event.stopPropagation();
       this.context.graph.dragService.startDrag(
         {
-          onStart: (event: MouseEvent) => {
-            if (onDragStart?.(event) === false) {
+          onStart: (startEvent: MouseEvent) => {
+            if (onDragStart?.(startEvent) === false) {
               return;
             }
-            const xy = getXY(this.context.canvas, event);
+            const xy = getXY(this.context.canvas, startEvent);
             startCoords = this.context.camera.applyToPoint(xy[0], xy[1]);
             prevCoords = startCoords;
           },
-          onUpdate: (event: MouseEvent) => {
-            if (!startCoords?.length) return;
+          onUpdate: (updateEvent: MouseEvent) => {
+            if (startCoords === undefined || prevCoords === undefined) {
+              return;
+            }
 
-            const [canvasX, canvasY] = getXY(this.context.canvas, event);
+            const [canvasX, canvasY] = getXY(this.context.canvas, updateEvent);
             const currentCoords = this.context.camera.applyToPoint(canvasX, canvasY);
+
+            const prev = prevCoords;
 
             // Absolute diff from drag start
             const diffX = currentCoords[0] - startCoords[0];
             const diffY = currentCoords[1] - startCoords[1];
 
             // Incremental diff from previous frame
-            const deltaX = currentCoords[0] - prevCoords[0];
-            const deltaY = currentCoords[1] - prevCoords[1];
+            const deltaX = currentCoords[0] - prev[0];
+            const deltaY = currentCoords[1] - prev[1];
 
-            onDragUpdate?.({ startCoords, prevCoords, currentCoords, diffX, diffY, deltaX, deltaY }, event);
+            onDragUpdate?.({ startCoords, prevCoords: prev, currentCoords, diffX, diffY, deltaX, deltaY }, updateEvent);
             prevCoords = currentCoords;
           },
-          onEnd: (event: MouseEvent) => {
+          onEnd: (endEvent: MouseEvent) => {
             startCoords = undefined;
             prevCoords = undefined;
-            onDrop?.(event);
+            onDrop?.(endEvent);
           },
         },
         {
@@ -268,9 +276,9 @@ export class GraphComponent<
    * @param options - Additional AddEventListener options
    * @returns Unsubscribe function
    */
-  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
+  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions>(
     eventName: EventName,
-    handler: Cb,
+    handler: GraphEventListener<EventName>,
     options?: AddEventListenerOptions | boolean
   ): () => void {
     const unsubscribe = this.context.graph.on(eventName, handler, options);
@@ -296,14 +304,12 @@ export class GraphComponent<
       throw new Error("Attempt to add event listener to non-existent root element");
     }
 
-    const listener =
-      typeof handler === "function"
-        ? (handler as (this: HTMLElement, ev: HTMLElementEventMap[K]) => void)
-        : (handler as EventListenerObject);
+    const listener: EventListenerOrEventListenerObject =
+      typeof handler === "function" ? (handler as EventListener) : (handler as EventListenerObject);
 
     root.addEventListener(eventName, listener, options);
 
-    const unsubscribe = () => {
+    const unsubscribe = (): void => {
       root.removeEventListener(eventName, listener, options);
     };
 

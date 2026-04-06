@@ -56,6 +56,9 @@ export class FrameDebouncer {
 
   public delete(fn: any) {
     const bindedFn = this.mapOriginalToBindedFn.get(fn);
+    if (bindedFn === undefined) {
+      return;
+    }
     const i = this.nextFrameFns.indexOf(bindedFn);
 
     if (i !== -1) {
@@ -75,15 +78,17 @@ export class FrameDebouncer {
 
   private createBindedFunction(fn: any, options: Options): any {
     const bindedFn: any = (frameTime: number) => {
-      const hardFrame = options.lightFrame ? frameTime > 16 : frameTime > options.frameTime;
-      const skip = options.leading ? bindedFn.delay < options.delay : bindedFn.delay > 0;
+      const delayOpt = options.delay;
+      const frameTimeOpt = options.frameTime;
+      const hardFrame = options.lightFrame ? frameTime > 16 : frameTimeOpt !== undefined && frameTime > frameTimeOpt;
+      const skip = options.leading ? delayOpt !== undefined && bindedFn.delay < delayOpt : bindedFn.delay > 0;
 
       if (hardFrame || skip) {
         // skip original function
         if (options.leading) {
           bindedFn.delay += 1;
 
-          if (hardFrame || bindedFn.delay < options.delay) {
+          if (hardFrame || (delayOpt !== undefined && bindedFn.delay < delayOpt)) {
             this.tmpFns.push(bindedFn);
           } else {
             bindedFn.inOrder = false;
@@ -96,14 +101,14 @@ export class FrameDebouncer {
         return;
       }
 
-      const run = options.leading ? bindedFn.delay >= options.delay : bindedFn.delay < 1;
+      const run = options.leading ? delayOpt !== undefined && bindedFn.delay >= delayOpt : bindedFn.delay < 1;
 
       if (run) {
         // perform original function
         fn(...bindedFn.args);
 
         if (options.throttle) {
-          bindedFn.delay = options.delay;
+          bindedFn.delay = delayOpt;
         }
 
         if (options.leading) {

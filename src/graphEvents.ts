@@ -1,6 +1,6 @@
 import { EventedComponent } from "./components/canvas/EventedComponent/EventedComponent";
 import { GraphState } from "./graph";
-import { TGraphColors, TGraphConstants } from "./graphConfig";
+import { TGraphConstants, TResolvedGraphColors } from "./graphConfig";
 import { TCameraState } from "./services/camera/CameraService";
 import { TSelectionDiff, TSelectionEntityId } from "./services/selection/types";
 
@@ -40,7 +40,7 @@ export type UnwrapBaseGraphEventsDetail<
 export interface GraphEventsDefinitions extends BaseGraphEventDefinition {
   "camera-change": (event: CustomEvent<TCameraState>) => void;
   "constants-changed": (event: CustomEvent<{ constants: TGraphConstants }>) => void;
-  "colors-changed": (event: CustomEvent<{ colors: TGraphColors }>) => void;
+  "colors-changed": (event: CustomEvent<{ colors: TResolvedGraphColors }>) => void;
   "state-change": (event: CustomEvent<{ state: GraphState }>) => void;
 }
 const graphMouseEvents = ["mousedown", "click", "dblclick", "mouseenter", "mousemove", "mouseleave"];
@@ -50,6 +50,11 @@ export type UnwrapGraphEvents<
   T extends GraphEventsDefinitions[Key] = GraphEventsDefinitions[Key],
   P extends Parameters<T>[0] = Parameters<T>[0],
 > = P extends CustomEvent ? P : never;
+
+/** Single-argument listener used by `Graph.on` / `Graph.off` and the DOM emitter. */
+export type GraphEventListener<EventName extends keyof GraphEventsDefinitions> = (
+  event: UnwrapGraphEvents<EventName>
+) => void;
 export type UnwrapGraphEventsDetail<
   Key extends keyof GraphEventsDefinitions,
   T extends GraphEventsDefinitions[Key] = GraphEventsDefinitions[Key],

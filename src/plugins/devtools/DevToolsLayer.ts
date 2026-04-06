@@ -53,7 +53,7 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     // Update CSS variables on the container (used by devtools-layer.css)
     if (this.props.rulerBackgroundColor !== nextProps.rulerBackgroundColor) {
       const bgColorValue = nextProps.rulerBackgroundColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackgroundColor;
-      htmlContainer.style.setProperty("--devtools-ruler-bg-color", bgColorValue);
+      htmlContainer.style.setProperty("--devtools-ruler-bg-color", bgColorValue ?? "");
     }
 
     if (this.props.rulerBackdropBlur !== nextProps.rulerBackdropBlur) {
@@ -104,7 +104,7 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
       const initialBgColor = this.props.rulerBackgroundColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackgroundColor;
       const initialDisplay = this.props.showRuler ? "block" : "none";
       htmlContainer.style.setProperty("--devtools-ruler-blur", `${initialBlur}px`);
-      htmlContainer.style.setProperty("--devtools-ruler-bg-color", initialBgColor);
+      htmlContainer.style.setProperty("--devtools-ruler-bg-color", initialBgColor ?? "");
       htmlContainer.style.setProperty("--devtools-ruler-size", `${initialSize}px`);
       htmlContainer.style.setProperty("--devtools-ruler-display", initialDisplay);
       // Create the divs
@@ -337,13 +337,14 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
 
     // Draw Coordinate Text
     const coordText = `X: ${worldX.toFixed(1)}, Y: ${worldY.toFixed(1)}`;
-    const currentFont = this.props.crosshairTextFont ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextFont;
+    const currentFont =
+      this.props.crosshairTextFont ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextFont ?? "11px Helvetica";
     ctx.font = currentFont;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
 
     const logicalTextWidth = measureText(coordText, currentFont);
-    const logicalFontSize = parseInt(ctx.font, 10);
+    const logicalFontSize = Number.parseInt(ctx.font, 10) || 11;
     const logicalTextHeight = logicalFontSize;
     const logicalPadding = 4;
 
@@ -353,10 +354,13 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     const textRectHeight = logicalTextHeight + 2 * logicalPadding;
 
     ctx.fillStyle =
-      this.props.crosshairTextBackgroundColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextBackgroundColor;
+      this.props.crosshairTextBackgroundColor ??
+      DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextBackgroundColor ??
+      "rgba(0, 0, 0, 0.7)";
     ctx.fillRect(textRectX, textRectY, textRectWidth, textRectHeight);
 
-    ctx.fillStyle = this.props.crosshairTextColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextColor;
+    ctx.fillStyle =
+      this.props.crosshairTextColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextColor ?? "rgba(255, 255, 255, 1)";
     ctx.fillText(coordText, textRectX + logicalPadding, textRectY + logicalPadding);
   }
 }

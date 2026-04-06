@@ -83,16 +83,22 @@ export class KeyboardService {
   }
 
   public onPress(key: string, cb: (event: CustomEvent<KeyboardEvent>) => void, options?: AddEventListenerOptions) {
-    this.keybordEvents.addEventListener(`press-${key}`, cb, options);
+    const listener: EventListener = (evt) => {
+      cb(evt as CustomEvent<KeyboardEvent>);
+    };
+    this.keybordEvents.addEventListener(`press-${key}`, listener, options);
     return () => {
-      this.keybordEvents.removeEventListener(`press-${key}`, cb);
+      this.keybordEvents.removeEventListener(`press-${key}`, listener);
     };
   }
 
   public onRelease(key: string, cb: (event: CustomEvent<KeyboardEvent>) => void, options?: AddEventListenerOptions) {
-    this.keybordEvents.addEventListener(`release-${key}`, cb, options);
+    const listener: EventListener = (evt) => {
+      cb(evt as CustomEvent<KeyboardEvent>);
+    };
+    this.keybordEvents.addEventListener(`release-${key}`, listener, options);
     return () => {
-      this.keybordEvents.removeEventListener(`release-${key}`, cb);
+      this.keybordEvents.removeEventListener(`release-${key}`, listener);
     };
   }
 

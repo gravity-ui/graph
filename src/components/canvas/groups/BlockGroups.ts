@@ -3,10 +3,12 @@ import { ReadonlySignal, Signal, computed } from "@preact/signals-core";
 import { TBlock } from "../../..";
 import { Graph } from "../../../graph";
 import { CoreComponent } from "../../../lib";
+import type { Component } from "../../../lib/Component";
 import { TComponentState } from "../../../lib/Component";
 import { Layer, LayerContext, LayerProps } from "../../../services/Layer";
 import { BlockState } from "../../../store/block/Block";
 import { GroupState, TGroup, TGroupId } from "../../../store/group/Group";
+import { logDev } from "../../../utils/devLog";
 import { getBlocksRect } from "../../../utils/functions";
 import { TRect } from "../../../utils/types/shapes";
 
@@ -39,6 +41,14 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
   BlockGroupsContext,
   BlockGroupsState
 > {
+  public override getCanvas(): HTMLCanvasElement {
+    const el = super.getCanvas();
+    if (!el) {
+      throw new Error("BlockGroups: expected canvas to exist");
+    }
+    return el;
+  }
+
   public static withBlockGrouping<P extends BlockGroupsProps, Instance extends BlockGroups<P>>(
     this: new (props: P) => Instance,
     {
@@ -182,9 +192,15 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
 
     const canvas = this.getCanvas();
 
+    const ctx2d = canvas.getContext("2d");
+    if (!ctx2d) {
+      logDev("BlockGroups: Canvas 2D context is not available");
+      throw new Error("BlockGroups: Canvas 2D context is not available");
+    }
+
     this.setContext({
       canvas,
-      ctx: canvas.getContext("2d"),
+      ctx: ctx2d,
       root: this.props.root,
       camera: this.props.camera,
       constants: this.props.graph.graphConstants,
@@ -264,6 +280,8 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
    * Find a Group component by its ID
    */
   public getGroupById(groupId: string): Group | null {
-    return this.$?.[groupId];
+    const children = this.$ as Record<string, Component | undefined>;
+    const instance = children[groupId];
+    return instance instanceof Group ? instance : null;
   }
 }

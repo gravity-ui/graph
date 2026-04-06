@@ -4,6 +4,7 @@ import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { selectBlockAnchor } from "../../../store/block/selectors";
 import { PortState } from "../../../store/connection/port/Port";
+import { logDev } from "../../../utils/devLog";
 import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
 import { GraphLayer } from "../layers/graphLayer/GraphLayer";
 
@@ -44,7 +45,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     return this.__comp.parent.zIndex + 1;
   }
 
-  public connectedState: AnchorState;
+  public connectedState?: AnchorState;
 
   private shift = 0;
 
@@ -52,8 +53,13 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     super(props, parent);
     this.state = { size: props.size, raised: false, selected: false };
 
-    this.connectedState = selectBlockAnchor(this.context.graph, props.blockId, props.id);
-    this.connectedState.setViewComponent(this);
+    const anchorState = selectBlockAnchor(this.context.graph, props.blockId, props.id);
+    if (!anchorState) {
+      logDev(`Anchor not found: block "${String(props.blockId)}", anchor "${String(props.id)}"`);
+    } else {
+      this.connectedState = anchorState;
+      this.connectedState.setViewComponent(this);
+    }
 
     this.addEventListener("click", this);
     this.addEventListener("mouseenter", this);
@@ -91,9 +97,11 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
 
   protected willMount(): void {
     this.props.port.setOwner(this);
-    this.subscribeSignal(this.connectedState.$selected, (selected) => {
-      this.setState({ selected });
-    });
+    if (this.connectedState) {
+      this.subscribeSignal(this.connectedState.$selected, (selected) => {
+        this.setState({ selected });
+      });
+    }
     this.subscribeSignal(this.props.port.$point, this.onPositionChanged);
     this.computeShift(this.state, this.props);
     this.onPositionChanged();
@@ -133,8 +141,8 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     return this.props.port.getPoint();
   }
 
-  public toggleSelected() {
-    this.connectedState.setSelection(!this.state.selected);
+  public toggleSelected(): void {
+    this.connectedState?.setSelection(!this.state.selected);
   }
 
   /**
@@ -153,15 +161,15 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   }
 
   public override handleDragStart(context: DragContext): void {
-    this.connectedState.block.getViewComponent()?.handleDragStart(context);
+    this.connectedState?.block.getViewComponent()?.handleDragStart(context);
   }
 
   public override handleDrag(diff: DragDiff, context: DragContext): void {
-    this.connectedState.block.getViewComponent()?.handleDrag(diff, context);
+    this.connectedState?.block.getViewComponent()?.handleDrag(diff, context);
   }
 
   public override handleDragEnd(context: DragContext): void {
-    this.connectedState.block.getViewComponent()?.handleDragEnd(context);
+    this.connectedState?.block.getViewComponent()?.handleDragEnd(context);
   }
 
   protected isVisible() {
@@ -169,9 +177,9 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     return params ? this.context.camera.isRectVisible(...params) : true;
   }
 
-  protected unmount() {
+  protected unmount(): void {
     this.props.port.removeOwner();
-    this.connectedState.unsetViewComponent();
+    this.connectedState?.unsetViewComponent();
     super.unmount();
   }
 

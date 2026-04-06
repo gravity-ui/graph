@@ -3,14 +3,16 @@ import { batch } from "@preact/signals-core";
 import { GraphComponent } from "../components/canvas/GraphComponent";
 import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
-import { TGraphColors, TGraphConstants } from "../graphConfig";
+import { TGraphColors, TGraphConstants, TResolvedGraphColors } from "../graphConfig";
 import { ESelectionStrategy } from "../services/selection/types";
 import { TBlockId } from "../store/block/Block";
 import { selectBlockById } from "../store/block/selectors";
 import { TConnection, TConnectionId } from "../store/connection/ConnectionState";
 import { selectConnectionById } from "../store/connection/selectors";
 import { TGraphSettingsConfig } from "../store/settings";
+import { logDev } from "../utils/devLog";
 import { getBlocksRect, getElementsRect, startAnimation } from "../utils/functions";
+import type { RecursivePartial } from "../utils/types/helpers";
 import { TRect } from "../utils/types/shapes";
 
 export type ZoomConfig = {
@@ -143,11 +145,11 @@ export class PublicGraphApi {
     });
   }
 
-  public getGraphColors(): TGraphColors {
+  public getGraphColors(): TResolvedGraphColors {
     return this.graph.graphColors;
   }
 
-  public updateGraphColors(colors: TGraphColors) {
+  public updateGraphColors(colors: RecursivePartial<TGraphColors>): void {
     this.graph.setColors(colors);
   }
 
@@ -155,7 +157,7 @@ export class PublicGraphApi {
     return this.graph.graphConstants;
   }
 
-  public updateGraphConstants(constants: TGraphConstants) {
+  public updateGraphConstants(constants: RecursivePartial<TGraphConstants>): void {
     this.graph.setConstants(constants);
   }
 
@@ -225,8 +227,12 @@ export class PublicGraphApi {
     });
   }
 
-  public updateConnection(id: TConnectionId, connection: Partial<TConnection>) {
+  public updateConnection(id: TConnectionId, connection: Partial<TConnection>): void {
     const connectionStore = selectConnectionById(this.graph, id);
+    if (!connectionStore) {
+      logDev(`updateConnection: connection not found: ${String(id)}`);
+      return;
+    }
     connectionStore.updateConnection(connection);
   }
 

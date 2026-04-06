@@ -22,14 +22,15 @@ export function getXY(root: HTMLElement, event: Event | WheelEvent | MouseEvent)
   return [event.pageX - rect.left - window.scrollX, event.pageY - rect.top - window.scrollY];
 }
 
-export function getCoord(event: TouchEvent | MouseEvent, coord: string) {
-  const name = `page${coord.toUpperCase()}`;
-
+export function getCoord(event: TouchEvent | MouseEvent, coord: "x" | "y"): number {
   if (isTouchEvent(event)) {
     const touch = event.touches[0] ?? event.changedTouches[0];
-    return touch?.[name] ?? 0;
+    if (!touch) {
+      return 0;
+    }
+    return coord === "x" ? touch.pageX : touch.pageY;
   }
-  return event[name];
+  return coord === "x" ? event.pageX : event.pageY;
 }
 
 export function getEventDelta(e1: TouchEvent | MouseEvent, e2: TouchEvent | MouseEvent) {
@@ -80,12 +81,14 @@ export function addEventListeners(
 ): () => void {
   if (mapEventsToFn === undefined) return noop;
 
-  const subs = [];
+  const subs: Array<() => void> = [];
   const events = Object.keys(mapEventsToFn);
 
   for (let i = 0; i < events.length; i += 1) {
-    instance.addEventListener(events[i], mapEventsToFn[events[i]].bind(instance));
-    subs.push(instance.removeEventListener.bind(instance, events[i], mapEventsToFn[events[i]]));
+    const eventName = events[i];
+    const handler = mapEventsToFn[eventName].bind(instance) as EventListener;
+    instance.addEventListener(eventName, handler);
+    subs.push(() => instance.removeEventListener(eventName, handler));
   }
 
   return () => subs.forEach((f) => f());
@@ -243,7 +246,7 @@ export function computeCssVariable(name: string) {
 }
 
 // Re-export scheduler utilities
-export { schedule, debounce, throttle } from "../utils/schedule";
+export { type DebouncedFunction, debounce, schedule, throttle, type ThrottledFunction } from "../utils/schedule";
 export { EWheelDeviceKind, defaultResolveWheelDevice, isTrackpadWheelEvent } from "./isTrackpadDetector";
 
 // Re-export vector utilities

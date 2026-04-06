@@ -134,28 +134,29 @@ export class BatchPath2DRenderer {
 
   protected itemParams: Map<Path2DRenderInstance, { zIndex: number; group: string }> = new Map();
 
-  public orderedPaths = cache(() => {
-    return Array.from(this.indexes.entries())
-      .sort(([indexA], [indexB]) => indexA - indexB)
-      .reduce((acc, [_, items]) => {
-        acc.push(...Array.from(items.values()));
-        return acc;
-      }, [] satisfies Path2DGroup[]);
+  public orderedPaths = cache((): Path2DGroup[] => {
+    const result: Path2DGroup[] = [];
+    const sorted = Array.from(this.indexes.entries()).sort(([indexA], [indexB]) => indexA - indexB);
+    for (const [, items] of sorted) {
+      result.push(...Array.from(items.values()));
+    }
+    return result;
   });
 
   protected requestRender = () => this.onChange?.();
 
-  protected getGroup(zIndex: number, group: string) {
-    if (!this.indexes.has(zIndex)) {
-      this.indexes.set(zIndex, new Map());
+  protected getGroup(zIndex: number, group: string): Path2DGroup {
+    let layer = this.indexes.get(zIndex);
+    if (!layer) {
+      layer = new Map();
+      this.indexes.set(zIndex, layer);
     }
-    const index = this.indexes.get(zIndex);
-
-    if (!index.has(group)) {
-      index.set(group, new Path2DGroup(this.chunkSize));
+    let bucket = layer.get(group);
+    if (!bucket) {
+      bucket = new Path2DGroup(this.chunkSize);
+      layer.set(group, bucket);
     }
-
-    return index.get(group);
+    return bucket;
   }
 
   public add(item: Path2DRenderInstance, params: { zIndex: number; group: string }) {
@@ -181,7 +182,7 @@ export class BatchPath2DRenderer {
        * So is item change zIndex or group, we need recalculate groups
        * But if item change geomertry we have ot only mark item as dirty to recalc groups path2d
        * */
-      if (prev.zIndex === params.zIndex && prev.group === params.group) {
+      if (prev !== undefined && prev.zIndex === params.zIndex && prev.group === params.group) {
         this.markDirty(item);
         return;
       }
@@ -191,10 +192,10 @@ export class BatchPath2DRenderer {
   }
 
   public delete(item: Path2DRenderInstance) {
-    if (!this.itemParams.has(item)) {
+    const params = this.itemParams.get(item);
+    if (!params) {
       return;
     }
-    const params = this.itemParams.get(item);
     const bucket = this.getGroup(params.zIndex, params.group);
     bucket.delete(item);
     this.itemParams.delete(item);

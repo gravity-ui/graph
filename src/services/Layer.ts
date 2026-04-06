@@ -1,6 +1,6 @@
 import { Graph } from "../graph";
-import { TGraphColors, TGraphConstants } from "../graphConfig";
-import { GraphEventsDefinitions } from "../graphEvents";
+import { TGraphConstants, TResolvedGraphColors } from "../graphConfig";
+import { GraphEventListener, GraphEventsDefinitions } from "../graphEvents";
 import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
 import { ESchedulerPriority } from "../lib/Scheduler";
@@ -49,7 +49,7 @@ export type LayerContext = {
   graph: Graph;
   camera: ICamera;
   constants: TGraphConstants;
-  colors: TGraphColors;
+  colors: TResolvedGraphColors;
   graphCanvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   layer: Layer;
@@ -82,9 +82,9 @@ export class Layer<
 > extends Component<Props, State, Context> {
   public static id?: string;
 
-  protected canvas: HTMLCanvasElement;
+  protected canvas?: HTMLCanvasElement;
 
-  protected html: HTMLElement;
+  protected html?: HTMLElement;
 
   protected root?: HTMLDivElement;
 
@@ -119,11 +119,11 @@ export class Layer<
    * @param options - Additional options (optional)
    * @returns The result of graph.on call (an unsubscribe function)
    */
-  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
+  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions>(
     eventName: EventName,
-    handler: Cb,
+    handler: GraphEventListener<EventName>,
     options?: Omit<AddEventListenerOptions, "signal">
-  ) {
+  ): () => void {
     return this.props.graph.on(eventName, handler, {
       ...options,
       signal: this.eventAbortController.signal,
@@ -168,7 +168,7 @@ export class Layer<
       throw new Error("Attempt to add event listener to non-existent HTML element");
     }
 
-    this.html.addEventListener(eventName, handler, {
+    this.html.addEventListener(eventName, handler as EventListener, {
       ...options,
       signal: this.eventAbortController.signal,
     });
@@ -198,7 +198,7 @@ export class Layer<
       throw new Error("Attempt to add event listener to non-existent canvas element");
     }
 
-    this.canvas.addEventListener(eventName, handler, {
+    this.canvas.addEventListener(eventName, handler as EventListener, {
       ...options,
       signal: this.eventAbortController.signal,
     });
@@ -228,7 +228,7 @@ export class Layer<
       throw new Error("Attempt to add event listener to non-existent root element");
     }
 
-    this.root.addEventListener(eventName, handler, {
+    this.root.addEventListener(eventName, handler as EventListener, {
       ...options,
       signal: this.eventAbortController.signal,
     });
@@ -376,10 +376,14 @@ export class Layer<
    * @param active - Whether the HTML layer is now active
    */
   protected onHtmlActiveChange(active: boolean) {
+    const html = this.html;
+    if (!html) {
+      return;
+    }
     if (active) {
-      this.html.classList.remove("layer-hidden");
+      html.classList.remove("layer-hidden");
     } else {
-      this.html.classList.add("layer-hidden");
+      html.classList.add("layer-hidden");
     }
   }
 
@@ -411,12 +415,14 @@ export class Layer<
   protected unmountLayer() {
     if (this.canvas) {
       const cameraState = this.context.camera.getCameraState();
-      const context = this.canvas.getContext("2d");
-      context.setTransform(1, 0, 0, 1, 0, 0);
+      const ctx = this.canvas.getContext("2d");
+      if (ctx) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-      context.clearRect(0, 0, cameraState.width, cameraState.height);
+        ctx.clearRect(0, 0, cameraState.width, cameraState.height);
 
-      context.setTransform(cameraState.scale, 0, 0, cameraState.scale, cameraState.x, cameraState.y);
+        ctx.setTransform(cameraState.scale, 0, 0, cameraState.scale, cameraState.x, cameraState.y);
+      }
     }
     this.canvas?.parentNode?.removeChild(this.canvas);
     this.html?.parentNode?.removeChild(this.html);
@@ -435,11 +441,11 @@ export class Layer<
     super.unmount();
   }
 
-  public getCanvas() {
+  public getCanvas(): HTMLCanvasElement | undefined {
     return this.canvas;
   }
 
-  public getHTML() {
+  public getHTML(): HTMLElement | undefined {
     return this.html;
   }
 
@@ -466,23 +472,27 @@ export class Layer<
     this.root = undefined;
   }
 
-  protected createCanvas(params: LayerProps["canvas"]) {
+  protected createCanvas(params: NonNullable<LayerProps["canvas"]>) {
     const canvas = document.createElement("canvas");
     canvas.classList.add("layer", "layer-canvas");
     if (Array.isArray(params.classNames)) canvas.classList.add(...params.classNames);
     canvas.style.zIndex = `${Number(params.zIndex)}`;
+    const ctx = canvas.getContext("2d", {
+      desynchronized: params.desynchronized ?? false,
+      willReadFrequently: params.willReadFrequently ?? false,
+      alpha: params.alpha ?? true,
+    });
+    if (!ctx) {
+      throw new Error("Layer: failed to acquire Canvas 2D context");
+    }
     this.setContext({
       graphCanvas: canvas,
-      ctx: canvas.getContext("2d", {
-        desynchronized: params.desynchronized ?? false,
-        willReadFrequently: params.willReadFrequently ?? false,
-        alpha: params.alpha ?? true,
-      }),
+      ctx,
     });
     return canvas;
   }
 
-  protected createHTML(params: LayerProps["html"]) {
+  protected createHTML(params: NonNullable<LayerProps["html"]>) {
     const div = document.createElement("div");
     div.classList.add("layer", "layer-html");
     if (Array.isArray(params.classNames)) div.classList.add(...params.classNames);
@@ -502,7 +512,7 @@ export class Layer<
     x: number,
     y: number,
     scale: number,
-    respectPixelRatio: boolean = this.props.canvas?.respectPixelRatio
+    respectPixelRatio: boolean = this.props.canvas?.respectPixelRatio ?? true
   ) {
     const ctx = this.context.ctx;
     const dpr = respectPixelRatio ? this.getDRP() : 1;
@@ -510,12 +520,18 @@ export class Layer<
   }
 
   protected updateCanvasSize() {
+    if (!this.canvas) {
+      return;
+    }
     const { width, height, dpr } = this.context.graph.layers.getRootSize();
     this.canvas.width = width * dpr;
     this.canvas.height = height * dpr;
   }
 
   public resetTransform() {
+    if (!this.canvas) {
+      return;
+    }
     if (this.sizeTouched) {
       this.sizeTouched = false;
       this.updateCanvasSize();

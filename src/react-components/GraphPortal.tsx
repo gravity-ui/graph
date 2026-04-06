@@ -50,7 +50,7 @@ class GraphPortalLayer extends Layer<GraphPortalLayerProps, LayerContext, TCompo
    * Get HTML element for creating portal
    */
   public getPortalTarget(): HTMLElement | null {
-    return this.getHTML();
+    return this.getHTML() ?? null;
   }
 }
 
@@ -122,7 +122,7 @@ export interface GraphPortalProps {
  * </GraphPortal>
  * ```
  */
-export const GraphPortal = forwardRef<GraphPortalLayer, GraphPortalProps>(function GraphPortal(
+export const GraphPortal = forwardRef<GraphPortalLayer | null, GraphPortalProps>(function GraphPortal(
   { className, zIndex, transformByCameraPosition = false, children }: GraphPortalProps,
   ref
 ): React.ReactElement | null {
@@ -145,7 +145,7 @@ export const GraphPortal = forwardRef<GraphPortalLayer, GraphPortalProps>(functi
   });
 
   // Expose layer through ref
-  useImperativeHandle(ref, () => layer, [layer]);
+  useImperativeHandle(ref as React.Ref<GraphPortalLayer | null>, (): GraphPortalLayer | null => layer, [layer]);
 
   // If graph is not ready or layer not yet created, don't render portal
   if (!graph || graphState < GraphState.ATTACHED || !layer) {

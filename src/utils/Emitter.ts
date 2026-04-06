@@ -36,7 +36,7 @@ class FnWrapper<Fn extends EmitterFn> {
 }
 
 export class Emitter<T extends EmitterEventsDefinition = EmitterEventsDefinition> {
-  private gcLaunched: boolean;
+  private gcLaunched = false;
 
   private eventsForGC? = new Set<keyof T>();
 

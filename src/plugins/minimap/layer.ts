@@ -83,15 +83,23 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps> {
   }
 
   protected updateCanvasSize(): void {
+    const canvas = this.canvas;
+    if (!canvas) {
+      return;
+    }
     const dpr = this.getDRP();
-    this.canvas.width = this.minimapWidth * dpr;
-    this.canvas.height = this.minimapHeight * dpr;
+    canvas.width = this.minimapWidth * dpr;
+    canvas.height = this.minimapHeight * dpr;
   }
 
   protected willRender(): void {
+    const canvas = this.canvas;
+    if (!canvas) {
+      return;
+    }
     if (this.firstRender) {
-      this.canvas.style.width = `${this.minimapWidth}px`;
-      this.canvas.style.height = `${this.minimapHeight}px`;
+      canvas.style.width = `${this.minimapWidth}px`;
+      canvas.style.height = `${this.minimapHeight}px`;
     }
   }
 
@@ -114,7 +122,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps> {
   }
 
   private injectPositionStyle(): void {
-    const minimapPosition = this.getPositionOfMiniMap(this.props.location);
+    const minimapPosition = this.getPositionOfMiniMap(this.props.location ?? "topLeft");
     const style = document.createElement("style");
     style.innerHTML = `
       .layer.graph-minimap {
@@ -127,7 +135,11 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps> {
         border: 2px solid var(--g-color-private-cool-grey-1000-solid);
         background: lightgrey;
       }`;
-    this.root.appendChild(style);
+    const rootEl = this.root;
+    if (!rootEl) {
+      return;
+    }
+    rootEl.appendChild(style);
   }
 
   private calculateViewPortCoords(): void {

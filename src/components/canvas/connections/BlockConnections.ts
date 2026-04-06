@@ -73,16 +73,20 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
   protected updateChildren() {
     if (!this.connections) return [];
     const settings = this.context.graph.rootStore.settings.$connectionsSettings.value;
-    const ConnectionCtop = this.context.graph.rootStore.settings.$connection.value || BlockConnection;
-    return this.connections.map((connection) => {
+    const ConnectionCtor = this.context.graph.rootStore.settings.$connection.value ?? BlockConnection;
+    return this.connections.flatMap((connection) => {
+      const connectionId = connection.id;
+      if (connectionId === undefined) {
+        return [];
+      }
       const props: TConnectionProps = {
-        id: connection.id,
+        id: connectionId,
         useBezier: settings.useBezierConnections,
         bezierDirection: settings.bezierConnectionDirection,
         showConnectionLabels: settings.showConnectionLabels,
         showConnectionArrows: settings.showConnectionArrows,
       };
-      return ConnectionCtop.create(props, { key: String(connection.id) });
+      return [ConnectionCtor.create(props, { key: String(connectionId) })];
     });
   }
 

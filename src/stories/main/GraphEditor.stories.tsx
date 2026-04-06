@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useRef } from "react";
 
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
-import merge from "lodash/merge";
 
 import { Graph, TGraphConfig } from "../../graph";
-import { TGraphConstants, initGraphConstants } from "../../graphConfig";
+import { initGraphConstants, mergeResolvedGraphConstants } from "../../graphConfig";
+import type { TGraphConstants } from "../../graphConfig";
 import { TGraphSettingsConfig } from "../../store";
 import { ECanDrag } from "../../store/settings";
 import { RecursivePartial } from "../../utils/types/helpers";
@@ -37,8 +37,8 @@ const GraphApp = ({
     }
   }, [settings, graphRef]);
 
-  const graphConstants = useMemo(() => {
-    return merge(initGraphConstants, constants) as unknown as TGraphConstants;
+  const graphConstants = useMemo((): TGraphConstants => {
+    return constants === undefined ? initGraphConstants : mergeResolvedGraphConstants(initGraphConstants, constants);
   }, [constants]);
 
   return (

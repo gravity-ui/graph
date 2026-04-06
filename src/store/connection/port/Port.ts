@@ -1,4 +1,5 @@
 import { computed, signal } from "@preact/signals-core";
+import type { Signal } from "@preact/signals-core";
 
 import { Component } from "../../../lib";
 import { TPoint } from "../../../utils/types/shapes";
@@ -47,7 +48,7 @@ export type TPort<T = unknown> = {
  * remain and no component owns the port, it can be safely garbage collected.
  */
 export class PortState<T = unknown> {
-  public $state = signal<TPort<T>>(undefined);
+  public $state: Signal<TPort<T>>;
 
   public owner?: Component;
 
@@ -118,7 +119,7 @@ export class PortState<T = unknown> {
   }
 
   constructor(port: TPort<T>) {
-    this.$state.value = { ...port };
+    this.$state = signal({ ...port });
     // Initialize owner if component was provided in the constructor
     if (port.component) {
       this.owner = port.component;
@@ -179,13 +180,11 @@ export class PortState<T = unknown> {
    * @param port Partial port data to merge with current state
    */
   public updatePort(port: Partial<TPort<T>>): void {
+    const prev = this.$state.value;
     this.$state.value = {
-      ...this.$state.value,
+      ...prev,
       ...port,
-      meta: {
-        ...this.$state.value.meta,
-        ...port.meta,
-      },
+      meta: port.meta !== undefined ? ({ ...(prev.meta as object), ...port.meta } as TPort<T>["meta"]) : prev.meta,
     };
   }
 

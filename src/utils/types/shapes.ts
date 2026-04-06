@@ -85,7 +85,7 @@ export class Rect implements IRect {
 
   public height: number;
 
-  constructor(x, y, width, height) {
+  constructor(x: number, y: number, width: number, height: number) {
     this.x = x;
     this.y = y;
     this.width = width;

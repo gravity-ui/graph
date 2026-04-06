@@ -1,11 +1,11 @@
 /* eslint-disable no-unmodified-loop-condition */
 import memoize from "lodash/memoize";
 
-export function getFontSize(fontSize, scale) {
+export function getFontSize(fontSize: number, scale: number): number {
   return (fontSize / scale) | 0;
 }
 
-function canvasContextGetter() {
+function canvasContextGetter(): CanvasRenderingContext2D | null {
   const canvas: HTMLCanvasElement = document.createElement("canvas");
 
   return canvas.getContext("2d");
@@ -15,8 +15,11 @@ const getCanvasContext = memoize(canvasContextGetter, () => "canvasContext");
 
 const mapTextToMeasures: Map<string, number> = new Map();
 
-export function measureText(text, font, approximate = true): number {
+export function measureText(text: string, font: string, approximate = true): number {
   const context = getCanvasContext();
+  if (!context) {
+    return 0;
+  }
 
   context.font = font;
 
@@ -30,10 +33,10 @@ export function measureText(text, font, approximate = true): number {
     mapTextToMeasures.set(key, Math.floor(context.measureText(text).width + 1));
   }
 
-  return mapTextToMeasures.get(key);
+  return mapTextToMeasures.get(key) ?? 0;
 }
 
-function sliceAt(string: string, index: number): Array<string> {
+function sliceAt(string: string, index: number): [string, string] {
   return [string.slice(0, index), string.slice(index)];
 }
 
@@ -62,20 +65,20 @@ function wrapLines(
   text: string,
   {
     lineHeight,
-    measureText,
+    measureText: measureTextFn,
     maxWidth = Number(Infinity),
     maxHeight = Number(Infinity),
     wordWrap = true,
   }: TWordWrapOptions
-): Array<TWordWrapResult> {
-  let lines = [];
+): TWordWrapResult[] {
+  let lines: TWordWrapResult[] = [];
 
   if (!text) {
     return lines;
   }
 
   if (!wordWrap) {
-    lines = [{ text, width: measureText(text) }];
+    lines = [{ text, width: measureTextFn(text) }];
     return lines;
   }
 
@@ -85,21 +88,21 @@ function wrapLines(
   const SPACE = " ";
   const MAX_ITERATIONS = 1000;
 
-  const spaceWidth = measureText(SPACE);
+  const spaceWidth = measureTextFn(SPACE);
 
   let currentLine = "";
   let currentLineWidth = 0;
 
-  let nextWordWidth;
-  let nextWidth;
+  let nextWordWidth: number;
+  let nextWidth: number;
   let totalHeight = 0;
 
-  const lineBreak = () => {
-    const text = currentLine.trim();
+  const lineBreak = (): void => {
+    const trimmed = currentLine.trim();
     // all lines start with one space, we remove it here.
-    const width = text.length > 0 ? currentLineWidth - spaceWidth : 0;
+    const width = trimmed.length > 0 ? currentLineWidth - spaceWidth : 0;
 
-    lines.push({ text, width });
+    lines.push({ text: trimmed, width });
 
     currentLine = "";
     currentLineWidth = 0;
@@ -113,14 +116,16 @@ function wrapLines(
 
   // Presenting words as a stack so that we can push() bits of words on top of it.
   const stack = words.slice().reverse();
-  let nextWord;
   let iterations = 0;
 
   // We also watch for next total height so that we don't overflow.
   while (iterations < MAX_ITERATIONS && stack.length > 0 && totalHeight + lineHeight <= maxHeight) {
     iterations++;
-    nextWord = stack.pop();
-    nextWordWidth = measureText(nextWord);
+    const nextWord = stack.pop();
+    if (nextWord === undefined) {
+      break;
+    }
+    nextWordWidth = measureTextFn(nextWord);
 
     // We don't check for currentLineWidth === 0,
     // so all lines have space symbol at the start.
@@ -142,12 +147,12 @@ function wrapLines(
     } else {
       // Current word doesn't fit into a line and it's the only one.
       // Let's cut one symbol from the end until it fits.
-      let parts = [nextWord, ""];
+      let parts: [string, string] = [nextWord, ""];
       let breakAt = nextWord.length - 1;
       while (breakAt > 0 && nextWordWidth > maxWidth) {
         parts = sliceAt(nextWord, breakAt);
         breakAt--;
-        nextWordWidth = measureText(parts[0]);
+        nextWordWidth = measureTextFn(parts[0]);
       }
 
       // At this moment we broke current word in two pieces:
@@ -190,11 +195,12 @@ export function measureMultilineText(
   font = "12px",
   { lineHeight, wordWrap = false, maxWidth = Infinity, maxHeight = Infinity }: TMeasureTextOptions
 ): TWrapText {
-  const boundMeasureText = (text) => measureText(text, font);
-  lineHeight = lineHeight || parseInt(font.replace(/\D/gi, ""), 10);
+  const boundMeasureText = (t: string): number => measureText(t, font);
+  const parsedFromFont = Number.parseInt(font.replace(/\D/g, ""), 10);
+  const resolvedLineHeight = lineHeight ?? (Number.isFinite(parsedFromFont) ? parsedFromFont : 12);
   const lines = wrapLines(text, {
     measureText: boundMeasureText,
-    lineHeight: lineHeight || parseInt(font.replace(/\D/gi, ""), 10),
+    lineHeight: resolvedLineHeight,
     wordWrap,
     maxWidth,
     maxHeight,
@@ -212,8 +218,8 @@ export function measureMultilineText(
 
   return {
     width: maxLineWidth,
-    height: Math.min(Math.floor(linesWords.length * lineHeight + lineHeight * 0.3), maxHeight),
-    lineHeight,
+    height: Math.min(Math.floor(linesWords.length * resolvedLineHeight + resolvedLineHeight * 0.3), maxHeight),
+    lineHeight: resolvedLineHeight,
     linesWords,
     linesWidths,
   };

@@ -9,20 +9,6 @@ type TOptions = {
 
 export type TCoreComponent = CoreComponent<CoreComponentProps, CoreComponentContext>;
 
-type TPrivateComponentData = {
-  parent: CoreComponent | undefined;
-  treeNode: Tree;
-  context: {
-    scheduler: Scheduler;
-    globalIterateId: number;
-  };
-  children: object;
-  childrenKeys: string[];
-  prevChildrenArr: object[];
-  updated: boolean;
-  iterateId: number;
-};
-
 export type CoreComponentProps = Record<string, unknown>;
 export type CoreComponentContext = Record<string, unknown>;
 
@@ -34,6 +20,27 @@ export type ComponentDescriptor<
   options: TOptions;
   klass: Constructor<CoreComponent<Props, Context>>;
 };
+
+type TPrivateComponentData = {
+  parent: CoreComponent | undefined;
+  treeNode: Tree;
+  context: {
+    scheduler: Scheduler;
+    globalIterateId: number;
+  };
+  children: Record<string, CoreComponent | undefined>;
+  childrenKeys: string[];
+  prevChildrenArr: ComponentDescriptor[];
+  updated: boolean;
+  iterateId: number;
+};
+
+function resolveChildDescriptorKey(descriptor: ComponentDescriptor, index: number): string {
+  if (Object.prototype.hasOwnProperty.call(descriptor.options, "key") && descriptor.options.key !== undefined) {
+    return descriptor.options.key;
+  }
+  return `${descriptor.klass.name}|${index}|defaultKey`;
+}
 
 function createDefaultPrivateContext() {
   return {
@@ -75,7 +82,7 @@ export class CoreComponent<
       parent,
       context: parent ? parent.__comp.context : createDefaultPrivateContext(),
       treeNode: new Tree(this),
-      children: {},
+      children: {} as Record<string, CoreComponent | undefined>,
       childrenKeys: [],
       prevChildrenArr: [],
       updated: false,
@@ -150,7 +157,8 @@ export class CoreComponent<
     const __comp = this.__comp;
     const children = __comp.children;
     const childrenKeys = __comp.childrenKeys;
-    const nextChildrenKeys = (__comp.childrenKeys = []);
+    const nextChildrenKeys: string[] = [];
+    __comp.childrenKeys = nextChildrenKeys;
 
     if (nextChildrenArr === __comp.prevChildrenArr) return;
 
@@ -170,8 +178,10 @@ export class CoreComponent<
           key = childrenKeys[i];
           child = children[key];
 
-          child.__unmount();
-          children[key] = undefined;
+          if (child) {
+            child.__unmount();
+            children[key] = undefined;
+          }
         }
       }
 
@@ -182,33 +192,32 @@ export class CoreComponent<
       if (nextChildrenArr.length > 0) {
         for (let i = 0; i < nextChildrenArr.length; i += 1) {
           child = nextChildrenArr[i];
-          // eslint-disable-next-line no-prototype-builtins
-          key = child.options.hasOwnProperty("key") ? child.options.key : `${child.klass.name}|${i}|defaultKey`;
+          key = resolveChildDescriptorKey(child, i);
           ref = child.options.ref;
           // eslint-disable-next-line new-cap
-          children[key] = new child.klass(child.props, this);
+          const mounted = new child.klass(child.props, this);
+          children[key] = mounted;
 
           if (typeof ref === "function") {
-            ref(children[key]);
+            ref(mounted);
           } else if (typeof ref === "string") {
-            this.$[ref] = children[key];
+            (this.$ as Record<string, CoreComponent>)[ref] = mounted;
           }
 
           nextChildrenKeys.push(key);
-          treeNode.append(children[key].__comp.treeNode);
+          treeNode.append(mounted.__comp.treeNode);
         }
       }
 
       return;
     }
 
-    const childForMount = [];
-    const keyForMount = [];
+    const childForMount: ComponentDescriptor[] = [];
+    const keyForMount: string[] = [];
 
     for (let i = 0; i < nextChildrenArr.length; i += 1) {
       child = nextChildrenArr[i];
-      // eslint-disable-next-line no-prototype-builtins
-      key = child.options.hasOwnProperty("key") ? child.options.key : `${child.klass.name}|${i}|defaultKey`;
+      key = resolveChildDescriptorKey(child, i);
       currentChild = children[key];
 
       nextChildrenKeys.push(key);
@@ -241,16 +250,17 @@ export class CoreComponent<
     }
 
     for (let i = 0; i < childForMount.length; i += 1) {
-      child = childForMount[i];
+      const descriptor = childForMount[i];
       key = keyForMount[i];
-      ref = child.options.ref;
+      ref = descriptor.options.ref;
       // eslint-disable-next-line new-cap
-      child = children[key] = new child.klass(child.props, this);
+      const mounted = new descriptor.klass(descriptor.props, this);
+      children[key] = mounted;
 
       if (typeof ref === "function") {
-        ref(children[key]);
+        ref(mounted);
       } else if (typeof ref === "string") {
-        this.$[ref] = children[key];
+        (this.$ as Record<string, CoreComponent>)[ref] = mounted;
       }
     }
 
@@ -268,7 +278,10 @@ export class CoreComponent<
     const childrenKeys = this.__comp.childrenKeys;
 
     for (let i = 0; i < childrenKeys.length; i += 1) {
-      children[childrenKeys[i]].__unmount();
+      const node = children[childrenKeys[i]];
+      if (node) {
+        node.__unmount();
+      }
     }
   }
 
@@ -293,7 +306,9 @@ export class CoreComponent<
     return root;
   }
 
-  public static unmount(instance) {
+  public static unmount<Props extends CoreComponentProps, Context extends CoreComponentContext>(
+    instance: CoreComponent<Props, Context>
+  ): void {
     instance.__unmount();
   }
 }

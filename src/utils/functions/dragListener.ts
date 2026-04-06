@@ -94,7 +94,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     }
 
     emitter.emit(EVENTS.DRAG_START, event);
-    document.addEventListener("mousemove", mousemoveBinded);
+    document.addEventListener("mousemove", mousemoveBinded as EventListener);
   };
 
   /**
@@ -107,7 +107,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
 
     if (checkThreshold(event)) {
       // Threshold exceeded - start drag and remove this listener
-      document.removeEventListener("mousemove", handleThresholdMove, { capture: true });
+      document.removeEventListener("mousemove", handleThresholdMove as EventListener, { capture: true });
       startDrag(event);
     }
   };
@@ -116,10 +116,10 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     if (graph && autopanning) {
       graph.off("camera-change", handleCameraChange);
     }
-    document.removeEventListener("mousemove", mousemoveBinded);
+    document.removeEventListener("mousemove", mousemoveBinded as EventListener);
     // Also remove threshold listener if it was added
     if (threshold > 0) {
-      document.removeEventListener("mousemove", handleThresholdMove, { capture: true });
+      document.removeEventListener("mousemove", handleThresholdMove as EventListener, { capture: true });
     }
   };
 
@@ -140,45 +140,45 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   if (stopOnMouseLeave) {
     document.addEventListener(
       "mouseleave",
-      (event) => {
+      ((event: Event) => {
         if (started) {
-          mouseupBinded(event);
+          mouseupBinded(event as MouseEvent);
           cleanupDragState();
         }
         finished = true;
         cleanup();
-      },
+      }) as EventListener,
       { once: true, capture: true }
     );
   }
 
   // If threshold > 0, we need to accumulate movement before starting drag
   if (threshold > 0) {
-    document.addEventListener("mousemove", handleThresholdMove, { capture: true });
+    document.addEventListener("mousemove", handleThresholdMove as EventListener, { capture: true });
   } else {
     // No threshold - start drag on first mousemove (original behavior)
     document.addEventListener(
       "mousemove",
-      (event: Event) => {
+      ((event: Event) => {
         if (finished) {
           return;
         }
         startDrag(event as MouseEvent);
-      },
+      }) as EventListener,
       { once: true, capture: true }
     );
   }
 
   document.addEventListener(
     "mouseup",
-    (event) => {
+    ((event: Event) => {
       if (started) {
-        mouseupBinded(event);
+        mouseupBinded(event as MouseEvent);
         cleanupDragState();
       }
       finished = true;
       cleanup();
-    },
+    }) as EventListener,
     { once: true, capture: true }
   );
 

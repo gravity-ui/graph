@@ -17,7 +17,7 @@ export function useBlockAnchorState(graph: Graph, anchor: TAnchor): AnchorState 
 
 export function useBlockAnchorPosition(
   state: AnchorState | undefined,
-  anchorContainerRef: React.MutableRefObject<HTMLDivElement> | undefined
+  anchorContainerRef: React.RefObject<HTMLDivElement | null> | undefined
 ) {
   useSignalEffect(() => {
     if (!state || !anchorContainerRef?.current) {

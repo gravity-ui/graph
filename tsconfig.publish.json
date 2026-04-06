@@ -5,5 +5,5 @@
     "allowJs": true,
     "paths": {}
   },
-  "exclude": ["/src/**/*.test.ts", "src/stories/*"]
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "src/stories"]
 }

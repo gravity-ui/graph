@@ -37,7 +37,7 @@ export class GroupState {
   constructor(
     protected store: GroupsListStore,
     state: TGroup,
-    private readonly groupSelectionBucket: ISelectionBucket<string | number>
+    private readonly groupSelectionBucket: ISelectionBucket<TGroupId>
   ) {
     this.$state.value = state;
   }

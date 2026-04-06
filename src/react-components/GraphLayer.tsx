@@ -34,10 +34,10 @@ export interface GraphLayerProps<TLayer extends Constructor<Layer> = Constructor
 /**
  * GraphLayer component provides declarative way to add existing Layer classes to the graph
  */
-export const GraphLayer = forwardRef<LayerInstanceForConstructor<Constructor<Layer>>, GraphLayerProps>(
+export const GraphLayer = forwardRef<LayerInstanceForConstructor<Constructor<Layer>> | null, GraphLayerProps>(
   function GraphLayer<TLayer extends Constructor<Layer>>(
     { layer: LayerClass, props }: GraphLayerProps<TLayer>,
-    ref
+    ref: React.ForwardedRef<LayerInstanceForConstructor<Constructor<Layer>> | null>
   ): React.ReactElement | null {
     // Get graph from context
     const { graph } = useGraphContext();
@@ -51,10 +51,14 @@ export const GraphLayer = forwardRef<LayerInstanceForConstructor<Constructor<Lay
     });
 
     // Always create layer using useLayer (hooks must be called unconditionally)
-    const layer = useLayer(graph, LayerClass, props);
+    const layer = useLayer(graph, LayerClass, props ?? ({} as LayerPublicProps<TLayer>));
 
     // Expose layer through ref
-    useImperativeHandle(ref, () => layer, [layer]);
+    useImperativeHandle(
+      ref as React.Ref<LayerInstanceForConstructor<Constructor<Layer>> | null>,
+      (): LayerInstanceForConstructor<Constructor<Layer>> | null => layer,
+      [layer]
+    );
 
     // GraphLayer doesn't render any visible content
     return null;

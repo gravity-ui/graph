@@ -113,7 +113,15 @@ export class CursorLayer extends Layer<TCursorLayerProps, TCursorLayerContext> {
   private currentTarget?: GraphComponent;
 
   /** Debounced cursor update function to prevent flickering on large scales */
-  private debouncedUpdateCursor: ReturnType<typeof debounce<(target?: EventedComponent) => void>>;
+  private debouncedUpdateCursor = debounce(
+    (target?: EventedComponent) => {
+      this.updateCursorForTarget(target);
+    },
+    {
+      frameInterval: 3,
+      priority: ESchedulerPriority.LOW,
+    }
+  );
 
   /**
    * Creates a new CursorLayer instance.
@@ -125,17 +133,6 @@ export class CursorLayer extends Layer<TCursorLayerProps, TCursorLayerContext> {
       // No HTML element needed - we'll apply cursor to the root element
       ...props,
     });
-
-    // Create debounced version with 10 frames delay to prevent cursor flickering
-    this.debouncedUpdateCursor = debounce(
-      (target?: EventedComponent) => {
-        this.updateCursorForTarget(target);
-      },
-      {
-        frameInterval: 3,
-        priority: ESchedulerPriority.LOW,
-      }
-    );
   }
 
   /**

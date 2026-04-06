@@ -27,9 +27,9 @@ export const useElk = (
         setResult(elkConverter(data));
         setIsLoading(false);
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         if (!isCancelled) {
-          args?.onError(error);
+          args?.onError?.(error instanceof Error ? error : new Error(String(error)));
           setIsLoading(false);
         }
       });

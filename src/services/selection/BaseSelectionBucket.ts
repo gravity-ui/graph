@@ -7,11 +7,11 @@ import type { SelectionService } from "./SelectionService";
 import {
   ESelectionStrategy,
   IEntityWithComponent,
-  ISelectionBucket,
   TSelectionDiff,
   TSelectionEntity,
   TSelectionEntityId,
 } from "./types";
+import type { ISelectionBucket } from "./types";
 
 /**
  * @abstract
@@ -85,18 +85,18 @@ export abstract class BaseSelectionBucket<
       .map((entity) => {
         // Check if entity is already a GraphComponent
         if (this.isGraphComponent(entity)) {
-          return entity as unknown as GraphComponent;
+          return entity as GraphComponent;
         }
         // Check if entity has getViewComponent method
         if (this.hasViewComponent(entity)) {
-          return (entity as unknown as IEntityWithComponent).getViewComponent();
+          return entity.getViewComponent();
         }
         return undefined;
       })
       .filter((component): component is GraphComponent => component !== undefined);
   });
 
-  protected manager: SelectionService;
+  protected manager?: SelectionService;
 
   /**
    * Check if an entity is a GraphComponent
@@ -113,12 +113,12 @@ export abstract class BaseSelectionBucket<
   /**
    * Check if an entity has getViewComponent method
    */
-  private hasViewComponent(entity: TEntity): boolean {
+  private hasViewComponent(entity: TEntity): entity is TEntity & IEntityWithComponent {
     return (
       typeof entity === "object" &&
       entity !== null &&
       "getViewComponent" in entity &&
-      typeof (entity as { getViewComponent?: unknown }).getViewComponent === "function"
+      typeof (entity as IEntityWithComponent).getViewComponent === "function"
     );
   }
 
