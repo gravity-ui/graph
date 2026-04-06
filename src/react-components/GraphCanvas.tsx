@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 
-import { TGraphColors } from "..";
+import { TResolvedGraphColors } from "..";
 import { Graph } from "../graph";
 import { setCssProps } from "../utils/functions/cssProp";
 
@@ -55,7 +55,7 @@ export function GraphCanvas({
 
   useGraphEvents(graph, cbs);
 
-  const setColors = useFn((colors: TGraphColors) => {
+  const setColors = useFn((colors: TResolvedGraphColors) => {
     setCssProps(containerRef.current, {
       "--graph-block-bg": colors.block.background,
       "--graph-block-border": colors.block.border,

@@ -43,11 +43,11 @@ export function useGraph(config: HookGraphParams) {
   }, [graph]);
 
   const setViewConfiguration = useFn((viewConfig: HookGraphParams["viewConfiguration"]) => {
-    if (viewConfig.colors) {
-      graph.setColors(config.viewConfiguration.colors);
+    if (viewConfig?.colors) {
+      graph.setColors(viewConfig.colors);
     }
-    if (viewConfig.constants) {
-      graph.setConstants(config.viewConfiguration.constants);
+    if (viewConfig?.constants) {
+      graph.setConstants(viewConfig.constants);
     }
   });
 

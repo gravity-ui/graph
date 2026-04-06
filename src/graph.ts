@@ -1,5 +1,4 @@
 import { batch, signal } from "@preact/signals-core";
-import merge from "lodash/merge";
 
 import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
 import { GraphComponent } from "./components/canvas/GraphComponent";
@@ -8,7 +7,13 @@ import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
 import { CursorLayer, CursorLayerCursorTypes } from "./components/canvas/layers/cursorLayer";
 import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
-import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
+import {
+  createInitialResolvedGraphColors,
+  initGraphConstants,
+  mergeResolvedGraphColors,
+  mergeResolvedGraphConstants,
+} from "./graphConfig";
+import type { TGraphColors, TGraphConstants, TResolvedGraphColors } from "./graphConfig";
 import { GraphEvent, GraphEventParams, GraphEventsDefinitions, isGraphEvent } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
@@ -94,7 +99,7 @@ export class Graph {
     return this.$graphColors.value;
   }
 
-  public $graphColors = signal<TGraphColors>(initGraphColors);
+  public $graphColors = signal<TResolvedGraphColors>(createInitialResolvedGraphColors());
 
   public get graphConstants() {
     return this.$graphConstants.value;
@@ -123,8 +128,8 @@ export class Graph {
   constructor(
     config: TGraphConfig,
     rootEl?: HTMLDivElement,
-    graphColors?: TGraphColors,
-    graphConstants?: TGraphConstants
+    graphColors?: RecursivePartial<TGraphColors>,
+    graphConstants?: RecursivePartial<TGraphConstants>
   ) {
     this.belowLayer = this.addLayer(BelowLayer, {});
     this.graphLayer = this.addLayer(GraphLayer, {});
@@ -160,13 +165,13 @@ export class Graph {
     return this.graphLayer;
   }
 
-  public setColors(colors: RecursivePartial<TGraphColors>) {
-    this.$graphColors.value = merge({}, this.$graphColors.value, colors);
+  public setColors(colors: RecursivePartial<TGraphColors>): void {
+    this.$graphColors.value = mergeResolvedGraphColors(this.$graphColors.value, colors);
     this.emit("colors-changed", { colors: this.graphColors });
   }
 
-  public setConstants(constants: RecursivePartial<TGraphConstants>) {
-    this.$graphConstants.value = merge({}, this.$graphConstants.value, constants);
+  public setConstants(constants: RecursivePartial<TGraphConstants>): void {
+    this.$graphConstants.value = mergeResolvedGraphConstants(this.$graphConstants.value, constants);
     this.emit("constants-changed", { constants: this.graphConstants });
   }
 

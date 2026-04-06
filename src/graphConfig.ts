@@ -1,6 +1,9 @@
+import merge from "lodash/merge";
+
 import { GraphComponent } from "./components/canvas/GraphComponent";
 import { Block } from "./components/canvas/blocks/Block";
 import { ESelectionStrategy } from "./services/selection";
+import type { RecursivePartial } from "./utils/types/helpers";
 
 export type { TResolveWheelDevice } from "./utils/functions/isTrackpadDetector";
 export { defaultResolveWheelDevice, EWheelDeviceKind } from "./utils/functions/isTrackpadDetector";
@@ -52,6 +55,18 @@ export type TCanvasColors = {
   border: string;
 };
 
+/**
+ * Colors after merge with defaults (`initGraphColors`). All sections and keys are defined.
+ */
+export type TResolvedGraphColors = {
+  canvas: TCanvasColors;
+  block: TBlockColors;
+  anchor: TAnchorColors;
+  connection: TConnectionColors;
+  connectionLabel: TConnectionLabelColors;
+  selection: TSelectionColors;
+};
+
 export type TMouseWheelBehavior = "zoom" | "scroll";
 
 export const initGraphColors: TGraphColors = {
@@ -88,6 +103,17 @@ export const initGraphColors: TGraphColors = {
     border: "#ecc113",
   },
 };
+
+export function createInitialResolvedGraphColors(): TResolvedGraphColors {
+  return merge({}, initGraphColors) as TResolvedGraphColors;
+}
+
+export function mergeResolvedGraphColors(
+  current: TResolvedGraphColors,
+  patch: RecursivePartial<TGraphColors>
+): TResolvedGraphColors {
+  return merge({}, current, patch) as TResolvedGraphColors;
+}
 
 /**
  * Constructor type for any class that extends GraphComponent
@@ -303,3 +329,10 @@ export const initGraphConstants: TGraphConstants = {
     PADDING: 10,
   },
 };
+
+export function mergeResolvedGraphConstants(
+  current: TGraphConstants,
+  patch: RecursivePartial<TGraphConstants>
+): TGraphConstants {
+  return merge({}, current, patch) as TGraphConstants;
+}
