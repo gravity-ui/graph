@@ -1,19 +1,20 @@
 import { Component } from "../../../lib/Component";
 import { CoreComponent } from "../../../lib/CoreComponent";
 import { BlockState } from "../../../store/block/Block";
+import type { TGraphSettingsConfig } from "../../../store/settings";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
 import { Block } from "./Block";
 
 export class Blocks extends Component {
   protected blocks: BlockState[] = [];
-  protected blocksView = {};
+  protected blocksView: TGraphSettingsConfig["blockComponents"] = {};
 
   public declare context: TGraphLayerContext;
 
   protected readonly unsubscribe: (() => void)[];
 
-  private font: string;
+  private font!: string;
 
   constructor(props: {}, context: CoreComponent) {
     super(props, context);
@@ -23,8 +24,9 @@ export class Blocks extends Component {
     this.prepareFont(this.getFontScale());
   }
 
-  protected getFontScale() {
-    return this.context.graph.rootStore.settings.getConfigFlag("scaleFontSize");
+  protected getFontScale(): number {
+    const scale = this.context.graph.rootStore.settings.getConfigFlag("scaleFontSize");
+    return typeof scale === "number" ? scale : 1;
   }
 
   protected rerender() {
@@ -35,7 +37,9 @@ export class Blocks extends Component {
 
   protected subscribe() {
     this.blocks = this.context.graph.rootStore.blocksList.$blocks.value;
-    this.blocksView = this.context.graph.rootStore.settings.getConfigFlag("blockComponents");
+    this.blocksView = this.context.graph.rootStore.settings.getConfigFlag(
+      "blockComponents"
+    ) as TGraphSettingsConfig["blockComponents"];
     return [
       this.context.graph.rootStore.blocksList.$blocks.subscribe((blocks) => {
         this.blocks = blocks;
@@ -48,7 +52,7 @@ export class Blocks extends Component {
     ];
   }
 
-  private prepareFont(scaleFontSize) {
+  private prepareFont(scaleFontSize: number): void {
     this.font = `bold ${Math.round(this.context.constants.text.BASE_FONT_SIZE * scaleFontSize)}px sans-serif`;
   }
 
@@ -66,7 +70,7 @@ export class Blocks extends Component {
           font: this.font,
         },
         {
-          key: block.id,
+          key: String(block.id),
         }
       );
     });

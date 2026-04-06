@@ -12,6 +12,7 @@ import { BlockState, IS_BLOCK_TYPE, TBlockId } from "../../../store/block/Block"
 import { selectBlockById } from "../../../store/block/selectors";
 import { PortState } from "../../../store/connection/port/Port";
 import { createAnchorPortId, createBlockPointPortId } from "../../../store/connection/port/utils";
+import { logDev } from "../../../utils/devLog";
 import { isAllowDrag, isMetaKeyEvent } from "../../../utils/functions";
 import { clamp } from "../../../utils/functions/clamp";
 import { TMeasureTextOptions } from "../../../utils/functions/text";
@@ -104,7 +105,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   public declare props: Props;
 
-  public connectedState: BlockState<T>;
+  public connectedState!: BlockState<T>;
 
   private connectedStateUnsubscribers: (() => void)[] = [];
 
@@ -112,13 +113,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   protected startDragCoords: number[] = [];
 
-  protected shouldRenderText: boolean;
+  protected shouldRenderText = false;
 
-  protected shouldRenderHtml: boolean;
-
-  protected raised: boolean;
-
-  protected hidden: boolean;
+  protected hidden = false;
 
   protected currentState(): T {
     return this.connectedState.$state.value;
@@ -142,8 +139,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   protected updateViewState(params: Partial<BlockViewState>) {
     let hasChanges = false;
-    for (const [key, value] of Object.entries(params)) {
-      if (this.$viewState.value[key] !== value) {
+    for (const key of Object.keys(params) as (keyof BlockViewState)[]) {
+      const value = params[key];
+      if (value !== undefined && this.$viewState.value[key] !== value) {
         hasChanges = true;
         break;
       }
@@ -176,7 +174,12 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.connectedStateUnsubscribers.forEach((unsub) => unsub());
     this.connectedStateUnsubscribers = [];
 
-    this.connectedState = selectBlockById<T>(this.context.graph, id);
+    const nextConnected = selectBlockById<T>(this.context.graph, id);
+    if (!nextConnected) {
+      logDev(`BlockState not found for id "${String(id)}"`);
+      return;
+    }
+    this.connectedState = nextConnected;
     this.state = cloneDeep(this.connectedState.$state.value);
     this.connectedState.setViewComponent(this);
     this.setState({
@@ -229,7 +232,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected willMount(): void {
-    this.addEventListener("click", this.handleClick);
+    this.addEventListener("click", (event: Event) => {
+      this.handleClick(event as MouseEvent);
+    });
   }
 
   protected calcZIndex() {
@@ -450,7 +455,12 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       return undefined;
     }
 
-    return this.state.anchors.map((anchor) => {
+    const anchors = this.state.anchors;
+    if (!anchors) {
+      return undefined;
+    }
+
+    return anchors.map((anchor) => {
       return this.renderAnchor(anchor);
     });
   }
@@ -569,7 +579,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     connectionsList.releasePort(createBlockPointPortId(this.state.id, true), this);
     connectionsList.releasePort(createBlockPointPortId(this.state.id, false), this);
 
-    this.state.anchors.forEach((anchor) => {
+    this.state.anchors?.forEach((anchor) => {
       connectionsList.releasePort(createAnchorPortId(this.state.id, anchor.id), this);
     });
 

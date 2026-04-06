@@ -1,5 +1,6 @@
 import intersects from "intersects";
 
+import { Component } from "../../../lib/Component";
 import { HitBoxData } from "../../../services/HitTest";
 import { ESelectionStrategy } from "../../../services/selection/types";
 import { TConnection } from "../../../store/connection/ConnectionState";
@@ -23,8 +24,8 @@ export type TConnectionProps = TBaseConnectionProps & {
 
 export type TBlockConnection = {
   id: string;
-  addInRenderOrder(cmp, setting: object): void;
-  removeFromRenderOrder(cmp): void;
+  addInRenderOrder(cmp: Component, setting: object): void;
+  removeFromRenderOrder(cmp: Component): void;
 };
 
 export class BlockConnection<T extends TConnection>
@@ -33,7 +34,7 @@ export class BlockConnection<T extends TConnection>
 {
   public readonly cursor = "pointer";
 
-  protected path2d: Path2D;
+  protected path2d!: Path2D;
 
   protected labelGeometry: { x: number; y: number; width: number; height: number } | undefined = undefined;
 

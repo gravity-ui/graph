@@ -10,6 +10,7 @@ import { selectBlockById } from "../store/block/selectors";
 import { TConnection, TConnectionId } from "../store/connection/ConnectionState";
 import { selectConnectionById } from "../store/connection/selectors";
 import { TGraphSettingsConfig } from "../store/settings";
+import { logDev } from "../utils/devLog";
 import { getBlocksRect, getElementsRect, startAnimation } from "../utils/functions";
 import type { RecursivePartial } from "../utils/types/helpers";
 import { TRect } from "../utils/types/shapes";
@@ -226,8 +227,12 @@ export class PublicGraphApi {
     });
   }
 
-  public updateConnection(id: TConnectionId, connection: Partial<TConnection>) {
+  public updateConnection(id: TConnectionId, connection: Partial<TConnection>): void {
     const connectionStore = selectConnectionById(this.graph, id);
+    if (!connectionStore) {
+      logDev(`updateConnection: connection not found: ${String(id)}`);
+      return;
+    }
     connectionStore.updateConnection(connection);
   }
 
