@@ -27,6 +27,8 @@ export class GroupState {
     component: Group,
   });
 
+  public readonly $viewComponent = signal<Group | undefined>(undefined);
+
   /**
    * When true, the group's rect should not be auto-updated based on contained blocks.
    * Used during Shift+drag to keep the group visually stable.
@@ -40,6 +42,14 @@ export class GroupState {
     private readonly groupSelectionBucket: ISelectionBucket<string | number>
   ) {
     this.$state.value = state;
+  }
+
+  public setViewComponent(component: Group) {
+    this.$viewComponent.value = component;
+  }
+
+  public getViewComponent() {
+    return this.$viewComponent.value;
   }
 
   /**

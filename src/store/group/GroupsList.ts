@@ -36,6 +36,12 @@ export class GroupsListStore {
     },
     (element) => {
       return element instanceof Group;
+    },
+    (ids) => {
+      return this.getGroupStates(ids)
+        .filter((value): value is GroupState => Boolean(value))
+        .map((group) => group.getViewComponent())
+        .filter((value): value is Group => Boolean(value));
     }
   );
 
