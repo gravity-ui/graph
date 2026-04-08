@@ -44,7 +44,7 @@ export class GroupState {
     this.$state.value = state;
   }
 
-  public setViewComponent(component: Group) {
+  public setViewComponent(component: Group | undefined) {
     this.$viewComponent.value = component;
   }
 

@@ -226,6 +226,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
         selected,
       });
     });
+    this.groupState.setViewComponent(this);
     return this.subscribeSignal(this.groupState.$state, (group) => {
       if (group) {
         this.setState({
@@ -235,6 +236,11 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
         this.updateHitBox(this.getRect(group.rect));
       }
     });
+  }
+
+  protected unmount(): void {
+    this.groupState.setViewComponent(undefined);
+    super.unmount();
   }
 
   protected updateHitBox(rect: TRect) {
