@@ -94,6 +94,12 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
   /** Whether the group is highlighted (block is being dragged over it) */
   protected highlighted = false;
 
+  /** Whether the group is currently being dragged */
+  protected isDragging = false;
+
+  private dragStartRect: { x: number; y: number } | null = null;
+  private lastSnappedPos: { x: number; y: number } | null = null;
+
   constructor(props: TGroupProps, parent: BlockGroups) {
     super(props, parent);
 
@@ -179,34 +185,81 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
   }
 
   /**
-   * Handle drag start - nothing special needed, DragService handles autopanning and cursor
+   * Override to apply snapping or other position transforms during drag.
+   * Called with the raw (pre-snap) target position computed from the drag start + cumulative diff.
+   * The default implementation returns the position unchanged (no snapping).
+   *
+   * @example
+   * ```typescript
+   * protected override snapPosition(x: number, y: number) {
+   *   const grid = 16;
+   *   return { x: Math.round(x / grid) * grid, y: Math.round(y / grid) * grid };
+   * }
+   * ```
    */
-  public override handleDragStart(_context: DragContext): void {
-    // DragService handles autopanning and cursor locking
+  protected snapPosition(x: number, y: number): { x: number; y: number } {
+    const gridSize = this.context.constants.block.SNAPPING_GRID_SIZE;
+    if (gridSize <= 1) {
+      return { x, y };
+    }
+    return {
+      x: Math.round(x / gridSize) * gridSize,
+      y: Math.round(y / gridSize) * gridSize,
+    };
   }
 
   /**
-   * Handle drag update - update group rect and notify via callback
+   * Handle drag start - stores the initial rect position and sets isDragging flag.
+   * Subclasses that override this method should call super.handleDragStart() to preserve this behavior.
+   */
+  public override handleDragStart(_context: DragContext): void {
+    this.isDragging = true;
+    this.dragStartRect = { x: this.state.rect.x, y: this.state.rect.y };
+    this.lastSnappedPos = { x: this.state.rect.x, y: this.state.rect.y };
+  }
+
+  /**
+   * Handle drag update - moves the group rect and notifies via onDragUpdate.
+   * Uses the cumulative diff from drag start so that snapPosition always operates
+   * on the absolute target position (avoids error accumulation from per-frame deltas).
+   * onDragUpdate is called only when the position actually changes.
    */
   public override handleDrag(diff: DragDiff, _context: DragContext): void {
+    if (!this.dragStartRect || !this.lastSnappedPos) {
+      return;
+    }
+
+    const { x: newX, y: newY } = this.snapPosition(
+      this.dragStartRect.x + diff.diffX,
+      this.dragStartRect.y + diff.diffY
+    );
+
+    const deltaX = newX - this.lastSnappedPos.x;
+    const deltaY = newY - this.lastSnappedPos.y;
+    this.lastSnappedPos = { x: newX, y: newY };
+
     const rect = {
-      x: this.state.rect.x + diff.deltaX,
-      y: this.state.rect.y + diff.deltaY,
+      x: newX,
+      y: newY,
       width: this.state.rect.width,
       height: this.state.rect.height,
     };
-    this.setState({
-      rect,
-    });
+    this.setState({ rect });
     this.updateHitBox(rect);
-    this.props.onDragUpdate(this.props.id, { deltaX: diff.deltaX, deltaY: diff.deltaY });
+
+    if (deltaX !== 0 || deltaY !== 0) {
+      this.props.onDragUpdate(this.props.id, { deltaX, deltaY });
+    }
   }
 
   /**
-   * Handle drag end - nothing special needed, DragService handles cleanup
+   * Handle drag end - clears isDragging flag and drag tracking state.
+   * Subclasses that override this method should call super.handleDragEnd() to preserve this behavior.
    */
   public override handleDragEnd(_context: DragContext): void {
-    // DragService handles autopanning disable and cursor unlock
+    this.isDragging = false;
+    this.dragStartRect = null;
+    this.lastSnappedPos = null;
   }
 
   protected getRect(rect = this.state.rect) {
@@ -228,11 +281,16 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     });
     this.groupState.setViewComponent(this);
     return this.subscribeSignal(this.groupState.$state, (group) => {
-      if (group) {
-        this.setState({
-          ...this.state,
-          ...group,
-        } as T);
+      if (!group) {
+        return;
+      }
+      if (this.isDragging) {
+        // Suppress rect update during drag to prevent the block bounding-box signal chain
+        // from overwriting the position set by handleDrag / subclass snapping logic.
+        const { rect: _rect, ...groupWithoutRect } = group;
+        this.setState(groupWithoutRect);
+      } else {
+        this.setState(group);
         this.updateHitBox(this.getRect(group.rect));
       }
     });
