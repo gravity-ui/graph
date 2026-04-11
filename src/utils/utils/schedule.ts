@@ -29,7 +29,11 @@ export const schedule = (fn: Function, options: TScheduleOptions) => {
         if (once) {
           isRemoved = true;
           scheduler.removeScheduler(debounceScheduler, priority);
+        } else {
+          scheduler.requestUpdate();
         }
+      } else {
+        scheduler.requestUpdate();
       }
     },
   };
@@ -89,6 +93,8 @@ export const debounce = <T extends (...args: Parameters<T>) => void>(
         if (currentRemoveScheduler) {
           currentRemoveScheduler();
         }
+      } else {
+        scheduler.requestUpdate();
       }
     },
   };
@@ -173,6 +179,8 @@ export const throttle = <T extends (...args: Parameters<T>) => void>(
         if (currentRemoveScheduler) {
           currentRemoveScheduler();
         }
+      } else {
+        scheduler.requestUpdate();
       }
     },
   };

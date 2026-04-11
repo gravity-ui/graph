@@ -18,9 +18,10 @@ export enum ESchedulerPriority {
 }
 export class GlobalScheduler {
   private schedulers: [IScheduler[], IScheduler[], IScheduler[], IScheduler[], IScheduler[]];
-  private _cAFID: number;
+  private _cAFID: number | undefined;
   private toRemove: Array<[IScheduler, ESchedulerPriority]> = [];
   private visibilityChangeHandler: (() => void) | null = null;
+  private needsUpdate = false;
 
   constructor() {
     this.tick = this.tick.bind(this);
@@ -50,9 +51,9 @@ export class GlobalScheduler {
    */
   private handleVisibilityChange(): void {
     // Only update if page becomes visible and scheduler is running
-    if (!document.hidden && this._cAFID) {
+    if (!document.hidden) {
       // Perform immediate update when tab becomes visible
-      this.performUpdate();
+      this.requestUpdate();
     }
   }
 
@@ -72,6 +73,7 @@ export class GlobalScheduler {
 
   public addScheduler(scheduler: IScheduler, index = ESchedulerPriority.MEDIUM) {
     this.schedulers[index].push(scheduler);
+    this.requestUpdate();
     return () => this.removeScheduler(scheduler, index);
   }
 
@@ -99,9 +101,19 @@ export class GlobalScheduler {
     this.cleanupVisibilityListener();
   }
 
+  public requestUpdate() {
+    this.needsUpdate = true;
+    this.start();
+  }
+
   public tick() {
-    this.performUpdate();
-    this._cAFID = rAF(this.tick);
+    if (this.needsUpdate) {
+      this.needsUpdate = false;
+      this.performUpdate();
+      this._cAFID = rAF(this.tick);
+    } else {
+      this._cAFID = undefined;
+    }
   }
 
   public performUpdate() {
@@ -164,6 +176,7 @@ export class Scheduler {
 
   public scheduleUpdate() {
     this.sheduled = true;
+    globalScheduler.requestUpdate();
   }
 
   public performUpdate() {
