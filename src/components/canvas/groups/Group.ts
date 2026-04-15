@@ -97,8 +97,8 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
   /** Whether the group is currently being dragged */
   protected isDragging = false;
 
-  private dragStartRect: { x: number; y: number } | null = null;
-  private lastSnappedPos: { x: number; y: number } | null = null;
+  protected dragStartRect: { x: number; y: number } | null = null;
+  protected lastSnappedPos: { x: number; y: number } | null = null;
 
   constructor(props: TGroupProps, parent: BlockGroups) {
     super(props, parent);

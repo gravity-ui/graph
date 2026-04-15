@@ -299,143 +299,25 @@ For more details on the drag system, see [Drag System](../system/drag-system.md)
 
 ### 5. Evented Areas
 
-Evented areas let you define **interactive sub-regions** inside a component — each with its own set of event handlers. Instead of creating separate child components for small interactive zones (buttons, icons, resize handles drawn on canvas), you declare them inline during `render()`.
-
-#### API
+Declare **interactive sub-regions** on a component from `render()`:
 
 ```typescript
 protected eventedArea(fn: (state: TEventedAreaState) => TRect, params: TEventedAreaParams): TRect
 ```
 
-| Parameter | Description |
-|-----------|-------------|
-| `fn` | A callback that receives the area's local state (`TEventedAreaState`), draws the area on the canvas, and returns its bounding `TRect` (`{ x, y, width, height }`) in world coordinates. |
-| `params` | An object with a required `key`, event handlers, and an optional `onHitBox` callback. |
-
-**`TEventedAreaState`:**
-
-```typescript
-type TEventedAreaState = {
-  hovered: boolean;
-};
-```
-
-The framework automatically tracks hover state per area key. When cursor enters/leaves an area, `hovered` changes and the component re-renders, so `fn` receives the updated state. This eliminates the need to manually subscribe to `mouseenter`/`mouseleave` for visual feedback.
-
-**`TEventedAreaParams`:**
-
-```typescript
-type TEventedAreaParams = {
-  key: string;
-  onHitBox?: (data: HitBoxData) => boolean;
-  [eventName: string]: ((event: Event) => void) | ((data: HitBoxData) => boolean) | string | undefined;
-};
-```
-
-- **`key`** (required) — unique identifier for the area within the component. If an area with the same key already exists, it is replaced instead of duplicated. Also used to persist the area's local state across render cycles.
-- **Event handlers** (`click`, `mouseenter`, etc.) — called when the event fires and the hit test passes.
-- **`onHitBox`** (optional) — fine-grained hit test. Receives the `HitBoxData` with world-space coordinates. Return `true` if the area should respond. When omitted, a default AABB intersection check against the area rect is used.
-
-The method returns the `TRect` produced by `fn`, so you can use it for further layout calculations.
-
-#### How It Works
-
-1. **Registration** — `eventedArea()` is called during `render()`. It executes `fn(state)` (which draws on the canvas and returns the rect), stores the area with its handlers.
-2. **Local state** — the framework maintains `hovered` state per area key. When the hover state changes, the component automatically re-renders so `fn` receives the updated `{ hovered }`.
-3. **Cleanup** — all areas are cleared in `willRender()` before each render cycle, so they always match the current visual state. The hover key persists across renders.
-4. **Event dispatch** — when `_fireEvent` is invoked on the component, it checks each registered area: if the area has a handler for the event type and `onHitBox` (or the default AABB check) confirms a hit, the handler fires.
-5. **Listener detection** — `_hasListener` accounts for evented areas, so events bubble correctly to components that only use evented areas without conventional `addEventListener` calls.
-
-#### Usage Examples
-
-**Basic: two clickable zones on a block**
-
-```typescript
-class MyBlock extends CanvasBlock {
-  protected render() {
-    super.render();
-
-    // Top-left 50×50 "edit" button — uses hovered state for visual feedback
-    this.eventedArea(
-      ({ hovered }) => {
-        const ctx = this.context.ctx;
-        ctx.fillStyle = hovered ? "rgba(0, 120, 255, 0.4)" : "rgba(0, 120, 255, 0.2)";
-        ctx.fillRect(this.state.x, this.state.y, 50, 50);
-        return { x: this.state.x, y: this.state.y, width: 50, height: 50 };
-      },
-      {
-        key: "edit-btn",
-        click: () => this.onEditClick(),
-      }
-    );
-
-    // Top-right 50×50 "delete" button
-    this.eventedArea(
-      ({ hovered }) => {
-        const ctx = this.context.ctx;
-        ctx.fillStyle = hovered ? "rgba(255, 0, 0, 0.4)" : "rgba(255, 0, 0, 0.2)";
-        const x = this.state.x + this.state.width - 50;
-        ctx.fillRect(x, this.state.y, 50, 50);
-        return { x, y: this.state.y, width: 50, height: 50 };
-      },
-      {
-        key: "delete-btn",
-        click: () => this.onDeleteClick(),
-      }
-    );
-  }
-}
-```
-
-**Custom `onHitBox` for circular areas**
+`fn` draws the region and returns its world-space `TRect`; `state` includes `hovered`. `params` must set a unique `key` per area, optional `onHitBox` for custom hit-testing, and handlers such as `click` / `mouseenter`. Areas are re-registered each frame; hover is tracked per `key`.
 
 ```typescript
 this.eventedArea(
-  () => {
-    const cx = this.state.x + 25;
-    const cy = this.state.y + 25;
-    const r = 25;
+  ({ hovered }) => {
     const ctx = this.context.ctx;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fill();
-    return { x: cx - r, y: cy - r, width: r * 2, height: r * 2 };
+    ctx.fillStyle = hovered ? "rgba(0, 120, 255, 0.4)" : "rgba(0, 120, 255, 0.2)";
+    ctx.fillRect(this.state.x, this.state.y, 40, 40);
+    return { x: this.state.x, y: this.state.y, width: 40, height: 40 };
   },
-  {
-    key: "circle-btn",
-    onHitBox: (data) => {
-      const cx = this.state.x + 25;
-      const cy = this.state.y + 25;
-      const dx = ((data.minX + data.maxX) / 2) - cx;
-      const dy = ((data.minY + data.maxY) / 2) - cy;
-      return dx * dx + dy * dy <= 25 * 25;
-    },
-    click: (e) => {
-      e.stopPropagation();
-      this.onCircleClick();
-    },
-  }
+  { key: "btn", click: () => this.onBtn() },
 );
 ```
-
-**Conditional areas**
-
-Areas are rebuilt each render, so you can conditionally include them:
-
-```typescript
-protected render() {
-  super.render();
-
-  if (this.state.showControls) {
-    this.eventedArea(
-      () => { /* draw control, return rect */ },
-      { key: "control", click: () => this.handleControlClick() }
-    );
-  }
-}
-```
-
-When `showControls` becomes `false` and the component re-renders, the area disappears and no longer responds to events — no manual cleanup required.
 
 ### 4. Reactive Data with Signal Subscriptions
 

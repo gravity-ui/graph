@@ -110,63 +110,13 @@ if (graph.rootStore.connectionsList.hasPort("block-1_output")) {
 
 ### Port Delegation
 
-Port delegation allows one component to temporarily take control of another component's port position. While delegated, the port mirrors the position of its delegate target. The original owner continues to call `setPoint()` as usual, but those values are silently saved — the effective position comes from the delegate. When delegation ends, the port restores its last saved position as if nothing happened.
-
-**Why this is useful:** Sometimes a component needs to intercept port positions of other components without those components knowing about it. For example, `CollapsibleGroup` collapses a group of blocks into a compact header. When collapsed, the group hides all its blocks but their external connections must remain visible — now originating from the group's edges instead of the hidden blocks. The group creates its own edge ports and delegates all block ports to them:
-
-```
-Before collapse:              After collapse:
-                              ┌─────────────┐
-[Block-1] ──conn──→ [Outer]  │ [−] Group   ├──conn──→ [Outer]
-[Block-2]                     └─────────────┘
-```
-
-The block ports don't know they're delegated — they keep receiving `setPoint()` calls from their owners as blocks move inside the group. When the group expands, delegation is removed and connections snap back to their original block positions.
-
-#### API
+While delegated, a port mirrors another port’s position; `setPoint()` on the owner is stored and applied again on `undelegate()`. `CollapsibleGroup` uses this so connections attach to group edge ports when collapsed.
 
 ```typescript
-const blockPort = graph.rootStore.connectionsList.ports.getPort("block-1_output");
-const groupEdgePort = graph.rootStore.connectionsList.ports.getPort("group-1_right");
-
-// Delegate: blockPort now mirrors groupEdgePort's position
 blockPort.delegate(groupEdgePort);
-
-blockPort.getPoint();      // returns groupEdgePort's position
-blockPort.isDelegated;     // true
-
-// Owner keeps calling setPoint — values are saved, not applied
-blockPort.setPoint(100, 200);
-blockPort.getPoint();      // still returns groupEdgePort's position
-
-// Moving the delegate target automatically updates all delegated ports
-groupEdgePort.setPoint(300, 400);
-blockPort.getPoint();      // { x: 300, y: 400 }
-
-// Remove delegation — restores last saved position
-blockPort.undelegate();
-blockPort.getPoint();      // { x: 100, y: 200 }
-blockPort.isDelegated;     // false
+blockPort.getPoint(); // groupEdgePort position
+blockPort.undelegate(); // restores saved position
 ```
-
-#### How CollapsibleGroup uses delegation
-
-When a group collapses:
-1. The group creates two edge ports (left and right) positioned at the collapsed rect edges
-2. All block ports inside the group are delegated to the appropriate edge port (input → left, output → right)
-3. External connections now visually originate from the group's edges
-4. Internal connections (both endpoints in the group) are hidden via `$hidden` signal
-5. When the group is dragged, only the edge ports need to move — all delegated ports follow automatically
-
-When the group expands:
-1. All block ports are undelegated — they restore their original positions
-2. Connections snap back to their block positions
-
-#### Key behaviors
-
-- `$point` signal is reactive — subscribers (connections) automatically update when the delegate moves
-- If `setPoint()` is never called during delegation, `undelegate()` restores the position from before `delegate()` was called
-- If `setPoint()` is called multiple times during delegation, the last value wins on `undelegate()`
 
 ## Styling and Visual Customization
 

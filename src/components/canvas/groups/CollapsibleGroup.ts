@@ -174,7 +174,22 @@ const defaultGeometry: TGroupGeometry = {
   padding: [20, 20, 20, 20],
 };
 
+/**
+ * Cached result of {@link CollapsibleGroup.getPortDelegationCounts}; invalidated
+ * when delegation membership changes (delegate/undelegate), not when rects move.
+ */
+type TPortDelegationCounts = { left: number; right: number };
+
 export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> extends Group<T> {
+  /** Snapshot of `collapsedRect` at drag start; see {@link handleDrag}. */
+  private dragStartCollapsedRect: TRect | null = null;
+
+  /**
+   * Lazily computed delegation counts for {@link renderCollapsedView}; cleared when
+   * delegation changes (delegate/undelegate ports).
+   */
+  private portDelegationCountsCache: TPortDelegationCounts | undefined;
+
   public static define(config: {
     style?: Partial<TGroupStyle>;
     geometry?: Partial<TGroupGeometry>;
@@ -266,27 +281,59 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
   }
 
   /**
-   * When dragging a collapsed group, also move the collapsedRect.
+   * Remember inner rect and collapsed rect so {@link handleDrag} can translate
+   * `collapsedRect` by the same snapped delta as `rect` (grid snapping in Group).
+   */
+  public override handleDragStart(context: DragContext): void {
+    super.handleDragStart(context);
+    // Use store snapshot — component `this.state` can lag behind after collapse/expand.
+    const group = this.groupState.$state.value as T;
+    if (group.collapsed && group.collapsedRect) {
+      this.dragStartCollapsedRect = { ...group.collapsedRect };
+    } else {
+      this.dragStartCollapsedRect = null;
+    }
+  }
+
+  public override handleDragEnd(context: DragContext): void {
+    this.dragStartCollapsedRect = null;
+    super.handleDragEnd(context);
+  }
+
+  /**
+   * When dragging a collapsed group, move `collapsedRect` in lockstep with the snapped
+   * `rect` movement computed by {@link Group.handleDrag} (not per-frame mouse deltas).
    */
   public override handleDrag(diff: DragDiff, context: DragContext): void {
-    const state = this.state as T;
-    if (state.collapsed && state.collapsedRect) {
-      const newCollapsedRect = {
-        x: state.collapsedRect.x + diff.deltaX,
-        y: state.collapsedRect.y + diff.deltaY,
-        width: state.collapsedRect.width,
-        height: state.collapsedRect.height,
-      };
-      // Update collapsedRect in the store so it persists
-      this.groupState.updateGroup({
-        collapsedRect: newCollapsedRect,
-      } as Partial<T>);
-      // Move group edge ports — use getRect so port positions stay consistent
-      // with where delegatePorts() originally placed them (both use getRect).
-      this.updateGroupPortPositions(this.getRect(newCollapsedRect));
+    if (!this.dragStartRect || !this.lastSnappedPos) {
+      return;
     }
-    // Let base Group handle the rest (update rect, hitbox, onDragUpdate)
     super.handleDrag(diff, context);
+    const group = this.groupState.$state.value as T;
+    if (!group.collapsed || !group.collapsedRect || !this.dragStartCollapsedRect || !this.dragStartRect) {
+      return;
+    }
+    // Same snapped inner position Group uses (see Group.handleDrag) — avoids relying on
+    // store vs component state timing with withBlockGrouping during drag.
+    const { x: newInnerX, y: newInnerY } = this.snapPosition(
+      this.dragStartRect.x + diff.diffX,
+      this.dragStartRect.y + diff.diffY
+    );
+    const dx = newInnerX - this.dragStartRect.x;
+    const dy = newInnerY - this.dragStartRect.y;
+    if (dx === 0 && dy === 0) {
+      return;
+    }
+    const newCollapsedRect = {
+      x: this.dragStartCollapsedRect.x + dx,
+      y: this.dragStartCollapsedRect.y + dy,
+      width: this.dragStartCollapsedRect.width,
+      height: this.dragStartCollapsedRect.height,
+    };
+    this.groupState.updateGroup({
+      collapsedRect: newCollapsedRect,
+    } as Partial<T>);
+    this.updateGroupPortPositions(this.getRect(newCollapsedRect));
   }
 
   // ---------------------------------------------------------------------------
@@ -310,10 +357,15 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
    * Returns the number of ports currently delegated to the left and right
    * group edge ports. Only meaningful when the group is collapsed.
    *
-   * Use this inside `renderCollapsedView` to render anchor chip indicators
-   * showing how many connections enter/leave the collapsed group.
+   * Cost is O(blocks × anchors) per call when the cache is cold — typical group
+   * sizes keep this cheap. The result is cached until delegation changes
+   * ({@link delegatePorts} / {@link undelegatePorts}); override {@link renderCollapsedView}
+   * and call a custom counter if you need different invalidation rules.
    */
-  protected getPortDelegationCounts(): { left: number; right: number } {
+  protected getPortDelegationCounts(): TPortDelegationCounts {
+    if (this.portDelegationCountsCache !== undefined) {
+      return this.portDelegationCountsCache;
+    }
     let left = 0;
     let right = 0;
     this.getGroupBlocks().forEach((blockState) => {
@@ -334,7 +386,12 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
         }
       });
     });
-    return { left, right };
+    this.portDelegationCountsCache = { left, right };
+    return this.portDelegationCountsCache;
+  }
+
+  private invalidatePortDelegationCountsCache(): void {
+    this.portDelegationCountsCache = undefined;
   }
 
   /**
@@ -444,6 +501,7 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
       this.applyBlockVisibility(false);
       this.undelegatePorts();
     }
+    this.invalidatePortDelegationCountsCache();
     super.unmount();
   }
 
@@ -499,6 +557,7 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
    * updated — all delegated ports follow automatically.
    */
   private delegatePorts(targetRect?: TRect): void {
+    this.invalidatePortDelegationCountsCache();
     const rect = this.getRect(targetRect);
     this.updateGroupPortPositions(rect);
 
@@ -533,6 +592,7 @@ export class CollapsibleGroup<T extends TCollapsibleGroup = TCollapsibleGroup> e
    * original positions (saved automatically by the delegation mechanism).
    */
   private undelegatePorts(): void {
+    this.invalidatePortDelegationCountsCache();
     this.getGroupBlocks().forEach((blockState) => {
       const canvasBlock = blockState.getViewComponent();
       if (!canvasBlock) return;

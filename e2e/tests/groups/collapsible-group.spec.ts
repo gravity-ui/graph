@@ -582,7 +582,9 @@ test.describe("CollapsibleGroup", () => {
 
       await graphPO.initialize({
         blocks: BLOCKS,
-        connections: CONNECTIONS,
+        // No connections: connection geometry can sit above the group and steal hit-tests,
+        // so mousedown would not start a group drag.
+        connections: [],
         settings: {
           canDrag: "all",
           canDragCamera: false,
@@ -637,6 +639,161 @@ test.describe("CollapsibleGroup", () => {
       );
 
       await graphPO.waitForFrames(5);
+    });
+
+    /** Inner group rect center (expanded); same coordinate space as `GROUP_RECT`. */
+    const EXPANDED_GROUP_CENTER = {
+      x: GROUP_RECT.x + GROUP_RECT.width / 2,
+      y: GROUP_RECT.y + GROUP_RECT.height / 2,
+    };
+
+    test("collapse → drag collapsed header → expand keeps geometry and hitbox", async () => {
+      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
+
+      const before = await graphPO.page.evaluate(() => {
+        const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+        return { collapsedRect: g?.collapsedRect, rect: g?.rect };
+      });
+      expect(before.collapsedRect).toBeDefined();
+
+      await graphPO.dragTo(
+        before.collapsedRect!.x + before.collapsedRect!.width / 2,
+        before.collapsedRect!.y + before.collapsedRect!.height / 2,
+        before.collapsedRect!.x + before.collapsedRect!.width / 2 + 50,
+        before.collapsedRect!.y + before.collapsedRect!.height / 2 + 30,
+        { waitFrames: 25 },
+      );
+
+      const after = await graphPO.page.evaluate(() => {
+        const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+        return { collapsedRect: g?.collapsedRect, rect: g?.rect };
+      });
+
+      const rdx = after.rect!.x - before.rect!.x;
+      const rdy = after.rect!.y - before.rect!.y;
+      expect(rdx).not.toBe(0);
+      expect(rdy).not.toBe(0);
+
+      const crBefore = before.collapsedRect!;
+      const crAfter = after.collapsedRect;
+      expect(crAfter?.x).toBeCloseTo(crBefore.x + rdx, 5);
+      expect(crAfter?.y).toBeCloseTo(crBefore.y + rdy, 5);
+
+      const collapsedCenter = {
+        x: crAfter!.x + crAfter!.width / 2,
+        y: crAfter!.y + crAfter!.height / 2,
+      };
+      await graphPO.doubleClick(collapsedCenter.x, collapsedCenter.y, { waitFrames: 5 });
+
+      const expanded = await graphPO.page.evaluate(() => {
+        const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+        return { collapsed: g?.collapsed, collapsedRect: g?.collapsedRect, rect: g?.rect };
+      });
+      expect(expanded.collapsed).toBe(false);
+      expect(expanded.collapsedRect).toBeUndefined();
+      expect(expanded.rect).toBeDefined();
+
+      const listener = await graphPO.listenGraphEvents("click");
+      await graphPO.click(
+        expanded.rect!.x + expanded.rect!.width / 2,
+        expanded.rect!.y + expanded.rect!.height / 2,
+      );
+      const targets = await listener.analyze((events: any[]) =>
+        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean),
+      );
+      expect(targets).toContain("group-1");
+      await listener.stop();
+    });
+
+    test("snapped drag: collapsedRect tracks snapped inner rect (SNAPPING_GRID_SIZE > 1)", async () => {
+      await graphPO.page.evaluate(() => {
+        window.graph.setConstants({ block: { SNAPPING_GRID_SIZE: 40 } });
+      });
+      await graphPO.waitForFrames(2);
+
+      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
+
+      const innerBefore = await graphPO.page.evaluate(() => {
+        const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+        return { rect: g?.rect, collapsedRect: g?.collapsedRect };
+      });
+      expect(innerBefore?.collapsedRect).toBeDefined();
+
+      await graphPO.dragTo(
+        innerBefore!.collapsedRect!.x + innerBefore!.collapsedRect!.width / 2,
+        innerBefore!.collapsedRect!.y + innerBefore!.collapsedRect!.height / 2,
+        innerBefore!.collapsedRect!.x + innerBefore!.collapsedRect!.width / 2 + 55,
+        innerBefore!.collapsedRect!.y + innerBefore!.collapsedRect!.height / 2 + 35,
+        { waitFrames: 25 },
+      );
+
+      const after = await graphPO.page.evaluate(() => {
+        const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+        return { rect: g?.rect, collapsedRect: g?.collapsedRect };
+      });
+
+      const dx = after.rect!.x - innerBefore!.rect!.x;
+      const dy = after.rect!.y - innerBefore!.rect!.y;
+      const dcx = after.collapsedRect!.x - innerBefore!.collapsedRect!.x;
+      const dcy = after.collapsedRect!.y - innerBefore!.collapsedRect!.y;
+      expect(dcx).toBeCloseTo(dx, 5);
+      expect(dcy).toBeCloseTo(dy, 5);
+    });
+
+    test("move expanded group → collapse: hitbox matches collapsed header only", async () => {
+      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      await graphPO.dragTo(
+        EXPANDED_GROUP_CENTER.x,
+        EXPANDED_GROUP_CENTER.y,
+        EXPANDED_GROUP_CENTER.x + 70,
+        EXPANDED_GROUP_CENTER.y + 40,
+        { waitFrames: 25 },
+      );
+
+      const rectAfterDrag = await graphPO.page.evaluate(() => {
+        const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+        return g?.rect;
+      });
+      expect(rectAfterDrag).toBeDefined();
+
+      await graphPO.doubleClick(
+        rectAfterDrag!.x + rectAfterDrag!.width / 2,
+        rectAfterDrag!.y + 8,
+        { waitFrames: 5 },
+      );
+
+      const collapsed = await graphPO.page.evaluate(() => {
+        const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+        return g?.collapsedRect;
+      });
+      expect(collapsed).toBeDefined();
+
+      const belowHeader = {
+        x: collapsed!.x + collapsed!.width / 2,
+        y: collapsed!.y + collapsed!.height + 40,
+      };
+
+      const listener = await graphPO.listenGraphEvents("click");
+      await graphPO.click(belowHeader.x, belowHeader.y);
+      let targets = await listener.analyze((events: any[]) =>
+        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean),
+      );
+      expect(targets).not.toContain("group-1");
+      await listener.stop();
+
+      const headerCenter = {
+        x: collapsed!.x + collapsed!.width / 2,
+        y: collapsed!.y + collapsed!.height / 2,
+      };
+      const listener2 = await graphPO.listenGraphEvents("click");
+      await graphPO.click(headerCenter.x, headerCenter.y);
+      targets = await listener2.analyze((events: any[]) =>
+        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean),
+      );
+      expect(targets).toContain("group-1");
+      await listener2.stop();
     });
   });
 

@@ -121,7 +121,9 @@ function GraphBlockInner<T extends TBlock>(
   useEffect(() => {
     if (!autoHideCanvas) {
       if (canvasVisible !== undefined) {
-        // Manual control: delegate canvas rendering when canvasVisible=false
+        // Manual canvas visibility: use setRenderDelegated so the canvas block stays
+        // in the hit-test tree (unlike setHiddenBlock which removes the hitbox). Needed
+        // when HTML/React owns the pixels but interactions should still target the block.
         viewState?.setRenderDelegated(!canvasVisible);
       }
     } else {

@@ -152,8 +152,6 @@ const ALL_BLOCKS: TBlock[] = [...GA_BLOCKS, ...GB_BLOCKS, ...OUTER_BLOCKS];
 // ---------------------------------------------------------------------------
 // Auto-grouping class — groups are derived from block.group field, rect is
 // recomputed automatically as blocks move (with GROUP_PAD padding).
-// On collapse, CollapsibleGroup calls groupState.lockSize() so this computed
-// rect doesn't override the compact header; on expand, lockSize() is released.
 // ---------------------------------------------------------------------------
 const CollapsibleBlockGroups = BlockGroups.withBlockGrouping<BlockGroupsProps, BlockGroups>({
   groupingFn: (blocks: BlockState[]): Record<string, BlockState[]> => {
@@ -175,7 +173,6 @@ const CollapsibleBlockGroups = BlockGroups.withBlockGrouping<BlockGroupsProps, B
       width: rect.width + GROUP_PAD * 2,
       height: rect.height + GROUP_PAD * 2,
     },
-    collapsed: !!(Math.floor(Math.random() * 10) % 2),
     component: CollapsibleGroup,
     collapseDirection: { x: "center", y: "center" },
     // `collapsed` is intentionally omitted: existing state is preserved by
