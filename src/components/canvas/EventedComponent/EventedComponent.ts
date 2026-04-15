@@ -8,6 +8,15 @@ type TEventedComponentListener = Component | ((e: Event) => void);
 
 const listeners = new WeakMap<Component, Map<string, Set<TEventedComponentListener>>>();
 
+function createSyntheticHoverEvent(type: "mouseenter" | "mouseleave"): MouseEvent {
+  return new MouseEvent(type, {
+    bubbles: false,
+    cancelable: false,
+    clientX: 0,
+    clientY: 0,
+  });
+}
+
 export type TEventedAreaState = {
   hovered: boolean;
 };
@@ -88,7 +97,7 @@ export class EventedComponent<
   protected didRender() {
     super.didRender();
     if (this._hoveredEventedAreaKey !== undefined && !this._eventedAreas.has(this._hoveredEventedAreaKey)) {
-      this._prevHoveredAreaLeaveHandler?.(new Event("mouseleave"));
+      this._prevHoveredAreaLeaveHandler?.(createSyntheticHoverEvent("mouseleave"));
       this._hoveredEventedAreaKey = undefined;
     }
     this._prevHoveredAreaLeaveHandler = undefined;
@@ -134,16 +143,19 @@ export class EventedComponent<
     if (prevArea) {
       const leaveHandler = prevArea.params.mouseleave;
       if (typeof leaveHandler === "function") {
-        (leaveHandler as (event: Event) => void)(new Event("mouseleave"));
+        (leaveHandler as (event: Event) => void)(createSyntheticHoverEvent("mouseleave"));
       }
     }
 
     this._hoveredEventedAreaKey = newHoveredKey;
 
     if (newHoveredKey !== undefined) {
-      const enterHandler = this._eventedAreas.get(newHoveredKey)!.params.mouseenter;
-      if (typeof enterHandler === "function") {
-        (enterHandler as (event: Event) => void)(new Event("mouseenter"));
+      const nextArea = this._eventedAreas.get(newHoveredKey);
+      if (nextArea) {
+        const enterHandler = nextArea.params.mouseenter;
+        if (typeof enterHandler === "function") {
+          (enterHandler as (event: Event) => void)(createSyntheticHoverEvent("mouseenter"));
+        }
       }
     }
 
@@ -156,7 +168,7 @@ export class EventedComponent<
       if (area) {
         const leaveHandler = area.params.mouseleave;
         if (typeof leaveHandler === "function") {
-          (leaveHandler as (event: Event) => void)(new Event("mouseleave"));
+          (leaveHandler as (event: Event) => void)(createSyntheticHoverEvent("mouseleave"));
         }
       }
       this._hoveredEventedAreaKey = undefined;
