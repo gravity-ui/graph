@@ -176,6 +176,10 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     if (!this.context.graph.rootStore.settings.getConfigFlag("canDragCamera") || !(event instanceof MouseEvent)) {
       return;
     }
+    if (event.button === 1) {
+      // Suppress the browser's native middle-click autoscroll so we can pan instead.
+      event.preventDefault();
+    }
     if (!isMetaKeyEvent(event)) {
       // Camera drag doesn't need graph sync since it IS the camera
       dragListener(this.ownerDocument, { graph: this.context.graph, autopanning: false, dragCursor: "grabbing" })

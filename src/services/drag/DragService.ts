@@ -105,6 +105,13 @@ export class DragService {
       return;
     }
 
+    const nativeEvent = event.detail.sourceEvent;
+    if (nativeEvent instanceof MouseEvent && nativeEvent.button === 1) {
+      // Middle mouse button is reserved for camera pan. Skip drag so the
+      // event propagates to Camera.handleMouseDownEvent via component dipping.
+      return;
+    }
+
     const canDrag = this.graph.rootStore.settings.$canDrag.value;
 
     // If drag is disabled, don't start drag operation
