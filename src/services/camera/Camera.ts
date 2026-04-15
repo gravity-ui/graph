@@ -1,5 +1,6 @@
 import { EventedComponent } from "../../components/canvas/EventedComponent/EventedComponent";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
+import { GraphMouseEvent } from "../../graphEvents";
 import { Component, ESchedulerPriority } from "../../lib";
 import { TComponentProps, TComponentState } from "../../lib/Component";
 import { ComponentDescriptor } from "../../lib/CoreComponent";
@@ -36,7 +37,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
     this.addWheelListener();
     this.addEventListener("click", this.handleClick);
-    this.addEventListener("mousedown", this.handleMouseDownEvent);
+    this.context.graph.on("mousedown", this.handleMouseDownEvent);
 
     // Subscribe to auto-panning state changes
     this.context.graph.on("camera-change", this.handleCameraStateChange);
@@ -81,7 +82,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
     this.stopAutoPanning();
     this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
-    this.removeEventListener("mousedown", this.handleMouseDownEvent);
+    this.context.graph.off("mousedown", this.handleMouseDownEvent);
     this.context.graph.off("camera-change", this.handleCameraStateChange);
   }
 
@@ -172,17 +173,33 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     }
   }
 
-  private handleMouseDownEvent = (event: MouseEvent) => {
-    if (!this.context.graph.rootStore.settings.getConfigFlag("canDragCamera") || !(event instanceof MouseEvent)) {
+  private handleMouseDownEvent = (event: GraphMouseEvent) => {
+    const nativeEvent = event.detail.sourceEvent;
+    if (!(nativeEvent instanceof MouseEvent)) {
       return;
     }
-    if (!isMetaKeyEvent(event)) {
-      // Camera drag doesn't need graph sync since it IS the camera
-      dragListener(this.ownerDocument, { graph: this.context.graph, autopanning: false, dragCursor: "grabbing" })
-        .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onDragStart(event))
-        .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onDragUpdate(event))
-        .on(EVENTS.DRAG_END, () => this.onDragEnd());
+    if (!this.context.graph.rootStore.settings.getConfigFlag("canDragCamera")) {
+      return;
     }
+    if (isMetaKeyEvent(nativeEvent)) {
+      return;
+    }
+
+    if (nativeEvent.button === 1) {
+      // Middle button: preventDefault stops DragService (see graph.emit guard)
+      // and suppresses the browser's native middle-click autoscroll.
+      event.preventDefault();
+    } else if (event.detail.target !== this) {
+      // Left button: let DragService handle drags on blocks/anchors; only pan
+      // when the click lands on empty canvas (target resolved to Camera).
+      return;
+    }
+
+    // Camera drag doesn't need graph sync since it IS the camera
+    dragListener(this.ownerDocument, { graph: this.context.graph, autopanning: false, dragCursor: "grabbing" })
+      .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onDragStart(event))
+      .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onDragUpdate(event))
+      .on(EVENTS.DRAG_END, () => this.onDragEnd());
   };
 
   private onDragStart(event: MouseEvent) {
