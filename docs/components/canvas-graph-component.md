@@ -22,6 +22,7 @@ classDiagram
         +context: TComponentContext
         +addEventListener()
         +removeEventListener()
+        #eventedArea()
     }
     
     class GraphComponent {
@@ -295,6 +296,28 @@ graph.dragService.$state.subscribe((state) => {
 ```
 
 For more details on the drag system, see [Drag System](../system/drag-system.md).
+
+### 5. Evented Areas
+
+Declare **interactive sub-regions** on a component from `render()`:
+
+```typescript
+protected eventedArea(fn: (state: TEventedAreaState) => TRect, params: TEventedAreaParams): TRect
+```
+
+`fn` draws the region and returns its world-space `TRect`; `state` includes `hovered`. `params` must set a unique `key` per area, optional `onHitBox` for custom hit-testing, and handlers such as `click` / `mouseenter`. Areas are re-registered each frame; hover is tracked per `key`.
+
+```typescript
+this.eventedArea(
+  ({ hovered }) => {
+    const ctx = this.context.ctx;
+    ctx.fillStyle = hovered ? "rgba(0, 120, 255, 0.4)" : "rgba(0, 120, 255, 0.2)";
+    ctx.fillRect(this.state.x, this.state.y, 40, 40);
+    return { x: this.state.x, y: this.state.y, width: 40, height: 40 };
+  },
+  { key: "btn", click: () => this.onBtn() },
+);
+```
 
 ### 4. Reactive Data with Signal Subscriptions
 

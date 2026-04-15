@@ -85,7 +85,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
 
   public declare context: TGraphLayerContext;
   protected blocks: BlockState[] = [];
-  protected groupState: GroupState | undefined;
+  protected groupState!: GroupState<T>;
   public cursor = "pointer";
 
   protected style: TGroupStyle;
@@ -97,8 +97,8 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
   /** Whether the group is currently being dragged */
   protected isDragging = false;
 
-  private dragStartRect: { x: number; y: number } | null = null;
-  private lastSnappedPos: { x: number; y: number } | null = null;
+  protected dragStartRect: { x: number; y: number } | null = null;
+  protected lastSnappedPos: { x: number; y: number } | null = null;
 
   constructor(props: TGroupProps, parent: BlockGroups) {
     super(props, parent);
@@ -115,11 +115,11 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
 
     this.subscribeToGroup();
 
-    this.addEventListener("click", (event: MouseEvent) => {
+    this.addEventListener("click", (event) => {
       event.stopPropagation();
       this.groupState.setSelection(
         true,
-        !isMetaKeyEvent(event) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
+        !isMetaKeyEvent(event as MouseEvent | KeyboardEvent) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
       );
     });
   }
@@ -181,7 +181,7 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
    */
   public override isDraggable(): boolean {
     const canDrag = this.context.graph.rootStore.settings.$canDrag.value;
-    return Boolean(this.props.draggable) && isAllowDrag(canDrag, this.state.selected);
+    return Boolean(this.props.draggable) && isAllowDrag(canDrag, Boolean(this.state.selected));
   }
 
   /**
@@ -288,10 +288,17 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
         // Suppress rect update during drag to prevent the block bounding-box signal chain
         // from overwriting the position set by handleDrag / subclass snapping logic.
         const { rect: _rect, ...groupWithoutRect } = group;
-        this.setState(groupWithoutRect);
+        this.setState({
+          ...this.state,
+          ...groupWithoutRect,
+        } as T);
       } else {
-        this.setState(group);
-        this.updateHitBox(this.getRect(group.rect));
+        this.setState({
+          ...this.state,
+          ...group,
+        } as T);
+        // Inner blocks-area rect; updateHitBox applies geometry padding via getRect().
+        this.updateHitBox(group.rect);
       }
     });
   }
@@ -301,8 +308,9 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     super.unmount();
   }
 
-  protected updateHitBox(rect: TRect) {
-    this.setHitBox(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
+  protected updateHitBox(rect: TRect): void {
+    const hitArea = this.getRect(rect);
+    this.setHitBox(hitArea.x, hitArea.y, hitArea.x + hitArea.width, hitArea.y + hitArea.height);
   }
 
   protected layoutText(text: string, textParams?: TMeasureTextOptions) {

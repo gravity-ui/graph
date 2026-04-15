@@ -149,9 +149,27 @@ export class ConnectionState<T extends TConnection = TConnection> {
     return undefined;
   });
 
+  /**
+   * True when both source and target blocks are hidden (e.g. both inside a
+   * collapsed group). When true the connection should not be rendered.
+   */
+  public readonly $hidden = computed(() => {
+    const getBlockHidden = (component: Block | Anchor | undefined): boolean => {
+      if (component instanceof Block) return component.connectedState.$hidden.value;
+      if (component instanceof Anchor) return component.connectedState.block.$hidden.value;
+      return false;
+    };
+    return (
+      getBlockHidden(this.$sourcePortState.value.component as Block | Anchor | undefined) &&
+      getBlockHidden(this.$targetPortState.value.component as Block | Anchor | undefined)
+    );
+  });
+
   public $geometry = computed(() => {
-    if (!this.$sourcePort.value.lookup && !this.$targetPort.value.lookup) {
-      return [this.$sourcePort.value, this.$targetPort.value];
+    const sourcePort = this.$sourcePortState.value;
+    const targetPort = this.$targetPortState.value;
+    if (!sourcePort.lookup && !targetPort.lookup) {
+      return [sourcePort.$point.value, targetPort.$point.value];
     }
     return undefined;
   });

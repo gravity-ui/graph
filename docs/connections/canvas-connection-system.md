@@ -108,6 +108,16 @@ if (graph.rootStore.connectionsList.hasPort("block-1_output")) {
 
 **Ownership Model**: Components that own ports (blocks, anchors) are responsible for updating port coordinates. Components that observe ports (connections) read coordinates for rendering but don't control them. Ports are automatically cleaned up when they have no owner and no observers.
 
+### Port Delegation
+
+While delegated, a port mirrors another port’s position; `setPoint()` on the owner is stored and applied again on `undelegate()`. `CollapsibleGroup` uses this so connections attach to group edge ports when collapsed.
+
+```typescript
+blockPort.delegate(groupEdgePort);
+blockPort.getPoint(); // groupEdgePort position
+blockPort.undelegate(); // restores saved position
+```
+
 ## Styling and Visual Customization
 
 Global settings control the visual appearance the default [BlockConnection](../../src/components/canvas/connections/BlockConnection.md) and behavior of all connections in your graph:

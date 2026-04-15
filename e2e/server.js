@@ -2,7 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const PORT = 6006;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 6006;
 const PAGES_DIR = path.join(__dirname, "pages");
 const BUILD_DIR = path.join(__dirname, "..", "build");
 const E2E_DIST = path.join(__dirname, "dist");

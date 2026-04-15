@@ -1,8 +1,36 @@
+import intersects from "intersects";
+
 import { Component, TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
+import { HitBoxData } from "../../../services/HitTest";
+import { TRect } from "../../../utils/types/shapes";
 
 type TEventedComponentListener = Component | ((e: Event) => void);
 
 const listeners = new WeakMap<Component, Map<string, Set<TEventedComponentListener>>>();
+
+function createSyntheticHoverEvent(type: "mouseenter" | "mouseleave"): MouseEvent {
+  return new MouseEvent(type, {
+    bubbles: false,
+    cancelable: false,
+    clientX: 0,
+    clientY: 0,
+  });
+}
+
+export type TEventedAreaState = {
+  hovered: boolean;
+};
+
+export type TEventedAreaParams = {
+  key: string;
+  onHitBox?: (data: HitBoxData) => boolean;
+  [eventName: string]: ((event: Event) => void) | ((data: HitBoxData) => boolean) | string | undefined;
+};
+
+type TEventedArea = {
+  rect: TRect;
+  params: TEventedAreaParams;
+};
 
 export type TEventedComponentProps = TComponentProps & { interactive?: boolean };
 
@@ -14,6 +42,14 @@ export class EventedComponent<
   public readonly evented: boolean = true;
 
   public cursor?: string;
+
+  protected _eventedAreas: Map<string, TEventedArea> = new Map();
+
+  protected _lastHitBoxData: HitBoxData | undefined;
+
+  protected _hoveredEventedAreaKey: string | undefined;
+
+  private _prevHoveredAreaLeaveHandler: ((event: Event) => void) | undefined;
 
   constructor(props: Props, parent: Component) {
     super(
@@ -43,6 +79,112 @@ export class EventedComponent<
   protected unmount() {
     listeners.delete(this);
     super.unmount();
+  }
+
+  protected willRender() {
+    if (this._hoveredEventedAreaKey !== undefined) {
+      const area = this._eventedAreas.get(this._hoveredEventedAreaKey);
+      if (area) {
+        const handler = area.params.mouseleave;
+        this._prevHoveredAreaLeaveHandler =
+          typeof handler === "function" ? (handler as (event: Event) => void) : undefined;
+      }
+    }
+    this._eventedAreas.clear();
+    super.willRender();
+  }
+
+  protected didRender() {
+    super.didRender();
+    if (this._hoveredEventedAreaKey !== undefined && !this._eventedAreas.has(this._hoveredEventedAreaKey)) {
+      this._prevHoveredAreaLeaveHandler?.(createSyntheticHoverEvent("mouseleave"));
+      this._hoveredEventedAreaKey = undefined;
+    }
+    this._prevHoveredAreaLeaveHandler = undefined;
+  }
+
+  private _areaHitTest(area: TEventedArea, hitBoxData: HitBoxData): boolean {
+    const onHitBox = area.params.onHitBox;
+    if (onHitBox) return onHitBox(hitBoxData);
+
+    const { x, y, width, height } = area.rect;
+    return intersects.boxBox(
+      x,
+      y,
+      width,
+      height,
+      hitBoxData.minX,
+      hitBoxData.minY,
+      hitBoxData.maxX - hitBoxData.minX,
+      hitBoxData.maxY - hitBoxData.minY
+    );
+  }
+
+  public _trackAreaHover(): void {
+    if (this._eventedAreas.size === 0 || !this._lastHitBoxData) {
+      this._clearAreaHover(true);
+      return;
+    }
+
+    const hitBoxData = this._lastHitBoxData;
+    let newHoveredKey: string | undefined;
+
+    for (const [key, area] of this._eventedAreas) {
+      if (this._areaHitTest(area, hitBoxData)) {
+        newHoveredKey = key;
+        break;
+      }
+    }
+
+    if (newHoveredKey === this._hoveredEventedAreaKey) return;
+
+    const prevArea =
+      this._hoveredEventedAreaKey !== undefined ? this._eventedAreas.get(this._hoveredEventedAreaKey) : undefined;
+    if (prevArea) {
+      const leaveHandler = prevArea.params.mouseleave;
+      if (typeof leaveHandler === "function") {
+        (leaveHandler as (event: Event) => void)(createSyntheticHoverEvent("mouseleave"));
+      }
+    }
+
+    this._hoveredEventedAreaKey = newHoveredKey;
+
+    if (newHoveredKey !== undefined) {
+      const nextArea = this._eventedAreas.get(newHoveredKey);
+      if (nextArea) {
+        const enterHandler = nextArea.params.mouseenter;
+        if (typeof enterHandler === "function") {
+          (enterHandler as (event: Event) => void)(createSyntheticHoverEvent("mouseenter"));
+        }
+      }
+    }
+
+    this.performRender();
+  }
+
+  public _clearAreaHover(scheduleRender = false): void {
+    if (this._hoveredEventedAreaKey !== undefined) {
+      const area = this._eventedAreas.get(this._hoveredEventedAreaKey);
+      if (area) {
+        const leaveHandler = area.params.mouseleave;
+        if (typeof leaveHandler === "function") {
+          (leaveHandler as (event: Event) => void)(createSyntheticHoverEvent("mouseleave"));
+        }
+      }
+      this._hoveredEventedAreaKey = undefined;
+      if (scheduleRender) {
+        this.performRender();
+      }
+    }
+  }
+
+  protected eventedArea(fn: (state: TEventedAreaState) => TRect, params: TEventedAreaParams): TRect {
+    const state: TEventedAreaState = {
+      hovered: this._hoveredEventedAreaKey === params.key,
+    };
+    const rect = fn(state);
+    this._eventedAreas.set(params.key, { rect, params });
+    return rect;
   }
 
   protected handleEvent(_: Event) {
@@ -84,6 +226,20 @@ export class EventedComponent<
       }
       return undefined;
     });
+
+    if (cmp instanceof EventedComponent && cmp._eventedAreas.size > 0 && cmp._lastHitBoxData) {
+      if (event.type === "mouseenter" || event.type === "mouseleave") return;
+
+      const hitBoxData = cmp._lastHitBoxData;
+      for (const area of cmp._eventedAreas.values()) {
+        const handler = area.params[event.type];
+        if (typeof handler !== "function") continue;
+
+        if (cmp._areaHitTest(area, hitBoxData)) {
+          (handler as (event: Event) => void)(event);
+        }
+      }
+    }
   }
 
   public dispatchEvent(event: Event): boolean {
@@ -116,6 +272,12 @@ export class EventedComponent<
   }
 
   protected _hasListener(comp: EventedComponent, type: string) {
-    return listeners.get(comp)?.has?.(type);
+    if (listeners.get(comp)?.has?.(type)) return true;
+    if (comp._eventedAreas?.size > 0) {
+      for (const area of comp._eventedAreas.values()) {
+        if (typeof area.params[type] === "function") return true;
+      }
+    }
+    return false;
   }
 }

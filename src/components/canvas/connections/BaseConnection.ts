@@ -3,7 +3,7 @@ import { TComponentState } from "../../../lib/Component";
 import { ConnectionState, TConnection, TConnectionId } from "../../../store/connection/ConnectionState";
 import { selectConnectionById } from "../../../store/connection/selectors";
 import { debounce } from "../../../utils/functions";
-import { TPoint } from "../../../utils/types/shapes";
+import { TPoint, TRect } from "../../../utils/types/shapes";
 import { GraphComponent, GraphComponentContext } from "../GraphComponent";
 import { TAnchor } from "../anchors";
 import { Block } from "../blocks/Block";
@@ -159,8 +159,19 @@ export class BaseConnection<
       this.updatePoints();
     });
 
+    // When both endpoints are hidden (e.g. both blocks inside a collapsed group)
+    // schedule a re-render so willIterate() picks up the new isVisible() result.
+    this.subscribeSignal(this.connectedState.$hidden, () => {
+      this.performRender();
+    });
+
     // Enable hover interaction
     this.listenEvents(["mouseenter", "mouseleave"]);
+  }
+
+  protected override isVisible(): boolean {
+    if (this.connectedState.$hidden.value) return false;
+    return super.isVisible();
   }
 
   protected override handleEvent(event: MouseEvent) {
@@ -265,19 +276,22 @@ export class BaseConnection<
   }
 
   /**
+   * Get the current bounding box of the connection as a TRect.
+   */
+  protected override getHitBoxRect(): TRect {
+    const [minX, minY, maxX, maxY] = this.getBBox();
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }
+
+  /**
    * Updates the hit box for user interaction
    * Adds threshold padding around the connection line to make it easier to click
    *
    * @returns {void}
    */
   private updateHitBox = (): void => {
-    const [x1, y1, x2, y2] = this.getBBox();
+    const { x, y, width, height } = this.getHitBoxRect();
     const threshold = this.context.constants.connection.THRESHOLD_LINE_HIT;
-    this.setHitBox(
-      Math.min(x1, x2) - threshold,
-      Math.min(y1, y2) - threshold,
-      Math.max(x1, x2) + threshold,
-      Math.max(y1, y2) + threshold
-    );
+    this.setHitBox(x - threshold, y - threshold, x + width + threshold, y + height + threshold);
   };
 }
