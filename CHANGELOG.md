@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.10.0](https://github.com/gravity-ui/graph/compare/v1.9.3...v1.10.0) (2026-04-15)
+
+
+### Features
+
+* **Groups:** CollapsibleGroup ([#259](https://github.com/gravity-ui/graph/issues/259)) ([4f88cdd](https://github.com/gravity-ui/graph/commit/4f88cddc12d414b27577444872ea58b9ace21364))
+
+
+### Bug Fixes
+
+* **camera:** pan with middle mouse button instead of dragging blocks ([#286](https://github.com/gravity-ui/graph/issues/286)) ([28b3fdd](https://github.com/gravity-ui/graph/commit/28b3fddb9bb60e8d65012ad2e795e2a0b9361695))
+* **Group:** add resolver for groups selection bucket ([#281](https://github.com/gravity-ui/graph/issues/281)) ([c5fce35](https://github.com/gravity-ui/graph/commit/c5fce35c5b24c6811cbd175f2bc199474bf1e753))
+* **Group:** support snapping in group ([#283](https://github.com/gravity-ui/graph/issues/283)) ([80ea0fc](https://github.com/gravity-ui/graph/commit/80ea0fc75bf94af423811c8d9c8615fd65a6025b))
+
 ## [1.9.3](https://github.com/gravity-ui/graph/compare/v1.9.2...v1.9.3) (2026-03-27)
 
 
