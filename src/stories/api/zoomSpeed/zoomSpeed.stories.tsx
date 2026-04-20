@@ -14,10 +14,11 @@ const config = generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 10, 
 const GraphApp = () => {
   const [speed, setSpeed] = useState("1");
   const [step, setStep] = useState("0.008");
+  const [panSpeed, setPanSpeed] = useState("1");
 
   const graphRef = useRef<Graph | undefined>(undefined);
 
-  const onClick: ButtonButtonProps["onClick"] = useCallback(() => {
+  const onApplyZoom: ButtonButtonProps["onClick"] = useCallback(() => {
     graphRef.current.setConstants({
       camera: {
         SPEED: Number(speed),
@@ -26,14 +27,30 @@ const GraphApp = () => {
     });
   }, [speed, step]);
 
+  const onApplyPan: ButtonButtonProps["onClick"] = useCallback(() => {
+    graphRef.current.setConstants({
+      camera: {
+        PAN_SPEED: Number(panSpeed),
+      },
+    });
+  }, [panSpeed]);
+
   return (
     <ThemeProvider theme={"light"}>
-      <Flex direction={"column"} width={320} gap={2} style={{ marginBottom: "10px" }}>
-        <TextInput type="number" label="speed" value={speed} onUpdate={setSpeed} />
-        <TextInput type="number" label="step" value={step} onUpdate={setStep} />
-        <Button onClick={onClick} view="action">
-          apply zoom config
-        </Button>
+      <Flex direction={"row"} gap={6} style={{ marginBottom: "10px" }}>
+        <Flex direction={"column"} width={320} gap={2}>
+          <TextInput type="number" label="speed" value={speed} onUpdate={setSpeed} />
+          <TextInput type="number" label="step" value={step} onUpdate={setStep} />
+          <Button onClick={onApplyZoom} view="action">
+            apply zoom config
+          </Button>
+        </Flex>
+        <Flex direction={"column"} width={320} gap={2}>
+          <TextInput type="number" label="pan speed" value={panSpeed} onUpdate={setPanSpeed} />
+          <Button onClick={onApplyPan} view="action">
+            apply pan config
+          </Button>
+        </Flex>
       </Flex>
       <GraphComponentStory graphRef={graphRef} config={config}></GraphComponentStory>
     </ThemeProvider>
