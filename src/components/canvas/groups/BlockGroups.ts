@@ -214,7 +214,7 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
   public updateBlocks = (groupId: TGroupId, { deltaX, deltaY }: { deltaX: number; deltaY: number }) => {
     if (this.props.updateBlocksOnDrag) {
       const blocks = this.$groupsBlocksMap.value[groupId];
-      if (blocks) {
+      if (blocks?.length) {
         blocks.forEach((block) => {
           block.updateXY(block.x + deltaX, block.y + deltaY, true);
         });
