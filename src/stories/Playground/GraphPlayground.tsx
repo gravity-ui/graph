@@ -158,9 +158,18 @@ export function GraphPLayground() {
     });
   });
 
-  useGraphEvent(graph, "block-change", ({ block }) => {
-    editorRef?.current.updateBlocks([block]);
-    editorRef?.current.scrollTo(block.id);
+  useGraphEvent(graph, "blocks-geometry-change", ({ blocks: geometryBatch }) => {
+    if (!geometryBatch.length) {
+      return;
+    }
+    const fullBlocks = geometryBatch
+      .map((g) => graph.rootStore.blocksList.getBlock(g.id))
+      .filter((b): b is TBlock => b != null);
+    if (!fullBlocks.length) {
+      return;
+    }
+    editorRef?.current?.updateBlocks(fullBlocks);
+    editorRef?.current?.scrollTo(geometryBatch[0].id);
   });
 
   useGraphEvent(graph, "blocks-selection-change", ({ changes }) => {
