@@ -219,6 +219,13 @@ export type TGraphConstants = {
      * @default 1
      */
     PINCH_ZOOM_SPEED: number;
+    /**
+     * Multiplier for camera pan speed applied to both mouse drag and trackpad swipe gestures.
+     * Does not affect auto-panning (see AUTO_PAN_SPEED) or zoom speed (see SPEED, PINCH_ZOOM_SPEED).
+     *
+     * @default 1
+     */
+    PAN_SPEED: number;
   };
 
   block: {
@@ -273,6 +280,7 @@ export const initGraphConstants: TGraphConstants = {
     AUTO_PAN_SPEED: 5,
     MOUSE_WHEEL_BEHAVIOR: "zoom",
     PINCH_ZOOM_SPEED: 1,
+    PAN_SPEED: 1,
   },
   block: {
     WIDTH_MIN: 16 * 10,

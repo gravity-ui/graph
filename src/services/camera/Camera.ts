@@ -210,7 +210,11 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     if (!this.lastDragEvent) {
       return;
     }
-    this.camera.move(event.pageX - this.lastDragEvent.pageX, event.pageY - this.lastDragEvent.pageY);
+    const panSpeed = this.context.constants.camera.PAN_SPEED;
+    this.camera.move(
+      (event.pageX - this.lastDragEvent.pageX) * panSpeed,
+      (event.pageY - this.lastDragEvent.pageY) * panSpeed
+    );
     this.lastDragEvent = event;
   }
 
@@ -223,10 +227,11 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
    */
   private handleTrackpadMove(event: WheelEvent): void {
     const hasWrongHorizontalScroll = event.shiftKey && Math.abs(event.deltaY) > 0.001;
+    const panSpeed = this.context.constants.camera.PAN_SPEED;
 
     this.moveWithEdges(
-      hasWrongHorizontalScroll ? -event.deltaY : -event.deltaX,
-      hasWrongHorizontalScroll ? -event.deltaX : -event.deltaY
+      (hasWrongHorizontalScroll ? -event.deltaY : -event.deltaX) * panSpeed,
+      (hasWrongHorizontalScroll ? -event.deltaX : -event.deltaY) * panSpeed
     );
   }
 

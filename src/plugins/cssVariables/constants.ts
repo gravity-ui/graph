@@ -115,6 +115,7 @@ export const CSS_VARIABLE_MAPPINGS: CSSVariableMappings = [
   // Camera constants
   { cssVariable: "--graph-camera-speed", graphPath: "camera.SPEED", typeConverter: CSSVariableType.FLOAT },
   { cssVariable: "--graph-camera-step", graphPath: "camera.STEP", typeConverter: CSSVariableType.FLOAT },
+  { cssVariable: "--graph-camera-pan-speed", graphPath: "camera.PAN_SPEED", typeConverter: CSSVariableType.FLOAT },
 
   // Text constants
   {
