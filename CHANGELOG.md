@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.10.1](https://github.com/gravity-ui/graph/compare/v1.10.0...v1.10.1) (2026-04-21)
+
+
+### chore
+
+* release 1.10.1 ([5ab2b80](https://github.com/gravity-ui/graph/commit/5ab2b801ce3e7bf54697ed75cf7e4a4819f96240))
+
+
+### Features
+
+* **camera:** add PAN_SPEED constant to configure camera pan speed ([#287](https://github.com/gravity-ui/graph/issues/287)) ([7f43ff7](https://github.com/gravity-ui/graph/commit/7f43ff77e7c120df79ba6c6d03d78a8c9fe8bc6c))
+
 ## [1.10.0](https://github.com/gravity-ui/graph/compare/v1.9.3...v1.10.0) (2026-04-15)
 
 
