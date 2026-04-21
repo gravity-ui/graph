@@ -164,7 +164,7 @@ export function GraphPLayground() {
     }
     const fullBlocks = geometryBatch
       .map((g) => graph.rootStore.blocksList.getBlock(g.id))
-      .filter((b): b is TBlock => b != null);
+      .filter((b): b is TBlock => b !== undefined);
     if (!fullBlocks.length) {
       return;
     }
