@@ -26,14 +26,14 @@ declare module "../../graphEvents" {
   interface GraphEventsDefinitions {
     /**
      *
-     * Emited when selection of blocks changes.
+     * Emitted when selection of blocks changes.
      * Preventing the event will prevent selection change.
      *
      */
     "blocks-selection-change": (event: SelectionEvent<TBlockId>) => void;
 
     /**
-     * Emited when selection of block's anchor changes.
+     * Emitted when selection of block's anchor changes.
      * Preventing the event will prevent selection change.
      *
      */
@@ -47,15 +47,15 @@ declare module "../../graphEvents" {
     ) => void;
 
     /**
-     * Emited when block position is about to update via {@link BlockListStore.updatePosition}.
+     * Emitted when block position is about to update via {@link BlockListStore.updatePosition}.
      *
      * `detail.block` is a shallow snapshot (see {@link BlockState.asTBlockShallow}); do not mutate nested fields.
      * Preventing the event skips the store update and excludes the block from the next `blocks-geometry-change` batch.
      */
     "block-change": (
       event: CustomEvent<{
-        /** Changed block */
-        block: TBlock;
+        /** Shallow snapshot; nested fields are shared with the store — read-only. */
+        block: Readonly<TBlock>;
       }>
     ) => void;
 
@@ -257,16 +257,8 @@ export class BlockListStore {
    * Called when a graph drag ends so the last frame is not lost.
    */
   public flushBatchedBlocksGeometryEmit(): void {
-    if (this.batchedGeometryRaf !== null) {
-      cancelAnimationFrame(this.batchedGeometryRaf);
-      this.batchedGeometryRaf = null;
-    }
-    if (this.batchedGeometryPending.size === 0) {
-      return;
-    }
-    const blocks = Array.from(this.batchedGeometryPending.values());
-    this.batchedGeometryPending.clear();
-    this.graph.emit("blocks-geometry-change", { blocks });
+    this.clearGeometryRaf();
+    this.emitPendingBlocksGeometry();
   }
 
   private scheduleBatchedBlocksGeometryFlush(): void {
@@ -275,20 +267,28 @@ export class BlockListStore {
     }
     this.batchedGeometryRaf = requestAnimationFrame(() => {
       this.batchedGeometryRaf = null;
-      if (this.batchedGeometryPending.size === 0) {
-        return;
-      }
-      const blocks = Array.from(this.batchedGeometryPending.values());
-      this.batchedGeometryPending.clear();
-      this.graph.emit("blocks-geometry-change", { blocks });
+      this.emitPendingBlocksGeometry();
     });
   }
 
-  private cancelBatchedBlocksGeometry(): void {
+  private clearGeometryRaf(): void {
     if (this.batchedGeometryRaf !== null) {
       cancelAnimationFrame(this.batchedGeometryRaf);
       this.batchedGeometryRaf = null;
     }
+  }
+
+  private emitPendingBlocksGeometry(): void {
+    if (this.batchedGeometryPending.size === 0) {
+      return;
+    }
+    const blocks = Array.from(this.batchedGeometryPending.values());
+    this.batchedGeometryPending.clear();
+    this.graph.emit("blocks-geometry-change", { blocks });
+  }
+
+  private cancelBatchedBlocksGeometry(): void {
+    this.clearGeometryRaf();
     this.batchedGeometryPending.clear();
   }
 

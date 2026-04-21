@@ -267,7 +267,7 @@ export class BlockState<T extends TBlock = TBlock> {
    * Cheap snapshot for graph events (e.g. `block-change`): one object spread, no deep clone.
    * Nested values (`anchors`, `meta`, `settings`, …) are shared with the live store — treat as read-only.
    */
-  public asTBlockShallow(): TBlock {
+  public asTBlockShallow(): Readonly<TBlock> {
     return {
       ...this.$rawState.value,
       selected: this.$selected.value,

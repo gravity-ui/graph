@@ -59,6 +59,36 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
     expect(dGeom).toBeLessThanOrEqual(dBlock);
   });
 
+  test("after drag end, blocks-geometry-change follows last block-change (rAF or flush)", async ({ page }) => {
+    const graphPO = new GraphPageObject(page);
+    await graphPO.initialize({
+      blocks: TWO_BLOCKS,
+      connections: [],
+      settings: DRAG_SETTINGS,
+    });
+
+    await page.evaluate(() => {
+      const order: string[] = [];
+      (window as unknown as { __geometryFlushOrder: string[] }).__geometryFlushOrder = order;
+      window.graph.on("block-change", () => {
+        order.push("block-change");
+      });
+      window.graph.on("blocks-geometry-change", () => {
+        order.push("blocks-geometry-change");
+      });
+    });
+
+    const block1 = graphPO.getBlockCOM("block-1");
+    await block1.click();
+    await block1.dragTo({ x: 420, y: 260 });
+
+    const order = await page.evaluate(() => (window as unknown as { __geometryFlushOrder: string[] }).__geometryFlushOrder);
+
+    const lastBlockIdx = order.lastIndexOf("block-change");
+    expect(lastBlockIdx).toBeGreaterThan(-1);
+    expect(order.slice(lastBlockIdx + 1).includes("blocks-geometry-change")).toBe(true);
+  });
+
   test("multi-block drag: geometry batches include both ids; geometry fires less often than block-change", async ({
     page,
   }) => {
