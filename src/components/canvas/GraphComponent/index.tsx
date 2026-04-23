@@ -220,7 +220,7 @@ export class GraphComponent<
             prevCoords = startCoords;
           },
           onUpdate: (event: MouseEvent) => {
-            if (!startCoords?.length) return;
+            if (!startCoords || !prevCoords) return;
 
             const [canvasX, canvasY] = getXY(this.context.canvas, event);
             const currentCoords = this.context.camera.applyToPoint(canvasX, canvasY);
