@@ -287,9 +287,12 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
       if (this.isDragging) {
         // Suppress rect update during drag to prevent the block bounding-box signal chain
         // from overwriting the position set by handleDrag / subclass snapping logic.
+        // Use getState() instead of this.state to get the pending nextState (which includes
+        // the rect set by handleDrag in the same frame), preventing it from being overwritten
+        // with the stale this.state.rect.
         const { rect: _rect, ...groupWithoutRect } = group;
         this.setState({
-          ...this.state,
+          ...this.getState(),
           ...groupWithoutRect,
         } as T);
       } else {
