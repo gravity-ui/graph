@@ -22,7 +22,7 @@ export type { AnchorState } from "./store/anchor/Anchor";
 export type { TPort, TPortId } from "./store/connection/port/Port";
 export { createAnchorPortId, createBlockPointPortId, createPortId } from "./store/connection/port/utils";
 export { ECanChangeBlockGeometry, ECanDrag } from "./store/settings";
-export { type TMeasureTextOptions, type TWrapText } from "./utils/functions/text";
+export { getFontSize, type TMeasureTextOptions, type TWrapText } from "./utils/functions/text";
 export { ESchedulerPriority } from "./lib/Scheduler";
 export { debounce, throttle, schedule } from "./utils/functions";
 export * from "./utils/renderers/text";
