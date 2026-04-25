@@ -19,6 +19,10 @@ export type TGraphEventCallbacks = {
     event: UnwrapGraphEvents<"block-anchor-selection-change">
   ) => void;
   onBlockChange: (data: UnwrapGraphEventsDetail<"block-change">, event: UnwrapGraphEvents<"block-change">) => void;
+  onBlocksGeometryChange: (
+    data: UnwrapGraphEventsDetail<"blocks-geometry-change">,
+    event: UnwrapGraphEvents<"blocks-geometry-change">
+  ) => void;
   onConnectionSelectionChange: (
     data: UnwrapGraphEventsDetail<"connection-selection-change">,
     event: UnwrapGraphEvents<"connection-selection-change">
@@ -39,6 +43,7 @@ export const GraphCallbacksMap = {
   onBlockSelectionChange: "blocks-selection-change",
   onBlockAnchorSelectionChange: "block-anchor-selection-change",
   onBlockChange: "block-change",
+  onBlocksGeometryChange: "blocks-geometry-change",
   onConnectionSelectionChange: "connection-selection-change",
   onStateChanged: "state-change",
 } as const satisfies Record<keyof TGraphEventCallbacks, keyof GraphEventsDefinitions>;

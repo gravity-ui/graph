@@ -13,18 +13,27 @@ import { RootStore } from "../index";
 
 import { BlockState, TBlockId } from "./Block";
 
+/** Lightweight block bounds for the `blocks-geometry-change` event. */
+export type TBlockGeometrySnapshot = {
+  id: TBlockId;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 declare module "../../graphEvents" {
   interface GraphEventsDefinitions {
     /**
      *
-     * Emited when selection of blocks changes.
+     * Emitted when selection of blocks changes.
      * Preventing the event will prevent selection change.
      *
      */
     "blocks-selection-change": (event: SelectionEvent<TBlockId>) => void;
 
     /**
-     * Emited when selection of block's anchor changes.
+     * Emitted when selection of block's anchor changes.
      * Preventing the event will prevent selection change.
      *
      */
@@ -38,14 +47,25 @@ declare module "../../graphEvents" {
     ) => void;
 
     /**
-     * Emited when block changes.
+     * Emitted when block position is about to update via {@link BlockListStore.updatePosition}.
      *
-     * Preventing the event will prevent block change.
+     * `detail.block` is a shallow snapshot (see {@link BlockState.asTBlockShallow}); do not mutate nested fields.
+     * Preventing the event skips the store update and excludes the block from the next `blocks-geometry-change` batch.
      */
     "block-change": (
       event: CustomEvent<{
-        /** Changed block */
-        block: TBlock;
+        /** Shallow snapshot; nested fields are shared with the store — read-only. */
+        block: Readonly<TBlock>;
+      }>
+    ) => void;
+
+    /**
+     * Coalesced geometry updates after {@link BlockListStore.updatePosition} (at most once per animation frame).
+     * Payload is `{ id, x, y, width, height }` per block only.
+     */
+    "blocks-geometry-change": (
+      event: CustomEvent<{
+        blocks: TBlockGeometrySnapshot[];
       }>
     ) => void;
   }
@@ -58,6 +78,10 @@ export class BlockListStore {
   public $blocksMap = signal<Map<BlockState["id"], BlockState>>(new Map());
 
   public $blocks = signal<BlockState[]>([]);
+
+  private batchedGeometryPending = new Map<BlockState["id"], TBlockGeometrySnapshot>();
+
+  private batchedGeometryRaf: number | null = null;
 
   /**
    * This signal is used to store blocks in reactive state.
@@ -219,9 +243,53 @@ export class BlockListStore {
     if (!blockState) {
       return;
     }
-    this.graph.executеDefaultEventAction("block-change", { block: blockState.asTBlock() }, () => {
+
+    this.graph.executеDefaultEventAction("block-change", { block: blockState.asTBlockShallow() }, () => {
       blockState.updateBlock(nextState);
+      const geometry = blockState.$geometry.value;
+      this.batchedGeometryPending.set(id, { id, ...geometry });
+      this.scheduleBatchedBlocksGeometryFlush();
     });
+  }
+
+  /**
+   * Flushes pending `blocks-geometry-change` immediately (cancels a scheduled rAF if any).
+   * Called when a graph drag ends so the last frame is not lost.
+   */
+  public flushBatchedBlocksGeometryEmit(): void {
+    this.clearGeometryRaf();
+    this.emitPendingBlocksGeometry();
+  }
+
+  private scheduleBatchedBlocksGeometryFlush(): void {
+    if (this.batchedGeometryRaf !== null) {
+      return;
+    }
+    this.batchedGeometryRaf = requestAnimationFrame(() => {
+      this.batchedGeometryRaf = null;
+      this.emitPendingBlocksGeometry();
+    });
+  }
+
+  private clearGeometryRaf(): void {
+    if (this.batchedGeometryRaf !== null) {
+      cancelAnimationFrame(this.batchedGeometryRaf);
+      this.batchedGeometryRaf = null;
+    }
+  }
+
+  private emitPendingBlocksGeometry(): void {
+    if (this.batchedGeometryPending.size === 0) {
+      return;
+    }
+    const blocks = Array.from(this.batchedGeometryPending.values());
+    this.batchedGeometryPending.clear();
+    this.graph.emit("blocks-geometry-change", { blocks });
+  }
+
+  private cancelBatchedBlocksGeometry(): void {
+    this.clearGeometryRaf();
+    this.batchedGeometryPending.clear();
   }
 
   protected updateBlocksMap(blocks: Map<BlockState["id"], BlockState> | [BlockState["id"], BlockState][]) {
@@ -393,6 +461,7 @@ export class BlockListStore {
   }
 
   public reset() {
+    this.cancelBatchedBlocksGeometry();
     this.applyBlocksState([]);
   }
 

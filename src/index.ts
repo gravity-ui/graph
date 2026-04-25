@@ -22,6 +22,7 @@ export type { AnchorState } from "./store/anchor/Anchor";
 export type { TPort, TPortId } from "./store/connection/port/Port";
 export { createAnchorPortId, createBlockPointPortId, createPortId } from "./store/connection/port/utils";
 export { ECanChangeBlockGeometry, ECanDrag } from "./store/settings";
+export type { TBlockGeometrySnapshot } from "./store/block/BlocksList";
 export { type TMeasureTextOptions, type TWrapText } from "./utils/functions/text";
 export { ESchedulerPriority } from "./lib/Scheduler";
 export { debounce, throttle, schedule } from "./utils/functions";
