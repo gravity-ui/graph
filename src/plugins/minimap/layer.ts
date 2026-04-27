@@ -68,12 +68,13 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps> {
     this.onGraphEvent("camera-change", () => this.performRender());
     this.onGraphEvent("colors-changed", () => this.performRender());
 
-    // block-change recalculates coords: blocks may change size/position
-    // without the usableRect bounding box itself changing.
-    this.onGraphEvent("block-change", () => {
+    // block-change / batched geometry during drag — recalculate coords when blocks move
+    const onBlocksMoved = () => {
       this.calculateViewPortCoords();
       this.performRender();
-    });
+    };
+    this.onGraphEvent("block-change", onBlocksMoved);
+    this.onGraphEvent("blocks-geometry-change", onBlocksMoved);
 
     if (this.canvas) {
       this.onCanvasEvent("mousedown", this.handleMouseDownEvent);

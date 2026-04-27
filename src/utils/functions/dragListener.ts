@@ -141,11 +141,11 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     document.addEventListener(
       "mouseleave",
       (event) => {
+        finished = true;
         if (started) {
           mouseupBinded(event);
           cleanupDragState();
         }
-        finished = true;
         cleanup();
       },
       { once: true, capture: true }
@@ -172,11 +172,11 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   document.addEventListener(
     "mouseup",
     (event) => {
+      finished = true;
       if (started) {
         mouseupBinded(event);
         cleanupDragState();
       }
-      finished = true;
       cleanup();
     },
     { once: true, capture: true }
@@ -191,10 +191,10 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   );
 
   emitter.on("cancel", () => {
+    finished = true;
     if (started) {
       cleanupDragState();
     }
-    finished = true;
     cleanup();
   });
 

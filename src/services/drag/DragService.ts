@@ -236,7 +236,6 @@ export class DragService {
       components: this.dragComponents,
     };
 
-    // Notify all components about drag update
     this.dragComponents.forEach((component) => {
       component.handleDrag(diff, context);
     });
@@ -265,6 +264,7 @@ export class DragService {
       });
     }
 
+    this.graph.rootStore.blocksList.flushBatchedBlocksGeometryEmit();
     this.cleanup();
   };
 
