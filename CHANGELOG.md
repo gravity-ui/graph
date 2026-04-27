@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.10.2](https://github.com/gravity-ui/graph/compare/v1.10.1...v1.10.2) (2026-04-27)
+
+
+### chore
+
+* release 1.10.2 ([d38b444](https://github.com/gravity-ui/graph/commit/d38b444fed97b670558efcac189cdc002a30402d))
+
+
+### Features
+
+* coalesced blocks-geometry-change on position updates ([#289](https://github.com/gravity-ui/graph/issues/289)) ([52b50d2](https://github.com/gravity-ui/graph/commit/52b50d2d9611cfc5f02e19166a790113bc2cd8d5))
+
+
+### Bug Fixes
+
+* **dragListener:** prevent spurious DRAG_UPDATE after drag ends ([#290](https://github.com/gravity-ui/graph/issues/290)) ([e434b9f](https://github.com/gravity-ui/graph/commit/e434b9f916cae95938e5227b4fba5bd053cefdbd))
+* **Groups:** prevent stale state from overwriting drag position in subscribeToGroup ([#291](https://github.com/gravity-ui/graph/issues/291)) ([8efdc12](https://github.com/gravity-ui/graph/commit/8efdc128b8d2d9be60833d240bbb69005199c9f0))
+
 ## [1.10.1](https://github.com/gravity-ui/graph/compare/v1.10.0...v1.10.1) (2026-04-21)
 
 
