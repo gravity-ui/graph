@@ -115,14 +115,17 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
 
     this.subscribeToGroup();
 
-    this.addEventListener("click", (event) => {
-      event.stopPropagation();
-      this.groupState.setSelection(
-        true,
-        !isMetaKeyEvent(event as MouseEvent | KeyboardEvent) ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
-      );
-    });
+    this.addEventListener("click", this.handleClick);
   }
+
+  protected handleClick = (event: MouseEvent) => {
+    event.stopPropagation();
+    const isMeta = isMetaKeyEvent(event);
+    this.groupState.setSelection(
+      !isMeta ? true : !this.groupState.$selected.value,
+      !isMeta ? ESelectionStrategy.REPLACE : ESelectionStrategy.APPEND
+    );
+  };
 
   /**
    * Set the highlighted state of the group
