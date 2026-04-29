@@ -220,8 +220,12 @@ export type TGraphConstants = {
      */
     PINCH_ZOOM_SPEED: number;
     /**
-     * Multiplier for camera pan speed applied to both mouse drag and trackpad swipe gestures.
-     * Does not affect auto-panning (see AUTO_PAN_SPEED) or zoom speed (see SPEED, PINCH_ZOOM_SPEED).
+     * Multiplier for camera pan speed applied to trackpad two-finger swipe (and
+     * mouse-wheel scroll when MOUSE_WHEEL_BEHAVIOR is "scroll"). Pointer drag
+     * (mouse drag and single-finger trackpad drag) tracks the cursor 1:1 and
+     * is not affected — applying a multiplier there would slide the canvas
+     * out from under the cursor. Does not affect auto-panning (see AUTO_PAN_SPEED)
+     * or zoom speed (see SPEED, PINCH_ZOOM_SPEED).
      *
      * @default 1
      */
