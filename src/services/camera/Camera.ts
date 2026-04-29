@@ -210,11 +210,10 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     if (!this.lastDragEvent) {
       return;
     }
-    const panSpeed = this.context.constants.camera.PAN_SPEED;
-    this.camera.move(
-      (event.pageX - this.lastDragEvent.pageX) * panSpeed,
-      (event.pageY - this.lastDragEvent.pageY) * panSpeed
-    );
+    // No PAN_SPEED multiplier here: pointer drag tracks the cursor 1:1, otherwise
+    // the canvas slides out from under the pointer. PAN_SPEED only scales
+    // wheel-delta-driven trackpad swipes (see handleTrackpadMove).
+    this.camera.move(event.pageX - this.lastDragEvent.pageX, event.pageY - this.lastDragEvent.pageY);
     this.lastDragEvent = event;
   }
 
