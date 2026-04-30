@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.3](https://github.com/gravity-ui/graph/compare/v1.10.2...v1.10.3) (2026-04-29)
+
+
+### Bug Fixes
+
+* **camera:** don't apply PAN_SPEED to pointer drag ([#295](https://github.com/gravity-ui/graph/issues/295)) ([a1e40d7](https://github.com/gravity-ui/graph/commit/a1e40d73275129ed98aa4c4024d0e7fcf2fbdf3e))
+* **groups:** toggle selection on meta-click ([#294](https://github.com/gravity-ui/graph/issues/294)) ([91371fb](https://github.com/gravity-ui/graph/commit/91371fb27f434baac6c1f566d75675ced4d15cc9))
+
 ## [1.10.2](https://github.com/gravity-ui/graph/compare/v1.10.1...v1.10.2) (2026-04-27)
 
 
