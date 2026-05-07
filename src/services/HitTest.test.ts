@@ -1,5 +1,6 @@
-import { HitTest, HitBox } from "./HitTest";
 import { Graph } from "../graph";
+
+import { HitBox, HitTest } from "./HitTest";
 
 function makeHitTest(hasBlocks = false): HitTest {
   const mockGraph = {
@@ -15,7 +16,12 @@ function seedUsableRect(ht: HitTest): void {
   const fakeHitBox = {
     affectsUsableRect: true,
     destroyed: false,
-    minX: 0, minY: 0, maxX: 100, maxY: 100, x: 0, y: 0,
+    minX: 0,
+    minY: 0,
+    maxX: 100,
+    maxY: 100,
+    x: 0,
+    y: 0,
   } as unknown as HitBox;
   (ht as unknown as { usableRectTracker: { add(h: HitBox): void } }).usableRectTracker.add(fakeHitBox);
   (ht as unknown as { updateUsableRect(): void }).updateUsableRect();
@@ -29,7 +35,12 @@ function triggerProcessQueue(ht: HitTest): void {
   const fakeHitBox = {
     affectsUsableRect: true,
     destroyed: false,
-    minX: 0, minY: 0, maxX: 100, maxY: 100, x: 0, y: 0,
+    minX: 0,
+    minY: 0,
+    maxX: 100,
+    maxY: 100,
+    x: 0,
+    y: 0,
     updateRect(_bbox: unknown): void {
       // no-op for test fake
     },
@@ -66,7 +77,9 @@ describe("HitTest.markPendingUpdate", () => {
     expect(ht.isUnstable).toBe(true);
 
     let called = false;
-    ht.waitUsableRectUpdate(() => { called = true; });
+    ht.waitUsableRectUpdate(() => {
+      called = true;
+    });
     expect(called).toBe(false); // still waiting
 
     // processQueue fires when hitbox updates arrive (simulated here)

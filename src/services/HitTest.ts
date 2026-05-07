@@ -234,6 +234,8 @@ export class HitTest extends Emitter {
 
     if (this.isUnstable) {
       let cleaned = false;
+      let unsubRect: () => void = noop;
+      let unsubPending: () => void = noop;
       const cleanup = () => {
         if (cleaned) return;
         cleaned = true;
@@ -243,11 +245,12 @@ export class HitTest extends Emitter {
       const check = () => {
         if (!this.isUnstable) {
           cleanup();
+          // eslint-disable-next-line callback-return
           callback(this.$usableRect.value);
         }
       };
-      const unsubRect = this.$usableRect.subscribe(check);
-      const unsubPending = this.$pendingEntitiesUpdate.subscribe(check);
+      unsubRect = this.$usableRect.subscribe(check);
+      unsubPending = this.$pendingEntitiesUpdate.subscribe(check);
       return cleanup;
     }
     callback(this.$usableRect.value);
