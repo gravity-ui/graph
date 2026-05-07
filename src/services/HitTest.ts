@@ -59,6 +59,10 @@ export class HitTest extends Emitter {
 
   public readonly $usableRect = signal<TRect>({ x: 0, y: 0, width: 0, height: 0 });
 
+  // Explicit pending flag set by setEntities; cleared when processQueue completes.
+  // Avoids the "zero usableRect = unstable" heuristic for entity replacement.
+  private readonly $pendingEntitiesUpdate = signal(false);
+
   // Single queue replaces all complex state tracking
   protected queue = new Map<HitBox, HitBoxData | null>();
 
@@ -90,10 +94,10 @@ export class HitTest extends Emitter {
 
     // If graph has no elements, it's stable even with zero usableRect
     if (hasZeroUsableRect && !this.hasGraphElements()) {
-      return hasProcessingQueue;
+      return hasProcessingQueue || this.$pendingEntitiesUpdate.value;
     }
 
-    return hasProcessingQueue || hasZeroUsableRect;
+    return hasProcessingQueue || hasZeroUsableRect || this.$pendingEntitiesUpdate.value;
   }
 
   /**
@@ -148,6 +152,7 @@ export class HitTest extends Emitter {
       this.queue.clear();
       this.updateUsableRect();
       this.emit("update", this);
+      this.$pendingEntitiesUpdate.value = false;
     },
     {
       priority: ESchedulerPriority.LOWEST,
@@ -176,6 +181,7 @@ export class HitTest extends Emitter {
     this.interactiveTree.clear();
     this.usableRectTracker.clear();
     this.updateUsableRect();
+    this.$pendingEntitiesUpdate.value = false;
   }
 
   /**
@@ -186,6 +192,20 @@ export class HitTest extends Emitter {
   public resetUsableRect(): void {
     this.usableRectTracker.clear();
     this.updateUsableRect();
+  }
+
+  /**
+   * Mark hitTest as pending an entity update (called by setEntities).
+   * Makes isUnstable = true until processQueue completes.
+   * Does NOT clear usableRectTracker — existing data stays valid.
+   * Does NOT eagerly schedule processQueue — it fires naturally when hitbox
+   * updates arrive (new components register) or when updateBlock forces a hitbox
+   * refresh on existing components. Eager scheduling caused processQueue to run
+   * in the same rAF frame as markPendingUpdate (before MEDIUM/component renders),
+   * clearing $pendingEntitiesUpdate before new block hitboxes were queued.
+   */
+  public markPendingUpdate(): void {
+    this.$pendingEntitiesUpdate.value = true;
   }
 
   /**
@@ -213,15 +233,22 @@ export class HitTest extends Emitter {
     }
 
     if (this.isUnstable) {
-      const removeListener = this.$usableRect.subscribe(() => {
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        unsubRect();
+        unsubPending();
+      };
+      const check = () => {
         if (!this.isUnstable) {
-          removeListener();
+          cleanup();
           callback(this.$usableRect.value);
-          return;
         }
-        return;
-      });
-      return removeListener;
+      };
+      const unsubRect = this.$usableRect.subscribe(check);
+      const unsubPending = this.$pendingEntitiesUpdate.subscribe(check);
+      return cleanup;
     }
     callback(this.$usableRect.value);
     return noop;

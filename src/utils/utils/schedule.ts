@@ -108,9 +108,20 @@ export const debounce = <T extends (...args: Parameters<T>) => void>(
   };
 
   const flush = () => {
-    if (isScheduled && latestArgs) {
-      fn(...latestArgs);
-      cancel();
+    if (isScheduled) {
+      // Clear the scheduled flag before calling fn() to ensure that
+      // any signal subscriptions triggered during fn() see the correct state
+      const currentRemoveScheduler = removeScheduler;
+      isScheduled = false;
+      frameCounter = 0;
+      startTime = 0;
+      removeScheduler = null;
+      const args = latestArgs;
+      latestArgs = undefined;
+      fn(...((args ?? []) as Parameters<T>));
+      if (currentRemoveScheduler) {
+        currentRemoveScheduler();
+      }
     }
   };
 
