@@ -109,8 +109,6 @@ export const debounce = <T extends (...args: Parameters<T>) => void>(
 
   const flush = () => {
     if (isScheduled) {
-      // Clear the scheduled flag before calling fn() to ensure that
-      // any signal subscriptions triggered during fn() see the correct state
       const currentRemoveScheduler = removeScheduler;
       isScheduled = false;
       frameCounter = 0;
@@ -118,10 +116,12 @@ export const debounce = <T extends (...args: Parameters<T>) => void>(
       removeScheduler = null;
       const args = latestArgs;
       latestArgs = undefined;
-      fn(...((args ?? []) as Parameters<T>));
+      // Remove the old scheduler handle BEFORE calling fn() so that any
+      // re-scheduling triggered inside fn() is not accidentally canceled.
       if (currentRemoveScheduler) {
         currentRemoveScheduler();
       }
+      fn(...((args ?? []) as Parameters<T>));
     }
   };
 
