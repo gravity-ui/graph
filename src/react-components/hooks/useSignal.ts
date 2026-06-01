@@ -1,4 +1,4 @@
-import { DependencyList, useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
+import { DependencyList, useCallback, useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from "react";
 
 import { computed, effect } from "@preact/signals-core";
 import type { Signal } from "@preact/signals-core";
@@ -62,6 +62,24 @@ export function useComputedSignal<T>(compute: () => T, deps: DependencyList) {
 export function useSignalEffect(effectFn: () => void, deps: DependencyList) {
   const handle = useFn(effectFn);
   useEffect(() => {
+    return effect(() => handle());
+  }, deps);
+}
+
+/**
+ * Like useSignalEffect but runs synchronously after DOM mutations, before the browser paints.
+ * Use when signal changes must be reflected in the DOM without a visible frame delay.
+ *
+ * @example
+ * ```tsx
+ * useSignalLayoutEffect(() => {
+ *   ref.current?.style.setProperty("--x", `${signal.value}px`);
+ * }, [signal]);
+ * ```
+ */
+export function useSignalLayoutEffect(effectFn: () => void, deps: DependencyList) {
+  const handle = useFn(effectFn);
+  useLayoutEffect(() => {
     return effect(() => handle());
   }, deps);
 }

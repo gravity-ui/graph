@@ -3,7 +3,7 @@ import { Graph } from "../../graph";
 import { AnchorState } from "../../store/anchor/Anchor";
 
 import { useBlockState } from "./useBlockState";
-import { useComputedSignal, useSignalEffect } from "./useSignal";
+import { useComputedSignal, useSignalLayoutEffect } from "./useSignal";
 
 export function useBlockAnchorState(graph: Graph, anchor: TAnchor): AnchorState | undefined {
   const blockState = useBlockState(graph, anchor.blockId);
@@ -19,7 +19,7 @@ export function useBlockAnchorPosition(
   state: AnchorState | undefined,
   anchorContainerRef: React.MutableRefObject<HTMLDivElement> | undefined
 ) {
-  useSignalEffect(() => {
+  useSignalLayoutEffect(() => {
     if (!state || !anchorContainerRef?.current) {
       return;
     }

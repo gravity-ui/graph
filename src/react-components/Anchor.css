@@ -20,8 +20,8 @@
 }
 
 .graph-block-anchor.graph-block-position-absolute {
-  --x: var(--graph-block-anchor-x, 0px);
-  --y: var(--graph-block-anchor-y, 0px);
+  --x: var(--graph-block-anchor-x, -99999px);
+  --y: var(--graph-block-anchor-y, -99999px);
   --x-offset: calc(var(--width) / 2);
   --y-offset: calc(var(--height) / 2);
 
