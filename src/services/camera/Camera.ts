@@ -7,7 +7,7 @@ import { ComponentDescriptor } from "../../lib/CoreComponent";
 import { getXY, isMetaKeyEvent } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
 import { dragListener } from "../../utils/functions/dragListener";
-import { EWheelDeviceKind } from "../../utils/functions/isTrackpadDetector";
+import { EWheelIntent } from "../../utils/functions/isTrackpadDetector";
 import { EVENTS } from "../../utils/types/events";
 import { schedule } from "../../utils/utils/schedule";
 
@@ -225,6 +225,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
    * Handles trackpad swipe gestures for camera movement
    */
   private handleTrackpadMove(event: WheelEvent): void {
+    console.log("pan");
     const hasWrongHorizontalScroll = event.shiftKey && Math.abs(event.deltaY) > 0.001;
     const panSpeed = this.context.constants.camera.PAN_SPEED;
 
@@ -241,6 +242,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     if (!event.deltaY) {
       return;
     }
+    console.log("zoom");
 
     const xy = getXY(this.context.canvas, event);
 
@@ -270,30 +272,19 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     event.stopPropagation();
     event.preventDefault();
 
-    const wheelDevice = this.context.graph.rootStore.settings.wheelDeviceFromEvent(event);
-    const isTrackpad = wheelDevice === EWheelDeviceKind.Trackpad;
-    const isTrackpadMove = isTrackpad && !isMetaKeyEvent(event);
+    const intent = this.context.graph.rootStore.settings.wheelIntentFromEvent(
+      event,
+      this.context.graph.layers.rootSize.value.dpr,
+      this.context.constants.camera.MOUSE_WHEEL_BEHAVIOR
+    );
 
-    // Trackpad swipe gesture - always moves camera
-    if (isTrackpadMove) {
+    if (intent === EWheelIntent.Pan) {
       this.handleTrackpadMove(event);
       return;
     }
 
-    // Mouse wheel behavior - check configuration
-    if (!isTrackpad && !isMetaKeyEvent(event)) {
-      const mouseWheelBehavior = this.context.constants.camera.MOUSE_WHEEL_BEHAVIOR;
-
-      if (mouseWheelBehavior === "scroll") {
-        this.handleTrackpadMove(event);
-        return;
-      }
-    }
-
-    // Calculate acceleration based on trackpad pinch-to-zoom gesture
-    const isPinchToZoom = isTrackpad && isMetaKeyEvent(event);
+    const isPinchToZoom = isMetaKeyEvent(event);
     const acceleration = isPinchToZoom ? this.context.constants.camera.PINCH_ZOOM_SPEED : 1;
-    // Default: zoom behavior (trackpad pinch or mouse wheel with "zoom" mode)
     this.handleWheelZoom(event, acceleration);
   };
 

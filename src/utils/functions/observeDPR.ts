@@ -6,15 +6,25 @@
  * When the DPR changes the query no longer matches, so we re-subscribe
  * with the updated value — this is why `once: true` is used.
  *
+ * The callback is deferred to the next animation frame to avoid a race condition
+ * where the `change` event fires before the browser has updated `devicePixelRatio`.
+ *
  * @param fn - Callback receiving the current devicePixelRatio
  * @returns Unsubscribe function that stops observing DPR changes
  */
 export function observeDPR(fn: (dpr: number) => void): () => void {
   let dprMediaQuery: MediaQueryList | undefined;
+  let rafId: number | undefined;
 
   function onChange(): void {
-    fn(globalThis.devicePixelRatio || 1);
-    watch();
+    if (rafId !== undefined) {
+      cancelAnimationFrame(rafId);
+    }
+    rafId = requestAnimationFrame(() => {
+      rafId = undefined;
+      fn(globalThis.devicePixelRatio || 1);
+      watch();
+    });
   }
 
   function watch(): void {
@@ -27,6 +37,10 @@ export function observeDPR(fn: (dpr: number) => void): () => void {
   function unwatch(): void {
     dprMediaQuery?.removeEventListener("change", onChange);
     dprMediaQuery = undefined;
+    if (rafId !== undefined) {
+      cancelAnimationFrame(rafId);
+      rafId = undefined;
+    }
   }
 
   watch();

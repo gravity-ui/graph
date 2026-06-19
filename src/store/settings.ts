@@ -6,8 +6,8 @@ import { BlockConnection } from "../components/canvas/connections/BlockConnectio
 import { Component } from "../lib";
 import { defaultGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
 import type { TGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
-import type { EWheelDeviceKind, TResolveWheelDevice } from "../utils/functions/isTrackpadDetector";
-import { defaultResolveWheelDevice } from "../utils/functions/isTrackpadDetector";
+import type { EWheelIntent, TMouseWheelBehavior, TResolveWheelIntent } from "../utils/functions/isTrackpadDetector";
+import { intentWheelDeviceDetector } from "../utils/functions/isTrackpadDetector";
 
 import { TConnection } from "./connection/ConnectionState";
 
@@ -66,12 +66,12 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    */
   emulateMouseEventsOnCameraChange?: boolean;
   /**
-   * Classifies wheel input so the camera can treat trackpad (pan, pinch-zoom) vs mouse wheel
+   * Classifies wheel input intent so the camera can treat trackpad (pan, pinch-zoom) vs mouse wheel
    * (see graph constants `MOUSE_WHEEL_BEHAVIOR`) differently.
    *
-   * @default {@link defaultResolveWheelDevice} — built-in heuristics from `isTrackpadWheelEvent`.
+   * @default {@link intentWheelDeviceDetector} — built-in intent heuristics.
    */
-  resolveWheelDevice: TResolveWheelDevice;
+  resolveWheelIntent: TResolveWheelIntent;
   /**
    * Maps camera scale to block zoom tier (minimalistic / schematic / detailed).
    * Always set at runtime; `setupSettings` falls back to the exported `defaultGetCameraBlockScaleLevel` when omitted.
@@ -94,7 +94,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   connectivityComponentOnClickRaise: true,
   showConnectionLabels: false,
   blockComponents: {},
-  resolveWheelDevice: defaultResolveWheelDevice,
+  resolveWheelIntent: intentWheelDeviceDetector(),
   getCameraBlockScaleLevel: defaultGetCameraBlockScaleLevel,
 };
 
@@ -134,10 +134,10 @@ export class GraphEditorSettings {
   }
 
   /**
-   * Resolves wheel input using {@link TGraphSettingsConfig.resolveWheelDevice} (typed; prefer over getConfigFlag).
+   * Resolves wheel intent using {@link TGraphSettingsConfig.resolveWheelIntent} (typed; prefer over getConfigFlag).
    */
-  public wheelDeviceFromEvent(event: WheelEvent): EWheelDeviceKind {
-    return this.$settings.value.resolveWheelDevice(event);
+  public wheelIntentFromEvent(event: WheelEvent, dpr: number, mouseWheelBehavior: TMouseWheelBehavior): EWheelIntent {
+    return this.$settings.value.resolveWheelIntent(event, dpr, mouseWheelBehavior);
   }
 
   public $connectionsSettings = computed(() => {

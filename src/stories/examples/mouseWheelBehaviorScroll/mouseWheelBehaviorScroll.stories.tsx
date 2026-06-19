@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from "@storybook/react-webpack5";
 import { TBlock } from "../../../components/canvas/blocks/Block";
 import { Graph, GraphState } from "../../../graph";
 import type { TMouseWheelBehavior } from "../../../graphConfig";
-import { EWheelDeviceKind, defaultResolveWheelDevice } from "../../../graphConfig";
+import { EWheelIntent, defaultResolveWheelIntent } from "../../../graphConfig";
 import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "../../../react-components";
 import { useFn } from "../../../react-components/utils/hooks/useFn";
 import { ECanDrag } from "../../../store/settings";
@@ -26,9 +26,9 @@ const GRAPH_SETTINGS: NonNullable<HookGraphParams["settings"]> = {
   showConnectionLabels: false,
 };
 
-const DEVICE_LABEL: Record<EWheelDeviceKind, string> = {
-  [EWheelDeviceKind.Mouse]: "Mouse wheel",
-  [EWheelDeviceKind.Trackpad]: "Trackpad",
+const DEVICE_LABEL: Record<EWheelIntent, string> = {
+  [EWheelIntent.Zoom]: "Mouse wheel",
+  [EWheelIntent.Pan]: "Trackpad",
 };
 
 type MouseWheelBehaviorStoryProps = {
@@ -37,7 +37,7 @@ type MouseWheelBehaviorStoryProps = {
 };
 
 function GraphWithMouseWheelBehaviorScroll({ mouseWheelBehavior }: MouseWheelBehaviorStoryProps) {
-  const [resolvedWheelDevice, setResolvedWheelDevice] = useState<EWheelDeviceKind | null>(null);
+  const [resolvedWheelDevice, setResolvedWheelDevice] = useState<EWheelIntent | null>(null);
 
   const graphParams = useMemo<HookGraphParams>(
     () => ({
@@ -50,10 +50,10 @@ function GraphWithMouseWheelBehaviorScroll({ mouseWheelBehavior }: MouseWheelBeh
       },
       settings: {
         ...GRAPH_SETTINGS,
-        resolveWheelDevice: (event: WheelEvent) => {
-          const kind = defaultResolveWheelDevice(event);
-          setResolvedWheelDevice(kind);
-          return kind;
+        resolveWheelIntent: (event: WheelEvent, dpr: number, wb: TMouseWheelBehavior) => {
+          const intent = defaultResolveWheelIntent(event, dpr, wb);
+          setResolvedWheelDevice(intent);
+          return intent;
         },
       },
     }),

@@ -1,9 +1,11 @@
 import { GraphComponent } from "./components/canvas/GraphComponent";
 import { Block } from "./components/canvas/blocks/Block";
 import { ESelectionStrategy } from "./services/selection";
+import type { TMouseWheelBehavior } from "./utils/functions/isTrackpadDetector";
 
-export type { TResolveWheelDevice } from "./utils/functions/isTrackpadDetector";
-export { defaultResolveWheelDevice, EWheelDeviceKind } from "./utils/functions/isTrackpadDetector";
+export type { TResolveWheelIntent } from "./utils/functions/isTrackpadDetector";
+export { defaultResolveWheelIntent, EWheelIntent } from "./utils/functions/isTrackpadDetector";
+export type { TMouseWheelBehavior };
 
 export type TGraphColors = {
   canvas?: Partial<TCanvasColors>;
@@ -51,8 +53,6 @@ export type TCanvasColors = {
   dots: string;
   border: string;
 };
-
-export type TMouseWheelBehavior = "zoom" | "scroll";
 
 export const initGraphColors: TGraphColors = {
   anchor: {
