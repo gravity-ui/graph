@@ -42,19 +42,28 @@ describe("createWheelIntentResolver", () => {
     return createWheelIntentResolver()(event, 1, mouseWheelBehavior);
   }
 
-  it("slow integer vertical wheel with MOUSE_WHEEL_BEHAVIOR=zoom resolves to zoom", () => {
+  it("slow integer vertical wheel resolves to pan (integer PIXEL = trackpad)", () => {
     const resolver = createWheelIntentResolver();
     const intent = resolver(makeWheelEvent({ deltaY: -100 }), 1, "zoom");
+    expect(intent).toBe(EWheelIntent.Pan);
+  });
+
+  it("rapid discrete mouse wheel steps (≥20px fractional) with MOUSE_WHEEL_BEHAVIOR=zoom stay zoom", () => {
+    const resolver = createWheelIntentResolver();
+
+    resolver(makeWheelEvent({ deltaY: -25.5 }), 1, "zoom");
+    const intent = resolver(makeWheelEvent({ deltaY: -25.5 }), 1, "zoom");
+
     expect(intent).toBe(EWheelIntent.Zoom);
   });
 
-  it("rapid discrete mouse wheel steps (≥20px) with MOUSE_WHEEL_BEHAVIOR=zoom stay zoom", () => {
-    const resolver = createWheelIntentResolver();
+  it("integer PIXEL scroll on any platform stays pan", () => {
+    const resolver = createWheelIntentResolver({ platform: EWheelIntentPlatform.Other });
 
-    resolver(makeWheelEvent({ deltaY: -25 }), 1, "zoom");
-    const intent = resolver(makeWheelEvent({ deltaY: -25 }), 1, "zoom");
-
-    expect(intent).toBe(EWheelIntent.Zoom);
+    resolver(makeWheelEvent({ deltaY: 1 }), 1, "zoom");
+    expect(resolver(makeWheelEvent({ deltaY: 11 }), 1, "zoom")).toBe(EWheelIntent.Pan);
+    expect(resolver(makeWheelEvent({ deltaY: 20 }), 1, "zoom")).toBe(EWheelIntent.Pan);
+    expect(resolver(makeWheelEvent({ deltaY: -100 }), 1, "zoom")).toBe(EWheelIntent.Pan);
   });
 
   it("macOS trackpad integer scroll both directions stays pan", () => {
@@ -89,19 +98,19 @@ describe("createWheelIntentResolver", () => {
     expect(resolver(lineEvent, 1, "scroll")).toBe(EWheelIntent.Pan);
   });
 
-  it("vertical wheel with deltaX noise stays zoom when vertical dominates", () => {
+  it("vertical wheel with deltaX noise stays zoom when vertical dominates (fractional mouse)", () => {
     const resolver = createWheelIntentResolver();
 
-    resolver(makeWheelEvent({ deltaY: -100, deltaX: 2 }), 1, "zoom");
-    expect(resolver(makeWheelEvent({ deltaY: -120, deltaX: -3 }), 1, "zoom")).toBe(EWheelIntent.Zoom);
+    resolver(makeWheelEvent({ deltaY: -100.5, deltaX: 2.1 }), 1, "zoom");
+    expect(resolver(makeWheelEvent({ deltaY: -120.25, deltaX: -3.4 }), 1, "zoom")).toBe(EWheelIntent.Zoom);
   });
 
   it("fractional smoothing events after a wheel tick stay zoom in burst", () => {
     const resolver = createWheelIntentResolver();
 
-    resolver(makeWheelEvent({ deltaY: -25 }), 1, "zoom");
+    resolver(makeWheelEvent({ deltaY: -25.5 }), 1, "zoom");
     expect(resolver(makeWheelEvent({ deltaY: -6.4, deltaX: 0 }), 1, "zoom")).toBe(EWheelIntent.Zoom);
-    expect(resolver(makeWheelEvent({ deltaY: -25 }), 1, "zoom")).toBe(EWheelIntent.Zoom);
+    expect(resolver(makeWheelEvent({ deltaY: -25.5 }), 1, "zoom")).toBe(EWheelIntent.Zoom);
   });
 
   it("macOS smooth mouse wheel ramp (fractional deltas) stays zoom", () => {
@@ -163,6 +172,17 @@ describe("createWheelIntentResolver", () => {
     expect(intent).toBe(EWheelIntent.Zoom);
   });
 
+  it("LINE mode rapid wheel is mouse (deltaMode !== 0), never trackpad pan", () => {
+    const resolver = createWheelIntentResolver();
+    const lineEvent = makeWheelEvent({
+      deltaY: -1,
+      deltaMode: WheelEvent.DOM_DELTA_LINE,
+    });
+
+    resolver(lineEvent, 1, "zoom");
+    expect(resolver(lineEvent, 1, "zoom")).toBe(EWheelIntent.Zoom);
+  });
+
   it("detectWheelIntentPlatform reads macOS from navigator", () => {
     const originalNavigator = global.navigator;
     Object.defineProperty(global, "navigator", {
@@ -189,13 +209,14 @@ describe("createWheelIntentResolver", () => {
     });
 
     const resolver = createWheelIntentResolver();
-    resolver(makeWheelEvent({ deltaY: -25, deltaX: 0 }), 2, "zoom");
+    resolver(makeWheelEvent({ deltaY: -25.5, deltaX: 0 }), 2, "zoom");
 
     expect(entries).toHaveLength(1);
-    expect(entries[0]?.input.deltaY).toBe(-25);
+    expect(entries[0]?.input.deltaY).toBe(-25.5);
     expect(entries[0]?.dpr).toBe(2);
     expect(entries[0]?.mouseWheelBehavior).toBe("zoom");
     expect(entries[0]?.signals.isClassicMouseWheelStep).toBe(true);
+    expect(entries[0]?.signals.isPixelDeltaMode).toBe(true);
     expect(entries[0]?.rule).toBe("I4:mouse-wheel-step");
 
     enableWheelIntentDebug(null);

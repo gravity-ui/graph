@@ -94,6 +94,8 @@ export type TWheelIntentDebugEntry = {
     isVerticalOnly: boolean;
     hasFractionalDelta: boolean;
     isSmallDelta: boolean;
+    /** Trackpads always emit `deltaMode === DOM_DELTA_PIXEL` (0); mice use LINE/PAGE or PIXEL. */
+    isPixelDeltaMode: boolean;
   };
   /** Winning rule id and resolved intent. */
   rule: string;
@@ -250,29 +252,33 @@ function normalizeWheelDelta(delta: number, deltaMode: number): number {
   return delta;
 }
 
+/**
+ * Trackpads always emit `WheelEvent.DOM_DELTA_PIXEL` (`deltaMode === 0`).
+ * Mechanical mouse wheels typically use LINE or PAGE mode instead.
+ */
+function isPixelDeltaMode(e: WheelEvent): boolean {
+  return e.deltaMode === WheelEvent.DOM_DELTA_PIXEL;
+}
+
 function hasFractionalWheelDelta(e: WheelEvent): boolean {
-  if (e.deltaMode !== WheelEvent.DOM_DELTA_PIXEL) {
+  if (!isPixelDeltaMode(e)) {
     return false;
   }
   return !Number.isInteger(e.deltaY) || !Number.isInteger(e.deltaX);
 }
 
 /**
- * macOS PIXEL-mode wheel event with integer `deltaX` and `deltaY`.
- * Primary trackpad signal on macOS — smooth-scroll mice emit fractional deltas instead.
+ * Trackpad scroll in PIXEL mode with integer `deltaX` and `deltaY`.
+ * Trackpad = `deltaMode === 0` + integer deltas; smooth-scroll mice emit fractional PIXEL deltas.
  */
-function isMacOsIntegerPixelDelta(e: WheelEvent, profile: TWheelIntentPlatformProfile): boolean {
-  return (
-    profile.platform === EWheelIntentPlatform.MacOS &&
-    e.deltaMode === WheelEvent.DOM_DELTA_PIXEL &&
-    !hasFractionalWheelDelta(e)
-  );
+function isIntegerPixelDelta(e: WheelEvent): boolean {
+  return isPixelDeltaMode(e) && !hasFractionalWheelDelta(e);
 }
 
 /**
  * Vertical-only wheel step — physical mouse (LINE/PAGE, or PIXEL delta ≥ discrete minimum).
  *
- * On macOS PIXEL mode, **integer** deltas are trackpad — excluded here regardless of magnitude.
+ * PIXEL mode with **integer** deltas is trackpad — excluded here regardless of magnitude.
  */
 function isClassicMouseWheelStep(
   e: WheelEvent,
@@ -289,39 +295,27 @@ function isClassicMouseWheelStep(
   if (normY < profile.mouseWheelDiscreteMinPx) {
     return false;
   }
-  if (
-    profile.platform === EWheelIntentPlatform.MacOS &&
-    e.deltaMode === WheelEvent.DOM_DELTA_PIXEL &&
-    !hasFractionalDelta
-  ) {
+  if (isPixelDeltaMode(e) && !hasFractionalDelta) {
     return false;
   }
   return true;
 }
 
 /**
- * macOS trackpad scroll in PIXEL mode: integer deltas, vertical-dominant, rapid stream or small step.
+ * Trackpad scroll in PIXEL mode: integer `deltaX` and `deltaY` on any platform.
+ * Horizontal and diagonal gestures are handled by I2 before this rule runs.
  */
-function isMacOsIntegerTrackpadScroll(
-  e: WheelEvent,
-  profile: TWheelIntentPlatformProfile,
-  isRapidStream: boolean,
-  isSmallDelta: boolean,
-  isVerticalOnly: boolean
-): boolean {
-  if (!isMacOsIntegerPixelDelta(e, profile) || !isVerticalOnly) {
-    return false;
-  }
-  return isRapidStream || isSmallDelta;
+function isIntegerPixelTrackpadScroll(e: WheelEvent): boolean {
+  return isIntegerPixelDelta(e);
 }
 
-/** Rapid stream with per-event deltas below mouse-wheel threshold — non-macOS trackpad inertia. */
+/** Rapid PIXEL-mode stream with small deltas — fractional trackpad inertia on some drivers. */
 function isTrackpadLikeRapidSmall(
   e: WheelEvent,
   isRapidStream: boolean,
   profile: TWheelIntentPlatformProfile
 ): boolean {
-  if (!isRapidStream) {
+  if (!isRapidStream || !isPixelDeltaMode(e)) {
     return false;
   }
   return (
@@ -332,7 +326,7 @@ function isTrackpadLikeRapidSmall(
 
 /**
  * macOS smooth-scroll mouse: slow vertical-only **fractional** PIXEL delta.
- * Integer slow scroll is trackpad — handled by {@link isMacOsIntegerTrackpadScroll}.
+ * Integer scroll is trackpad — handled by {@link isIntegerPixelTrackpadScroll}.
  */
 function isMacOsSlowFractionalMouseWheelStep(
   e: WheelEvent,
@@ -353,7 +347,7 @@ function isMacOsSlowFractionalMouseWheelStep(
   ) {
     return false;
   }
-  return e.deltaMode === WheelEvent.DOM_DELTA_PIXEL;
+  return isPixelDeltaMode(e);
 }
 
 /** One axis dominates (large step), the other ~0 — classic mouse wheel click. */
@@ -470,14 +464,15 @@ function emitDebugEntry(
  * |---------------------------------------|-----------------|
  * | ctrlKey / metaKey + scroll            | Zoom (I1)       |
  * | Horizontal or diagonal movement       | Pan  (I2)       |
- * | macOS integer PIXEL delta (trackpad)  | Pan  (I3/I5)    |
+ * | Integer PIXEL delta (trackpad)        | Pan  (I3/I5)    |
  * | Classic mouse wheel step (fractional) | Zoom/Pan (I4)*  |
- * | Rapid stream + small delta (other)    | Pan  (I3)       |
+ * | Rapid stream + small delta (fractional)| Pan  (I3)      |
  * | Anything else (slow small vertical)   | Last intent (I5)|
  *
  * *I4 respects `mouseWheelBehavior`: `"scroll"` → Pan, `"zoom"` → Zoom.
  *
- * On macOS PIXEL mode, **integer** `deltaX`/`deltaY` → trackpad pan; **fractional** → mouse (I4).
+ * Trackpad: `deltaMode === 0` (PIXEL) + **integer** `deltaX`/`deltaY` → pan; **fractional** PIXEL → mouse (I4).
+ * LINE/PAGE mode (`deltaMode !== 0`) is never trackpad — always mouse (I4).
  * See `docs/system/wheel-intent.md` for rationale and platform notes.
  */
 export function createWheelIntentResolver(options?: TWheelIntentResolverOptions): TResolveWheelIntent {
@@ -514,6 +509,7 @@ export function createWheelIntentResolver(options?: TWheelIntentResolverOptions)
       isVerticalOnly: isVerticalOnlyWheel(e),
       hasFractionalDelta,
       isSmallDelta,
+      isPixelDeltaMode: isPixelDeltaMode(e),
     };
 
     let intent: EWheelIntent;
@@ -525,7 +521,7 @@ export function createWheelIntentResolver(options?: TWheelIntentResolverOptions)
     } else if (signals.isDiagonalScroll || signals.isPredominantHorizontalScroll) {
       intent = EWheelIntent.Pan;
       rule = "I2:horizontal-or-diagonal";
-    } else if (isMacOsIntegerTrackpadScroll(e, profile, isRapidStream, isSmallDelta, signals.isVerticalOnly)) {
+    } else if (isIntegerPixelTrackpadScroll(e)) {
       intent = EWheelIntent.Pan;
       rule = isRapidStream ? "I3:integer-trackpad" : "I5:integer-trackpad";
     } else if (signals.isDominantAxisLargeWheel || signals.isClassicMouseWheelStep) {

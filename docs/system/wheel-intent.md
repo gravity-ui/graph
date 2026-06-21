@@ -40,18 +40,19 @@ Camera applies `PINCH_ZOOM_SPEED` when {@link isPinchZoomGesture} is true (same 
 
 ---
 
-### macOS PIXEL mode: integer = trackpad, fractional = mouse
+### Trackpad vs mouse: `deltaMode` and delta shape
 
-On macOS both devices emit `deltaMode: PIXEL`, but raw delta types differ reliably:
+Trackpads **always** emit `deltaMode === 0` (`DOM_DELTA_PIXEL`). Mechanical mouse wheels use `LINE` (1) or `PAGE` (2), or on macOS smooth-scroll use **fractional** PIXEL deltas.
 
-| Source | `deltaX` / `deltaY` in PIXEL mode | Resolver |
-|--------|-----------------------------------|----------|
-| **Trackpad** two-finger scroll | **Integer** (1, -2, 11, 20…) | **Pan** (`I3:integer-trackpad` / `I5:integer-trackpad`) |
-| **Mouse** smooth-scroll wheel | **Fractional** (4.000244, 34.15, 153.34…) | **I4** per `MOUSE_WHEEL_BEHAVIOR` |
+| Signal | Source | Resolver |
+|--------|--------|----------|
+| `deltaMode !== 0` (LINE/PAGE) | **Mouse** wheel | **I4** per `MOUSE_WHEEL_BEHAVIOR` |
+| `deltaMode === 0` + **integer** `deltaX`/`deltaY` | **Trackpad** | **Pan** (`I3:integer-trackpad` / `I5:integer-trackpad`) |
+| `deltaMode === 0` + **fractional** deltas | **Mouse** smooth-scroll (macOS) | **I4** per `MOUSE_WHEEL_BEHAVIOR` |
 
-Checked via `Number.isInteger` on raw `deltaX` and `deltaY` (PIXEL mode only). LINE/PAGE wheel ticks are always mouse (I4).
+Integer check uses `Number.isInteger` on raw `deltaX` and `deltaY` (PIXEL mode only).
 
-Timing and magnitude thresholds remain for non-macOS platforms and for I4 burst smoothing after a mouse step.
+Timing thresholds remain for fractional trackpad inertia (`I3:rapid-small`, PIXEL mode only) and I4 burst smoothing after a mouse step.
 
 ---
 
@@ -65,19 +66,19 @@ Ignores small `deltaX` noise on predominantly vertical mouse wheel ticks and tra
 
 ---
 
-### I3 — Integer trackpad (macOS)
+### I3 — Integer trackpad
 
-**Condition**: macOS + PIXEL mode + integer `deltaX`/`deltaY` + vertical-dominant + rapid stream (&lt; 38 ms since previous event)
+**Condition**: `deltaMode === 0` (PIXEL) + integer `deltaX`/`deltaY` + rapid stream (&lt; 38 ms since previous event)
 
 **Intent**: Pan (`I3:integer-trackpad`)
 
-Any per-event magnitude, including inertia peaks ≥ 20 px.
+Any per-event magnitude, including inertia peaks ≥ 20 px. Horizontal and diagonal gestures are handled by I2 first.
 
 ---
 
-### I5 — Integer trackpad slow scroll (macOS)
+### I5 — Integer trackpad slow scroll
 
-**Condition**: same integer PIXEL shape, not rapid stream, small delta
+**Condition**: same integer PIXEL shape, not rapid stream
 
 **Intent**: Pan (`I5:integer-trackpad`)
 
@@ -85,7 +86,7 @@ Any per-event magnitude, including inertia peaks ≥ 20 px.
 
 ### I4 — Classic mouse wheel step
 
-**Condition**: vertical-only wheel tick — LINE/PAGE mode, **or** on macOS PIXEL mode **fractional** delta with `|deltaY| ≥ 20 px`, **or** on other platforms `|deltaY| ≥ 20 px`
+**Condition**: vertical-only wheel tick — LINE/PAGE mode, **or** **fractional** PIXEL delta with `|deltaY| ≥ 20 px`
 
 **Intent**: depends on `MOUSE_WHEEL_BEHAVIOR`
 
@@ -94,19 +95,19 @@ Any per-event magnitude, including inertia peaks ≥ 20 px.
 | `"zoom"` (default) | Zoom |
 | `"scroll"` | Pan |
 
-Physical mouse wheels emit LINE/PAGE steps or macOS smooth-scroll **fractional** ramps. **Integer** PIXEL steps on macOS are trackpad — handled by I3/I5, never I4.
+Physical mouse wheels emit LINE/PAGE steps or smooth-scroll **fractional** ramps. **Integer** PIXEL steps are trackpad — handled by I3/I5, never I4.
 
-**`I4:macos-fractional-mouse`**: slow (not rapid stream), vertical-only, **fractional** PIXEL delta (e.g. Δy ≈ -4.000244). Respects `MOUSE_WHEEL_BEHAVIOR`. Starts the **120 ms burst window**.
+**`I4:macos-fractional-mouse`**: slow (not rapid stream), vertical-only, **fractional** PIXEL delta on macOS (e.g. Δy ≈ -4.000244). Respects `MOUSE_WHEEL_BEHAVIOR`. Starts the **120 ms burst window**.
 
 ---
 
-### I3 — Rapid stream with small delta (non-macOS trackpad)
+### I3 — Rapid stream with small delta (fractional trackpad inertia)
 
-**Condition**: previous event **< 38 ms** ago, and **both** normalized axes **< 20 px** (platforms other than macOS integer trackpad path)
+**Condition**: previous event **< 38 ms** ago, `deltaMode === 0`, and **both** normalized axes **< 20 px** (fractional PIXEL path; integer trackpad uses I3/I5 above)
 
 **Intent**: Pan
 
-Trackpad inertia on Windows/Linux and similar. On macOS, integer trackpad scroll uses I3/I5 above.
+Trackpad inertia when deltas are fractional on some drivers. Integer trackpad scroll uses I3/I5 above.
 
 ---
 
@@ -139,10 +140,10 @@ Debug logs include `"platform": "macos" | "other"`.
 
 **Intent**:
 
-- **macOS** + slow ambiguous **integer** trackpad scroll (`|deltaY| < 20 px`) → **Pan** (`I5:macos-ambiguous-pan`)
+- **macOS** + slow ambiguous **integer** trackpad scroll → **Pan** (`I5:integer-trackpad`)
 - otherwise carry forward `lastIntent` (initial default: **Zoom**)
 
-Trackpad pan on macOS is handled by **I3** (rapid) and **I5** (slow integer). Mouse wheel zoom uses **I4** (≥ 20 px ramp peaks and `I4:macos-fractional-notch` for slow fractional notches).
+Trackpad pan is handled by **I3/I5** (integer PIXEL). Mouse wheel zoom uses **I4** (≥ 20 px fractional ramp peaks and `I4:macos-fractional-mouse` for slow fractional notches on macOS).
 
 ---
 
@@ -157,16 +158,19 @@ WheelEvent arrives
 ├─ I2: diagonal OR |deltaX| ≥ 2 (normalized)?
 │     → Pan
 │
+├─ I3/I5: integer PIXEL delta (trackpad)?
+│     → Pan
+│
 ├─ I4: classic mouse wheel step OR large single-axis step?
 │     → Pan or Zoom (MOUSE_WHEEL_BEHAVIOR)
 │
-├─ I3: rapid stream (< 38 ms) + both axes < 20 px?
+├─ I3: rapid stream (< 38 ms) + both axes < 20 px (fractional)?
 │     → Pan
 │
 ├─ I4: macOS slow fractional notch (< 20 px)?
 │     → Pan or Zoom (MOUSE_WHEEL_BEHAVIOR)
 │
-└─ I5: else → last intent (default Zoom; macOS slow small **integer** → Pan)
+└─ I5: else → last intent (default Zoom; integer trackpad already handled above)
 ```
 
 ---
@@ -175,7 +179,15 @@ WheelEvent arrives
 
 ### deltaMode
 
-All magnitude thresholds use pixel-equivalent values:
+| mode | value | Typical source |
+|------|-------|----------------|
+| PIXEL | 0 | **Trackpad** (always); macOS smooth-scroll **mouse** (fractional) |
+| LINE | 1 | **Mouse** wheel (Windows/Linux and others) |
+| PAGE | 2 | **Mouse** wheel (legacy) |
+
+Trackpad scroll never uses LINE/PAGE — those modes route straight to I4 (mouse).
+
+All magnitude thresholds use pixel-equivalent values after normalization:
 
 | mode | multiplier |
 |------|-----------|
@@ -185,7 +197,7 @@ All magnitude thresholds use pixel-equivalent values:
 
 ### Fractional delta
 
-Only in PIXEL mode (`deltaMode === 0`). On macOS, **integer** raw deltas → trackpad pan; **fractional** → mouse (I4). Used for I1 (pinch) and debug signals on all platforms.
+Only in PIXEL mode (`deltaMode === 0`). **Integer** raw deltas → trackpad pan; **fractional** → mouse (I4). Used for I1 (pinch) and debug signals on all platforms.
 
 Checks use **raw values only** — multiplying by DPR before an integer test caused false positives on Windows at non-integer OS scaling (e.g. 110 % → DPR ≈ 1.1).
 
