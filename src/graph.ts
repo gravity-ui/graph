@@ -305,8 +305,7 @@ export class Graph {
     connections?: TConnection[];
   }>) {
     // Mark hitTest as pending so waitUsableRectUpdate (used by zoomToViewPort)
-    // waits for block components to settle. Unlike resetUsableRect, this does not
-    // clear usableRectTracker, so blocks that haven't moved don't need to re-register.
+    // waits for block components to settle without clearing usableRectTracker.
     this.hitTest.markPendingUpdate();
     batch(() => {
       this.rootStore.blocksList.setBlocks(blocks || []);

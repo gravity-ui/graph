@@ -185,16 +185,6 @@ export class HitTest extends Emitter {
   }
 
   /**
-   * Reset usableRect to zero, marking hitTest as unstable.
-   * This forces waitUsableRectUpdate to wait for new hitboxes to register
-   * before resolving, which is necessary when entities are being replaced.
-   */
-  public resetUsableRect(): void {
-    this.usableRectTracker.clear();
-    this.updateUsableRect();
-  }
-
-  /**
    * Mark hitTest as pending an entity update (called by setEntities).
    * Makes isUnstable = true until processQueue completes.
    * Does NOT clear usableRectTracker — existing data stays valid.
