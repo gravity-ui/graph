@@ -111,22 +111,24 @@ const graph = new Graph(canvas, {
   - Two-finger swipe to scroll in any direction
 - Settings can be updated at runtime using `graph.setConstants()`.
 
-### Custom wheel device classification
+### Custom wheel intent classification
 
-The camera distinguishes **trackpad-like** input (two-finger pan, pinch-zoom) from **mouse wheel** when routing `wheel` events. This is configured on **graph settings** (`resolveWheelDevice`). By default it uses `defaultResolveWheelDevice`, which wraps `isTrackpadWheelEvent`. Replace it with your own `(event: WheelEvent) => EWheelDeviceKind` if needed:
+The camera routes wheel input by **intent** (pan vs zoom). Classification is configured on **graph settings** (`resolveWheelIntent`). By default it uses `createWheelIntentResolver()`, which reads gesture shape directly. Replace with your own resolver if needed:
 
 ```ts
-import { defaultResolveWheelDevice, EWheelDeviceKind } from "@gravity-ui/graph";
+import { EWheelIntent, createWheelIntentResolver } from "@gravity-ui/graph";
 
 graph.updateSettings({
-  resolveWheelDevice: (event) => {
-    // Example: always treat as mouse wheel
-    return EWheelDeviceKind.Mouse;
-    // Or extend the default:
-    // return defaultResolveWheelDevice(event);
+  resolveWheelIntent: (event, dpr, mouseWheelBehavior) => {
+    // Example: always zoom on vertical wheel
+    return EWheelIntent.Zoom;
+    // Or use the built-in resolver:
+    // return createWheelIntentResolver()(event, dpr, mouseWheelBehavior);
   },
 });
 ```
+
+See [Wheel Intent Resolution](./wheel-intent.md) for the I1–I5 heuristics and platform notes.
 
 **Example (MOUSE_WHEEL_BEHAVIOR):**
 ```ts

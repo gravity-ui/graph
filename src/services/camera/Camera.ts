@@ -7,7 +7,7 @@ import { ComponentDescriptor } from "../../lib/CoreComponent";
 import { getXY, isMetaKeyEvent } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
 import { dragListener } from "../../utils/functions/dragListener";
-import { EWheelIntent } from "../../utils/functions/isTrackpadDetector";
+import { EWheelIntent, isPinchZoomGesture } from "../../utils/functions/wheelIntent";
 import { EVENTS } from "../../utils/types/events";
 import { schedule } from "../../utils/utils/schedule";
 
@@ -212,7 +212,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     }
     // No PAN_SPEED multiplier here: pointer drag tracks the cursor 1:1, otherwise
     // the canvas slides out from under the pointer. PAN_SPEED only scales
-    // wheel-delta-driven trackpad swipes (see handleTrackpadMove).
+    // wheel-delta-driven pan gestures (see handlePan).
     this.camera.move(event.pageX - this.lastDragEvent.pageX, event.pageY - this.lastDragEvent.pageY);
     this.lastDragEvent = event;
   }
@@ -222,10 +222,12 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   }
 
   /**
-   * Handles trackpad swipe gestures for camera movement
+   * Applies a pan delta from wheel input.
+   *
+   * Transitional: invoked directly from {@link handleWheelEvent}. Will become a handler
+   * for a semantic `camera:pan` graph event once the input event bus replaces raw DOM subscriptions.
    */
-  private handleTrackpadMove(event: WheelEvent): void {
-    console.log("pan");
+  private handlePan(event: WheelEvent): void {
     const hasWrongHorizontalScroll = event.shiftKey && Math.abs(event.deltaY) > 0.001;
     const panSpeed = this.context.constants.camera.PAN_SPEED;
 
@@ -236,13 +238,15 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   }
 
   /**
-   * Handles zoom behavior for both trackpad pinch and mouse wheel
+   * Applies a zoom delta from wheel input.
+   *
+   * Transitional: invoked directly from {@link handleWheelEvent}. Will become a handler
+   * for a semantic `camera:zoom` graph event once the input event bus replaces raw DOM subscriptions.
    */
-  private handleWheelZoom(event: WheelEvent, acceleration = 1): void {
+  private handleZoom(event: WheelEvent, acceleration = 1): void {
     if (!event.deltaY) {
       return;
     }
-    console.log("zoom");
 
     const xy = getXY(this.context.canvas, event);
 
@@ -264,6 +268,12 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     this.camera.zoom(xy[0], xy[1], cameraScale - smoothDScale);
   }
 
+  /**
+   * Transitional wheel entry point: resolves pan vs zoom intent, then dispatches to
+   * {@link handlePan} / {@link handleZoom}. Intent classification lives in
+   * {@link GraphEditorSettings.wheelIntentFromEvent} today; later an input layer will
+   * emit semantic graph events (`camera:pan`, `camera:zoom`, …) and Camera will subscribe.
+   */
   private handleWheelEvent = (event: WheelEvent) => {
     if (!this.context.graph.rootStore.settings.getConfigFlag("canZoomCamera")) {
       return;
@@ -279,13 +289,12 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     );
 
     if (intent === EWheelIntent.Pan) {
-      this.handleTrackpadMove(event);
+      this.handlePan(event);
       return;
     }
 
-    const isPinchToZoom = isMetaKeyEvent(event);
-    const acceleration = isPinchToZoom ? this.context.constants.camera.PINCH_ZOOM_SPEED : 1;
-    this.handleWheelZoom(event, acceleration);
+    const acceleration = isPinchZoomGesture(event) ? this.context.constants.camera.PINCH_ZOOM_SPEED : 1;
+    this.handleZoom(event, acceleration);
   };
 
   protected moveWithEdges(deltaX: number, deltaY: number) {

@@ -6,8 +6,8 @@ import { BlockConnection } from "../components/canvas/connections/BlockConnectio
 import { Component } from "../lib";
 import { defaultGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
 import type { TGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
-import type { EWheelIntent, TMouseWheelBehavior, TResolveWheelIntent } from "../utils/functions/isTrackpadDetector";
-import { intentWheelDeviceDetector } from "../utils/functions/isTrackpadDetector";
+import type { EWheelIntent, TMouseWheelBehavior, TResolveWheelIntent } from "../utils/functions/wheelIntent";
+import { createWheelIntentResolver } from "../utils/functions/wheelIntent";
 
 import { TConnection } from "./connection/ConnectionState";
 
@@ -66,10 +66,14 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    */
   emulateMouseEventsOnCameraChange?: boolean;
   /**
-   * Classifies wheel input intent so the camera can treat trackpad (pan, pinch-zoom) vs mouse wheel
-   * (see graph constants `MOUSE_WHEEL_BEHAVIOR`) differently.
+   * Classifies wheel input as pan or zoom intent so Camera can route without knowing device type.
+   * Also receives `mouseWheelBehavior` so mouse-wheel policy stays in the input layer, not Camera.
    *
-   * @default {@link intentWheelDeviceDetector} — built-in intent heuristics.
+   * Transitional: today Camera calls {@link GraphEditorSettings.wheelIntentFromEvent} from a raw
+   * `wheel` listener. A future input layer will normalize DOM events and emit semantic graph events
+   * (`camera:pan`, `camera:zoom`, …); this callback is the classification hook until then.
+   *
+   * @default {@link createWheelIntentResolver} — gesture-shape heuristics (pan vs zoom intent).
    */
   resolveWheelIntent: TResolveWheelIntent;
   /**
@@ -94,7 +98,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   connectivityComponentOnClickRaise: true,
   showConnectionLabels: false,
   blockComponents: {},
-  resolveWheelIntent: intentWheelDeviceDetector(),
+  resolveWheelIntent: createWheelIntentResolver(),
   getCameraBlockScaleLevel: defaultGetCameraBlockScaleLevel,
 };
 

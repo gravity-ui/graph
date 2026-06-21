@@ -14,14 +14,13 @@ const BLOCK = {
 };
 
 /**
- * Verifies `MOUSE_WHEEL_BEHAVIOR` (zoom vs scroll) together with the outcome of
- * `resolveWheelDevice` (trackpad vs mouse routing).
+ * Verifies camera routing for resolved wheel intent together with `MOUSE_WHEEL_BEHAVIOR`.
  *
- * We **simulate** device kind in the page via `setResolveWheelDeviceOverride` — this does
+ * We **simulate** intent in the page via `setResolveWheelIntentOverride` — this does
  * **not** validate how real browsers or vendors emit wheel events; it only checks that
- * camera routing matches the resolved device kind and `MOUSE_WHEEL_BEHAVIOR`.
+ * Camera pan/zoom actions match the resolved intent.
  */
-test.describe("MOUSE_WHEEL_BEHAVIOR for simulated wheel device kinds", () => {
+test.describe("MOUSE_WHEEL_BEHAVIOR for simulated wheel intents", () => {
   let graphPO: GraphPageObject;
 
   test.beforeEach(async ({ page }) => {
@@ -36,7 +35,7 @@ test.describe("MOUSE_WHEEL_BEHAVIOR for simulated wheel device kinds", () => {
     });
   });
 
-  test("simulated mouse + MOUSE_WHEEL_BEHAVIOR zoom: vertical wheel changes scale", async () => {
+  test("simulated zoom intent: vertical wheel changes scale", async () => {
     const camera = graphPO.getCamera();
     await camera.zoomToCenter();
     await graphPO.waitForFrames(3);
@@ -45,7 +44,7 @@ test.describe("MOUSE_WHEEL_BEHAVIOR for simulated wheel device kinds", () => {
     await camera.emulateZoom(300);
     await graphPO.waitForFrames(2);
 
-    await camera.setResolveWheelDeviceOverride("mouse");
+    await camera.setResolveWheelIntentOverride("zoom");
 
     const before = await camera.getState();
     await camera.emulateZoom(-100);
@@ -54,12 +53,12 @@ test.describe("MOUSE_WHEEL_BEHAVIOR for simulated wheel device kinds", () => {
     expect(after.scale).toBeGreaterThan(before.scale);
   });
 
-  test("simulated trackpad: vertical wheel pans (scale unchanged)", async () => {
+  test("simulated pan intent: vertical wheel pans (scale unchanged)", async () => {
     const camera = graphPO.getCamera();
     await camera.zoomToCenter();
     await graphPO.waitForFrames(3);
 
-    await camera.setResolveWheelDeviceOverride("trackpad");
+    await camera.setResolveWheelIntentOverride("pan");
 
     const before = await camera.getState();
     await camera.emulateZoom(-100);
@@ -68,7 +67,7 @@ test.describe("MOUSE_WHEEL_BEHAVIOR for simulated wheel device kinds", () => {
     expect(after.scale).toBeCloseTo(before.scale, 10);
   });
 
-  test("simulated mouse + MOUSE_WHEEL_BEHAVIOR scroll: vertical wheel pans (scale unchanged)", async () => {
+  test("simulated zoom intent + MOUSE_WHEEL_BEHAVIOR scroll: override pan still pans", async () => {
     const camera = graphPO.getCamera();
     await camera.zoomToCenter();
     await graphPO.waitForFrames(3);
@@ -79,7 +78,7 @@ test.describe("MOUSE_WHEEL_BEHAVIOR for simulated wheel device kinds", () => {
       });
     });
 
-    await camera.setResolveWheelDeviceOverride("mouse");
+    await camera.setResolveWheelIntentOverride("pan");
 
     const before = await camera.getState();
     await camera.emulateZoom(-100);
@@ -88,7 +87,7 @@ test.describe("MOUSE_WHEEL_BEHAVIOR for simulated wheel device kinds", () => {
     expect(after.scale).toBeCloseTo(before.scale, 10);
   });
 
-  test("simulated mouse + runtime scroll survives unrelated setConstants update", async () => {
+  test("simulated pan intent survives unrelated setConstants update", async () => {
     const camera = graphPO.getCamera();
     await camera.zoomToCenter();
     await graphPO.waitForFrames(3);
@@ -106,7 +105,7 @@ test.describe("MOUSE_WHEEL_BEHAVIOR for simulated wheel device kinds", () => {
       });
     });
 
-    await camera.setResolveWheelDeviceOverride("mouse");
+    await camera.setResolveWheelIntentOverride("pan");
 
     const before = await camera.getState();
     await camera.emulateZoom(-100);

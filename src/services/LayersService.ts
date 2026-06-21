@@ -21,7 +21,7 @@ export class Layers extends Emitter {
   }
 
   public getDPR() {
-    return globalThis.devicePixelRatio; // Math.max(globalThis.devicePixelRatio || 1, 2);
+    return globalThis.devicePixelRatio || 1;
   }
 
   public createLayer<T extends Constructor<Layer> = Constructor<Layer>>(
