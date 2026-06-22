@@ -120,11 +120,11 @@ The camera routes wheel input by **intent** (pan vs zoom). Classification is con
 import { EWheelIntent, createWheelIntentResolver } from "@gravity-ui/graph";
 
 graph.updateSettings({
-  resolveWheelIntent: (event, dpr, mouseWheelBehavior) => {
+  resolveWheelIntent: (event, mouseWheelBehavior) => {
     // Example: always zoom on vertical wheel
     return EWheelIntent.Zoom;
     // Or use the built-in resolver:
-    // return createWheelIntentResolver()(event, dpr, mouseWheelBehavior);
+    // return createWheelIntentResolver()(event, mouseWheelBehavior);
   },
 });
 ```

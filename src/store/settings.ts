@@ -140,8 +140,8 @@ export class GraphEditorSettings {
   /**
    * Resolves wheel intent using {@link TGraphSettingsConfig.resolveWheelIntent} (typed; prefer over getConfigFlag).
    */
-  public wheelIntentFromEvent(event: WheelEvent, dpr: number, mouseWheelBehavior: TMouseWheelBehavior): EWheelIntent {
-    return this.$settings.value.resolveWheelIntent(event, dpr, mouseWheelBehavior);
+  public wheelIntentFromEvent(event: WheelEvent, mouseWheelBehavior: TMouseWheelBehavior): EWheelIntent {
+    return this.$settings.value.resolveWheelIntent(event, mouseWheelBehavior);
   }
 
   public $connectionsSettings = computed(() => {

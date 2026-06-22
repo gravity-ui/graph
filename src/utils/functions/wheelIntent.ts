@@ -18,21 +18,13 @@ export enum EWheelIntent {
 /**
  * Classifies a wheel event as pan or zoom intent.
  * Configured as `resolveWheelIntent` on graph settings (`TGraphSettingsConfig`).
- *
- * @param dpr Device pixel ratio from the graph layer; reserved for future heuristics (unused today).
  */
-export type TResolveWheelIntent = (
-  event: WheelEvent,
-  dpr: number,
-  mouseWheelBehavior: TMouseWheelBehavior
-) => EWheelIntent;
+export type TResolveWheelIntent = (event: WheelEvent, mouseWheelBehavior: TMouseWheelBehavior) => EWheelIntent;
 
 /** Snapshot of resolver inputs, derived signals, session state, and the winning rule. */
 export type TWheelIntentDebugEntry = {
-  /** Third argument to {@link TResolveWheelIntent}. */
-  mouseWheelBehavior: TMouseWheelBehavior;
   /** Second argument to {@link TResolveWheelIntent}. */
-  dpr: number;
+  mouseWheelBehavior: TMouseWheelBehavior;
   /** Raw {@link WheelEvent} fields passed into the resolver. */
   input: {
     deltaX: number;
@@ -325,7 +317,6 @@ function intentFromMouseWheelBehavior(mouseWheelBehavior: TMouseWheelBehavior): 
 
 function emitDebugEntry(
   ctx: TWheelContext,
-  dpr: number,
   mouseWheelBehavior: TMouseWheelBehavior,
   timeSinceLastWheel: number,
   isRapidStream: boolean,
@@ -345,7 +336,6 @@ function emitDebugEntry(
 
   debugLogger({
     mouseWheelBehavior,
-    dpr,
     input: {
       deltaX: event.deltaX,
       deltaY: event.deltaY,
@@ -405,7 +395,7 @@ export function createWheelIntentResolver(): TResolveWheelIntent {
 
   const isInMouseWheelBurst = (now: number): boolean => mouseWheelBurstUntil !== null && now <= mouseWheelBurstUntil;
 
-  return (event: WheelEvent, _dpr: number, mouseWheelBehavior: TMouseWheelBehavior): EWheelIntent => {
+  return (event: WheelEvent, mouseWheelBehavior: TMouseWheelBehavior): EWheelIntent => {
     const now = performance.now();
     const timeSince = lastTimestamp !== null ? now - lastTimestamp : Number.POSITIVE_INFINITY;
     lastTimestamp = now;
@@ -456,7 +446,6 @@ export function createWheelIntentResolver(): TResolveWheelIntent {
     if (getWheelIntentDebugLogger() !== null) {
       emitDebugEntry(
         ctx,
-        _dpr,
         mouseWheelBehavior,
         timeSince,
         isRapidStream,

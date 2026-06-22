@@ -284,7 +284,6 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
     const intent = this.context.graph.rootStore.settings.wheelIntentFromEvent(
       event,
-      this.context.graph.layers.rootSize.value.dpr,
       this.context.constants.camera.MOUSE_WHEEL_BEHAVIOR
     );
 

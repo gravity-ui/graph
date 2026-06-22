@@ -188,7 +188,7 @@ There is no sticky device session — only `I5:last-intent` carries prior classi
 
 ```typescript
 // Transitional path in Camera.handleWheelEvent:
-const intent = settings.wheelIntentFromEvent(event, dpr, MOUSE_WHEEL_BEHAVIOR);
+const intent = settings.wheelIntentFromEvent(event, MOUSE_WHEEL_BEHAVIOR);
 
 if (intent === EWheelIntent.Pan) {
   handlePan(event);   // → future: graph event "camera:pan"
@@ -198,8 +198,6 @@ if (intent === EWheelIntent.Pan) {
 const acceleration = isPinchZoomGesture(event) ? PINCH_ZOOM_SPEED : 1;
 handleZoom(event, acceleration);  // → future: graph event "camera:zoom"
 ```
-
-`dpr` is passed from `layers.rootSize.value.dpr` (updated via `observeDPR`) for API stability; the default resolver does not use it yet.
 
 ---
 
@@ -232,7 +230,7 @@ const graph = new Graph({
 
 // Custom resolver:
 graph.updateSettings({
-  resolveWheelIntent: (_event, _dpr, _mouseWheelBehavior) => EWheelIntent.Zoom,
+  resolveWheelIntent: (_event, _mouseWheelBehavior) => EWheelIntent.Zoom,
 });
 
 // Debug logging (browser console, development builds only):

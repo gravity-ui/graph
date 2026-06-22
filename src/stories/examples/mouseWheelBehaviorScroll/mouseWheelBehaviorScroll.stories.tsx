@@ -52,8 +52,8 @@ function GraphWithMouseWheelBehaviorScroll({ mouseWheelBehavior }: MouseWheelBeh
       },
       settings: {
         ...GRAPH_SETTINGS,
-        resolveWheelIntent: (event: WheelEvent, dpr: number, wb: TMouseWheelBehavior) => {
-          const intent = baseResolveWheelIntent(event, dpr, wb);
+        resolveWheelIntent: (event: WheelEvent, wb: TMouseWheelBehavior) => {
+          const intent = baseResolveWheelIntent(event, wb);
           setResolvedWheelIntent(intent);
           return intent;
         },
