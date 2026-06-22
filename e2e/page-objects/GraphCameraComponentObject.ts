@@ -133,9 +133,34 @@ export class GraphCameraComponentObject {
     const mouseX = position?.x ?? canvasBounds.x + canvasBounds.width / 2;
     const mouseY = position?.y ?? canvasBounds.y + canvasBounds.height / 2;
 
-    // Move mouse to position and perform wheel event
     await this.page.mouse.move(mouseX, mouseY);
-    await this.page.mouse.wheel(0, deltaY);
+
+    // Playwright mouse.wheel() emits integer PIXEL deltas, which resolveWheelIntent
+    // classifies as trackpad pan. LINE-mode events match a mechanical mouse wheel (I4 → zoom).
+    const lineDeltaY =
+      Math.max(1, Math.round(Math.abs(deltaY) / 16)) * (deltaY >= 0 ? 1 : -1);
+
+    await this.page.evaluate(
+      ({ lineDeltaY, mouseX, mouseY }) => {
+        const root = document.getElementById("root");
+        if (!root) {
+          throw new Error("Graph root element not found");
+        }
+
+        root.dispatchEvent(
+          new WheelEvent("wheel", {
+            deltaX: 0,
+            deltaY: lineDeltaY,
+            deltaMode: WheelEvent.DOM_DELTA_LINE,
+            clientX: mouseX,
+            clientY: mouseY,
+            bubbles: true,
+            cancelable: true,
+          })
+        );
+      },
+      { lineDeltaY, mouseX, mouseY }
+    );
 
     // Wait for zoom to be processed
     await this.graphPO.waitForFrames(3);
