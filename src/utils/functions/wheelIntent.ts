@@ -376,10 +376,10 @@ function emitDebugEntry(
  * |---------------------------------------|-----------------|
  * | ctrlKey / metaKey + scroll            | Zoom (I1)       |
  * | Horizontal or diagonal movement       | Pan  (I2)       |
- * | Integer PIXEL delta (trackpad)        | Pan  (I3/I5)    |
+ * | Integer PIXEL delta (trackpad)        | Pan  (I3)       |
  * | Classic mouse wheel step (fractional) | Zoom/Pan (I4)*  |
  * | Rapid stream + small delta (fractional)| Pan  (I3)      |
- * | Anything else (slow small vertical)   | Last intent (I5)|
+ * | Anything else                         | Last intent (I5)|
  *
  * *I4 respects `mouseWheelBehavior`: `"scroll"` → Pan, `"zoom"` → Zoom.
  *
@@ -434,7 +434,7 @@ export function createWheelIntentResolver(): TResolveWheelIntent {
       rule = "I2:horizontal-or-diagonal";
     } else if (isIntegerPixelTrackpadScroll(e)) {
       intent = EWheelIntent.Pan;
-      rule = isRapidStream ? "I3:integer-trackpad" : "I5:integer-trackpad";
+      rule = isRapidStream ? "I3:integer-trackpad" : "I3:integer-trackpad-slow";
     } else if (signals.isDominantAxisLargeWheel || signals.isClassicMouseWheelStep) {
       intent = mouseWheelBehavior === "scroll" ? EWheelIntent.Pan : EWheelIntent.Zoom;
       rule = signals.isClassicMouseWheelStep ? "I4:mouse-wheel-step" : "I4:large-step";

@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from "@storybook/react-webpack5";
 import { TBlock } from "../../../components/canvas/blocks/Block";
 import { Graph, GraphState } from "../../../graph";
 import type { TMouseWheelBehavior } from "../../../graphConfig";
-import { EWheelIntent, createWheelIntentResolver, enableWheelIntentDebug } from "../../../graphConfig";
+import { EWheelIntent, createWheelIntentResolver } from "../../../graphConfig";
 import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "../../../react-components";
 import { useFn } from "../../../react-components/utils/hooks/useFn";
 import { ECanDrag } from "../../../store/settings";
@@ -38,10 +38,6 @@ type MouseWheelBehaviorStoryProps = {
 
 function GraphWithMouseWheelBehaviorScroll({ mouseWheelBehavior }: MouseWheelBehaviorStoryProps) {
   const [resolvedWheelIntent, setResolvedWheelIntent] = useState<EWheelIntent | null>(null);
-
-  useEffect(() => {
-    enableWheelIntentDebug();
-  }, []);
 
   const baseResolveWheelIntent = useMemo(() => createWheelIntentResolver(), []);
 
