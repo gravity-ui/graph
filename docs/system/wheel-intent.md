@@ -97,7 +97,7 @@ Any per-event magnitude, including inertia peaks ≥ 20 px. Horizontal and diago
 
 Physical mouse wheels emit LINE/PAGE steps or smooth-scroll **fractional** ramps. **Integer** PIXEL steps are trackpad — handled by I3/I5, never I4.
 
-**`I4:macos-fractional-mouse`**: slow (not rapid stream), vertical-only, **fractional** PIXEL delta on macOS (e.g. Δy ≈ -4.000244). Respects `MOUSE_WHEEL_BEHAVIOR`. Starts the **120 ms burst window**.
+**`I4:fractional-mouse`**: slow (not rapid stream), vertical-only, **fractional** PIXEL delta in the **~3–5 px** notch band (e.g. Δy ≈ -4.000244). Respects `MOUSE_WHEEL_BEHAVIOR`. Starts the **120 ms burst window**.
 
 ---
 
@@ -111,39 +111,13 @@ Trackpad inertia when deltas are fractional on some drivers. Integer trackpad sc
 
 ---
 
-## Platform priors
-
-`createWheelIntentResolver()` accepts an optional platform hint. Default is `"auto"` — {@link detectWheelIntentPlatform} runs once when the resolver is created.
-
-| Platform | Ambiguous prior (I5) | Rationale |
-|----------|----------------------|-----------|
-| **macOS** | Pan | Trackpad is common; small slow vertical scroll is treated as pan |
-| **other** | Zoom (`lastIntent` default) | Aligns with default `MOUSE_WHEEL_BEHAVIOR: "zoom"` |
-
-```typescript
-import { createWheelIntentResolver, EWheelIntentPlatform } from "@gravity-ui/graph";
-
-resolveWheelIntent: createWheelIntentResolver({ platform: "auto" }),
-// or explicitly:
-resolveWheelIntent: createWheelIntentResolver({ platform: EWheelIntentPlatform.MacOS }),
-```
-
-**macOS slow fallback**: integer trackpad → I5; fractional → I4 (`I4:macos-fractional-mouse`).
-
-Debug logs include `"platform": "macos" | "other"`.
-
----
-
 ### I5 — Ambiguous vertical scroll (sticky last intent)
 
 **Condition**: none of I1–I4 matched
 
-**Intent**:
+**Intent**: carry forward `lastIntent` (initial default: **Zoom**, aligned with default `MOUSE_WHEEL_BEHAVIOR`)
 
-- **macOS** + slow ambiguous **integer** trackpad scroll → **Pan** (`I5:integer-trackpad`)
-- otherwise carry forward `lastIntent` (initial default: **Zoom**)
-
-Trackpad pan is handled by **I3/I5** (integer PIXEL). Mouse wheel zoom uses **I4** (≥ 20 px fractional ramp peaks and `I4:macos-fractional-mouse` for slow fractional notches on macOS).
+Integer trackpad scroll is handled by **I3/I5** before I5 runs. Mouse wheel zoom uses **I4** (≥ 20 px fractional ramp peaks and `I4:fractional-mouse` for slow fractional notches).
 
 ---
 
@@ -167,7 +141,7 @@ WheelEvent arrives
 ├─ I3: rapid stream (< 38 ms) + both axes < 20 px (fractional)?
 │     → Pan
 │
-├─ I4: macOS slow fractional notch (< 20 px)?
+├─ I4: slow fractional notch (< 20 px)?
 │     → Pan or Zoom (MOUSE_WHEEL_BEHAVIOR)
 │
 └─ I5: else → last intent (default Zoom; integer trackpad already handled above)
@@ -230,11 +204,9 @@ handleZoom(event, acceleration);  // → future: graph event "camera:zoom"
 
 ## Known limitations
 
-### macOS: slow vertical scroll is inherently ambiguous
+### Slow vertical scroll can be ambiguous on macOS
 
-Trackpad two-finger scroll and smooth-scroll mice produce identical low-velocity `WheelEvent` streams. I5 biases toward continuity (last intent) rather than device labels. Consequence: a smooth-scroll mouse after pan gestures may keep panning until a large I4 step or explicit Ctrl+scroll (I1) zoom.
-
-Pan-by-default on macOS is the accepted tradeoff: zoom remains available via Ctrl/Cmd+scroll or a distinct wheel step (I4).
+Trackpad two-finger scroll and smooth-scroll mice both emit `deltaMode === 0` with fractional deltas at low velocity. The resolver distinguishes them by delta shape (integer vs fractional) and `MOUSE_WHEEL_BEHAVIOR`. After a pan gesture, I5 may keep panning until a distinct I4 step or Ctrl+scroll (I1) zoom.
 
 ### PointerEvents / TouchEvents do not help for wheel routing
 

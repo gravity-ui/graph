@@ -15,31 +15,6 @@ export enum EWheelIntent {
   Zoom = "zoom",
 }
 
-/** OS hint for wheel intent heuristics (trackpad vs mouse priors). */
-export enum EWheelIntentPlatform {
-  MacOS = "macos",
-  Other = "other",
-}
-
-export type TWheelIntentResolverPlatform = EWheelIntentPlatform | "auto";
-
-export type TWheelIntentResolverOptions = {
-  /**
-   * Platform prior for ambiguous gestures (I5) and threshold tuning.
-   * @default "auto" — {@link detectWheelIntentPlatform} at resolver creation time.
-   */
-  platform?: TWheelIntentResolverPlatform;
-};
-
-/** Thresholds and priors applied by {@link createWheelIntentResolver} for one platform. */
-export type TWheelIntentPlatformProfile = {
-  platform: EWheelIntentPlatform;
-  /** I5 initial `lastIntent` and macOS slow-ambiguous fallback. */
-  ambiguousIntent: EWheelIntent;
-  trackpadI3MaxPx: number;
-  mouseWheelDiscreteMinPx: number;
-};
-
 /**
  * Classifies a wheel event as pan or zoom intent.
  * Configured as `resolveWheelIntent` on graph settings (`TGraphSettingsConfig`).
@@ -56,8 +31,6 @@ export type TWheelIntentDebugEntry = {
   mouseWheelBehavior: TMouseWheelBehavior;
   /** Second argument to {@link TResolveWheelIntent}. */
   dpr: number;
-  /** Platform profile used for this classification. */
-  platform: EWheelIntentPlatform;
   /** Raw {@link WheelEvent} fields passed into the resolver. */
   input: {
     deltaX: number;
@@ -132,7 +105,7 @@ function formatDiagonalAxisRatio(normX: number, normY: number): number | null {
 
 function defaultDebugLogger(entry: TWheelIntentDebugEntry): void {
   const { input, session } = entry;
-  const summary = `[wheel-intent] ${entry.rule} → ${entry.result} | ${entry.platform} | Δ(${input.deltaX.toFixed(2)}, ${input.deltaY.toFixed(2)}) ${input.deltaModeLabel} +${Math.round(session.timeSinceLastMs)}ms`;
+  const summary = `[wheel-intent] ${entry.rule} → ${entry.result} | Δ(${input.deltaX.toFixed(2)}, ${input.deltaY.toFixed(2)}) ${input.deltaModeLabel} +${Math.round(session.timeSinceLastMs)}ms`;
   // Stringify so logs are copy-pasteable as plain text (not expandable DevTools objects).
   // eslint-disable-next-line no-console
   console.log(summary);
@@ -180,61 +153,14 @@ const MIN_HORIZONTAL_SCROLL_ABS = 2;
 const SMALL_DELTA_THRESHOLD = 50;
 
 /** Trackpad inertia: per-event normalized delta below this on both axes (I3). */
-const TRACKPAD_I3_MAX_PX_DEFAULT = 20;
+const TRACKPAD_I3_MAX_PX = 20;
 
-const MOUSE_WHEEL_DISCRETE_MIN_PX_DEFAULT = 20;
+/** Minimum normalized vertical delta for a discrete mouse wheel step (I4). */
+const MOUSE_WHEEL_DISCRETE_MIN_PX = 20;
 
-/**
- * Detects macOS-like environment for wheel intent priors (trackpad more likely than mouse).
- * SSR-safe: returns {@link EWheelIntentPlatform.Other} when `navigator` is unavailable.
- */
-export function detectWheelIntentPlatform(): EWheelIntentPlatform {
-  if (typeof navigator === "undefined") {
-    return EWheelIntentPlatform.Other;
-  }
-
-  const userAgentData = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData;
-  if (userAgentData?.platform === "macOS") {
-    return EWheelIntentPlatform.MacOS;
-  }
-
-  const navPlatform = navigator.platform;
-  if (navPlatform === "MacIntel" || navPlatform === "MacPPC" || navPlatform === "Mac68K") {
-    return EWheelIntentPlatform.MacOS;
-  }
-
-  if (/Mac OS X|Macintosh/.test(navigator.userAgent) && !/Windows/.test(navigator.userAgent)) {
-    return EWheelIntentPlatform.MacOS;
-  }
-
-  return EWheelIntentPlatform.Other;
-}
-
-function resolveWheelIntentPlatform(platform: TWheelIntentResolverPlatform | undefined): EWheelIntentPlatform {
-  if (platform === undefined || platform === "auto") {
-    return detectWheelIntentPlatform();
-  }
-  return platform;
-}
-
-/** Builds threshold/prior profile for a platform. */
-export function getWheelIntentPlatformProfile(platform: EWheelIntentPlatform): TWheelIntentPlatformProfile {
-  if (platform === EWheelIntentPlatform.MacOS) {
-    return {
-      platform,
-      ambiguousIntent: EWheelIntent.Pan,
-      trackpadI3MaxPx: TRACKPAD_I3_MAX_PX_DEFAULT,
-      mouseWheelDiscreteMinPx: MOUSE_WHEEL_DISCRETE_MIN_PX_DEFAULT,
-    };
-  }
-
-  return {
-    platform,
-    ambiguousIntent: EWheelIntent.Zoom,
-    trackpadI3MaxPx: TRACKPAD_I3_MAX_PX_DEFAULT,
-    mouseWheelDiscreteMinPx: MOUSE_WHEEL_DISCRETE_MIN_PX_DEFAULT,
-  };
-}
+/** Smooth-scroll mouse notch band (slow fractional PIXEL step, e.g. Δy ≈ -4.000244). */
+const MOUSE_WHEEL_NOTCH_MIN_PX = 3;
+const MOUSE_WHEEL_NOTCH_MAX_PX = 5;
 
 /** Approximate pixel equivalent of one scroll LINE (WheelEvent.deltaMode === 1). */
 const LINE_TO_PIXEL_APPROX = 16;
@@ -280,11 +206,7 @@ function isIntegerPixelDelta(e: WheelEvent): boolean {
  *
  * PIXEL mode with **integer** deltas is trackpad — excluded here regardless of magnitude.
  */
-function isClassicMouseWheelStep(
-  e: WheelEvent,
-  profile: TWheelIntentPlatformProfile,
-  hasFractionalDelta: boolean
-): boolean {
+function isClassicMouseWheelStep(e: WheelEvent, hasFractionalDelta: boolean): boolean {
   if (Math.abs(e.deltaX) >= 0.5) {
     return false;
   }
@@ -292,7 +214,7 @@ function isClassicMouseWheelStep(
     return true;
   }
   const normY = Math.abs(normalizeWheelDelta(e.deltaY, e.deltaMode));
-  if (normY < profile.mouseWheelDiscreteMinPx) {
+  if (normY < MOUSE_WHEEL_DISCRETE_MIN_PX) {
     return false;
   }
   if (isPixelDeltaMode(e) && !hasFractionalDelta) {
@@ -310,41 +232,33 @@ function isIntegerPixelTrackpadScroll(e: WheelEvent): boolean {
 }
 
 /** Rapid PIXEL-mode stream with small deltas — fractional trackpad inertia on some drivers. */
-function isTrackpadLikeRapidSmall(
-  e: WheelEvent,
-  isRapidStream: boolean,
-  profile: TWheelIntentPlatformProfile
-): boolean {
+function isTrackpadLikeRapidSmall(e: WheelEvent, isRapidStream: boolean): boolean {
   if (!isRapidStream || !isPixelDeltaMode(e)) {
     return false;
   }
   return (
-    Math.abs(normalizeWheelDelta(e.deltaY, e.deltaMode)) < profile.trackpadI3MaxPx &&
-    Math.abs(normalizeWheelDelta(e.deltaX, e.deltaMode)) < profile.trackpadI3MaxPx
+    Math.abs(normalizeWheelDelta(e.deltaY, e.deltaMode)) < TRACKPAD_I3_MAX_PX &&
+    Math.abs(normalizeWheelDelta(e.deltaX, e.deltaMode)) < TRACKPAD_I3_MAX_PX
   );
 }
 
 /**
- * macOS smooth-scroll mouse: slow vertical-only **fractional** PIXEL delta.
+ * Smooth-scroll mouse: slow vertical-only **fractional** PIXEL delta.
  * Integer scroll is trackpad — handled by {@link isIntegerPixelTrackpadScroll}.
  */
-function isMacOsSlowFractionalMouseWheelStep(
+function isSlowFractionalMouseWheelStep(
   e: WheelEvent,
-  profile: TWheelIntentPlatformProfile,
   isRapidStream: boolean,
   inMouseWheelBurst: boolean,
   hasFractionalDelta: boolean,
   isSmallDelta: boolean,
   isVerticalOnly: boolean
 ): boolean {
-  if (
-    profile.platform !== EWheelIntentPlatform.MacOS ||
-    isRapidStream ||
-    inMouseWheelBurst ||
-    !hasFractionalDelta ||
-    !isVerticalOnly ||
-    !isSmallDelta
-  ) {
+  if (isRapidStream || inMouseWheelBurst || !hasFractionalDelta || !isVerticalOnly || !isSmallDelta) {
+    return false;
+  }
+  const normY = Math.abs(normalizeWheelDelta(e.deltaY, e.deltaMode));
+  if (normY < MOUSE_WHEEL_NOTCH_MIN_PX || normY > MOUSE_WHEEL_NOTCH_MAX_PX) {
     return false;
   }
   return isPixelDeltaMode(e);
@@ -405,7 +319,6 @@ function emitDebugEntry(
   e: WheelEvent,
   dpr: number,
   mouseWheelBehavior: TMouseWheelBehavior,
-  platform: EWheelIntentPlatform,
   timeSinceLastWheel: number,
   isRapidStream: boolean,
   isInMouseWheelBurst: boolean,
@@ -426,7 +339,6 @@ function emitDebugEntry(
   debugLogger({
     mouseWheelBehavior,
     dpr,
-    platform,
     input: {
       deltaX: e.deltaX,
       deltaY: e.deltaY,
@@ -473,11 +385,10 @@ function emitDebugEntry(
  *
  * Trackpad: `deltaMode === 0` (PIXEL) + **integer** `deltaX`/`deltaY` → pan; **fractional** PIXEL → mouse (I4).
  * LINE/PAGE mode (`deltaMode !== 0`) is never trackpad — always mouse (I4).
- * See `docs/system/wheel-intent.md` for rationale and platform notes.
+ * See `docs/system/wheel-intent.md` for rationale.
  */
-export function createWheelIntentResolver(options?: TWheelIntentResolverOptions): TResolveWheelIntent {
-  const profile = getWheelIntentPlatformProfile(resolveWheelIntentPlatform(options?.platform));
-  let lastIntent: EWheelIntent = profile.ambiguousIntent;
+export function createWheelIntentResolver(): TResolveWheelIntent {
+  let lastIntent: EWheelIntent = EWheelIntent.Zoom;
   let lastTimestamp: number | null = null;
   let mouseWheelBurstUntil: number | null = null;
 
@@ -504,7 +415,7 @@ export function createWheelIntentResolver(options?: TWheelIntentResolverOptions)
       isPinchZoom: isPinchZoomWheelEvent(e, hasFractionalDelta, isSmallDelta),
       isDiagonalScroll: isDiagonalScroll(e),
       isPredominantHorizontalScroll: isPredominantHorizontalScroll(e),
-      isClassicMouseWheelStep: isClassicMouseWheelStep(e, profile, hasFractionalDelta),
+      isClassicMouseWheelStep: isClassicMouseWheelStep(e, hasFractionalDelta),
       isDominantAxisLargeWheel: isDominantAxisLargeWheel(e),
       isVerticalOnly: isVerticalOnlyWheel(e),
       hasFractionalDelta,
@@ -528,7 +439,7 @@ export function createWheelIntentResolver(options?: TWheelIntentResolverOptions)
       intent = mouseWheelBehavior === "scroll" ? EWheelIntent.Pan : EWheelIntent.Zoom;
       rule = signals.isClassicMouseWheelStep ? "I4:mouse-wheel-step" : "I4:large-step";
       markMouseWheelBurst(now);
-    } else if (isTrackpadLikeRapidSmall(e, isRapidStream, profile)) {
+    } else if (isTrackpadLikeRapidSmall(e, isRapidStream)) {
       if (inMouseWheelBurst && signals.isVerticalOnly) {
         intent = mouseWheelBehavior === "scroll" ? EWheelIntent.Pan : EWheelIntent.Zoom;
         rule = "I4-burst:smoothing";
@@ -538,9 +449,8 @@ export function createWheelIntentResolver(options?: TWheelIntentResolverOptions)
         rule = "I3:rapid-small";
       }
     } else if (
-      isMacOsSlowFractionalMouseWheelStep(
+      isSlowFractionalMouseWheelStep(
         e,
-        profile,
         isRapidStream,
         inMouseWheelBurst,
         hasFractionalDelta,
@@ -549,7 +459,7 @@ export function createWheelIntentResolver(options?: TWheelIntentResolverOptions)
       )
     ) {
       intent = mouseWheelBehavior === "scroll" ? EWheelIntent.Pan : EWheelIntent.Zoom;
-      rule = "I4:macos-fractional-mouse";
+      rule = "I4:fractional-mouse";
       markMouseWheelBurst(now);
     } else {
       intent = lastIntent;
@@ -562,7 +472,6 @@ export function createWheelIntentResolver(options?: TWheelIntentResolverOptions)
         e,
         dpr,
         mouseWheelBehavior,
-        profile.platform,
         timeSince,
         isRapidStream,
         inMouseWheelBurst,

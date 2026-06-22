@@ -246,11 +246,8 @@ export function computeCssVariable(name: string) {
 export { schedule, debounce, throttle } from "../utils/schedule";
 export {
   EWheelIntent,
-  EWheelIntentPlatform,
   createWheelIntentResolver,
-  detectWheelIntentPlatform,
   enableWheelIntentDebug,
-  getWheelIntentPlatformProfile,
   isPinchZoomGesture,
 } from "./wheelIntent";
 

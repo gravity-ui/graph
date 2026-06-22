@@ -128,7 +128,7 @@ graph.updateSettings({
 });
 ```
 
-See [Wheel Intent Resolution](./wheel-intent.md) for the I1–I5 heuristics and platform notes.
+See [Wheel Intent Resolution](./wheel-intent.md) for the I1–I5 heuristics.
 
 **Example (MOUSE_WHEEL_BEHAVIOR):**
 ```ts

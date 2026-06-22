@@ -3,18 +3,11 @@ import { Block } from "./components/canvas/blocks/Block";
 import { ESelectionStrategy } from "./services/selection";
 import type { TMouseWheelBehavior } from "./utils/functions/wheelIntent";
 
-export type {
-  TResolveWheelIntent,
-  TWheelIntentPlatformProfile,
-  TWheelIntentResolverOptions,
-} from "./utils/functions/wheelIntent";
+export type { TResolveWheelIntent } from "./utils/functions/wheelIntent";
 export {
   createWheelIntentResolver,
-  detectWheelIntentPlatform,
   enableWheelIntentDebug,
-  getWheelIntentPlatformProfile,
   EWheelIntent,
-  EWheelIntentPlatform,
 } from "./utils/functions/wheelIntent";
 export type { TMouseWheelBehavior };
 

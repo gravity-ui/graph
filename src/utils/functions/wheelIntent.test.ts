@@ -1,8 +1,6 @@
 import {
   EWheelIntent,
-  EWheelIntentPlatform,
   createWheelIntentResolver,
-  detectWheelIntentPlatform,
   enableWheelIntentDebug,
 } from "./wheelIntent";
 import type { TWheelIntentDebugEntry } from "./wheelIntent";
@@ -57,8 +55,8 @@ describe("createWheelIntentResolver", () => {
     expect(intent).toBe(EWheelIntent.Zoom);
   });
 
-  it("integer PIXEL scroll on any platform stays pan", () => {
-    const resolver = createWheelIntentResolver({ platform: EWheelIntentPlatform.Other });
+  it("integer PIXEL scroll stays pan", () => {
+    const resolver = createWheelIntentResolver();
 
     resolver(makeWheelEvent({ deltaY: 1 }), 1, "zoom");
     expect(resolver(makeWheelEvent({ deltaY: 11 }), 1, "zoom")).toBe(EWheelIntent.Pan);
@@ -66,8 +64,8 @@ describe("createWheelIntentResolver", () => {
     expect(resolver(makeWheelEvent({ deltaY: -100 }), 1, "zoom")).toBe(EWheelIntent.Pan);
   });
 
-  it("macOS trackpad integer scroll both directions stays pan", () => {
-    const resolver = createWheelIntentResolver({ platform: EWheelIntentPlatform.MacOS });
+  it("trackpad integer scroll both directions stays pan", () => {
+    const resolver = createWheelIntentResolver();
 
     resolver(makeWheelEvent({ deltaY: 1 }), 1, "zoom");
     expect(resolver(makeWheelEvent({ deltaY: 11 }), 1, "zoom")).toBe(EWheelIntent.Pan);
@@ -113,8 +111,8 @@ describe("createWheelIntentResolver", () => {
     expect(resolver(makeWheelEvent({ deltaY: -25.5 }), 1, "zoom")).toBe(EWheelIntent.Zoom);
   });
 
-  it("macOS smooth mouse wheel ramp (fractional deltas) stays zoom", () => {
-    const resolver = createWheelIntentResolver({ platform: EWheelIntentPlatform.MacOS });
+  it("smooth mouse wheel ramp (fractional deltas) stays zoom", () => {
+    const resolver = createWheelIntentResolver();
 
     resolver(makeWheelEvent({ deltaY: 4.000244140625 }), 1, "zoom");
     expect(resolver(makeWheelEvent({ deltaY: 34.15283203125 }), 1, "zoom")).toBe(EWheelIntent.Zoom);
@@ -135,15 +133,15 @@ describe("createWheelIntentResolver", () => {
     expect(intent).toBe(EWheelIntent.Pan);
   });
 
-  it("macOS profile: slow ambiguous small integer vertical scroll resolves to pan", () => {
-    const resolver = createWheelIntentResolver({ platform: EWheelIntentPlatform.MacOS });
+  it("slow ambiguous small integer vertical scroll resolves to pan", () => {
+    const resolver = createWheelIntentResolver();
 
     const intent = resolver(makeWheelEvent({ deltaY: -4, deltaX: 0 }), 1, "zoom");
     expect(intent).toBe(EWheelIntent.Pan);
   });
 
-  it("macOS profile: slow small fractional mouse notch respects MOUSE_WHEEL_BEHAVIOR=zoom", () => {
-    const resolver = createWheelIntentResolver({ platform: EWheelIntentPlatform.MacOS });
+  it("slow small fractional mouse notch respects MOUSE_WHEEL_BEHAVIOR=zoom", () => {
+    const resolver = createWheelIntentResolver();
 
     nowMs = 1000;
     expect(resolver(makeWheelEvent({ deltaY: -4.000244140625 }), 1, "zoom")).toBe(EWheelIntent.Zoom);
@@ -151,22 +149,22 @@ describe("createWheelIntentResolver", () => {
     expect(resolver(makeWheelEvent({ deltaY: -4.000244140625 }), 1, "zoom")).toBe(EWheelIntent.Zoom);
   });
 
-  it("macOS profile: slow small fractional mouse notch respects MOUSE_WHEEL_BEHAVIOR=scroll", () => {
-    const resolver = createWheelIntentResolver({ platform: EWheelIntentPlatform.MacOS });
+  it("slow small fractional mouse notch respects MOUSE_WHEEL_BEHAVIOR=scroll", () => {
+    const resolver = createWheelIntentResolver();
 
     nowMs = 1000;
     expect(resolver(makeWheelEvent({ deltaY: -4.000244140625 }), 1, "scroll")).toBe(EWheelIntent.Pan);
   });
 
-  it("macOS profile: slow ambiguous scroll with scroll mode resolves to pan", () => {
-    const resolver = createWheelIntentResolver({ platform: EWheelIntentPlatform.MacOS });
+  it("slow ambiguous scroll with scroll mode resolves to pan", () => {
+    const resolver = createWheelIntentResolver();
 
     const intent = resolver(makeWheelEvent({ deltaY: -4, deltaX: 0 }), 1, "scroll");
     expect(intent).toBe(EWheelIntent.Pan);
   });
 
-  it("other profile: slow ambiguous fractional vertical scroll uses zoom prior", () => {
-    const resolver = createWheelIntentResolver({ platform: EWheelIntentPlatform.Other });
+  it("slow ambiguous fractional vertical scroll uses MOUSE_WHEEL_BEHAVIOR=zoom", () => {
+    const resolver = createWheelIntentResolver();
 
     const intent = resolver(makeWheelEvent({ deltaY: -4.5, deltaX: 0 }), 1, "zoom");
     expect(intent).toBe(EWheelIntent.Zoom);
@@ -181,25 +179,6 @@ describe("createWheelIntentResolver", () => {
 
     resolver(lineEvent, 1, "zoom");
     expect(resolver(lineEvent, 1, "zoom")).toBe(EWheelIntent.Zoom);
-  });
-
-  it("detectWheelIntentPlatform reads macOS from navigator", () => {
-    const originalNavigator = global.navigator;
-    Object.defineProperty(global, "navigator", {
-      configurable: true,
-      value: {
-        platform: "MacIntel",
-        userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-        userAgentData: { platform: "macOS" },
-      },
-    });
-
-    expect(detectWheelIntentPlatform()).toBe(EWheelIntentPlatform.MacOS);
-
-    Object.defineProperty(global, "navigator", {
-      configurable: true,
-      value: originalNavigator,
-    });
   });
 
   it("enableWheelIntentDebug emits full resolver input and signals", () => {

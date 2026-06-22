@@ -7,17 +7,12 @@ export type { TGraphColors, TGraphConstants, TMouseWheelBehavior } from "./graph
 export type {
   TResolveWheelIntent,
   TWheelIntentDebugEntry,
-  TWheelIntentPlatformProfile,
-  TWheelIntentResolverOptions,
 } from "./utils/functions/wheelIntent";
 export {
   createWheelIntentResolver,
-  detectWheelIntentPlatform,
   enableWheelIntentDebug,
-  getWheelIntentPlatformProfile,
   isPinchZoomGesture,
   EWheelIntent,
-  EWheelIntentPlatform,
 } from "./utils/functions/wheelIntent";
 export { type UnwrapGraphEventsDetail, type SelectionEvent } from "./graphEvents";
 export * from "./plugins";
