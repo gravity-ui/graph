@@ -42,7 +42,24 @@ export type TConnection = {
 } & (TConnectionBlockPoint | TConnectionPortPoint);
 
 export class ConnectionState<T extends TConnection = TConnection> {
-  public $state = signal<T>(undefined);
+  protected $rawState = signal<T>(undefined);
+
+  /**
+   * Computed signal that reactively determines if this connection is selected
+   * by checking if its ID exists in the selection bucket
+   */
+  public readonly $selected = computed(() => {
+    return this.connectionSelectionBucket.$selected.value.has(this.$rawState.value.id);
+  });
+
+  /**
+   * Connection state signal.
+   * Derives `selected` from the selection bucket, consistent with BlockState pattern.
+   */
+  public $state = computed(() => ({
+    ...this.$rawState.value,
+    selected: this.$selected.value,
+  }));
 
   private isDestroyed = false;
 
@@ -174,14 +191,6 @@ export class ConnectionState<T extends TConnection = TConnection> {
     return undefined;
   });
 
-  /**
-   * Computed signal that reactively determines if this connection is selected
-   * by checking if its ID exists in the selection bucket
-   */
-  public readonly $selected = computed(() => {
-    return this.connectionSelectionBucket.$selected.value.has(this.id);
-  });
-
   public static getConnectionId(connection: TConnection) {
     if (connection.id) return connection.id;
     if (connection.sourceAnchorId && connection.targetAnchorId) {
@@ -198,7 +207,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
     private readonly connectionSelectionBucket: ISelectionBucket<string | number>
   ) {
     const id = ConnectionState.getConnectionId(connectionState);
-    this.$state.value = { ...connectionState, id };
+    this.$rawState.value = { ...connectionState, id } as T;
   }
 
   /**
@@ -224,8 +233,8 @@ export class ConnectionState<T extends TConnection = TConnection> {
    * Checks if the connection is currently selected.
    * @returns True if the connection is selected, false otherwise.
    */
-  public isSelected() {
-    return this.$state.value.selected;
+  public isSelected(): boolean {
+    return this.$selected.value;
   }
 
   public setSelection(selected: boolean, strategy: ESelectionStrategy = ESelectionStrategy.REPLACE) {
@@ -237,7 +246,10 @@ export class ConnectionState<T extends TConnection = TConnection> {
    * @returns {TConnection} A deep copy of the connection data
    */
   public asTConnection(): TConnection {
-    return cloneDeep(this.$state.toJSON());
+    return cloneDeep({
+      ...this.$rawState.toJSON(),
+      selected: this.$selected.value,
+    });
   }
 
   /**
@@ -245,7 +257,10 @@ export class ConnectionState<T extends TConnection = TConnection> {
    * @returns {TConnection} A deep copy of the connection data
    */
   public toJSON(): TConnection {
-    return cloneDeep(this.$state.toJSON());
+    return cloneDeep({
+      ...this.$rawState.toJSON(),
+      selected: this.$selected.value,
+    });
   }
 
   /**
@@ -256,9 +271,9 @@ export class ConnectionState<T extends TConnection = TConnection> {
   public updateConnection(connection: Partial<TConnection>): void {
     const { styles, ...newProps } = connection;
 
-    const newStyles = Object.assign({}, this.$state.value.styles, styles);
+    const newStyles = Object.assign({}, this.$rawState.value.styles, styles);
 
-    this.$state.value = Object.assign({}, this.$state.value, newProps, { styles: newStyles });
+    this.$rawState.value = Object.assign({}, this.$rawState.value, newProps, { styles: newStyles });
   }
 
   /**

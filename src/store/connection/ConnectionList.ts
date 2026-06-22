@@ -164,25 +164,6 @@ export class ConnectionsStore {
     this.ports.deletePorts(ports);
   }
 
-  protected setSelection(
-    connection: ConnectionState | TConnectionId,
-    selected: boolean,
-    params?: { ignoreChange: boolean }
-  ) {
-    const state = connection instanceof ConnectionState ? connection : this.$connectionsMap.value.get(connection);
-    if (state) {
-      if (selected !== Boolean(state.$state.value.selected)) {
-        if (!params?.ignoreChange) {
-          state.updateConnection({
-            selected,
-          });
-        }
-        return true;
-      }
-    }
-    return false;
-  }
-
   public updateConnections(connections: TConnection[]) {
     this.$connectionsMap.value = connections.reduce((acc, connection) => {
       const c = this.getOrCreateConnection(connection);
@@ -231,7 +212,7 @@ export class ConnectionsStore {
 
   public deleteSelectedConnections() {
     this.$connections.value.forEach((c) => {
-      if (c.$state.value.selected) {
+      if (c.$selected.value) {
         c.destroy(); // Clean up port observers
         this.$connectionsMap.value.delete(c.id);
       }
