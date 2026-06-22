@@ -4,10 +4,7 @@ export { GraphComponent } from "./components/canvas/GraphComponent";
 export * from "./components/canvas/connections";
 export * from "./graph";
 export type { TGraphColors, TGraphConstants, TMouseWheelBehavior } from "./graphConfig";
-export type {
-  TResolveWheelIntent,
-  TWheelIntentDebugEntry,
-} from "./utils/functions/wheelIntent";
+export type { TResolveWheelIntent, TWheelIntentDebugEntry } from "./utils/functions/wheelIntent";
 export {
   createWheelIntentResolver,
   enableWheelIntentDebug,

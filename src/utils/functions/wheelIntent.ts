@@ -18,6 +18,8 @@ export enum EWheelIntent {
 /**
  * Classifies a wheel event as pan or zoom intent.
  * Configured as `resolveWheelIntent` on graph settings (`TGraphSettingsConfig`).
+ *
+ * @param dpr Device pixel ratio from the graph layer; reserved for future heuristics (unused today).
  */
 export type TResolveWheelIntent = (
   event: WheelEvent,
@@ -81,6 +83,19 @@ const WHEEL_INTENT_DEBUG_GLOBAL_KEY = "__graphWheelIntentDebugLogger__";
 
 type TGlobalWithWheelIntentDebug = typeof globalThis & {
   [WHEEL_INTENT_DEBUG_GLOBAL_KEY]?: TWheelIntentDebugLogger | null;
+};
+
+/** Normalized wheel deltas and derived flags computed once per event. */
+type TWheelContext = {
+  event: WheelEvent;
+  normX: number;
+  normY: number;
+  absX: number;
+  absY: number;
+  hasFractionalDelta: boolean;
+  isPixelDeltaMode: boolean;
+  isSmallDelta: boolean;
+  isVerticalOnly: boolean;
 };
 
 function getWheelIntentDebugLogger(): TWheelIntentDebugLogger | null {
@@ -178,27 +193,25 @@ function normalizeWheelDelta(delta: number, deltaMode: number): number {
   return delta;
 }
 
-/**
- * Trackpads always emit `WheelEvent.DOM_DELTA_PIXEL` (`deltaMode === 0`).
- * Mechanical mouse wheels typically use LINE or PAGE mode instead.
- */
-function isPixelDeltaMode(e: WheelEvent): boolean {
-  return e.deltaMode === WheelEvent.DOM_DELTA_PIXEL;
-}
+function createWheelContext(event: WheelEvent): TWheelContext {
+  const normX = normalizeWheelDelta(event.deltaX, event.deltaMode);
+  const normY = normalizeWheelDelta(event.deltaY, event.deltaMode);
+  const absX = Math.abs(normX);
+  const absY = Math.abs(normY);
+  const isPixelDeltaMode = event.deltaMode === WheelEvent.DOM_DELTA_PIXEL;
+  const hasFractionalDelta = isPixelDeltaMode && (!Number.isInteger(event.deltaY) || !Number.isInteger(event.deltaX));
 
-function hasFractionalWheelDelta(e: WheelEvent): boolean {
-  if (!isPixelDeltaMode(e)) {
-    return false;
-  }
-  return !Number.isInteger(e.deltaY) || !Number.isInteger(e.deltaX);
-}
-
-/**
- * Trackpad scroll in PIXEL mode with integer `deltaX` and `deltaY`.
- * Trackpad = `deltaMode === 0` + integer deltas; smooth-scroll mice emit fractional PIXEL deltas.
- */
-function isIntegerPixelDelta(e: WheelEvent): boolean {
-  return isPixelDeltaMode(e) && !hasFractionalWheelDelta(e);
+  return {
+    event,
+    normX,
+    normY,
+    absX,
+    absY,
+    hasFractionalDelta,
+    isPixelDeltaMode,
+    isSmallDelta: absX < SMALL_DELTA_THRESHOLD && absY < SMALL_DELTA_THRESHOLD,
+    isVerticalOnly: absX < MIN_HORIZONTAL_SCROLL_ABS,
+  };
 }
 
 /**
@@ -206,83 +219,67 @@ function isIntegerPixelDelta(e: WheelEvent): boolean {
  *
  * PIXEL mode with **integer** deltas is trackpad — excluded here regardless of magnitude.
  */
-function isClassicMouseWheelStep(e: WheelEvent, hasFractionalDelta: boolean): boolean {
-  if (Math.abs(e.deltaX) >= 0.5) {
+function isClassicMouseWheelStep(ctx: TWheelContext): boolean {
+  const { event, absY, isPixelDeltaMode, hasFractionalDelta } = ctx;
+  if (Math.abs(event.deltaX) >= 0.5) {
     return false;
   }
-  if (e.deltaMode === WheelEvent.DOM_DELTA_LINE || e.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE || event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
     return true;
   }
-  const normY = Math.abs(normalizeWheelDelta(e.deltaY, e.deltaMode));
-  if (normY < MOUSE_WHEEL_DISCRETE_MIN_PX) {
+  if (absY < MOUSE_WHEEL_DISCRETE_MIN_PX) {
     return false;
   }
-  if (isPixelDeltaMode(e) && !hasFractionalDelta) {
+  if (isPixelDeltaMode && !hasFractionalDelta) {
     return false;
   }
   return true;
 }
 
-/**
- * Trackpad scroll in PIXEL mode: integer `deltaX` and `deltaY` on any platform.
- * Horizontal and diagonal gestures are handled by I2 before this rule runs.
- */
-function isIntegerPixelTrackpadScroll(e: WheelEvent): boolean {
-  return isIntegerPixelDelta(e);
+/** Trackpad scroll in PIXEL mode: integer `deltaX` and `deltaY`. */
+function isIntegerPixelTrackpadScroll(ctx: TWheelContext): boolean {
+  return ctx.isPixelDeltaMode && !ctx.hasFractionalDelta;
 }
 
 /** Rapid PIXEL-mode stream with small deltas — fractional trackpad inertia on some drivers. */
-function isTrackpadLikeRapidSmall(e: WheelEvent, isRapidStream: boolean): boolean {
-  if (!isRapidStream || !isPixelDeltaMode(e)) {
+function isTrackpadLikeRapidSmall(ctx: TWheelContext, isRapidStream: boolean): boolean {
+  if (!isRapidStream || !ctx.isPixelDeltaMode) {
     return false;
   }
-  return (
-    Math.abs(normalizeWheelDelta(e.deltaY, e.deltaMode)) < TRACKPAD_I3_MAX_PX &&
-    Math.abs(normalizeWheelDelta(e.deltaX, e.deltaMode)) < TRACKPAD_I3_MAX_PX
-  );
+  return ctx.absY < TRACKPAD_I3_MAX_PX && ctx.absX < TRACKPAD_I3_MAX_PX;
 }
 
-/**
- * Smooth-scroll mouse: slow vertical-only **fractional** PIXEL delta.
- * Integer scroll is trackpad — handled by {@link isIntegerPixelTrackpadScroll}.
- */
+/** Smooth-scroll mouse: slow vertical-only **fractional** PIXEL delta in the notch band. */
 function isSlowFractionalMouseWheelStep(
-  e: WheelEvent,
+  ctx: TWheelContext,
   isRapidStream: boolean,
-  inMouseWheelBurst: boolean,
-  hasFractionalDelta: boolean,
-  isSmallDelta: boolean,
-  isVerticalOnly: boolean
+  inMouseWheelBurst: boolean
 ): boolean {
-  if (isRapidStream || inMouseWheelBurst || !hasFractionalDelta || !isVerticalOnly || !isSmallDelta) {
+  if (
+    isRapidStream ||
+    inMouseWheelBurst ||
+    !ctx.hasFractionalDelta ||
+    !ctx.isVerticalOnly ||
+    !ctx.isSmallDelta ||
+    !ctx.isPixelDeltaMode
+  ) {
     return false;
   }
-  const normY = Math.abs(normalizeWheelDelta(e.deltaY, e.deltaMode));
-  if (normY < MOUSE_WHEEL_NOTCH_MIN_PX || normY > MOUSE_WHEEL_NOTCH_MAX_PX) {
-    return false;
-  }
-  return isPixelDeltaMode(e);
+  return ctx.absY >= MOUSE_WHEEL_NOTCH_MIN_PX && ctx.absY <= MOUSE_WHEEL_NOTCH_MAX_PX;
 }
 
 /** One axis dominates (large step), the other ~0 — classic mouse wheel click. */
-function isDominantAxisLargeWheel(e: WheelEvent): boolean {
-  const ax = Math.abs(normalizeWheelDelta(e.deltaX, e.deltaMode));
-  const ay = Math.abs(normalizeWheelDelta(e.deltaY, e.deltaMode));
+function isDominantAxisLargeWheel(ctx: TWheelContext): boolean {
+  const { event, absX, absY } = ctx;
   return (
-    (ax >= SMALL_DELTA_THRESHOLD && Math.abs(e.deltaY) < 0.5) ||
-    (ay >= SMALL_DELTA_THRESHOLD && Math.abs(e.deltaX) < 0.5)
+    (absX >= SMALL_DELTA_THRESHOLD && Math.abs(event.deltaY) < 0.5) ||
+    (absY >= SMALL_DELTA_THRESHOLD && Math.abs(event.deltaX) < 0.5)
   );
 }
 
-function isSmallWheelDelta(e: WheelEvent): boolean {
-  return (
-    Math.abs(normalizeWheelDelta(e.deltaY, e.deltaMode)) < SMALL_DELTA_THRESHOLD &&
-    Math.abs(normalizeWheelDelta(e.deltaX, e.deltaMode)) < SMALL_DELTA_THRESHOLD
-  );
-}
-
-function isPinchZoomWheelEvent(e: WheelEvent, hasFractionalDelta: boolean, isSmallDelta: boolean): boolean {
-  return (e.ctrlKey || e.metaKey) && (hasFractionalDelta || isSmallDelta);
+function isPinchZoomWheelEvent(ctx: TWheelContext): boolean {
+  const { event, hasFractionalDelta, isSmallDelta } = ctx;
+  return (event.ctrlKey || event.metaKey) && (hasFractionalDelta || isSmallDelta);
 }
 
 /**
@@ -290,33 +287,44 @@ function isPinchZoomWheelEvent(e: WheelEvent, hasFractionalDelta: boolean, isSma
  * Used by Camera for pinch zoom speed; excludes Ctrl+scroll on a mechanical wheel (large steps ≥ I4 threshold).
  */
 export function isPinchZoomGesture(event: WheelEvent): boolean {
-  return isPinchZoomWheelEvent(event, hasFractionalWheelDelta(event), isSmallWheelDelta(event));
-}
-
-function isVerticalOnlyWheel(e: WheelEvent): boolean {
-  return Math.abs(normalizeWheelDelta(e.deltaX, e.deltaMode)) < MIN_HORIZONTAL_SCROLL_ABS;
+  return isPinchZoomWheelEvent(createWheelContext(event));
 }
 
 /** Horizontal movement dominates — ignores deltaX noise on predominantly vertical wheel ticks. */
-function isPredominantHorizontalScroll(e: WheelEvent): boolean {
-  const normX = Math.abs(normalizeWheelDelta(e.deltaX, e.deltaMode));
-  const normY = Math.abs(normalizeWheelDelta(e.deltaY, e.deltaMode));
-  return normX >= MIN_HORIZONTAL_SCROLL_ABS && normX > normY;
+function isPredominantHorizontalScroll(ctx: TWheelContext): boolean {
+  return ctx.absX >= MIN_HORIZONTAL_SCROLL_ABS && ctx.absX > ctx.absY;
 }
 
-function isDiagonalScroll(e: WheelEvent): boolean {
-  const normX = Math.abs(normalizeWheelDelta(e.deltaX, e.deltaMode));
-  const normY = Math.abs(normalizeWheelDelta(e.deltaY, e.deltaMode));
-  if (e.shiftKey || normX <= DIAGONAL_MIN_ABS || normY <= DIAGONAL_MIN_ABS) {
+function isDiagonalScroll(ctx: TWheelContext): boolean {
+  const { event, absX, absY } = ctx;
+  if (event.shiftKey || absX <= DIAGONAL_MIN_ABS || absY <= DIAGONAL_MIN_ABS) {
     return false;
   }
-  const minAxis = Math.min(normX, normY);
-  const maxAxis = Math.max(normX, normY);
+  const minAxis = Math.min(absX, absY);
+  const maxAxis = Math.max(absX, absY);
   return minAxis / maxAxis >= DIAGONAL_AXIS_MIN_RATIO;
 }
 
+function buildWheelSignals(ctx: TWheelContext): TWheelIntentDebugEntry["signals"] {
+  return {
+    isPinchZoom: isPinchZoomWheelEvent(ctx),
+    isDiagonalScroll: isDiagonalScroll(ctx),
+    isPredominantHorizontalScroll: isPredominantHorizontalScroll(ctx),
+    isClassicMouseWheelStep: isClassicMouseWheelStep(ctx),
+    isDominantAxisLargeWheel: isDominantAxisLargeWheel(ctx),
+    isVerticalOnly: ctx.isVerticalOnly,
+    hasFractionalDelta: ctx.hasFractionalDelta,
+    isSmallDelta: ctx.isSmallDelta,
+    isPixelDeltaMode: ctx.isPixelDeltaMode,
+  };
+}
+
+function intentFromMouseWheelBehavior(mouseWheelBehavior: TMouseWheelBehavior): EWheelIntent {
+  return mouseWheelBehavior === "scroll" ? EWheelIntent.Pan : EWheelIntent.Zoom;
+}
+
 function emitDebugEntry(
-  e: WheelEvent,
+  ctx: TWheelContext,
   dpr: number,
   mouseWheelBehavior: TMouseWheelBehavior,
   timeSinceLastWheel: number,
@@ -333,26 +341,25 @@ function emitDebugEntry(
     return;
   }
 
-  const normDeltaX = normalizeWheelDelta(e.deltaX, e.deltaMode);
-  const normDeltaY = normalizeWheelDelta(e.deltaY, e.deltaMode);
+  const { event, normX, normY } = ctx;
 
   debugLogger({
     mouseWheelBehavior,
     dpr,
     input: {
-      deltaX: e.deltaX,
-      deltaY: e.deltaY,
-      deltaMode: e.deltaMode,
-      deltaModeLabel: deltaModeLabel(e.deltaMode),
-      ctrlKey: e.ctrlKey,
-      metaKey: e.metaKey,
-      shiftKey: e.shiftKey,
-      altKey: e.altKey,
+      deltaX: event.deltaX,
+      deltaY: event.deltaY,
+      deltaMode: event.deltaMode,
+      deltaModeLabel: deltaModeLabel(event.deltaMode),
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
     },
     normalized: {
-      deltaX: normDeltaX,
-      deltaY: normDeltaY,
-      diagonalAxisRatio: formatDiagonalAxisRatio(Math.abs(normDeltaX), Math.abs(normDeltaY)),
+      deltaX: normX,
+      deltaY: normY,
+      diagonalAxisRatio: formatDiagonalAxisRatio(Math.abs(normX), Math.abs(normY)),
     },
     session: {
       timeSinceLastMs: timeSinceLastWheel === Number.POSITIVE_INFINITY ? -1 : timeSinceLastWheel,
@@ -398,7 +405,7 @@ export function createWheelIntentResolver(): TResolveWheelIntent {
 
   const isInMouseWheelBurst = (now: number): boolean => mouseWheelBurstUntil !== null && now <= mouseWheelBurstUntil;
 
-  return (e: WheelEvent, dpr: number, mouseWheelBehavior: TMouseWheelBehavior): EWheelIntent => {
+  return (event: WheelEvent, _dpr: number, mouseWheelBehavior: TMouseWheelBehavior): EWheelIntent => {
     const now = performance.now();
     const timeSince = lastTimestamp !== null ? now - lastTimestamp : Number.POSITIVE_INFINITY;
     lastTimestamp = now;
@@ -407,21 +414,9 @@ export function createWheelIntentResolver(): TResolveWheelIntent {
     const inMouseWheelBurst = isInMouseWheelBurst(now);
     const mouseWheelBurstRemainingMs = mouseWheelBurstUntil !== null ? Math.max(0, mouseWheelBurstUntil - now) : null;
 
-    const hasFractionalDelta = hasFractionalWheelDelta(e);
-    const isSmallDelta = isSmallWheelDelta(e);
+    const ctx = createWheelContext(event);
+    const signals = buildWheelSignals(ctx);
     const lastIntentBefore = lastIntent;
-
-    const signals: TWheelIntentDebugEntry["signals"] = {
-      isPinchZoom: isPinchZoomWheelEvent(e, hasFractionalDelta, isSmallDelta),
-      isDiagonalScroll: isDiagonalScroll(e),
-      isPredominantHorizontalScroll: isPredominantHorizontalScroll(e),
-      isClassicMouseWheelStep: isClassicMouseWheelStep(e, hasFractionalDelta),
-      isDominantAxisLargeWheel: isDominantAxisLargeWheel(e),
-      isVerticalOnly: isVerticalOnlyWheel(e),
-      hasFractionalDelta,
-      isSmallDelta,
-      isPixelDeltaMode: isPixelDeltaMode(e),
-    };
 
     let intent: EWheelIntent;
     let rule: string;
@@ -432,33 +427,24 @@ export function createWheelIntentResolver(): TResolveWheelIntent {
     } else if (signals.isDiagonalScroll || signals.isPredominantHorizontalScroll) {
       intent = EWheelIntent.Pan;
       rule = "I2:horizontal-or-diagonal";
-    } else if (isIntegerPixelTrackpadScroll(e)) {
+    } else if (isIntegerPixelTrackpadScroll(ctx)) {
       intent = EWheelIntent.Pan;
       rule = isRapidStream ? "I3:integer-trackpad" : "I3:integer-trackpad-slow";
     } else if (signals.isDominantAxisLargeWheel || signals.isClassicMouseWheelStep) {
-      intent = mouseWheelBehavior === "scroll" ? EWheelIntent.Pan : EWheelIntent.Zoom;
+      intent = intentFromMouseWheelBehavior(mouseWheelBehavior);
       rule = signals.isClassicMouseWheelStep ? "I4:mouse-wheel-step" : "I4:large-step";
       markMouseWheelBurst(now);
-    } else if (isTrackpadLikeRapidSmall(e, isRapidStream)) {
+    } else if (isTrackpadLikeRapidSmall(ctx, isRapidStream)) {
       if (inMouseWheelBurst && signals.isVerticalOnly) {
-        intent = mouseWheelBehavior === "scroll" ? EWheelIntent.Pan : EWheelIntent.Zoom;
+        intent = intentFromMouseWheelBehavior(mouseWheelBehavior);
         rule = "I4-burst:smoothing";
         markMouseWheelBurst(now);
       } else {
         intent = EWheelIntent.Pan;
         rule = "I3:rapid-small";
       }
-    } else if (
-      isSlowFractionalMouseWheelStep(
-        e,
-        isRapidStream,
-        inMouseWheelBurst,
-        hasFractionalDelta,
-        isSmallDelta,
-        signals.isVerticalOnly
-      )
-    ) {
-      intent = mouseWheelBehavior === "scroll" ? EWheelIntent.Pan : EWheelIntent.Zoom;
+    } else if (isSlowFractionalMouseWheelStep(ctx, isRapidStream, inMouseWheelBurst)) {
+      intent = intentFromMouseWheelBehavior(mouseWheelBehavior);
       rule = "I4:fractional-mouse";
       markMouseWheelBurst(now);
     } else {
@@ -469,8 +455,8 @@ export function createWheelIntentResolver(): TResolveWheelIntent {
     lastIntent = intent;
     if (getWheelIntentDebugLogger() !== null) {
       emitDebugEntry(
-        e,
-        dpr,
+        ctx,
+        _dpr,
         mouseWheelBehavior,
         timeSince,
         isRapidStream,
