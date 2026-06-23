@@ -495,7 +495,7 @@ export class Layer<
 
   public getDRP() {
     const respectPixelRatio = this.props.canvas?.respectPixelRatio ?? true;
-    return respectPixelRatio ? this.context.graph.layers.getDPR() : 1;
+    return respectPixelRatio ? this.context.graph.layers.rootSize.value.dpr : 1;
   }
 
   protected applyTransform(

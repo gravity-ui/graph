@@ -263,7 +263,7 @@ Component Object representing the camera. Get it via `graphPO.getCamera()`:
 - `zoomToBlocks(blockIds)` - Zoom to specific blocks
 
 **User Interaction Emulation:**
-- `emulateZoom(deltaY, position?)` - Emulate mouse wheel zoom
+- `emulateZoom(deltaY, position?)` - Emulate mouse wheel zoom (dispatches LINE-mode `WheelEvent`, not Playwright `mouse.wheel`)
 - `emulatePan(deltaX, deltaY, startPosition?)` - Emulate camera pan with mouse drag
   - Temporarily disables block dragging (`canDrag: "none"`) to prevent accidental block movement
   - Restores original `canDrag` setting after the pan completes

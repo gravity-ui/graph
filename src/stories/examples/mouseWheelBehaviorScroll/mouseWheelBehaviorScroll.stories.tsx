@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from "@storybook/react-webpack5";
 import { TBlock } from "../../../components/canvas/blocks/Block";
 import { Graph, GraphState } from "../../../graph";
 import type { TMouseWheelBehavior } from "../../../graphConfig";
-import { EWheelDeviceKind, defaultResolveWheelDevice } from "../../../graphConfig";
+import { EWheelIntent, createWheelIntentResolver } from "../../../graphConfig";
 import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "../../../react-components";
 import { useFn } from "../../../react-components/utils/hooks/useFn";
 import { ECanDrag } from "../../../store/settings";
@@ -26,9 +26,9 @@ const GRAPH_SETTINGS: NonNullable<HookGraphParams["settings"]> = {
   showConnectionLabels: false,
 };
 
-const DEVICE_LABEL: Record<EWheelDeviceKind, string> = {
-  [EWheelDeviceKind.Mouse]: "Mouse wheel",
-  [EWheelDeviceKind.Trackpad]: "Trackpad",
+const INTENT_LABEL: Record<EWheelIntent, string> = {
+  [EWheelIntent.Pan]: "Pan",
+  [EWheelIntent.Zoom]: "Zoom",
 };
 
 type MouseWheelBehaviorStoryProps = {
@@ -37,7 +37,9 @@ type MouseWheelBehaviorStoryProps = {
 };
 
 function GraphWithMouseWheelBehaviorScroll({ mouseWheelBehavior }: MouseWheelBehaviorStoryProps) {
-  const [resolvedWheelDevice, setResolvedWheelDevice] = useState<EWheelDeviceKind | null>(null);
+  const [resolvedWheelIntent, setResolvedWheelIntent] = useState<EWheelIntent | null>(null);
+
+  const baseResolveWheelIntent = useMemo(() => createWheelIntentResolver(), []);
 
   const graphParams = useMemo<HookGraphParams>(
     () => ({
@@ -50,20 +52,20 @@ function GraphWithMouseWheelBehaviorScroll({ mouseWheelBehavior }: MouseWheelBeh
       },
       settings: {
         ...GRAPH_SETTINGS,
-        resolveWheelDevice: (event: WheelEvent) => {
-          const kind = defaultResolveWheelDevice(event);
-          setResolvedWheelDevice(kind);
-          return kind;
+        resolveWheelIntent: (event: WheelEvent, wb: TMouseWheelBehavior) => {
+          const intent = baseResolveWheelIntent(event, wb);
+          setResolvedWheelIntent(intent);
+          return intent;
         },
       },
     }),
-    [mouseWheelBehavior, setResolvedWheelDevice]
+    [mouseWheelBehavior, baseResolveWheelIntent]
   );
 
   const { graph, setEntities, start } = useGraph(graphParams);
 
   useEffect(() => {
-    setResolvedWheelDevice(null);
+    setResolvedWheelIntent(null);
   }, [mouseWheelBehavior]);
 
   useGraphEvent(graph, "state-change", ({ state }) => {
@@ -134,11 +136,11 @@ function GraphWithMouseWheelBehaviorScroll({ mouseWheelBehavior }: MouseWheelBeh
             Storybook Controls
           </Text>
           <Text variant={"body-2"} color={"secondary"}>
-            <strong>Resolved wheel device</strong> (from <code>resolveWheelDevice</code> / heuristics):{" "}
-            {resolvedWheelDevice === null ? (
+            <strong>Resolved wheel intent</strong> (from <code>resolveWheelIntent</code> / heuristics):{" "}
+            {resolvedWheelIntent === null ? (
               "scroll over the canvas with a mouse or trackpad"
             ) : (
-              <strong>{DEVICE_LABEL[resolvedWheelDevice]}</strong>
+              <strong>{INTENT_LABEL[resolvedWheelIntent]}</strong>
             )}
           </Text>
         </Flex>
@@ -161,7 +163,7 @@ const meta: Meta<typeof GraphWithMouseWheelBehaviorScroll> = {
       control: "select",
       options: ["scroll", "zoom"],
       description:
-        "Camera constant MOUSE_WHEEL_BEHAVIOR: how vertical wheel behaves when input is classified as mouse wheel (not trackpad).",
+        "Camera constant MOUSE_WHEEL_BEHAVIOR: pan vs zoom for ambiguous mouse-wheel gestures (see resolveWheelIntent I4).",
     },
   },
   args: {

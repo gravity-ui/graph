@@ -103,30 +103,33 @@ const graph = new Graph(canvas, {
 - With Shift: Horizontal scrolling (left/right along X axis)
 
 **Important notes:**
-- This configuration only affects mouse wheel behavior.
+- `MOUSE_WHEEL_BEHAVIOR` affects **mouse wheel** classification in `resolveWheelIntent` (I4 rules). It does **not** change integer trackpad scroll, which always resolves to pan.
 - Scroll direction switching with Shift is an environment-dependent behavior according to [W3C UI Events specification](https://w3c.github.io/uievents/#events-wheelevents).
 - Different browsers and operating systems may handle Shift+wheel differently.
-- Trackpad gestures remain unchanged and use their native behavior:
-  - Pinch to zoom
-  - Two-finger swipe to scroll in any direction
+- **Trackpad** gestures also pass through `resolveWheelIntent` (see [Wheel Intent Resolution](./wheel-intent.md)):
+  - Two-finger swipe (integer PIXEL deltas) → pan
+  - Pinch-to-zoom (Ctrl/Cmd + scroll) → zoom with `PINCH_ZOOM_SPEED`
+  - Horizontal / diagonal two-finger swipe → pan (I2)
 - Settings can be updated at runtime using `graph.setConstants()`.
 
-### Custom wheel device classification
+### Custom wheel intent classification
 
-The camera distinguishes **trackpad-like** input (two-finger pan, pinch-zoom) from **mouse wheel** when routing `wheel` events. This is configured on **graph settings** (`resolveWheelDevice`). By default it uses `defaultResolveWheelDevice`, which wraps `isTrackpadWheelEvent`. Replace it with your own `(event: WheelEvent) => EWheelDeviceKind` if needed:
+The camera routes wheel input by **intent** (pan vs zoom). Classification is configured on **graph settings** (`resolveWheelIntent`). By default it uses `createWheelIntentResolver()`, which reads gesture shape directly. Replace with your own resolver if needed:
 
 ```ts
-import { defaultResolveWheelDevice, EWheelDeviceKind } from "@gravity-ui/graph";
+import { EWheelIntent, createWheelIntentResolver } from "@gravity-ui/graph";
 
 graph.updateSettings({
-  resolveWheelDevice: (event) => {
-    // Example: always treat as mouse wheel
-    return EWheelDeviceKind.Mouse;
-    // Or extend the default:
-    // return defaultResolveWheelDevice(event);
+  resolveWheelIntent: (event, mouseWheelBehavior) => {
+    // Example: always zoom on vertical wheel
+    return EWheelIntent.Zoom;
+    // Or use the built-in resolver:
+    // return createWheelIntentResolver()(event, mouseWheelBehavior);
   },
 });
 ```
+
+See [Wheel Intent Resolution](./wheel-intent.md) for the I1–I5 heuristics.
 
 **Example (MOUSE_WHEEL_BEHAVIOR):**
 ```ts

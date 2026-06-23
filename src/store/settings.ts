@@ -6,8 +6,8 @@ import { BlockConnection } from "../components/canvas/connections/BlockConnectio
 import { Component } from "../lib";
 import { defaultGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
 import type { TGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
-import type { EWheelDeviceKind, TResolveWheelDevice } from "../utils/functions/isTrackpadDetector";
-import { defaultResolveWheelDevice } from "../utils/functions/isTrackpadDetector";
+import type { EWheelIntent, TMouseWheelBehavior, TResolveWheelIntent } from "../utils/functions/wheelIntent";
+import { createWheelIntentResolver } from "../utils/functions/wheelIntent";
 
 import { TConnection } from "./connection/ConnectionState";
 
@@ -66,12 +66,16 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    */
   emulateMouseEventsOnCameraChange?: boolean;
   /**
-   * Classifies wheel input so the camera can treat trackpad (pan, pinch-zoom) vs mouse wheel
-   * (see graph constants `MOUSE_WHEEL_BEHAVIOR`) differently.
+   * Classifies wheel input as pan or zoom intent so Camera can route without knowing device type.
+   * Also receives `mouseWheelBehavior` so mouse-wheel policy stays in the input layer, not Camera.
    *
-   * @default {@link defaultResolveWheelDevice} — built-in heuristics from `isTrackpadWheelEvent`.
+   * Transitional: today Camera calls {@link GraphEditorSettings.wheelIntentFromEvent} from a raw
+   * `wheel` listener. A future input layer will normalize DOM events and emit semantic graph events
+   * (`camera:pan`, `camera:zoom`, …); this callback is the classification hook until then.
+   *
+   * @default {@link createWheelIntentResolver} — gesture-shape heuristics (pan vs zoom intent).
    */
-  resolveWheelDevice: TResolveWheelDevice;
+  resolveWheelIntent: TResolveWheelIntent;
   /**
    * Maps camera scale to block zoom tier (minimalistic / schematic / detailed).
    * Always set at runtime; `setupSettings` falls back to the exported `defaultGetCameraBlockScaleLevel` when omitted.
@@ -94,7 +98,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   connectivityComponentOnClickRaise: true,
   showConnectionLabels: false,
   blockComponents: {},
-  resolveWheelDevice: defaultResolveWheelDevice,
+  resolveWheelIntent: createWheelIntentResolver(),
   getCameraBlockScaleLevel: defaultGetCameraBlockScaleLevel,
 };
 
@@ -134,10 +138,10 @@ export class GraphEditorSettings {
   }
 
   /**
-   * Resolves wheel input using {@link TGraphSettingsConfig.resolveWheelDevice} (typed; prefer over getConfigFlag).
+   * Resolves wheel intent using {@link TGraphSettingsConfig.resolveWheelIntent} (typed; prefer over getConfigFlag).
    */
-  public wheelDeviceFromEvent(event: WheelEvent): EWheelDeviceKind {
-    return this.$settings.value.resolveWheelDevice(event);
+  public wheelIntentFromEvent(event: WheelEvent, mouseWheelBehavior: TMouseWheelBehavior): EWheelIntent {
+    return this.$settings.value.resolveWheelIntent(event, mouseWheelBehavior);
   }
 
   public $connectionsSettings = computed(() => {

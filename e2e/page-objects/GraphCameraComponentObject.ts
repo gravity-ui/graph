@@ -105,18 +105,17 @@ export class GraphCameraComponentObject {
   }
 
   /**
-   * Forces `resolveWheelDevice` on graph settings for e2e.
-   * Simulates a wheel device kind (`mouse` | `trackpad`) in the page; it does not assert
+   * Forces `resolveWheelIntent` on graph settings for e2e.
+   * Simulates a wheel intent (`pan` | `zoom`) in the page; it does not assert
    * real browser/vendor wheel payloads. Playwright cannot serialize functions from Node.
    */
-  async setResolveWheelDeviceOverride(kind: "mouse" | "trackpad"): Promise<void> {
+  async setResolveWheelIntentOverride(intent: "pan" | "zoom"): Promise<void> {
     await this.page.evaluate((k) => {
-      const { EWheelDeviceKind } = window.GraphModule;
+      const { EWheelIntent } = window.GraphModule;
       window.graph.updateSettings({
-        resolveWheelDevice: () =>
-          k === "mouse" ? EWheelDeviceKind.Mouse : EWheelDeviceKind.Trackpad,
+        resolveWheelIntent: () => (k === "pan" ? EWheelIntent.Pan : EWheelIntent.Zoom),
       });
-    }, kind);
+    }, intent);
   }
 
   /**
@@ -134,9 +133,34 @@ export class GraphCameraComponentObject {
     const mouseX = position?.x ?? canvasBounds.x + canvasBounds.width / 2;
     const mouseY = position?.y ?? canvasBounds.y + canvasBounds.height / 2;
 
-    // Move mouse to position and perform wheel event
     await this.page.mouse.move(mouseX, mouseY);
-    await this.page.mouse.wheel(0, deltaY);
+
+    // Playwright mouse.wheel() emits integer PIXEL deltas, which resolveWheelIntent
+    // classifies as trackpad pan. LINE-mode events match a mechanical mouse wheel (I4 → zoom).
+    const lineDeltaY =
+      Math.max(1, Math.round(Math.abs(deltaY) / 16)) * (deltaY >= 0 ? 1 : -1);
+
+    await this.page.evaluate(
+      ({ lineDeltaY, mouseX, mouseY }) => {
+        const root = document.getElementById("root");
+        if (!root) {
+          throw new Error("Graph root element not found");
+        }
+
+        root.dispatchEvent(
+          new WheelEvent("wheel", {
+            deltaX: 0,
+            deltaY: lineDeltaY,
+            deltaMode: WheelEvent.DOM_DELTA_LINE,
+            clientX: mouseX,
+            clientY: mouseY,
+            bubbles: true,
+            cancelable: true,
+          })
+        );
+      },
+      { lineDeltaY, mouseX, mouseY }
+    );
 
     // Wait for zoom to be processed
     await this.graphPO.waitForFrames(3);
@@ -146,9 +170,9 @@ export class GraphCameraComponentObject {
    * Pan the camera via trackpad wheel events so that the given world point ends up
    * under the mouse cursor.
    *
-   * handleTrackpadMove does camera.move(-deltaX, -deltaY), so to shift the camera by
-   * (dx, dy) screen pixels we pass wheel(dx, dy) directly. A non-zero deltaX triggers
-   * trackpad detection in isTrackpadWheelEvent() (horizontal scroll → trackpad).
+   * Camera pan handler applies move(-deltaX, -deltaY) via PAN_SPEED, so to shift the camera by
+   * (dx, dy) screen pixels we pass wheel(dx, dy) directly. A non-zero deltaX helps
+   * resolveWheelIntent classify as pan (horizontal scroll signal).
    *
    * Fires multiple small steps (≤8 px) to stay within Camera's edge-guard limits.
    *

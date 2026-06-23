@@ -1,9 +1,11 @@
 import { GraphComponent } from "./components/canvas/GraphComponent";
 import { Block } from "./components/canvas/blocks/Block";
 import { ESelectionStrategy } from "./services/selection";
+import type { TMouseWheelBehavior } from "./utils/functions/wheelIntent";
 
-export type { TResolveWheelDevice } from "./utils/functions/isTrackpadDetector";
-export { defaultResolveWheelDevice, EWheelDeviceKind } from "./utils/functions/isTrackpadDetector";
+export type { TResolveWheelIntent } from "./utils/functions/wheelIntent";
+export { createWheelIntentResolver, enableWheelIntentDebug, EWheelIntent } from "./utils/functions/wheelIntent";
+export type { TMouseWheelBehavior };
 
 export type TGraphColors = {
   canvas?: Partial<TCanvasColors>;
@@ -51,8 +53,6 @@ export type TCanvasColors = {
   dots: string;
   border: string;
 };
-
-export type TMouseWheelBehavior = "zoom" | "scroll";
 
 export const initGraphColors: TGraphColors = {
   anchor: {
@@ -202,11 +202,11 @@ export type TGraphConstants = {
      * - This is an environment-dependent behavior as per W3C UI Events specification
      * - Different browsers and operating systems may handle Shift+wheel differently
      *
-     * **Trackpad behavior:**
-     * - This setting only affects mouse wheel behavior
-     * - Trackpad gestures remain unchanged and use their native behavior:
-     *   - Pinch to zoom
-     *   - Two-finger swipe to scroll in any direction
+     * **Trackpad behavior (via `resolveWheelIntent`):**
+     * - Integer PIXEL two-finger swipe always resolves to pan (not affected by this constant)
+     * - Pinch-to-zoom (Cmd/Ctrl + scroll) resolves to zoom with {@link PINCH_ZOOM_SPEED}
+     * - Horizontal / diagonal swipe resolves to pan
+     * - See `docs/system/wheel-intent.md` for classification rules
      *
      * @default "zoom"
      * @see https://w3c.github.io/uievents/#events-wheelevents - W3C UI Events Wheel Events specification

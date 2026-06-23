@@ -244,7 +244,7 @@ export function computeCssVariable(name: string) {
 
 // Re-export scheduler utilities
 export { schedule, debounce, throttle } from "../utils/schedule";
-export { EWheelDeviceKind, defaultResolveWheelDevice, isTrackpadWheelEvent } from "./isTrackpadDetector";
+export { EWheelIntent, createWheelIntentResolver, enableWheelIntentDebug, isPinchZoomGesture } from "./wheelIntent";
 
 // Re-export vector utilities
 export { vectorDistance, vectorDistanceSquared } from "./vector";
