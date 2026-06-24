@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.11.0](https://github.com/gravity-ui/graph/compare/v1.10.3...v1.11.0) (2026-06-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* **camera:** remove setting resolveWheelDevice
+
+### chore
+
+* release 1.11.0 ([4f25c34](https://github.com/gravity-ui/graph/commit/4f25c346e970c23702874db40366b8e5f9784f71))
+
+
+### Features
+
+* **camera:** add wheel intent resolver and fix layer DPR observation ([#302](https://github.com/gravity-ui/graph/issues/302)) ([f1793f5](https://github.com/gravity-ui/graph/commit/f1793f5b7572423042c1a140f61cb78eff03f528))
+
+
+### Bug Fixes
+
+* **ConnectionState:** unify connection selection with block selection pattern ([#300](https://github.com/gravity-ui/graph/issues/300)) ([b0a573b](https://github.com/gravity-ui/graph/commit/b0a573b24ca0e5eb9921516e45bdd63b22413d2a))
+
 ## [1.10.3](https://github.com/gravity-ui/graph/compare/v1.10.2...v1.10.3) (2026-04-29)
 
 
