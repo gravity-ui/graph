@@ -1,5 +1,6 @@
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { DragContext, DragDiff } from "../../../services/drag";
+import { HighlightVisualMode } from "../../../services/highlight";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { selectBlockAnchor } from "../../../store/block/selectors";
@@ -37,6 +38,10 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
 
   public getEntityId(): number | string {
     return this.props.id;
+  }
+
+  public getEntityType(): string {
+    return "anchor";
   }
 
   public get zIndex() {
@@ -209,14 +214,17 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     }
     const { x, y } = this.getPosition();
     const ctx = this.context.ctx;
-    ctx.fillStyle = this.context.colors.anchor.background;
+    ctx.fillStyle = this.getHighlightAwareColor(this.context.colors.anchor.background);
     ctx.beginPath();
     ctx.arc(x, y, this.state.size * 0.5, 0, 2 * Math.PI);
     ctx.fill();
 
-    if (this.state.selected) {
-      ctx.strokeStyle = this.context.colors.anchor.selectedBorder;
-      ctx.lineWidth = this.props.lineWidth + 3;
+    const isHighlightMode = this.getHighlightVisualMode() === HighlightVisualMode.Highlight;
+    if (this.state.selected || isHighlightMode) {
+      ctx.strokeStyle = isHighlightMode
+        ? this.getHighlightBorderColor(this.context.colors.anchor.selectedBorder)
+        : this.getHighlightAwareColor(this.context.colors.anchor.selectedBorder);
+      ctx.lineWidth = this.props.lineWidth + (isHighlightMode ? 4 : 3);
       ctx.stroke();
     }
     ctx.closePath();

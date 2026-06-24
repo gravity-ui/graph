@@ -10,6 +10,10 @@ class TestGraphComponent extends GraphComponent {
     return "test-id";
   }
 
+  public getEntityType(): string {
+    return "test";
+  }
+
   public subscribeGraphEvent<EventName extends keyof GraphEventsDefinitions>(
     eventName: EventName,
     handler: GraphEventsDefinitions[EventName],
@@ -42,6 +46,12 @@ function createTestComponent(root?: HTMLDivElement): TestSetup {
   const hitTestRemove = jest.fn();
   const fakeGraph = {
     on: graphOn,
+    rootStore: {
+      highlightService: {
+        registerComponent: jest.fn(),
+        unregisterComponent: jest.fn(),
+      },
+    },
     hitTest: {
       remove: hitTestRemove,
       update: jest.fn(),
