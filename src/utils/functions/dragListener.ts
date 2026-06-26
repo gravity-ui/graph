@@ -61,9 +61,19 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   const threshold = options?.threshold ?? graph?.rootStore.settings.$dragThreshold.value ?? 0;
 
   const dragDocument = getDragListenerDocument(document);
-  const releaseTextSelection = suppressTextSelection
-    ? installTextSelectionSuppression(dragDocument, graph)
-    : (): void => undefined;
+  let releaseTextSelection: (() => void) | null = null;
+
+  const ensureTextSelectionSuppressed = (): void => {
+    if (!suppressTextSelection || releaseTextSelection !== null) {
+      return;
+    }
+    releaseTextSelection = installTextSelectionSuppression(dragDocument, graph);
+  };
+
+  const cleanupTextSelection = (): void => {
+    releaseTextSelection?.();
+    releaseTextSelection = null;
+  };
 
   let started = false;
   let finished = false;
@@ -117,6 +127,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     started = true;
     thresholdExceeded = true;
     if (suppressTextSelection) {
+      ensureTextSelectionSuppressed();
       event.preventDefault();
       dragDocument.defaultView?.getSelection()?.removeAllRanges();
     }
@@ -154,7 +165,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   };
 
   const cleanup = (): void => {
-    releaseTextSelection();
+    cleanupTextSelection();
     if (graph && autopanning) {
       graph.off("camera-change", handleCameraChange);
     }

@@ -90,6 +90,7 @@ type TWheelContext = {
   isPixelDeltaMode: boolean;
   isSmallDelta: boolean;
   isVerticalOnly: boolean;
+  hasLegacyMouseWheelDelta: boolean;
 };
 
 function getWheelIntentDebugLogger(): TWheelIntentDebugLogger | null {
@@ -227,6 +228,7 @@ function createWheelContext(event: WheelEvent): TWheelContext {
     isPixelDeltaMode,
     isSmallDelta: absX < SMALL_DELTA_THRESHOLD && absY < SMALL_DELTA_THRESHOLD,
     isVerticalOnly: absX < MIN_HORIZONTAL_SCROLL_ABS,
+    hasLegacyMouseWheelDelta: hasLegacyMouseWheelDelta(event),
   };
 }
 
@@ -248,7 +250,7 @@ function isClassicMouseWheelStep(ctx: TWheelContext): boolean {
   }
   if (isPixelDeltaMode && !hasFractionalDelta) {
     // Chromium/Windows: integer PIXEL + legacy wheelDelta ≈ ±120.
-    return hasLegacyMouseWheelDelta(event);
+    return ctx.hasLegacyMouseWheelDelta;
   }
   return true;
 }
@@ -258,7 +260,7 @@ function isIntegerPixelTrackpadScroll(ctx: TWheelContext, isRapidStream: boolean
   if (!ctx.isPixelDeltaMode || ctx.hasFractionalDelta) {
     return false;
   }
-  if (hasLegacyMouseWheelDelta(ctx.event)) {
+  if (ctx.hasLegacyMouseWheelDelta) {
     return false;
   }
   const peak = Math.max(ctx.absX, ctx.absY);
@@ -348,7 +350,7 @@ function buildWheelSignals(ctx: TWheelContext): TWheelIntentDebugEntry["signals"
     hasFractionalDelta: ctx.hasFractionalDelta,
     isSmallDelta: ctx.isSmallDelta,
     isPixelDeltaMode: ctx.isPixelDeltaMode,
-    hasLegacyMouseWheelDelta: hasLegacyMouseWheelDelta(ctx.event),
+    hasLegacyMouseWheelDelta: ctx.hasLegacyMouseWheelDelta,
   };
 }
 

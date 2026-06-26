@@ -50,7 +50,7 @@ Trackpads **always** emit `deltaMode === 0` (`DOM_DELTA_PIXEL`). On Chromium (Ch
 | `deltaMode === 0` + **small integer** `deltaX`/`deltaY` (< 20 px) | **Trackpad** | **Pan** (I3) |
 | `deltaMode === 0` + **large integer** in rapid stream (< 38 ms) | **Trackpad** fast scroll | **Pan** (I3) |
 | `deltaMode === 0` + **isolated large integer** (≥ 20 px, not rapid) | **Mouse** (Chromium) | **I4** per `MOUSE_WHEEL_BEHAVIOR` |
-| `deltaMode === 0` + **legacy wheelDelta ≈ ±120** | **Mouse** (Chromium/Edge) | **I4** (never I3, even in rapid stream) |
+| `deltaMode === 0` + **legacy wheelDelta ≈ ±120** | **Mouse** (Chromium/Edge) | **I4** (never I3, even in a rapid stream) |
 | `deltaMode === 0` + **fractional** deltas | **Mouse** smooth-scroll | **I4** per `MOUSE_WHEEL_BEHAVIOR` |
 
 Integer check uses `Number.isInteger` on raw `deltaX` and `deltaY` (PIXEL mode only).
@@ -261,6 +261,6 @@ enableWheelIntentDebug((entry) => {
 
 Debug hooks are explicit opt-in. Each wheel event logs two plain-text lines: a one-line summary and a `JSON.stringify` payload you can copy from the console.
 
-**Storybook dev stand:** run `npm run storybook` → **Dev / WheelIntentProbe** — live table of raw `WheelEvent` fields plus resolver rule/signals; copy JSON after reproducing on your OS/device.
+**Storybook dev panel:** run `npm run storybook` → **Dev / WheelIntentProbe** — live table of raw `WheelEvent` fields plus resolver rule/signals; copy JSON after reproducing on your OS/device.
 
 See also [Camera](./camera.md) for `MOUSE_WHEEL_BEHAVIOR` and camera constants.
