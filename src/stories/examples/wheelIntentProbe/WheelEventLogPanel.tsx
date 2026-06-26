@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Button, Flex, Label, Switch, Text, TextInput } from "@gravity-ui/uikit";
+import { Button, Flex, Switch, Text, TextInput } from "@gravity-ui/uikit";
 
 import type { TWheelProbeLogEntry } from "./wheelEventCapture";
 import { copyTextToClipboard, formatWheelProbeSummary } from "./wheelEventCapture";
@@ -172,9 +172,12 @@ export function WheelEventLogPanel({
         ) : null}
       </Flex>
 
-      <Label text="Filter">
+      <Flex direction="column" gap={1}>
+        <Text variant="caption-2" color="secondary">
+          Filter
+        </Text>
         <TextInput placeholder="rule, zoom, int, Ctrl…" value={filter} onUpdate={setFilter} size="s" />
-      </Label>
+      </Flex>
 
       <div className="wheel-probe-table-wrap">
         <table className="wheel-probe-table">
