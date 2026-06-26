@@ -97,9 +97,28 @@ interface GraphMouseEvent<E extends Event = Event> = CustomEvent<{
 
 ### Camera Events
 
-| Event | Description |
-|-------|-------------|
-| `camera-change` | Fires on camera state changes |
+| Source | When it fires | Payload | Use for |
+|--------|---------------|---------|---------|
+| `camera-change` event | Before commit | Proposed `TCameraState` in `event.detail` | Interception, `preventDefault()`, logging intent |
+| `graph.$camera` signal | After successful commit | Committed `TCameraState` | Rendering, transforms, derived state, React subscriptions |
+
+```typescript
+// Intercept before commit (same pattern as block-change)
+graph.on("camera-change", (event) => {
+  if (shouldCancel(event.detail)) {
+    event.preventDefault();
+  }
+});
+
+// React to applied state — safe even if another listener cancelled an earlier change
+graph.$camera.subscribe((camera) => {
+  applyCameraTransform(camera);
+});
+```
+
+In `Layer` subclasses, override `onCameraChange()` for committed camera updates. The base `Layer` subscribes to `$camera` in `afterInit()`. Use `onGraphEvent("camera-change", …)` only to intercept or cancel a change before commit.
+
+See [Camera Service — Choosing an API](./camera.md#choosing-an-api) for when to use `cameraService`, `$camera`, or `camera-change`.
 
 ## Event Cleanup with AbortController
 
@@ -147,18 +166,18 @@ export class MyLayer extends Layer {
    * This is the proper place to set up event subscriptions using onGraphEvent().
    */
   protected afterInit(): void {
-    // Use the onGraphEvent wrapper method that automatically includes the AbortController signal
-    this.onGraphEvent("camera-change", this.handleCameraChange);
     this.onGraphEvent("blocks-selection-change", this.handleSelectionChange);
     this.onGraphEvent("mousedown", this.handleMouseDown);
-    
-    // DOM event listeners can also use the AbortController signal
-    this.getCanvas()?.addEventListener("mousedown", this.handleMouseDown, { 
-      signal: this.eventAbortController.signal 
+
+    this.getCanvas()?.addEventListener("mousedown", this.handleMouseDown, {
+      signal: this.eventAbortController.signal,
     });
-    
-    // Always call super.afterInit() at the end of your implementation
+
     super.afterInit();
+  }
+
+  protected onCameraChange(_camera: TCameraState): void {
+    this.handleCameraChange();
   }
   
   // No need to manually remove event listeners in unmount

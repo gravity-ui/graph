@@ -144,7 +144,8 @@ this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${ca
     - Attach event listeners (e.g., `mousemove`, `mouseleave`) to the layer's root element (`this.root`) or specific layer elements (`this.getCanvas()`, `this.getHTML()`) within `afterInit`.
     - Always clean up listeners and subscriptions in the `unmount` method.
 - **Camera Interaction & Coordinates:**
-    - Subscribe to graph's `'camera-change'` event (`this.props.graph.on(...)`) to get updates. The event detail (`event.detail`) provides the `TCameraState` (containing `width`, `height`, `scale`, `x`, `y`).
+    - Override **`onCameraChange(camera)`** in derived layers to react to committed camera state (pan, zoom, resize). The base `Layer` subscribes to `graph.$camera` in `afterInit()` and calls this hook after built-in HTML/canvas transforms.
+    - Use **`camera-change` event** via `onGraphEvent` only when you need to intercept or cancel an update before commit (`event.preventDefault()`).
     - `cameraState.x` and `cameraState.y` represent the *screen coordinates* of the world origin (0,0). Use these (`worldOriginScreenX`, `worldOriginScreenY`) for coordinate calculations.
     - To convert **screen coordinates to world coordinates** (e.g., mouse position), use `this.context.camera.applyToPoint(screenX, screenY)`.
     - To convert **world coordinates to screen coordinates** (e.g., placing ticks), use the formula: `screenX = worldX * scale + worldOriginScreenX` and `screenY = worldY * scale + worldOriginScreenY`.

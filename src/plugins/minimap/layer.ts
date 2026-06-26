@@ -1,5 +1,6 @@
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
 import { Layer, LayerContext, LayerProps } from "../../services/Layer";
+import { TCameraState } from "../../services/camera/CameraService";
 import { computeCssVariable } from "../../utils/functions";
 
 export type TMiniMapLocation =
@@ -65,7 +66,6 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps> {
       this.performRender();
     });
 
-    this.onGraphEvent("camera-change", () => this.performRender());
     this.onGraphEvent("colors-changed", () => this.performRender());
 
     // block-change / batched geometry during drag — recalculate coords when blocks move
@@ -81,6 +81,10 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps> {
     }
 
     super.afterInit();
+  }
+
+  protected onCameraChange(_camera: TCameraState): void {
+    this.performRender();
   }
 
   protected updateCanvasSize(): void {

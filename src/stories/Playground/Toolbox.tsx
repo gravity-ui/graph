@@ -1,17 +1,13 @@
-import React, { useState } from "react";
+import React from "react";
 
 import { MagnifierMinus, MagnifierPlus, SquareDashed } from "@gravity-ui/icons";
 import { Button, Flex, Icon, Tooltip } from "@gravity-ui/uikit";
 
 import { Graph } from "../../graph";
-import { useGraphEvent } from "../../react-components";
+import { useSignal } from "../../react-components";
 
 export function Toolbox({ className, graph }: { className: string; graph: Graph }) {
-  const [scale, setScale] = useState(1);
-
-  useGraphEvent(graph, "camera-change", ({ scale }) => {
-    setScale(scale);
-  });
+  const scale = useSignal(graph.$camera).scale;
   return (
     <Flex grow={1} justifyContent="center" className={className} direction="column">
       <Tooltip content="Zoom in" placement="right">

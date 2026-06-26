@@ -4,7 +4,6 @@ import { Graph } from "../../graph";
 import { ESchedulerPriority } from "../../lib";
 
 import { useSchedulerDebounce } from "./schedulerHooks";
-import { useGraphEvent } from "./useGraphEvents";
 
 /**
  * Hook to handle scene updates.
@@ -15,29 +14,34 @@ import { useGraphEvent } from "./useGraphEvents";
  * @param fn - Function to handle scene updates
  */
 export function useSceneChange(graph: Graph, fn: () => void) {
-  const handleCameraChange = useSchedulerDebounce(fn, {
+  const handleSceneChange = useSchedulerDebounce(fn, {
     priority: ESchedulerPriority.HIGHEST,
     frameInterval: 1,
   });
 
-  /* Subscribe to camera changes */
-  useGraphEvent(graph, "camera-change", handleCameraChange);
-
-  // Subscribe to hitTest updates to catch when blocks become available in viewport
-  useEffect(() => {
-    graph.hitTest.on("update", handleCameraChange);
-
-    return () => {
-      graph.hitTest.off("update", handleCameraChange);
-    };
-  }, [graph, handleCameraChange]);
-
-  // Check initial camera scale on mount to handle cases where zoomTo() is called
-  // during initialization before the camera-change event subscription is active
   useLayoutEffect(() => {
-    handleCameraChange();
+    handleSceneChange();
+
+    const unsubscribe = graph.$camera.subscribe(() => {
+      handleSceneChange();
+    });
+
     return () => {
-      handleCameraChange.cancel();
+      unsubscribe();
     };
-  }, [graph, handleCameraChange]);
+  }, [graph, handleSceneChange]);
+
+  useEffect(() => {
+    graph.hitTest.on("update", handleSceneChange);
+
+    return () => {
+      graph.hitTest.off("update", handleSceneChange);
+    };
+  }, [graph, handleSceneChange]);
+
+  useLayoutEffect(() => {
+    return () => {
+      handleSceneChange.cancel();
+    };
+  }, [handleSceneChange]);
 }

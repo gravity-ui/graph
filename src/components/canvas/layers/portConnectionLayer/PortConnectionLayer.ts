@@ -2,6 +2,7 @@ import RBush from "rbush";
 
 import { GraphMouseEvent, extractNativeGraphMouseEvent, isGraphEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
+import { TCameraState } from "../../../../services/camera/CameraService";
 import { ESelectionStrategy } from "../../../../services/selection";
 import { EAnchorType } from "../../../../store/anchor/Anchor";
 import { TBlockId } from "../../../../store/block/Block";
@@ -230,11 +231,6 @@ export class PortConnectionLayer extends Layer<
 
     this.portsUnsubscribe = this.onSignal(this.context.graph.rootStore.connectionsList.ports.$ports, checkPortsChanged);
 
-    // Subscribe to camera changes to invalidate tree when viewport changes
-    this.onGraphEvent("camera-change", () => {
-      this.isSnappingTreeOutdated = true;
-    });
-
     this.context.graph.keyboardService.onPress(
       "Escape",
       () => {
@@ -248,6 +244,10 @@ export class PortConnectionLayer extends Layer<
     );
 
     super.afterInit();
+  }
+
+  protected onCameraChange(_camera: TCameraState): void {
+    this.isSnappingTreeOutdated = true;
   }
 
   public enable = (): void => {

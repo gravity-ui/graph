@@ -483,6 +483,40 @@ export class GraphPageObject {
   }
 
   /**
+   * Returns a snapshot of the committed camera state from `graph.$camera`.
+   */
+  async getCameraSignalSnapshot(): Promise<{ x: number; y: number; scale: number }> {
+    return this.page.evaluate(() => {
+      const { x, y, scale } = window.graph.$camera.value;
+      return { x, y, scale };
+    });
+  }
+
+  /**
+   * Subscribes to `graph.$camera` and collects committed state snapshots.
+   * Returns a function that reads all updates collected since subscription.
+   */
+  async collectCameraSignalUpdates(): Promise<
+    () => Promise<Array<{ x: number; y: number; scale: number }>>
+  > {
+    const key = `__cameraSignal_${listenerIdCounter++}`;
+
+    await this.page.evaluate((storageKey) => {
+      (window as any)[storageKey] = [];
+      (window as any)[`${storageKey}_unsub`] = window.graph.$camera.subscribe((state) => {
+        (window as any)[storageKey].push({ x: state.x, y: state.y, scale: state.scale });
+      });
+    }, key);
+
+    return async () => {
+      const json = await this.page.evaluate((storageKey) => {
+        return JSON.stringify((window as any)[storageKey] ?? []);
+      }, key);
+      return JSON.parse(json) as Array<{ x: number; y: number; scale: number }>;
+    };
+  }
+
+  /**
    * Starts collecting graph events of the given name in the browser context.
    * Returns a {@link GraphEventListener} whose `analyze()` method lets you
    * inspect the collected events inside the browser — no DOM serialization needed.

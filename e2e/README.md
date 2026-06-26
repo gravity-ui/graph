@@ -23,6 +23,10 @@ e2e/
 │   │   ├── block-click.spec.ts        # Block click and selection tests
 │   │   └── block-hover.spec.ts        # Block cursor hover tests
 │   ├── camera-control.spec.ts     # Camera zoom and pan tests
+│   ├── camera/
+│   │   ├── camera-change-signal.spec.ts  # camera-change vs $camera signal
+│   │   ├── camera-block-scale-level.spec.ts
+│   │   └── camera-mouse-emulation.spec.ts
 │   ├── drag-and-drop.spec.ts      # Drag and drop tests
 │   └── selection-test.spec.ts     # Selection tests
 ├── pages/                 # HTML pages for tests

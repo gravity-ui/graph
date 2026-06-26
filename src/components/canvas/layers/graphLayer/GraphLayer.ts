@@ -106,13 +106,6 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     });
     this.attachListeners();
 
-    // Subscribe to graph events here instead of in the constructor
-    this.onGraphEvent("camera-change", this.performRender);
-    this.onGraphEvent("camera-change", (event) => {
-      if (this.context.graph.rootStore.settings.getConfigFlag("emulateMouseEventsOnCameraChange")) {
-        this.onCameraChangeEmulateMouseEvents(event.detail);
-      }
-    });
     this.context.graph.rootStore.blocksList.$blocks.subscribe(() => {
       this.performRender();
     });
@@ -120,6 +113,12 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
       this.performRender();
     });
     super.afterInit();
+  }
+
+  protected onCameraChange(camera: TCameraState): void {
+    if (this.context.graph.rootStore.settings.getConfigFlag("emulateMouseEventsOnCameraChange")) {
+      this.onCameraChangeEmulateMouseEvents(camera);
+    }
   }
 
   /**

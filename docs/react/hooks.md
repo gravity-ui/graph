@@ -21,6 +21,7 @@ This document describes all available React hooks for working with @gravity-ui/g
 - [useSignal](#usesignal) - Subscribes to signal values for reactive updates
 - [useComputedSignal](#usecomputedsignal) - Creates computed signals from other signals
 - [useSignalEffect](#usesignaleffect) - Runs side effects when signal values change
+- [useSignalLayoutEffect](#usesignallayouteffect) - Runs layout effects when signal values change
 
 ### Scheduler Hooks
 - [useSchedulerDebounce](#useschedulerdebounce) - Creates frame-synchronized debounced function
@@ -199,18 +200,15 @@ function MyComponent({ graph }: Props): JSX.Element | null {
     }
   );
 
-  // With debounce options
+  // Intercept proposed camera state before commit
   useGraphEvent(
-    graph, 
-    "camera-change", 
-    (detail: UnwrapGraphEventsDetail<"camera-change">) => {
-      console.log("Camera:", detail.camera);
+    graph,
+    "camera-change",
+    (detail: UnwrapGraphEventsDetail<"camera-change">, event: UnwrapGraphEvents<"camera-change">) => {
+      if (detail.scale < 0.1) {
+        event.preventDefault();
+      }
     },
-    {
-      priority: ESchedulerPriority.MEDIUM,
-      frameInterval: 2,  // Wait 2 frames
-      frameTimeout: 100, // Wait at least 100ms
-    }
   );
 
   // Prevent default behavior
@@ -528,6 +526,23 @@ function BlockLogger({ blockState }: Props): null {
 | `effectFn` | `() => void` | Effect function that reads signals |
 | `deps` | `DependencyList` | Dependencies array (like useEffect) |
 
+### useSignalLayoutEffect
+
+Like `useSignalEffect`, but uses `useLayoutEffect` internally. Use when the side effect must run synchronously after DOM updates and before the browser paints — for example, layout-dependent overlays tied to the camera.
+
+```typescript
+import { useSignalLayoutEffect } from "@gravity-ui/graph/react";
+
+useSignalLayoutEffect(() => {
+  const camera = graph.$camera.value;
+  updateOverlay(camera);
+}, [graph]);
+```
+
+#### Parameters
+
+Same as `useSignalEffect`.
+
 ## Scheduler Hooks
 
 These hooks integrate with the graph's internal scheduler for frame-based timing control. They are designed primarily for **synchronizing UI updates with graph component changes** on a per-frame basis.
@@ -668,7 +683,7 @@ Hook to create a throttled function that limits execution frequency.
 Unlike debounce, throttle executes immediately on the first call and then enforces the delay for subsequent calls.
 
 ```typescript
-import { useSchedulerThrottle, useGraphEvent } from "@gravity-ui/graph/react";
+import { useSchedulerThrottle, useSignalLayoutEffect } from "@gravity-ui/graph/react";
 import type { ESchedulerPriority, Graph, TCameraState } from "@gravity-ui/graph";
 
 interface ThrottledFn<T extends (...args: unknown[]) => void> {
@@ -680,23 +695,20 @@ interface ThrottledFn<T extends (...args: unknown[]) => void> {
 function MinimapOverlay({ graph }: { graph: Graph }): JSX.Element {
   const [viewport, setViewport] = useState<TCameraState | null>(null);
 
-  // Throttle camera updates - executes immediately on first call,
-  // then waits for frame interval before next execution
   const throttledCameraUpdate: ThrottledFn<(camera: TCameraState) => void> = useSchedulerThrottle(
     (camera: TCameraState): void => {
       setViewport(camera);
     },
     {
       priority: ESchedulerPriority.LOW,
-      frameInterval: 2,   // Update at most every 2 frames
-      frameTimeout: 32,   // At most once per ~32ms
+      frameInterval: 2,
+      frameTimeout: 32,
     }
   );
 
-  // Camera events fire very frequently during pan/zoom
-  useGraphEvent(graph, "camera-change", ({ camera }) => {
-    throttledCameraUpdate(camera);
-  });
+  useSignalLayoutEffect(() => {
+    throttledCameraUpdate(graph.$camera.value);
+  }, [graph, throttledCameraUpdate]);
 
   return (
     <div className="minimap">
@@ -910,9 +922,10 @@ This means:
 
 The hook subscribes to:
 
-1. **`camera-change` event** - Fires when camera position, scale, or rotation changes
-2. **HitTest `update` event** - Fires when blocks enter or leave the viewport
-3. **Initial mount** - Calls the function immediately on component mount
+1. **`graph.$camera` signal** (via `useSignalLayoutEffect`) — committed camera state after a non-prevented change
+2. **HitTest `update` event** — fires when blocks enter or leave the viewport
+
+Both paths call the debounced callback on mount and on subsequent updates.
 
 #### Use Cases
 
@@ -978,32 +991,15 @@ function MyGraph(): JSX.Element {
 ### Performance Optimization with Debounced Events
 
 ```typescript
-import { useGraphEvent } from "@gravity-ui/graph/react";
-import { ESchedulerPriority } from "@gravity-ui/graph";
-import type { Graph, TCameraState } from "@gravity-ui/graph";
+import { useSignal } from "@gravity-ui/graph/react";
+import type { Graph } from "@gravity-ui/graph";
 
 interface Props {
   graph: Graph;
 }
 
-function CameraInfo({ graph }: Props): JSX.Element | null {
-  const [cameraState, setCameraState] = useState<TCameraState | null>(null);
-
-  // Debounce camera updates for performance
-  useGraphEvent(
-    graph,
-    "camera-change",
-    ({ camera }: { camera: TCameraState }): void => {
-      setCameraState(camera);
-    },
-    {
-      priority: ESchedulerPriority.LOW,
-      frameInterval: 2,
-      frameTimeout: 50,
-    }
-  );
-
-  if (!cameraState) return null;
+function CameraInfo({ graph }: Props): JSX.Element {
+  const cameraState = useSignal(graph.$camera);
 
   return (
     <div>
