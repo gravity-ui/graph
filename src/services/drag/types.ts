@@ -24,6 +24,11 @@ export type DragOperationOptions = {
    * If not set, uses the first mousemove event.
    */
   initialEvent?: MouseEvent;
+  /**
+   * Blocks browser text selection for the drag session.
+   * @default true
+   */
+  suppressTextSelection?: boolean;
 };
 
 /**

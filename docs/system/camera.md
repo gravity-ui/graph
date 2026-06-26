@@ -103,11 +103,11 @@ const graph = new Graph(canvas, {
 - With Shift: Horizontal scrolling (left/right along X axis)
 
 **Important notes:**
-- `MOUSE_WHEEL_BEHAVIOR` affects **mouse wheel** classification in `resolveWheelIntent` (I4 rules). It does **not** change integer trackpad scroll, which always resolves to pan.
+- `MOUSE_WHEEL_BEHAVIOR` affects **mouse wheel** classification in `resolveWheelIntent` (I4 rules), including large integer PIXEL steps on Chromium (Windows/Edge). Small integer trackpad ticks and rapid-stream trackpad scroll always resolve to pan (I3).
 - Scroll direction switching with Shift is an environment-dependent behavior according to [W3C UI Events specification](https://w3c.github.io/uievents/#events-wheelevents).
 - Different browsers and operating systems may handle Shift+wheel differently.
 - **Trackpad** gestures also pass through `resolveWheelIntent` (see [Wheel Intent Resolution](./wheel-intent.md)):
-  - Two-finger swipe (integer PIXEL deltas) → pan
+  - Two-finger swipe (small integer PIXEL, or large integer in a rapid stream) → pan
   - Pinch-to-zoom (Ctrl/Cmd + scroll) → zoom with `PINCH_ZOOM_SPEED`
   - Horizontal / diagonal two-finger swipe → pan (I2)
 - Settings can be updated at runtime using `graph.setConstants()`.

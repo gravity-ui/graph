@@ -19,6 +19,22 @@ function makeWheelEvent(
   });
 }
 
+/** Chromium/Edge on Windows: integer PIXEL deltaY + legacy wheelDeltaY ≈ ∓120. */
+function makeChromiumMouseWheelEvent(
+  overrides: Partial<{
+    deltaX: number;
+    deltaY: number;
+    deltaMode: number;
+  }> = {}
+): WheelEvent {
+  const deltaY = overrides.deltaY ?? 100;
+  const event = makeWheelEvent({ deltaY, ...overrides });
+  const legacyDelta = deltaY > 0 ? -120 : 120;
+  Object.defineProperty(event, "wheelDelta", { configurable: true, value: legacyDelta });
+  Object.defineProperty(event, "wheelDeltaY", { configurable: true, value: legacyDelta });
+  return event;
+}
+
 describe("createWheelIntentResolver", () => {
   let nowMs = 0;
 
@@ -36,13 +52,36 @@ describe("createWheelIntentResolver", () => {
     nowMs += ms;
   }
 
-  it("slow integer vertical wheel resolves to pan (integer PIXEL = trackpad)", () => {
+  it("slow large integer PIXEL step follows MOUSE_WHEEL_BEHAVIOR (Chromium/Windows mouse)", () => {
     const resolver = createWheelIntentResolver();
-    const intent = resolver(makeWheelEvent({ deltaY: -100 }), "zoom");
-    expect(intent).toBe(EWheelIntent.Pan);
+
+    expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), "zoom")).toBe(EWheelIntent.Zoom);
+    expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), "scroll")).toBe(EWheelIntent.Pan);
   });
 
-  it("integer PIXEL scroll stays pan in both directions and at any magnitude", () => {
+  it("Chromium mouse rapid stream with wheelDelta ±120 stays zoom (Windows log repro)", () => {
+    const entries: TWheelIntentDebugEntry[] = [];
+    enableWheelIntentDebug((entry) => {
+      entries.push(entry);
+    });
+
+    const resolver = createWheelIntentResolver();
+    const tick = (): EWheelIntent => resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), "zoom");
+
+    expect(tick()).toBe(EWheelIntent.Zoom);
+    advanceMs(33);
+    expect(tick()).toBe(EWheelIntent.Zoom);
+    advanceMs(33);
+    expect(tick()).toBe(EWheelIntent.Zoom);
+    advanceMs(33);
+    expect(tick()).toBe(EWheelIntent.Zoom);
+
+    expect(entries.every((entry) => entry.rule === "I4:mouse-wheel-step")).toBe(true);
+    expect(entries.every((entry) => entry.result === EWheelIntent.Zoom)).toBe(true);
+    expect(entries.every((entry) => entry.signals.hasLegacyMouseWheelDelta)).toBe(true);
+  });
+
+  it("small integer PIXEL scroll stays pan (trackpad ticks)", () => {
     const resolver = createWheelIntentResolver();
 
     resolver(makeWheelEvent({ deltaY: 1 }), "zoom");
@@ -51,13 +90,21 @@ describe("createWheelIntentResolver", () => {
     expect(resolver(makeWheelEvent({ deltaY: -1 }), "zoom")).toBe(EWheelIntent.Pan);
     expect(resolver(makeWheelEvent({ deltaY: -11 }), "zoom")).toBe(EWheelIntent.Pan);
     expect(resolver(makeWheelEvent({ deltaY: -20 }), "zoom")).toBe(EWheelIntent.Pan);
+  });
+
+  it("large integer PIXEL scroll stays pan inside a rapid stream (trackpad)", () => {
+    const resolver = createWheelIntentResolver();
+
+    resolver(makeWheelEvent({ deltaY: -20 }), "zoom");
     expect(resolver(makeWheelEvent({ deltaY: -100 }), "zoom")).toBe(EWheelIntent.Pan);
   });
 
-  it("integer PIXEL scroll with deltaX noise stays pan", () => {
+  it("integer PIXEL scroll with deltaX noise stays pan in rapid stream", () => {
     const resolver = createWheelIntentResolver();
 
+    resolver(makeWheelEvent({ deltaY: -4 }), "zoom");
     expect(resolver(makeWheelEvent({ deltaY: -100, deltaX: 2 }), "zoom")).toBe(EWheelIntent.Pan);
+    resolver(makeWheelEvent({ deltaY: -4 }), "zoom");
     expect(resolver(makeWheelEvent({ deltaY: -20, deltaX: 3 }), "zoom")).toBe(EWheelIntent.Pan);
   });
 
@@ -155,6 +202,53 @@ describe("createWheelIntentResolver", () => {
     expect(intent).toBe(EWheelIntent.Zoom);
     expect(entries[0]?.rule).toBe("I1:pinch");
     expect(isPinchZoomGesture(makeWheelEvent({ deltaY: -2, ctrlKey: true }))).toBe(true);
+  });
+
+  it("Mac Cmd+scroll with large integer deltas resolves to zoom (not trackpad pan)", () => {
+    const resolver = createWheelIntentResolver();
+    const entries: TWheelIntentDebugEntry[] = [];
+    enableWheelIntentDebug((entry) => {
+      entries.push(entry);
+    });
+
+    resolver(makeWheelEvent({ deltaY: -100, metaKey: true }), "zoom");
+    expect(resolver(makeWheelEvent({ deltaY: -20, metaKey: true }), "zoom")).toBe(EWheelIntent.Zoom);
+    expect(entries[0]?.rule).toBe("I1:pinch");
+    expect(entries[1]?.rule).toBe("I1:pinch");
+    expect(isPinchZoomGesture(makeWheelEvent({ deltaY: -100, metaKey: true }))).toBe(true);
+  });
+
+  it("Mac Cmd+scroll stays zoom through inertia tail (fractional small deltas)", () => {
+    const resolver = createWheelIntentResolver();
+
+    resolver(makeWheelEvent({ deltaY: -100, metaKey: true }), "zoom");
+    expect(resolver(makeWheelEvent({ deltaY: -2.5, deltaX: 0.3, metaKey: true }), "zoom")).toBe(EWheelIntent.Zoom);
+    advanceMs(850);
+    expect(resolver(makeWheelEvent({ deltaY: -1.7, deltaX: 0.1, metaKey: true }), "zoom")).toBe(EWheelIntent.Zoom);
+  });
+
+  it("modifier + large integer PIXEL delta resolves to zoom (trackpad Ctrl/Cmd scroll)", () => {
+    const resolver = createWheelIntentResolver();
+    const entries: TWheelIntentDebugEntry[] = [];
+    enableWheelIntentDebug((entry) => {
+      entries.push(entry);
+    });
+
+    expect(resolver(makeWheelEvent({ deltaY: -100, ctrlKey: true }), "zoom")).toBe(EWheelIntent.Zoom);
+    expect(entries[0]?.rule).toBe("I1:pinch");
+    expect(isPinchZoomGesture(makeWheelEvent({ deltaY: -100, ctrlKey: true }))).toBe(true);
+  });
+
+  it("modifier + LINE mode wheel still follows MOUSE_WHEEL_BEHAVIOR (mouse, not trackpad)", () => {
+    const resolver = createWheelIntentResolver();
+    const lineEvent = makeWheelEvent({
+      deltaY: -1,
+      deltaMode: WheelEvent.DOM_DELTA_LINE,
+      ctrlKey: true,
+    });
+
+    expect(resolver(lineEvent, "zoom")).toBe(EWheelIntent.Zoom);
+    expect(resolver(lineEvent, "scroll")).toBe(EWheelIntent.Pan);
   });
 
   it("predominant horizontal scroll resolves to pan", () => {

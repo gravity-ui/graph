@@ -63,6 +63,8 @@ export type TWheelIntentDebugEntry = {
     isSmallDelta: boolean;
     /** Trackpads always emit `deltaMode === DOM_DELTA_PIXEL` (0); mice use LINE/PAGE or PIXEL. */
     isPixelDeltaMode: boolean;
+    /** Deprecated `wheelDelta(Y)` ≈ ±120 on Chromium mechanical mouse wheels. */
+    hasLegacyMouseWheelDelta: boolean;
   };
   /** Winning rule id and resolved intent. */
   rule: string;
@@ -185,6 +187,28 @@ function normalizeWheelDelta(delta: number, deltaMode: number): number {
   return delta;
 }
 
+/** Minimum |wheelDelta| / |wheelDeltaY| for legacy mouse-wheel detection (Chromium ≈ 120). */
+const LEGACY_MOUSE_WHEEL_DELTA_MIN = 100;
+
+type TLegacyWheelEvent = WheelEvent & {
+  wheelDelta?: number;
+  wheelDeltaX?: number;
+  wheelDeltaY?: number;
+};
+
+/**
+ * Chromium still sets deprecated wheelDelta( Y ) on mechanical mouse wheels (typically ±120).
+ * Trackpad scroll usually omits it or uses smaller values.
+ */
+function hasLegacyMouseWheelDelta(event: WheelEvent): boolean {
+  const legacy = event as TLegacyWheelEvent;
+  const axisDelta = legacy.wheelDeltaY ?? legacy.wheelDelta;
+  if (axisDelta === undefined) {
+    return false;
+  }
+  return Math.abs(axisDelta) >= LEGACY_MOUSE_WHEEL_DELTA_MIN;
+}
+
 function createWheelContext(event: WheelEvent): TWheelContext {
   const normX = normalizeWheelDelta(event.deltaX, event.deltaMode);
   const normY = normalizeWheelDelta(event.deltaY, event.deltaMode);
@@ -209,7 +233,7 @@ function createWheelContext(event: WheelEvent): TWheelContext {
 /**
  * Vertical-only wheel step — physical mouse (LINE/PAGE, or PIXEL delta ≥ discrete minimum).
  *
- * PIXEL mode with **integer** deltas is trackpad — excluded here regardless of magnitude.
+ * Small integer PIXEL deltas (< {@link MOUSE_WHEEL_DISCRETE_MIN_PX}) are trackpad ticks — excluded here.
  */
 function isClassicMouseWheelStep(ctx: TWheelContext): boolean {
   const { event, absY, isPixelDeltaMode, hasFractionalDelta } = ctx;
@@ -223,14 +247,28 @@ function isClassicMouseWheelStep(ctx: TWheelContext): boolean {
     return false;
   }
   if (isPixelDeltaMode && !hasFractionalDelta) {
-    return false;
+    // Chromium/Windows: integer PIXEL + legacy wheelDelta ≈ ±120.
+    return hasLegacyMouseWheelDelta(event);
   }
   return true;
 }
 
 /** Trackpad scroll in PIXEL mode: integer `deltaX` and `deltaY`. */
-function isIntegerPixelTrackpadScroll(ctx: TWheelContext): boolean {
-  return ctx.isPixelDeltaMode && !ctx.hasFractionalDelta;
+function isIntegerPixelTrackpadScroll(ctx: TWheelContext, isRapidStream: boolean): boolean {
+  if (!ctx.isPixelDeltaMode || ctx.hasFractionalDelta) {
+    return false;
+  }
+  if (hasLegacyMouseWheelDelta(ctx.event)) {
+    return false;
+  }
+  const peak = Math.max(ctx.absX, ctx.absY);
+  // Small integer ticks: always trackpad (slow scroll, inertia, per-frame deltas).
+  if (peak < MOUSE_WHEEL_DISCRETE_MIN_PX) {
+    return true;
+  }
+  // Large integer steps: trackpad only inside a continuous rapid stream.
+  // Isolated large integer PIXEL steps are mouse wheels on Chromium (Windows/macOS).
+  return isRapidStream;
 }
 
 /** Rapid PIXEL-mode stream with small deltas — fractional trackpad inertia on some drivers. */
@@ -270,13 +308,15 @@ function isDominantAxisLargeWheel(ctx: TWheelContext): boolean {
 }
 
 function isPinchZoomWheelEvent(ctx: TWheelContext): boolean {
-  const { event, hasFractionalDelta, isSmallDelta } = ctx;
-  return (event.ctrlKey || event.metaKey) && (hasFractionalDelta || isSmallDelta);
+  const { event, isPixelDeltaMode } = ctx;
+  // Trackpads always emit PIXEL deltas. A held modifier means zoom on every platform:
+  // Mac Cmd (metaKey), pinch (ctrlKey), Windows/Linux Ctrl+scroll (ctrlKey).
+  return isPixelDeltaMode && (event.ctrlKey || event.metaKey);
 }
 
 /**
- * Returns true for OS-synthesized trackpad pinch-to-zoom gestures (ctrl/meta + fractional or small delta).
- * Used by Camera for pinch zoom speed; excludes Ctrl+scroll on a mechanical wheel (large steps ≥ I4 threshold).
+ * Returns true when a trackpad modifier-zoom gesture is active (PIXEL mode + ctrl/meta).
+ * Used by Camera for {@link PINCH_ZOOM_SPEED}; mechanical wheels (LINE/PAGE) are excluded.
  */
 export function isPinchZoomGesture(event: WheelEvent): boolean {
   return isPinchZoomWheelEvent(createWheelContext(event));
@@ -308,6 +348,7 @@ function buildWheelSignals(ctx: TWheelContext): TWheelIntentDebugEntry["signals"
     hasFractionalDelta: ctx.hasFractionalDelta,
     isSmallDelta: ctx.isSmallDelta,
     isPixelDeltaMode: ctx.isPixelDeltaMode,
+    hasLegacyMouseWheelDelta: hasLegacyMouseWheelDelta(ctx.event),
   };
 }
 
@@ -371,16 +412,18 @@ function emitDebugEntry(
  *
  * | Signal                                | Intent          |
  * |---------------------------------------|-----------------|
- * | ctrlKey / metaKey + scroll            | Zoom (I1)       |
+ * | ctrlKey / metaKey + PIXEL scroll       | Zoom (I1)       |
  * | Horizontal or diagonal movement       | Pan  (I2)       |
  * | Integer PIXEL delta (trackpad)        | Pan  (I3)       |
+ * | Large isolated integer PIXEL step     | Zoom/Pan (I4)*  |
  * | Classic mouse wheel step (fractional) | Zoom/Pan (I4)*  |
  * | Rapid stream + small delta (fractional)| Pan  (I3)      |
  * | Anything else                         | Last intent (I5)|
  *
  * *I4 respects `mouseWheelBehavior`: `"scroll"` → Pan, `"zoom"` → Zoom.
  *
- * Trackpad: `deltaMode === 0` (PIXEL) + **integer** `deltaX`/`deltaY` → pan; **fractional** PIXEL → mouse (I4).
+ * Trackpad: small integer PIXEL ticks, or large integer PIXEL inside a rapid stream → pan (I3).
+ * Isolated large integer PIXEL (Chromium mouse on Windows) → I4 per `mouseWheelBehavior`.
  * LINE/PAGE mode (`deltaMode !== 0`) is never trackpad — always mouse (I4).
  * See `docs/system/wheel-intent.md` for rationale.
  */
@@ -417,10 +460,14 @@ export function createWheelIntentResolver(): TResolveWheelIntent {
     } else if (signals.isDiagonalScroll || signals.isPredominantHorizontalScroll) {
       intent = EWheelIntent.Pan;
       rule = "I2:horizontal-or-diagonal";
-    } else if (isIntegerPixelTrackpadScroll(ctx)) {
+    } else if (isIntegerPixelTrackpadScroll(ctx, isRapidStream)) {
       intent = EWheelIntent.Pan;
       rule = isRapidStream ? "I3:integer-trackpad" : "I3:integer-trackpad-slow";
-    } else if (signals.isDominantAxisLargeWheel || signals.isClassicMouseWheelStep) {
+    } else if (
+      signals.isDominantAxisLargeWheel ||
+      signals.isClassicMouseWheelStep ||
+      signals.hasLegacyMouseWheelDelta
+    ) {
       intent = intentFromMouseWheelBehavior(mouseWheelBehavior);
       rule = signals.isClassicMouseWheelStep ? "I4:mouse-wheel-step" : "I4:large-step";
       markMouseWheelBurst(now);

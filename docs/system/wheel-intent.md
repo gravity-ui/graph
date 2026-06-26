@@ -42,25 +42,36 @@ Rules are evaluated in priority order; the first match wins. Debug logs use **ru
 
 ### Trackpad vs mouse: `deltaMode` and delta shape
 
-Trackpads **always** emit `deltaMode === 0` (`DOM_DELTA_PIXEL`). Mechanical mouse wheels use `LINE` (1) or `PAGE` (2), or smooth-scroll **fractional** PIXEL deltas.
+Trackpads **always** emit `deltaMode === 0` (`DOM_DELTA_PIXEL`). On Chromium (Chrome/Edge), **mouse wheels also use PIXEL mode** with integer deltas (often ±100 per notch). Firefox still uses LINE/PAGE for mice.
 
 | Signal | Source | Resolver |
 |--------|--------|----------|
 | `deltaMode !== 0` (LINE/PAGE) | **Mouse** wheel | **I4** per `MOUSE_WHEEL_BEHAVIOR` |
-| `deltaMode === 0` + **integer** `deltaX`/`deltaY` | **Trackpad** | **Pan** (`I3:integer-trackpad` / `I3:integer-trackpad-slow`) |
+| `deltaMode === 0` + **small integer** `deltaX`/`deltaY` (< 20 px) | **Trackpad** | **Pan** (I3) |
+| `deltaMode === 0` + **large integer** in rapid stream (< 38 ms) | **Trackpad** fast scroll | **Pan** (I3) |
+| `deltaMode === 0` + **isolated large integer** (≥ 20 px, not rapid) | **Mouse** (Chromium) | **I4** per `MOUSE_WHEEL_BEHAVIOR` |
+| `deltaMode === 0` + **legacy wheelDelta ≈ ±120** | **Mouse** (Chromium/Edge) | **I4** (never I3, even in rapid stream) |
 | `deltaMode === 0` + **fractional** deltas | **Mouse** smooth-scroll | **I4** per `MOUSE_WHEEL_BEHAVIOR` |
 
 Integer check uses `Number.isInteger` on raw `deltaX` and `deltaY` (PIXEL mode only).
 
 ---
 
-### I1 — Pinch-to-zoom
+### I1 — Trackpad modifier zoom (pinch / Cmd / Ctrl+scroll)
 
-**Condition**: `(ctrlKey || metaKey)` AND `(hasFractionalDelta || isSmallDelta)`
+**Condition**: `(ctrlKey || metaKey) && deltaMode === PIXEL`
 
 **Intent**: Zoom (`I1:pinch`)
 
-The OS synthesises `ctrlKey=true` for trackpad pinch-to-zoom. Requiring fractional-or-small delta filters out Ctrl+scroll on a mechanical wheel (large steps, typically ≥ 20 px on the smooth-scroll ramp).
+Trackpads always emit `deltaMode === 0` (PIXEL). When a zoom modifier is held, every wheel tick is zoom — including fast scroll with **integer** deltas and the fractional inertia tail:
+
+| Platform | Modifier | Gesture |
+|----------|----------|---------|
+| macOS | `metaKey` | Cmd + two-finger scroll |
+| macOS | `ctrlKey` | Pinch-to-zoom (OS-synthesised) |
+| Windows / Linux | `ctrlKey` | Ctrl + two-finger scroll |
+
+Mechanical mouse wheels use LINE/PAGE (`deltaMode !== 0`) and stay on **I4** per `MOUSE_WHEEL_BEHAVIOR`.
 
 Camera applies `PINCH_ZOOM_SPEED` when {@link isPinchZoomGesture} is true (same condition as I1).
 
@@ -78,14 +89,21 @@ Ignores small `deltaX` noise on predominantly vertical mouse wheel ticks (trackp
 
 ### I3 — Integer trackpad (PIXEL mode)
 
-**Condition**: `deltaMode === 0` + integer `deltaX`/`deltaY` (any magnitude; horizontal/diagonal handled by I2 first)
+**Condition**: `deltaMode === 0` + integer `deltaX`/`deltaY`, and either:
+
+- both axes **< 20 px** (normalized peak), **or**
+- previous event **< 38 ms** ago (rapid stream) with peak **≥ 20 px**
+
+Horizontal/diagonal gestures are handled by I2 first.
 
 **Intent**: Pan
 
 | Timing | Rule id |
 |--------|---------|
 | Rapid stream (&lt; 38 ms since previous event) | `I3:integer-trackpad` |
-| Not rapid | `I3:integer-trackpad-slow` |
+| Not rapid (small ticks only) | `I3:integer-trackpad-slow` |
+
+Isolated large integer PIXEL steps without legacy `wheelDelta` fall through to **I4** via `isDominantAxisLargeWheel`. Events with **legacy `wheelDelta(Y)` ≈ ±120** (Chromium mechanical mouse on Windows) skip **I3** entirely — including rapid streams (~33 ms apart).
 
 ---
 
@@ -100,7 +118,7 @@ Ignores small `deltaX` noise on predominantly vertical mouse wheel ticks (trackp
 | Slow fractional notch | slow, vertical-only, fractional PIXEL in **~3–5 px** band (e.g. Δy ≈ -4.000244) | `I4:fractional-mouse` |
 | Burst smoothing | within **120 ms** after an I4 step, vertical-only fractional event | `I4-burst:smoothing` |
 
-Integer PIXEL steps are trackpad — handled by I3, never I4. `I4:fractional-mouse` starts the burst window.
+Integer PIXEL steps **≥ 20 px** outside a rapid stream are mouse (I4), not I3. `I4:fractional-mouse` starts the burst window.
 
 ---
 
@@ -125,13 +143,13 @@ Integer PIXEL steps are trackpad — handled by I3, never I4. `I4:fractional-mou
 ```
 WheelEvent arrives
 │
-├─ I1: ctrl/meta + (fractional or small)?
+├─ I1: (ctrlKey or metaKey) + PIXEL delta?
 │     → Zoom
 │
 ├─ I2: diagonal OR predominant horizontal?
 │     → Pan
 │
-├─ I3: integer PIXEL delta (trackpad)?
+├─ I3: small integer PIXEL, or large integer in rapid stream?
 │     → Pan  (I3:integer-trackpad / I3:integer-trackpad-slow)
 │
 ├─ I4: mouse wheel step OR large single-axis step?
@@ -242,5 +260,7 @@ enableWheelIntentDebug((entry) => {
 ```
 
 Debug hooks are explicit opt-in. Each wheel event logs two plain-text lines: a one-line summary and a `JSON.stringify` payload you can copy from the console.
+
+**Storybook dev stand:** run `npm run storybook` → **Dev / WheelIntentProbe** — live table of raw `WheelEvent` fields plus resolver rule/signals; copy JSON after reproducing on your OS/device.
 
 See also [Camera](./camera.md) for `MOUSE_WHEEL_BEHAVIOR` and camera constants.
