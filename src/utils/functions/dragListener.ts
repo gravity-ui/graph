@@ -16,7 +16,38 @@ export type DragListenerOptions = {
    * Default: 0 (drag starts immediately on first mousemove)
    */
   threshold?: number;
+  /**
+   * Blocks browser text selection for the drag session (selectstart + temporary user-select).
+   * @default true
+   */
+  suppressTextSelection?: boolean;
 };
+
+function getDragListenerDocument(node: Document | HTMLDivElement | HTMLCanvasElement): Document {
+  if (node instanceof Document) {
+    return node;
+  }
+  return node.ownerDocument;
+}
+
+/** Prevents browser text selection for the duration of a drag gesture. */
+function installTextSelectionSuppression(doc: Document, graph?: Graph): () => void {
+  const root = graph?.getGraphCanvas() ?? doc.documentElement;
+  doc.defaultView?.getSelection()?.removeAllRanges();
+
+  const onSelectStart = (event: Event): void => {
+    event.preventDefault();
+  };
+  doc.addEventListener("selectstart", onSelectStart, { capture: true });
+
+  const prevUserSelect = root.style.userSelect;
+  root.style.userSelect = "none";
+
+  return (): void => {
+    doc.removeEventListener("selectstart", onSelectStart, { capture: true });
+    root.style.userSelect = prevUserSelect;
+  };
+}
 
 export function dragListener(document: Document | HTMLDivElement | HTMLCanvasElement, options?: DragListenerOptions) {
   // Support legacy boolean parameter for backward compatibility
@@ -25,8 +56,24 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   const dragCursor = options?.dragCursor;
   const component = options?.component;
   const autopanning = options?.autopanning ?? Boolean(graph);
+  const suppressTextSelection = options?.suppressTextSelection ?? true;
   // Use provided threshold, or get from graph settings, or default to 0
   const threshold = options?.threshold ?? graph?.rootStore.settings.$dragThreshold.value ?? 0;
+
+  const dragDocument = getDragListenerDocument(document);
+  let releaseTextSelection: (() => void) | null = null;
+
+  const ensureTextSelectionSuppressed = (): void => {
+    if (!suppressTextSelection || releaseTextSelection !== null) {
+      return;
+    }
+    releaseTextSelection = installTextSelectionSuppression(dragDocument, graph);
+  };
+
+  const cleanupTextSelection = (): void => {
+    releaseTextSelection?.();
+    releaseTextSelection = null;
+  };
 
   let started = false;
   let finished = false;
@@ -79,6 +126,11 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   const startDrag = (event: MouseEvent): void => {
     started = true;
     thresholdExceeded = true;
+    if (suppressTextSelection) {
+      ensureTextSelectionSuppressed();
+      event.preventDefault();
+      dragDocument.defaultView?.getSelection()?.removeAllRanges();
+    }
 
     // Setup drag state
     if (graph) {
@@ -112,7 +164,8 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     }
   };
 
-  const cleanup = () => {
+  const cleanup = (): void => {
+    cleanupTextSelection();
     if (graph && autopanning) {
       graph.off("camera-change", handleCameraChange);
     }

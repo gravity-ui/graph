@@ -316,7 +316,15 @@ export class DragService {
    * ```
    */
   public startDrag(callbacks: DragOperationCallbacks, options: DragOperationOptions = {}) {
-    const { document: doc, cursor, autopanning = true, stopOnMouseLeave, threshold, initialEvent } = options;
+    const {
+      document: doc,
+      cursor,
+      autopanning = true,
+      stopOnMouseLeave,
+      threshold,
+      initialEvent,
+      suppressTextSelection,
+    } = options;
     const { onStart, onUpdate, onEnd } = callbacks;
 
     const targetDocument = doc ?? this.graph.getGraphCanvas().ownerDocument;
@@ -327,6 +335,7 @@ export class DragService {
       autopanning,
       stopOnMouseLeave,
       threshold,
+      suppressTextSelection,
     })
       .on(EVENTS.DRAG_START, (event: MouseEvent) => {
         onStart?.(event, initialEvent ? this.getWorldCoords(initialEvent) : this.getWorldCoords(event));

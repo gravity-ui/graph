@@ -195,6 +195,9 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
       return;
     }
 
+    // Left button on empty canvas — suppress native text selection before pan drag.
+    event.preventDefault();
+
     // Camera drag doesn't need graph sync since it IS the camera
     dragListener(this.ownerDocument, { graph: this.context.graph, autopanning: false, dragCursor: "grabbing" })
       .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onDragStart(event))
