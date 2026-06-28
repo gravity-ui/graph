@@ -210,7 +210,7 @@ Camera updates use the same **preventable default action** pattern as `block-cha
 | API | State | Use for |
 |-----|-------|---------|
 | `camera-change` event | **Proposed** (`event.detail`) | Intercept, validate, `preventDefault()`, log intent before commit |
-| `graph.$camera` / `graph.cameraState` | **Committed** | Reactive subscriptions, React hooks, rendering, derived UI |
+| `graph.$camera` | **Committed** | Reactive subscriptions, React hooks, rendering, derived UI |
 | `graph.cameraService` | **Committed** (via `getCameraState()`) | Imperative control: `move`, `zoom`, `set`, `resize`, `setViewportInsets` |
 
 Outside event handlers, `$camera.value` and `cameraService.getCameraState()` refer to the same committed state. During a `camera-change` handler, `event.detail` is proposed; `$camera` and `cameraService` still hold the previous committed state until the default action runs.

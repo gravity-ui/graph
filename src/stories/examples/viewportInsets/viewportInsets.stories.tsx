@@ -5,11 +5,23 @@ import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
 import { TBlock } from "../../../components/canvas/blocks/Block";
 import { Graph, GraphState } from "../../../graph";
-import { GraphCanvas, useGraph, useGraphEvent } from "../../../react-components";
+import { GraphCanvas, useGraph, useGraphEvent, useSceneChange } from "../../../react-components";
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 
 type TRect = { x: number; y: number; width: number; height: number };
+
+function computeOverlayRect(graph: Graph): TRect {
+  const state = graph.$camera.value;
+  const insets = graph.cameraService.getViewportInsets();
+
+  return {
+    x: insets.left,
+    y: insets.top,
+    width: Math.max(0, state.width - insets.left - insets.right),
+    height: Math.max(0, state.height - insets.top - insets.bottom),
+  };
+}
 
 const storyConfig = generatePrettyBlocks({ layersCount: 6, connectionsPerLayer: 80 });
 
@@ -107,20 +119,14 @@ const InsetsOverlay = ({ graph, maintain }: { graph: Graph; maintain: "center" |
     rectRef.current = rect;
   }, [rect]);
 
-  useGraphEvent(graph, "camera-change", () => {
-    // Recompute from static viewport insets and current canvas size only
-    const state = graph.cameraService.getCameraState();
-    const insets = graph.cameraService.getViewportInsets();
-    const next = {
-      x: insets.left,
-      y: insets.top,
-      width: Math.max(0, state.width - insets.left - insets.right),
-      height: Math.max(0, state.height - insets.top - insets.bottom),
-    };
+  const syncRectFromCamera = useCallback(() => {
+    const next = computeOverlayRect(graph);
     setRect((prev) =>
       prev.x !== next.x || prev.y !== next.y || prev.width !== next.width || prev.height !== next.height ? next : prev
     );
-  });
+  }, [graph]);
+
+  useSceneChange(graph, syncRectFromCamera);
 
   // Initialize centered 300x300 viewport after graph is attached
   useGraphEvent(graph, "state-change", ({ state }) => {
