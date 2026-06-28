@@ -108,9 +108,20 @@ export const debounce = <T extends (...args: Parameters<T>) => void>(
   };
 
   const flush = () => {
-    if (isScheduled && latestArgs) {
-      fn(...latestArgs);
-      cancel();
+    if (isScheduled) {
+      const currentRemoveScheduler = removeScheduler;
+      isScheduled = false;
+      frameCounter = 0;
+      startTime = 0;
+      removeScheduler = null;
+      const args = latestArgs;
+      latestArgs = undefined;
+      // Remove the old scheduler handle BEFORE calling fn() so that any
+      // re-scheduling triggered inside fn() is not accidentally canceled.
+      if (currentRemoveScheduler) {
+        currentRemoveScheduler();
+      }
+      fn(...((args ?? []) as Parameters<T>));
     }
   };
 
