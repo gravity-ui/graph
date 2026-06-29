@@ -191,6 +191,10 @@ function normalizeWheelDelta(delta: number, deltaMode: number): number {
 /** Minimum |wheelDelta| / |wheelDeltaY| for legacy mouse-wheel detection (Chromium ≈ 120). */
 const LEGACY_MOUSE_WHEEL_DELTA_MIN = 100;
 
+/** Mac Chrome/YaBrowser trackpad: wheelDeltaY ≈ ±3 × deltaY (not fixed ±120 mouse notch). */
+const MAC_CHROME_TRACKPAD_WHEEL_DELTA_RATIO = 3;
+const MAC_CHROME_TRACKPAD_RATIO_TOLERANCE = 0.35;
+
 type TLegacyWheelEvent = WheelEvent & {
   wheelDelta?: number;
   wheelDeltaX?: number;
@@ -198,8 +202,26 @@ type TLegacyWheelEvent = WheelEvent & {
 };
 
 /**
- * Chromium still sets deprecated wheelDelta( Y ) on mechanical mouse wheels (typically ±120).
- * Trackpad scroll usually omits it or uses smaller values.
+ * True when wheelDeltaY looks like a fixed ±120 mechanical mouse notch (Chromium/Windows).
+ *
+ * Mac Chrome trackpad also populates wheelDelta, but as a linear ±3 × deltaY scale — that must
+ * not be treated as a mouse wheel or fast trackpad swipes fall through to I4 zoom.
+ */
+function isMacChromeLinearWheelDelta(event: WheelEvent, wheelDeltaY: number): boolean {
+  const { deltaY, deltaMode } = event;
+  if (deltaMode !== WheelEvent.DOM_DELTA_PIXEL || deltaY === 0 || !Number.isInteger(deltaY)) {
+    return false;
+  }
+  const ratio = Math.abs(wheelDeltaY / deltaY);
+  return (
+    ratio > MAC_CHROME_TRACKPAD_WHEEL_DELTA_RATIO - MAC_CHROME_TRACKPAD_RATIO_TOLERANCE &&
+    ratio < MAC_CHROME_TRACKPAD_WHEEL_DELTA_RATIO + MAC_CHROME_TRACKPAD_RATIO_TOLERANCE
+  );
+}
+
+/**
+ * Chromium still sets deprecated wheelDelta(Y) on mechanical mouse wheels (typically ±120).
+ * Trackpad scroll on Mac Chrome uses wheelDelta ≈ ±3 × deltaY instead.
  */
 function hasLegacyMouseWheelDelta(event: WheelEvent): boolean {
   const legacy = event as TLegacyWheelEvent;
@@ -207,7 +229,13 @@ function hasLegacyMouseWheelDelta(event: WheelEvent): boolean {
   if (axisDelta === undefined) {
     return false;
   }
-  return Math.abs(axisDelta) >= LEGACY_MOUSE_WHEEL_DELTA_MIN;
+  if (Math.abs(axisDelta) < LEGACY_MOUSE_WHEEL_DELTA_MIN) {
+    return false;
+  }
+  if (isMacChromeLinearWheelDelta(event, axisDelta)) {
+    return false;
+  }
+  return true;
 }
 
 function createWheelContext(event: WheelEvent): TWheelContext {

@@ -19,6 +19,26 @@ function makeWheelEvent(
   });
 }
 
+/** Mac Chrome/YaBrowser trackpad: integer PIXEL deltaY + wheelDeltaY ≈ ∓3 × deltaY. */
+function makeMacChromeTrackpadWheelEvent(
+  overrides: Partial<{
+    deltaX: number;
+    deltaY: number;
+    deltaMode: number;
+  }> = {}
+): WheelEvent {
+  const deltaY = overrides.deltaY ?? 10;
+  const event = makeWheelEvent({ deltaY, ...overrides });
+  const legacyDelta = -deltaY * 3;
+  Object.defineProperty(event, "wheelDelta", { configurable: true, value: legacyDelta });
+  Object.defineProperty(event, "wheelDeltaY", { configurable: true, value: legacyDelta });
+  Object.defineProperty(event, "wheelDeltaX", {
+    configurable: true,
+    value: (overrides.deltaX ?? 0) > 0 ? -(overrides.deltaX ?? 0) * 3 : 0,
+  });
+  return event;
+}
+
 /** Chromium/Edge on Windows: integer PIXEL deltaY + legacy wheelDeltaY ≈ ∓120. */
 function makeChromiumMouseWheelEvent(
   overrides: Partial<{
@@ -97,6 +117,36 @@ describe("createWheelIntentResolver", () => {
 
     resolver(makeWheelEvent({ deltaY: -20 }), "zoom");
     expect(resolver(makeWheelEvent({ deltaY: -100 }), "zoom")).toBe(EWheelIntent.Pan);
+  });
+
+  it("Mac Chrome fast trackpad swipe stays pan despite linear wheelDelta (YaBrowser log repro)", () => {
+    const entries: TWheelIntentDebugEntry[] = [];
+    enableWheelIntentDebug((entry) => {
+      entries.push(entry);
+    });
+
+    const resolver = createWheelIntentResolver();
+    const tick = (deltaY: number, deltaX = 0): EWheelIntent =>
+      resolver(makeMacChromeTrackpadWheelEvent({ deltaY, deltaX }), "zoom");
+
+    nowMs = 1000;
+    expect(tick(5)).toBe(EWheelIntent.Pan);
+    advanceMs(32);
+    expect(tick(313, 4)).toBe(EWheelIntent.Pan);
+    advanceMs(8);
+    expect(tick(70)).toBe(EWheelIntent.Pan);
+    advanceMs(8);
+    expect(tick(450)).toBe(EWheelIntent.Pan);
+    advanceMs(8);
+    expect(tick(34)).toBe(EWheelIntent.Pan);
+    advanceMs(8);
+    expect(tick(86)).toBe(EWheelIntent.Pan);
+    advanceMs(8);
+    expect(tick(1)).toBe(EWheelIntent.Pan);
+
+    expect(entries.every((entry) => entry.result === EWheelIntent.Pan)).toBe(true);
+    expect(entries.every((entry) => entry.rule.startsWith("I3:"))).toBe(true);
+    expect(entries.every((entry) => entry.signals.hasLegacyMouseWheelDelta === false)).toBe(true);
   });
 
   it("integer PIXEL scroll with deltaX noise stays pan in rapid stream", () => {
