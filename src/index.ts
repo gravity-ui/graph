@@ -6,6 +6,7 @@ export * from "./graph";
 export type { TGraphColors, TGraphConstants, TMouseWheelBehavior } from "./graphConfig";
 export type {
   TResolveWheelIntent,
+  TResolveWheelIntentOptions,
   TWheelIntentDebugEntry,
   TWheelInputDevice,
   TWheelIntentRule,

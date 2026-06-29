@@ -285,10 +285,10 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     event.stopPropagation();
     event.preventDefault();
 
-    const intent = this.context.graph.rootStore.settings.wheelIntentFromEvent(
-      event,
-      this.context.constants.camera.MOUSE_WHEEL_BEHAVIOR
-    );
+    const intent = this.context.graph.rootStore.settings.wheelIntentFromEvent(event, {
+      mouseWheelBehavior: this.context.constants.camera.MOUSE_WHEEL_BEHAVIOR,
+      wheelInputDevice: this.context.constants.camera.WHEEL_INPUT_DEVICE,
+    });
 
     if (intent === EWheelIntent.Pan) {
       this.handlePan(event);

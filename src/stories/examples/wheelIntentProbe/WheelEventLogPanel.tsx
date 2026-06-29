@@ -149,7 +149,7 @@ export function WheelEventLogPanel({
           <code>WheelEvent</code> plus <code>resolveWheelIntent</code> output.
         </Text>
         <Text variant="caption-2" color="secondary">
-          Platform: {platformHint} · MOUSE_WHEEL_BEHAVIOR: <strong>{mouseWheelBehavior}</strong> · wheelInputDevice:{" "}
+          Platform: {platformHint} · MOUSE_WHEEL_BEHAVIOR: <strong>{mouseWheelBehavior}</strong> · WHEEL_INPUT_DEVICE:{" "}
           <strong>{wheelInputDevice}</strong> · {entries.length} events (max {MAX_ENTRIES_CAP})
         </Text>
       </Flex>

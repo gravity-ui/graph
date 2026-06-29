@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from "@storybook/react-webpack5";
 import { TBlock } from "../../../components/canvas/blocks/Block";
 import { Graph, GraphState } from "../../../graph";
 import type { TMouseWheelBehavior, TWheelInputDevice } from "../../../graphConfig";
-import { EWheelIntent, createWheelIntentResolver } from "../../../graphConfig";
+import { EWheelIntent, enableWheelIntentDebug } from "../../../graphConfig";
 import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "../../../react-components";
 import { useFn } from "../../../react-components/utils/hooks/useFn";
 import { ECanDrag } from "../../../store/settings";
@@ -34,17 +34,12 @@ const INTENT_LABEL: Record<EWheelIntent, string> = {
 type MouseWheelBehaviorStoryProps = {
   /** Camera constant: vertical wheel when input is classified as mouse wheel. */
   mouseWheelBehavior: TMouseWheelBehavior;
-  /** Graph setting: explicit wheel device when auto heuristics are ambiguous. */
+  /** Camera constant: explicit wheel device when auto heuristics are ambiguous. */
   wheelInputDevice: TWheelInputDevice;
 };
 
 function GraphWithMouseWheelBehaviorScroll({ mouseWheelBehavior, wheelInputDevice }: MouseWheelBehaviorStoryProps) {
   const [resolvedWheelIntent, setResolvedWheelIntent] = useState<EWheelIntent | null>(null);
-
-  const baseResolveWheelIntent = useMemo(
-    () => createWheelIntentResolver({ inputDevice: wheelInputDevice }),
-    [wheelInputDevice]
-  );
 
   const graphParams = useMemo<HookGraphParams>(
     () => ({
@@ -52,23 +47,25 @@ function GraphWithMouseWheelBehaviorScroll({ mouseWheelBehavior, wheelInputDevic
         constants: {
           camera: {
             MOUSE_WHEEL_BEHAVIOR: mouseWheelBehavior,
+            WHEEL_INPUT_DEVICE: wheelInputDevice,
           },
         },
       },
-      settings: {
-        ...GRAPH_SETTINGS,
-        wheelInputDevice,
-        resolveWheelIntent: (event: WheelEvent, wb: TMouseWheelBehavior) => {
-          const intent = baseResolveWheelIntent(event, wb);
-          setResolvedWheelIntent(intent);
-          return intent;
-        },
-      },
+      settings: GRAPH_SETTINGS,
     }),
-    [mouseWheelBehavior, wheelInputDevice, baseResolveWheelIntent]
+    [mouseWheelBehavior, wheelInputDevice]
   );
 
   const { graph, setEntities, start } = useGraph(graphParams);
+
+  useEffect(() => {
+    enableWheelIntentDebug((entry) => {
+      setResolvedWheelIntent(entry.result);
+    });
+    return () => {
+      enableWheelIntentDebug(null);
+    };
+  }, []);
 
   useEffect(() => {
     setResolvedWheelIntent(null);
@@ -139,7 +136,7 @@ function GraphWithMouseWheelBehaviorScroll({ mouseWheelBehavior, wheelInputDevic
         >
           <Text variant={"body-2"}>
             <strong>MOUSE_WHEEL_BEHAVIOR</strong> (constants): <strong>{mouseWheelBehavior}</strong> ·{" "}
-            <strong>wheelInputDevice</strong> (settings): <strong>{wheelInputDevice}</strong> — change via Storybook
+            <strong>WHEEL_INPUT_DEVICE</strong> (constants): <strong>{wheelInputDevice}</strong> — change via Storybook
             Controls
           </Text>
           <Text variant={"body-2"} color={"secondary"}>
@@ -175,7 +172,8 @@ const meta: Meta<typeof GraphWithMouseWheelBehaviorScroll> = {
     wheelInputDevice: {
       control: "select",
       options: ["auto", "mouse", "trackpad"],
-      description: "Graph setting wheelInputDevice: force mouse or trackpad classification instead of auto heuristics.",
+      description:
+        "Camera constant WHEEL_INPUT_DEVICE: force mouse or trackpad classification instead of auto heuristics.",
     },
   },
   args: {

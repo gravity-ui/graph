@@ -50,10 +50,7 @@ function WheelIntentProbeStory({
     pausedRef.current = paused;
   }, [paused]);
 
-  const baseResolveWheelIntent = useMemo(
-    () => createWheelIntentResolver({ inputDevice: wheelInputDevice }),
-    [wheelInputDevice]
-  );
+  const baseResolveWheelIntent = useMemo(() => createWheelIntentResolver(), []);
 
   const graphParams = useMemo<HookGraphParams>(
     () => ({
@@ -61,15 +58,15 @@ function WheelIntentProbeStory({
         constants: {
           camera: {
             MOUSE_WHEEL_BEHAVIOR: mouseWheelBehavior,
+            WHEEL_INPUT_DEVICE: wheelInputDevice,
           },
         },
       },
       settings: {
         ...GRAPH_SETTINGS,
-        wheelInputDevice,
-        resolveWheelIntent: (event: WheelEvent, wb: TMouseWheelBehavior) => {
+        resolveWheelIntent: (event: WheelEvent, options) => {
           pendingRawRef.current = snapshotRawWheelEvent(event);
-          return baseResolveWheelIntent(event, wb);
+          return baseResolveWheelIntent(event, options);
         },
       },
     }),
@@ -195,7 +192,7 @@ const meta: Meta<typeof WheelIntentProbeStory> = {
     wheelInputDevice: {
       control: "select",
       options: ["auto", "mouse", "trackpad"],
-      description: "Graph setting wheelInputDevice: skip ambiguous heuristics when set to mouse or trackpad.",
+      description: "Camera constant WHEEL_INPUT_DEVICE: skip ambiguous heuristics when set to mouse or trackpad.",
     },
   },
   args: {

@@ -86,9 +86,13 @@ describe("createWheelIntentResolver", () => {
   it("slow large integer PIXEL step follows MOUSE_WHEEL_BEHAVIOR (Chromium/Windows mouse)", () => {
     const resolver = createWheelIntentResolver();
 
-    expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), "zoom")).toBe(EWheelIntent.Zoom);
+    expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Zoom
+    );
     advanceMs(50);
-    expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), "scroll")).toBe(EWheelIntent.Pan);
+    expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), { mouseWheelBehavior: "scroll" })).toBe(
+      EWheelIntent.Pan
+    );
   });
 
   it("Chromium mouse rapid stream with wheelDelta ±120 stays zoom (Windows log repro)", () => {
@@ -98,7 +102,8 @@ describe("createWheelIntentResolver", () => {
     });
 
     const resolver = createWheelIntentResolver();
-    const tick = (): EWheelIntent => resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), "zoom");
+    const tick = (): EWheelIntent =>
+      resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), { mouseWheelBehavior: "zoom" });
 
     expect(tick()).toBe(EWheelIntent.Zoom);
     advanceMs(33);
@@ -116,21 +121,21 @@ describe("createWheelIntentResolver", () => {
   it("small integer PIXEL scroll stays pan (trackpad ticks)", () => {
     const resolver = createWheelIntentResolver();
 
-    resolver(makeWheelEvent({ deltaY: 1 }), "zoom");
-    expect(resolver(makeWheelEvent({ deltaY: 11 }), "zoom")).toBe(EWheelIntent.Pan);
-    expect(resolver(makeWheelEvent({ deltaY: 20 }), "zoom")).toBe(EWheelIntent.Pan);
-    expect(resolver(makeWheelEvent({ deltaY: -1 }), "zoom")).toBe(EWheelIntent.Pan);
-    expect(resolver(makeWheelEvent({ deltaY: -11 }), "zoom")).toBe(EWheelIntent.Pan);
-    expect(resolver(makeWheelEvent({ deltaY: -20 }), "zoom")).toBe(EWheelIntent.Pan);
+    resolver(makeWheelEvent({ deltaY: 1 }), { mouseWheelBehavior: "zoom" });
+    expect(resolver(makeWheelEvent({ deltaY: 11 }), { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Pan);
+    expect(resolver(makeWheelEvent({ deltaY: 20 }), { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Pan);
+    expect(resolver(makeWheelEvent({ deltaY: -1 }), { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Pan);
+    expect(resolver(makeWheelEvent({ deltaY: -11 }), { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Pan);
+    expect(resolver(makeWheelEvent({ deltaY: -20 }), { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Pan);
   });
 
   it("large integer PIXEL scroll stays pan inside a rapid stream (trackpad)", () => {
     const resolver = createWheelIntentResolver();
 
     nowMs = 1000;
-    resolver(makeWheelEvent({ deltaY: -13 }), "zoom");
+    resolver(makeWheelEvent({ deltaY: -13 }), { mouseWheelBehavior: "zoom" });
     advanceMs(16);
-    expect(resolver(makeWheelEvent({ deltaY: -100 }), "zoom")).toBe(EWheelIntent.Pan);
+    expect(resolver(makeWheelEvent({ deltaY: -100 }), { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Pan);
   });
 
   it("Mac Chrome fast trackpad swipe stays pan despite linear wheelDelta (YaBrowser log repro)", () => {
@@ -141,7 +146,7 @@ describe("createWheelIntentResolver", () => {
 
     const resolver = createWheelIntentResolver();
     const tick = (deltaY: number, deltaX = 0): EWheelIntent =>
-      resolver(makeMacChromeTrackpadWheelEvent({ deltaY, deltaX }), "zoom");
+      resolver(makeMacChromeTrackpadWheelEvent({ deltaY, deltaX }), { mouseWheelBehavior: "zoom" });
 
     nowMs = 1000;
     expect(tick(5)).toBe(EWheelIntent.Pan);
@@ -172,11 +177,13 @@ describe("createWheelIntentResolver", () => {
     const resolver = createWheelIntentResolver();
 
     nowMs = 1000;
-    expect(resolver(makeWheelEvent({ deltaY: -13 }), "zoom")).toBe(EWheelIntent.Pan);
+    expect(resolver(makeWheelEvent({ deltaY: -13 }), { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Pan);
     advanceMs(16);
-    expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), "zoom")).toBe(EWheelIntent.Pan);
+    expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Pan
+    );
     advanceMs(16);
-    expect(resolver(makeWheelEvent({ deltaY: -13 }), "zoom")).toBe(EWheelIntent.Pan);
+    expect(resolver(makeWheelEvent({ deltaY: -13 }), { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Pan);
 
     expect(entries[1]?.rule).toBe(WHEEL_INTENT_RULE.I5_STICKY_STREAM);
     expect(entries.every((entry) => entry.result === EWheelIntent.Pan)).toBe(true);
@@ -186,20 +193,26 @@ describe("createWheelIntentResolver", () => {
     const resolver = createWheelIntentResolver();
 
     nowMs = 1000;
-    expect(resolver(makeWheelEvent({ deltaY: -13 }), "zoom")).toBe(EWheelIntent.Pan);
+    expect(resolver(makeWheelEvent({ deltaY: -13 }), { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Pan);
     advanceMs(16);
-    expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), "zoom")).toBe(EWheelIntent.Pan);
+    expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Pan
+    );
     advanceMs(50);
-    expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), "zoom")).toBe(EWheelIntent.Zoom);
+    expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Zoom
+    );
   });
 
   it("rapid stream sticky does not override I1 pinch zoom", () => {
     const resolver = createWheelIntentResolver();
 
     nowMs = 1000;
-    expect(resolver(makeWheelEvent({ deltaY: -13 }), "zoom")).toBe(EWheelIntent.Pan);
+    expect(resolver(makeWheelEvent({ deltaY: -13 }), { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Pan);
     advanceMs(16);
-    expect(resolver(makeWheelEvent({ deltaY: -10, metaKey: true }), "zoom")).toBe(EWheelIntent.Zoom);
+    expect(resolver(makeWheelEvent({ deltaY: -10, metaKey: true }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Zoom
+    );
   });
 
   it("rapid stream sticky does not block pan after I5:last-intent first tick", () => {
@@ -212,9 +225,11 @@ describe("createWheelIntentResolver", () => {
 
     nowMs = 1000;
     // Ambiguous fractional slow tick → I5:last-intent (default zoom), not a confident rule.
-    resolver(makeWheelEvent({ deltaY: -2.5, deltaX: 0.3 }), "zoom");
+    resolver(makeWheelEvent({ deltaY: -2.5, deltaX: 0.3 }), { mouseWheelBehavior: "zoom" });
     advanceMs(16);
-    expect(resolver(makeWheelEvent({ deltaY: -1.7, deltaX: 0.1 }), "zoom")).toBe(EWheelIntent.Pan);
+    expect(resolver(makeWheelEvent({ deltaY: -1.7, deltaX: 0.1 }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Pan
+    );
 
     expect(entries[0]?.rule).toBe(WHEEL_INTENT_RULE.I5_LAST_INTENT);
     expect(entries[1]?.rule).toBe(WHEEL_INTENT_RULE.I3_RAPID_SMALL);
@@ -223,10 +238,12 @@ describe("createWheelIntentResolver", () => {
   it("integer PIXEL scroll with deltaX noise stays pan in rapid stream", () => {
     const resolver = createWheelIntentResolver();
 
-    resolver(makeWheelEvent({ deltaY: -4 }), "zoom");
-    expect(resolver(makeWheelEvent({ deltaY: -100, deltaX: 2 }), "zoom")).toBe(EWheelIntent.Pan);
-    resolver(makeWheelEvent({ deltaY: -4 }), "zoom");
-    expect(resolver(makeWheelEvent({ deltaY: -20, deltaX: 3 }), "zoom")).toBe(EWheelIntent.Pan);
+    resolver(makeWheelEvent({ deltaY: -4 }), { mouseWheelBehavior: "zoom" });
+    expect(resolver(makeWheelEvent({ deltaY: -100, deltaX: 2 }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Pan
+    );
+    resolver(makeWheelEvent({ deltaY: -4 }), { mouseWheelBehavior: "zoom" });
+    expect(resolver(makeWheelEvent({ deltaY: -20, deltaX: 3 }), { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Pan);
   });
 
   it("slow integer scroll uses I3:integer-trackpad-slow rule id", () => {
@@ -237,7 +254,7 @@ describe("createWheelIntentResolver", () => {
 
     nowMs = 1000;
     const resolver = createWheelIntentResolver();
-    resolver(makeWheelEvent({ deltaY: -4, deltaX: 0 }), "zoom");
+    resolver(makeWheelEvent({ deltaY: -4, deltaX: 0 }), { mouseWheelBehavior: "zoom" });
 
     expect(entries[0]?.rule).toBe(WHEEL_INTENT_RULE.I3_INTEGER_TRACKPAD_SLOW);
     expect(entries[0]?.result).toBe(EWheelIntent.Pan);
@@ -246,8 +263,8 @@ describe("createWheelIntentResolver", () => {
   it("rapid discrete mouse wheel steps (≥20px fractional) with MOUSE_WHEEL_BEHAVIOR=zoom stay zoom", () => {
     const resolver = createWheelIntentResolver();
 
-    resolver(makeWheelEvent({ deltaY: -25.5 }), "zoom");
-    const intent = resolver(makeWheelEvent({ deltaY: -25.5 }), "zoom");
+    resolver(makeWheelEvent({ deltaY: -25.5 }), { mouseWheelBehavior: "zoom" });
+    const intent = resolver(makeWheelEvent({ deltaY: -25.5 }), { mouseWheelBehavior: "zoom" });
 
     expect(intent).toBe(EWheelIntent.Zoom);
   });
@@ -255,8 +272,8 @@ describe("createWheelIntentResolver", () => {
   it("rapid integer vertical wheel with MOUSE_WHEEL_BEHAVIOR=scroll resolves to pan", () => {
     const resolver = createWheelIntentResolver();
 
-    resolver(makeWheelEvent({ deltaY: -10 }), "scroll");
-    const intent = resolver(makeWheelEvent({ deltaY: -10 }), "scroll");
+    resolver(makeWheelEvent({ deltaY: -10 }), { mouseWheelBehavior: "scroll" });
+    const intent = resolver(makeWheelEvent({ deltaY: -10 }), { mouseWheelBehavior: "scroll" });
 
     expect(intent).toBe(EWheelIntent.Pan);
   });
@@ -268,17 +285,19 @@ describe("createWheelIntentResolver", () => {
       deltaMode: WheelEvent.DOM_DELTA_LINE,
     });
 
-    resolver(lineEvent, "zoom");
-    expect(resolver(lineEvent, "zoom")).toBe(EWheelIntent.Zoom);
+    resolver(lineEvent, { mouseWheelBehavior: "zoom" });
+    expect(resolver(lineEvent, { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Zoom);
     advanceMs(50);
-    expect(resolver(lineEvent, "scroll")).toBe(EWheelIntent.Pan);
+    expect(resolver(lineEvent, { mouseWheelBehavior: "scroll" })).toBe(EWheelIntent.Pan);
   });
 
   it("vertical wheel with deltaX noise stays zoom when vertical dominates (fractional mouse)", () => {
     const resolver = createWheelIntentResolver();
 
-    resolver(makeWheelEvent({ deltaY: -100.5, deltaX: 2.1 }), "zoom");
-    expect(resolver(makeWheelEvent({ deltaY: -120.25, deltaX: -3.4 }), "zoom")).toBe(EWheelIntent.Zoom);
+    resolver(makeWheelEvent({ deltaY: -100.5, deltaX: 2.1 }), { mouseWheelBehavior: "zoom" });
+    expect(resolver(makeWheelEvent({ deltaY: -120.25, deltaX: -3.4 }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Zoom
+    );
   });
 
   it("fractional smoothing events after a wheel tick stay zoom in burst", () => {
@@ -289,25 +308,31 @@ describe("createWheelIntentResolver", () => {
 
     const resolver = createWheelIntentResolver();
 
-    resolver(makeWheelEvent({ deltaY: -25.5 }), "zoom");
-    expect(resolver(makeWheelEvent({ deltaY: -6.4, deltaX: 0 }), "zoom")).toBe(EWheelIntent.Zoom);
+    resolver(makeWheelEvent({ deltaY: -25.5 }), { mouseWheelBehavior: "zoom" });
+    expect(resolver(makeWheelEvent({ deltaY: -6.4, deltaX: 0 }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Zoom
+    );
     expect(entries[1]?.rule).toBe(WHEEL_INTENT_RULE.I4_BURST_SMOOTHING);
-    expect(resolver(makeWheelEvent({ deltaY: -25.5 }), "zoom")).toBe(EWheelIntent.Zoom);
+    expect(resolver(makeWheelEvent({ deltaY: -25.5 }), { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Zoom);
   });
 
   it("smooth mouse wheel ramp (fractional deltas) stays zoom", () => {
     const resolver = createWheelIntentResolver();
 
-    resolver(makeWheelEvent({ deltaY: 4.000244140625 }), "zoom");
-    expect(resolver(makeWheelEvent({ deltaY: 34.15283203125 }), "zoom")).toBe(EWheelIntent.Zoom);
-    expect(resolver(makeWheelEvent({ deltaY: 153.34228515625 }), "zoom")).toBe(EWheelIntent.Zoom);
+    resolver(makeWheelEvent({ deltaY: 4.000244140625 }), { mouseWheelBehavior: "zoom" });
+    expect(resolver(makeWheelEvent({ deltaY: 34.15283203125 }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Zoom
+    );
+    expect(resolver(makeWheelEvent({ deltaY: 153.34228515625 }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Zoom
+    );
   });
 
   it("rapid small fractional deltas resolve to pan (trackpad inertia)", () => {
     const resolver = createWheelIntentResolver();
 
-    resolver(makeWheelEvent({ deltaY: -2.5, deltaX: 0.3 }), "zoom");
-    const intent = resolver(makeWheelEvent({ deltaY: -1.7, deltaX: 0.1 }), "zoom");
+    resolver(makeWheelEvent({ deltaY: -2.5, deltaX: 0.3 }), { mouseWheelBehavior: "zoom" });
+    const intent = resolver(makeWheelEvent({ deltaY: -1.7, deltaX: 0.1 }), { mouseWheelBehavior: "zoom" });
 
     expect(intent).toBe(EWheelIntent.Pan);
   });
@@ -319,7 +344,7 @@ describe("createWheelIntentResolver", () => {
       entries.push(entry);
     });
 
-    const intent = resolver(makeWheelEvent({ deltaY: -2, ctrlKey: true }), "zoom");
+    const intent = resolver(makeWheelEvent({ deltaY: -2, ctrlKey: true }), { mouseWheelBehavior: "zoom" });
 
     expect(intent).toBe(EWheelIntent.Zoom);
     expect(entries[0]?.rule).toBe(WHEEL_INTENT_RULE.I1_PINCH);
@@ -333,8 +358,10 @@ describe("createWheelIntentResolver", () => {
       entries.push(entry);
     });
 
-    resolver(makeWheelEvent({ deltaY: -100, metaKey: true }), "zoom");
-    expect(resolver(makeWheelEvent({ deltaY: -20, metaKey: true }), "zoom")).toBe(EWheelIntent.Zoom);
+    resolver(makeWheelEvent({ deltaY: -100, metaKey: true }), { mouseWheelBehavior: "zoom" });
+    expect(resolver(makeWheelEvent({ deltaY: -20, metaKey: true }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Zoom
+    );
     expect(entries[0]?.rule).toBe(WHEEL_INTENT_RULE.I1_PINCH);
     expect(entries[1]?.rule).toBe(WHEEL_INTENT_RULE.I1_PINCH);
     expect(isPinchZoomGesture(makeWheelEvent({ deltaY: -100, metaKey: true }))).toBe(true);
@@ -343,10 +370,14 @@ describe("createWheelIntentResolver", () => {
   it("Mac Cmd+scroll stays zoom through inertia tail (fractional small deltas)", () => {
     const resolver = createWheelIntentResolver();
 
-    resolver(makeWheelEvent({ deltaY: -100, metaKey: true }), "zoom");
-    expect(resolver(makeWheelEvent({ deltaY: -2.5, deltaX: 0.3, metaKey: true }), "zoom")).toBe(EWheelIntent.Zoom);
+    resolver(makeWheelEvent({ deltaY: -100, metaKey: true }), { mouseWheelBehavior: "zoom" });
+    expect(resolver(makeWheelEvent({ deltaY: -2.5, deltaX: 0.3, metaKey: true }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Zoom
+    );
     advanceMs(850);
-    expect(resolver(makeWheelEvent({ deltaY: -1.7, deltaX: 0.1, metaKey: true }), "zoom")).toBe(EWheelIntent.Zoom);
+    expect(resolver(makeWheelEvent({ deltaY: -1.7, deltaX: 0.1, metaKey: true }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Zoom
+    );
   });
 
   it("modifier + large integer PIXEL delta resolves to zoom (trackpad Ctrl/Cmd scroll)", () => {
@@ -356,7 +387,9 @@ describe("createWheelIntentResolver", () => {
       entries.push(entry);
     });
 
-    expect(resolver(makeWheelEvent({ deltaY: -100, ctrlKey: true }), "zoom")).toBe(EWheelIntent.Zoom);
+    expect(resolver(makeWheelEvent({ deltaY: -100, ctrlKey: true }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Zoom
+    );
     expect(entries[0]?.rule).toBe(WHEEL_INTENT_RULE.I1_PINCH);
     expect(isPinchZoomGesture(makeWheelEvent({ deltaY: -100, ctrlKey: true }))).toBe(true);
   });
@@ -369,50 +402,56 @@ describe("createWheelIntentResolver", () => {
       ctrlKey: true,
     });
 
-    expect(resolver(lineEvent, "zoom")).toBe(EWheelIntent.Zoom);
+    expect(resolver(lineEvent, { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Zoom);
     advanceMs(50);
-    expect(resolver(lineEvent, "scroll")).toBe(EWheelIntent.Pan);
+    expect(resolver(lineEvent, { mouseWheelBehavior: "scroll" })).toBe(EWheelIntent.Pan);
   });
 
   it("predominant horizontal scroll resolves to pan", () => {
     const resolver = createWheelIntentResolver();
 
-    const intent = resolver(makeWheelEvent({ deltaX: -10, deltaY: -1 }), "zoom");
+    const intent = resolver(makeWheelEvent({ deltaX: -10, deltaY: -1 }), { mouseWheelBehavior: "zoom" });
     expect(intent).toBe(EWheelIntent.Pan);
   });
 
   it("diagonal scroll resolves to pan regardless of MOUSE_WHEEL_BEHAVIOR", () => {
     const resolver = createWheelIntentResolver();
-    expect(resolver(makeWheelEvent({ deltaX: -5, deltaY: -5 }), "zoom")).toBe(EWheelIntent.Pan);
+    expect(resolver(makeWheelEvent({ deltaX: -5, deltaY: -5 }), { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Pan);
   });
 
   it("slow small fractional mouse notch respects MOUSE_WHEEL_BEHAVIOR=zoom", () => {
     const resolver = createWheelIntentResolver();
 
     nowMs = 1000;
-    expect(resolver(makeWheelEvent({ deltaY: -4.000244140625 }), "zoom")).toBe(EWheelIntent.Zoom);
+    expect(resolver(makeWheelEvent({ deltaY: -4.000244140625 }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Zoom
+    );
     advanceMs(850);
-    expect(resolver(makeWheelEvent({ deltaY: -4.000244140625 }), "zoom")).toBe(EWheelIntent.Zoom);
+    expect(resolver(makeWheelEvent({ deltaY: -4.000244140625 }), { mouseWheelBehavior: "zoom" })).toBe(
+      EWheelIntent.Zoom
+    );
   });
 
   it("slow small fractional mouse notch respects MOUSE_WHEEL_BEHAVIOR=scroll", () => {
     const resolver = createWheelIntentResolver();
 
     nowMs = 1000;
-    expect(resolver(makeWheelEvent({ deltaY: -4.000244140625 }), "scroll")).toBe(EWheelIntent.Pan);
+    expect(resolver(makeWheelEvent({ deltaY: -4.000244140625 }), { mouseWheelBehavior: "scroll" })).toBe(
+      EWheelIntent.Pan
+    );
   });
 
   it("slow ambiguous scroll with scroll mode resolves to pan via integer trackpad", () => {
     const resolver = createWheelIntentResolver();
 
-    const intent = resolver(makeWheelEvent({ deltaY: -4, deltaX: 0 }), "scroll");
+    const intent = resolver(makeWheelEvent({ deltaY: -4, deltaX: 0 }), { mouseWheelBehavior: "scroll" });
     expect(intent).toBe(EWheelIntent.Pan);
   });
 
   it("slow ambiguous fractional vertical scroll uses MOUSE_WHEEL_BEHAVIOR=zoom", () => {
     const resolver = createWheelIntentResolver();
 
-    const intent = resolver(makeWheelEvent({ deltaY: -4.5, deltaX: 0 }), "zoom");
+    const intent = resolver(makeWheelEvent({ deltaY: -4.5, deltaX: 0 }), { mouseWheelBehavior: "zoom" });
     expect(intent).toBe(EWheelIntent.Zoom);
   });
 
@@ -425,9 +464,9 @@ describe("createWheelIntentResolver", () => {
     const resolver = createWheelIntentResolver();
 
     nowMs = 1000;
-    resolver(makeWheelEvent({ deltaY: -4.000244140625 }), "scroll");
+    resolver(makeWheelEvent({ deltaY: -4.000244140625 }), { mouseWheelBehavior: "scroll" });
     advanceMs(850);
-    const intent = resolver(makeWheelEvent({ deltaY: -2.2, deltaX: 0 }), "zoom");
+    const intent = resolver(makeWheelEvent({ deltaY: -2.2, deltaX: 0 }), { mouseWheelBehavior: "zoom" });
 
     expect(intent).toBe(EWheelIntent.Pan);
     expect(entries[1]?.rule).toBe(WHEEL_INTENT_RULE.I5_LAST_INTENT);
@@ -440,8 +479,8 @@ describe("createWheelIntentResolver", () => {
       deltaMode: WheelEvent.DOM_DELTA_LINE,
     });
 
-    resolver(lineEvent, "zoom");
-    expect(resolver(lineEvent, "zoom")).toBe(EWheelIntent.Zoom);
+    resolver(lineEvent, { mouseWheelBehavior: "zoom" });
+    expect(resolver(lineEvent, { mouseWheelBehavior: "zoom" })).toBe(EWheelIntent.Zoom);
   });
 
   it("enableWheelIntentDebug emits full resolver input and signals", () => {
@@ -451,7 +490,7 @@ describe("createWheelIntentResolver", () => {
     });
 
     const resolver = createWheelIntentResolver();
-    resolver(makeWheelEvent({ deltaY: -25.5, deltaX: 0 }), "zoom");
+    resolver(makeWheelEvent({ deltaY: -25.5, deltaX: 0 }), { mouseWheelBehavior: "zoom" });
 
     expect(entries).toHaveLength(1);
     expect(entries[0]?.input.deltaY).toBe(-25.5);
@@ -463,10 +502,20 @@ describe("createWheelIntentResolver", () => {
   });
 
   it("inputDevice trackpad forces pan for Mac Chrome integer wheel (expensive mouse / trackpad ambiguity)", () => {
-    const resolver = createWheelIntentResolver({ inputDevice: "trackpad" });
+    const resolver = createWheelIntentResolver();
 
-    expect(resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -111 }), "zoom")).toBe(EWheelIntent.Pan);
-    expect(resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -13 }), "zoom")).toBe(EWheelIntent.Pan);
+    expect(
+      resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -111 }), {
+        mouseWheelBehavior: "zoom",
+        wheelInputDevice: "trackpad",
+      })
+    ).toBe(EWheelIntent.Pan);
+    expect(
+      resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -13 }), {
+        mouseWheelBehavior: "zoom",
+        wheelInputDevice: "trackpad",
+      })
+    ).toBe(EWheelIntent.Pan);
   });
 
   it("inputDevice mouse forces zoom for Mac Chrome integer wheel when MOUSE_WHEEL_BEHAVIOR=zoom", () => {
@@ -475,23 +524,43 @@ describe("createWheelIntentResolver", () => {
       entries.push(entry);
     });
 
-    const resolver = createWheelIntentResolver({ inputDevice: "mouse" });
+    const resolver = createWheelIntentResolver();
 
-    expect(resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -111 }), "zoom")).toBe(EWheelIntent.Zoom);
-    expect(resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -13 }), "zoom")).toBe(EWheelIntent.Zoom);
+    expect(
+      resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -111 }), {
+        mouseWheelBehavior: "zoom",
+        wheelInputDevice: "mouse",
+      })
+    ).toBe(EWheelIntent.Zoom);
+    expect(
+      resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -13 }), {
+        mouseWheelBehavior: "zoom",
+        wheelInputDevice: "mouse",
+      })
+    ).toBe(EWheelIntent.Zoom);
     expect(entries.every((entry) => isI4WheelIntentRule(entry.rule))).toBe(true);
     expect(entries.every((entry) => entry.inputDevice === "mouse")).toBe(true);
   });
 
   it("inputDevice mouse respects MOUSE_WHEEL_BEHAVIOR=scroll", () => {
-    const resolver = createWheelIntentResolver({ inputDevice: "mouse" });
+    const resolver = createWheelIntentResolver();
 
-    expect(resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -111 }), "scroll")).toBe(EWheelIntent.Pan);
+    expect(
+      resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -111 }), {
+        mouseWheelBehavior: "scroll",
+        wheelInputDevice: "mouse",
+      })
+    ).toBe(EWheelIntent.Pan);
   });
 
   it("inputDevice trackpad still allows I1 pinch zoom", () => {
-    const resolver = createWheelIntentResolver({ inputDevice: "trackpad" });
+    const resolver = createWheelIntentResolver();
 
-    expect(resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -10, metaKey: true }), "zoom")).toBe(EWheelIntent.Zoom);
+    expect(
+      resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -10, metaKey: true }), {
+        mouseWheelBehavior: "zoom",
+        wheelInputDevice: "trackpad",
+      })
+    ).toBe(EWheelIntent.Zoom);
   });
 });

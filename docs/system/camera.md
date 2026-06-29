@@ -102,43 +102,41 @@ const graph = new Graph(canvas, {
 - Default: Vertical scrolling (up/down along Y axis)
 - With Shift: Horizontal scrolling (left/right along X axis)
 
-### Wheel input device (`wheelInputDevice`)
+### Wheel input device (`WHEEL_INPUT_DEVICE`)
 
-Setting on graph **settings** (not camera constants). Tells the resolver how to treat **vertical** wheel input before the camera acts. Works together with `MOUSE_WHEEL_BEHAVIOR`.
+Camera **constant** (alongside `MOUSE_WHEEL_BEHAVIOR`). Passed to the resolver on each wheel event. Tells the resolver how to treat **vertical** wheel input before the camera acts.
 
 ```ts
 const graph = new Graph({
-  settings: {
-    wheelInputDevice: "auto", // "auto" | "mouse" | "trackpad" (default: "auto")
-  },
   constants: {
     camera: {
       MOUSE_WHEEL_BEHAVIOR: "zoom",
+      WHEEL_INPUT_DEVICE: "auto", // "auto" | "mouse" | "trackpad" (default: "auto")
     },
   },
 });
 ```
 
-| `wheelInputDevice` | Vertical two-finger / wheel | Pinch (Cmd/Ctrl + scroll) | Horizontal swipe |
-|--------------------|----------------------------|---------------------------|------------------|
+| `WHEEL_INPUT_DEVICE` | Vertical two-finger / wheel | Pinch (Cmd/Ctrl + scroll) | Horizontal swipe |
+|----------------------|----------------------------|---------------------------|------------------|
 | **`"auto"`** | Inferred: trackpad → pan, mouse → per `MOUSE_WHEEL_BEHAVIOR` | Zoom (`PINCH_ZOOM_SPEED`) | Pan |
 | **`"trackpad"`** | Always **pan** | Zoom | Pan |
 | **`"mouse"`** | Per **`MOUSE_WHEEL_BEHAVIOR`** (`"zoom"` → zoom, `"scroll"` → pan) | Zoom | Pan |
 
 **Camera routing (all modes):**
 
-1. `resolveWheelIntent(event, MOUSE_WHEEL_BEHAVIOR)` → `pan` or `zoom`
+1. `resolveWheelIntent(event, { mouseWheelBehavior, wheelInputDevice })` → `pan` or `zoom`
 2. **Pan** → `handlePan` (move viewport)
 3. **Zoom** → `handleZoom` at cursor (× `PINCH_ZOOM_SPEED` when pinch gesture)
 
-Full gesture tables, Mac Chrome edge cases, and `I5:sticky-stream`: [Wheel Intent Resolution — Wheel input device modes](./wheel-intent.md#wheel-input-device-modes-wheelinputdevice).
+Full gesture tables, Mac Chrome edge cases, and `I5:sticky-stream`: [Wheel Intent Resolution — Wheel input device modes](./wheel-intent.md#wheel-input-device-modes-wheel_input_device).
 
 **Important notes:**
-- `MOUSE_WHEEL_BEHAVIOR` applies only when input is classified as **mouse** (I4 or `wheelInputDevice: "mouse"`). Trackpad vertical scroll always pans.
-- On Mac Chrome/YaBrowser, `"auto"` may confuse trackpads and some mice (both emit integer PIXEL + `wheelDelta ≈ 3×deltaY`). Set `wheelInputDevice` explicitly if needed.
+- `MOUSE_WHEEL_BEHAVIOR` applies only when input is classified as **mouse** (I4 or `WHEEL_INPUT_DEVICE: "mouse"`). Trackpad vertical scroll always pans.
+- On Mac Chrome/YaBrowser, `"auto"` may confuse trackpads and some mice (both emit integer PIXEL + `wheelDelta ≈ 3×deltaY`). Set `WHEEL_INPUT_DEVICE` explicitly if needed.
 - Inside a rapid stream (< 38 ms), intent does not flip mid-gesture (`I5:sticky-stream`).
 - Scroll direction switching with Shift is an environment-dependent behavior according to [W3C UI Events specification](https://w3c.github.io/uievents/#events-wheelevents).
-- Settings can be updated at runtime: `graph.updateSettings({ wheelInputDevice: "trackpad" })`, `graph.setConstants({ camera: { MOUSE_WHEEL_BEHAVIOR: "scroll" } })`.
+- Constants can be updated at runtime: `graph.setConstants({ camera: { WHEEL_INPUT_DEVICE: "trackpad", MOUSE_WHEEL_BEHAVIOR: "scroll" } })`.
 
 ### Custom wheel intent classification
 
@@ -148,11 +146,11 @@ The camera routes wheel input by **intent** (pan vs zoom). Classification is con
 import { EWheelIntent, createWheelIntentResolver } from "@gravity-ui/graph";
 
 graph.updateSettings({
-  resolveWheelIntent: (event, mouseWheelBehavior) => {
+  resolveWheelIntent: (event, { mouseWheelBehavior, wheelInputDevice }) => {
     // Example: always zoom on vertical wheel
     return EWheelIntent.Zoom;
     // Or use the built-in resolver:
-    // return createWheelIntentResolver()(event, mouseWheelBehavior);
+    // return createWheelIntentResolver()(event, { mouseWheelBehavior, wheelInputDevice });
   },
 });
 ```

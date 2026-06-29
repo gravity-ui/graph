@@ -26,14 +26,28 @@ Resolving **intent directly** from gesture shape:
 resolveWheelIntent: createWheelIntentResolver(),
 ```
 
+Camera passes wheel policy on each call via `TResolveWheelIntentOptions` (from graph constants):
+
+```typescript
+type TResolveWheelIntentOptions = {
+  mouseWheelBehavior: TMouseWheelBehavior;
+  wheelInputDevice?: TWheelInputDevice; // default "auto"
+};
+
+resolveWheelIntent(event, {
+  mouseWheelBehavior: MOUSE_WHEEL_BEHAVIOR,
+  wheelInputDevice: WHEEL_INPUT_DEVICE,
+});
+```
+
 Rules are evaluated in priority order; the first match wins. Debug logs use **rule ids** (column below), which are more specific than the I1–I5 groups.
 
 | Priority | Rule id (debug) | Intent |
 |----------|-----------------|--------|
 | 1 | `I1:pinch` | Zoom |
 | 2 | `I2:horizontal-or-diagonal` | Pan |
-| 3 | `I3:input-device-trackpad` | Pan (when `wheelInputDevice === "trackpad"`) |
-| 4 | `I4:*` via `wheelInputDevice === "mouse"` | Pan or Zoom (`MOUSE_WHEEL_BEHAVIOR`) |
+| 3 | `I3:input-device-trackpad` | Pan (when `WHEEL_INPUT_DEVICE === "trackpad"`) |
+| 4 | `I4:*` via `WHEEL_INPUT_DEVICE === "mouse"` | Pan or Zoom (`MOUSE_WHEEL_BEHAVIOR`) |
 | 5 | `I3:integer-trackpad` / `I3:integer-trackpad-slow` | Pan |
 | 6 | `I4:mouse-wheel-step` / `I4:large-step` | Pan or Zoom (`MOUSE_WHEEL_BEHAVIOR`) |
 | 7 | `I3:rapid-small` / `I4-burst:smoothing` | Pan or Zoom |
@@ -41,7 +55,7 @@ Rules are evaluated in priority order; the first match wins. Debug logs use **ru
 | 9 | `I5:last-intent` | Sticky last intent (default Zoom) |
 | — | `I5:sticky-stream` | Post-pass: keep prior intent inside rapid stream (see I5) |
 
-Rules 3–4 apply only when `wheelInputDevice` is set explicitly; `"auto"` uses rules 5–9. `I5:sticky-stream` runs after the main chain when rapid stream would flip intent.
+Rules 3–4 apply only when `WHEEL_INPUT_DEVICE` is set explicitly; `"auto"` uses rules 5–9. `I5:sticky-stream` runs after the main chain when rapid stream would flip intent.
 
 ---
 
@@ -157,10 +171,10 @@ WheelEvent arrives
 ├─ I2: diagonal OR predominant horizontal?
 │     → Pan
 │
-├─ wheelInputDevice === "trackpad"?
+├─ WHEEL_INPUT_DEVICE === "trackpad"?
 │     → Pan  (I3:input-device-trackpad)
 │
-├─ wheelInputDevice === "mouse"?
+├─ WHEEL_INPUT_DEVICE === "mouse"?
 │     → Pan or Zoom (I4:* per MOUSE_WHEEL_BEHAVIOR)
 │
 ├─ I3: small integer PIXEL, or large integer in rapid stream?
@@ -205,7 +219,7 @@ All magnitude thresholds use pixel-equivalent values after normalization:
 
 ### Fractional delta
 
-Only in PIXEL mode (`deltaMode === 0`). **Integer** raw deltas often indicate trackpad (I3), but Chromium on Windows and some Mac mice also emit integer PIXEL — use legacy `wheelDelta`, timing, and `wheelInputDevice` to disambiguate. **Fractional** PIXEL deltas usually route to mouse (I4), with exceptions for rapid small trackpad inertia (I3:rapid-small). Used for I1 (pinch) and debug signals.
+Only in PIXEL mode (`deltaMode === 0`). **Integer** raw deltas often indicate trackpad (I3), but Chromium on Windows and some Mac mice also emit integer PIXEL — use legacy `wheelDelta`, timing, and `WHEEL_INPUT_DEVICE` to disambiguate. **Fractional** PIXEL deltas usually route to mouse (I4), with exceptions for rapid small trackpad inertia (I3:rapid-small). Used for I1 (pinch) and debug signals.
 
 Checks use **raw values only** — multiplying by DPR before an integer test caused false positives on Windows at non-integer OS scaling (e.g. 110 % → DPR ≈ 1.1).
 
@@ -223,7 +237,10 @@ There is no sticky device session — `I5:last-intent` carries prior classificat
 
 ```typescript
 // Transitional path in Camera.handleWheelEvent:
-const intent = settings.wheelIntentFromEvent(event, MOUSE_WHEEL_BEHAVIOR);
+const intent = settings.wheelIntentFromEvent(event, {
+  mouseWheelBehavior: MOUSE_WHEEL_BEHAVIOR,
+  wheelInputDevice: WHEEL_INPUT_DEVICE,
+});
 
 if (intent === EWheelIntent.Pan) {
   handlePan(event);   // → future: graph event "camera:pan"
@@ -236,13 +253,13 @@ handleZoom(event, acceleration);  // → future: graph event "camera:zoom"
 
 ---
 
-## Wheel input device modes (`wheelInputDevice`)
+## Wheel input device modes (`WHEEL_INPUT_DEVICE`)
 
-The camera does not receive raw hardware type from the browser. It receives a **`WheelEvent`** and asks `resolveWheelIntent` for **pan** or **zoom**. Two settings control the outcome:
+The camera does not receive raw hardware type from the browser. It receives a **`WheelEvent`** and asks `resolveWheelIntent` for **pan** or **zoom**. Two camera constants control the outcome:
 
-| Setting | Where | Role |
-|---------|-------|------|
-| **`wheelInputDevice`** | graph **settings** | How to classify vertical wheel input: infer (`"auto"`), force trackpad, or force mouse |
+| Constant | Where | Role |
+|----------|-------|------|
+| **`WHEEL_INPUT_DEVICE`** | graph **constants** (`camera`) | How to classify vertical wheel input: infer (`"auto"`), force trackpad, or force mouse |
 | **`MOUSE_WHEEL_BEHAVIOR`** | graph **constants** (`camera`) | What vertical **mouse-classified** wheel does: `"zoom"` (default) or `"scroll"` (pan) |
 
 Pinch (Cmd/Ctrl + scroll) and horizontal/diagonal swipes behave the same in all modes — see [I1](#i1--trackpad-modifier-zoom-pinch--cmd--ctrlscroll) and [I2](#i2--horizontal-or-diagonal-movement).
@@ -250,7 +267,10 @@ Pinch (Cmd/Ctrl + scroll) and horizontal/diagonal swipes behave the same in all 
 ### What the camera does after classification
 
 ```typescript
-const intent = settings.wheelIntentFromEvent(event, MOUSE_WHEEL_BEHAVIOR);
+const intent = settings.wheelIntentFromEvent(event, {
+  mouseWheelBehavior: MOUSE_WHEEL_BEHAVIOR,
+  wheelInputDevice: WHEEL_INPUT_DEVICE,
+});
 
 if (intent === EWheelIntent.Pan) {
   handlePan(event); // two-finger swipe, horizontal scroll, mouse scroll when behavior is "scroll"
@@ -331,11 +351,11 @@ Resolver **skips trackpad heuristics** for vertical scroll. Every vertical wheel
               ┌───────────────┴───────────────┐
              yes                              no
               │                                │
-         wheelInputDevice                  Known device
+         WHEEL_INPUT_DEVICE                  Known device
             "auto"                               │
               │                    ┌─────────────┴─────────────┐
               │                 trackpad                    mouse
-              │           wheelInputDevice:            wheelInputDevice:
+              │           WHEEL_INPUT_DEVICE:          WHEEL_INPUT_DEVICE:
               │              "trackpad"                    "mouse"
               │                    │                         │
               └────────────────────┴─────────────────────────┘
@@ -351,22 +371,24 @@ Resolver **skips trackpad heuristics** for vertical scroll. Every vertical wheel
 ```typescript
 // Default — infer device, mouse wheel zooms
 const graph = new Graph({
-  settings: { wheelInputDevice: "auto" },
-  constants: { camera: { MOUSE_WHEEL_BEHAVIOR: "zoom" } },
+  constants: {
+    camera: { MOUSE_WHEEL_BEHAVIOR: "zoom", WHEEL_INPUT_DEVICE: "auto" },
+  },
 });
 
 // Laptop editor — always pan on two-finger swipe
-graph.updateSettings({ wheelInputDevice: "trackpad" });
+graph.setConstants({ camera: { WHEEL_INPUT_DEVICE: "trackpad" } });
 
 // Mouse-only desktop — wheel always zooms (even on Mac Chrome integer deltas)
-graph.updateSettings({ wheelInputDevice: "mouse" });
+graph.setConstants({ camera: { WHEEL_INPUT_DEVICE: "mouse" } });
 
 // Mouse-only but wheel scrolls canvas instead of zooming
-graph.updateSettings({ wheelInputDevice: "mouse" });
-graph.setConstants({ camera: { MOUSE_WHEEL_BEHAVIOR: "scroll" } });
+graph.setConstants({
+  camera: { WHEEL_INPUT_DEVICE: "mouse", MOUSE_WHEEL_BEHAVIOR: "scroll" },
+});
 ```
 
-Changing `wheelInputDevice` via `graph.updateSettings()` recreates the default resolver automatically (unless you also pass a custom `resolveWheelIntent`).
+Changing `WHEEL_INPUT_DEVICE` via `graph.setConstants()` takes effect on the next wheel event — no need to recreate `resolveWheelIntent`.
 
 ---
 
@@ -380,19 +402,19 @@ Trackpad inertia and smooth-scroll mice can both emit small fractional PIXEL del
 
 Trackpad scroll is translated to `WheelEvent` only; `pointerType` stays `"mouse"`. Touch events fire on touchscreens, not trackpads. Intent heuristics remain the only portable tool.
 
-When the app knows the primary wheel device (e.g. desktop app with mouse only, or editor that detects trackpad vs mouse), set graph setting **`wheelInputDevice`**. See [Wheel input device modes](./wheel-intent.md#wheel-input-device-modes-wheelinputdevice) for full behavior tables.
+When the app knows the primary wheel device (e.g. desktop app with mouse only, or editor that detects trackpad vs mouse), set camera constant **`WHEEL_INPUT_DEVICE`**. See [Wheel input device modes](./wheel-intent.md#wheel-input-device-modes-wheel_input_device) for full behavior tables.
 
-On Mac Chrome/YaBrowser, trackpads and some high-end mice both emit integer PIXEL deltas with `wheelDelta ≈ 3 × deltaY` — `"auto"` cannot distinguish them. Explicit `wheelInputDevice` fixes that trade-off.
+On Mac Chrome/YaBrowser, trackpads and some high-end mice both emit integer PIXEL deltas with `wheelDelta ≈ 3 × deltaY` — `"auto"` cannot distinguish them. Explicit `WHEEL_INPUT_DEVICE` fixes that trade-off.
 
 ```typescript
 const graph = new Graph({
-  settings: {
-    wheelInputDevice: "mouse", // or "trackpad"
+  constants: {
+    camera: {
+      WHEEL_INPUT_DEVICE: "mouse", // or "trackpad"
+    },
   },
 });
 ```
-
-Changing `wheelInputDevice` via `graph.updateSettings()` recreates the default resolver automatically (unless you also pass a custom `resolveWheelIntent`).
 
 ---
 
@@ -413,7 +435,7 @@ const graph = new Graph({
 
 // Custom resolver:
 graph.updateSettings({
-  resolveWheelIntent: (_event, _mouseWheelBehavior) => EWheelIntent.Zoom,
+  resolveWheelIntent: (_event, _options) => EWheelIntent.Zoom,
 });
 
 // Debug logging (browser console, development builds only):

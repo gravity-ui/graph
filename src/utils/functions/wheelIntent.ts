@@ -3,14 +3,6 @@ export type TMouseWheelBehavior = "zoom" | "scroll";
 /** Explicit wheel input device; `"auto"` uses gesture-shape heuristics. */
 export type TWheelInputDevice = "auto" | "mouse" | "trackpad";
 
-export type TCreateWheelIntentResolverOptions = {
-  /**
-   * When set to `"trackpad"` or `"mouse"`, skips ambiguous device heuristics
-   * (e.g. Mac Chrome integer PIXEL + linear wheelDelta).
-   */
-  inputDevice?: TWheelInputDevice;
-};
-
 /**
  * Wheel input classification for camera routing.
  *
@@ -71,16 +63,24 @@ export function isI4WheelIntentRule(rule: TWheelIntentRule): boolean {
 }
 
 /**
+ * Camera wheel policy passed to {@link TResolveWheelIntent} (from graph constants).
+ */
+export type TResolveWheelIntentOptions = {
+  mouseWheelBehavior: TMouseWheelBehavior;
+  wheelInputDevice?: TWheelInputDevice;
+};
+
+/**
  * Classifies a wheel event as pan or zoom intent.
  * Configured as `resolveWheelIntent` on graph settings (`TGraphSettingsConfig`).
  */
-export type TResolveWheelIntent = (event: WheelEvent, mouseWheelBehavior: TMouseWheelBehavior) => EWheelIntent;
+export type TResolveWheelIntent = (event: WheelEvent, options: TResolveWheelIntentOptions) => EWheelIntent;
 
 /** Snapshot of resolver inputs, derived signals, session state, and the winning rule. */
 export type TWheelIntentDebugEntry = {
-  /** Second argument to {@link TResolveWheelIntent}. */
+  /** {@link TResolveWheelIntentOptions.mouseWheelBehavior}. */
   mouseWheelBehavior: TMouseWheelBehavior;
-  /** Resolver option when not `"auto"`. */
+  /** {@link TResolveWheelIntentOptions.wheelInputDevice} (defaults to `"auto"`). */
   inputDevice: TWheelInputDevice;
   /** Raw {@link WheelEvent} fields passed into the resolver. */
   input: {
@@ -541,11 +541,10 @@ function emitDebugEntry(
  * LINE/PAGE mode (`deltaMode !== 0`) is never trackpad — always mouse (I4).
  * See `docs/system/wheel-intent.md` for rationale.
  *
- * Pass `{ inputDevice: "trackpad" | "mouse" }` when the app knows the primary wheel device
- * and Mac Chrome/YaBrowser heuristics are ambiguous.
+ * Pass `wheelInputDevice` at resolve time (camera constant `WHEEL_INPUT_DEVICE`) when the app
+ * knows the primary wheel device and Mac Chrome/YaBrowser heuristics are ambiguous.
  */
-export function createWheelIntentResolver(options: TCreateWheelIntentResolverOptions = {}): TResolveWheelIntent {
-  const inputDevice = options.inputDevice ?? "auto";
+export function createWheelIntentResolver(): TResolveWheelIntent {
   let lastIntent: EWheelIntent = EWheelIntent.Zoom;
   let lastRule: TWheelIntentRule = WHEEL_INTENT_RULE.I5_LAST_INTENT;
   let lastTimestamp: number | null = null;
@@ -593,7 +592,9 @@ export function createWheelIntentResolver(options: TCreateWheelIntentResolverOpt
     };
   };
 
-  return (event: WheelEvent, mouseWheelBehavior: TMouseWheelBehavior): EWheelIntent => {
+  return (event: WheelEvent, options: TResolveWheelIntentOptions): EWheelIntent => {
+    const mouseWheelBehavior = options.mouseWheelBehavior;
+    const wheelInputDevice = options.wheelInputDevice ?? "auto";
     const now = performance.now();
     const timeSince = lastTimestamp !== null ? now - lastTimestamp : Number.POSITIVE_INFINITY;
     lastTimestamp = now;
@@ -616,10 +617,10 @@ export function createWheelIntentResolver(options: TCreateWheelIntentResolverOpt
     } else if (signals.isDiagonalScroll || signals.isPredominantHorizontalScroll) {
       intent = EWheelIntent.Pan;
       rule = WHEEL_INTENT_RULE.I2_HORIZONTAL_OR_DIAGONAL;
-    } else if (inputDevice === "trackpad") {
+    } else if (wheelInputDevice === "trackpad") {
       intent = EWheelIntent.Pan;
       rule = WHEEL_INTENT_RULE.I3_INPUT_DEVICE_TRACKPAD;
-    } else if (inputDevice === "mouse") {
+    } else if (wheelInputDevice === "mouse") {
       ({ intent, rule } = resolveExplicitMouseIntent(
         ctx,
         signals,
@@ -672,7 +673,7 @@ export function createWheelIntentResolver(options: TCreateWheelIntentResolverOpt
       emitDebugEntry(
         ctx,
         mouseWheelBehavior,
-        inputDevice,
+        wheelInputDevice,
         timeSince,
         isRapidStream,
         inMouseWheelBurst,
