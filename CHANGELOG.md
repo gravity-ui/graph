@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.11.1](https://github.com/gravity-ui/graph/compare/v1.11.0...v1.11.1) (2026-06-29)
+
+
+### chore
+
+* release 1.11.1 ([1b7175c](https://github.com/gravity-ui/graph/commit/1b7175cf2964f3020dc0273e70f66d8a22aa78d0))
+
+
+### Features
+
+* **camera:** add committed $camera signal and Layer.onCameraChange hook ([#303](https://github.com/gravity-ui/graph/issues/303)) ([12c24d3](https://github.com/gravity-ui/graph/commit/12c24d3f29aa202578c63227b68a780eae06e288))
+
+
+### Bug Fixes
+
+* hittest pending entities update ([#297](https://github.com/gravity-ui/graph/issues/297)) ([ad2cdfe](https://github.com/gravity-ui/graph/commit/ad2cdfe86db06ce2457934870689a7c4464abc9d))
+* **wheel:** improve cross-platform wheel intent and suppress text selection on drag ([#304](https://github.com/gravity-ui/graph/issues/304)) ([cc41fca](https://github.com/gravity-ui/graph/commit/cc41fcaf63bac97d2e2d1640619f4cb0d4d31fe8))
+* **wheel:** improve Mac Chrome trackpad intent and wheel policy API([#306](https://github.com/gravity-ui/graph/issues/306)) ([1d39a7e](https://github.com/gravity-ui/graph/commit/1d39a7ec25e7ccda3137932e24870b99bc08c641))
+
 ## [1.11.0](https://github.com/gravity-ui/graph/compare/v1.10.3...v1.11.0) (2026-06-24)
 
 
