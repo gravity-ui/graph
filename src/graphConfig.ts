@@ -1,10 +1,22 @@
 import { GraphComponent } from "./components/canvas/GraphComponent";
 import { Block } from "./components/canvas/blocks/Block";
 import { ESelectionStrategy } from "./services/selection";
-import type { TMouseWheelBehavior } from "./utils/functions/wheelIntent";
+import type { TMouseWheelBehavior, TWheelInputDevice } from "./utils/functions/wheelIntent";
 
-export type { TResolveWheelIntent } from "./utils/functions/wheelIntent";
-export { createWheelIntentResolver, enableWheelIntentDebug, EWheelIntent } from "./utils/functions/wheelIntent";
+export type {
+  TResolveWheelIntent,
+  TResolveWheelIntentOptions,
+  TWheelInputDevice,
+  TWheelIntentRule,
+} from "./utils/functions/wheelIntent";
+export {
+  createWheelIntentResolver,
+  enableWheelIntentDebug,
+  EWheelIntent,
+  isI3WheelIntentRule,
+  isI4WheelIntentRule,
+  WHEEL_INTENT_RULE,
+} from "./utils/functions/wheelIntent";
 export type { TMouseWheelBehavior };
 
 export type TGraphColors = {
@@ -203,15 +215,25 @@ export type TGraphConstants = {
      * - Different browsers and operating systems may handle Shift+wheel differently
      *
      * **Trackpad behavior (via `resolveWheelIntent`):**
-     * - Integer PIXEL two-finger swipe always resolves to pan (not affected by this constant)
+     * - Integer PIXEL two-finger swipe resolves to pan (I3) — not affected by this constant
      * - Pinch-to-zoom (Cmd/Ctrl + scroll) resolves to zoom with {@link PINCH_ZOOM_SPEED}
-     * - Horizontal / diagonal swipe resolves to pan
+     * - Horizontal / diagonal swipe resolves to pan (I2)
+     * - Override ambiguous Mac Chrome input with camera constant `WHEEL_INPUT_DEVICE`
      * - See `docs/system/wheel-intent.md` for classification rules
      *
      * @default "zoom"
      * @see https://w3c.github.io/uievents/#events-wheelevents - W3C UI Events Wheel Events specification
      */
     MOUSE_WHEEL_BEHAVIOR: TMouseWheelBehavior;
+    /**
+     * Explicit primary wheel input device passed to {@link TResolveWheelIntent}.
+     * When `"auto"`, the resolver infers trackpad vs mouse from gesture shape.
+     * Set to `"trackpad"` or `"mouse"` when the app knows the device (e.g. Mac Chrome
+     * where both emit integer PIXEL + linear wheelDelta).
+     *
+     * @default "auto"
+     */
+    WHEEL_INPUT_DEVICE: TWheelInputDevice;
     /**
      * Multiplier for trackpad pinch-to-zoom gesture speed.
      * Applied when zooming with trackpad using pinch gesture (Cmd/Ctrl + scroll).
@@ -283,6 +305,7 @@ export const initGraphConstants: TGraphConstants = {
     AUTO_PAN_THRESHOLD: 50,
     AUTO_PAN_SPEED: 5,
     MOUSE_WHEEL_BEHAVIOR: "zoom",
+    WHEEL_INPUT_DEVICE: "auto",
     PINCH_ZOOM_SPEED: 1,
     PAN_SPEED: 1,
   },

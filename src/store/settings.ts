@@ -6,7 +6,7 @@ import { BlockConnection } from "../components/canvas/connections/BlockConnectio
 import { Component } from "../lib";
 import { defaultGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
 import type { TGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
-import type { EWheelIntent, TMouseWheelBehavior, TResolveWheelIntent } from "../utils/functions/wheelIntent";
+import type { EWheelIntent, TResolveWheelIntent, TResolveWheelIntentOptions } from "../utils/functions/wheelIntent";
 import { createWheelIntentResolver } from "../utils/functions/wheelIntent";
 
 import { TConnection } from "./connection/ConnectionState";
@@ -67,7 +67,8 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   emulateMouseEventsOnCameraChange?: boolean;
   /**
    * Classifies wheel input as pan or zoom intent so Camera can route without knowing device type.
-   * Also receives `mouseWheelBehavior` so mouse-wheel policy stays in the input layer, not Camera.
+   * Receives `mouseWheelBehavior` and `wheelInputDevice` from camera constants so wheel policy
+   * stays in the input layer, not Camera.
    *
    * Transitional: today Camera calls {@link GraphEditorSettings.wheelIntentFromEvent} from a raw
    * `wheel` listener. A future input layer will normalize DOM events and emit semantic graph events
@@ -121,6 +122,7 @@ export class GraphEditorSettings {
 
   public setupSettings(config: Partial<TGraphSettingsConfig>) {
     const merged = Object.assign({}, this.$settings.value, config);
+
     this.$settings.value = {
       ...merged,
       getCameraBlockScaleLevel: merged.getCameraBlockScaleLevel ?? defaultGetCameraBlockScaleLevel,
@@ -140,8 +142,8 @@ export class GraphEditorSettings {
   /**
    * Resolves wheel intent using {@link TGraphSettingsConfig.resolveWheelIntent} (typed; prefer over getConfigFlag).
    */
-  public wheelIntentFromEvent(event: WheelEvent, mouseWheelBehavior: TMouseWheelBehavior): EWheelIntent {
-    return this.$settings.value.resolveWheelIntent(event, mouseWheelBehavior);
+  public wheelIntentFromEvent(event: WheelEvent, options: TResolveWheelIntentOptions): EWheelIntent {
+    return this.$settings.value.resolveWheelIntent(event, options);
   }
 
   public $connectionsSettings = computed(() => {

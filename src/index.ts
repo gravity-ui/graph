@@ -4,12 +4,21 @@ export { GraphComponent } from "./components/canvas/GraphComponent";
 export * from "./components/canvas/connections";
 export * from "./graph";
 export type { TGraphColors, TGraphConstants, TMouseWheelBehavior } from "./graphConfig";
-export type { TResolveWheelIntent, TWheelIntentDebugEntry } from "./utils/functions/wheelIntent";
+export type {
+  TResolveWheelIntent,
+  TResolveWheelIntentOptions,
+  TWheelIntentDebugEntry,
+  TWheelInputDevice,
+  TWheelIntentRule,
+} from "./utils/functions/wheelIntent";
 export {
   createWheelIntentResolver,
   enableWheelIntentDebug,
   isPinchZoomGesture,
+  isI3WheelIntentRule,
+  isI4WheelIntentRule,
   EWheelIntent,
+  WHEEL_INTENT_RULE,
 } from "./utils/functions/wheelIntent";
 export { type UnwrapGraphEventsDetail, type SelectionEvent } from "./graphEvents";
 export * from "./plugins";

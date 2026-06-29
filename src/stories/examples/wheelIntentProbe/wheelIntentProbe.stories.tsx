@@ -5,7 +5,7 @@ import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
 import { TBlock } from "../../../components/canvas/blocks/Block";
 import { Graph, GraphState } from "../../../graph";
-import type { TMouseWheelBehavior } from "../../../graphConfig";
+import type { TMouseWheelBehavior, TWheelInputDevice } from "../../../graphConfig";
 import { createWheelIntentResolver, enableWheelIntentDebug } from "../../../graphConfig";
 import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "../../../react-components";
 import { useFn } from "../../../react-components/utils/hooks/useFn";
@@ -33,9 +33,13 @@ const GRAPH_SETTINGS: NonNullable<HookGraphParams["settings"]> = {
 
 type WheelIntentProbeStoryProps = {
   mouseWheelBehavior: TMouseWheelBehavior;
+  wheelInputDevice: TWheelInputDevice;
 };
 
-function WheelIntentProbeStory({ mouseWheelBehavior }: WheelIntentProbeStoryProps): React.ReactElement {
+function WheelIntentProbeStory({
+  mouseWheelBehavior,
+  wheelInputDevice,
+}: WheelIntentProbeStoryProps): React.ReactElement {
   const [entries, setEntries] = useState<TWheelProbeLogEntry[]>([]);
   const [paused, setPaused] = useState(false);
   const nextIdRef = useRef(1);
@@ -54,18 +58,19 @@ function WheelIntentProbeStory({ mouseWheelBehavior }: WheelIntentProbeStoryProp
         constants: {
           camera: {
             MOUSE_WHEEL_BEHAVIOR: mouseWheelBehavior,
+            WHEEL_INPUT_DEVICE: wheelInputDevice,
           },
         },
       },
       settings: {
         ...GRAPH_SETTINGS,
-        resolveWheelIntent: (event: WheelEvent, wb: TMouseWheelBehavior) => {
+        resolveWheelIntent: (event: WheelEvent, options) => {
           pendingRawRef.current = snapshotRawWheelEvent(event);
-          return baseResolveWheelIntent(event, wb);
+          return baseResolveWheelIntent(event, options);
         },
       },
     }),
-    [mouseWheelBehavior, baseResolveWheelIntent]
+    [mouseWheelBehavior, wheelInputDevice, baseResolveWheelIntent]
   );
 
   const { graph, setEntities, start } = useGraph(graphParams);
@@ -155,6 +160,7 @@ function WheelIntentProbeStory({ mouseWheelBehavior }: WheelIntentProbeStoryProp
           <WheelEventLogPanel
             entries={entries}
             mouseWheelBehavior={mouseWheelBehavior}
+            wheelInputDevice={wheelInputDevice}
             paused={paused}
             onPausedChange={setPaused}
             onClear={() => setEntries([])}
@@ -183,9 +189,15 @@ const meta: Meta<typeof WheelIntentProbeStory> = {
       options: ["scroll", "zoom"],
       description: "MOUSE_WHEEL_BEHAVIOR constant passed to the resolver.",
     },
+    wheelInputDevice: {
+      control: "select",
+      options: ["auto", "mouse", "trackpad"],
+      description: "Camera constant WHEEL_INPUT_DEVICE: skip ambiguous heuristics when set to mouse or trackpad.",
+    },
   },
   args: {
     mouseWheelBehavior: "zoom",
+    wheelInputDevice: "auto",
   },
 };
 
