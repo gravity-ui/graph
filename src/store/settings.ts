@@ -6,7 +6,12 @@ import { BlockConnection } from "../components/canvas/connections/BlockConnectio
 import { Component } from "../lib";
 import { defaultGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
 import type { TGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
-import type { EWheelIntent, TMouseWheelBehavior, TResolveWheelIntent } from "../utils/functions/wheelIntent";
+import type {
+  EWheelIntent,
+  TMouseWheelBehavior,
+  TResolveWheelIntent,
+  TWheelInputDevice,
+} from "../utils/functions/wheelIntent";
 import { createWheelIntentResolver } from "../utils/functions/wheelIntent";
 
 import { TConnection } from "./connection/ConnectionState";
@@ -66,6 +71,14 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    */
   emulateMouseEventsOnCameraChange?: boolean;
   /**
+   * Explicit primary wheel input device. When `"auto"`, {@link resolveWheelIntent} infers
+   * trackpad vs mouse from gesture shape. Set to `"trackpad"` or `"mouse"` when the app
+   * knows the device (e.g. Mac Chrome where both emit integer PIXEL + linear wheelDelta).
+   *
+   * @default "auto"
+   */
+  wheelInputDevice?: TWheelInputDevice;
+  /**
    * Classifies wheel input as pan or zoom intent so Camera can route without knowing device type.
    * Also receives `mouseWheelBehavior` so mouse-wheel policy stays in the input layer, not Camera.
    *
@@ -98,6 +111,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   connectivityComponentOnClickRaise: true,
   showConnectionLabels: false,
   blockComponents: {},
+  wheelInputDevice: "auto",
   resolveWheelIntent: createWheelIntentResolver(),
   getCameraBlockScaleLevel: defaultGetCameraBlockScaleLevel,
 };
@@ -121,6 +135,13 @@ export class GraphEditorSettings {
 
   public setupSettings(config: Partial<TGraphSettingsConfig>) {
     const merged = Object.assign({}, this.$settings.value, config);
+    const wheelInputDevice = merged.wheelInputDevice ?? "auto";
+    merged.wheelInputDevice = wheelInputDevice;
+
+    if (config.wheelInputDevice !== undefined && config.resolveWheelIntent === undefined) {
+      merged.resolveWheelIntent = createWheelIntentResolver({ inputDevice: wheelInputDevice });
+    }
+
     this.$settings.value = {
       ...merged,
       getCameraBlockScaleLevel: merged.getCameraBlockScaleLevel ?? defaultGetCameraBlockScaleLevel,

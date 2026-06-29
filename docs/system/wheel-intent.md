@@ -32,11 +32,16 @@ Rules are evaluated in priority order; the first match wins. Debug logs use **ru
 |----------|-----------------|--------|
 | 1 | `I1:pinch` | Zoom |
 | 2 | `I2:horizontal-or-diagonal` | Pan |
-| 3 | `I3:integer-trackpad` / `I3:integer-trackpad-slow` | Pan |
-| 4 | `I4:mouse-wheel-step` / `I4:large-step` | Pan or Zoom (`MOUSE_WHEEL_BEHAVIOR`) |
-| 5 | `I3:rapid-small` / `I4-burst:smoothing` | Pan or Zoom |
-| 6 | `I4:fractional-mouse` | Pan or Zoom (`MOUSE_WHEEL_BEHAVIOR`) |
-| 7 | `I5:last-intent` | Sticky last intent (default Zoom) |
+| 3 | `I3:input-device-trackpad` | Pan (when `wheelInputDevice === "trackpad"`) |
+| 4 | `I4:*` via `wheelInputDevice === "mouse"` | Pan or Zoom (`MOUSE_WHEEL_BEHAVIOR`) |
+| 5 | `I3:integer-trackpad` / `I3:integer-trackpad-slow` | Pan |
+| 6 | `I4:mouse-wheel-step` / `I4:large-step` | Pan or Zoom (`MOUSE_WHEEL_BEHAVIOR`) |
+| 7 | `I3:rapid-small` / `I4-burst:smoothing` | Pan or Zoom |
+| 8 | `I4:fractional-mouse` | Pan or Zoom (`MOUSE_WHEEL_BEHAVIOR`) |
+| 9 | `I5:last-intent` | Sticky last intent (default Zoom) |
+| — | `I5:sticky-stream` | Post-pass: keep prior intent inside rapid stream (see I5) |
+
+Rules 3–4 apply only when `wheelInputDevice` is set explicitly; `"auto"` uses rules 5–9. `I5:sticky-stream` runs after the main chain when rapid stream would flip intent.
 
 ---
 
@@ -50,7 +55,8 @@ Trackpads **always** emit `deltaMode === 0` (`DOM_DELTA_PIXEL`). On Chromium (Ch
 | `deltaMode === 0` + **small integer** `deltaX`/`deltaY` (< 20 px) | **Trackpad** | **Pan** (I3) |
 | `deltaMode === 0` + **large integer** in rapid stream (< 38 ms) | **Trackpad** fast scroll | **Pan** (I3) |
 | `deltaMode === 0` + **isolated large integer** (≥ 20 px, not rapid) | **Mouse** (Chromium) | **I4** per `MOUSE_WHEEL_BEHAVIOR` |
-| `deltaMode === 0` + **legacy wheelDelta ≈ ±120** | **Mouse** (Chromium/Edge) | **I4** (never I3, even in a rapid stream) |
+| `deltaMode === 0` + **legacy wheelDelta ≈ ±120** | **Mouse** (Chromium/Edge on Windows) | **I4** (never I3, even in a rapid stream) |
+| `deltaMode === 0` + **wheelDelta ≈ 3 × deltaY** (Mac Chrome/YaBrowser) | **Trackpad or ambiguous mouse** | **I3** in rapid stream / small steps; not legacy |
 | `deltaMode === 0` + **fractional** deltas | **Mouse** smooth-scroll | **I4** per `MOUSE_WHEEL_BEHAVIOR` |
 
 Integer check uses `Number.isInteger` on raw `deltaX` and `deltaY` (PIXEL mode only).
@@ -103,7 +109,7 @@ Horizontal/diagonal gestures are handled by I2 first.
 | Rapid stream (&lt; 38 ms since previous event) | `I3:integer-trackpad` |
 | Not rapid (small ticks only) | `I3:integer-trackpad-slow` |
 
-Isolated large integer PIXEL steps without legacy `wheelDelta` fall through to **I4** via `isDominantAxisLargeWheel`. Events with **legacy `wheelDelta(Y)` ≈ ±120** (Chromium mechanical mouse on Windows) skip **I3** entirely — including rapid streams (~33 ms apart).
+Isolated large integer PIXEL steps without legacy `wheelDelta` fall through to **I4** via `isDominantAxisLargeWheel`. Events with **legacy `wheelDelta(Y)` ≈ ±120** (Chromium mechanical mouse on Windows) skip **I3** entirely — including rapid streams (~33 ms apart). On Mac Chrome/YaBrowser, `wheelDelta ≈ 3 × deltaY` is **not** treated as legacy (trackpad and some mice share this shape).
 
 ---
 
@@ -136,6 +142,8 @@ Integer PIXEL steps **≥ 20 px** outside a rapid stream are mouse (I4), not I3.
 
 **Intent**: carry forward `lastIntent` (`I5:last-intent`; initial default **Zoom**, aligned with default `MOUSE_WHEEL_BEHAVIOR`)
 
+**Rapid stream sticky** (`I5:sticky-stream`): post-pass after the main chain. When the previous event was **< 38 ms** ago, the newly matched rule would **change** vertical intent, and the previous event was classified by a confident rule (I1–I4, not `I5:last-intent`), keep the prior intent. Pinch (I1) and horizontal/diagonal (I2) always override. Does not apply when the previous rule was `I5:last-intent` (allows trackpad inertia tail to establish pan after an ambiguous first tick).
+
 ---
 
 ## Decision flow
@@ -148,6 +156,12 @@ WheelEvent arrives
 │
 ├─ I2: diagonal OR predominant horizontal?
 │     → Pan
+│
+├─ wheelInputDevice === "trackpad"?
+│     → Pan  (I3:input-device-trackpad)
+│
+├─ wheelInputDevice === "mouse"?
+│     → Pan or Zoom (I4:* per MOUSE_WHEEL_BEHAVIOR)
 │
 ├─ I3: small integer PIXEL, or large integer in rapid stream?
 │     → Pan  (I3:integer-trackpad / I3:integer-trackpad-slow)
@@ -162,6 +176,9 @@ WheelEvent arrives
 │     → Pan or Zoom (MOUSE_WHEEL_BEHAVIOR)
 │
 └─ I5: else → last intent (I5:last-intent)
+     ↓
+   Rapid stream (< 38 ms) and intent would flip?
+     → keep prior intent (I5:sticky-stream); I1/I2 exempt
 ```
 
 ---
@@ -188,7 +205,7 @@ All magnitude thresholds use pixel-equivalent values after normalization:
 
 ### Fractional delta
 
-Only in PIXEL mode (`deltaMode === 0`). **Integer** raw deltas → trackpad pan; **fractional** → mouse (I4). Used for I1 (pinch) and debug signals.
+Only in PIXEL mode (`deltaMode === 0`). **Integer** raw deltas often indicate trackpad (I3), but Chromium on Windows and some Mac mice also emit integer PIXEL — use legacy `wheelDelta`, timing, and `wheelInputDevice` to disambiguate. **Fractional** PIXEL deltas usually route to mouse (I4), with exceptions for rapid small trackpad inertia (I3:rapid-small). Used for I1 (pinch) and debug signals.
 
 Checks use **raw values only** — multiplying by DPR before an integer test caused false positives on Windows at non-integer OS scaling (e.g. 110 % → DPR ≈ 1.1).
 
@@ -198,7 +215,7 @@ Checks use **raw values only** — multiplying by DPR before an integer test cau
 
 **Mouse burst**: **120 ms** after an I4 mouse step; nearby fractional events may follow `I4-burst:smoothing`.
 
-There is no sticky device session — only `I5:last-intent` carries prior classification forward.
+There is no sticky device session — `I5:last-intent` carries prior classification when no rule matches; `I5:sticky-stream` prevents intent flips **inside** a rapid stream (< 38 ms between events).
 
 ---
 
@@ -219,6 +236,140 @@ handleZoom(event, acceleration);  // → future: graph event "camera:zoom"
 
 ---
 
+## Wheel input device modes (`wheelInputDevice`)
+
+The camera does not receive raw hardware type from the browser. It receives a **`WheelEvent`** and asks `resolveWheelIntent` for **pan** or **zoom**. Two settings control the outcome:
+
+| Setting | Where | Role |
+|---------|-------|------|
+| **`wheelInputDevice`** | graph **settings** | How to classify vertical wheel input: infer (`"auto"`), force trackpad, or force mouse |
+| **`MOUSE_WHEEL_BEHAVIOR`** | graph **constants** (`camera`) | What vertical **mouse-classified** wheel does: `"zoom"` (default) or `"scroll"` (pan) |
+
+Pinch (Cmd/Ctrl + scroll) and horizontal/diagonal swipes behave the same in all modes — see [I1](#i1--trackpad-modifier-zoom-pinch--cmd--ctrlscroll) and [I2](#i2--horizontal-or-diagonal-movement).
+
+### What the camera does after classification
+
+```typescript
+const intent = settings.wheelIntentFromEvent(event, MOUSE_WHEEL_BEHAVIOR);
+
+if (intent === EWheelIntent.Pan) {
+  handlePan(event); // two-finger swipe, horizontal scroll, mouse scroll when behavior is "scroll"
+  return;
+}
+
+const acceleration = isPinchZoomGesture(event) ? PINCH_ZOOM_SPEED : 1;
+handleZoom(event, acceleration); // mouse wheel zoom, pinch-to-zoom
+```
+
+| Resolved intent | Camera action | Typical gesture |
+|-----------------|---------------|-----------------|
+| **Pan** | Move viewport (`handlePan`) | Trackpad two-finger swipe, Shift+wheel, horizontal two-finger swipe |
+| **Zoom** | Scale at cursor (`handleZoom`) | Mouse wheel (when `MOUSE_WHEEL_BEHAVIOR: "zoom"`), Cmd/Ctrl + scroll, pinch |
+
+---
+
+### `"auto"` (default)
+
+Resolver **infers** trackpad vs mouse from gesture shape (I3/I4 heuristics). Use when users may switch devices or you cannot detect hardware reliably.
+
+| Gesture | Usual result (`MOUSE_WHEEL_BEHAVIOR: "zoom"`) | Notes |
+|---------|-----------------------------------------------|-------|
+| Trackpad two-finger vertical swipe | **Pan** | Integer PIXEL; fast swipes stay pan in rapid stream |
+| Trackpad horizontal / diagonal swipe | **Pan** | I2 |
+| Trackpad Cmd/Ctrl + scroll (pinch) | **Zoom** | I1; uses `PINCH_ZOOM_SPEED` |
+| Mouse wheel notch (Windows Chromium) | **Zoom** | Integer PIXEL + `wheelDelta ≈ ±120` |
+| Mouse wheel notch (Firefox LINE mode) | **Zoom** | I4 |
+| Smooth-scroll mouse (fractional PIXEL) | **Zoom** | I4 |
+| Mac Chrome trackpad fast swipe | **Pan** | `wheelDelta ≈ 3×deltaY` is not treated as mouse legacy |
+| Mac Chrome high-end mouse (integer + 3×) | **Ambiguous** | Same DOM shape as trackpad — may pan when you expect zoom |
+
+Inside a **rapid stream** (< 38 ms between events), **`I5:sticky-stream`** keeps the intent from the previous tick so one gesture does not flip pan ↔ zoom mid-swipe.
+
+**When to use:** general-purpose graph editors, Storybook demos, mixed input.
+
+---
+
+### `"trackpad"`
+
+Resolver **skips mouse heuristics** for vertical scroll. Every vertical wheel tick → **pan**, except I1/I2.
+
+| Gesture | Camera action |
+|---------|---------------|
+| Two-finger vertical swipe (any speed, any `deltaY`) | **Pan** |
+| Horizontal / diagonal two-finger swipe | **Pan** |
+| Cmd/Ctrl + scroll / pinch | **Zoom** (`PINCH_ZOOM_SPEED`) |
+| Mouse wheel (if user switches device) | **Pan** (vertical ticks forced to trackpad path) |
+
+`MOUSE_WHEEL_BEHAVIOR` does **not** affect vertical trackpad scroll — it always pans.
+
+**When to use:** laptop-first apps, editors where trackpad is the primary input, or Mac Chrome where `"auto"` misclassifies swipes as mouse zoom.
+
+---
+
+### `"mouse"`
+
+Resolver **skips trackpad heuristics** for vertical scroll. Every vertical wheel tick → **I4** → follows **`MOUSE_WHEEL_BEHAVIOR`**.
+
+| Gesture | `MOUSE_WHEEL_BEHAVIOR: "zoom"` | `MOUSE_WHEEL_BEHAVIOR: "scroll"` |
+|---------|------------------------------|----------------------------------|
+| Mouse wheel vertical | **Zoom** | **Pan** |
+| Mouse wheel + Shift | **Pan** (horizontal axis via camera) | **Pan** (horizontal) |
+| Smooth-scroll mouse ramp | **Zoom** | **Pan** |
+| Trackpad two-finger swipe (if user switches device) | **Zoom** | **Pan** |
+| Cmd/Ctrl + scroll on PIXEL delta | **Zoom** | **Zoom** (I1 still wins) |
+| Horizontal / diagonal swipe | **Pan** | **Pan** (I2) |
+
+**When to use:** desktop apps with mouse only, CAD/diagram tools defaulting to wheel zoom, Mac Chrome with high-end mouse that looks like trackpad in `"auto"`.
+
+---
+
+### Choosing a mode
+
+```
+                    Can users switch mouse ↔ trackpad?
+                              │
+              ┌───────────────┴───────────────┐
+             yes                              no
+              │                                │
+         wheelInputDevice                  Known device
+            "auto"                               │
+              │                    ┌─────────────┴─────────────┐
+              │                 trackpad                    mouse
+              │           wheelInputDevice:            wheelInputDevice:
+              │              "trackpad"                    "mouse"
+              │                    │                         │
+              └────────────────────┴─────────────────────────┘
+                              │
+              Still ambiguous on Mac Chrome integer + 3× wheelDelta?
+                              │
+                    Prefer pan → "trackpad"
+                    Prefer zoom → "mouse" + MOUSE_WHEEL_BEHAVIOR: "zoom"
+```
+
+### Configuration examples
+
+```typescript
+// Default — infer device, mouse wheel zooms
+const graph = new Graph({
+  settings: { wheelInputDevice: "auto" },
+  constants: { camera: { MOUSE_WHEEL_BEHAVIOR: "zoom" } },
+});
+
+// Laptop editor — always pan on two-finger swipe
+graph.updateSettings({ wheelInputDevice: "trackpad" });
+
+// Mouse-only desktop — wheel always zooms (even on Mac Chrome integer deltas)
+graph.updateSettings({ wheelInputDevice: "mouse" });
+
+// Mouse-only but wheel scrolls canvas instead of zooming
+graph.updateSettings({ wheelInputDevice: "mouse" });
+graph.setConstants({ camera: { MOUSE_WHEEL_BEHAVIOR: "scroll" } });
+```
+
+Changing `wheelInputDevice` via `graph.updateSettings()` recreates the default resolver automatically (unless you also pass a custom `resolveWheelIntent`).
+
+---
+
 ## Known limitations
 
 ### Ambiguous slow fractional scroll
@@ -228,6 +379,20 @@ Trackpad inertia and smooth-scroll mice can both emit small fractional PIXEL del
 ### PointerEvents / TouchEvents do not help for wheel routing
 
 Trackpad scroll is translated to `WheelEvent` only; `pointerType` stays `"mouse"`. Touch events fire on touchscreens, not trackpads. Intent heuristics remain the only portable tool.
+
+When the app knows the primary wheel device (e.g. desktop app with mouse only, or editor that detects trackpad vs mouse), set graph setting **`wheelInputDevice`**. See [Wheel input device modes](./wheel-intent.md#wheel-input-device-modes-wheelinputdevice) for full behavior tables.
+
+On Mac Chrome/YaBrowser, trackpads and some high-end mice both emit integer PIXEL deltas with `wheelDelta ≈ 3 × deltaY` — `"auto"` cannot distinguish them. Explicit `wheelInputDevice` fixes that trade-off.
+
+```typescript
+const graph = new Graph({
+  settings: {
+    wheelInputDevice: "mouse", // or "trackpad"
+  },
+});
+```
+
+Changing `wheelInputDevice` via `graph.updateSettings()` recreates the default resolver automatically (unless you also pass a custom `resolveWheelIntent`).
 
 ---
 

@@ -3,7 +3,7 @@ import { Block } from "./components/canvas/blocks/Block";
 import { ESelectionStrategy } from "./services/selection";
 import type { TMouseWheelBehavior } from "./utils/functions/wheelIntent";
 
-export type { TResolveWheelIntent } from "./utils/functions/wheelIntent";
+export type { TResolveWheelIntent, TWheelInputDevice } from "./utils/functions/wheelIntent";
 export { createWheelIntentResolver, enableWheelIntentDebug, EWheelIntent } from "./utils/functions/wheelIntent";
 export type { TMouseWheelBehavior };
 
@@ -203,9 +203,10 @@ export type TGraphConstants = {
      * - Different browsers and operating systems may handle Shift+wheel differently
      *
      * **Trackpad behavior (via `resolveWheelIntent`):**
-     * - Integer PIXEL two-finger swipe always resolves to pan (not affected by this constant)
+     * - Integer PIXEL two-finger swipe resolves to pan (I3) — not affected by this constant
      * - Pinch-to-zoom (Cmd/Ctrl + scroll) resolves to zoom with {@link PINCH_ZOOM_SPEED}
-     * - Horizontal / diagonal swipe resolves to pan
+     * - Horizontal / diagonal swipe resolves to pan (I2)
+     * - Override ambiguous Mac Chrome input with settings `wheelInputDevice`
      * - See `docs/system/wheel-intent.md` for classification rules
      *
      * @default "zoom"

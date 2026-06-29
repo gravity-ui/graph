@@ -76,6 +76,7 @@ describe("createWheelIntentResolver", () => {
     const resolver = createWheelIntentResolver();
 
     expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), "zoom")).toBe(EWheelIntent.Zoom);
+    advanceMs(50);
     expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), "scroll")).toBe(EWheelIntent.Pan);
   });
 
@@ -115,7 +116,9 @@ describe("createWheelIntentResolver", () => {
   it("large integer PIXEL scroll stays pan inside a rapid stream (trackpad)", () => {
     const resolver = createWheelIntentResolver();
 
-    resolver(makeWheelEvent({ deltaY: -20 }), "zoom");
+    nowMs = 1000;
+    resolver(makeWheelEvent({ deltaY: -13 }), "zoom");
+    advanceMs(16);
     expect(resolver(makeWheelEvent({ deltaY: -100 }), "zoom")).toBe(EWheelIntent.Pan);
   });
 
@@ -147,6 +150,63 @@ describe("createWheelIntentResolver", () => {
     expect(entries.every((entry) => entry.result === EWheelIntent.Pan)).toBe(true);
     expect(entries.every((entry) => entry.rule.startsWith("I3:"))).toBe(true);
     expect(entries.every((entry) => entry.signals.hasLegacyMouseWheelDelta === false)).toBe(true);
+  });
+
+  it("rapid stream keeps prior intent when heuristics would flip (I5:sticky-stream)", () => {
+    const entries: TWheelIntentDebugEntry[] = [];
+    enableWheelIntentDebug((entry) => {
+      entries.push(entry);
+    });
+
+    const resolver = createWheelIntentResolver();
+
+    nowMs = 1000;
+    expect(resolver(makeWheelEvent({ deltaY: -13 }), "zoom")).toBe(EWheelIntent.Pan);
+    advanceMs(16);
+    expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), "zoom")).toBe(EWheelIntent.Pan);
+    advanceMs(16);
+    expect(resolver(makeWheelEvent({ deltaY: -13 }), "zoom")).toBe(EWheelIntent.Pan);
+
+    expect(entries[1]?.rule).toBe("I5:sticky-stream");
+    expect(entries.every((entry) => entry.result === EWheelIntent.Pan)).toBe(true);
+  });
+
+  it("rapid stream sticky yields after pause longer than RAPID_STREAM_MS", () => {
+    const resolver = createWheelIntentResolver();
+
+    nowMs = 1000;
+    expect(resolver(makeWheelEvent({ deltaY: -13 }), "zoom")).toBe(EWheelIntent.Pan);
+    advanceMs(16);
+    expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), "zoom")).toBe(EWheelIntent.Pan);
+    advanceMs(50);
+    expect(resolver(makeChromiumMouseWheelEvent({ deltaY: 100 }), "zoom")).toBe(EWheelIntent.Zoom);
+  });
+
+  it("rapid stream sticky does not override I1 pinch zoom", () => {
+    const resolver = createWheelIntentResolver();
+
+    nowMs = 1000;
+    expect(resolver(makeWheelEvent({ deltaY: -13 }), "zoom")).toBe(EWheelIntent.Pan);
+    advanceMs(16);
+    expect(resolver(makeWheelEvent({ deltaY: -10, metaKey: true }), "zoom")).toBe(EWheelIntent.Zoom);
+  });
+
+  it("rapid stream sticky does not block pan after I5:last-intent first tick", () => {
+    const entries: TWheelIntentDebugEntry[] = [];
+    enableWheelIntentDebug((entry) => {
+      entries.push(entry);
+    });
+
+    const resolver = createWheelIntentResolver();
+
+    nowMs = 1000;
+    // Ambiguous fractional slow tick → I5:last-intent (default zoom), not a confident rule.
+    resolver(makeWheelEvent({ deltaY: -2.5, deltaX: 0.3 }), "zoom");
+    advanceMs(16);
+    expect(resolver(makeWheelEvent({ deltaY: -1.7, deltaX: 0.1 }), "zoom")).toBe(EWheelIntent.Pan);
+
+    expect(entries[0]?.rule).toBe("I5:last-intent");
+    expect(entries[1]?.rule).toBe("I3:rapid-small");
   });
 
   it("integer PIXEL scroll with deltaX noise stays pan in rapid stream", () => {
@@ -199,6 +259,7 @@ describe("createWheelIntentResolver", () => {
 
     resolver(lineEvent, "zoom");
     expect(resolver(lineEvent, "zoom")).toBe(EWheelIntent.Zoom);
+    advanceMs(50);
     expect(resolver(lineEvent, "scroll")).toBe(EWheelIntent.Pan);
   });
 
@@ -298,6 +359,7 @@ describe("createWheelIntentResolver", () => {
     });
 
     expect(resolver(lineEvent, "zoom")).toBe(EWheelIntent.Zoom);
+    advanceMs(50);
     expect(resolver(lineEvent, "scroll")).toBe(EWheelIntent.Pan);
   });
 
@@ -383,8 +445,42 @@ describe("createWheelIntentResolver", () => {
     expect(entries).toHaveLength(1);
     expect(entries[0]?.input.deltaY).toBe(-25.5);
     expect(entries[0]?.mouseWheelBehavior).toBe("zoom");
+    expect(entries[0]?.inputDevice).toBe("auto");
     expect(entries[0]?.signals.isClassicMouseWheelStep).toBe(true);
     expect(entries[0]?.signals.isPixelDeltaMode).toBe(true);
     expect(entries[0]?.rule).toBe("I4:mouse-wheel-step");
+  });
+
+  it("inputDevice trackpad forces pan for Mac Chrome integer wheel (expensive mouse / trackpad ambiguity)", () => {
+    const resolver = createWheelIntentResolver({ inputDevice: "trackpad" });
+
+    expect(resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -111 }), "zoom")).toBe(EWheelIntent.Pan);
+    expect(resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -13 }), "zoom")).toBe(EWheelIntent.Pan);
+  });
+
+  it("inputDevice mouse forces zoom for Mac Chrome integer wheel when MOUSE_WHEEL_BEHAVIOR=zoom", () => {
+    const entries: TWheelIntentDebugEntry[] = [];
+    enableWheelIntentDebug((entry) => {
+      entries.push(entry);
+    });
+
+    const resolver = createWheelIntentResolver({ inputDevice: "mouse" });
+
+    expect(resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -111 }), "zoom")).toBe(EWheelIntent.Zoom);
+    expect(resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -13 }), "zoom")).toBe(EWheelIntent.Zoom);
+    expect(entries.every((entry) => entry.rule.startsWith("I4"))).toBe(true);
+    expect(entries.every((entry) => entry.inputDevice === "mouse")).toBe(true);
+  });
+
+  it("inputDevice mouse respects MOUSE_WHEEL_BEHAVIOR=scroll", () => {
+    const resolver = createWheelIntentResolver({ inputDevice: "mouse" });
+
+    expect(resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -111 }), "scroll")).toBe(EWheelIntent.Pan);
+  });
+
+  it("inputDevice trackpad still allows I1 pinch zoom", () => {
+    const resolver = createWheelIntentResolver({ inputDevice: "trackpad" });
+
+    expect(resolver(makeMacChromeTrackpadWheelEvent({ deltaY: -10, metaKey: true }), "zoom")).toBe(EWheelIntent.Zoom);
   });
 });

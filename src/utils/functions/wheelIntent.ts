@@ -1,5 +1,16 @@
 export type TMouseWheelBehavior = "zoom" | "scroll";
 
+/** Explicit wheel input device; `"auto"` uses gesture-shape heuristics. */
+export type TWheelInputDevice = "auto" | "mouse" | "trackpad";
+
+export type TCreateWheelIntentResolverOptions = {
+  /**
+   * When set to `"trackpad"` or `"mouse"`, skips ambiguous device heuristics
+   * (e.g. Mac Chrome integer PIXEL + linear wheelDelta).
+   */
+  inputDevice?: TWheelInputDevice;
+};
+
 /**
  * Wheel input classification for camera routing.
  *
@@ -25,6 +36,8 @@ export type TResolveWheelIntent = (event: WheelEvent, mouseWheelBehavior: TMouse
 export type TWheelIntentDebugEntry = {
   /** Second argument to {@link TResolveWheelIntent}. */
   mouseWheelBehavior: TMouseWheelBehavior;
+  /** Resolver option when not `"auto"`. */
+  inputDevice: TWheelInputDevice;
   /** Raw {@link WheelEvent} fields passed into the resolver. */
   input: {
     deltaX: number;
@@ -63,7 +76,7 @@ export type TWheelIntentDebugEntry = {
     isSmallDelta: boolean;
     /** Trackpads always emit `deltaMode === DOM_DELTA_PIXEL` (0); mice use LINE/PAGE or PIXEL. */
     isPixelDeltaMode: boolean;
-    /** Deprecated `wheelDelta(Y)` ≈ ±120 on Chromium mechanical mouse wheels. */
+    /** Deprecated `wheelDelta(Y)` ≈ ±120 on Chromium mechanical mouse wheels (Mac Chrome 3× ratio excluded). */
     hasLegacyMouseWheelDelta: boolean;
   };
   /** Winning rule id and resolved intent. */
@@ -386,9 +399,32 @@ function intentFromMouseWheelBehavior(mouseWheelBehavior: TMouseWheelBehavior): 
   return mouseWheelBehavior === "scroll" ? EWheelIntent.Pan : EWheelIntent.Zoom;
 }
 
+/** I1/I2 always win; during rapid stream keep prior vertical intent to avoid mid-gesture flips. */
+function applyRapidStreamStickyIntent(
+  intent: EWheelIntent,
+  rule: string,
+  signals: TWheelIntentDebugEntry["signals"],
+  isRapidStream: boolean,
+  lastIntentBefore: EWheelIntent,
+  lastRuleBefore: string
+): { intent: EWheelIntent; rule: string } {
+  if (
+    !isRapidStream ||
+    signals.isPinchZoom ||
+    signals.isDiagonalScroll ||
+    signals.isPredominantHorizontalScroll ||
+    intent === lastIntentBefore ||
+    lastRuleBefore === "I5:last-intent"
+  ) {
+    return { intent, rule };
+  }
+  return { intent: lastIntentBefore, rule: "I5:sticky-stream" };
+}
+
 function emitDebugEntry(
   ctx: TWheelContext,
   mouseWheelBehavior: TMouseWheelBehavior,
+  inputDevice: TWheelInputDevice,
   timeSinceLastWheel: number,
   isRapidStream: boolean,
   isInMouseWheelBurst: boolean,
@@ -407,6 +443,7 @@ function emitDebugEntry(
 
   debugLogger({
     mouseWheelBehavior,
+    inputDevice,
     input: {
       deltaX: event.deltaX,
       deltaY: event.deltaY,
@@ -444,11 +481,14 @@ function emitDebugEntry(
  * |---------------------------------------|-----------------|
  * | ctrlKey / metaKey + PIXEL scroll       | Zoom (I1)       |
  * | Horizontal or diagonal movement       | Pan  (I2)       |
- * | Integer PIXEL delta (trackpad)        | Pan  (I3)       |
+ * | Integer PIXEL delta (trackpad, auto)   | Pan  (I3)       |
+ * | wheelInputDevice `"trackpad"`         | Pan  (I3:input-device-trackpad) |
+ * | wheelInputDevice `"mouse"`            | Zoom/Pan (I4:* per behavior) |
  * | Large isolated integer PIXEL step     | Zoom/Pan (I4)*  |
  * | Classic mouse wheel step (fractional) | Zoom/Pan (I4)*  |
  * | Rapid stream + small delta (fractional)| Pan  (I3)      |
  * | Anything else                         | Last intent (I5)|
+ * | Rapid stream + confident-rule flip    | Sticky prior (I5:sticky-stream) |
  *
  * *I4 respects `mouseWheelBehavior`: `"scroll"` → Pan, `"zoom"` → Zoom.
  *
@@ -456,9 +496,14 @@ function emitDebugEntry(
  * Isolated large integer PIXEL (Chromium mouse on Windows) → I4 per `mouseWheelBehavior`.
  * LINE/PAGE mode (`deltaMode !== 0`) is never trackpad — always mouse (I4).
  * See `docs/system/wheel-intent.md` for rationale.
+ *
+ * Pass `{ inputDevice: "trackpad" | "mouse" }` when the app knows the primary wheel device
+ * and Mac Chrome/YaBrowser heuristics are ambiguous.
  */
-export function createWheelIntentResolver(): TResolveWheelIntent {
+export function createWheelIntentResolver(options: TCreateWheelIntentResolverOptions = {}): TResolveWheelIntent {
+  const inputDevice = options.inputDevice ?? "auto";
   let lastIntent: EWheelIntent = EWheelIntent.Zoom;
+  let lastRule = "I5:last-intent";
   let lastTimestamp: number | null = null;
   let mouseWheelBurstUntil: number | null = null;
 
@@ -467,6 +512,42 @@ export function createWheelIntentResolver(): TResolveWheelIntent {
   };
 
   const isInMouseWheelBurst = (now: number): boolean => mouseWheelBurstUntil !== null && now <= mouseWheelBurstUntil;
+
+  const resolveExplicitMouseIntent = (
+    ctx: TWheelContext,
+    signals: TWheelIntentDebugEntry["signals"],
+    mouseWheelBehavior: TMouseWheelBehavior,
+    isRapidStream: boolean,
+    inMouseWheelBurst: boolean,
+    now: number
+  ): { intent: EWheelIntent; rule: string } => {
+    if (signals.isDominantAxisLargeWheel || signals.isClassicMouseWheelStep || signals.hasLegacyMouseWheelDelta) {
+      markMouseWheelBurst(now);
+      return {
+        intent: intentFromMouseWheelBehavior(mouseWheelBehavior),
+        rule: signals.isClassicMouseWheelStep ? "I4:mouse-wheel-step" : "I4:large-step",
+      };
+    }
+    if (isSlowFractionalMouseWheelStep(ctx, isRapidStream, inMouseWheelBurst)) {
+      markMouseWheelBurst(now);
+      return {
+        intent: intentFromMouseWheelBehavior(mouseWheelBehavior),
+        rule: "I4:fractional-mouse",
+      };
+    }
+    if (inMouseWheelBurst && signals.isVerticalOnly && isTrackpadLikeRapidSmall(ctx, isRapidStream)) {
+      markMouseWheelBurst(now);
+      return {
+        intent: intentFromMouseWheelBehavior(mouseWheelBehavior),
+        rule: "I4-burst:smoothing",
+      };
+    }
+    markMouseWheelBurst(now);
+    return {
+      intent: intentFromMouseWheelBehavior(mouseWheelBehavior),
+      rule: "I4:input-device-mouse",
+    };
+  };
 
   return (event: WheelEvent, mouseWheelBehavior: TMouseWheelBehavior): EWheelIntent => {
     const now = performance.now();
@@ -480,6 +561,7 @@ export function createWheelIntentResolver(): TResolveWheelIntent {
     const ctx = createWheelContext(event);
     const signals = buildWheelSignals(ctx);
     const lastIntentBefore = lastIntent;
+    const lastRuleBefore = lastRule;
 
     let intent: EWheelIntent;
     let rule: string;
@@ -490,6 +572,18 @@ export function createWheelIntentResolver(): TResolveWheelIntent {
     } else if (signals.isDiagonalScroll || signals.isPredominantHorizontalScroll) {
       intent = EWheelIntent.Pan;
       rule = "I2:horizontal-or-diagonal";
+    } else if (inputDevice === "trackpad") {
+      intent = EWheelIntent.Pan;
+      rule = "I3:input-device-trackpad";
+    } else if (inputDevice === "mouse") {
+      ({ intent, rule } = resolveExplicitMouseIntent(
+        ctx,
+        signals,
+        mouseWheelBehavior,
+        isRapidStream,
+        inMouseWheelBurst,
+        now
+      ));
     } else if (isIntegerPixelTrackpadScroll(ctx, isRapidStream)) {
       intent = EWheelIntent.Pan;
       rule = isRapidStream ? "I3:integer-trackpad" : "I3:integer-trackpad-slow";
@@ -519,11 +613,22 @@ export function createWheelIntentResolver(): TResolveWheelIntent {
       rule = "I5:last-intent";
     }
 
+    ({ intent, rule } = applyRapidStreamStickyIntent(
+      intent,
+      rule,
+      signals,
+      isRapidStream,
+      lastIntentBefore,
+      lastRuleBefore
+    ));
+
     lastIntent = intent;
+    lastRule = rule;
     if (getWheelIntentDebugLogger() !== null) {
       emitDebugEntry(
         ctx,
         mouseWheelBehavior,
+        inputDevice,
         timeSince,
         isRapidStream,
         inMouseWheelBurst,
