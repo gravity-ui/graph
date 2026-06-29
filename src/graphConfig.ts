@@ -3,8 +3,15 @@ import { Block } from "./components/canvas/blocks/Block";
 import { ESelectionStrategy } from "./services/selection";
 import type { TMouseWheelBehavior } from "./utils/functions/wheelIntent";
 
-export type { TResolveWheelIntent, TWheelInputDevice } from "./utils/functions/wheelIntent";
-export { createWheelIntentResolver, enableWheelIntentDebug, EWheelIntent } from "./utils/functions/wheelIntent";
+export type { TResolveWheelIntent, TWheelInputDevice, TWheelIntentRule } from "./utils/functions/wheelIntent";
+export {
+  createWheelIntentResolver,
+  enableWheelIntentDebug,
+  EWheelIntent,
+  isI3WheelIntentRule,
+  isI4WheelIntentRule,
+  WHEEL_INTENT_RULE,
+} from "./utils/functions/wheelIntent";
 export type { TMouseWheelBehavior };
 
 export type TGraphColors = {

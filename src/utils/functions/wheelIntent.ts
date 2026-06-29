@@ -26,6 +26,50 @@ export enum EWheelIntent {
   Zoom = "zoom",
 }
 
+/** Debug rule ids for {@link createWheelIntentResolver} (see `docs/system/wheel-intent.md`). */
+export const WHEEL_INTENT_RULE = {
+  I1_PINCH: "I1:pinch",
+  I2_HORIZONTAL_OR_DIAGONAL: "I2:horizontal-or-diagonal",
+  I3_INPUT_DEVICE_TRACKPAD: "I3:input-device-trackpad",
+  I3_INTEGER_TRACKPAD: "I3:integer-trackpad",
+  I3_INTEGER_TRACKPAD_SLOW: "I3:integer-trackpad-slow",
+  I3_RAPID_SMALL: "I3:rapid-small",
+  I4_MOUSE_WHEEL_STEP: "I4:mouse-wheel-step",
+  I4_LARGE_STEP: "I4:large-step",
+  I4_FRACTIONAL_MOUSE: "I4:fractional-mouse",
+  I4_BURST_SMOOTHING: "I4-burst:smoothing",
+  I4_INPUT_DEVICE_MOUSE: "I4:input-device-mouse",
+  I5_LAST_INTENT: "I5:last-intent",
+  I5_STICKY_STREAM: "I5:sticky-stream",
+} as const;
+
+export type TWheelIntentRule = (typeof WHEEL_INTENT_RULE)[keyof typeof WHEEL_INTENT_RULE];
+
+const WHEEL_INTENT_I3_RULES: ReadonlySet<TWheelIntentRule> = new Set([
+  WHEEL_INTENT_RULE.I3_INPUT_DEVICE_TRACKPAD,
+  WHEEL_INTENT_RULE.I3_INTEGER_TRACKPAD,
+  WHEEL_INTENT_RULE.I3_INTEGER_TRACKPAD_SLOW,
+  WHEEL_INTENT_RULE.I3_RAPID_SMALL,
+]);
+
+const WHEEL_INTENT_I4_RULES: ReadonlySet<TWheelIntentRule> = new Set([
+  WHEEL_INTENT_RULE.I4_MOUSE_WHEEL_STEP,
+  WHEEL_INTENT_RULE.I4_LARGE_STEP,
+  WHEEL_INTENT_RULE.I4_FRACTIONAL_MOUSE,
+  WHEEL_INTENT_RULE.I4_BURST_SMOOTHING,
+  WHEEL_INTENT_RULE.I4_INPUT_DEVICE_MOUSE,
+]);
+
+/** Returns true when the rule id belongs to trackpad classification (I3). */
+export function isI3WheelIntentRule(rule: TWheelIntentRule): boolean {
+  return WHEEL_INTENT_I3_RULES.has(rule);
+}
+
+/** Returns true when the rule id belongs to mouse-wheel classification (I4). */
+export function isI4WheelIntentRule(rule: TWheelIntentRule): boolean {
+  return WHEEL_INTENT_I4_RULES.has(rule);
+}
+
 /**
  * Classifies a wheel event as pan or zoom intent.
  * Configured as `resolveWheelIntent` on graph settings (`TGraphSettingsConfig`).
@@ -80,7 +124,7 @@ export type TWheelIntentDebugEntry = {
     hasLegacyMouseWheelDelta: boolean;
   };
   /** Winning rule id and resolved intent. */
-  rule: string;
+  rule: TWheelIntentRule;
   result: EWheelIntent;
 };
 
@@ -402,23 +446,23 @@ function intentFromMouseWheelBehavior(mouseWheelBehavior: TMouseWheelBehavior): 
 /** I1/I2 always win; during rapid stream keep prior vertical intent to avoid mid-gesture flips. */
 function applyRapidStreamStickyIntent(
   intent: EWheelIntent,
-  rule: string,
+  rule: TWheelIntentRule,
   signals: TWheelIntentDebugEntry["signals"],
   isRapidStream: boolean,
   lastIntentBefore: EWheelIntent,
-  lastRuleBefore: string
-): { intent: EWheelIntent; rule: string } {
+  lastRuleBefore: TWheelIntentRule
+): { intent: EWheelIntent; rule: TWheelIntentRule } {
   if (
     !isRapidStream ||
     signals.isPinchZoom ||
     signals.isDiagonalScroll ||
     signals.isPredominantHorizontalScroll ||
     intent === lastIntentBefore ||
-    lastRuleBefore === "I5:last-intent"
+    lastRuleBefore === WHEEL_INTENT_RULE.I5_LAST_INTENT
   ) {
     return { intent, rule };
   }
-  return { intent: lastIntentBefore, rule: "I5:sticky-stream" };
+  return { intent: lastIntentBefore, rule: WHEEL_INTENT_RULE.I5_STICKY_STREAM };
 }
 
 function emitDebugEntry(
@@ -431,7 +475,7 @@ function emitDebugEntry(
   mouseWheelBurstRemainingMs: number | null,
   lastIntentBefore: EWheelIntent,
   signals: TWheelIntentDebugEntry["signals"],
-  rule: string,
+  rule: TWheelIntentRule,
   result: EWheelIntent
 ): void {
   const debugLogger = getWheelIntentDebugLogger();
@@ -503,7 +547,7 @@ function emitDebugEntry(
 export function createWheelIntentResolver(options: TCreateWheelIntentResolverOptions = {}): TResolveWheelIntent {
   const inputDevice = options.inputDevice ?? "auto";
   let lastIntent: EWheelIntent = EWheelIntent.Zoom;
-  let lastRule = "I5:last-intent";
+  let lastRule: TWheelIntentRule = WHEEL_INTENT_RULE.I5_LAST_INTENT;
   let lastTimestamp: number | null = null;
   let mouseWheelBurstUntil: number | null = null;
 
@@ -520,32 +564,32 @@ export function createWheelIntentResolver(options: TCreateWheelIntentResolverOpt
     isRapidStream: boolean,
     inMouseWheelBurst: boolean,
     now: number
-  ): { intent: EWheelIntent; rule: string } => {
+  ): { intent: EWheelIntent; rule: TWheelIntentRule } => {
     if (signals.isDominantAxisLargeWheel || signals.isClassicMouseWheelStep || signals.hasLegacyMouseWheelDelta) {
       markMouseWheelBurst(now);
       return {
         intent: intentFromMouseWheelBehavior(mouseWheelBehavior),
-        rule: signals.isClassicMouseWheelStep ? "I4:mouse-wheel-step" : "I4:large-step",
+        rule: signals.isClassicMouseWheelStep ? WHEEL_INTENT_RULE.I4_MOUSE_WHEEL_STEP : WHEEL_INTENT_RULE.I4_LARGE_STEP,
       };
     }
     if (isSlowFractionalMouseWheelStep(ctx, isRapidStream, inMouseWheelBurst)) {
       markMouseWheelBurst(now);
       return {
         intent: intentFromMouseWheelBehavior(mouseWheelBehavior),
-        rule: "I4:fractional-mouse",
+        rule: WHEEL_INTENT_RULE.I4_FRACTIONAL_MOUSE,
       };
     }
     if (inMouseWheelBurst && signals.isVerticalOnly && isTrackpadLikeRapidSmall(ctx, isRapidStream)) {
       markMouseWheelBurst(now);
       return {
         intent: intentFromMouseWheelBehavior(mouseWheelBehavior),
-        rule: "I4-burst:smoothing",
+        rule: WHEEL_INTENT_RULE.I4_BURST_SMOOTHING,
       };
     }
     markMouseWheelBurst(now);
     return {
       intent: intentFromMouseWheelBehavior(mouseWheelBehavior),
-      rule: "I4:input-device-mouse",
+      rule: WHEEL_INTENT_RULE.I4_INPUT_DEVICE_MOUSE,
     };
   };
 
@@ -564,17 +608,17 @@ export function createWheelIntentResolver(options: TCreateWheelIntentResolverOpt
     const lastRuleBefore = lastRule;
 
     let intent: EWheelIntent;
-    let rule: string;
+    let rule: TWheelIntentRule;
 
     if (signals.isPinchZoom) {
       intent = EWheelIntent.Zoom;
-      rule = "I1:pinch";
+      rule = WHEEL_INTENT_RULE.I1_PINCH;
     } else if (signals.isDiagonalScroll || signals.isPredominantHorizontalScroll) {
       intent = EWheelIntent.Pan;
-      rule = "I2:horizontal-or-diagonal";
+      rule = WHEEL_INTENT_RULE.I2_HORIZONTAL_OR_DIAGONAL;
     } else if (inputDevice === "trackpad") {
       intent = EWheelIntent.Pan;
-      rule = "I3:input-device-trackpad";
+      rule = WHEEL_INTENT_RULE.I3_INPUT_DEVICE_TRACKPAD;
     } else if (inputDevice === "mouse") {
       ({ intent, rule } = resolveExplicitMouseIntent(
         ctx,
@@ -586,31 +630,31 @@ export function createWheelIntentResolver(options: TCreateWheelIntentResolverOpt
       ));
     } else if (isIntegerPixelTrackpadScroll(ctx, isRapidStream)) {
       intent = EWheelIntent.Pan;
-      rule = isRapidStream ? "I3:integer-trackpad" : "I3:integer-trackpad-slow";
+      rule = isRapidStream ? WHEEL_INTENT_RULE.I3_INTEGER_TRACKPAD : WHEEL_INTENT_RULE.I3_INTEGER_TRACKPAD_SLOW;
     } else if (
       signals.isDominantAxisLargeWheel ||
       signals.isClassicMouseWheelStep ||
       signals.hasLegacyMouseWheelDelta
     ) {
       intent = intentFromMouseWheelBehavior(mouseWheelBehavior);
-      rule = signals.isClassicMouseWheelStep ? "I4:mouse-wheel-step" : "I4:large-step";
+      rule = signals.isClassicMouseWheelStep ? WHEEL_INTENT_RULE.I4_MOUSE_WHEEL_STEP : WHEEL_INTENT_RULE.I4_LARGE_STEP;
       markMouseWheelBurst(now);
     } else if (isTrackpadLikeRapidSmall(ctx, isRapidStream)) {
       if (inMouseWheelBurst && signals.isVerticalOnly) {
         intent = intentFromMouseWheelBehavior(mouseWheelBehavior);
-        rule = "I4-burst:smoothing";
+        rule = WHEEL_INTENT_RULE.I4_BURST_SMOOTHING;
         markMouseWheelBurst(now);
       } else {
         intent = EWheelIntent.Pan;
-        rule = "I3:rapid-small";
+        rule = WHEEL_INTENT_RULE.I3_RAPID_SMALL;
       }
     } else if (isSlowFractionalMouseWheelStep(ctx, isRapidStream, inMouseWheelBurst)) {
       intent = intentFromMouseWheelBehavior(mouseWheelBehavior);
-      rule = "I4:fractional-mouse";
+      rule = WHEEL_INTENT_RULE.I4_FRACTIONAL_MOUSE;
       markMouseWheelBurst(now);
     } else {
       intent = lastIntent;
-      rule = "I5:last-intent";
+      rule = WHEEL_INTENT_RULE.I5_LAST_INTENT;
     }
 
     ({ intent, rule } = applyRapidStreamStickyIntent(
