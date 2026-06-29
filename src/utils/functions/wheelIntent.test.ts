@@ -25,6 +25,9 @@ function makeMacChromeTrackpadWheelEvent(
     deltaX: number;
     deltaY: number;
     deltaMode: number;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    shiftKey: boolean;
   }> = {}
 ): WheelEvent {
   const deltaY = overrides.deltaY ?? 10;
