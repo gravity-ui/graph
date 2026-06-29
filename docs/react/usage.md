@@ -159,6 +159,7 @@ The library provides a comprehensive set of React hooks for working with the gra
 | `useSignal` | Subscribe to signal values |
 | `useComputedSignal` | Create computed signals |
 | `useSignalEffect` | Run effects on signal changes |
+| `useSignalLayoutEffect` | Run layout effects on signal changes (before paint) |
 | `useSchedulerDebounce` | Create debounced function with frame timing |
 | `useSchedulerThrottle` | Create throttled function with frame timing |
 | `useScheduledTask` | Schedule task for frame-based execution |

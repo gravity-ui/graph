@@ -29,6 +29,8 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
   private lastMouseEvent?: MouseEvent;
 
+  private unsubscribeCamera?: () => void;
+
   constructor(props: TCameraProps, parent: Component) {
     super(props, parent);
 
@@ -39,12 +41,10 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     this.addEventListener("click", this.handleClick);
     this.context.graph.on("mousedown", this.handleMouseDownEvent);
 
-    // Subscribe to auto-panning state changes
-    this.context.graph.on("camera-change", this.handleCameraStateChange);
+    this.unsubscribeCamera = this.context.graph.$camera.subscribe(this.handleCameraStateChange);
   }
 
-  private handleCameraStateChange = (event: CustomEvent<TCameraState>) => {
-    const state = event.detail;
+  private handleCameraStateChange = (state: TCameraState): void => {
     const isAutoPanningEnabled = state.autoPanningEnabled;
 
     if (isAutoPanningEnabled) {
@@ -83,7 +83,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     this.stopAutoPanning();
     this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
     this.context.graph.off("mousedown", this.handleMouseDownEvent);
-    this.context.graph.off("camera-change", this.handleCameraStateChange);
+    this.unsubscribeCamera?.();
   }
 
   private startAutoPanning(): void {

@@ -204,10 +204,12 @@ export class MyLayer extends Layer<MyLayerProps, MyLayerContext> {
 
   // `afterInit` is called after the layer's elements (canvas/html) are created and attached.
   protected afterInit() {
-    // Subscribe to events here
-    this.onGraphEvent("camera-change", this.performRender);
-    // Add other event listeners (e.g., to this.getHTML() or this.getCanvas())
+    // Base Layer applies transforms and calls onCameraChange() on $camera updates
     super.afterInit();
+  }
+
+  protected onCameraChange(_camera: TCameraState): void {
+    this.performRender();
   }
 
   // --- Rendering --- 
@@ -337,9 +339,11 @@ The Layer class provides convenient wrapper methods for subscribing to events us
 **Example:**
 ```typescript
 protected afterInit() {
-  this.onGraphEvent("camera-change", this.handleCameraChange);
-  this.onCanvasEvent("mousedown", this.handleMouseDown);
   super.afterInit();
+}
+
+protected onCameraChange(camera: TCameraState): void {
+  this.updateOverlay(camera.scale);
 }
 ```
 
@@ -365,10 +369,9 @@ export class MyCustomLayer extends Layer<MyLayerProps> {
       signal: this.eventAbortController.signal
     });
     
-    // Option 2: Manual subscription to graph events with AbortController
-    this.props.graph.on("camera-change", this.performRender, {
-      signal: this.eventAbortController.signal
-    });
+    // Option 2: Direct $camera subscription — only when onCameraChange() is not enough
+    // (e.g. multiple handlers with different priorities before super.afterInit())
+    this.onSignal(this.props.graph.$camera, this.performRender);
     
     // Option 3: Manual subscription without AbortController
     // In this case, you must handle unsubscription manually
@@ -440,11 +443,12 @@ export class GridLayer extends Layer<GridLayerProps> {
    * after the layer is unmounted and reattached.
    */
   protected afterInit(): void {
-    // Use the onGraphEvent wrapper method for automatic cleanup
-    this.onGraphEvent("camera-change", this.performRender);
-    
-    // Call parent afterInit to ensure proper initialization
+    // Committed camera state — override onCameraChange(), base Layer handles subscription
     super.afterInit();
+  }
+
+  protected onCameraChange(_camera: TCameraState): void {
+    this.performRender();
   }
   
   protected render() {

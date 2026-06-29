@@ -39,7 +39,7 @@ export type TCameraState = {
 
 ## Camera control
 
-- `set(newState)` – update camera state (emits `camera-change`).
+- `set(newState)` – update camera state (emits `camera-change`, then commits to `$camera` if not prevented).
 - `resize({ width, height })` – update canvas size preserving center.
 - `move(dx, dy)` – pan.
 - `zoom(x, y, scale)` – zoom anchored to a screen-space point `(x, y)`.
@@ -198,9 +198,52 @@ graph.cameraService.disableAutoPanning();
 - Canvas rendering and hit-testing use the full camera-space viewport (`relative*`) for correctness and performance.
 - HTML/React view switches at defined zoom tiers (`getCameraBlockScaleLevel`), which depend on `scale` independent of insets.
 
-## Events
+## Events and reactive state
 
-- `camera-change` – emitted on any camera state update (`set`, `move`, `resize`, `zoom`, etc.).
+Camera updates use the same **preventable default action** pattern as `block-change`:
+
+1. **`camera-change` event** — emitted synchronously **before** commit. `event.detail` is the **proposed** next `TCameraState`. Listeners may call `event.preventDefault()` to cancel the update.
+2. **`graph.$camera` signal** — holds the **committed** camera state. Updated only when the default action was not prevented.
+
+### Choosing an API
+
+| API | State | Use for |
+|-----|-------|---------|
+| `camera-change` event | **Proposed** (`event.detail`) | Intercept, validate, `preventDefault()`, log intent before commit |
+| `graph.$camera` | **Committed** | Reactive subscriptions, React hooks, rendering, derived UI |
+| `graph.cameraService` | **Committed** (via `getCameraState()`) | Imperative control: `move`, `zoom`, `set`, `resize`, `setViewportInsets` |
+
+Outside event handlers, `$camera.value` and `cameraService.getCameraState()` refer to the same committed state. During a `camera-change` handler, `event.detail` is proposed; `$camera` and `cameraService` still hold the previous committed state until the default action runs.
+
+### Why both event and signal?
+
+Event listeners run in registration order **before** commit. If an early handler calls `preventDefault()`, later handlers still see the proposed state in `event.detail` and may incorrectly update their own state unless they re-read committed values.
+
+**Prefer `$camera` for rendering and side effects** (layers, React hooks, auto-panning sync). Subscribe via `Layer.onSignal(graph.$camera, …)` or `graph.$camera.subscribe()`.
+
+**Keep `camera-change` for interception** — validation, logging, or cancelling a change before it is applied (same as `block-change`).
+
+### Layer example
+
+```typescript
+protected onCameraChange(camera: TCameraState): void {
+  // Runs after built-in HTML/canvas transforms on each committed camera update
+  this.updateRuler(camera);
+}
+```
+
+### React example
+
+```typescript
+import { useSignalLayoutEffect } from "@gravity-ui/graph/react";
+
+useSignalLayoutEffect(() => {
+  const camera = graph.$camera.value;
+  // react to committed camera state
+}, [graph]);
+```
+
+For imperative/event-based API (e.g. logging proposed state before commit), use `useGraphEvent(graph, "camera-change", …)`.
 
 ## Viewport insets (optional focus)
 

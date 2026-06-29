@@ -73,7 +73,6 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
   }
 
   protected afterInit(): void {
-    this.onGraphEvent("camera-change", () => this.performRender());
     this.onRootEvent(
       "mousemove",
       (event: MouseEvent): void => {
@@ -125,6 +124,10 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     }
 
     super.afterInit();
+  }
+
+  protected onCameraChange(_camera: TCameraState): void {
+    this.performRender();
   }
 
   protected render(): void {

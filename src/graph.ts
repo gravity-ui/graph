@@ -15,7 +15,8 @@ import { HitTest } from "./services/HitTest";
 import { KeyboardService } from "./services/KeyboardService";
 import { Layer, LayerPublicProps } from "./services/Layer";
 import { Layers } from "./services/LayersService";
-import { CameraService } from "./services/camera/CameraService";
+import { CameraService, getInitCameraState } from "./services/camera/CameraService";
+import type { TCameraState } from "./services/camera/CameraService";
 import { DragService } from "./services/drag";
 import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
@@ -101,6 +102,12 @@ export class Graph {
   }
 
   public $graphConstants = signal<TGraphConstants>(initGraphConstants);
+
+  /**
+   * Committed camera state. Updated only after a non-prevented `camera-change` event.
+   * Subscribe via `signal.subscribe()` or Layer's `onSignal()` to react to applied changes.
+   */
+  public $camera = signal<TCameraState>(getInitCameraState());
 
   public state: GraphState = GraphState.INIT;
 

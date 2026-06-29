@@ -89,10 +89,19 @@ export class CameraService extends Emitter {
   }
 
   public set(newState: Partial<TCameraState>) {
-    this.graph.executеDefaultEventAction("camera-change", Object.assign({}, this.state, newState), () => {
+    const nextState = Object.assign({}, this.state, newState);
+    this.graph.executеDefaultEventAction("camera-change", nextState, () => {
       this.state = Object.assign(this.state, newState);
       this.updateRelative();
+      this.syncCameraSignal();
     });
+  }
+
+  private syncCameraSignal(): void {
+    this.graph.$camera.value = {
+      ...this.state,
+      viewportInsets: { ...this.state.viewportInsets },
+    };
   }
 
   private updateRelative() {

@@ -124,24 +124,30 @@ When implementing event subscriptions in this project:
        }
        
        protected afterInit(): void {
-         // Register graph events with the onGraphEvent wrapper method
-         this.onGraphEvent("camera-change", this.handleCameraChange);
-         
-         // Register DOM events with the appropriate wrapper methods
+         // Optional: cancel updates before commit
+         this.onGraphEvent("camera-change", (event) => {
+           if (shouldReject(event.detail)) {
+             event.preventDefault();
+           }
+         });
+
          if (this.canvas) {
            this.onCanvasEvent("mousedown", this.handleMouseDown);
          }
-         
+
          if (this.html) {
            this.onHtmlEvent("click", this.handleHtmlClick);
          }
-         
+
          if (this.root) {
            this.onRootEvent("keydown", this.handleRootKeyDown);
          }
-         
-         // Always call super.afterInit() at the end
-         super.afterInit();
+
+         super.afterInit(); // subscribes to $camera and calls onCameraChange()
+       }
+
+       protected onCameraChange(camera: TCameraState): void {
+         this.handleCameraChange(camera);
        }
      }
      ```

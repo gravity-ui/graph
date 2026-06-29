@@ -311,7 +311,7 @@ export class Layer<
         constants: event.detail.constants,
       });
     });
-    this.onGraphEvent("camera-change", (event) => this.onCameraChange(event.detail));
+    this.onSignal(this.props.graph.$camera, (camera) => this.handleCommittedCameraChange(camera));
     this.onSignal(this.props.graph.layers.rootSize, this.updateSize);
 
     this.shouldRenderChildren = true;
@@ -326,7 +326,7 @@ export class Layer<
       }
     }
 
-    this.onCameraChange(this.context.camera.getCameraState());
+    this.handleCommittedCameraChange(this.context.camera.getCameraState());
     this.updateSize();
   }
 
@@ -351,7 +351,12 @@ export class Layer<
     }
   }
 
-  protected onCameraChange(camera: TCameraState) {
+  private handleCommittedCameraChange(camera: TCameraState): void {
+    this.applyCameraTransform(camera);
+    this.onCameraChange(camera);
+  }
+
+  private applyCameraTransform(camera: TCameraState): void {
     // Check if HTML layer should be active based on activationScale
     if (this.html && this.props.html?.activationScale !== undefined) {
       const shouldBeActive = camera.scale >= this.props.html.activationScale;
@@ -367,6 +372,19 @@ export class Layer<
     if (this.props.canvas?.transformByCameraPosition) {
       this.performRender();
     }
+  }
+
+  /**
+   * Called when committed camera state changes (`graph.$camera` signal).
+   * Override in derived layers to react to pan, zoom, and resize.
+   *
+   * Built-in HTML/canvas transforms (`transformByCameraPosition`, `activationScale`)
+   * are applied before this hook via `applyCameraTransform`.
+   *
+   * @param camera - Committed camera state (same as `graph.$camera.value`)
+   */
+  protected onCameraChange(_camera: TCameraState): void {
+    // Override in subclasses
   }
 
   /**

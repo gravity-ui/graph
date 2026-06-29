@@ -2,7 +2,7 @@ import { signal } from "@preact/signals-core";
 import type { Signal } from "@preact/signals-core";
 import { act, renderHook } from "@testing-library/react";
 
-import { useComputedSignal, useSignal, useSignalEffect } from "./useSignal";
+import { useComputedSignal, useSignal, useSignalEffect, useSignalLayoutEffect } from "./useSignal";
 
 describe("useSignal hook", () => {
   describe("Getting signal value", () => {
@@ -600,5 +600,28 @@ describe("useSignalEffect hook", () => {
       // Test passes if no error is thrown
       expect(true).toBe(true);
     });
+  });
+});
+
+describe("useSignalLayoutEffect hook", () => {
+  it("should execute effect on mount and react to signal changes", () => {
+    const baseSignal: Signal<string> = signal("initial");
+    const effectFn = jest.fn();
+
+    renderHook(() =>
+      useSignalLayoutEffect(() => {
+        effectFn(baseSignal.value);
+      }, [baseSignal])
+    );
+
+    expect(effectFn).toHaveBeenCalledWith("initial");
+    expect(effectFn).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      baseSignal.value = "updated";
+    });
+
+    expect(effectFn).toHaveBeenCalledWith("updated");
+    expect(effectFn).toHaveBeenCalledTimes(2);
   });
 });

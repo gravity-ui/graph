@@ -88,17 +88,14 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   };
   const mouseupBinded = mouseup.bind(null, emitter);
 
-  // Handle camera-change for auto-panning synchronization
-  const handleCameraChange = () => {
+  // Re-emit drag update when committed camera state changes during auto-panning
+  const handleCameraChange = (): void => {
     if (started && !finished && lastMouseEvent) {
-      // Re-emit drag update with last known mouse position
       emitter.emit(EVENTS.DRAG_UPDATE, lastMouseEvent);
     }
   };
 
-  if (graph && autopanning) {
-    graph.on("camera-change", handleCameraChange);
-  }
+  const unsubscribeCamera = graph && autopanning ? graph.$camera.subscribe(handleCameraChange) : undefined;
 
   /**
    * Check if the mouse has moved beyond the threshold distance
@@ -166,9 +163,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
 
   const cleanup = (): void => {
     cleanupTextSelection();
-    if (graph && autopanning) {
-      graph.off("camera-change", handleCameraChange);
-    }
+    unsubscribeCamera?.();
     document.removeEventListener("mousemove", mousemoveBinded);
     // Also remove threshold listener if it was added
     if (threshold > 0) {
