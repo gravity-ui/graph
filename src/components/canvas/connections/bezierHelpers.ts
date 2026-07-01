@@ -57,7 +57,17 @@ export function getPointOfBezierCurve(
   /* eslint-enable no-restricted-properties */
 }
 
-export function isPointInStroke(ctx: CanvasRenderingContext2D, path: Path2D, x: number, y: number, threshold?: number) {
+export function isPointInStroke(
+  ctx: CanvasRenderingContext2D | undefined | null,
+  path: Path2D | undefined | null,
+  x: number,
+  y: number,
+  threshold?: number
+): boolean {
+  if (!ctx || !path || !(path instanceof Path2D)) {
+    return false;
+  }
+
   const l = ctx.lineWidth;
   if (threshold) {
     ctx.lineWidth = threshold;

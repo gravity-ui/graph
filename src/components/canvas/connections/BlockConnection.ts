@@ -33,7 +33,7 @@ export class BlockConnection<T extends TConnection>
 {
   public readonly cursor = "pointer";
 
-  protected path2d: Path2D;
+  protected path2d: Path2D = new Path2D();
 
   protected labelGeometry: { x: number; y: number; width: number; height: number } | undefined = undefined;
 
@@ -238,6 +238,7 @@ export class BlockConnection<T extends TConnection>
     this.geometry.x2 = this.connectionPoints[1].x;
     this.geometry.y2 = this.connectionPoints[1].y;
 
+    this.generatePath();
     this.applyShape();
   }
 
