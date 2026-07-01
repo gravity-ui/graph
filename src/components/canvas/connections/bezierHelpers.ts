@@ -62,7 +62,7 @@ export function isPointInStroke(
   path: Path2D | undefined | null,
   x: number,
   y: number,
-  threshold?: number,
+  threshold?: number
 ): boolean {
   if (!ctx || !path || !(path instanceof Path2D)) {
     return false;
