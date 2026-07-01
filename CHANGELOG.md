@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.2](https://github.com/gravity-ui/graph/compare/v1.11.1...v1.11.2) (2026-07-01)
+
+
+### Bug Fixes
+
+* **connections:** guard isPointInStroke before graph initialization ([#307](https://github.com/gravity-ui/graph/issues/307)) ([ddc252a](https://github.com/gravity-ui/graph/commit/ddc252a880e9cc7a73243ca33f509af62cb1eedb))
+
 ## [1.11.1](https://github.com/gravity-ui/graph/compare/v1.11.0...v1.11.1) (2026-06-29)
 
 
