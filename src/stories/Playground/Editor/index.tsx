@@ -63,7 +63,7 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(
       });
     },
     updateBlocks: (blocks: TBlock[]) => {
-      if (!monacoRef.current) {
+      if (!monacoRef.current || blocks.length > 1) {
         return;
       }
       const model = monacoRef.current.getModel();
