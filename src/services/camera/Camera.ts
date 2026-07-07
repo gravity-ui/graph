@@ -1,4 +1,5 @@
 import { EventedComponent } from "../../components/canvas/EventedComponent/EventedComponent";
+import { GraphComponent } from "../../components/canvas/GraphComponent";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
 import { GraphMouseEvent } from "../../graphEvents";
 import { Component, ESchedulerPriority } from "../../lib";
@@ -189,9 +190,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
       // Middle button: preventDefault stops DragService (see graph.emit guard)
       // and suppresses the browser's native middle-click autoscroll.
       event.preventDefault();
-    } else if (event.detail.target !== this) {
-      // Left button: let DragService handle drags on blocks/anchors; only pan
-      // when the click lands on empty canvas (target resolved to Camera).
+    } else if (event.detail.target !== this && this.isTargetDraggable(event.detail.target)) {
       return;
     }
 
@@ -204,6 +203,13 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
       .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onDragUpdate(event))
       .on(EVENTS.DRAG_END, () => this.onDragEnd());
   };
+
+  /**
+   * DragService handles draggable graph components; camera pan is deferred in that case.
+   */
+  private isTargetDraggable(target: EventedComponent | undefined): boolean {
+    return target instanceof GraphComponent && target.isDraggable();
+  }
 
   private onDragStart(event: MouseEvent) {
     this.lastDragEvent = event;
