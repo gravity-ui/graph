@@ -1,7 +1,7 @@
 import { EventedComponent } from "../../components/canvas/EventedComponent/EventedComponent";
 import { GraphComponent } from "../../components/canvas/GraphComponent";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
-import { GraphMouseEvent } from "../../graphEvents";
+import { GraphMouseEvent, isGraphEvent } from "../../graphEvents";
 import { Component, ESchedulerPriority } from "../../lib";
 import { TComponentProps, TComponentState } from "../../lib/Component";
 import { ComponentDescriptor } from "../../lib/CoreComponent";
@@ -180,6 +180,9 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
       return;
     }
     if (!this.context.graph.rootStore.settings.getConfigFlag("canDragCamera")) {
+      return;
+    }
+    if (isGraphEvent(event) && event.isDefaultPrevented()) {
       return;
     }
     if (isMetaKeyEvent(nativeEvent)) {

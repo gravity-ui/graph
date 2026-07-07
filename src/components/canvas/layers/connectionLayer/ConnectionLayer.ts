@@ -159,7 +159,7 @@ export class ConnectionLayer extends Layer<
    */
   protected afterInit(): void {
     // Register event listeners with the graphOn wrapper method for automatic cleanup when unmounted
-    this.onGraphEvent("mousedown", this.handleMouseDown);
+    this.onGraphEvent("mousedown", this.handleMouseDown, { capture: true });
 
     // Call parent afterInit to ensure proper initialization
     super.afterInit();
@@ -196,12 +196,16 @@ export class ConnectionLayer extends Layer<
     if (!initEvent || !target || !this.root?.ownerDocument) {
       return;
     }
+    if (initEvent.button !== 0) {
+      return;
+    }
 
     if (
       this.checkIsShouldStartCreationConnection(target as GraphComponent, initEvent) &&
       (isBlock(target) || target instanceof Anchor)
     ) {
       if (isGraphEvent(nativeEvent)) {
+        nativeEvent.preventGraphEventDefault();
         nativeEvent.stopGraphEventPropagation();
       }
       this.context.graph.dragService.startDrag(
