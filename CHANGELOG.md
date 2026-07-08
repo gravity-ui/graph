@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.2](https://github.com/gravity-ui/graph/compare/v1.11.1...v1.11.2) (2026-07-08)
+
+
+### Bug Fixes
+
+* **camera:** restore pan on non-draggable graph components ([#309](https://github.com/gravity-ui/graph/issues/309)) ([25021a7](https://github.com/gravity-ui/graph/commit/25021a7720ac3d3ea2ee90c288fdd65f75fd1d7e))
+* **connections:** guard isPointInStroke before graph initialization ([#307](https://github.com/gravity-ui/graph/issues/307)) ([ddc252a](https://github.com/gravity-ui/graph/commit/ddc252a880e9cc7a73243ca33f509af62cb1eedb))
+
 ## [1.11.1](https://github.com/gravity-ui/graph/compare/v1.11.0...v1.11.1) (2026-06-29)
 
 
