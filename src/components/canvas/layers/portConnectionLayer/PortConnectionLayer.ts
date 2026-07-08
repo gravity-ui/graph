@@ -8,7 +8,7 @@ import { EAnchorType } from "../../../../store/anchor/Anchor";
 import { TBlockId } from "../../../../store/block/Block";
 import { PortState } from "../../../../store/connection/port/Port";
 import type { Emitter } from "../../../../utils/Emitter";
-import { vectorDistance } from "../../../../utils/functions";
+import { getXY, vectorDistance } from "../../../../utils/functions";
 import { stopDragListening } from "../../../../utils/functions/dragListener";
 import { render } from "../../../../utils/renderers/render";
 import { renderSVG } from "../../../../utils/renderers/svgPath";
@@ -260,6 +260,11 @@ export class PortConnectionLayer extends Layer<
 
   protected currentListener: Emitter | null = null;
 
+  private isSnappablePort(port: PortState): boolean {
+    const meta = port.meta?.[PortConnectionLayer.PortMetaKey] as IPortConnectionMeta | undefined;
+    return Boolean(meta?.snappable);
+  }
+
   protected handleMouseDown = (nativeEvent: GraphMouseEvent): void => {
     if (!this.enabled) {
       return;
@@ -269,27 +274,36 @@ export class PortConnectionLayer extends Layer<
     if (!initEvent || !this.root?.ownerDocument || !initialComponent) {
       return;
     }
+    if (initEvent.button !== 0) {
+      return;
+    }
     if (!(initialComponent instanceof GraphComponent) || initialComponent.getPorts().length === 0) {
       return;
     }
+
+    const canvas = this.context.graph.getGraphCanvas();
+    const [screenX, screenY] = getXY(canvas, initEvent);
+    const [worldX, worldY] = this.context.graph.cameraService.applyToPoint(screenX, screenY);
+    const searchRadius = this.props.searchRadius || PORT_SEARCH_RADIUS;
+    const port = this.context.graph.rootStore.connectionsList.ports.findPortAtPointByComponent(
+      initialComponent,
+      new Point(worldX, worldY),
+      searchRadius,
+      (candidate) => this.isSnappablePort(candidate)
+    );
+    if (!port) {
+      return;
+    }
+
     if (isGraphEvent(nativeEvent)) {
+      nativeEvent.preventGraphEventDefault();
       nativeEvent.stopGraphEventPropagation();
     }
     // DragService will provide world coordinates in callbacks
     this.currentListener = this.context.graph.dragService.startDrag(
       {
         onStart: (_event, coords) => {
-          const point = new Point(coords[0], coords[1]);
-          const searchRadius = this.props.searchRadius || PORT_SEARCH_RADIUS;
-
-          const port = this.context.graph.rootStore.connectionsList.ports.findPortAtPointByComponent(
-            initialComponent,
-            point,
-            searchRadius
-          );
-          if (port) {
-            this.onStartConnection(port, point);
-          }
+          this.onStartConnection(port, new Point(coords[0], coords[1]));
         },
         onUpdate: (event, coords) => this.onMoveNewConnection(event, new Point(coords[0], coords[1])),
         onEnd: (_event, coords) => this.onEndNewConnection(new Point(coords[0], coords[1])),
@@ -410,7 +424,7 @@ export class PortConnectionLayer extends Layer<
       // Try to find port at cursor without snapping
       const searchRadius = this.props.searchRadius || PORT_SEARCH_RADIUS;
       newTargetPort = this.context.graph.rootStore.connectionsList.ports.findPortAtPoint(point, searchRadius, (p) => {
-        return Boolean(p.owner) && p.id !== this.sourcePort?.id;
+        return this.isSnappablePort(p) && Boolean(p.owner) && p.id !== this.sourcePort?.id;
       });
     }
 
@@ -498,7 +512,7 @@ export class PortConnectionLayer extends Layer<
       // Fallback: try to find port at drop point
       const searchRadius = this.props.searchRadius || PORT_SEARCH_RADIUS;
       targetPort = this.context.graph.rootStore.connectionsList.ports.findPortAtPoint(point, searchRadius, (p) => {
-        return Boolean(p.owner) && p.id !== this.sourcePort?.id;
+        return this.isSnappablePort(p) && Boolean(p.owner) && p.id !== this.sourcePort?.id;
       });
     }
 
@@ -681,9 +695,7 @@ export class PortConnectionLayer extends Layer<
         // Skip ports in lookup state (no valid coordinates)
         if (port.lookup) continue;
 
-        const meta = port.meta?.[PortConnectionLayer.PortMetaKey] as IPortConnectionMeta | undefined;
-
-        if (meta?.snappable) {
+        if (this.isSnappablePort(port)) {
           snappingBoxes.push({
             minX: port.x - searchRadius,
             minY: port.y - searchRadius,
