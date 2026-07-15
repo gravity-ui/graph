@@ -243,13 +243,6 @@ export class HitTest extends Emitter {
       };
       unsubRect = this.$usableRect.subscribe(check);
       unsubPending = this.$pendingEntitiesUpdate.subscribe(check);
-      // isUnstable also depends on the processing queue (processQueue.isScheduled() / queue.size),
-      // which is not a signal. A re-entrant second processQueue batch can drain the queue and
-      // stabilize the graph WITHOUT changing $usableRect or $pendingEntitiesUpdate (their final
-      // values are already set — updateUsableRect early-returns on an unchanged rect and the
-      // pending flag is already false), so neither subscription would ever re-fire and the
-      // callback would hang forever. processQueue emits "update" at the end of every run, so
-      // re-check stability there too.
       this.on("update", check);
       return cleanup;
     }
