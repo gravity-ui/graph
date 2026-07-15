@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.3](https://github.com/gravity-ui/graph/compare/v1.11.2...v1.11.3) (2026-07-15)
+
+
+### Bug Fixes
+
+* **HitTest:** don't hang waitUsableRectUpdate when graph stabilizes via processQueue drain ([#325](https://github.com/gravity-ui/graph/issues/325)) ([9294f05](https://github.com/gravity-ui/graph/commit/9294f05e531efe0bed2619ab5431885cbc979d14))
+
 ## [1.11.2](https://github.com/gravity-ui/graph/compare/v1.11.1...v1.11.2) (2026-07-08)
 
 
