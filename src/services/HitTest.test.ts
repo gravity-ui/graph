@@ -49,6 +49,44 @@ function triggerProcessQueue(ht: HitTest): void {
   (ht as unknown as { processQueue: { flush(): void } }).processQueue.flush();
 }
 
+/**
+ * Trigger a re-entrant, two-batch processQueue run: processing the first hitbox queues a second
+ * hitbox update, which schedules another processQueue batch. This mirrors real rendering where
+ * a component's hitbox registration triggers further hitbox updates. The dead spot appears here:
+ * the first batch clears `$pendingEntitiesUpdate` while a second batch is still scheduled, so the
+ * graph is still unstable purely because of the queue; the second batch then drains and stabilizes
+ * the graph WITHOUT changing `$usableRect` or `$pendingEntitiesUpdate` (both already final).
+ */
+function triggerReentrantProcessQueue(ht: HitTest): void {
+  let reentered = false;
+  const bbox = { minX: 0, minY: 0, maxX: 100, maxY: 100, x: 0, y: 0 };
+  const second = {
+    affectsUsableRect: true,
+    destroyed: false,
+    ...bbox,
+    updateRect(_bbox: unknown): void {
+      // no-op
+    },
+  } as unknown as HitBox;
+  const first = {
+    affectsUsableRect: true,
+    destroyed: false,
+    ...bbox,
+    updateRect(_bbox: unknown): void {
+      if (!reentered) {
+        reentered = true;
+        // Re-entrant update while processQueue is running → schedules a second batch.
+        ht.update(second, { ...bbox });
+      }
+    },
+  } as unknown as HitBox;
+
+  ht.update(first, { ...bbox });
+  const pq = (ht as unknown as { processQueue: { flush(): void; isScheduled(): boolean } }).processQueue;
+  pq.flush(); // batch #1: re-enters, schedules batch #2, clears pending while still scheduled
+  pq.flush(); // batch #2: drains the queue and stabilizes via the "update" event, not a signal
+}
+
 describe("HitTest.markPendingUpdate", () => {
   it("makes isUnstable true immediately after call", () => {
     const ht = makeHitTest(true);
@@ -85,5 +123,28 @@ describe("HitTest.markPendingUpdate", () => {
     // processQueue fires when hitbox updates arrive (simulated here)
     triggerProcessQueue(ht);
     expect(called).toBe(true); // resolved after flag cleared
+  });
+
+  // Regression: with a re-entrant second processQueue batch, the graph becomes stable only once
+  // the queue drains — an event NOT reflected by the $usableRect / $pendingEntitiesUpdate signals.
+  // Subscribing the stability check to those two signals alone leaves the callback hanging forever
+  // (the "graph flies off-screen on open" bug). The fix also re-checks on the "update" event.
+  it("waitUsableRectUpdate resolves when the graph stabilizes via a re-entrant queue drain", () => {
+    const ht = makeHitTest(true);
+    seedUsableRect(ht);
+
+    ht.markPendingUpdate();
+    expect(ht.isUnstable).toBe(true);
+
+    let called = false;
+    ht.waitUsableRectUpdate(() => {
+      called = true;
+    });
+    expect(called).toBe(false); // deferred: still unstable
+
+    triggerReentrantProcessQueue(ht);
+
+    expect(ht.isUnstable).toBe(false); // graph did stabilize
+    expect(called).toBe(true); // ...and the callback must have fired
   });
 });
