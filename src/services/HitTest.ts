@@ -224,26 +224,23 @@ export class HitTest extends Emitter {
 
     if (this.isUnstable) {
       let cleaned = false;
-      let unsubRect: () => void = noop;
-      let unsubPending: () => void = noop;
-      let check: () => void = noop;
+      const unsubscribers: Array<() => void> = [];
       const cleanup = () => {
         if (cleaned) return;
         cleaned = true;
-        unsubRect();
-        unsubPending();
-        this.off("update", check);
+        unsubscribers.forEach((unsubscribe) => unsubscribe());
       };
-      check = () => {
+      const check = () => {
         if (!this.isUnstable) {
           cleanup();
           // eslint-disable-next-line callback-return
           callback(this.$usableRect.value);
         }
       };
-      unsubRect = this.$usableRect.subscribe(check);
-      unsubPending = this.$pendingEntitiesUpdate.subscribe(check);
+      unsubscribers.push(this.$usableRect.subscribe(check));
+      unsubscribers.push(this.$pendingEntitiesUpdate.subscribe(check));
       this.on("update", check);
+      unsubscribers.push(() => this.off("update", check));
       return cleanup;
     }
     callback(this.$usableRect.value);
