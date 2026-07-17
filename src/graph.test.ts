@@ -1,5 +1,35 @@
 import { TBlock } from "./components/canvas/blocks/Block";
 import { Graph } from "./graph";
+import { GRAPH_INSTANCE_SYMBOL_KEY, LEGACY_GRAPH_INSTANCE_SYMBOL_KEY } from "./utils/graphInstance";
+
+describe("Graph DOM instance bridge", () => {
+  it("registers the graph on attach and clears it on detach", () => {
+    const root = document.createElement("div");
+    const graph = new Graph({}, root);
+    const record = root as unknown as Record<symbol, Graph | undefined>;
+
+    expect(record[Symbol.for(GRAPH_INSTANCE_SYMBOL_KEY)]).toBe(graph);
+    expect(record[Symbol.for(LEGACY_GRAPH_INSTANCE_SYMBOL_KEY)]).toBe(graph);
+
+    graph.detach();
+
+    expect(record[Symbol.for(GRAPH_INSTANCE_SYMBOL_KEY)]).toBeUndefined();
+    expect(record[Symbol.for(LEGACY_GRAPH_INSTANCE_SYMBOL_KEY)]).toBeUndefined();
+  });
+
+  it("moves the bridge when an attached graph receives a new root", () => {
+    const firstRoot = document.createElement("div");
+    const secondRoot = document.createElement("div");
+    const graph = new Graph({}, firstRoot);
+    const symbol = Symbol.for(GRAPH_INSTANCE_SYMBOL_KEY);
+
+    graph.attach(secondRoot);
+
+    expect((firstRoot as unknown as Record<symbol, Graph | undefined>)[symbol]).toBeUndefined();
+    expect((secondRoot as unknown as Record<symbol, Graph | undefined>)[symbol]).toBe(graph);
+    graph.detach();
+  });
+});
 
 describe("Graph export/import and updateBlock integration", () => {
   function createBlock(): TBlock {
