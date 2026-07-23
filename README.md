@@ -288,3 +288,7 @@ A hybrid Canvas/React graph editor for node-based diagrams — reach for it to b
 - **Calling graph methods before `ATTACHED` state** — call `start()`/`zoomTo(...)` inside the `onStateChanged` callback when `state === GraphState.ATTACHED`, not on mount.
 - **Forgetting `setEntities`** — `useGraph` returns `graph`, `setEntities`, `start`; data only appears after `setEntities({blocks, connections})`.
 - **Mixing anchor types** — connections must reference existing anchor ids with matching `EAnchorType` (`IN`/`OUT`) on the source and target blocks.
+
+## Documentation for AI agents
+
+Agent-readable documentation for the installed version is located in `node_modules/@gravity-ui/graph/build/docs/INDEX.md`.
