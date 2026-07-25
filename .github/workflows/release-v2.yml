@@ -1,0 +1,54 @@
+name: Release v2
+
+on:
+  push:
+    branches:
+      - v2
+
+permissions:
+  contents: read
+
+jobs:
+  release-prerelease:
+    name: Release v2 prerelease from v2
+    # The initial v2 ref creation must not invoke release automation. Subsequent
+    # pushes remain blocked until package.json contains a reviewed 2.x
+    # prerelease version accepted by the preflight guard.
+    if: >-
+      github.event.before != '0000000000000000000000000000000000000000'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout for release preflight
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node for release preflight
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Validate release route
+        run: >-
+          node .github/release-routing/validate.mjs guard-push
+          --route pre-cutover-v2
+          --branch "${{ github.ref_name }}"
+          --dist-tag next
+          --prerelease true
+          --before "${{ github.event.before }}"
+          --after "${{ github.sha }}"
+      # The App creates/updates the reviewed release PR and publishes only after
+      # that PR is merged. Its ruleset bypass must be limited to those operations.
+      - name: Generate release App token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GRAVITY_UI_APP_ID }}
+          private-key: ${{ secrets.GRAVITY_UI_APP_PRIVATE_KEY }}
+      - name: Release v2 prerelease from v2
+        uses: gravity-ui/release-action@v1
+        with:
+          github-token: ${{ steps.generate-token.outputs.token }}
+          npm-token: ${{ secrets.GRAVITY_UI_BOT_NPM_TOKEN }}
+          node-version: 24
+          default-branch: v2
+          npm-dist-tag: next
+          prerelease: true
