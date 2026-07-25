@@ -193,12 +193,15 @@ async function installConsumer(name, tarball, dependencies, fixture) {
     entryPoints: [join(consumerRoot, fixture.endsWith(".tsx") ? "index.tsx" : "index.ts")],
     bundle: true,
     format: "esm",
+    outdir: join(consumerRoot, "dist"),
     platform: "browser",
     write: false,
     logLevel: "silent",
   });
   const javascript = bundleResult.outputFiles.find((output) => output.path.endsWith(".js"));
+  const stylesheet = bundleResult.outputFiles.find((output) => output.path.endsWith(".css"));
   assert(javascript, `${name} did not produce a JavaScript runtime bundle`);
+  assert(stylesheet, `${name} did not resolve the package stylesheet imports`);
   await import(`data:text/javascript;base64,${Buffer.from(javascript.contents).toString("base64")}`);
 }
 
