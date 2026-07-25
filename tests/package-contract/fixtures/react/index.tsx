@@ -3,7 +3,7 @@ import { Graph, type TGraphColors } from "@gravity-ui/graph";
 import { GraphCanvas, GraphContext, useGraph, useGraphEvent, type HookGraphParams } from "@gravity-ui/graph/react";
 
 const colors: Partial<TGraphColors> = {};
-const params: HookGraphParams = { settings: { colors } };
+const params: HookGraphParams = { viewConfiguration: { colors } };
 
 export function ContractGraph() {
   const { graph } = useGraph(params);
