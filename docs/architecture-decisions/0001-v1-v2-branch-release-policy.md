@@ -4,7 +4,8 @@
 - Decision issue: [#315](https://github.com/gravity-ui/graph/issues/315)
 - Parent initiative: [#310](https://github.com/gravity-ui/graph/issues/310)
 - Audited Stage 0 base: `058990e019c1a79458a50584cb21666689ab9c3c`
-- Approved `v2` creation commit: not selected yet; see [Selecting the `v2` creation commit](#selecting-the-v2-creation-commit)
+- Approved `v2` creation commit record: recorded externally after the Stage 0
+  baseline merge; see [Selecting the `v2` creation commit](#selecting-the-v2-creation-commit)
 
 ## Context
 
@@ -134,17 +135,27 @@ and only the minimum release-automation bypass. Repository-verifiable artifacts
 do not substitute for this external configuration, and this ADR does not claim
 that the external gate has already passed.
 
-The selected commit must descend from the audited Stage 0 base. The decision
-owner records its full SHA in both this ADR's `Approved v2 creation commit`
-field and issue #315 only after both the repository baseline gate and the
-external ruleset-activation gate have passed. The branch-creation operator then
+The selected commit must contain the complete Stage 0 delivery baseline and
+descend from the audited Stage 0 base. The exact full SHA is approved only after
+both the repository baseline gate and the external ruleset-activation gate have
+passed. The decision owner records that approval in issue #315 with the
+reviewed pull request and merge evidence. The branch-creation operator then
 verifies that `main` resolves to that exact SHA, creates `v2` from it, and
-records the same SHA as the initial common commit in #312. Immediately after
-creation, the assigned administrator must verify and record in #317 that the
-ruleset is effective on `v2` and that its required checks apply. Stage 1 is not
-authorized until that post-creation verification passes. Any baseline change
-after approval invalidates the selection and requires a new full SHA approval
-before `v2` is created.
+records the same SHA as the initial common commit in #312, linking the #315
+decision and the relevant pull request/merge evidence.
+
+Issues #315 and #312 form the canonical immutable decision record for the
+approved creation SHA. This repository ADR cannot canonically embed that SHA:
+changing the ADR to add the value would create a new commit and make the
+recorded SHA self-referential and immediately stale. The header therefore keeps
+the audited base and the external-record status rather than duplicating the
+future creation SHA inside the commit being selected.
+
+Immediately after creation, the assigned administrator must verify and record
+in #317 that the ruleset is effective on `v2` and that its required checks
+apply. Stage 1 is not authorized until that post-creation verification passes.
+Any baseline change after approval invalidates the selection and requires a new
+full SHA approval in #315 before `v2` is created.
 
 This record-and-selection rule deliberately prevents premature creation of the
 long-lived `v2` branch.
