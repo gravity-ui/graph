@@ -34,3 +34,10 @@ It is enough to provide us such notification once.
 ## Other questions
 
 If you have any questions, please mail us at opensource@yandex-team.ru.
+
+## Choose a target branch
+
+Before opening an issue or pull request, follow the
+[v1/v2 contribution and synchronization runbook](docs/contributing/v1-v2-routing.md).
+It explains which branch owns v1 maintenance and v2 development before and
+after cutover, and which routing evidence maintainers require.
