@@ -97,7 +97,21 @@ function validateCi() {
   }
 
   const ci = readWorkflow("ci.yaml");
-  assert(hasRun(ci, "npm run test:package-contract"), "CI must run the full package contract");
+  assert.equal(ci.jobs.tests?.name, "Tests", "unit tests must remain a separate Tests check");
+  const packageContractJob = ci.jobs.package_contract;
+  assert(packageContractJob, "CI must define a separate package_contract job");
+  assert.equal(packageContractJob.name, "Package Contract", "package contract check must keep its stable display name");
+  const packageContractCommands = (packageContractJob.steps ?? [])
+    .filter((step) => step.run !== undefined)
+    .map((step) => String(step.run).trim());
+  assert(
+    packageContractCommands.includes("npm run test:package-contract"),
+    "Package Contract job must run the exact package-contract command"
+  );
+  assert(
+    !(ci.jobs.tests.steps ?? []).some((step) => String(step.run ?? "").trim() === "npm run test:package-contract"),
+    "Package Contract must not be folded into the Tests job"
+  );
   assert(
     hasRun(ci, ".github/release-routing/validate.mjs check-workflows"),
     "CI must validate release routing and workflow wiring"

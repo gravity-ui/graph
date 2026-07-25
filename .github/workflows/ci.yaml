@@ -41,7 +41,21 @@ jobs:
         run: npm ci
       - name: Unit Tests
         run: npm run test
-      - name: Package Contract
-        run: npm run test:package-contract
     # - name: ESBuild compatability
     # run: npm run test:esbuild
+
+  package_contract:
+    name: Package Contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install Packages
+        run: npm ci
+      - name: Verify Package Contract
+        run: npm run test:package-contract
