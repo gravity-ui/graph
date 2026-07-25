@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "repository": "gravity-ui/graph",
+  "requiredChecks": ["Verify Files", "Tests", "Package Contract", "E2E Tests"],
+  "releaseAutomationBypass": {
+    "decisionStatus": "unresolved",
+    "allowedDecisionModes": ["none", "integration"],
+    "maximumActors": 1,
+    "allowedActorTypes": ["Integration"],
+    "requiredBypassMode": "pull_request"
+  },
+  "rulesets": [
+    {
+      "key": "main",
+      "name": "Gravity Graph main protection",
+      "phase": "pre-cutover-and-after",
+      "target": "branch",
+      "enforcement": "active",
+      "include": ["refs/heads/main"],
+      "exclude": [],
+      "requirePullRequest": true,
+      "minimumApprovals": 1,
+      "requireResolvedConversations": true,
+      "requiredMergeMethods": ["merge"],
+      "blockDeletion": true,
+      "blockForcePush": true,
+      "requireLinearHistory": false,
+      "strictRequiredStatusChecks": true,
+      "requiredChecks": ["Verify Files", "Tests", "Package Contract", "E2E Tests"],
+      "requireReleaseAutomationBypassDecision": true
+    },
+    {
+      "key": "v2",
+      "name": "Gravity Graph v2 protection",
+      "phase": "must-be-active-before-v2-ref",
+      "target": "branch",
+      "enforcement": "active",
+      "include": ["refs/heads/v2"],
+      "exclude": [],
+      "requirePullRequest": true,
+      "minimumApprovals": 1,
+      "requireResolvedConversations": true,
+      "requiredMergeMethods": ["merge"],
+      "blockDeletion": true,
+      "blockForcePush": true,
+      "requireLinearHistory": false,
+      "strictRequiredStatusChecks": true,
+      "requiredChecks": ["Verify Files", "Tests", "Package Contract", "E2E Tests"],
+      "requireReleaseAutomationBypassDecision": true
+    },
+    {
+      "key": "release-v1",
+      "name": "Gravity Graph release-v1 protection",
+      "phase": "must-be-active-before-release-v1-ref-at-cutover",
+      "target": "branch",
+      "enforcement": "active",
+      "include": ["refs/heads/release/v1"],
+      "exclude": [],
+      "requirePullRequest": true,
+      "minimumApprovals": 1,
+      "requireResolvedConversations": true,
+      "requiredMergeMethods": [],
+      "blockDeletion": true,
+      "blockForcePush": true,
+      "requireLinearHistory": null,
+      "strictRequiredStatusChecks": true,
+      "requiredChecks": ["Verify Files", "Tests", "Package Contract", "E2E Tests"],
+      "requireReleaseAutomationBypassDecision": true
+    }
+  ]
+}
