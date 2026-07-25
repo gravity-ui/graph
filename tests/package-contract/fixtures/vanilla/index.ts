@@ -16,5 +16,5 @@ export const vanillaContract = {
   point,
   anchorPortId: createAnchorPortId("block", "anchor"),
   portId: createPortId("block", "port"),
-  scaleLevel: defaultGetCameraBlockScaleLevel(1),
+  scaleStrategy: defaultGetCameraBlockScaleLevel,
 };
