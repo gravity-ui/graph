@@ -140,6 +140,8 @@ Anchor styling also uses CSS variables:
 .anchor {
   --graph-block-anchor-bg: rgba(255, 190, 92, 1);
   --graph-block-anchor-border-selected: rgba(255, 190, 92, 1);
+  --graph-block-anchor-width: 20px;
+  --graph-block-anchor-height: 20px;
 }
 ```
 
