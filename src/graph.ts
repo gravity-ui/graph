@@ -18,11 +18,14 @@ import { Layers } from "./services/LayersService";
 import { CameraService, getInitCameraState } from "./services/camera/CameraService";
 import type { TCameraState } from "./services/camera/CameraService";
 import { DragService } from "./services/drag";
+import { THighlightSelection } from "./services/highlight";
 import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
 import { TGraphSettingsConfig } from "./store/settings";
 import { clearColorCache, getXY } from "./utils/functions";
+import { getRelatedEntitiesByPorts } from "./utils/graph/getRelatedEntitiesByPorts";
+import type { TRelatedEntitiesByType, TRelatedEntitiesOptions } from "./utils/graph/getRelatedEntitiesByPorts";
 import { clearTextCache } from "./utils/renderers/text";
 import { RecursivePartial } from "./utils/types/helpers";
 import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
@@ -125,6 +128,10 @@ export class Graph {
 
   public get selectionService() {
     return this.rootStore.selectionService;
+  }
+
+  public get highlightService() {
+    return this.rootStore.highlightService;
   }
 
   constructor(
@@ -278,6 +285,25 @@ export class Graph {
       ) as InstanceType<T>[];
     }
     return items as InstanceType<T>[];
+  }
+
+  public getRelatedEntitiesByPorts(
+    component: GraphComponent,
+    options?: TRelatedEntitiesOptions
+  ): TRelatedEntitiesByType {
+    return getRelatedEntitiesByPorts(this, component, options);
+  }
+
+  public highlight(selection: THighlightSelection): void {
+    this.rootStore.highlightService.highlight(selection);
+  }
+
+  public focus(selection: THighlightSelection): void {
+    this.rootStore.highlightService.focus(selection);
+  }
+
+  public clearHighlight(): void {
+    this.rootStore.highlightService.clearHighlight();
   }
 
   public getPointInCameraSpace(event: MouseEvent) {
