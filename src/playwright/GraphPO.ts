@@ -197,7 +197,11 @@ export class GraphPO {
   }
 
   public async drag(from: GraphPoint, to: GraphPoint, options: GraphDragOptions = {}): Promise<void> {
-    const [fromPosition, toPosition] = await Promise.all([this.toRootPoint(from), this.toRootPoint(to)]);
+    const [fromPosition, toPosition, dragThreshold] = await Promise.all([
+      this.toRootPoint(from),
+      this.toRootPoint(to),
+      this.evaluate((graph) => graph.rootStore.settings.$dragThreshold.value),
+    ]);
     const root = await this.getGraphRootHandle();
     const { button = "left", steps = 10, waitForFrames = 2 } = options;
     let pointerDown = false;
@@ -211,6 +215,20 @@ export class GraphPO {
 
       await this.page.mouse.down({ button });
       pointerDown = true;
+
+      const fromViewport = {
+        x: bounds.x + fromPosition.x,
+        y: bounds.y + fromPosition.y,
+      };
+      if (dragThreshold > 0) {
+        const activationDistance = dragThreshold + 1;
+        const activationDirection = fromPosition.x + activationDistance <= bounds.width ? 1 : -1;
+        await this.page.mouse.move(fromViewport.x + activationDirection * activationDistance, fromViewport.y);
+      }
+      // The graph starts a drag on a mousemove rather than on mousedown. Move
+      // back to the source point so the drag origin matches `from` even when a
+      // non-zero drag threshold is configured.
+      await this.page.mouse.move(fromViewport.x, fromViewport.y);
       await this.waitForFrames(1);
       await this.page.mouse.move(bounds.x + toPosition.x, bounds.y + toPosition.y, {
         steps,

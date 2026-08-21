@@ -56,7 +56,8 @@
     "pnpm": "Please use npm instead of pnpm to install dependencies"
   },
   "scripts": {
-    "typecheck": "npm run build:publish -- --noEmit",
+    "typecheck": "npm run build:publish && npm run typecheck:playwright-consumer",
+    "typecheck:playwright-consumer": "node scripts/check-playwright-consumer-types.mjs",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
     "test:unit": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests --updateSnapshot",
     "test": "npm run test:unit",

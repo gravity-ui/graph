@@ -1,6 +1,5 @@
-import { CoreComponentProps } from "lib/CoreComponent";
-
 import { Component, TComponentState } from "../../../lib/Component";
+import { CoreComponentProps } from "../../../lib/CoreComponent";
 import { ESchedulerPriority } from "../../../lib/Scheduler";
 import { ConnectionState } from "../../../store/connection/ConnectionState";
 import { debounce } from "../../../utils/utils/schedule";

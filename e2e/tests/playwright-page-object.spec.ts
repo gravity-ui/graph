@@ -38,6 +38,9 @@ test.describe("Public Playwright page objects", () => {
           targetBlockId: "block-2",
         },
       ],
+      settings: {
+        canDrag: "all",
+      },
     });
 
     // The public PO intentionally receives an application-owned wrapper,
@@ -68,5 +71,13 @@ test.describe("Public Playwright page objects", () => {
 
     await graph.camera().zoomToScale(0.75);
     expect((await graph.camera().getState()).scale).toBeCloseTo(0.75);
+  });
+
+  test("drags a block center to the requested world coordinate", async () => {
+    const block = graph.block("block-1");
+
+    await block.dragTo({ x: 500, y: 350 }, { steps: 1 });
+
+    expect(await block.getCenter()).toEqual({ x: 500, y: 350 });
   });
 });
