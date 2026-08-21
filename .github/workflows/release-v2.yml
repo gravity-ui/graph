@@ -23,6 +23,7 @@ jobs:
         with:
           github-token: ${{ steps.generate-token.outputs.token }}
           npm-token: ${{ secrets.GRAVITY_UI_BOT_NPM_TOKEN }}
+          # Keep the release runtime aligned with the existing v1 release workflow.
           node-version: 24
           default-branch: v2
           npm-dist-tag: next

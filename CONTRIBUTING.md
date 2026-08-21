@@ -35,5 +35,4 @@ It is enough to provide us such notification once.
 
 If you have any questions, please mail us at opensource@yandex-team.ru.
 
-For branch and release guidance during the v2 work, see the
-[v1/v2 transition guide](docs/v1-v2-transition.md).
+See the [v1/v2 transition guide](docs/v1-v2-transition.md) for branch and release guidance during the v2 work.
