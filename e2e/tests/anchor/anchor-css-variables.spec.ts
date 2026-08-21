@@ -34,14 +34,21 @@ test.describe("Anchor CSS variables", () => {
   });
 
   test("allows consumers to override width and height", async ({ page }) => {
+    await page.addStyleTag({
+      content: `
+        .anchor {
+          --graph-block-anchor-width: 24px;
+          --graph-block-anchor-height: 20px;
+        }
+      `,
+    });
+
     const styles = await page.evaluate(() => {
       const graph = document.createElement("div");
       graph.className = "graph-wrapper";
-      graph.style.setProperty("--graph-block-anchor-width", "24px");
-      graph.style.setProperty("--graph-block-anchor-height", "20px");
 
       const anchor = document.createElement("div");
-      anchor.className = "graph-block-anchor";
+      anchor.className = "graph-block-anchor anchor";
       graph.appendChild(anchor);
       document.body.appendChild(graph);
 

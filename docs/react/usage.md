@@ -110,6 +110,7 @@ import { GraphBlockAnchor } from "@gravity-ui/graph/react";
   graph={graph} 
   anchor={anchor}
   position="fixed"
+  className="anchor"
 >
   {(state) => (
     <div className={state.selected ? 'selected' : ''}>
@@ -125,6 +126,7 @@ import { GraphBlockAnchor } from "@gravity-ui/graph/react";
   graph={graph} 
   anchor={anchor}
   position="auto"
+  className="anchor"
   // Inputs will be placed on the left, outputs on the right
 >
   {(state) => (
@@ -437,9 +439,10 @@ function BlockComponent({ block, graph }: { block: TBlock; graph: Graph }) {
           graph={graph}
           anchor={anchor}
           position="fixed"
+          className="anchor"
         >
           {(state) => (
-            <div className={`anchor ${state.selected ? 'selected' : ''}`}>
+            <div className="anchor-content">
               <div className="anchor-dot" />
               {state.isConnecting && (
                 <div className="anchor-label">
@@ -571,15 +574,15 @@ const styles = `
 }
 
 .anchor {
+  --graph-block-anchor-width: 12px;
+  --graph-block-anchor-height: 12px;
   position: absolute;
-  width: 12px;
-  height: 12px;
   background: var(--graph-block-anchor-bg);
   border-radius: 50%;
   cursor: pointer;
 }
 
-.anchor.selected {
+.anchor.graph-block-anchor-selected {
   border: 2px solid var(--graph-block-anchor-border-selected);
 }
 
