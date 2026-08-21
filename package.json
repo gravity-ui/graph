@@ -59,7 +59,7 @@
     "ci:storybook:build": "npm run build-storybook",
     "build:docs": "node scripts/build-docs.mjs",
     "copy-styles": "copyfiles -u 1 \"src/**/*.css\" build/",
-    "build:publish": "tsc -p tsconfig.publish.json && node scripts/prepare-publish-declarations.mjs && npm run copy-styles && npm run build:docs",
+    "build:publish": "tsc -p tsconfig.publish.json && npm run copy-styles && npm run build:docs",
     "build": "tsc --declaration && npm run copy-styles && npm run build:docs",
     "prepublishOnly": "npm run typecheck && npm run test && npm run build:publish",
     "dev": "concurrently \"tsc --watch --declaration\" \"chokidar 'src/**/*.css' -c 'npm run copy-styles'\"",
