@@ -60,7 +60,7 @@ test.describe("Block renderDelegated — React HTML layer", () => {
   // ---------------------------------------------------------------------------
 
   test("at low zoom: no HTML blocks in DOM", async () => {
-    await graphPO.getCamera().zoomToScale(0.3);
+    await graphPO.camera().zoomToScale(0.3);
     await graphPO.waitForFrames(5);
 
     const count = await graphPO.getRenderedHtmlBlockCount();
@@ -68,10 +68,10 @@ test.describe("Block renderDelegated — React HTML layer", () => {
   });
 
   test("at low zoom: canvas blocks are rendered", async () => {
-    await graphPO.getCamera().zoomToScale(0.3);
+    await graphPO.camera().zoomToScale(0.3);
     await graphPO.waitForFrames(5);
 
-    const { b1, b2 } = await graphPO.evaluateInGraph((graph) => {
+    const { b1, b2 } = await graphPO.evaluate((graph) => {
       const store = graph.rootStore;
       return {
         b1: store.blocksList.$blocksMap.value.get("block-1")?.getViewComponent()?.isRendered() ?? false,
@@ -84,11 +84,11 @@ test.describe("Block renderDelegated — React HTML layer", () => {
   });
 
   test("at low zoom: blocks are selectable via canvas hitbox", async () => {
-    await graphPO.getCamera().zoomToScale(0.3);
+    await graphPO.camera().zoomToScale(0.3);
     await graphPO.waitForFrames(5);
 
-    await graphPO.getBlockCOM("block-1").click();
-    expect(await graphPO.getBlockCOM("block-1").isSelected()).toBe(true);
+    await graphPO.block("block-1").click();
+    expect(await graphPO.block("block-1").isSelected()).toBe(true);
   });
 
   // ---------------------------------------------------------------------------
@@ -96,7 +96,7 @@ test.describe("Block renderDelegated — React HTML layer", () => {
   // ---------------------------------------------------------------------------
 
   test("at high zoom: HTML blocks appear in DOM", async () => {
-    await graphPO.getCamera().zoomToScale(1.0);
+    await graphPO.camera().zoomToScale(1.0);
     await graphPO.waitForFrames(5);
 
     expect(await graphPO.getRenderedHtmlBlockCount()).toBe(2);
@@ -105,10 +105,10 @@ test.describe("Block renderDelegated — React HTML layer", () => {
   });
 
   test("at high zoom: canvas blocks are NOT rendered (delegated to React)", async () => {
-    await graphPO.getCamera().zoomToScale(1.0);
+    await graphPO.camera().zoomToScale(1.0);
     await graphPO.waitForFrames(5);
 
-    const { b1, b2 } = await graphPO.evaluateInGraph((graph) => {
+    const { b1, b2 } = await graphPO.evaluate((graph) => {
       const store = graph.rootStore;
       return {
         b1: store.blocksList.$blocksMap.value.get("block-1")?.getViewComponent()?.isRendered() ?? true,
@@ -121,15 +121,15 @@ test.describe("Block renderDelegated — React HTML layer", () => {
   });
 
   test("at high zoom: hitbox preserved — blocks remain selectable", async () => {
-    await graphPO.getCamera().zoomToScale(1.0);
+    await graphPO.camera().zoomToScale(1.0);
     await graphPO.waitForFrames(5);
 
-    await graphPO.getBlockCOM("block-1").click();
-    expect(await graphPO.getBlockCOM("block-1").isSelected()).toBe(true);
+    await graphPO.block("block-1").click();
+    expect(await graphPO.block("block-1").isSelected()).toBe(true);
   });
 
   test("at high zoom: connections are preserved", async () => {
-    await graphPO.getCamera().zoomToScale(1.0);
+    await graphPO.camera().zoomToScale(1.0);
     await graphPO.waitForFrames(5);
 
     expect(await graphPO.hasConnectionBetween("block-1", "block-2")).toBe(true);
@@ -140,7 +140,7 @@ test.describe("Block renderDelegated — React HTML layer", () => {
   // ---------------------------------------------------------------------------
 
   test("zooming out unmounts HTML blocks and restores canvas rendering", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
 
     // Activate React mode
     await camera.zoomToScale(1.0);
@@ -153,14 +153,14 @@ test.describe("Block renderDelegated — React HTML layer", () => {
 
     expect(await graphPO.getRenderedHtmlBlockCount()).toBe(0);
 
-    const b1Rendered = await graphPO.evaluateInGraph((graph) => {
+    const b1Rendered = await graphPO.evaluate((graph) => {
       return graph.rootStore.blocksList.$blocksMap.value.get("block-1")?.getViewComponent()?.isRendered() ?? false;
     });
     expect(b1Rendered).toBe(true);
   });
 
   test("zooming in mounts HTML blocks and suppresses canvas rendering", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
 
     // Start in canvas mode
     await camera.zoomToScale(0.3);
@@ -173,14 +173,14 @@ test.describe("Block renderDelegated — React HTML layer", () => {
 
     expect(await graphPO.getRenderedHtmlBlockCount()).toBe(2);
 
-    const b1Rendered = await graphPO.evaluateInGraph((graph) => {
+    const b1Rendered = await graphPO.evaluate((graph) => {
       return graph.rootStore.blocksList.$blocksMap.value.get("block-1")?.getViewComponent()?.isRendered() ?? true;
     });
     expect(b1Rendered).toBe(false);
   });
 
   test("connection persists across zoom level transitions", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
 
     await camera.zoomToScale(0.3);
     await graphPO.waitForFrames(3);

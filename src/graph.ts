@@ -23,7 +23,9 @@ import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
 import { TGraphSettingsConfig } from "./store/settings";
 import { clearColorCache, getXY } from "./utils/functions";
+import { clearGraphInstance, setGraphInstance } from "./utils/graphInstance";
 import { clearTextCache } from "./utils/renderers/text";
+import "./utils/types/global";
 import { RecursivePartial } from "./utils/types/helpers";
 import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
 
@@ -432,7 +434,11 @@ export class Graph {
     if (this.state === GraphState.READY) {
       return;
     }
-    rootEl[Symbol.for("graph")] = this;
+    const previousRoot = this.layers.$root;
+    if (previousRoot && previousRoot !== rootEl) {
+      clearGraphInstance(previousRoot, this);
+    }
+    setGraphInstance(rootEl, this);
     this.layers.attach(rootEl);
 
     const { width: rootWidth, height: rootHeight } = this.layers.getRootSize();
@@ -482,7 +488,11 @@ export class Graph {
   }
 
   public stop(full = false) {
+    const root = this.layers.$root;
     this.layers.detach(full);
+    if (full && root) {
+      clearGraphInstance(root, this);
+    }
     clearTextCache();
     this.scheduler.stop();
     this.setGraphState(this.layers.$root ? GraphState.ATTACHED : GraphState.INIT);

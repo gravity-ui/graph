@@ -36,7 +36,7 @@ test.describe("MOUSE_WHEEL_BEHAVIOR for simulated wheel intents", () => {
   });
 
   test("simulated zoom intent: vertical wheel changes scale", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
     await camera.zoomToCenter();
     await graphPO.waitForFrames(3);
 
@@ -54,7 +54,7 @@ test.describe("MOUSE_WHEEL_BEHAVIOR for simulated wheel intents", () => {
   });
 
   test("simulated pan intent: vertical wheel pans (scale unchanged)", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
     await camera.zoomToCenter();
     await graphPO.waitForFrames(3);
 
@@ -68,7 +68,7 @@ test.describe("MOUSE_WHEEL_BEHAVIOR for simulated wheel intents", () => {
   });
 
   test("simulated zoom intent + MOUSE_WHEEL_BEHAVIOR scroll: override pan still pans", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
     await camera.zoomToCenter();
     await graphPO.waitForFrames(3);
 
@@ -88,7 +88,7 @@ test.describe("MOUSE_WHEEL_BEHAVIOR for simulated wheel intents", () => {
   });
 
   test("simulated pan intent survives unrelated setConstants update", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
     await camera.zoomToCenter();
     await graphPO.waitForFrames(3);
     await camera.emulateZoom(300);

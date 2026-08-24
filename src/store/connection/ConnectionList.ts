@@ -13,7 +13,7 @@ import { PortsStore } from "./port/PortList";
 
 declare module "../../graphEvents" {
   interface GraphEventsDefinitions {
-    "connection-selection-change": (event: SelectionEvent<TConnection["id"]>) => void;
+    "connection-selection-change": (event: SelectionEvent<TConnectionId>) => void;
   }
 }
 

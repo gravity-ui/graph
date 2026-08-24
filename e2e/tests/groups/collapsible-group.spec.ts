@@ -74,6 +74,33 @@ const CONNECTIONS = [
   },
 ];
 
+async function getConnectionGeometry(
+  graphPO: GraphPageObject,
+  sourceBlockId: string,
+  targetBlockId: string
+): Promise<{ source: { x: number; y: number }; target: { x: number; y: number } } | null> {
+  return graphPO.evaluate(
+    (graph, ids) => {
+      const connections = graph.rootStore.connectionsList;
+      const connection = Array.from((connections.$connectionsMap as any).value.values()).find(
+        (candidate: any) =>
+          candidate.$state?.value?.sourceBlockId === ids.sourceBlockId &&
+          candidate.$state?.value?.targetBlockId === ids.targetBlockId
+      ) as any;
+      const geometry = connection?.$geometry?.value;
+      if (!geometry || geometry.length < 2) {
+        return null;
+      }
+
+      return {
+        source: { x: geometry[0].x, y: geometry[0].y },
+        target: { x: geometry[1].x, y: geometry[1].y },
+      };
+    },
+    { sourceBlockId, targetBlockId }
+  );
+}
+
 // Click position inside the group but above inner blocks (in the padding area)
 const GROUP_CLICK = { x: GROUP_RECT.x + GROUP_RECT.width / 2, y: GROUP_RECT.y + 5 };
 
@@ -164,9 +191,9 @@ test.describe("CollapsibleGroup", () => {
     });
 
     test("group is a full GraphComponent — receives click events", async () => {
-      const listener = await graphPO.listenGraphEvents("click");
+      const listener = await graphPO.events.listen("click");
 
-      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
 
       const targets = await listener.analyze((events) =>
         events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
@@ -176,9 +203,9 @@ test.describe("CollapsibleGroup", () => {
     });
 
     test("group is a full GraphComponent — receives mouseenter events", async () => {
-      const listener = await graphPO.listenGraphEvents("mouseenter");
+      const listener = await graphPO.events.listen("mouseenter");
 
-      await graphPO.hover(GROUP_CLICK.x, GROUP_CLICK.y);
+      await graphPO.hoverAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
       await graphPO.waitForFrames(2);
 
       const targets = await listener.analyze((events) =>
@@ -189,9 +216,9 @@ test.describe("CollapsibleGroup", () => {
     });
 
     test("group is a full GraphComponent — receives dblclick events", async () => {
-      const listener = await graphPO.listenGraphEvents("dblclick");
+      const listener = await graphPO.events.listen("dblclick");
 
-      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
+      await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const targets = await listener.analyze((events) =>
         events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
@@ -218,7 +245,7 @@ test.describe("CollapsibleGroup", () => {
       // TODO: generate linux snapshots
       // await expect(graphPO.page).toHaveScreenshot("collapse-before.png", { clip: clipBefore });
 
-      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
+      await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const state = await graphPO.page.evaluate(() => {
         return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
@@ -240,9 +267,9 @@ test.describe("CollapsibleGroup", () => {
     });
 
     test("emits group-collapse-change event with correct detail", async () => {
-      const getEvents = await graphPO.collectGraphEventDetails("group-collapse-change");
+      const getEvents = await graphPO.events.collectDetails("group-collapse-change");
 
-      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
+      await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const details = await getEvents();
 
@@ -262,7 +289,7 @@ test.describe("CollapsibleGroup", () => {
         });
       });
 
-      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
+      await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const collapsed = await graphPO.page.evaluate(() => {
         return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value.collapsed;
@@ -272,7 +299,7 @@ test.describe("CollapsibleGroup", () => {
     });
 
     test("connections redirect to group edges after collapse (port delegation)", async () => {
-      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
+      await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const result = await graphPO.page.evaluate((pad) => {
         const store = window.graph.rootStore;
@@ -302,17 +329,17 @@ test.describe("CollapsibleGroup", () => {
     });
 
     test("connection still exists between group block and outer block", async () => {
-      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
+      await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const exists = await graphPO.hasConnectionBetween("block-1", "block-outer");
       expect(exists).toBe(true);
 
       // Geometry must be resolved — source endpoint is now at the group right edge
-      const geo = await graphPO.getConnectionGeometry("block-1", "block-outer");
+      const geo = await getConnectionGeometry(graphPO, "block-1", "block-outer");
       expect(geo).not.toBeNull();
       // Source point should have moved to the group's right edge (not block-1's original x)
-      const state = await graphPO.page.evaluate(() =>
-        window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value
+      const state = await graphPO.page.evaluate(
+        () => window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value
       );
       const collapsedRect = (state as any)?.collapsedRect;
       expect(geo!.source.x).toBe(collapsedRect.x + collapsedRect.width + GROUP_PAD);
@@ -333,11 +360,11 @@ test.describe("CollapsibleGroup", () => {
 
     test("group expands back to original rect", async () => {
       // Collapse
-      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
+      await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       // The collapsed header is at { x:80, y:80, w:200, h:48 }, center = (180, 104)
       const collapsedCenter = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 24 };
-      await graphPO.doubleClick(collapsedCenter.x, collapsedCenter.y, { waitFrames: 5 });
+      await graphPO.doubleClickAt({ x: collapsedCenter.x, y: collapsedCenter.y }, { waitForFrames: 5 });
 
       const state = await graphPO.page.evaluate(() => {
         return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
@@ -357,13 +384,13 @@ test.describe("CollapsibleGroup", () => {
 
     test("emits group-collapse-change event on expand", async () => {
       // Collapse first
-      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
+      await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       // Set up event collection for the expand
-      const getEvents = await graphPO.collectGraphEventDetails("group-collapse-change");
+      const getEvents = await graphPO.events.collectDetails("group-collapse-change");
 
       const collapsedCenter = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 24 };
-      await graphPO.doubleClick(collapsedCenter.x, collapsedCenter.y, { waitFrames: 5 });
+      await graphPO.doubleClickAt({ x: collapsedCenter.x, y: collapsedCenter.y }, { waitForFrames: 5 });
 
       const details = await getEvents();
 
@@ -402,16 +429,15 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.waitForFrames(5);
 
       // Click on the group at its original (expanded) position
-      const listener = await graphPO.listenGraphEvents("click");
-      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      const listener = await graphPO.events.listen("click");
+      await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
 
       const targets = await listener.analyze((events) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean),
+        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
       );
       expect(targets).toContain("group-1");
       await listener.stop();
     });
-
   });
 
   // ---------------------------------------------------------------------------
@@ -504,7 +530,7 @@ test.describe("CollapsibleGroup", () => {
     });
 
     test("anchor OUT port redirects to right edge on collapse", async () => {
-      await graphPO.doubleClick(ANCHOR_GROUP_CLICK.x, ANCHOR_GROUP_CLICK.y, { waitFrames: 5 });
+      await graphPO.doubleClickAt({ x: ANCHOR_GROUP_CLICK.x, y: ANCHOR_GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const result = await graphPO.page.evaluate((pad) => {
         const store = window.graph.rootStore;
@@ -530,7 +556,7 @@ test.describe("CollapsibleGroup", () => {
     });
 
     test("anchor IN port redirects to left edge on collapse", async () => {
-      await graphPO.doubleClick(ANCHOR_GROUP_CLICK.x, ANCHOR_GROUP_CLICK.y, { waitFrames: 5 });
+      await graphPO.doubleClickAt({ x: ANCHOR_GROUP_CLICK.x, y: ANCHOR_GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const result = await graphPO.page.evaluate((pad) => {
         const store = window.graph.rootStore;
@@ -556,16 +582,16 @@ test.describe("CollapsibleGroup", () => {
     });
 
     test("connection still exists via anchor ports after collapse", async () => {
-      await graphPO.doubleClick(ANCHOR_GROUP_CLICK.x, ANCHOR_GROUP_CLICK.y, { waitFrames: 5 });
+      await graphPO.doubleClickAt({ x: ANCHOR_GROUP_CLICK.x, y: ANCHOR_GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const exists = await graphPO.hasConnectionBetween("block-a", "block-b");
       expect(exists).toBe(true);
 
       // Geometry must be resolved and source endpoint moved to group right edge
-      const geo = await graphPO.getConnectionGeometry("block-a", "block-b");
+      const geo = await getConnectionGeometry(graphPO, "block-a", "block-b");
       expect(geo).not.toBeNull();
-      const gs = await graphPO.page.evaluate(() =>
-        window.graph.rootStore.groupsList.getGroupState("group-anchors")?.$state.value
+      const gs = await graphPO.page.evaluate(
+        () => window.graph.rootStore.groupsList.getGroupState("group-anchors")?.$state.value
       );
       const collapsedRect = (gs as any)?.collapsedRect;
       expect(geo!.source.x).toBe(collapsedRect.x + collapsedRect.width + GROUP_PAD);
@@ -648,8 +674,8 @@ test.describe("CollapsibleGroup", () => {
     };
 
     test("collapse → drag collapsed header → expand keeps geometry and hitbox", async () => {
-      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
-      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
+      await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
+      await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const before = await graphPO.page.evaluate(() => {
         const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
@@ -657,12 +683,16 @@ test.describe("CollapsibleGroup", () => {
       });
       expect(before.collapsedRect).toBeDefined();
 
-      await graphPO.dragTo(
-        before.collapsedRect!.x + before.collapsedRect!.width / 2,
-        before.collapsedRect!.y + before.collapsedRect!.height / 2,
-        before.collapsedRect!.x + before.collapsedRect!.width / 2 + 50,
-        before.collapsedRect!.y + before.collapsedRect!.height / 2 + 30,
-        { waitFrames: 25 },
+      await graphPO.drag(
+        {
+          x: before.collapsedRect!.x + before.collapsedRect!.width / 2,
+          y: before.collapsedRect!.y + before.collapsedRect!.height / 2,
+        },
+        {
+          x: before.collapsedRect!.x + before.collapsedRect!.width / 2 + 50,
+          y: before.collapsedRect!.y + before.collapsedRect!.height / 2 + 30,
+        },
+        { waitForFrames: 25 }
       );
 
       const after = await graphPO.page.evaluate(() => {
@@ -684,7 +714,7 @@ test.describe("CollapsibleGroup", () => {
         x: crAfter!.x + crAfter!.width / 2,
         y: crAfter!.y + crAfter!.height / 2,
       };
-      await graphPO.doubleClick(collapsedCenter.x, collapsedCenter.y, { waitFrames: 5 });
+      await graphPO.doubleClickAt({ x: collapsedCenter.x, y: collapsedCenter.y }, { waitForFrames: 5 });
 
       const expanded = await graphPO.page.evaluate(() => {
         const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
@@ -694,13 +724,13 @@ test.describe("CollapsibleGroup", () => {
       expect(expanded.collapsedRect).toBeUndefined();
       expect(expanded.rect).toBeDefined();
 
-      const listener = await graphPO.listenGraphEvents("click");
-      await graphPO.click(
-        expanded.rect!.x + expanded.rect!.width / 2,
-        expanded.rect!.y + expanded.rect!.height / 2,
-      );
+      const listener = await graphPO.events.listen("click");
+      await graphPO.clickAt({
+        x: expanded.rect!.x + expanded.rect!.width / 2,
+        y: expanded.rect!.y + expanded.rect!.height / 2,
+      });
       const targets = await listener.analyze((events: any[]) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean),
+        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
       );
       expect(targets).toContain("group-1");
       await listener.stop();
@@ -712,8 +742,8 @@ test.describe("CollapsibleGroup", () => {
       });
       await graphPO.waitForFrames(2);
 
-      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
-      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
+      await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
+      await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const innerBefore = await graphPO.page.evaluate(() => {
         const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
@@ -721,12 +751,16 @@ test.describe("CollapsibleGroup", () => {
       });
       expect(innerBefore?.collapsedRect).toBeDefined();
 
-      await graphPO.dragTo(
-        innerBefore!.collapsedRect!.x + innerBefore!.collapsedRect!.width / 2,
-        innerBefore!.collapsedRect!.y + innerBefore!.collapsedRect!.height / 2,
-        innerBefore!.collapsedRect!.x + innerBefore!.collapsedRect!.width / 2 + 55,
-        innerBefore!.collapsedRect!.y + innerBefore!.collapsedRect!.height / 2 + 35,
-        { waitFrames: 25 },
+      await graphPO.drag(
+        {
+          x: innerBefore!.collapsedRect!.x + innerBefore!.collapsedRect!.width / 2,
+          y: innerBefore!.collapsedRect!.y + innerBefore!.collapsedRect!.height / 2,
+        },
+        {
+          x: innerBefore!.collapsedRect!.x + innerBefore!.collapsedRect!.width / 2 + 55,
+          y: innerBefore!.collapsedRect!.y + innerBefore!.collapsedRect!.height / 2 + 35,
+        },
+        { waitForFrames: 25 }
       );
 
       const after = await graphPO.page.evaluate(() => {
@@ -743,13 +777,11 @@ test.describe("CollapsibleGroup", () => {
     });
 
     test("move expanded group → collapse: hitbox matches collapsed header only", async () => {
-      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
-      await graphPO.dragTo(
-        EXPANDED_GROUP_CENTER.x,
-        EXPANDED_GROUP_CENTER.y,
-        EXPANDED_GROUP_CENTER.x + 70,
-        EXPANDED_GROUP_CENTER.y + 40,
-        { waitFrames: 25 },
+      await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
+      await graphPO.drag(
+        { x: EXPANDED_GROUP_CENTER.x, y: EXPANDED_GROUP_CENTER.y },
+        { x: EXPANDED_GROUP_CENTER.x + 70, y: EXPANDED_GROUP_CENTER.y + 40 },
+        { waitForFrames: 25 }
       );
 
       const rectAfterDrag = await graphPO.page.evaluate(() => {
@@ -758,10 +790,9 @@ test.describe("CollapsibleGroup", () => {
       });
       expect(rectAfterDrag).toBeDefined();
 
-      await graphPO.doubleClick(
-        rectAfterDrag!.x + rectAfterDrag!.width / 2,
-        rectAfterDrag!.y + 8,
-        { waitFrames: 5 },
+      await graphPO.doubleClickAt(
+        { x: rectAfterDrag!.x + rectAfterDrag!.width / 2, y: rectAfterDrag!.y + 8 },
+        { waitForFrames: 5 }
       );
 
       const collapsed = await graphPO.page.evaluate(() => {
@@ -775,10 +806,10 @@ test.describe("CollapsibleGroup", () => {
         y: collapsed!.y + collapsed!.height + 40,
       };
 
-      const listener = await graphPO.listenGraphEvents("click");
-      await graphPO.click(belowHeader.x, belowHeader.y);
+      const listener = await graphPO.events.listen("click");
+      await graphPO.clickAt({ x: belowHeader.x, y: belowHeader.y });
       let targets = await listener.analyze((events: any[]) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean),
+        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
       );
       expect(targets).not.toContain("group-1");
       await listener.stop();
@@ -787,10 +818,10 @@ test.describe("CollapsibleGroup", () => {
         x: collapsed!.x + collapsed!.width / 2,
         y: collapsed!.y + collapsed!.height / 2,
       };
-      const listener2 = await graphPO.listenGraphEvents("click");
-      await graphPO.click(headerCenter.x, headerCenter.y);
+      const listener2 = await graphPO.events.listen("click");
+      await graphPO.clickAt({ x: headerCenter.x, y: headerCenter.y });
       targets = await listener2.analyze((events: any[]) =>
-        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean),
+        events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
       );
       expect(targets).toContain("group-1");
       await listener2.stop();
@@ -879,8 +910,8 @@ test.describe("CollapsibleGroup", () => {
       // Collapsed header center: (80 + 100, 80 + 24) = (180, 104)
       const collapsedCenter = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 24 };
 
-      const listener = await graphPO.listenGraphEvents("click");
-      await graphPO.click(collapsedCenter.x, collapsedCenter.y);
+      const listener = await graphPO.events.listen("click");
+      await graphPO.clickAt({ x: collapsedCenter.x, y: collapsedCenter.y });
 
       const targets = await listener.analyze((events) =>
         events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
@@ -895,8 +926,8 @@ test.describe("CollapsibleGroup", () => {
       // collapsed hitbox but inside the old expanded hitbox.
       const belowCollapsedHeader = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 150 };
 
-      const listener = await graphPO.listenGraphEvents("click");
-      await graphPO.click(belowCollapsedHeader.x, belowCollapsedHeader.y);
+      const listener = await graphPO.events.listen("click");
+      await graphPO.clickAt({ x: belowCollapsedHeader.x, y: belowCollapsedHeader.y });
 
       const targets = await listener.analyze((events) =>
         events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
@@ -906,7 +937,6 @@ test.describe("CollapsibleGroup", () => {
       expect(targets).not.toContain("group-1");
       await listener.stop();
     });
-
   });
 
   // ---------------------------------------------------------------------------
@@ -1251,8 +1281,8 @@ test.describe("CollapsibleGroup", () => {
       // Click below the collapsed header (y + 150) but inside the old expanded area
       const belowCollapsedHeader = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 150 };
 
-      const listener = await graphPO.listenGraphEvents("click");
-      await graphPO.click(belowCollapsedHeader.x, belowCollapsedHeader.y);
+      const listener = await graphPO.events.listen("click");
+      await graphPO.clickAt({ x: belowCollapsedHeader.x, y: belowCollapsedHeader.y });
 
       const targets = await listener.analyze((events) =>
         events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
@@ -1295,8 +1325,8 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.waitForFrames(5);
 
       // Click in the original group padding area (above block-1, inside group visual rect)
-      const listener = await graphPO.listenGraphEvents("click");
-      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      const listener = await graphPO.events.listen("click");
+      await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
 
       const targets = await listener.analyze((events) =>
         events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
@@ -1420,7 +1450,7 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.waitForFrames(5);
 
       // Collapse via double-click on group padding area
-      await graphPO.doubleClick(GROUP_CLICK.x, GROUP_CLICK.y, { waitFrames: 5 });
+      await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const collapsedRect = await graphPO.page.evaluate(() => {
         return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value.collapsedRect;
@@ -1573,21 +1603,24 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.page.evaluate(
         ({ groupRect }) => {
           window.graph.rootStore.groupsList.setGroups([
-            { id: "group-1", rect: groupRect, component: (window as any).GraphModule.CollapsibleGroup, collapsed: false },
+            {
+              id: "group-1",
+              rect: groupRect,
+              component: (window as any).GraphModule.CollapsibleGroup,
+              collapsed: false,
+            },
           ]);
         },
         { groupRect: GROUP_RECT }
       );
       await graphPO.waitForFrames(5);
 
-      const exists = await graphPO.page.evaluate(() =>
-        !!window.graph.rootStore.groupsList.getGroupState("group-1")
-      );
+      const exists = await graphPO.page.evaluate(() => !!window.graph.rootStore.groupsList.getGroupState("group-1"));
       expect(exists).toBe(true);
 
       // Click on group should work
-      const listener = await graphPO.listenGraphEvents("click");
-      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      const listener = await graphPO.events.listen("click");
+      await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
       const targets = await listener.analyze((events) =>
         events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
       );
@@ -1620,32 +1653,32 @@ test.describe("CollapsibleGroup", () => {
     });
 
     test("clicking group selects it — $selected signal becomes true", async () => {
-      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
       await graphPO.waitForFrames(3);
 
-      const selected = await graphPO.page.evaluate(() =>
-        window.graph.rootStore.groupsList.getGroupState("group-1")?.$selected.value
+      const selected = await graphPO.page.evaluate(
+        () => window.graph.rootStore.groupsList.getGroupState("group-1")?.$selected.value
       );
       expect(selected).toBe(true);
     });
 
     test("clicking outside group deselects it", async () => {
       // Select
-      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
       await graphPO.waitForFrames(3);
 
       // Click outside — far from any group or block
-      await graphPO.click(900, 500);
+      await graphPO.clickAt({ x: 900, y: 500 });
       await graphPO.waitForFrames(3);
 
-      const selected = await graphPO.page.evaluate(() =>
-        window.graph.rootStore.groupsList.getGroupState("group-1")?.$selected.value
+      const selected = await graphPO.page.evaluate(
+        () => window.graph.rootStore.groupsList.getGroupState("group-1")?.$selected.value
       );
       expect(selected).toBe(false);
     });
 
     test("$selected signal is authoritative — $state.value.selected is not used for selection", async () => {
-      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
       await graphPO.waitForFrames(3);
 
       const { signalSelected, stateSelected } = await graphPO.page.evaluate(() => {
@@ -1664,9 +1697,9 @@ test.describe("CollapsibleGroup", () => {
     });
 
     test("groups-selection-change event fires on click", async () => {
-      const getEvents = await graphPO.collectGraphEventDetails("groups-selection-change");
+      const getEvents = await graphPO.events.collectDetails("groups-selection-change");
 
-      await graphPO.click(GROUP_CLICK.x, GROUP_CLICK.y);
+      await graphPO.clickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y });
       await graphPO.waitForFrames(3);
 
       const details = await getEvents();
@@ -1692,11 +1725,11 @@ test.describe("CollapsibleGroup", () => {
 
       // Click collapsed header center
       const collapsedCenter = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 24 };
-      await graphPO.click(collapsedCenter.x, collapsedCenter.y);
+      await graphPO.clickAt({ x: collapsedCenter.x, y: collapsedCenter.y });
       await graphPO.waitForFrames(3);
 
-      const selected = await graphPO.page.evaluate(() =>
-        window.graph.rootStore.groupsList.getGroupState("group-1")?.$selected.value
+      const selected = await graphPO.page.evaluate(
+        () => window.graph.rootStore.groupsList.getGroupState("group-1")?.$selected.value
       );
       expect(selected).toBe(true);
     });

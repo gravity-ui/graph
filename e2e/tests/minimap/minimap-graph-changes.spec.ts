@@ -58,7 +58,7 @@ test.describe("MiniMap – graph changes reflection", () => {
   });
 
   test("adding a block far away should update minimap coordinate mapping", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
 
     // Click at minimap center with initial blocks; record resulting camera position
     await minimapPO.clickAt(0.5, 0.5);
@@ -83,7 +83,7 @@ test.describe("MiniMap – graph changes reflection", () => {
   });
 
   test("removing all blocks should not crash minimap and interaction should still work", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
 
     // Remove all blocks
     await graphPO.setEntities({ blocks: [], connections: [] });
@@ -110,7 +110,7 @@ test.describe("MiniMap – graph changes reflection", () => {
   });
 
   test("camera pan should not break minimap click interaction", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
 
     // Pan the camera significantly
     await camera.emulatePan(200, 150);
@@ -127,7 +127,7 @@ test.describe("MiniMap – graph changes reflection", () => {
   });
 
   test("camera zoom should not break minimap click interaction", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
 
     // Zoom in
     await camera.emulateZoom(-300);
@@ -141,7 +141,7 @@ test.describe("MiniMap – graph changes reflection", () => {
   });
 
   test("moving a block should update minimap coordinate mapping", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
 
     // Baseline: click center of minimap
     await minimapPO.clickAt(0.5, 0.5);
@@ -149,10 +149,7 @@ test.describe("MiniMap – graph changes reflection", () => {
 
     // Move block-2 far away, forcing usable rect to expand
     await graphPO.setEntities({
-      blocks: [
-        INITIAL_BLOCKS[0],
-        { ...INITIAL_BLOCKS[1], x: 4000, y: 4000 },
-      ],
+      blocks: [INITIAL_BLOCKS[0], { ...INITIAL_BLOCKS[1], x: 4000, y: 4000 }],
       connections: [],
     });
     await graphPO.waitForFrames(5);

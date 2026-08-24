@@ -1,107 +1,49 @@
-import { Page } from "@playwright/test";
+import { GraphCameraPO } from "../../src/playwright";
 import type { GraphPageObject } from "./GraphPageObject";
-import { ECanDrag } from "../entry";
 
-export interface CameraState {
-  x: number;
-  y: number;
-  scale: number;
-}
+let cameraSignalListenerId = 0;
 
 /**
- * Component Object Model for graph camera
- * Provides methods to control and query the camera state
+ * Compatibility name used by the existing e2e suite. Common camera operations
+ * come from the public GraphCameraPO; browser-device emulation stays test-only.
  */
-export class GraphCameraComponentObject {
-  constructor(
-    private page: Page,
-    private graphPO: GraphPageObject
-  ) {}
+export class GraphCameraComponentObject extends GraphCameraPO {
+  constructor(private readonly graphPO: GraphPageObject) {
+    super(graphPO);
+  }
 
-  /**
-   * Get camera state from the graph
-   */
-  async getState(): Promise<CameraState> {
-    return await this.page.evaluate(() => {
-      const camera = window.graph.cameraService.getCameraState();
-      return {
-        x: camera.x,
-        y: camera.y,
-        scale: camera.scale,
-      };
+  private get page() {
+    return this.graphPO.page;
+  }
+
+  /** Returns the committed state exposed by the library's camera signal. */
+  async getSignalSnapshot(): Promise<{ x: number; y: number; scale: number }> {
+    return this.graphPO.evaluate((graph) => {
+      const { x, y, scale } = graph.$camera.value;
+      return { x, y, scale };
     });
   }
 
   /**
-   * Zoom camera to a specific scale
+   * Collects committed camera signal updates for library-internal assertions.
+   * The public camera PO deliberately exposes only current camera state.
    */
-  async zoomToScale(scale: number): Promise<void> {
-    await this.page.evaluate((s) => {
-      window.graph.zoom({ scale: s });
-    }, scale);
+  async collectSignalUpdates(): Promise<() => Promise<Array<{ x: number; y: number; scale: number }>>> {
+    const key = `__cameraSignal_${cameraSignalListenerId++}`;
 
-    // Wait for zoom animation to complete
-    await this.graphPO.waitForFrames(3);
-  }
+    await this.page.evaluate((storageKey) => {
+      (window as any)[storageKey] = [];
+      (window as any)[`${storageKey}_unsub`] = window.graph.$camera.subscribe((state) => {
+        (window as any)[storageKey].push({ x: state.x, y: state.y, scale: state.scale });
+      });
+    }, key);
 
-  /**
-   * Pan camera by offset (in screen pixels)
-   */
-  async pan(dx: number, dy: number): Promise<void> {
-    await this.page.evaluate(
-      ({ dx, dy }) => {
-        window.graph.cameraService.move(dx, dy);
-      },
-      { dx, dy }
-    );
-
-    // Wait for pan to be processed
-    await this.graphPO.waitForFrames(2);
-  }
-
-  /**
-   * Zoom to center
-   */
-  async zoomToCenter(): Promise<void> {
-    await this.page.evaluate(() => {
-      window.graph.zoomTo("center");
-    });
-
-    // Wait for zoom animation
-    await this.graphPO.waitForFrames(20);
-  }
-
-  /**
-   * Zoom to specific blocks
-   */
-  async zoomToBlocks(blockIds: string[]): Promise<void> {
-    await this.page.evaluate((ids) => {
-      window.graph.zoomTo(ids);
-    }, blockIds);
-
-    // Wait for zoom animation
-    await this.graphPO.waitForFrames(20);
-  }
-
-  /**
-   * Get canvas bounding box
-   */
-  async getCanvasBounds(): Promise<{
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }> {
-    return await this.page.evaluate(() => {
-      const canvas = window.graph.getGraphCanvas();
-      const rect = canvas.getBoundingClientRect();
-      return {
-        x: rect.left,
-        y: rect.top,
-        width: rect.width,
-        height: rect.height,
-      };
-    });
+    return async () => {
+      const json = await this.page.evaluate((storageKey) => {
+        return JSON.stringify((window as any)[storageKey] ?? []);
+      }, key);
+      return JSON.parse(json) as Array<{ x: number; y: number; scale: number }>;
+    };
   }
 
   /**
@@ -123,11 +65,8 @@ export class GraphCameraComponentObject {
    * @param deltaY - Positive = zoom out, Negative = zoom in
    * @param position - Optional position to zoom at (defaults to canvas center)
    */
-  async emulateZoom(
-    deltaY: number,
-    position?: { x: number; y: number }
-  ): Promise<void> {
-    const canvasBounds = await this.getCanvasBounds();
+  async emulateZoom(deltaY: number, position?: { x: number; y: number }): Promise<void> {
+    const canvasBounds = await this.getBounds();
 
     // Use provided position or default to canvas center
     const mouseX = position?.x ?? canvasBounds.x + canvasBounds.width / 2;
@@ -137,8 +76,7 @@ export class GraphCameraComponentObject {
 
     // Playwright mouse.wheel() emits integer PIXEL deltas, which resolveWheelIntent
     // classifies as trackpad pan. LINE-mode events match a mechanical mouse wheel (I4 → zoom).
-    const lineDeltaY =
-      Math.max(1, Math.round(Math.abs(deltaY) / 16)) * (deltaY >= 0 ? 1 : -1);
+    const lineDeltaY = Math.max(1, Math.round(Math.abs(deltaY) / 16)) * (deltaY >= 0 ? 1 : -1);
 
     await this.page.evaluate(
       ({ lineDeltaY, mouseX, mouseY }) => {
@@ -187,7 +125,7 @@ export class GraphCameraComponentObject {
     viewportX?: number,
     viewportY?: number
   ): Promise<void> {
-    const canvasBounds = await this.getCanvasBounds();
+    const canvasBounds = await this.getBounds();
     const vx = viewportX ?? canvasBounds.x + canvasBounds.width / 2;
     const vy = viewportY ?? canvasBounds.y + canvasBounds.height / 2;
 
@@ -195,10 +133,7 @@ export class GraphCameraComponentObject {
       ({ wx, wy, vx, vy }) => {
         const canvas = window.graph.getGraphCanvas();
         const rect = canvas.getBoundingClientRect();
-        const [currentWX, currentWY] = window.graph.cameraService.getRelativeXY(
-          vx - rect.left,
-          vy - rect.top
-        );
+        const [currentWX, currentWY] = window.graph.cameraService.getRelativeXY(vx - rect.left, vy - rect.top);
         const { scale } = window.graph.cameraService.getCameraState();
         return {
           dx: (wx - currentWX) * scale,
@@ -249,11 +184,7 @@ export class GraphCameraComponentObject {
    * @param deltaY - Vertical drag distance in pixels
    * @param startPosition - Optional start position (defaults to canvas center)
    */
-  async emulatePan(
-    deltaX: number,
-    deltaY: number,
-    startPosition?: { x: number; y: number }
-  ): Promise<void> {
+  async emulatePan(deltaX: number, deltaY: number, startPosition?: { x: number; y: number }): Promise<void> {
     // Temporarily disable block dragging to prevent accidentally dragging blocks
     const previousCanDrag = await this.page.evaluate(() => {
       const currentSetting = window.graph.rootStore.settings.$canDrag.value;
@@ -261,7 +192,7 @@ export class GraphCameraComponentObject {
       return currentSetting;
     });
 
-    const canvasBounds = await this.getCanvasBounds();
+    const canvasBounds = await this.getBounds();
 
     // Use provided position or default to canvas center
     const startX = startPosition?.x ?? canvasBounds.x + canvasBounds.width / 2;

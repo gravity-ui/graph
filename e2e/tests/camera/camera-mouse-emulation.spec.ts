@@ -43,11 +43,11 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
     });
 
     test("should NOT fire mouseenter when trackpad pans a block under the static cursor", async () => {
-      const camera = graphPO.getCamera();
+      const camera = graphPO.camera();
       await camera.zoomToCenter();
       await graphPO.waitForFrames(3);
 
-      const canvasBounds = await camera.getCanvasBounds();
+      const canvasBounds = await camera.getBounds();
       const screenCenterX = canvasBounds.x + canvasBounds.width / 2;
       const screenCenterY = canvasBounds.y + canvasBounds.height / 2;
 
@@ -55,7 +55,7 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       await graphPO.page.mouse.move(screenCenterX, screenCenterY);
       await graphPO.waitForFrames(3);
 
-      const listener = await graphPO.listenGraphEvents("mouseenter");
+      const listener = await graphPO.events.listen("mouseenter");
 
       await camera.panWorldPointUnderCursor(
         BLOCK_1.x + BLOCK_1.width / 2,
@@ -89,18 +89,18 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
     });
 
     test("should fire mouseenter on block when trackpad pans block under static cursor", async () => {
-      const camera = graphPO.getCamera();
+      const camera = graphPO.camera();
       await camera.zoomToCenter();
       await graphPO.waitForFrames(3);
 
-      const canvasBounds = await camera.getCanvasBounds();
+      const canvasBounds = await camera.getBounds();
       const screenCenterX = canvasBounds.x + canvasBounds.width / 2;
       const screenCenterY = canvasBounds.y + canvasBounds.height / 2;
 
       await graphPO.page.mouse.move(screenCenterX, screenCenterY);
       await graphPO.waitForFrames(3);
 
-      const listener = await graphPO.listenGraphEvents("mouseenter");
+      const listener = await graphPO.events.listen("mouseenter");
 
       await camera.panWorldPointUnderCursor(
         BLOCK_1.x + BLOCK_1.width / 2,
@@ -117,15 +117,15 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
     });
 
     test("should fire mouseleave on block when trackpad pans block away from cursor", async () => {
-      const block1 = graphPO.getBlockCOM("block-1");
-      const camera = graphPO.getCamera();
+      const block1 = graphPO.block("block-1");
+      const camera = graphPO.camera();
 
       // Hover over block-1 to make it the current GraphLayer target
-      await block1.hover({ waitFrames: 3 });
+      await block1.hover({ waitForFrames: 3 });
       await graphPO.waitForFrames(3);
 
       // Move mouse explicitly to block-1 center
-      const block1Center = await block1.getWorldCenter();
+      const block1Center = await block1.getCenter();
       const blockScreenPos = await graphPO.page.evaluate(({ wx, wy }) => {
         const [sx, sy] = window.graph.cameraService.getAbsoluteXY(wx, wy);
         const canvas = window.graph.getGraphCanvas();
@@ -136,7 +136,7 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       await graphPO.page.mouse.move(blockScreenPos.x, blockScreenPos.y);
       await graphPO.waitForFrames(2);
 
-      const listener = await graphPO.listenGraphEvents("mouseleave");
+      const listener = await graphPO.events.listen("mouseleave");
 
       await camera.trackpadPan(400, 0);
       await graphPO.waitForFrames(5);
@@ -148,19 +148,19 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
     });
 
     test("should fire mouseenter then mouseleave as trackpad pans block through cursor", async () => {
-      const camera = graphPO.getCamera();
+      const camera = graphPO.camera();
       await camera.zoomToCenter();
       await graphPO.waitForFrames(3);
 
-      const canvasBounds = await camera.getCanvasBounds();
+      const canvasBounds = await camera.getBounds();
       const screenCenterX = canvasBounds.x + canvasBounds.width / 2;
       const screenCenterY = canvasBounds.y + canvasBounds.height / 2;
 
       await graphPO.page.mouse.move(screenCenterX, screenCenterY);
       await graphPO.waitForFrames(3);
 
-      const enterListener = await graphPO.listenGraphEvents("mouseenter");
-      const leaveListener = await graphPO.listenGraphEvents("mouseleave");
+      const enterListener = await graphPO.events.listen("mouseenter");
+      const leaveListener = await graphPO.events.listen("mouseleave");
 
       // Phase 1: pan block-1 under cursor → mouseenter
       await camera.panWorldPointUnderCursor(
@@ -187,11 +187,11 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
     });
 
     test("should NOT fire block events when cursor is parked over empty canvas space during pan", async () => {
-      const camera = graphPO.getCamera();
+      const camera = graphPO.camera();
       await camera.zoomToCenter();
       await graphPO.waitForFrames(3);
 
-      const canvasBounds = await camera.getCanvasBounds();
+      const canvasBounds = await camera.getBounds();
 
       // Park cursor in the top-left corner of the canvas — far from any block
       const emptyAreaX = canvasBounds.x + 10;
@@ -199,8 +199,8 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       await graphPO.page.mouse.move(emptyAreaX, emptyAreaY);
       await graphPO.waitForFrames(3);
 
-      const enterListener = await graphPO.listenGraphEvents("mouseenter");
-      const leaveListener = await graphPO.listenGraphEvents("mouseleave");
+      const enterListener = await graphPO.events.listen("mouseenter");
+      const leaveListener = await graphPO.events.listen("mouseleave");
 
       // Pan camera — cursor stays over empty space, no block should enter/leave
       await camera.trackpadPan(40, 0);
@@ -218,11 +218,11 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
     });
 
     test("cursor should change to pointer when trackpad pans block under static cursor", async () => {
-      const camera = graphPO.getCamera();
+      const camera = graphPO.camera();
       await camera.zoomToCenter();
       await graphPO.waitForFrames(3);
 
-      const canvasBounds = await camera.getCanvasBounds();
+      const canvasBounds = await camera.getBounds();
       const screenCenterX = canvasBounds.x + canvasBounds.width / 2;
       const screenCenterY = canvasBounds.y + canvasBounds.height / 2;
 
@@ -247,11 +247,11 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
     });
 
     test("cursor should revert to auto when trackpad pans block away from cursor", async () => {
-      const block1 = graphPO.getBlockCOM("block-1");
-      const camera = graphPO.getCamera();
+      const block1 = graphPO.block("block-1");
+      const camera = graphPO.camera();
 
       // Hover over block-1 → cursor becomes pointer
-      await block1.hover({ waitFrames: 3 });
+      await block1.hover({ waitForFrames: 3 });
       await graphPO.waitForFrames(5);
 
       const cursorOnBlock = await graphPO.getCursor();
@@ -268,19 +268,19 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
     });
 
     test("should correctly switch hover when trackpad pans from block-1 to block-2", async () => {
-      const camera = graphPO.getCamera();
+      const camera = graphPO.camera();
       await camera.zoomToCenter();
       await graphPO.waitForFrames(3);
 
-      const canvasBounds = await camera.getCanvasBounds();
+      const canvasBounds = await camera.getBounds();
       const screenCenterX = canvasBounds.x + canvasBounds.width / 2;
       const screenCenterY = canvasBounds.y + canvasBounds.height / 2;
 
       await graphPO.page.mouse.move(screenCenterX, screenCenterY);
       await graphPO.waitForFrames(3);
 
-      const enterListener = await graphPO.listenGraphEvents("mouseenter");
-      const leaveListener = await graphPO.listenGraphEvents("mouseleave");
+      const enterListener = await graphPO.events.listen("mouseenter");
+      const leaveListener = await graphPO.events.listen("mouseleave");
 
       // Pan block-1 under cursor
       await camera.panWorldPointUnderCursor(
@@ -313,18 +313,18 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
     });
 
     test("should fire mouseenter when pinch-zoom brings block under cursor", async () => {
-      const camera = graphPO.getCamera();
+      const camera = graphPO.camera();
 
       // Zoom out so block-1 is too small to be hit-tested
       await camera.zoomToScale(0.05);
       await graphPO.waitForFrames(3);
 
       // Move mouse over block-1's screen position to establish canvas coordinates
-      const block1 = graphPO.getBlockCOM("block-1");
-      const block1Center = await block1.getWorldCenter();
-      await graphPO.hover(block1Center.x, block1Center.y, { waitFrames: 3 });
+      const block1 = graphPO.block("block-1");
+      const block1Center = await block1.getCenter();
+      await graphPO.hoverAt({ x: block1Center.x, y: block1Center.y }, { waitForFrames: 3 });
 
-      const listener = await graphPO.listenGraphEvents("mouseenter");
+      const listener = await graphPO.events.listen("mouseenter");
 
       // Position mouse over block-1's screen position before zooming
       const mouseScreenPos = await graphPO.page.evaluate(() => {
