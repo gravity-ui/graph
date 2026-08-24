@@ -68,4 +68,40 @@ test.describe("Anchor CSS variables", () => {
       height: "20px",
     });
   });
+
+  test("allows consumers to override sizes on the graph wrapper", async ({ page }) => {
+    const styles = await page.evaluate(() => {
+      const consumerStyle = document.createElement("style");
+      consumerStyle.textContent = `
+        .graph-wrapper.consumer-graph {
+          --graph-block-anchor-width: 24px;
+          --graph-block-anchor-height: 20px;
+        }
+      `;
+      document.head.prepend(consumerStyle);
+
+      const graph = document.createElement("div");
+      graph.className = "graph-wrapper consumer-graph";
+
+      const anchor = document.createElement("div");
+      anchor.className = "graph-block-anchor";
+      graph.appendChild(anchor);
+      document.body.appendChild(graph);
+
+      const computedStyle = window.getComputedStyle(anchor);
+      return {
+        widthVariable: computedStyle.getPropertyValue("--graph-block-anchor-width").trim(),
+        heightVariable: computedStyle.getPropertyValue("--graph-block-anchor-height").trim(),
+        width: computedStyle.width,
+        height: computedStyle.height,
+      };
+    });
+
+    expect(styles).toEqual({
+      widthVariable: "24px",
+      heightVariable: "20px",
+      width: "24px",
+      height: "20px",
+    });
+  });
 });

@@ -1,12 +1,12 @@
 .graph-block-anchor {
-  --width: var(--graph-block-anchor-width);
-  --height: var(--graph-block-anchor-height);
+  --width: var(--graph-block-anchor-width, 16px);
+  --height: var(--graph-block-anchor-height, 16px);
   display: inline-block;
   box-sizing: border-box;
   border-radius: 50%;
   background-color: var(--graph-block-anchor-bg);
-  width: var(--graph-block-anchor-width);
-  height: var(--graph-block-anchor-height);
+  width: var(--width);
+  height: var(--height);
   cursor: pointer;
 }
 
