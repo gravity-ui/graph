@@ -56,8 +56,8 @@
     "pnpm": "Please use npm instead of pnpm to install dependencies"
   },
   "scripts": {
-    "typecheck": "npm run build:publish && npm run typecheck:playwright-consumer",
-    "typecheck:playwright-consumer": "node scripts/check-playwright-consumer-types.mjs",
+    "typecheck": "npm run build:publish && npm run typecheck:published-playwright-types",
+    "typecheck:published-playwright-types": "node scripts/check-playwright-consumer-types.mjs",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
     "test:unit": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests --updateSnapshot",
     "test": "npm run test:unit",
@@ -67,8 +67,9 @@
     "ci:storybook:build": "npm run build-storybook",
     "build:docs": "node scripts/build-docs.mjs",
     "copy-styles": "copyfiles -u 1 \"src/**/*.css\" build/",
-    "build:publish": "tsc -p tsconfig.publish.json && npm run copy-styles && npm run build:docs",
-    "build": "tsc --declaration && npm run copy-styles && npm run build:docs",
+    "build:playwright-runtime": "esbuild src/playwright/index.ts --bundle --format=cjs --platform=node --target=node20 --packages=external --outfile=build/playwright/index.js",
+    "build:publish": "tsc -p tsconfig.publish.json && npm run build:playwright-runtime && npm run copy-styles && npm run build:docs",
+    "build": "tsc --declaration && npm run build:playwright-runtime && npm run copy-styles && npm run build:docs",
     "prepublishOnly": "npm run typecheck && npm run test && npm run build:publish",
     "dev": "concurrently \"tsc --watch --declaration\" \"chokidar 'src/**/*.css' -c 'npm run copy-styles'\"",
     "e2e:bundle": "node e2e/build-bundle.js",
@@ -78,6 +79,7 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:ci": "playwright test",
+    "test:package-contract": "node tests/package-contract/playwright-installed-consumer/run.mjs",
     "e2e:dev": "concurrently \"tsc --watch --declaration\" \"chokidar 'src/**/*.css' -c 'npm run copy-styles'\" \"npm run e2e:serve\""
   },
   "peerDependencies": {
