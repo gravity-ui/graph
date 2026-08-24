@@ -54,7 +54,7 @@ test.describe("Drag and Drop", () => {
 
   test("should drag block to new position", async () => {
     // Get block COM
-    const block1 = graphPO.getBlockCOM("block-1");
+    const block1 = graphPO.block("block-1");
 
     const initialGeometry = await block1.getGeometry();
 
@@ -84,16 +84,16 @@ test.describe("Drag and Drop", () => {
 
   test("should drag multiple selected blocks together", async ({ page }) => {
     // Get block COMs
-    const block1 = graphPO.getBlockCOM("block-1");
-    const block2 = graphPO.getBlockCOM("block-2");
+    const block1 = graphPO.block("block-1");
+    const block2 = graphPO.block("block-2");
 
     // Select two blocks
     await block1.click();
 
-    await block2.click({ ctrl: true });
+    await block2.click({ modifiers: ["ControlOrMeta"] });
 
     // Verify both are selected
-    let selectedBlocks = await graphPO.getSelectedBlocks();
+    let selectedBlocks = await graphPO.getSelectedBlockIds();
     expect(selectedBlocks).toHaveLength(2);
 
     const initialGeometry1 = await block1.getGeometry();
@@ -126,27 +126,27 @@ test.describe("Drag and Drop", () => {
 
   test("should maintain block selection after drag", async () => {
     // Get block COM
-    const block1 = graphPO.getBlockCOM("block-1");
+    const block1 = graphPO.block("block-1");
 
     // Select a block
     await block1.click();
 
     // Verify it's selected
-    let selectedBlocks = await graphPO.getSelectedBlocks();
+    let selectedBlocks = await graphPO.getSelectedBlockIds();
     expect(selectedBlocks).toContain("block-1");
 
     // Drag the block
     await block1.dragTo({ x: 300, y: 250 });
 
     // Block should still be selected after drag
-    selectedBlocks = await graphPO.getSelectedBlocks();
+    selectedBlocks = await graphPO.getSelectedBlockIds();
     expect(selectedBlocks).toContain("block-1");
   });
 
   test("should drag block with different zoom levels", async () => {
     // Get block and camera COMs
-    const block1 = graphPO.getBlockCOM("block-1");
-    const camera = graphPO.getCamera();
+    const block1 = graphPO.block("block-1");
+    const camera = graphPO.camera();
 
     // Select block first
     await block1.click();

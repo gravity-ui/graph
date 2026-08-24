@@ -94,8 +94,8 @@ test.describe("CollapsibleGroup — collapsed drop prevention and hitbox", () =>
   // ---------------------------------------------------------------------------
 
   test("click on expanded group header registers on that group", async () => {
-    const listener = await graphPO.listenGraphEvents("click");
-    await graphPO.click(EXPANDED_GROUP_HEADER.x, EXPANDED_GROUP_HEADER.y);
+    const listener = await graphPO.events.listen("click");
+    await graphPO.clickAt({ x: EXPANDED_GROUP_HEADER.x, y: EXPANDED_GROUP_HEADER.y });
     const targets = await listener.analyze((events) =>
       events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
     );
@@ -108,8 +108,8 @@ test.describe("CollapsibleGroup — collapsed drop prevention and hitbox", () =>
     // left padding edge (x = COLLAPSED_GROUP_RECT.x + 5) — this is inside
     // the collapsed visual rect but outside the inner block bounds.
     const leftEdge = { x: COLLAPSED_GROUP_RECT.x + 5, y: COLLAPSED_HEADER_CENTER.y };
-    const listener = await graphPO.listenGraphEvents("click");
-    await graphPO.click(leftEdge.x, leftEdge.y);
+    const listener = await graphPO.events.listen("click");
+    await graphPO.clickAt({ x: leftEdge.x, y: leftEdge.y });
     const targets = await listener.analyze((events) =>
       events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
     );
@@ -137,8 +137,8 @@ test.describe("CollapsibleGroup — collapsed drop prevention and hitbox", () =>
     // Click at the group's left padding edge, below the former 48px header.
     // The inner block doesn't extend here so the group gets the event.
     const leftEdgeBelow = { x: COLLAPSED_GROUP_RECT.x + 5, y: BELOW_COLLAPSED_HEADER.y };
-    const listener = await graphPO.listenGraphEvents("click");
-    await graphPO.click(leftEdgeBelow.x, leftEdgeBelow.y);
+    const listener = await graphPO.events.listen("click");
+    await graphPO.clickAt({ x: leftEdgeBelow.x, y: leftEdgeBelow.y });
     const targets = await listener.analyze((events) =>
       events.map((e: any) => e.detail?.target?.props?.id).filter(Boolean)
     );

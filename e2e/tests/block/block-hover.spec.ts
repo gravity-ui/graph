@@ -37,11 +37,9 @@ test.describe("Block Hover", () => {
     });
   });
 
-  test("should change cursor from auto to pointer when hovering over block and back to auto", async ({
-    page,
-  }) => {
+  test("should change cursor from auto to pointer when hovering over block and back to auto", async ({ page }) => {
     // Get block COM
-    const block1 = graphPO.getBlockCOM("block-1");
+    const block1 = graphPO.block("block-1");
 
     // Step 1: Check initial cursor state (should be auto)
     const initialCursor = await graphPO.getCursor();
@@ -60,7 +58,7 @@ test.describe("Block Hover", () => {
     expect(hoverCursor).toBe("pointer");
 
     // Step 3: Move mouse away from block to empty space
-    await graphPO.hover(10, 10); // Hover at empty area far from blocks
+    await graphPO.hoverAt({ x: 10, y: 10 }); // Hover at empty area far from blocks
 
     // Wait for cursor layer to process the movement
     await graphPO.waitForFrames(5);

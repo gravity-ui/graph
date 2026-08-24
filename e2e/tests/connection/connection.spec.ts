@@ -72,13 +72,13 @@ test.describe("Connections", () => {
   // ---------------------------------------------------------------------------
 
   test("all connections exist in store after initialization", async () => {
-    expect(await graphPO.getConnectionCOM("conn-1").exists()).toBe(true);
-    expect(await graphPO.getConnectionCOM("conn-2").exists()).toBe(true);
-    expect(await graphPO.getConnectionCOM("conn-3").exists()).toBe(true);
+    expect(await graphPO.connection("conn-1").exists()).toBe(true);
+    expect(await graphPO.connection("conn-2").exists()).toBe(true);
+    expect(await graphPO.connection("conn-3").exists()).toBe(true);
   });
 
   test("connection has correct source and target block ids", async () => {
-    const state = await graphPO.getConnectionCOM("conn-1").getState();
+    const state = await graphPO.connection("conn-1").getState();
 
     expect(state).not.toBeNull();
     expect(state.sourceBlockId).toBe("block-1");
@@ -86,7 +86,7 @@ test.describe("Connections", () => {
   });
 
   test("total connection count matches initial data", async () => {
-    const all = await graphPO.getAllConnections();
+    const all = await graphPO.getConnections();
     expect(all).toHaveLength(3);
   });
 
@@ -110,7 +110,7 @@ test.describe("Connections", () => {
   // ---------------------------------------------------------------------------
 
   test("connection is not selected by default", async () => {
-    const isSelected = await graphPO.getConnectionCOM("conn-1").isSelected();
+    const isSelected = await graphPO.connection("conn-1").isSelected();
     expect(isSelected).toBe(false);
   });
 
@@ -119,7 +119,7 @@ test.describe("Connections", () => {
   // ---------------------------------------------------------------------------
 
   test("connection survives source block being hidden", async () => {
-    await graphPO.evaluateInGraph((graph) => {
+    await graphPO.evaluate((graph) => {
       graph.rootStore.blocksList.$blocksMap.value.get("block-1")?.getViewComponent()?.setHiddenBlock(true);
     });
     await graphPO.waitForFrames(3);
@@ -129,7 +129,7 @@ test.describe("Connections", () => {
   });
 
   test("connection survives target block being hidden", async () => {
-    await graphPO.evaluateInGraph((graph) => {
+    await graphPO.evaluate((graph) => {
       graph.rootStore.blocksList.$blocksMap.value.get("block-2")?.getViewComponent()?.setHiddenBlock(true);
     });
     await graphPO.waitForFrames(3);
@@ -139,7 +139,7 @@ test.describe("Connections", () => {
   });
 
   test("connection survives hide-then-show cycle on source block", async () => {
-    await graphPO.evaluateInGraph((graph) => {
+    await graphPO.evaluate((graph) => {
       const view = graph.rootStore.blocksList.$blocksMap.value.get("block-1")?.getViewComponent();
       view?.setHiddenBlock(true);
       view?.setHiddenBlock(false);
@@ -158,7 +158,7 @@ test.describe("Connections", () => {
     await graphPO.setEntities({ blocks: [], connections: [] });
     await graphPO.waitForFrames(3);
 
-    const all = await graphPO.getAllConnections();
+    const all = await graphPO.getConnections();
     expect(all).toHaveLength(0);
   });
 
@@ -192,7 +192,7 @@ test.describe("Connections", () => {
     await graphPO.setEntities({ blocks: newBlocks, connections: newConnections });
     await graphPO.waitForFrames(5);
 
-    const all = await graphPO.getAllConnections();
+    const all = await graphPO.getConnections();
     expect(all).toHaveLength(1);
 
     expect(await graphPO.hasConnectionBetween("new-1", "new-2")).toBe(true);
@@ -206,10 +206,10 @@ test.describe("Connections", () => {
     });
     await graphPO.waitForFrames(5);
 
-    const all = await graphPO.getAllConnections();
+    const all = await graphPO.getConnections();
     expect(all).toHaveLength(1);
 
-    expect(await graphPO.getConnectionCOM("conn-2").exists()).toBe(false);
-    expect(await graphPO.getConnectionCOM("conn-3").exists()).toBe(false);
+    expect(await graphPO.connection("conn-2").exists()).toBe(false);
+    expect(await graphPO.connection("conn-3").exists()).toBe(false);
   });
 });

@@ -10,7 +10,7 @@ const blocks: TBlock[] = [
 test("Issue #249: html blocks disappear after reload with double setEntities", async ({ page }) => {
   const graphPage = new ReactGraphPageObject(page);
   await graphPage.initialize({ blocks, connections: [] });
-  await graphPage.setZoom(1.0);
+  await graphPage.camera().zoomToScale(1.0);
   await graphPage.waitForFrames(10);
 
   // Simulate "reload" — double setEntities

@@ -41,13 +41,13 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
       settings: DRAG_SETTINGS,
     });
 
-    const readBlockChange = await graphPO.collectGraphEventDetails<{ block: { id: string } }>("block-change");
-    const readGeom = await graphPO.collectGraphEventDetails<{ blocks: { id: string }[] }>("blocks-geometry-change");
+    const readBlockChange = await graphPO.events.collectDetails<{ block: { id: string } }>("block-change");
+    const readGeom = await graphPO.events.collectDetails<{ blocks: { id: string }[] }>("blocks-geometry-change");
 
     const nBlock0 = (await readBlockChange()).length;
     const nGeom0 = (await readGeom()).length;
 
-    const block1 = graphPO.getBlockCOM("block-1");
+    const block1 = graphPO.block("block-1");
     await block1.click();
     await block1.dragTo({ x: 420, y: 260 });
 
@@ -78,11 +78,13 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
       });
     });
 
-    const block1 = graphPO.getBlockCOM("block-1");
+    const block1 = graphPO.block("block-1");
     await block1.click();
     await block1.dragTo({ x: 420, y: 260 });
 
-    const order = await page.evaluate(() => (window as unknown as { __geometryFlushOrder: string[] }).__geometryFlushOrder);
+    const order = await page.evaluate(
+      () => (window as unknown as { __geometryFlushOrder: string[] }).__geometryFlushOrder
+    );
 
     const lastBlockIdx = order.lastIndexOf("block-change");
     expect(lastBlockIdx).toBeGreaterThan(-1);
@@ -99,18 +101,18 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
       settings: DRAG_SETTINGS,
     });
 
-    const readBlockChange = await graphPO.collectGraphEventDetails("block-change");
-    const readGeom = await graphPO.collectGraphEventDetails<{ blocks: { id: string; x: number; y: number; width: number; height: number }[] }>(
-      "blocks-geometry-change"
-    );
+    const readBlockChange = await graphPO.events.collectDetails("block-change");
+    const readGeom = await graphPO.events.collectDetails<{
+      blocks: { id: string; x: number; y: number; width: number; height: number }[];
+    }>("blocks-geometry-change");
 
     const nBlock0 = (await readBlockChange()).length;
     const nGeom0 = (await readGeom()).length;
 
-    const block1 = graphPO.getBlockCOM("block-1");
-    const block2 = graphPO.getBlockCOM("block-2");
+    const block1 = graphPO.block("block-1");
+    const block2 = graphPO.block("block-2");
     await block1.click();
-    await block2.click({ ctrl: true });
+    await block2.click({ modifiers: ["ControlOrMeta"] });
     await block1.dragTo({ x: 500, y: 350 });
 
     const dBlock = (await readBlockChange()).length - nBlock0;
@@ -201,7 +203,7 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
 
     await graphPO.waitForFrames(5);
 
-    const readGeom = await graphPO.collectGraphEventDetails<{ blocks: { id: string }[] }>("blocks-geometry-change");
+    const readGeom = await graphPO.events.collectDetails<{ blocks: { id: string }[] }>("blocks-geometry-change");
 
     const nGeom0 = (await readGeom()).length;
 
@@ -212,8 +214,8 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
     const cx = groupRect.x + groupRect.width / 2;
     const cy = groupRect.y + 12;
 
-    await graphPO.click(cx, cy);
-    await graphPO.dragTo(cx, cy, cx + 80, cy + 50, { waitFrames: 25 });
+    await graphPO.clickAt({ x: cx, y: cy });
+    await graphPO.drag({ x: cx, y: cy }, { x: cx + 80, y: cy + 50 }, { waitForFrames: 25 });
 
     const newGeom = (await readGeom()).slice(nGeom0);
     expect(newGeom.length).toBeGreaterThan(0);
@@ -236,10 +238,10 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
       });
     });
 
-    const readGeom = await graphPO.collectGraphEventDetails("blocks-geometry-change");
+    const readGeom = await graphPO.events.collectDetails("blocks-geometry-change");
     const nGeom0 = (await readGeom()).length;
 
-    const block1 = graphPO.getBlockCOM("block-1");
+    const block1 = graphPO.block("block-1");
     const initial = await block1.getGeometry();
     await block1.click();
     await block1.dragTo({ x: 500, y: 350 });

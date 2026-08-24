@@ -24,27 +24,22 @@ test.describe("getCameraBlockScaleLevel setting", () => {
       await graphPO.initialize({ blocks: [BLOCK], connections: [] });
     });
 
-    test("settings hook should reference the exported defaultGetCameraBlockScaleLevel", async ({
-      page,
-    }) => {
+    test("settings hook should reference the exported defaultGetCameraBlockScaleLevel", async ({ page }) => {
       const same = await page.evaluate(() => {
         const { defaultGetCameraBlockScaleLevel } = window.GraphModule;
         return (
-          window.graph.rootStore.settings.$settings.value.getCameraBlockScaleLevel ===
-          defaultGetCameraBlockScaleLevel
+          window.graph.rootStore.settings.$settings.value.getCameraBlockScaleLevel === defaultGetCameraBlockScaleLevel
         );
       });
       expect(same).toBe(true);
     });
 
     test("should map camera scale to Minimalistic / Schematic / Detailed using block SCALES", async () => {
-      const camera = graphPO.getCamera();
+      const camera = graphPO.camera();
 
       await camera.zoomToScale(0.05);
       await graphPO.waitForFrames(3);
-      let level = await graphPO.page.evaluate(() =>
-        window.graph.cameraService.getCameraBlockScaleLevel(),
-      );
+      let level = await graphPO.page.evaluate(() => window.graph.cameraService.getCameraBlockScaleLevel());
       expect(level).toBe(ECameraScaleLevel.Minimalistic);
 
       await camera.zoomToScale(0.3);
@@ -91,7 +86,7 @@ test.describe("getCameraBlockScaleLevel setting", () => {
               getCameraBlockScaleLevel: (_graph, _scale) => ECameraScaleLevel.Detailed,
             },
           },
-          rootEl,
+          rootEl
         );
         graph.start();
         graph.zoomTo("center");
@@ -106,7 +101,7 @@ test.describe("getCameraBlockScaleLevel setting", () => {
 
     test("should return Detailed at low scale when default would be Minimalistic", async ({ page }) => {
       const graphPO = new GraphPageObject(page);
-      const camera = graphPO.getCamera();
+      const camera = graphPO.camera();
 
       await camera.zoomToScale(0.05);
       await graphPO.waitForFrames(3);
@@ -117,8 +112,7 @@ test.describe("getCameraBlockScaleLevel setting", () => {
       const notDefault = await page.evaluate(() => {
         const { defaultGetCameraBlockScaleLevel } = window.GraphModule;
         return (
-          window.graph.rootStore.settings.$settings.value.getCameraBlockScaleLevel !==
-          defaultGetCameraBlockScaleLevel
+          window.graph.rootStore.settings.$settings.value.getCameraBlockScaleLevel !== defaultGetCameraBlockScaleLevel
         );
       });
       expect(notDefault).toBe(true);

@@ -50,7 +50,7 @@ test.describe("Block Click Selection", () => {
 
   test("should select block on click", async () => {
     // Get block COM
-    const block1 = graphPO.getBlockCOM("block-1");
+    const block1 = graphPO.block("block-1");
 
     // Click on block
     await block1.click();
@@ -60,20 +60,20 @@ test.describe("Block Click Selection", () => {
     expect(isSelected).toBe(true);
 
     // Check selected blocks list
-    const selectedBlocks = await graphPO.getSelectedBlocks();
+    const selectedBlocks = await graphPO.getSelectedBlockIds();
     expect(selectedBlocks).toContain("block-1");
     expect(selectedBlocks).toHaveLength(1);
   });
 
   test("should deselect block when clicking on empty space", async () => {
     // Get block COM
-    const block1 = graphPO.getBlockCOM("block-1");
+    const block1 = graphPO.block("block-1");
 
     // Select block first
     await block1.click();
 
     // Verify it's selected
-    let selectedBlocks = await graphPO.getSelectedBlocks();
+    let selectedBlocks = await graphPO.getSelectedBlockIds();
     expect(selectedBlocks).toContain("block-1");
 
     // Click on empty space (top-left corner)
@@ -81,23 +81,23 @@ test.describe("Block Click Selection", () => {
     await graphPO.waitForFrames(2);
 
     // Check that no blocks are selected
-    selectedBlocks = await graphPO.getSelectedBlocks();
+    selectedBlocks = await graphPO.getSelectedBlockIds();
     expect(selectedBlocks).toHaveLength(0);
   });
 
   test("should select multiple blocks with Ctrl+Click", async () => {
     // Get block COMs
-    const block1 = graphPO.getBlockCOM("block-1");
-    const block2 = graphPO.getBlockCOM("block-2");
+    const block1 = graphPO.block("block-1");
+    const block2 = graphPO.block("block-2");
 
     // Select first block
     await block1.click();
 
     // Click second block with Ctrl modifier (Cmd on Mac)
-    await block2.click({ ctrl: true });
+    await block2.click({ modifiers: ["ControlOrMeta"] });
 
     // Check that both blocks are selected
-    const selectedBlocks = await graphPO.getSelectedBlocks();
+    const selectedBlocks = await graphPO.getSelectedBlockIds();
     expect(selectedBlocks).toHaveLength(2);
     expect(selectedBlocks).toContain("block-1");
     expect(selectedBlocks).toContain("block-2");
