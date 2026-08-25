@@ -34,7 +34,7 @@ test.describe("Selection Test", () => {
     await page.waitForTimeout(200);
 
     // Get block COM
-    const block1 = graphPO.getBlockCOM("block-1");
+    const block1 = graphPO.block("block-1");
     const isSelected = await block1.isSelected();
 
     expect(isSelected).toBe(true);

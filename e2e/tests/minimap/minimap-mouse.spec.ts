@@ -49,7 +49,7 @@ test.describe("MiniMap – mouse interactions", () => {
   });
 
   test("clicking on minimap should move camera to corresponding world area", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
     const stateBefore = await camera.getState();
 
     // Click on the bottom-right area of the minimap (far from current camera center)
@@ -63,7 +63,7 @@ test.describe("MiniMap – mouse interactions", () => {
   });
 
   test("clicking at different minimap positions should move camera to different world positions", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
 
     // Click top-left of minimap → camera centers near the top-left world area
     await minimapPO.clickAt(0.1, 0.1);
@@ -79,7 +79,7 @@ test.describe("MiniMap – mouse interactions", () => {
   });
 
   test("clicking on minimap should not move camera when clicking same position twice", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
 
     // First click establishes a camera position
     await minimapPO.clickAt(0.5, 0.5);
@@ -94,7 +94,7 @@ test.describe("MiniMap – mouse interactions", () => {
   });
 
   test("dragging on minimap should move camera continuously", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
     const stateBefore = await camera.getState();
 
     // Drag from center toward top-left within the minimap
@@ -108,7 +108,7 @@ test.describe("MiniMap – mouse interactions", () => {
   });
 
   test("drag in opposite directions should produce different camera positions", async () => {
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
 
     // Drag toward top-left
     await minimapPO.dragFrom(0.5, 0.5, 0.1, 0.1);

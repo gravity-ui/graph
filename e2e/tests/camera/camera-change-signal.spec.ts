@@ -36,14 +36,14 @@ test.describe("camera-change event and $camera signal", () => {
       });
     });
 
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
     const initial = await camera.getState();
-    const initialSignal = await graphPO.getCameraSignalSnapshot();
+    const initialSignal = await camera.getSignalSnapshot();
 
-    await camera.pan(120, 80);
+    await camera.panBy(120, 80);
 
     const final = await camera.getState();
-    const finalSignal = await graphPO.getCameraSignalSnapshot();
+    const finalSignal = await camera.getSignalSnapshot();
 
     expect(final.x).toBe(initial.x);
     expect(final.y).toBe(initial.y);
@@ -54,13 +54,12 @@ test.describe("camera-change event and $camera signal", () => {
   });
 
   test("successful camera move updates $camera after commit", async ({ page }) => {
-    const readSignalUpdates = await graphPO.collectCameraSignalUpdates();
-
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
+    const readSignalUpdates = await camera.collectSignalUpdates();
     const before = await camera.getState();
     const n0 = (await readSignalUpdates()).length;
 
-    await camera.pan(100, 50);
+    await camera.panBy(100, 50);
     await graphPO.waitForFrames(2);
 
     const after = await camera.getState();
@@ -104,15 +103,20 @@ test.describe("camera-change event and $camera signal", () => {
       });
     });
 
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
     const before = await camera.getState();
 
-    await camera.pan(100, 0);
+    await camera.panBy(100, 0);
     await graphPO.waitForFrames(2);
 
     const after = await camera.getState();
     const log = await page.evaluate(
-      () => (window as unknown as { __cameraCommitLog: Array<{ phase: string; detailX?: number; signalX: number; serviceX: number }> }).__cameraCommitLog
+      () =>
+        (
+          window as unknown as {
+            __cameraCommitLog: Array<{ phase: string; detailX?: number; signalX: number; serviceX: number }>;
+          }
+        ).__cameraCommitLog
     );
 
     expect(after.x).not.toBe(before.x);
@@ -136,20 +140,20 @@ test.describe("camera-change event and $camera signal", () => {
     expect(lastSignal.serviceX).toBe(after.x);
   });
 
-  test("collectGraphEventDetails receives proposed state even when change is prevented", async ({ page }) => {
+  test("event detail collector receives proposed state even when change is prevented", async ({ page }) => {
     await page.evaluate(() => {
       window.graph.on("camera-change", (event: Event) => {
         event.preventDefault();
       });
     });
 
-    const readEvents = await graphPO.collectGraphEventDetails<{ scale: number; x: number; y: number }>("camera-change");
+    const readEvents = await graphPO.events.collectDetails<{ scale: number; x: number; y: number }>("camera-change");
     const n0 = (await readEvents()).length;
 
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
     const before = await camera.getState();
 
-    await camera.pan(80, 40);
+    await camera.panBy(80, 40);
 
     const events = (await readEvents()).slice(n0);
     expect(events.length).toBeGreaterThan(0);

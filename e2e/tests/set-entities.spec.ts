@@ -51,7 +51,7 @@ test.describe("setEntities - HTML blocks rendering (issue #249)", () => {
     });
 
     // Zoom in to "Detailed" scale level (>= 0.7) to activate HTML block rendering
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
     await camera.zoomToScale(1.0);
   });
 

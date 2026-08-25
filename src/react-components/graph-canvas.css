@@ -1,4 +1,6 @@
 .graph-wrapper {
+    --graph-block-anchor-width: 16px;
+    --graph-block-anchor-height: 16px;
     position: relative;
     width: 100%;
     height: 100%;

@@ -263,6 +263,9 @@ graph.zoomTo("center", { padding: 100 });
    - [Block Groups](docs/blocks/groups.md)
    - [Canvas Connection System](docs/connections/canvas-connection-system.md)
 
+5. Testing
+   - [Playwright page objects](docs/testing/playwright.md)
+
 ## License
 
 Distributed under the MIT License. See [LICENSE](LICENSE) for details.

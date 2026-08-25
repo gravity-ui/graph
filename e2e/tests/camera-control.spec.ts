@@ -43,7 +43,7 @@ test.describe("Camera Control", () => {
 
   test("should zoom in with mouse wheel and update camera scale", async () => {
     // Get camera COM
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
 
     // First zoom out to make room for zoom in
     await camera.emulateZoom(300); // Zoom out
@@ -62,7 +62,7 @@ test.describe("Camera Control", () => {
 
   test("should zoom out with mouse wheel and update camera scale", async () => {
     // Get camera COM
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
 
     // First zoom in to make room for zoom out
     await camera.emulateZoom(-300); // Zoom in
@@ -81,7 +81,7 @@ test.describe("Camera Control", () => {
 
   test("should pan camera with mouse drag", async () => {
     // Get camera COM
-    const camera = graphPO.getCamera();
+    const camera = graphPO.camera();
 
     const initialCamera = await camera.getState();
 
@@ -97,8 +97,8 @@ test.describe("Camera Control", () => {
 
   test("should maintain world coordinates after zoom", async () => {
     // Get block and camera COMs
-    const block1 = graphPO.getBlockCOM("block-1");
-    const camera = graphPO.getCamera();
+    const block1 = graphPO.block("block-1");
+    const camera = graphPO.camera();
 
     const initialGeometry = await block1.getGeometry();
 
@@ -123,8 +123,8 @@ test.describe("Camera Control", () => {
 
   test("should transform screen coordinates correctly after zoom", async () => {
     // Get block and camera COMs
-    const block1 = graphPO.getBlockCOM("block-1");
-    const camera = graphPO.getCamera();
+    const block1 = graphPO.block("block-1");
+    const camera = graphPO.camera();
 
     // First zoom out to have room for zoom in
     await camera.emulateZoom(300);
@@ -148,8 +148,8 @@ test.describe("Camera Control", () => {
 
   test("should pan camera and maintain block world positions", async () => {
     // Get block and camera COMs
-    const block1 = graphPO.getBlockCOM("block-1");
-    const camera = graphPO.getCamera();
+    const block1 = graphPO.block("block-1");
+    const camera = graphPO.camera();
 
     const initialGeometry = await block1.getGeometry();
     const initialCamera = await camera.getState();

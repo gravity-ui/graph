@@ -239,7 +239,7 @@ test.describe("EventedArea", () => {
     });
 
     test("click inside evented area triggers its handler", async () => {
-      await graphPO.click(120, 120);
+      await graphPO.clickAt({ x: 120, y: 120 });
 
       const events = await graphPO.getEventCounts();
       expect(events.area1Click).toBe(1);
@@ -247,7 +247,7 @@ test.describe("EventedArea", () => {
     });
 
     test("click on block but outside evented areas does not trigger handlers", async () => {
-      await graphPO.click(200, 150);
+      await graphPO.clickAt({ x: 200, y: 150 });
 
       const events = await graphPO.getEventCounts();
       expect(events.area1Click).toBeUndefined();
@@ -255,7 +255,7 @@ test.describe("EventedArea", () => {
     });
 
     test("click on empty space does not trigger handlers", async () => {
-      await graphPO.click(500, 500);
+      await graphPO.clickAt({ x: 500, y: 500 });
 
       const events = await graphPO.getEventCounts();
       expect(events.area1Click).toBeUndefined();
@@ -264,14 +264,14 @@ test.describe("EventedArea", () => {
 
     test("multiple evented areas: each receives its own events", async () => {
       // Area1: top-left (100, 100) to (150, 150)
-      await graphPO.click(120, 120);
+      await graphPO.clickAt({ x: 120, y: 120 });
 
       let events = await graphPO.getEventCounts();
       expect(events.area1Click).toBe(1);
       expect(events.area2Click).toBeUndefined();
 
       // Area2: top-right (250, 100) to (300, 150)
-      await graphPO.click(270, 120);
+      await graphPO.clickAt({ x: 270, y: 120 });
 
       events = await graphPO.getEventCounts();
       expect(events.area1Click).toBe(1);
@@ -279,9 +279,9 @@ test.describe("EventedArea", () => {
     });
 
     test("repeated clicks on same area increment counter", async () => {
-      await graphPO.click(120, 120);
-      await graphPO.click(120, 120);
-      await graphPO.click(120, 120);
+      await graphPO.clickAt({ x: 120, y: 120 });
+      await graphPO.clickAt({ x: 120, y: 120 });
+      await graphPO.clickAt({ x: 120, y: 120 });
 
       const events = await graphPO.getEventCounts();
       expect(events.area1Click).toBe(3);
@@ -298,7 +298,7 @@ test.describe("EventedArea", () => {
         connections: [],
       });
 
-      await graphPO.click(120, 120);
+      await graphPO.clickAt({ x: 120, y: 120 });
 
       const events = await graphPO.getEventCounts();
       expect(events.rejectClick).toBeUndefined();
@@ -311,7 +311,7 @@ test.describe("EventedArea", () => {
         connections: [],
       });
 
-      await graphPO.click(120, 120);
+      await graphPO.clickAt({ x: 120, y: 120 });
 
       const events = await graphPO.getEventCounts();
       expect(events.acceptClick).toBe(1);
@@ -337,7 +337,7 @@ test.describe("EventedArea", () => {
     });
 
     test("entering block over area fires component:mouseenter then area:mouseenter", async () => {
-      await graphPO.hover(120, 120);
+      await graphPO.hoverAt({ x: 120, y: 120 });
 
       const log = await graphPO.getEventLog();
       expect(log).toEqual([
@@ -347,17 +347,17 @@ test.describe("EventedArea", () => {
     });
 
     test("entering block over non-area fires only component:mouseenter", async () => {
-      await graphPO.hover(200, 150);
+      await graphPO.hoverAt({ x: 200, y: 150 });
 
       const log = await graphPO.getEventLog();
       expect(log).toEqual([{ type: "component:mouseenter", block: "block-1" }]);
     });
 
     test("leaving block from area fires area:mouseleave then component:mouseleave", async () => {
-      await graphPO.hover(120, 120);
+      await graphPO.hoverAt({ x: 120, y: 120 });
       await graphPO.resetEventLog();
 
-      await graphPO.hover(500, 500);
+      await graphPO.hoverAt({ x: 500, y: 500 });
 
       const log = await graphPO.getEventLog();
       expect(log).toEqual([
@@ -367,30 +367,30 @@ test.describe("EventedArea", () => {
     });
 
     test("moving within block from area to non-area fires only area:mouseleave", async () => {
-      await graphPO.hover(120, 120);
+      await graphPO.hoverAt({ x: 120, y: 120 });
       await graphPO.resetEventLog();
 
-      await graphPO.hover(200, 150);
+      await graphPO.hoverAt({ x: 200, y: 150 });
 
       const log = await graphPO.getEventLog();
       expect(log).toEqual([{ type: "area:mouseleave", block: "block-1" }]);
     });
 
     test("moving within block from non-area to area fires only area:mouseenter", async () => {
-      await graphPO.hover(200, 150);
+      await graphPO.hoverAt({ x: 200, y: 150 });
       await graphPO.resetEventLog();
 
-      await graphPO.hover(120, 120);
+      await graphPO.hoverAt({ x: 120, y: 120 });
 
       const log = await graphPO.getEventLog();
       expect(log).toEqual([{ type: "area:mouseenter", block: "block-1" }]);
     });
 
     test("moving from block-1 area to block-2 area: correct event order", async () => {
-      await graphPO.hover(120, 120);
+      await graphPO.hoverAt({ x: 120, y: 120 });
       await graphPO.resetEventLog();
 
-      await graphPO.hover(420, 120);
+      await graphPO.hoverAt({ x: 420, y: 120 });
 
       const log = await graphPO.getEventLog();
       expect(log).toEqual([
@@ -402,8 +402,8 @@ test.describe("EventedArea", () => {
     });
 
     test("click on area still works alongside hover tracking", async () => {
-      await graphPO.hover(120, 120);
-      await graphPO.click(120, 120);
+      await graphPO.hoverAt({ x: 120, y: 120 });
+      await graphPO.clickAt({ x: 120, y: 120 });
 
       const events = await graphPO.getEventCounts();
       expect(events.hoverBlockClick).toBe(1);
@@ -432,7 +432,7 @@ test.describe("EventedArea", () => {
     });
 
     test("hovered becomes true when cursor enters area", async () => {
-      await graphPO.hover(120, 120);
+      await graphPO.hoverAt({ x: 120, y: 120 });
       await graphPO.waitForFrames(3);
 
       const state = await graphPO.getHoveredState();
@@ -440,10 +440,10 @@ test.describe("EventedArea", () => {
     });
 
     test("hovered resets to false when cursor leaves area", async () => {
-      await graphPO.hover(120, 120);
+      await graphPO.hoverAt({ x: 120, y: 120 });
       await graphPO.waitForFrames(3);
 
-      await graphPO.hover(200, 150);
+      await graphPO.hoverAt({ x: 200, y: 150 });
       await graphPO.waitForFrames(3);
 
       const state = await graphPO.getHoveredState();
@@ -451,14 +451,14 @@ test.describe("EventedArea", () => {
     });
 
     test("only hovered block area has hovered=true", async () => {
-      await graphPO.hover(120, 120);
+      await graphPO.hoverAt({ x: 120, y: 120 });
       await graphPO.waitForFrames(3);
 
       let state = await graphPO.getHoveredState();
       expect(state["block-1"]).toBe(true);
       expect(state["block-2"]).toBe(false);
 
-      await graphPO.hover(420, 120);
+      await graphPO.hoverAt({ x: 420, y: 120 });
       await graphPO.waitForFrames(3);
 
       state = await graphPO.getHoveredState();
@@ -482,20 +482,20 @@ test.describe("EventedArea", () => {
     });
 
     test("click stops working after area is removed", async () => {
-      await graphPO.click(120, 120);
+      await graphPO.clickAt({ x: 120, y: 120 });
       let events = await graphPO.getEventCounts();
       expect(events.toggleClick).toBe(1);
 
       await graphPO.setAreaEnabled(false);
       await graphPO.forceRender("toggle-block");
 
-      await graphPO.click(120, 120);
+      await graphPO.clickAt({ x: 120, y: 120 });
       events = await graphPO.getEventCounts();
       expect(events.toggleClick).toBe(1);
     });
 
     test("hover state resets after area is removed and re-enabled", async () => {
-      await graphPO.hover(120, 120);
+      await graphPO.hoverAt({ x: 120, y: 120 });
       await graphPO.waitForFrames(3);
       expect(await graphPO.getToggleHovered()).toBe(true);
 
@@ -509,7 +509,7 @@ test.describe("EventedArea", () => {
     });
 
     test("mouseleave fires when hovered area disappears on re-render", async () => {
-      await graphPO.hover(120, 120);
+      await graphPO.hoverAt({ x: 120, y: 120 });
       await graphPO.waitForFrames(3);
       await graphPO.resetEventLog();
 
@@ -524,14 +524,14 @@ test.describe("EventedArea", () => {
       await graphPO.setAreaEnabled(false);
       await graphPO.forceRender("toggle-block");
 
-      await graphPO.click(120, 120);
+      await graphPO.clickAt({ x: 120, y: 120 });
       let events = await graphPO.getEventCounts();
       expect(events.toggleClick).toBeUndefined();
 
       await graphPO.setAreaEnabled(true);
       await graphPO.forceRender("toggle-block");
 
-      await graphPO.click(120, 120);
+      await graphPO.clickAt({ x: 120, y: 120 });
       events = await graphPO.getEventCounts();
       expect(events.toggleClick).toBe(1);
     });

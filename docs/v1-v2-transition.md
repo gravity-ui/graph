@@ -17,15 +17,17 @@ New features, broad refactors, and breaking changes belong on `v2`.
 
 The release channels are:
 
-| Branch | Versions | npm dist-tag |
-| --- | --- | --- |
-| `main` | stable `1.x` | `latest` |
-| `v2` | `2.x` prereleases | `next` |
+| Branch | Versions          | npm dist-tag |
+| ------ | ----------------- | ------------ |
+| `main` | stable `1.x`      | `latest`     |
+| `v2`   | `2.x` prereleases | `next`       |
 
 The existing v1 release workflow continues to handle `main` and maintenance
 release branches. V2 prereleases are started manually with the `Release v2
-prerelease` workflow. The manual workflow targets `v2`, marks the release as a
-prerelease, and publishes under `next`.
+prerelease` workflow. On the first run from the current v1 version, select
+`premajor` to publish `2.0.0-next.0`. Select `prerelease` on later runs to
+increment the prerelease version. The workflow runs only from the `v2` branch
+and publishes under `next`.
 
 CI and E2E run for pull requests and for pushes to both `main` and `v2`.
 Storybook previews are separate:

@@ -252,3 +252,7 @@ graph.zoomTo("center", { padding: 100 });
 |------|-----------|--------------|
 | Настройки графа | Параметры конфигурации | [Подробнее](docs/system/graph-settings.md) |
 | API | Методы для управления графом | [Подробнее](docs/system/public_api.md) |
+
+### Тестирование
+
+- [Page object-ы для Playwright](docs/testing/playwright.md)

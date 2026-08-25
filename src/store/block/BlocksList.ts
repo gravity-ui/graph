@@ -1,7 +1,5 @@
 import { batch, computed, signal } from "@preact/signals-core";
 
-import { AnchorState } from "store/anchor/Anchor";
-
 import { TAnchor, TAnchorId } from "../../components/canvas/anchors";
 import { Block, TBlock, isTBlock } from "../../components/canvas/blocks/Block";
 import { generateRandomId } from "../../components/canvas/blocks/generate";
@@ -9,6 +7,7 @@ import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
 import { SingleSelectionBucket } from "../../services/selection/SingleSelectionBucket";
 import { ESelectionStrategy } from "../../services/selection/types";
+import { AnchorState } from "../anchor/Anchor";
 import { RootStore } from "../index";
 
 import { BlockState, TBlockId } from "./Block";

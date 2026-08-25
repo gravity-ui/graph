@@ -2,6 +2,14 @@ name: Release v2 prerelease
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        type: choice
+        description: Use premajor once for 2.0.0-next.0, then prerelease for later versions
+        default: prerelease
+        options:
+          - prerelease
+          - premajor
 
 permissions:
   contents: read
@@ -9,7 +17,7 @@ permissions:
 jobs:
   release:
     # workflow_dispatch can be started from any ref; only v2 may mint a token.
-    if: github.ref_name == 'v2'
+    if: github.ref == 'refs/heads/v2'
     runs-on: ubuntu-latest
     steps:
       - name: Generate token
@@ -26,6 +34,6 @@ jobs:
           # CI, E2E, and previews test the project on Node 20. The release action
           # intentionally uses Node 24 to match the existing v1 release workflow.
           node-version: 24
-          default-branch: v2
+          npm-version: ${{ inputs.version }}
           npm-dist-tag: next
-          prerelease: true
+          npm-preid: next
