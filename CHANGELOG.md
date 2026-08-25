@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.12.0](https://github.com/gravity-ui/graph/compare/v1.11.3...v1.12.0) (2026-08-25)
+
+
+### Features
+
+* add Playwright page objects ([#327](https://github.com/gravity-ui/graph/issues/327)) ([31a9797](https://github.com/gravity-ui/graph/commit/31a97972617a509b59fcb19006c8dbbe34bd4712))
+
+
+### Bug Fixes
+
+* expose anchor size CSS variables ([#336](https://github.com/gravity-ui/graph/issues/336)) ([581dd07](https://github.com/gravity-ui/graph/commit/581dd07c216a479517123e6aa3537cf9595fb1a6))
+
 ## [1.11.3](https://github.com/gravity-ui/graph/compare/v1.11.2...v1.11.3) (2026-07-15)
 
 
