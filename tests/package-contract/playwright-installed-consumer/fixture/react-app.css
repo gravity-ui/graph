@@ -1,0 +1,19 @@
+#react-root,
+#react-root > .graph-wrapper {
+  width: 100%;
+  height: 100%;
+}
+
+.react-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border: 1px solid #6e5bb7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #2f2a45;
+  font: 16px/1.4 sans-serif;
+}

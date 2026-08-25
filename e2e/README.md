@@ -32,19 +32,19 @@ The standard command builds the project, starts the test server, runs the suite,
 and stops the server:
 
 ```bash
-npm run test:e2e
+pnpm run test:e2e
 ```
 
 Other useful commands:
 
 ```bash
-npm run test:e2e:ui
-npm run test:e2e:debug
-npm run e2e:dev
-npx playwright test block-click
+pnpm run test:e2e:ui
+pnpm run test:e2e:debug
+pnpm run e2e:dev
+pnpm exec playwright test block-click
 ```
 
-With `e2e:dev`, run `npx playwright test --ui` in another terminal.
+With `e2e:dev`, run `pnpm exec playwright test --ui` in another terminal.
 
 ## Example
 

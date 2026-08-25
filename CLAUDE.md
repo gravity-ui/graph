@@ -9,32 +9,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ```bash
-# Install dependencies (use npm, not yarn or pnpm)
-npm install
+# Install dependencies
+pnpm install --frozen-lockfile
 
 # Development mode (watch TypeScript and CSS)
-npm run dev
+pnpm run dev
 
 # Run Storybook for development
-npm run storybook
+pnpm run storybook
 
 # Build for production
-npm run build:publish
+pnpm run build:publish
 
 # Type checking
-npm run typecheck
+pnpm run typecheck
 
 # Linting
-npm run lint
+pnpm run lint
 
 # Testing
-npm run test
+pnpm run test
 
 # Update snapshots
-npm run test -- --updateSnapshot
+pnpm run test -- --updateSnapshot
 
 # Build Storybook
-npm run build-storybook
+pnpm run build-storybook
 ```
 
 ## Core Architecture
@@ -356,7 +356,7 @@ Layers receive:
 - Tests use Jest with `@swc/jest` for TypeScript
 - Canvas mocking via `jest-canvas-mock`
 - Test files in `__tests__` directories or `*.test.ts` alongside source
-- Run specific test: `npm test -- <pattern>`
+- Run specific test: `pnpm test -- <pattern>`
 
 ## Documentation
 
@@ -556,7 +556,7 @@ function createBlock(
 ```
 
 **Fixing ESLint Errors:**
-- Always run `npx eslint --fix PATH_TO_FILE` first
+- Always run `pnpm exec eslint --fix PATH_TO_FILE` first
 - Don't attempt manual fixes before running auto-fix
 
 ## Canvas Components Rules

@@ -1,4 +1,5 @@
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import assert from "node:assert/strict";
+import { access, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -9,6 +10,9 @@ const fixtureDirectory = fileURLToPath(new URL("./fixture", import.meta.url));
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "gravity-graph-playwright-consumer-"));
 const tarballDirectory = path.join(temporaryDirectory, "tarballs");
+const tarballName = "gravity-ui-graph.tgz";
+const tarballPath = path.join(tarballDirectory, tarballName);
+const consumerNames = ["vanilla", "react"];
 
 async function getInstalledVersion(packageName) {
   const manifestPath = path.join(repositoryRoot, "node_modules", ...packageName.split("/"), "package.json");
@@ -84,54 +88,123 @@ async function preserveCIArtifacts() {
     return;
   }
 
-  for (const directory of ["playwright-report", "test-results"]) {
-    const source = path.join(temporaryDirectory, directory);
-    const target = path.join(repositoryRoot, directory, "package-contract");
+  for (const consumerName of consumerNames) {
+    for (const directory of ["playwright-report", "test-results"]) {
+      const source = path.join(temporaryDirectory, consumerName, directory);
+      const target = path.join(repositoryRoot, directory, "package-contract", consumerName);
 
-    try {
-      await mkdir(path.dirname(target), { recursive: true });
-      await cp(source, target, { recursive: true });
-    } catch (error) {
-      if (error?.code !== "ENOENT") {
-        console.error(`[package-contract] Could not preserve ${directory}:`, error);
+      try {
+        await mkdir(path.dirname(target), { recursive: true });
+        await cp(source, target, { recursive: true });
+      } catch (error) {
+        if (error?.code !== "ENOENT") {
+          console.error(`[package-contract] Could not preserve ${consumerName}/${directory}:`, error);
+        }
       }
     }
   }
+}
+
+async function assertInstalledPackageContract(consumerDirectory) {
+  const packageRoot = path.join(consumerDirectory, "node_modules", "@gravity-ui", "graph");
+  const manifest = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
+
+  assert.deepEqual(manifest.exports, {
+    ".": {
+      types: "./build/index.d.ts",
+      default: "./build/index.js",
+    },
+    "./react": {
+      types: "./build/react-components/index.d.ts",
+      default: "./build/react-components/index.js",
+    },
+    "./playwright": {
+      types: "./build/playwright/index.d.ts",
+      default: "./build/playwright/index.js",
+    },
+  });
+
+  await Promise.all(
+    [
+      "build/index.js",
+      "build/index.d.ts",
+      "build/react-components/index.js",
+      "build/react-components/index.d.ts",
+      "build/react-components/graph-canvas.css",
+      "build/playwright/index.js",
+      "build/playwright/index.d.ts",
+      "build/docs/INDEX.md",
+    ].map((relativePath) => access(path.join(packageRoot, relativePath)))
+  );
+}
+
+async function runConsumer({ name, manifest, typecheckConfig, entryPoint, testFile }) {
+  const consumerDirectory = path.join(temporaryDirectory, name);
+  await mkdir(consumerDirectory);
+  await cp(fixtureDirectory, consumerDirectory, { recursive: true });
+  await writeFile(path.join(consumerDirectory, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+
+  console.log(`\n[package-contract:${name}] Installing the packed library...`);
+  await run("pnpm", ["install", "--ignore-workspace", "--ignore-scripts", "--no-lockfile", "--no-frozen-lockfile"], {
+    cwd: consumerDirectory,
+  });
+
+  await assertInstalledPackageContract(consumerDirectory);
+
+  console.log(`\n[package-contract:${name}] Type-checking the public consumer API...`);
+  await run("pnpm", ["exec", "tsc", "-p", typecheckConfig, "--noEmit"], { cwd: consumerDirectory });
+
+  console.log(`\n[package-contract:${name}] Bundling ${entryPoint}...`);
+  await run("pnpm", ["exec", "esbuild", entryPoint, "--bundle", `--outfile=dist/${path.parse(entryPoint).name}.js`], {
+    cwd: consumerDirectory,
+  });
+
+  console.log(`\n[package-contract:${name}] Running ${testFile} through the installed Playwright entrypoint...`);
+  const port = await getFreePort();
+  await run("pnpm", ["exec", "playwright", "test", testFile], {
+    cwd: consumerDirectory,
+    env: {
+      ...process.env,
+      PACKAGE_CONTRACT_PORT: String(port),
+    },
+  });
 }
 
 try {
   await mkdir(tarballDirectory);
 
   console.log("\n[package-contract] Building published files...");
-  await run("npm", ["run", "build:publish"], {
+  await run("pnpm", ["run", "build:publish"], {
     cwd: repositoryRoot,
   });
 
   console.log("\n[package-contract] Packing @gravity-ui/graph...");
-  const packOutput = await run("npm", ["pack", "--json", "--pack-destination", tarballDirectory], {
+  await run("pnpm", ["pack", "--out", tarballPath], {
     cwd: repositoryRoot,
     printStdout: false,
   });
-  const packResult = JSON.parse(packOutput);
-  const tarballName = packResult[0]?.filename;
-  if (!tarballName) {
-    throw new Error("npm pack did not report the generated tarball name.");
-  }
 
-  const [playwrightVersion, esbuildVersion, typescriptVersion] = await Promise.all(
-    ["@playwright/test", "esbuild", "typescript"].map(getInstalledVersion)
+  const [
+    playwrightVersion,
+    esbuildVersion,
+    typescriptVersion,
+    reactVersion,
+    reactDomVersion,
+    reactTypesVersion,
+    reactDomTypesVersion,
+  ] = await Promise.all(
+    ["@playwright/test", "esbuild", "typescript", "react", "react-dom", "@types/react", "@types/react-dom"].map(
+      getInstalledVersion
+    )
   );
-  const consumerPackage = {
-    name: "gravity-graph-playwright-installed-consumer",
+  const commonManifest = {
     private: true,
     type: "module",
-    scripts: {
-      build: "esbuild app.ts --bundle --outfile=dist/app.js",
-      typecheck: "tsc -p tsconfig.json --noEmit",
-      test: "playwright test",
-    },
+    packageManager: "pnpm@10.34.5",
     dependencies: {
-      "@gravity-ui/graph": `file:./tarballs/${tarballName}`,
+      "@gravity-ui/graph": `file:../tarballs/${tarballName}`,
+      react: reactVersion,
+      "react-dom": reactDomVersion,
     },
     devDependencies: {
       "@playwright/test": playwrightVersion,
@@ -140,28 +213,34 @@ try {
     },
   };
 
-  await cp(fixtureDirectory, temporaryDirectory, { recursive: true });
-  await writeFile(path.join(temporaryDirectory, "package.json"), `${JSON.stringify(consumerPackage, null, 2)}\n`);
-
-  console.log(`\n[package-contract] Installing tarball in ${temporaryDirectory}...`);
-  await run("npm", ["install", "--ignore-scripts", "--no-package-lock"], {
-    cwd: temporaryDirectory,
+  await runConsumer({
+    name: "vanilla",
+    manifest: {
+      ...commonManifest,
+      name: "gravity-graph-installed-vanilla-consumer",
+    },
+    typecheckConfig: "tsconfig.vanilla.json",
+    entryPoint: "app.ts",
+    testFile: "graph.pw.ts",
   });
 
-  console.log("\n[package-contract] Type-checking the public consumer API...");
-  await run("npm", ["run", "typecheck"], { cwd: temporaryDirectory });
-
-  console.log("\n[package-contract] Bundling the vanilla Graph page...");
-  await run("npm", ["run", "build"], { cwd: temporaryDirectory });
-
-  console.log("\n[package-contract] Running Playwright through @gravity-ui/graph/playwright...");
-  const port = await getFreePort();
-  await run("npm", ["test"], {
-    cwd: temporaryDirectory,
-    env: {
-      ...process.env,
-      PACKAGE_CONTRACT_PORT: String(port),
+  await runConsumer({
+    name: "react",
+    manifest: {
+      ...commonManifest,
+      name: "gravity-graph-installed-react-consumer",
+      dependencies: {
+        ...commonManifest.dependencies,
+      },
+      devDependencies: {
+        ...commonManifest.devDependencies,
+        "@types/react": reactTypesVersion,
+        "@types/react-dom": reactDomTypesVersion,
+      },
     },
+    typecheckConfig: "tsconfig.react.json",
+    entryPoint: "react-app.tsx",
+    testFile: "react.pw.ts",
   });
 
   console.log("\n[package-contract] Installed consumer contract passed.");

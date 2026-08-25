@@ -16,25 +16,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Run E2E tests
-        run: npm run test:e2e:ci
+        run: pnpm run test:e2e:ci
         env:
           CI: true
 
       - name: Test installed Playwright consumer
-        run: npm run test:package-contract
+        run: pnpm run test:package-contract
         env:
           CI: true
 

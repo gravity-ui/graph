@@ -9,7 +9,8 @@ body {
   background: #f4f5f6;
 }
 
-#graph-shell {
+#graph-shell,
+#react-shell {
   width: 900px;
   height: 650px;
   padding: 24px;

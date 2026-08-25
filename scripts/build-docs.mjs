@@ -1,6 +1,6 @@
 // Builds the AI-facing docs tree (cleaned README + docs/ guides) into build/docs so an
 // agent in a consumer project reads docs matching the installed version from
-// node_modules/@gravity-ui/graph/build/docs. Appended to the build/build:publish npm
+// node_modules/@gravity-ui/graph/build/docs. Appended to the build/build:publish package
 // scripts. Uses @gravity-ui/readme-validator's buildDocs().
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';

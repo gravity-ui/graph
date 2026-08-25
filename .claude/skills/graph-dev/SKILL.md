@@ -107,8 +107,8 @@ Write a Jest unit test when the code under test:
 Examples: `HitTest`, `IncrementalBoundingBoxTracker`, coordinate math, store selectors, `BatchPath2DRenderer`.
 
 ```bash
-npm run test
-npm run test -- <pattern>         # run specific test file
+pnpm run test
+pnpm run test -- <pattern>         # run specific test file
 ```
 
 ### E2e tests — user interactions and visual behavior
@@ -122,12 +122,12 @@ npm run test -- <pattern>         # run specific test file
 E2e tests live in `e2e/tests/`. Use `GraphPageObject` and its Component Object Models.
 
 ```bash
-npm run e2e:bundle                 # REQUIRED after any source change
-npm run e2e                        # run all e2e tests
-npx playwright test <pattern>      # run specific test
+pnpm run e2e:bundle                 # REQUIRED after any source change
+pnpm run test:e2e                   # run all e2e tests
+pnpm exec playwright test <pattern>      # run specific test
 ```
 
-> **Always run `npm run e2e:bundle` before `npm run e2e`** if you changed TypeScript source.
+> **Always run `pnpm run e2e:bundle` before `pnpm run test:e2e`** if you changed TypeScript source.
 > The e2e server must be on port 6006. Kill Storybook first if it's running there.
 
 ### Self-checking during development

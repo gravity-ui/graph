@@ -11,16 +11,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - name: Install Packages
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         shell: bash
       - name: Build Storybook
-        run: npm run build-storybook
+        run: pnpm run build-storybook
         shell: bash
       - name: Upload to S3
         uses: gravity-ui/preview-upload-to-s3-action@v1

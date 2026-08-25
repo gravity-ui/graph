@@ -8,6 +8,5 @@
     "skipLibCheck": true,
     "noEmit": true,
     "types": ["@playwright/test"]
-  },
-  "include": ["app.ts", "graph.pw.ts", "public-types.ts"]
+  }
 }

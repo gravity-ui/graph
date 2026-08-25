@@ -448,6 +448,6 @@ enableWheelIntentDebug((entry) => {
 
 Debug hooks are explicit opt-in. Each wheel event logs two plain-text lines: a one-line summary and a `JSON.stringify` payload you can copy from the console.
 
-**Storybook dev panel:** run `npm run storybook` → **Dev / WheelIntentProbe** — live table of raw `WheelEvent` fields plus resolver rule/signals; copy JSON after reproducing on your OS/device.
+**Storybook dev panel:** run `pnpm run storybook` → **Dev / WheelIntentProbe** — live table of raw `WheelEvent` fields plus resolver rule/signals; copy JSON after reproducing on your OS/device.
 
 See also [Camera](./camera.md) for `MOUSE_WHEEL_BEHAVIOR` and camera constants.

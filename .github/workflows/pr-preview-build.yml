@@ -8,6 +8,31 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: gravity-ui/preview-build-action@v2
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install Packages
+        run: pnpm install --frozen-lockfile
+      - name: Build Storybook
+        run: pnpm run build-storybook
+      - name: Create Static Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: static
+          path: storybook-static
+      - name: Save PR ID
+        run: echo "${{ github.event.pull_request.number }}" > pr-id.txt
+      - name: Create PR Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr
+          path: pr-id.txt

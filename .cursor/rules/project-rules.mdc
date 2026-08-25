@@ -66,9 +66,9 @@ Rendering system:
 
 ## Development Guidelines
 Development guidelines:
-- To run the project locally, use `npm run storybook`
-- To build the project, use `npm run build`
-- Tests are run via `npm run test`
+- To run the project locally, use `pnpm run storybook`
+- To build the project, use `pnpm run build`
+- Tests are run via `pnpm run test`
 - Use TypeScript for typing all code
 - Follow component architecture principles
 

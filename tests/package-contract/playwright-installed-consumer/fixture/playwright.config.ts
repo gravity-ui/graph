@@ -5,7 +5,7 @@ const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: ".",
-  testMatch: "graph.pw.ts",
+  testMatch: "*.pw.ts",
   fullyParallel: false,
   workers: 1,
   outputDir: "test-results",
