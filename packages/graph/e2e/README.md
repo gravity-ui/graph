@@ -28,7 +28,7 @@ as `GraphEventProbe` instead of expanding the general graph PO.
 
 ## Running tests
 
-The standard command builds the project, starts the test server, runs the suite,
+Run these commands from the repository root. The standard command builds the project, starts the test server, runs the suite,
 and stops the server:
 
 ```bash
@@ -41,10 +41,10 @@ Other useful commands:
 pnpm run test:e2e:ui
 pnpm run test:e2e:debug
 pnpm run e2e:dev
-pnpm exec playwright test block-click
+pnpm run test:e2e -- block-click
 ```
 
-With `e2e:dev`, run `pnpm exec playwright test --ui` in another terminal.
+With `e2e:dev`, run `pnpm run test:e2e:ui` in another terminal.
 
 ## Example
 

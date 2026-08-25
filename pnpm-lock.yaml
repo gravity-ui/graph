@@ -7,6 +7,21 @@ settings:
 importers:
 
   .:
+    devDependencies:
+      '@commitlint/cli':
+        specifier: ^19.5.0
+        version: 19.8.1(@types/node@20.19.43)(typescript@5.9.2)
+      '@commitlint/config-conventional':
+        specifier: ^19.5.0
+        version: 19.5.0
+      '@gravity-ui/prettier-config':
+        specifier: ^1.1.0
+        version: 1.1.0(prettier@3.3.2)
+      prettier:
+        specifier: ^3.0.0
+        version: 3.3.2
+
+  packages/graph:
     dependencies:
       '@preact/signals-core':
         specifier: ^1.12.2

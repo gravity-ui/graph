@@ -48,7 +48,7 @@ areas.setGroups([
 
 **Why:** Manual `rect` means **you** own position and size. Automatic grouping (below) recomputes rects from blocks; for static lanes you usually want full control.
 
-**See also:** [Manual Groups story](/src/stories/canvas/groups/manual.stories.tsx) — fixed colored zones.
+**See also:** [Manual Groups story](../../src/stories/canvas/groups/manual.stories.tsx) — fixed colored zones.
 
 ---
 
@@ -102,7 +102,7 @@ graph.addLayer(AutoGroups, { draggable: true });
 
 **Why:** A computed signal runs `mapToGroups` whenever blocks change, then calls `setGroups` on the layer — the frame stays aligned with data.
 
-**See also:** [Basic Groups](/src/stories/canvas/groups/default.stories.tsx), [Large graph](/src/stories/canvas/groups/large.stories.tsx).
+**See also:** [Basic Groups](../../src/stories/canvas/groups/default.stories.tsx), [Large graph](../../src/stories/canvas/groups/large.stories.tsx).
 
 ---
 
@@ -162,7 +162,7 @@ useGraphEvent(graph, "dblclick", ({ target }) => {
 
 **Why:** Collapse state lives on the group; programmatic API keeps the same behavior whether you use a toolbar, keyboard shortcut, or canvas double-click.
 
-**See also:** [Collapsible Groups story](/src/stories/canvas/groups/collapsible.stories.tsx).
+**See also:** [Collapsible Groups story](../../src/stories/canvas/groups/collapsible.stories.tsx).
 
 ---
 
@@ -210,7 +210,7 @@ useGraphEvent(graph, "group-collapse-change", (detail, event) => {
 2. Pass `groupComponent: YourGroup` to `graph.addLayer(BlockGroups, { groupComponent: YourGroup, ... })`.
 3. For typed extra fields, extend `TGroup` / `TCollapsibleGroup` and pass those fields from `setGroups` / `mapToGroups`.
 
-**See also:** [Extended Groups story](/src/stories/canvas/groups/extended.stories.tsx).
+**See also:** [Extended Groups story](../../src/stories/canvas/groups/extended.stories.tsx).
 
 Example shape (abbreviated):
 
@@ -302,11 +302,11 @@ groups.updateGroups(groups: Partial<TGroup> & { id: string }[]): void;
 
 | Story                                                             | What it demonstrates                                  |
 | ----------------------------------------------------------------- | ----------------------------------------------------- |
-| [default](/src/stories/canvas/groups/default.stories.tsx)         | Automatic groups from block properties                |
-| [large](/src/stories/canvas/groups/large.stories.tsx)             | Many blocks / groups                                  |
-| [manual](/src/stories/canvas/groups/manual.stories.tsx)           | Fixed non-draggable zones                             |
-| [extended](/src/stories/canvas/groups/extended.stories.tsx)       | Custom group class + extra fields                     |
-| [collapsible](/src/stories/canvas/groups/collapsible.stories.tsx) | `CollapsibleGroup`, dblclick, `group-collapse-change` |
+| [default](../../src/stories/canvas/groups/default.stories.tsx)         | Automatic groups from block properties                |
+| [large](../../src/stories/canvas/groups/large.stories.tsx)             | Many blocks / groups                                  |
+| [manual](../../src/stories/canvas/groups/manual.stories.tsx)           | Fixed non-draggable zones                             |
+| [extended](../../src/stories/canvas/groups/extended.stories.tsx)       | Custom group class + extra fields                     |
+| [collapsible](../../src/stories/canvas/groups/collapsible.stories.tsx) | `CollapsibleGroup`, dblclick, `group-collapse-change` |
 
 
 ---
@@ -314,4 +314,3 @@ groups.updateGroups(groups: Partial<TGroup> & { id: string }[]): void;
 ## Related docs
 
 - [Connection system](../connections/canvas-connection-system.md) — ports, and **port delegation** when groups collapse.
-

@@ -73,6 +73,7 @@ Do not create `release/v1` before cutover. Do not publish a v2 prerelease under
 `latest`. Do not merge v2-only development back into the pre-cutover `main`
 branch.
 
-For this short transition, normal pull request review and the existing release
-action are the approval mechanism. No additional role system, SHA ledger,
-ruleset framework, or scheduled synchronization process is required.
+For this short transition, normal pull request review and the manual v2 release
+workflow are the approval mechanism. The workflow versions and publishes the
+`packages/graph` workspace package explicitly. No additional role system, SHA
+ledger, ruleset framework, or scheduled synchronization process is required.

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - README.md
+      - packages/graph/README.md
 
 permissions:
   contents: read
@@ -17,4 +17,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: gravity-ui/readme-validator@v1
         with:
+          paths: packages/graph/README.md
           type: package

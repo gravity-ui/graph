@@ -1,5 +1,5 @@
 ---
-description: Rules and best practices for working with the event model in @gravity-ui/graph (Based on docs/system/events.md and docs/react/usage.md)
+description: Rules and best practices for working with the event model in @gravity-ui/graph (Based on packages/graph/docs/system/events.md and packages/graph/docs/react/usage.md)
 globs: 
 alwaysApply: false
 ---
@@ -14,7 +14,7 @@ The system uses **`CustomEvent`**, and interaction follows a `.on`/`.off`/`.emit
 - **Event Object:** Instances of `CustomEvent`. Data is in **`event.detail`**.
 - **Target Component:** For interaction events (e.g., `block:select`, `click`), `event.detail.target` often references the specific `GraphComponent` interacted with.
 - **Source Event:** `event.detail.sourceEvent` may contain the original low-level DOM/Canvas event.
-- **Event Types:** String names. See `docs/system/events.md` for a list.
+- **Event Types:** String names. See `packages/graph/docs/system/events.md` for a list.
 - **Subscription API (Core):** Uses **`graph.on(event, callback, options)`**.
 - **Unsubscription API (Core):** Uses **`graph.off(event, callback)`**. **Crucial for cleanup.**
 - **Control Flow:** Standard `event.preventDefault()` and `event.stopPropagation()` can be used on the `CustomEvent` object.

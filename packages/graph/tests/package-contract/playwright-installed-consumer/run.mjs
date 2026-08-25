@@ -109,6 +109,17 @@ async function assertInstalledPackageContract(consumerDirectory) {
   const packageRoot = path.join(consumerDirectory, "node_modules", "@gravity-ui", "graph");
   const manifest = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
 
+  assert.equal(manifest.name, "@gravity-ui/graph");
+  assert.notEqual(manifest.private, true);
+  assert.equal(manifest.main, "build/index.js");
+  assert.equal(manifest.module, "build/index.js");
+  assert.equal(manifest.types, "build/index.d.ts");
+  assert.deepEqual(manifest.typesVersions, {
+    "*": {
+      react: ["build/react-components/index.d.ts"],
+      playwright: ["build/playwright/index.d.ts"],
+    },
+  });
   assert.deepEqual(manifest.exports, {
     ".": {
       types: "./build/index.d.ts",
@@ -134,6 +145,9 @@ async function assertInstalledPackageContract(consumerDirectory) {
       "build/playwright/index.js",
       "build/playwright/index.d.ts",
       "build/docs/INDEX.md",
+      "README.md",
+      "LICENSE",
+      "tsconfig.json",
     ].map((relativePath) => access(path.join(packageRoot, relativePath)))
   );
 }
