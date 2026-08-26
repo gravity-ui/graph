@@ -4,6 +4,14 @@ const nativeImportProbes = {
   root: `
     const graph = await import("@gravity-ui/graph");
     if (typeof graph.Graph !== "function") throw new Error("Root entrypoint does not export Graph.");
+    if (graph.ESchedulerPriority?.LOWEST !== 4) {
+      throw new Error("Root entrypoint does not export ESchedulerPriority.");
+    }
+    for (const schedulerFunction of ["schedule", "debounce", "throttle"]) {
+      if (typeof graph[schedulerFunction] !== "function") {
+        throw new Error(\`Root entrypoint does not export \${schedulerFunction}.\`);
+      }
+    }
   `,
   react: `
     const react = await import("@gravity-ui/graph/react");

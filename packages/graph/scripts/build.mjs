@@ -8,6 +8,9 @@ import { build } from "esbuild";
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const buildDirectory = path.join(packageRoot, "build");
 const manifest = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
+const inlinedWorkspacePackages = new Map([
+  ["@gravity-ui/graph-scheduler", fileURLToPath(import.meta.resolve("@gravity-ui/graph-scheduler"))],
+]);
 const externalPackages = [
   ...new Set([...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.peerDependencies ?? {})]),
 ];
@@ -64,7 +67,9 @@ function assertNoBundledPackages(results) {
         const [firstSegment, secondSegment] = packagePath.split("/");
         const packageName = firstSegment.startsWith("@") ? `${firstSegment}/${secondSegment}` : firstSegment;
 
-        bundledPackages.add(packageName);
+        if (!inlinedWorkspacePackages.has(packageName)) {
+          bundledPackages.add(packageName);
+        }
       }
     }
   }
@@ -76,6 +81,42 @@ function assertNoBundledPackages(results) {
         .map((dependency) => `- ${dependency}`)
         .join("\n")}`
     );
+  }
+}
+
+async function assertInlinedWorkspacePackages(results) {
+  const bundledInputs = new Set(
+    results.flatMap((result) => Object.keys(result.metafile.inputs).map((input) => path.resolve(packageRoot, input)))
+  );
+
+  for (const [packageName, entryPath] of inlinedWorkspacePackages) {
+    const workspaceSpecifier = manifest.devDependencies?.[packageName];
+    const workspacePackageRoot = path.resolve(path.dirname(entryPath), "..");
+    const workspaceManifest = JSON.parse(await readFile(path.join(workspacePackageRoot, "package.json"), "utf8"));
+
+    if (typeof workspaceSpecifier !== "string" || !workspaceSpecifier.startsWith("workspace:")) {
+      throw new Error(`${packageName} must be an explicit workspace devDependency of ${manifest.name}.`);
+    }
+
+    if (workspaceManifest.name !== packageName || workspaceManifest.private !== true) {
+      throw new Error(`${packageName} must resolve to a private workspace package.`);
+    }
+
+    if (!bundledInputs.has(entryPath)) {
+      throw new Error(`Production bundles do not inline the private workspace package ${packageName}.`);
+    }
+
+    for (const result of results) {
+      for (const output of Object.values(result.metafile.outputs)) {
+        const unresolvedImport = output.imports.find(
+          ({ path: importPath }) => importPath === packageName || importPath.startsWith(`${packageName}/`)
+        );
+
+        if (unresolvedImport) {
+          throw new Error(`Production bundles contain an unresolved private import of ${packageName}.`);
+        }
+      }
+    }
   }
 }
 
@@ -244,7 +285,10 @@ const [browserResult, playwrightEsmResult, playwrightCjsResult, stylesResult] = 
   }),
 ]);
 
-assertNoBundledPackages([browserResult, playwrightEsmResult, playwrightCjsResult, stylesResult]);
+const buildResults = [browserResult, playwrightEsmResult, playwrightCjsResult, stylesResult];
+
+await assertInlinedWorkspacePackages(buildResults);
+assertNoBundledPackages(buildResults);
 
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 await run(pnpmCommand, ["exec", "tsc", "-p", "tsconfig.publish.json"]);

@@ -9,11 +9,11 @@
     "url": "https://github.com/gravity-ui/graph"
   },
   "scripts": {
-    "typecheck": "pnpm --filter @gravity-ui/graph run typecheck && pnpm --filter @gravity-ui/graph-storybook run typecheck && pnpm --filter @gravity-ui/graph-e2e run typecheck",
+    "typecheck": "pnpm --filter @gravity-ui/graph-scheduler run typecheck && pnpm --filter @gravity-ui/graph run typecheck && pnpm --filter @gravity-ui/graph-storybook run typecheck && pnpm --filter @gravity-ui/graph-e2e run typecheck",
     "typecheck:published-playwright-types": "pnpm --filter @gravity-ui/graph run typecheck:published-playwright-types",
-    "lint": "pnpm --filter @gravity-ui/graph run lint && pnpm --filter @gravity-ui/graph-storybook run lint",
-    "test:unit": "pnpm --filter @gravity-ui/graph run test:unit",
-    "test": "pnpm --filter @gravity-ui/graph run test",
+    "lint": "pnpm --filter \"./packages/*\" run lint && pnpm --filter @gravity-ui/graph-storybook run lint",
+    "test:unit": "pnpm --filter \"./packages/*\" run test:unit",
+    "test": "pnpm --filter \"./packages/*\" run test",
     "storybook": "pnpm --filter @gravity-ui/graph run build && pnpm --filter @gravity-ui/graph-storybook run storybook",
     "build-storybook": "pnpm --filter @gravity-ui/graph run build && pnpm --filter @gravity-ui/graph-storybook run build-storybook",
     "build:docs": "pnpm --filter @gravity-ui/graph run build:docs",
