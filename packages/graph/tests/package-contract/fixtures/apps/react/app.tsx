@@ -3,9 +3,10 @@ import { createRoot } from "react-dom/client";
 
 import { Graph, GraphState, type TBlock } from "@gravity-ui/graph";
 import { GraphBlock, GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
+import "@gravity-ui/graph/styles.css";
 
+import "../../shared/base.css";
 import "./app.css";
-import "./react-app.css";
 
 const blocks = [
   {

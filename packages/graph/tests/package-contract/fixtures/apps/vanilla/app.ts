@@ -1,6 +1,7 @@
 import { ECanDrag, Graph, type TBlock, type TConnection } from "@gravity-ui/graph";
+import "@gravity-ui/graph/styles.css";
 
-import "./app.css";
+import "../../shared/base.css";
 
 const blocks = [
   {

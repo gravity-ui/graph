@@ -1,6 +1,7 @@
 {
   "name": "@gravity-ui/graph",
   "version": "1.11.3",
+  "type": "module",
   "packageManager": "pnpm@10.34.5",
   "description": "Modern graph editor component",
   "main": "build/index.js",
@@ -32,16 +33,26 @@
   "exports": {
     ".": {
       "types": "./build/index.d.ts",
+      "import": "./build/index.js",
       "default": "./build/index.js"
     },
     "./react": {
       "types": "./build/react-components/index.d.ts",
+      "import": "./build/react-components/index.js",
       "default": "./build/react-components/index.js"
     },
     "./playwright": {
-      "types": "./build/playwright/index.d.ts",
+      "import": {
+        "types": "./build/playwright/index.d.ts",
+        "default": "./build/playwright/index.js"
+      },
+      "require": {
+        "types": "./build/playwright/index.d.cts",
+        "default": "./build/playwright/index.cjs"
+      },
       "default": "./build/playwright/index.js"
-    }
+    },
+    "./styles.css": "./build/styles.css"
   },
   "license": "MIT",
   "repository": {
@@ -50,42 +61,46 @@
     "directory": "packages/graph"
   },
   "files": [
-    "build",
-    "tsconfig.json"
+    "build"
   ],
   "scripts": {
-    "typecheck": "pnpm run build:publish && pnpm run typecheck:published-playwright-types",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm run build && pnpm run typecheck:published-playwright-types",
     "typecheck:published-playwright-types": "node scripts/check-playwright-consumer-types.mjs",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
     "test:unit": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests --updateSnapshot",
     "test": "pnpm run test:unit",
     "build:docs": "node scripts/build-docs.mjs",
-    "copy-styles": "copyfiles -u 1 \"src/**/*.css\" build/",
-    "build:playwright-runtime": "esbuild src/playwright/index.ts --bundle --format=cjs --platform=node --target=node20 --packages=external --outfile=build/playwright/index.js",
-    "build:publish": "tsc -p tsconfig.publish.json && pnpm run build:playwright-runtime && pnpm run copy-styles && pnpm run build:docs",
-    "build": "tsc --declaration && pnpm run build:playwright-runtime && pnpm run copy-styles && pnpm run build:docs",
-    "prepublishOnly": "pnpm run typecheck && pnpm run test && pnpm run build:publish",
-    "dev": "concurrently \"tsc --watch --declaration\" \"chokidar 'src/**/*.css' -c 'pnpm run copy-styles'\"",
-    "test:package-contract": "node tests/package-contract/playwright-installed-consumer/run.mjs"
+    "build": "node scripts/build.mjs",
+    "prepublishOnly": "pnpm run typecheck && pnpm run test",
+    "dev": "chokidar \"src/**/*\" -c \"pnpm run build\" --initial",
+    "test:package-contract": "node tests/package-contract/run.mjs"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.58.0",
-    "react": "^17.0.0 || ^18.0.0",
-    "react-dom": "^17.0.0 || ^18.0.0"
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
   },
   "peerDependenciesMeta": {
     "@playwright/test": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
       "optional": true
     }
   },
   "dependencies": {
     "@preact/signals-core": "^1.12.2",
+    "elkjs": "^0.9.3",
     "intersects": "^2.7.2",
     "lodash": "^4.17.21",
     "rbush": "^3.0.1",
     "style-observer": "^0.1.1"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@commitlint/cli": "^19.5.0",
     "@commitlint/config-conventional": "^19.5.0",
     "@gravity-ui/eslint-config": "^3.2.0",
@@ -101,15 +116,12 @@
     "@types/lodash": "^4.17.13",
     "@types/node": "^20.17.0",
     "@types/rbush": "^3.0.0",
-    "@types/react": "^18.2.14",
-    "@types/react-dom": "^18.2.6",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
     "@typescript-eslint/eslint-plugin": "5.39.0",
     "@typescript-eslint/parser": "5.39.0",
-    "concurrently": "^9.2.1",
     "chokidar-cli": "^3.0.0",
-    "copyfiles": "^2.4.1",
     "cross-env": "^7.0.3",
-    "elkjs": "^0.9.3",
     "esbuild": "^0.27.2",
     "eslint": "^8.0.0",
     "eslint-config-prettier": "^8.10.0",
@@ -122,6 +134,7 @@
     "jest-environment-jsdom": "^30.0.5",
     "mitata": "^1.0.34",
     "prettier": "^3.0.0",
+    "publint": "^0.3.23",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "ts-node": "^10.9.2",

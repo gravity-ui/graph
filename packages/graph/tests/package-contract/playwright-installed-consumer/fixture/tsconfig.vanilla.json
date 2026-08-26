@@ -1,4 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "include": ["app.ts", "graph.pw.ts", "public-types.ts"]
-}

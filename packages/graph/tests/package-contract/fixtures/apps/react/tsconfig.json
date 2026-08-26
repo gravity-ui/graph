@@ -1,0 +1,7 @@
+{
+  "extends": "../../shared/tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx"
+  },
+  "include": ["app.tsx", "graph.pw.ts"]
+}

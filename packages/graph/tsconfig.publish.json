@@ -2,8 +2,10 @@
   "extends": "./tsconfig",
   "compilerOptions": {
     "declaration": true,
+    "emitDeclarationOnly": true,
     "allowJs": true,
-    "paths": {}
+    "rootDir": "./src",
+    "skipLibCheck": false
   },
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.spec.ts", "src/**/*.spec.tsx"]
 }

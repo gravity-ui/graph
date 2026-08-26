@@ -3,10 +3,10 @@ import type { Config } from "jest";
 const jestConfig: Config = {
   testPathIgnorePatterns: ["/node_modules/", "/build/"],
   testEnvironment: "jsdom",
-  setupFiles: ["<rootDir>/setupJest.js", "jest-canvas-mock"],
+  setupFiles: ["<rootDir>/setupJest.cjs", "jest-canvas-mock"],
   transformIgnorePatterns: [],
   moduleNameMapper: {
-    "\\.(css|less)$": "<rootDir>/__mocks__/styleMock.js",
+    "\\.(css|less)$": "<rootDir>/__mocks__/styleMock.cjs",
   },
   transform: {
     "^.+\\.(t|j)sx?$": "@swc/jest",

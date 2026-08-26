@@ -3,10 +3,10 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2022", "DOM"],
+    "lib": ["ES2022", "DOM", "ESNext.Disposable"],
     "strict": true,
-    "skipLibCheck": true,
+    "skipLibCheck": false,
     "noEmit": true,
-    "types": ["@playwright/test"]
+    "types": ["node", "@playwright/test"]
   }
 }

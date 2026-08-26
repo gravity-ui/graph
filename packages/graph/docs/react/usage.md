@@ -10,6 +10,9 @@ import { Graph } from "@gravity-ui/graph";
 
 // React components (requires React)
 import { GraphCanvas, GraphBlock, GraphBlockAnchor, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
+
+// Public component styles
+import "@gravity-ui/graph/styles.css";
 ```
 
 ## Architecture

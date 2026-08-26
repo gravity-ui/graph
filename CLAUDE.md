@@ -19,7 +19,7 @@ pnpm run dev
 pnpm run storybook
 
 # Build for production
-pnpm run build:publish
+pnpm run build
 
 # Type checking
 pnpm run typecheck
