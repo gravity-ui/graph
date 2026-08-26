@@ -1,9 +1,9 @@
 import React, { useRef } from "react";
 
+import { ECanDrag, Graph, LayerConfig, MiniMapLayer } from "@gravity-ui/graph";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { ECanDrag, Graph, LayerConfig, MiniMapLayer } from "../../";
 import { generatePrettyBlocks } from "../configurations/generatePretty";
 import { GraphComponentStory } from "../main/GraphEditor";
 

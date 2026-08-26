@@ -22,10 +22,10 @@ This file contains rules and information about the architecture of the graph lib
   - react-components/ - React wrappers for Canvas components
   - services/ - services, including camera, layers, etc.
   - store/ - graph state storage
-  - stories/ - examples of component usage for Storybook
   - utils/ - utility functions
 - packages/graph/docs/ - project documentation
-- packages/graph/.storybook/ - Storybook configuration
+- apps/storybook/ - Storybook configuration and usage examples
+- apps/e2e/ - Playwright setup, repository fixtures, and browser tests
 
 # Extension Pattern
 - The primary mechanism for extending graph functionality (adding visuals, interactions) is by creating **Custom Layers**.

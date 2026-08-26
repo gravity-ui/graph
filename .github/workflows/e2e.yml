@@ -30,7 +30,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
-        run: pnpm --filter @gravity-ui/graph exec playwright install --with-deps chromium
+        run: pnpm --filter @gravity-ui/graph-e2e exec playwright install --with-deps chromium
 
       - name: Run E2E tests
         run: pnpm run test:e2e:ci
@@ -47,7 +47,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: packages/graph/playwright-report/
+          path: apps/e2e/playwright-report/
           retention-days: 7
 
       - name: Upload test screenshots
@@ -55,5 +55,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: packages/graph/test-results/
+          path: apps/e2e/test-results/
           retention-days: 7

@@ -1,4 +1,4 @@
-import type { TWheelIntentDebugEntry } from "../../../utils/functions/wheelIntent";
+import type { TWheelIntentDebugEntry } from "@gravity-ui/graph";
 
 const DELTA_MODE_LABELS = ["PIXEL", "LINE", "PAGE"] as const;
 

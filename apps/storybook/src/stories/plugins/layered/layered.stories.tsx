@@ -1,15 +1,20 @@
 import React, { useEffect, useMemo } from "react";
 
+import type { LayeredLayoutOptions, TMultipointConnection } from "@gravity-ui/graph";
+import {
+  BezierMultipointConnection,
+  Graph,
+  GraphState,
+  TBlock,
+  TConnection,
+  useLayeredLayout,
+} from "@gravity-ui/graph";
+import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import { Description, Meta as StorybookMeta, Title } from "@storybook/addon-docs/blocks";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import type { TMultipointConnection } from "../../../components/canvas/connections/types";
-import { BezierMultipointConnection, Graph, GraphState, TBlock, TConnection } from "../../../index";
-import type { LayeredLayoutOptions } from "../../../plugins/layered";
-import { useLayeredLayout } from "../../../plugins/layered";
-import { GraphCanvas, useGraph, useGraphEvent } from "../../../react-components";
-import { useFn } from "../../../react-components/utils/hooks/useFn";
+import { useFn } from "../../../useFn";
 import { BlockStory } from "../../main/Block";
 
 import { layeredConfig } from "./config";
@@ -139,7 +144,8 @@ const meta: Meta<typeof GraphApp> = {
           "- `layerSpacingFactor`: Multiplier for spacing between layers (default: 1.7)\n\n" +
           "## Example\n\n" +
           "```tsx\n" +
-          "import { useGraph, useLayeredLayout } from '@gravity-ui/graph';\n\n" +
+          "import { useLayeredLayout } from '@gravity-ui/graph';\n" +
+          "import { useGraph } from '@gravity-ui/graph/react';\n\n" +
           "const { graph, setEntities, start } = useGraph();\n" +
           "const { isLoading, result } = useLayeredLayout({\n" +
           "  blocks: [{ id: '1', width: 100, height: 50 }, { id: '2', width: 100, height: 50 }],\n" +

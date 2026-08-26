@@ -1,15 +1,12 @@
 import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
+import type { TMouseWheelBehavior, TWheelInputDevice } from "@gravity-ui/graph";
+import { ECanDrag, EWheelIntent, Graph, GraphState, TBlock, enableWheelIntentDebug } from "@gravity-ui/graph";
+import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
 import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
-import { TBlock } from "../../../components/canvas/blocks/Block";
-import { Graph, GraphState } from "../../../graph";
-import type { TMouseWheelBehavior, TWheelInputDevice } from "../../../graphConfig";
-import { EWheelIntent, enableWheelIntentDebug } from "../../../graphConfig";
-import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "../../../react-components";
-import { useFn } from "../../../react-components/utils/hooks/useFn";
-import { ECanDrag } from "../../../store/settings";
+import { useFn } from "../../../useFn";
 
 import "@gravity-ui/uikit/styles/styles.css";
 

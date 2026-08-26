@@ -4,8 +4,13 @@ This repository contains the Gravity UI Graph packages and their development too
 
 ## Packages
 
-- [`@gravity-ui/graph`](packages/graph) — the graph editor library, React integration, Playwright page objects,
-  documentation, Storybook, and tests.
+- [`@gravity-ui/graph`](packages/graph) — the graph editor library, React integration, public Playwright page objects,
+  documentation, and unit and package-contract tests.
+
+## Applications
+
+- [`@gravity-ui/graph-storybook`](apps/storybook) — private Storybook consumer of the published package entrypoints.
+- [`@gravity-ui/graph-e2e`](apps/e2e) — private Playwright suite and repository-only test fixtures.
 
 ## Development
 

@@ -1,10 +1,9 @@
 import React, { useLayoutEffect } from "react";
 
-import { TBlock } from "../../components/canvas/blocks/Block";
-import { Graph, GraphState, TGraphConfig } from "../../graph";
-import { TGraphColors, TGraphConstants } from "../../graphConfig";
-import { GraphCanvas, TGraphEventCallbacks, useGraph, useGraphEvent } from "../../react-components";
-import { useFn } from "../../react-components/utils/hooks/useFn";
+import { Graph, GraphState, TBlock, TGraphColors, TGraphConfig } from "@gravity-ui/graph";
+import { GraphCanvas, HookGraphParams, TGraphEventCallbacks, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
+
+import { useFn } from "../../useFn";
 
 import { BlockStory } from "./Block";
 
@@ -12,7 +11,7 @@ export type TGraphComponentProps = {
   config: TGraphConfig;
   graphRef?: React.MutableRefObject<Graph>;
   colors?: TGraphColors;
-  constants?: TGraphConstants;
+  constants?: NonNullable<HookGraphParams["viewConfiguration"]>["constants"];
   renderBlock?: <T extends TBlock>(graphObject: Graph, block: T) => React.JSX.Element;
 };
 

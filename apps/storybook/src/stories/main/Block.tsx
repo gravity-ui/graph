@@ -1,12 +1,11 @@
 import React, { MouseEvent } from "react";
 
+import { Graph, TBlock } from "@gravity-ui/graph";
+import { GraphBlock, GraphBlockAnchor } from "@gravity-ui/graph/react";
 import { AbbrApi, Bug, Database } from "@gravity-ui/icons";
 import { Button, Icon, Text } from "@gravity-ui/uikit";
 
-import { TBlock } from "../../components/canvas/blocks/Block";
-import { Graph } from "../../graph";
-import { GraphBlock, GraphBlockAnchor } from "../../react-components";
-import { useFn } from "../../react-components/utils/hooks/useFn";
+import { useFn } from "../../useFn";
 
 import "./Block.css";
 

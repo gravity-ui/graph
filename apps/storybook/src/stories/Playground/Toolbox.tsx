@@ -1,10 +1,9 @@
 import React from "react";
 
+import { Graph } from "@gravity-ui/graph";
+import { useSignal } from "@gravity-ui/graph/react";
 import { MagnifierMinus, MagnifierPlus, SquareDashed } from "@gravity-ui/icons";
 import { Button, Flex, Icon, Tooltip } from "@gravity-ui/uikit";
-
-import { Graph } from "../../graph";
-import { useSignal } from "../../react-components";
 
 export function Toolbox({ className, graph }: { className: string; graph: Graph }) {
   const scale = useSignal(graph.$camera).scale;

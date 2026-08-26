@@ -1,12 +1,18 @@
 import React, { useEffect, useState } from "react";
 
+import {
+  BlockGroupsTransferLayer,
+  ECanDrag,
+  Graph,
+  GraphState,
+  Group,
+  TBlock,
+  TDefinitionGroup,
+} from "@gravity-ui/graph";
+import { GraphCanvas, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph/react";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { TDefinitionGroup } from "../../../components/canvas/groups/BlockGroups";
-import { BlockGroupsTransferLayer } from "../../../components/canvas/groups/BlockGroupsTransferLayer";
-import { ECanDrag, Graph, GraphState, Group, TBlock } from "../../../index";
-import { GraphCanvas, useGraph, useGraphEvent, useLayer } from "../../../react-components";
-import { useFn } from "../../../react-components/utils/hooks/useFn";
+import { useFn } from "../../../useFn";
 import { BlockStory } from "../../main/Block";
 
 const createConfig = () => {

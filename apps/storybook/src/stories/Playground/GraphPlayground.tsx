@@ -1,5 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { ConnectionLayer, ECanDrag, Graph, GraphState, TBlock, TGraphConfig } from "@gravity-ui/graph";
+import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph/react";
 import {
   Flex,
   SegmentedRadioGroup,
@@ -8,15 +10,10 @@ import {
   Text,
   ThemeProvider,
 } from "@gravity-ui/uikit";
-import { StoryFn } from "storybook/internal/types";
+import type { StoryFn } from "@storybook/react-webpack5";
 
-import { TBlock } from "../../components/canvas/blocks/Block";
-import { random } from "../../components/canvas/blocks/generate";
-import { ConnectionLayer } from "../../components/canvas/layers/connectionLayer/ConnectionLayer";
-import { Graph, GraphState, TGraphConfig } from "../../graph";
-import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "../../react-components";
-import { useFn } from "../../react-components/utils/hooks/useFn";
-import { ECanDrag } from "../../store/settings";
+import { random } from "../../storyUtils";
+import { useFn } from "../../useFn";
 import { EAnchorType } from "../configurations/definitions";
 
 import { ActionBlock } from "./ActionBlock";

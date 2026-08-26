@@ -1,9 +1,7 @@
 import React, { ChangeEvent, useCallback } from "react";
 
+import { Graph, Layer } from "@gravity-ui/graph";
 import ReactDOM from "react-dom/client";
-
-import { Graph } from "../../graph";
-import { Layer } from "../../services/Layer";
 
 function Toolbox(props: { graph: Graph }) {
   const onChange = useCallback(

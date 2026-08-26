@@ -119,15 +119,15 @@ pnpm run test -- <pattern>         # run specific test file
 - Camera/zoom behavior
 - `setEntities` lifecycle with real block components rendered in the browser
 
-E2e tests live in `packages/graph/e2e/tests/`. Use `GraphPageObject` and its Component Object Models.
+E2e tests live in `apps/e2e/tests/`. Use `GraphPageObject` and its Component Object Models.
 
 ```bash
-pnpm run e2e:bundle                 # REQUIRED after any source change
+pnpm run e2e:build                  # rebuild the library and fixtures after any source change
 pnpm run test:e2e                   # run all e2e tests
 pnpm run test:e2e -- <pattern>      # run specific test
 ```
 
-> **Always run `pnpm run e2e:bundle` before `pnpm run test:e2e`** if you changed TypeScript source.
+> **Run `pnpm run e2e:build` before reusing an already running E2E server** if you changed TypeScript source.
 > The e2e server must be on port 6006. Kill Storybook first if it's running there.
 
 ### Self-checking during development
@@ -135,7 +135,7 @@ pnpm run test:e2e -- <pattern>      # run specific test
 While implementing, write a temporary e2e test **for yourself** to verify that the code behaves as you expect before considering the task done. This is your development feedback loop, not a final test.
 
 **Rules for self-check tests:**
-- Place them in `packages/graph/e2e/tests/` alongside other tests — run them, iterate, confirm behavior
+- Place them in `apps/e2e/tests/` alongside other tests — run them, iterate, confirm behavior
 - Once verified, decide: does this test cover something the permanent suite should guard? If yes, clean it up and keep it. If it's purely scaffolding for your own debugging, delete it.
 - **Never leave temporary assertions, `console.log` calls, or debugging helpers in `GraphPageObject`, `GraphBlockComponentObject`, `GraphConnectionComponentObject`, or other shared POM/COM files.** These files are the stable API for all tests — keep them clean. Add methods to them only if they are genuinely reusable.
 

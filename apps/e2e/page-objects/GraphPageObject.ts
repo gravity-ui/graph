@@ -1,8 +1,7 @@
 import { Page } from "@playwright/test";
 
-import type { TBlock } from "../../src/components/canvas/blocks/Block";
-import { GraphPO } from "../../src/playwright";
-import type { TConnection } from "../../src/store/connection/ConnectionState";
+import type { TBlock, TConnection } from "@gravity-ui/graph";
+import { GraphPO } from "@gravity-ui/graph/playwright";
 
 import { GraphCameraComponentObject } from "./GraphCameraComponentObject";
 import { GraphEventProbe } from "./GraphEventProbe";
@@ -16,7 +15,7 @@ export interface GraphConfig {
 /**
  * Repository fixture built on top of the public Playwright page object.
  *
- * Consumer-facing graph interactions belong to `src/playwright`. This class
+ * Consumer-facing graph interactions belong to `@gravity-ui/graph/playwright`. This class
  * only creates the repository's test graph and exposes library-internal probes.
  */
 export class GraphPageObject extends GraphPO {
@@ -48,13 +47,13 @@ export class GraphPageObject extends GraphPO {
    */
   protected async setupGraph(config: GraphConfig): Promise<void> {
     await this.page.evaluate((cfg) => {
-      const rootEl = document.getElementById("root");
+      const rootEl = document.querySelector<HTMLDivElement>("#root");
       if (!rootEl) {
         throw new Error("Root element not found");
       }
 
-      // GraphModule contains all exports from /build/index.js
-      const { Graph } = (window as any).GraphModule;
+      // GraphModule contains the public @gravity-ui/graph entrypoint exports.
+      const { Graph } = window.GraphModule;
       const graph = new Graph(cfg, rootEl);
 
       if (cfg.blocks || cfg.connections) {

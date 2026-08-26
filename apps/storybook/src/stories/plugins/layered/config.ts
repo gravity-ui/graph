@@ -1,4 +1,4 @@
-import { LayeredLayoutInput } from "@/plugins";
+import { LayeredLayoutInput } from "@gravity-ui/graph";
 
 export const layeredConfig: LayeredLayoutInput = {
   blocks: [

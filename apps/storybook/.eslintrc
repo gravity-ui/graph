@@ -6,24 +6,16 @@
     "prettier"
   ],
   "parserOptions": {
-    "project": [
-      "./tsconfig.json"
-    ]
+    "project": ["./tsconfig.json"]
   },
   "root": true,
   "env": {
-    "node": true,
-    "jest": true
+    "browser": true,
+    "node": true
   },
   "overrides": [
     {
-      // enable the rule specifically for TypeScript files
-      "files": [
-        "*.ts",
-        "*.mts",
-        "*.cts",
-        "*.tsx"
-      ],
+      "files": ["*.ts", "*.mts", "*.cts", "*.tsx"],
       "rules": {
         "@typescript-eslint/explicit-member-accessibility": [
           "error",
@@ -38,37 +30,19 @@
             }
           }
         ],
-        "no-bitwise": [
-          "error",
-          {
-            "int32Hint": true
-          }
-        ]
-      }
-    },
-    {
-      "files": [
-        "**/*.test.ts",
-        "**/*.test.tsx"
-      ],
-      "rules": {
-        "@typescript-eslint/no-explicit-any": "off"
+        "no-bitwise": ["error", { "int32Hint": true }]
       }
     }
   ],
   "rules": {
-    "no-negated-condition": "off",
-    "@typescript-eslint/parameter-properties": "off",
-    "no-param-reassign": "off",
-    "guard-for-in": "off",
-    "no-return-assign": "off",
     "@typescript-eslint/member-ordering": "off",
     "@typescript-eslint/no-shadow": "off",
-    "valid-jsdoc": "off",
-    "import/consistent-type-specifier-style": [
-      "error",
-      "prefer-top-level"
-    ],
+    "@typescript-eslint/parameter-properties": "off",
+    "guard-for-in": "off",
+    "import/consistent-type-specifier-style": ["error", "prefer-top-level"],
+    "no-console": "off",
+    "no-negated-condition": "off",
+    "no-param-reassign": "off",
     "no-restricted-imports": [
       "error",
       {
@@ -79,6 +53,8 @@
           }
         ]
       }
-    ]
+    ],
+    "no-return-assign": "off",
+    "valid-jsdoc": "off"
   }
 }

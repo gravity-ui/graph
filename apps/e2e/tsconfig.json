@@ -14,6 +14,6 @@
     "lib": ["es2020", "dom"],
     "types": ["@playwright/test", "node"]
   },
-  "include": ["**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["*.ts", "page-objects/**/*.ts"],
+  "exclude": ["node_modules", "tests"]
 }

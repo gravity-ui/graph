@@ -7,7 +7,7 @@ are published for consumers from `@gravity-ui/graph/playwright`.
 ## Structure
 
 ```text
-e2e/
+apps/e2e/
 ├── page-objects/
 │   ├── GraphPageObject.ts            # Test-page setup built on public GraphPO
 │   ├── GraphCameraComponentObject.ts # Repository-only camera emulation helpers
@@ -22,7 +22,8 @@ e2e/
 
 `GraphPageObject` is deliberately small: it navigates to a fixture page,
 creates a graph, and adapts `waitForFrames` to the library scheduler. General
-graph actions and queries belong to the public page objects in `src/playwright`.
+graph actions and queries belong to the public page objects exported from
+`@gravity-ui/graph/playwright`.
 Tests that inspect implementation details use a focused internal extension such
 as `GraphEventProbe` instead of expanding the general graph PO.
 
@@ -57,8 +58,8 @@ test("interacts with graph entities", async ({ page }) => {
   const graph = new GraphPageObject(page);
   await graph.initialize({
     blocks: [
-      { id: "block-1", x: 100, y: 100, width: 200, height: 100, name: "One" },
-      { id: "block-2", x: 400, y: 200, width: 200, height: 100, name: "Two" },
+      { is: "Block", id: "block-1", x: 100, y: 100, width: 200, height: 100, name: "One" },
+      { is: "Block", id: "block-2", x: 400, y: 200, width: 200, height: 100, name: "Two" },
     ],
     connections: [{ id: "connection-1", sourceBlockId: "block-1", targetBlockId: "block-2" }],
   });
@@ -136,7 +137,7 @@ await graph.waitForFrames(2);
 
 ## Adding tests
 
-1. Create a spec under `e2e/tests/`.
+1. Create a spec under `apps/e2e/tests/`.
 2. Initialize `GraphPageObject` (or `ReactGraphPageObject`) in the test fixture.
 3. Prefer the public page-object methods for graph interactions.
 4. Add a narrowly scoped repository-only probe only when testing an internal

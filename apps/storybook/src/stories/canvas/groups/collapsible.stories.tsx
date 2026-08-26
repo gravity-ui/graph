@@ -1,13 +1,11 @@
 import React, { useEffect } from "react";
 
+import { BlockGroups, CollapsibleGroup, ECanDrag, Graph, GraphState, TBlock, TConnection } from "@gravity-ui/graph";
+import type { BlockGroupsProps, BlockState, TCollapsibleGroup } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { BlockGroups, CollapsibleGroup } from "../../../components/canvas/groups";
-import type { BlockGroupsProps, BlockState } from "../../../components/canvas/groups";
-import type { TCollapsibleGroup } from "../../../components/canvas/groups/CollapsibleGroup";
-import { ECanDrag, Graph, GraphState, TBlock, TConnection } from "../../../index";
-import { GraphCanvas, useGraph, useGraphEvent } from "../../../react-components";
-import { useFn } from "../../../react-components/utils/hooks/useFn";
+import { useFn } from "../../../useFn";
 import { BlockStory } from "../../main/Block";
 
 // ---------------------------------------------------------------------------

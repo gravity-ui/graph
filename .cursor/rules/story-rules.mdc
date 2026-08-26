@@ -7,14 +7,14 @@ alwaysApply: false
 
 ## Documentation and References
 - Read the `packages/graph/docs/react/usage.md` for general React integration documentation.
-- Refer to `/packages/graph/src/stories/Playground` for complex examples.
+- Refer to `/apps/storybook/src/stories/Playground` for complex examples.
 - Always use `GraphBlock` for rendering graph blocks in the HTML layer unless you have a specific custom renderer.
 
 ## Graph Initialization (Recommended Pattern)
-- **Use `useGraph` hook:** Initialize the graph instance within your story component using the `useGraph` hook from `packages/graph/src/react-components/hooks/useGraph.ts`.
+- **Use `useGraph` hook:** Initialize the graph instance within your story component using the public `@gravity-ui/graph/react` entrypoint.
   ```typescript
-  import { Graph, GraphState } from "../../../graph"; // Adjust path as needed
-  import { GraphCanvas, useGraph } from "../../../react-component"; // Adjust path as needed
+  import { Graph, GraphState } from "@gravity-ui/graph";
+  import { GraphCanvas, useGraph } from "@gravity-ui/graph/react";
   
   const MyStoryComponent = (props) => {
       const { graph } = useGraph({

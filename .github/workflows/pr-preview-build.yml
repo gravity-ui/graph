@@ -28,7 +28,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: static
-          path: packages/graph/storybook-static
+          path: apps/storybook/storybook-static
       - name: Save PR ID
         run: echo "${{ github.event.pull_request.number }}" > pr-id.txt
       - name: Create PR Artifact

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { ReactGraphPageObject } from "../page-objects/ReactGraphPageObject";
-import { TBlock } from "../../src/components/canvas/blocks/Block";
+import type { TBlock } from "@gravity-ui/graph";
 
 const blocks: TBlock[] = [
   { id: "b1", is: "Block", x: 100, y: 100, width: 200, height: 100, name: "B1", anchors: [], selected: false },

@@ -1,14 +1,9 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 
+import { ECanDrag, Graph, TGraphConfig, TGraphSettingsConfig } from "@gravity-ui/graph";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
-import merge from "lodash/merge";
 
-import { Graph, TGraphConfig } from "../../graph";
-import { TGraphConstants, initGraphConstants } from "../../graphConfig";
-import { TGraphSettingsConfig } from "../../store";
-import { ECanDrag } from "../../store/settings";
-import { RecursivePartial } from "../../utils/types/helpers";
 import { CustomLayerConfig } from "../configurations/CustomLayerConfig";
 import { oneBezierConnectionConfig } from "../configurations/bezierConnection";
 import { coloredConnections } from "../configurations/coloredConnections";
@@ -20,7 +15,7 @@ import { oneStraightConfig } from "../configurations/oneConnection";
 import { verticalGraphConfig } from "../configurations/verticalGraph";
 import { withAnchorsConfig } from "../configurations/withAnchors";
 
-import { GraphComponentStory } from "./GraphEditor";
+import { GraphComponentStory, TGraphComponentProps } from "./GraphEditor";
 
 import "@gravity-ui/uikit/styles/styles.css";
 
@@ -28,7 +23,7 @@ const GraphApp = ({
   config,
   constants,
   ...settings
-}: { config: TGraphConfig; constants?: RecursivePartial<TGraphConstants> } & Partial<TGraphSettingsConfig>) => {
+}: { config: TGraphConfig; constants?: TGraphComponentProps["constants"] } & Partial<TGraphSettingsConfig>) => {
   const graphRef = useRef<Graph | undefined>(undefined);
 
   useEffect(() => {
@@ -37,13 +32,9 @@ const GraphApp = ({
     }
   }, [settings, graphRef]);
 
-  const graphConstants = useMemo(() => {
-    return merge(initGraphConstants, constants) as unknown as TGraphConstants;
-  }, [constants]);
-
   return (
     <ThemeProvider theme={"light"}>
-      <GraphComponentStory graphRef={graphRef} config={config} constants={graphConstants} />
+      <GraphComponentStory graphRef={graphRef} config={config} constants={constants} />
     </ThemeProvider>
   );
 };

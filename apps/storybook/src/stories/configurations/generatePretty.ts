@@ -1,8 +1,7 @@
 /* eslint-disable no-console */
-import { TBlock } from "../../components/canvas/blocks/Block";
-import { random } from "../../components/canvas/blocks/generate";
-import { TGraphConfig } from "../../graph";
-import { IS_BLOCK_TYPE } from "../../store/block/Block";
+import { CanvasBlock, TBlock, TGraphConfig } from "@gravity-ui/graph";
+
+import { random } from "../../storyUtils";
 
 import { storiesSettings } from "./definitions";
 
@@ -10,7 +9,7 @@ export function createBlock(x: number, y: number, index): TBlock {
   const blockId = `block_${index}`;
   return {
     id: blockId,
-    is: IS_BLOCK_TYPE,
+    is: CanvasBlock.IS,
     x,
     y,
     width: 200,

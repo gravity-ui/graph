@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo } from "react";
 
+import type { TMultipointConnection } from "@gravity-ui/graph";
+import { Graph, GraphState, MultipointConnection, TBlock, TConnection, TGraphConfig } from "@gravity-ui/graph";
+import { GraphCanvas, useElk, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import { Description, Meta as StorybookMeta, Title } from "@storybook/addon-docs/blocks";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 import ELK, { ElkNode } from "elkjs";
 
-import type { TMultipointConnection } from "../../../components/canvas/connections/types";
-import { Graph, GraphState, MultipointConnection, TBlock, TConnection, TGraphConfig } from "../../../index";
-import { GraphCanvas, useElk, useGraph, useGraphEvent } from "../../../react-components";
-import { useFn } from "../../../react-components/utils/hooks/useFn";
+import { useFn } from "../../../useFn";
 import { BlockStory } from "../../main/Block";
 
 import { getExampleConfig } from "./getExampleConfig";
@@ -130,7 +130,7 @@ const meta: Meta<typeof GraphApp> = {
           "## Example\n\n" +
           "```tsx\n" +
           "import React from 'react';\n" +
-          "import { GraphCanvas, useGraph, useElk } from '@gravity-ui/graph';\n" +
+          "import { GraphCanvas, useGraph, useElk } from '@gravity-ui/graph/react';\n" +
           "import ELK from 'elkjs';\n\n" +
           "const elkConfig = {\n" +
           '  id: "root",\n' +

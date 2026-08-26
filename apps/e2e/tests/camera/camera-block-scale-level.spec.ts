@@ -1,6 +1,5 @@
 import { test, expect } from "@playwright/test";
 
-import { ECameraScaleLevel } from "../../../src/services/camera/cameraScaleEnums";
 import { GraphPageObject } from "../../page-objects/GraphPageObject";
 
 const BLOCK = {
@@ -36,21 +35,22 @@ test.describe("getCameraBlockScaleLevel setting", () => {
 
     test("should map camera scale to Minimalistic / Schematic / Detailed using block SCALES", async () => {
       const camera = graphPO.camera();
+      const levels = await graphPO.page.evaluate(() => window.GraphModule.ECameraScaleLevel);
 
       await camera.zoomToScale(0.05);
       await graphPO.waitForFrames(3);
       let level = await graphPO.page.evaluate(() => window.graph.cameraService.getCameraBlockScaleLevel());
-      expect(level).toBe(ECameraScaleLevel.Minimalistic);
+      expect(level).toBe(levels.Minimalistic);
 
       await camera.zoomToScale(0.3);
       await graphPO.waitForFrames(3);
       level = await graphPO.page.evaluate(() => window.graph.cameraService.getCameraBlockScaleLevel());
-      expect(level).toBe(ECameraScaleLevel.Schematic);
+      expect(level).toBe(levels.Schematic);
 
       await camera.zoomToScale(0.85);
       await graphPO.waitForFrames(3);
       level = await graphPO.page.evaluate(() => window.graph.cameraService.getCameraBlockScaleLevel());
-      expect(level).toBe(ECameraScaleLevel.Detailed);
+      expect(level).toBe(levels.Detailed);
     });
   });
 
@@ -107,7 +107,8 @@ test.describe("getCameraBlockScaleLevel setting", () => {
       await graphPO.waitForFrames(3);
 
       const level = await page.evaluate(() => window.graph.cameraService.getCameraBlockScaleLevel());
-      expect(level).toBe(ECameraScaleLevel.Detailed);
+      const detailedLevel = await page.evaluate(() => window.GraphModule.ECameraScaleLevel.Detailed);
+      expect(level).toBe(detailedLevel);
 
       const notDefault = await page.evaluate(() => {
         const { defaultGetCameraBlockScaleLevel } = window.GraphModule;

@@ -4,8 +4,6 @@ const path = require("path");
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 6006;
 const PAGES_DIR = path.join(__dirname, "pages");
-const BUILD_DIR = path.join(__dirname, "..", "build");
-const E2E_DIST = path.join(__dirname, "dist");
 
 const server = http.createServer((req, res) => {
   // Serve e2e dist files (bundle)
@@ -23,35 +21,6 @@ const server = http.createServer((req, res) => {
       const ext = path.extname(filePath);
       const contentType = {
         ".js": "application/javascript; charset=utf-8",
-        ".map": "application/json",
-      }[ext] || "text/plain";
-
-      res.writeHead(200, {
-        "Content-Type": contentType,
-        "Access-Control-Allow-Origin": "*",
-      });
-      fs.createReadStream(filePath).pipe(res);
-      return;
-    }
-  }
-
-  // Serve build files
-  if (req.url.startsWith("/build/")) {
-    const filePath = path.join(__dirname, "..", req.url);
-    if (fs.existsSync(filePath)) {
-      const stat = fs.statSync(filePath);
-
-      // Skip if it's a directory
-      if (stat.isDirectory()) {
-        res.writeHead(403);
-        res.end("Forbidden");
-        return;
-      }
-
-      const ext = path.extname(filePath);
-      const contentType = {
-        ".js": "application/javascript; charset=utf-8",
-        ".css": "text/css",
         ".map": "application/json",
       }[ext] || "text/plain";
 

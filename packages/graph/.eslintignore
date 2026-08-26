@@ -1,7 +1,3 @@
 node_modules
 build
 dist
-storybook-static
-e2e
-playwright-report
-test-results

@@ -1,14 +1,11 @@
 import React, { useLayoutEffect, useState } from "react";
 
+import { ESelectionStrategy, Graph, GraphState, TBlock, TConnection, TGraphConfig } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
-import { TBlock } from "../../../components/canvas/blocks/Block";
-import { Graph, GraphState, TGraphConfig } from "../../../graph";
-import { GraphCanvas, useGraph, useGraphEvent } from "../../../react-components";
-import { useFn } from "../../../react-components/utils/hooks/useFn";
-import { ESelectionStrategy } from "../../../services/selection/types";
-import { TConnection } from "../../../store/connection/ConnectionState";
+import { useFn } from "../../../useFn";
 import { storiesSettings } from "../../configurations/definitions";
 import { BlockStory } from "../../main/Block";
 

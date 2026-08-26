@@ -1,13 +1,12 @@
 import React, { Ref, useImperativeHandle, useRef, useState } from "react";
 
+import { TBlockId } from "@gravity-ui/graph";
+import type { TBlock, TConnection } from "@gravity-ui/graph";
 import { Button, Flex, Hotkey, Text } from "@gravity-ui/uikit";
 import { Editor, OnMount, OnValidate, loader } from "@monaco-editor/react";
 import { KeyCode, KeyMod } from "monaco-editor/esm/vs/editor/editor.api";
 
-import type { TBlock } from "../../../components/canvas/blocks/Block";
-import { useFn } from "../../../react-components/utils/hooks/useFn";
-import { TBlockId } from "../../../store/block/Block";
-import type { TConnection } from "../../../store/connection/ConnectionState";
+import { useFn } from "../../../useFn";
 
 import { defineConigSchema } from "./schema";
 import { GravityTheme, defineTheme } from "./theme";

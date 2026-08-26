@@ -1,6 +1,5 @@
 import { Page } from "@playwright/test";
-import { TBlock } from "../../src/components/canvas/blocks/Block";
-import { TConnection } from "../../src/store/connection/ConnectionState";
+import type { Graph, TBlock, TConnection } from "@gravity-ui/graph";
 import { GraphPageObject, GraphConfig } from "./GraphPageObject";
 
 /**
@@ -24,7 +23,7 @@ export class ReactGraphPageObject extends GraphPageObject {
   protected async setupGraph(config: GraphConfig): Promise<void> {
     await this.page.evaluate((cfg) => {
       return new Promise<void>((resolve) => {
-        const { Graph, GraphCanvas, GraphBlock, React, ReactDOM, GraphState } = (window as any).GraphModule;
+        const { Graph, GraphCanvas, GraphBlock, React, ReactDOM, GraphState } = window.GraphModule;
 
         const rootEl = document.getElementById("root");
         if (!rootEl) {
@@ -34,16 +33,14 @@ export class ReactGraphPageObject extends GraphPageObject {
         // Do NOT pass rootEl here — GraphCanvas.useEffect calls graph.attach(containerRef)
         const graph = new Graph(cfg);
 
-        const renderBlock = (g: unknown, block: { id: string; name?: string }) => {
-          return React.createElement(
-            GraphBlock,
-            { graph: g, block },
-            React.createElement(
-              "div",
-              { "data-testid": `block-${block.id}`, style: { padding: "8px" } },
-              block.name || block.id
-            )
+        const renderBlock = (g: Graph, block: TBlock) => {
+          const children = React.createElement(
+            "div",
+            { "data-testid": `block-${block.id}`, style: { padding: "8px" } },
+            block.name || block.id
           );
+
+          return React.createElement(GraphBlock, { graph: g, block, children });
         };
 
         const reactRoot = ReactDOM.createRoot(rootEl);
