@@ -70,6 +70,7 @@ import React, { useEffect } from "react";
 import type { Graph, TBlock } from "@gravity-ui/graph";
 import { EAnchorType, GraphState } from "@gravity-ui/graph";
 import { GraphCanvas, GraphBlock, useGraph } from "@gravity-ui/graph/react";
+import "@gravity-ui/graph/styles.css";
 
 const config = {};
 
@@ -155,6 +156,7 @@ export function GraphEditor() {
 
 ```javascript
 import { Graph } from "@gravity-ui/graph";
+import "@gravity-ui/graph/styles.css";
 
 // Create container element
 const container = document.createElement('div');

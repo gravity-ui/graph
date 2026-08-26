@@ -5,6 +5,7 @@ import { Group } from "../../components/canvas/groups";
 import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
 import { ESelectionStrategy } from "../../services/selection/types";
+import type { BlockState } from "../block/Block";
 import { RootStore } from "../index";
 
 import { GroupState, TGroup, TGroupId } from "./Group";
@@ -22,7 +23,7 @@ export class GroupsListStore {
     return Array.from(this.$groupsMap.value.values());
   });
 
-  public $blockGroups = computed(() => {
+  public $blockGroups = computed<Record<string, BlockState[]>>(() => {
     return groupBy(this.rootStore.blocksList.$blocks.value, (item) => item.$state.value.group);
   });
 

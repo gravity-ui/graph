@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "baseUrl": "./src/",
     "outDir": "./build/",
     "moduleResolution": "node",
     "module": "esnext",
@@ -11,11 +10,7 @@
     "experimentalDecorators": true,
     "typeRoots": ["./node_modules/@types"],
     "skipLibCheck": true,
-    "jsx": "react",
-    "paths": {
-      "@/*": ["./*"]
-    }
+    "jsx": "react"
   },
-  "outDir": "./dist/",
-  "include": ["./src/**/*.ts", "src/**/*.tsx"],
+  "include": ["./src/**/*.ts", "src/**/*.tsx"]
 }

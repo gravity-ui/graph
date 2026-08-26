@@ -4,6 +4,7 @@ import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Preview } from "@storybook/react-webpack5";
 
 import "./styles/global.css";
+import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/uikit/styles/styles.css";
 
 const preview: Preview = {

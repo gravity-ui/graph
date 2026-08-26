@@ -1,16 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 
-import type ELK from "elkjs";
-import type { ElkLayoutArguments, ElkNode } from "elkjs";
+import type { ELK, ElkLayoutArguments, ElkNode } from "elkjs";
 
 import { elkConverter } from "../converters/eklConverter";
 import { ConverterResult } from "../types";
 
-export const useElk = (
-  config: ElkNode,
-  elk: InstanceType<typeof ELK>,
-  args?: ElkLayoutArguments & { onError?: (e: Error) => void }
-) => {
+export const useElk = (config: ElkNode, elk: ELK, args?: ElkLayoutArguments & { onError?: (e: Error) => void }) => {
   const [result, setResult] = useState<ConverterResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 

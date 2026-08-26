@@ -8,6 +8,10 @@ import { DEFAULT_CSS_VARIABLES_LAYER_PROPS, SUPPORTED_CSS_VARIABLES } from "./co
 import { filterSupportedCSSChanges, mapCSSChangesToGraphColors, mapCSSChangesToGraphConstants } from "./mapping";
 import type { CSSVariableChange, CSSVariablesLayerProps, CSSVariablesLayerState } from "./types";
 
+interface CSSVariablesObserver {
+  unobserve(target: Element): void;
+}
+
 /**
  * CSSVariablesLayer: Synchronizes CSS variables with graph colors and constants
  *
@@ -23,7 +27,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
   };
 
   private containerElement: HTMLDivElement | null = null;
-  private styleObserver: StyleObserver | null = null;
+  private styleObserver: CSSVariablesObserver | null = null;
 
   constructor(props: CSSVariablesLayerProps) {
     const finalProps = { ...DEFAULT_CSS_VARIABLES_LAYER_PROPS, ...props };
@@ -109,7 +113,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
     this.containerElement = null;
   }
 
-  protected createStyleObserver(): StyleObserver {
+  protected createStyleObserver(): CSSVariablesObserver {
     return new StyleObserver(
       (records) => {
         // Convert StyleObserver records to our CSSVariableChange format
@@ -212,10 +216,11 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
    * Stops observing CSS variable changes
    */
   private stopObserving(): void {
-    if (this.styleObserver) {
+    if (this.styleObserver && this.containerElement) {
       this.styleObserver.unobserve(this.containerElement);
-      this.styleObserver = null;
     }
+
+    this.styleObserver = null;
 
     this.setState({ isObserving: false });
 

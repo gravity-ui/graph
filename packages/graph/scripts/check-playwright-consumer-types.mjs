@@ -8,17 +8,16 @@ const fixturePath = path.join(
   rootDir,
   "tests",
   "package-contract",
-  "playwright-installed-consumer",
-  "fixture",
-  "public-types.ts"
+  "fixtures",
+  "types",
+  "playwright-bundler",
+  "index.ts"
 );
 const buildDir = `${path.join(rootDir, "build")}${path.sep}`;
 
-// The v1 build uses skipLibCheck, so it can emit declarations that work inside
-// this repository but fail for consumers (for example, baseUrl-only imports or
-// ambient globals that are not emitted). Check the public Playwright entry
-// against build/ with skipLibCheck disabled. Keep this focused guard until v2
-// replaces the declaration pipeline.
+// Keep this fast local declaration guard aligned with the fixture used by the
+// slower packed-and-installed consumer suite. It catches public Playwright
+// declaration failures during the regular typecheck without skipLibCheck.
 const program = ts.createProgram([fixturePath], {
   module: ts.ModuleKind.ESNext,
   moduleResolution: ts.ModuleResolutionKind.Bundler,
