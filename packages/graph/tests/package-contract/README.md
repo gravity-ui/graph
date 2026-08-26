@@ -116,6 +116,9 @@ in `apps/e2e` instead.
 - required root, ESM, CommonJS, declaration, stylesheet, and documentation files are present;
 - the installed manifest has the expected package entrypoints, `files`, `exports`, `typesVersions`, and optional peer
   metadata;
+- the private scheduler remains a build-only workspace dependency, its implementation is inlined into generated
+  JavaScript, its package specifier is absent from JavaScript and declarations, and it is neither exposed as a runtime
+  dependency nor installed in isolated consumers;
 - published CSS contains the vanilla canvas, React canvas, block, anchor, and devtools selectors;
 - `publint --strict` accepts the exact tarball installed by the consumers.
 
@@ -132,7 +135,8 @@ and `noEmit: true`:
 - the vanilla and React applications type-check with Bundler resolution;
 - `types/playwright-bundler` verifies that `GraphPO.evaluate` receives the public `Graph`, block and connection state
   methods return public types rather than `any`, and `GraphPoint` and `clickAt` remain usable;
-- `types/node-esm` imports `Graph`, `GraphCanvas`, and `useElk` through Node16 ESM resolution;
+- `types/node-esm` imports `Graph`, the public scheduler contracts, `GraphCanvas`, and `useElk` through Node16 ESM
+  resolution;
 - `types/node-cjs-playwright` imports `GraphPO` and `GraphCameraState` through Node16 CommonJS resolution.
 
 “Node16” names TypeScript's module-resolution semantics here; it does not mean the suite executes on Node.js 16.
@@ -145,7 +149,8 @@ callers pointed at the same fixture.
 
 `checks/runtime.mjs` runs Node against the installed package:
 
-- ESM imports expose `Graph`, `GraphCanvas`, and `GraphPO` from their documented entrypoints;
+- ESM imports expose `Graph`, `ESchedulerPriority`, `schedule`, `debounce`, `throttle`, `GraphCanvas`, and `GraphPO` from
+  their documented entrypoints;
 - CommonJS `require("@gravity-ui/graph/playwright")` exposes `GraphPO`;
 - the vanilla consumer cannot resolve React, proving the core and Playwright entrypoints do not require it eagerly;
 - a consumer-side `@preact/signals-core` effect observes a Graph signal update exactly once after its initial run.
