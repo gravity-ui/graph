@@ -11,6 +11,10 @@ on:
           - prerelease
           - premajor
 
+concurrency:
+  group: release-v2
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -26,14 +30,61 @@ jobs:
         with:
           app-id: ${{ secrets.GRAVITY_UI_APP_ID }}
           private-key: ${{ secrets.GRAVITY_UI_APP_PRIVATE_KEY }}
-      - name: Release v2 prerelease
-        uses: gravity-ui/release-action@v1
+      - name: Checkout
+        uses: actions/checkout@v5
         with:
-          github-token: ${{ steps.generate-token.outputs.token }}
-          npm-token: ${{ secrets.GRAVITY_UI_BOT_NPM_TOKEN }}
-          # CI, E2E, and previews test the project on Node 20. The release action
-          # intentionally uses Node 24 to match the existing v1 release workflow.
+          fetch-depth: 0
+          token: ${{ steps.generate-token.outputs.token }}
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          # CI, E2E, and previews use Node 20. Releases intentionally use Node 24
+          # to match the existing v1 release workflow.
           node-version: 24
-          npm-version: ${{ inputs.version }}
-          npm-dist-tag: next
-          npm-preid: next
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+          registry-url: https://registry.npmjs.org
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run tests
+        run: pnpm --filter @gravity-ui/graph run test
+      - name: Bump package version
+        id: version
+        working-directory: packages/graph
+        env:
+          VERSION_COMMAND: ${{ inputs.version }}
+        run: |
+          pnpm version "$VERSION_COMMAND" --preid=next --no-git-tag-version
+          next_version=$(node -p "require('./package.json').version")
+          if [[ ! "$next_version" =~ ^2\.[0-9]+\.[0-9]+-next\.[0-9]+$ ]]; then
+            echo "Refusing to publish version outside the 2.x next channel: $next_version" >&2
+            exit 1
+          fi
+          echo "value=$next_version" >> "$GITHUB_OUTPUT"
+      - name: Commit and push version
+        env:
+          NEXT_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          git config --local user.email "111915794+gravity-ui-bot@users.noreply.github.com"
+          git config --local user.name "gravity-ui-bot"
+          git add packages/graph/package.json
+          if git diff --cached --quiet; then
+            echo "Version bump produced no package.json change" >&2
+            exit 1
+          fi
+          if ! git diff --quiet -- . ':(exclude)packages/graph/package.json'; then
+            echo "Version bump changed files outside packages/graph/package.json" >&2
+            git status --short
+            exit 1
+          fi
+          git commit -m "v${NEXT_VERSION}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+      - name: Publish package
+        working-directory: packages/graph
+        run: pnpm publish --tag next --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GRAVITY_UI_BOT_NPM_TOKEN }}

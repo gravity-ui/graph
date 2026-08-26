@@ -9,32 +9,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ```bash
-# Install dependencies (use npm, not yarn or pnpm)
-npm install
+# Install dependencies
+pnpm install --frozen-lockfile
 
 # Development mode (watch TypeScript and CSS)
-npm run dev
+pnpm run dev
 
 # Run Storybook for development
-npm run storybook
+pnpm run storybook
 
 # Build for production
-npm run build:publish
+pnpm run build:publish
 
 # Type checking
-npm run typecheck
+pnpm run typecheck
 
 # Linting
-npm run lint
+pnpm run lint
 
 # Testing
-npm run test
+pnpm run test
 
 # Update snapshots
-npm run test -- --updateSnapshot
+pnpm run test -- --updateSnapshot
 
 # Build Storybook
-npm run build-storybook
+pnpm run build-storybook
 ```
 
 ## Core Architecture
@@ -48,18 +48,18 @@ The library uses a **hybrid Canvas + React architecture**:
 - **Automatic Switching**: `ReactLayer` manages the transition based on `activationScale` configuration
 
 **Key Files**:
-- `src/components/canvas/layers/graphLayer/GraphLayer.ts` - Main Canvas rendering
-- `src/react-components/layer/ReactLayer.tsx` - React Portal integration
-- `src/react-components/GraphCanvas.tsx` - React wrapper component
+- `packages/graph/src/components/canvas/layers/graphLayer/GraphLayer.ts` - Main Canvas rendering
+- `packages/graph/src/react-components/layer/ReactLayer.tsx` - React Portal integration
+- `packages/graph/src/react-components/GraphCanvas.tsx` - React wrapper component
 
 ### Custom Component Framework
 
 The library implements a **custom component system** (not React) for Canvas rendering:
 
 **Component Hierarchy**:
-1. `CoreComponent` (`src/lib/CoreComponent.ts`) - Tree structure, children management, context propagation
-2. `Component` (`src/lib/Component.ts`) - Lifecycle hooks, state/props management
-3. `GraphComponent` (`src/components/canvas/GraphComponent/`) - HitBox, dragging, ports for graph elements
+1. `CoreComponent` (`packages/graph/src/lib/CoreComponent.ts`) - Tree structure, children management, context propagation
+2. `Component` (`packages/graph/src/lib/Component.ts`) - Lifecycle hooks, state/props management
+3. `GraphComponent` (`packages/graph/src/components/canvas/GraphComponent/`) - HitBox, dragging, ports for graph elements
 4. `Block`, `BlockConnection` - Specific implementations
 
 **Lifecycle Flow**:
@@ -115,7 +115,7 @@ graph.addLayer(MyLayer, { customProp: 'value' });
 
 ### Scheduler System
 
-**GlobalScheduler** (`src/lib/Scheduler.ts`) drives all rendering via `requestAnimationFrame`:
+**GlobalScheduler** (`packages/graph/src/lib/Scheduler.ts`) drives all rendering via `requestAnimationFrame`:
 
 - **Priority Queues**: 5 levels (HIGHEST → LOWEST)
 - **Batched Updates**: `performRender()` marks components dirty, actual render happens in next frame
@@ -126,7 +126,7 @@ graph.addLayer(MyLayer, { customProp: 'value' });
 
 The library uses `@preact/signals-core` for reactive state management:
 
-**Store Structure** (`src/store/`):
+**Store Structure** (`packages/graph/src/store/`):
 ```
 RootStore
 ├── blocksList: BlockListStore
@@ -140,7 +140,7 @@ RootStore
 └── selectionService: SelectionService
 ```
 
-**Block State** (`src/store/block/Block.ts`):
+**Block State** (`packages/graph/src/store/block/Block.ts`):
 ```typescript
 BlockState {
   $rawState: Signal<TBlock>           // Raw block data
@@ -151,7 +151,7 @@ BlockState {
 }
 ```
 
-**Port State** (`src/store/connection/port/Port.ts`):
+**Port State** (`packages/graph/src/store/connection/port/Port.ts`):
 ```typescript
 PortState {
   $state: Signal<TPort>              // Raw port data (id, x, y, component, lookup)
@@ -171,7 +171,7 @@ PortState {
 
 ### Camera System
 
-**CameraService** (`src/services/camera/CameraService.ts`) manages viewport and zoom:
+**CameraService** (`packages/graph/src/services/camera/CameraService.ts`) manages viewport and zoom:
 
 **State**:
 ```typescript
@@ -356,17 +356,17 @@ Layers receive:
 - Tests use Jest with `@swc/jest` for TypeScript
 - Canvas mocking via `jest-canvas-mock`
 - Test files in `__tests__` directories or `*.test.ts` alongside source
-- Run specific test: `npm test -- <pattern>`
+- Run specific test: `pnpm test -- <pattern>`
 
 ## Documentation
 
-Comprehensive docs in `docs/`:
-- `docs/system/` - Component lifecycle, events, scheduler, public API
-- `docs/components/` - Canvas components, blocks, anchors
-- `docs/rendering/` - Rendering mechanism, layers
-- `docs/blocks/` - Block groups
-- `docs/connections/` - Connection system
-- `docs/react/` - React integration guide
+Comprehensive docs in `packages/graph/docs/`:
+- `packages/graph/docs/system/` - Component lifecycle, events, scheduler, public API
+- `packages/graph/docs/components/` - Canvas components, blocks, anchors
+- `packages/graph/docs/rendering/` - Rendering mechanism, layers
+- `packages/graph/docs/blocks/` - Block groups
+- `packages/graph/docs/connections/` - Connection system
+- `packages/graph/docs/react/` - React integration guide
 
 Live examples: https://preview.gravity-ui.com/graph/
 
@@ -556,7 +556,7 @@ function createBlock(
 ```
 
 **Fixing ESLint Errors:**
-- Always run `npx eslint --fix PATH_TO_FILE` first
+- From the repository root, run `pnpm --dir packages/graph exec eslint --fix src/PATH_TO_FILE` first
 - Don't attempt manual fixes before running auto-fix
 
 ## Canvas Components Rules

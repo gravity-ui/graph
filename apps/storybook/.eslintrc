@@ -1,0 +1,60 @@
+{
+  "extends": [
+    "@gravity-ui/eslint-config",
+    "@gravity-ui/eslint-config/import-order",
+    "@gravity-ui/eslint-config/prettier",
+    "prettier"
+  ],
+  "parserOptions": {
+    "project": ["./tsconfig.json"]
+  },
+  "root": true,
+  "env": {
+    "browser": true,
+    "node": true
+  },
+  "overrides": [
+    {
+      "files": ["*.ts", "*.mts", "*.cts", "*.tsx"],
+      "rules": {
+        "@typescript-eslint/explicit-member-accessibility": [
+          "error",
+          {
+            "accessibility": "explicit",
+            "overrides": {
+              "accessors": "explicit",
+              "constructors": "no-public",
+              "methods": "explicit",
+              "properties": "off",
+              "parameterProperties": "explicit"
+            }
+          }
+        ],
+        "no-bitwise": ["error", { "int32Hint": true }]
+      }
+    }
+  ],
+  "rules": {
+    "@typescript-eslint/member-ordering": "off",
+    "@typescript-eslint/no-shadow": "off",
+    "@typescript-eslint/parameter-properties": "off",
+    "guard-for-in": "off",
+    "import/consistent-type-specifier-style": ["error", "prefer-top-level"],
+    "no-console": "off",
+    "no-negated-condition": "off",
+    "no-param-reassign": "off",
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "lodash",
+            "message": "Import from lodash leads to bundle pollute. Use import from submodules, for example 'lodash/isEqual'."
+          }
+        ]
+      }
+    ],
+    "no-return-assign": "off",
+    "valid-jsdoc": "off"
+  }
+}

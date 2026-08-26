@@ -38,4 +38,4 @@ Coding style guidelines derived from the project's Prettier configuration, inten
     *   Incorrect: `{foo: "bar"}`
 7.  **Parsing:** Ensure code is valid TypeScript for `.ts`, `.tsx`, `.js`, and `.jsx` files, as the TypeScript parser will be used.
 
-8. **Fix error** If the file contains eslint errors, then do not try to fix them by rewriting, first run the command `npx eslint --fix PATH_TO_FILE`
+8. **Fix error** If the file contains eslint errors, then do not try to fix them by rewriting, first run the command `pnpm --dir packages/graph exec eslint --fix src/PATH_TO_FILE`

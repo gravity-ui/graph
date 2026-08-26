@@ -8,37 +8,37 @@ alwaysApply: true
 
 ## Project Structure
 Project structure:
-- src/ - source code
+- packages/graph/src/ - source code
   - api/ - API for interacting with the graph
   - components/ - Canvas components
     - canvas/ - contains blocks, connections, anchors and layers for rendering
   - lib/ - helper libraries
   - plugins/ - plugins for extending functionality
-  - react-component/ - React wrappers for Canvas components
+  - react-components/ - React wrappers for Canvas components
   - services/ - services, including camera and others
   - store/ - graph state storage
-  - stories/ - examples of component usage for Storybook
   - utils/ - utility functions
-- docs/ - project documentation
-- .storybook/ - Storybook configuration
+- packages/graph/docs/ - project documentation
+- apps/storybook/ - Storybook configuration and usage examples
+- apps/e2e/ - Playwright setup, repository fixtures, and browser tests
 
 ## Key File Locations
-- **Main Graph Class:** `src/graph.ts` (Exports `Graph`, `TGraphConfig`)
-- **Base Layer Class:** `src/services/Layer.ts` (Exports `Layer`, `LayerProps`, `LayerContext`)
+- **Main Graph Class:** `packages/graph/src/graph.ts` (Exports `Graph`, `TGraphConfig`)
+- **Base Layer Class:** `packages/graph/src/services/Layer.ts` (Exports `Layer`, `LayerProps`, `LayerContext`)
 - **Base Component Classes:** 
-    - `src/lib/CoreComponent.ts` (Exports `CoreComponent`, `CoreComponentProps`, `CoreComponentContext`)
-    - `src/lib/Component.ts` (Exports `Component`, `TComponentProps`, `TComponentState` - extends `CoreComponent`)
-- **Camera Service:** `src/services/camera/CameraService.ts` (Exports `CameraService`, `ICamera`, `TCameraState`)
+    - `packages/graph/src/lib/CoreComponent.ts` (Exports `CoreComponent`, `CoreComponentProps`, `CoreComponentContext`)
+    - `packages/graph/src/lib/Component.ts` (Exports `Component`, `TComponentProps`, `TComponentState` - extends `CoreComponent`)
+- **Camera Service:** `packages/graph/src/services/camera/CameraService.ts` (Exports `CameraService`, `ICamera`, `TCameraState`)
 - **Block Definitions:**
-    - Base `Block` component: `src/components/canvas/blocks/Block.ts` (Exports `Block`, `TBlock`)
-    - Block Store State: `src/store/block/Block.ts` (Exports `BlockState`, `TBlockId`, `IS_BLOCK_TYPE`)
+    - Base `Block` component: `packages/graph/src/components/canvas/blocks/Block.ts` (Exports `Block`, `TBlock`)
+    - Block Store State: `packages/graph/src/store/block/Block.ts` (Exports `BlockState`, `TBlockId`, `IS_BLOCK_TYPE`)
 - **Connection Definitions:**
-    - Connection Store State: `src/store/connection/ConnectionState.ts` (Exports `ConnectionState`, `TConnection`)
-    - Base `Connection` component: `src/components/canvas/connections/Connection.ts` (Exports `Connection`)
+    - Connection Store State: `packages/graph/src/store/connection/ConnectionState.ts` (Exports `ConnectionState`, `TConnection`)
+    - Base connection component: `packages/graph/src/components/canvas/connections/BaseConnection.ts` (Exports `BaseConnection`)
 - **React Integration:**
-    - `GraphCanvas` component: `src/react-component/GraphCanvas.tsx`
-    - `useGraph` hook: `src/react-component/hooks/useGraph.ts`
-    - `GraphBlock` component: `src/react-component/GraphBlock.tsx` (Or similar path)
+    - `GraphCanvas` component: `packages/graph/src/react-components/GraphCanvas.tsx`
+    - `useGraph` hook: `packages/graph/src/react-components/hooks/useGraph.ts`
+    - `GraphBlock` component: `packages/graph/src/react-components/Block.tsx`
 
 ## Technologies
 Technology stack:
@@ -51,8 +51,8 @@ Technology stack:
 
 ## Key Components
 Key components:
-- Graph - main class for graph management (src/graph.ts)
-- GraphCanvas - React component for displaying the graph (src/react-component/GraphCanvas.tsx)
+- Graph - main class for graph management (packages/graph/src/graph.ts)
+- GraphCanvas - React component for displaying the graph (packages/graph/src/react-components/GraphCanvas.tsx)
 - Block - component for representing a graph block
 - Connection - component for connections between blocks
 - Anchor - components for connection attachment points
@@ -62,13 +62,13 @@ Rendering system:
 - Full graph is rendered on Canvas for performance
 - When zooming in, HTML/React mode is automatically enabled for interactive elements
 - Uses a smart system that tracks visible blocks and renders only them in React
-- Rendering is organized into Layers (`src/services/Layer.ts`) which control drawing order and can optimize rendering based on camera position and device pixel ratio (`respectPixelRatio`, `transformByCameraPosition` properties in `LayerProps`).
+- Rendering is organized into Layers (`packages/graph/src/services/Layer.ts`) which control drawing order and can optimize rendering based on camera position and device pixel ratio (`respectPixelRatio`, `transformByCameraPosition` properties in `LayerProps`).
 
 ## Development Guidelines
 Development guidelines:
-- To run the project locally, use `npm run storybook`
-- To build the project, use `npm run build`
-- Tests are run via `npm run test`
+- To run the project locally, use `pnpm run storybook`
+- To build the project, use `pnpm run build`
+- Tests are run via `pnpm run test`
 - Use TypeScript for typing all code
 - Follow component architecture principles
 

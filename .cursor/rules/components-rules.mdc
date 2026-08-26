@@ -23,7 +23,7 @@ protected updateChildren() {
 - Use `shouldRender = false` to skip unnecessary renders.
 
 # Canvas Component Structure
-Canvas components are located in src/components/canvas/ and divided into several categories:
+Canvas components are located in packages/graph/src/components/canvas/ and divided into several categories:
 - blocks/ - graph blocks
 - connections/ - connections between blocks
 - anchors/ - anchors for connections
@@ -32,7 +32,7 @@ Canvas components are located in src/components/canvas/ and divided into several
 - **Note:** These Canvas components manage rendering directly onto a `<canvas>` element. They are distinct from React components (even those used *within* the HTML layer at high zoom levels, like `GraphBlock`), although they share some lifecycle concepts managed by the core library. Rules specific to Canvas component rendering might not apply directly to React components used for the HTML layer.
 
 # React Integration
-For integration of Canvas components with React, wrappers are used in the src/react-component/ directory. These components allow the use of Canvas in React applications.
+For integration of Canvas components with React, wrappers are used in the packages/graph/src/react-components/ directory. These components allow the use of Canvas in React applications.
 
 # Rendering Layers
 Canvas rendering is organized in layers with different priorities:

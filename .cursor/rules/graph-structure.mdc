@@ -13,22 +13,22 @@ This file contains rules and information about the architecture of the graph lib
 - The system automatically switches between rendering modes 
 
 # Project Structure
-- src/ - source code
+- packages/graph/src/ - source code
   - api/ - API for interacting with the graph
   - components/ - Canvas components
     - canvas/ - contains blocks, connections, anchors and layers for rendering
   - lib/ - helper libraries
   - plugins/ - custom layers and related utilities (previously called plugins)
-  - react-component/ - React wrappers for Canvas components
+  - react-components/ - React wrappers for Canvas components
   - services/ - services, including camera, layers, etc.
   - store/ - graph state storage
-  - stories/ - examples of component usage for Storybook
   - utils/ - utility functions
-- docs/ - project documentation
-- .storybook/ - Storybook configuration
+- packages/graph/docs/ - project documentation
+- apps/storybook/ - Storybook configuration and usage examples
+- apps/e2e/ - Playwright setup, repository fixtures, and browser tests
 
 # Extension Pattern
 - The primary mechanism for extending graph functionality (adding visuals, interactions) is by creating **Custom Layers**.
-- Custom layers should extend the base `Layer` class (`src/services/Layer.ts`).
+- Custom layers should extend the base `Layer` class (`packages/graph/src/services/Layer.ts`).
 - Layers are added to the graph either via the `layers` array in `TGraphConfig` during initialization, or dynamically using `graph.addLayer()`.
-- There is **no separate base `Plugin` class**. Functionality previously considered "plugins" should be implemented as Layers and potentially related services or components, typically residing in the `src/plugins/` directory. 
+- There is **no separate base `Plugin` class**. Functionality previously considered "plugins" should be implemented as Layers and potentially related services or components, typically residing in the `packages/graph/src/plugins/` directory.
