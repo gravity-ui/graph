@@ -1,15 +1,26 @@
 name: Release v2 prerelease
 
 on:
+  push:
+    branches: [v2]
   workflow_dispatch:
     inputs:
-      version:
+      operation:
         type: choice
-        description: Use premajor once for 2.0.0-next.0, then prerelease for later versions
-        default: prerelease
+        description: Recover an exact merged release or exercise the future stable path
+        default: recover-npm-release
         options:
-          - prerelease
-          - premajor
+          - recover-npm-release
+          - stable-dry-run
+      recovery-sha:
+        type: string
+        description: Exact merge commit SHA of the merged Release Please manifest PR
+        required: false
+      stable-version:
+        type: string
+        description: Prospective stable 2.x version used only by the no-write dry-run
+        default: 2.0.0
+        required: false
 
 concurrency:
   group: release-v2
@@ -17,24 +28,135 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
-  release:
-    # workflow_dispatch can be started from any ref; only v2 may mint a token.
-    if: github.ref == 'refs/heads/v2'
+  release-candidate:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      candidate: ${{ steps.resolve.outputs.candidate }}
+      release_plan: ${{ steps.resolve.outputs.release_plan }}
+      tag_plan: ${{ steps.resolve.outputs.tag_plan }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      changed_paths: ${{ steps.resolve.outputs.changed_paths }}
+      released_paths: ${{ steps.resolve.outputs.released_paths }}
+      pr: ${{ steps.resolve.outputs.pr }}
+    steps:
+      - name: Checkout the pushed commit
+        uses: actions/checkout@v5
+      - name: Resolve an exact merged manifest release
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: node packages/graph/scripts/resolve-release-candidate.mjs
+
+  prepare-release-pr:
+    needs: release-candidate
+    if: >-
+      github.event_name == 'push' &&
+      needs.release-candidate.result == 'success' &&
+      needs.release-candidate.outputs.pr == ''
     runs-on: ubuntu-latest
     steps:
-      - name: Generate token
+      - name: Generate a release-PR token
         id: generate-token
         uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ secrets.GRAVITY_UI_APP_ID }}
           private-key: ${{ secrets.GRAVITY_UI_APP_PRIVATE_KEY }}
-      - name: Checkout
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Create or update the combined manifest release PR
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+          target-branch: v2
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-release: true
+
+  recover-release:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'recover-npm-release'
+    runs-on: ubuntu-latest
+    outputs:
+      candidate: ${{ steps.resolve.outputs.candidate }}
+      release_plan: ${{ steps.resolve.outputs.release_plan }}
+      tag_plan: ${{ steps.resolve.outputs.tag_plan }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      changed_paths: ${{ steps.resolve.outputs.changed_paths }}
+      released_paths: ${{ steps.resolve.outputs.released_paths }}
+      pr: ${{ steps.resolve.outputs.pr }}
+    steps:
+      - name: Validate recovery inputs
+        env:
+          RELEASE_REF: ${{ github.ref }}
+          RELEASE_SHA: ${{ inputs.recovery-sha }}
+        run: |
+          if [[ "$RELEASE_REF" != "refs/heads/v2" ]]; then
+            echo "A v2 release may be recovered only from the v2 branch." >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "recovery-sha must be the full lowercase commit SHA." >&2
+            exit 1
+          fi
+      - name: Checkout the exact release commit
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          token: ${{ steps.generate-token.outputs.token }}
+          ref: ${{ inputs.recovery-sha }}
+      - name: Require the release commit to remain on v2
+        env:
+          RELEASE_SHA: ${{ inputs.recovery-sha }}
+        run: |
+          git fetch --force --no-tags origin refs/heads/v2:refs/remotes/origin/v2
+          if ! git merge-base --is-ancestor "$RELEASE_SHA" refs/remotes/origin/v2; then
+            echo "The recovery commit is no longer an ancestor of v2." >&2
+            exit 1
+          fi
+      - name: Revalidate the merged manifest release
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.recovery-sha }}
+        run: node packages/graph/scripts/resolve-release-candidate.mjs
+      - name: Require a trusted manifest release to recover
+        env:
+          RELEASE_PR: ${{ steps.resolve.outputs.pr }}
+        run: |
+          if [[ -z "$RELEASE_PR" ]]; then
+            echo "The selected commit is not a trusted merged manifest release." >&2
+            exit 1
+          fi
+
+  publish-release:
+    needs: [release-candidate, recover-release]
+    if: >-
+      always() &&
+      ((needs.release-candidate.result == 'success' && needs.release-candidate.outputs.pr != '') ||
+      (needs.recover-release.result == 'success' && needs.recover-release.outputs.pr != ''))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      RELEASE_PLAN: ${{ needs.release-candidate.outputs.release_plan || needs.recover-release.outputs.release_plan }}
+      TAG_PLAN: ${{ needs.release-candidate.outputs.tag_plan || needs.recover-release.outputs.tag_plan }}
+      RELEASE_SHA: ${{ needs.release-candidate.outputs.sha || needs.recover-release.outputs.sha }}
+      RELEASE_PR: ${{ needs.release-candidate.outputs.pr || needs.recover-release.outputs.pr }}
+    steps:
+      - name: Checkout the exact release commit
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ env.RELEASE_SHA }}
+      - name: Initialize release paths
+        run: |
+          echo "RELEASE_TARBALL_DIRECTORY=$RUNNER_TEMP/release-tarballs" >> "$GITHUB_ENV"
+          echo "RELEASE_NOTES_DIRECTORY=$RUNNER_TEMP/release-notes" >> "$GITHUB_ENV"
+          echo "NPM_STATE_PATH=$RUNNER_TEMP/npm-state.json" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/release-tarballs" "$RUNNER_TEMP/release-notes"
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -42,49 +164,633 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          # CI, E2E, and previews use Node 20. Releases intentionally use Node 24
-          # to match the existing v1 release workflow.
           node-version: 24
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
           registry-url: https://registry.npmjs.org
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Run tests
-        run: pnpm --filter @gravity-ui/graph run test
-      - name: Bump package version
-        id: version
-        working-directory: packages/graph
-        env:
-          VERSION_COMMAND: ${{ inputs.version }}
+      - name: Inspect npm state without changing it
         run: |
-          pnpm version "$VERSION_COMMAND" --preid=next --no-git-tag-version
-          next_version=$(node -p "require('./package.json').version")
-          if [[ ! "$next_version" =~ ^2\.[0-9]+\.[0-9]+-next\.[0-9]+$ ]]; then
-            echo "Refusing to publish version outside the 2.x next channel: $next_version" >&2
-            exit 1
-          fi
-          echo "value=$next_version" >> "$GITHUB_OUTPUT"
-      - name: Commit and push version
+          node <<'NODE'
+          const {appendFileSync, writeFileSync} = require('node:fs');
+          const {spawnSync} = require('node:child_process');
+
+          const graphPackage = '@gravity-ui/graph';
+          const npmRegistry = 'https://registry.npmjs.org';
+          const plan = JSON.parse(process.env.RELEASE_PLAN);
+
+          function registryArgs(packageName) {
+            const scope = packageName.startsWith('@') ? packageName.slice(0, packageName.indexOf('/')) : undefined;
+            return [
+              `--registry=${npmRegistry}`,
+              ...(scope ? [`--${scope}:registry=${npmRegistry}`] : []),
+            ];
+          }
+
+          function view(args) {
+            const result = spawnSync('pnpm', ['view', ...args, ...registryArgs(args[0]), '--json'], {
+              encoding: 'utf8',
+              maxBuffer: 10 * 1024 * 1024,
+            });
+            if (result.status === 0) {
+              return JSON.parse(result.stdout || 'null');
+            }
+
+            const error = `${result.stdout || ''}\n${result.stderr || ''}`;
+            if (error.includes('E404')) {
+              return undefined;
+            }
+            throw new Error(`pnpm view ${args.join(' ')} failed: ${error}`);
+          }
+
+          const state = [];
+          const currentNextByPackage = {};
+          const alreadyPublishedByPackage = {};
+
+          for (const item of plan) {
+            const distTags = view([item.name, 'dist-tags']) ?? {};
+            const existingVersion = view([`${item.name}@${item.version}`, 'version']);
+            if (existingVersion !== undefined && existingVersion !== item.version) {
+              throw new Error(`npm returned ${existingVersion} for ${item.name}@${item.version}.`);
+            }
+
+            const previousLatest = distTags.latest ?? '';
+            if (item.name === graphPackage) {
+              if (!/^1\.\d+\.\d+$/.test(previousLatest)) {
+                throw new Error(`Before Graph v2 cutover, latest must be stable 1.x; found ${previousLatest || '<absent>'}.`);
+              }
+            } else if (previousLatest && !/^\d+\.\d+\.\d+$/.test(previousLatest)) {
+              throw new Error(`The latest baseline for ${item.name} must be stable; found ${previousLatest}.`);
+            }
+
+            currentNextByPackage[item.name] = distTags.next ?? '';
+            alreadyPublishedByPackage[item.name] = existingVersion !== undefined;
+            state.push({
+              ...item,
+              currentChannel: distTags[item.npmTag] ?? '',
+              previousLatest,
+              published: existingVersion !== undefined,
+            });
+          }
+
+          writeFileSync(process.env.NPM_STATE_PATH, `${JSON.stringify(state, null, 2)}\n`);
+          appendFileSync(
+            process.env.GITHUB_ENV,
+            `CURRENT_NEXT_BY_PACKAGE=${JSON.stringify(currentNextByPackage)}\n` +
+              `ALREADY_PUBLISHED_BY_PACKAGE=${JSON.stringify(alreadyPublishedByPackage)}\n`,
+          );
+          NODE
+      - name: Validate the release plan and public package boundary
         env:
-          NEXT_VERSION: ${{ steps.version.outputs.value }}
+          GITHUB_PRERELEASE: "true"
+          RELEASE_BRANCH: v2
+          RELEASE_DRY_RUN: "false"
         run: |
-          git config --local user.email "111915794+gravity-ui-bot@users.noreply.github.com"
-          git config --local user.name "gravity-ui-bot"
-          git add packages/graph/package.json
-          if git diff --cached --quiet; then
-            echo "Version bump produced no package.json change" >&2
-            exit 1
+          if node -e "process.exit(JSON.parse(process.env.RELEASE_PLAN).length === 0 ? 0 : 1)"; then
+            echo "The manifest release contains only private components; there are no public packages to publish."
+          else
+            node packages/graph/scripts/release-contract.mjs
           fi
-          if ! git diff --quiet -- . ':(exclude)packages/graph/package.json'; then
-            echo "Version bump changed files outside packages/graph/package.json" >&2
-            git status --short
-            exit 1
-          fi
-          git commit -m "v${NEXT_VERSION}"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
-      - name: Publish package
-        working-directory: packages/graph
-        run: pnpm publish --tag next --access public --no-git-checks
+      - name: Run static and unit checks
+        run: |
+          pnpm run lint
+          pnpm run typecheck
+          pnpm run test
+      - name: Build Storybook
+        run: pnpm run build-storybook
+      - name: Install Chromium
+        run: pnpm --filter @gravity-ui/graph-e2e exec playwright install --with-deps chromium
+      - name: Run repository E2E tests
+        env:
+          CI: true
+        run: pnpm run test:e2e:ci
+      - name: Build and validate every exact public tarball
+        env:
+          CI: true
+        run: |
+          node <<'NODE'
+          const {existsSync, readFileSync} = require('node:fs');
+          const path = require('node:path');
+          const {spawnSync} = require('node:child_process');
+
+          const plan = JSON.parse(process.env.RELEASE_PLAN);
+          const npmRegistry = 'https://registry.npmjs.org';
+          const slug = (name) => name.replace(/^@/, '').replaceAll('/', '-');
+          const tarballEntries = plan.map((item) => [
+            item.name,
+            path.join(process.env.RELEASE_TARBALL_DIRECTORY, `${slug(item.name)}.tgz`),
+          ]);
+          const tarballPaths = tarballEntries.map(([, tarball]) => tarball);
+          if (new Set(tarballPaths).size !== tarballPaths.length) {
+            throw new Error('Public package names produce colliding release tarball paths.');
+          }
+          const tarballsByPackage = Object.fromEntries(tarballEntries);
+
+          for (const item of plan) {
+            const packageRoot = path.resolve(item.path);
+            const manifest = JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
+            if (!manifest.scripts?.['test:package-contract']) {
+              throw new Error(`${item.name} must provide test:package-contract before it can be published.`);
+            }
+
+            const tarball = tarballsByPackage[item.name];
+            const availableWorkspaceTarballs = Object.fromEntries(
+              Object.entries(tarballsByPackage).filter(
+                ([packageName, packageTarball]) => packageName !== item.name && existsSync(packageTarball),
+              ),
+            );
+            const result = spawnSync('pnpm', ['run', 'test:package-contract'], {
+              cwd: packageRoot,
+              env: {
+                ...process.env,
+                PACKAGE_CONTRACT_TARBALL_PATH: tarball,
+                PACKAGE_CONTRACT_WORKSPACE_TARBALLS: JSON.stringify(availableWorkspaceTarballs),
+              },
+              stdio: 'inherit',
+            });
+            if (result.status !== 0) {
+              throw new Error(`The package contract failed for ${item.name}.`);
+            }
+            if (!existsSync(tarball)) {
+              throw new Error(`The package contract did not create the exact tarball ${tarball}.`);
+            }
+          }
+
+          for (const item of plan) {
+            const tarball = tarballsByPackage[item.name];
+            const packedManifestResult = spawnSync('tar', ['-xOf', tarball, 'package/package.json'], {
+              encoding: 'utf8',
+              maxBuffer: 10 * 1024 * 1024,
+            });
+            if (packedManifestResult.status !== 0) {
+              throw new Error(`Cannot read package/package.json from ${tarball}: ${packedManifestResult.stderr}`);
+            }
+
+            const packedManifest = JSON.parse(packedManifestResult.stdout);
+            if (packedManifest.name !== item.name || packedManifest.version !== item.version) {
+              throw new Error(
+                `${tarball} contains ${packedManifest.name}@${packedManifest.version} instead of ${item.name}@${item.version}.`,
+              );
+            }
+            if (packedManifest.private === true) {
+              throw new Error(`${tarball} contains a private package.`);
+            }
+            const publishConfig = packedManifest.publishConfig ?? {};
+            for (const [key, value] of Object.entries(publishConfig)) {
+              if (key !== 'registry' && !key.endsWith(':registry')) {
+                continue;
+              }
+              const publishRegistry = typeof value === 'string' ? value.replace(/\/$/, '') : value;
+              if (publishRegistry !== npmRegistry) {
+                throw new Error(`${tarball} redirects ${key} to unsupported registry ${String(value)}.`);
+              }
+            }
+          }
+          NODE
+      - name: Generate a GitHub Release token for preflight
+        id: generate-release-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GRAVITY_UI_APP_ID }}
+          private-key: ${{ secrets.GRAVITY_UI_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          # The v2 release tags target commits whose workflow files differ from main.
+          permission-workflows: write
+      - name: Preflight every Git tag and GitHub Release without changing them
+        env:
+          GH_TOKEN: ${{ steps.generate-release-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100" > "$RUNNER_TEMP/releases.json"
+          RELEASES_PATH="$RUNNER_TEMP/releases.json" node <<'NODE'
+          const {readFileSync} = require('node:fs');
+          const path = require('node:path');
+          const {spawnSync} = require('node:child_process');
+
+          const publicPlan = JSON.parse(process.env.RELEASE_PLAN);
+          const tagPlan = JSON.parse(process.env.TAG_PLAN);
+          const publicByName = new Map(publicPlan.map((item) => [item.name, item]));
+          const state = JSON.parse(readFileSync(process.env.NPM_STATE_PATH, 'utf8'));
+          const stateByName = new Map(state.map((item) => [item.name, item]));
+          const releases = JSON.parse(readFileSync(process.env.RELEASES_PATH, 'utf8')).flat();
+          const slug = (name) => name.replace(/^@/, '').replaceAll('/', '-');
+
+          function git(args, {allowFailure = false} = {}) {
+            const result = spawnSync('git', args, {encoding: 'utf8', maxBuffer: 10 * 1024 * 1024});
+            if (result.status !== 0 && !allowFailure) {
+              throw new Error(`git ${args.join(' ')} failed: ${result.stderr || result.stdout}`);
+            }
+            return result;
+          }
+
+          function remoteTagExists(tag) {
+            return git(['ls-remote', '--tags', 'origin', `refs/tags/${tag}`]).stdout.trim() !== '';
+          }
+
+          function fetchTag(tag) {
+            git(['fetch', '--force', '--no-tags', 'origin', `refs/tags/${tag}:refs/tags/${tag}`]);
+            return git(['rev-list', '-n', '1', tag]).stdout.trim();
+          }
+
+          function releasesFor(tag) {
+            const matches = releases.filter((release) => release.tag_name === tag);
+            if (matches.length > 1) {
+              throw new Error(`Multiple GitHub Releases use ${tag}.`);
+            }
+            return matches;
+          }
+
+          for (const item of tagPlan) {
+            if (!item.gitTag.endsWith(item.version)) {
+              throw new Error(`Git tag ${item.gitTag} must end with ${item.version}.`);
+            }
+
+            const publicItem = publicByName.get(item.name);
+            if (item.private) {
+              if (publicItem) {
+                throw new Error(`Private component ${item.name} also appears in the public release plan.`);
+              }
+              if (item.previousVersion !== '0.0.0') {
+                const previousTag = `${item.gitTag.slice(0, -item.version.length)}${item.previousVersion}`;
+                if (!remoteTagExists(previousTag)) {
+                  throw new Error(`Private component ${item.name} has no previous tag ${previousTag}.`);
+                }
+                const previousSha = fetchTag(previousTag);
+                const ancestor = git(['merge-base', '--is-ancestor', previousSha, process.env.RELEASE_SHA], {
+                  allowFailure: true,
+                });
+                if (ancestor.status !== 0) {
+                  throw new Error(`The previous private tag ${previousTag} is not an ancestor of ${process.env.RELEASE_SHA}.`);
+                }
+                const previousManifest = JSON.parse(
+                  git(['show', `${previousTag}:${item.path}/package.json`]).stdout,
+                );
+                if (previousManifest.name !== item.name || previousManifest.version !== item.previousVersion) {
+                  throw new Error(`${previousTag} does not contain ${item.name}@${item.previousVersion}.`);
+                }
+                if (releasesFor(previousTag).length !== 0) {
+                  throw new Error(`Private component tag ${previousTag} must not have a GitHub Release.`);
+                }
+              }
+            } else {
+              if (!publicItem) {
+                throw new Error(`Public tag component ${item.name} is missing from the npm release plan.`);
+              }
+              const packageState = stateByName.get(item.name);
+              if (!packageState) {
+                throw new Error(`Missing npm state for ${item.name}.`);
+              }
+              if (!packageState.published && packageState.currentChannel) {
+                const previousTag = `${item.gitTag.slice(0, -item.version.length)}${packageState.currentChannel}`;
+                if (!remoteTagExists(previousTag)) {
+                  throw new Error(`${item.name} ${packageState.currentChannel} has no Git tag; recover it first.`);
+                }
+                const previousSha = fetchTag(previousTag);
+                const ancestor = git(['merge-base', '--is-ancestor', previousSha, process.env.RELEASE_SHA], {
+                  allowFailure: true,
+                });
+                if (ancestor.status !== 0) {
+                  throw new Error(`The previous release tag ${previousTag} is not an ancestor of ${process.env.RELEASE_SHA}.`);
+                }
+                const previousManifest = JSON.parse(
+                  git(['show', `${previousTag}:${item.path}/package.json`]).stdout,
+                );
+                if (previousManifest.version !== packageState.currentChannel) {
+                  throw new Error(`${previousTag} contains ${item.name}@${previousManifest.version}.`);
+                }
+
+                const previousRelease = releasesFor(previousTag)[0];
+                if (
+                  !previousRelease ||
+                  previousRelease.name !== previousTag ||
+                  previousRelease.draft !== false ||
+                  previousRelease.prerelease !== true
+                ) {
+                  throw new Error(`Recover the completed GitHub prerelease ${previousTag} before publishing another version.`);
+                }
+              }
+            }
+
+            const currentTagExists = remoteTagExists(item.gitTag);
+            if (currentTagExists) {
+              const currentSha = fetchTag(item.gitTag);
+              if (currentSha !== process.env.RELEASE_SHA) {
+                throw new Error(`${item.gitTag} points to ${currentSha} instead of ${process.env.RELEASE_SHA}.`);
+              }
+            }
+
+            const currentReleases = releasesFor(item.gitTag);
+            if (item.private) {
+              if (currentReleases.length !== 0) {
+                throw new Error(`Private component tag ${item.gitTag} must not have a GitHub Release.`);
+              }
+            } else if (currentReleases.length === 1) {
+              if (!currentTagExists) {
+                throw new Error(`GitHub has a release for ${item.gitTag}, but the matching Git tag is absent.`);
+              }
+              const release = currentReleases[0];
+              const notes = readFileSync(
+                path.join(process.env.RELEASE_NOTES_DIRECTORY, `${slug(item.name)}.md`),
+                'utf8',
+              ).trim();
+              if (
+                release.name !== item.gitTag ||
+                release.body.trim() !== notes ||
+                release.draft !== false ||
+                release.prerelease !== true
+              ) {
+                throw new Error(`Conflicting GitHub Release metadata for ${item.gitTag}.`);
+              }
+            }
+          }
+
+          for (const item of publicPlan) {
+            if (!tagPlan.some((tagItem) => tagItem.name === item.name && tagItem.private === false)) {
+              throw new Error(`Public package ${item.name} is missing from the component tag plan.`);
+            }
+          }
+          NODE
+      - name: Publish only the verified public tarballs
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GRAVITY_UI_BOT_NPM_TOKEN }}
+        run: |
+          node <<'NODE'
+          const {readFileSync} = require('node:fs');
+          const path = require('node:path');
+          const {spawnSync} = require('node:child_process');
+
+          const plan = JSON.parse(process.env.RELEASE_PLAN);
+          const npmRegistry = 'https://registry.npmjs.org';
+          const state = JSON.parse(readFileSync(process.env.NPM_STATE_PATH, 'utf8'));
+          const stateByName = new Map(state.map((item) => [item.name, item]));
+          const slug = (name) => name.replace(/^@/, '').replaceAll('/', '-');
+
+          function registryArgs(packageName) {
+            const scope = packageName.startsWith('@') ? packageName.slice(0, packageName.indexOf('/')) : undefined;
+            return [
+              `--registry=${npmRegistry}`,
+              ...(scope ? [`--${scope}:registry=${npmRegistry}`] : []),
+            ];
+          }
+
+          function view(args) {
+            const result = spawnSync('pnpm', ['view', ...args, ...registryArgs(args[0]), '--json'], {
+              encoding: 'utf8',
+              maxBuffer: 10 * 1024 * 1024,
+            });
+            if (result.status === 0) {
+              return JSON.parse(result.stdout || 'null');
+            }
+            const error = `${result.stdout || ''}\n${result.stderr || ''}`;
+            if (error.includes('E404')) {
+              return undefined;
+            }
+            throw new Error(`pnpm view ${args.join(' ')} failed: ${error}`);
+          }
+
+          function validateCurrentState(item) {
+            const packageState = stateByName.get(item.name);
+            const currentTags = view([item.name, 'dist-tags']) ?? {};
+            if ((currentTags.latest ?? '') !== packageState.previousLatest) {
+              throw new Error(`The latest dist-tag for ${item.name} changed after preflight.`);
+            }
+            if ((currentTags[item.npmTag] ?? '') !== packageState.currentChannel) {
+              throw new Error(`The ${item.npmTag} dist-tag for ${item.name} changed after preflight.`);
+            }
+
+            const existingVersion = view([`${item.name}@${item.version}`, 'version']);
+            if (packageState.published) {
+              if (existingVersion !== item.version) {
+                throw new Error(`The recoverable npm version ${item.name}@${item.version} disappeared.`);
+              }
+            } else if (existingVersion !== undefined) {
+              throw new Error(`${item.name}@${item.version} appeared in npm after preflight.`);
+            }
+          }
+
+          for (const item of plan) {
+            validateCurrentState(item);
+          }
+
+          for (const item of plan) {
+            const packageState = stateByName.get(item.name);
+            if (packageState.published) {
+              console.log(`[release] ${item.name}@${item.version} is already published; skipping npm publish.`);
+              continue;
+            }
+
+            validateCurrentState(item);
+
+            const tarball = path.join(process.env.RELEASE_TARBALL_DIRECTORY, `${slug(item.name)}.tgz`);
+            const result = spawnSync(
+              'pnpm',
+              [
+                'publish',
+                tarball,
+                ...registryArgs(item.name),
+                '--tag',
+                item.npmTag,
+                '--access',
+                'public',
+                '--ignore-scripts',
+                '--no-git-checks',
+              ],
+              {stdio: 'inherit', env: process.env},
+            );
+            if (result.status !== 0) {
+              throw new Error(`npm publication failed for ${item.name}@${item.version}.`);
+            }
+          }
+          NODE
+      - name: Create and verify every Git tag and GitHub prerelease
+        env:
+          GH_TOKEN: ${{ steps.generate-release-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          node <<'NODE'
+          const {readFileSync} = require('node:fs');
+          const path = require('node:path');
+          const {spawnSync} = require('node:child_process');
+
+          const publicPlan = JSON.parse(process.env.RELEASE_PLAN);
+          const tagPlan = JSON.parse(process.env.TAG_PLAN);
+          const slug = (name) => name.replace(/^@/, '').replaceAll('/', '-');
+
+          function command(binary, args, {allowFailure = false} = {}) {
+            const result = spawnSync(binary, args, {encoding: 'utf8', maxBuffer: 10 * 1024 * 1024});
+            if (result.status !== 0 && !allowFailure) {
+              throw new Error(`${binary} ${args.join(' ')} failed: ${result.stderr || result.stdout}`);
+            }
+            return result;
+          }
+
+          for (const item of tagPlan) {
+            const remoteTag = command('git', ['ls-remote', '--tags', 'origin', `refs/tags/${item.gitTag}`]);
+            if (remoteTag.stdout.trim() === '') {
+              command('gh', [
+                'api',
+                '--method',
+                'POST',
+                `repos/${process.env.GH_REPO}/git/refs`,
+                '--field',
+                `ref=refs/tags/${item.gitTag}`,
+                '--field',
+                `sha=${process.env.RELEASE_SHA}`,
+              ]);
+            }
+
+            command('git', [
+              'fetch',
+              '--force',
+              '--no-tags',
+              'origin',
+              `refs/tags/${item.gitTag}:refs/tags/${item.gitTag}`,
+            ]);
+            const tagSha = command('git', ['rev-list', '-n', '1', item.gitTag]).stdout.trim();
+            if (tagSha !== process.env.RELEASE_SHA) {
+              throw new Error(`${item.gitTag} points to ${tagSha} instead of ${process.env.RELEASE_SHA}.`);
+            }
+          }
+
+          for (const item of publicPlan) {
+            const releaseView = command(
+              'gh',
+              ['release', 'view', item.gitTag, '--repo', process.env.GH_REPO],
+              {allowFailure: true},
+            );
+            if (releaseView.status !== 0) {
+              const error = `${releaseView.stdout || ''}\n${releaseView.stderr || ''}`.toLowerCase();
+              if (!error.includes('release not found') && !error.includes('http 404')) {
+                throw new Error(`Cannot determine whether ${item.gitTag} already has a GitHub Release: ${error}`);
+              }
+              command('gh', [
+                'release',
+                'create',
+                item.gitTag,
+                '--repo',
+                process.env.GH_REPO,
+                '--title',
+                item.gitTag,
+                '--notes-file',
+                path.join(process.env.RELEASE_NOTES_DIRECTORY, `${slug(item.name)}.md`),
+                '--prerelease',
+                '--verify-tag',
+              ]);
+            }
+
+            const release = JSON.parse(
+              command('gh', [
+                'release',
+                'view',
+                item.gitTag,
+                '--repo',
+                process.env.GH_REPO,
+                '--json',
+                'tagName,name,body,isDraft,isPrerelease',
+              ]).stdout,
+            );
+            const expectedNotes = readFileSync(
+              path.join(process.env.RELEASE_NOTES_DIRECTORY, `${slug(item.name)}.md`),
+              'utf8',
+            ).trim();
+            if (
+              release.tagName !== item.gitTag ||
+              release.name !== item.gitTag ||
+              release.body.trim() !== expectedNotes ||
+              release.isDraft !== false ||
+              release.isPrerelease !== true
+            ) {
+              throw new Error(`Unexpected GitHub Release metadata for ${item.gitTag}.`);
+            }
+          }
+          NODE
+
+      - name: Mark the release PR as completed
+        id: complete-release-pr
+        env:
+          GH_TOKEN: ${{ steps.generate-release-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh pr edit "$RELEASE_PR" --repo "$GH_REPO" \
+            --add-label "autorelease: tagged" \
+            --remove-label "autorelease: pending"
+
+  stable-dry-run:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'stable-dry-run'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RELEASE_VERSION: ${{ inputs.stable-version }}
+    steps:
+      - name: Require the v2 branch and a stable 2.x version
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          if [[ "$RELEASE_REF" != "refs/heads/v2" ]]; then
+            echo "The future main/latest path must be exercised from the current v2 branch." >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_VERSION" =~ ^2\.[0-9]+\.[0-9]+$ ]]; then
+            echo "stable-version must be an exact stable 2.x version." >&2
+            exit 1
+          fi
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Initialize the dry-run path
+        run: echo "RELEASE_TARBALL=$RUNNER_TEMP/gravity-ui-graph-stable.tgz" >> "$GITHUB_ENV"
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Apply the prospective stable package version locally
+        working-directory: packages/graph
+        run: pnpm version "$RELEASE_VERSION" --no-git-tag-version
+      - name: Validate the future stable release policy
+        env:
+          GITHUB_PRERELEASE: "false"
+          RELEASE_BRANCH: main
+          RELEASE_DRY_RUN: "true"
+          RELEASE_PLAN: >-
+            [{"name":"@gravity-ui/graph","path":"packages/graph","version":"${{ inputs.stable-version }}","npmTag":"latest","gitTag":null}]
+        run: node packages/graph/scripts/release-contract.mjs
+      - name: Run static and unit checks
+        run: |
+          pnpm run lint
+          pnpm run typecheck
+          pnpm run test
+      - name: Build Storybook
+        run: pnpm run build-storybook
+      - name: Install Chromium
+        run: pnpm --filter @gravity-ui/graph-e2e exec playwright install --with-deps chromium
+      - name: Run repository E2E tests
+        env:
+          CI: true
+        run: pnpm run test:e2e:ci
+      - name: Build and validate the prospective stable tarball
+        env:
+          CI: true
+        run: PACKAGE_CONTRACT_TARBALL_PATH="$RELEASE_TARBALL" pnpm run test:package-contract
+      - name: Dry-run publication under latest without credentials
+        run: |
+          latest_before=$(pnpm view @gravity-ui/graph dist-tags.latest --registry=https://registry.npmjs.org --@gravity-ui:registry=https://registry.npmjs.org)
+          if [[ ! "$latest_before" =~ ^1\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Before cutover, latest must point to a stable 1.x version; found $latest_before." >&2
+            exit 1
+          fi
+          pnpm publish "$RELEASE_TARBALL" --registry=https://registry.npmjs.org --@gravity-ui:registry=https://registry.npmjs.org --tag latest --access public --dry-run --ignore-scripts --no-git-checks
+          latest_after=$(pnpm view @gravity-ui/graph dist-tags.latest --registry=https://registry.npmjs.org --@gravity-ui:registry=https://registry.npmjs.org)
+
+          if [[ "$latest_before" != "$latest_after" ]]; then
+            echo "The stable dry-run unexpectedly changed the latest dist-tag." >&2
+            exit 1
+          fi

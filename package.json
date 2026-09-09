@@ -33,6 +33,8 @@
     "@commitlint/cli": "^19.5.0",
     "@commitlint/config-conventional": "^19.5.0",
     "@gravity-ui/prettier-config": "^1.1.0",
-    "prettier": "^3.0.0"
+    "prettier": "^3.0.0",
+    "release-please": "17.6.0",
+    "yaml": "2.8.1"
   }
 }

@@ -1,7 +1,7 @@
 import type { Config } from "jest";
 
 const jestConfig: Config = {
-  testPathIgnorePatterns: ["/node_modules/", "/build/"],
+  testPathIgnorePatterns: ["/node_modules/", "/build/", "/scripts/"],
   testEnvironment: "jsdom",
   setupFiles: ["<rootDir>/setupJest.cjs", "jest-canvas-mock"],
   transformIgnorePatterns: [],

@@ -13,9 +13,9 @@ const fixturesDirectory = fileURLToPath(new URL("./fixtures", import.meta.url));
 const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
 const workspaceRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "gravity-graph-package-contract-"));
-const tarballDirectory = path.join(temporaryDirectory, "tarballs");
-const tarballName = "gravity-ui-graph.tgz";
-const tarballPath = path.join(tarballDirectory, tarballName);
+const requestedTarballPath = process.env.PACKAGE_CONTRACT_TARBALL_PATH;
+const defaultTarballPath = path.join(temporaryDirectory, "tarballs", "gravity-ui-graph.tgz");
+const tarballPath = requestedTarballPath ? path.resolve(requestedTarballPath) : defaultTarballPath;
 const staleBuildSentinelPath = path.join(packageRoot, "build", "package-contract-stale-sentinel.txt");
 const consumerNames = ["vanilla", "react"];
 
@@ -33,6 +33,7 @@ async function getInstalledVersion(packageName) {
 async function runConsumer({
   name,
   manifest,
+  expectedVersion,
   typecheckConfigs,
   entryPoint,
   nativeImports,
@@ -49,7 +50,7 @@ async function runConsumer({
     cwd: consumerDirectory,
   });
 
-  await checkInstalledArtifact(consumerDirectory);
+  await checkInstalledArtifact(consumerDirectory, expectedVersion);
   await checkRuntimeConsumer({
     consumerDirectory,
     entrypoints: nativeImports,
@@ -70,7 +71,9 @@ async function runConsumer({
 }
 
 try {
-  await mkdir(tarballDirectory);
+  const graphManifest = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
+  const expectedVersion = graphManifest.version;
+  await mkdir(path.dirname(tarballPath), { recursive: true });
   await buildAndPackArtifact({ packageRoot, staleBuildSentinelPath, tarballPath });
   await checkTarballTypes({ packageRoot, tarballPath });
 
@@ -107,7 +110,7 @@ try {
     type: "module",
     packageManager: workspaceManifest.packageManager,
     dependencies: {
-      "@gravity-ui/graph": `file:../tarballs/${tarballName}`,
+      "@gravity-ui/graph": `file:${tarballPath}`,
       "@preact/signals-core": signalsVersion,
     },
     devDependencies: {
@@ -120,6 +123,7 @@ try {
 
   await runConsumer({
     name: "vanilla",
+    expectedVersion,
     manifest: {
       ...commonManifest,
       name: "gravity-graph-installed-vanilla-consumer",
@@ -137,6 +141,7 @@ try {
 
   await runConsumer({
     name: "react",
+    expectedVersion,
     manifest: {
       ...commonManifest,
       name: "gravity-graph-installed-react-consumer",
@@ -156,7 +161,7 @@ try {
     nativeImports: ["root", "react", "playwright"],
   });
 
-  console.log("\n[package-contract] Published package contract passed.");
+  console.log("\n[package-contract] Packed package contract passed.");
 } catch (error) {
   await preserveBrowserArtifacts({ consumerNames, packageRoot, temporaryDirectory });
   throw error;
