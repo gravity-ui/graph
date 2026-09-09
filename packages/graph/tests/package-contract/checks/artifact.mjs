@@ -164,11 +164,12 @@ export async function buildAndPackArtifact({ packageRoot, staleBuildSentinelPath
   await run("pnpm", ["exec", "publint", tarballPath, "--strict"], { cwd: packageRoot });
 }
 
-export async function checkInstalledArtifact(consumerDirectory) {
+export async function checkInstalledArtifact(consumerDirectory, expectedVersion) {
   const packageRoot = path.join(consumerDirectory, "node_modules", "@gravity-ui", "graph");
   const manifest = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
 
   assert.equal(manifest.name, "@gravity-ui/graph");
+  assert.equal(manifest.version, expectedVersion, "The installed package version does not match the tested artifact.");
   assert.notEqual(manifest.private, true);
   assert.equal(manifest.type, "module");
   assert.equal(manifest.main.replace(/^\.\//, ""), "build/index.js");

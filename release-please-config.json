@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "node",
+  "skip-github-release": true,
+  "separate-pull-requests": false,
+  "always-link-local": true,
+  "plugins": [
+    {
+      "type": "node-workspace",
+      "updatePeerDependencies": true
+    }
+  ],
+  "packages": {
+    "packages/graph": {
+      "package-name": "@gravity-ui/graph",
+      "component": "graph",
+      "release-as": "2.0.0-next.0",
+      "versioning": "prerelease",
+      "prerelease": true,
+      "prerelease-type": "next",
+      "include-component-in-tag": false,
+      "include-v-in-tag": true
+    },
+    "packages/scheduler": {
+      "package-name": "@gravity-ui/graph-scheduler",
+      "component": "scheduler",
+      "skip-github-release": true
+    }
+  }
+}

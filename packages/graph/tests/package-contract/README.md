@@ -1,6 +1,6 @@
 # Published package contract
 
-This suite validates `@gravity-ui/graph` as consumers receive it from npm. Repository source tests cannot detect
+This suite validates the exact `@gravity-ui/graph` tarball prepared for npm. Repository source tests cannot detect
 missing packed files, incorrect `exports`, broken generated declarations, ESM/CommonJS resolution differences,
 incorrect optional-peer metadata, eager React coupling, or runtime duplication of shared dependencies.
 
@@ -33,6 +33,18 @@ KEEP_PACKAGE_CONTRACT_TMP=1 pnpm run test:package-contract
 
 The runner prints the preserved directory. On a CI failure, Playwright reports and test results are copied to
 `packages/graph/playwright-report/package-contract/` and `packages/graph/test-results/package-contract/`.
+
+### Release output
+
+The default command builds one production tarball in a temporary directory and installs that exact file in both
+consumers. A release workflow can preserve the already validated tarball outside that directory:
+
+```sh
+PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/gravity-ui-graph.tgz pnpm run test:package-contract
+```
+
+`PACKAGE_CONTRACT_TARBALL_PATH` is an output path: the runner still builds, packs, lints, type-checks, and installs the
+artifact. The release workflow must publish that same file rather than packing again.
 
 ## Structure
 
