@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { run } from "../utils.mjs";
+
+const privateSchedulerPackage = "@gravity-ui/graph-scheduler";
 
 const expectedExports = {
   ".": {
@@ -111,12 +113,43 @@ async function assertPathDoesNotExist(targetPath, message) {
   assert.fail(message);
 }
 
+async function collectGeneratedContractFiles(directory) {
+  const generatedFiles = [];
+
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name);
+
+    if (entry.isDirectory()) {
+      generatedFiles.push(...(await collectGeneratedContractFiles(entryPath)));
+    } else if ([".js", ".cjs", ".d.ts", ".d.cts"].some((suffix) => entry.name.endsWith(suffix))) {
+      generatedFiles.push(entryPath);
+    }
+  }
+
+  return generatedFiles;
+}
+
+async function assertNoPrivateSchedulerSpecifiers(packageRoot) {
+  const buildDirectory = path.join(packageRoot, "build");
+
+  for (const generatedFile of await collectGeneratedContractFiles(buildDirectory)) {
+    const contents = await readFile(generatedFile, "utf8");
+
+    assert.equal(
+      contents.includes(privateSchedulerPackage),
+      false,
+      `Generated artifact ${path.relative(packageRoot, generatedFile)} references ${privateSchedulerPackage}.`
+    );
+  }
+}
+
 export async function buildAndPackArtifact({ packageRoot, staleBuildSentinelPath, tarballPath }) {
   console.log("\n[package-contract] Building published files...");
   await mkdir(path.dirname(staleBuildSentinelPath), { recursive: true });
   await writeFile(staleBuildSentinelPath, "The production build must remove this stale artifact.\n");
   await run("pnpm", ["run", "build"], { cwd: packageRoot });
   await assertPathDoesNotExist(staleBuildSentinelPath, "The production build did not clean its output directory.");
+  await assertNoPrivateSchedulerSpecifiers(packageRoot);
 
   console.log("\n[package-contract] Packing @gravity-ui/graph and checking the tarball allowlist...");
   const packMetadata = getPackMetadata(
@@ -151,6 +184,24 @@ export async function checkInstalledArtifact(consumerDirectory) {
   assert.equal(manifest.peerDependenciesMeta?.react?.optional, true);
   assert.equal(manifest.peerDependenciesMeta?.["react-dom"]?.optional, true);
 
+  for (const dependencyField of ["dependencies", "optionalDependencies", "peerDependencies"]) {
+    assert.equal(
+      manifest[dependencyField]?.[privateSchedulerPackage],
+      undefined,
+      `Packed manifest exposes ${privateSchedulerPackage} through ${dependencyField}.`
+    );
+  }
+
+  for (const bundledDependencyField of ["bundledDependencies", "bundleDependencies"]) {
+    const bundledDependencies = manifest[bundledDependencyField];
+
+    assert.equal(
+      Array.isArray(bundledDependencies) && bundledDependencies.includes(privateSchedulerPackage),
+      false,
+      `Packed manifest bundles the private package through ${bundledDependencyField}.`
+    );
+  }
+
   await Promise.all(
     [
       "build/index.js",
@@ -167,6 +218,12 @@ export async function checkInstalledArtifact(consumerDirectory) {
       "LICENSE",
     ].map((relativePath) => access(path.join(packageRoot, relativePath)))
   );
+
+  await assertPathDoesNotExist(
+    path.join(consumerDirectory, "node_modules", ...privateSchedulerPackage.split("/")),
+    `The isolated consumer installed the private package ${privateSchedulerPackage}.`
+  );
+  await assertNoPrivateSchedulerSpecifiers(packageRoot);
 
   const publicStyles = await readFile(path.join(packageRoot, "build", "styles.css"), "utf8");
   assert.match(publicStyles, /\.layer\b/, "Public styles do not include the vanilla canvas contract.");

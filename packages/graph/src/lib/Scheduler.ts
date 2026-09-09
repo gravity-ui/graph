@@ -1,9 +1,11 @@
-import { Tree } from "./Tree";
+import {
+  GlobalScheduler as PrivateGlobalScheduler,
+  Scheduler as PrivateScheduler,
+  globalScheduler as privateGlobalScheduler,
+  scheduler as privateScheduler,
+} from "@gravity-ui/graph-scheduler";
 
-const rAF: Function = typeof window !== "undefined" ? window.requestAnimationFrame : (fn) => global.setTimeout(fn, 16);
-const cAF: Function = typeof window !== "undefined" ? window.cancelAnimationFrame : global.clearTimeout;
-const getNow =
-  typeof window !== "undefined" ? window.performance.now.bind(window.performance) : global.Date.now.bind(global.Date);
+import { Tree } from "./Tree";
 
 interface IScheduler {
   performUpdate: (time: number) => void;
@@ -16,160 +18,38 @@ export enum ESchedulerPriority {
   LOW = 3,
   LOWEST = 4,
 }
-export class GlobalScheduler {
-  private schedulers: [IScheduler[], IScheduler[], IScheduler[], IScheduler[], IScheduler[]];
-  private _cAFID: number;
-  private toRemove: Array<[IScheduler, ESchedulerPriority]> = [];
-  private visibilityChangeHandler: (() => void) | null = null;
 
-  constructor() {
-    this.tick = this.tick.bind(this);
-    this.handleVisibilityChange = this.handleVisibilityChange.bind(this);
-
-    this.schedulers = [[], [], [], [], []];
-    this.setupVisibilityListener();
-  }
-
-  /**
-   * Setup listener for page visibility changes.
-   * When tab becomes visible after being hidden, force immediate update.
-   * This fixes the issue where tabs opened in background don't render HTML until interaction.
-   */
-  private setupVisibilityListener(): void {
-    if (typeof document === "undefined") {
-      return; // Not in browser environment
-    }
-
-    this.visibilityChangeHandler = this.handleVisibilityChange;
-    document.addEventListener("visibilitychange", this.visibilityChangeHandler);
-  }
-
-  /**
-   * Handle page visibility changes.
-   * When page becomes visible, perform immediate update if scheduler is running.
-   */
-  private handleVisibilityChange(): void {
-    // Only update if page becomes visible and scheduler is running
-    if (!document.hidden && this._cAFID) {
-      // Perform immediate update when tab becomes visible
-      this.performUpdate();
-    }
-  }
-
-  /**
-   * Cleanup visibility listener
-   */
-  private cleanupVisibilityListener(): void {
-    if (this.visibilityChangeHandler && typeof document !== "undefined") {
-      document.removeEventListener("visibilitychange", this.visibilityChangeHandler);
-      this.visibilityChangeHandler = null;
-    }
-  }
-
-  public getSchedulers() {
-    return this.schedulers;
-  }
-
-  public addScheduler(scheduler: IScheduler, index = ESchedulerPriority.MEDIUM) {
-    this.schedulers[index].push(scheduler);
-    return () => this.removeScheduler(scheduler, index);
-  }
-
-  public removeScheduler(scheduler: IScheduler, index = ESchedulerPriority.MEDIUM) {
-    this.toRemove.push([scheduler, index]);
-  }
-
-  public start() {
-    if (!this._cAFID) {
-      this._cAFID = rAF(this.tick);
-    }
-  }
-
-  public stop() {
-    cAF(this._cAFID);
-    this._cAFID = undefined;
-  }
-
-  /**
-   * Cleanup method to be called when GlobalScheduler is no longer needed.
-   * Stops the scheduler and removes event listeners.
-   */
-  public destroy(): void {
-    this.stop();
-    this.cleanupVisibilityListener();
-  }
-
-  public tick() {
-    this.performUpdate();
-    this._cAFID = rAF(this.tick);
-  }
-
-  public performUpdate() {
-    const startTime = getNow();
-    let schedulers: IScheduler[] = [];
-
-    for (let i = 0; i < this.schedulers.length; i += 1) {
-      schedulers = this.schedulers[i];
-
-      for (let j = 0; j < schedulers.length; j += 1) {
-        schedulers[j].performUpdate(getNow() - startTime);
-      }
-    }
-
-    // Process deferred removals after all schedulers have been executed
-    for (const [scheduler, index] of this.toRemove) {
-      const schedulerIndex = this.schedulers[index].indexOf(scheduler);
-      if (schedulerIndex !== -1) {
-        this.schedulers[index].splice(schedulerIndex, 1);
-      }
-    }
-    this.toRemove.length = 0;
-  }
+export interface GlobalScheduler {
+  getSchedulers(): [IScheduler[], IScheduler[], IScheduler[], IScheduler[], IScheduler[]];
+  addScheduler(scheduler: IScheduler, index?: ESchedulerPriority): () => void;
+  removeScheduler(scheduler: IScheduler, index?: ESchedulerPriority): void;
+  start(): void;
+  stop(): void;
+  destroy(): void;
+  tick(): void;
+  performUpdate(): void;
 }
 
-export const globalScheduler = new GlobalScheduler();
+type TGlobalSchedulerConstructor = new () => GlobalScheduler;
 
-export const scheduler = globalScheduler;
-export class Scheduler {
-  private sheduled: boolean;
-  private root: Tree;
+// The interface keeps declarations graph-owned while the constructor value delegates to the private package.
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const GlobalScheduler = PrivateGlobalScheduler as unknown as TGlobalSchedulerConstructor;
+export const globalScheduler = privateGlobalScheduler as unknown as GlobalScheduler;
+export const scheduler = privateScheduler as unknown as GlobalScheduler;
 
-  constructor() {
-    this.performUpdate = this.performUpdate.bind(this);
-
-    this.sheduled = false;
-
-    globalScheduler.addScheduler(this);
-  }
-
-  public setRoot(root: Tree) {
-    this.root = root;
-  }
-
-  public start() {
-    globalScheduler.addScheduler(this);
-  }
-
-  public stop() {
-    globalScheduler.removeScheduler(this);
-  }
-
-  public update() {
-    this.root?.traverseDown(this.iterator);
-  }
-
-  public iterator(node: Tree) {
-    return node.data.iterate();
-  }
-
-  public scheduleUpdate() {
-    this.sheduled = true;
-  }
-
-  public performUpdate() {
-    if (this.sheduled) {
-      this.sheduled = false;
-      this.update();
-    }
-  }
+export interface Scheduler {
+  setRoot(root: Tree): void;
+  start(): void;
+  stop(): void;
+  update(): void;
+  iterator(node: Tree): boolean;
+  scheduleUpdate(): void;
+  performUpdate(): void;
 }
+
+type TSchedulerConstructor = new () => Scheduler;
+
+// The interface keeps declarations graph-owned while the constructor value delegates to the private package.
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const Scheduler = PrivateScheduler as unknown as TSchedulerConstructor;
