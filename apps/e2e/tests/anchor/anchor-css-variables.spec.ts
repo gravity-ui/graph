@@ -2,7 +2,8 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Anchor CSS variables", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/base.html");
+    // Anchor DOM styles belong to the React package and are loaded by the React fixture.
+    await page.goto("/react.html");
     await page.waitForFunction(() => (window as Window & { graphLibraryLoaded?: boolean }).graphLibraryLoaded === true);
   });
 

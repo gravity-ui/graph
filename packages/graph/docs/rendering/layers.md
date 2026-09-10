@@ -47,7 +47,7 @@ The library includes several built-in layers that demonstrate how to extend func
 ReactLayer is responsible for rendering React components within the graph. However, **you should not use this layer directly**. Instead, use the `GraphCanvas` component from the React integration:
 
 ```typescript
-import { GraphCanvas } from "@gravity-ui/graph/react";
+import { GraphCanvas } from "@gravity-ui/graph-react";
 
 <GraphCanvas 
   graph={graph}

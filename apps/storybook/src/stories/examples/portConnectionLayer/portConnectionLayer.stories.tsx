@@ -11,7 +11,7 @@ import {
   TBlock,
   createAnchorPortId,
 } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph } from "@gravity-ui/graph/react";
+import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 

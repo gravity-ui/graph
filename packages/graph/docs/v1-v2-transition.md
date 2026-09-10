@@ -188,3 +188,22 @@ mechanism. Do not run recovery with a different SHA, move `next` manually,
 publish another locally packed artifact, or leave a bootstrap `release-as`
 option in place after its release PR merges. No additional role system, SHA
 ledger, ruleset framework, or scheduled synchronization process is required.
+## React package boundary
+
+React components and hooks now live in `packages/graph-react` and are exported by `@gravity-ui/graph-react`.
+The old `@gravity-ui/graph/react` subpath is removed. Core does not depend on React, React DOM, their types, or ELK.
+The React package has a workspace peer dependency on core, plus required React 18 and React DOM 18 peers.
+
+Replace React imports and load the two independently owned stylesheets:
+
+```ts
+import { Graph } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph, useLayeredLayout } from "@gravity-ui/graph-react";
+import "@gravity-ui/graph/styles.css";
+import "@gravity-ui/graph-react/styles.css";
+```
+
+The layered layout algorithm and converters remain framework-independent core APIs; the React package owns the hook.
+Storybook and E2E consume the same public package entrypoints. `pnpm run build` builds core before React, and the shared
+`tests/package-contract` suite builds and installs one tarball per public package, verifies native imports and strict
+declarations, and checks that the React adapter uses the application's core classes.

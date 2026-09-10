@@ -25,6 +25,14 @@
       "package-name": "@gravity-ui/graph-scheduler",
       "component": "scheduler",
       "skip-github-release": true
+    },
+    "packages/graph-react": {
+      "package-name": "@gravity-ui/graph-react",
+      "component": "graph-react",
+      "release-as": "1.0.0-next.0",
+      "versioning": "prerelease",
+      "prerelease": true,
+      "prerelease-type": "next"
     }
   }
 }

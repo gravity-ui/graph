@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { ConnectionLayer, Graph, TBlock } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph } from "@gravity-ui/graph/react";
+import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 import { Flex, Hotkey, Switch, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 

@@ -6,6 +6,7 @@ import ts from "typescript";
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixturePath = path.join(
   rootDir,
+  "../..",
   "tests",
   "package-contract",
   "fixtures",

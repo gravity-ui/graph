@@ -36,9 +36,9 @@ Project structure:
     - Connection Store State: `packages/graph/src/store/connection/ConnectionState.ts` (Exports `ConnectionState`, `TConnection`)
     - Base connection component: `packages/graph/src/components/canvas/connections/BaseConnection.ts` (Exports `BaseConnection`)
 - **React Integration:**
-    - `GraphCanvas` component: `packages/graph/src/react-components/GraphCanvas.tsx`
-    - `useGraph` hook: `packages/graph/src/react-components/hooks/useGraph.ts`
-    - `GraphBlock` component: `packages/graph/src/react-components/Block.tsx`
+    - `GraphCanvas` component: `packages/graph-react/src/GraphCanvas.tsx`
+    - `useGraph` hook: `packages/graph-react/src/hooks/useGraph.ts`
+    - `GraphBlock` component: `packages/graph-react/src/Block.tsx`
 
 ## Technologies
 Technology stack:
@@ -52,7 +52,7 @@ Technology stack:
 ## Key Components
 Key components:
 - Graph - main class for graph management (packages/graph/src/graph.ts)
-- GraphCanvas - React component for displaying the graph (packages/graph/src/react-components/GraphCanvas.tsx)
+- GraphCanvas - React component for displaying the graph (packages/graph-react/src/GraphCanvas.tsx)
 - Block - component for representing a graph block
 - Connection - component for connections between blocks
 - Anchor - components for connection attachment points

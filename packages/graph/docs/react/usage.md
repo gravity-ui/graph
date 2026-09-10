@@ -1,5 +1,13 @@
 # React Components API
 
+In v2, React integration is provided by `@gravity-ui/graph-react`. Use the matching core package and load both stylesheets
+in the application entrypoint:
+
+```ts
+import "@gravity-ui/graph/styles.css";
+import "@gravity-ui/graph-react/styles.css";
+```
+
 ## Import Structure
 
 The library separates core functionality from React components:
@@ -9,10 +17,11 @@ The library separates core functionality from React components:
 import { Graph } from "@gravity-ui/graph";
 
 // React components (requires React)
-import { GraphCanvas, GraphBlock, GraphBlockAnchor, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
+import { GraphCanvas, GraphBlock, GraphBlockAnchor, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 
 // Public component styles
 import "@gravity-ui/graph/styles.css";
+import "@gravity-ui/graph-react/styles.css";
 ```
 
 ## Architecture
@@ -31,7 +40,7 @@ This separation allows the core library to be framework-agnostic while providing
 The main container component that renders your graph:
 
 ```tsx
-import { GraphCanvas } from "@gravity-ui/graph/react";
+import { GraphCanvas } from "@gravity-ui/graph-react";
 
 <GraphCanvas 
   graph={graph}
@@ -62,7 +71,7 @@ The `GraphBlock` component is a crucial wrapper that handles the complex interac
 5. **CSS Variables**: Injects position and state variables for styling
 
 ```tsx
-import { GraphBlock } from "@gravity-ui/graph/react";
+import { GraphBlock } from "@gravity-ui/graph-react";
 
 <GraphBlock 
   graph={graph} 
@@ -107,7 +116,7 @@ Renders connection points on blocks. The component supports two positioning mode
 
 1. **fixed** - Anchors are placed at exact coordinates relative to the block:
 ```tsx
-import { GraphBlockAnchor } from "@gravity-ui/graph/react";
+import { GraphBlockAnchor } from "@gravity-ui/graph-react";
 
 <GraphBlockAnchor 
   graph={graph} 
@@ -177,7 +186,7 @@ For detailed documentation of all hooks, see [React Hooks Reference](hooks.md).
 ### Quick Example
 
 ```tsx
-import { useGraph, useGraphEvent, useBlockState } from '@gravity-ui/graph/react';
+import { useGraph, useGraphEvent, useBlockState } from '@gravity-ui/graph-react';
 
 function MyGraph() {
   const { graph, setEntities, start } = useGraph({
@@ -209,8 +218,8 @@ In addition to the imperative `useLayer` hook, the library provides declarative 
 The `GraphLayer` component provides a declarative way to add existing Layer classes to the graph:
 
 ```tsx
-import { GraphLayer, GraphCanvas, useGraph } from '@gravity-ui/graph/react';
-import { DevToolsLayer } from '@gravity-ui/graph/plugins';
+import { GraphLayer, GraphCanvas, useGraph } from '@gravity-ui/graph-react';
+import { DevToolsLayer } from '@gravity-ui/graph';
 
 function MyGraph() {
   const { graph, setEntities, start } = useGraph({});
@@ -242,7 +251,7 @@ function MyGraph() {
 The `GraphPortal` component allows creating HTML layers without writing separate Layer classes:
 
 ```tsx
-import { GraphPortal, GraphCanvas, useGraph } from '@gravity-ui/graph/react';
+import { GraphPortal, GraphCanvas, useGraph } from '@gravity-ui/graph-react';
 
 function MyGraph() {
   const { graph, setEntities, start } = useGraph({});
@@ -348,7 +357,7 @@ const config = {
 The library provides a rich set of events you can listen to:
 
 ```tsx
-import { useGraphEvent } from '@gravity-ui/graph/react';
+import { useGraphEvent } from '@gravity-ui/graph-react';
 
 // When a new connection is created
 useGraphEvent(graph, "connection-created", 
@@ -420,8 +429,8 @@ Here's a practical example that demonstrates the core features:
 
 ```tsx
 import React, { useCallback } from 'react';
-import { Graph } from '@gravity-ui/graph';
-import { GraphCanvas, GraphBlock, GraphBlockAnchor, useGraph, useGraphEvent, TBlock } from '@gravity-ui/graph/react';
+import { Graph, type TBlock } from '@gravity-ui/graph';
+import { GraphCanvas, GraphBlock, GraphBlockAnchor, useGraph, useGraphEvent } from '@gravity-ui/graph-react';
 
 function BlockComponent({ block, graph }: { block: TBlock; graph: Graph }) {
   return (

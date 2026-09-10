@@ -158,7 +158,7 @@ this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${ca
 ## React Integration with useLayer
 - **Using `useLayer` Hook:** The recommended way to add and manage layers in React components:
     ```typescript
-    import { useLayer } from "@gravity-ui/graph";
+    import { useLayer } from "@gravity-ui/graph-react";
     
     function MyComponent() {
       const { graph } = useGraph(/* config */);
@@ -219,4 +219,4 @@ protected afterInit() {
 }
 ```
 
-When the layer is unmounted, all handlers are automatically removed. 
+When the layer is unmounted, all handlers are automatically removed.

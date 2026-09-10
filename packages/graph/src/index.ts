@@ -1,5 +1,5 @@
 export { Anchor, type TAnchor, type TAnchorProps } from "./components/canvas/anchors";
-export { Block as CanvasBlock, type TBlock } from "./components/canvas/blocks/Block";
+export { Block as CanvasBlock, isTBlock, type TBlock, type TBlockProps } from "./components/canvas/blocks/Block";
 export { GraphComponent } from "./components/canvas/GraphComponent";
 export * from "./components/canvas/connections";
 export * from "./graph";
@@ -20,12 +20,18 @@ export {
   EWheelIntent,
   WHEEL_INTENT_RULE,
 } from "./utils/functions/wheelIntent";
-export { type UnwrapGraphEventsDetail, type SelectionEvent } from "./graphEvents";
+export {
+  type UnwrapGraphEventsDetail,
+  type SelectionEvent,
+  type GraphEventsDefinitions,
+  type UnwrapGraphEvents,
+} from "./graphEvents";
 export * from "./plugins";
 export {
   defaultGetCameraBlockScaleLevel,
   ECameraScaleLevel,
   type TGetCameraBlockScaleLevel,
+  type ICamera,
 } from "./services/camera/CameraService";
 export * from "./services/Layer";
 export * from "./store";
@@ -55,3 +61,7 @@ export * from "./components/canvas/layers/connectionLayer/ConnectionLayer";
 export * from "./lib/Component";
 
 export * from "./services/selection/index.public";
+
+export type { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
+export type { RecursivePartial } from "./utils/types/helpers";
+export type { TDebounceOptions, TScheduleOptions } from "./utils/utils/schedule";

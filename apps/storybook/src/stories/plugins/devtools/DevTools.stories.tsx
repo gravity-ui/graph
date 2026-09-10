@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect } from "react";
 
 import { DEFAULT_DEVTOOLS_LAYER_PROPS, DevToolsLayer, Graph, TBlock, TDevToolsLayerProps } from "@gravity-ui/graph";
-import { GraphBlock, GraphCanvas, useGraph, useLayer } from "@gravity-ui/graph/react";
+import { GraphBlock, GraphCanvas, useGraph, useLayer } from "@gravity-ui/graph-react";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
@@ -95,7 +95,7 @@ const meta: Meta<typeof DevToolsStoryComponent> = {
         code: `
 import React from 'react';
 import { DevToolsLayer } from '@gravity-ui/graph';
-import { GraphCanvas, useGraph, useLayer } from '@gravity-ui/graph/react';
+import { GraphCanvas, useGraph, useLayer } from '@gravity-ui/graph-react';
 
 function MyGraphWithDevTools() {
   const { graph } = useGraph({

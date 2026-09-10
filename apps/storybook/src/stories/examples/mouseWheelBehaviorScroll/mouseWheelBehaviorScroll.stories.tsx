@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import type { TMouseWheelBehavior, TWheelInputDevice } from "@gravity-ui/graph";
 import { ECanDrag, EWheelIntent, Graph, GraphState, TBlock, enableWheelIntentDebug } from "@gravity-ui/graph";
-import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
+import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import { Flex, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 

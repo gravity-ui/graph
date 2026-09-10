@@ -59,6 +59,9 @@ const MyGraph = () => {
 npm install @gravity-ui/graph
 ```
 
+Для React-интеграции в v2 также нужен соответствующий пакет `@gravity-ui/graph-react`, React 18 и React DOM 18.
+
+
 ## Примеры
 
 ### Пример на React
@@ -69,8 +72,9 @@ npm install @gravity-ui/graph
 import React, { useEffect } from "react";
 import type { Graph, TBlock } from "@gravity-ui/graph";
 import { EAnchorType, GraphState } from "@gravity-ui/graph";
-import { GraphCanvas, GraphBlock, useGraph } from "@gravity-ui/graph/react";
+import { GraphCanvas, GraphBlock, useGraph } from "@gravity-ui/graph-react";
 import "@gravity-ui/graph/styles.css";
+import "@gravity-ui/graph-react/styles.css";
 
 const config = {};
 

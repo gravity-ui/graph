@@ -5,6 +5,7 @@ import type { Preview } from "@storybook/react-webpack5";
 
 import "./styles/global.css";
 import "@gravity-ui/graph/styles.css";
+import "@gravity-ui/graph-react/styles.css";
 import "@gravity-ui/uikit/styles/styles.css";
 
 const preview: Preview = {

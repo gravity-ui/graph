@@ -9,7 +9,7 @@ import {
   TBlock,
   TDefinitionGroup,
 } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph/react";
+import { GraphCanvas, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph-react";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { useFn } from "../../../useFn";

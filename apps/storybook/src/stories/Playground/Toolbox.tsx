@@ -1,7 +1,7 @@
 import React from "react";
 
 import { Graph } from "@gravity-ui/graph";
-import { useSignal } from "@gravity-ui/graph/react";
+import { useSignal } from "@gravity-ui/graph-react";
 import { MagnifierMinus, MagnifierPlus, SquareDashed } from "@gravity-ui/icons";
 import { Button, Flex, Icon, Tooltip } from "@gravity-ui/uikit";
 

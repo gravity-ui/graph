@@ -261,7 +261,7 @@ protected onCameraChange(camera: TCameraState): void {
 ### React example
 
 ```typescript
-import { useSignalLayoutEffect } from "@gravity-ui/graph/react";
+import { useSignalLayoutEffect } from "@gravity-ui/graph-react";
 
 useSignalLayoutEffect(() => {
   const camera = graph.$camera.value;
