@@ -53,7 +53,7 @@ import {
   useSchedulerThrottle,
   useScheduledTask,
   useSceneChange,
-} from "@gravity-ui/graph/react";
+} from "@gravity-ui/graph-react";
 ```
 
 ## Core Hooks
@@ -63,7 +63,7 @@ import {
 The main hook for creating and managing a Graph instance.
 
 ```typescript
-import { useGraph, type HookGraphParams } from "@gravity-ui/graph/react";
+import { useGraph, type HookGraphParams } from "@gravity-ui/graph-react";
 import type { Graph, TBlock, TConnection } from "@gravity-ui/graph";
 
 const config: HookGraphParams = {
@@ -137,8 +137,8 @@ function MyGraph(): JSX.Element {
 Hook for managing graph layers. Automatically handles layer initialization, props updates, and cleanup.
 
 ```typescript
-import { useLayer } from "@gravity-ui/graph/react";
-import { DevToolsLayer, type DevToolsLayerProps } from "@gravity-ui/graph/plugins";
+import { useLayer } from "@gravity-ui/graph-react";
+import { DevToolsLayer, type DevToolsLayerProps } from "@gravity-ui/graph";
 import type { Graph } from "@gravity-ui/graph";
 
 function MyGraph(): JSX.Element {
@@ -182,7 +182,7 @@ Returns `InstanceType<T> | null` - the layer instance or `null` if graph is not 
 Hook for subscribing to a single graph event with optional debouncing.
 
 ```typescript
-import { useGraphEvent } from "@gravity-ui/graph/react";
+import { useGraphEvent } from "@gravity-ui/graph-react";
 import type { Graph, ESchedulerPriority } from "@gravity-ui/graph";
 import type { UnwrapGraphEventsDetail, UnwrapGraphEvents } from "@gravity-ui/graph";
 
@@ -247,9 +247,9 @@ function MyComponent({ graph }: Props): JSX.Element | null {
 Hook for subscribing to multiple graph events at once using callback props style.
 
 ```typescript
-import { useGraphEvents } from "@gravity-ui/graph/react";
+import { useGraphEvents } from "@gravity-ui/graph-react";
 import type { Graph } from "@gravity-ui/graph";
-import type { TGraphEventCallbacks } from "@gravity-ui/graph/react";
+import type { TGraphEventCallbacks } from "@gravity-ui/graph-react";
 
 interface Props {
   graph: Graph;
@@ -289,7 +289,7 @@ function MyComponent({ graph }: Props): JSX.Element | null {
 Hook to get and subscribe to block state changes.
 
 ```typescript
-import { useBlockState } from "@gravity-ui/graph/react";
+import { useBlockState } from "@gravity-ui/graph-react";
 import type { Graph, TBlock, TBlockId } from "@gravity-ui/graph";
 import type { BlockState } from "@gravity-ui/graph";
 
@@ -333,7 +333,7 @@ Returns `BlockState | undefined` - the block state object that updates reactivel
 Hook to get the view component of a block. Useful for accessing rendering-specific state.
 
 ```typescript
-import { useBlockViewState } from "@gravity-ui/graph/react";
+import { useBlockViewState } from "@gravity-ui/graph-react";
 import type { Graph, TBlockId } from "@gravity-ui/graph";
 import type { Block } from "@gravity-ui/graph";
 
@@ -371,7 +371,7 @@ Returns the block's view component (`Block`) or `undefined`.
 Hook to get and subscribe to anchor state changes.
 
 ```typescript
-import { useBlockAnchorState } from "@gravity-ui/graph/react";
+import { useBlockAnchorState } from "@gravity-ui/graph-react";
 import type { Graph } from "@gravity-ui/graph";
 import type { TAnchor, AnchorState } from "@gravity-ui/graph";
 
@@ -414,7 +414,7 @@ These hooks provide integration with @preact/signals-core for reactive state man
 Hook to subscribe to a signal and get the current value. Re-renders component when signal value changes.
 
 ```typescript
-import { useSignal } from "@gravity-ui/graph/react";
+import { useSignal } from "@gravity-ui/graph-react";
 import type { Signal } from "@preact/signals-core";
 import type { BlockState, TBlockGeometry } from "@gravity-ui/graph";
 
@@ -451,7 +451,7 @@ Returns `T` - the current value of the signal.
 Hook to create and subscribe to a computed signal. Useful for derived state.
 
 ```typescript
-import { useComputedSignal } from "@gravity-ui/graph/react";
+import { useComputedSignal } from "@gravity-ui/graph-react";
 import type { DependencyList } from "react";
 import type { BlockState } from "@gravity-ui/graph";
 
@@ -498,7 +498,7 @@ Returns `T` - the computed value, updated when dependent signals change.
 Hook to run side effects when signal values change. Similar to useEffect but for signals.
 
 ```typescript
-import { useSignalEffect } from "@gravity-ui/graph/react";
+import { useSignalEffect } from "@gravity-ui/graph-react";
 import type { DependencyList } from "react";
 import type { BlockState } from "@gravity-ui/graph";
 
@@ -531,7 +531,7 @@ function BlockLogger({ blockState }: Props): null {
 Like `useSignalEffect`, but uses `useLayoutEffect` internally. Use when the side effect must run synchronously after DOM updates and before the browser paints — for example, layout-dependent overlays tied to the camera.
 
 ```typescript
-import { useSignalLayoutEffect } from "@gravity-ui/graph/react";
+import { useSignalLayoutEffect } from "@gravity-ui/graph-react";
 
 useSignalLayoutEffect(() => {
   const camera = graph.$camera.value;
@@ -614,7 +614,7 @@ The function will only execute when BOTH conditions are satisfied:
 - At least `frameTimeout` milliseconds have passed since the last invocation
 
 ```typescript
-import { useSchedulerDebounce, useGraphEvent } from "@gravity-ui/graph/react";
+import { useSchedulerDebounce, useGraphEvent } from "@gravity-ui/graph-react";
 import type { ESchedulerPriority, Graph, TBlock } from "@gravity-ui/graph";
 
 interface DebouncedFn<T extends (...args: unknown[]) => void> {
@@ -683,7 +683,7 @@ Hook to create a throttled function that limits execution frequency.
 Unlike debounce, throttle executes immediately on the first call and then enforces the delay for subsequent calls.
 
 ```typescript
-import { useSchedulerThrottle, useSignalLayoutEffect } from "@gravity-ui/graph/react";
+import { useSchedulerThrottle, useSignalLayoutEffect } from "@gravity-ui/graph-react";
 import type { ESchedulerPriority, Graph, TCameraState } from "@gravity-ui/graph";
 
 interface ThrottledFn<T extends (...args: unknown[]) => void> {
@@ -751,7 +751,7 @@ Hook to schedule a task for execution after a certain number of frames have pass
 The scheduled task will execute once the specified frame interval has elapsed. The task is automatically cancelled when the component unmounts.
 
 ```typescript
-import { useScheduledTask, useBlockState, useSignal } from "@gravity-ui/graph/react";
+import { useScheduledTask, useBlockState, useSignal } from "@gravity-ui/graph-react";
 import type { ESchedulerPriority, Graph, TBlockId } from "@gravity-ui/graph";
 
 // Example: Prepare derived state for the next render frame
@@ -826,7 +826,7 @@ The hook automatically:
 - Cleans up subscriptions on unmount
 
 ```typescript
-import { useSceneChange } from "@gravity-ui/graph/react";
+import { useSceneChange } from "@gravity-ui/graph-react";
 import type { Graph, TRect } from "@gravity-ui/graph";
 
 // Example: Update usable rect indicator when scene changes
@@ -951,7 +951,7 @@ import {
   useBlockState, 
   useSignal,
   GraphCanvas,
-} from "@gravity-ui/graph/react";
+} from "@gravity-ui/graph-react";
 import type { TBlockId, TBlockGeometry, BlockState } from "@gravity-ui/graph";
 
 function MyGraph(): JSX.Element {
@@ -991,7 +991,7 @@ function MyGraph(): JSX.Element {
 ### Performance Optimization with Debounced Events
 
 ```typescript
-import { useSignal } from "@gravity-ui/graph/react";
+import { useSignal } from "@gravity-ui/graph-react";
 import type { Graph } from "@gravity-ui/graph";
 
 interface Props {

@@ -42,7 +42,7 @@ The system uses **`CustomEvent`**, and interaction follows a `.on`/`.off`/`.emit
      - **Pros:** Automatically handles subscription/unsubscription; provides `detail` and `event` objects.
      - **Cons:** Only usable within React function components.
      ```jsx
-     import { useGraph, useGraphEvent, GraphCanvas } from '@gravity-ui/graph';
+     import { useGraph, useGraphEvent, GraphCanvas } from '@gravity-ui/graph-react';
 
      function MyReactComponent() {
        const { graph } = useGraph(/* config */);
@@ -61,7 +61,7 @@ The system uses **`CustomEvent`**, and interaction follows a `.on`/`.off`/`.emit
      - **Pros:** Declarative, simple for common cases.
      - **Cons:** Limited to the specific events exposed as props.
      ```jsx
-     import { GraphCanvas } from '@gravity-ui/graph';
+     import { GraphCanvas } from '@gravity-ui/graph-react';
 
      // ... assume graph instance is available
 

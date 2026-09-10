@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 
 import { BlockGroups, CollapsibleGroup, ECanDrag, Graph, GraphState, TBlock, TConnection } from "@gravity-ui/graph";
 import type { BlockGroupsProps, BlockState, TCollapsibleGroup } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
+import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { useFn } from "../../../useFn";

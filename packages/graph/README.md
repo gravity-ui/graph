@@ -59,6 +59,9 @@ const MyGraph = () => {
 npm install @gravity-ui/graph
 ```
 
+For React integration in v2, also install the matching `@gravity-ui/graph-react` package, React 18, and React DOM 18.
+
+
 ## Usage
 
 ### React Example
@@ -69,8 +72,9 @@ npm install @gravity-ui/graph
 import React, { useEffect } from "react";
 import type { Graph, TBlock } from "@gravity-ui/graph";
 import { EAnchorType, GraphState } from "@gravity-ui/graph";
-import { GraphCanvas, GraphBlock, useGraph } from "@gravity-ui/graph/react";
+import { GraphCanvas, GraphBlock, useGraph } from "@gravity-ui/graph-react";
 import "@gravity-ui/graph/styles.css";
+import "@gravity-ui/graph-react/styles.css";
 
 const config = {};
 
@@ -280,7 +284,7 @@ A hybrid Canvas/React graph editor for node-based diagrams — reach for it to b
 
 - Node-based editors (flowcharts, pipelines, visual builders) with hundreds/thousands of nodes and connections.
 - Mixed rendering: Canvas for the full-graph overview, React components for the blocks visible in the viewport at high zoom.
-- Vanilla JS or React consumers — the core `Graph` class is framework-agnostic; `@gravity-ui/graph/react` provides the React bindings.
+- Vanilla JS or React consumers — the core `Graph` class is framework-agnostic; `@gravity-ui/graph-react` provides the React bindings.
 
 ### When not to use
 
@@ -289,7 +293,7 @@ A hybrid Canvas/React graph editor for node-based diagrams — reach for it to b
 
 ### Common pitfalls
 
-- **Hallucinated import `GraphEditor`** — the React components are `GraphCanvas`, `GraphBlock`, and the `useGraph` hook, imported from `@gravity-ui/graph/react`; the core class is `Graph` from `@gravity-ui/graph`.
+- **Hallucinated import `GraphEditor`** — the React components are `GraphCanvas`, `GraphBlock`, and the `useGraph` hook, imported from `@gravity-ui/graph-react`; the core class is `Graph` from `@gravity-ui/graph`.
 - **Calling graph methods before `ATTACHED` state** — call `start()`/`zoomTo(...)` inside the `onStateChanged` callback when `state === GraphState.ATTACHED`, not on mount.
 - **Forgetting `setEntities`** — `useGraph` returns `graph`, `setEntities`, `start`; data only appears after `setEntities({blocks, connections})`.
 - **Mixing anchor types** — connections must reference existing anchor ids with matching `EAnchorType` (`IN`/`OUT`) on the source and target blocks.

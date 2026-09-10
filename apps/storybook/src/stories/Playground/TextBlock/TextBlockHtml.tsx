@@ -1,7 +1,7 @@
 import React from "react";
 
 import { Graph } from "@gravity-ui/graph";
-import { GraphBlock } from "@gravity-ui/graph/react";
+import { GraphBlock } from "@gravity-ui/graph-react";
 import { CircleInfo } from "@gravity-ui/icons";
 import { Flex, Icon, Text } from "@gravity-ui/uikit";
 

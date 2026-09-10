@@ -49,8 +49,8 @@ The library uses a **hybrid Canvas + React architecture**:
 
 **Key Files**:
 - `packages/graph/src/components/canvas/layers/graphLayer/GraphLayer.ts` - Main Canvas rendering
-- `packages/graph/src/react-components/layer/ReactLayer.tsx` - React Portal integration
-- `packages/graph/src/react-components/GraphCanvas.tsx` - React wrapper component
+- `packages/graph-react/src/layer/ReactLayer.tsx` - React Portal integration
+- `packages/graph-react/src/GraphCanvas.tsx` - React wrapper component
 
 ### Custom Component Framework
 
@@ -213,7 +213,7 @@ protected afterInit() {
 
 **In React**:
 ```typescript
-import { useGraphEvent } from '@gravity-ui/graph';
+import { useGraphEvent } from '@gravity-ui/graph-react';
 
 function MyComponent() {
   const { graph } = useGraph(config);
@@ -251,7 +251,7 @@ graph.rootStore.settings.setBlockComponents(customBlocks);
 
 ### Adding Layers in React
 ```typescript
-import { useLayer } from '@gravity-ui/graph';
+import { useLayer } from '@gravity-ui/graph-react';
 
 function MyComponent() {
   const { graph } = useGraph(config);
@@ -952,7 +952,7 @@ private handleBlockSelect = (event: CustomEvent): void => {
 Use `useGraphEvent` hook - automatic cleanup.
 
 ```typescript
-import { useGraphEvent } from "@gravity-ui/graph";
+import { useGraphEvent } from "@gravity-ui/graph-react";
 
 function MyComponent() {
   const { graph } = useGraph(config);
@@ -1008,7 +1008,7 @@ useGraphEvent(graph, "block:click", (detail, event) => {
 
 **GraphCanvas - Main Container:**
 ```tsx
-import { GraphCanvas, useGraph } from "@gravity-ui/graph";
+import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 
 function App() {
   const { graph } = useGraph({
@@ -1075,7 +1075,7 @@ const layer = useLayer(graph, LayerConstructor, props);
 
 **Example:**
 ```typescript
-import { useLayer } from "@gravity-ui/graph";
+import { useLayer } from "@gravity-ui/graph-react";
 
 function MyComponent() {
   const { graph } = useGraph(config);
@@ -1177,7 +1177,7 @@ const config: TGraphConfig = {
 
 **Use `useGraph` hook (Recommended):**
 ```typescript
-import { useGraph, GraphCanvas, GraphBlock } from "@gravity-ui/graph";
+import { useGraph, GraphCanvas, GraphBlock } from "@gravity-ui/graph-react";
 import { useEffect } from "react";
 
 export const MyStory = () => {

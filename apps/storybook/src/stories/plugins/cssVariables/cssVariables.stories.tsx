@@ -2,7 +2,7 @@ import React, { useState } from "react";
 
 import { CSSVariablesLayer, Graph, GraphState } from "@gravity-ui/graph";
 import type { TBlock } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph/react";
+import { GraphCanvas, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph-react";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
 import { generatePrettyBlocks } from "../../../stories/configurations/generatePretty";

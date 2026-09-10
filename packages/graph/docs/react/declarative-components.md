@@ -13,8 +13,8 @@ The `GraphLayer` component provides a declarative way to add existing Layer clas
 ### Basic Usage
 
 ```tsx
-import { GraphLayer, GraphCanvas, useGraph } from '@gravity-ui/graph/react';
-import { DevToolsLayer } from '@gravity-ui/graph/plugins';
+import { GraphLayer, GraphCanvas, useGraph } from '@gravity-ui/graph-react';
+import { DevToolsLayer } from '@gravity-ui/graph';
 
 function MyGraph() {
   const { graph, setEntities, start } = useGraph({});
@@ -84,7 +84,7 @@ The `GraphPortal` component allows creating HTML layers without writing separate
 ### Basic Usage
 
 ```tsx
-import { GraphPortal, GraphCanvas, useGraph } from '@gravity-ui/graph/react';
+import { GraphPortal, GraphCanvas, useGraph } from '@gravity-ui/graph-react';
 
 function MyGraph() {
   const { graph, setEntities, start } = useGraph({});
@@ -281,4 +281,3 @@ const devTools = useLayer(graph, DevToolsLayer, {
 ```
 
 The declarative approach provides better integration with React's component lifecycle and makes your code more readable and maintainable.
-

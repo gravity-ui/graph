@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 
 import { BlockGroups, Graph, GraphState, Group, TBlock, TGroup } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
+import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import { useFn } from "../../../useFn";

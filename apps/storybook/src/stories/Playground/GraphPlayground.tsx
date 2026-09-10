@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { ConnectionLayer, ECanDrag, Graph, GraphState, TBlock, TGraphConfig } from "@gravity-ui/graph";
-import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph/react";
+import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph-react";
 import {
   Flex,
   SegmentedRadioGroup,

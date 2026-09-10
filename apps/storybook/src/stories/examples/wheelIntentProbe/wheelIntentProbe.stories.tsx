@@ -9,7 +9,7 @@ import {
   createWheelIntentResolver,
   enableWheelIntentDebug,
 } from "@gravity-ui/graph";
-import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "@gravity-ui/graph/react";
+import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import { Flex, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 

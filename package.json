@@ -9,16 +9,16 @@
     "url": "https://github.com/gravity-ui/graph"
   },
   "scripts": {
-    "typecheck": "pnpm --filter @gravity-ui/graph-scheduler run typecheck && pnpm --filter @gravity-ui/graph run typecheck && pnpm --filter @gravity-ui/graph-storybook run typecheck && pnpm --filter @gravity-ui/graph-e2e run typecheck",
+    "typecheck": "pnpm --filter @gravity-ui/graph-scheduler run typecheck && pnpm --filter @gravity-ui/graph run typecheck && pnpm --filter @gravity-ui/graph-react run typecheck && pnpm --filter @gravity-ui/graph-storybook run typecheck && pnpm --filter @gravity-ui/graph-e2e run typecheck",
     "typecheck:published-playwright-types": "pnpm --filter @gravity-ui/graph run typecheck:published-playwright-types",
     "lint": "pnpm --filter \"./packages/*\" run lint && pnpm --filter @gravity-ui/graph-storybook run lint",
     "test:unit": "pnpm --filter \"./packages/*\" run test:unit",
     "test": "pnpm --filter \"./packages/*\" run test",
-    "storybook": "pnpm --filter @gravity-ui/graph run build && pnpm --filter @gravity-ui/graph-storybook run storybook",
-    "build-storybook": "pnpm --filter @gravity-ui/graph run build && pnpm --filter @gravity-ui/graph-storybook run build-storybook",
+    "storybook": "pnpm run build && pnpm --filter @gravity-ui/graph-storybook run storybook",
+    "build-storybook": "pnpm run build && pnpm --filter @gravity-ui/graph-storybook run build-storybook",
     "build:docs": "pnpm --filter @gravity-ui/graph run build:docs",
-    "build": "pnpm --filter @gravity-ui/graph run build",
-    "dev": "pnpm --filter @gravity-ui/graph run dev",
+    "build": "pnpm --filter @gravity-ui/graph --filter @gravity-ui/graph-react run build",
+    "dev": "chokidar \"packages/*/src/**/*\" \"scripts/build-package.mjs\" -c \"pnpm run build\" --initial",
     "e2e:bundle": "pnpm --filter @gravity-ui/graph-e2e run e2e:bundle",
     "e2e:serve": "pnpm --filter @gravity-ui/graph-e2e run e2e:serve",
     "e2e:build": "pnpm --filter @gravity-ui/graph-e2e run e2e:build",
@@ -26,15 +26,23 @@
     "test:e2e:ui": "pnpm --filter @gravity-ui/graph-e2e run test:e2e:ui",
     "test:e2e:debug": "pnpm --filter @gravity-ui/graph-e2e run test:e2e:debug",
     "test:e2e:ci": "pnpm --filter @gravity-ui/graph-e2e run test:e2e:ci",
-    "test:package-contract": "pnpm --filter @gravity-ui/graph run test:package-contract",
+    "test:package-contract": "node tests/package-contract/run.mjs",
     "e2e:dev": "pnpm --filter @gravity-ui/graph-e2e run e2e:dev"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@commitlint/cli": "^19.5.0",
     "@commitlint/config-conventional": "^19.5.0",
+    "@gravity-ui/graph": "workspace:*",
     "@gravity-ui/prettier-config": "^1.1.0",
+    "@playwright/test": "^1.58.0",
+    "@types/node": "^20.17.0",
+    "chokidar-cli": "^3.0.0",
+    "esbuild": "^0.27.2",
     "prettier": "^3.0.0",
+    "publint": "^0.3.23",
     "release-please": "17.6.0",
+    "typescript": "^5.9.2",
     "yaml": "2.8.1"
   }
 }

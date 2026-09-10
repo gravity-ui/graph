@@ -9,7 +9,7 @@ import {
   getFontSize,
   getLabelCoords,
 } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph } from "@gravity-ui/graph/react";
+import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 import { Flex, Switch, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 

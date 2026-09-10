@@ -9,9 +9,6 @@
   "types": "build/index.d.ts",
   "typesVersions": {
     "*": {
-      "react": [
-        "build/react-components/index.d.ts"
-      ],
       "playwright": [
         "build/playwright/index.d.ts"
       ]
@@ -35,11 +32,6 @@
       "types": "./build/index.d.ts",
       "import": "./build/index.js",
       "default": "./build/index.js"
-    },
-    "./react": {
-      "types": "./build/react-components/index.d.ts",
-      "import": "./build/react-components/index.js",
-      "default": "./build/react-components/index.js"
     },
     "./playwright": {
       "import": {
@@ -74,34 +66,24 @@
     "build": "node scripts/build.mjs",
     "prepublishOnly": "pnpm run typecheck && pnpm run test",
     "dev": "chokidar \"src/**/*\" \"../scheduler/src/**/*\" -c \"pnpm run build\" --initial",
-    "test:package-contract": "node tests/package-contract/run.mjs"
+    "test:package-contract": "node ../../tests/package-contract/run.mjs"
   },
   "peerDependencies": {
-    "@playwright/test": ">=1.58.0",
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "@playwright/test": ">=1.58.0"
   },
   "peerDependenciesMeta": {
     "@playwright/test": {
-      "optional": true
-    },
-    "react": {
-      "optional": true
-    },
-    "react-dom": {
       "optional": true
     }
   },
   "dependencies": {
     "@preact/signals-core": "^1.12.2",
-    "elkjs": "^0.9.3",
     "intersects": "^2.7.2",
     "lodash": "^4.17.21",
     "rbush": "^3.0.1",
     "style-observer": "^0.1.1"
   },
   "devDependencies": {
-    "@arethetypeswrong/cli": "^0.18.5",
     "@commitlint/cli": "^19.5.0",
     "@commitlint/config-conventional": "^19.5.0",
     "@gravity-ui/eslint-config": "^3.2.0",
@@ -112,19 +94,15 @@
     "@playwright/test": "^1.58.0",
     "@swc/core": "^1.13.3",
     "@swc/jest": "^0.2.39",
-    "@testing-library/react": "^16.3.0",
     "@types/intersects": "^2.5.0",
     "@types/jest": "^30.0.0",
     "@types/lodash": "^4.17.13",
     "@types/node": "^20.17.0",
     "@types/rbush": "^3.0.0",
-    "@types/react": "^18.3.31",
-    "@types/react-dom": "^18.3.7",
     "@typescript-eslint/eslint-plugin": "5.39.0",
     "@typescript-eslint/parser": "5.39.0",
     "chokidar-cli": "^3.0.0",
     "cross-env": "^7.0.3",
-    "esbuild": "^0.27.2",
     "eslint": "^8.0.0",
     "eslint-config-prettier": "^8.10.0",
     "eslint-import-resolver-typescript": "2.5.0",
@@ -136,9 +114,6 @@
     "jest-environment-jsdom": "^30.0.5",
     "mitata": "^1.0.34",
     "prettier": "^3.0.0",
-    "publint": "^0.3.23",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   }
