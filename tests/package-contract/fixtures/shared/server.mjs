@@ -9,8 +9,8 @@ const consumerDirectory = path.resolve(fixturesDirectory, "..");
 const appName = process.env.PACKAGE_CONTRACT_APP;
 const port = Number(process.env.PACKAGE_CONTRACT_PORT ?? "4173");
 
-if (appName !== "vanilla" && appName !== "react") {
-  throw new Error('PACKAGE_CONTRACT_APP must be either "vanilla" or "react".');
+if (!["vanilla", "react", "minimap"].includes(appName ?? "")) {
+  throw new Error('PACKAGE_CONTRACT_APP must be "vanilla", "react", or "minimap".');
 }
 
 const appDirectory = path.join(fixturesDirectory, "apps", appName);

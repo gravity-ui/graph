@@ -1,7 +1,4 @@
-import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
-import { Layer, LayerContext, LayerProps } from "../../services/Layer";
-import { TCameraState } from "../../services/camera/CameraService";
-import { computeCssVariable } from "../../utils/functions";
+import { Layer, LayerContext, LayerProps, TCameraState, computeCssVariable } from "@gravity-ui/graph";
 
 export type TMiniMapLocation =
   | "topLeft"
@@ -25,7 +22,7 @@ export type MiniMapLayerContext = LayerContext & {
 };
 
 export class MiniMapLayer extends Layer<MiniMapLayerProps> {
-  public declare context: Omit<TGraphLayerContext, "ownerDocument" | "root">;
+  public declare context: MiniMapLayerContext;
 
   private minimapWidth: number;
   private minimapHeight: number;

@@ -10,6 +10,7 @@ export async function buildPackage({
   inlinedWorkspacePackages = new Map(),
   playwright = false,
   docs = false,
+  styles = true,
 }) {
   const buildDirectory = path.join(packageRoot, "build");
   const manifest = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
@@ -287,13 +288,14 @@ export async function buildPackage({
         outfile: path.join(buildDirectory, "playwright/index.cjs"),
         platform: "node",
       }),
-    build({
-      ...sharedOptions,
-      entryPoints: ["src/styles.css"],
-      logLevel: "info",
-      outfile: path.join(buildDirectory, "styles.css"),
-      platform: "browser",
-    }),
+    styles &&
+      build({
+        ...sharedOptions,
+        entryPoints: ["src/styles.css"],
+        logLevel: "info",
+        outfile: path.join(buildDirectory, "styles.css"),
+        platform: "browser",
+      }),
   ]);
 
   await assertInlinedWorkspacePackages(buildResults.filter(Boolean));

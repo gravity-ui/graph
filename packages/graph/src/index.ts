@@ -32,6 +32,7 @@ export {
   ECameraScaleLevel,
   type TGetCameraBlockScaleLevel,
   type ICamera,
+  type TCameraState,
 } from "./services/camera/CameraService";
 export * from "./services/Layer";
 export * from "./store";
@@ -45,7 +46,7 @@ export { ECanChangeBlockGeometry, ECanDrag } from "./store/settings";
 export { getFontSize, type TMeasureTextOptions, type TWrapText } from "./utils/functions/text";
 export type { TBlockGeometrySnapshot } from "./store/block/BlocksList";
 export { ESchedulerPriority } from "./lib/Scheduler";
-export { debounce, throttle, schedule } from "./utils/functions";
+export { computeCssVariable, debounce, throttle, schedule } from "./utils/functions";
 export * from "./utils/renderers/text";
 export { EVENTS } from "./utils/types/events";
 export { type TPoint, type TRect } from "./utils/types/shapes";

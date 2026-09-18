@@ -53,8 +53,10 @@ function getPackMetadata(output) {
   return Array.isArray(metadata) ? metadata[0] : metadata;
 }
 
-function assertPackedFiles(metadata, react) {
-  assert.equal(metadata.name, react ? "@gravity-ui/graph-react" : "@gravity-ui/graph");
+function assertPackedFiles(metadata, kind) {
+  const addon = kind !== "graph";
+  const hasStyles = kind !== "graph-minimap";
+  assert.equal(metadata.name, `@gravity-ui/${kind}`);
   assert.ok(Array.isArray(metadata.files), "pnpm pack did not report the packed file list.");
 
   const packedFiles = metadata.files.map(({ path: packedPath }) => packedPath).sort();
@@ -72,7 +74,7 @@ function assertPackedFiles(metadata, react) {
   const forbiddenFiles = packedFiles.filter(
     (packedPath) =>
       forbiddenPackedPathPatterns.some((pattern) => pattern.test(packedPath)) ||
-      (react
+      (addon
         ? /(?:^|\/)(?:playwright|docs)(?:\/|$)/.test(packedPath)
         : /(?:^|\/)react-components(?:\/|$)/.test(packedPath))
   );
@@ -84,8 +86,8 @@ function assertPackedFiles(metadata, react) {
     ...allowedPackageRootFiles,
     "build/index.js",
     "build/index.d.ts",
-    "build/styles.css",
-    ...(react
+    ...(hasStyles ? ["build/styles.css"] : []),
+    ...(addon
       ? []
       : [
           "build/playwright/index.js",
@@ -142,7 +144,7 @@ async function assertNoPrivateSchedulerSpecifiers(packageRoot) {
   }
 }
 
-export async function buildAndPackArtifact({ packageRoot, staleBuildSentinelPath, tarballPath, react = false }) {
+export async function buildAndPackArtifact({ packageRoot, staleBuildSentinelPath, tarballPath, kind = "graph" }) {
   console.log("\n[package-contract] Building published files...");
   await mkdir(path.dirname(staleBuildSentinelPath), { recursive: true });
   await writeFile(staleBuildSentinelPath, "The production build must remove this stale artifact.\n");
@@ -157,17 +159,20 @@ export async function buildAndPackArtifact({ packageRoot, staleBuildSentinelPath
       printStdout: false,
     })
   );
-  assertPackedFiles(packMetadata, react);
+  assertPackedFiles(packMetadata, kind);
 
   console.log("\n[package-contract] Linting the packed package metadata...");
   await run("pnpm", ["exec", "publint", tarballPath, "--strict"], { cwd: packageRoot });
 }
 
-export async function checkInstalledArtifact(consumerDirectory, expectedVersion, react = false) {
-  const packageRoot = path.join(consumerDirectory, "node_modules", "@gravity-ui", react ? "graph-react" : "graph");
+export async function checkInstalledArtifact(consumerDirectory, expectedVersion, kind = "graph") {
+  const addon = kind !== "graph";
+  const react = kind === "graph-react";
+  const hasStyles = kind !== "graph-minimap";
+  const packageRoot = path.join(consumerDirectory, "node_modules", "@gravity-ui", kind);
   const manifest = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
 
-  assert.equal(manifest.name, react ? "@gravity-ui/graph-react" : "@gravity-ui/graph");
+  assert.equal(manifest.name, `@gravity-ui/${kind}`);
   assert.equal(manifest.version, expectedVersion, "The installed package version does not match the tested artifact.");
   assert.notEqual(manifest.private, true);
   assert.equal(manifest.type, "module");
@@ -177,18 +182,24 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   assert.deepEqual(manifest.files, ["build"]);
   assert.deepEqual(
     manifest.exports,
-    react ? { ".": expectedExports["."], "./styles.css": expectedExports["./styles.css"] } : expectedExports
+    addon
+      ? { ".": expectedExports["."], ...(hasStyles ? { "./styles.css": expectedExports["./styles.css"] } : {}) }
+      : expectedExports
   );
-  assert.deepEqual(manifest.typesVersions, react ? undefined : expectedTypesVersions);
+  assert.deepEqual(manifest.typesVersions, addon ? undefined : expectedTypesVersions);
+  if (addon) {
+    const coreManifest = JSON.parse(await readFile(path.join(packageRoot, "../graph/package.json"), "utf8"));
+    assert.equal(manifest.peerDependencies?.["@gravity-ui/graph"], `^${coreManifest.version}`);
+    assert.equal(manifest.peerDependenciesMeta?.["@gravity-ui/graph"]?.optional, undefined);
+    assert.equal(manifest.dependencies?.["@gravity-ui/graph"], undefined);
+  }
   if (react) {
     assert.equal(manifest.peerDependencies?.react, "^18.0.0");
     assert.equal(manifest.peerDependencies?.["react-dom"], "^18.0.0");
     assert.equal(manifest.peerDependenciesMeta?.react?.optional, undefined);
     assert.equal(manifest.peerDependenciesMeta?.["react-dom"]?.optional, undefined);
-    const coreManifest = JSON.parse(await readFile(path.join(packageRoot, "../graph/package.json"), "utf8"));
-    assert.equal(manifest.peerDependencies?.["@gravity-ui/graph"], `^${coreManifest.version}`);
-    assert.equal(manifest.dependencies?.["@gravity-ui/graph"], undefined);
-  } else {
+  }
+  if (!addon) {
     assert.equal(manifest.peerDependencies?.["@playwright/test"], ">=1.58.0");
     assert.equal(manifest.peerDependenciesMeta?.["@playwright/test"]?.optional, true);
     for (const field of [
@@ -204,6 +215,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
         "@types/react",
         "@types/react-dom",
         "@gravity-ui/graph-react",
+        "@gravity-ui/graph-minimap",
         "elkjs",
       ]) {
         assert.equal(manifest[field]?.[name], undefined, `Core must not depend on ${name} through ${field}.`);
@@ -233,8 +245,8 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     [
       "build/index.js",
       "build/index.d.ts",
-      "build/styles.css",
-      ...(react
+      ...(hasStyles ? ["build/styles.css"] : []),
+      ...(addon
         ? []
         : [
             "build/playwright/index.js",
@@ -254,16 +266,28 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   );
   await assertNoPrivateSchedulerSpecifiers(packageRoot);
 
-  const publicStyles = await readFile(path.join(packageRoot, "build", "styles.css"), "utf8");
-  if (react) {
-    assert.match(publicStyles, /\.graph-wrapper\b/);
+  const publicStyles = hasStyles ? await readFile(path.join(packageRoot, "build", "styles.css"), "utf8") : "";
+  if (addon) {
     for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
       assert.doesNotMatch(
         await readFile(file, "utf8"),
         /["']@gravity-ui\/graph\//,
-        `React artifact ${file} must reference the public core entrypoint, including inferred declaration types.`
+        `Addon artifact ${file} must reference only the public core entrypoint.`
       );
     }
+  }
+  if (kind === "graph-minimap") {
+    assert.deepEqual(Object.keys(manifest.peerDependencies), ["@gravity-ui/graph"]);
+    assert.deepEqual(manifest.dependencies ?? {}, {});
+    assert.deepEqual(manifest.optionalDependencies ?? {}, {});
+    await assertPathDoesNotExist(
+      path.join(packageRoot, "build/styles.css"),
+      "Minimap must not publish an unused stylesheet."
+    );
+    return;
+  }
+  if (react) {
+    assert.match(publicStyles, /\.graph-wrapper\b/);
     assert.match(publicStyles, /\.graph-block-container\b/);
     assert.match(publicStyles, /\.graph-block-anchor\b/);
     assert.doesNotMatch(publicStyles, /\.devtools-ruler-bg\b/);
@@ -271,6 +295,11 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     assert.match(publicStyles, /\.layer\b/);
     assert.match(publicStyles, /\.devtools-ruler-bg\b/);
     assert.doesNotMatch(publicStyles, /\.(?:graph-wrapper|graph-block-container|graph-block-anchor)\b/);
+    await assertPathDoesNotExist(
+      path.join(packageRoot, "build/plugins/minimap"),
+      "Core still ships minimap declarations."
+    );
+    assert.doesNotMatch(await readFile(path.join(packageRoot, "build/index.js"), "utf8"), /graph-minimap/);
     for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
       assert.doesNotMatch(
         await readFile(file, "utf8"),

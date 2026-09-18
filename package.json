@@ -9,7 +9,7 @@
     "url": "https://github.com/gravity-ui/graph"
   },
   "scripts": {
-    "typecheck": "pnpm --filter @gravity-ui/graph-scheduler run typecheck && pnpm --filter @gravity-ui/graph run typecheck && pnpm --filter @gravity-ui/graph-react run typecheck && pnpm --filter @gravity-ui/graph-storybook run typecheck && pnpm --filter @gravity-ui/graph-e2e run typecheck",
+    "typecheck": "pnpm --filter @gravity-ui/graph-scheduler run typecheck && pnpm --filter @gravity-ui/graph run typecheck && pnpm --filter @gravity-ui/graph-react run typecheck && pnpm --filter @gravity-ui/graph-minimap run typecheck && pnpm --filter @gravity-ui/graph-storybook run typecheck && pnpm --filter @gravity-ui/graph-e2e run typecheck",
     "typecheck:published-playwright-types": "pnpm --filter @gravity-ui/graph run typecheck:published-playwright-types",
     "lint": "pnpm --filter \"./packages/*\" run lint && pnpm --filter @gravity-ui/graph-storybook run lint",
     "test:unit": "pnpm --filter \"./packages/*\" run test:unit",
@@ -17,7 +17,7 @@
     "storybook": "pnpm run build && pnpm --filter @gravity-ui/graph-storybook run storybook",
     "build-storybook": "pnpm run build && pnpm --filter @gravity-ui/graph-storybook run build-storybook",
     "build:docs": "pnpm --filter @gravity-ui/graph run build:docs",
-    "build": "pnpm --filter @gravity-ui/graph --filter @gravity-ui/graph-react run build",
+    "build": "pnpm --filter @gravity-ui/graph --filter @gravity-ui/graph-react --filter @gravity-ui/graph-minimap run build",
     "dev": "chokidar \"packages/*/src/**/*\" \"scripts/build-package.mjs\" -c \"pnpm run build\" --initial",
     "e2e:bundle": "pnpm --filter @gravity-ui/graph-e2e run e2e:bundle",
     "e2e:serve": "pnpm --filter @gravity-ui/graph-e2e run e2e:serve",

@@ -44,10 +44,13 @@ export class MiniMapPageObject {
    * Waits for the initial render to complete.
    */
   async addLayer(options: MiniMapLayerOptions = {}): Promise<void> {
-    await this.page.evaluate((opts) => {
-      const { MiniMapLayer } = (window as any).GraphModule;
-      (window as any).minimapLayer = window.graph.addLayer(MiniMapLayer, opts);
-    }, options as Record<string, unknown>);
+    await this.page.evaluate(
+      (opts) => {
+        const { MiniMapLayer } = window.GraphModule;
+        (window as any).minimapLayer = window.graph.addLayer(MiniMapLayer, opts);
+      },
+      options as Record<string, unknown>
+    );
 
     await this.graphPO.waitForFrames(5);
   }
@@ -112,10 +115,7 @@ export class MiniMapPageObject {
    */
   async clickAt(relativeX: number, relativeY: number): Promise<void> {
     const bounds = await this.getCanvasBounds();
-    await this.page.mouse.click(
-      bounds.x + bounds.width * relativeX,
-      bounds.y + bounds.height * relativeY
-    );
+    await this.page.mouse.click(bounds.x + bounds.width * relativeX, bounds.y + bounds.height * relativeY);
     await this.graphPO.waitForFrames(3);
   }
 
@@ -123,12 +123,7 @@ export class MiniMapPageObject {
    * Performs a drag gesture within the minimap canvas.
    * Both start and end coordinates are relative (0–1).
    */
-  async dragFrom(
-    fromRelX: number,
-    fromRelY: number,
-    toRelX: number,
-    toRelY: number
-  ): Promise<void> {
+  async dragFrom(fromRelX: number, fromRelY: number, toRelX: number, toRelY: number): Promise<void> {
     const bounds = await this.getCanvasBounds();
     const fromX = bounds.x + bounds.width * fromRelX;
     const fromY = bounds.y + bounds.height * fromRelY;

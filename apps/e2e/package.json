@@ -6,7 +6,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "e2e:bundle": "node build-bundle.js",
     "e2e:serve": "node server.js",
-    "e2e:build": "pnpm --filter @gravity-ui/graph --filter @gravity-ui/graph-react run build && pnpm run e2e:bundle",
+    "e2e:build": "pnpm --filter @gravity-ui/graph --filter @gravity-ui/graph-react --filter @gravity-ui/graph-minimap run build && pnpm run e2e:bundle",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
@@ -17,7 +17,8 @@
     "@gravity-ui/graph": "workspace:*",
     "@gravity-ui/graph-react": "workspace:*",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "@gravity-ui/graph-minimap": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.0",
