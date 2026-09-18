@@ -1,0 +1,47 @@
+{
+  "name": "@gravity-ui/graph-minimap",
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "description": "Canvas minimap and navigation for Gravity UI Graph",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gravity-ui/graph",
+    "directory": "packages/graph-minimap"
+  },
+  "main": "build/index.js",
+  "module": "build/index.js",
+  "types": "build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "import": "./build/index.js",
+      "default": "./build/index.js"
+    }
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm run build",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test:package-contract": "node ../../tests/package-contract/run.mjs graph-minimap",
+    "prepublishOnly": "pnpm run typecheck"
+  },
+  "peerDependencies": {
+    "@gravity-ui/graph": "workspace:^"
+  },
+  "devDependencies": {
+    "@gravity-ui/eslint-config": "^3.2.0",
+    "@typescript-eslint/eslint-plugin": "5.39.0",
+    "@typescript-eslint/parser": "5.39.0",
+    "eslint": "^8.0.0",
+    "eslint-config-prettier": "^8.10.0",
+    "eslint-import-resolver-typescript": "2.5.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.9.2"
+  }
+}

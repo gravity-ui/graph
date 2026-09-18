@@ -3,6 +3,7 @@ import { run } from "../utils.mjs";
 const nativeImportProbes = {
   root: `
     const graph = await import("@gravity-ui/graph");
+    if ("MiniMapLayer" in graph) throw new Error("Core still exports the extracted minimap.");
     if (typeof graph.Graph !== "function") throw new Error("Root entrypoint does not export Graph.");
     if (graph.ESchedulerPriority?.LOWEST !== 4) {
       throw new Error("Root entrypoint does not export ESchedulerPriority.");
@@ -18,6 +19,13 @@ const nativeImportProbes = {
     const core = await import("@gravity-ui/graph");
     if (react.MultipointConnection !== core.MultipointConnection) throw new Error("React has a second core connection class.");
     if (typeof react.GraphCanvas !== "function") throw new Error("React entrypoint does not export GraphCanvas.");
+  `,
+  minimap: `
+    const { MiniMapLayer } = await import("@gravity-ui/graph-minimap");
+    const { Layer } = await import("@gravity-ui/graph");
+    if (Object.getPrototypeOf(MiniMapLayer.prototype) !== Layer.prototype) {
+      throw new Error("Minimap has a second core Layer class.");
+    }
   `,
   playwright: `
     const playwright = await import("@gravity-ui/graph/playwright");

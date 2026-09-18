@@ -207,3 +207,22 @@ The layered layout algorithm and converters remain framework-independent core AP
 Storybook and E2E consume the same public package entrypoints. `pnpm run build` builds core before React, and the shared
 `tests/package-contract` suite builds and installs one tarball per public package, verifies native imports and strict
 declarations, and checks that the React adapter uses the application's core classes.
+
+## Minimap package boundary
+
+`MiniMapLayer`, `MiniMapLayerProps`, `MiniMapLayerContext`, and `TMiniMapLocation` now belong to
+`@gravity-ui/graph-minimap`. Replace imports of these symbols from `@gravity-ui/graph` with the new package:
+
+```ts
+import { Graph } from "@gravity-ui/graph";
+import { MiniMapLayer } from "@gravity-ui/graph-minimap";
+import "@gravity-ui/graph/styles.css";
+
+const graph = new Graph({ blocks: [] }, document.getElementById("graph")!);
+graph.addLayer(MiniMapLayer, { location: "bottomRight" });
+graph.start();
+```
+
+Minimap requires core as a peer dependency and does not require React. It uses the public core `Layer` and shares the
+consumer's graph, camera, and block components. Navigation, geometry updates, and injected layer styles are unchanged;
+there is no separate minimap stylesheet to import. Core no longer includes or re-exports the minimap implementation.

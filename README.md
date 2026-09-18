@@ -6,9 +6,10 @@ This repository contains the Gravity UI Graph packages and their development too
 
 - [`@gravity-ui/graph`](packages/graph) — the framework-independent graph editor, layouts, plugins, and public Playwright page objects.
 - [`@gravity-ui/graph-react`](packages/graph-react) — React components, hooks, and their styles, depending on the core public API.
+- [`@gravity-ui/graph-minimap`](packages/graph-minimap) — optional Canvas minimap with navigation, depending on the core public API.
 - [`@gravity-ui/graph-scheduler`](packages/scheduler) — private scheduling implementation inlined into the core build.
 
-Shared build tooling lives in `scripts/`; `tests/package-contract` installs the two public tarballs into isolated vanilla and React projects.
+Shared build tooling lives in `scripts/`; `tests/package-contract` installs the public tarballs into isolated vanilla, React, and minimap projects.
 
 ## Applications
 

@@ -8,8 +8,8 @@ const appName = process.env.PACKAGE_CONTRACT_APP;
 const sharedDirectory = path.dirname(fileURLToPath(import.meta.url));
 const consumerDirectory = path.resolve(sharedDirectory, "../..");
 
-if (appName !== "vanilla" && appName !== "react") {
-  throw new Error('PACKAGE_CONTRACT_APP must be either "vanilla" or "react".');
+if (!["vanilla", "react", "minimap"].includes(appName ?? "")) {
+  throw new Error('PACKAGE_CONTRACT_APP must be "vanilla", "react", or "minimap".');
 }
 
 export default defineConfig({

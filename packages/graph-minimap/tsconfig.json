@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "outDir": "./build/",
+    "moduleResolution": "node",
+    "module": "esnext",
+    "target": "es2020",
+    "noEmitOnError": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "skipLibCheck": false
+  },
+  "include": ["src/**/*.ts"]
+}
