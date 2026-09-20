@@ -1,7 +1,7 @@
 import { ESchedulerPriority } from "../../../../lib";
 import { Component, TComponentProps, TComponentState } from "../../../../lib/Component";
 import { debounce } from "../../../../utils/functions";
-import { IRect, Rect, TRect } from "../../../../utils/types/shapes";
+import { TRect } from "../../../../utils/types/shapes";
 
 import { TBelowLayerContext } from "./BelowLayer";
 import { PointerGrid } from "./PointerGrid";
@@ -9,8 +9,6 @@ import { PointerGrid } from "./PointerGrid";
 type TBackgroundState = TComponentState & TRect;
 
 export class Background extends Component<TComponentProps, TBackgroundState, TBelowLayerContext> {
-  private extendedUsableRect: IRect = new Rect(0, 0, 0, 0);
-
   protected readonly unsubscribe: () => void;
 
   protected usableRectPath = new Path2D();
@@ -43,12 +41,12 @@ export class Background extends Component<TComponentProps, TBackgroundState, TBe
     return this.context.graph.hitTest.onUsableRectUpdate(this.setupExtendedUsableRect);
   }
 
-  protected isGeometryChanged(nextState: TBackgroundState) {
+  protected isGeometryChanged(nextState: TRect, currentState: TRect = this.state): boolean {
     return (
-      nextState.x !== this.state.x ||
-      nextState.y !== this.state.y ||
-      nextState.height !== this.state.height ||
-      nextState.width !== this.state.width
+      nextState.x !== currentState.x ||
+      nextState.y !== currentState.y ||
+      nextState.height !== currentState.height ||
+      nextState.width !== currentState.width
     );
   }
 
@@ -63,25 +61,16 @@ export class Background extends Component<TComponentProps, TBackgroundState, TBe
 
   private setupExtendedUsableRect = debounce(
     (usableRect: TRect) => {
-      if (usableRect.x - this.context.constants.system.USABLE_RECT_GAP !== this.extendedUsableRect.x) {
-        this.setState({
-          x: usableRect.x - this.context.constants.system.USABLE_RECT_GAP,
-        });
-      }
-      if (usableRect.y - this.context.constants.system.USABLE_RECT_GAP !== this.extendedUsableRect.y) {
-        this.setState({
-          y: usableRect.y - this.context.constants.system.USABLE_RECT_GAP,
-        });
-      }
-      if (usableRect.width + this.context.constants.system.USABLE_RECT_GAP * 2 !== this.extendedUsableRect.width) {
-        this.setState({
-          width: usableRect.width + this.context.constants.system.USABLE_RECT_GAP * 2,
-        });
-      }
-      if (usableRect.height + this.context.constants.system.USABLE_RECT_GAP * 2 !== this.extendedUsableRect.height) {
-        this.setState({
-          height: usableRect.height + this.context.constants.system.USABLE_RECT_GAP * 2,
-        });
+      const gap = this.context.constants.system.USABLE_RECT_GAP;
+      const extendedUsableRect: TRect = {
+        x: usableRect.x - gap,
+        y: usableRect.y - gap,
+        width: usableRect.width + gap * 2,
+        height: usableRect.height + gap * 2,
+      };
+
+      if (this.isGeometryChanged(extendedUsableRect, this.getState())) {
+        this.setState(extendedUsableRect);
       }
     },
     {
