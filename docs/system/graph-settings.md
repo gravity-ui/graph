@@ -71,6 +71,7 @@ These settings control the interactive behaviors and visual styles of the graph.
 | `showConnectionArrows` | boolean | `true` | Controls visibility of arrows at the end of connections |
 | `useBezierConnections` | boolean | `true` | Use bezier curves for connections instead of straight lines |
 | `bezierConnectionDirection` | 'vertical' \| 'horizontal' | `'horizontal'` | Direction of bezier connections |
+| `EXP_USE_TIGHT_BEZIER_BOUNDS` | boolean | `true` | Experimental: use tight bounds of the rendered Bezier curve; set to `false` to use the legacy control-point bounds |
 | `useBlocksAnchors` | boolean | `true` | Controls whether blocks should display anchors for connections |
 | `showConnectionLabels` | boolean | `false` | Controls visibility of connection labels |
 | `blockComponents` | Record<string, typeof Block> | `{}` | Registry of custom block components |

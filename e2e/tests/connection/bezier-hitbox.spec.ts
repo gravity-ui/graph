@@ -79,6 +79,28 @@ test.describe("Bezier Connection Hitbox", () => {
 
       expect(await conn.isSelected()).toBe(false);
     });
+
+    test("should recalculate the hitbox when tight bounds are disabled", async () => {
+      const getHitBox = () =>
+        graphPO.evaluate((graph) => {
+          const connection = graph.connections.getConnectionState("source:target");
+          return connection?.getViewComponent()?.getHitBox();
+        });
+
+      const tightHitBox = await getHitBox();
+
+      await graphPO.evaluate((graph) => {
+        graph.updateSettings({ EXP_USE_TIGHT_BEZIER_BOUNDS: false });
+      });
+      await graphPO.waitForFrames(3);
+
+      const legacyHitBox = await getHitBox();
+
+      expect(tightHitBox).toBeDefined();
+      expect(legacyHitBox).toBeDefined();
+      expect(legacyHitBox![0]).toBeLessThan(tightHitBox![0]);
+      expect(legacyHitBox![2]).toBeGreaterThan(tightHitBox![2]);
+    });
   });
 
   test.describe("Vertical graph — target above source", () => {

@@ -52,6 +52,12 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   showConnectionArrows: boolean;
   useBezierConnections: boolean;
   bezierConnectionDirection: "vertical" | "horizontal";
+  /**
+   * Experimental fallback for Bezier connection bounds calculation.
+   * Set to false to use the legacy control-point bounds instead of calculating
+   * the tight bounds of the rendered curve.
+   */
+  EXP_USE_TIGHT_BEZIER_BOUNDS: boolean;
   useBlocksAnchors: boolean;
   connectivityComponentOnClickRaise: boolean;
   showConnectionLabels: boolean;
@@ -95,6 +101,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   scaleFontSize: 1,
   useBezierConnections: true,
   bezierConnectionDirection: "horizontal",
+  EXP_USE_TIGHT_BEZIER_BOUNDS: true,
   useBlocksAnchors: true,
   connectivityComponentOnClickRaise: true,
   showConnectionLabels: false,
@@ -153,6 +160,7 @@ export class GraphEditorSettings {
       canCreateNewConnections: this.$settings.value.canCreateNewConnections,
       showConnectionArrows: this.$settings.value.showConnectionArrows,
       bezierConnectionDirection: this.$settings.value.bezierConnectionDirection,
+      useTightBezierBounds: this.$settings.value.EXP_USE_TIGHT_BEZIER_BOUNDS,
     };
   });
 

@@ -27,6 +27,14 @@ describe("Settings store", () => {
     expect(store.getConfigFlag("canDuplicateBlocks")).toBe(true);
   });
 
+  it("should enable tight Bezier bounds by default and allow disabling them", () => {
+    expect(store.getConfigFlag("EXP_USE_TIGHT_BEZIER_BOUNDS")).toBe(true);
+
+    store.setupSettings({ EXP_USE_TIGHT_BEZIER_BOUNDS: false });
+
+    expect(store.getConfigFlag("EXP_USE_TIGHT_BEZIER_BOUNDS")).toBe(false);
+  });
+
   describe("$canDrag computed with backward compatibility", () => {
     describe("new setting (canDrag)", () => {
       it("should default to NONE", () => {
