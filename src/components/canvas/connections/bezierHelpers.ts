@@ -1,3 +1,5 @@
+import type { TRect } from "../../../utils/types/shapes";
+
 export function generateBezierParams(
   startPos: { x: number; y: number },
   endPos: { x: number; y: number },
@@ -31,6 +33,99 @@ export function bezierCurveLine(
   path.bezierCurveTo(firstPoint.x, firstPoint.y, secondPoint.x, secondPoint.y, end.x, end.y);
 
   return path;
+}
+
+const BEZIER_EPSILON = 1e-8;
+
+function getCubicExtrema(start: number, firstPoint: number, secondPoint: number, end: number): number[] {
+  // The derivative of a cubic Bezier coordinate is a quadratic polynomial:
+  // a*t^2 + b*t + c = 0.
+  const a = -start + 3 * firstPoint - 3 * secondPoint + end;
+  const b = 2 * (start - 2 * firstPoint + secondPoint);
+  const c = firstPoint - start;
+
+  if (Math.abs(a) < BEZIER_EPSILON) {
+    if (Math.abs(b) < BEZIER_EPSILON) {
+      return [];
+    }
+
+    const t = -c / b;
+    return t > 0 && t < 1 ? [t] : [];
+  }
+
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant < -BEZIER_EPSILON) {
+    return [];
+  }
+
+  const sqrtDiscriminant = Math.sqrt(Math.max(0, discriminant));
+  const denominator = 2 * a;
+  const roots = [(-b - sqrtDiscriminant) / denominator, (-b + sqrtDiscriminant) / denominator];
+
+  return roots.filter((t) => t > 0 && t < 1);
+}
+
+function getPointAtBezierCurve(
+  startPos: { x: number; y: number },
+  firstPoint: { x: number; y: number },
+  secondPoint: { x: number; y: number },
+  endPos: { x: number; y: number },
+  time: number
+) {
+  const inverseTime = 1 - time;
+
+  return {
+    x:
+      inverseTime ** 3 * startPos.x +
+      3 * inverseTime ** 2 * time * firstPoint.x +
+      3 * inverseTime * time ** 2 * secondPoint.x +
+      time ** 3 * endPos.x,
+    y:
+      inverseTime ** 3 * startPos.y +
+      3 * inverseTime ** 2 * time * firstPoint.y +
+      3 * inverseTime * time ** 2 * secondPoint.y +
+      time ** 3 * endPos.y,
+  };
+}
+
+/**
+ * Returns the tight axis-aligned bounds of the cubic Bezier curve.
+ *
+ * Control points are not necessarily on the curve. Using their bounds is a
+ * safe broad-phase approximation, but can substantially inflate usableRect.
+ */
+export function getBezierCurveBounds(
+  startPos: { x: number; y: number },
+  endPos: { x: number; y: number },
+  mode: "vertical" | "horizontal" = "horizontal"
+): TRect {
+  const [start, firstPoint, secondPoint, end] = generateBezierParams(startPos, endPos, mode);
+  const times = [
+    0,
+    1,
+    ...getCubicExtrema(start.x, firstPoint.x, secondPoint.x, end.x),
+    ...getCubicExtrema(start.y, firstPoint.y, secondPoint.y, end.y),
+  ];
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  times.forEach((time) => {
+    const point = getPointAtBezierCurve(start, firstPoint, secondPoint, end, time);
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+    maxY = Math.max(maxY, point.y);
+  });
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
 }
 
 // https://stackguides.com/questions/14174252/how-to-find-out-y-coordinate-of-specific-point-in-bezier-curve-in-canvas

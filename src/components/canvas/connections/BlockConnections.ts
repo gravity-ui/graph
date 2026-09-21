@@ -78,6 +78,7 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
         id: connection.id,
         useBezier: settings.useBezierConnections,
         bezierDirection: settings.bezierConnectionDirection,
+        useTightBezierBounds: settings.useTightBezierBounds,
         showConnectionLabels: settings.showConnectionLabels,
         showConnectionArrows: settings.showConnectionArrows,
       };

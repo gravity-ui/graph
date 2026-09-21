@@ -6,17 +6,25 @@ import { TConnection } from "../../../store/connection/ConnectionState";
 import { isMetaKeyEvent } from "../../../utils/functions";
 import { getFontSize } from "../../../utils/functions/text";
 import { cachedMeasureText } from "../../../utils/renderers/text";
+import { TPoint } from "../../../utils/types/shapes";
 
 import { ConnectionArrow } from "./Arrow";
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "./BaseConnection";
 import { Path2DRenderInstance, Path2DRenderStyleResult } from "./BatchPath2D";
 import { BlockConnections, TGraphConnectionsContext } from "./BlockConnections";
-import { bezierCurveLine, generateBezierParams, getArrowCoords, isPointInStroke } from "./bezierHelpers";
+import {
+  bezierCurveLine,
+  generateBezierParams,
+  getArrowCoords,
+  getBezierCurveBounds,
+  isPointInStroke,
+} from "./bezierHelpers";
 import { getLabelCoords } from "./labelHelper";
 
 export type TConnectionProps = TBaseConnectionProps & {
   useBezier: boolean;
   bezierDirection: "vertical" | "horizontal";
+  useTightBezierBounds?: boolean;
   showConnectionArrows: boolean;
   showConnectionLabels: boolean;
 };
@@ -188,8 +196,14 @@ export class BlockConnection<T extends TConnection>
   }
 
   protected override propsChanged(nextProps: TConnectionProps) {
+    const shouldUpdatePoints = this.props.useTightBezierBounds !== nextProps.useTightBezierBounds;
+
     super.propsChanged(nextProps);
     this.applyShape(this.state, nextProps);
+
+    if (shouldUpdatePoints) {
+      this.updatePoints(undefined, nextProps);
+    }
   }
 
   protected override stateChanged(nextState: TBaseConnectionState) {
@@ -201,8 +215,8 @@ export class BlockConnection<T extends TConnection>
     return this.context.constants.connection.DEFAULT_Z_INDEX;
   }
 
-  protected override collectBBoxPoints() {
-    const points = super.collectBBoxPoints();
+  protected override collectBBoxPoints(props: TConnectionProps = this.props) {
+    const points = super.collectBBoxPoints(props);
 
     if (this.labelGeometry) {
       points.push(
@@ -214,20 +228,32 @@ export class BlockConnection<T extends TConnection>
       );
     }
 
-    if (this.props.useBezier && this.connectionPoints) {
-      const bezierParams = generateBezierParams(
-        this.connectionPoints[0],
-        this.connectionPoints[1],
-        this.props.bezierDirection
-      );
-      points.push(bezierParams[1], bezierParams[2]);
+    if (props.useBezier && this.connectionPoints) {
+      if (props.useTightBezierBounds !== false) {
+        const bezierBounds = getBezierCurveBounds(
+          this.connectionPoints[0],
+          this.connectionPoints[1],
+          props.bezierDirection
+        );
+        points.push(
+          { x: bezierBounds.x, y: bezierBounds.y },
+          { x: bezierBounds.x + bezierBounds.width, y: bezierBounds.y + bezierBounds.height }
+        );
+      } else {
+        const bezierParams = generateBezierParams(
+          this.connectionPoints[0],
+          this.connectionPoints[1],
+          props.bezierDirection
+        );
+        points.push(bezierParams[1], bezierParams[2]);
+      }
     }
 
     return points;
   }
 
-  protected override updatePoints() {
-    super.updatePoints();
+  protected override updatePoints(additionalPoints?: TPoint[], props: TConnectionProps = this.props) {
+    super.updatePoints(additionalPoints, props);
 
     if (!this.connectionPoints) {
       return;
