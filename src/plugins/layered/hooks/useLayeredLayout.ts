@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { layeredConverter } from "../converters/layeredConverter";
-import { Node, layoutGraph } from "../layout";
+import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH, Node, layoutGraph } from "../layout";
 import type { ConverterResult, LayeredLayoutInput, LayeredLayoutOptions } from "../types";
 import { computeLevels } from "../utils/computeLevels";
 
@@ -86,6 +86,8 @@ export function useLayeredLayout(params: UseLayeredLayoutParams) {
             Array.from(connectionIdBySourceTarget.entries()).map(([k, v]) => [k, [...v]])
           ),
           blockSizes,
+          virtualNodeWidth: layoutOptions?.defaultNodeWidth ?? DEFAULT_NODE_WIDTH,
+          virtualNodeHeight: layoutOptions?.defaultNodeHeight ?? DEFAULT_NODE_HEIGHT,
         });
         setResult(converted);
         setIsLoading(false);

@@ -448,18 +448,20 @@ function resolveLayoutOptions(options?: LayeredLayoutOptions): ResolvedLayoutOpt
 
 function nodeWidth(graph: Graph | undefined, v: ID | undefined, opts: ResolvedLayoutOptions): number {
   if (graph && v && graph[v]) {
-    const width = graph[v].node.width ?? opts.defaultNodeWidth;
-    return width + opts.nodeHorizontalGap;
+    return graph[v].node.width ?? opts.defaultNodeWidth;
   }
-  return opts.defaultNodeWidth + opts.nodeHorizontalGap;
+  return opts.defaultNodeWidth;
 }
 
 function nodeHeight(graph: Graph | undefined, v: ID | undefined, opts: ResolvedLayoutOptions): number {
   if (graph && v && graph[v]) {
-    const height = graph[v].node.height ?? opts.defaultNodeHeight;
-    return height + opts.nodeVerticalGap;
+    return graph[v].node.height ?? opts.defaultNodeHeight;
   }
-  return opts.defaultNodeHeight + opts.nodeVerticalGap;
+  return opts.defaultNodeHeight;
+}
+
+function nodeVerticalDistance(graph: Graph, a: ID, b: ID, opts: ResolvedLayoutOptions): number {
+  return nodeHeight(graph, a, opts) / 2 + opts.nodeVerticalGap + nodeHeight(graph, b, opts) / 2;
 }
 
 function horizontalCompaction(
@@ -493,15 +495,17 @@ function horizontalCompaction(
         const rank = reverse ? layering.length - graph[w].rank! - 1 : graph[w].rank!;
         const pos = layering[rank].indexOf(w);
         if (pos > 0) {
-          const u = root[layering[rank][pos - 1]];
+          const previous = layering[rank][pos - 1];
+          const u = root[previous];
+          const distance = nodeVerticalDistance(graph, previous, w, opts);
           placeBlock(u);
           if (sink[v] === v) {
             sink[v] = sink[u];
           }
           if (sink[v] === sink[u]) {
-            xs[v] = Math.max(xs[v], xs[u] + nodeHeight(graph, v, opts));
+            xs[v] = Math.max(xs[v], xs[u] + distance);
           } else {
-            shift[sink[u]] = Math.min(shift[sink[u]], xs[v] - xs[u] - nodeHeight(graph, v, opts));
+            shift[sink[u]] = Math.min(shift[sink[u]], xs[v] - xs[u] - distance);
           }
         }
         w = align[w];
@@ -551,10 +555,25 @@ function findSmallestHeightAlignment(
   ).align;
 }
 
-function alignCoordinates(xss: Record<string, Record<string, number>>, alignTo: Record<string, number>) {
-  const alignToVals = Object.values(alignTo);
-  const alignToMin = alignToVals.reduce((a, b) => Math.min(a, b));
-  const alignToMax = alignToVals.reduce((a, b) => Math.max(a, b));
+function getVerticalBounds(graph: Graph, xs: Record<string, number>, opts: ResolvedLayoutOptions) {
+  return Object.entries(xs).reduce(
+    (bounds, [v, center]) => {
+      const halfHeight = nodeHeight(graph, v as ID, opts) / 2;
+      bounds.min = Math.min(bounds.min, center - halfHeight);
+      bounds.max = Math.max(bounds.max, center + halfHeight);
+      return bounds;
+    },
+    { min: Number.POSITIVE_INFINITY, max: Number.NEGATIVE_INFINITY }
+  );
+}
+
+function alignCoordinates(
+  graph: Graph,
+  xss: Record<string, Record<string, number>>,
+  alignTo: Record<string, number>,
+  opts: ResolvedLayoutOptions
+) {
+  const alignToBounds = getVerticalBounds(graph, alignTo, opts);
 
   (["u", "d"] as const).forEach((vert) => {
     (["l", "r"] as const).forEach((horiz) => {
@@ -564,11 +583,8 @@ function alignCoordinates(xss: Record<string, Record<string, number>>, alignTo: 
         return;
       }
 
-      const xsVals = Object.values(xs);
-      const delta =
-        horiz === "l"
-          ? alignToMin - xsVals.reduce((a, b) => Math.min(a, b))
-          : alignToMax - xsVals.reduce((a, b) => Math.max(a, b));
+      const bounds = getVerticalBounds(graph, xs, opts);
+      const delta = horiz === "l" ? alignToBounds.min - bounds.min : alignToBounds.max - bounds.max;
 
       if (delta) {
         Object.keys(xs).forEach((key) => {
@@ -637,7 +653,7 @@ function positionY(graph: Graph, layering: ID[][], opts: ResolvedLayoutOptions):
     });
   });
   const smallestHeight = findSmallestHeightAlignment(graph, xss, opts);
-  alignCoordinates(xss, smallestHeight);
+  alignCoordinates(graph, xss, smallestHeight, opts);
   return balance(xss);
 }
 
@@ -648,9 +664,9 @@ function position(graph: Graph, order: ID[][], opts: ResolvedLayoutOptions): voi
   });
 
   const valueY = Object.values(ys);
-  const step =
+  const baseStep =
     Math.max(
-      nodeWidth(undefined, undefined, opts),
+      nodeWidth(undefined, undefined, opts) + opts.nodeHorizontalGap,
       (valueY.reduce((a, b) => Math.max(a, b)) - valueY.reduce((a, b) => Math.min(a, b))) / order.length
     ) * opts.layerSpacingFactor;
   let x = 0;
@@ -659,11 +675,15 @@ function position(graph: Graph, order: ID[][], opts: ResolvedLayoutOptions): voi
       const node = graph[nodeId].node;
       node.x = x;
     });
-    x += step;
+    const layerWidth = layer.reduce(
+      (maxWidth, nodeId) => Math.max(maxWidth, nodeWidth(graph, nodeId, opts)),
+      opts.defaultNodeWidth
+    );
+    x += Math.max(baseStep, layerWidth + opts.nodeHorizontalGap);
   });
 }
 
-function prepareResult<NodeId, T extends Node<NodeId>>(graph: Graph<NodeId, T>) {
+function prepareResult<NodeId, T extends Node<NodeId>>(graph: Graph<NodeId, T>, opts: ResolvedLayoutOptions) {
   const nodes: T[] = [];
   const edges: Edge<NodeId>[] = [];
   Object.values(graph).forEach((graphNode) => {
@@ -720,7 +740,13 @@ function prepareResult<NodeId, T extends Node<NodeId>>(graph: Graph<NodeId, T>) 
       });
     }
   });
-  return { nodes, edges };
+  return {
+    nodes: nodes.map((node) => ({
+      ...node,
+      y: (node.y ?? 0) - (node.height ?? opts.defaultNodeHeight) / 2 + opts.defaultNodeHeight / 2,
+    })),
+    edges,
+  };
 }
 
 export type LayoutGraphParams<NodeId extends string | number, T extends Node<NodeId>> = {
@@ -741,5 +767,5 @@ export async function layoutGraph<NodeId extends string | number, T extends Node
   prepareGraph(graph as GraphInternal, layering, levels);
   const order = ordering(graph as GraphInternal, layering, enormousGraph);
   position(graph as GraphInternal, order, opts);
-  return prepareResult<NodeId, T>(graph);
+  return prepareResult<NodeId, T>(graph, opts);
 }
