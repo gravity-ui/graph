@@ -11,7 +11,7 @@ import { ConnectionArrow } from "./Arrow";
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "./BaseConnection";
 import { Path2DRenderInstance, Path2DRenderStyleResult } from "./BatchPath2D";
 import { BlockConnections, TGraphConnectionsContext } from "./BlockConnections";
-import { bezierCurveLine, generateBezierParams, getArrowCoords, isPointInStroke } from "./bezierHelpers";
+import { bezierCurveLine, getArrowCoords, getBezierCurveBounds, isPointInStroke } from "./bezierHelpers";
 import { getLabelCoords } from "./labelHelper";
 
 export type TConnectionProps = TBaseConnectionProps & {
@@ -215,12 +215,15 @@ export class BlockConnection<T extends TConnection>
     }
 
     if (this.props.useBezier && this.connectionPoints) {
-      const bezierParams = generateBezierParams(
+      const bezierBounds = getBezierCurveBounds(
         this.connectionPoints[0],
         this.connectionPoints[1],
         this.props.bezierDirection
       );
-      points.push(bezierParams[1], bezierParams[2]);
+      points.push(
+        { x: bezierBounds.x, y: bezierBounds.y },
+        { x: bezierBounds.x + bezierBounds.width, y: bezierBounds.y + bezierBounds.height }
+      );
     }
 
     return points;
