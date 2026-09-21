@@ -187,9 +187,14 @@ export type TGraphConstants = {
   };
 
   camera: {
-    /* Speed camera scale */
+    /**
+     * Multiplier for the relative camera zoom speed.
+     *
+     * Wheel zoom applies this value in log-scale space together with STEP, so
+     * equal zoom-in and zoom-out deltas are reciprocal.
+     */
     SPEED: number;
-    /* Step on camera scale */
+    /** Base log-scale step for camera zoom. */
     STEP: number;
     /**
      * Auto-panning threshold: distance from edge in pixels to activate auto-panning

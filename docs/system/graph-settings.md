@@ -148,8 +148,8 @@ Constants control the sizing, spacing, and other numerical values used throughou
 
 | Constant | Default | Description |
 |----------|---------|-------------|
-| `SPEED` | `1` | Camera movement speed |
-| `STEP` | `0.008` | Step size for camera zoom |
+| `SPEED` | `1` | Multiplier for the relative camera zoom speed |
+| `STEP` | `0.008` | Base log-scale step for camera zoom; equal zoom-in and zoom-out steps are reciprocal |
 
 ### Block Constants
 
