@@ -6,13 +6,13 @@ import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
 import type { TMultipointConnection } from "../../../components/canvas/connections/types";
 import { BezierMultipointConnection, Graph, GraphState, TBlock, TConnection } from "../../../index";
-import type { LayeredLayoutOptions } from "../../../plugins/layered";
+import type { LayeredLayoutInput, LayeredLayoutOptions } from "../../../plugins/layered";
 import { useLayeredLayout } from "../../../plugins/layered";
 import { GraphCanvas, useGraph, useGraphEvent } from "../../../react-components";
 import { useFn } from "../../../react-components/utils/hooks/useFn";
 import { BlockStory } from "../../main/Block";
 
-import { layeredConfig } from "./config";
+import { layeredConfig, variableSizesConfig } from "./config";
 
 import "@gravity-ui/uikit/styles/styles.css";
 
@@ -24,7 +24,11 @@ export interface GraphAppLayoutArgs {
   defaultNodeHeight?: number;
 }
 
-const GraphApp = (args: GraphAppLayoutArgs = {}) => {
+type GraphAppProps = GraphAppLayoutArgs & {
+  config?: LayeredLayoutInput;
+};
+
+const GraphApp = ({ config = layeredConfig, ...args }: GraphAppProps = {}) => {
   const layoutOptions = useMemo<LayeredLayoutOptions | undefined>(() => {
     const opts: LayeredLayoutOptions = {
       ...(args.nodeHorizontalGap !== undefined && { nodeHorizontalGap: args.nodeHorizontalGap }),
@@ -49,29 +53,30 @@ const GraphApp = (args: GraphAppLayoutArgs = {}) => {
   });
 
   const { isLoading, result } = useLayeredLayout({
-    ...layeredConfig,
+    ...config,
     layoutOptions,
   });
 
   useEffect(() => {
     if (isLoading || !result) return;
 
-    const connections = layeredConfig.connections.reduce<
-      (TConnection & Pick<TMultipointConnection, "points" | "labels">)[]
-    >((acc, connection) => {
-      const id = connection.id ?? `${String(connection.sourceBlockId)}/${String(connection.targetBlockId)}`;
-      if (id in result.edges) {
-        acc.push({
-          id,
-          sourceBlockId: connection.sourceBlockId,
-          targetBlockId: connection.targetBlockId,
-          ...result.edges[id],
-        });
-      }
-      return acc;
-    }, []);
+    const connections = config.connections.reduce<(TConnection & Pick<TMultipointConnection, "points" | "labels">)[]>(
+      (acc, connection) => {
+        const id = connection.id ?? `${String(connection.sourceBlockId)}/${String(connection.targetBlockId)}`;
+        if (id in result.edges) {
+          acc.push({
+            id,
+            sourceBlockId: connection.sourceBlockId,
+            targetBlockId: connection.targetBlockId,
+            ...result.edges[id],
+          });
+        }
+        return acc;
+      },
+      []
+    );
 
-    const blocks = layeredConfig.blocks.map((block) => ({
+    const blocks = config.blocks.map((block) => ({
       ...block,
       ...result.blocks[block.id],
       name: block.id.toString(),
@@ -84,7 +89,7 @@ const GraphApp = (args: GraphAppLayoutArgs = {}) => {
     });
 
     graph.zoomTo("center", { padding: 300 });
-  }, [isLoading, result]);
+  }, [config, graph, isLoading, result, setEntities]);
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {
@@ -133,8 +138,8 @@ const meta: Meta<typeof GraphApp> = {
           "- `isLoading`: Boolean indicating if the layout computation is in progress\n" +
           "- `result`: Object with `blocks` (positions by id) and `edges` (points/labels by connection id)\n\n" +
           "## Layout Options\n\n" +
-          "- `nodeHorizontalGap`: Horizontal gap between nodes in the same layer (default: 2× defaultNodeWidth)\n" +
-          "- `nodeVerticalGap`: Vertical gap between adjacent layers (default: 200)\n" +
+          "- `nodeHorizontalGap`: Horizontal gap between adjacent layers/columns (default: 2× defaultNodeWidth)\n" +
+          "- `nodeVerticalGap`: Vertical gap between nodes in the same layer/column (default: 200)\n" +
           "- `defaultNodeWidth` / `defaultNodeHeight`: Default node size when not provided (default: 100)\n" +
           "- `layerSpacingFactor`: Multiplier for spacing between layers (default: 1.7)\n\n" +
           "## Example\n\n" +
@@ -158,11 +163,11 @@ const meta: Meta<typeof GraphApp> = {
   argTypes: {
     nodeHorizontalGap: {
       control: { type: "number", min: 0, max: 300, step: 10 },
-      description: "Horizontal gap between nodes in the same layer",
+      description: "Horizontal gap between adjacent layers/columns",
     },
     nodeVerticalGap: {
       control: { type: "number", min: 0, max: 400, step: 10 },
-      description: "Vertical gap between adjacent layers",
+      description: "Vertical gap between nodes in the same layer/column",
     },
     layerSpacingFactor: {
       control: { type: "number", min: 0.5, max: 4, step: 0.1 },
@@ -182,3 +187,5 @@ const meta: Meta<typeof GraphApp> = {
 export default meta;
 
 export const Default: StoryFn<typeof GraphApp> = (args) => <GraphApp {...args} />;
+
+export const VariableSizes: StoryFn<typeof GraphApp> = (args) => <GraphApp {...args} config={variableSizesConfig} />;

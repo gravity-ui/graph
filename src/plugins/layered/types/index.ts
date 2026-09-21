@@ -26,9 +26,9 @@ export type LayeredLayoutInput = {
  * All fields are optional; defaults match previous hardcoded behavior.
  */
 export type LayeredLayoutOptions = {
-  /** Horizontal gap between nodes in the same layer. Default: defaultNodeWidth * 2 */
+  /** Horizontal gap between adjacent layers (columns). Default: defaultNodeWidth * 2 */
   nodeHorizontalGap?: number;
-  /** Vertical gap between nodes in adjacent layers. Default: 200 */
+  /** Vertical gap between nodes in the same layer (column). Default: 200 */
   nodeVerticalGap?: number;
   /** Default node width when not provided. Default: 100 */
   defaultNodeWidth?: number;

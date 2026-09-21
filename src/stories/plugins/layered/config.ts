@@ -315,3 +315,26 @@ export const layeredConfig: LayeredLayoutInput = {
     { sourceBlockId: "381", targetBlockId: "379" },
   ],
 };
+
+export const variableSizesConfig: LayeredLayoutInput = {
+  blocks: [
+    { id: "180 × 140", level: 0, width: 180, height: 140 },
+    { id: "300 × 220", level: 1, width: 300, height: 220 },
+    { id: "220 × 160", level: 2, width: 220, height: 160 },
+    { id: "260 × 180", level: 3, width: 260, height: 180 },
+    { id: "160 × 180", level: 0, width: 160, height: 180 },
+    { id: "140 × 340", level: 1, width: 140, height: 340 },
+    { id: "220 × 140", level: 1, width: 220, height: 140 },
+    { id: "260 × 180 merge", level: 2, width: 260, height: 180 },
+  ],
+  connections: [
+    { sourceBlockId: "180 × 140", targetBlockId: "300 × 220" },
+    { sourceBlockId: "300 × 220", targetBlockId: "220 × 160" },
+    { sourceBlockId: "220 × 160", targetBlockId: "260 × 180" },
+    { sourceBlockId: "160 × 180", targetBlockId: "140 × 340" },
+    { sourceBlockId: "160 × 180", targetBlockId: "220 × 140" },
+    { sourceBlockId: "140 × 340", targetBlockId: "260 × 180 merge" },
+    { sourceBlockId: "220 × 140", targetBlockId: "260 × 180 merge" },
+    { sourceBlockId: "160 × 180", targetBlockId: "260 × 180 merge" },
+  ],
+};

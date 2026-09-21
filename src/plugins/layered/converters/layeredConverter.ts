@@ -1,5 +1,5 @@
 import { TPoint } from "../../../utils/types/shapes";
-import { DEFAULT_NODE_WIDTH, Edge } from "../layout";
+import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH, Edge } from "../layout";
 import { ConverterResult } from "../types";
 
 function buildAdjacency(edges: Edge<string>[]) {
@@ -19,15 +19,15 @@ function buildAdjacency(edges: Edge<string>[]) {
 
 function getVirtualNodeCenter(
   nodePositions: Map<string, TPoint>,
-  virtualNodeSize?: number
+  virtualNodeWidth: number,
+  virtualNodeHeight: number
 ): (id: string) => TPoint | undefined {
   return (id: string) => {
     const pos = nodePositions.get(id);
     if (!pos) return undefined;
-    const size = virtualNodeSize ?? DEFAULT_NODE_WIDTH;
     return {
-      x: pos.x + size / 2,
-      y: pos.y + size / 2,
+      x: pos.x + virtualNodeWidth / 2,
+      y: pos.y + virtualNodeHeight / 2,
     };
   };
 }
@@ -76,6 +76,9 @@ export type LayeredConverterParams = {
   /** Map of "sourceId/targetId" -> queue of connection ids (for multiple edges between same pair) */
   connectionIdBySourceTarget: Map<string, (string | number | symbol)[]>;
   blockSizes: Map<string, { width: number; height: number }>;
+  virtualNodeWidth?: number;
+  virtualNodeHeight?: number;
+  /** @deprecated Use virtualNodeWidth and virtualNodeHeight instead. */
   virtualNodeSize?: number;
 };
 
@@ -88,6 +91,8 @@ export function layeredConverter({
   layoutResult,
   connectionIdBySourceTarget,
   blockSizes,
+  virtualNodeWidth,
+  virtualNodeHeight,
   virtualNodeSize,
 }: LayeredConverterParams): ConverterResult {
   const { nodes, edges } = layoutResult;
@@ -115,7 +120,11 @@ export function layeredConverter({
   const edgesResult: ConverterResult["edges"] = {};
   const adjacency = buildAdjacency(edges);
   const visitedEdges = new Set<string>();
-  const getVirtualCenter = getVirtualNodeCenter(nodePositions, virtualNodeSize);
+  const getVirtualCenter = getVirtualNodeCenter(
+    nodePositions,
+    virtualNodeWidth ?? virtualNodeSize ?? DEFAULT_NODE_WIDTH,
+    virtualNodeHeight ?? virtualNodeSize ?? DEFAULT_NODE_HEIGHT
+  );
 
   for (const edge of edges) {
     const from = String(edge.from);
