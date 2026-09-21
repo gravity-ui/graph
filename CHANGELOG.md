@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.12.0](https://github.com/gravity-ui/graph/compare/v1.11.3...v1.12.0) (2026-09-21)
+
+
+### Features
+
+* add Playwright page objects ([#327](https://github.com/gravity-ui/graph/issues/327)) ([31a9797](https://github.com/gravity-ui/graph/commit/31a97972617a509b59fcb19006c8dbbe34bd4712))
+
+
+### Bug Fixes
+
+* **BelowLayer:** keep background aligned with usable rect ([#345](https://github.com/gravity-ui/graph/issues/345)) ([2c34d3b](https://github.com/gravity-ui/graph/commit/2c34d3bf20f3482647b931bdaf1c51d16bbf6e9f))
+* **camera:** make wheel zoom steps reciprocal ([#347](https://github.com/gravity-ui/graph/issues/347)) ([7e89d6f](https://github.com/gravity-ui/graph/commit/7e89d6f1f7bbfc941ab361c0af3fcb4c19b5f805))
+* **connections:** tighten bezier usable bounds ([#346](https://github.com/gravity-ui/graph/issues/346)) ([077f113](https://github.com/gravity-ui/graph/commit/077f113488f7550cef1ab17f060c30d7b7f03042))
+* expose anchor size CSS variables ([#336](https://github.com/gravity-ui/graph/issues/336)) ([581dd07](https://github.com/gravity-ui/graph/commit/581dd07c216a479517123e6aa3537cf9595fb1a6))
+
 ## [1.11.3](https://github.com/gravity-ui/graph/compare/v1.11.2...v1.11.3) (2026-07-15)
 
 
