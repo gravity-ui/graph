@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.1](https://github.com/gravity-ui/graph/compare/v1.12.0...v1.12.1) (2026-09-23)
+
+
+### Bug Fixes
+
+* **layered:** align differently sized blocks by center ([f718569](https://github.com/gravity-ui/graph/commit/f7185698a2a16a12232248f2a43edf9a33a09613))
+
 ## [1.12.0](https://github.com/gravity-ui/graph/compare/v1.11.3...v1.12.0) (2026-09-21)
 
 
