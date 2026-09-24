@@ -159,6 +159,8 @@ this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${ca
 - **Using `useLayer` Hook:** The recommended way to add and manage layers in React components:
     ```typescript
     import { useLayer } from "@gravity-ui/graph-react";
+    import { DevToolsLayer } from "@gravity-ui/graph-devtools";
+    import "@gravity-ui/graph-devtools/styles.css";
     
     function MyComponent() {
       const { graph } = useGraph(/* config */);

@@ -1,5 +1,4 @@
-import type { TComponentState } from "../../lib/Component";
-import type { LayerProps } from "../../services/Layer";
+import type { LayerProps, TComponentState } from "@gravity-ui/graph";
 
 /** Configuration options for the DevToolsLayer */
 export interface TDevToolsLayerProps extends LayerProps {

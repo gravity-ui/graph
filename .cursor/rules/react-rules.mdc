@@ -108,6 +108,9 @@ alwaysApply: false
 #### useLayer Hook
 - Use for adding and managing layers:
   ```tsx
+  import { DevToolsLayer } from "@gravity-ui/graph-devtools";
+  import "@gravity-ui/graph-devtools/styles.css";
+
   const devToolsLayer = useLayer(graph, DevToolsLayer, {
     showRuler: true,
     rulerSize: 20,
@@ -219,4 +222,4 @@ const config = {
 5. **Error Handling**
    - Implement fallbacks for graph rendering errors
    - Handle connection validation errors
-   - Provide meaningful error states for blocks 
+   - Provide meaningful error states for blocks

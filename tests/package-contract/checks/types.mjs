@@ -1,8 +1,14 @@
 import { run } from "../utils.mjs";
 
-export async function checkTarballTypes({ packageRoot, tarballPath, reactTarballPath, minimapTarballPath }) {
+export async function checkTarballTypes({
+  packageRoot,
+  tarballPath,
+  reactTarballPath,
+  minimapTarballPath,
+  devtoolsTarballPath,
+}) {
   console.log("\n[package-contract] Checking the public package ESM type contracts with ATTW...");
-  for (const artifact of [tarballPath, reactTarballPath, minimapTarballPath]) {
+  for (const artifact of [tarballPath, reactTarballPath, minimapTarballPath, devtoolsTarballPath]) {
     await run(
       "pnpm",
       ["exec", "attw", artifact, "--profile", "esm-only", "--entrypoints", ".", "--no-emoji", "--no-color"],

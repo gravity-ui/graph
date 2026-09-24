@@ -1,7 +1,4 @@
-import { Layer, LayerContext } from "../../services/Layer";
-import { TCameraState } from "../../services/camera/CameraService";
-import { calculateNiceNumber } from "../../utils/functions";
-import { measureText } from "../../utils/functions/text";
+import { Layer, LayerContext, TCameraState, measureText } from "@gravity-ui/graph";
 
 import {
   DEFAULT_DEVTOOLS_LAYER_PROPS,
@@ -10,6 +7,7 @@ import {
   MINOR_TICK_LENGTH_FACTOR,
 } from "./constants";
 import { TDevToolsLayerProps, TDevToolsLayerState, TickInfo } from "./types";
+import { calculateNiceNumber } from "./utils/calculateNiceNumber";
 
 import "./devtools-layer.css"; // Import the CSS file after type imports
 

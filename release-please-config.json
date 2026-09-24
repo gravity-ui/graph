@@ -34,6 +34,14 @@
       "prerelease": true,
       "prerelease-type": "next"
     },
+    "packages/graph-devtools": {
+      "package-name": "@gravity-ui/graph-devtools",
+      "component": "graph-devtools",
+      "release-as": "1.0.0-next.0",
+      "versioning": "prerelease",
+      "prerelease": true,
+      "prerelease-type": "next"
+    },
     "packages/graph-minimap": {
       "package-name": "@gravity-ui/graph-minimap",
       "component": "graph-minimap",

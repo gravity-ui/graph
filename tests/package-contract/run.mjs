@@ -17,7 +17,7 @@ const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "gravity-graph-pack
 const requestedTarballPath = process.env.PACKAGE_CONTRACT_TARBALL_PATH;
 const defaultTarballPath = path.join(temporaryDirectory, "tarballs", "gravity-ui-graph.tgz");
 const testedPackage = process.argv[2] ?? "graph";
-if (!["graph", "graph-react", "graph-minimap"].includes(testedPackage))
+if (!["graph", "graph-react", "graph-minimap", "graph-devtools"].includes(testedPackage))
   throw new Error(`Unknown package: ${testedPackage}`);
 const testingReactPackage = testedPackage === "graph-react";
 const testingMinimapPackage = testedPackage === "graph-minimap";
@@ -27,6 +27,12 @@ const minimapTarballPath =
     ? path.resolve(requestedTarballPath)
     : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-minimap.tgz");
 const minimapStaleBuildSentinelPath = path.join(minimapPackageRoot, "build", "package-contract-stale-sentinel.txt");
+const devtoolsPackageRoot = path.join(workspaceRoot, "packages/graph-devtools");
+const devtoolsTarballPath =
+  requestedTarballPath && testedPackage === "graph-devtools"
+    ? path.resolve(requestedTarballPath)
+    : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-devtools.tgz");
+const devtoolsStaleBuildSentinelPath = path.join(devtoolsPackageRoot, "build", "package-contract-stale-sentinel.txt");
 const workspaceTarballs = JSON.parse(process.env.PACKAGE_CONTRACT_WORKSPACE_TARBALLS || "{}");
 const suppliedCoreTarball = testedPackage !== "graph" ? workspaceTarballs["@gravity-ui/graph"] : undefined;
 const tarballPath = suppliedCoreTarball
@@ -40,7 +46,7 @@ const reactTarballPath =
     : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-react.tgz");
 const reactStaleBuildSentinelPath = path.join(reactPackageRoot, "build", "package-contract-stale-sentinel.txt");
 const staleBuildSentinelPath = path.join(packageRoot, "build", "package-contract-stale-sentinel.txt");
-const consumerNames = ["vanilla", "react", "minimap"];
+const consumerNames = ["vanilla", "react", "minimap", "devtools"];
 
 async function getInstalledVersion(packageName) {
   const owner = ["react", "react-dom", "@types/react", "@types/react-dom"].includes(packageName)
@@ -64,6 +70,7 @@ async function runConsumer({
   expectedVersion,
   expectedReactVersion,
   expectedMinimapVersion,
+  expectedDevtoolsVersion,
   typecheckConfigs,
   entryPoint,
   nativeImports,
@@ -83,6 +90,8 @@ async function runConsumer({
   await checkInstalledArtifact(consumerDirectory, expectedVersion);
   if (expectedReactVersion) await checkInstalledArtifact(consumerDirectory, expectedReactVersion, "graph-react");
   if (expectedMinimapVersion) await checkInstalledArtifact(consumerDirectory, expectedMinimapVersion, "graph-minimap");
+  if (expectedDevtoolsVersion)
+    await checkInstalledArtifact(consumerDirectory, expectedDevtoolsVersion, "graph-devtools");
   await checkRuntimeConsumer({
     consumerDirectory,
     entrypoints: nativeImports,
@@ -107,6 +116,8 @@ try {
   const expectedVersion = graphManifest.version;
   const reactManifest = JSON.parse(await readFile(path.join(reactPackageRoot, "package.json"), "utf8"));
   const minimapManifest = JSON.parse(await readFile(path.join(minimapPackageRoot, "package.json"), "utf8"));
+  const devtoolsManifest = JSON.parse(await readFile(path.join(devtoolsPackageRoot, "package.json"), "utf8"));
+  await mkdir(path.dirname(devtoolsTarballPath), { recursive: true });
   await mkdir(path.dirname(minimapTarballPath), { recursive: true });
   await mkdir(path.dirname(tarballPath), { recursive: true });
   await mkdir(path.dirname(reactTarballPath), { recursive: true });
@@ -128,7 +139,13 @@ try {
     tarballPath: minimapTarballPath,
     kind: "graph-minimap",
   });
-  await checkTarballTypes({ packageRoot, tarballPath, reactTarballPath, minimapTarballPath });
+  await buildAndPackArtifact({
+    packageRoot: devtoolsPackageRoot,
+    staleBuildSentinelPath: devtoolsStaleBuildSentinelPath,
+    tarballPath: devtoolsTarballPath,
+    kind: "graph-devtools",
+  });
+  await checkTarballTypes({ packageRoot, tarballPath, reactTarballPath, minimapTarballPath, devtoolsTarballPath });
 
   const workspaceManifest = JSON.parse(await readFile(path.join(workspaceRoot, "package.json"), "utf8"));
   if (!workspaceManifest.packageManager) {
@@ -231,6 +248,21 @@ try {
     expectNoReact: true,
   });
 
+  await runConsumer({
+    name: "devtools",
+    expectedVersion,
+    expectedDevtoolsVersion: devtoolsManifest.version,
+    manifest: {
+      ...commonManifest,
+      name: "gravity-graph-installed-devtools-consumer",
+      dependencies: { ...commonManifest.dependencies, "@gravity-ui/graph-devtools": `file:${devtoolsTarballPath}` },
+    },
+    typecheckConfigs: ["fixtures/apps/devtools/tsconfig.json", "fixtures/types/devtools-node-esm/tsconfig.json"],
+    entryPoint: "fixtures/apps/devtools/app.ts",
+    nativeImports: ["root", "devtools", "playwright"],
+    expectNoReact: true,
+  });
+
   console.log("\n[package-contract] Packed package contract passed.");
 } catch (error) {
   await preserveBrowserArtifacts({ consumerNames, packageRoot: workspaceRoot, temporaryDirectory });
@@ -239,6 +271,7 @@ try {
   await rm(staleBuildSentinelPath, { force: true });
   await rm(reactStaleBuildSentinelPath, { force: true });
   await rm(minimapStaleBuildSentinelPath, { force: true });
+  await rm(devtoolsStaleBuildSentinelPath, { force: true });
 
   if (process.env.KEEP_PACKAGE_CONTRACT_TMP === "1") {
     console.log(`\n[package-contract] Preserved temporary projects at ${temporaryDirectory}`);

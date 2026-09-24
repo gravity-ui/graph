@@ -22,12 +22,18 @@ This layer is intended purely for development and debugging purposes and typical
 
 ## Usage
 
-The `DevToolsLayer` can be added to the graph like any other layer.
+The `DevToolsLayer` is provided by `@gravity-ui/graph-devtools` and can be added to the graph like any other layer.
+It requires `@gravity-ui/graph` as a peer dependency. Import both `@gravity-ui/graph/styles.css` and
+`@gravity-ui/graph-devtools/styles.css`; the latter owns the ruler backgrounds, sizing, visibility, and blur.
+In v2, core no longer re-exports DevTools or includes its styles.
 
 ### 1. Via Graph Configuration
 
 ```typescript
-import { Graph, DevToolsLayer } from "@gravity-ui/graph";
+import { Graph } from "@gravity-ui/graph";
+import { DevToolsLayer } from "@gravity-ui/graph-devtools";
+import "@gravity-ui/graph/styles.css";
+import "@gravity-ui/graph-devtools/styles.css";
 
 const graph = new Graph({
   // ... other graph settings
@@ -45,7 +51,8 @@ const graph = new Graph({
 ### 2. Dynamic Addition
 
 ```typescript
-import { DevToolsLayer } from "@gravity-ui/graph";
+import { DevToolsLayer } from "@gravity-ui/graph-devtools";
+import "@gravity-ui/graph-devtools/styles.css";
 
 // Assuming 'graph' is an existing Graph instance
 graph.addLayer(DevToolsLayer, {
@@ -60,7 +67,11 @@ This is the recommended way when using the React bindings.
 
 ```tsx
 import React from 'react';
-import { useGraph, GraphCanvas, useLayer, DevToolsLayer, TDevToolsLayerProps } from '@gravity-ui/graph';
+import { useGraph, GraphCanvas, useLayer } from '@gravity-ui/graph-react';
+import { DevToolsLayer } from '@gravity-ui/graph-devtools';
+import '@gravity-ui/graph/styles.css';
+import '@gravity-ui/graph-react/styles.css';
+import '@gravity-ui/graph-devtools/styles.css';
 
 function MyGraphComponent() {
   const { graph } = useGraph({ /* ... initial config ... */ });
@@ -98,4 +109,4 @@ The layer accepts the following options (extending base `LayerProps`), with defa
 | `crosshairTextBackgroundColor` | `string`  | `"rgba(0, 0, 0, 0.7)"`       | Background color for the coordinate text display box.                       |
 | `rulerBackdropBlur`        | `number`  | `5`                            | Blur strength (in px) for the backdrop filter under the ruler backgrounds.  |
 
-*Note: Base `LayerProps` like `graph`, `camera`, `root`, `emitter` are provided automatically when using `graph.addLayer` or `useLayer`.* 
+*Note: Base `LayerProps` like `graph`, `camera`, `root`, `emitter` are provided automatically when using `graph.addLayer` or `useLayer`.*

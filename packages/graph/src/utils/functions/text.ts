@@ -15,7 +15,7 @@ const getCanvasContext = memoize(canvasContextGetter, () => "canvasContext");
 
 const mapTextToMeasures: Map<string, number> = new Map();
 
-export function measureText(text, font, approximate = true): number {
+export function measureText(text: string, font: string, approximate = true): number {
   const context = getCanvasContext();
 
   context.font = font;

@@ -76,7 +76,7 @@ function assertPackedFiles(metadata, kind) {
       forbiddenPackedPathPatterns.some((pattern) => pattern.test(packedPath)) ||
       (addon
         ? /(?:^|\/)(?:playwright|docs)(?:\/|$)/.test(packedPath)
-        : /(?:^|\/)react-components(?:\/|$)/.test(packedPath))
+        : /(?:^|\/)(?:react-components|plugins\/(?:minimap|devtools))(?:\/|$)/.test(packedPath))
   );
 
   assert.deepEqual(unexpectedFiles, [], `Tarball contains files outside the public allowlist: ${unexpectedFiles}`);
@@ -216,6 +216,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
         "@types/react-dom",
         "@gravity-ui/graph-react",
         "@gravity-ui/graph-minimap",
+        "@gravity-ui/graph-devtools",
         "elkjs",
       ]) {
         assert.equal(manifest[field]?.[name], undefined, `Core must not depend on ${name} through ${field}.`);
@@ -286,6 +287,15 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     );
     return;
   }
+  if (kind === "graph-devtools") {
+    assert.deepEqual(Object.keys(manifest.peerDependencies), ["@gravity-ui/graph"]);
+    assert.deepEqual(manifest.dependencies ?? {}, {});
+    assert.deepEqual(manifest.optionalDependencies ?? {}, {});
+    assert.match(publicStyles, /\.devtools-ruler-bg-h\b/);
+    assert.match(publicStyles, /\.devtools-ruler-bg-v\b/);
+    assert.doesNotMatch(publicStyles, /\.(?:layer|graph-wrapper|graph-block-container|graph-block-anchor)\b/);
+    return;
+  }
   if (react) {
     assert.match(publicStyles, /\.graph-wrapper\b/);
     assert.match(publicStyles, /\.graph-block-container\b/);
@@ -293,17 +303,22 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     assert.doesNotMatch(publicStyles, /\.devtools-ruler-bg\b/);
   } else {
     assert.match(publicStyles, /\.layer\b/);
-    assert.match(publicStyles, /\.devtools-ruler-bg\b/);
+    assert.doesNotMatch(publicStyles, /\.devtools-ruler-bg\b/);
     assert.doesNotMatch(publicStyles, /\.(?:graph-wrapper|graph-block-container|graph-block-anchor)\b/);
     await assertPathDoesNotExist(
       path.join(packageRoot, "build/plugins/minimap"),
       "Core still ships minimap declarations."
     );
     assert.doesNotMatch(await readFile(path.join(packageRoot, "build/index.js"), "utf8"), /graph-minimap/);
+    await assertPathDoesNotExist(
+      path.join(packageRoot, "build/plugins/devtools"),
+      "Core still ships DevTools declarations."
+    );
+    assert.doesNotMatch(await readFile(path.join(packageRoot, "build/index.js"), "utf8"), /devtools-layer/);
     for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
       assert.doesNotMatch(
         await readFile(file, "utf8"),
-        /(?:from\s+|import\s*\(|require\s*\()["'](?:react(?:-dom)?(?:\/[^"']*)?|@gravity-ui\/graph-react)["']/
+        /(?:from\s+|import\s*\(|require\s*\()["'](?:react(?:-dom)?(?:\/[^"']*)?|@gravity-ui\/graph-(?:react|minimap|devtools))["']/
       );
     }
   }

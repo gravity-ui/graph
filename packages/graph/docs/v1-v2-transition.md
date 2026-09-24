@@ -226,3 +226,24 @@ graph.start();
 Minimap requires core as a peer dependency and does not require React. It uses the public core `Layer` and shares the
 consumer's graph, camera, and block components. Navigation, geometry updates, and injected layer styles are unchanged;
 there is no separate minimap stylesheet to import. Core no longer includes or re-exports the minimap implementation.
+
+## DevTools package boundary
+
+`DevToolsLayer`, `TDevToolsLayerProps`, and `DEFAULT_DEVTOOLS_LAYER_PROPS` now belong to
+`@gravity-ui/graph-devtools`. Replace their imports from core and add the DevTools stylesheet:
+
+```ts
+import { Graph } from "@gravity-ui/graph";
+import { DevToolsLayer } from "@gravity-ui/graph-devtools";
+import "@gravity-ui/graph/styles.css";
+import "@gravity-ui/graph-devtools/styles.css";
+
+const graph = new Graph({ blocks: [] });
+graph.addLayer(DevToolsLayer, { showRuler: true, showCrosshair: true });
+```
+
+DevTools requires core as a peer dependency and does not require React. Its ruler backgrounds and CSS variables
+are now owned by the separate stylesheet; core styles only supply the base layer rules. The layer retains the same
+props, camera behavior, and lifecycle, and can still be used with `useLayer` or `GraphLayer` from `@gravity-ui/graph-react`.
+Core no longer contains DevTools code or declarations. The shared text measurement helper is available as
+`measureText(text, font, approximate?)` from `@gravity-ui/graph`; the ruler tick calculation belongs to DevTools.

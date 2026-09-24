@@ -252,6 +252,8 @@ graph.rootStore.settings.setBlockComponents(customBlocks);
 ### Adding Layers in React
 ```typescript
 import { useLayer } from '@gravity-ui/graph-react';
+import { DevToolsLayer } from '@gravity-ui/graph-devtools';
+import '@gravity-ui/graph-devtools/styles.css';
 
 function MyComponent() {
   const { graph } = useGraph(config);
@@ -1076,6 +1078,8 @@ const layer = useLayer(graph, LayerConstructor, props);
 **Example:**
 ```typescript
 import { useLayer } from "@gravity-ui/graph-react";
+import { DevToolsLayer } from "@gravity-ui/graph-devtools";
+import "@gravity-ui/graph-devtools/styles.css";
 
 function MyComponent() {
   const { graph } = useGraph(config);

@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@gravity-ui/graph": "workspace:*",
+    "@gravity-ui/graph-devtools": "workspace:*",
     "@gravity-ui/graph-react": "workspace:*",
     "@gravity-ui/icons": "^2.15.0",
     "@gravity-ui/uikit": "^7.19.0",

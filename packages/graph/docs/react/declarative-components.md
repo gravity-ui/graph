@@ -14,7 +14,8 @@ The `GraphLayer` component provides a declarative way to add existing Layer clas
 
 ```tsx
 import { GraphLayer, GraphCanvas, useGraph } from '@gravity-ui/graph-react';
-import { DevToolsLayer } from '@gravity-ui/graph';
+import { DevToolsLayer } from '@gravity-ui/graph-devtools';
+import '@gravity-ui/graph-devtools/styles.css';
 
 function MyGraph() {
   const { graph, setEntities, start } = useGraph({});

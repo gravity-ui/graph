@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect } from "react";
 
-import { DEFAULT_DEVTOOLS_LAYER_PROPS, DevToolsLayer, Graph, TBlock, TDevToolsLayerProps } from "@gravity-ui/graph";
+import { Graph, TBlock } from "@gravity-ui/graph";
+import { DEFAULT_DEVTOOLS_LAYER_PROPS, DevToolsLayer, TDevToolsLayerProps } from "@gravity-ui/graph-devtools";
 import { GraphBlock, GraphCanvas, useGraph, useLayer } from "@gravity-ui/graph-react";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
 import { generatePrettyBlocks } from "../../configurations/generatePretty";
+
+import "@gravity-ui/graph-devtools/styles.css";
 
 // Define some basic global styles directly or assume they exist globally
 const storyContainerStyle: React.CSSProperties = {
@@ -94,8 +97,11 @@ const meta: Meta<typeof DevToolsStoryComponent> = {
         language: "tsx",
         code: `
 import React from 'react';
-import { DevToolsLayer } from '@gravity-ui/graph';
+import { DevToolsLayer } from '@gravity-ui/graph-devtools';
 import { GraphCanvas, useGraph, useLayer } from '@gravity-ui/graph-react';
+import '@gravity-ui/graph/styles.css';
+import '@gravity-ui/graph-react/styles.css';
+import '@gravity-ui/graph-devtools/styles.css';
 
 function MyGraphWithDevTools() {
   const { graph } = useGraph({

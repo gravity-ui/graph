@@ -4,6 +4,9 @@ const nativeImportProbes = {
   root: `
     const graph = await import("@gravity-ui/graph");
     if ("MiniMapLayer" in graph) throw new Error("Core still exports the extracted minimap.");
+    if ("DevToolsLayer" in graph || "DEFAULT_DEVTOOLS_LAYER_PROPS" in graph) {
+      throw new Error("Core still exports the extracted DevTools.");
+    }
     if (typeof graph.Graph !== "function") throw new Error("Root entrypoint does not export Graph.");
     if (graph.ESchedulerPriority?.LOWEST !== 4) {
       throw new Error("Root entrypoint does not export ESchedulerPriority.");
@@ -26,6 +29,14 @@ const nativeImportProbes = {
     if (Object.getPrototypeOf(MiniMapLayer.prototype) !== Layer.prototype) {
       throw new Error("Minimap has a second core Layer class.");
     }
+  `,
+  devtools: `
+    const { DevToolsLayer, DEFAULT_DEVTOOLS_LAYER_PROPS } = await import("@gravity-ui/graph-devtools");
+    const { Layer } = await import("@gravity-ui/graph");
+    if (Object.getPrototypeOf(DevToolsLayer.prototype) !== Layer.prototype) {
+      throw new Error("DevTools has a second core Layer class.");
+    }
+    if (DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize !== 25) throw new Error("DevTools defaults are missing or changed.");
   `,
   playwright: `
     const playwright = await import("@gravity-ui/graph/playwright");
