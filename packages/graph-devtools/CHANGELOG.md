@@ -5,7 +5,7 @@
 
 ### Features
 
-* extract minimap into graph-minimap package ([#344](https://github.com/gravity-ui/graph/issues/344)) ([f472728](https://github.com/gravity-ui/graph/commit/f47272842f52fd8235bb7558add91fecc39856d0))
+* extract DevTools into graph-devtools package ([b6d97d8](https://github.com/gravity-ui/graph/commit/b6d97d8df6f77be16fc9c5d199597c3d509345ac))
 
 
 ### Miscellaneous Chores
@@ -45,5 +45,3 @@
 * The following workspace dependencies were updated
   * peerDependencies
     * @gravity-ui/graph bumped to 2.0.0-next.0
-
-## Changelog
