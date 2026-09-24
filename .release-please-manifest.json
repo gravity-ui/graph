@@ -1,7 +1,7 @@
 {
-  "packages/graph": "1.11.3",
-  "packages/scheduler": "0.0.0",
-  "packages/graph-react": "0.0.0",
-  "packages/graph-minimap": "0.0.0",
-  "packages/graph-devtools": "0.0.0"
+  "packages/graph": "2.0.0-next.0",
+  "packages/scheduler": "1.11.1",
+  "packages/graph-react": "1.0.0-next.0",
+  "packages/graph-minimap": "1.0.0-next.0",
+  "packages/graph-devtools": "1.0.0-next.0"
 }
