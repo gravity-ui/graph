@@ -2,6 +2,8 @@
 
 The package exposes Playwright page objects through a separate entry point. They let tests interact with canvas-rendered blocks and connections without depending on internal DOM structure.
 
+Install `@playwright/test` version 1.58.0 or later in your test project. The public page object types reference it, so it must be installed separately when using `@gravity-ui/graph/playwright`.
+
 ```bash
 npm install --save-dev @playwright/test
 ```
