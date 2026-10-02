@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.2](https://github.com/gravity-ui/graph/compare/v1.12.1...v1.12.2) (2026-10-02)
+
+
+### Bug Fixes
+
+* **playwright:** remove optional peer dependency ([#350](https://github.com/gravity-ui/graph/issues/350)) ([bebd638](https://github.com/gravity-ui/graph/commit/bebd63858fa4caf8b8b4b6c9f0118d9646f94146))
+
 ## [1.12.1](https://github.com/gravity-ui/graph/compare/v1.12.0...v1.12.1) (2026-09-23)
 
 
