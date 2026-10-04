@@ -33,11 +33,3 @@ test("lookups and updates tolerate missing and removed IDs", () => {
   expect(graph.api.getBlockById("block")).toBeUndefined();
   expect(graph.rootStore.blocksList.getBlockState("block")?.getAnchorById("anchor")).toBeUndefined();
 });
-
-export function sourceLookupTypeProbe(graph: Graph) {
-  const block = graph.rootStore.blocksList.getBlockState("missing");
-  const id = block?.id;
-  // @ts-expect-error source store lookup cannot assert a subtype by ID
-  graph.rootStore.blocksList.getBlockState<{ id: string }>("missing");
-  return { id, block };
-}

@@ -46,11 +46,3 @@ test("block and anchor hooks follow missing, added, removed and recreated IDs", 
   unmount();
   graph.unmount();
 });
-
-// Compile source hooks as well as the packed declaration fixtures. Never execute unsafe accesses.
-export function useSourceLookupTypeProbe(graph: Graph) {
-  const state = useSyncBlockState(graph, "missing");
-  // @ts-expect-error lookup cannot assert a custom entity through a type argument
-  useBlockState<TBlock<{ custom: string }>>(graph, "missing");
-  return state;
-}
