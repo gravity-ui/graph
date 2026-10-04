@@ -17,7 +17,6 @@ setLogger(logger);
 const baselineSha = "a".repeat(40);
 const releaseSha = "f".repeat(40);
 const graphPath = "packages/graph";
-const schedulerPath = "packages/scheduler";
 
 async function createRepository() {
   const workflow = parse(await readFile(path.join(workspaceRoot, ".github/workflows/release-v2.yml"), "utf8"));
@@ -29,7 +28,7 @@ async function createRepository() {
       [
         "release-please-config.json",
         ".release-please-manifest.json",
-        ...[graphPath, schedulerPath].flatMap((component) => [
+        ...[graphPath].flatMap((component) => [
           component + "/package.json",
           component + "/CHANGELOG.md",
         ]),
@@ -40,12 +39,11 @@ async function createRepository() {
   const config = JSON.parse(files.get("release-please-config.json"));
   config.packages = {
     [graphPath]: { ...config.packages[graphPath], "release-as": "2.0.0-next.0" },
-    [schedulerPath]: config.packages[schedulerPath],
   };
   files.set("release-please-config.json", JSON.stringify(config));
-  const previousManifest = { [graphPath]: "1.11.3", [schedulerPath]: "0.0.0" };
+  const previousManifest = { [graphPath]: "1.11.3" };
   files.set(".release-please-manifest.json", JSON.stringify(previousManifest));
-  for (const component of [graphPath, schedulerPath]) {
+  for (const component of [graphPath]) {
     const manifest = JSON.parse(files.get(component + "/package.json"));
     manifest.version = previousManifest[component];
     files.set(component + "/package.json", JSON.stringify(manifest));
@@ -55,8 +53,8 @@ async function createRepository() {
   const commits = [
     {
       sha: "b".repeat(40),
-      message: "feat: extract private scheduler",
-      files: [schedulerPath + "/src/Scheduler.ts", graphPath + "/src/lib/Scheduler.ts"],
+      message: "fix: correct scheduler handling",
+      files: [graphPath + "/src/lib/Scheduler/Scheduler.ts"],
     },
     { sha: baselineSha, message: "chore: release 1.11.3", files: [] },
   ];
@@ -185,7 +183,7 @@ async function createRepository() {
   };
 }
 
-test("the actual first Release Please PR passes the candidate validator", async () => {
+test("a scheduler source fix releases through Graph and appears in its changelog", async () => {
   const repo = await createRepository();
   await (await repo.manifest()).createPullRequests();
   const pr = repo.pullRequests[0];
@@ -206,26 +204,23 @@ test("the actual first Release Please PR passes the candidate validator", async 
     previousReleaseManifest: repo.previousManifest,
     currentReleaseManifest: JSON.parse(repo.releaseFiles.get(".release-please-manifest.json")),
     packageManifests: Object.fromEntries(
-      [graphPath, schedulerPath].map((component) => [
+      [graphPath].map((component) => [
         component,
         JSON.parse(repo.releaseFiles.get(component + "/package.json")),
       ])
     ),
     changelogs: Object.fromEntries(
-      [graphPath, schedulerPath].map((component) => [component, repo.releaseFiles.get(component + "/CHANGELOG.md")])
+      [graphPath].map((component) => [component, repo.releaseFiles.get(component + "/CHANGELOG.md")])
     ),
   });
-  assert.match(repo.releaseFiles.get(schedulerPath + "/CHANGELOG.md"), /^## 1\.0\.0 /m);
+  assert.match(repo.releaseFiles.get(graphPath + "/CHANGELOG.md"), /correct scheduler handling/);
   assert.deepEqual(
     result.releasePlan.map((item) => [item.name, item.version]),
     [["@gravity-ui/graph", "2.0.0-next.0"]]
   );
   assert.deepEqual(
     result.tagPlan.map((item) => [item.name, item.private]),
-    [
-      ["@gravity-ui/graph-scheduler", true],
-      ["@gravity-ui/graph", false],
-    ]
+    [["@gravity-ui/graph", false]]
   );
 });
 
@@ -251,7 +246,7 @@ test("an incomplete release blocks the next PR until the workflow completes its 
   pr.state = "MERGED";
   pr.labels.push("keep-this-label");
   for (const [file, content] of repo.releaseFiles) repo.files.set(file, content);
-  repo.tags.push({ name: "v2.0.0-next.0", sha: releaseSha }, { name: "scheduler-v1.0.0", sha: releaseSha });
+  repo.tags.push({ name: "v2.0.0-next.0", sha: releaseSha });
   const config = JSON.parse(repo.files.get("release-please-config.json"));
   delete config.packages[graphPath]["release-as"];
   repo.files.set("release-please-config.json", JSON.stringify(config));

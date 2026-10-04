@@ -15,8 +15,8 @@ const graphName = "@gravity-ui/graph";
 const graphPath = "packages/graph";
 const reactName = "@gravity-ui/graph-react";
 const reactPath = "packages/graph-react";
-const schedulerName = "@gravity-ui/graph-scheduler";
-const schedulerPath = "packages/scheduler";
+const helperName = "@gravity-ui/graph-internal-helper";
+const helperPath = "packages/internal-helper";
 const temporaryDirectories = [];
 
 afterEach(async () => {
@@ -31,8 +31,9 @@ async function createWorkspace({
   graphVersion = "2.0.0-next.0",
   graphConfigured = true,
   graphPackageName = graphName,
-  schedulerPrivate = true,
-  schedulerConfigured = true,
+  helperPrivate = true,
+  helperConfigured = true,
+  helperPresent = true,
   reactPublic = false,
   reactConfigured = reactPublic,
   reactVersion = "0.4.0-next.0",
@@ -43,7 +44,10 @@ async function createWorkspace({
   const workspaceRoot = await mkdtemp(path.join(tmpdir(), "graph-release-contract-"));
   temporaryDirectories.push(workspaceRoot);
 
-  const directories = [graphPath, schedulerPath, "apps/storybook", "apps/e2e"];
+  const directories = [graphPath, "apps/storybook", "apps/e2e"];
+  if (helperPresent) {
+    directories.push(helperPath);
+  }
   if (reactPublic) {
     directories.push(reactPath);
   }
@@ -54,11 +58,13 @@ async function createWorkspace({
     name: graphPackageName,
     version: graphVersion,
   });
-  await writeJson(path.join(workspaceRoot, schedulerPath, "package.json"), {
-    name: schedulerName,
-    version: "0.0.0",
-    private: schedulerPrivate,
-  });
+  if (helperPresent) {
+    await writeJson(path.join(workspaceRoot, helperPath, "package.json"), {
+      name: helperName,
+      version: "0.0.0",
+      private: helperPrivate,
+    });
+  }
   await writeJson(path.join(workspaceRoot, "apps/storybook/package.json"), { name: "storybook", private: true });
   await writeJson(path.join(workspaceRoot, "apps/e2e/package.json"), { name: "e2e", private: true });
   await writeFile(
@@ -82,8 +88,8 @@ async function createWorkspace({
   if (graphConfigured) {
     packages[graphPath] = { "package-name": graphName };
   }
-  if (schedulerConfigured) {
-    packages[schedulerPath] = { "package-name": schedulerName };
+  if (helperConfigured) {
+    packages[helperPath] = { "package-name": helperName };
   }
   if (reactConfigured) {
     packages[reactPath] = {
@@ -146,6 +152,13 @@ test("accepts the checked-in workspace release configuration", async () => {
   await assert.doesNotReject(validateWorkspaceReleaseConfiguration());
 });
 
+test("accepts Graph releases without a private scheduler workspace", async () => {
+  const workspaceRoot = await createWorkspace({ helperPresent: false, helperConfigured: false });
+  const result = await liveRelease(workspaceRoot);
+
+  assert.deepEqual(result.releasePlan, [graphReleaseItem()]);
+});
+
 test("accepts a changed-only plan when two public packages are configured", async () => {
   const workspaceRoot = await createWorkspace({ reactPublic: true });
   const result = await liveRelease(workspaceRoot);
@@ -202,23 +215,17 @@ test("rejects pnpm workspace aliases that Release Please cannot order", async ()
   );
 });
 
-test("does not permit a configured private scheduler in the release plan", async () => {
+test("does not permit any configured private workspace package in the release plan", async () => {
   const workspaceRoot = await createWorkspace();
-  const schedulerItem = {
-    name: schedulerName,
-    path: schedulerPath,
+  const helperItem = {
+    name: helperName,
+    path: helperPath,
     version: "0.0.0-next.0",
     npmTag: "next",
-    gitTag: "graph-scheduler-v0.0.0-next.0",
+    gitTag: "graph-internal-helper-v0.0.0-next.0",
   };
 
-  await assert.rejects(liveRelease(workspaceRoot, [schedulerItem]), /Private workspace package.*must not appear/);
-});
-
-test("fails closed if the scheduler accidentally becomes public", async () => {
-  const workspaceRoot = await createWorkspace({ schedulerPrivate: false });
-
-  await assert.rejects(liveRelease(workspaceRoot), /graph-scheduler.*must remain private/);
+  await assert.rejects(liveRelease(workspaceRoot, [helperItem]), /Private workspace package.*must not appear/);
 });
 
 test("requires future public packages to use numbered next prereleases on v2", async () => {

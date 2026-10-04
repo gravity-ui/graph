@@ -224,7 +224,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     }
   }
 
-  for (const dependencyField of ["dependencies", "optionalDependencies", "peerDependencies"]) {
+  for (const dependencyField of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
     assert.equal(
       manifest[dependencyField]?.[privateSchedulerPackage],
       undefined,

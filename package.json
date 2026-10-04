@@ -9,7 +9,7 @@
     "url": "https://github.com/gravity-ui/graph"
   },
   "scripts": {
-    "typecheck": "pnpm --filter @gravity-ui/graph-scheduler run typecheck && pnpm --filter @gravity-ui/graph run typecheck && pnpm --filter @gravity-ui/graph-react run typecheck && pnpm --filter @gravity-ui/graph-minimap run typecheck && pnpm --filter @gravity-ui/graph-devtools run typecheck && pnpm --filter @gravity-ui/graph-storybook run typecheck && pnpm --filter @gravity-ui/graph-e2e run typecheck",
+    "typecheck": "pnpm --filter @gravity-ui/graph run typecheck && pnpm --filter @gravity-ui/graph-react run typecheck && pnpm --filter @gravity-ui/graph-minimap run typecheck && pnpm --filter @gravity-ui/graph-devtools run typecheck && pnpm --filter @gravity-ui/graph-storybook run typecheck && pnpm --filter @gravity-ui/graph-e2e run typecheck",
     "typecheck:published-playwright-types": "pnpm --filter @gravity-ui/graph run typecheck:published-playwright-types",
     "lint": "pnpm --filter \"./packages/*\" run lint && pnpm --filter @gravity-ui/graph-storybook run lint",
     "test:unit": "pnpm --filter \"./packages/*\" run test:unit",

@@ -13,6 +13,18 @@ debounced("debounced");
 debounced.isScheduled();
 throttled("throttled");
 
+const structuralScheduler: Graph["scheduler"] = {
+  getSchedulers: () => [[], [], [], [], []],
+  addScheduler: (_scheduler) => () => undefined,
+  removeScheduler: (_scheduler) => undefined,
+  start: () => undefined,
+  stop: () => undefined,
+  destroy: () => undefined,
+  tick: () => undefined,
+  performUpdate: () => undefined,
+};
+
+void structuralScheduler;
 void Graph;
 void GraphCanvas;
 void useElk;

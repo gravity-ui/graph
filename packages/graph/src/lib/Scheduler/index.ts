@@ -1,11 +1,11 @@
-import {
-  GlobalScheduler as PrivateGlobalScheduler,
-  Scheduler as PrivateScheduler,
-  globalScheduler as privateGlobalScheduler,
-  scheduler as privateScheduler,
-} from "@gravity-ui/graph-scheduler";
+import type { Tree } from "../Tree";
 
-import { Tree } from "./Tree";
+import {
+  GlobalScheduler as RuntimeGlobalScheduler,
+  Scheduler as RuntimeScheduler,
+  globalScheduler as runtimeGlobalScheduler,
+  scheduler as runtimeScheduler,
+} from "./Scheduler";
 
 interface IScheduler {
   performUpdate: (time: number) => void;
@@ -19,6 +19,8 @@ export enum ESchedulerPriority {
   LOWEST = 4,
 }
 
+type TGlobalSchedulerConstructor = new () => GlobalScheduler;
+
 export interface GlobalScheduler {
   getSchedulers(): [IScheduler[], IScheduler[], IScheduler[], IScheduler[], IScheduler[]];
   addScheduler(scheduler: IScheduler, index?: ESchedulerPriority): () => void;
@@ -30,13 +32,10 @@ export interface GlobalScheduler {
   performUpdate(): void;
 }
 
-type TGlobalSchedulerConstructor = new () => GlobalScheduler;
-
-// The interface keeps declarations graph-owned while the constructor value delegates to the private package.
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const GlobalScheduler = PrivateGlobalScheduler as unknown as TGlobalSchedulerConstructor;
-export const globalScheduler = privateGlobalScheduler as unknown as GlobalScheduler;
-export const scheduler = privateScheduler as unknown as GlobalScheduler;
+export const GlobalScheduler = RuntimeGlobalScheduler as unknown as TGlobalSchedulerConstructor;
+export const globalScheduler = runtimeGlobalScheduler as unknown as GlobalScheduler;
+export const scheduler = runtimeScheduler as unknown as GlobalScheduler;
 
 export interface Scheduler {
   setRoot(root: Tree): void;
@@ -50,6 +49,8 @@ export interface Scheduler {
 
 type TSchedulerConstructor = new () => Scheduler;
 
-// The interface keeps declarations graph-owned while the constructor value delegates to the private package.
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const Scheduler = PrivateScheduler as unknown as TSchedulerConstructor;
+export const Scheduler = RuntimeScheduler as unknown as TSchedulerConstructor;
+export type { TSchedulerPriority } from "./Scheduler";
+export { debounce, schedule, throttle } from "./schedule";
+export type { TDebounceOptions, TScheduleOptions } from "./schedule";
