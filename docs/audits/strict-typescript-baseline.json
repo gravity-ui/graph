@@ -811,22 +811,8 @@
     {
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/plugins/cssVariables/CSSVariablesLayer.ts",
-      "code": 7006,
-      "message": "Parameter 'record' implicitly has an 'any' type.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/plugins/cssVariables/CSSVariablesLayer.ts",
-      "code": 7006,
-      "message": "Parameter 'records' implicitly has an 'any' type.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/plugins/cssVariables/CSSVariablesLayer.ts",
-      "code": 7016,
-      "message": "Could not find a declaration file for module 'style-observer'. '<repo>/node_modules/.pnpm/style-observer@0.1.1/node_modules/style-observer/index.js' implicitly has an 'any' type.\n  There are types at '<repo>/packages/graph/node_modules/style-observer/types/index.d.ts', but this result could not be resolved under your current 'moduleResolution' setting. Consider updating to 'node16', 'nodenext', or 'bundler'.",
+      "code": 2345,
+      "message": "Argument of type '{ targets: (HTMLDivElement | null)[]; properties: string[]; }' is not assignable to parameter of type 'string | string[] | StyleObserverOptions | undefined'.\n  Types of property 'targets' are incompatible.\n    Type '(HTMLDivElement | null)[]' is not assignable to type 'Element | Element[] | undefined'.\n      Type '(HTMLDivElement | null)[]' is not assignable to type 'Element[]'.\n        Type 'HTMLDivElement | null' is not assignable to type 'Element'.\n          Type 'null' is not assignable to type 'Element'.",
       "count": 1
     },
     {

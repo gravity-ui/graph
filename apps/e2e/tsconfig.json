@@ -1,8 +1,7 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
     "outDir": "./build/",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "module": "esnext",
     "target": "es2020",
     "noEmitOnError": false,
@@ -11,9 +10,24 @@
     "skipLibCheck": true,
     "noEmit": true,
     "resolveJsonModule": true,
-    "lib": ["es2020", "dom"],
-    "types": ["@playwright/test", "node"]
+    "lib": [
+      "es2020",
+      "dom",
+      "dom.iterable"
+    ],
+    "types": [
+      "@playwright/test",
+      "node"
+    ],
+    "strict": false,
+    "noUncheckedSideEffectImports": true
   },
-  "include": ["*.ts", "page-objects/**/*.ts"],
-  "exclude": ["node_modules", "tests"]
+  "include": [
+    "*.ts",
+    "page-objects/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "tests"
+  ]
 }

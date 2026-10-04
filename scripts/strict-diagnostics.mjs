@@ -161,7 +161,7 @@ async function main(args) {
   console.log("Scheduler: zero strict diagnostics (full projects checked).");
 }
 
-if (process.argv[1] && realpathSync(process.argv[1]) === script) {
+if (process.argv[1] && process.argv[1] !== "-" && realpathSync(process.argv[1]) === script) {
   main(process.argv.slice(2)).catch((error) => {
     console.error(error.message);
     process.exitCode = 1;

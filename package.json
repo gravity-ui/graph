@@ -29,7 +29,9 @@
     "test:package-contract": "node tests/package-contract/run.mjs",
     "e2e:dev": "pnpm --filter @gravity-ui/graph-e2e run e2e:dev",
     "typecheck:strict": "pnpm run build && node scripts/strict-diagnostics.mjs",
-    "test:strict-diagnostics": "node --test scripts/strict-diagnostics.test.mjs"
+    "test:strict-diagnostics": "node --test scripts/strict-diagnostics.test.mjs",
+    "typecheck:native-configs": "pnpm run build && node scripts/check-native-configs.mjs",
+    "test:type-configs": "node --test scripts/css-assets.test.mjs scripts/native-configs.test.mjs scripts/style-observer-types.test.mjs"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",

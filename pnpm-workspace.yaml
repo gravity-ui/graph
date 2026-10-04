@@ -1,3 +1,6 @@
 packages:
   - "packages/*"
   - "apps/*"
+  - "tools/*"
+patchedDependencies:
+  style-observer@0.1.1: patches/style-observer@0.1.1.patch
