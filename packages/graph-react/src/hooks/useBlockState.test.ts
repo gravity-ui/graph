@@ -18,7 +18,7 @@ const block: TBlock = {
 
 test("block and anchor hooks follow missing, added, removed and recreated IDs", () => {
   const graph = new Graph({});
-  const anchor = { id: "anchor", blockId: "block", type: "IN" };
+  const anchor = block.anchors[0];
   const { result, unmount } = renderHook(() => ({
     state: useBlockState(graph, "block"),
     sync: useSyncBlockState(graph, "block"),
@@ -31,15 +31,18 @@ test("block and anchor hooks follow missing, added, removed and recreated IDs", 
   act(() => graph.setEntities({ blocks: [block] }));
   expect(result.current.state?.id).toBe("block");
   expect(result.current.sync).toBe(result.current.state);
-  expect(result.current.anchor?.id).toBe("anchor");
+  expect(result.current.anchor?.asTAnchor()).toEqual(block.anchors[0]);
+  expect(result.current.state?.$anchors.value[0]).toEqual(block.anchors[0]);
   act(() => graph.api.updateBlock({ id: "block", anchors: [] }));
   expect(result.current.anchor).toBeUndefined();
+  expect(result.current.state?.$anchors.value).toEqual([]);
   act(() => graph.setEntities({ blocks: [] }));
   expect(result.current.state).toBeUndefined();
   expect(result.current.sync).toBeUndefined();
   expect(result.current.view).toBeUndefined();
   act(() => graph.setEntities({ blocks: [block] }));
-  expect(result.current.anchor?.id).toBe("anchor");
+  expect(result.current.anchor?.asTAnchor()).toEqual(block.anchors[0]);
+  expect(result.current.state?.$anchors.value[0]).toEqual(block.anchors[0]);
   unmount();
   graph.unmount();
 });
