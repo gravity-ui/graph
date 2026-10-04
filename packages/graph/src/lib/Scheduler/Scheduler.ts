@@ -1,6 +1,13 @@
-const rAF: Function =
-  typeof window !== "undefined" ? window.requestAnimationFrame : (fn) => globalThis.setTimeout(fn, 16);
-const cAF: Function = typeof window !== "undefined" ? window.cancelAnimationFrame : globalThis.clearTimeout;
+const rAF = (callback: () => void) =>
+  typeof window !== "undefined" ? window.requestAnimationFrame(callback) : globalThis.setTimeout(callback, 16);
+type TFrameHandle = ReturnType<typeof rAF>;
+const cAF = (handle: TFrameHandle) => {
+  if (typeof window !== "undefined" && typeof handle === "number") {
+    window.cancelAnimationFrame(handle);
+  } else {
+    globalThis.clearTimeout(handle);
+  }
+};
 const getNow =
   typeof window !== "undefined"
     ? window.performance.now.bind(window.performance)
@@ -26,7 +33,7 @@ const MEDIUM_PRIORITY: TSchedulerPriority = 2;
 
 export class GlobalScheduler {
   private schedulers: [IScheduler[], IScheduler[], IScheduler[], IScheduler[], IScheduler[]];
-  private _cAFID: number;
+  private _cAFID: TFrameHandle | undefined;
   private toRemove: Array<[IScheduler, TSchedulerPriority]> = [];
   private visibilityChangeHandler: (() => void) | null = null;
 
@@ -58,7 +65,7 @@ export class GlobalScheduler {
    */
   private handleVisibilityChange(): void {
     // Only update if page becomes visible and scheduler is running
-    if (!document.hidden && this._cAFID) {
+    if (!document.hidden && this._cAFID !== undefined) {
       // Perform immediate update when tab becomes visible
       this.performUpdate();
     }
@@ -88,13 +95,15 @@ export class GlobalScheduler {
   }
 
   public start() {
-    if (!this._cAFID) {
+    if (this._cAFID === undefined) {
       this._cAFID = rAF(this.tick);
     }
   }
 
   public stop() {
-    cAF(this._cAFID);
+    if (this._cAFID !== undefined) {
+      cAF(this._cAFID);
+    }
     this._cAFID = undefined;
   }
 
@@ -108,8 +117,10 @@ export class GlobalScheduler {
   }
 
   public tick() {
+    if (this._cAFID !== undefined) {
+      this._cAFID = rAF(this.tick);
+    }
     this.performUpdate();
-    this._cAFID = rAF(this.tick);
   }
 
   public performUpdate() {
@@ -140,14 +151,15 @@ export const globalScheduler = new GlobalScheduler();
 export const scheduler = globalScheduler;
 export class Scheduler {
   private sheduled: boolean;
-  private root: TSchedulerTree;
+  private root: TSchedulerTree | undefined;
+  private registration: IScheduler | undefined;
 
   constructor() {
     this.performUpdate = this.performUpdate.bind(this);
 
     this.sheduled = false;
 
-    globalScheduler.addScheduler(this);
+    this.start();
   }
 
   public setRoot(root: TSchedulerTree) {
@@ -155,11 +167,20 @@ export class Scheduler {
   }
 
   public start() {
-    globalScheduler.addScheduler(this);
+    if (this.registration) return;
+    const registration = {
+      performUpdate: () => {
+        if (this.registration === registration) this.performUpdate();
+      },
+    };
+    this.registration = registration;
+    globalScheduler.addScheduler(registration);
   }
 
   public stop() {
-    globalScheduler.removeScheduler(this);
+    if (!this.registration) return;
+    globalScheduler.removeScheduler(this.registration);
+    this.registration = undefined;
   }
 
   public update() {

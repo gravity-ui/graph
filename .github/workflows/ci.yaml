@@ -24,6 +24,10 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Lint Files
         run: pnpm run lint
+      - name: Strict diagnostic gate tests
+        run: pnpm run test:strict-diagnostics
+      - name: Strict diagnostic debt gate
+        run: pnpm run typecheck:strict
       - name: Typecheck
         run: pnpm run typecheck
 

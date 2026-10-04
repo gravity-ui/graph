@@ -22,8 +22,8 @@ describe("useSchedulerDebounce hook", () => {
   /**
    * Advance animation frames. By default, each frame is 16ms (~60fps).
    * Jest fake timers automatically sync performance.now() with timer advancement.
-   * We manually trigger scheduler.performUpdate() because our Scheduler
-   * uses a custom rAF implementation.
+   * Scheduler resolves requestAnimationFrame at call time, so Jest advances
+   * the real scheduling loop once per simulated frame.
    * @param count - Number of frames to advance
    * @param timePerFrame - Time per frame in milliseconds (default: 16ms)
    */
@@ -31,8 +31,6 @@ describe("useSchedulerDebounce hook", () => {
     for (let i = 0; i < count; i++) {
       // Advance Jest timers - this also advances performance.now() automatically
       jest.advanceTimersByTime(timePerFrame);
-      // Manually trigger scheduler update (our Scheduler uses custom rAF)
-      scheduler.performUpdate();
     }
   };
 
@@ -531,8 +529,8 @@ describe("useSchedulerThrottle hook", () => {
   /**
    * Advance animation frames. By default, each frame is 16ms (~60fps).
    * Jest fake timers automatically sync performance.now() with timer advancement.
-   * We manually trigger scheduler.performUpdate() because our Scheduler
-   * uses a custom rAF implementation.
+   * Scheduler resolves requestAnimationFrame at call time, so Jest advances
+   * the real scheduling loop once per simulated frame.
    * @param count - Number of frames to advance
    * @param timePerFrame - Time per frame in milliseconds (default: 16ms)
    */
@@ -540,8 +538,6 @@ describe("useSchedulerThrottle hook", () => {
     for (let i = 0; i < count; i++) {
       // Advance Jest timers - this also advances performance.now() automatically
       jest.advanceTimersByTime(timePerFrame);
-      // Manually trigger scheduler update (our Scheduler uses custom rAF)
-      scheduler.performUpdate();
     }
   };
 

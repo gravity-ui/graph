@@ -27,7 +27,9 @@
     "test:e2e:debug": "pnpm --filter @gravity-ui/graph-e2e run test:e2e:debug",
     "test:e2e:ci": "pnpm --filter @gravity-ui/graph-e2e run test:e2e:ci",
     "test:package-contract": "node tests/package-contract/run.mjs",
-    "e2e:dev": "pnpm --filter @gravity-ui/graph-e2e run e2e:dev"
+    "e2e:dev": "pnpm --filter @gravity-ui/graph-e2e run e2e:dev",
+    "typecheck:strict": "pnpm run build && node scripts/strict-diagnostics.mjs",
+    "test:strict-diagnostics": "node --test scripts/strict-diagnostics.test.mjs"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
@@ -42,7 +44,7 @@
     "prettier": "^3.0.0",
     "publint": "^0.3.23",
     "release-please": "17.6.0",
-    "typescript": "^5.9.2",
+    "typescript": "5.9.2",
     "yaml": "2.8.1"
   }
 }

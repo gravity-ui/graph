@@ -247,3 +247,9 @@ are now owned by the separate stylesheet; core styles only supply the base layer
 props, camera behavior, and lifecycle, and can still be used with `useLayer` or `GraphLayer` from `@gravity-ui/graph-react`.
 Core no longer contains DevTools code or declarations. The shared text measurement helper is available as
 `measureText(text, font, approximate?)` from `@gravity-ui/graph`; the ruler tick calculation belongs to DevTools.
+
+### Scheduler lifecycle
+
+Scheduler remains exported by graph. Its public facade is checked against the runtime implementation without type assertions; method signatures are unchanged. `GlobalScheduler.start()` and `stop()` are idempotent, and stopping inside an update prevents the next frame from being queued. Frame ID zero is treated as a valid pending frame, and the Node fallback cancels its timeout handle correctly.
+
+`Scheduler.start()` keeps one active registration. Each restart uses a distinct registration, so a deferred removal cannot cancel the restarted Scheduler. `Scheduler.stop()` immediately disables its updates; removal from the global list completes after the current update. Constructor registration remains enabled. The global scheduler still supports multiple independent registrations, including scheduling wrappers. Calling `update()` before `setRoot()` is a no-op; a scheduled update performed before root initialization is consumed, so schedule again after setting the root.

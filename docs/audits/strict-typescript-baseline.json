@@ -1,0 +1,2520 @@
+{
+  "schemaVersion": 1,
+  "compiler": "5.9.2",
+  "projects": [
+    "packages/graph/tsconfig.json",
+    "packages/graph-react/tsconfig.json",
+    "packages/graph-minimap/tsconfig.json",
+    "packages/graph-devtools/tsconfig.json",
+    "apps/storybook/tsconfig.json",
+    "apps/e2e/tsconfig.json"
+  ],
+  "diagnostics": [
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/api/PublicGraphApi.ts",
+      "code": 18048,
+      "message": "'connectionStore' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/anchors/index.ts",
+      "code": 2322,
+      "message": "Type 'AnchorState | undefined' is not assignable to type 'AnchorState'.\n  Type 'undefined' is not assignable to type 'AnchorState'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/anchors/index.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/anchors/index.ts",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
+      "code": 2322,
+      "message": "Type 'BlockState<T> | undefined' is not assignable to type 'BlockState<T>'.\n  Type 'undefined' is not assignable to type 'BlockState<T>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
+      "count": 3
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
+      "code": 2345,
+      "message": "Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type 'TEventedComponentListener'.\n  Type '(event: MouseEvent) => void' is not assignable to type '(e: Event) => void'.\n    Types of parameters 'event' and 'e' are incompatible.\n      Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
+      "code": 2345,
+      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 7
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
+      "code": 2564,
+      "message": "Property 'connectedState' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
+      "code": 2564,
+      "message": "Property 'raised' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
+      "code": 2564,
+      "message": "Property 'shouldRenderHtml' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
+      "code": 2564,
+      "message": "Property 'shouldRenderText' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
+      "code": 7053,
+      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'BlockViewState'.\n  No index signature with a parameter of type 'string' was found on type 'BlockViewState'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/blocks/Blocks.ts",
+      "code": 2322,
+      "message": "Type 'number | boolean | typeof Component | TResolveWheelIntent | ECanDrag | \"vertical\" | \"horizontal\" | { new (props: TConnectionProps, parent: BlockConnections): BlockConnection<...>; prototype: BlockConnection<...>; create<Props extends CoreComponentProps, Context extends CoreComponentContext>(this: Constructor<...>, p...' is not assignable to type '{}'.\n  Type 'undefined' is not assignable to type '{}'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/blocks/Blocks.ts",
+      "code": 2564,
+      "message": "Property 'font' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/blocks/Blocks.ts",
+      "code": 7006,
+      "message": "Parameter 'scaleFontSize' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/blocks/Blocks.ts",
+      "code": 7053,
+      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.\n  No index signature with a parameter of type 'string' was found on type '{}'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/BaseConnection.ts",
+      "code": 2345,
+      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/BaseConnection.ts",
+      "code": 2564,
+      "message": "Property 'bBox' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.tsx",
+      "code": 18048,
+      "message": "'bucket' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.tsx",
+      "code": 18048,
+      "message": "'group' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.tsx",
+      "code": 18048,
+      "message": "'index' is possibly 'undefined'.",
+      "count": 3
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.tsx",
+      "code": 18048,
+      "message": "'params' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.tsx",
+      "code": 18048,
+      "message": "'prev' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.tsx",
+      "code": 2345,
+      "message": "Argument of type 'Path2DGroup' is not assignable to parameter of type 'never'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/BlockConnection.ts",
+      "code": 7006,
+      "message": "Parameter 'cmp' implicitly has an 'any' type.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/BlockConnections.ts",
+      "code": 2322,
+      "message": "Type 'TConnectionId | undefined' is not assignable to type 'TConnectionId'.\n  Type 'undefined' is not assignable to type 'TConnectionId'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/BlockConnections.ts",
+      "code": 2339,
+      "message": "Property 'render' does not exist on type 'never'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/MultipointConnection.ts",
+      "code": 18048,
+      "message": "'height' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/MultipointConnection.ts",
+      "code": 18048,
+      "message": "'width' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/MultipointConnection.ts",
+      "code": 18048,
+      "message": "'x' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/MultipointConnection.ts",
+      "code": 18048,
+      "message": "'y' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/MultipointConnection.ts",
+      "code": 2322,
+      "message": "Type 'number | undefined' is not assignable to type 'number'.\n  Type 'undefined' is not assignable to type 'number'.",
+      "count": 4
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/MultipointConnection.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
+      "count": 7
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/MultipointConnection.ts",
+      "code": 2322,
+      "message": "Type 'undefined' is not assignable to type 'Path2D'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/MultipointConnection.ts",
+      "code": 2345,
+      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/connections/MultipointConnection.ts",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 8
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/EventedComponent/EventedComponent.ts",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 3
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/GraphComponent/GraphComponent.test.ts",
+      "code": 2345,
+      "message": "Argument of type 'undefined' is not assignable to parameter of type 'CoreComponent<CoreComponentProps, CoreComponentContext>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/GraphComponent/index.tsx",
+      "code": 2322,
+      "message": "Type 'PortState<unknown> | undefined' is not assignable to type 'PortState<unknown>'.\n  Type 'undefined' is not assignable to type 'PortState<unknown>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/GraphComponent/index.tsx",
+      "code": 2322,
+      "message": "Type 'undefined' is not assignable to type '[number, number]'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/GraphComponent/index.tsx",
+      "code": 2345,
+      "message": "Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type 'TEventedComponentListener'.\n  Type '(event: MouseEvent) => void' is not assignable to type '(e: Event) => void'.\n    Types of parameters 'event' and 'e' are incompatible.\n      Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/GraphComponent/index.tsx",
+      "code": 2345,
+      "message": "Argument of type 'boolean | undefined' is not assignable to parameter of type 'boolean'.\n  Type 'undefined' is not assignable to type 'boolean'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/GraphComponent/index.tsx",
+      "code": 2769,
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(type: K, listener: (this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n      Type 'EventListenerObject' is not assignable to type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n        Type 'EventListenerObject' provides no match for the signature '(this: HTMLDivElement, ev: HTMLElementEventMap[K]): any'.\n  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.\n      Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListenerOrEventListenerObject'.\n        Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListener'.\n          Types of parameters 'ev' and 'evt' are incompatible.\n            Type 'Event' is not assignable to type 'HTMLElementEventMap[K]'.\n              Type 'Event' is not assignable to type 'Event & UIEvent & AnimationEvent & PointerEvent & InputEvent & ToggleEvent & FocusEvent & ... 12 more ... & WheelEvent'.\n                Type 'Event' is missing the following properties from type 'UIEvent': detail, view, which, initUIEvent",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/GraphComponent/index.tsx",
+      "code": 2769,
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(type: K, listener: (this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n      Type 'EventListenerObject' is not assignable to type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n        Type 'EventListenerObject' provides no match for the signature '(this: HTMLDivElement, ev: HTMLElementEventMap[K]): any'.\n  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.\n      Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListenerOrEventListenerObject'.\n        Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListener'.\n          Types of parameters 'ev' and 'evt' are incompatible.\n            Type 'Event' is not assignable to type 'HTMLElementEventMap[K]'.\n              Type 'Event' is not assignable to type 'Event & UIEvent & AnimationEvent & PointerEvent & InputEvent & ToggleEvent & FocusEvent & ... 12 more ... & WheelEvent'.\n                Type 'Event' is missing the following properties from type 'UIEvent': detail, view, which, initUIEvent",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/groups/BlockGroups.ts",
+      "code": 2322,
+      "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D | undefined'.\n  Type 'null' is not assignable to type 'CanvasRenderingContext2D | undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/groups/BlockGroups.ts",
+      "code": 7053,
+      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.\n  No index signature with a parameter of type 'string' was found on type '{}'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/groups/Group.ts",
+      "code": 2322,
+      "message": "Type 'GroupState<T> | undefined' is not assignable to type 'GroupState<T>'.\n  Type 'undefined' is not assignable to type 'GroupState<T>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/groups/Group.ts",
+      "code": 2345,
+      "message": "Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type 'TEventedComponentListener'.\n  Type '(event: MouseEvent) => void' is not assignable to type '(e: Event) => void'.\n    Types of parameters 'event' and 'e' are incompatible.\n      Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/belowLayer/Background.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
+      "count": 3
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/belowLayer/Background.ts",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 3
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/belowLayer/PointerGrid.ts",
+      "code": 2322,
+      "message": "Type 'CanvasPattern | null' is not assignable to type 'CanvasPattern'.\n  Type 'null' is not assignable to type 'CanvasPattern'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/belowLayer/PointerGrid.ts",
+      "code": 2322,
+      "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D'.\n  Type 'null' is not assignable to type 'CanvasRenderingContext2D'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/belowLayer/PointerGrid.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/belowLayer/PointerGrid.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/belowLayer/PointerGrid.ts",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 4
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/belowLayer/PointerGrid.ts",
+      "code": 2564,
+      "message": "Property 'activePattern' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/belowLayer/PointerGrid.ts",
+      "code": 2564,
+      "message": "Property 'pattern' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/connectionLayer/ConnectionLayer.ts",
+      "code": 2322,
+      "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D | undefined'.\n  Type 'null' is not assignable to type 'CanvasRenderingContext2D | undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/connectionLayer/ConnectionLayer.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/connectionLayer/ConnectionLayer.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/connectionLayer/ConnectionLayer.ts",
+      "code": 2531,
+      "message": "Object is possibly 'null'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/connectionLayer/ConnectionLayer.ts",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 4
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/graphLayer/GraphLayer.ts",
+      "code": 2322,
+      "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D | undefined'.\n  Type 'null' is not assignable to type 'CanvasRenderingContext2D | undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/graphLayer/GraphLayer.ts",
+      "code": 2564,
+      "message": "Property 'prevTargetComponent' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/graphLayer/GraphLayer.ts",
+      "code": 2564,
+      "message": "Property 'targetComponent' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
+      "code": 18048,
+      "message": "'item.block' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
+      "code": 18048,
+      "message": "'sourceId' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
+      "code": 18048,
+      "message": "'targetId' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
+      "code": 2322,
+      "message": "Type '(Block<TBlock<{}>, TBlockProps> | undefined)[]' is not assignable to type 'Block<TBlock<{}>, TBlockProps>[]'.\n  Type 'Block<TBlock<{}>, TBlockProps> | undefined' is not assignable to type 'Block<TBlock<{}>, TBlockProps>'.\n    Type 'undefined' is not assignable to type 'Block<TBlock<{}>, TBlockProps>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
+      "code": 2322,
+      "message": "Type '{ block: Block<TBlock<{}>, TBlockProps> | undefined; coord: { x: number; y: number; }; }[]' is not assignable to type '{ block: Block<TBlock<{}>, TBlockProps>; coord: TPoint; }[]'.\n  Type '{ block: Block<TBlock<{}>, TBlockProps> | undefined; coord: { x: number; y: number; }; }' is not assignable to type '{ block: Block<TBlock<{}>, TBlockProps>; coord: TPoint; }'.\n    Types of property 'block' are incompatible.\n      Type 'Block<TBlock<{}>, TBlockProps> | undefined' is not assignable to type 'Block<TBlock<{}>, TBlockProps>'.\n        Type 'undefined' is not assignable to type 'Block<TBlock<{}>, TBlockProps>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
+      "code": 2322,
+      "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D | undefined'.\n  Type 'null' is not assignable to type 'CanvasRenderingContext2D | undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
+      "code": 2322,
+      "message": "Type 'null' is not assignable to type 'TPoint'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
+      "code": 2322,
+      "message": "Type 'undefined' is not assignable to type 'number'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
+      "code": 2345,
+      "message": "Argument of type 'Block<TBlock<{}>, TBlockProps> | undefined' is not assignable to parameter of type 'Block<TBlock<{}>, TBlockProps>'.\n  Type 'undefined' is not assignable to type 'Block<TBlock<{}>, TBlockProps>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
+      "code": 2564,
+      "message": "Property 'initialPoint' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
+      "code": 2564,
+      "message": "Property 'lastMouseX' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
+      "code": 2564,
+      "message": "Property 'lastMouseY' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
+      "code": 2722,
+      "message": "Cannot invoke an object which is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/portConnectionLayer/PortConnectionLayer.ts",
+      "code": 2322,
+      "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D | undefined'.\n  Type 'null' is not assignable to type 'CanvasRenderingContext2D | undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/portConnectionLayer/PortConnectionLayer.ts",
+      "code": 2322,
+      "message": "Type 'PortState<unknown> | undefined' is not assignable to type 'PortState<unknown>'.\n  Type 'undefined' is not assignable to type 'PortState<unknown>'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/portConnectionLayer/PortConnectionLayer.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/portConnectionLayer/PortConnectionLayer.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/portConnectionLayer/PortConnectionLayer.ts",
+      "code": 2322,
+      "message": "Type 'TBlockId | undefined' is not assignable to type 'TBlockId'.\n  Type 'undefined' is not assignable to type 'TBlockId'.",
+      "count": 6
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/portConnectionLayer/PortConnectionLayer.ts",
+      "code": 2345,
+      "message": "Argument of type 'PortState<unknown> | undefined' is not assignable to parameter of type 'PortState<unknown>'.\n  Type 'undefined' is not assignable to type 'PortState<unknown>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/portConnectionLayer/PortConnectionLayer.ts",
+      "code": 2531,
+      "message": "Object is possibly 'null'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/portConnectionLayer/PortConnectionLayer.ts",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/portConnectionLayer/PortConnectionLayer.ts",
+      "code": 7053,
+      "message": "Element implicitly has an 'any' type because expression of type 'unique symbol' can't be used to index type '{}'.\n  Property '[\"./PortConnectionLayer\".PortConnectionLayer.PortMetaKey]' does not exist on type '{}'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/selectionLayer/SelectionLayer.ts",
+      "code": 2322,
+      "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D | undefined'.\n  Type 'null' is not assignable to type 'CanvasRenderingContext2D | undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/selectionLayer/SelectionLayer.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/components/canvas/layers/selectionLayer/SelectionLayer.ts",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/graph.test.ts",
+      "code": 18048,
+      "message": "'exportedConfig.blocks' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/graph.ts",
+      "code": 18048,
+      "message": "'filter' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/graph.ts",
+      "code": 2322,
+      "message": "Type 'HTMLDivElement | undefined' is not assignable to type 'HTMLDivElement'.\n  Type 'undefined' is not assignable to type 'HTMLDivElement'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/graph.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/graph.ts",
+      "code": 2345,
+      "message": "Argument of type '((event: GraphMouseEvent<Event>) => void) | ((event: GraphMouseEvent<Event>) => void) | ((event: GraphMouseEvent<Event>) => void) | ... 26 more ... | ((event: CustomEvent<...>) => void)' is not assignable to parameter of type 'EventListenerOrEventListenerObject | null'.\n  Type '(event: GraphMouseEvent<Event>) => void' is not assignable to type 'EventListenerOrEventListenerObject | null'.\n    Type '(event: GraphMouseEvent<Event>) => void' is not assignable to type 'EventListener'.\n      Types of parameters 'event' and 'evt' are incompatible.\n        Type 'Event' is missing the following properties from type 'CustomEvent<{ target?: EventedComponent<TEventedComponentProps, TComponentState, CoreComponentContext> | undefined; sourceEvent: Event; pointerPressed?: boolean | undefined; }>': detail, initCustomEvent",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/graph.ts",
+      "code": 2345,
+      "message": "Argument of type '(event: IRect) => void' is not assignable to parameter of type '(...args: unknown[]) => void'.\n  Types of parameters 'event' and 'args' are incompatible.\n    Type 'unknown' is not assignable to type 'IRect'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/graph.ts",
+      "code": 2564,
+      "message": "Property 'config' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/graphConfig.ts",
+      "code": 2322,
+      "message": "Type 'typeof Block' is not assignable to type 'GraphComponentConstructor'.\n  Types of construct signatures are incompatible.\n    Type 'new <T extends TBlock = TBlock<{}>, Props extends TBlockProps = TBlockProps>(props: Props, parent: Component<CoreComponentProps, TComponentState, CoreComponentContext>) => Block<...>' is not assignable to type 'new (...args: unknown[]) => GraphComponent<TGraphComponentProps, TComponentState, GraphComponentContext>'.\n      Types of parameters 'props' and 'args' are incompatible.\n        Type 'unknown' is not assignable to type 'TBlockProps'.\n          Type 'unknown' is not assignable to type 'CoreComponentProps'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/lib/CoreComponent.ts",
+      "code": 2339,
+      "message": "Property '__comp' does not exist on type 'never'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/lib/CoreComponent.ts",
+      "code": 2345,
+      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'never'.\n  Type 'undefined' is not assignable to type 'never'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/lib/CoreComponent.ts",
+      "code": 2538,
+      "message": "Type 'undefined' cannot be used as an index type.",
+      "count": 8
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/lib/CoreComponent.ts",
+      "code": 7006,
+      "message": "Parameter 'instance' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/lib/CoreComponent.ts",
+      "code": 7053,
+      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.\n  No index signature with a parameter of type 'string' was found on type '{}'.",
+      "count": 8
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/lib/Tree.ts",
+      "code": 2322,
+      "message": "Type 'Tree<ITree> | undefined' is not assignable to type 'Tree<ITree>'.\n  Type 'undefined' is not assignable to type 'Tree<ITree>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/lib/Tree.ts",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/lib/Tree.ts",
+      "code": 7053,
+      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'Tree<T>'.\n  No index signature with a parameter of type 'string' was found on type 'Tree<T>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/lib/utils.ts",
+      "code": 2322,
+      "message": "Type 'undefined' is not assignable to type 'T'.\n  'T' could be instantiated with an arbitrary type which could be unrelated to 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/lib/utils.ts",
+      "code": 7053,
+      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'Object'.\n  No index signature with a parameter of type 'string' was found on type 'Object'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/playwright/GraphPO.ts",
+      "code": 18048,
+      "message": "'graph.layers.$root' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/playwright/GraphPO.ts",
+      "code": 2345,
+      "message": "Argument of type 'HTMLDivElement | undefined' is not assignable to parameter of type 'Element'.\n  Type 'undefined' is not assignable to type 'Element'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/plugins/cssVariables/CSSVariablesLayer.ts",
+      "code": 7006,
+      "message": "Parameter 'record' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/plugins/cssVariables/CSSVariablesLayer.ts",
+      "code": 7006,
+      "message": "Parameter 'records' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/plugins/cssVariables/CSSVariablesLayer.ts",
+      "code": 7016,
+      "message": "Could not find a declaration file for module 'style-observer'. '<repo>/node_modules/.pnpm/style-observer@0.1.1/node_modules/style-observer/index.js' implicitly has an 'any' type.\n  There are types at '<repo>/packages/graph/node_modules/style-observer/types/index.d.ts', but this result could not be resolved under your current 'moduleResolution' setting. Consider updating to 'node16', 'nodenext', or 'bundler'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/camera/Camera.ts",
+      "code": 2345,
+      "message": "Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type '(...args: unknown[]) => void'.\n  Types of parameters 'event' and 'args' are incompatible.\n    Type 'unknown' is not assignable to type 'MouseEvent'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/camera/CameraService.ts",
+      "code": 18048,
+      "message": "'newState.height' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/camera/CameraService.ts",
+      "code": 18048,
+      "message": "'newState.width' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/drag/DragService.ts",
+      "code": 2345,
+      "message": "Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type '(...args: unknown[]) => void'.\n  Types of parameters 'event' and 'args' are incompatible.\n    Type 'unknown' is not assignable to type 'MouseEvent'.",
+      "count": 6
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/HitTest.ts",
+      "code": 18048,
+      "message": "'point.origPoint.x' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/HitTest.ts",
+      "code": 18048,
+      "message": "'point.origPoint.y' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/HitTest.ts",
+      "code": 2564,
+      "message": "Property 'maxX' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/HitTest.ts",
+      "code": 2564,
+      "message": "Property 'maxY' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/HitTest.ts",
+      "code": 2564,
+      "message": "Property 'minX' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/HitTest.ts",
+      "code": 2564,
+      "message": "Property 'minY' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/HitTest.ts",
+      "code": 2564,
+      "message": "Property 'x' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/HitTest.ts",
+      "code": 2564,
+      "message": "Property 'y' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/KeyboardService/index.ts",
+      "code": 2345,
+      "message": "Argument of type '(event: CustomEvent<KeyboardEvent>) => void' is not assignable to parameter of type 'EventListenerOrEventListenerObject | null'.\n  Type '(event: CustomEvent<KeyboardEvent>) => void' is not assignable to type 'EventListener'.\n    Types of parameters 'event' and 'evt' are incompatible.\n      Type 'Event' is missing the following properties from type 'CustomEvent<KeyboardEvent>': detail, initCustomEvent",
+      "count": 4
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/Layer.ts",
+      "code": 18047,
+      "message": "'context' is possibly 'null'.",
+      "count": 3
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/Layer.ts",
+      "code": 18048,
+      "message": "'params' is possibly 'undefined'.",
+      "count": 10
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/Layer.ts",
+      "code": 2322,
+      "message": "Type 'boolean | undefined' is not assignable to type 'boolean'.\n  Type 'undefined' is not assignable to type 'boolean'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/Layer.ts",
+      "code": 2322,
+      "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'Context[\"ctx\"] | undefined'.\n  Type 'null' is not assignable to type 'Context[\"ctx\"] | undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/Layer.ts",
+      "code": 2345,
+      "message": "Argument of type 'CoreComponent<CoreComponentProps, CoreComponentContext> | undefined' is not assignable to parameter of type 'CoreComponent<CoreComponentProps, CoreComponentContext>'.\n  Type 'undefined' is not assignable to type 'CoreComponent<CoreComponentProps, CoreComponentContext>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/Layer.ts",
+      "code": 2564,
+      "message": "Property 'canvas' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/Layer.ts",
+      "code": 2564,
+      "message": "Property 'html' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/Layer.ts",
+      "code": 2769,
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(type: K, listener: (this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type '(this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => any'.\n      Type 'EventListenerObject' is not assignable to type '(this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => any'.\n        Type 'EventListenerObject' provides no match for the signature '(this: HTMLCanvasElement, ev: HTMLElementEventMap[K]): any'.\n  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.\n      Type '(this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListenerOrEventListenerObject'.\n        Type '(this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListener'.\n          Types of parameters 'ev' and 'evt' are incompatible.\n            Type 'Event' is not assignable to type 'HTMLElementEventMap[K]'.\n              Type 'Event' is not assignable to type 'Event & UIEvent & AnimationEvent & PointerEvent & InputEvent & ToggleEvent & FocusEvent & ... 12 more ... & WheelEvent'.\n                Type 'Event' is missing the following properties from type 'UIEvent': detail, view, which, initUIEvent",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/Layer.ts",
+      "code": 2769,
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(type: K, listener: (this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n      Type 'EventListenerObject' is not assignable to type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n        Type 'EventListenerObject' provides no match for the signature '(this: HTMLDivElement, ev: HTMLElementEventMap[K]): any'.\n  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.\n      Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListenerOrEventListenerObject'.\n        Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListener'.\n          Types of parameters 'ev' and 'evt' are incompatible.\n            Type 'Event' is not assignable to type 'HTMLElementEventMap[K]'.\n              Type 'Event' is not assignable to type 'Event & UIEvent & AnimationEvent & PointerEvent & InputEvent & ToggleEvent & FocusEvent & ... 12 more ... & WheelEvent'.\n                Type 'Event' is missing the following properties from type 'UIEvent': detail, view, which, initUIEvent",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/Layer.ts",
+      "code": 2769,
+      "message": "No overload matches this call.\n  Overload 1 of 2, '(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => any'.\n      Type 'EventListenerObject' is not assignable to type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => any'.\n        Type 'EventListenerObject' provides no match for the signature '(this: HTMLElement, ev: HTMLElementEventMap[K]): any'.\n  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.\n      Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListenerOrEventListenerObject'.\n        Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListener'.\n          Types of parameters 'ev' and 'evt' are incompatible.\n            Type 'Event' is not assignable to type 'HTMLElementEventMap[K]'.\n              Type 'Event' is not assignable to type 'Event & UIEvent & AnimationEvent & PointerEvent & InputEvent & ToggleEvent & FocusEvent & ... 12 more ... & WheelEvent'.\n                Type 'Event' is missing the following properties from type 'UIEvent': detail, view, which, initUIEvent",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/LayersService.ts",
+      "code": 2322,
+      "message": "Type 'HTMLDivElement | undefined' is not assignable to type 'HTMLDivElement'.\n  Type 'undefined' is not assignable to type 'HTMLDivElement'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/LayersService.ts",
+      "code": 2345,
+      "message": "Argument of type 'HTMLDivElement | undefined' is not assignable to parameter of type 'HTMLElement'.\n  Type 'undefined' is not assignable to type 'HTMLElement'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/optimizations/fpsManager.ts",
+      "code": 7005,
+      "message": "Variable 'times' implicitly has an 'any[]' type.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/optimizations/fpsManager.ts",
+      "code": 7034,
+      "message": "Variable 'times' implicitly has type 'any[]' in some locations where its type cannot be determined.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/optimizations/frameDebouncer.ts",
+      "code": 18048,
+      "message": "'bindedFn' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/optimizations/frameDebouncer.ts",
+      "code": 18048,
+      "message": "'options.delay' is possibly 'undefined'.",
+      "count": 3
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/optimizations/frameDebouncer.ts",
+      "code": 18048,
+      "message": "'options.frameTime' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/optimizations/frameDebouncer.ts",
+      "code": 2345,
+      "message": "Argument of type 'BindedFunction | undefined' is not assignable to parameter of type '(...args: unknown[]) => unknown'.\n  Type 'undefined' is not assignable to type '(...args: unknown[]) => unknown'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/selection/BaseSelectionBucket.ts",
+      "code": 2322,
+      "message": "Type 'undefined' is not assignable to type 'SelectionService'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/selection/BaseSelectionBucket.ts",
+      "code": 2345,
+      "message": "Argument of type 'this' is not assignable to parameter of type 'ISelectionBucket<TSelectionEntityId, TSelectionEntity>'.\n  Type 'BaseSelectionBucket<IDType, TEntity>' is not assignable to type 'ISelectionBucket<TSelectionEntityId, TSelectionEntity>'.\n    Types of property 'onSelectionChange' are incompatible.\n      Type '(payload: TSelectionDiff<IDType>, defaultAction: (rewritenIds?: Set<IDType> | undefined) => void) => boolean | void' is not assignable to type '(payload: TSelectionDiff<TSelectionEntityId>, defaultAction: (rewritenIds?: Set<TSelectionEntityId> | undefined) => void) => boolean | void'.\n        Types of parameters 'payload' and 'payload' are incompatible.\n          Type 'TSelectionDiff<TSelectionEntityId>' is not assignable to type 'TSelectionDiff<IDType>'.\n            Type 'TSelectionEntityId' is not assignable to type 'IDType'.\n              'TSelectionEntityId' is assignable to the constraint of type 'IDType', but 'IDType' could be instantiated with a different subtype of constraint 'TSelectionEntityId'.\n                Type 'string' is not assignable to type 'IDType'.\n                  'string' is assignable to the constraint of type 'IDType', but 'IDType' could be instantiated with a different subtype of constraint 'TSelectionEntityId'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/selection/BaseSelectionBucket.ts",
+      "code": 2564,
+      "message": "Property 'manager' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/selection/MultipleSelectionBucket.test.ts",
+      "code": 2322,
+      "message": "Type 'null' is not assignable to type 'string'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/selection/MultipleSelectionBucket.test.ts",
+      "code": 2322,
+      "message": "Type 'undefined' is not assignable to type 'string'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/selection/SelectionService.test.ts",
+      "code": 2345,
+      "message": "Argument of type 'BaseSelectionBucket<string, TSelectionEntity>' is not assignable to parameter of type 'ISelectionBucket<TSelectionEntityId, TSelectionEntity>'.\n  Types of property 'onSelectionChange' are incompatible.\n    Type '(payload: TSelectionDiff<string>, defaultAction: (rewritenIds?: Set<string> | undefined) => void) => boolean | void' is not assignable to type '(payload: TSelectionDiff<TSelectionEntityId>, defaultAction: (rewritenIds?: Set<TSelectionEntityId> | undefined) => void) => boolean | void'.\n      Types of parameters 'payload' and 'payload' are incompatible.\n        Type 'TSelectionDiff<TSelectionEntityId>' is not assignable to type 'TSelectionDiff<string>'.\n          Type 'TSelectionEntityId' is not assignable to type 'string'.\n            Type 'number' is not assignable to type 'string'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/selection/SelectionService.test.ts",
+      "code": 2345,
+      "message": "Argument of type 'MockBucket' is not assignable to parameter of type 'ISelectionBucket<TSelectionEntityId, TSelectionEntity>'.\n  Types of property 'onSelectionChange' are incompatible.\n    Type '(payload: TSelectionDiff<string>, defaultAction: (rewritenIds?: Set<string> | undefined) => void) => boolean | void' is not assignable to type '(payload: TSelectionDiff<TSelectionEntityId>, defaultAction: (rewritenIds?: Set<TSelectionEntityId> | undefined) => void) => boolean | void'.\n      Types of parameters 'payload' and 'payload' are incompatible.\n        Type 'TSelectionDiff<TSelectionEntityId>' is not assignable to type 'TSelectionDiff<string>'.\n          Type 'TSelectionEntityId' is not assignable to type 'string'.\n            Type 'number' is not assignable to type 'string'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/selection/SelectionService.test.ts",
+      "code": 2345,
+      "message": "Argument of type 'MultipleSelectionBucket<number, TSelectionEntity>' is not assignable to parameter of type 'ISelectionBucket<TSelectionEntityId, TSelectionEntity>'.\n  Types of property 'onSelectionChange' are incompatible.\n    Type '(payload: TSelectionDiff<number>, defaultAction: (rewritenIds?: Set<number> | undefined) => void) => boolean | void' is not assignable to type '(payload: TSelectionDiff<TSelectionEntityId>, defaultAction: (rewritenIds?: Set<TSelectionEntityId> | undefined) => void) => boolean | void'.\n      Types of parameters 'payload' and 'payload' are incompatible.\n        Type 'TSelectionDiff<TSelectionEntityId>' is not assignable to type 'TSelectionDiff<number>'.\n          Type 'TSelectionEntityId' is not assignable to type 'number'.\n            Type 'string' is not assignable to type 'number'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/services/selection/SelectionService.test.ts",
+      "code": 2345,
+      "message": "Argument of type 'MultipleSelectionBucket<string, TSelectionEntity>' is not assignable to parameter of type 'ISelectionBucket<TSelectionEntityId, TSelectionEntity>'.\n  Types of property 'onSelectionChange' are incompatible.\n    Type '(payload: TSelectionDiff<string>, defaultAction: (rewritenIds?: Set<string> | undefined) => void) => boolean | void' is not assignable to type '(payload: TSelectionDiff<TSelectionEntityId>, defaultAction: (rewritenIds?: Set<TSelectionEntityId> | undefined) => void) => boolean | void'.\n      Types of parameters 'payload' and 'payload' are incompatible.\n        Type 'TSelectionDiff<TSelectionEntityId>' is not assignable to type 'TSelectionDiff<string>'.\n          Type 'TSelectionEntityId' is not assignable to type 'string'.\n            Type 'number' is not assignable to type 'string'.",
+      "count": 10
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/anchor/Anchor.ts",
+      "code": 2322,
+      "message": "Type 'undefined' is not assignable to type 'Anchor<TAnchorProps>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/anchor/Anchor.ts",
+      "code": 2345,
+      "message": "Argument of type 'undefined' is not assignable to parameter of type 'TAnchor'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/anchor/Anchor.ts",
+      "code": 2564,
+      "message": "Property 'anchorView' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/block/Block.ts",
+      "code": 18048,
+      "message": "'anchorState' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/block/Block.ts",
+      "code": 2322,
+      "message": "Type '(AnchorState | undefined)[]' is not assignable to type 'AnchorState[]'.\n  Type 'AnchorState | undefined' is not assignable to type 'AnchorState'.\n    Type 'undefined' is not assignable to type 'AnchorState'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/block/Block.ts",
+      "code": 2345,
+      "message": "Argument of type 'undefined' is not assignable to parameter of type 'T'.\n  'T' could be instantiated with an arbitrary type which could be unrelated to 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/block/Block.ts",
+      "code": 7053,
+      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.\n  No index signature with a parameter of type 'string' was found on type '{}'.",
+      "count": 3
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/block/BlocksList.test.ts",
+      "code": 18048,
+      "message": "'block.anchors' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/ConnectionList.ts",
+      "code": 18048,
+      "message": "'c' is possibly 'undefined'.",
+      "count": 3
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/ConnectionList.ts",
+      "code": 2322,
+      "message": "Type 'Map<TConnectionId | undefined, ConnectionState<{ id?: TConnectionId | undefined; sourceBlockId?: TBlockId | undefined; targetBlockId?: TBlockId | undefined; ... 7 more ...; selected?: boolean | undefined; }> | undefined>' is not assignable to type 'Map<TConnectionId, ConnectionState<{ id?: TConnectionId | undefined; sourceBlockId?: TBlockId | undefined; targetBlockId?: TBlockId | undefined; ... 7 more ...; selected?: boolean | undefined; }>>'.\n  Type 'TConnectionId | undefined' is not assignable to type 'TConnectionId'.\n    Type 'undefined' is not assignable to type 'TConnectionId'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/ConnectionList.ts",
+      "code": 2322,
+      "message": "Type 'TConnectionId | undefined' is not assignable to type 'TConnectionId'.\n  Type 'undefined' is not assignable to type 'TConnectionId'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/ConnectionList.ts",
+      "code": 2345,
+      "message": "Argument of type 'TConnectionId | undefined' is not assignable to parameter of type 'TConnectionId'.\n  Type 'undefined' is not assignable to type 'TConnectionId'.",
+      "count": 4
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/ConnectionState.ts",
+      "code": 2322,
+      "message": "Type 'TConnectionId | undefined' is not assignable to type 'TConnectionId'.\n  Type 'undefined' is not assignable to type 'TConnectionId'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/ConnectionState.ts",
+      "code": 2345,
+      "message": "Argument of type 'TBlockId | undefined' is not assignable to parameter of type 'TBlockId'.\n  Type 'undefined' is not assignable to type 'TBlockId'.",
+      "count": 4
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/ConnectionState.ts",
+      "code": 2345,
+      "message": "Argument of type 'TConnectionId | undefined' is not assignable to parameter of type 'string | number'.\n  Type 'undefined' is not assignable to type 'string | number'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/ConnectionState.ts",
+      "code": 2345,
+      "message": "Argument of type 'undefined' is not assignable to parameter of type 'T'.\n  'T' could be instantiated with an arbitrary type which could be unrelated to 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/ConnectionState.ts",
+      "code": 2564,
+      "message": "Property 'viewComponent' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/port/Port.ts",
+      "code": 2322,
+      "message": "Type '{}' is not assignable to type 'T'.\n  'T' could be instantiated with an arbitrary type which could be unrelated to '{}'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/port/Port.ts",
+      "code": 2345,
+      "message": "Argument of type 'undefined' is not assignable to parameter of type 'TPort<T>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/port/Port.ts",
+      "code": 7022,
+      "message": "'$point' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/port/Port.ts",
+      "code": 7024,
+      "message": "Function implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/port/PortList.test.ts",
+      "code": 2345,
+      "message": "Argument of type 'null' is not assignable to parameter of type 'CoreComponent<CoreComponentProps, CoreComponentContext>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/port/PortList.test.ts",
+      "code": 2345,
+      "message": "Argument of type 'undefined' is not assignable to parameter of type 'Component<CoreComponentProps, TComponentState, CoreComponentContext>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/connection/port/PortList.ts",
+      "code": 2345,
+      "message": "Argument of type 'Component<CoreComponentProps, TComponentState, CoreComponentContext> | undefined' is not assignable to parameter of type 'Component<CoreComponentProps, TComponentState, CoreComponentContext>'.\n  Type 'undefined' is not assignable to type 'Component<CoreComponentProps, TComponentState, CoreComponentContext>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/group/Group.ts",
+      "code": 2345,
+      "message": "Argument of type 'MultipleSelectionBucket<string, TSelectionEntity>' is not assignable to parameter of type 'ISelectionBucket<string | number, TSelectionEntity>'.\n  Types of property 'onSelectionChange' are incompatible.\n    Type '(payload: TSelectionDiff<string>, defaultAction: (rewritenIds?: Set<string> | undefined) => void) => boolean | void' is not assignable to type '(payload: TSelectionDiff<string | number>, defaultAction: (rewritenIds?: Set<string | number> | undefined) => void) => boolean | void'.\n      Types of parameters 'payload' and 'payload' are incompatible.\n        Type 'TSelectionDiff<string | number>' is not assignable to type 'TSelectionDiff<string>'.\n          Type 'string | number' is not assignable to type 'string'.\n            Type 'number' is not assignable to type 'string'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/store/index.ts",
+      "code": 2564,
+      "message": "Property 'configurationName' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/Emitter.ts",
+      "code": 2564,
+      "message": "Property 'gcLaunched' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/dragListener.ts",
+      "code": 2345,
+      "message": "Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.\n  Type '(event: MouseEvent) => void' is not assignable to type 'EventListener'.\n    Types of parameters 'event' and 'evt' are incompatible.\n      Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.",
+      "count": 5
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/dragListener.ts",
+      "code": 2345,
+      "message": "Argument of type 'Event' is not assignable to parameter of type 'MouseEvent'.\n  Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/index.ts",
+      "code": 2345,
+      "message": "Argument of type '(event: MouseEvent | CustomEvent<any>) => void' is not assignable to parameter of type 'EventListenerOrEventListenerObject | null'.\n  Type '(event: MouseEvent | CustomEvent<any>) => void' is not assignable to type 'EventListener'.\n    Types of parameters 'event' and 'evt' are incompatible.\n      Type 'Event' is not assignable to type 'MouseEvent | CustomEvent<any>'.\n        Type 'Event' is missing the following properties from type 'CustomEvent<any>': detail, initCustomEvent",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/index.ts",
+      "code": 7005,
+      "message": "Variable 'subs' implicitly has an 'any[]' type.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/index.ts",
+      "code": 7034,
+      "message": "Variable 'subs' implicitly has type 'any[]' in some locations where its type cannot be determined.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/index.ts",
+      "code": 7053,
+      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'MouseEvent'.\n  No index signature with a parameter of type 'string' was found on type 'MouseEvent'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/index.ts",
+      "code": 7053,
+      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'Touch'.\n  No index signature with a parameter of type 'string' was found on type 'Touch'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/text.ts",
+      "code": 18047,
+      "message": "'context' is possibly 'null'.",
+      "count": 3
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/text.ts",
+      "code": 2322,
+      "message": "Type 'number | undefined' is not assignable to type 'number'.\n  Type 'undefined' is not assignable to type 'number'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/text.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/text.ts",
+      "code": 2345,
+      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 5
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/text.ts",
+      "code": 2454,
+      "message": "Variable 'nextWord' is used before being assigned.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/text.ts",
+      "code": 7005,
+      "message": "Variable 'lines' implicitly has an 'any[]' type.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/text.ts",
+      "code": 7006,
+      "message": "Parameter 'fontSize' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/text.ts",
+      "code": 7006,
+      "message": "Parameter 'scale' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/text.ts",
+      "code": 7006,
+      "message": "Parameter 'text' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/functions/text.ts",
+      "code": 7034,
+      "message": "Variable 'lines' implicitly has type 'any[]' in some locations where its type cannot be determined.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/renderers/text.ts",
+      "code": 18048,
+      "message": "'measures' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/renderers/text.ts",
+      "code": 18048,
+      "message": "'params.font' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/renderers/text.ts",
+      "code": 18048,
+      "message": "'rect.width' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/renderers/text.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/renderers/text.ts",
+      "code": 2345,
+      "message": "Argument of type 'string | number' is not assignable to parameter of type 'string'.\n  Type 'number' is not assignable to type 'string'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/types/shapes.ts",
+      "code": 7006,
+      "message": "Parameter 'height' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/types/shapes.ts",
+      "code": 7006,
+      "message": "Parameter 'width' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/types/shapes.ts",
+      "code": 7006,
+      "message": "Parameter 'x' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph/tsconfig.json",
+      "file": "packages/graph/src/utils/types/shapes.ts",
+      "code": 7006,
+      "message": "Parameter 'y' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/Anchor.tsx",
+      "code": 2345,
+      "message": "Argument of type 'ReadonlySignal<boolean> | undefined' is not assignable to parameter of type 'Signal<boolean>'.\n  Type 'undefined' is not assignable to type 'Signal<boolean>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/Anchor.tsx",
+      "code": 2345,
+      "message": "Argument of type 'RefObject<HTMLDivElement>' is not assignable to parameter of type 'MutableRefObject<HTMLDivElement>'.\n  Types of property 'current' are incompatible.\n    Type 'HTMLDivElement | null' is not assignable to type 'HTMLDivElement'.\n      Type 'null' is not assignable to type 'HTMLDivElement'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/Block.tsx",
+      "code": 2322,
+      "message": "Type 'HTMLDivElement | null' is not assignable to type 'HTMLDivElement'.\n  Type 'null' is not assignable to type 'HTMLDivElement'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/elk/converters/eklConverter.ts",
+      "code": 18048,
+      "message": "'edge.sections' is possibly 'undefined'.",
+      "count": 3
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/elk/converters/eklConverter.ts",
+      "code": 18048,
+      "message": "'edges' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/elk/converters/eklConverter.ts",
+      "code": 2345,
+      "message": "Argument of type 'ElkNode[] | undefined' is not assignable to parameter of type 'ElkNode[]'.\n  Type 'undefined' is not assignable to type 'ElkNode[]'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/elk/converters/eklConverter.ts",
+      "code": 7053,
+      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.\n  No index signature with a parameter of type 'string' was found on type '{}'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/elk/hooks/useElk.ts",
+      "code": 2722,
+      "message": "Cannot invoke an object which is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/GraphCanvas.tsx",
+      "code": 18048,
+      "message": "'colors.anchor' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/GraphCanvas.tsx",
+      "code": 18048,
+      "message": "'colors.block' is possibly 'undefined'.",
+      "count": 3
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/GraphCanvas.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<HTMLDivElement | undefined>' is not assignable to type 'LegacyRef<HTMLDivElement> | undefined'.\n  Type 'MutableRefObject<HTMLDivElement | undefined>' is not assignable to type 'RefObject<HTMLDivElement>'.\n    Types of property 'current' are incompatible.\n      Type 'HTMLDivElement | undefined' is not assignable to type 'HTMLDivElement | null'.\n        Type 'undefined' is not assignable to type 'HTMLDivElement | null'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/GraphCanvas.tsx",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 5
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/GraphCanvas.tsx",
+      "code": 2345,
+      "message": "Argument of type 'TRenderBlockFn | undefined' is not assignable to parameter of type '<T extends TBlock>(graphObject: Graph, block: T) => Element'.\n  Type 'undefined' is not assignable to type '<T extends TBlock>(graphObject: Graph, block: T) => Element'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/GraphLayer.tsx",
+      "code": 2345,
+      "message": "Argument of type 'LayerPublicProps<TLayer> | undefined' is not assignable to parameter of type 'LayerPublicProps<TLayer>'.\n  Type 'undefined' is not assignable to type 'LayerPublicProps<TLayer>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/GraphLayer.tsx",
+      "code": 7006,
+      "message": "Parameter 'ref' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/GraphPortal.tsx",
+      "code": 2322,
+      "message": "Type 'GraphPortalLayer | null' is not assignable to type 'GraphPortalLayer'.\n  Type 'null' is not assignable to type 'GraphPortalLayer'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/hooks/useGraph.ts",
+      "code": 18048,
+      "message": "'config.viewConfiguration' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/hooks/useGraph.ts",
+      "code": 18048,
+      "message": "'viewConfig' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/hooks/useGraph.ts",
+      "code": 2345,
+      "message": "Argument of type 'Partial<TGraphSettingsConfig<TBlock, { id?: TConnectionId | undefined; sourceBlockId?: TBlockId | undefined; targetBlockId?: TBlockId | undefined; sourceAnchorId?: string | undefined; ... 6 more ...; selected?: boolean | undefined; }>> | undefined' is not assignable to parameter of type 'Partial<TGraphSettingsConfig>'.\n  Type 'undefined' is not assignable to type 'Partial<TGraphSettingsConfig>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/hooks/useGraph.ts",
+      "code": 2345,
+      "message": "Argument of type 'RecursivePartial<TGraphColors> | undefined' is not assignable to parameter of type 'RecursivePartial<TGraphColors>'.\n  Type 'undefined' is not assignable to type 'RecursivePartial<TGraphColors>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/hooks/useGraph.ts",
+      "code": 2345,
+      "message": "Argument of type 'RecursivePartial<TGraphConstants> | undefined' is not assignable to parameter of type 'RecursivePartial<TGraphConstants>'.\n  Type 'undefined' is not assignable to type 'RecursivePartial<TGraphConstants>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/hooks/useGraph.ts",
+      "code": 2345,
+      "message": "Argument of type 'unknown' is not assignable to parameter of type 'Partial<TGraphSettingsConfig>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/hooks/useGraphEvents.ts",
+      "code": 2345,
+      "message": "Argument of type '((data: { target?: EventedComponent<TEventedComponentProps, TComponentState, CoreComponentContext> | undefined; sourceEvent: Event; pointerPressed?: boolean | undefined; }, event: GraphMouseEvent<...>) => void) | ... 10 more ... | ((data: { ...; }, event: CustomEvent<...>) => void)' is not assignable to parameter of type '(data: TEventDetailForCallback<K>, event: UnwrapGraphEvents<TEventNameForCallback<K>, GraphEventsDefinitions[TEventNameForCallback<...>], Parameters<...>[0]>) => void'.\n  Type '(data: { target?: EventedComponent<TEventedComponentProps, TComponentState, CoreComponentContext> | undefined; sourceEvent: Event; pointerPressed?: boolean | undefined; }, event: GraphMouseEvent<...>) => void' is not assignable to type '(data: TEventDetailForCallback<K>, event: UnwrapGraphEvents<TEventNameForCallback<K>, GraphEventsDefinitions[TEventNameForCallback<...>], Parameters<...>[0]>) => void'.\n    Types of parameters 'data' and 'data' are incompatible.\n      Type 'TEventDetailForCallback<K>' is not assignable to type '{ target?: EventedComponent<TEventedComponentProps, TComponentState, CoreComponentContext> | undefined; sourceEvent: Event; pointerPressed?: boolean | undefined; }'.\n        Type '{ target?: EventedComponent<TEventedComponentProps, TComponentState, CoreComponentContext> | undefined; sourceEvent: Event; pointerPressed?: boolean | undefined; } | ... 9 more ... | { ...; }' is not assignable to type '{ target?: EventedComponent<TEventedComponentProps, TComponentState, CoreComponentContext> | undefined; sourceEvent: Event; pointerPressed?: boolean | undefined; }'.\n          Property 'sourceEvent' is missing in type 'TCameraState' but required in type '{ target?: EventedComponent<TEventedComponentProps, TComponentState, CoreComponentContext> | undefined; sourceEvent: Event; pointerPressed?: boolean | undefined; }'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/hooks/useGraphEvents.ts",
+      "code": 2345,
+      "message": "Argument of type '(e: UnwrapGraphEvents<Event>) => void' is not assignable to parameter of type 'GraphEventsDefinitions[Event]'.\n  Type '(e: UnwrapGraphEvents<Event>) => void' is not assignable to type '((event: GraphMouseEvent<Event>) => void) & ((event: CustomEvent<TCameraState>) => void) & ((event: CustomEvent<{ constants: TGraphConstants; }>) => void) & ... 26 more ... & ((event: GraphMouseEvent<...>) => void)'.\n    Type '(e: UnwrapGraphEvents<Event>) => void' is not assignable to type '(event: GraphMouseEvent<Event>) => void'.\n      Types of parameters 'e' and 'event' are incompatible.\n        Type 'GraphMouseEvent<Event>' is not assignable to type 'UnwrapGraphEvents<Event>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/hooks/useGraphEvents.ts",
+      "code": 2345,
+      "message": "Argument of type '(event: TEventForCallback<K>) => void' is not assignable to parameter of type 'GraphEventsDefinitions[{ readonly click: \"click\"; readonly dblclick: \"dblclick\"; readonly onCameraChange: \"camera-change\"; readonly onBlockDragStart: \"block-drag-start\"; ... 7 more ...; readonly onStateChanged: \"state-change\"; }[K]]'.\n  Type '(event: TEventForCallback<K>) => void' is not assignable to type '((event: GraphMouseEvent<Event>) => void) & ((event: CustomEvent<TCameraState>) => void) & ((event: CustomEvent<{ state: GraphState; }>) => void) & ... 8 more ... & ((event: GraphMouseEvent<...>) => void)'.\n    Type '(event: TEventForCallback<K>) => void' is not assignable to type '(event: GraphMouseEvent<Event>) => void'.\n      Types of parameters 'event' and 'event' are incompatible.\n        Type 'GraphMouseEvent<Event>' is not assignable to type 'UnwrapGraphEvents<TEventNameForCallback<K>, GraphEventsDefinitions[TEventNameForCallback<K>], Parameters<GraphEventsDefinitions[TEventNameForCallback<...>]>[0]>'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/hooks/useGraphEvents.ts",
+      "code": 7005,
+      "message": "Variable 'unsubscribe' implicitly has an 'any[]' type.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/hooks/useGraphEvents.ts",
+      "code": 7034,
+      "message": "Variable 'unsubscribe' implicitly has type 'any[]' in some locations where its type cannot be determined.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/hooks/useLayer.test.ts",
+      "code": 18047,
+      "message": "'layer' is possibly 'null'.",
+      "count": 7
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/hooks/useLayer.test.ts",
+      "code": 2322,
+      "message": "Type 'null' is not assignable to type 'Graph'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/layer/ReactLayer.test.ts",
+      "code": 18047,
+      "message": "'portal' is possibly 'null'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/layer/ReactLayer.test.ts",
+      "code": 2345,
+      "message": "Argument of type 'null' is not assignable to parameter of type 'HTMLElement'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-react/tsconfig.json",
+      "file": "packages/graph-react/src/layer/ReactLayer.tsx",
+      "code": 2322,
+      "message": "Type '{ activationScale: number; zIndex?: number | undefined; classNames?: string[]; root?: HTMLElement; transformByCameraPosition?: boolean; }' is not assignable to type 'LayerPropsHtmlElementProps'.\n  Type '{ activationScale: number; zIndex?: number | undefined; classNames?: string[]; root?: HTMLElement; transformByCameraPosition?: boolean; }' is not assignable to type 'LayerPropsElementProps'.\n    Types of property 'zIndex' are incompatible.\n      Type 'number | undefined' is not assignable to type 'number'.\n        Type 'undefined' is not assignable to type 'number'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-minimap/tsconfig.json",
+      "file": "packages/graph-minimap/src/layer.ts",
+      "code": 2345,
+      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-minimap/tsconfig.json",
+      "file": "packages/graph-minimap/src/layer.ts",
+      "code": 2345,
+      "message": "Argument of type 'TMiniMapLocation | undefined' is not assignable to parameter of type 'TMiniMapLocation'.\n  Type 'undefined' is not assignable to type 'TMiniMapLocation'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-minimap/tsconfig.json",
+      "file": "packages/graph-minimap/src/layer.ts",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph-devtools/tsconfig.json",
+      "file": "packages/graph-devtools/src/DevToolsLayer.ts",
+      "code": 18048,
+      "message": "'minMajorTickDistance' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "packages/graph-devtools/tsconfig.json",
+      "file": "packages/graph-devtools/src/DevToolsLayer.ts",
+      "code": 18048,
+      "message": "'rulerSize' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph-devtools/tsconfig.json",
+      "file": "packages/graph-devtools/src/DevToolsLayer.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
+      "count": 7
+    },
+    {
+      "project": "packages/graph-devtools/tsconfig.json",
+      "file": "packages/graph-devtools/src/DevToolsLayer.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 3
+    },
+    {
+      "project": "packages/graph-devtools/tsconfig.json",
+      "file": "packages/graph-devtools/src/DevToolsLayer.ts",
+      "code": 2345,
+      "message": "Argument of type 'number | undefined' is not assignable to parameter of type 'number'.\n  Type 'undefined' is not assignable to type 'number'.",
+      "count": 3
+    },
+    {
+      "project": "packages/graph-devtools/tsconfig.json",
+      "file": "packages/graph-devtools/src/DevToolsLayer.ts",
+      "code": 2345,
+      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string | null'.\n  Type 'undefined' is not assignable to type 'string | null'.",
+      "count": 2
+    },
+    {
+      "project": "packages/graph-devtools/tsconfig.json",
+      "file": "packages/graph-devtools/src/DevToolsLayer.ts",
+      "code": 2345,
+      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 3
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/updateBlock/updateBlock.stories.tsx",
+      "code": 18048,
+      "message": "'graphRef.current' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/updateBlock/updateBlock.stories.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<Graph | undefined>' is not assignable to type 'MutableRefObject<Graph>'.\n  Type 'Graph | undefined' is not assignable to type 'Graph'.\n    Type 'undefined' is not assignable to type 'Graph'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/updateConnection/updateConnection.stories.tsx",
+      "code": 18048,
+      "message": "'graphRef.current' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/updateConnection/updateConnection.stories.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<Graph | undefined>' is not assignable to type 'MutableRefObject<Graph>'.\n  Type 'Graph | undefined' is not assignable to type 'Graph'.\n    Type 'undefined' is not assignable to type 'Graph'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/updateConnection/updateConnection.stories.tsx",
+      "code": 7006,
+      "message": "Parameter 'value' implicitly has an 'any' type.",
+      "count": 7
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/updateGraphColors/updateGraphColors.stories.tsx",
+      "code": 18048,
+      "message": "'graphRef.current' is possibly 'undefined'.",
+      "count": 3
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/updateGraphColors/updateGraphColors.stories.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<Graph | undefined>' is not assignable to type 'MutableRefObject<Graph>'.\n  Type 'Graph | undefined' is not assignable to type 'Graph'.\n    Type 'undefined' is not assignable to type 'Graph'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/updateGraphColors/updateGraphColors.stories.tsx",
+      "code": 7006,
+      "message": "Parameter 'colors' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/zoomSpeed/zoomSpeed.stories.tsx",
+      "code": 18048,
+      "message": "'graphRef.current' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/zoomSpeed/zoomSpeed.stories.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<Graph | undefined>' is not assignable to type 'MutableRefObject<Graph>'.\n  Type 'Graph | undefined' is not assignable to type 'Graph'.\n    Type 'undefined' is not assignable to type 'Graph'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/zoomToBlocks/zoomToBlocks.stories.tsx",
+      "code": 18048,
+      "message": "'config.blocks' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/zoomToBlocks/zoomToBlocks.stories.tsx",
+      "code": 18048,
+      "message": "'graphRef.current' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/zoomToBlocks/zoomToBlocks.stories.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<Graph | undefined>' is not assignable to type 'MutableRefObject<Graph>'.\n  Type 'Graph | undefined' is not assignable to type 'Graph'.\n    Type 'undefined' is not assignable to type 'Graph'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/zoomToElements/zoomToElements.stories.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<Graph | undefined>' is not assignable to type 'MutableRefObject<Graph>'.\n  Type 'Graph | undefined' is not assignable to type 'Graph'.\n    Type 'undefined' is not assignable to type 'Graph'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/zoomToRect/zoomToRect.stories.tsx",
+      "code": 18048,
+      "message": "'graphRef.current' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/zoomToRect/zoomToRect.stories.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<Graph | undefined>' is not assignable to type 'MutableRefObject<Graph>'.\n  Type 'Graph | undefined' is not assignable to type 'Graph'.\n    Type 'undefined' is not assignable to type 'Graph'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/zoomToViewPort/zoomToViewPort.stories.tsx",
+      "code": 18048,
+      "message": "'graphRef.current' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/api/zoomToViewPort/zoomToViewPort.stories.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<Graph | undefined>' is not assignable to type 'MutableRefObject<Graph>'.\n  Type 'Graph | undefined' is not assignable to type 'Graph'.\n    Type 'undefined' is not assignable to type 'Graph'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/canvas/groups/extended.stories.tsx",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/canvas/groups/extended.stories.tsx",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/canvas/groups/large.stories.tsx",
+      "code": 18048,
+      "message": "'config.blocks' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/configurations/customBlocksView.ts",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/configurations/customBlocksView.ts",
+      "code": 2345,
+      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/configurations/customBlocksView.ts",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/configurations/generatePretty.ts",
+      "code": 18048,
+      "message": "'config.blocks' is possibly 'undefined'.",
+      "count": 6
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/configurations/generatePretty.ts",
+      "code": 18048,
+      "message": "'config.connections' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/configurations/generatePretty.ts",
+      "code": 7006,
+      "message": "Parameter 'index' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/configurations/generatePretty.ts",
+      "code": 7006,
+      "message": "Parameter 'max' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/configurations/generatePretty.ts",
+      "code": 7006,
+      "message": "Parameter 'min' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/connectionLayer/connectionLayer.stories.tsx",
+      "code": 18047,
+      "message": "'connectionLayerRef.current' is possibly 'null'.",
+      "count": 2
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/connectionLayer/connectionLayer.stories.tsx",
+      "code": 18048,
+      "message": "'source' is possibly 'undefined'.",
+      "count": 4
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/connectionLayer/connectionLayer.stories.tsx",
+      "code": 2540,
+      "message": "Cannot assign to 'current' because it is a read-only property.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/connectionLayer/connectionLayer.stories.tsx",
+      "code": 7006,
+      "message": "Parameter 'end' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/connectionLayer/connectionLayer.stories.tsx",
+      "code": 7006,
+      "message": "Parameter 'start' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageByBlocks/imageByBlocks.stories.tsx",
+      "code": 18047,
+      "message": "'ctx' is possibly 'null'.",
+      "count": 2
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageByBlocks/imageByBlocks.stories.tsx",
+      "code": 18048,
+      "message": "'config.blocks' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageByBlocks/imageByBlocks.stories.tsx",
+      "code": 2322,
+      "message": "Type '() => null' is not assignable to type '<T extends TBlock>(graphObject: Graph, block: T) => Element'.\n  Type 'null' is not assignable to type 'Element'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageByBlocks/imageByBlocks.stories.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<Graph | undefined>' is not assignable to type 'MutableRefObject<Graph>'.\n  Type 'Graph | undefined' is not assignable to type 'Graph'.\n    Type 'undefined' is not assignable to type 'Graph'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageByBlocks/imageByBlocks.stories.tsx",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
+      "code": 18048,
+      "message": "'blockMetaState.img' is possibly 'undefined'.",
+      "count": 8
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
+      "code": 18048,
+      "message": "'blockMetaState' is possibly 'undefined'.",
+      "count": 29
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
+      "code": 18048,
+      "message": "'newConfig.blocks' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
+      "code": 18048,
+      "message": "'newConfig.settings' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<Graph | undefined>' is not assignable to type 'MutableRefObject<Graph>'.\n  Type 'Graph | undefined' is not assignable to type 'Graph'.\n    Type 'undefined' is not assignable to type 'Graph'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
+      "code": 2345,
+      "message": "Argument of type '(block: TBlock<TBlockMeta>) => void' is not assignable to parameter of type '(value: TBlock, index: number, array: TBlock[]) => void'.\n  Types of parameters 'block' and 'value' are incompatible.\n    Type 'TBlock' is not assignable to type 'TBlock<TBlockMeta>'.\n      Type '{}' is missing the following properties from type 'TBlockMeta': shouldInitImage, imageWidth, imageHeight, imageOffsetX, imageOffsetY",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
+      "code": 2345,
+      "message": "Argument of type 'EBlockStatus | undefined' is not assignable to parameter of type 'EBlockStatus'.\n  Type 'undefined' is not assignable to type 'EBlockStatus'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
+      "code": 2345,
+      "message": "Argument of type 'HTMLImageElement | undefined' is not assignable to parameter of type 'CanvasImageSource'.\n  Type 'undefined' is not assignable to type 'CanvasImageSource'.",
+      "count": 2
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/newBlockLayer/newBlockLayer.stories.tsx",
+      "code": 18047,
+      "message": "'newBlockLayerRef.current' is possibly 'null'.",
+      "count": 2
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/newBlockLayer/newBlockLayer.stories.tsx",
+      "code": 2540,
+      "message": "Cannot assign to 'current' because it is a read-only property.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/portConnectionLayer/portConnectionLayer.stories.tsx",
+      "code": 2540,
+      "message": "Cannot assign to 'current' because it is a read-only property.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/portConnectionLayer/portConnectionLayer.stories.tsx",
+      "code": 7006,
+      "message": "Parameter 'end' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/portConnectionLayer/portConnectionLayer.stories.tsx",
+      "code": 7006,
+      "message": "Parameter 'start' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/themeChange/themeChange.stories.tsx",
+      "code": 18048,
+      "message": "'graphRef.current' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/themeChange/themeChange.stories.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<Graph | undefined>' is not assignable to type 'MutableRefObject<Graph>'.\n  Type 'Graph | undefined' is not assignable to type 'Graph'.\n    Type 'undefined' is not assignable to type 'Graph'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/themeChange/themeChange.stories.tsx",
+      "code": 7006,
+      "message": "Parameter 'value' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/themeChange/themeChange.stories.tsx",
+      "code": 7053,
+      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'TGraphColors'.\n  No index signature with a parameter of type 'string' was found on type 'TGraphColors'.",
+      "count": 4
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/main/GraphEditor.stories.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<Graph | undefined>' is not assignable to type 'MutableRefObject<Graph>'.\n  Type 'Graph | undefined' is not assignable to type 'Graph'.\n    Type 'undefined' is not assignable to type 'Graph'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/main/GraphEditor.stories.tsx",
+      "code": 2783,
+      "message": "'config' is specified more than once, so this usage will be overwritten.",
+      "count": 15
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/main/GraphEditor.tsx",
+      "code": 7019,
+      "message": "Rest parameter 'args' implicitly has an 'any[]' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/main/ToolboxLayer.tsx",
+      "code": 2564,
+      "message": "Property 'reactRoot' has no initializer and is not definitely assigned in the constructor.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/main/ToolboxLayer.tsx",
+      "code": 7006,
+      "message": "Parameter 'context' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/main/ToolboxLayer.tsx",
+      "code": 7006,
+      "message": "Parameter 'props' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/ActionBlock/ActionBlockHtml.tsx",
+      "code": 18048,
+      "message": "'block.anchors' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/ActionBlock/ActionBlockHtml.tsx",
+      "code": 18048,
+      "message": "'block.meta' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/ActionBlock/index.tsx",
+      "code": 2322,
+      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
+      "count": 6
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/ActionBlock/index.tsx",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 7
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/ActionBlock/index.tsx",
+      "code": 7006,
+      "message": "Parameter 'index' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/Editor/index.tsx",
+      "code": 18047,
+      "message": "'model' is possibly 'null'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/Editor/index.tsx",
+      "code": 18047,
+      "message": "'monacoRef.current' is possibly 'null'.",
+      "count": 2
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/Editor/index.tsx",
+      "code": 2322,
+      "message": "Type '(blockId: string) => void' is not assignable to type '(blockId: TBlockId) => void'.\n  Types of parameters 'blockId' and 'blockId' are incompatible.\n    Type 'TBlockId' is not assignable to type 'string'.\n      Type 'number' is not assignable to type 'string'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/Editor/index.tsx",
+      "code": 2345,
+      "message": "Argument of type 'null' is not assignable to parameter of type 'IMarker | (() => IMarker)'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/Editor/index.tsx",
+      "code": 2531,
+      "message": "Object is possibly 'null'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/Editor/index.tsx",
+      "code": 2540,
+      "message": "Cannot assign to 'current' because it is a read-only property.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/Editor/utils.ts",
+      "code": 7006,
+      "message": "Parameter 'blockId' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/Editor/utils.ts",
+      "code": 7006,
+      "message": "Parameter 'model' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/generateLayout.tsx",
+      "code": 18048,
+      "message": "'config.blocks' is possibly 'undefined'.",
+      "count": 5
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/generateLayout.tsx",
+      "code": 18048,
+      "message": "'config.connections' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/generateLayout.tsx",
+      "code": 7006,
+      "message": "Parameter 'max' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/generateLayout.tsx",
+      "code": 7006,
+      "message": "Parameter 'min' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/generateLayout.tsx",
+      "code": 7006,
+      "message": "Parameter 'text' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/GraphPlayground.tsx",
+      "code": 18047,
+      "message": "'editorRef.current' is possibly 'null'.",
+      "count": 5
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/GraphPlayground.tsx",
+      "code": 18048,
+      "message": "'block.anchors' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/GraphPlayground.tsx",
+      "code": 2344,
+      "message": "Type '((value: string) => void) | undefined' does not satisfy the constraint '(...args: any) => any'.\n  Type 'undefined' is not assignable to type '(...args: any) => any'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/GraphPlayground.tsx",
+      "code": 2345,
+      "message": "Argument of type '{ selected: boolean; id?: TBlockId | undefined; is?: string | undefined; x?: number | undefined; y?: number | undefined; group?: string | undefined; width?: number | undefined; ... 4 more ...; meta?: {} | undefined; }[]' is not assignable to parameter of type 'TBlock[]'.\n  Type '{ selected: boolean; id?: TBlockId | undefined; is?: string | undefined; x?: number | undefined; y?: number | undefined; group?: string; width?: number | undefined; height?: number | undefined; name?: string | undefined; anchors?: TAnchor[]; settings?: TBlockSettings; meta?: {} | undefined; }' is not assignable to type 'TBlock'.\n    Types of property 'id' are incompatible.\n      Type 'TBlockId | undefined' is not assignable to type 'TBlockId'.\n        Type 'undefined' is not assignable to type 'TBlockId'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/GraphPlayground.tsx",
+      "code": 2345,
+      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/GraphPlayground.tsx",
+      "code": 2454,
+      "message": "Variable 'config' is used before being assigned.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/GraphPlayground.tsx",
+      "code": 2488,
+      "message": "Type 'TGravityActionBlock[] | undefined' must have a '[Symbol.iterator]()' method that returns an iterator.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/GraphPlayground.tsx",
+      "code": 7006,
+      "message": "Parameter 'end' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/GraphPlayground.tsx",
+      "code": 7006,
+      "message": "Parameter 'start' implicitly has an 'any' type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/Settings.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<undefined>' is not assignable to type '((instance: HTMLAnchorElement | null) => void) | RefObject<HTMLAnchorElement> | ((instance: HTMLButtonElement | null) => void) | RefObject<...> | null | undefined'.\n  Type 'MutableRefObject<undefined>' is not assignable to type 'RefObject<HTMLButtonElement>'.\n    Types of property 'current' are incompatible.\n      Type 'undefined' is not assignable to type 'HTMLButtonElement | null'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/Settings.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<undefined>' is not assignable to type 'RefObject<PopupAnchorElement>'.\n  Types of property 'current' are incompatible.\n    Type 'undefined' is not assignable to type 'PopupAnchorElement | null'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/TextBlock/index.tsx",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/TextBlock/TextBlockHtml.tsx",
+      "code": 18048,
+      "message": "'block.meta' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/plugins/elk/elk.stories.tsx",
+      "code": 18048,
+      "message": "'connection.id' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/plugins/elk/elk.stories.tsx",
+      "code": 18048,
+      "message": "'graphConfig.blocks' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/plugins/elk/elk.stories.tsx",
+      "code": 18048,
+      "message": "'graphConfig.connections' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/plugins/elk/elk.stories.tsx",
+      "code": 18048,
+      "message": "'graphConfig' is possibly 'undefined'.",
+      "count": 2
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/plugins/elk/elk.stories.tsx",
+      "code": 2345,
+      "message": "Argument of type 'ElkNode | undefined' is not assignable to parameter of type 'ElkNode'.\n  Type 'undefined' is not assignable to type 'ElkNode'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/plugins/elk/elk.stories.tsx",
+      "code": 2538,
+      "message": "Type 'undefined' cannot be used as an index type.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/plugins/elk/generateExampleTree.ts",
+      "code": 18048,
+      "message": "'tree.blocks' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/plugins/elk/generateExampleTree.ts",
+      "code": 18048,
+      "message": "'tree.connections' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/plugins/elk/getExampleConfig.ts",
+      "code": 18048,
+      "message": "'blocks' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/plugins/elk/getExampleConfig.ts",
+      "code": 18048,
+      "message": "'config.blocks' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/plugins/elk/getExampleConfig.ts",
+      "code": 18048,
+      "message": "'connections' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/plugins/minimap.stories.tsx",
+      "code": 2322,
+      "message": "Type 'MutableRefObject<Graph | undefined>' is not assignable to type 'MutableRefObject<Graph>'.\n  Type 'Graph | undefined' is not assignable to type 'Graph'.\n    Type 'undefined' is not assignable to type 'Graph'.",
+      "count": 1
+    }
+  ]
+}
