@@ -9,7 +9,6 @@
     "esModuleInterop": true,
     "experimentalDecorators": true,
     "skipLibCheck": true,
-    "jsx": "react",
     "strict": false,
     "lib": [
       "es2020",
@@ -23,7 +22,6 @@
     ]
   },
   "include": [
-    "./src/**/*.ts",
-    "src/**/*.tsx"
+    "./src/**/*.ts"
   ]
 }
