@@ -26,7 +26,7 @@ import { DragService } from "./services/drag";
 import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
-import { TGraphSettingsConfig } from "./store/settings";
+import { TGraphSettingsConfig, TResolvedGraphSettings } from "./store/settings";
 import { clearColorCache, getXY } from "./utils/functions";
 import { clearGraphInstance, setGraphInstance } from "./utils/graphInstance";
 import { clearTextCache } from "./utils/renderers/text";
@@ -436,7 +436,7 @@ export class Graph {
   }
 
   /** Restore one setting to its default; remove overrides without a default. */
-  public resetSetting<K extends keyof TGraphSettingsConfig>(key: K) {
+  public resetSetting<K extends keyof TResolvedGraphSettings>(key: K) {
     this.rootStore.settings.resetSetting(key);
   }
 

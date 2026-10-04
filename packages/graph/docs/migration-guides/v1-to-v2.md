@@ -105,8 +105,8 @@ partial constants in the Graph constructor and `api.updateGraphConstants`.
 
 Stored colors/constants and their change-event payloads are complete:
 `TResolvedGraphColors` and `TResolvedGraphConstants`. Settings snapshots use
-`TResolvedGraphSettings`; fields with no default, such as an optional custom
-background/connection constructor, can still be absent. Defaults are normalized
+`TResolvedGraphSettings`; every field is present. Custom background/connection
+constructors have a value of `undefined` when no override is configured. Defaults are normalized
 before they enter signals and rendering contexts.
 
 ```ts
@@ -119,7 +119,9 @@ const border: string = current.block.border;
 ```
 
 Use the input types for options you pass to Graph, and the resolved types when
-you annotate snapshots received from getters, signals or events. Replace
+you annotate snapshots received from getters, signals or events. The helpers
+`mapGraphColorsToCSSVariables` and `mapGraphConstantsToCSSVariables` also accept
+resolved state, for example `mapGraphColorsToCSSVariables(graph.graphColors)`. Replace
 `RecursivePartial<TGraphConstants>` with `TGraphConstants`; partial arrays are
 no longer valid constant patches.
 

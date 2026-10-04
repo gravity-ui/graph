@@ -85,6 +85,10 @@ function checkResolvedConfigurationTypes() {
     const color: string = detail.colors.anchor.background;
     void color;
   });
+  const { background, ...missingBackground } = resolvedSettings;
+  // @ts-expect-error resolved state requires background, even when its value is undefined
+  const incompleteSettings: TResolvedGraphSettings = missingBackground;
+  void [background, incompleteSettings];
   // @ts-expect-error settings values must match their key
   configuredGraph.api.setSetting("dragThreshold", "large");
   // @ts-expect-error tuples must be complete replacements

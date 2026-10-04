@@ -160,7 +160,7 @@ this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${ca
 Custom layers should extend the base `Layer` class (`src/services/Layer.ts`). This class provides the core functionality for managing Canvas and HTML elements within the graph's rendering pipeline.
 
 ```typescript
-import { Layer, LayerContext, LayerProps, TGraphColors, TGraphConstants } from "@/services/Layer";
+import { Layer, LayerContext, LayerProps } from "@/services/Layer";
 import { ICamera } from "@/services/camera/CameraService";
 import { Graph } from "@/graph";
 

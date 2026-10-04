@@ -1,7 +1,7 @@
 import get from "lodash/get";
 import set from "lodash/set";
 
-import type { TGraphColors, TGraphConstants } from "../../graphConfig";
+import type { TGraphColors, TGraphConstants, TResolvedGraphColors, TResolvedGraphConstants } from "../../graphConfig";
 
 import { CSS_VARIABLE_MAPPINGS, SUPPORTED_CSS_VARIABLES } from "./constants";
 import type { CSSVariableChange } from "./types";
@@ -62,7 +62,7 @@ export function mapCSSChangesToGraphConstants(changes: CSSVariableChange[]): TGr
  * @param colors - Current graph colors
  * @returns Object with CSS variable names as keys and color values as values
  */
-export function mapGraphColorsToCSSVariables(colors: TGraphColors): Record<string, string> {
+export function mapGraphColorsToCSSVariables(colors: TResolvedGraphColors): Record<string, string> {
   const result: Record<string, string> = {};
 
   for (const mapping of CSS_VARIABLE_MAPPINGS) {
@@ -84,7 +84,7 @@ export function mapGraphColorsToCSSVariables(colors: TGraphColors): Record<strin
  * @param constants - Current graph constants
  * @returns Object with CSS variable names as keys and constant values as values
  */
-export function mapGraphConstantsToCSSVariables(constants: TGraphConstants): Record<string, string> {
+export function mapGraphConstantsToCSSVariables(constants: TResolvedGraphConstants): Record<string, string> {
   const result: Record<string, string> = {};
 
   for (const mapping of CSS_VARIABLE_MAPPINGS) {

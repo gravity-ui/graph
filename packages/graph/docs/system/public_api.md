@@ -9,11 +9,11 @@ List of methods in your disposition:
 
   public zoomToViewPort(transition?: number): void;
 
-  public getGraphColors(): TGraphColors;
+  public getGraphColors(): TResolvedGraphColors;
 
   public updateGraphColors(colors: TGraphColors): void;
 
-  public getGraphConstants(): TGraphConstants;
+  public getGraphConstants(): TResolvedGraphConstants;
 
   public updateGraphConstants(constants: TGraphConstants): void;
 

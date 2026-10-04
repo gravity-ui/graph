@@ -32,7 +32,9 @@ export interface CSSVariablesLayerProps extends LayerProps {
 export interface CSSVariablesLayerState extends TComponentState {
   /** Whether the layer is actively observing changes */
   isObserving: boolean;
+  /** Accumulated CSS input overrides for Graph.setColors, not resolved graph state. */
   colors: TGraphColors;
+  /** Accumulated CSS input overrides for Graph.setConstants, not resolved graph state. */
   constants: TGraphConstants;
 }
 

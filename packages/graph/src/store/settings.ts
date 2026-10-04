@@ -48,8 +48,8 @@ export type TResolvedGraphSettings<Block extends TBlock = TBlock, Connection ext
   connectivityComponentOnClickRaise: boolean;
   showConnectionLabels: boolean;
   blockComponents: Record<string, typeof Block<Block>>;
-  connection?: typeof BlockConnection<Connection>;
-  background?: typeof Component;
+  connection: typeof BlockConnection<Connection> | undefined;
+  background: typeof Component | undefined;
   /**
    * When enabled, mouseenter/mouseleave events are re-evaluated after each camera change.
    * Useful for trackpads where panning does not trigger native mousemove events,
@@ -100,6 +100,8 @@ export const DefaultSettings: TResolvedGraphSettings = {
   connectivityComponentOnClickRaise: true,
   showConnectionLabels: false,
   blockComponents: {},
+  connection: undefined,
+  background: undefined,
   resolveWheelIntent: createWheelIntentResolver(),
   getCameraBlockScaleLevel: defaultGetCameraBlockScaleLevel,
 };
@@ -149,7 +151,7 @@ export class GraphEditorSettings {
   }
 
   /**
-   * Resolves wheel intent using {@link TGraphSettingsConfig.resolveWheelIntent} (typed; prefer over getConfigFlag).
+   * Resolves wheel intent using {@link TResolvedGraphSettings.resolveWheelIntent} (typed; prefer over getConfigFlag).
    */
   public wheelIntentFromEvent(event: WheelEvent, options: TResolveWheelIntentOptions): EWheelIntent {
     return this.$settings.value.resolveWheelIntent(event, options);

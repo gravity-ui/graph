@@ -17,6 +17,8 @@ describe("Settings store", () => {
 
   it("Should init with default settings", () => {
     expect(store.asConfig).toEqual(DefaultSettings);
+    expect(Object.prototype.hasOwnProperty.call(store.asConfig, "background")).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(store.asConfig, "connection")).toBe(true);
   });
 
   it("Should get config via key", () => {

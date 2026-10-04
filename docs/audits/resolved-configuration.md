@@ -6,8 +6,8 @@ Issue: https://github.com/gravity-ui/graph/issues/356. Base: merged #355
 The public input types `TGraphColors`, `TGraphConstants` and
 `TGraphSettingsConfig` describe partial patches. Runtime signals, rendering
 contexts, getters and color/constant events use `TResolvedGraphColors`,
-`TResolvedGraphConstants` and `TResolvedGraphSettings`. Optional component
-overrides without a default remain optional; defaulted booleans, numbers,
+`TResolvedGraphConstants` and `TResolvedGraphSettings`. Component overrides without a default are required keys with an explicit
+undefined value; defaulted booleans, numbers,
 colors and callbacks are always present.
 
 Normalization copies input/default objects and skips undefined fields. Nested
