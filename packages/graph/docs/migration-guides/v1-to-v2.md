@@ -223,11 +223,21 @@ Legacy internal selector modules are removed. Use the existing
 `rootStore.connectionsList.getConnectionState(id)` methods directly.
 
 Lookup hooks and store methods do not accept a type argument that promises
-custom metadata from an ID. CanvasBlock also exposes the base block state;
-remove its state and props type arguments and validate custom metadata before reading it.
-For example, check `meta && "color" in meta && typeof meta.color === "string"`.
-`TGraphSettingsConfig` and `TGraphSettingsPatch` now take only the connection
-type parameter; remove their former block type parameter.
-Typed block data supplied by your application can still use `TBlock<MyMetadata>`.
+custom metadata from an ID. Custom canvas blocks retain `CanvasBlock<T, Props>`
+for declaring their state/Meta and component props. The application is responsible
+for matching that declaration to the data supplied for its registered block type;
+the library does not validate the shape of custom Meta at runtime.
+
+```ts
+import { CanvasBlock, type TBlock } from "@gravity-ui/graph";
+
+type MyBlock = TBlock<{ description: string }>;
+class CustomBlock extends CanvasBlock<MyBlock> {
+  getDescription() {
+    return this.state.meta?.description;
+  }
+}
+```
+
 Canvas Block/Anchor/Connection construction requires an existing corresponding state and
 throws a descriptive error when the required entity is absent.

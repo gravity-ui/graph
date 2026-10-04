@@ -1,11 +1,14 @@
 import {
+  CanvasBlock,
   ECanDrag,
   Graph,
   type TBlock,
+  type TBlockProps,
   type TConnection,
   type TGraphColors,
   type TGraphConstants,
   type TGraphSettingsConfig,
+  type TGraphSettingsPatch,
 } from "@gravity-ui/graph";
 import "@gravity-ui/graph/styles.css";
 
@@ -120,3 +123,46 @@ function checkNullableLookups(graph: Graph) {
   connections.forEach((connection) => { const id = connection.id; void id; });
 }
 void checkNullableLookups;
+
+type CustomBlockData = TBlock<{ description: string }>;
+type CustomBlockProps = TBlockProps & { accent: string };
+class CustomBlockTypeContract extends CanvasBlock<CustomBlockData, CustomBlockProps> {
+  getDescription(): string | undefined {
+    return this.state.meta?.description;
+  }
+  getAccent(): string {
+    return this.props.accent;
+  }
+  checkMetadataKeys() {
+    // @ts-expect-error declared custom Meta does not contain arbitrary fields
+    return this.connectedState.$state.value.meta?.unknownField;
+  }
+}
+void CustomBlockTypeContract;
+
+type ComplexMeta = {
+  payload: { status: "ready" | "busy"; rows: ReadonlyArray<{ key: string; values: readonly number[] }> };
+  format: (value: number) => string;
+};
+class GenericCustomBlock<M extends ComplexMeta = ComplexMeta> extends CanvasBlock<
+  TBlock<M>, TBlockProps & { tone?: "light" | "dark" }
+> {
+  getRows(): ReadonlyArray<{ key: string; values: readonly number[] }> | undefined {
+    return this.state.meta?.payload.rows;
+  }
+}
+function checkCustomBlockRegistration() {
+  const config: TGraphSettingsPatch<TBlock<ComplexMeta>> = {
+    blockComponents: { generic: GenericCustomBlock },
+  };
+  const graph = new Graph({ settings: { blockComponents: {
+    custom: CustomBlockTypeContract,
+    generic: GenericCustomBlock,
+    specialized: GenericCustomBlock<ComplexMeta>,
+  } } });
+  graph.updateSettings(config);
+  graph.updateSettings({ blockComponents: { custom: CustomBlockTypeContract } });
+  // @ts-expect-error registrations must construct canvas blocks
+  graph.updateSettings({ blockComponents: { invalid: class {} } });
+}
+void checkCustomBlockRegistration;

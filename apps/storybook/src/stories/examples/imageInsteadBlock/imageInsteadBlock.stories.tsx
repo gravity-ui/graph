@@ -31,60 +31,29 @@ type TBlockMeta = {
   imageOffsetY: number;
 };
 
-function isBlockStatus(status: unknown): status is EBlockStatus | undefined {
-  return (
-    status === undefined ||
-    status === EBlockStatus.DONE ||
-    status === EBlockStatus.FAIL ||
-    status === EBlockStatus.RUNNING ||
-    status === EBlockStatus.WAITING
-  );
-}
-
-function isImageMeta(meta: unknown): meta is TBlockMeta {
-  return (
-    typeof meta === "object" &&
-    meta !== null &&
-    "shouldInitImage" in meta &&
-    typeof meta.shouldInitImage === "boolean" &&
-    "imageWidth" in meta &&
-    typeof meta.imageWidth === "number" &&
-    "imageHeight" in meta &&
-    typeof meta.imageHeight === "number" &&
-    "imageOffsetX" in meta &&
-    typeof meta.imageOffsetX === "number" &&
-    "imageOffsetY" in meta &&
-    typeof meta.imageOffsetY === "number" &&
-    (!("img" in meta) || meta.img === undefined || meta.img instanceof HTMLImageElement) &&
-    (!("status" in meta) || isBlockStatus(meta.status))
-  );
-}
-
-class SpecificBlockView extends CanvasBlock {
+class SpecificBlockView extends CanvasBlock<TBlock<TBlockMeta>> {
   public override renderSchematicView() {
     const blockMetaState = this.state.meta;
-    if (!isImageMeta(blockMetaState)) return;
     if (blockMetaState.shouldInitImage) {
       blockMetaState.img = new Image();
 
-      const image = blockMetaState.img;
-      image.onload = () => {
-        const hRatio = this.state.width / image.width;
-        const vRatio = this.state.height / image.height;
+      blockMetaState.img.onload = () => {
+        const hRatio = this.state.width / blockMetaState.img.width;
+        const vRatio = this.state.height / blockMetaState.img.height;
         const imageRatio = Math.min(hRatio, vRatio);
 
-        blockMetaState.imageWidth = image.width * imageRatio;
-        blockMetaState.imageHeight = image.width * imageRatio;
+        blockMetaState.imageWidth = blockMetaState.img.width * imageRatio;
+        blockMetaState.imageHeight = blockMetaState.img.width * imageRatio;
 
         blockMetaState.imageOffsetX = (this.state.width - blockMetaState.imageWidth) / 2;
         blockMetaState.imageOffsetY = (this.state.height - blockMetaState.imageHeight) / 2;
 
         this.context.ctx.drawImage(
-          image,
+          blockMetaState.img,
           0,
           0,
-          image.width,
-          image.height,
+          blockMetaState.img.width,
+          blockMetaState.img.height,
           this.state.x + blockMetaState.imageOffsetX,
           this.state.y + blockMetaState.imageOffsetY,
           blockMetaState.imageWidth,
@@ -93,8 +62,8 @@ class SpecificBlockView extends CanvasBlock {
         blockMetaState.shouldInitImage = false;
       };
 
-      blockMetaState.img.src = getImageByStatus(blockMetaState.status);
-    } else if (blockMetaState.img) {
+      blockMetaState.img.src = getImageByStatus(this.state.meta.status);
+    } else {
       this.context.ctx.drawImage(
         blockMetaState.img,
         0,
@@ -112,7 +81,7 @@ class SpecificBlockView extends CanvasBlock {
 
 const SpecificBlockIs = "some-specific-view";
 
-function getImageByStatus(status: EBlockStatus | undefined) {
+function getImageByStatus(status: EBlockStatus) {
   switch (status) {
     case EBlockStatus.DONE: {
       return imageDone;

@@ -16,11 +16,9 @@ type TBlockMeta = {
   color: string;
 };
 
-class SpecificBlockView extends CanvasBlock {
+class SpecificBlockView extends CanvasBlock<TBlock<TBlockMeta>> {
   public override renderSchematicView() {
-    const meta = this.state.meta;
-    if (!meta || !("color" in meta) || typeof meta.color !== "string") return;
-    this.context.ctx.fillStyle = meta.color;
+    this.context.ctx.fillStyle = this.state.meta.color;
     this.context.ctx.fillRect(this.state.x, this.state.y, this.state.width, this.state.height);
   }
 }

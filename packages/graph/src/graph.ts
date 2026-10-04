@@ -50,7 +50,7 @@ export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConn
    * @deprecated use Graph.zoom api
    * */
   cameraScale?: number;
-  settings?: TGraphSettingsPatch<Connection>;
+  settings?: TGraphSettingsPatch<Block, Connection>;
   layers?: LayerConfig[];
 };
 

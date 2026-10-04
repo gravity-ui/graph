@@ -1734,6 +1734,27 @@
     },
     {
       "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageByBlocks/imageByBlocks.stories.tsx",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
+      "code": 18048,
+      "message": "'blockMetaState.img' is possibly 'undefined'.",
+      "count": 8
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
+      "code": 18048,
+      "message": "'blockMetaState' is possibly 'undefined'.",
+      "count": 29
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
       "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
       "code": 18048,
       "message": "'newConfig.blocks' is possibly 'undefined'.",
@@ -1758,6 +1779,27 @@
       "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
       "code": 2345,
       "message": "Argument of type '(block: TBlock<TBlockMeta>) => void' is not assignable to parameter of type '(value: TBlock, index: number, array: TBlock[]) => void'.\n  Types of parameters 'block' and 'value' are incompatible.\n    Type 'TBlock' is not assignable to type 'TBlock<TBlockMeta>'.\n      Type '{}' is missing the following properties from type 'TBlockMeta': shouldInitImage, imageWidth, imageHeight, imageOffsetX, imageOffsetY",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
+      "code": 2345,
+      "message": "Argument of type 'EBlockStatus | undefined' is not assignable to parameter of type 'EBlockStatus'.\n  Type 'undefined' is not assignable to type 'EBlockStatus'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
+      "code": 2345,
+      "message": "Argument of type 'HTMLImageElement | undefined' is not assignable to parameter of type 'CanvasImageSource'.\n  Type 'undefined' is not assignable to type 'CanvasImageSource'.",
+      "count": 2
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
       "count": 1
     },
     {
@@ -1870,6 +1912,13 @@
       "file": "apps/storybook/src/stories/Playground/ActionBlock/ActionBlockHtml.tsx",
       "code": 18048,
       "message": "'block.anchors' is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/ActionBlock/ActionBlockHtml.tsx",
+      "code": 18048,
+      "message": "'block.meta' is possibly 'undefined'.",
       "count": 1
     },
     {
@@ -2052,6 +2101,20 @@
       "file": "apps/storybook/src/stories/Playground/Settings.tsx",
       "code": 2322,
       "message": "Type 'MutableRefObject<undefined>' is not assignable to type 'RefObject<PopupAnchorElement>'.\n  Types of property 'current' are incompatible.\n    Type 'undefined' is not assignable to type 'PopupAnchorElement | null'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/TextBlock/index.tsx",
+      "code": 2532,
+      "message": "Object is possibly 'undefined'.",
+      "count": 1
+    },
+    {
+      "project": "apps/storybook/tsconfig.json",
+      "file": "apps/storybook/src/stories/Playground/TextBlock/TextBlockHtml.tsx",
+      "code": 18048,
+      "message": "'block.meta' is possibly 'undefined'.",
       "count": 1
     },
     {

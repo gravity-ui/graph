@@ -1,7 +1,7 @@
 import { computed, signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
-import type { Block } from "../components/canvas/blocks/Block";
+import type { Block, TBlock } from "../components/canvas/blocks/Block";
 import { BlockConnection } from "../components/canvas/connections/BlockConnection";
 import { Component } from "../lib";
 import { defaultGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
@@ -23,7 +23,7 @@ export enum ECanDrag {
   NONE = "none",
 }
 
-export type TGraphSettingsConfig<Connection extends TConnection = TConnection> = {
+export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   canDragCamera: boolean;
   canZoomCamera: boolean;
   /** @deprecated Use NewBlockLayer parameters instead */
@@ -47,7 +47,7 @@ export type TGraphSettingsConfig<Connection extends TConnection = TConnection> =
   useBlocksAnchors: boolean;
   connectivityComponentOnClickRaise: boolean;
   showConnectionLabels: boolean;
-  blockComponents: Record<string, typeof Block>;
+  blockComponents: Record<string, typeof Block<Block>>;
   connection: typeof BlockConnection<Connection> | undefined;
   background: typeof Component | undefined;
   /**
@@ -77,11 +77,11 @@ export type TGraphSettingsConfig<Connection extends TConnection = TConnection> =
 };
 
 /** Partial public settings input. Undefined never resets or clears a value. */
-export type TGraphSettingsPatch<C extends TConnection = TConnection> = Omit<
-  Partial<TGraphSettingsConfig<C>>,
+export type TGraphSettingsPatch<B extends TBlock = TBlock, C extends TConnection = TConnection> = Omit<
+  Partial<TGraphSettingsConfig<B, C>>,
   "blockComponents"
 > & {
-  blockComponents?: Partial<TGraphSettingsConfig<C>["blockComponents"]>;
+  blockComponents?: Partial<TGraphSettingsConfig<B, C>["blockComponents"]>;
 };
 
 export const DefaultSettings: TGraphSettingsConfig = {

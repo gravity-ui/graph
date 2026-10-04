@@ -85,7 +85,11 @@ export type BlockViewState = {
   order: number;
 };
 
-export class Block extends GraphComponent<TBlockProps, TBlock, TGraphLayerContext> {
+export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlockProps> extends GraphComponent<
+  Props,
+  T,
+  TGraphLayerContext
+> {
   public static IS = IS_BLOCK_TYPE;
 
   public cursor?: string = "pointer";
@@ -95,11 +99,11 @@ export class Block extends GraphComponent<TBlockProps, TBlock, TGraphLayerContex
 
   public declare context: TGraphLayerContext;
 
-  public declare state: TBlock;
+  public declare state: T;
 
-  public declare props: TBlockProps;
+  public declare props: Props;
 
-  public connectedState: BlockState;
+  public connectedState: BlockState<T>;
 
   private connectedStateUnsubscribers: (() => void)[] = [];
 
@@ -121,13 +125,13 @@ export class Block extends GraphComponent<TBlockProps, TBlock, TGraphLayerContex
    */
   private blockHidden = false;
 
-  protected currentState(): TBlock {
+  protected currentState(): T {
     return this.connectedState.$state.value;
   }
 
   public $viewState = signal<BlockViewState>({ zIndex: 0, order: 0 });
 
-  constructor(props: TBlockProps, parent: Component) {
+  constructor(props: Props, parent: Component) {
     super(props, parent);
 
     this.subscribe(props.id);
@@ -188,7 +192,8 @@ export class Block extends GraphComponent<TBlockProps, TBlock, TGraphLayerContex
 
     const blockState = this.context.graph.rootStore.blocksList.getBlockState(id);
     if (!blockState) throw new Error(`Cannot bind Block to missing block ${id}`);
-    this.connectedState = blockState;
+    // The registered custom block declares its data shape; the caller owns that contract.
+    this.connectedState = blockState as BlockState<T>;
     this.state = cloneDeep(this.connectedState.$state.value);
     this.connectedState.setViewComponent(this);
     this.setState({
@@ -220,7 +225,7 @@ export class Block extends GraphComponent<TBlockProps, TBlock, TGraphLayerContex
     ];
   }
 
-  protected propsChanged(nextProps: TBlockProps): void {
+  protected propsChanged(nextProps: Props): void {
     const nextBlockState = this.context.graph.rootStore.blocksList.$blocksMap.value.get(nextProps.id);
     if (nextBlockState && nextBlockState !== this.connectedState) {
       this.subscribe(nextProps.id);
@@ -256,7 +261,7 @@ export class Block extends GraphComponent<TBlockProps, TBlock, TGraphLayerContex
     this.performRender();
   }
 
-  protected stateChanged(nextState: TBlock): void {
+  protected stateChanged(nextState: T): void {
     if (!this.firstRender && nextState.selected !== this.state.selected) {
       this.raiseBlock();
     }

@@ -3,6 +3,7 @@ import React from "react";
 import { Anchor, CanvasBlock, EAnchorType, TAnchor, TBlockId, TPoint, layoutText } from "@gravity-ui/graph";
 
 import { renderSVG } from "../../../storyUtils";
+import { TGravityActionBlock } from "../generateLayout";
 
 import { ActionBlockHtml } from "./ActionBlockHtml";
 
@@ -16,7 +17,7 @@ function getAnchorY(index) {
   return y + 18;
 }
 
-export class ActionBlock extends CanvasBlock {
+export class ActionBlock extends CanvasBlock<TGravityActionBlock> {
   public cursor = "pointer";
 
   protected hovered = false;

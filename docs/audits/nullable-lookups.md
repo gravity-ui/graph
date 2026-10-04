@@ -13,12 +13,15 @@ computation, tracking deletion/recreation without retaining a detached anchor.
 The synchronous hook reads once; the reactive block hook subscribes to the map.
 
 Legacy selector modules are removed; consumers call existing store lookup methods
-directly. Their unchecked `BlockState<T>` assertion is removed. Lookup hooks do
-not accept arbitrary subtype arguments. CanvasBlock no longer promises a custom
-state or props shape from an ID. Its required binding checks state existence;
-Anchor does likewise. Custom metadata consumers check their actual fields.
-The settings types consequently drop the former block type parameter. All
-public changes are recorded in the cumulative migration guide.
+directly. Ordinary lookups return base nullable state without promising arbitrary
+subtypes. Custom CanvasBlock<T, Props> retains its declared state/Meta and props
+as application-owned type hints. Its binding checks that the ID exists, then
+interprets the state as the declared type. The application owns the match between
+custom data and its registered component; no runtime Meta validation is added.
+The former selector assertion is confined to this explicit custom-component
+boundary. Required Anchor/Connection bindings also check existence. Settings
+retain their block and connection type parameters. Public changes are recorded
+in the cumulative migration guide.
 
 ## Strict debt
 
@@ -28,9 +31,11 @@ public changes are recorded in the cumulative migration guide.
 | graph-react | 31 | 31 |
 | graph-minimap | 2 | 2 |
 | graph-devtools | 21 | 21 |
-| Storybook | 188 | 143 |
+| Storybook | 188 | 188 |
 | E2E configured roots | 0 | 0 |
 
+The final comparison is against merged #356; custom component declarations are
+retained rather than erased to reduce diagnostics.
 The exact project/file/code/message/count comparison contains only removed
 identities and reduced counts. No new errors or message identities are admitted.
 Existing zero-error configuration boundaries and Scheduler remain enforced.
@@ -44,7 +49,10 @@ Runtime tests cover absent, added, removed and recreated block/anchor IDs,
 connection removal and list filtering, and updates to missing connections.
 The same strict positive/negative consumer fixtures run against source
 entrypoints and installed packed declarations. Their unguarded lookup accesses
-must fail, guarded results must work, and arbitrary generic calls are rejected.
+must fail, guarded results must work, and ordinary lookup subtype arguments are
+rejected. The fixtures also register concrete, generic and specialized generic
+custom components through both constructor settings and updates; nested Meta and
+custom props remain typed, while unrelated constructors are rejected.
 The source fixture test checks consumer diagnostics; production source debt is
 independently checked by the full strict gate. Build, workspace typecheck/lint,
 all ten native configs, package tests, installed browser contracts and all 187

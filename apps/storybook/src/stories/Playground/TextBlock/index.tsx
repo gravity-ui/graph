@@ -2,11 +2,13 @@ import React from "react";
 
 import { CanvasBlock, TBlockId, layoutText } from "@gravity-ui/graph";
 
+import { TGravityTextBlock } from "../generateLayout";
+
 import { TextBlockHtml } from "./TextBlockHtml";
 
 import "./TextBlock.css";
 
-export class TextBlock extends CanvasBlock {
+export class TextBlock extends CanvasBlock<TGravityTextBlock> {
   public cursor = "pointer";
 
   protected hovered = false;
@@ -27,8 +29,7 @@ export class TextBlock extends CanvasBlock {
   protected renderName(ctx: CanvasRenderingContext2D) {
     ctx.fillStyle = "rgba(189, 142, 75, 1)";
     ctx.textAlign = "center";
-    const meta = this.state.meta;
-    if (meta && "text" in meta && typeof meta.text === "string") this.renderText(meta.text, ctx);
+    this.renderText(this.state.meta.text, ctx);
   }
 
   public renderHTML() {
