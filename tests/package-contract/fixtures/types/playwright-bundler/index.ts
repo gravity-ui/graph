@@ -7,6 +7,17 @@ type Equal<Left, Right> =
 type Assert<Condition extends true> = Condition;
 type IsAny<Value> = 0 extends 1 & Value ? true : false;
 
+const structuralScheduler: Graph["scheduler"] = {
+  getSchedulers: () => [[], [], [], [], []],
+  addScheduler: (_scheduler) => () => undefined,
+  removeScheduler: (_scheduler) => undefined,
+  start: () => undefined,
+  stop: () => undefined,
+  destroy: () => undefined,
+  tick: () => undefined,
+  performUpdate: () => undefined,
+};
+
 type EvaluateGraph = Parameters<Parameters<GraphPO["evaluate"]>[0]>[0];
 type BlockState = Awaited<ReturnType<ReturnType<GraphPO["block"]>["getState"]>>;
 type ConnectionState = Awaited<ReturnType<ReturnType<GraphPO["connection"]>["getState"]>>;
@@ -20,6 +31,7 @@ type _ConnectionStateIsPublicTConnection = Assert<Equal<ConnectionState, TConnec
 
 export async function checkPlaywrightConsumerTypes(root: Locator): Promise<void> {
   const graph = new GraphPO(root);
+  void structuralScheduler;
   const point: GraphPoint = { x: 0, y: 0 };
 
   const graphState: Promise<number> = graph.evaluate((instance: Graph) => instance.state);

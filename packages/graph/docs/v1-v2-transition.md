@@ -42,13 +42,11 @@ PR containing `2.0.0-next.0` has merged, remove that option in a normal reviewed
 PR before landing more releasable changes. Later Graph prereleases are derived
 from the manifest and increment exactly as `2.x.y-next.N`.
 
-The private scheduler is also a manifest component so Release Please can assign
-ownership correctly and the `node-workspace` plugin can propagate a scheduler
-change into dependent Graph release metadata. Its version and changelog are
-internal bookkeeping. The release workflow creates its component Git tag
-because Release Please needs tags to locate previous component releases, but it
-never publishes the scheduler to npm and never creates a public GitHub Release
-for it.
+The scheduler runtime belongs to Graph under
+`packages/graph/src/lib/scheduler`. Scheduler fixes are Graph changes: they
+appear in Graph's release PR and changelog, and Graph version changes propagate
+to public workspace consumers through the `node-workspace` plugin. There is no
+separate scheduler manifest entry, changelog, or component release.
 
 ## Releasing a prerelease
 
@@ -79,9 +77,11 @@ for it.
    Please cannot silently move on from an incomplete release.
 
 An ordinary push, a handwritten version change, and a release PR with unrelated
-files are not release candidates. A scheduler-only manifest release still gets
-its internal component tag after repository validation, but produces no npm or
-GitHub Release operation.
+files are not release candidates. A change limited to the scheduler implementation
+still belongs to Graph and follows the normal Graph release, changelog, and public
+consumer dependency-propagation flow. The generic private-component filtering,
+ordering, and recovery rules below continue to apply to any private workspace
+components in a release plan.
 
 If the workflow stops after a partial external write, run
 `recover-npm-release` from `v2` with only the full merge commit SHA from the same
