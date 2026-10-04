@@ -24,7 +24,7 @@ check uses those same artifacts. It resolves workspace tool versions for the gen
 silently select a newer React, TypeScript, or Playwright release.
 
 - `checks/artifact.mjs` verifies clean output, exact package names and versions, metadata, bounded file lists, styles, and
-  private scheduler isolation. `publint --strict` checks all tarballs.
+  retired private scheduler reference checks. `publint --strict` checks all tarballs.
 - `checks/types.mjs` checks all ESM roots with ATTW and the core Playwright entrypoint with the Node16 profile. External
   TypeScript fixtures use Bundler, Node16 ESM, and Node16 CommonJS resolution with `strict: true` and `skipLibCheck: false`.
 - `checks/runtime.mjs` imports each package with native Node ESM and requires the Playwright subpath with CommonJS. It
@@ -41,8 +41,7 @@ silently select a newer React, TypeScript, or Playwright release.
 The vanilla consumer contains neither React, React DOM, ELK, nor `@gravity-ui/graph-react`. The core manifest and emitted
 JavaScript/declarations must not depend on React. The removed `@gravity-ui/graph/react` subpath must fail resolution.
 The React package declares core and React as required peers; core has no dependency on the React package. The shared
-production builder rejects bundled external dependencies and source imports outside the owning package, except for the
-explicitly inlined private scheduler in core.
+production builder rejects bundled external dependencies and source imports outside the owning package.
 
 Core styles own canvas layers; React styles own `.graph-wrapper`, `.graph-block-container`, and `.graph-block-anchor`.
 DevTools styles own `.devtools-ruler-bg` and its horizontal/vertical variants. Each stylesheet excludes the other packages' selectors.

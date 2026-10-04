@@ -7,7 +7,6 @@ import { build } from "esbuild";
 
 export async function buildPackage({
   packageRoot,
-  inlinedWorkspacePackages = new Map(),
   playwright = false,
   docs = false,
   styles = true,
@@ -64,7 +63,6 @@ export async function buildPackage({
         const inputPath = path.resolve(packageRoot, input);
         const allowedRoots = [
           path.join(packageRoot, "src"),
-          ...[...inlinedWorkspacePackages.values()].map((entry) => path.dirname(entry)),
         ];
         if (!allowedRoots.some((allowedRoot) => inputPath.startsWith(`${allowedRoot}${path.sep}`))) {
           throw new Error(`Production bundle includes a source outside ${manifest.name}: ${input}`);
@@ -78,9 +76,7 @@ export async function buildPackage({
           const [firstSegment, secondSegment] = packagePath.split("/");
           const packageName = firstSegment.startsWith("@") ? `${firstSegment}/${secondSegment}` : firstSegment;
 
-          if (!inlinedWorkspacePackages.has(packageName)) {
-            bundledPackages.add(packageName);
-          }
+          bundledPackages.add(packageName);
         }
       }
     }
@@ -92,42 +88,6 @@ export async function buildPackage({
           .map((dependency) => `- ${dependency}`)
           .join("\n")}`
       );
-    }
-  }
-
-  async function assertInlinedWorkspacePackages(results) {
-    const bundledInputs = new Set(
-      results.flatMap((result) => Object.keys(result.metafile.inputs).map((input) => path.resolve(packageRoot, input)))
-    );
-
-    for (const [packageName, entryPath] of inlinedWorkspacePackages) {
-      const workspaceSpecifier = manifest.devDependencies?.[packageName];
-      const workspacePackageRoot = path.resolve(path.dirname(entryPath), "..");
-      const workspaceManifest = JSON.parse(await readFile(path.join(workspacePackageRoot, "package.json"), "utf8"));
-
-      if (typeof workspaceSpecifier !== "string" || !workspaceSpecifier.startsWith("workspace:")) {
-        throw new Error(`${packageName} must be an explicit workspace devDependency of ${manifest.name}.`);
-      }
-
-      if (workspaceManifest.name !== packageName || workspaceManifest.private !== true) {
-        throw new Error(`${packageName} must resolve to a private workspace package.`);
-      }
-
-      if (!bundledInputs.has(entryPath)) {
-        throw new Error(`Production bundles do not inline the private workspace package ${packageName}.`);
-      }
-
-      for (const result of results) {
-        for (const output of Object.values(result.metafile.outputs)) {
-          const unresolvedImport = output.imports.find(
-            ({ path: importPath }) => importPath === packageName || importPath.startsWith(`${packageName}/`)
-          );
-
-          if (unresolvedImport) {
-            throw new Error(`Production bundles contain an unresolved private import of ${packageName}.`);
-          }
-        }
-      }
     }
   }
 
@@ -298,7 +258,6 @@ export async function buildPackage({
       }),
   ]);
 
-  await assertInlinedWorkspacePackages(buildResults.filter(Boolean));
   assertNoBundledPackages(buildResults.filter(Boolean));
 
   const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";

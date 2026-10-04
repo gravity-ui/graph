@@ -7,8 +7,6 @@ import { extractReleaseNotes } from "./release-notes.mjs";
 
 const graphPackageName = "@gravity-ui/graph";
 const graphPackagePath = "packages/graph";
-const schedulerPackageName = "@gravity-ui/graph-scheduler";
-const schedulerPackagePath = "packages/scheduler";
 const numberedNextVersionPattern = /^\d+\.\d+\.\d+-next\.\d+$/;
 const graphPrereleaseVersionPattern = /^2\.\d+\.\d+-next\.\d+$/;
 const stableVersionPattern = /^\d+\.\d+\.\d+$/;
@@ -273,15 +271,6 @@ export async function validateWorkspaceReleaseConfiguration({ workspaceRoot = de
     assert.ok(manifest, `Release Please component ${packagePath} is not a workspace package.`);
     assertCanonicalWorkspaceDependencyNames({ packagePath, manifest, workspaceByName });
   }
-
-  const schedulerManifest = workspaceByPath.get(schedulerPackagePath);
-  assert.ok(schedulerManifest, `The private scheduler workspace must exist at ${schedulerPackagePath}.`);
-  assert.equal(
-    schedulerManifest.name,
-    schedulerPackageName,
-    `The scheduler workspace at ${schedulerPackagePath} must be named ${schedulerPackageName}.`
-  );
-  assert.equal(schedulerManifest.private, true, `The scheduler workspace ${schedulerPackageName} must remain private.`);
 
   const publicWorkspaces = workspaceManifests.filter(({ manifest }) => manifest.private !== true);
   for (const { path: packagePath, manifest } of publicWorkspaces) {

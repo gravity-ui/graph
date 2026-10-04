@@ -1,10 +1,9 @@
+import { ESchedulerPriority } from "../../lib";
 import {
   debounce as privateDebounce,
   schedule as privateSchedule,
   throttle as privateThrottle,
-} from "@gravity-ui/graph-scheduler";
-
-import { ESchedulerPriority } from "../../lib";
+} from "../../lib/scheduler/index";
 
 export type TScheduleOptions = {
   priority: ESchedulerPriority;

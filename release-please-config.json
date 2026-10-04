@@ -21,11 +21,6 @@
       "include-component-in-tag": false,
       "include-v-in-tag": true
     },
-    "packages/scheduler": {
-      "package-name": "@gravity-ui/graph-scheduler",
-      "component": "scheduler",
-      "skip-github-release": true
-    },
     "packages/graph-react": {
       "package-name": "@gravity-ui/graph-react",
       "component": "graph-react",

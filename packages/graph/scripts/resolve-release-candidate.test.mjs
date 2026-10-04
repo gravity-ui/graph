@@ -12,7 +12,7 @@ import {
 } from "./resolve-release-candidate.mjs";
 
 const graphPath = "packages/graph";
-const schedulerPath = "packages/scheduler";
+const helperPath = "packages/internal-helper";
 const releaseSha = "0123456789abcdef0123456789abcdef01234567";
 const firstParentSha = "abcdef0123456789abcdef0123456789abcdef01";
 const graphVersion = "2.0.0-next.0";
@@ -39,9 +39,9 @@ function releasePleaseConfig(extraPackages = {}) {
         "include-component-in-tag": false,
         "include-v-in-tag": true,
       },
-      [schedulerPath]: {
-        "package-name": "@gravity-ui/graph-scheduler",
-        component: "scheduler",
+      [helperPath]: {
+        "package-name": "@gravity-ui/graph-internal-helper",
+        component: "internal-helper",
         "skip-github-release": true,
       },
       ...extraPackages,
@@ -82,37 +82,37 @@ function releaseCandidate(overrides = {}) {
   return {
     releaseSha,
     pullRequest: releasePleasePullRequest(),
-    pullRequestFiles: releaseFiles([graphPath, schedulerPath]),
+    pullRequestFiles: releaseFiles([graphPath, helperPath]),
     releasePleaseConfig: releasePleaseConfig(),
     previousReleaseManifest: {
       [graphPath]: "1.11.3",
-      [schedulerPath]: "0.0.0",
+      [helperPath]: "0.0.0",
     },
     currentReleaseManifest: {
       [graphPath]: graphVersion,
-      [schedulerPath]: "0.0.1",
+      [helperPath]: "0.0.1",
     },
     packageManifests: {
       [graphPath]: {
         name: "@gravity-ui/graph",
         version: graphVersion,
-        devDependencies: { "@gravity-ui/graph-scheduler": "workspace:*" },
+        devDependencies: { "@gravity-ui/graph-internal-helper": "workspace:*" },
       },
-      [schedulerPath]: {
-        name: "@gravity-ui/graph-scheduler",
+      [helperPath]: {
+        name: "@gravity-ui/graph-internal-helper",
         version: "0.0.1",
         private: true,
       },
     },
     changelogs: {
       [graphPath]: changelog(graphVersion),
-      [schedulerPath]: changelog("0.0.1", "* preserve scheduler behavior"),
+      [helperPath]: changelog("0.0.1", "* preserve internal helper behavior"),
     },
     ...overrides,
   };
 }
 
-test("derives the manifest delta and publishes only Graph when scheduler and Graph advance", () => {
+test("derives the manifest delta and publishes only Graph when a private workspace and Graph advance", () => {
   const pullRequest = releasePleasePullRequest();
   assert.equal(
     selectReleasePleasePullRequest({ pullRequests: [pullRequest], releaseSha, expectedVersion: graphVersion }),
@@ -132,10 +132,10 @@ test("derives the manifest delta and publishes only Graph when scheduler and Gra
     ],
     tagPlan: [
       {
-        name: "@gravity-ui/graph-scheduler",
-        path: schedulerPath,
+        name: "@gravity-ui/graph-internal-helper",
+        path: helperPath,
         version: "0.0.1",
-        gitTag: "scheduler-v0.0.1",
+        gitTag: "internal-helper-v0.0.1",
         private: true,
         previousVersion: "0.0.0",
       },
@@ -148,7 +148,7 @@ test("derives the manifest delta and publishes only Graph when scheduler and Gra
         previousVersion: "1.11.3",
       },
     ],
-    changedPaths: [graphPath, schedulerPath],
+    changedPaths: [graphPath, helperPath],
     releasedPaths: [graphPath],
     version: graphVersion,
     tag: `v${graphVersion}`,
@@ -157,20 +157,20 @@ test("derives the manifest delta and publishes only Graph when scheduler and Gra
   });
 });
 
-test("treats a valid scheduler-only manifest delta as a non-public candidate", () => {
+test("treats a valid private-workspace-only manifest delta as a non-public candidate", () => {
   const result = validateReleaseCandidate(
     releaseCandidate({
-      pullRequestFiles: releaseFiles([schedulerPath]),
-      previousReleaseManifest: { [graphPath]: "1.11.3", [schedulerPath]: "0.0.0" },
-      currentReleaseManifest: { [graphPath]: "1.11.3", [schedulerPath]: "0.0.1" },
+      pullRequestFiles: releaseFiles([helperPath]),
+      previousReleaseManifest: { [graphPath]: "1.11.3", [helperPath]: "0.0.0" },
+      currentReleaseManifest: { [graphPath]: "1.11.3", [helperPath]: "0.0.1" },
       packageManifests: {
-        [schedulerPath]: {
-          name: "@gravity-ui/graph-scheduler",
+        [helperPath]: {
+          name: "@gravity-ui/graph-internal-helper",
           version: "0.0.1",
           private: true,
         },
       },
-      changelogs: { [schedulerPath]: changelog("0.0.1") },
+      changelogs: { [helperPath]: changelog("0.0.1") },
     })
   );
 
@@ -179,15 +179,15 @@ test("treats a valid scheduler-only manifest delta as a non-public candidate", (
     releasePlan: [],
     tagPlan: [
       {
-        name: "@gravity-ui/graph-scheduler",
-        path: schedulerPath,
+        name: "@gravity-ui/graph-internal-helper",
+        path: helperPath,
         version: "0.0.1",
-        gitTag: "scheduler-v0.0.1",
+        gitTag: "internal-helper-v0.0.1",
         private: true,
         previousVersion: "0.0.0",
       },
     ],
-    changedPaths: [schedulerPath],
+    changedPaths: [helperPath],
     releasedPaths: [],
     version: undefined,
     tag: undefined,
@@ -210,12 +210,12 @@ test("builds a release plan for an additional configured public component", () =
       releasePleaseConfig: config,
       previousReleaseManifest: {
         [graphPath]: "1.11.3",
-        [schedulerPath]: "0.0.0",
+        [helperPath]: "0.0.0",
         [reactPath]: "0.1.0",
       },
       currentReleaseManifest: {
         [graphPath]: "1.11.3",
-        [schedulerPath]: "0.0.0",
+        [helperPath]: "0.0.0",
         [reactPath]: "0.2.0",
       },
       packageManifests: {
@@ -270,12 +270,12 @@ test("orders a peer-only public consumer after its changed workspace dependency"
       releasePleaseConfig: config,
       previousReleaseManifest: {
         [graphPath]: "1.11.3",
-        [schedulerPath]: "0.0.0",
+        [helperPath]: "0.0.0",
         [reactPath]: "0.1.0",
       },
       currentReleaseManifest: {
         [graphPath]: graphVersion,
-        [schedulerPath]: "0.0.0",
+        [helperPath]: "0.0.0",
         [reactPath]: reactVersion,
       },
       packageManifests: {
@@ -308,7 +308,7 @@ test("orders public packages after their changed workspace dependencies", () => 
   };
   const previous = {
     [graphPath]: "1.11.3",
-    [schedulerPath]: "0.0.0",
+    [helperPath]: "0.0.0",
     [rendererPath]: "1.0.0",
     [rtreePath]: "1.0.0",
   };
@@ -353,7 +353,7 @@ test("rejects dependency cycles and duplicate component package names", () => {
   });
   const previous = {
     [graphPath]: "1.11.3",
-    [schedulerPath]: "0.0.0",
+    [helperPath]: "0.0.0",
     [packageAPath]: "1.0.0",
     [packageBPath]: "1.0.0",
   };
@@ -416,7 +416,7 @@ test("rejects an arbitrary file in the reviewed Release Please pull request", ()
     () =>
       validateReleaseCandidate(
         releaseCandidate({
-          pullRequestFiles: [...releaseFiles([graphPath, schedulerPath]), { filename: "scripts/publish.mjs" }],
+          pullRequestFiles: [...releaseFiles([graphPath, helperPath]), { filename: "scripts/publish.mjs" }],
         })
       ),
     /must change exactly/
@@ -428,10 +428,10 @@ test("rejects manifest/config and manifest/package version disagreement", () => 
     () =>
       deriveChangedComponentPaths({
         releasePleaseConfig: releasePleaseConfig(),
-        previousReleaseManifest: { [graphPath]: "1.11.3", [schedulerPath]: "0.0.0" },
+        previousReleaseManifest: { [graphPath]: "1.11.3", [helperPath]: "0.0.0" },
         currentReleaseManifest: {
           [graphPath]: graphVersion,
-          [schedulerPath]: "0.0.1",
+          [helperPath]: "0.0.1",
           "packages/unconfigured": "1.0.0",
         },
       }),
@@ -443,8 +443,8 @@ test("rejects manifest/config and manifest/package version disagreement", () => 
         releaseCandidate({
           packageManifests: {
             [graphPath]: { name: "@gravity-ui/graph", version: "2.0.0-next.1" },
-            [schedulerPath]: {
-              name: "@gravity-ui/graph-scheduler",
+            [helperPath]: {
+              name: "@gravity-ui/graph-internal-helper",
               version: "0.0.1",
               private: true,
             },
@@ -455,26 +455,14 @@ test("rejects manifest/config and manifest/package version disagreement", () => 
   );
 });
 
-test("rejects a public scheduler and an empty component changelog entry", () => {
-  assert.throws(
-    () =>
-      validateReleaseCandidate(
-        releaseCandidate({
-          packageManifests: {
-            [graphPath]: { name: "@gravity-ui/graph", version: graphVersion },
-            [schedulerPath]: { name: "@gravity-ui/graph-scheduler", version: "0.0.1" },
-          },
-        })
-      ),
-    /scheduler component must remain private/
-  );
+test("rejects an empty component changelog entry for a generic private workspace", () => {
   assert.throws(
     () =>
       validateReleaseCandidate(
         releaseCandidate({
           changelogs: {
             [graphPath]: `# Changelog\n\n## [${graphVersion}]\n`,
-            [schedulerPath]: changelog("0.0.1"),
+            [helperPath]: changelog("0.0.1"),
           },
         })
       ),
@@ -545,27 +533,27 @@ async function createWorkspace() {
   const workspaceRoot = await mkdtemp(path.join(tmpdir(), "graph-release-candidate-"));
   temporaryDirectories.push(workspaceRoot);
   await Promise.all(
-    [graphPath, schedulerPath].map((componentPath) =>
+    [graphPath, helperPath].map((componentPath) =>
       mkdir(path.join(workspaceRoot, componentPath), { recursive: true })
     )
   );
   await writeJson(path.join(workspaceRoot, "release-please-config.json"), releasePleaseConfig());
   await writeJson(path.join(workspaceRoot, ".release-please-manifest.json"), {
     [graphPath]: graphVersion,
-    [schedulerPath]: "0.0.1",
+    [helperPath]: "0.0.1",
   });
   await writeJson(path.join(workspaceRoot, graphPath, "package.json"), {
     name: "@gravity-ui/graph",
     version: graphVersion,
-    devDependencies: { "@gravity-ui/graph-scheduler": "workspace:*" },
+    devDependencies: { "@gravity-ui/graph-internal-helper": "workspace:*" },
   });
-  await writeJson(path.join(workspaceRoot, schedulerPath, "package.json"), {
-    name: "@gravity-ui/graph-scheduler",
+  await writeJson(path.join(workspaceRoot, helperPath, "package.json"), {
+    name: "@gravity-ui/graph-internal-helper",
     version: "0.0.1",
     private: true,
   });
   await writeFile(path.join(workspaceRoot, graphPath, "CHANGELOG.md"), changelog(graphVersion));
-  await writeFile(path.join(workspaceRoot, schedulerPath, "CHANGELOG.md"), changelog("0.0.1"));
+  await writeFile(path.join(workspaceRoot, helperPath, "CHANGELOG.md"), changelog("0.0.1"));
   const outputPath = path.join(workspaceRoot, "github-output");
   await writeFile(outputPath, "");
 
@@ -579,14 +567,14 @@ function githubFetch({ requestedUrls, pullRequests = [releasePleasePullRequest()
     if (url.includes(`/commits/${releaseSha}/pulls`)) {
       payload = pullRequests;
     } else if (url.includes("/pulls/123/files?")) {
-      payload = releaseFiles([graphPath, schedulerPath]);
+      payload = releaseFiles([graphPath, helperPath]);
     } else if (url.endsWith(`/commits/${releaseSha}`)) {
       payload = { parents: [{ sha: firstParentSha }] };
     } else if (url.includes("/contents/.release-please-manifest.json?")) {
       payload = {
         type: "file",
         encoding: "base64",
-        content: Buffer.from(JSON.stringify({ [graphPath]: "1.11.3", [schedulerPath]: "0.0.0" })).toString("base64"),
+        content: Buffer.from(JSON.stringify({ [graphPath]: "1.11.3", [helperPath]: "0.0.0" })).toString("base64"),
       };
     } else {
       throw new Error(`Unexpected URL: ${url}`);
@@ -610,10 +598,10 @@ test("resolves the first-parent manifest and writes the vector workflow outputs"
   ];
   const expectedTagPlan = [
     {
-      name: "@gravity-ui/graph-scheduler",
-      path: schedulerPath,
+      name: "@gravity-ui/graph-internal-helper",
+      path: helperPath,
       version: "0.0.1",
-      gitTag: "scheduler-v0.0.1",
+      gitTag: "internal-helper-v0.0.1",
       private: true,
       previousVersion: "0.0.0",
     },
@@ -655,7 +643,7 @@ test("resolves the first-parent manifest and writes the vector workflow outputs"
       `version=${graphVersion}`,
       `tag=v${graphVersion}`,
       `sha=${releaseSha}`,
-      `changed_paths=${JSON.stringify([graphPath, schedulerPath])}`,
+      `changed_paths=${JSON.stringify([graphPath, helperPath])}`,
       `released_paths=${JSON.stringify([graphPath])}`,
       "pr=123",
       "",

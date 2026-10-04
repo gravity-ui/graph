@@ -7,8 +7,6 @@ import { extractReleaseNotes } from "./release-notes.mjs";
 
 const graphPackageName = "@gravity-ui/graph";
 const graphPackagePath = "packages/graph";
-const schedulerPackageName = "@gravity-ui/graph-scheduler";
-const schedulerPackagePath = "packages/scheduler";
 const releaseManifestPath = ".release-please-manifest.json";
 const releasePleaseConfigPath = "release-please-config.json";
 const releaseRepository = "gravity-ui/graph";
@@ -331,10 +329,6 @@ export function validateReleaseCandidate({
     validateVersionStrategy({ releasePleaseConfig, componentConfig, componentPath, parsedVersion });
     extractReleaseNotes(changelogs[componentPath], version, componentPath);
 
-    if (componentPath === schedulerPackagePath) {
-      assert.equal(packageManifest.name, schedulerPackageName, "The scheduler component package name is immutable.");
-      assert.equal(packageManifest.private, true, "The scheduler component must remain private.");
-    }
     if (componentPath === graphPackagePath) {
       assert.equal(packageManifest.name, graphPackageName, "The Graph component package name is immutable.");
       assert.notEqual(packageManifest.private, true, "The Graph component must remain publishable.");

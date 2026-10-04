@@ -1,3 +1,4 @@
+/** @jest-environment node */
 import { scheduler } from "./Scheduler";
 import { debounce, schedule, throttle } from "./schedule";
 
