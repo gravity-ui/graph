@@ -1,0 +1,7 @@
+{
+  "name": "@gravity-ui/graph-typescript-native",
+  "private": true,
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

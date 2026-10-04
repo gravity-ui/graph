@@ -152,42 +152,42 @@
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.tsx",
+      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.ts",
       "code": 18048,
       "message": "'bucket' is possibly 'undefined'.",
       "count": 2
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.tsx",
+      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.ts",
       "code": 18048,
       "message": "'group' is possibly 'undefined'.",
       "count": 1
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.tsx",
+      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.ts",
       "code": 18048,
       "message": "'index' is possibly 'undefined'.",
       "count": 3
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.tsx",
+      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.ts",
       "code": 18048,
       "message": "'params' is possibly 'undefined'.",
       "count": 2
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.tsx",
+      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.ts",
       "code": 18048,
       "message": "'prev' is possibly 'undefined'.",
       "count": 2
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.tsx",
+      "file": "packages/graph/src/components/canvas/connections/BatchPath2D/index.ts",
       "code": 2345,
       "message": "Argument of type 'Path2DGroup' is not assignable to parameter of type 'never'.",
       "count": 1
@@ -292,42 +292,42 @@
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/GraphComponent/index.tsx",
+      "file": "packages/graph/src/components/canvas/GraphComponent/index.ts",
       "code": 2322,
       "message": "Type 'PortState<unknown> | undefined' is not assignable to type 'PortState<unknown>'.\n  Type 'undefined' is not assignable to type 'PortState<unknown>'.",
       "count": 1
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/GraphComponent/index.tsx",
+      "file": "packages/graph/src/components/canvas/GraphComponent/index.ts",
       "code": 2322,
       "message": "Type 'undefined' is not assignable to type '[number, number]'.",
       "count": 2
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/GraphComponent/index.tsx",
+      "file": "packages/graph/src/components/canvas/GraphComponent/index.ts",
       "code": 2345,
       "message": "Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type 'TEventedComponentListener'.\n  Type '(event: MouseEvent) => void' is not assignable to type '(e: Event) => void'.\n    Types of parameters 'event' and 'e' are incompatible.\n      Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.",
       "count": 1
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/GraphComponent/index.tsx",
+      "file": "packages/graph/src/components/canvas/GraphComponent/index.ts",
       "code": 2345,
       "message": "Argument of type 'boolean | undefined' is not assignable to parameter of type 'boolean'.\n  Type 'undefined' is not assignable to type 'boolean'.",
       "count": 2
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/GraphComponent/index.tsx",
+      "file": "packages/graph/src/components/canvas/GraphComponent/index.ts",
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(type: K, listener: (this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n      Type 'EventListenerObject' is not assignable to type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n        Type 'EventListenerObject' provides no match for the signature '(this: HTMLDivElement, ev: HTMLElementEventMap[K]): any'.\n  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.\n      Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListenerOrEventListenerObject'.\n        Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListener'.\n          Types of parameters 'ev' and 'evt' are incompatible.\n            Type 'Event' is not assignable to type 'HTMLElementEventMap[K]'.\n              Type 'Event' is not assignable to type 'Event & UIEvent & AnimationEvent & PointerEvent & InputEvent & ToggleEvent & FocusEvent & ... 12 more ... & WheelEvent'.\n                Type 'Event' is missing the following properties from type 'UIEvent': detail, view, which, initUIEvent",
       "count": 1
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/GraphComponent/index.tsx",
+      "file": "packages/graph/src/components/canvas/GraphComponent/index.ts",
       "code": 2769,
       "message": "No overload matches this call.\n  Overload 1 of 2, '(type: K, listener: (this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n      Type 'EventListenerObject' is not assignable to type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n        Type 'EventListenerObject' provides no match for the signature '(this: HTMLDivElement, ev: HTMLElementEventMap[K]): any'.\n  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.\n      Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListenerOrEventListenerObject'.\n        Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListener'.\n          Types of parameters 'ev' and 'evt' are incompatible.\n            Type 'Event' is not assignable to type 'HTMLElementEventMap[K]'.\n              Type 'Event' is not assignable to type 'Event & UIEvent & AnimationEvent & PointerEvent & InputEvent & ToggleEvent & FocusEvent & ... 12 more ... & WheelEvent'.\n                Type 'Event' is missing the following properties from type 'UIEvent': detail, view, which, initUIEvent",
       "count": 1
@@ -811,22 +811,8 @@
     {
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/plugins/cssVariables/CSSVariablesLayer.ts",
-      "code": 7006,
-      "message": "Parameter 'record' implicitly has an 'any' type.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/plugins/cssVariables/CSSVariablesLayer.ts",
-      "code": 7006,
-      "message": "Parameter 'records' implicitly has an 'any' type.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/plugins/cssVariables/CSSVariablesLayer.ts",
-      "code": 7016,
-      "message": "Could not find a declaration file for module 'style-observer'. '<repo>/node_modules/.pnpm/style-observer@0.1.1/node_modules/style-observer/index.js' implicitly has an 'any' type.\n  There are types at '<repo>/packages/graph/node_modules/style-observer/types/index.d.ts', but this result could not be resolved under your current 'moduleResolution' setting. Consider updating to 'node16', 'nodenext', or 'bundler'.",
+      "code": 2345,
+      "message": "Argument of type '{ targets: (HTMLDivElement | null)[]; properties: string[]; }' is not assignable to parameter of type 'string | string[] | StyleObserverOptions | undefined'.\n  Types of property 'targets' are incompatible.\n    Type '(HTMLDivElement | null)[]' is not assignable to type 'Element | Element[] | undefined'.\n      Type '(HTMLDivElement | null)[]' is not assignable to type 'Element[]'.\n        Type 'HTMLDivElement | null' is not assignable to type 'Element'.\n          Type 'null' is not assignable to type 'Element'.",
       "count": 1
     },
     {

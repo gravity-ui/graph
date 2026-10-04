@@ -4,6 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { build } from "esbuild";
+import { validateStyleEntry } from "./css-assets.mjs";
 
 export async function buildPackage({
   packageRoot,
@@ -259,6 +260,7 @@ export async function buildPackage({
   ]);
 
   assertNoBundledPackages(buildResults.filter(Boolean));
+  await validateStyleEntry(packageRoot, manifest, styles);
 
   const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
   await run(pnpmCommand, ["exec", "tsc", "-p", "tsconfig.publish.json"]);

@@ -1,13 +1,25 @@
 {
   "compilerOptions": {
     "outDir": "./build/",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "module": "esnext",
     "target": "es2020",
     "noEmitOnError": true,
     "esModuleInterop": true,
     "experimentalDecorators": true,
-    "skipLibCheck": false
+    "skipLibCheck": false,
+    "strict": false,
+    "lib": [
+      "es2020",
+      "dom",
+      "dom.iterable"
+    ],
+    "noUncheckedSideEffectImports": true,
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src/**/*.ts"
+  ]
 }

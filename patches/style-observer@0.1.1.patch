@@ -1,0 +1,20 @@
+diff --git a/types/src/util/MultiWeakMap.d.ts b/types/src/util/MultiWeakMap.d.ts
+index 42e797386daf00194bff2c1e5e78a997a843efc3..33f4162c246365df51926fefbdc43ad86d87768c 100644
+--- a/types/src/util/MultiWeakMap.d.ts
++++ b/types/src/util/MultiWeakMap.d.ts
+@@ -1,10 +1,13 @@
+ /**
+  * A WeakMap that maps keys to Sets of values, allowing multiple values per key.
+  */
+-export default class MultiWeakMap extends WeakMap<object, any> {
++// The runtime overrides WeakMap.delete with a void-returning operation and
++// overloads has(key, value). Model those methods separately from the base.
++declare const MultiWeakMapBase: new () => Omit<WeakMap<object, any>, "has" | "delete">;
++export default class MultiWeakMap extends MultiWeakMapBase {
+     constructor(entries?: readonly (readonly [object, any])[]);
+     constructor(iterable: Iterable<readonly [any, any]>);
+-    has(key: any, value: any, ...args: any[]): any;
++    has(key: any, value?: any): boolean;
+     add(key: any, value: any): void;
+     delete(key: any, ...values: any[]): void;
+ }

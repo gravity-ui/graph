@@ -3,7 +3,13 @@
   "compilerOptions": {
     "declaration": true,
     "emitDeclarationOnly": true,
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "types": [
+      "node"
+    ]
   },
-  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts"
+  ]
 }

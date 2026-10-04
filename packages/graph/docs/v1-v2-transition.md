@@ -253,3 +253,9 @@ Core no longer contains DevTools code or declarations. The shared text measureme
 Scheduler remains exported by graph. Its public facade is checked against the runtime implementation without type assertions; method signatures are unchanged. `GlobalScheduler.start()` and `stop()` are idempotent, and stopping inside an update prevents the next frame from being queued. Frame ID zero is treated as a valid pending frame, and the Node fallback cancels its timeout handle correctly.
 
 `Scheduler.start()` keeps one active registration. Each restart uses a distinct registration, so a deferred removal cannot cancel the restarted Scheduler. `Scheduler.stop()` immediately disables its updates; removal from the global list completes after the current update. Constructor registration remains enabled. The global scheduler still supports multiple independent registrations, including scheduling wrappers. Calling `update()` before `setRoot()` is a no-op; a scheduled update performed before root initialization is consumed, so schedule again after setting the root.
+
+### Source TypeScript configuration and styles
+
+Workspace source projects now use `moduleResolution: "bundler"`, explicit Node/DOM/test environments, and `noUncheckedSideEffectImports`. E2E no longer relies on `baseUrl`. Published declaration paths and NodeNext/CJS consumer configurations remain supported.
+
+Source CSS declarations describe side-effect imports; build checks independently validate the actual imported files and public stylesheet entry points. Consumers should import the public `styles.css` entry points and declare CSS imports according to their bundler. Native TypeScript 7.0.2 configuration checks run separately from the current declaration emitter; strict migration and native emit continue in the subsequent issues.

@@ -2,14 +2,28 @@
   "compilerOptions": {
     "esModuleInterop": true,
     "jsx": "react-jsx",
-    "lib": ["es2020", "dom"],
+    "lib": [
+      "es2020",
+      "dom",
+      "dom.iterable"
+    ],
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "noEmit": true,
     "skipLibCheck": true,
     "target": "es2020",
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "strict": false,
+    "noUncheckedSideEffectImports": true
   },
-  "include": ["src/**/*", ".storybook/**/*"],
-  "exclude": ["node_modules", "storybook-static"]
+  "include": [
+    "src/**/*",
+    ".storybook/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "storybook-static"
+  ]
 }
