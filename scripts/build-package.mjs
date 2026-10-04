@@ -4,7 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { build } from "esbuild";
-import { validateCssImports, validateStyleEntry } from "./css-assets.mjs";
+import { validateStyleEntry } from "./css-assets.mjs";
 
 export async function buildPackage({
   packageRoot,
@@ -12,7 +12,6 @@ export async function buildPackage({
   docs = false,
   styles = true,
 }) {
-  await validateCssImports(path.join(packageRoot, "tsconfig.json"));
   const buildDirectory = path.join(packageRoot, "build");
   const manifest = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
   const externalPackages = [

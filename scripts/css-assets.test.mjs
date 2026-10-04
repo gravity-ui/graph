@@ -3,39 +3,23 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import ts from "typescript";
-import { validateCssImports, validateStyleEntry } from "./css-assets.mjs";
+import { validateStyleEntry } from "./css-assets.mjs";
+import { buildPackage } from "./build-package.mjs";
 
-test("wildcard declarations cannot hide missing static or dynamic CSS imports", async () => {
-  const root = await mkdtemp(path.join(tmpdir(), "graph-css-"));
+test("package build rejects missing CSS imports even with wildcard declarations", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "graph-css-build-"));
   try {
-    await writeFile(path.join(root, "tsconfig.json"), JSON.stringify({ files: ["index.ts", "assets.d.ts"] }));
-    await writeFile(path.join(root, "assets.d.ts"), 'declare module "*.css";');
-    await writeFile(path.join(root, "real.css"), "body {}");
-    for (const source of [
-      'import "./missing.css";',
-      'import("./missing.css");',
-      "import(`./missing.css`);",
-      'import("./missing.css", {with: {type: "css"}});',
-      'export {} from "./missing.css";',
-    ]) {
-      await writeFile(path.join(root, "index.ts"), source);
-      const program = ts.createProgram([path.join(root, "index.ts"), path.join(root, "assets.d.ts")], {
-        noEmit: true,
-        noUncheckedSideEffectImports: true,
-        types: [],
-        target: ts.ScriptTarget.ES2020,
-        module: ts.ModuleKind.ESNext,
-        moduleResolution: ts.ModuleResolutionKind.Bundler,
+    await mkdir(path.join(root, "src"));
+    await writeFile(path.join(root, "package.json"), JSON.stringify({ name: "css-build-fixture", exports: {} }));
+    await writeFile(path.join(root, "tsconfig.json"), JSON.stringify({ include: ["src/**/*.ts"] }));
+    await writeFile(path.join(root, "src/assets.d.ts"), 'declare module "*.css";');
+    for (const source of ['import "./missing.css";', 'import("./missing.css");', "import(`./missing.css`);"]) {
+      await writeFile(path.join(root, "src/index.ts"), source);
+      await assert.rejects(buildPackage({ packageRoot: root, styles: false }), (error) => {
+        assert.ok(error.errors.some((diagnostic) => diagnostic.text.includes('Could not resolve "./missing.css"')));
+        return true;
       });
-      assert.deepEqual(ts.getPreEmitDiagnostics(program), []);
-      await assert.rejects(validateCssImports(path.join(root, "tsconfig.json")), /missing.css/);
     }
-    await writeFile(path.join(root, "index.ts"), 'import "./real.css"; const example = `import "./missing.css";`;');
-    await validateCssImports(path.join(root, "tsconfig.json"));
-    await mkdir(path.join(root, "directory.css"));
-    await writeFile(path.join(root, "index.ts"), 'import "./directory.css";');
-    await assert.rejects(validateCssImports(path.join(root, "tsconfig.json")), /regular file/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

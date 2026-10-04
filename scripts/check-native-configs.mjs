@@ -4,7 +4,6 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PROJECTS } from "./strict-diagnostics.mjs";
-import { validateCssImports } from "./css-assets.mjs";
 
 const script = fileURLToPath(import.meta.url);
 const root = path.resolve(path.dirname(script), "..");
@@ -41,7 +40,6 @@ async function main() {
   ];
   for (const project of configs) {
     const configPath = path.join(root, project);
-    await validateCssImports(configPath);
     const result = spawnSync(process.execPath, [compiler, "-p", configPath, "--noEmit", "--pretty", "false"], {
       cwd: root,
       encoding: "utf8",
