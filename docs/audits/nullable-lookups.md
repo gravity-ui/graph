@@ -12,7 +12,8 @@ React anchor lookup reads the block map and the current anchor signal in one
 computation, tracking deletion/recreation without retaining a detached anchor.
 The synchronous hook reads once; the reactive block hook subscribes to the map.
 
-The selector's unchecked `BlockState<T>` assertion is removed. Lookup hooks do
+Legacy selector modules are removed; consumers call existing store lookup methods
+directly. Their unchecked `BlockState<T>` assertion is removed. Lookup hooks do
 not accept arbitrary subtype arguments. CanvasBlock no longer promises a custom
 state or props shape from an ID. Its required binding checks state existence;
 Anchor does likewise. Custom metadata consumers check their actual fields.
@@ -33,7 +34,7 @@ public changes are recorded in the cumulative migration guide.
 The exact project/file/code/message/count comparison contains only removed
 identities and reduced counts. No new errors or message identities are admitted.
 Existing zero-error configuration boundaries and Scheduler remain enforced.
-The two selector files and two lookup hook files now also require zero errors,
+The public graph API file and two lookup hook files now also require zero errors,
 including during baseline writes. Broader entity, component and React strict
 work remains in #360, #362 and #363; E2E test root coverage remains in #367.
 

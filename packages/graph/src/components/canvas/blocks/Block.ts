@@ -9,7 +9,6 @@ import { ESelectionStrategy } from "../../../services/selection";
 import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
 import { BlockState, IS_BLOCK_TYPE, TBlockId } from "../../../store/block/Block";
-import { selectBlockById } from "../../../store/block/selectors";
 import { PortState } from "../../../store/connection/port/Port";
 import { createAnchorPortId, createBlockPointPortId } from "../../../store/connection/port/utils";
 import { isAllowDrag, isMetaKeyEvent } from "../../../utils/functions";
@@ -187,7 +186,7 @@ export class Block extends GraphComponent<TBlockProps, TBlock, TGraphLayerContex
     this.connectedStateUnsubscribers.forEach((unsub) => unsub());
     this.connectedStateUnsubscribers = [];
 
-    const blockState = selectBlockById(this.context.graph, id);
+    const blockState = this.context.graph.rootStore.blocksList.getBlockState(id);
     if (!blockState) throw new Error(`Cannot bind Block to missing block ${id}`);
     this.connectedState = blockState;
     this.state = cloneDeep(this.connectedState.$state.value);

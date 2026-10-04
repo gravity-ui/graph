@@ -6,9 +6,7 @@ import { Graph } from "../graph";
 import { TGraphColors, TGraphColorsPatch, TGraphConstants, TGraphConstantsPatch } from "../graphConfig";
 import { ESelectionStrategy } from "../services/selection/types";
 import { TBlockId } from "../store/block/Block";
-import { selectBlockById } from "../store/block/selectors";
 import { TConnection, TConnectionId } from "../store/connection/ConnectionState";
-import { selectConnectionById } from "../store/connection/selectors";
 import { TGraphSettingsConfig, TGraphSettingsPatch } from "../store/settings";
 import { getBlocksRect, getElementsRect, startAnimation } from "../utils/functions";
 import { TRect } from "../utils/types/shapes";
@@ -187,7 +185,7 @@ export class PublicGraphApi {
   }
 
   public updateBlock(block: { id: TBlockId } & Partial<Omit<TBlock, "id">>) {
-    const blockStore = selectBlockById(this.graph, block.id);
+    const blockStore = this.graph.rootStore.blocksList.getBlockState(block.id);
     blockStore?.updateBlock(block);
   }
 
@@ -226,7 +224,7 @@ export class PublicGraphApi {
   }
 
   public updateConnection(id: TConnectionId, connection: Partial<TConnection>) {
-    const connectionStore = selectConnectionById(this.graph, id);
+    const connectionStore = this.graph.rootStore.connectionsList.getConnectionState(id);
     connectionStore?.updateConnection(connection);
   }
 
@@ -235,7 +233,7 @@ export class PublicGraphApi {
   }
 
   public getBlockById(blockId: TBlockId): TBlock | undefined {
-    return selectBlockById(this.graph, blockId)?.asTBlock();
+    return this.graph.rootStore.blocksList.getBlock(blockId);
   }
 
   public getUsableRect() {

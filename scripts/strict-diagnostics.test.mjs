@@ -172,8 +172,7 @@ test("CLI baseline is reproducible across line shifts and rejects regressions/co
 
 test("nullable lookup contracts reject diagnostics even in a baseline", () => {
   for (const file of [
-    "packages/graph/src/store/block/selectors.ts",
-    "packages/graph/src/store/connection/selectors.ts",
+    "packages/graph/src/api/PublicGraphApi.ts",
     "packages/graph-react/src/hooks/useBlockState.ts",
     "packages/graph-react/src/hooks/useBlockAnchorState.ts",
   ]) {

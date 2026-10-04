@@ -1,13 +1,10 @@
 import { Graph } from "../../graph";
-import { selectConnectionById } from "../connection/selectors";
-
-import { selectBlockAnchor, selectBlockById } from "./selectors";
 
 test("lookups and updates tolerate missing and removed IDs", () => {
   const graph = new Graph({});
-  expect(selectBlockById(graph, "missing")).toBeUndefined();
-  expect(selectBlockAnchor(graph, "missing", "anchor")).toBeUndefined();
-  expect(selectConnectionById(graph, "missing")).toBeUndefined();
+  expect(graph.rootStore.blocksList.getBlockState("missing")).toBeUndefined();
+  expect(graph.rootStore.blocksList.getBlockState("missing")?.getAnchorById("anchor")).toBeUndefined();
+  expect(graph.rootStore.connectionsList.getConnectionState("missing")).toBeUndefined();
   expect(graph.api.getBlockById("missing")).toBeUndefined();
   expect(() => graph.api.updateConnection("missing", {})).not.toThrow();
   graph.setEntities({
@@ -24,23 +21,23 @@ test("lookups and updates tolerate missing and removed IDs", () => {
       },
     ],
   });
-  expect(selectBlockById(graph, "block")?.id).toBe("block");
-  expect(selectBlockAnchor(graph, "block", "anchor")?.id).toBe("anchor");
+  expect(graph.rootStore.blocksList.getBlockState("block")?.id).toBe("block");
+  expect(graph.rootStore.blocksList.getBlockState("block")?.getAnchorById("anchor")?.id).toBe("anchor");
   graph.api.addConnection({ id: "connection", sourceBlockId: "block", targetBlockId: "block" });
-  expect(selectConnectionById(graph, "connection")?.id).toBe("connection");
+  expect(graph.rootStore.connectionsList.getConnectionState("connection")?.id).toBe("connection");
   expect(graph.rootStore.connectionsList.getConnectionStates(["connection", "missing"])).toHaveLength(1);
   graph.setEntities({ blocks: [], connections: [] });
-  expect(selectConnectionById(graph, "connection")).toBeUndefined();
+  expect(graph.rootStore.connectionsList.getConnectionState("connection")).toBeUndefined();
   expect(graph.rootStore.connectionsList.getConnectionStates(["connection"])).toEqual([]);
-  expect(selectBlockById(graph, "block")).toBeUndefined();
+  expect(graph.rootStore.blocksList.getBlockState("block")).toBeUndefined();
   expect(graph.api.getBlockById("block")).toBeUndefined();
-  expect(selectBlockAnchor(graph, "block", "anchor")).toBeUndefined();
+  expect(graph.rootStore.blocksList.getBlockState("block")?.getAnchorById("anchor")).toBeUndefined();
 });
 
 export function sourceLookupTypeProbe(graph: Graph) {
-  const block = selectBlockById(graph, "missing");
+  const block = graph.rootStore.blocksList.getBlockState("missing");
   const id = block?.id;
-  // @ts-expect-error source selector cannot assert a subtype by ID
-  selectBlockById<{ id: string }>(graph, "missing");
+  // @ts-expect-error source store lookup cannot assert a subtype by ID
+  graph.rootStore.blocksList.getBlockState<{ id: string }>("missing");
   return { id, block };
 }

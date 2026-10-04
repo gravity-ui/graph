@@ -19,8 +19,7 @@ export const RESOLVED_CONFIGURATION_FILES = [
   "packages/graph/src/utils/functions/mergeDefined.ts",
 ];
 export const NULLABLE_LOOKUP_FILES = [
-  "packages/graph/src/store/block/selectors.ts",
-  "packages/graph/src/store/connection/selectors.ts",
+  "packages/graph/src/api/PublicGraphApi.ts",
   "packages/graph-react/src/hooks/useBlockState.ts",
   "packages/graph-react/src/hooks/useBlockAnchorState.ts",
 ];

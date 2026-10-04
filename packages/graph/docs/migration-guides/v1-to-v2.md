@@ -218,12 +218,16 @@ if (!state) return null;
 follow anchor removal and recreation. Connection updates for missing IDs are a
 no-op, matching block updates. List lookup methods filter out missing IDs.
 
-Lookup hooks and selectors no longer accept a type argument that promises
+Legacy internal selector modules are removed. Use the existing
+`rootStore.blocksList.getBlockState(id)` and
+`rootStore.connectionsList.getConnectionState(id)` methods directly.
+
+Lookup hooks and store methods do not accept a type argument that promises
 custom metadata from an ID. CanvasBlock also exposes the base block state;
 remove its state and props type arguments and validate custom metadata before reading it.
 For example, check `meta && "color" in meta && typeof meta.color === "string"`.
 `TGraphSettingsConfig` and `TGraphSettingsPatch` now take only the connection
 type parameter; remove their former block type parameter.
 Typed block data supplied by your application can still use `TBlock<MyMetadata>`.
-Canvas Block/Anchor construction requires an existing corresponding state and
+Canvas Block/Anchor/Connection construction requires an existing corresponding state and
 throws a descriptive error when the required entity is absent.

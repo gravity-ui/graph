@@ -1,7 +1,6 @@
 import { Component, ESchedulerPriority } from "../../../lib";
 import { TComponentState } from "../../../lib/Component";
 import { ConnectionState, TConnection, TConnectionId } from "../../../store/connection/ConnectionState";
-import { selectConnectionById } from "../../../store/connection/selectors";
 import { debounce } from "../../../utils/functions";
 import { TPoint, TRect } from "../../../utils/types/shapes";
 import { GraphComponent, GraphComponentContext } from "../GraphComponent";
@@ -130,7 +129,9 @@ export class BaseConnection<
     super(props, parent);
 
     // Get reactive connection state from the store
-    this.connectedState = selectConnectionById(this.context.graph, this.props.id) as ConnectionState<Connection>;
+    const connectionState = this.context.graph.rootStore.connectionsList.getConnectionState(this.props.id);
+    if (!connectionState) throw new Error(`Cannot bind Connection to missing connection ${this.props.id}`);
+    this.connectedState = connectionState as ConnectionState<Connection>;
     this.connectedState.setViewComponent(this);
 
     // Subscribe to port changes for automatic geometry updates
