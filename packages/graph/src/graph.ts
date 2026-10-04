@@ -163,6 +163,7 @@ export class Graph {
     }
 
     this.setupGraph(config);
+    this.rootStore.settings.captureInitialSettings();
   }
 
   protected onUpdateSize = (event: IRect) => {
@@ -430,7 +431,7 @@ export class Graph {
     this.rootStore.settings.setupSettings(settings);
   }
 
-  /** Restore the selected settings to library defaults, or all settings when keys are omitted. */
+  /** Restore the selected settings to their constructor values, or all settings when keys are omitted. */
   public resetSettings(keys?: readonly (keyof TGraphSettingsConfig)[]) {
     this.rootStore.settings.reset(keys);
   }

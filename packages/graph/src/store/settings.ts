@@ -107,6 +107,8 @@ export const DefaultSettings: TGraphSettingsConfig = {
 };
 
 export class GraphEditorSettings {
+  private initialSettings = cloneDeep(DefaultSettings);
+
   public $settings = signal(cloneDeep(DefaultSettings));
 
   public $blockComponents = computed(() => {
@@ -122,6 +124,11 @@ export class GraphEditorSettings {
   });
 
   constructor(public rootStore: RootStore) {}
+
+  /** @internal Capture the complete constructor configuration before subsequent updates. */
+  public captureInitialSettings() {
+    this.initialSettings = cloneDeep(this.$settings.value);
+  }
 
   public setupSettings(config: TGraphSettingsPatch = {}) {
     const current = this.$settings.value;
@@ -174,14 +181,14 @@ export class GraphEditorSettings {
 
   public reset(keys?: readonly (keyof TGraphSettingsConfig)[]) {
     if (keys === undefined) {
-      this.$settings.value = cloneDeep(DefaultSettings);
+      this.$settings.value = cloneDeep(this.initialSettings);
       return;
     }
     if (keys.length === 0) return;
-    const defaults = cloneDeep(DefaultSettings);
+    const initial = cloneDeep(this.initialSettings);
     const next = { ...this.$settings.value };
     const restore = <K extends keyof TGraphSettingsConfig>(key: K) => {
-      next[key] = defaults[key];
+      next[key] = initial[key];
     };
     keys.forEach(restore);
     this.$settings.value = next;

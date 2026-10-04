@@ -99,4 +99,43 @@ describe("Settings store", () => {
     expect(updates).toHaveBeenCalledTimes(1);
     unsubscribe();
   });
+  it("restores constructor settings selectively and entirely after later setup calls", () => {
+    const callback = jest.fn();
+    const configured = new Graph({
+      settings: { dragThreshold: 10, canDrag: ECanDrag.ALL, background: Component, getCameraBlockScaleLevel: callback },
+    });
+    const settings = configured.rootStore.settings;
+    const initial = settings.asConfig;
+    configured.setupGraph({
+      settings: { dragThreshold: 20, canDrag: ECanDrag.NONE, getCameraBlockScaleLevel: jest.fn() },
+    });
+    configured.updateSettings({ canZoomCamera: false });
+    configured.resetSettings(["dragThreshold", "getCameraBlockScaleLevel"]);
+    expect(settings.asConfig.dragThreshold).toBe(10);
+    expect(settings.asConfig.getCameraBlockScaleLevel).toBe(callback);
+    expect(settings.asConfig.canZoomCamera).toBe(false);
+    expect(settings.asConfig.canDrag).toBe(ECanDrag.NONE);
+    configured.resetSettings();
+    expect(settings.asConfig).toEqual(initial);
+    expect(settings.asConfig.background).toBe(Component);
+  });
+
+  it("keeps an independent initial snapshot through input mutation and repeated resets", () => {
+    const blockComponents: Record<string, typeof Block> = { First: Block };
+    const input = { dragThreshold: 10, blockComponents };
+    const configured = new Graph({ settings: input });
+    const other = new Graph({ settings: { dragThreshold: 30 } });
+    input.dragThreshold = 99;
+    delete input.blockComponents.First;
+    configured.updateSettings({ dragThreshold: 20, blockComponents: { Second: Block } });
+    configured.resetSettings(["blockComponents"]);
+    expect(configured.rootStore.settings.asConfig.blockComponents).toEqual({ First: Block });
+    configured.updateSettings({ blockComponents: { Third: Block } });
+    configured.resetSettings();
+    expect(configured.rootStore.settings.asConfig.dragThreshold).toBe(10);
+    expect(configured.rootStore.settings.asConfig.blockComponents).toEqual({ First: Block });
+    other.resetSettings();
+    expect(other.rootStore.settings.asConfig.dragThreshold).toBe(30);
+    expect(DefaultSettings.dragThreshold).toBe(5);
+  });
 });

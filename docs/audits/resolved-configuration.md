@@ -13,7 +13,9 @@ colors and callbacks are always present.
 Normalization copies input/default objects and skips undefined fields. Nested
 objects merge by field, including component registrations and connection label
 constants; arrays/tuples replace atomically. Settings resets are explicit through
-`Graph.resetSettings(keys)` and `Graph.resetSettings()`. The deprecated geometry
+`Graph.resetSettings(keys)` and `Graph.resetSettings()`, restoring an independent
+snapshot of the normalized constructor settings rather than library defaults.
+Subsequent configuration updates do not change that snapshot. The deprecated geometry
 setting/enum is removed in favor of `canDrag`. Single-setting updates publish a
 new signal value. Empty selectable entity lists disable rectangle selection.
 

@@ -142,8 +142,20 @@ graph.updateSettings({ getCameraBlockScaleLevel: undefined });
 After:
 
 ```ts
-graph.resetSettings(["getCameraBlockScaleLevel", "background"]); // Restore both defaults.
-graph.resetSettings(); // Restore all settings and clear custom registrations.
+graph.resetSettings(["getCameraBlockScaleLevel", "background"]); // Restore both initial values.
+graph.resetSettings(); // Restore the settings established by new Graph(...).
+```
+
+Reset restores the complete settings established during `new Graph(...)`: library
+defaults combined with the constructor's settings. Later `updateSettings`,
+`api.setSetting` and `setupGraph` calls do not change this initial snapshot.
+Constructor callbacks and component registrations are restored too; overrides
+added later are removed when their setting is reset. For example:
+
+```ts
+const graph = new Graph({ settings: { dragThreshold: 10 } });
+graph.updateSettings({ dragThreshold: 20 });
+graph.resetSettings(["dragThreshold"]); // 10, rather than the library default of 5.
 ```
 
 Resetting selected settings preserves every other setting and publishes one update.
