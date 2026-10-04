@@ -227,14 +227,14 @@ export class PublicGraphApi {
 
   public updateConnection(id: TConnectionId, connection: Partial<TConnection>) {
     const connectionStore = selectConnectionById(this.graph, id);
-    connectionStore.updateConnection(connection);
+    connectionStore?.updateConnection(connection);
   }
 
   public addConnection(connection: TConnection) {
     return this.graph.rootStore.connectionsList.addConnection(connection);
   }
 
-  public getBlockById(blockId: TBlockId) {
+  public getBlockById(blockId: TBlockId): TBlock | undefined {
     return selectBlockById(this.graph, blockId)?.asTBlock();
   }
 

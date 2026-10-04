@@ -2,7 +2,7 @@ import React, { useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 
 import { Graph, GraphState, Layer, type TBlock } from "@gravity-ui/graph";
-import { GraphBlock, GraphCanvas, GraphPortal, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
+import { GraphBlock, GraphCanvas, GraphPortal, useBlockState, useSyncBlockState, useBlockViewState, useBlockAnchorState, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-react/styles.css";
 
@@ -67,3 +67,27 @@ if (!root) {
 }
 
 createRoot(root).render(<ReactGraph />);
+
+// Type-only contract probe; never mount this component.
+function LookupContracts({ graph }: { graph: Graph }) {
+  const state = useBlockState(graph, "missing");
+  const sync = useSyncBlockState(graph, "missing");
+  const view = useBlockViewState(graph, "missing");
+  const anchor = useBlockAnchorState(graph, { id: "missing", blockId: "missing", type: "IN" });
+  // @ts-expect-error a block may be absent
+  state.id;
+  // @ts-expect-error synchronous lookup preserves absence in emitted declarations
+  sync.id;
+  // @ts-expect-error a view may be absent
+  view.getEntityId();
+  // @ts-expect-error an anchor may be absent
+  anchor.id;
+  // @ts-expect-error an ID does not establish a custom metadata shape
+  useSyncBlockState<TBlock<{ custom: string }>>(graph, "missing");
+  if (sync) {
+    const id: string | number = sync.id;
+    void id;
+  }
+  return null;
+}
+void LookupContracts;

@@ -12,27 +12,6 @@
   "diagnostics": [
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/api/PublicGraphApi.ts",
-      "code": 18048,
-      "message": "'connectionStore' is possibly 'undefined'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/anchors/index.ts",
-      "code": 2322,
-      "message": "Type 'AnchorState | undefined' is not assignable to type 'AnchorState'.\n  Type 'undefined' is not assignable to type 'AnchorState'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
-      "code": 2322,
-      "message": "Type 'BlockState<T> | undefined' is not assignable to type 'BlockState<T>'.\n  Type 'undefined' is not assignable to type 'BlockState<T>'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/blocks/Block.ts",
       "code": 2345,
       "message": "Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type 'TEventedComponentListener'.\n  Type '(event: MouseEvent) => void' is not assignable to type '(e: Event) => void'.\n    Types of parameters 'event' and 'e' are incompatible.\n      Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.",
@@ -392,13 +371,6 @@
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
       "code": 18048,
-      "message": "'item.block' is possibly 'undefined'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
-      "code": 18048,
       "message": "'sourceId' is possibly 'undefined'.",
       "count": 2
     },
@@ -408,20 +380,6 @@
       "code": 18048,
       "message": "'targetId' is possibly 'undefined'.",
       "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
-      "code": 2322,
-      "message": "Type '(Block<TBlock<{}>, TBlockProps> | undefined)[]' is not assignable to type 'Block<TBlock<{}>, TBlockProps>[]'.\n  Type 'Block<TBlock<{}>, TBlockProps> | undefined' is not assignable to type 'Block<TBlock<{}>, TBlockProps>'.\n    Type 'undefined' is not assignable to type 'Block<TBlock<{}>, TBlockProps>'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
-      "code": 2322,
-      "message": "Type '{ block: Block<TBlock<{}>, TBlockProps> | undefined; coord: { x: number; y: number; }; }[]' is not assignable to type '{ block: Block<TBlock<{}>, TBlockProps>; coord: TPoint; }[]'.\n  Type '{ block: Block<TBlock<{}>, TBlockProps> | undefined; coord: { x: number; y: number; }; }' is not assignable to type '{ block: Block<TBlock<{}>, TBlockProps>; coord: TPoint; }'.\n    Types of property 'block' are incompatible.\n      Type 'Block<TBlock<{}>, TBlockProps> | undefined' is not assignable to type 'Block<TBlock<{}>, TBlockProps>'.\n        Type 'undefined' is not assignable to type 'Block<TBlock<{}>, TBlockProps>'.",
-      "count": 1
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -443,13 +401,6 @@
       "code": 2322,
       "message": "Type 'undefined' is not assignable to type 'number'.",
       "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
-      "code": 2345,
-      "message": "Argument of type 'Block<TBlock<{}>, TBlockProps> | undefined' is not assignable to parameter of type 'Block<TBlock<{}>, TBlockProps>'.\n  Type 'undefined' is not assignable to type 'Block<TBlock<{}>, TBlockProps>'.",
-      "count": 1
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -1783,27 +1734,6 @@
     },
     {
       "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/examples/imageByBlocks/imageByBlocks.stories.tsx",
-      "code": 2532,
-      "message": "Object is possibly 'undefined'.",
-      "count": 1
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
-      "code": 18048,
-      "message": "'blockMetaState.img' is possibly 'undefined'.",
-      "count": 8
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
-      "code": 18048,
-      "message": "'blockMetaState' is possibly 'undefined'.",
-      "count": 29
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
       "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
       "code": 18048,
       "message": "'newConfig.blocks' is possibly 'undefined'.",
@@ -1828,27 +1758,6 @@
       "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
       "code": 2345,
       "message": "Argument of type '(block: TBlock<TBlockMeta>) => void' is not assignable to parameter of type '(value: TBlock, index: number, array: TBlock[]) => void'.\n  Types of parameters 'block' and 'value' are incompatible.\n    Type 'TBlock' is not assignable to type 'TBlock<TBlockMeta>'.\n      Type '{}' is missing the following properties from type 'TBlockMeta': shouldInitImage, imageWidth, imageHeight, imageOffsetX, imageOffsetY",
-      "count": 1
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
-      "code": 2345,
-      "message": "Argument of type 'EBlockStatus | undefined' is not assignable to parameter of type 'EBlockStatus'.\n  Type 'undefined' is not assignable to type 'EBlockStatus'.",
-      "count": 1
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
-      "code": 2345,
-      "message": "Argument of type 'HTMLImageElement | undefined' is not assignable to parameter of type 'CanvasImageSource'.\n  Type 'undefined' is not assignable to type 'CanvasImageSource'.",
-      "count": 2
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/examples/imageInsteadBlock/imageInsteadBlock.stories.tsx",
-      "code": 2532,
-      "message": "Object is possibly 'undefined'.",
       "count": 1
     },
     {
@@ -1961,13 +1870,6 @@
       "file": "apps/storybook/src/stories/Playground/ActionBlock/ActionBlockHtml.tsx",
       "code": 18048,
       "message": "'block.anchors' is possibly 'undefined'.",
-      "count": 1
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/Playground/ActionBlock/ActionBlockHtml.tsx",
-      "code": 18048,
-      "message": "'block.meta' is possibly 'undefined'.",
       "count": 1
     },
     {
@@ -2150,20 +2052,6 @@
       "file": "apps/storybook/src/stories/Playground/Settings.tsx",
       "code": 2322,
       "message": "Type 'MutableRefObject<undefined>' is not assignable to type 'RefObject<PopupAnchorElement>'.\n  Types of property 'current' are incompatible.\n    Type 'undefined' is not assignable to type 'PopupAnchorElement | null'.",
-      "count": 1
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/Playground/TextBlock/index.tsx",
-      "code": 2532,
-      "message": "Object is possibly 'undefined'.",
-      "count": 1
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/Playground/TextBlock/TextBlockHtml.tsx",
-      "code": 18048,
-      "message": "'block.meta' is possibly 'undefined'.",
       "count": 1
     },
     {

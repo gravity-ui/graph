@@ -100,3 +100,23 @@ function checkResolvedConfigurationTypes() {
   void [border, panSpeed, dragThreshold, canZoom];
 }
 void checkResolvedConfigurationTypes;
+
+function checkNullableLookups(graph: Graph) {
+  const block = graph.api.getBlockById("missing");
+  const state = graph.rootStore.blocksList.getBlockState("missing");
+  const connection = graph.rootStore.connectionsList.getConnectionState("missing");
+  const anchor = state?.getAnchorById("missing");
+  // @ts-expect-error block data may be absent
+  block.id;
+  // @ts-expect-error a block state may be absent
+  state.id;
+  // @ts-expect-error a connection state may be absent
+  connection.id;
+  // @ts-expect-error an anchor may be absent
+  anchor.id;
+  // @ts-expect-error lookup cannot promise an arbitrary subtype
+  graph.rootStore.blocksList.getBlockState<TBlock<{ custom: string }>>("missing");
+  const connections = graph.rootStore.connectionsList.getConnectionStates(["missing"]);
+  connections.forEach((connection) => { const id = connection.id; void id; });
+}
+void checkNullableLookups;

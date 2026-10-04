@@ -18,6 +18,12 @@ export const RESOLVED_CONFIGURATION_FILES = [
   "packages/graph/src/graphEvents.ts",
   "packages/graph/src/utils/functions/mergeDefined.ts",
 ];
+export const NULLABLE_LOOKUP_FILES = [
+  "packages/graph/src/store/block/selectors.ts",
+  "packages/graph/src/store/connection/selectors.ts",
+  "packages/graph-react/src/hooks/useBlockState.ts",
+  "packages/graph-react/src/hooks/useBlockAnchorState.ts",
+];
 const script = fileURLToPath(import.meta.url);
 const root = path.resolve(path.dirname(script), "..");
 const baselinePath = path.join(root, "docs/audits/strict-typescript-baseline.json");
@@ -58,6 +64,9 @@ export function validateSnapshot(value) {
     }
     if (RESOLVED_CONFIGURATION_FILES.includes(diagnostic.file)) {
       throw new Error(`Resolved configuration must have zero strict diagnostics: ${identity(diagnostic)}`);
+    }
+    if (NULLABLE_LOOKUP_FILES.includes(diagnostic.file)) {
+      throw new Error(`Nullable lookups must have zero strict diagnostics: ${identity(diagnostic)}`);
     }
     const key = identity(diagnostic);
     if (seen.has(key)) throw new Error(`Duplicate diagnostic identity: ${key}`);
@@ -169,6 +178,7 @@ async function main(args) {
   }
   console.log("Scheduler: zero strict diagnostics (full projects checked).");
   console.log("Resolved configuration boundaries: zero strict diagnostics.");
+  console.log("Nullable lookup boundaries: zero strict diagnostics.");
 }
 
 if (process.argv[1] && process.argv[1] !== "-" && realpathSync(process.argv[1]) === script) {

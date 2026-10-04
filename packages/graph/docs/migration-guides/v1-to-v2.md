@@ -197,3 +197,33 @@ to `updateSettings`.
 
 React `useGraph().setViewConfiguration(viewConfig)` applies the argument you
 pass, allowing configuration updates independently of the initial hook props.
+
+## Nullable entity lookups
+
+Block, connection, anchor and rendered-view lookups return `undefined` for an
+unknown or removed ID. This absence is now preserved in published declarations,
+including `useSyncBlockState`, `useBlockState` and `useBlockViewState`.
+Guard the result before using it:
+
+```ts
+const block = graph.api.getBlockById(id);
+if (block) console.log(block.name);
+
+const state = useBlockState(graph, id);
+if (!state) return null;
+```
+
+`useSyncBlockState` reads the current state without subscribing. Use
+`useBlockState` to rerender when a block is added or removed. Anchor hooks also
+follow anchor removal and recreation. Connection updates for missing IDs are a
+no-op, matching block updates. List lookup methods filter out missing IDs.
+
+Lookup hooks and selectors no longer accept a type argument that promises
+custom metadata from an ID. CanvasBlock also exposes the base block state;
+remove its state and props type arguments and validate custom metadata before reading it.
+For example, check `meta && "color" in meta && typeof meta.color === "string"`.
+`TGraphSettingsConfig` and `TGraphSettingsPatch` now take only the connection
+type parameter; remove their former block type parameter.
+Typed block data supplied by your application can still use `TBlock<MyMetadata>`.
+Canvas Block/Anchor construction requires an existing corresponding state and
+throws a descriptive error when the required entity is absent.

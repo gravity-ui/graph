@@ -157,9 +157,10 @@ export class NewBlockLayer extends Layer<
 
       // If we have a validation function, filter out blocks that can't be duplicated
       if (this.props.isDuplicateAllowed) {
-        blockStates = selectedBlockStates.filter((blockState) =>
-          this.props.isDuplicateAllowed(blockState.getViewComponent())
-        );
+        blockStates = selectedBlockStates.filter((blockState) => {
+          const view = blockState.getViewComponent();
+          return view !== undefined && this.props.isDuplicateAllowed(view);
+        });
 
         // If no blocks can be duplicated, exit
         if (blockStates.length === 0) return;
@@ -172,7 +173,11 @@ export class NewBlockLayer extends Layer<
     }
 
     // Map BlockState to Block for the event
-    const blocks = isBlockSelected ? blockStates.map((blockState) => blockState.getViewComponent()) : [block];
+    const blocks = isBlockSelected
+      ? blockStates
+          .map((blockState) => blockState.getViewComponent())
+          .filter((view): view is Block => view !== undefined)
+      : [block];
 
     // Use the already filtered blockStates
     this.copyBlocks = blockStates;
@@ -273,17 +278,16 @@ export class NewBlockLayer extends Layer<
     const offsetY = point.y - this.initialPoint.y;
 
     // Collect all blocks and their new coordinates as items
-    const items = this.copyBlocks.map((blockState) => {
+    const items = this.copyBlocks.flatMap((blockState) => {
+      const view = blockState.getViewComponent();
+      if (!view) return [];
       // Calculate the new position for each block based on its original position plus the offset
       const newCoord = {
         x: blockState.x + offsetX,
         y: blockState.y + offsetY,
       };
 
-      return {
-        block: blockState.getViewComponent(),
-        coord: newCoord,
-      };
+      return [{ block: view, coord: newCoord }];
     });
 
     // Calculate the delta between start and end positions

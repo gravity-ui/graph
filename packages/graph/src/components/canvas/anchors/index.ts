@@ -52,7 +52,9 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     super(props, parent);
     this.state = { size: props.size, raised: false, selected: false };
 
-    this.connectedState = selectBlockAnchor(this.context.graph, props.blockId, props.id);
+    const anchorState = selectBlockAnchor(this.context.graph, props.blockId, props.id);
+    if (!anchorState) throw new Error(`Cannot bind Anchor to missing anchor ${props.id} in block ${props.blockId}`);
+    this.connectedState = anchorState;
     this.connectedState.setViewComponent(this);
 
     this.addEventListener("click", this);

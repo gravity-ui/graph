@@ -1,7 +1,7 @@
 import { Graph } from "../../graph";
 
-import { TConnectionId } from "./ConnectionState";
+import { ConnectionState, TConnectionId } from "./ConnectionState";
 
-export function selectConnectionById(graph: Graph, id: TConnectionId) {
+export function selectConnectionById(graph: Graph, id: TConnectionId): ConnectionState | undefined {
   return graph.rootStore.connectionsList.$connectionsMap.value.get(id);
 }

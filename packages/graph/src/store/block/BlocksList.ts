@@ -479,7 +479,7 @@ export class BlockListStore {
    * @param id {TBlockId} Block id
    * @returns {BlockState | undefined} Block state
    */
-  public getBlockState(id: TBlockId) {
+  public getBlockState(id: TBlockId): BlockState | undefined {
     return this.$blocksMap.value.get(id);
   }
 

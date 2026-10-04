@@ -1,0 +1,53 @@
+import { Graph } from "@gravity-ui/graph";
+import type { TBlock } from "@gravity-ui/graph";
+import { act, renderHook } from "@testing-library/react";
+
+import { useBlockAnchorState } from "./useBlockAnchorState";
+import { useBlockState, useBlockViewState, useSyncBlockState } from "./useBlockState";
+
+const block: TBlock = {
+  id: "block",
+  is: "Block",
+  name: "Block",
+  x: 0,
+  y: 0,
+  width: 100,
+  height: 100,
+  anchors: [{ id: "anchor", blockId: "block", type: "IN" }],
+};
+
+test("block and anchor hooks follow missing, added, removed and recreated IDs", () => {
+  const graph = new Graph({});
+  const anchor = { id: "anchor", blockId: "block", type: "IN" };
+  const { result, unmount } = renderHook(() => ({
+    state: useBlockState(graph, "block"),
+    sync: useSyncBlockState(graph, "block"),
+    view: useBlockViewState(graph, "block"),
+    anchor: useBlockAnchorState(graph, anchor),
+  }));
+  expect(result.current.state).toBeUndefined();
+  expect(result.current.sync).toBeUndefined();
+  expect(result.current.anchor).toBeUndefined();
+  act(() => graph.setEntities({ blocks: [block] }));
+  expect(result.current.state?.id).toBe("block");
+  expect(result.current.sync).toBe(result.current.state);
+  expect(result.current.anchor?.id).toBe("anchor");
+  act(() => graph.api.updateBlock({ id: "block", anchors: [] }));
+  expect(result.current.anchor).toBeUndefined();
+  act(() => graph.setEntities({ blocks: [] }));
+  expect(result.current.state).toBeUndefined();
+  expect(result.current.sync).toBeUndefined();
+  expect(result.current.view).toBeUndefined();
+  act(() => graph.setEntities({ blocks: [block] }));
+  expect(result.current.anchor?.id).toBe("anchor");
+  unmount();
+  graph.unmount();
+});
+
+// Compile source hooks as well as the packed declaration fixtures. Never execute unsafe accesses.
+export function useSourceLookupTypeProbe(graph: Graph) {
+  const state = useSyncBlockState(graph, "missing");
+  // @ts-expect-error lookup cannot assert a custom entity through a type argument
+  useBlockState<TBlock<{ custom: string }>>(graph, "missing");
+  return state;
+}
