@@ -15,7 +15,7 @@ Graph settings are organized into three main categories:
 Settings can be applied when creating a new graph instance:
 
 ```typescript
-import { Graph } from '@gravity-ui/graph';
+import { Graph, ECanDrag } from '@gravity-ui/graph';
 
 // Create a graph instance with custom settings
 const graph = new Graph(
@@ -37,7 +37,7 @@ You can also update settings after graph creation:
 // Update specific settings
 graph.updateSettings({
   showConnectionArrows: true,
-  canChangeBlockGeometry: 'onlySelected',
+  canDrag: ECanDrag.ONLY_SELECTED,
 });
 
 // Change color scheme
@@ -57,6 +57,7 @@ graph.setConstants({
 });
 ```
 
+
 ## Graph Settings Configuration
 
 These settings control the interactive behaviors and visual styles of the graph.
@@ -65,7 +66,7 @@ These settings control the interactive behaviors and visual styles of the graph.
 |---------|------|---------|-------------|
 | `canDragCamera` | boolean | `true` | Controls whether the camera can be dragged (panned) |
 | `canZoomCamera` | boolean | `true` | Controls whether the camera can be zoomed in/out |
-| `canChangeBlockGeometry` | ECanChangeBlockGeometry | `'none'` | Determines which blocks can be resized or moved. Options: `'all'`, `'onlySelected'`, `'none'` |
+| `canDrag` | ECanDrag | `'none'` | Determines which blocks can be resized or moved. Options: `'all'`, `'onlySelected'`, `'none'` |
 | `canCreateNewConnections` | boolean | `false` | Controls whether users can create new connections |
 | `scaleFontSize` | number | `1` | Scale factor for font sizes throughout the graph |
 | `showConnectionArrows` | boolean | `true` | Controls visibility of arrows at the end of connections |
@@ -195,7 +196,7 @@ graph.updateSettings({
 graph.updateSettings({
   canDragCamera: true,
   canZoomCamera: true,
-  canChangeBlockGeometry: 'none',
+  canDrag: ECanDrag.NONE,
   canCreateNewConnections: false,
 });
 ```
@@ -206,7 +207,7 @@ graph.updateSettings({
 graph.updateSettings({
   canDragCamera: true,
   canZoomCamera: true,
-  canChangeBlockGeometry: 'all',
+  canDrag: ECanDrag.ALL,
   canCreateNewConnections: true,
   showConnectionArrows: true,
   showConnectionLabels: true,

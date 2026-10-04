@@ -11,15 +11,15 @@ List of methods in your disposition:
 
   public getGraphColors(): TGraphColors;
 
-  public updateGraphColors(colors: TGraphColors): void;
+  public updateGraphColors(colors: TGraphColorsPatch): void;
 
   public getGraphConstants(): TGraphConstants;
 
-  public updateGraphConstants(constants: TGraphConstants): void;
+  public updateGraphConstants(constants: TGraphConstantsPatch): void;
 
   public isGraphEmpty(): boolean;
 
-  public setSetting(flagPath: keyof TGraphSettingsConfig, value: boolean | number | ECanChangeBlockGeometry): void;
+  public setSetting<K extends keyof TGraphSettingsConfig>(flagPath: K, value: TGraphSettingsPatch[K]): void;
 
   public setCurrentConfigurationName(newName: string): void;
 

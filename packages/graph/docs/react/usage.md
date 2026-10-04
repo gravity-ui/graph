@@ -332,7 +332,7 @@ const config = {
     // Block interactions
     canDragBlocks: true,
     canDuplicateBlocks: false,
-    canChangeBlockGeometry: 'ALL', // 'NONE' | 'ALL' | 'SELECTED'
+    canDrag: ECanDrag.ALL, // ECanDrag.NONE | ECanDrag.ONLY_SELECTED
     
     // Connection settings
     canCreateNewConnections: true,

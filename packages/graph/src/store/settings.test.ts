@@ -1,6 +1,8 @@
+import { Block } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
+import { Component } from "../lib/Component";
 
-import { DefaultSettings, ECanChangeBlockGeometry, ECanDrag, GraphEditorSettings } from "./settings";
+import { DefaultSettings, ECanDrag, GraphEditorSettings } from "./settings";
 
 describe("Settings store", () => {
   let graph: Graph;
@@ -15,6 +17,8 @@ describe("Settings store", () => {
 
   it("Should init with default settings", () => {
     expect(store.asConfig).toEqual(DefaultSettings);
+    expect(Object.prototype.hasOwnProperty.call(store.asConfig, "background")).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(store.asConfig, "connection")).toBe(true);
   });
 
   it("Should get config via key", () => {
@@ -27,84 +31,111 @@ describe("Settings store", () => {
     expect(store.getConfigFlag("canDuplicateBlocks")).toBe(true);
   });
 
-  describe("$canDrag computed with backward compatibility", () => {
-    describe("new setting (canDrag)", () => {
-      it("should default to NONE", () => {
-        expect(store.$canDrag.value).toBe(ECanDrag.NONE);
-      });
+  it.each([ECanDrag.ALL, ECanDrag.ONLY_SELECTED, ECanDrag.NONE])("uses canDrag %s directly", (canDrag) => {
+    store.setupSettings({ canDrag });
+    expect(store.$canDrag.value).toBe(canDrag);
+  });
 
-      it("should use ALL when explicitly set", () => {
-        store.setupSettings({ canDrag: ECanDrag.ALL });
-        expect(store.$canDrag.value).toBe(ECanDrag.ALL);
-      });
-
-      it("should use ONLY_SELECTED when explicitly set", () => {
-        store.setupSettings({ canDrag: ECanDrag.ONLY_SELECTED });
-        expect(store.$canDrag.value).toBe(ECanDrag.ONLY_SELECTED);
-      });
-
-      it("should use NONE when explicitly set", () => {
-        store.setupSettings({ canDrag: ECanDrag.NONE });
-        expect(store.$canDrag.value).toBe(ECanDrag.NONE);
-      });
+  it("ignores undefined patches, including callbacks, and preserves falsy values", () => {
+    const resolveWheelIntent = jest.fn();
+    const getCameraBlockScaleLevel = jest.fn();
+    store.setupSettings({ dragThreshold: 0, canZoomCamera: false, resolveWheelIntent, getCameraBlockScaleLevel });
+    store.setupSettings({
+      dragThreshold: undefined,
+      canZoomCamera: undefined,
+      resolveWheelIntent: undefined,
+      getCameraBlockScaleLevel: undefined,
     });
+    expect(store.asConfig.dragThreshold).toBe(0);
+    expect(store.asConfig.canZoomCamera).toBe(false);
+    expect(store.asConfig.resolveWheelIntent).toBe(resolveWheelIntent);
+    expect(store.asConfig.getCameraBlockScaleLevel).toBe(getCameraBlockScaleLevel);
+  });
 
-    describe("deprecated setting (canChangeBlockGeometry)", () => {
-      it("should use ALL when set via deprecated setting", () => {
-        store.setupSettings({ canChangeBlockGeometry: ECanChangeBlockGeometry.ALL });
-        expect(store.$canDrag.value).toBe(ECanDrag.ALL);
-      });
+  it("notifies subscribers for single-setting updates without modifying defaults or other graphs", () => {
+    const other = new Graph({});
+    const updates = jest.fn();
+    const unsubscribe = store.$settings.subscribe(updates);
+    updates.mockClear();
+    graph.api.setSetting("dragThreshold", 0);
+    expect(updates).toHaveBeenCalledTimes(1);
+    expect(store.$dragThreshold.value).toBe(0);
+    expect(other.rootStore.settings.asConfig.dragThreshold).toBe(DefaultSettings.dragThreshold);
+    expect(DefaultSettings.dragThreshold).toBe(5);
+    unsubscribe();
+  });
 
-      it("should use ONLY_SELECTED when set via deprecated setting", () => {
-        store.setupSettings({ canChangeBlockGeometry: ECanChangeBlockGeometry.ONLY_SELECTED });
-        expect(store.$canDrag.value).toBe(ECanDrag.ONLY_SELECTED);
-      });
-
-      it("should use NONE when set via deprecated setting", () => {
-        store.setupSettings({ canChangeBlockGeometry: ECanChangeBlockGeometry.NONE });
-        expect(store.$canDrag.value).toBe(ECanDrag.NONE);
-      });
+  it("resets one setting or all settings to defaults, clearing optional overrides", () => {
+    store.setupSettings({ dragThreshold: 0, canZoomCamera: false, getCameraBlockScaleLevel: jest.fn() });
+    graph.resetSettings(["getCameraBlockScaleLevel"]);
+    expect(store.asConfig.getCameraBlockScaleLevel).toBe(DefaultSettings.getCameraBlockScaleLevel);
+    expect(store.asConfig.dragThreshold).toBe(0);
+    graph.resetSettings();
+    expect(store.asConfig).toEqual(DefaultSettings);
+  });
+  it("merges component registrations and resets custom optional overrides explicitly", () => {
+    store.setupSettings({ blockComponents: { First: Block }, background: Component });
+    store.setupSettings({ blockComponents: { First: undefined, Second: Block }, background: undefined });
+    expect(store.$blockComponents.value).toEqual({ First: Block, Second: Block });
+    expect(store.$background.value).toBe(Component);
+    graph.resetSettings(["background"]);
+    expect(store.$background.value).toBeUndefined();
+    graph.resetSettings(["blockComponents"]);
+    expect(store.$blockComponents.value).toEqual({});
+  });
+  it("resets multiple settings atomically and preserves other values", () => {
+    store.setupSettings({ canDrag: ECanDrag.ALL, dragThreshold: 0, canZoomCamera: false });
+    const updates = jest.fn();
+    const unsubscribe = store.$settings.subscribe(updates);
+    updates.mockClear();
+    graph.resetSettings(["canDrag", "dragThreshold", "canDrag"]);
+    expect(store.asConfig.canDrag).toBe(DefaultSettings.canDrag);
+    expect(store.asConfig.dragThreshold).toBe(DefaultSettings.dragThreshold);
+    expect(store.asConfig.canZoomCamera).toBe(false);
+    expect(updates).toHaveBeenCalledTimes(1);
+    const current = store.$settings.value;
+    graph.resetSettings([]);
+    expect(store.$settings.value).toBe(current);
+    expect(updates).toHaveBeenCalledTimes(1);
+    unsubscribe();
+  });
+  it("restores constructor settings selectively and entirely after later setup calls", () => {
+    const callback = jest.fn();
+    const configured = new Graph({
+      settings: { dragThreshold: 10, canDrag: ECanDrag.ALL, background: Component, getCameraBlockScaleLevel: callback },
     });
-
-    describe("conflict resolution (both settings provided)", () => {
-      it("should prioritize deprecated canChangeBlockGeometry over canDrag to not break existing users", () => {
-        store.setupSettings({
-          canChangeBlockGeometry: ECanChangeBlockGeometry.NONE,
-          canDrag: ECanDrag.ALL,
-        });
-        expect(store.$canDrag.value).toBe(ECanDrag.NONE);
-      });
-
-      it("should use canChangeBlockGeometry=ALL even when canDrag=NONE", () => {
-        store.setupSettings({
-          canChangeBlockGeometry: ECanChangeBlockGeometry.ALL,
-          canDrag: ECanDrag.NONE,
-        });
-        expect(store.$canDrag.value).toBe(ECanDrag.ALL);
-      });
-
-      it("should use canChangeBlockGeometry=ONLY_SELECTED even when canDrag=ALL", () => {
-        store.setupSettings({
-          canChangeBlockGeometry: ECanChangeBlockGeometry.ONLY_SELECTED,
-          canDrag: ECanDrag.ALL,
-        });
-        expect(store.$canDrag.value).toBe(ECanDrag.ONLY_SELECTED);
-      });
+    const settings = configured.rootStore.settings;
+    const initial = settings.asConfig;
+    configured.setupGraph({
+      settings: { dragThreshold: 20, canDrag: ECanDrag.NONE, getCameraBlockScaleLevel: jest.fn() },
     });
+    configured.updateSettings({ canZoomCamera: false });
+    configured.resetSettings(["dragThreshold", "getCameraBlockScaleLevel"]);
+    expect(settings.asConfig.dragThreshold).toBe(10);
+    expect(settings.asConfig.getCameraBlockScaleLevel).toBe(callback);
+    expect(settings.asConfig.canZoomCamera).toBe(false);
+    expect(settings.asConfig.canDrag).toBe(ECanDrag.NONE);
+    configured.resetSettings();
+    expect(settings.asConfig).toEqual(initial);
+    expect(settings.asConfig.background).toBe(Component);
+  });
 
-    describe("migration path", () => {
-      it("should allow migration by removing deprecated setting and using new one", () => {
-        // User starts with deprecated setting
-        store.setupSettings({ canChangeBlockGeometry: ECanChangeBlockGeometry.NONE });
-        expect(store.$canDrag.value).toBe(ECanDrag.NONE);
-
-        // User migrates: removes deprecated setting, adds new one
-        store.setupSettings({
-          canChangeBlockGeometry: undefined,
-          canDrag: ECanDrag.ALL,
-        });
-        expect(store.$canDrag.value).toBe(ECanDrag.ALL);
-      });
-    });
+  it("keeps an independent initial snapshot through input mutation and repeated resets", () => {
+    const blockComponents: Record<string, typeof Block> = { First: Block };
+    const input = { dragThreshold: 10, blockComponents };
+    const configured = new Graph({ settings: input });
+    const other = new Graph({ settings: { dragThreshold: 30 } });
+    input.dragThreshold = 99;
+    delete input.blockComponents.First;
+    configured.updateSettings({ dragThreshold: 20, blockComponents: { Second: Block } });
+    configured.resetSettings(["blockComponents"]);
+    expect(configured.rootStore.settings.asConfig.blockComponents).toEqual({ First: Block });
+    configured.updateSettings({ blockComponents: { Third: Block } });
+    configured.resetSettings();
+    expect(configured.rootStore.settings.asConfig.dragThreshold).toBe(10);
+    expect(configured.rootStore.settings.asConfig.blockComponents).toEqual({ First: Block });
+    other.resetSettings();
+    expect(other.rootStore.settings.asConfig.dragThreshold).toBe(30);
+    expect(DefaultSettings.dragThreshold).toBe(5);
   });
 });

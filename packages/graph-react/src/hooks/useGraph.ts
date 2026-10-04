@@ -5,11 +5,11 @@ import type {
   LayerPublicProps,
   TBlock,
   TConnection,
-  TGraphColors,
-  TGraphConstants,
+  TGraphColorsPatch,
+  TGraphConstantsPatch,
   TGraphZoomTarget,
 } from "@gravity-ui/graph";
-import { Graph, GraphState, RecursivePartial, TGraphConfig, ZoomConfig } from "@gravity-ui/graph";
+import { Graph, GraphState, TGraphConfig, TGraphSettingsPatch, ZoomConfig } from "@gravity-ui/graph";
 
 import { useFn } from "../utils/hooks/useFn";
 
@@ -17,12 +17,26 @@ export type HookGraphParams = Pick<TGraphConfig, "settings" | "layers"> & {
   graph?: Graph;
   name?: string;
   viewConfiguration?: {
-    colors?: RecursivePartial<TGraphColors>;
-    constants?: RecursivePartial<TGraphConstants>;
+    colors?: TGraphColorsPatch;
+    constants?: TGraphConstantsPatch;
   };
 };
 
-export function useGraph(config: HookGraphParams) {
+/** Public hook result expressed through Graph's published API. */
+export type UseGraphResult = {
+  graph: Graph;
+  api: Graph["api"];
+  setSettings: Graph["updateSettings"];
+  start: () => void;
+  stop: () => void;
+  setViewConfiguration: (config: NonNullable<HookGraphParams["viewConfiguration"]>) => void;
+  addLayer: Graph["addLayer"];
+  setEntities: Graph["setEntities"];
+  updateEntities: Graph["updateEntities"];
+  zoomTo: Graph["zoomTo"];
+};
+
+export function useGraph(config: HookGraphParams): UseGraphResult {
   const graph = useMemo(() => {
     if (config.graph) {
       return config.graph;
@@ -45,12 +59,12 @@ export function useGraph(config: HookGraphParams) {
     };
   }, [graph]);
 
-  const setViewConfiguration = useFn((viewConfig: HookGraphParams["viewConfiguration"]) => {
+  const setViewConfiguration = useFn((viewConfig: NonNullable<HookGraphParams["viewConfiguration"]>) => {
     if (viewConfig.colors) {
-      graph.setColors(config.viewConfiguration.colors);
+      graph.setColors(viewConfig.colors);
     }
     if (viewConfig.constants) {
-      graph.setConstants(config.viewConfiguration.constants);
+      graph.setConstants(viewConfig.constants);
     }
   });
 
@@ -67,7 +81,7 @@ export function useGraph(config: HookGraphParams) {
   return {
     graph,
     api: graph.api,
-    setSettings: useFn((settings) => graph.updateSettings(settings)),
+    setSettings: useFn((settings: TGraphSettingsPatch) => graph.updateSettings(settings)),
     start: useFn(() => {
       if (graph.state !== GraphState.READY) {
         graph.start();
@@ -92,7 +106,7 @@ export function useGraph(config: HookGraphParams) {
       graph.updateEntities(entities);
     }),
     zoomTo: useFn((target: TGraphZoomTarget, config?: ZoomConfig) => {
-      graph.zoomTo(target, config);
+      return graph.zoomTo(target, config);
     }),
   };
 }

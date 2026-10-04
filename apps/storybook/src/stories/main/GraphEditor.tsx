@@ -1,6 +1,6 @@
 import React, { useLayoutEffect } from "react";
 
-import { Graph, GraphState, TBlock, TGraphColors, TGraphConfig } from "@gravity-ui/graph";
+import { Graph, GraphState, TBlock, TGraphColorsPatch, TGraphConfig } from "@gravity-ui/graph";
 import { GraphCanvas, HookGraphParams, TGraphEventCallbacks, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 
 import { useFn } from "../../useFn";
@@ -10,7 +10,7 @@ import { BlockStory } from "./Block";
 export type TGraphComponentProps = {
   config: TGraphConfig;
   graphRef?: React.MutableRefObject<Graph>;
-  colors?: TGraphColors;
+  colors?: TGraphColorsPatch;
   constants?: NonNullable<HookGraphParams["viewConfiguration"]>["constants"];
   renderBlock?: <T extends TBlock>(graphObject: Graph, block: T) => React.JSX.Element;
 };

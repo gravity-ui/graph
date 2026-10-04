@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { Graph, TGraphColors } from "@gravity-ui/graph";
+import { Graph, TGraphColorsPatch } from "@gravity-ui/graph";
 import {
   Flex,
   SegmentedRadioGroup,
@@ -16,7 +16,7 @@ import { GraphComponentStory } from "../../main/GraphEditor";
 
 import "@gravity-ui/uikit/styles/styles.css";
 
-const graphColors: TGraphColors = {
+const graphColors: TGraphColorsPatch = {
   anchor: {
     background: "var(--g-color-private-cool-grey-800-solid)",
     selectedBorder: "var(--g-color-private-yellow-550-solid)",
@@ -51,8 +51,8 @@ const graphColors: TGraphColors = {
   },
 };
 
-function parseTheme(colors: TGraphColors): TGraphColors {
-  const parsed: TGraphColors = {};
+function parseTheme(colors: TGraphColorsPatch): TGraphColorsPatch {
+  const parsed: TGraphColorsPatch = {};
 
   for (const element in colors) {
     parsed[element] = {};

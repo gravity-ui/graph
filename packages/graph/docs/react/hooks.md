@@ -85,12 +85,12 @@ function MyGraph(): JSX.Element {
   const { 
     graph,           // Graph - graph instance
     api,             // PublicGraphApi - public API for graph manipulation
-    setSettings,     // (settings: TGraphSettingsConfig) => void
-    setViewConfiguration, // (config: HookGraphParams["viewConfiguration"]) => void
+    setSettings,     // (settings: TGraphSettingsPatch) => void
+    setViewConfiguration, // (config: NonNullable<HookGraphParams["viewConfiguration"]>) => void
     setEntities,     // <B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => void
     updateEntities,  // <B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => void
     addLayer,        // <T extends Constructor<Layer>>(layerCtor: T, props: LayerPublicProps<T>) => InstanceType<T>
-    zoomTo,          // (target: TGraphZoomTarget, config?: ZoomConfig) => void
+    zoomTo,          // (target: TGraphZoomTarget, config?: ZoomConfig) => boolean
     start,           // () => void
     stop,            // () => void
   } = useGraph(config);
@@ -113,8 +113,8 @@ function MyGraph(): JSX.Element {
 |-----------|------|-------------|
 | `graph` | `Graph` | Optional existing Graph instance to use |
 | `name` | `string` | Configuration name for the graph |
-| `settings` | `TGraphSettingsConfig` | Graph behavior settings |
-| `viewConfiguration` | `{ colors?: RecursivePartial<TGraphColors>; constants?: RecursivePartial<TGraphConstants> }` | Visual configuration |
+| `settings` | `TGraphSettingsPatch` | Graph behavior settings |
+| `viewConfiguration` | `{ colors?: TGraphColorsPatch; constants?: TGraphConstantsPatch }` | Visual configuration |
 | `layers` | `LayerConfig[]` | Initial layers to add to the graph |
 
 #### Returns
@@ -123,12 +123,12 @@ function MyGraph(): JSX.Element {
 |----------|------|-------------|
 | `graph` | `Graph` | The Graph instance |
 | `api` | `PublicGraphApi` | Public API for graph manipulation |
-| `setSettings` | `(settings: TGraphSettingsConfig) => void` | Update graph settings |
-| `setViewConfiguration` | `(config: HookGraphParams["viewConfiguration"]) => void` | Update view configuration |
+| `setSettings` | `(settings: TGraphSettingsPatch) => void` | Update graph settings |
+| `setViewConfiguration` | `(config: NonNullable<HookGraphParams["viewConfiguration"]>) => void` | Update view configuration |
 | `setEntities` | `<B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => void` | Replace all entities |
 | `updateEntities` | `<B extends TBlock, C extends TConnection>(entities: { blocks?: B[]; connections?: C[] }) => void` | Merge with existing entities |
 | `addLayer` | `<T extends Constructor<Layer>>(layerCtor: T, props: LayerPublicProps<T>) => InstanceType<T>` | Add a new layer |
-| `zoomTo` | `(target: TGraphZoomTarget, config?: ZoomConfig) => void` | Zoom to target |
+| `zoomTo` | `(target: TGraphZoomTarget, config?: ZoomConfig) => boolean` | Zoom to target |
 | `start` | `() => void` | Start the graph |
 | `stop` | `() => void` | Stop the graph |
 

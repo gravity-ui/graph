@@ -1,7 +1,6 @@
 import { GraphMouseEvent, extractNativeGraphMouseEvent, isGraphEvent } from "../../../../graphEvents";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { Camera } from "../../../../services/camera/Camera";
-import { ESelectionStrategy } from "../../../../services/selection";
 import { isMetaKeyEvent } from "../../../../utils/functions";
 import { render } from "../../../../utils/renderers/render";
 
@@ -157,13 +156,11 @@ export class SelectionLayer extends Layer<
   private applySelectedArea(x: number, y: number, w: number, h: number, shiftPressed: boolean): void {
     const selectableEntityTypes = this.context.graph.$graphConstants.value.selectionLayer.SELECTABLE_ENTITY_TYPES;
     const shiftStrategy = this.context.graph.$graphConstants.value.selectionLayer.SHIFT_STRATEGY;
-    const strategy =
-      shiftPressed && shiftStrategy ? shiftStrategy : this.context.graph.$graphConstants.value.selectionLayer.STRATEGY;
+    const strategy = shiftPressed ? shiftStrategy : this.context.graph.$graphConstants.value.selectionLayer.STRATEGY;
 
-    const elements = this.context.graph.getElementsOverRect({ x, y, width: w, height: h }, selectableEntityTypes);
-    this.context.graph.rootStore.selectionService.selectRelatedElements(
-      elements,
-      strategy || ESelectionStrategy.REPLACE
-    );
+    const elements = selectableEntityTypes.length
+      ? this.context.graph.getElementsOverRect({ x, y, width: w, height: h }, selectableEntityTypes)
+      : [];
+    this.context.graph.rootStore.selectionService.selectRelatedElements(elements, strategy);
   }
 }

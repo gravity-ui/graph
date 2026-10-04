@@ -26,31 +26,10 @@
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/anchors/index.ts",
-      "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/anchors/index.ts",
-      "code": 2532,
-      "message": "Object is possibly 'undefined'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/blocks/Block.ts",
       "code": 2322,
       "message": "Type 'BlockState<T> | undefined' is not assignable to type 'BlockState<T>'.\n  Type 'undefined' is not assignable to type 'BlockState<T>'.",
       "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
-      "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
-      "count": 3
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -62,16 +41,9 @@
     {
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/blocks/Block.ts",
-      "code": 2345,
-      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
       "code": 2532,
       "message": "Object is possibly 'undefined'.",
-      "count": 7
+      "count": 2
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -106,13 +78,6 @@
       "file": "packages/graph/src/components/canvas/blocks/Block.ts",
       "code": 7053,
       "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'BlockViewState'.\n  No index signature with a parameter of type 'string' was found on type 'BlockViewState'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/blocks/Blocks.ts",
-      "code": 2322,
-      "message": "Type 'number | boolean | typeof Component | TResolveWheelIntent | ECanDrag | \"vertical\" | \"horizontal\" | { new (props: TConnectionProps, parent: BlockConnections): BlockConnection<...>; prototype: BlockConnection<...>; create<Props extends CoreComponentProps, Context extends CoreComponentContext>(this: Constructor<...>, p...' is not assignable to type '{}'.\n  Type 'undefined' is not assignable to type '{}'.",
       "count": 1
     },
     {
@@ -252,13 +217,6 @@
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/connections/MultipointConnection.ts",
       "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
-      "count": 7
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/connections/MultipointConnection.ts",
-      "code": 2322,
       "message": "Type 'undefined' is not assignable to type 'Path2D'.",
       "count": 1
     },
@@ -268,13 +226,6 @@
       "code": 2345,
       "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
       "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/connections/MultipointConnection.ts",
-      "code": 2532,
-      "message": "Object is possibly 'undefined'.",
-      "count": 8
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -362,20 +313,6 @@
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/belowLayer/Background.ts",
-      "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
-      "count": 3
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/belowLayer/Background.ts",
-      "code": 2532,
-      "message": "Object is possibly 'undefined'.",
-      "count": 3
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/layers/belowLayer/PointerGrid.ts",
       "code": 2322,
       "message": "Type 'CanvasPattern | null' is not assignable to type 'CanvasPattern'.\n  Type 'null' is not assignable to type 'CanvasPattern'.",
@@ -387,27 +324,6 @@
       "code": 2322,
       "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D'.\n  Type 'null' is not assignable to type 'CanvasRenderingContext2D'.",
       "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/belowLayer/PointerGrid.ts",
-      "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/belowLayer/PointerGrid.ts",
-      "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/belowLayer/PointerGrid.ts",
-      "code": 2532,
-      "message": "Object is possibly 'undefined'.",
-      "count": 4
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -434,13 +350,6 @@
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/layers/connectionLayer/ConnectionLayer.ts",
       "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/connectionLayer/ConnectionLayer.ts",
-      "code": 2322,
       "message": "Type 'string | undefined' is not assignable to type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
       "count": 2
     },
@@ -456,7 +365,7 @@
       "file": "packages/graph/src/components/canvas/layers/connectionLayer/ConnectionLayer.ts",
       "code": 2532,
       "message": "Object is possibly 'undefined'.",
-      "count": 4
+      "count": 2
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -532,13 +441,6 @@
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
       "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
-      "code": 2322,
       "message": "Type 'undefined' is not assignable to type 'number'.",
       "count": 2
     },
@@ -547,13 +449,6 @@
       "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
       "code": 2345,
       "message": "Argument of type 'Block<TBlock<{}>, TBlockProps> | undefined' is not assignable to parameter of type 'Block<TBlock<{}>, TBlockProps>'.\n  Type 'undefined' is not assignable to type 'Block<TBlock<{}>, TBlockProps>'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
-      "code": 2532,
-      "message": "Object is possibly 'undefined'.",
       "count": 1
     },
     {
@@ -602,13 +497,6 @@
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/layers/portConnectionLayer/PortConnectionLayer.ts",
       "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/portConnectionLayer/PortConnectionLayer.ts",
-      "code": 2322,
       "message": "Type 'string | undefined' is not assignable to type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
       "count": 2
     },
@@ -636,13 +524,6 @@
     {
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/layers/portConnectionLayer/PortConnectionLayer.ts",
-      "code": 2532,
-      "message": "Object is possibly 'undefined'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/portConnectionLayer/PortConnectionLayer.ts",
       "code": 7053,
       "message": "Element implicitly has an 'any' type because expression of type 'unique symbol' can't be used to index type '{}'.\n  Property '[\"./PortConnectionLayer\".PortConnectionLayer.PortMetaKey]' does not exist on type '{}'.",
       "count": 2
@@ -653,20 +534,6 @@
       "code": 2322,
       "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D | undefined'.\n  Type 'null' is not assignable to type 'CanvasRenderingContext2D | undefined'.",
       "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/selectionLayer/SelectionLayer.ts",
-      "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/selectionLayer/SelectionLayer.ts",
-      "code": 2532,
-      "message": "Object is possibly 'undefined'.",
-      "count": 2
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -715,13 +582,6 @@
       "file": "packages/graph/src/graph.ts",
       "code": 2564,
       "message": "Property 'config' has no initializer and is not definitely assigned in the constructor.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/graphConfig.ts",
-      "code": 2322,
-      "message": "Type 'typeof Block' is not assignable to type 'GraphComponentConstructor'.\n  Types of construct signatures are incompatible.\n    Type 'new <T extends TBlock = TBlock<{}>, Props extends TBlockProps = TBlockProps>(props: Props, parent: Component<CoreComponentProps, TComponentState, CoreComponentContext>) => Block<...>' is not assignable to type 'new (...args: unknown[]) => GraphComponent<TGraphComponentProps, TComponentState, GraphComponentContext>'.\n      Types of parameters 'props' and 'args' are incompatible.\n        Type 'unknown' is not assignable to type 'TBlockProps'.\n          Type 'unknown' is not assignable to type 'CoreComponentProps'.",
       "count": 1
     },
     {
@@ -1525,30 +1385,9 @@
     {
       "project": "packages/graph-react/tsconfig.json",
       "file": "packages/graph-react/src/GraphCanvas.tsx",
-      "code": 18048,
-      "message": "'colors.anchor' is possibly 'undefined'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/GraphCanvas.tsx",
-      "code": 18048,
-      "message": "'colors.block' is possibly 'undefined'.",
-      "count": 3
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/GraphCanvas.tsx",
       "code": 2322,
       "message": "Type 'MutableRefObject<HTMLDivElement | undefined>' is not assignable to type 'LegacyRef<HTMLDivElement> | undefined'.\n  Type 'MutableRefObject<HTMLDivElement | undefined>' is not assignable to type 'RefObject<HTMLDivElement>'.\n    Types of property 'current' are incompatible.\n      Type 'HTMLDivElement | undefined' is not assignable to type 'HTMLDivElement | null'.\n        Type 'undefined' is not assignable to type 'HTMLDivElement | null'.",
       "count": 1
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/GraphCanvas.tsx",
-      "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
-      "count": 5
     },
     {
       "project": "packages/graph-react/tsconfig.json",
@@ -1576,48 +1415,6 @@
       "file": "packages/graph-react/src/GraphPortal.tsx",
       "code": 2322,
       "message": "Type 'GraphPortalLayer | null' is not assignable to type 'GraphPortalLayer'.\n  Type 'null' is not assignable to type 'GraphPortalLayer'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/hooks/useGraph.ts",
-      "code": 18048,
-      "message": "'config.viewConfiguration' is possibly 'undefined'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/hooks/useGraph.ts",
-      "code": 18048,
-      "message": "'viewConfig' is possibly 'undefined'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/hooks/useGraph.ts",
-      "code": 2345,
-      "message": "Argument of type 'Partial<TGraphSettingsConfig<TBlock, { id?: TConnectionId | undefined; sourceBlockId?: TBlockId | undefined; targetBlockId?: TBlockId | undefined; sourceAnchorId?: string | undefined; ... 6 more ...; selected?: boolean | undefined; }>> | undefined' is not assignable to parameter of type 'Partial<TGraphSettingsConfig>'.\n  Type 'undefined' is not assignable to type 'Partial<TGraphSettingsConfig>'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/hooks/useGraph.ts",
-      "code": 2345,
-      "message": "Argument of type 'RecursivePartial<TGraphColors> | undefined' is not assignable to parameter of type 'RecursivePartial<TGraphColors>'.\n  Type 'undefined' is not assignable to type 'RecursivePartial<TGraphColors>'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/hooks/useGraph.ts",
-      "code": 2345,
-      "message": "Argument of type 'RecursivePartial<TGraphConstants> | undefined' is not assignable to parameter of type 'RecursivePartial<TGraphConstants>'.\n  Type 'undefined' is not assignable to type 'RecursivePartial<TGraphConstants>'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/hooks/useGraph.ts",
-      "code": 2345,
-      "message": "Argument of type 'unknown' is not assignable to parameter of type 'Partial<TGraphSettingsConfig>'.",
       "count": 1
     },
     {
@@ -1694,13 +1491,6 @@
       "project": "packages/graph-minimap/tsconfig.json",
       "file": "packages/graph-minimap/src/layer.ts",
       "code": 2345,
-      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph-minimap/tsconfig.json",
-      "file": "packages/graph-minimap/src/layer.ts",
-      "code": 2345,
       "message": "Argument of type 'TMiniMapLocation | undefined' is not assignable to parameter of type 'TMiniMapLocation'.\n  Type 'undefined' is not assignable to type 'TMiniMapLocation'.",
       "count": 1
     },
@@ -1709,7 +1499,7 @@
       "file": "packages/graph-minimap/src/layer.ts",
       "code": 2532,
       "message": "Object is possibly 'undefined'.",
-      "count": 2
+      "count": 1
     },
     {
       "project": "packages/graph-devtools/tsconfig.json",
@@ -1888,45 +1678,10 @@
     },
     {
       "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/canvas/groups/extended.stories.tsx",
-      "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
-      "count": 1
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/canvas/groups/extended.stories.tsx",
-      "code": 2532,
-      "message": "Object is possibly 'undefined'.",
-      "count": 1
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
       "file": "apps/storybook/src/stories/canvas/groups/large.stories.tsx",
       "code": 18048,
       "message": "'config.blocks' is possibly 'undefined'.",
       "count": 1
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/configurations/customBlocksView.ts",
-      "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
-      "count": 1
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/configurations/customBlocksView.ts",
-      "code": 2345,
-      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
-      "count": 1
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/configurations/customBlocksView.ts",
-      "code": 2532,
-      "message": "Object is possibly 'undefined'.",
-      "count": 2
     },
     {
       "project": "apps/storybook/tsconfig.json",
@@ -2156,7 +1911,7 @@
       "project": "apps/storybook/tsconfig.json",
       "file": "apps/storybook/src/stories/examples/themeChange/themeChange.stories.tsx",
       "code": 7053,
-      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'TGraphColors'.\n  No index signature with a parameter of type 'string' was found on type 'TGraphColors'.",
+      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'TGraphColorsPatch'.\n  No index signature with a parameter of type 'string' was found on type 'TGraphColorsPatch'.",
       "count": 4
     },
     {
@@ -2218,16 +1973,9 @@
     {
       "project": "apps/storybook/tsconfig.json",
       "file": "apps/storybook/src/stories/Playground/ActionBlock/index.tsx",
-      "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
-      "count": 6
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/Playground/ActionBlock/index.tsx",
       "code": 2532,
       "message": "Object is possibly 'undefined'.",
-      "count": 7
+      "count": 1
     },
     {
       "project": "apps/storybook/tsconfig.json",

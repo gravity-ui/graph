@@ -1,7 +1,6 @@
-import type { TGraphColors, TGraphConstants } from "../../graphConfig";
+import type { TGraphColorsPatch, TGraphConstantsPatch } from "../../graphConfig";
 import type { TComponentState } from "../../lib/Component";
 import type { LayerProps } from "../../services/Layer";
-import { RecursivePartial } from "../../utils/types/helpers";
 
 /**
  * Describes a change to a CSS variable
@@ -33,8 +32,10 @@ export interface CSSVariablesLayerProps extends LayerProps {
 export interface CSSVariablesLayerState extends TComponentState {
   /** Whether the layer is actively observing changes */
   isObserving: boolean;
-  colors: RecursivePartial<TGraphColors>;
-  constants: RecursivePartial<TGraphConstants>;
+  /** Accumulated CSS input overrides for Graph.setColors, not resolved graph state. */
+  colors: TGraphColorsPatch;
+  /** Accumulated CSS input overrides for Graph.setConstants, not resolved graph state. */
+  constants: TGraphConstantsPatch;
 }
 
 /**
@@ -74,7 +75,7 @@ export const CSS_VALUE_CONVERTERS = {
 export interface CSSVariableMapping {
   /** CSS variable name */
   cssVariable: string;
-  /** Path in TGraphColors or TGraphConstants (e.g., 'block.background') */
+  /** Path in TGraphColorsPatch or TGraphConstantsPatch (e.g., 'block.background') */
   graphPath: string;
   /** Type converter for the CSS variable value */
   typeConverter: CSSVariableType;

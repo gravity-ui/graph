@@ -16,8 +16,8 @@ interface CSSVariablesObserver {
  * CSSVariablesLayer: Synchronizes CSS variables with graph colors and constants
  *
  * Creates an empty HTML div with specified CSS class and monitors CSS variable changes
- * using style-observer package. Automatically maps CSS variables to TGraphColors and
- * TGraphConstants and applies changes via graph.setColors() and graph.setConstants().
+ * using style-observer package. Automatically maps CSS variables to TGraphColorsPatch and
+ * TGraphConstantsPatch and applies changes via graph.setColors() and graph.setConstants().
  */
 export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContext, CSSVariablesLayerState> {
   public state: CSSVariablesLayerState = {

@@ -3,7 +3,14 @@ export { Block as CanvasBlock, isTBlock, type TBlock, type TBlockProps } from ".
 export { GraphComponent } from "./components/canvas/GraphComponent";
 export * from "./components/canvas/connections";
 export * from "./graph";
-export type { TGraphColors, TGraphConstants, TMouseWheelBehavior } from "./graphConfig";
+export type {
+  GraphComponentConstructor,
+  TGraphColorsPatch,
+  TGraphConstantsPatch,
+  TGraphColors,
+  TGraphConstants,
+  TMouseWheelBehavior,
+} from "./graphConfig";
 export type {
   TResolveWheelIntent,
   TResolveWheelIntentOptions,
@@ -42,7 +49,7 @@ export type { ConnectionState, TConnection, TConnectionId } from "./store/connec
 export type { AnchorState } from "./store/anchor/Anchor";
 export type { TPort, TPortId } from "./store/connection/port/Port";
 export { createAnchorPortId, createBlockPointPortId, createPortId } from "./store/connection/port/utils";
-export { ECanChangeBlockGeometry, ECanDrag } from "./store/settings";
+export { ECanDrag } from "./store/settings";
 export { getFontSize, measureText, type TMeasureTextOptions, type TWrapText } from "./utils/functions/text";
 export type { TBlockGeometrySnapshot } from "./store/block/BlocksList";
 export { ESchedulerPriority } from "./lib/Scheduler";

@@ -128,3 +128,57 @@ describe("setEntities + waitUsableRectUpdate (pendingEntitiesUpdate fix)", () =>
     });
   }, 5000);
 });
+
+describe("Resolved graph configuration", () => {
+  it("preserves nested neighbors and ignores undefined without mutating the input", () => {
+    const graph = new Graph({});
+    const colors = { block: { border: "#123456" } };
+    graph.setColors(colors);
+    graph.setColors({ block: { border: undefined, text: "" }, canvas: undefined });
+    expect(graph.graphColors.block.border).toBe("#123456");
+    expect(graph.graphColors.block.text).toBe("");
+    expect(graph.graphColors.block.background).toBeDefined();
+    expect(graph.graphColors.canvas.dots).toBeDefined();
+    expect(colors).toEqual({ block: { border: "#123456" } });
+    expect(new Graph({}).graphColors.block.border).not.toBe("#123456");
+  });
+
+  it("replaces arrays atomically and keeps nested constant defaults", () => {
+    const graph = new Graph({});
+    graph.setConstants({
+      selectionLayer: { SELECTABLE_ENTITY_TYPES: [] },
+      connection: { LABEL: { INNER_PADDINGS: [1, 2, 3, 4] } },
+      camera: { SPEED: 0 },
+    });
+    graph.setConstants({ camera: { SPEED: undefined, PAN_SPEED: 2 } });
+    expect(graph.graphConstants.selectionLayer.SELECTABLE_ENTITY_TYPES).toEqual([]);
+    expect(graph.graphConstants.connection.LABEL.INNER_PADDINGS).toEqual([1, 2, 3, 4]);
+    expect(graph.graphConstants.connection.DEFAULT_Z_INDEX).toBe(0);
+    expect(graph.graphConstants.camera.SPEED).toBe(0);
+    expect(graph.graphConstants.camera.PAN_SPEED).toBe(2);
+  });
+
+  it("copies constructor input, arrays and default objects between graph instances", () => {
+    const scales: [number, number, number] = [0.1, 0.2, 0.3];
+    const graph = new Graph({}, undefined, { block: { border: "#abcdef" } }, { block: { SCALES: scales } });
+    scales[0] = 9;
+    expect(graph.graphConstants.block.SCALES).toEqual([0.1, 0.2, 0.3]);
+    expect(graph.graphConstants.block.WIDTH).toBe(200);
+    const other = new Graph({});
+    graph.graphColors.canvas.dots = "#010101";
+    expect(other.graphColors.canvas.dots).not.toBe("#010101");
+  });
+
+  it("emits complete snapshots matching signals and getters", () => {
+    const graph = new Graph({});
+    const colorsChanged = jest.fn();
+    const constantsChanged = jest.fn();
+    graph.on("colors-changed", colorsChanged);
+    graph.on("constants-changed", constantsChanged);
+    graph.setColors({ block: { border: "#abcdef" } });
+    graph.setConstants({ camera: { SPEED: 2 } });
+    expect(colorsChanged.mock.calls[0][0].detail.colors).toBe(graph.$graphColors.value);
+    expect(constantsChanged.mock.calls[0][0].detail.constants).toBe(graph.graphConstants);
+    expect(colorsChanged.mock.calls[0][0].detail.colors.anchor.background).toBeDefined();
+  });
+});

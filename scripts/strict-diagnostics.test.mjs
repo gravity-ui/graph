@@ -56,6 +56,17 @@ test("Scheduler errors cannot be admitted even by a baseline", () => {
   assert.throws(() => validateSnapshot(snapshot([debt])), /Scheduler/);
 });
 
+test("Resolved configuration errors cannot be admitted even by a baseline", () => {
+  for (const file of [
+    "packages/graph/src/graphConfig.ts",
+    "packages/graph/src/store/settings.ts",
+    "packages/graph/src/graphEvents.ts",
+    "packages/graph/src/utils/functions/mergeDefined.ts",
+  ]) {
+    assert.throws(() => validateSnapshot(snapshot([{ ...diagnostic, file }])), /configuration/);
+  }
+});
+
 test("rejects malformed baseline metadata and duplicate diagnostic identities", () => {
   for (const invalid of [
     null,

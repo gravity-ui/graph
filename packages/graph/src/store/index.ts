@@ -49,4 +49,4 @@ export class RootStore {
   }
 }
 
-export type { TGraphSettingsConfig } from "./settings";
+export type { TGraphSettingsPatch, TGraphSettingsConfig } from "./settings";

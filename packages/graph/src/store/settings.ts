@@ -6,19 +6,13 @@ import { BlockConnection } from "../components/canvas/connections/BlockConnectio
 import { Component } from "../lib";
 import { defaultGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
 import type { TGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
+import { mergeDefined } from "../utils/functions/mergeDefined";
 import type { EWheelIntent, TResolveWheelIntent, TResolveWheelIntentOptions } from "../utils/functions/wheelIntent";
 import { createWheelIntentResolver } from "../utils/functions/wheelIntent";
 
 import { TConnection } from "./connection/ConnectionState";
 
 import { RootStore } from "./index";
-
-/** @deprecated Use ECanDrag and setting canDrag instead */
-export enum ECanChangeBlockGeometry {
-  ALL = "all",
-  ONLY_SELECTED = "onlySelected",
-  NONE = "none",
-}
 
 export enum ECanDrag {
   /** Any component can be dragged. If component is in selection, all selected draggable components move together */
@@ -33,16 +27,14 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   canDragCamera: boolean;
   canZoomCamera: boolean;
   /** @deprecated Use NewBlockLayer parameters instead */
-  canDuplicateBlocks?: boolean;
-  /** @deprecated Use canDrag instead */
-  canChangeBlockGeometry?: ECanChangeBlockGeometry;
+  canDuplicateBlocks: boolean;
   /** Controls which components can be dragged */
-  canDrag?: ECanDrag;
+  canDrag: ECanDrag;
   /**
    * Minimum distance in pixels the mouse must move before a drag operation starts.
-   * Helps prevent accidental drags during clicks. Default: 3
+   * Helps prevent accidental drags during clicks. Default: 5
    */
-  dragThreshold?: number;
+  dragThreshold: number;
   /**
    * Controls if connections can be created via anchors
    * If this connection is enabled, then anchors are not draggable and connection creation is handled by ConnectionLayer.
@@ -56,15 +48,15 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   connectivityComponentOnClickRaise: boolean;
   showConnectionLabels: boolean;
   blockComponents: Record<string, typeof Block<Block>>;
-  connection?: typeof BlockConnection<Connection>;
-  background?: typeof Component;
+  connection: typeof BlockConnection<Connection> | undefined;
+  background: typeof Component | undefined;
   /**
    * When enabled, mouseenter/mouseleave events are re-evaluated after each camera change.
    * Useful for trackpads where panning does not trigger native mousemove events,
    * so hovering over elements requires this emulation to work correctly.
    * Default: false
    */
-  emulateMouseEventsOnCameraChange?: boolean;
+  emulateMouseEventsOnCameraChange: boolean;
   /**
    * Classifies wheel input as pan or zoom intent so Camera can route without knowing device type.
    * Receives `mouseWheelBehavior` and `wheelInputDevice` from camera constants so wheel policy
@@ -84,12 +76,21 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   getCameraBlockScaleLevel: TGetCameraBlockScaleLevel;
 };
 
+/** Partial public settings input. Undefined never resets or clears a value. */
+export type TGraphSettingsPatch<B extends TBlock = TBlock, C extends TConnection = TConnection> = Omit<
+  Partial<TGraphSettingsConfig<B, C>>,
+  "blockComponents"
+> & {
+  blockComponents?: Partial<TGraphSettingsConfig<B, C>["blockComponents"]>;
+};
+
 export const DefaultSettings: TGraphSettingsConfig = {
   canDragCamera: true,
   canZoomCamera: true,
   canDuplicateBlocks: false,
   canDrag: ECanDrag.NONE,
   dragThreshold: 5,
+  emulateMouseEventsOnCameraChange: false,
   canCreateNewConnections: false,
   showConnectionArrows: true,
   scaleFontSize: 1,
@@ -99,12 +100,16 @@ export const DefaultSettings: TGraphSettingsConfig = {
   connectivityComponentOnClickRaise: true,
   showConnectionLabels: false,
   blockComponents: {},
+  connection: undefined,
+  background: undefined,
   resolveWheelIntent: createWheelIntentResolver(),
   getCameraBlockScaleLevel: defaultGetCameraBlockScaleLevel,
 };
 
 export class GraphEditorSettings {
-  public $settings = signal(DefaultSettings);
+  private initialSettings = cloneDeep(DefaultSettings);
+
+  public $settings = signal(cloneDeep(DefaultSettings));
 
   public $blockComponents = computed(() => {
     return this.$settings.value.blockComponents;
@@ -120,23 +125,29 @@ export class GraphEditorSettings {
 
   constructor(public rootStore: RootStore) {}
 
-  public setupSettings(config: Partial<TGraphSettingsConfig>) {
-    const merged = Object.assign({}, this.$settings.value, config);
+  /** @internal Capture the complete constructor configuration before subsequent updates. */
+  public captureInitialSettings() {
+    this.initialSettings = cloneDeep(this.$settings.value);
+  }
 
+  public setupSettings(config: TGraphSettingsPatch = {}) {
+    const current = this.$settings.value;
+    const { blockComponents, ...settings } = config;
     this.$settings.value = {
-      ...merged,
-      getCameraBlockScaleLevel: merged.getCameraBlockScaleLevel ?? defaultGetCameraBlockScaleLevel,
+      ...mergeDefined(current, settings),
+      blockComponents: mergeDefined(current.blockComponents, blockComponents),
     };
   }
 
-  public setConfigFlag<K extends keyof TGraphSettingsConfig>(flagPath: K, value: TGraphSettingsConfig[K]) {
-    if (typeof this.$settings.value[flagPath] === typeof value) {
-      this.$settings.value[flagPath] = value;
-    }
+  public setConfigFlag<K extends keyof TGraphSettingsConfig>(key: K, value: TGraphSettingsPatch[K]) {
+    if (value === undefined) return;
+    const patch: TGraphSettingsPatch = {};
+    patch[key] = value;
+    this.setupSettings(patch);
   }
 
-  public getConfigFlag(flagPath: keyof TGraphSettingsConfig) {
-    return this.$settings.value[flagPath];
+  public getConfigFlag<K extends keyof TGraphSettingsConfig>(key: K): TGraphSettingsConfig[K] {
+    return this.$settings.value[key];
   }
 
   /**
@@ -156,34 +167,9 @@ export class GraphEditorSettings {
     };
   });
 
-  /**
-   * Computed canDrag setting with backward compatibility.
-   * Priority: canChangeBlockGeometry (deprecated, for existing users) > canDrag > default ALL
-   */
-  public $canDrag = computed((): ECanDrag => {
-    const settings = this.$settings.value;
+  public $canDrag = computed(() => this.$settings.value.canDrag);
 
-    // 1. If deprecated canChangeBlockGeometry is set, use it (don't break existing users)
-    // Both enums have the same string values, so we can cast directly
-    if (settings.canChangeBlockGeometry !== undefined) {
-      return settings.canChangeBlockGeometry as unknown as ECanDrag;
-    }
-
-    // 2. Use canDrag if explicitly set (new users)
-    if (settings.canDrag !== undefined) {
-      return settings.canDrag;
-    }
-
-    // 3. Default to ALL if neither is set
-    return ECanDrag.ALL;
-  });
-
-  /**
-   * Drag threshold in pixels. Default: 3
-   */
-  public $dragThreshold = computed((): number => {
-    return this.$settings.value.dragThreshold ?? 3;
-  });
+  public $dragThreshold = computed(() => this.$settings.value.dragThreshold);
 
   public toJSON() {
     return cloneDeep(this.$settings.toJSON());
@@ -193,7 +179,18 @@ export class GraphEditorSettings {
     return this.toJSON();
   }
 
-  public reset() {
-    this.setupSettings(DefaultSettings);
+  public reset(keys?: readonly (keyof TGraphSettingsConfig)[]) {
+    if (keys === undefined) {
+      this.$settings.value = cloneDeep(this.initialSettings);
+      return;
+    }
+    if (keys.length === 0) return;
+    const initial = cloneDeep(this.initialSettings);
+    const next = { ...this.$settings.value };
+    const restore = <K extends keyof TGraphSettingsConfig>(key: K) => {
+      next[key] = initial[key];
+    };
+    keys.forEach(restore);
+    this.$settings.value = next;
   }
 }

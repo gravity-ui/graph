@@ -188,74 +188,8 @@ mechanism. Do not run recovery with a different SHA, move `next` manually,
 publish another locally packed artifact, or leave a bootstrap `release-as`
 option in place after its release PR merges. No additional role system, SHA
 ledger, ruleset framework, or scheduled synchronization process is required.
-## React package boundary
+## Application migration
 
-React components and hooks now live in `packages/graph-react` and are exported by `@gravity-ui/graph-react`.
-The old `@gravity-ui/graph/react` subpath is removed. Core does not depend on React, React DOM, their types, or ELK.
-The React package has a workspace peer dependency on core, plus required React 18 and React DOM 18 peers.
-
-Replace React imports and load the two independently owned stylesheets:
-
-```ts
-import { Graph } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph, useLayeredLayout } from "@gravity-ui/graph-react";
-import "@gravity-ui/graph/styles.css";
-import "@gravity-ui/graph-react/styles.css";
-```
-
-The layered layout algorithm and converters remain framework-independent core APIs; the React package owns the hook.
-Storybook and E2E consume the same public package entrypoints. `pnpm run build` builds core before React, and the shared
-`tests/package-contract` suite builds and installs one tarball per public package, verifies native imports and strict
-declarations, and checks that the React adapter uses the application's core classes.
-
-## Minimap package boundary
-
-`MiniMapLayer`, `MiniMapLayerProps`, `MiniMapLayerContext`, and `TMiniMapLocation` now belong to
-`@gravity-ui/graph-minimap`. Replace imports of these symbols from `@gravity-ui/graph` with the new package:
-
-```ts
-import { Graph } from "@gravity-ui/graph";
-import { MiniMapLayer } from "@gravity-ui/graph-minimap";
-import "@gravity-ui/graph/styles.css";
-
-const graph = new Graph({ blocks: [] }, document.getElementById("graph")!);
-graph.addLayer(MiniMapLayer, { location: "bottomRight" });
-graph.start();
-```
-
-Minimap requires core as a peer dependency and does not require React. It uses the public core `Layer` and shares the
-consumer's graph, camera, and block components. Navigation, geometry updates, and injected layer styles are unchanged;
-there is no separate minimap stylesheet to import. Core no longer includes or re-exports the minimap implementation.
-
-## DevTools package boundary
-
-`DevToolsLayer`, `TDevToolsLayerProps`, and `DEFAULT_DEVTOOLS_LAYER_PROPS` now belong to
-`@gravity-ui/graph-devtools`. Replace their imports from core and add the DevTools stylesheet:
-
-```ts
-import { Graph } from "@gravity-ui/graph";
-import { DevToolsLayer } from "@gravity-ui/graph-devtools";
-import "@gravity-ui/graph/styles.css";
-import "@gravity-ui/graph-devtools/styles.css";
-
-const graph = new Graph({ blocks: [] });
-graph.addLayer(DevToolsLayer, { showRuler: true, showCrosshair: true });
-```
-
-DevTools requires core as a peer dependency and does not require React. Its ruler backgrounds and CSS variables
-are now owned by the separate stylesheet; core styles only supply the base layer rules. The layer retains the same
-props, camera behavior, and lifecycle, and can still be used with `useLayer` or `GraphLayer` from `@gravity-ui/graph-react`.
-Core no longer contains DevTools code or declarations. The shared text measurement helper is available as
-`measureText(text, font, approximate?)` from `@gravity-ui/graph`; the ruler tick calculation belongs to DevTools.
-
-### Scheduler lifecycle
-
-Scheduler remains exported by graph. Its public facade is checked against the runtime implementation without type assertions; method signatures are unchanged. `GlobalScheduler.start()` and `stop()` are idempotent, and stopping inside an update prevents the next frame from being queued. Frame ID zero is treated as a valid pending frame, and the Node fallback cancels its timeout handle correctly.
-
-`Scheduler.start()` keeps one active registration. Each restart uses a distinct registration, so a deferred removal cannot cancel the restarted Scheduler. `Scheduler.stop()` immediately disables its updates; removal from the global list completes after the current update. Constructor registration remains enabled. The global scheduler still supports multiple independent registrations, including scheduling wrappers. Calling `update()` before `setRoot()` is a no-op; a scheduled update performed before root initialization is consumed, so schedule again after setting the root.
-
-### Source TypeScript configuration and styles
-
-Workspace source projects now use `moduleResolution: "bundler"`, explicit Node/DOM/test environments, and `noUncheckedSideEffectImports`. E2E no longer relies on `baseUrl`. Published declaration paths and NodeNext/CJS consumer configurations remain supported.
-
-Source CSS declarations describe side-effect imports; build checks independently validate the actual imported files and public stylesheet entry points. Consumers should import the public `styles.css` entry points and declare CSS imports according to their bundler. Native TypeScript 7.0.2 configuration checks run separately from the current declaration emitter; strict migration and native emit continue in the subsequent issues.
+See the [v1 to v2 migration guide](migration-guides/v1-to-v2.md) for package imports,
+styles, configuration types, and behavior changes required in applications.
+This document covers the temporary branch and release process.

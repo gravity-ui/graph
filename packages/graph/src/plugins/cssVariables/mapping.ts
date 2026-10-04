@@ -1,20 +1,19 @@
 import get from "lodash/get";
 import set from "lodash/set";
 
-import type { TGraphColors, TGraphConstants } from "../../graphConfig";
-import { RecursivePartial } from "../../utils/types/helpers";
+import type { TGraphColors, TGraphColorsPatch, TGraphConstants, TGraphConstantsPatch } from "../../graphConfig";
 
 import { CSS_VARIABLE_MAPPINGS, SUPPORTED_CSS_VARIABLES } from "./constants";
 import type { CSSVariableChange } from "./types";
 import { CSSVariableType, CSS_VALUE_CONVERTERS } from "./types";
 
 /**
- * Converts CSS variable changes to TGraphColors partial update
+ * Converts CSS variable changes to TGraphColorsPatch partial update
  * @param changes - Array of CSS variable changes
- * @returns Partial TGraphColors object with changes
+ * @returns Partial TGraphColorsPatch object with changes
  */
-export function mapCSSChangesToGraphColors(changes: CSSVariableChange[]): RecursivePartial<TGraphColors> {
-  const result: RecursivePartial<TGraphColors> = {};
+export function mapCSSChangesToGraphColors(changes: CSSVariableChange[]): TGraphColorsPatch {
+  const result: TGraphColorsPatch = {};
 
   for (const change of changes) {
     if (!SUPPORTED_CSS_VARIABLES.has(change.name)) {
@@ -34,12 +33,12 @@ export function mapCSSChangesToGraphColors(changes: CSSVariableChange[]): Recurs
 }
 
 /**
- * Converts CSS variable changes to TGraphConstants partial update
+ * Converts CSS variable changes to TGraphConstantsPatch partial update
  * @param changes - Array of CSS variable changes
- * @returns Partial TGraphConstants object with changes
+ * @returns Partial TGraphConstantsPatch object with changes
  */
-export function mapCSSChangesToGraphConstants(changes: CSSVariableChange[]): RecursivePartial<TGraphConstants> {
-  const result: RecursivePartial<TGraphConstants> = {};
+export function mapCSSChangesToGraphConstants(changes: CSSVariableChange[]): TGraphConstantsPatch {
+  const result: TGraphConstantsPatch = {};
 
   for (const change of changes) {
     if (!SUPPORTED_CSS_VARIABLES.has(change.name)) {
