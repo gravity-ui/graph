@@ -37,3 +37,5 @@ pnpm run test:package-contract
 
 See the [v1 to v2 transition guide](packages/graph/docs/v1-v2-transition.md) for the temporary branch and release
 setup.
+
+Application upgrades are documented in the [v1 to v2 migration guide](packages/graph/docs/migration-guides/v1-to-v2.md).

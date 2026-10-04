@@ -2,7 +2,6 @@ import get from "lodash/get";
 import set from "lodash/set";
 
 import type { TGraphColors, TGraphConstants } from "../../graphConfig";
-import { RecursivePartial } from "../../utils/types/helpers";
 
 import { CSS_VARIABLE_MAPPINGS, SUPPORTED_CSS_VARIABLES } from "./constants";
 import type { CSSVariableChange } from "./types";
@@ -13,8 +12,8 @@ import { CSSVariableType, CSS_VALUE_CONVERTERS } from "./types";
  * @param changes - Array of CSS variable changes
  * @returns Partial TGraphColors object with changes
  */
-export function mapCSSChangesToGraphColors(changes: CSSVariableChange[]): RecursivePartial<TGraphColors> {
-  const result: RecursivePartial<TGraphColors> = {};
+export function mapCSSChangesToGraphColors(changes: CSSVariableChange[]): TGraphColors {
+  const result: TGraphColors = {};
 
   for (const change of changes) {
     if (!SUPPORTED_CSS_VARIABLES.has(change.name)) {
@@ -38,8 +37,8 @@ export function mapCSSChangesToGraphColors(changes: CSSVariableChange[]): Recurs
  * @param changes - Array of CSS variable changes
  * @returns Partial TGraphConstants object with changes
  */
-export function mapCSSChangesToGraphConstants(changes: CSSVariableChange[]): RecursivePartial<TGraphConstants> {
-  const result: RecursivePartial<TGraphConstants> = {};
+export function mapCSSChangesToGraphConstants(changes: CSSVariableChange[]): TGraphConstants {
+  const result: TGraphConstants = {};
 
   for (const change of changes) {
     if (!SUPPORTED_CSS_VARIABLES.has(change.name)) {

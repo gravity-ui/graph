@@ -1,7 +1,6 @@
 import type { TGraphColors, TGraphConstants } from "../../graphConfig";
 import type { TComponentState } from "../../lib/Component";
 import type { LayerProps } from "../../services/Layer";
-import { RecursivePartial } from "../../utils/types/helpers";
 
 /**
  * Describes a change to a CSS variable
@@ -33,8 +32,8 @@ export interface CSSVariablesLayerProps extends LayerProps {
 export interface CSSVariablesLayerState extends TComponentState {
   /** Whether the layer is actively observing changes */
   isObserving: boolean;
-  colors: RecursivePartial<TGraphColors>;
-  constants: RecursivePartial<TGraphConstants>;
+  colors: TGraphColors;
+  constants: TGraphConstants;
 }
 
 /**

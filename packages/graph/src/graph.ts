@@ -1,5 +1,4 @@
 import { batch, signal } from "@preact/signals-core";
-import merge from "lodash/merge";
 
 import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
 import { GraphComponent } from "./components/canvas/GraphComponent";
@@ -8,7 +7,13 @@ import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
 import { CursorLayer, CursorLayerCursorTypes } from "./components/canvas/layers/cursorLayer";
 import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
-import { TGraphColors, TGraphConstants, initGraphColors, initGraphConstants } from "./graphConfig";
+import {
+  GraphComponentConstructor,
+  TGraphColors,
+  TGraphConstants,
+  resolveGraphColors,
+  resolveGraphConstants,
+} from "./graphConfig";
 import { GraphEvent, GraphEventParams, GraphEventsDefinitions, isGraphEvent } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
@@ -26,7 +31,6 @@ import { clearColorCache, getXY } from "./utils/functions";
 import { clearGraphInstance, setGraphInstance } from "./utils/graphInstance";
 import { clearTextCache } from "./utils/renderers/text";
 import "./utils/types/global";
-import { RecursivePartial } from "./utils/types/helpers";
 import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
 
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
@@ -46,7 +50,7 @@ export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConn
    * @deprecated use Graph.zoom api
    * */
   cameraScale?: number;
-  settings?: Partial<TGraphSettingsConfig<Block, Connection>>;
+  settings?: TGraphSettingsConfig<Block, Connection>;
   layers?: LayerConfig[];
 };
 
@@ -97,13 +101,13 @@ export class Graph {
     return this.$graphColors.value;
   }
 
-  public $graphColors = signal<TGraphColors>(initGraphColors);
+  public $graphColors = signal(resolveGraphColors());
 
   public get graphConstants() {
     return this.$graphConstants.value;
   }
 
-  public $graphConstants = signal<TGraphConstants>(initGraphConstants);
+  public $graphConstants = signal(resolveGraphConstants());
 
   /**
    * Committed camera state. Updated only after a non-prevented `camera-change` event.
@@ -169,13 +173,13 @@ export class Graph {
     return this.graphLayer;
   }
 
-  public setColors(colors: RecursivePartial<TGraphColors>) {
-    this.$graphColors.value = merge({}, this.$graphColors.value, colors);
+  public setColors(colors: TGraphColors) {
+    this.$graphColors.value = resolveGraphColors(colors, this.$graphColors.value);
     this.emit("colors-changed", { colors: this.graphColors });
   }
 
-  public setConstants(constants: RecursivePartial<TGraphConstants>) {
-    this.$graphConstants.value = merge({}, this.$graphConstants.value, constants);
+  public setConstants(constants: TGraphConstants) {
+    this.$graphConstants.value = resolveGraphConstants(constants, this.$graphConstants.value);
     this.emit("constants-changed", { constants: this.graphConstants });
   }
 
@@ -267,7 +271,7 @@ export class Graph {
     return this.getElementsOverRect(viewportRect, filter);
   }
 
-  public getElementsOverRect<T extends Constructor<GraphComponent>>(rect: TRect, filter?: T[]): InstanceType<T>[] {
+  public getElementsOverRect<T extends GraphComponentConstructor>(rect: TRect, filter?: T[]): InstanceType<T>[] {
     const items = this.hitTest.testBox({
       minX: rect.x,
       minY: rect.y,
@@ -422,8 +426,18 @@ export class Graph {
     }
   }
 
-  public updateSettings(settings: Partial<TGraphSettingsConfig>) {
+  public updateSettings(settings: TGraphSettingsConfig = {}) {
     this.rootStore.settings.setupSettings(settings);
+  }
+
+  /** Restore all settings, including optional overrides, to library defaults. */
+  public resetSettings() {
+    this.rootStore.settings.reset();
+  }
+
+  /** Restore one setting to its default; remove overrides without a default. */
+  public resetSetting<K extends keyof TGraphSettingsConfig>(key: K) {
+    this.rootStore.settings.resetSetting(key);
   }
 
   public updateSize() {

@@ -39,4 +39,39 @@ test.describe("Selection Test", () => {
 
     expect(isSelected).toBe(true);
   });
+  test("an empty selectable-entity patch disables rectangle selection", async ({ page }) => {
+    const graph = new GraphPageObject(page);
+    await graph.initialize({
+      blocks: [
+        {
+          id: "block-1",
+          is: "Block",
+          x: 100,
+          y: 100,
+          width: 200,
+          height: 100,
+          name: "Block 1",
+          anchors: [],
+          selected: false,
+        },
+      ],
+      connections: [],
+    });
+    async function selectRectangle() {
+      await page.keyboard.down("Control");
+      try {
+        await graph.drag({ x: 80, y: 80 }, { x: 320, y: 220 });
+      } finally {
+        await page.keyboard.up("Control");
+      }
+    }
+    await selectRectangle();
+    expect(await graph.getSelectedBlockIds()).toEqual(["block-1"]);
+    await graph.evaluate((instance) => {
+      instance.selectionService.select("block", [], window.GraphModule.ESelectionStrategy.REPLACE);
+      instance.setConstants({ selectionLayer: { SELECTABLE_ENTITY_TYPES: [] } });
+    });
+    await selectRectangle();
+    expect(await graph.getSelectedBlockIds()).toEqual([]);
+  });
 });

@@ -19,7 +19,7 @@ List of methods in your disposition:
 
   public isGraphEmpty(): boolean;
 
-  public setSetting(flagPath: keyof TGraphSettingsConfig, value: boolean | number | ECanChangeBlockGeometry): void;
+  public setSetting<K extends keyof TResolvedGraphSettings>(flagPath: K, value: TGraphSettingsConfig[K]): void;
 
   public setCurrentConfigurationName(newName: string): void;
 

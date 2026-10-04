@@ -1,4 +1,12 @@
-import { ECanDrag, Graph, type TBlock, type TConnection } from "@gravity-ui/graph";
+import {
+  ECanDrag,
+  Graph,
+  type TBlock,
+  type TConnection,
+  type TResolvedGraphColors,
+  type TResolvedGraphConstants,
+  type TResolvedGraphSettings,
+} from "@gravity-ui/graph";
 import "@gravity-ui/graph/styles.css";
 
 import "../../shared/base.css";
@@ -53,3 +61,36 @@ const graph = new Graph(
 
 graph.start();
 graph.zoomTo("center");
+
+function checkResolvedConfigurationTypes() {
+  // Strict consumers accept partial input and read complete values without assertions.
+  const configuredGraph = new Graph(
+    { settings: { dragThreshold: 0 } },
+    undefined,
+    { block: { border: "#123456" } },
+    { camera: { SPEED: 2 } }
+  );
+  const resolvedColors: TResolvedGraphColors = configuredGraph.api.getGraphColors();
+  const resolvedConstants: TResolvedGraphConstants = configuredGraph.api.getGraphConstants();
+  const resolvedSettings: TResolvedGraphSettings = configuredGraph.rootStore.settings.asConfig;
+  const border: string = resolvedColors.block.border;
+  const panSpeed: number = resolvedConstants.camera.PAN_SPEED;
+  const dragThreshold: number = resolvedSettings.dragThreshold;
+  const canZoom: boolean = configuredGraph.rootStore.settings.getConfigFlag("canZoomCamera");
+  configuredGraph.updateSettings({ dragThreshold: undefined });
+  configuredGraph.api.setSetting("dragThreshold", 1);
+  configuredGraph.resetSetting("dragThreshold");
+  configuredGraph.resetSettings();
+  configuredGraph.on("colors-changed", ({ detail }) => {
+    const color: string = detail.colors.anchor.background;
+    void color;
+  });
+  // @ts-expect-error settings values must match their key
+  configuredGraph.api.setSetting("dragThreshold", "large");
+  // @ts-expect-error tuples must be complete replacements
+  configuredGraph.setConstants({ block: { SCALES: [0.1] } });
+  // @ts-expect-error legacy drag settings are removed in v2
+  configuredGraph.updateSettings({ canChangeBlockGeometry: "all" });
+  void [border, panSpeed, dragThreshold, canZoom];
+}
+void checkResolvedConfigurationTypes;

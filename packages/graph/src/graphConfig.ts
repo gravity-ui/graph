@@ -1,6 +1,7 @@
 import { GraphComponent } from "./components/canvas/GraphComponent";
 import { Block } from "./components/canvas/blocks/Block";
 import { ESelectionStrategy } from "./services/selection";
+import { mergeDefined } from "./utils/functions/mergeDefined";
 import type { TMouseWheelBehavior, TWheelInputDevice } from "./utils/functions/wheelIntent";
 
 export type {
@@ -19,13 +20,19 @@ export {
 } from "./utils/functions/wheelIntent";
 export type { TMouseWheelBehavior };
 
+/** Complete colors stored by Graph and consumed by rendering. */
+export type TResolvedGraphColors = {
+  canvas: TCanvasColors;
+  block: TBlockColors;
+  anchor: TAnchorColors;
+  connection: TConnectionColors;
+  connectionLabel: TConnectionLabelColors;
+  selection: TSelectionColors;
+};
+
+/** Public color input/patch. Undefined leaves the current value unchanged. */
 export type TGraphColors = {
-  canvas?: Partial<TCanvasColors>;
-  block?: Partial<TBlockColors>;
-  anchor?: Partial<TAnchorColors>;
-  connection?: Partial<TConnectionColors>;
-  connectionLabel?: Partial<TConnectionLabelColors>;
-  selection?: Partial<TSelectionColors>;
+  [K in keyof TResolvedGraphColors]?: Partial<TResolvedGraphColors[K]>;
 };
 
 export type TSelectionColors = {
@@ -66,7 +73,7 @@ export type TCanvasColors = {
   border: string;
 };
 
-export const initGraphColors: TGraphColors = {
+export const initGraphColors: TResolvedGraphColors = {
   anchor: {
     background: "#4a4a4a",
     selectedBorder: "#FFCC00",
@@ -104,9 +111,9 @@ export const initGraphColors: TGraphColors = {
 /**
  * Constructor type for any class that extends GraphComponent
  */
-export type GraphComponentConstructor = new (...args: unknown[]) => GraphComponent;
+export type GraphComponentConstructor = Constructor<GraphComponent>;
 
-export type TGraphConstants = {
+export type TResolvedGraphConstants = {
   /**
    * Configuration for the selection layer behavior.
    * The selection layer is responsible for rendering the selection rectangle
@@ -159,7 +166,7 @@ export type TGraphConstants = {
      *
      * @default ESelectionStrategy.REPLACE
      */
-    STRATEGY?: ESelectionStrategy;
+    STRATEGY: ESelectionStrategy;
 
     /**
      * Selection strategy that determines how newly selected entities interact with existing selection when Shift key is pressed.
@@ -170,9 +177,9 @@ export type TGraphConstants = {
      * - **`SUBTRACT`** - New selection is removed from the current selection
      * - **`TOGGLE`** - New selection toggles the selection state of entities
      *
-     * @default ESelectionStrategy.APPEND
+     * @default ESelectionStrategy.REPLACE
      */
-    SHIFT_STRATEGY?: ESelectionStrategy;
+    SHIFT_STRATEGY: ESelectionStrategy;
   };
 
   system: {
@@ -287,10 +294,11 @@ export type TGraphConstants = {
   };
 };
 
-export const initGraphConstants: TGraphConstants = {
+export const initGraphConstants: TResolvedGraphConstants = {
   selectionLayer: {
     SELECTABLE_ENTITY_TYPES: [Block],
     STRATEGY: ESelectionStrategy.REPLACE,
+    SHIFT_STRATEGY: ESelectionStrategy.REPLACE,
   },
   system: {
     GRID_SIZE: 16,
@@ -338,3 +346,41 @@ export const initGraphConstants: TGraphConstants = {
     PADDING: 10,
   },
 };
+
+/** Nested public constant patch. Arrays and tuples are replaced as complete values. */
+export type TGraphConstants = {
+  [K in Exclude<keyof TResolvedGraphConstants, "connection">]?: Partial<TResolvedGraphConstants[K]>;
+} & {
+  connection?: Omit<Partial<TResolvedGraphConstants["connection"]>, "LABEL"> & {
+    LABEL?: Partial<TResolvedGraphConstants["connection"]["LABEL"]>;
+  };
+};
+
+export function resolveGraphColors(patch: TGraphColors = {}, current = initGraphColors): TResolvedGraphColors {
+  return {
+    canvas: mergeDefined(current.canvas, patch.canvas),
+    block: mergeDefined(current.block, patch.block),
+    anchor: mergeDefined(current.anchor, patch.anchor),
+    connection: mergeDefined(current.connection, patch.connection),
+    connectionLabel: mergeDefined(current.connectionLabel, patch.connectionLabel),
+    selection: mergeDefined(current.selection, patch.selection),
+  };
+}
+
+export function resolveGraphConstants(
+  patch: TGraphConstants = {},
+  current = initGraphConstants
+): TResolvedGraphConstants {
+  const { LABEL, ...connection } = patch.connection ?? {};
+  return {
+    selectionLayer: mergeDefined(current.selectionLayer, patch.selectionLayer),
+    system: mergeDefined(current.system, patch.system),
+    camera: mergeDefined(current.camera, patch.camera),
+    block: mergeDefined(current.block, patch.block),
+    connection: {
+      ...mergeDefined(current.connection, connection),
+      LABEL: mergeDefined(current.connection.LABEL, LABEL),
+    },
+    text: mergeDefined(current.text, patch.text),
+  };
+}

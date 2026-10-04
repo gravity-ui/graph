@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 
-import { Graph, TGraphColors } from "@gravity-ui/graph";
+import { Graph, TResolvedGraphColors } from "@gravity-ui/graph";
 
 import { TBlockListProps } from "./BlocksList";
 import { GraphContextProvider } from "./GraphContext";
@@ -54,7 +54,7 @@ export function GraphCanvas({
 
   useGraphEvents(graph, cbs);
 
-  const setColors = useFn((colors: TGraphColors) => {
+  const setColors = useFn((colors: TResolvedGraphColors) => {
     setCssProps(containerRef.current, {
       "--graph-block-bg": colors.block.background,
       "--graph-block-border": colors.block.border,

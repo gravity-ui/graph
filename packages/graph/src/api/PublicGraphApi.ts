@@ -3,13 +3,13 @@ import { batch } from "@preact/signals-core";
 import { GraphComponent } from "../components/canvas/GraphComponent";
 import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
-import { TGraphColors, TGraphConstants } from "../graphConfig";
+import { TGraphColors, TGraphConstants, TResolvedGraphColors, TResolvedGraphConstants } from "../graphConfig";
 import { ESelectionStrategy } from "../services/selection/types";
 import { TBlockId } from "../store/block/Block";
 import { selectBlockById } from "../store/block/selectors";
 import { TConnection, TConnectionId } from "../store/connection/ConnectionState";
 import { selectConnectionById } from "../store/connection/selectors";
-import { TGraphSettingsConfig } from "../store/settings";
+import { TGraphSettingsConfig, TResolvedGraphSettings } from "../store/settings";
 import { getBlocksRect, getElementsRect, startAnimation } from "../utils/functions";
 import { TRect } from "../utils/types/shapes";
 
@@ -143,7 +143,7 @@ export class PublicGraphApi {
     });
   }
 
-  public getGraphColors(): TGraphColors {
+  public getGraphColors(): TResolvedGraphColors {
     return this.graph.graphColors;
   }
 
@@ -151,7 +151,7 @@ export class PublicGraphApi {
     this.graph.setColors(colors);
   }
 
-  public getGraphConstants(): TGraphConstants {
+  public getGraphConstants(): TResolvedGraphConstants {
     return this.graph.graphConstants;
   }
 
@@ -163,7 +163,7 @@ export class PublicGraphApi {
     return this.graph.rootStore.blocksList.$blocksMap.value.size === 0;
   }
 
-  public setSetting(flagPath: keyof TGraphSettingsConfig, value: boolean | number) {
+  public setSetting<K extends keyof TResolvedGraphSettings>(flagPath: K, value: TGraphSettingsConfig[K]) {
     this.graph.rootStore.settings.setConfigFlag(flagPath, value);
   }
 
