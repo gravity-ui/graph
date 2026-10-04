@@ -43,7 +43,7 @@ PR before landing more releasable changes. Later Graph prereleases are derived
 from the manifest and increment exactly as `2.x.y-next.N`.
 
 The scheduler runtime belongs to Graph under
-`packages/graph/src/lib/scheduler`. Scheduler fixes are Graph changes: they
+`packages/graph/src/lib/Scheduler`. Scheduler fixes are Graph changes: they
 appear in Graph's release PR and changelog, and Graph version changes propagate
 to public workspace consumers through the `node-workspace` plugin. There is no
 separate scheduler manifest entry, changelog, or component release.

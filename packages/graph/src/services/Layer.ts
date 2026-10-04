@@ -3,7 +3,7 @@ import { TGraphColors, TGraphConstants } from "../graphConfig";
 import { GraphEventsDefinitions } from "../graphEvents";
 import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
-import { ESchedulerPriority } from "../lib/scheduler/index";
+import { ESchedulerPriority } from "../lib/Scheduler";
 import { debounce } from "../utils/utils/schedule";
 
 import { ICamera, TCameraState } from "./camera/CameraService";

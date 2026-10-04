@@ -3,7 +3,7 @@ import {
   debounce as privateDebounce,
   schedule as privateSchedule,
   throttle as privateThrottle,
-} from "../../lib/scheduler/index";
+} from "../../lib/Scheduler";
 
 export type TScheduleOptions = {
   priority: ESchedulerPriority;
