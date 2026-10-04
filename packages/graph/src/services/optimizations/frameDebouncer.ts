@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // TODO: throtled with leading need test
 
-import { scheduler } from "../../lib/Scheduler";
+import { scheduler } from "../../lib/scheduler/index";
 
 const getNowTime = () => performance.now();
 

@@ -1,6 +1,6 @@
 /* eslint-disable complexity */
-import { Scheduler } from "./Scheduler";
 import { ITree, Tree } from "./Tree";
+import { Scheduler } from "./scheduler/index";
 
 type TOptions = {
   readonly key?: string;

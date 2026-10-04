@@ -45,7 +45,7 @@ export { createAnchorPortId, createBlockPointPortId, createPortId } from "./stor
 export { ECanChangeBlockGeometry, ECanDrag } from "./store/settings";
 export { getFontSize, measureText, type TMeasureTextOptions, type TWrapText } from "./utils/functions/text";
 export type { TBlockGeometrySnapshot } from "./store/block/BlocksList";
-export { ESchedulerPriority } from "./lib/Scheduler";
+export { ESchedulerPriority } from "./lib/scheduler/index";
 export { computeCssVariable, debounce, throttle, schedule } from "./utils/functions";
 export * from "./utils/renderers/text";
 export { EVENTS } from "./utils/types/events";
