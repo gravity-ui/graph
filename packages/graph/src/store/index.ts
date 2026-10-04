@@ -49,4 +49,4 @@ export class RootStore {
   }
 }
 
-export type { TGraphSettingsConfig, TResolvedGraphSettings } from "./settings";
+export type { TGraphSettingsPatch, TGraphSettingsConfig } from "./settings";

@@ -57,13 +57,6 @@ graph.setConstants({
 });
 ```
 
-## Patch and reset semantics
-
-Inputs are partial. Nested fields merge, arrays replace the previous array, and
-`undefined` preserves the current value. Use `graph.resetSetting(key)` to restore
-one setting and `graph.resetSettings()` to restore all settings. Optional custom
-background/connection overrides are cleared by reset. See the
-[v1 to v2 migration guide](../migration-guides/v1-to-v2.md) for examples and removed APIs.
 
 ## Graph Settings Configuration
 

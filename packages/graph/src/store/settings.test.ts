@@ -67,7 +67,7 @@ describe("Settings store", () => {
 
   it("resets one setting or all settings to defaults, clearing optional overrides", () => {
     store.setupSettings({ dragThreshold: 0, canZoomCamera: false, getCameraBlockScaleLevel: jest.fn() });
-    graph.resetSetting("getCameraBlockScaleLevel");
+    graph.resetSettings(["getCameraBlockScaleLevel"]);
     expect(store.asConfig.getCameraBlockScaleLevel).toBe(DefaultSettings.getCameraBlockScaleLevel);
     expect(store.asConfig.dragThreshold).toBe(0);
     graph.resetSettings();
@@ -78,9 +78,25 @@ describe("Settings store", () => {
     store.setupSettings({ blockComponents: { First: undefined, Second: Block }, background: undefined });
     expect(store.$blockComponents.value).toEqual({ First: Block, Second: Block });
     expect(store.$background.value).toBe(Component);
-    graph.resetSetting("background");
+    graph.resetSettings(["background"]);
     expect(store.$background.value).toBeUndefined();
-    graph.resetSetting("blockComponents");
+    graph.resetSettings(["blockComponents"]);
     expect(store.$blockComponents.value).toEqual({});
+  });
+  it("resets multiple settings atomically and preserves other values", () => {
+    store.setupSettings({ canDrag: ECanDrag.ALL, dragThreshold: 0, canZoomCamera: false });
+    const updates = jest.fn();
+    const unsubscribe = store.$settings.subscribe(updates);
+    updates.mockClear();
+    graph.resetSettings(["canDrag", "dragThreshold", "canDrag"]);
+    expect(store.asConfig.canDrag).toBe(DefaultSettings.canDrag);
+    expect(store.asConfig.dragThreshold).toBe(DefaultSettings.dragThreshold);
+    expect(store.asConfig.canZoomCamera).toBe(false);
+    expect(updates).toHaveBeenCalledTimes(1);
+    const current = store.$settings.value;
+    graph.resetSettings([]);
+    expect(store.$settings.value).toBe(current);
+    expect(updates).toHaveBeenCalledTimes(1);
+    unsubscribe();
   });
 });

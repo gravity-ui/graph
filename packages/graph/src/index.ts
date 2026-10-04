@@ -5,10 +5,10 @@ export * from "./components/canvas/connections";
 export * from "./graph";
 export type {
   GraphComponentConstructor,
+  TGraphColorsPatch,
+  TGraphConstantsPatch,
   TGraphColors,
   TGraphConstants,
-  TResolvedGraphColors,
-  TResolvedGraphConstants,
   TMouseWheelBehavior,
 } from "./graphConfig";
 export type {

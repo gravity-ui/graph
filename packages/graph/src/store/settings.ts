@@ -23,7 +23,7 @@ export enum ECanDrag {
   NONE = "none",
 }
 
-export type TResolvedGraphSettings<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
+export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   canDragCamera: boolean;
   canZoomCamera: boolean;
   /** @deprecated Use NewBlockLayer parameters instead */
@@ -77,14 +77,14 @@ export type TResolvedGraphSettings<Block extends TBlock = TBlock, Connection ext
 };
 
 /** Partial public settings input. Undefined never resets or clears a value. */
-export type TGraphSettingsConfig<B extends TBlock = TBlock, C extends TConnection = TConnection> = Omit<
-  Partial<TResolvedGraphSettings<B, C>>,
+export type TGraphSettingsPatch<B extends TBlock = TBlock, C extends TConnection = TConnection> = Omit<
+  Partial<TGraphSettingsConfig<B, C>>,
   "blockComponents"
 > & {
-  blockComponents?: Partial<TResolvedGraphSettings<B, C>["blockComponents"]>;
+  blockComponents?: Partial<TGraphSettingsConfig<B, C>["blockComponents"]>;
 };
 
-export const DefaultSettings: TResolvedGraphSettings = {
+export const DefaultSettings: TGraphSettingsConfig = {
   canDragCamera: true,
   canZoomCamera: true,
   canDuplicateBlocks: false,
@@ -123,7 +123,7 @@ export class GraphEditorSettings {
 
   constructor(public rootStore: RootStore) {}
 
-  public setupSettings(config: TGraphSettingsConfig = {}) {
+  public setupSettings(config: TGraphSettingsPatch = {}) {
     const current = this.$settings.value;
     const { blockComponents, ...settings } = config;
     this.$settings.value = {
@@ -132,26 +132,19 @@ export class GraphEditorSettings {
     };
   }
 
-  public setConfigFlag<K extends keyof TResolvedGraphSettings>(key: K, value: TGraphSettingsConfig[K]) {
+  public setConfigFlag<K extends keyof TGraphSettingsConfig>(key: K, value: TGraphSettingsPatch[K]) {
     if (value === undefined) return;
-    const patch: TGraphSettingsConfig = {};
+    const patch: TGraphSettingsPatch = {};
     patch[key] = value;
     this.setupSettings(patch);
   }
 
-  public getConfigFlag<K extends keyof TResolvedGraphSettings>(key: K): TResolvedGraphSettings[K] {
+  public getConfigFlag<K extends keyof TGraphSettingsConfig>(key: K): TGraphSettingsConfig[K] {
     return this.$settings.value[key];
   }
 
-  public resetSetting<K extends keyof TResolvedGraphSettings>(key: K) {
-    this.$settings.value = {
-      ...this.$settings.value,
-      [key]: cloneDeep(DefaultSettings)[key],
-    };
-  }
-
   /**
-   * Resolves wheel intent using {@link TResolvedGraphSettings.resolveWheelIntent} (typed; prefer over getConfigFlag).
+   * Resolves wheel intent using {@link TGraphSettingsConfig.resolveWheelIntent} (typed; prefer over getConfigFlag).
    */
   public wheelIntentFromEvent(event: WheelEvent, options: TResolveWheelIntentOptions): EWheelIntent {
     return this.$settings.value.resolveWheelIntent(event, options);
@@ -175,11 +168,22 @@ export class GraphEditorSettings {
     return cloneDeep(this.$settings.toJSON());
   }
 
-  public get asConfig(): TResolvedGraphSettings {
+  public get asConfig(): TGraphSettingsConfig {
     return this.toJSON();
   }
 
-  public reset() {
-    this.$settings.value = cloneDeep(DefaultSettings);
+  public reset(keys?: readonly (keyof TGraphSettingsConfig)[]) {
+    if (keys === undefined) {
+      this.$settings.value = cloneDeep(DefaultSettings);
+      return;
+    }
+    if (keys.length === 0) return;
+    const defaults = cloneDeep(DefaultSettings);
+    const next = { ...this.$settings.value };
+    const restore = <K extends keyof TGraphSettingsConfig>(key: K) => {
+      next[key] = defaults[key];
+    };
+    keys.forEach(restore);
+    this.$settings.value = next;
   }
 }

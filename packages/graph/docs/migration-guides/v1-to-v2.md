@@ -10,8 +10,8 @@ The temporary branch and release process is documented separately in
 - Move React, Minimap and DevTools imports to their dedicated packages and install their peers.
 - Import the stylesheets for each package you use.
 - Replace `canChangeBlockGeometry` / `ECanChangeBlockGeometry` with `canDrag` / `ECanDrag`.
-- Treat configuration input types as patches and use resolved types for stored state.
-- Replace resets through `undefined` with `resetSetting(key)` or `resetSettings()`.
+- Treat configuration input types as patches and use the complete configuration types for stored state.
+- Replace resets through `undefined` with `resetSettings(keys)` or `resetSettings()`.
 - Supply complete arrays/tuples when updating constants.
 
 ## React package boundary
@@ -99,30 +99,30 @@ is a no-op; schedule an update after setting the root if needed.
 
 ## Configuration input and resolved state
 
-`TGraphColors`, `TGraphConstants` and `TGraphSettingsConfig` now describe partial
+`TGraphColorsPatch`, `TGraphConstantsPatch` and `TGraphSettingsPatch` now describe partial
 input/patches. You can supply just the fields you want to override, including
 partial constants in the Graph constructor and `api.updateGraphConstants`.
 
 Stored colors/constants and their change-event payloads are complete:
-`TResolvedGraphColors` and `TResolvedGraphConstants`. Settings snapshots use
-`TResolvedGraphSettings`; every field is present. Custom background/connection
+`TGraphColors` and `TGraphConstants`. Settings snapshots use
+`TGraphSettingsConfig`; every field is present. Custom background/connection
 constructors have a value of `undefined` when no override is configured. Defaults are normalized
 before they enter signals and rendering contexts.
 
 ```ts
-import { Graph, type TGraphColors, type TResolvedGraphColors } from "@gravity-ui/graph";
+import { Graph, type TGraphColorsPatch, type TGraphColors } from "@gravity-ui/graph";
 
-const input: TGraphColors = { block: { border: "#123456" } };
+const input: TGraphColorsPatch = { block: { border: "#123456" } };
 const graph = new Graph({}, undefined, input, { camera: { SPEED: 2 } });
-const current: TResolvedGraphColors = graph.api.getGraphColors();
+const current: TGraphColors = graph.api.getGraphColors();
 const border: string = current.block.border;
 ```
 
-Use the input types for options you pass to Graph, and the resolved types when
+Use the input types for options you pass to Graph, and the complete configuration types when
 you annotate snapshots received from getters, signals or events. The helpers
 `mapGraphColorsToCSSVariables` and `mapGraphConstantsToCSSVariables` also accept
 resolved state, for example `mapGraphColorsToCSSVariables(graph.graphColors)`. Replace
-`RecursivePartial<TGraphConstants>` with `TGraphConstants`; partial arrays are
+`RecursivePartial<TGraphConstants>` with `TGraphConstantsPatch`; partial arrays are
 no longer valid constant patches.
 
 ### Patches and explicit reset
@@ -142,12 +142,12 @@ graph.updateSettings({ getCameraBlockScaleLevel: undefined });
 After:
 
 ```ts
-graph.resetSetting("getCameraBlockScaleLevel"); // Restore the library callback.
-graph.resetSetting("background"); // Remove an override with no library default.
+graph.resetSettings(["getCameraBlockScaleLevel", "background"]); // Restore both defaults.
 graph.resetSettings(); // Restore all settings and clear custom registrations.
 ```
 
-Resetting one setting preserves every other setting. `resetSettings()` affects
+Resetting selected settings preserves every other setting and publishes one update.
+Pass an empty array to leave settings unchanged. `resetSettings()` affects
 settings only; it does not reset colors, constants or graph entities. The
 `dragThreshold` default is 5 pixels, `canDrag` defaults to `ECanDrag.NONE`, and
 `emulateMouseEventsOnCameraChange` defaults to false.

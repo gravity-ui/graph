@@ -9,17 +9,17 @@ List of methods in your disposition:
 
   public zoomToViewPort(transition?: number): void;
 
-  public getGraphColors(): TResolvedGraphColors;
+  public getGraphColors(): TGraphColors;
 
-  public updateGraphColors(colors: TGraphColors): void;
+  public updateGraphColors(colors: TGraphColorsPatch): void;
 
-  public getGraphConstants(): TResolvedGraphConstants;
+  public getGraphConstants(): TGraphConstants;
 
-  public updateGraphConstants(constants: TGraphConstants): void;
+  public updateGraphConstants(constants: TGraphConstantsPatch): void;
 
   public isGraphEmpty(): boolean;
 
-  public setSetting<K extends keyof TResolvedGraphSettings>(flagPath: K, value: TGraphSettingsConfig[K]): void;
+  public setSetting<K extends keyof TGraphSettingsConfig>(flagPath: K, value: TGraphSettingsPatch[K]): void;
 
   public setCurrentConfigurationName(newName: string): void;
 

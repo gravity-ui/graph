@@ -4,7 +4,7 @@
 
 The `CSSVariablesLayer` plugin enables seamless synchronization between CSS variables and graph appearance settings (colors and constants). Instead of using JavaScript API methods like `graph.setColors()` or `graph.setConstants()`, you can control the graph's visual styling through standard CSS variables.
 
-This layer creates an invisible HTML div element with a specified CSS class and monitors CSS variable changes using the `style-observer` package. When CSS variables change (e.g., through theme switching, media queries, or dynamic style updates), the layer automatically maps these changes to the corresponding `TGraphColors` and `TGraphConstants` properties and applies them to the graph.
+This layer creates an invisible HTML div element with a specified CSS class and monitors CSS variable changes using the `style-observer` package. When CSS variables change (e.g., through theme switching, media queries, or dynamic style updates), the layer automatically maps these changes to the corresponding `TGraphColorsPatch` and `TGraphConstantsPatch` properties and applies them to the graph.
 
 ## Features
 

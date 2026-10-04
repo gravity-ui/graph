@@ -5,11 +5,11 @@ import type {
   LayerPublicProps,
   TBlock,
   TConnection,
-  TGraphColors,
-  TGraphConstants,
+  TGraphColorsPatch,
+  TGraphConstantsPatch,
   TGraphZoomTarget,
 } from "@gravity-ui/graph";
-import { Graph, GraphState, TGraphConfig, TGraphSettingsConfig, ZoomConfig } from "@gravity-ui/graph";
+import { Graph, GraphState, TGraphConfig, TGraphSettingsPatch, ZoomConfig } from "@gravity-ui/graph";
 
 import { useFn } from "../utils/hooks/useFn";
 
@@ -17,8 +17,8 @@ export type HookGraphParams = Pick<TGraphConfig, "settings" | "layers"> & {
   graph?: Graph;
   name?: string;
   viewConfiguration?: {
-    colors?: TGraphColors;
-    constants?: TGraphConstants;
+    colors?: TGraphColorsPatch;
+    constants?: TGraphConstantsPatch;
   };
 };
 
@@ -81,7 +81,7 @@ export function useGraph(config: HookGraphParams): UseGraphResult {
   return {
     graph,
     api: graph.api,
-    setSettings: useFn((settings: TGraphSettingsConfig) => graph.updateSettings(settings)),
+    setSettings: useFn((settings: TGraphSettingsPatch) => graph.updateSettings(settings)),
     start: useFn(() => {
       if (graph.state !== GraphState.READY) {
         graph.start();

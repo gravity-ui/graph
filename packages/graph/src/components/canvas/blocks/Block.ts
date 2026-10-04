@@ -6,7 +6,7 @@ import { Component } from "../../../lib/Component";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { ESelectionStrategy } from "../../../services/selection";
-import { TResolvedGraphSettings } from "../../../store";
+import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
 import { BlockState, IS_BLOCK_TYPE, TBlockId } from "../../../store/block/Block";
 import { selectBlockById } from "../../../store/block/selectors";
@@ -183,7 +183,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return super.isVisible();
   }
 
-  public getConfigFlag<K extends keyof TResolvedGraphSettings>(flagPath: K) {
+  public getConfigFlag<K extends keyof TGraphSettingsConfig>(flagPath: K) {
     return this.context.graph.rootStore.settings.getConfigFlag(flagPath);
   }
 

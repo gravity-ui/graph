@@ -1,5 +1,5 @@
 import { Graph } from "../graph";
-import { TResolvedGraphColors, TResolvedGraphConstants } from "../graphConfig";
+import { TGraphColors, TGraphConstants } from "../graphConfig";
 import { GraphEventsDefinitions } from "../graphEvents";
 import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
@@ -48,8 +48,8 @@ export type LayerProps = {
 export type LayerContext = {
   graph: Graph;
   camera: ICamera;
-  constants: TResolvedGraphConstants;
-  colors: TResolvedGraphColors;
+  constants: TGraphConstants;
+  colors: TGraphColors;
   graphCanvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   layer: Layer;

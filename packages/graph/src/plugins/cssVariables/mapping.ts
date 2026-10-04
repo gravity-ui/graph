@@ -1,19 +1,19 @@
 import get from "lodash/get";
 import set from "lodash/set";
 
-import type { TGraphColors, TGraphConstants, TResolvedGraphColors, TResolvedGraphConstants } from "../../graphConfig";
+import type { TGraphColors, TGraphColorsPatch, TGraphConstants, TGraphConstantsPatch } from "../../graphConfig";
 
 import { CSS_VARIABLE_MAPPINGS, SUPPORTED_CSS_VARIABLES } from "./constants";
 import type { CSSVariableChange } from "./types";
 import { CSSVariableType, CSS_VALUE_CONVERTERS } from "./types";
 
 /**
- * Converts CSS variable changes to TGraphColors partial update
+ * Converts CSS variable changes to TGraphColorsPatch partial update
  * @param changes - Array of CSS variable changes
- * @returns Partial TGraphColors object with changes
+ * @returns Partial TGraphColorsPatch object with changes
  */
-export function mapCSSChangesToGraphColors(changes: CSSVariableChange[]): TGraphColors {
-  const result: TGraphColors = {};
+export function mapCSSChangesToGraphColors(changes: CSSVariableChange[]): TGraphColorsPatch {
+  const result: TGraphColorsPatch = {};
 
   for (const change of changes) {
     if (!SUPPORTED_CSS_VARIABLES.has(change.name)) {
@@ -33,12 +33,12 @@ export function mapCSSChangesToGraphColors(changes: CSSVariableChange[]): TGraph
 }
 
 /**
- * Converts CSS variable changes to TGraphConstants partial update
+ * Converts CSS variable changes to TGraphConstantsPatch partial update
  * @param changes - Array of CSS variable changes
- * @returns Partial TGraphConstants object with changes
+ * @returns Partial TGraphConstantsPatch object with changes
  */
-export function mapCSSChangesToGraphConstants(changes: CSSVariableChange[]): TGraphConstants {
-  const result: TGraphConstants = {};
+export function mapCSSChangesToGraphConstants(changes: CSSVariableChange[]): TGraphConstantsPatch {
+  const result: TGraphConstantsPatch = {};
 
   for (const change of changes) {
     if (!SUPPORTED_CSS_VARIABLES.has(change.name)) {
@@ -62,7 +62,7 @@ export function mapCSSChangesToGraphConstants(changes: CSSVariableChange[]): TGr
  * @param colors - Current graph colors
  * @returns Object with CSS variable names as keys and color values as values
  */
-export function mapGraphColorsToCSSVariables(colors: TResolvedGraphColors): Record<string, string> {
+export function mapGraphColorsToCSSVariables(colors: TGraphColors): Record<string, string> {
   const result: Record<string, string> = {};
 
   for (const mapping of CSS_VARIABLE_MAPPINGS) {
@@ -84,7 +84,7 @@ export function mapGraphColorsToCSSVariables(colors: TResolvedGraphColors): Reco
  * @param constants - Current graph constants
  * @returns Object with CSS variable names as keys and constant values as values
  */
-export function mapGraphConstantsToCSSVariables(constants: TResolvedGraphConstants): Record<string, string> {
+export function mapGraphConstantsToCSSVariables(constants: TGraphConstants): Record<string, string> {
   const result: Record<string, string> = {};
 
   for (const mapping of CSS_VARIABLE_MAPPINGS) {

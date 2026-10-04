@@ -3,13 +3,13 @@ import { batch } from "@preact/signals-core";
 import { GraphComponent } from "../components/canvas/GraphComponent";
 import { TBlock } from "../components/canvas/blocks/Block";
 import { Graph } from "../graph";
-import { TGraphColors, TGraphConstants, TResolvedGraphColors, TResolvedGraphConstants } from "../graphConfig";
+import { TGraphColors, TGraphColorsPatch, TGraphConstants, TGraphConstantsPatch } from "../graphConfig";
 import { ESelectionStrategy } from "../services/selection/types";
 import { TBlockId } from "../store/block/Block";
 import { selectBlockById } from "../store/block/selectors";
 import { TConnection, TConnectionId } from "../store/connection/ConnectionState";
 import { selectConnectionById } from "../store/connection/selectors";
-import { TGraphSettingsConfig, TResolvedGraphSettings } from "../store/settings";
+import { TGraphSettingsConfig, TGraphSettingsPatch } from "../store/settings";
 import { getBlocksRect, getElementsRect, startAnimation } from "../utils/functions";
 import { TRect } from "../utils/types/shapes";
 
@@ -143,19 +143,19 @@ export class PublicGraphApi {
     });
   }
 
-  public getGraphColors(): TResolvedGraphColors {
+  public getGraphColors(): TGraphColors {
     return this.graph.graphColors;
   }
 
-  public updateGraphColors(colors: TGraphColors) {
+  public updateGraphColors(colors: TGraphColorsPatch) {
     this.graph.setColors(colors);
   }
 
-  public getGraphConstants(): TResolvedGraphConstants {
+  public getGraphConstants(): TGraphConstants {
     return this.graph.graphConstants;
   }
 
-  public updateGraphConstants(constants: TGraphConstants) {
+  public updateGraphConstants(constants: TGraphConstantsPatch) {
     this.graph.setConstants(constants);
   }
 
@@ -163,7 +163,7 @@ export class PublicGraphApi {
     return this.graph.rootStore.blocksList.$blocksMap.value.size === 0;
   }
 
-  public setSetting<K extends keyof TResolvedGraphSettings>(flagPath: K, value: TGraphSettingsConfig[K]) {
+  public setSetting<K extends keyof TGraphSettingsConfig>(flagPath: K, value: TGraphSettingsPatch[K]) {
     this.graph.rootStore.settings.setConfigFlag(flagPath, value);
   }
 

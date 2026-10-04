@@ -3,9 +3,9 @@ import {
   Graph,
   type TBlock,
   type TConnection,
-  type TResolvedGraphColors,
-  type TResolvedGraphConstants,
-  type TResolvedGraphSettings,
+  type TGraphColors,
+  type TGraphConstants,
+  type TGraphSettingsConfig,
 } from "@gravity-ui/graph";
 import "@gravity-ui/graph/styles.css";
 
@@ -70,16 +70,18 @@ function checkResolvedConfigurationTypes() {
     { block: { border: "#123456" } },
     { camera: { SPEED: 2 } }
   );
-  const resolvedColors: TResolvedGraphColors = configuredGraph.api.getGraphColors();
-  const resolvedConstants: TResolvedGraphConstants = configuredGraph.api.getGraphConstants();
-  const resolvedSettings: TResolvedGraphSettings = configuredGraph.rootStore.settings.asConfig;
+  const resolvedColors: TGraphColors = configuredGraph.api.getGraphColors();
+  const resolvedConstants: TGraphConstants = configuredGraph.api.getGraphConstants();
+  const resolvedSettings: TGraphSettingsConfig = configuredGraph.rootStore.settings.asConfig;
   const border: string = resolvedColors.block.border;
   const panSpeed: number = resolvedConstants.camera.PAN_SPEED;
   const dragThreshold: number = resolvedSettings.dragThreshold;
   const canZoom: boolean = configuredGraph.rootStore.settings.getConfigFlag("canZoomCamera");
   configuredGraph.updateSettings({ dragThreshold: undefined });
   configuredGraph.api.setSetting("dragThreshold", 1);
-  configuredGraph.resetSetting("dragThreshold");
+  configuredGraph.resetSettings(["dragThreshold", "background"]);
+  // @ts-expect-error reset keys must name existing settings
+  configuredGraph.resetSettings(["unknownSetting"]);
   configuredGraph.resetSettings();
   configuredGraph.on("colors-changed", ({ detail }) => {
     const color: string = detail.colors.anchor.background;
@@ -87,7 +89,7 @@ function checkResolvedConfigurationTypes() {
   });
   const { background, ...missingBackground } = resolvedSettings;
   // @ts-expect-error resolved state requires background, even when its value is undefined
-  const incompleteSettings: TResolvedGraphSettings = missingBackground;
+  const incompleteSettings: TGraphSettingsConfig = missingBackground;
   void [background, incompleteSettings];
   // @ts-expect-error settings values must match their key
   configuredGraph.api.setSetting("dragThreshold", "large");

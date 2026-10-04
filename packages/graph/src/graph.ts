@@ -9,8 +9,8 @@ import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
 import {
   GraphComponentConstructor,
-  TGraphColors,
-  TGraphConstants,
+  TGraphColorsPatch,
+  TGraphConstantsPatch,
   resolveGraphColors,
   resolveGraphConstants,
 } from "./graphConfig";
@@ -26,7 +26,7 @@ import { DragService } from "./services/drag";
 import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
-import { TGraphSettingsConfig, TResolvedGraphSettings } from "./store/settings";
+import { TGraphSettingsConfig, TGraphSettingsPatch } from "./store/settings";
 import { clearColorCache, getXY } from "./utils/functions";
 import { clearGraphInstance, setGraphInstance } from "./utils/graphInstance";
 import { clearTextCache } from "./utils/renderers/text";
@@ -50,7 +50,7 @@ export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConn
    * @deprecated use Graph.zoom api
    * */
   cameraScale?: number;
-  settings?: TGraphSettingsConfig<Block, Connection>;
+  settings?: TGraphSettingsPatch<Block, Connection>;
   layers?: LayerConfig[];
 };
 
@@ -136,8 +136,8 @@ export class Graph {
   constructor(
     config: TGraphConfig,
     rootEl?: HTMLDivElement,
-    graphColors?: TGraphColors,
-    graphConstants?: TGraphConstants
+    graphColors?: TGraphColorsPatch,
+    graphConstants?: TGraphConstantsPatch
   ) {
     this.belowLayer = this.addLayer(BelowLayer, {});
     this.graphLayer = this.addLayer(GraphLayer, {});
@@ -173,12 +173,12 @@ export class Graph {
     return this.graphLayer;
   }
 
-  public setColors(colors: TGraphColors) {
+  public setColors(colors: TGraphColorsPatch) {
     this.$graphColors.value = resolveGraphColors(colors, this.$graphColors.value);
     this.emit("colors-changed", { colors: this.graphColors });
   }
 
-  public setConstants(constants: TGraphConstants) {
+  public setConstants(constants: TGraphConstantsPatch) {
     this.$graphConstants.value = resolveGraphConstants(constants, this.$graphConstants.value);
     this.emit("constants-changed", { constants: this.graphConstants });
   }
@@ -426,18 +426,13 @@ export class Graph {
     }
   }
 
-  public updateSettings(settings: TGraphSettingsConfig = {}) {
+  public updateSettings(settings: TGraphSettingsPatch = {}) {
     this.rootStore.settings.setupSettings(settings);
   }
 
-  /** Restore all settings, including optional overrides, to library defaults. */
-  public resetSettings() {
-    this.rootStore.settings.reset();
-  }
-
-  /** Restore one setting to its default; remove overrides without a default. */
-  public resetSetting<K extends keyof TResolvedGraphSettings>(key: K) {
-    this.rootStore.settings.resetSetting(key);
+  /** Restore the selected settings to library defaults, or all settings when keys are omitted. */
+  public resetSettings(keys?: readonly (keyof TGraphSettingsConfig)[]) {
+    this.rootStore.settings.reset(keys);
   }
 
   public updateSize() {

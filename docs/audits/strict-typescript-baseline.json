@@ -1428,7 +1428,7 @@
       "project": "packages/graph-react/tsconfig.json",
       "file": "packages/graph-react/src/hooks/useGraphEvents.ts",
       "code": 2345,
-      "message": "Argument of type '(e: UnwrapGraphEvents<Event>) => void' is not assignable to parameter of type 'GraphEventsDefinitions[Event]'.\n  Type '(e: UnwrapGraphEvents<Event>) => void' is not assignable to type '((event: GraphMouseEvent<Event>) => void) & ((event: CustomEvent<TCameraState>) => void) & ((event: CustomEvent<{ constants: TResolvedGraphConstants; }>) => void) & ... 26 more ... & ((event: GraphMouseEvent<...>) => void)'.\n    Type '(e: UnwrapGraphEvents<Event>) => void' is not assignable to type '(event: GraphMouseEvent<Event>) => void'.\n      Types of parameters 'e' and 'event' are incompatible.\n        Type 'GraphMouseEvent<Event>' is not assignable to type 'UnwrapGraphEvents<Event>'.",
+      "message": "Argument of type '(e: UnwrapGraphEvents<Event>) => void' is not assignable to parameter of type 'GraphEventsDefinitions[Event]'.\n  Type '(e: UnwrapGraphEvents<Event>) => void' is not assignable to type '((event: GraphMouseEvent<Event>) => void) & ((event: CustomEvent<TCameraState>) => void) & ((event: CustomEvent<{ constants: TGraphConstants; }>) => void) & ... 26 more ... & ((event: GraphMouseEvent<...>) => void)'.\n    Type '(e: UnwrapGraphEvents<Event>) => void' is not assignable to type '(event: GraphMouseEvent<Event>) => void'.\n      Types of parameters 'e' and 'event' are incompatible.\n        Type 'GraphMouseEvent<Event>' is not assignable to type 'UnwrapGraphEvents<Event>'.",
       "count": 1
     },
     {
@@ -1911,7 +1911,7 @@
       "project": "apps/storybook/tsconfig.json",
       "file": "apps/storybook/src/stories/examples/themeChange/themeChange.stories.tsx",
       "code": 7053,
-      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'TGraphColors'.\n  No index signature with a parameter of type 'string' was found on type 'TGraphColors'.",
+      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'TGraphColorsPatch'.\n  No index signature with a parameter of type 'string' was found on type 'TGraphColorsPatch'.",
       "count": 4
     },
     {

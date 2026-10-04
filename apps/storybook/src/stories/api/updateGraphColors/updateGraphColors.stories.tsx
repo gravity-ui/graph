@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from "react";
 
-import { Graph, TGraphColors } from "@gravity-ui/graph";
+import { Graph, TGraphColorsPatch } from "@gravity-ui/graph";
 import { Button, ButtonButtonProps, Flex, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
@@ -10,7 +10,7 @@ import { GraphComponentStory } from "../../main/GraphEditor";
 import "@gravity-ui/uikit/styles/styles.css";
 
 const GraphApp = () => {
-  const [colors, setColors] = useState<TGraphColors>();
+  const [colors, setColors] = useState<TGraphColorsPatch>();
   const graphRef = useRef<Graph | undefined>(undefined);
 
   const updateReactComponentsColors = useCallback((colors) => {
