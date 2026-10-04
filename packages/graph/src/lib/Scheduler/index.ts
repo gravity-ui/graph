@@ -33,9 +33,9 @@ export interface GlobalScheduler {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const GlobalScheduler = RuntimeGlobalScheduler as unknown as TGlobalSchedulerConstructor;
-export const globalScheduler = runtimeGlobalScheduler as unknown as GlobalScheduler;
-export const scheduler = runtimeScheduler as unknown as GlobalScheduler;
+export const GlobalScheduler: TGlobalSchedulerConstructor = RuntimeGlobalScheduler;
+export const globalScheduler: GlobalScheduler = runtimeGlobalScheduler;
+export const scheduler: GlobalScheduler = runtimeScheduler;
 
 export interface Scheduler {
   setRoot(root: Tree): void;
@@ -50,7 +50,7 @@ export interface Scheduler {
 type TSchedulerConstructor = new () => Scheduler;
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const Scheduler = RuntimeScheduler as unknown as TSchedulerConstructor;
+export const Scheduler: TSchedulerConstructor = RuntimeScheduler;
 export type { TSchedulerPriority } from "./Scheduler";
 export { debounce, schedule, throttle } from "./schedule";
 export type { TDebounceOptions, TScheduleOptions } from "./schedule";

@@ -45,7 +45,7 @@ importers:
         specifier: 17.6.0
         version: 17.6.0
       typescript:
-        specifier: ^5.9.2
+        specifier: 5.9.2
         version: 5.9.2
       yaml:
         specifier: 2.8.1
