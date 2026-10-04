@@ -54,7 +54,7 @@ async function createRepository() {
     {
       sha: "b".repeat(40),
       message: "fix: correct scheduler handling",
-      files: [graphPath + "/src/lib/scheduler/Scheduler.ts"],
+      files: [graphPath + "/src/lib/Scheduler/Scheduler.ts"],
     },
     { sha: baselineSha, message: "chore: release 1.11.3", files: [] },
   ];
