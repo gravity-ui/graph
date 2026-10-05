@@ -68,7 +68,7 @@ if (!root) {
 
 createRoot(root).render(<ReactGraph />);
 
-// Type-only contract probe; never mount this component.
+// Compile-only hook checks; never mounted. Unguarded reads must fail so hook declarations preserve missing entities.
 function LookupContracts({ graph }: { graph: Graph }) {
   const state = useBlockState(graph, "missing");
   const sync = useSyncBlockState(graph, "missing");
@@ -104,6 +104,7 @@ function ReactEventTypeContracts({ graph }: { graph: Graph }) {
     // @ts-expect-error state-change exposes { state: GraphState }, so data.colors is invalid.
     data.colors;
   });
+  // Positive check: the named callback must infer detail and event separately; GraphEvent denotes the second argument.
   useGraphEvents(graph, { onStateChanged: (data, event) => {
     const detail: GraphEventDetail<"onStateChanged"> = data;
     const typedEvent: GraphEvent<"onStateChanged"> = event;

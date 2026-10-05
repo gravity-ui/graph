@@ -1,5 +1,8 @@
 import { Graph } from "./graph";
 
+// colors-changed is a representative event for capture, once and abort cleanup.
+// Payload assertions verify that function/object listeners receive the original dispatched event.
+
 test("graph subscriptions remove capturing function and object listeners", () => {
   const graph = new Graph({});
   const detail = { colors: graph.graphColors };
