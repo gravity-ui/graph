@@ -1,12 +1,26 @@
 import intersects from "intersects";
 
+import { GraphMouseEvent } from "../../../graphEvents";
 import { Component, TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
+import { CoreComponent } from "../../../lib/CoreComponent";
 import { HitBoxData } from "../../../services/HitTest";
+import { TypedEventListener, toDOMListener } from "../../../utils/eventListener";
 import { TRect } from "../../../utils/types/shapes";
 
-type TEventedComponentListener = Component | ((e: Event) => void);
+export interface EventedComponentEvents
+  extends Omit<HTMLElementEventMap, "mouseenter" | "mouseleave" | "mouseover" | "mouseout"> {
+  mouseenter: MouseEvent | GraphMouseEvent;
+  mouseleave: MouseEvent | GraphMouseEvent;
+  mouseover: MouseEvent | GraphMouseEvent;
+  mouseout: MouseEvent | GraphMouseEvent;
+  "graph-component-change": Event;
+  "graph-component-unmounted": Event;
+}
 
-const listeners = new WeakMap<Component, Map<string, Set<TEventedComponentListener>>>();
+type ComponentEvent<K extends string> = K extends keyof EventedComponentEvents ? EventedComponentEvents[K] : Event;
+type TEventedComponentListener<K extends string> = EventedComponent | TypedEventListener<ComponentEvent<K>, undefined>;
+type StoredListener = EventedComponent | EventListenerOrEventListenerObject;
+const listeners = new WeakMap<object, Map<string, Set<StoredListener>>>();
 
 function createSyntheticHoverEvent(type: "mouseenter" | "mouseleave"): MouseEvent {
   return new MouseEvent(type, {
@@ -24,7 +38,11 @@ export type TEventedAreaState = {
 export type TEventedAreaParams = {
   key: string;
   onHitBox?: (data: HitBoxData) => boolean;
-  [eventName: string]: ((event: Event) => void) | ((data: HitBoxData) => boolean) | string | undefined;
+  [eventName: string]: ((...args: never[]) => unknown) | string | undefined;
+} & {
+  [K in keyof EventedComponentEvents]?: (
+    event: K extends "mouseenter" | "mouseleave" ? MouseEvent : EventedComponentEvents[K]
+  ) => void;
 };
 
 type TEventedArea = {
@@ -49,7 +67,7 @@ export class EventedComponent<
 
   protected _hoveredEventedAreaKey: string | undefined;
 
-  private _prevHoveredAreaLeaveHandler: ((event: Event) => void) | undefined;
+  private _prevHoveredAreaLeaveHandler: ((event: MouseEvent) => void) | undefined;
 
   constructor(props: Props, parent: Component) {
     super(
@@ -70,10 +88,12 @@ export class EventedComponent<
   }
 
   private get events() {
-    if (!listeners.has(this)) {
-      listeners.set(this, new Map());
+    let events = listeners.get(this);
+    if (!events) {
+      events = new Map();
+      listeners.set(this, events);
     }
-    return listeners.get(this);
+    return events;
   }
 
   protected unmount() {
@@ -86,8 +106,7 @@ export class EventedComponent<
       const area = this._eventedAreas.get(this._hoveredEventedAreaKey);
       if (area) {
         const handler = area.params.mouseleave;
-        this._prevHoveredAreaLeaveHandler =
-          typeof handler === "function" ? (handler as (event: Event) => void) : undefined;
+        this._prevHoveredAreaLeaveHandler = typeof handler === "function" ? handler : undefined;
       }
     }
     this._eventedAreas.clear();
@@ -143,7 +162,7 @@ export class EventedComponent<
     if (prevArea) {
       const leaveHandler = prevArea.params.mouseleave;
       if (typeof leaveHandler === "function") {
-        (leaveHandler as (event: Event) => void)(createSyntheticHoverEvent("mouseleave"));
+        leaveHandler(createSyntheticHoverEvent("mouseleave"));
       }
     }
 
@@ -154,7 +173,7 @@ export class EventedComponent<
       if (nextArea) {
         const enterHandler = nextArea.params.mouseenter;
         if (typeof enterHandler === "function") {
-          (enterHandler as (event: Event) => void)(createSyntheticHoverEvent("mouseenter"));
+          enterHandler(createSyntheticHoverEvent("mouseenter"));
         }
       }
     }
@@ -168,7 +187,7 @@ export class EventedComponent<
       if (area) {
         const leaveHandler = area.params.mouseleave;
         if (typeof leaveHandler === "function") {
-          (leaveHandler as (event: Event) => void)(createSyntheticHoverEvent("mouseleave"));
+          leaveHandler(createSyntheticHoverEvent("mouseleave"));
         }
       }
       this._hoveredEventedAreaKey = undefined;
@@ -191,28 +210,47 @@ export class EventedComponent<
     // noop
   }
 
-  public listenEvents(events: string[], cbOrObject: TEventedComponentListener = this) {
-    const unsubs = events.map((eventName) => {
-      return this.addEventListener(eventName, cbOrObject);
-    });
-    return unsubs;
+  public listenEvents<K extends string>(
+    events: K[],
+    listener: TypedEventListener<ComponentEvent<NoInfer<K>>, undefined>
+  ): Array<() => void>;
+  public listenEvents(events: string[], listener?: EventedComponent): Array<() => void>;
+  public listenEvents<K extends string>(events: K[], listener: TEventedComponentListener<NoInfer<K>> = this) {
+    const stored = eraseListener(listener);
+    return events.map((type) => this.addStoredListener(type, stored));
   }
 
-  public addEventListener(type: string, cbOrObject: TEventedComponentListener) {
-    const cbs = this.events.get(type) || new Set();
-    cbs.add(cbOrObject);
+  private addStoredListener(type: string, listener: StoredListener): () => void {
+    const cbs = this.events.get(type) || new Set<StoredListener>();
+    cbs.add(listener);
     this.events.set(type, cbs);
-    return () => this.removeEventListener(type, cbOrObject);
+    return () => {
+      listeners.get(this)?.get(type)?.delete(listener);
+    };
   }
 
-  public removeEventListener(type: string, cbOrObject: TEventedComponentListener) {
+  public addEventListener<K extends string>(
+    type: K,
+    cbOrObject: TypedEventListener<ComponentEvent<NoInfer<K>>, undefined>
+  ): () => void;
+  public addEventListener(type: string, cbOrObject: EventedComponent): () => void;
+  public addEventListener<K extends string>(type: K, cbOrObject: TEventedComponentListener<NoInfer<K>>) {
+    return this.addStoredListener(type, eraseListener(cbOrObject));
+  }
+
+  public removeEventListener<K extends string>(
+    type: K,
+    cbOrObject: TypedEventListener<ComponentEvent<NoInfer<K>>, undefined>
+  ): void;
+  public removeEventListener(type: string, cbOrObject: EventedComponent): void;
+  public removeEventListener<K extends string>(type: K, cbOrObject: TEventedComponentListener<NoInfer<K>>) {
     const cbs = this.events.get(type);
     if (cbs) {
-      cbs.delete(cbOrObject);
+      cbs.delete(eraseListener(cbOrObject));
     }
   }
 
-  protected _fireEvent(cmp: Component, event: Event) {
+  protected _fireEvent(cmp: object, event: Event) {
     if (cmp instanceof EventedComponent && !cmp.isInteractive?.()) {
       return;
     }
@@ -221,14 +259,20 @@ export class EventedComponent<
     handlers?.forEach((cb) => {
       if (typeof cb === "function") {
         return cb(event);
-      } else if (cb instanceof Component && "handleEvent" in cb && typeof cb.handleEvent === "function") {
-        return cb.handleEvent?.(event);
+      } else if (cb instanceof EventedComponent) {
+        return cb.handleEvent(event);
       }
-      return undefined;
+      return cb.handleEvent(event);
     });
 
     if (cmp instanceof EventedComponent && cmp._eventedAreas.size > 0 && cmp._lastHitBoxData) {
-      if (event.type === "mouseenter" || event.type === "mouseleave") return;
+      if (
+        event.type === "mouseenter" ||
+        event.type === "mouseleave" ||
+        event.type === "key" ||
+        event.type === "onHitBox"
+      )
+        return;
 
       const hitBoxData = cmp._lastHitBoxData;
       for (const area of cmp._eventedAreas.values()) {
@@ -236,7 +280,8 @@ export class EventedComponent<
         if (typeof handler !== "function") continue;
 
         if (cmp._areaHitTest(area, hitBoxData)) {
-          (handler as (event: Event) => void)(event);
+          const listener = toDOMListener(handler);
+          if (typeof listener === "function") listener(event);
         }
       }
     }
@@ -246,38 +291,39 @@ export class EventedComponent<
     return this._dipping(this, event);
   }
 
-  protected _dipping(startParent: Component, event: Event) {
+  protected _dipping(startParent: { getParent(): CoreComponent | undefined }, event: Event) {
     let stopPropagation = false;
-    let parent: Component = startParent;
+    let parent: { getParent(): CoreComponent | undefined } | undefined = startParent;
     event.stopPropagation = () => {
       stopPropagation = true;
     };
 
-    do {
-      if (
-        (parent instanceof EventedComponent && !parent.isInteractive?.()) ||
-        !this._hasListener(parent as EventedComponent, event.type)
-      ) {
-        parent = parent.getParent() as Component;
+    while (parent) {
+      if ((parent instanceof EventedComponent && !parent.isInteractive?.()) || !this._hasListener(parent, event.type)) {
+        parent = parent.getParent();
         continue;
       }
       this._fireEvent(parent, event);
       if (stopPropagation) {
         return false;
       }
-      parent = parent.getParent() as Component;
-    } while (parent);
+      parent = parent.getParent();
+    }
 
     return true;
   }
 
-  protected _hasListener(comp: EventedComponent, type: string) {
+  protected _hasListener(comp: object, type: string) {
     if (listeners.get(comp)?.has?.(type)) return true;
-    if (comp._eventedAreas?.size > 0) {
+    if (comp instanceof EventedComponent && comp._eventedAreas.size > 0) {
       for (const area of comp._eventedAreas.values()) {
         if (typeof area.params[type] === "function") return true;
       }
     }
     return false;
   }
+}
+
+function eraseListener<K extends string>(listener: TEventedComponentListener<K>): StoredListener {
+  return listener instanceof EventedComponent ? listener : toDOMListener(listener);
 }

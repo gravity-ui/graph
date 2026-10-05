@@ -2,7 +2,7 @@ import React, { useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 
 import { Graph, GraphState, Layer, type TBlock } from "@gravity-ui/graph";
-import { GraphBlock, GraphCanvas, GraphPortal, useBlockState, useSyncBlockState, useBlockViewState, useBlockAnchorState, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
+import { GraphBlock, GraphCanvas, GraphPortal, useBlockState, useSyncBlockState, useBlockViewState, useBlockAnchorState, useGraph, useGraphEvent, useGraphEvents, type GraphEvent, type GraphEventDetail } from "@gravity-ui/graph-react";
 import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-react/styles.css";
 
@@ -91,3 +91,24 @@ function LookupContracts({ graph }: { graph: Graph }) {
   return null;
 }
 void LookupContracts;
+
+function ReactEventContracts({ graph }: { graph: Graph }) {
+  useGraphEvent(graph, "state-change", (data, event) => {
+    const state: GraphState = data.state;
+    const payload: typeof data = event.detail;
+    void state; void payload;
+    // @ts-expect-error State-change has no colors.
+    data.colors;
+  });
+  useGraphEvents(graph, { onStateChanged: (data, event) => {
+    const detail: GraphEventDetail<"onStateChanged"> = data;
+    const typedEvent: GraphEvent<"onStateChanged"> = event;
+    void detail; void typedEvent;
+  } });
+  // @ts-expect-error Known event names reject unrelated detail callbacks.
+  useGraphEvent(graph, "state-change", (data: { colors: unknown }) => { void data; });
+  // @ts-expect-error Named callbacks preserve payload types.
+  useGraphEvents(graph, { onStateChanged: (data: { colors: unknown }) => { void data; } });
+  return null;
+}
+void ReactEventContracts;

@@ -50,7 +50,7 @@ export interface IHitBox extends HitBoxData {
  * - Single block drag: equal performance
  * - Solution to the problem of recalculating usableRect on every change
  */
-export class HitTest extends Emitter {
+export class HitTest extends Emitter<{ update: (hitTest: HitTest) => void }> {
   // RBush tree for interactive elements (spatial search)
   private interactiveTree = new RBush<HitBox>(9);
 

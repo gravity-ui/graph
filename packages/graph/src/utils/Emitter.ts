@@ -1,5 +1,3 @@
-import { noop } from "./functions";
-
 const TIME_PER_FRAME_FOR_GC = 5; // 5 mc
 const globalObject = typeof window === "undefined" ? global : window;
 const rIC = globalObject.requestIdleCallback || globalObject.setTimeout;
@@ -7,10 +5,10 @@ const rIC = globalObject.requestIdleCallback || globalObject.setTimeout;
 const getTime = () => performance.now();
 type EmitterEventsDefinition = Record<string, (...args: unknown[]) => void>;
 
-type EmitterFn = (...args: unknown[]) => void;
+type EmitterFn = (...args: never[]) => void;
 
 class FnWrapper<Fn extends EmitterFn> {
-  public fn: Fn;
+  public fn: Fn | undefined;
 
   public once: boolean;
 
@@ -23,20 +21,21 @@ class FnWrapper<Fn extends EmitterFn> {
   }
 
   public run(...args: Parameters<Fn>) {
-    this.fn.apply(null, Array.from(args));
-    if (this.once) {
-      this.destroy();
-    }
+    const fn = this.fn;
+    if (!fn) return;
+    if (this.once) this.destroy();
+    // A wrapper holds one callback and its own parameter tuple, before heterogeneous storage erases the name.
+    (fn as (...values: Parameters<Fn>) => void).apply(null, args);
   }
 
   public destroy() {
-    this.fn = noop as Fn;
+    this.fn = undefined;
     this.canBeDeleted = true;
   }
 }
 
-export class Emitter<T extends EmitterEventsDefinition = EmitterEventsDefinition> {
-  private gcLaunched: boolean;
+export class Emitter<T extends { [K in keyof T]: EmitterFn } = EmitterEventsDefinition> {
+  private gcLaunched = false;
 
   private eventsForGC? = new Set<keyof T>();
 

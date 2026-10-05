@@ -1,12 +1,13 @@
 import { Signal } from "@preact/signals-core";
 
 import { Graph } from "../../../graph";
-import { GraphEventsDefinitions } from "../../../graphEvents";
+import { GraphEventsDefinitions, UnwrapGraphEvents } from "../../../graphEvents";
 import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { PortState, TPort, TPortId } from "../../../store/connection/port/Port";
+import { TypedEventListener, addTypedEventListener } from "../../../utils/eventListener";
 import { applyAlpha, getXY } from "../../../utils/functions";
 import { TRect } from "../../../utils/types/shapes";
 import { EventedComponent } from "../EventedComponent/EventedComponent";
@@ -271,9 +272,9 @@ export class GraphComponent<
    * @param options - Additional AddEventListener options
    * @returns Unsubscribe function
    */
-  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
+  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions>(
     eventName: EventName,
-    handler: Cb,
+    handler: TypedEventListener<UnwrapGraphEvents<NoInfer<EventName>>>,
     options?: AddEventListenerOptions | boolean
   ): () => void {
     const unsubscribe = this.context.graph.on(eventName, handler, options);
@@ -291,7 +292,7 @@ export class GraphComponent<
    */
   protected onRootEvent<K extends keyof HTMLElementEventMap>(
     eventName: K,
-    handler: ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void) | EventListenerObject,
+    handler: TypedEventListener<HTMLElementEventMap[NoInfer<K>], HTMLElement>,
     options?: AddEventListenerOptions | boolean
   ): () => void {
     const root = this.context.root;
@@ -299,12 +300,7 @@ export class GraphComponent<
       throw new Error("Attempt to add event listener to non-existent root element");
     }
 
-    const unsubscribe = () => {
-      if (typeof handler === "function") root.removeEventListener(eventName, handler, options);
-      else root.removeEventListener(eventName, handler, options);
-    };
-    if (typeof handler === "function") root.addEventListener(eventName, handler, options);
-    else root.addEventListener(eventName, handler, options);
+    const unsubscribe = addTypedEventListener(root, eventName, handler, options);
 
     this.unsubscribe.push(unsubscribe);
 

@@ -18,7 +18,6 @@ type TDebouncedFn = (() => void) & {
 
 type TEventNameForCallback<K extends keyof TGraphEventCallbacks> = (typeof GraphCallbacksMap)[K];
 type TEventForCallback<K extends keyof TGraphEventCallbacks> = UnwrapGraphEvents<TEventNameForCallback<K>>;
-type TEventDetailForCallback<K extends keyof TGraphEventCallbacks> = UnwrapGraphEventsDetail<TEventNameForCallback<K>>;
 
 export function useGraphEvent<Event extends keyof GraphEventsDefinitions>(
   graph: Graph | null,
@@ -69,11 +68,8 @@ export function useGraphEvents(graph: Graph | null, events: Partial<TGraphEventC
   useLayoutEffect(() => {
     if (!graph) return undefined;
 
-    const unsubscribe = [];
-    const subscribe = <K extends keyof TGraphEventCallbacks>(
-      key: K,
-      cb: (data: TEventDetailForCallback<K>, event: TEventForCallback<K>) => void
-    ): (() => void) => {
+    const unsubscribe: Array<() => void> = [];
+    const subscribe = <K extends keyof TGraphEventCallbacks>(key: K, cb: TGraphEventCallbacks[K]): (() => void) => {
       const eventName = GraphCallbacksMap[key];
       return graph.on(eventName, (event: TEventForCallback<K>) => {
         cb(event.detail, event);

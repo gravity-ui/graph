@@ -14,12 +14,12 @@ import {
   resolveGraphColors,
   resolveGraphConstants,
 } from "./graphConfig";
-import { GraphEvent, GraphEventParams, GraphEventsDefinitions, isGraphEvent } from "./graphEvents";
+import { GraphEvent, GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
 import { KeyboardService } from "./services/KeyboardService";
 import { Layer, LayerPublicProps } from "./services/Layer";
-import { Layers } from "./services/LayersService";
+import { Layers, LayersRootSize } from "./services/LayersService";
 import { CameraService, getInitCameraState } from "./services/camera/CameraService";
 import type { TCameraState } from "./services/camera/CameraService";
 import { DragService } from "./services/drag";
@@ -27,11 +27,12 @@ import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
 import { TGraphSettingsConfig, TGraphSettingsPatch } from "./store/settings";
+import { TypedEventListener, addTypedEventListener, removeTypedEventListener } from "./utils/eventListener";
 import { clearColorCache, getXY } from "./utils/functions";
 import { clearGraphInstance, setGraphInstance } from "./utils/graphInstance";
 import { clearTextCache } from "./utils/renderers/text";
 import "./utils/types/global";
-import { IPoint, IRect, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
+import { IPoint, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
 
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
 export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
@@ -166,7 +167,7 @@ export class Graph {
     this.rootStore.settings.captureInitialSettings();
   }
 
-  protected onUpdateSize = (event: IRect) => {
+  protected onUpdateSize = (event: LayersRootSize) => {
     this.cameraService.set(event);
   };
 
@@ -327,29 +328,29 @@ export class Graph {
     });
   }
 
-  public on<
-    EventName extends keyof GraphEventsDefinitions = keyof GraphEventsDefinitions,
-    Cb extends GraphEventsDefinitions[EventName] = GraphEventsDefinitions[EventName],
-  >(type: EventName, cb: Cb, options?: AddEventListenerOptions | boolean) {
-    this.eventEmitter.addEventListener(type, cb, options);
-    return () => this.off(type, cb);
+  public on<EventName extends keyof GraphEventsDefinitions>(
+    type: EventName,
+    cb: TypedEventListener<UnwrapGraphEvents<NoInfer<EventName>>>,
+    options?: AddEventListenerOptions | boolean
+  ) {
+    return addTypedEventListener(this.eventEmitter, type, cb, options);
   }
 
-  public off<
-    EventName extends keyof GraphEventsDefinitions = keyof GraphEventsDefinitions,
-    Cb extends GraphEventsDefinitions[EventName] = GraphEventsDefinitions[EventName],
-  >(type: EventName, cb: Cb) {
-    this.eventEmitter.removeEventListener(type, cb);
+  public off<EventName extends keyof GraphEventsDefinitions>(
+    type: EventName,
+    cb: TypedEventListener<UnwrapGraphEvents<NoInfer<EventName>>>,
+    options?: EventListenerOptions | boolean
+  ) {
+    removeTypedEventListener(this.eventEmitter, type, cb, options);
   }
 
   /*
    * Emit Graph's events
    */
-  public emit<
-    EventName extends keyof GraphEventsDefinitions = keyof GraphEventsDefinitions,
-    Cb extends GraphEventsDefinitions[EventName] = GraphEventsDefinitions[EventName],
-    P extends Parameters<Cb>[0] = Parameters<Cb>[0],
-  >(eventName: EventName, detail: GraphEventParams<P>) {
+  public emit<EventName extends keyof GraphEventsDefinitions>(
+    eventName: EventName,
+    detail: UnwrapGraphEventsDetail<NoInfer<EventName>>
+  ) {
     const event = new GraphEvent(eventName, {
       detail,
       bubbles: false,
@@ -372,8 +373,9 @@ export class Graph {
      * });
      * ```
      * */
-    if (eventName === "mousedown" && isGraphEvent(event) && !event.isDefaultPrevented()) {
-      this.dragService.handleMouseDown(event);
+    if (eventName === "mousedown" && !event.isDefaultPrevented()) {
+      // The generic name cannot be narrowed with its indexed payload; this branch fixes it to mousedown.
+      this.dragService.handleMouseDown(event as GraphEvent<UnwrapGraphEventsDetail<"mousedown">>);
     }
     return event;
   }
@@ -381,11 +383,11 @@ export class Graph {
   /*
    * Emit Graph's event and execute default action if it is not prevented
    */
-  public executеDefaultEventAction<
-    EventName extends keyof GraphEventsDefinitions = keyof GraphEventsDefinitions,
-    Cb extends GraphEventsDefinitions[EventName] = GraphEventsDefinitions[EventName],
-    P extends Parameters<Cb>[0] = Parameters<Cb>[0],
-  >(eventName: EventName, detail: GraphEventParams<P>, defaultCb: () => void) {
+  public executеDefaultEventAction<EventName extends keyof GraphEventsDefinitions>(
+    eventName: EventName,
+    detail: UnwrapGraphEventsDetail<NoInfer<EventName>>,
+    defaultCb: () => void
+  ) {
     const event = this.emit(eventName, detail);
     if (!event.defaultPrevented) {
       defaultCb();

@@ -270,3 +270,38 @@ Detach cleans these subscriptions and pending camera movement; reattach installs
 them again. Calling the cleanup returned by `onSignal` is also safe more than once.
 Starting the layers service without a root throws `Root not specified` before
 attaching any layer.
+
+## Event callbacks and payloads
+
+Graph event names determine listener and payload types. Remove extra callback or
+payload type arguments from `on`, `off`, `emit`, `executеDefaultEventAction` and
+`UnwrapGraphEvents`/`UnwrapGraphEventsDetail`; these APIs need only the event name
+parameter. `Graph.on` also accepts an object with `handleEvent`.
+
+```ts
+const unsubscribe = graph.on("colors-changed", (event) => {
+  console.log(event.detail.colors.block.background);
+}, { capture: true });
+unsubscribe();
+```
+
+Graph mouse events are `CustomEvent` wrappers. Read the native event through
+`event.detail.sourceEvent` and narrow it with `instanceof MouseEvent` when needed.
+Canvas component click/mousedown listeners receive native `MouseEvent` values.
+Component hover listeners may receive either a native `MouseEvent` or a graph
+`CustomEvent`; guard before reading native mouse coordinates. Evented-area
+enter/leave callbacks receive native synthetic `MouseEvent` values.
+
+Use the cleanup returned by `graph.on`. When using explicit `graph.off`, pass the
+same capture value used for registration: `graph.off(name, listener, true)`.
+`once` listeners run once even during recursive emissions; cancelled drag sessions
+remove pending start/end/leave listeners immediately. A new mousedown finishes an
+active drag before removing its listeners, allowing another drag to start.
+
+`graph.layers` exposes the typed `update-size` event (`width`, `height`, `dpr`),
+and `graph.hitTest` exposes `update` with the HitTest instance. Unknown names or
+incompatible callback arguments are rejected.
+
+In `@gravity-ui/graph-react`, `GraphEvent<CallbackName>` now describes the actual
+event passed as the second callback argument. Use `GraphEventDetail<CallbackName>`
+for the first argument. React event callbacks infer both arguments from the key.

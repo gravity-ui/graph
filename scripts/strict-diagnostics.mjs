@@ -27,6 +27,21 @@ export const LAYER_LIFECYCLE_FILES = [
   "packages/graph/src/services/Layer.ts",
   "packages/graph/src/services/LayersService.ts",
 ];
+export const EVENT_CONTRACT_FILES = [
+  "packages/graph/src/components/canvas/EventedComponent/EventedComponent.ts",
+  "packages/graph/src/components/canvas/EventedComponent/EventedComponent.test.ts",
+  "packages/graph/src/utils/Emitter.ts",
+  "packages/graph/src/utils/Emitter.test.ts",
+  "packages/graph/src/utils/eventListener.ts",
+  "packages/graph/src/utils/eventListener.test.ts",
+  "packages/graph/src/utils/functions/dragListener.ts",
+  "packages/graph/src/utils/functions/dragListener.test.ts",
+  "packages/graph/src/graphEvents.test.ts",
+  "packages/graph/src/services/camera/Camera.ts",
+  "packages/graph-react/src/events.ts",
+  "packages/graph-react/src/hooks/useGraphEvents.ts",
+  "packages/graph-react/src/hooks/useGraphEvents.test.ts",
+];
 const script = fileURLToPath(import.meta.url);
 const root = path.resolve(path.dirname(script), "..");
 const baselinePath = path.join(root, "docs/audits/strict-typescript-baseline.json");
@@ -74,8 +89,20 @@ export function validateSnapshot(value) {
     if (LAYER_LIFECYCLE_FILES.includes(diagnostic.file)) {
       throw new Error(`Layer lifecycle must have zero strict diagnostics: ${identity(diagnostic)}`);
     }
-    if (diagnostic.file === "packages/graph/src/components/canvas/blocks/Block.ts" && [2564, 2532, 18047, 18048].includes(diagnostic.code)) {
+    if (
+      diagnostic.file === "packages/graph/src/components/canvas/blocks/Block.ts" &&
+      [2564, 2532, 18047, 18048].includes(diagnostic.code)
+    ) {
       throw new Error(`Block lifecycle must have zero initialization/null diagnostics: ${identity(diagnostic)}`);
+    }
+    if (
+      EVENT_CONTRACT_FILES.includes(diagnostic.file) ||
+      (["packages/graph/src/graph.ts", "packages/graph/src/components/canvas/blocks/Block.ts"].includes(
+        diagnostic.file
+      ) &&
+        diagnostic.code === 2345)
+    ) {
+      throw new Error(`Event contracts must have zero strict diagnostics: ${identity(diagnostic)}`);
     }
     const key = identity(diagnostic);
     if (seen.has(key)) throw new Error(`Duplicate diagnostic identity: ${key}`);
@@ -188,7 +215,10 @@ async function main(args) {
   console.log("Scheduler: zero strict diagnostics (full projects checked).");
   console.log("Resolved configuration boundaries: zero strict diagnostics.");
   console.log("Nullable lookup boundaries: zero strict diagnostics.");
-  console.log("Layer lifecycle: zero strict diagnostics; Block lifecycle initialization/null checks: zero diagnostics.");
+  console.log("Event contracts: zero strict diagnostics in completed files and graph/block listener arguments.");
+  console.log(
+    "Layer lifecycle: zero strict diagnostics; Block lifecycle initialization/null checks: zero diagnostics."
+  );
 }
 
 if (process.argv[1] && process.argv[1] !== "-" && realpathSync(process.argv[1]) === script) {

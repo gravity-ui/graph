@@ -1,38 +1,5 @@
 import { GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } from "@gravity-ui/graph";
 
-export type TGraphEventCallbacks = {
-  click: (data: UnwrapGraphEventsDetail<"click">, event: UnwrapGraphEvents<"click">) => void;
-  dblclick: (data: UnwrapGraphEventsDetail<"dblclick">, event: UnwrapGraphEvents<"dblclick">) => void;
-  onCameraChange: (data: UnwrapGraphEventsDetail<"camera-change">, event: UnwrapGraphEvents<"camera-change">) => void;
-  onBlockDragStart: (
-    data: UnwrapGraphEventsDetail<"block-drag-start">,
-    event: UnwrapGraphEvents<"block-drag-start">
-  ) => void;
-  onBlockDrag: (data: UnwrapGraphEventsDetail<"block-drag">, event: UnwrapGraphEvents<"block-drag">) => void;
-  onBlockDragEnd: (data: UnwrapGraphEventsDetail<"block-drag-end">, event: UnwrapGraphEvents<"block-drag-end">) => void;
-  onBlockSelectionChange: (
-    data: UnwrapGraphEventsDetail<"blocks-selection-change">,
-    event: UnwrapGraphEvents<"blocks-selection-change">
-  ) => void;
-  onBlockAnchorSelectionChange: (
-    data: UnwrapGraphEventsDetail<"block-anchor-selection-change">,
-    event: UnwrapGraphEvents<"block-anchor-selection-change">
-  ) => void;
-  onBlockChange: (data: UnwrapGraphEventsDetail<"block-change">, event: UnwrapGraphEvents<"block-change">) => void;
-  onBlocksGeometryChange: (
-    data: UnwrapGraphEventsDetail<"blocks-geometry-change">,
-    event: UnwrapGraphEvents<"blocks-geometry-change">
-  ) => void;
-  onConnectionSelectionChange: (
-    data: UnwrapGraphEventsDetail<"connection-selection-change">,
-    event: UnwrapGraphEvents<"connection-selection-change">
-  ) => void;
-  onStateChanged: (data: UnwrapGraphEventsDetail<"state-change">, event: UnwrapGraphEvents<"state-change">) => void;
-};
-
-export type GraphEventDetail<T extends keyof TGraphEventCallbacks> = Parameters<TGraphEventCallbacks[T]>[0];
-export type GraphEvent<T extends keyof TGraphEventCallbacks> = Parameters<TGraphEventCallbacks[T]>[0];
-
 export const GraphCallbacksMap = {
   click: "click",
   dblclick: "dblclick",
@@ -46,4 +13,14 @@ export const GraphCallbacksMap = {
   onBlocksGeometryChange: "blocks-geometry-change",
   onConnectionSelectionChange: "connection-selection-change",
   onStateChanged: "state-change",
-} as const satisfies Record<keyof TGraphEventCallbacks, keyof GraphEventsDefinitions>;
+} as const satisfies Record<string, keyof GraphEventsDefinitions>;
+
+export type TGraphEventCallbacks = {
+  [K in keyof typeof GraphCallbacksMap]: (
+    data: UnwrapGraphEventsDetail<(typeof GraphCallbacksMap)[K]>,
+    event: UnwrapGraphEvents<(typeof GraphCallbacksMap)[K]>
+  ) => void;
+};
+
+export type GraphEventDetail<T extends keyof TGraphEventCallbacks> = Parameters<TGraphEventCallbacks[T]>[0];
+export type GraphEvent<T extends keyof TGraphEventCallbacks> = Parameters<TGraphEventCallbacks[T]>[1];

@@ -1,9 +1,10 @@
 import { Graph } from "../graph";
 import { TGraphColors, TGraphConstants } from "../graphConfig";
-import { GraphEventsDefinitions } from "../graphEvents";
+import { GraphEventsDefinitions, UnwrapGraphEvents } from "../graphEvents";
 import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
 import { ESchedulerPriority } from "../lib/Scheduler";
+import { TypedEventListener, addTypedEventListener } from "../utils/eventListener";
 import { debounce } from "../utils/utils/schedule";
 
 import { ICamera, TCameraState } from "./camera/CameraService";
@@ -124,9 +125,9 @@ export class Layer<
    * @param options - Additional options (optional)
    * @returns The result of graph.on call (an unsubscribe function)
    */
-  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions, Cb extends GraphEventsDefinitions[EventName]>(
+  protected onGraphEvent<EventName extends keyof GraphEventsDefinitions>(
     eventName: EventName,
-    handler: Cb,
+    handler: TypedEventListener<UnwrapGraphEvents<NoInfer<EventName>>>,
     options?: Omit<AddEventListenerOptions, "signal">
   ) {
     return this.props.graph.on(eventName, handler, {
@@ -170,19 +171,17 @@ export class Layer<
    */
   protected onHtmlEvent<K extends keyof HTMLElementEventMap>(
     eventName: K,
-    handler: ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void) | EventListenerObject,
+    handler: TypedEventListener<HTMLElementEventMap[NoInfer<K>], HTMLElement>,
     options?: Omit<AddEventListenerOptions, "signal">
   ) {
     if (!this.html) {
       throw new Error("Attempt to add event listener to non-existent HTML element");
     }
 
-    const listenerOptions = { ...options, signal: this.eventAbortController.signal };
-    if (typeof handler === "function") {
-      this.html.addEventListener(eventName, handler, listenerOptions);
-    } else {
-      this.html.addEventListener(eventName, handler, listenerOptions);
-    }
+    return addTypedEventListener(this.html, eventName, handler, {
+      ...options,
+      signal: this.eventAbortController.signal,
+    });
   }
 
   /**
@@ -202,19 +201,17 @@ export class Layer<
    */
   protected onCanvasEvent<K extends keyof HTMLElementEventMap>(
     eventName: K,
-    handler: ((this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => void) | EventListenerObject,
+    handler: TypedEventListener<HTMLElementEventMap[NoInfer<K>], HTMLCanvasElement>,
     options?: Omit<AddEventListenerOptions, "signal">
   ) {
     if (!this.canvas) {
       throw new Error("Attempt to add event listener to non-existent canvas element");
     }
 
-    const listenerOptions = { ...options, signal: this.eventAbortController.signal };
-    if (typeof handler === "function") {
-      this.canvas.addEventListener(eventName, handler, listenerOptions);
-    } else {
-      this.canvas.addEventListener(eventName, handler, listenerOptions);
-    }
+    return addTypedEventListener(this.canvas, eventName, handler, {
+      ...options,
+      signal: this.eventAbortController.signal,
+    });
   }
 
   /**
@@ -234,19 +231,17 @@ export class Layer<
    */
   protected onRootEvent<K extends keyof HTMLElementEventMap>(
     eventName: K,
-    handler: ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void) | EventListenerObject,
+    handler: TypedEventListener<HTMLElementEventMap[NoInfer<K>], HTMLElement>,
     options?: Omit<AddEventListenerOptions, "signal">
   ) {
     if (!this.root) {
       throw new Error("Attempt to add event listener to non-existent root element");
     }
 
-    const listenerOptions = { ...options, signal: this.eventAbortController.signal };
-    if (typeof handler === "function") {
-      this.root.addEventListener(eventName, handler, listenerOptions);
-    } else {
-      this.root.addEventListener(eventName, handler, listenerOptions);
-    }
+    return addTypedEventListener(this.root, eventName, handler, {
+      ...options,
+      signal: this.eventAbortController.signal,
+    });
   }
 
   /**

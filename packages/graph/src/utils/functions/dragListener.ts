@@ -2,7 +2,16 @@ import { EventedComponent } from "../../components/canvas/EventedComponent/Event
 import { CursorLayerCursorTypes } from "../../components/canvas/layers/cursorLayer/CursorLayer";
 import { Graph } from "../../graph";
 import { Emitter } from "../Emitter";
+import { TypedEventListener, addTypedEventListener, removeTypedEventListener } from "../eventListener";
 import { EVENTS } from "../types/events";
+
+export type DragEvents = {
+  [EVENTS.DRAG_START]: (event: MouseEvent) => void;
+  [EVENTS.DRAG_UPDATE]: (event: MouseEvent) => void;
+  [EVENTS.DRAG_END]: (event: MouseEvent) => void;
+  cancel: () => void;
+};
+export type DragEmitter = Emitter<DragEvents>;
 
 export type DragListenerOptions = {
   stopOnMouseLeave?: boolean;
@@ -50,6 +59,22 @@ function installTextSelectionSuppression(doc: Document, graph?: Graph): () => vo
 }
 
 export function dragListener(document: Document | HTMLDivElement | HTMLCanvasElement, options?: DragListenerOptions) {
+  const controller = new AbortController();
+  const on = <K extends keyof DocumentEventMap>(
+    type: K,
+    listener: TypedEventListener<DocumentEventMap[K]>,
+    options?: AddEventListenerOptions | boolean
+  ) =>
+    addTypedEventListener(document, type, listener, {
+      ...(typeof options === "boolean" ? { capture: options } : options),
+      signal: controller.signal,
+    });
+  const off = <K extends keyof DocumentEventMap>(
+    type: K,
+    listener: TypedEventListener<DocumentEventMap[K]>,
+    options?: EventListenerOptions | boolean
+  ) => removeTypedEventListener(document, type, listener, options);
+
   // Support legacy boolean parameter for backward compatibility
   const stopOnMouseLeave = options?.stopOnMouseLeave ?? false;
   const graph = options?.graph;
@@ -81,7 +106,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   let startX: number | null = null;
   let startY: number | null = null;
   let lastMouseEvent: MouseEvent | undefined;
-  const emitter = new Emitter();
+  const emitter = new Emitter<DragEvents>();
   const mousemoveBinded = (event: MouseEvent) => {
     lastMouseEvent = event;
     mousemove(emitter, event);
@@ -143,7 +168,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     }
 
     emitter.emit(EVENTS.DRAG_START, event);
-    document.addEventListener("mousemove", mousemoveBinded);
+    on("mousemove", mousemoveBinded);
   };
 
   /**
@@ -156,18 +181,19 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
 
     if (checkThreshold(event)) {
       // Threshold exceeded - start drag and remove this listener
-      document.removeEventListener("mousemove", handleThresholdMove, { capture: true });
+      off("mousemove", handleThresholdMove, { capture: true });
       startDrag(event);
     }
   };
 
   const cleanup = (): void => {
+    controller.abort();
     cleanupTextSelection();
     unsubscribeCamera?.();
-    document.removeEventListener("mousemove", mousemoveBinded);
+    off("mousemove", mousemoveBinded);
     // Also remove threshold listener if it was added
     if (threshold > 0) {
-      document.removeEventListener("mousemove", handleThresholdMove, { capture: true });
+      off("mousemove", handleThresholdMove, { capture: true });
     }
   };
 
@@ -186,7 +212,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   };
 
   if (stopOnMouseLeave) {
-    document.addEventListener(
+    on(
       "mouseleave",
       (event) => {
         finished = true;
@@ -202,22 +228,22 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
 
   // If threshold > 0, we need to accumulate movement before starting drag
   if (threshold > 0) {
-    document.addEventListener("mousemove", handleThresholdMove, { capture: true });
+    on("mousemove", handleThresholdMove, { capture: true });
   } else {
     // No threshold - start drag on first mousemove (original behavior)
-    document.addEventListener(
+    on(
       "mousemove",
-      (event: Event) => {
+      (event) => {
         if (finished) {
           return;
         }
-        startDrag(event as MouseEvent);
+        startDrag(event);
       },
       { once: true, capture: true }
     );
   }
 
-  document.addEventListener(
+  on(
     "mouseup",
     (event) => {
       finished = true;
@@ -230,9 +256,14 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     { once: true, capture: true }
   );
 
-  document.addEventListener(
+  on(
     "mousedown",
-    () => {
+    (event) => {
+      finished = true;
+      if (started) {
+        mouseupBinded(event);
+        cleanupDragState();
+      }
       cleanup();
     },
     { once: true, capture: true }
@@ -249,15 +280,15 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   return emitter;
 }
 
-export function stopDragListening(emitter: Emitter) {
+export function stopDragListening(emitter: DragEmitter) {
   emitter.emit("cancel");
 }
 
-function mousemove(emitter: Emitter, event: MouseEvent) {
+function mousemove(emitter: DragEmitter, event: MouseEvent) {
   emitter.emit(EVENTS.DRAG_UPDATE, event);
 }
 
-function mouseup(emitter: Emitter, event: MouseEvent) {
+function mouseup(emitter: DragEmitter, event: MouseEvent) {
   emitter.emit(EVENTS.DRAG_END, event);
   emitter.destroy();
 }

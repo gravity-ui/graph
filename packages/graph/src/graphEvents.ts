@@ -15,7 +15,7 @@ export const extractNativeGraphMouseEvent = (event: GraphMouseEvent) => {
   return event.detail.sourceEvent instanceof MouseEvent ? event.detail.sourceEvent : null;
 };
 
-export type GraphMouseEventNames = "mousedown" | "click" | "dblclick" | "mouseenter" | "mouseleave";
+export type GraphMouseEventNames = "mousedown" | "click" | "dblclick" | "mouseenter" | "mousemove" | "mouseleave";
 
 export interface BaseGraphEventDefinition {
   mousedown: (event: GraphMouseEvent) => void;
@@ -23,19 +23,13 @@ export interface BaseGraphEventDefinition {
   dblclick: (event: GraphMouseEvent) => void;
   mouseenter: (event: GraphMouseEvent) => void;
   mouseleave: (event: GraphMouseEvent) => void;
+  mousemove: (event: GraphMouseEvent) => void;
 }
 
-export type UnwrapBaseGraphEvents<
-  Key extends keyof BaseGraphEventDefinition = keyof BaseGraphEventDefinition,
-  T extends BaseGraphEventDefinition[Key] = BaseGraphEventDefinition[Key],
-  P extends Parameters<T>[0] = Parameters<T>[0],
-> = P extends CustomEvent ? P : never;
-
-export type UnwrapBaseGraphEventsDetail<
-  Key extends keyof BaseGraphEventDefinition,
-  T extends BaseGraphEventDefinition[Key] = BaseGraphEventDefinition[Key],
-  P extends Parameters<T>[0] = Parameters<T>[0],
-> = UnwrapGraphEvents<Key, T, P>["detail"];
+export type UnwrapBaseGraphEvents<Key extends keyof BaseGraphEventDefinition = keyof BaseGraphEventDefinition> =
+  Parameters<BaseGraphEventDefinition[Key]>[0];
+export type UnwrapBaseGraphEventsDetail<Key extends keyof BaseGraphEventDefinition> =
+  UnwrapBaseGraphEvents<Key>["detail"];
 
 export interface GraphEventsDefinitions extends BaseGraphEventDefinition {
   "camera-change": (event: CustomEvent<TCameraState>) => void;
@@ -45,16 +39,8 @@ export interface GraphEventsDefinitions extends BaseGraphEventDefinition {
 }
 const graphMouseEvents = ["mousedown", "click", "dblclick", "mouseenter", "mousemove", "mouseleave"];
 
-export type UnwrapGraphEvents<
-  Key extends keyof GraphEventsDefinitions,
-  T extends GraphEventsDefinitions[Key] = GraphEventsDefinitions[Key],
-  P extends Parameters<T>[0] = Parameters<T>[0],
-> = P extends CustomEvent ? P : never;
-export type UnwrapGraphEventsDetail<
-  Key extends keyof GraphEventsDefinitions,
-  T extends GraphEventsDefinitions[Key] = GraphEventsDefinitions[Key],
-  P extends Parameters<T>[0] = Parameters<T>[0],
-> = UnwrapGraphEvents<Key, T, P>["detail"];
+export type UnwrapGraphEvents<Key extends keyof GraphEventsDefinitions> = Parameters<GraphEventsDefinitions[Key]>[0];
+export type UnwrapGraphEventsDetail<Key extends keyof GraphEventsDefinitions> = UnwrapGraphEvents<Key>["detail"];
 
 export type SelectionEvent<T extends TSelectionEntityId> = CustomEvent<TSelectionDiff<T>>;
 

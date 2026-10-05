@@ -7,7 +7,9 @@ import { observeDPR, throttle } from "../utils/functions";
 
 import { Layer } from "./Layer";
 
-export class Layers extends Emitter {
+export type LayersRootSize = { width: number; height: number; dpr: number };
+
+export class Layers extends Emitter<{ "update-size": (size: LayersRootSize) => void }> {
   private attached = false;
 
   public readonly rootSize = signal({ width: 0, height: 0, dpr: globalThis.devicePixelRatio || 1 });

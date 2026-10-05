@@ -6,7 +6,7 @@ import ts from "typescript";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-test("strict lookup fixtures check source APIs as well as packed declarations", () => {
+test("strict public consumer fixtures check source APIs as well as packed declarations", () => {
   const fixtures = [
     "tests/package-contract/fixtures/apps/vanilla/app.ts",
     "tests/package-contract/fixtures/apps/react/app.tsx",
