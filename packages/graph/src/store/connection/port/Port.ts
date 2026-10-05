@@ -234,7 +234,7 @@ export class PortState<T = unknown> {
       previous !== null &&
       typeof incoming === "object" &&
       incoming !== null
-        ? Object.assign({}, previous, incoming)
+        ? { ...previous, ...incoming }
         : incoming;
     this.$state.value = {
       ...this.$state.value,

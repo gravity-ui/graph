@@ -193,3 +193,11 @@ test("array port metadata is replaced without object spreading", () => {
   port.updatePort({ meta: [3] });
   expect(port.meta).toEqual([3]);
 });
+
+test("plain metadata merge preserves an own __proto__ data property", () => {
+  const port = new PortState<Record<string, unknown>>({ id: "p", x: 0, y: 0, meta: { label: "old" } });
+  port.updatePort({ meta: JSON.parse('{"__proto__":{"label":"inherited"},"count":1}') });
+  expect(Object.prototype.hasOwnProperty.call(port.meta, "__proto__")).toBe(true);
+  expect(Object.getPrototypeOf(port.meta)).toBe(Object.prototype);
+  expect(port.meta?.label).toBe("old");
+});
