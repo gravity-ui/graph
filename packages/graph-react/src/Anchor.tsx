@@ -2,7 +2,7 @@ import React, { useEffect, useMemo } from "react";
 
 import { AnchorState, Graph, TAnchor } from "@gravity-ui/graph";
 
-import { useSignal } from "./hooks";
+import { useComputedSignal, useSignal } from "./hooks";
 import { useBlockAnchorPosition, useBlockAnchorState } from "./hooks/useBlockAnchorState";
 import { cn } from "./utils/cn";
 
@@ -24,6 +24,10 @@ export function GraphBlockAnchor({
   const anchorContainerRef = React.useRef<HTMLDivElement>(null);
   const anchorState = useBlockAnchorState(graph, anchor);
   const selected = useSignal(anchorState?.$selected);
+  const viewComponent = useComputedSignal(
+    () => (anchorState?.$viewComponentReady.value ? anchorState.getViewComponent() : undefined),
+    [anchorState]
+  );
   const [raised, setRaised] = React.useState(false);
 
   useBlockAnchorPosition(anchorState, anchorContainerRef);
@@ -42,24 +46,21 @@ export function GraphBlockAnchor({
   }, [anchor?.type, position, className, selected, raised]);
 
   useEffect(() => {
-    const component = anchorState?.getViewComponent();
-    if (!component) {
-      return () => {};
-    }
-    return component.onChange(() => {
-      setRaised(component.state.raised);
+    setRaised(viewComponent?.state.raised ?? false);
+    return viewComponent?.onChange(() => {
+      setRaised(viewComponent.state.raised);
     });
-  }, [anchorState]);
+  }, [viewComponent]);
 
   useEffect(() => {
-    if (anchorContainerRef.current) {
-      const viewComponent = anchorState?.getViewComponent();
-      const hoverScale = viewComponent?.getHoverFactor();
-      if (hoverScale !== undefined) {
-        anchorContainerRef.current.style.setProperty("--graph-block-anchor-hover-scale", hoverScale.toString());
-      }
+    const container = anchorContainerRef.current;
+    const hoverScale = viewComponent?.getHoverFactor();
+    if (hoverScale !== undefined) {
+      container?.style.setProperty("--graph-block-anchor-hover-scale", hoverScale.toString());
+    } else {
+      container?.style.removeProperty("--graph-block-anchor-hover-scale");
     }
-  }, [anchorState?.$selected.value]);
+  }, [viewComponent, selected]);
 
   if (!anchorState) return null;
   const layout = typeof children === "function" ? children(anchorState) : children;

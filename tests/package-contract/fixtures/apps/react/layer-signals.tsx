@@ -75,24 +75,25 @@ export function LayerAndSignalContracts({ graph }: { graph: Graph }) {
     meta: { label: "custom", count: 1 },
     anchors: [],
   };
-  const inferred = useBlockState(graph, block);
-  const declared = useSyncBlockState<Meta>(graph, block.id);
-  const view = useBlockViewState<Meta>(graph, block.id);
-  if (inferred && declared) {
-    const count: number | undefined = inferred.$state.value.meta?.count;
-    const label: string | undefined = declared.$state.value.meta?.label;
-    void count;
-    void label;
-    // @ts-expect-error metadata-only generics do not promise arbitrary entity fields
-    declared.$state.value.customField;
-    // @ts-expect-error declared Meta cannot expose unrelated metadata fields
-    declared.$state.value.meta?.missing;
-  }
-  if (view) {
-    const count: number | undefined = view.connectedState.$state.value.meta?.count;
-    void count;
-  }
-  // @ts-expect-error data metadata does not promise custom view methods
+  const state = useBlockState(graph, block);
+  const sync = useSyncBlockState(graph, block.id);
+  const view = useBlockViewState(graph, block);
+  const countFromData: number | undefined = block.meta?.count;
+  void countFromData;
+  // @ts-expect-error lookup cannot promise Meta from an ID
+  useBlockState<Meta>(graph, block.id);
+  // @ts-expect-error synchronous lookup cannot promise Meta from an ID
+  useSyncBlockState<Meta>(graph, block.id);
+  // @ts-expect-error view lookup cannot promise Meta from an ID
+  useBlockViewState<Meta>(graph, block.id);
+  // @ts-expect-error v1 block-subtype generics must not silently become metadata schemas
+  useBlockState<TBlock<Meta>>(graph, block.id);
+  // @ts-expect-error typed input data does not establish the stored entity's schema
+  const inferredCount: number | undefined = state?.$state.value.meta?.count;
+  void inferredCount;
+  // @ts-expect-error lookup does not promise custom entity fields
+  sync?.$state.value.customField;
+  // @ts-expect-error lookup does not promise custom view methods
   view?.customMethod();
   const domRef = React.createRef<HTMLDivElement>();
   const blockElement = (

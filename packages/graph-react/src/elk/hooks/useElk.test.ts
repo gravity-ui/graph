@@ -46,3 +46,21 @@ test("failed layouts allow options without an onError callback", async () => {
   await waitFor(() => expect(result.current.isLoading).toBe(false));
   expect(result.current.result).toBeNull();
 });
+
+test.each([new Error("layout failed"), "layout failed"])(
+  "failed replacement clears the old result and reports Error: %s",
+  async (failure) => {
+    const elk = elkWithLayout((config) => (config.id === "first" ? Promise.resolve(config) : Promise.reject(failure)));
+    const onError = jest.fn();
+    const options = { onError };
+    const { result, rerender } = renderHook(({ config }) => useElk(config, elk, options), {
+      initialProps: { config: { id: "first" } },
+    });
+    await waitFor(() => expect(result.current.result).not.toBeNull());
+    rerender({ config: { id: "second" } });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.result).toBeNull();
+    expect(onError).toHaveBeenCalledWith(expect.any(Error));
+    expect(onError.mock.calls[0][0].message).toBe("layout failed");
+  }
+);

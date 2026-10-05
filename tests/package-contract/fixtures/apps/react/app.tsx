@@ -82,8 +82,8 @@ function LookupContracts({ graph }: { graph: Graph }) {
   view.getEntityId();
   // @ts-expect-error an anchor may be absent
   anchor.id;
-  // @ts-expect-error a metadata schema does not promise arbitrary entity fields
-  useSyncBlockState<{ custom: string }>(graph, "missing")?.$state.value.custom;
+  // @ts-expect-error ID lookup cannot promise custom metadata
+  useSyncBlockState<TBlock<{ custom: string }>>(graph, "missing");
   if (sync) {
     const id: string | number = sync.id;
     void id;

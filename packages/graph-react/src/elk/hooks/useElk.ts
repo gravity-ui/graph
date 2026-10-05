@@ -23,10 +23,11 @@ export const useElk = (config: ElkNode, elk: ELK, args?: ElkLayoutArguments & { 
         setResult(elkConverter(data));
         setIsLoading(false);
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         if (!isCancelled) {
-          args?.onError?.(error);
+          setResult(null);
           setIsLoading(false);
+          args?.onError?.(error instanceof Error ? error : new Error(String(error)));
         }
       });
 

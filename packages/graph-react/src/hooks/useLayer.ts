@@ -1,10 +1,33 @@
-import { useCallback, useLayoutEffect, useState, useSyncExternalStore } from "react";
+import { useLayoutEffect, useState } from "react";
 
-import { GraphState } from "@gravity-ui/graph";
 import type { Graph, GraphClassConstructor, Layer, LayerPublicProps } from "@gravity-ui/graph";
+import type { ReadonlySignal } from "@preact/signals-core";
+import { signal } from "@preact/signals-core";
 import isEqual from "lodash/isEqual";
 
 import { usePrevious } from "./usePrevious";
+import { useSignal } from "./useSignal";
+
+// Core exposes attachment through context.root but has no attachment event.
+// Observe context transitions on this hook's owned instance, including lifecycle
+// callbacks bound before registration, and restore the method on cleanup.
+function observeAttachment(layer: Layer) {
+  const attached = signal(Boolean(layer.context.root));
+  const setContext = layer.setContext;
+  layer.setContext = function (this: Layer, ...args: Parameters<typeof setContext>) {
+    try {
+      return setContext.apply(this, args);
+    } finally {
+      attached.value = Boolean(layer.context.root);
+    }
+  };
+  return {
+    attached,
+    dispose: () => {
+      layer.setContext = setContext;
+    },
+  };
+}
 
 /**
  * Hook for managing graph layers.
@@ -38,10 +61,8 @@ export function useLayer<T extends GraphClassConstructor<Layer> = GraphClassCons
     graph: Graph;
     ctor: T;
     layer: InstanceType<T>;
+    attached: ReadonlySignal<boolean>;
   } | null>(null);
-  const subscribe = useCallback((onChange: () => void) => graph?.on("state-change", onChange) ?? (() => {}), [graph]);
-  const getSnapshot = useCallback(() => graph?.state ?? GraphState.INIT, [graph]);
-  const graphState = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   useLayoutEffect(() => {
     if (!graph) {
@@ -49,12 +70,20 @@ export function useLayer<T extends GraphClassConstructor<Layer> = GraphClassCons
       return undefined;
     }
     const layer = graph.addLayer(layerCtor, props);
-    setRegistration({ graph, ctor: layerCtor, layer });
+    const readiness = observeAttachment(layer);
+    setRegistration({ graph, ctor: layerCtor, layer, attached: readiness.attached });
     // Capture this registration: cleanup must never detach a replacement layer.
-    return () => graph.detachLayer(layer);
+    return () => {
+      try {
+        graph.detachLayer(layer);
+      } finally {
+        readiness.dispose();
+      }
+    };
   }, [layerCtor, graph]);
 
   const layer = registration?.graph === graph && registration?.ctor === layerCtor ? registration.layer : null;
+  const attached = useSignal(layer ? registration?.attached : undefined);
   const prevProps = usePrevious(props);
   useLayoutEffect(() => {
     if (layer && (!prevProps || !isEqual(prevProps, props))) {
@@ -62,5 +91,5 @@ export function useLayer<T extends GraphClassConstructor<Layer> = GraphClassCons
     }
   }, [layer, props, prevProps]);
 
-  return graphState >= GraphState.ATTACHED ? layer : null;
+  return attached ? layer : null;
 }

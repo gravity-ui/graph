@@ -25,6 +25,7 @@ class TestLayer extends Layer {
 describe("useLayer hook", () => {
   // Real instances
   let graph: Graph;
+  let graphs: Graph[];
   let addLayerSpy: jest.SpyInstance;
   let detachLayerSpy: jest.SpyInstance;
 
@@ -37,18 +38,13 @@ describe("useLayer hook", () => {
 
     // Create a real Graph instance
     graph = new Graph({});
+    graphs = [graph];
     graph.attach(document.createElement("div"));
+    graph.start();
 
     // Spy on its methods
     addLayerSpy = jest.spyOn(graph, "addLayer");
     detachLayerSpy = jest.spyOn(graph, "detachLayer");
-
-    // Mock the Layer's setProps method when it's created
-    addLayerSpy.mockImplementation(() => {
-      const layer = new TestLayer({ camera: graph.cameraService, graph } as any);
-      jest.spyOn(layer, "setProps");
-      return layer;
-    });
 
     // Setup isEqual mock with default implementation
     mockedIsEqual.mockImplementation((a, b) => JSON.stringify(a) === JSON.stringify(b));
@@ -58,6 +54,7 @@ describe("useLayer hook", () => {
   });
 
   afterEach(() => {
+    act(() => graphs.forEach((instance) => instance.unmount()));
     // Restore console.error
     consoleErrorSpy.mockRestore();
   });
@@ -209,13 +206,10 @@ describe("useLayer hook", () => {
 
       // Setup new graph
       const newGraph = new Graph({});
+      graphs.push(newGraph);
       newGraph.attach(document.createElement("div"));
+      newGraph.start();
       const newGraphAddLayerSpy = jest.spyOn(newGraph, "addLayer");
-      newGraphAddLayerSpy.mockImplementation(() => {
-        const layer = new TestLayer({ camera: newGraph.cameraService, graph: newGraph } as any);
-        jest.spyOn(layer, "setProps");
-        return layer;
-      });
 
       // Execute initial render
       const { result, rerender } = renderHook(({ g }) => useLayer(g, TestLayer, createValidLayerProps()), {
