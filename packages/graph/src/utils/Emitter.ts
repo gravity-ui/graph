@@ -25,7 +25,7 @@ class FnWrapper<Fn extends EmitterFn> {
     if (!fn) return;
     if (this.once) this.destroy();
     // A wrapper holds one callback and its own parameter tuple, before heterogeneous storage erases the name.
-    (fn as (...values: Parameters<Fn>) => void).apply(null, args);
+    Reflect.apply(fn, null, args);
   }
 
   public destroy() {
