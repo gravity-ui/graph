@@ -57,6 +57,55 @@ describe("Layer resources and lifecycle", () => {
     html.detachLayer();
   });
 
+  it("publishes attachment changes through repeated detach, reattach and unmount", () => {
+    const layer = new Layer({ graph, camera: graph.cameraService });
+    const changes: boolean[] = [];
+    const unsubscribe = layer.$attached.subscribe((attached) => {
+      expect(Boolean(layer.context.root)).toBe(attached);
+      changes.push(attached);
+    });
+    layer.attachLayer(root);
+    layer.detachLayer();
+    layer.detachLayer();
+    layer.attachLayer(root);
+    Component.unmount(layer);
+    expect(changes).toEqual([false, true, false, true, false]);
+    expect(layer.$attached.value).toBe(false);
+    unsubscribe();
+  });
+
+  it("allows an attachment subscriber to detach without leaving active subscriptions", () => {
+    const layer = new SubscribedLayer({ graph, camera: graph.cameraService });
+    const unsubscribe = layer.$attached.subscribe((attached) => {
+      if (attached) layer.detachLayer();
+    });
+    expect(() => layer.attachLayer(root)).not.toThrow();
+    layer.changed.mockClear();
+    layer.value.value = 1;
+    expect(layer.changed).not.toHaveBeenCalled();
+    expect(layer.context.root).toBeUndefined();
+    expect(layer.$attached.value).toBe(false);
+    unsubscribe();
+    Component.unmount(layer);
+  });
+
+  it("does not publish attachment when afterInit detaches the layer", () => {
+    class SelfDetachingLayer extends Layer {
+      protected afterInit(): void {
+        super.afterInit();
+        this.detachLayer();
+      }
+    }
+    const layer = new SelfDetachingLayer({ graph, camera: graph.cameraService });
+    const changes: boolean[] = [];
+    const unsubscribe = layer.$attached.subscribe((attached) => changes.push(attached));
+    layer.attachLayer(root);
+    expect(changes).toEqual([false]);
+    expect(layer.context.root).toBeUndefined();
+    unsubscribe();
+    Component.unmount(layer);
+  });
+
   it("fails explicitly when a configured canvas has no 2D context", () => {
     const getContext = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = () => null;

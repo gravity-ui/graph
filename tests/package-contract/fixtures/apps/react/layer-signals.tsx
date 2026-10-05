@@ -31,6 +31,12 @@ const CustomLayer = MetadataLayer<Meta>;
 export function LayerAndSignalContracts({ graph }: { graph: Graph }) {
   const layer = useLayer(graph, CustomLayer, { metadata: { label: "custom", count: 1 } });
   const count: number | undefined = layer?.getMetadata().count;
+  const attached: boolean | undefined = useSignal(layer?.$attached);
+  void attached;
+  if (layer) {
+    // @ts-expect-error attachment state is readonly to consumers
+    layer.$attached.value = true;
+  }
   const requiredRef = React.createRef<MetadataLayer<Meta>>();
   const valid = (
     <GraphLayer layer={CustomLayer} props={{ metadata: { label: "custom", count: 1 } }} ref={requiredRef} />

@@ -130,3 +130,37 @@ test("anchor subscribes when its canvas view mounts after the React anchor", asy
   unmount();
   graph.unmount();
 });
+
+test("layer refs follow stop and direct detachment without a graph state change", () => {
+  class BoundLayer extends Layer {
+    public close = this.detachLayer.bind(this);
+  }
+  const graph = new Graph({});
+  const ref = createRef<BoundLayer>();
+  const { unmount } = render(
+    <GraphContextProvider graph={graph}>
+      <GraphLayer layer={BoundLayer} ref={ref} />
+    </GraphContextProvider>
+  );
+  const root = document.createElement("div");
+  act(() => graph.attach(root));
+  const layer = ref.current;
+  if (!layer) throw new Error("Expected attached layer");
+  act(() => graph.stop());
+  expect(ref.current).toBeNull();
+  act(() => graph.attach(root));
+  expect(ref.current).toBe(layer);
+  act(() => graph.start());
+  act(() => graph.stop());
+  expect(ref.current).toBeNull();
+  act(() => graph.start());
+  expect(ref.current).toBe(layer);
+  act(() => layer.close());
+  expect(ref.current).toBeNull();
+  act(() => layer.attachLayer(root));
+  expect(ref.current).toBe(layer);
+  act(() => graph.detachLayer(layer));
+  expect(ref.current).toBeNull();
+  unmount();
+  graph.unmount();
+});

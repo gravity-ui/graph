@@ -1,3 +1,6 @@
+import type { ReadonlySignal } from "@preact/signals-core";
+import { signal } from "@preact/signals-core";
+
 import { Graph } from "../graph";
 import { TGraphColors, TGraphConstants } from "../graphConfig";
 import { GraphEventsDefinitions, UnwrapGraphEvents } from "../graphEvents";
@@ -95,6 +98,11 @@ export class Layer<
   protected root?: HTMLElement;
 
   protected attached = false;
+
+  private readonly attachedSignal = signal(false);
+
+  /** Readonly attachment readiness, independent of the graph state. */
+  public readonly $attached: ReadonlySignal<boolean> = this.attachedSignal;
 
   private hiddenByUser = false;
 
@@ -461,6 +469,7 @@ export class Layer<
     this.attached = false;
     this.root = undefined;
     this.setContext({ root: undefined });
+    this.attachedSignal.value = false;
   }
 
   protected unmount(): void {
@@ -502,7 +511,11 @@ export class Layer<
     }
     this.attached = true;
     this.setContext({ root, ownerDocument: root.ownerDocument });
-    this.afterInit();
+    try {
+      this.afterInit();
+    } finally {
+      this.attachedSignal.value = this.attached;
+    }
   }
 
   public detachLayer() {

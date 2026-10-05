@@ -26,8 +26,8 @@ import {
 } from "./strict-diagnostics.mjs";
 
 const diagnostic = {
-  project: PROJECTS[1],
-  file: "packages/graph-react/src/unfinished.ts",
+  project: PROJECTS[2],
+  file: "packages/graph-minimap/src/unfinished.ts",
   code: 2564,
   message: "Property 'parent' has no initializer.",
   count: 1,
@@ -105,7 +105,7 @@ test("rejects malformed baseline metadata and duplicate diagnostic identities", 
 
 test("compiler result must be successful, parseable and from the requested project", () => {
   const output = JSON.stringify(snapshot([diagnostic]));
-  assert.deepEqual(decodeCompilerResult({ status: 0, stdout: output, stderr: "" }, PROJECTS[1]), [diagnostic]);
+  assert.deepEqual(decodeCompilerResult({ status: 0, stdout: output, stderr: "" }, PROJECTS[2]), [diagnostic]);
   for (const result of [
     { status: 1, stdout: output },
     { status: null, signal: "SIGTERM", stdout: output },
@@ -115,7 +115,7 @@ test("compiler result must be successful, parseable and from the requested proje
   ]) {
     assert.throws(() => decodeCompilerResult(result, PROJECTS[0]));
   }
-  assert.throws(() => decodeCompilerResult({ status: 0, stdout: output }, PROJECTS[2]), /project/);
+  assert.throws(() => decodeCompilerResult({ status: 0, stdout: output }, PROJECTS[3]), /project/);
 });
 
 test("CLI baseline is reproducible across line shifts and rejects regressions/config failures", () => {
@@ -161,7 +161,7 @@ test("CLI baseline is reproducible across line shifts and rejects regressions/co
     const baselineFile = path.join(directory, "docs/audits/strict-typescript-baseline.json");
     const baseline = readFileSync(baselineFile, "utf8");
     writeFileSync(
-      path.join(directory, "packages/graph-react/source.ts"),
+      path.join(directory, "packages/graph-minimap/source.ts"),
       "\n\nimport value from 'untyped';\nexport const text: string = null;\n"
     );
     assert.equal(run("--write-baseline").status, 0);
@@ -179,7 +179,7 @@ test("CLI baseline is reproducible across line shifts and rejects regressions/co
     assert.equal(relocatedResult.status, 0, relocatedResult.stderr);
 
     writeFileSync(
-      path.join(directory, "packages/graph-react/source.ts"),
+      path.join(directory, "packages/graph-minimap/source.ts"),
       "export const value: string = null;\nexport const other: string = null;\n"
     );
     const regression = run();
