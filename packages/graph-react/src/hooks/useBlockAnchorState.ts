@@ -1,16 +1,12 @@
 import { AnchorState, Graph, TAnchor } from "@gravity-ui/graph";
 
-import { useBlockState } from "./useBlockState";
 import { useComputedSignal, useSignalEffect } from "./useSignal";
 
 export function useBlockAnchorState(graph: Graph, anchor: TAnchor): AnchorState | undefined {
-  const blockState = useBlockState(graph, anchor.blockId);
-  return useComputedSignal(() => {
-    if (!blockState) return undefined;
-    if (!Array.isArray(blockState.$anchorStates?.value)) return undefined;
-
-    return blockState.$anchorStates.value.find((a) => a.id === anchor.id);
-  }, [blockState, anchor]);
+  return useComputedSignal(
+    () => graph.rootStore.blocksList.getBlockState(anchor.blockId)?.getAnchorById(anchor.id),
+    [graph, anchor.blockId, anchor.id]
+  );
 }
 
 export function useBlockAnchorPosition(

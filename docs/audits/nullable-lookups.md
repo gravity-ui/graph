@@ -1,0 +1,59 @@
+# Nullable lookup contracts
+
+Issue: https://github.com/gravity-ui/graph/issues/357. Base: merged #356,
+`f9b9f222642882fe62cf10af6a618e354cd994a5`.
+
+Public block/connection state lookups, block data, anchors, and block view hooks
+explicitly return undefined for absence, preserving the union under transitional
+non-strict declaration emit. Connection lists filter out missing IDs. Updating a
+missing connection is a no-op, matching block updates.
+
+React anchor lookup reads the block map and the current anchor signal in one
+computation, tracking deletion/recreation without retaining a detached anchor.
+The synchronous hook reads once; the reactive block hook subscribes to the map.
+
+Legacy selector modules are removed; consumers call existing store lookup methods
+directly. Ordinary lookups return base nullable state without promising arbitrary
+subtypes. Custom CanvasBlock<T, Props> retains its declared state/Meta and props
+as application-owned type hints. Its binding checks that the ID exists, then
+interprets the state as the declared type. The application owns the match between
+custom data and its registered component; no runtime Meta validation is added.
+The former selector assertion is confined to this explicit custom-component
+boundary. Required Anchor/Connection bindings also check existence. Settings
+retain their block and connection type parameters. Public changes are recorded
+in the cumulative migration guide.
+
+## Strict debt
+
+| Project | Before | After |
+| --- | ---: | ---: |
+| graph | 297 | 290 |
+| graph-react | 31 | 31 |
+| graph-minimap | 2 | 2 |
+| graph-devtools | 21 | 21 |
+| Storybook | 188 | 188 |
+| E2E configured roots | 0 | 0 |
+
+The final comparison is against merged #356; custom component declarations are
+retained rather than erased to reduce diagnostics.
+The exact project/file/code/message/count comparison contains only removed
+identities and reduced counts. No new errors or message identities are admitted.
+Existing zero-error configuration boundaries and Scheduler remain enforced.
+The public graph API file and two lookup hook files now also require zero errors,
+including during baseline writes. Broader entity, component and React strict
+work remains in #360, #362 and #363; E2E test root coverage remains in #367.
+
+## Validation
+
+Runtime tests cover absent, added, removed and recreated block/anchor IDs,
+connection removal and list filtering, and updates to missing connections.
+The same strict positive/negative consumer fixtures run against source
+entrypoints and installed packed declarations. Their unguarded lookup accesses
+must fail, guarded results must work, and ordinary lookup subtype arguments are
+rejected. The fixtures also register concrete, generic and specialized generic
+custom components through both constructor settings and updates; nested Meta and
+custom props remain typed, while unrelated constructors are rejected.
+The source fixture test checks consumer diagnostics; production source debt is
+independently checked by the full strict gate. Build, workspace typecheck/lint,
+all ten native configs, package tests, installed browser contracts and all 187
+E2E tests pass. Independent read-only review found no actionable issues.

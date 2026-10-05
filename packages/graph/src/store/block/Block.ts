@@ -200,7 +200,7 @@ export class BlockState<T extends TBlock = TBlock> {
     }
   }
 
-  public getViewComponent() {
+  public getViewComponent(): Block | undefined {
     return this.$viewComponent.value;
   }
 
@@ -247,7 +247,7 @@ export class BlockState<T extends TBlock = TBlock> {
     this.getViewComponent()?.updateHitBox(this.$geometry.value, true);
   }
 
-  public getAnchorById(anchorId: string) {
+  public getAnchorById(anchorId: string): AnchorState | undefined {
     return this.$anchorStates.value.find((anchor) => anchor.id === anchorId);
   }
 

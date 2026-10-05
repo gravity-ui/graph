@@ -169,3 +169,15 @@ test("CLI baseline is reproducible across line shifts and rejects regressions/co
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("nullable lookup contracts reject diagnostics even in a baseline", () => {
+  for (const file of [
+    "packages/graph/src/api/PublicGraphApi.ts",
+    "packages/graph-react/src/hooks/useBlockState.ts",
+    "packages/graph-react/src/hooks/useBlockAnchorState.ts",
+  ]) {
+    const value = { schemaVersion: 1, compiler: COMPILER, projects: PROJECTS,
+      diagnostics: [{ project: PROJECTS[0], file, code: 2322, message: "new debt", count: 1 }] };
+    assert.throws(() => validateSnapshot(value), /Nullable lookups must have zero/);
+  }
+});

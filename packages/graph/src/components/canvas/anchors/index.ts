@@ -2,7 +2,6 @@ import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
-import { selectBlockAnchor } from "../../../store/block/selectors";
 import { PortState } from "../../../store/connection/port/Port";
 import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
 import { GraphLayer } from "../layers/graphLayer/GraphLayer";
@@ -52,7 +51,9 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     super(props, parent);
     this.state = { size: props.size, raised: false, selected: false };
 
-    this.connectedState = selectBlockAnchor(this.context.graph, props.blockId, props.id);
+    const anchorState = this.context.graph.rootStore.blocksList.getBlockState(props.blockId)?.getAnchorById(props.id);
+    if (!anchorState) throw new Error(`Cannot bind Anchor to missing anchor ${props.id} in block ${props.blockId}`);
+    this.connectedState = anchorState;
     this.connectedState.setViewComponent(this);
 
     this.addEventListener("click", this);

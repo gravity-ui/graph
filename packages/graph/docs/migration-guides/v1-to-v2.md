@@ -197,3 +197,47 @@ to `updateSettings`.
 
 React `useGraph().setViewConfiguration(viewConfig)` applies the argument you
 pass, allowing configuration updates independently of the initial hook props.
+
+## Nullable entity lookups
+
+Block, connection, anchor and rendered-view lookups return `undefined` for an
+unknown or removed ID. This absence is now preserved in published declarations,
+including `useSyncBlockState`, `useBlockState` and `useBlockViewState`.
+Guard the result before using it:
+
+```ts
+const block = graph.api.getBlockById(id);
+if (block) console.log(block.name);
+
+const state = useBlockState(graph, id);
+if (!state) return null;
+```
+
+`useSyncBlockState` reads the current state without subscribing. Use
+`useBlockState` to rerender when a block is added or removed. Anchor hooks also
+follow anchor removal and recreation. Connection updates for missing IDs are a
+no-op, matching block updates. List lookup methods filter out missing IDs.
+
+Legacy internal selector modules are removed. Use the existing
+`rootStore.blocksList.getBlockState(id)` and
+`rootStore.connectionsList.getConnectionState(id)` methods directly.
+
+Lookup hooks and store methods do not accept a type argument that promises
+custom metadata from an ID. Custom canvas blocks retain `CanvasBlock<T, Props>`
+for declaring their state/Meta and component props. The application is responsible
+for matching that declaration to the data supplied for its registered block type;
+the library does not validate the shape of custom Meta at runtime.
+
+```ts
+import { CanvasBlock, type TBlock } from "@gravity-ui/graph";
+
+type MyBlock = TBlock<{ description: string }>;
+class CustomBlock extends CanvasBlock<MyBlock> {
+  getDescription() {
+    return this.state.meta?.description;
+  }
+}
+```
+
+Canvas Block/Anchor/Connection construction requires an existing corresponding state and
+throws a descriptive error when the required entity is absent.

@@ -252,10 +252,10 @@ export class ConnectionsStore {
       return this.$connections.value;
     }
     const map = this.$connectionsMap.value;
-    return ids.map((id) => map.get(id)).filter(Boolean);
+    return ids.map((id) => map.get(id)).filter((connection): connection is ConnectionState => connection !== undefined);
   }
 
-  public getConnectionState(id: TConnectionId) {
+  public getConnectionState(id: TConnectionId): ConnectionState | undefined {
     return this.$connectionsMap.value.get(id);
   }
 
@@ -264,7 +264,9 @@ export class ConnectionsStore {
   }
 
   public getConnectionStates(ids: TConnectionId[]) {
-    return ids.map((id) => this.getConnectionState(id)).filter(Boolean);
+    return ids
+      .map((id) => this.getConnectionState(id))
+      .filter((connection): connection is ConnectionState => connection !== undefined);
   }
 
   public toJSON() {
