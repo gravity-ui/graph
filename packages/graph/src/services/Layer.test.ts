@@ -38,12 +38,17 @@ describe("Layer resources and lifecycle", () => {
     expect(html.context.graphCanvas).toBeUndefined();
     expect(html.getHTML()).toBeInstanceOf(HTMLElement);
     expect(canvas.getHTML()).toBeUndefined();
+    expect(canvas.context.canvas).toBe(canvas.getCanvas());
+    expect(canvas.context.ownerDocument).toBe(canvas.getCanvas()?.ownerDocument);
+    expect(html.context.ownerDocument).toBe(html.getHTML()?.ownerDocument);
     expect(canvas.context.ctx).toBeInstanceOf(CanvasRenderingContext2D);
     expect(new Layer({ graph, camera: graph.cameraService }).isHidden()).toBe(false);
     expect(() => html.resetTransform()).not.toThrow();
     const element = html.getHTML();
     html.attachLayer(root);
+    expect(html.context.root).toBe(root);
     html.detachLayer();
+    expect(html.context.root).toBeUndefined();
     html.detachLayer();
     expect(html.getHTML()).toBe(element);
     expect(element?.parentElement).toBeNull();

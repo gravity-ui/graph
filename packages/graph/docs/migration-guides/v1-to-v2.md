@@ -246,7 +246,10 @@ throws a descriptive error when the required entity is absent.
 
 Base `Layer.getCanvas()` and `Layer.getHTML()` return `undefined` when that
 resource was not configured. `LayerContext.ctx` and `graphCanvas` are also
-`undefined` for layers without a canvas. Guard them before use. Canvas resources
+`undefined` for layers without a canvas. `LayerContext.canvas` is the layer's own
+canvas; `root` is set on attach and cleared on detach. `ownerDocument` comes from
+the created elements or attached root and can be `undefined` for an empty layer
+before attachment. Guard optional resources before use. Canvas resources
 are created during construction, before attachment, and retained when detached
 so that the same elements can be reattached. A configured canvas that cannot
 provide a 2D context throws a descriptive error during construction.

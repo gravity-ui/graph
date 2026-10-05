@@ -4,7 +4,10 @@ Issue: #358. Base: v2 after #357. Compiler: TypeScript 5.9.2.
 
 `Layer` creates configured Canvas/HTML resources during construction. Missing
 resources are explicit `undefined`, including `LayerContext.ctx` and `graphCanvas`.
-Detach removes elements but retains resources for reattachment. A configured
+Base Layer initializes the shared canvas/context/document fields; subclasses
+only override graphCanvas when they need the graph's main canvas. Root context
+is set on attach and cleared on detach. Detach removes elements but retains
+resources for reattachment. A configured
 canvas requires a real 2D context; construction throws immediately if it is null.
 Checked protected helpers support subclasses that require a canvas, while the
 graph's own canvas accessor remains required.

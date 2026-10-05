@@ -69,14 +69,9 @@ export class NewBlockLayer extends Layer<
       ...props,
     });
 
+    this.requireCanvas();
     this.setContext({
-      canvas: this.requireCanvas(),
       graphCanvas: props.graph.getGraphCanvas(),
-      ctx: this.requireCanvasContext(),
-      camera: props.camera,
-      constants: this.props.graph.graphConstants,
-      colors: this.props.graph.graphColors,
-      graph: this.props.graph,
     });
   }
 

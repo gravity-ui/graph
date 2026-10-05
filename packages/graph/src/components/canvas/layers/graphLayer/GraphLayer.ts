@@ -78,22 +78,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
       ...props,
     });
 
-    const canvas = this.requireCanvas();
-
-    this.setContext({
-      canvas: canvas,
-      ctx: this.requireCanvasContext(),
-      root: this.props.root,
-      camera: this.props.camera,
-      ownerDocument: canvas.ownerDocument,
-      constants: this.props.graph.graphConstants,
-      colors: this.props.graph.graphColors,
-      graph: this.props.graph,
-    });
-
-    if (this.context.root) {
-      this.attachListeners();
-    }
+    this.requireCanvas();
 
     this.camera = this.props.camera;
 
@@ -105,9 +90,6 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   }
 
   protected afterInit(): void {
-    this.setContext({
-      root: this.root,
-    });
     this.attachListeners();
 
     this.onSignal(this.context.graph.rootStore.blocksList.$blocks, () => {

@@ -42,7 +42,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
       ...props,
     });
 
-    this.setContext({ canvas: this.requireCanvas(), ctx: this.requireCanvasContext() });
+    this.requireCanvas();
 
     this.minimapWidth = this.props.width ?? 200;
     this.minimapHeight = this.props.height ?? 200;

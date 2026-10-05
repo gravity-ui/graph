@@ -50,7 +50,10 @@ export type LayerContext = {
   camera: ICamera;
   constants: TGraphConstants;
   colors: TGraphColors;
+  canvas: HTMLCanvasElement | undefined;
   graphCanvas: HTMLCanvasElement | undefined;
+  root: HTMLElement | undefined;
+  ownerDocument: Document | undefined;
   ctx: CanvasRenderingContext2D | undefined;
   layer: Layer;
 };
@@ -287,7 +290,10 @@ export class Layer<
       colors: this.props.graph.$graphColors.value,
       constants: this.props.graph.$graphConstants.value,
       layer: this,
+      canvas: undefined,
       graphCanvas: undefined,
+      root: undefined,
+      ownerDocument: undefined,
       ctx: undefined,
     });
 
@@ -457,6 +463,7 @@ export class Layer<
     this.eventAbortController = new AbortController();
     this.attached = false;
     this.root = undefined;
+    this.setContext({ root: undefined });
   }
 
   protected unmount(): void {
@@ -497,12 +504,12 @@ export class Layer<
       root.appendChild(this.html);
     }
     this.attached = true;
+    this.setContext({ root, ownerDocument: root.ownerDocument });
     this.afterInit();
   }
 
   public detachLayer() {
     this.unmountLayer();
-    this.root = undefined;
   }
 
   protected createCanvas(params: NonNullable<LayerProps["canvas"]>) {
@@ -516,7 +523,7 @@ export class Layer<
       alpha: params.alpha ?? true,
     });
     if (!ctx) throw new Error("2D canvas context is unavailable");
-    this.setContext({ graphCanvas: canvas, ctx });
+    this.setContext({ canvas, graphCanvas: canvas, ctx, ownerDocument: canvas.ownerDocument });
     return canvas;
   }
 
@@ -528,6 +535,7 @@ export class Layer<
     if (params.transformByCameraPosition) {
       div.classList.add("layer-with-camera");
     }
+    this.setContext({ ownerDocument: this.context.ownerDocument ?? div.ownerDocument });
     return div;
   }
 
