@@ -1,11 +1,8 @@
 import { Layer, LayerContext, LayerProps, TCameraState, computeCssVariable } from "@gravity-ui/graph";
 
-export type TMiniMapLocation =
-  | "topLeft"
-  | "topRight"
-  | "bottomLeft"
-  | "bottomRight"
-  | Partial<Pick<CSSStyleDeclaration, "top" | "left" | "bottom" | "right">>;
+type MiniMapPosition = Pick<CSSStyleDeclaration, "top" | "left" | "bottom" | "right">;
+
+export type TMiniMapLocation = "topLeft" | "topRight" | "bottomLeft" | "bottomRight" | Partial<MiniMapPosition>;
 
 export type MiniMapLayerProps = LayerProps & {
   width?: number;
@@ -195,10 +192,8 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     this.context.ctx.strokeRect(xPos, yPos, width, height);
   }
 
-  protected getPositionOfMiniMap(
-    location: TMiniMapLocation = "topLeft"
-  ): Pick<CSSStyleDeclaration, "top" | "left" | "bottom" | "right"> {
-    const offsets =
+  protected getPositionOfMiniMap(location: TMiniMapLocation = "topLeft"): MiniMapPosition {
+    const offsets: Partial<MiniMapPosition> =
       typeof location === "string"
         ? {
             topLeft: { top: "0px", left: "0px" },
@@ -208,10 +203,10 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
           }[location]
         : location;
     return {
-      top: "top" in offsets ? offsets.top ?? "unset" : "unset",
-      left: "left" in offsets ? offsets.left ?? "unset" : "unset",
-      bottom: "bottom" in offsets ? offsets.bottom ?? "unset" : "unset",
-      right: "right" in offsets ? offsets.right ?? "unset" : "unset",
+      top: offsets.top ?? "unset",
+      left: offsets.left ?? "unset",
+      bottom: offsets.bottom ?? "unset",
+      right: offsets.right ?? "unset",
     };
   }
 

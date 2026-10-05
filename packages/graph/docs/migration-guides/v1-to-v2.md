@@ -8,7 +8,8 @@ The temporary branch and release process is documented separately in
 ## Migration checklist
 
 - Move React, Minimap and DevTools imports to their dedicated packages and install their peers.
-- Import the stylesheets for each package you use.
+- Import the stylesheets for each package you use, with core styles before addon styles.
+- Add `import "@gravity-ui/graph-minimap/styles.css"` when using Minimap: its default border and background now require this explicit import.
 - Replace `canChangeBlockGeometry` / `ECanChangeBlockGeometry` with `canDrag` / `ECanDrag`.
 - Treat configuration input types as patches and use the complete configuration types for stored state.
 - Replace resets through `undefined` with `resetSettings(keys)` or `resetSettings()`.
@@ -524,7 +525,9 @@ styles belong to each canvas, so multiple minimaps no longer override one anothe
 and detach/reattach does not leave styles on the old root.
 
 Import `@gravity-ui/graph-minimap/styles.css` alongside the core stylesheet for
-its default background and border. Override these visual defaults with ordinary
-CSS (for example `.graph-minimap.my-minimap` with `classNames: ["my-minimap"]`); `!important` is unnecessary.
+its default background and border. Load core styles before minimap styles.
+Override these visual defaults with ordinary
+CSS (for example `.graph-minimap.my-minimap` with `classNames: ["my-minimap"]`);
+these custom rules override the defaults regardless of their load order, without `!important`.
 `context.root` remains optional before attachment and after detachment;
 `context.canvas` and `context.ctx` are available after successful construction.

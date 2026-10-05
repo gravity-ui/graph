@@ -41,17 +41,23 @@ test.describe("MiniMap – styling", () => {
     expect(await minimapPO.hasClass("my-custom-class")).toBe(true);
   });
 
-  test("consumer CSS overrides the minimap appearance without important", async ({ page }) => {
-    await minimapPO.addLayer({ classNames: ["custom-minimap"] });
-    await page.addStyleTag({ content: ":root { --g-color-private-cool-grey-1000-solid: rgb(10, 20, 30); }" });
-    await expect(page.locator("canvas.graph-minimap")).toHaveCSS("border-top-width", "2px");
-    await page.addStyleTag({
-      content: ".graph-minimap.custom-minimap { border: 3px solid rgb(10, 20, 30); background: rgb(40, 50, 60); }",
+  for (const beforeDefaults of [true, false]) {
+    test(`consumer CSS overrides defaults loaded ${beforeDefaults ? "after" : "before"} it`, async ({ page }) => {
+      await minimapPO.addLayer({ classNames: ["custom-minimap"] });
+      await page.addStyleTag({ content: ":root { --g-color-private-cool-grey-1000-solid: rgb(10, 20, 30); }" });
+      const canvas = page.locator("canvas.graph-minimap");
+      await expect(canvas).toHaveCSS("border-top-width", "2px");
+      await page.evaluate((prepend) => {
+        const style = document.createElement("style");
+        style.textContent =
+          ".graph-minimap.custom-minimap { border: 3px solid rgb(10, 20, 30); background: rgb(40, 50, 60); }";
+        if (prepend) document.head.prepend(style);
+        else document.head.append(style);
+      }, beforeDefaults);
+      await expect(canvas).toHaveCSS("border-top-width", "3px");
+      await expect(canvas).toHaveCSS("background-color", "rgb(40, 50, 60)");
     });
-    const canvas = page.locator("canvas.graph-minimap");
-    await expect(canvas).toHaveCSS("border-top-width", "3px");
-    await expect(canvas).toHaveCSS("background-color", "rgb(40, 50, 60)");
-  });
+  }
 
   // ─── Size ─────────────────────────────────────────────────────────────────
 

@@ -55,7 +55,6 @@ function getPackMetadata(output) {
 
 function assertPackedFiles(metadata, kind) {
   const addon = kind !== "graph";
-  const hasStyles = true;
   assert.equal(metadata.name, `@gravity-ui/${kind}`);
   assert.ok(Array.isArray(metadata.files), "pnpm pack did not report the packed file list.");
 
@@ -86,7 +85,7 @@ function assertPackedFiles(metadata, kind) {
     ...allowedPackageRootFiles,
     "build/index.js",
     "build/index.d.ts",
-    ...(hasStyles ? ["build/styles.css"] : []),
+    "build/styles.css",
     ...(addon
       ? []
       : [
@@ -168,7 +167,6 @@ export async function buildAndPackArtifact({ packageRoot, staleBuildSentinelPath
 export async function checkInstalledArtifact(consumerDirectory, expectedVersion, kind = "graph") {
   const addon = kind !== "graph";
   const react = kind === "graph-react";
-  const hasStyles = true;
   const packageRoot = path.join(consumerDirectory, "node_modules", "@gravity-ui", kind);
   const manifest = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
 
@@ -182,9 +180,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   assert.deepEqual(manifest.files, ["build"]);
   assert.deepEqual(
     manifest.exports,
-    addon
-      ? { ".": expectedExports["."], ...(hasStyles ? { "./styles.css": expectedExports["./styles.css"] } : {}) }
-      : expectedExports
+    addon ? { ".": expectedExports["."], "./styles.css": expectedExports["./styles.css"] } : expectedExports
   );
   assert.deepEqual(manifest.typesVersions, addon ? undefined : expectedTypesVersions);
   if (addon) {
@@ -246,7 +242,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     [
       "build/index.js",
       "build/index.d.ts",
-      ...(hasStyles ? ["build/styles.css"] : []),
+      "build/styles.css",
       ...(addon
         ? []
         : [
@@ -267,7 +263,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   );
   await assertNoPrivateSchedulerSpecifiers(packageRoot);
 
-  const publicStyles = hasStyles ? await readFile(path.join(packageRoot, "build", "styles.css"), "utf8") : "";
+  const publicStyles = await readFile(path.join(packageRoot, "build", "styles.css"), "utf8");
   if (addon) {
     for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
       assert.doesNotMatch(
