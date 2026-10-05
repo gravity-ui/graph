@@ -91,7 +91,13 @@ export class GroupState<T extends TGroup = TGroup> {
     };
   }
 
+  /** Whether this state is still the entity registered under its ID. */
+  public isAttached(): boolean {
+    return this.store.getGroupState(this.id) === this;
+  }
+
   public setSelection(selected: boolean, strategy: ESelectionStrategy = ESelectionStrategy.REPLACE) {
+    if (!this.isAttached()) return;
     this.store.updateGroupsSelection([this.id], selected, strategy);
   }
 

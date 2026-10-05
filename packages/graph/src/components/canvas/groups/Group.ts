@@ -275,8 +275,15 @@ export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps
     };
   }
 
+  public override isEntityAvailable(): boolean {
+    return super.isEntityAvailable() && this.groupState.isAttached();
+  }
+
   protected subscribeToGroup() {
-    this.groupState = this.context.graph.rootStore.groupsList.getGroupState(this.props.id);
+    const state = this.context.graph.rootStore.groupsList.getGroupState<T>(this.props.id);
+    if (!state) throw new Error(`Cannot bind Group to missing group ${this.props.id}`);
+    // Custom group authors declare the stored data shape.
+    this.groupState = state;
     this.subscribeSignal(this.groupState.$selected, (selected) => {
       this.setState({
         selected,

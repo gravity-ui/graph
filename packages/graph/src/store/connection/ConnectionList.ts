@@ -173,18 +173,22 @@ export class ConnectionsStore {
   }
 
   public setConnections(connections: TConnection[]) {
+    const previous = this.$connectionsMap.value;
     this.$connectionsMap.value = new Map(
       connections.map((connection) => {
         const c = this.getOrCreateConnection(connection);
         return [c.id, c];
       })
     );
+    for (const [id, state] of previous) {
+      if (!this.$connectionsMap.value.has(id)) state.destroy();
+    }
   }
 
   protected getOrCreateConnection(connections: TConnection) {
     const id = ConnectionState.getConnectionId(connections);
-    if (this.$connectionsMap.value.has(id)) {
-      const c = this.$connectionsMap.value.get(id);
+    const c = this.$connectionsMap.value.get(id);
+    if (c) {
       c.updateConnection(connections);
       return c;
     }
@@ -192,7 +196,7 @@ export class ConnectionsStore {
   }
 
   public addConnection(connection: TConnection): TConnectionId {
-    const newConnection = new ConnectionState(this, connection, this.connectionSelectionBucket);
+    const newConnection = this.getOrCreateConnection(connection);
     this.$connectionsMap.value.set(newConnection.id, newConnection);
     this.notifyConnectionMapChanged();
     return newConnection.id;
@@ -204,6 +208,8 @@ export class ConnectionsStore {
 
   public deleteConnections(connections: ConnectionState[]) {
     connections.forEach((c) => {
+      // Check this store: foreign handles are rejected; destroyed local handles can still be removed.
+      if (this.getConnectionState(c.id) !== c) return;
       c.destroy(); // Clean up port observers
       this.$connectionsMap.value.delete(c.id);
     });

@@ -445,3 +445,66 @@ context creation.
 The unused internal `FrameDebouncer` implementation was removed. Use the public
 `debounce`, `throttle` and `schedule` functions instead of importing that internal
 service.
+
+## Safe entity operations and strict core types (#362)
+
+The graph source, unit tests and declaration build now use permanent `strict: true`.
+Lookup results and canvas views retain their availability in published declarations:
+`ConnectionState.getViewComponent()` and `AnchorState.getViewComponent()` can return
+`undefined`. `BlockState.getSelectedAnchor()` is also absent when no anchor is selected. Guard these results before use. `ConnectionState.id` and the ID
+in its JSON snapshot are always present; `TConnection.id` remains optional input.
+`BlockState<T>.asTBlock()` / `asTBlockShallow()` and `ConnectionState<T>.toJSON()` /
+`asTConnection()` preserve custom data, including declared Meta. State updates accept
+partial values of that data type. Metadata remains a consumer-defined contract.
+
+The changing-entity behavior is:
+
+- Block/connection/anchor lookups return `undefined` after deletion; batch lookups omit
+  missing entries. Public `updateBlock`, `updateConnection`, `setAnchorSelection` and
+  store `updatePosition` do nothing for missing IDs. `zoomToBlocks` returns `false`
+  when none of the requested blocks exist. Empty rectangles keep camera position/scale finite, including before attachment.
+  Selection sets retain requested IDs, including unresolved IDs; resolved entities/views omit missing data.
+- IDs are immutable within a state. Updating a state does not rename its ID. Zero
+  and empty-string IDs are accepted. Use remove/add to rename an entity. Adding an
+  existing connection ID updates the existing state, as adding a block already does.
+- Connections may precede their endpoint components. They keep unresolved lookup
+  ports and do not render or participate in hit testing until endpoints resolve.
+  An unspecified endpoint gets an isolated internal port; it cannot accidentally
+  share geometry with another incomplete connection. Port-based connections without
+  IDs receive generated IDs. Changing endpoints releases unused port observers;
+  replacing/deleting connections cleans up their observers.
+- Deleting a port invalidates its geometry immediately. Retained destroyed connection
+  states cannot recreate observers. Retained block/connection/anchor state handles cannot
+  move/select a replacement entity with the same ID. Removed components are skipped
+  during drag, and deleted blocks are omitted from pending geometry events.
+- Multipoint connections without points retain the straight/bezier endpoint fallback.
+  Exactly one point produces empty paths/arrows; incomplete labels are skipped. Labels at `(0, 0)` are valid when their geometry is complete.
+- `TPort<T>.meta` preserves shallow merge for plain object metadata, including symbol keys.
+  Primitives, arrays and other non-plain values are replaced when supplied. Omitted meta
+  is preserved; `meta: undefined` clears it. Consumer Meta retains its declared generic type.
+
+Port connection events describe custom component ports, which may have no block or
+anchor. Check the optional `blockId`, `sourceBlockId`, `targetBlockId` and anchor IDs
+before invoking block/anchor APIs. `connection-create-drop.sourceAnchorId` is also
+`string | undefined`, since block-to-block creation has no anchor. The default
+port connection action preserves block/anchor endpoints and their deterministic connection
+IDs. Custom component endpoints use actual port IDs; repeating a drag between the same
+custom endpoints updates the existing connection.
+Cancellation can happen before a source or target exists; its port fields preserve
+that absence. The internal `GraphLayer` mouse-event target can be absent, as can the
+public graph mouse-event target.
+
+`ISelectionBucket` exposes the public selection operations rather than inheriting
+protected callback implementation details. String and number buckets can coexist
+in the selection service. Resolver entities may be arbitrary objects, but
+`$selectedComponents` only includes actual `GraphComponent` instances, either directly
+or from `getViewComponent()`. Return a real canvas component from that method.
+`GraphComponent.isEntityAvailable()` indicates whether delayed interaction can still
+use a component; built-in entity components also check store identity.
+
+`isInteractive()` resolves omitted props to `true`; camera `resize` preserves omitted
+width/height. Text layout and measurement use the same canvas font when no font is supplied. The internal
+page object reports a detached graph error for bounds/cursor reads. Binding a canvas
+Block, Anchor, Connection or Group to a missing entity throws a descriptive error;
+create its data before constructing the view. A missing 2D canvas context for grid or
+text creation likewise produces a descriptive error.

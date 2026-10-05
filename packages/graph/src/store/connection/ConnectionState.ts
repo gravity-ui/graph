@@ -1,4 +1,4 @@
-import { computed, signal } from "@preact/signals-core";
+import { Signal, computed, signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
 import { Anchor } from "../../components/canvas/anchors";
@@ -8,10 +8,12 @@ import type { TLabel, TMultipointConnection } from "../../components/canvas/conn
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
 import { TConnectionColors } from "../../graphConfig";
 import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
+import { generateRandomId } from "../../utils/functions/generateRandomId";
+import { TPoint } from "../../utils/types/shapes";
 import { TBlockId } from "../block/Block";
 
 import { ConnectionsStore } from "./ConnectionList";
-import { TPortId } from "./port/Port";
+import { PortState, TPortId } from "./port/Port";
 import { createAnchorPortId, createBlockPointPortId } from "./port/utils";
 
 export const IS_CONNECTION_TYPE = "Connection" as const;
@@ -41,8 +43,15 @@ export type TConnection = {
   selected?: boolean;
 } & (TConnectionBlockPoint | TConnectionPortPoint);
 
+function hasId<T>(id: T | null | undefined): id is T {
+  return id !== undefined && id !== null;
+}
+
 export class ConnectionState<T extends TConnection = TConnection> {
-  protected $rawState = signal<T>(undefined);
+  protected $rawState: Signal<T & { id: TConnectionId }>;
+
+  private readonly missingSourcePortId = Symbol("missing source endpoint");
+  private readonly missingTargetPortId = Symbol("missing target endpoint");
 
   /**
    * Computed signal that reactively determines if this connection is selected
@@ -61,7 +70,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
     selected: this.$selected.value,
   }));
 
-  private isDestroyed = false;
+  private $destroyed = signal(false);
 
   public get id() {
     return this.$state.value.id;
@@ -84,27 +93,24 @@ export class ConnectionState<T extends TConnection = TConnection> {
   }
 
   public $sourcePortId = computed(() => {
-    if (this.$state.value.sourcePortId) {
-      return this.$state.value.sourcePortId;
-    }
-    if (this.$state.value.sourceAnchorId) {
-      return createAnchorPortId(this.$state.value.sourceBlockId, this.$state.value.sourceAnchorId);
-    }
-    return createBlockPointPortId(this.$state.value.sourceBlockId, false);
+    const state = this.$state.value;
+    if (hasId(state.sourcePortId)) return state.sourcePortId;
+    if (!hasId(state.sourceBlockId)) return this.missingSourcePortId;
+    if (hasId(state.sourceAnchorId)) return createAnchorPortId(state.sourceBlockId, state.sourceAnchorId);
+    return createBlockPointPortId(state.sourceBlockId, false);
   });
 
   public $targetPortId = computed(() => {
-    if (this.$state.value.targetPortId) {
-      return this.$state.value.targetPortId;
-    }
-    if (this.$state.value.targetAnchorId) {
-      return createAnchorPortId(this.$state.value.targetBlockId, this.$state.value.targetAnchorId);
-    }
-    return createBlockPointPortId(this.$state.value.targetBlockId, true);
+    const state = this.$state.value;
+    if (hasId(state.targetPortId)) return state.targetPortId;
+    if (!hasId(state.targetBlockId)) return this.missingTargetPortId;
+    if (hasId(state.targetAnchorId)) return createAnchorPortId(state.targetBlockId, state.targetAnchorId);
+    return createBlockPointPortId(state.targetBlockId, true);
   });
 
   public readonly $sourcePortState = computed(() => {
     const portId = this.$sourcePortId.value;
+    if (this.$destroyed.value) return new PortState({ id: portId, x: 0, y: 0, lookup: true });
     let port = this.store.getPort(portId);
     if (!port) {
       port = this.store.observePort(portId, this);
@@ -116,6 +122,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
 
   public readonly $targetPortState = computed(() => {
     const portId = this.$targetPortId.value;
+    if (this.$destroyed.value) return new PortState({ id: portId, x: 0, y: 0, lookup: true });
     let port = this.store.getPort(portId);
     if (!port) {
       port = this.store.observePort(portId, this);
@@ -182,7 +189,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
     );
   });
 
-  public $geometry = computed(() => {
+  public $geometry = computed((): [TPoint, TPoint] | undefined => {
     const sourcePort = this.$sourcePortState.value;
     const targetPort = this.$targetPortState.value;
     if (!sourcePort.lookup && !targetPort.lookup) {
@@ -192,14 +199,20 @@ export class ConnectionState<T extends TConnection = TConnection> {
   });
 
   public static getConnectionId(connection: TConnection) {
-    if (connection.id) return connection.id;
-    if (connection.sourceAnchorId && connection.targetAnchorId) {
+    if (hasId(connection.id)) return connection.id;
+    if (
+      hasId(connection.sourcePortId) ||
+      hasId(connection.targetPortId) ||
+      (!hasId(connection.sourceBlockId) && !hasId(connection.targetBlockId))
+    )
+      return generateRandomId("connection");
+    if (hasId(connection.sourceAnchorId) && hasId(connection.targetAnchorId)) {
       return [connection.sourceAnchorId, connection.targetAnchorId].join(":");
     }
     return [connection.sourceBlockId, connection.targetBlockId].join(":");
   }
 
-  private viewComponent: BaseConnection<TBaseConnectionProps, TBaseConnectionState, TGraphLayerContext, T>;
+  private viewComponent?: BaseConnection<TBaseConnectionProps, TBaseConnectionState, TGraphLayerContext, T>;
 
   constructor(
     public store: ConnectionsStore,
@@ -207,7 +220,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
     private readonly connectionSelectionBucket: ISelectionBucket<string | number>
   ) {
     const id = ConnectionState.getConnectionId(connectionState);
-    this.$rawState.value = { ...connectionState, id } as T;
+    this.$rawState = signal({ ...connectionState, id });
   }
 
   /**
@@ -237,7 +250,13 @@ export class ConnectionState<T extends TConnection = TConnection> {
     return this.$selected.value;
   }
 
+  /** Whether this state is still the entity registered under its ID. */
+  public isAttached(): boolean {
+    return !this.$destroyed.value && this.store.getConnectionState(this.id) === this;
+  }
+
   public setSelection(selected: boolean, strategy: ESelectionStrategy = ESelectionStrategy.REPLACE) {
+    if (!this.isAttached()) return;
     this.store.setConnectionsSelection([this.id], selected, strategy);
   }
 
@@ -245,7 +264,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
    * @deprecated Use `toJSON` instead.
    * @returns {TConnection} A deep copy of the connection data
    */
-  public asTConnection(): TConnection {
+  public asTConnection(): T & { id: TConnectionId } {
     return cloneDeep({
       ...this.$rawState.toJSON(),
       selected: this.$selected.value,
@@ -256,7 +275,7 @@ export class ConnectionState<T extends TConnection = TConnection> {
    * Converts the connection state to a plain JSON object
    * @returns {TConnection} A deep copy of the connection data
    */
-  public toJSON(): TConnection {
+  public toJSON(): T & { id: TConnectionId } {
     return cloneDeep({
       ...this.$rawState.toJSON(),
       selected: this.$selected.value,
@@ -268,12 +287,20 @@ export class ConnectionState<T extends TConnection = TConnection> {
    * @param connection - Partial connection data to update
    * @returns {void}
    */
-  public updateConnection(connection: Partial<TConnection>): void {
-    const { styles, ...newProps } = connection;
+  public updateConnection(connection: Partial<T>): void {
+    if (this.$destroyed.value) return;
+    const { styles, id: _id, ...newProps } = connection;
 
     const newStyles = Object.assign({}, this.$rawState.value.styles, styles);
 
+    const sourceId = this.$sourcePortId.value;
+    const targetId = this.$targetPortId.value;
     this.$rawState.value = Object.assign({}, this.$rawState.value, newProps, { styles: newStyles });
+    // Shared endpoints must retain observation until neither side uses the old ID.
+    const nextIds = new Set([this.$sourcePortId.value, this.$targetPortId.value]);
+    for (const id of new Set([sourceId, targetId])) {
+      if (!nextIds.has(id)) this.store.unobservePort(id, this);
+    }
   }
 
   /**
@@ -281,14 +308,12 @@ export class ConnectionState<T extends TConnection = TConnection> {
    * @returns {void}
    */
   public destroy(): void {
+    if (this.$destroyed.value) return;
+    this.$destroyed.value = true;
     // Stop observing source port
-    if (this.$sourcePortId.value) {
-      this.store.unobservePort(this.$sourcePortId.value, this);
-    }
+    this.store.unobservePort(this.$sourcePortId.value, this);
 
     // Stop observing target port
-    if (this.$targetPortId.value) {
-      this.store.unobservePort(this.$targetPortId.value, this);
-    }
+    this.store.unobservePort(this.$targetPortId.value, this);
   }
 }

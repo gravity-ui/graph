@@ -1,6 +1,6 @@
 import { signal } from "@preact/signals-core";
 
-import type { GraphComponent } from "../../components/canvas/GraphComponent";
+import { GraphComponent } from "../../components/canvas/GraphComponent";
 import type { Graph } from "../../graph";
 import { isGraphEvent } from "../../graphEvents";
 import type { GraphMouseEvent } from "../../graphEvents";
@@ -111,9 +111,9 @@ export class DragService {
       return;
     }
 
-    const target = event.detail.target as GraphComponent | undefined;
+    const target = event.detail.target;
 
-    if (!target || typeof target.isDraggable !== "function" || !target.isDraggable()) {
+    if (!(target instanceof GraphComponent) || !target.isEntityAvailable() || !target.isDraggable()) {
       return;
     }
 
@@ -161,12 +161,12 @@ export class DragService {
         return [];
       }
       // Drag all selected draggable components
-      return selectedComponents.filter((c) => typeof c.isDraggable === "function" && c.isDraggable());
+      return selectedComponents.filter((c) => c.isEntityAvailable() && c.isDraggable());
     }
 
     // ALL mode: if target is in selection, drag all selected draggable components
     if (targetInSelection && selectedComponents.length > 0) {
-      return selectedComponents.filter((c) => typeof c.isDraggable === "function" && c.isDraggable());
+      return selectedComponents.filter((c) => c.isEntityAvailable() && c.isDraggable());
     }
 
     // Target is not in selection - drag only target
@@ -196,7 +196,7 @@ export class DragService {
 
     // Notify all components about drag start
     this.dragComponents.forEach((component) => {
-      component.handleDragStart(context);
+      if (component.isEntityAvailable()) component.handleDragStart(context);
     });
   };
 
@@ -236,7 +236,7 @@ export class DragService {
     };
 
     this.dragComponents.forEach((component) => {
-      component.handleDrag(diff, context);
+      if (component.isEntityAvailable()) component.handleDrag(diff, context);
     });
 
     this.prevCoords = currentCoords;
@@ -259,7 +259,7 @@ export class DragService {
 
       // Notify all components about drag end
       this.dragComponents.forEach((component) => {
-        component.handleDragEnd(context);
+        if (component.isEntityAvailable()) component.handleDragEnd(context);
       });
     }
 

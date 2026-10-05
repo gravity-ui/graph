@@ -122,7 +122,7 @@ export class Graph {
 
   public state: GraphState = GraphState.INIT;
 
-  protected config: TGraphConfig;
+  protected config: TGraphConfig = {};
 
   protected startRequested = false;
 
@@ -419,7 +419,7 @@ export class Graph {
 
   public setupGraph(config: TGraphConfig = {}) {
     this.config = config;
-    this.rootStore.configurationName = config.configurationName;
+    this.rootStore.configurationName = config.configurationName ?? "";
     this.setEntities({
       blocks: config.blocks,
       connections: config.connections,
@@ -472,7 +472,7 @@ export class Graph {
     }
   }
 
-  public start(rootEl: HTMLDivElement = this.layers.$root): void {
+  public start(rootEl: HTMLDivElement | undefined = this.layers.$root): void {
     if (this.state !== GraphState.ATTACHED) {
       this.startRequested = true;
       return;

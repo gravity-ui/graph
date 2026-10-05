@@ -1,7 +1,12 @@
-import { computed, signal } from "@preact/signals-core";
+import { Signal, computed, signal } from "@preact/signals-core";
+import isPlainObject from "lodash/isPlainObject";
 
 import { Component } from "../../../lib";
 import { TPoint } from "../../../utils/types/shapes";
+
+function isPlainRecord(value: unknown): value is Record<PropertyKey, unknown> {
+  return isPlainObject(value);
+}
 
 export const IS_PORT_TYPE = "Port" as const;
 
@@ -47,7 +52,7 @@ export type TPort<T = unknown> = {
  * remain and no component owns the port, it can be safely garbage collected.
  */
 export class PortState<T = unknown> {
-  public $state = signal<TPort<T>>(undefined);
+  public $state: Signal<TPort<T>>;
 
   public owner?: Component;
 
@@ -99,7 +104,7 @@ export class PortState<T = unknown> {
     return this.owner || this.$state.value.component;
   }
 
-  public $point = computed(() => {
+  public $point = computed((): TPoint => {
     const delegate = this.$delegate.value;
     if (delegate) {
       return delegate.$point.value;
@@ -126,7 +131,7 @@ export class PortState<T = unknown> {
   }
 
   constructor(port: TPort<T>) {
-    this.$state.value = { ...port };
+    this.$state = signal({ ...port });
     // Initialize owner if component was provided in the constructor
     if (port.component) {
       this.owner = port.component;
@@ -224,13 +229,14 @@ export class PortState<T = unknown> {
    * @param port Partial port data to merge with current state
    */
   public updatePort(port: Partial<TPort<T>>): void {
+    const previous = this.$state.value.meta;
+    const incoming = port.meta;
+    const meta = isPlainRecord(previous) && isPlainRecord(incoming) ? { ...previous, ...incoming } : incoming;
     this.$state.value = {
       ...this.$state.value,
       ...port,
-      meta: {
-        ...this.$state.value.meta,
-        ...port.meta,
-      },
+      ...("meta" in port ? { meta } : {}),
+      id: this.id,
     };
   }
 

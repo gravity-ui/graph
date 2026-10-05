@@ -101,7 +101,11 @@ const ConnectionSelectionDemo = () => {
     }
 
     const connectionIds = graph.rootStore.connectionsList.$connections.value
-      .filter((c) => selectedBlockIds.has(c.sourceBlockId) || selectedBlockIds.has(c.targetBlockId))
+      .filter(
+        (c) =>
+          (c.sourceBlockId !== undefined && selectedBlockIds.has(c.sourceBlockId)) ||
+          (c.targetBlockId !== undefined && selectedBlockIds.has(c.targetBlockId))
+      )
       .map((c) => c.id);
 
     graph.rootStore.connectionsList.connectionSelectionBucket.updateSelection(

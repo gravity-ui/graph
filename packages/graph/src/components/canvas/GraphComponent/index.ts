@@ -115,10 +115,7 @@ export class GraphComponent<
   }
 
   public getPort(id: TPortId): PortState {
-    if (!this.ports.has(id)) {
-      return this.createPort(id);
-    }
-    return this.ports.get(id);
+    return this.ports.get(id) ?? this.createPort(id);
   }
 
   /**
@@ -146,7 +143,7 @@ export class GraphComponent<
 
   protected propsChanged(_nextProps: Props): void {
     if (this.affectsUsableRect !== _nextProps.affectsUsableRect) {
-      this.hitBox.setAffectsUsableRect(_nextProps.affectsUsableRect);
+      this.hitBox.setAffectsUsableRect(_nextProps.affectsUsableRect ?? this.context.affectsUsableRect ?? true);
       this.setContext({ affectsUsableRect: _nextProps.affectsUsableRect });
     }
     super.propsChanged(_nextProps);
@@ -158,7 +155,7 @@ export class GraphComponent<
       this.firstRender ||
       (this.context.affectsUsableRect !== _nextContext.affectsUsableRect && this.props.affectsUsableRect === undefined)
     ) {
-      this.hitBox.setAffectsUsableRect(_nextContext.affectsUsableRect);
+      this.hitBox.setAffectsUsableRect(this.props.affectsUsableRect ?? _nextContext.affectsUsableRect ?? true);
     }
     super.contextChanged(_nextContext);
   }
@@ -203,8 +200,8 @@ export class GraphComponent<
     autopanning?: boolean;
     dragCursor?: CursorLayerCursorTypes;
   }) {
-    let startCoords: [number, number];
-    let prevCoords: [number, number];
+    let startCoords: [number, number] | undefined;
+    let prevCoords: [number, number] | undefined;
     return this.addEventListener("mousedown", (event: MouseEvent) => {
       if (!isDraggable?.(event)) {
         return;
@@ -250,6 +247,11 @@ export class GraphComponent<
         }
       );
     });
+  }
+
+  /** Whether delayed interactions may still use this component. */
+  public isEntityAvailable(): boolean {
+    return !this.hitBox.destroyed;
   }
 
   public isMounted() {

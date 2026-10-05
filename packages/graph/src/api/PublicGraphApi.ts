@@ -16,13 +16,20 @@ export type ZoomConfig = {
   padding?: number;
 };
 
+/**
+ * Public operations accept IDs independently of canvas mounting.
+ * Missing lookups return undefined; missing updates and anchor selections are no-ops.
+ * Selection keeps requested IDs while entity/component lists include only resolved entries.
+ * These operations do not throw solely because an entity or endpoint is absent.
+ * Consumer-declared data shapes are trusted; arbitrary runtime payloads are not validated.
+ */
 export class PublicGraphApi {
   constructor(public graph: Graph) {
     // noop
   }
 
   /**
-   * Zooms to blocks
+   * Zooms to resolved blocks. Missing IDs are ignored; no resolved blocks returns false without moving the camera.
    * @param blockIds - block ids to zoom to
    * @param zoomConfig - {@link ZoomConfig} zoom config
    * @returns {boolean} true if zoom is successful, false otherwise
@@ -44,7 +51,7 @@ export class PublicGraphApi {
   }
 
   /**
-   * Zooms to GraphComponent instances
+   * Zooms to GraphComponent instances. An empty list returns false without moving the camera.
    * @param instances -  {@link GraphComponent} instances to zoom to
    * @param zoomConfig - {@link ZoomConfig} zoom config
    * @returns {boolean} true if zoom is successful, false otherwise
@@ -69,7 +76,7 @@ export class PublicGraphApi {
    * for the usableRect to be ready before performing the zoom operation.
    *
    * @param zoomConfig - Configuration for zoom transition and padding
-   * @returns Promise that resolves when zoom operation is complete
+   * An empty graph uses the configured usable-rectangle gap. Returns immediately; the callback performs the zoom.
    */
   public zoomToViewPort(zoomConfig?: ZoomConfig) {
     this.graph.hitTest.waitUsableRectUpdate((rect) => {
@@ -169,6 +176,7 @@ export class PublicGraphApi {
     this.graph.rootStore.configurationName = newName;
   }
 
+  /** Deletes resolved selected blocks and connections. Missing selected IDs are ignored. */
   public deleteSelected() {
     batch(() => {
       this.graph.rootStore.connectionsList.deleteSelectedConnections();
@@ -176,6 +184,7 @@ export class PublicGraphApi {
     });
   }
 
+  /** Selects or deselects the requested IDs using the strategy. Unresolved IDs remain in the selection set; resolved entity/component lists omit them. */
   public selectBlocks(
     blockIds: TBlockId[],
     selected: boolean,
@@ -184,11 +193,13 @@ export class PublicGraphApi {
     this.graph.rootStore.blocksList.updateBlocksSelection(blockIds, selected, strategy);
   }
 
+  /** Updates an existing block by ID. A missing ID is a no-op; omitted fields are preserved. */
   public updateBlock(block: { id: TBlockId } & Partial<Omit<TBlock, "id">>) {
     const blockStore = this.graph.rootStore.blocksList.getBlockState(block.id);
     blockStore?.updateBlock(block);
   }
 
+  /** Adds a block or updates the existing block with the same ID. An absent ID is generated and returned; zero and empty-string IDs are valid. */
   public addBlock(
     block: Omit<TBlock, "id"> & { id?: TBlockId },
     selectionOptions?: {
@@ -209,10 +220,12 @@ export class PublicGraphApi {
     return newBlockId;
   }
 
+  /** Selects an anchor. A missing block or anchor is a no-op, including before canvas mounting. */
   public setAnchorSelection(blockId: TBlockId, anchorId: string, selected: boolean) {
     this.graph.rootStore.blocksList.setAnchorSelection(blockId, anchorId, selected);
   }
 
+  /** Selects or deselects connection IDs using the strategy. Unresolved IDs remain in the selection set; resolved entity/component lists omit them. */
   public selectConnections(
     connectionIds: TConnectionId[],
     selected: boolean,
@@ -223,23 +236,28 @@ export class PublicGraphApi {
     });
   }
 
+  /** Updates an existing connection. A missing ID is a no-op; omitted fields are preserved and the stored ID cannot be changed. Missing endpoints suspend endpoint-derived geometry until resolved. */
   public updateConnection(id: TConnectionId, connection: Partial<TConnection>) {
     const connectionStore = this.graph.rootStore.connectionsList.getConnectionState(id);
     connectionStore?.updateConnection(connection);
   }
 
+  /** Adds or updates a connection and returns its resolved ID. Missing endpoints are accepted; endpoint-derived geometry waits for resolution. An absent ID uses endpoint identity when available, otherwise a generated ID. */
   public addConnection(connection: TConnection) {
     return this.graph.rootStore.connectionsList.addConnection(connection);
   }
 
+  /** Returns a block snapshot, or undefined when the ID is absent. Canvas mounting is not required. */
   public getBlockById(blockId: TBlockId): TBlock | undefined {
     return this.graph.rootStore.blocksList.getBlock(blockId);
   }
 
+  /** Returns the current usable rectangle; an empty graph may have zero extent. */
   public getUsableRect() {
     return this.graph.hitTest.getUsableRect();
   }
 
+  /** Clears all selection buckets, including unresolved IDs. An empty selection is a no-op. */
   public unsetSelection() {
     this.graph.rootStore.selectionService.resetAllSelections();
   }

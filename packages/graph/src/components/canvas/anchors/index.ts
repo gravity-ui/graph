@@ -1,10 +1,10 @@
+import { Component } from "../../../lib/Component";
 import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { PortState } from "../../../store/connection/port/Port";
 import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
-import { GraphLayer } from "../layers/graphLayer/GraphLayer";
 
 export type TAnchorId = string | number;
 export type TAnchor = {
@@ -34,20 +34,23 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   public static CANVAS_HOVER_FACTOR = 1.8;
   public static DETAILED_HOVER_FACTOR = 1.2;
 
+  public override isEntityAvailable(): boolean {
+    return super.isEntityAvailable() && this.connectedState.isAttached();
+  }
+
   public getEntityId(): number | string {
     return this.props.id;
   }
 
   public get zIndex() {
-    // @ts-ignore this.__comp.parent instanceOf Block
-    return this.__comp.parent.zIndex + 1;
+    return (this.getParent()?.zIndex ?? 0) + 1;
   }
 
   public connectedState: AnchorState;
 
   private shift = 0;
 
-  constructor(props: T, parent: GraphLayer) {
+  constructor(props: T, parent: Component) {
     super(props, parent);
     this.state = { size: props.size, raised: false, selected: false };
 

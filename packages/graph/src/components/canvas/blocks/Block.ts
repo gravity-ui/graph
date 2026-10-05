@@ -138,6 +138,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.subscribe(props.id);
   }
 
+  public override isEntityAvailable(): boolean {
+    return super.isEntityAvailable() && this.connectedState.isAttached();
+  }
+
   public getEntityId() {
     return this.props.id;
   }
@@ -147,13 +151,12 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected updateViewState(params: Partial<BlockViewState>) {
-    let hasChanges = false;
-    for (const [key, value] of Object.entries(params)) {
-      if (this.$viewState.value[key] !== value) {
-        hasChanges = true;
-        break;
-      }
-    }
+    const current = this.$viewState.value;
+    const isViewStateKey = (key: string): key is keyof BlockViewState =>
+      Object.prototype.hasOwnProperty.call(current, key);
+    const hasChanges = Object.entries(params).some(
+      ([key, value]) => isViewStateKey(key) && value !== undefined && current[key] !== value
+    );
 
     if (!hasChanges) {
       return;
@@ -239,7 +242,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected getNextState() {
-    // @ts-ignore
     return this.__data.nextState || this.state;
   }
 

@@ -59,7 +59,9 @@ describe("Graph export/import and updateBlock integration", () => {
       graph2.start();
       const updatedHeight = block.height + 10;
       expect(() => {
-        graph2.api.updateBlock({ ...exportedConfig.blocks[0], height: updatedHeight });
+        const exportedBlock = exportedConfig.blocks?.[0];
+        if (!exportedBlock) throw new Error("Expected exported block");
+        graph2.api.updateBlock({ ...exportedBlock, height: updatedHeight });
       }).not.toThrow();
       const updatedBlock = graph2.rootStore.blocksList.$blocks.value[0];
       expect(updatedBlock.height).toBe(updatedHeight);

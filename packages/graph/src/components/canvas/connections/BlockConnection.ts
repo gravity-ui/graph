@@ -23,8 +23,8 @@ export type TConnectionProps = TBaseConnectionProps & {
 
 export type TBlockConnection = {
   id: string;
-  addInRenderOrder(cmp, setting: object): void;
-  removeFromRenderOrder(cmp): void;
+  addInRenderOrder(cmp: Path2DRenderInstance, setting: object): void;
+  removeFromRenderOrder(cmp: Path2DRenderInstance): void;
 };
 
 export class BlockConnection<T extends TConnection>
@@ -84,6 +84,20 @@ export class BlockConnection<T extends TConnection>
     } else {
       this.context.batch.delete(this.arrowShape);
     }
+  }
+
+  protected override willMount(): void {
+    super.willMount();
+    this.subscribeSignal(this.connectedState.$hidden, () => this.applyShape());
+  }
+
+  protected override setVisibility(visible: boolean, options: { removeHitbox: boolean }): void {
+    super.setVisibility(visible, options);
+    this.applyShape();
+  }
+
+  public isPathVisible(): boolean {
+    return this.isEntityAvailable() && this.hasGeometry() && !this.hidden && !this.connectedState.$hidden.value;
   }
 
   public getPath(): Path2D {
@@ -230,6 +244,7 @@ export class BlockConnection<T extends TConnection>
     super.updatePoints();
 
     if (!this.connectionPoints) {
+      this.applyShape();
       return;
     }
 

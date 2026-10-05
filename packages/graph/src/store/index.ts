@@ -12,7 +12,7 @@ import { GraphEditorSettings } from "./settings";
 export class RootStore {
   public blocksList: BlockListStore;
 
-  public configurationName: string;
+  public configurationName = "";
 
   public connectionsList: ConnectionsStore;
 

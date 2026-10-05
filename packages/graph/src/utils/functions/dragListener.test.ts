@@ -79,3 +79,34 @@ test("a second mousedown finishes the active service operation and permits anoth
   Component.unmount(block);
   graph.unmount();
 });
+
+test("deleting a block during drag stops its movement and drop callbacks", () => {
+  const graph = new Graph({
+    settings: { dragThreshold: 0, canDrag: ECanDrag.ALL },
+    blocks: [{ id: "block", is: "Block", name: "Block", x: 0, y: 0, width: 100, height: 100 }],
+  });
+  const block = new Block({ id: "block" }, graph.getGraphLayer());
+  const move = jest.spyOn(block, "handleDrag");
+  const end = jest.spyOn(block, "handleDragEnd");
+  graph.emit("mousedown", { target: block, sourceEvent: new MouseEvent("mousedown") });
+  document.dispatchEvent(new MouseEvent("mousemove", { clientX: 10 }));
+  move.mockClear();
+  graph.blocks.deleteBlocks(["block"]);
+  document.dispatchEvent(new MouseEvent("mousemove", { clientX: 20 }));
+  document.dispatchEvent(new MouseEvent("mouseup"));
+  expect(move).not.toHaveBeenCalled();
+  expect(end).not.toHaveBeenCalled();
+  expect(graph.dragService.$state.value.isDragging).toBe(false);
+  Component.unmount(block);
+  graph.unmount();
+});
+
+test("custom drag operations accept omitted lifecycle callbacks", () => {
+  const graph = new Graph({ settings: { dragThreshold: 0 } });
+  graph.dragService.startDrag({}, { document, threshold: 0 });
+  expect(() => {
+    document.dispatchEvent(new MouseEvent("mousemove", { clientX: 10 }));
+    document.dispatchEvent(new MouseEvent("mouseup"));
+  }).not.toThrow();
+  graph.unmount();
+});

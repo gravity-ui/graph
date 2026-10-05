@@ -49,7 +49,7 @@ export class NewBlockLayer extends Layer<
   LayerContext & { canvas: HTMLCanvasElement; graphCanvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }
 > {
   private copyBlocks: BlockState[] = [];
-  private initialPoint: TPoint;
+  private initialPoint: TPoint | null = null;
   private blockStates: Array<{
     x: number;
     y: number;
@@ -151,10 +151,11 @@ export class NewBlockLayer extends Layer<
       const selectedBlockStates = this.context.graph.rootStore.blocksList.$selectedBlocks.value;
 
       // If we have a validation function, filter out blocks that can't be duplicated
-      if (this.props.isDuplicateAllowed) {
+      const isDuplicateAllowed = this.props.isDuplicateAllowed;
+      if (isDuplicateAllowed) {
         blockStates = selectedBlockStates.filter((blockState) => {
           const view = blockState.getViewComponent();
-          return view !== undefined && this.props.isDuplicateAllowed(view);
+          return view !== undefined && isDuplicateAllowed(view);
         });
 
         // If no blocks can be duplicated, exit
@@ -218,8 +219,8 @@ export class NewBlockLayer extends Layer<
     });
   }
 
-  private lastMouseX: number;
-  private lastMouseY: number;
+  private lastMouseX?: number;
+  private lastMouseY?: number;
 
   private onMoveNewBlock(event: MouseEvent) {
     if (!this.copyBlocks.length) {
@@ -231,7 +232,7 @@ export class NewBlockLayer extends Layer<
     const mouseY = xy[1];
 
     // If this is the first move event, initialize the last mouse position
-    if (this.lastMouseX === undefined) {
+    if (this.lastMouseX === undefined || this.lastMouseY === undefined) {
       this.lastMouseX = mouseX;
       this.lastMouseY = mouseY;
       return;
@@ -258,7 +259,7 @@ export class NewBlockLayer extends Layer<
   }
 
   private onEndNewBlock(event: MouseEvent, point: TPoint) {
-    if (!this.copyBlocks.length) {
+    if (!this.copyBlocks.length || !this.initialPoint) {
       return;
     }
 
@@ -275,7 +276,7 @@ export class NewBlockLayer extends Layer<
     // Collect all blocks and their new coordinates as items
     const items = this.copyBlocks.flatMap((blockState) => {
       const view = blockState.getViewComponent();
-      if (!view) return [];
+      if (!view || !view.isEntityAvailable()) return [];
       // Calculate the new position for each block based on its original position plus the offset
       const newCoord = {
         x: blockState.x + offsetX,
@@ -307,6 +308,7 @@ export class NewBlockLayer extends Layer<
 
         // First pass: create all blocks and build the ID mapping
         items.forEach((item) => {
+          if (!item.block.isEntityAvailable()) return;
           const block = item.block.connectedState.asTBlock();
           const blockPoint = item.coord;
           const newBlockId = `${block.id.toString()}-added-from-shadow-${Date.now()}`;
@@ -341,7 +343,12 @@ export class NewBlockLayer extends Layer<
             const targetId = connection.targetBlockId;
 
             // If both source and target blocks were duplicated, create a new connection
-            if (blockIdMap.has(sourceId.toString()) && blockIdMap.has(targetId.toString())) {
+            if (
+              sourceId !== undefined &&
+              targetId !== undefined &&
+              blockIdMap.has(sourceId.toString()) &&
+              blockIdMap.has(targetId.toString())
+            ) {
               const newSourceId = blockIdMap.get(sourceId.toString());
               const newTargetId = blockIdMap.get(targetId.toString());
 

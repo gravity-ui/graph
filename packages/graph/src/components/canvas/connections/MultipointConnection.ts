@@ -15,19 +15,26 @@ const DEFAULT_FONT_SIZE = 14;
 export class MultipointConnection extends BlockConnection<TMultipointConnection> {
   private labelsGeometry: { x: number; y: number; width: number; height: number }[] = [];
 
+  protected override hasGeometry(): boolean {
+    const count = this.getPoints().length;
+    return count === 0 ? super.hasGeometry() : count >= 2;
+  }
+
+  protected override collectBBoxPoints() {
+    return [...this.getPoints(), ...super.collectBBoxPoints()];
+  }
+
   public createPath() {
     const points = this.getPoints();
-    if (!points.length) {
-      return super.createPath();
-    }
+    if (points.length === 0) return super.createPath();
+    if (points.length === 1) return new Path2D();
     return curvePolyline(points, 10);
   }
 
   public createArrowPath(): Path2D {
     const points = this.getPoints();
-    if (!points.length) {
-      return undefined;
-    }
+    if (points.length === 0) return super.createArrowPath();
+    if (points.length === 1) return new Path2D();
 
     const [start, end] = points.slice(points.length - 2);
     return trangleArrowForVector(start, end, 16, 10);
@@ -115,7 +122,7 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
 
     this.labelsGeometry = [];
     labels.forEach(({ x, y, text, height, width }) => {
-      if ([x, y, text].some((i) => i === undefined) || (x === 0 && y === 0)) {
+      if (x === undefined || y === undefined || text === undefined || width === undefined || height === undefined) {
         return;
       }
 

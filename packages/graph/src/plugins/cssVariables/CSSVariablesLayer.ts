@@ -114,6 +114,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
   }
 
   protected createStyleObserver(): CSSVariablesObserver {
+    if (!this.containerElement) throw new Error("Cannot observe CSS variables before creating the container");
     return new StyleObserver(
       (records) => {
         // Convert StyleObserver records to our CSSVariableChange format

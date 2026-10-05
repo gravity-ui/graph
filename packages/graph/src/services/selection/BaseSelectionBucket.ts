@@ -1,17 +1,10 @@
 import { computed, signal } from "@preact/signals-core";
 import type { ReadonlySignal, Signal } from "@preact/signals-core";
 
-import type { GraphComponent } from "../../components/canvas/GraphComponent";
+import { GraphComponent } from "../../components/canvas/GraphComponent";
 
 import type { SelectionService } from "./SelectionService";
-import {
-  ESelectionStrategy,
-  IEntityWithComponent,
-  ISelectionBucket,
-  TSelectionDiff,
-  TSelectionEntity,
-  TSelectionEntityId,
-} from "./types";
+import { ESelectionStrategy, ISelectionBucket, TSelectionDiff, TSelectionEntity, TSelectionEntityId } from "./types";
 
 /**
  * @abstract
@@ -83,44 +76,17 @@ export abstract class BaseSelectionBucket<
 
     return entities
       .map((entity) => {
-        // Check if entity is already a GraphComponent
-        if (this.isGraphComponent(entity)) {
-          return entity as unknown as GraphComponent;
-        }
-        // Check if entity has getViewComponent method
-        if (this.hasViewComponent(entity)) {
-          return (entity as unknown as IEntityWithComponent).getViewComponent();
+        if (entity instanceof GraphComponent) return entity;
+        if ("getViewComponent" in entity && typeof entity.getViewComponent === "function") {
+          const component: unknown = entity.getViewComponent();
+          return component instanceof GraphComponent ? component : undefined;
         }
         return undefined;
       })
       .filter((component): component is GraphComponent => component !== undefined);
   });
 
-  protected manager: SelectionService;
-
-  /**
-   * Check if an entity is a GraphComponent
-   */
-  private isGraphComponent(entity: TEntity): boolean {
-    return (
-      typeof entity === "object" &&
-      entity !== null &&
-      "getEntityId" in entity &&
-      typeof (entity as { getEntityId?: unknown }).getEntityId === "function"
-    );
-  }
-
-  /**
-   * Check if an entity has getViewComponent method
-   */
-  private hasViewComponent(entity: TEntity): boolean {
-    return (
-      typeof entity === "object" &&
-      entity !== null &&
-      "getViewComponent" in entity &&
-      typeof (entity as { getViewComponent?: unknown }).getViewComponent === "function"
-    );
-  }
+  protected manager?: SelectionService;
 
   constructor(
     public readonly entityType: string,

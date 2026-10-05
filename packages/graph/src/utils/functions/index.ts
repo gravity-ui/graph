@@ -21,8 +21,8 @@ export function getXY(root: HTMLElement, event: Event | WheelEvent | MouseEvent)
   return [event.pageX - rect.left - window.scrollX, event.pageY - rect.top - window.scrollY];
 }
 
-export function getCoord(event: TouchEvent | MouseEvent, coord: string) {
-  const name = `page${coord.toUpperCase()}`;
+export function getCoord(event: TouchEvent | MouseEvent, coord: "x" | "y") {
+  const name = coord === "x" ? "pageX" : "pageY";
 
   if (isTouchEvent(event)) {
     const touch = event.touches[0] ?? event.changedTouches[0];
@@ -73,21 +73,25 @@ export function createObject(simpleObject: object, forDefineProperties: Property
   return simpleObject;
 }
 
-export function addEventListeners(
+/** Subscribe to named events. Callback types must match the events dispatched by the target. */
+export function addEventListeners<Events extends { [K in keyof Events]: Event }>(
   instance: EventTarget,
-  mapEventsToFn?: Record<string, (event: CustomEvent | MouseEvent) => void>
+  mapEventsToFn?: { [K in keyof Events]: (event: Events[K]) => void }
 ): () => void {
   if (mapEventsToFn === undefined) return noop;
-
-  const subs = [];
-  const events = Object.keys(mapEventsToFn);
-
-  for (let i = 0; i < events.length; i += 1) {
-    instance.addEventListener(events[i], mapEventsToFn[events[i]].bind(instance));
-    subs.push(instance.removeEventListener.bind(instance, events[i], mapEventsToFn[events[i]]));
+  const subscribes: (() => void)[] = [];
+  for (const name in mapEventsToFn) {
+    if (!Object.prototype.hasOwnProperty.call(mapEventsToFn, name)) continue;
+    const callback = mapEventsToFn[name];
+    const listener: EventListenerObject = {
+      handleEvent(event: Events[typeof name]) {
+        callback.call(instance, event);
+      },
+    };
+    instance.addEventListener(name, listener);
+    subscribes.push(() => instance.removeEventListener(name, listener));
   }
-
-  return () => subs.forEach((f) => f());
+  return () => subscribes.forEach((unsubscribe) => unsubscribe());
 }
 
 /**

@@ -2,11 +2,11 @@ import { batch, computed, signal } from "@preact/signals-core";
 
 import { TAnchor, TAnchorId } from "../../components/canvas/anchors";
 import { Block, TBlock, isTBlock } from "../../components/canvas/blocks/Block";
-import { generateRandomId } from "../../components/canvas/blocks/generate";
 import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
 import { SingleSelectionBucket } from "../../services/selection/SingleSelectionBucket";
 import { ESelectionStrategy } from "../../services/selection/types";
+import { generateRandomId } from "../../utils/functions/generateRandomId";
 import { AnchorState } from "../anchor/Anchor";
 import { RootStore } from "../index";
 
@@ -78,7 +78,7 @@ export class BlockListStore {
 
   public $blocks = signal<BlockState[]>([]);
 
-  private batchedGeometryPending = new Map<BlockState["id"], TBlockGeometrySnapshot>();
+  private batchedGeometryPending = new Map<BlockState["id"], { state: BlockState; geometry: TBlockGeometrySnapshot }>();
 
   private batchedGeometryRaf: number | null = null;
 
@@ -244,9 +244,10 @@ export class BlockListStore {
     }
 
     this.graph.executеDefaultEventAction("block-change", { block: blockState.asTBlockShallow() }, () => {
+      if (!blockState.isAttached()) return;
       blockState.updateBlock(nextState);
       const geometry = blockState.$geometry.value;
-      this.batchedGeometryPending.set(id, { id, ...geometry });
+      this.batchedGeometryPending.set(id, { state: blockState, geometry: { id, ...geometry } });
       this.scheduleBatchedBlocksGeometryFlush();
     });
   }
@@ -281,9 +282,11 @@ export class BlockListStore {
     if (this.batchedGeometryPending.size === 0) {
       return;
     }
-    const blocks = Array.from(this.batchedGeometryPending.values());
+    const blocks = Array.from(this.batchedGeometryPending.values())
+      .filter(({ state }) => state.isAttached())
+      .map(({ geometry }) => geometry);
     this.batchedGeometryPending.clear();
-    this.graph.emit("blocks-geometry-change", { blocks });
+    if (blocks.length) this.graph.emit("blocks-geometry-change", { blocks });
   }
 
   private cancelBatchedBlocksGeometry(): void {
@@ -306,13 +309,13 @@ export class BlockListStore {
    * @returns void
    */
   public addBlock(block: Omit<TBlock, "id"> & { id?: TBlockId }) {
-    const id = block.id || (generateRandomId("block") as TBlockId);
+    const id = block.id ?? generateRandomId("block");
 
     this.$blocksMap.value.set(
       id,
       this.getOrCraeateBlockState({
-        id,
         ...block,
+        id,
       })
     );
 

@@ -11,12 +11,12 @@ export class PointerGrid extends Component<TRect, TBelowLayerContext> {
 
   private fakeCanvasContext?: CanvasRenderingContext2D;
 
-  private pattern: {
-    normal: CanvasPattern;
-    simple: CanvasPattern;
+  private pattern?: {
+    normal: CanvasPattern | null;
+    simple: CanvasPattern | null;
   };
 
-  private activePattern: CanvasPattern;
+  private activePattern: CanvasPattern | null = null;
 
   // need to understand when should remake pattern
   private currentDotsColor: string;
@@ -39,6 +39,7 @@ export class PointerGrid extends Component<TRect, TBelowLayerContext> {
       this.currentDotsColor = this.context.colors.canvas.dots;
     }
 
+    if (!this.activePattern) return;
     this.context.ctx.fillStyle = this.activePattern;
     this.context.ctx.fillRect(this.props.x, this.props.y, this.props.width, this.props.height);
     return;
@@ -51,7 +52,7 @@ export class PointerGrid extends Component<TRect, TBelowLayerContext> {
 
     this.shouldRender = cameraState.scale >= this.context.constants.block.SCALES[0];
 
-    if (this.shouldRender) {
+    if (this.shouldRender && this.pattern) {
       this.activePattern =
         cameraState.scale > this.context.constants.block.SCALES[2] ? this.pattern.normal : this.pattern.simple;
     }
@@ -98,6 +99,8 @@ export class PointerGrid extends Component<TRect, TBelowLayerContext> {
   }
 
   private createFakeCanvasContext(): CanvasRenderingContext2D {
-    return document.createElement("canvas").getContext("2d");
+    const context = document.createElement("canvas").getContext("2d");
+    if (!context) throw new Error("Cannot create grid: a 2D Canvas context is unavailable");
+    return context;
   }
 }

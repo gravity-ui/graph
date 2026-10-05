@@ -84,8 +84,8 @@ export class CameraService extends Emitter {
   }
 
   public resize(newState: Partial<TCameraState>) {
-    const diffX = newState.width - this.state.width;
-    const diffY = newState.height - this.state.height;
+    const diffX = (newState.width ?? this.state.width) - this.state.width;
+    const diffY = (newState.height ?? this.state.height) - this.state.height;
     this.set(newState);
     this.move(diffX, diffY);
   }
@@ -298,6 +298,7 @@ export class CameraService extends Emitter {
     } else {
       viewportSize = useVisible ? Math.max(0, this.state.height - insets.top - insets.bottom) : this.state.height;
     }
+    if (size === 0) return this.state.scaleMax;
     return clamp(Number(viewportSize / size), this.state.scaleMin, this.state.scaleMax);
   }
 
