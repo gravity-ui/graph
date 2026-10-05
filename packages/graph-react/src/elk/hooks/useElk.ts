@@ -15,6 +15,7 @@ export const useElk = (config: ElkNode, elk: ELK, args?: ElkLayoutArguments & { 
 
   useEffect(() => {
     let isCancelled = false;
+    setIsLoading(true);
 
     layout()
       .then((data) => {
@@ -24,7 +25,7 @@ export const useElk = (config: ElkNode, elk: ELK, args?: ElkLayoutArguments & { 
       })
       .catch((error) => {
         if (!isCancelled) {
-          args?.onError(error);
+          args?.onError?.(error);
           setIsLoading(false);
         }
       });

@@ -10,7 +10,7 @@
     "experimentalDecorators": true,
     "skipLibCheck": true,
     "jsx": "react",
-    "strict": false,
+    "strict": true,
     "lib": [
       "es2020",
       "dom",

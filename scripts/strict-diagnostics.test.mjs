@@ -147,7 +147,7 @@ test("CLI baseline is reproducible across line shifts and rejects regressions/co
       );
       writeFileSync(
         path.join(projectRoot, "source.ts"),
-        project === PROJECTS[0] || project === "packages/graph-minimap/tsconfig.json"
+        project === PROJECTS[0] || project === "packages/graph-minimap/tsconfig.json" || project === "packages/graph-react/tsconfig.json"
           ? "export const text = 'ready';\n"
           : "import value from 'untyped';\nexport const text: string = null;\n"
       );
@@ -257,4 +257,10 @@ test("minimap diagnostics cannot be admitted by a baseline", () => {
       ),
     /Minimap/
   );
+});
+
+test("the entire React package cannot reenter the strict baseline", () => {
+  for (const file of ["packages/graph-react/src/Anchor.tsx", "packages/graph-react/src/new-hook.ts", "packages/graph-react/src/new-hook.test.ts"]) {
+    assert.throws(() => validateSnapshot(snapshot([{ ...diagnostic, project: PROJECTS[1], file }])), /Graph React/);
+  }
 });

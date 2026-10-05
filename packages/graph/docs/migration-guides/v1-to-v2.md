@@ -536,3 +536,15 @@ without `!important`. Single-class selectors such as `.my-minimap` or
 `.graph-minimap` have lower specificity and do not override the defaults.
 `context.root` remains optional before attachment and after detachment;
 `context.canvas` and `context.ctx` are available after successful construction.
+
+## React readiness and strict contracts (#363)
+
+`GraphLayer` and `useLayer` keep the concrete layer constructor's public props and instance type. Required custom props must be supplied through `props`; use a specialized generic constructor (for example `MyLayer<MyMeta>`) when authoring generic layers. Callback refs receive the concrete instance or `null`.
+
+`useLayer`, `GraphLayer` refs, `GraphPortal` refs and `GraphCanvas.reactLayerRef` are `null` before graph attachment and after detachment/cleanup. A registered layer can exist internally before attachment. Call hooks unconditionally and guard their results before invoking instance methods. `GraphPortalLayer` is exported for typing portal refs. `GraphBlock` DOM refs become `null` whenever the block's DOM disappears, including entity removal.
+
+`useSignal` accepts both mutable and readonly/computed signals. A definite signal returns its value type; a nullable or missing signal returns `T | undefined`. `useBlockViewState` observes asynchronous view readiness, and `useBlockAnchorPosition` accepts nullable DOM refs. Missing blocks and anchors remain absent until available. `GraphCanvas` without `renderBlock` renders its canvas and child portals without a React block list.
+
+ELK conversion returns empty records when `edges` or `children` are missing. Edges without a first section (including an empty `sections` array) and children without both coordinates are omitted. Positioned children and the first routed section retain their existing conversion. `useElk` permits an absent `onError` callback and sets loading for each new layout request.
+
+The React package now checks source, unit tests and declaration emit with permanent `strict: true`.

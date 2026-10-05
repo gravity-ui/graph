@@ -14,5 +14,5 @@ export function useSyncBlockState(graph: Graph, block: TBlock | TBlockId): Block
 
 export function useBlockViewState(graph: Graph, block: TBlock | TBlockId): CanvasBlock | undefined {
   const blockState = useBlockState(graph, block);
-  return blockState?.getViewComponent();
+  return useComputedSignal(() => blockState?.$viewComponent.value, [blockState]);
 }

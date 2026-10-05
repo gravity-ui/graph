@@ -11,7 +11,7 @@ export function useBlockAnchorState(graph: Graph, anchor: TAnchor): AnchorState 
 
 export function useBlockAnchorPosition(
   state: AnchorState | undefined,
-  anchorContainerRef: React.MutableRefObject<HTMLDivElement> | undefined
+  anchorContainerRef: React.RefObject<HTMLDivElement> | undefined
 ) {
   useSignalEffect(() => {
     if (!state || !anchorContainerRef?.current) {
@@ -41,5 +41,5 @@ export function useBlockAnchorPosition(
     }
     anchorContainerRef.current?.style.setProperty("--graph-block-anchor-x", `${position.x - blockGeometry.x}px`);
     anchorContainerRef.current?.style.setProperty("--graph-block-anchor-y", `${position.y - blockGeometry.y}px`);
-  }, [state?.block]);
+  }, [state, anchorContainerRef]);
 }

@@ -1,5 +1,11 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": { "strict": false },
-  "include": ["core-operations.tsx", "../../shared/assets.d.ts"]
+  "compilerOptions": {
+    "strict": false
+  },
+  "include": [
+    "core-operations.tsx",
+    "layer-signals.tsx",
+    "../../shared/assets.d.ts"
+  ]
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef } from "react";
+import React, { useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
 
 import { Graph, TGraphColors } from "@gravity-ui/graph";
 
@@ -32,15 +32,13 @@ export function GraphCanvas({
   children,
   ...cbs
 }: GraphProps) {
-  const containerRef = useRef<HTMLDivElement>();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const reactLayer = useLayer(graph, ReactLayer, {
     blockListClassName,
   });
 
-  if (reactLayerRef) {
-    reactLayerRef.current = reactLayer;
-  }
+  useImperativeHandle<ReactLayer | null, ReactLayer | null>(reactLayerRef, () => reactLayer, [reactLayer]);
 
   useEffect(() => {
     if (containerRef.current) {

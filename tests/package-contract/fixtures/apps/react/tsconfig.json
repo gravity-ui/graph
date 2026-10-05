@@ -6,6 +6,8 @@
   "include": [
     "app.tsx",
     "core-operations.tsx",
+    "layer-signals.tsx",
+    "readiness.tsx",
     "graph.pw.ts",
     "../../shared/assets.d.ts"
   ]

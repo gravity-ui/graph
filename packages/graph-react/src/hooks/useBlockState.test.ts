@@ -1,6 +1,6 @@
 import { Graph } from "@gravity-ui/graph";
 import type { TBlock } from "@gravity-ui/graph";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 
 import { useBlockAnchorState } from "./useBlockAnchorState";
 import { useBlockState, useBlockViewState, useSyncBlockState } from "./useBlockState";
@@ -43,6 +43,19 @@ test("block and anchor hooks follow missing, added, removed and recreated IDs", 
   act(() => graph.setEntities({ blocks: [block] }));
   expect(result.current.anchor?.asTAnchor()).toEqual(block.anchors[0]);
   expect(result.current.state?.$anchors.value[0]).toEqual(block.anchors[0]);
+  unmount();
+  graph.unmount();
+});
+
+test("view hook observes component readiness independently of block identity", async () => {
+  const graph = new Graph({ blocks: [block] });
+  const { result, unmount } = renderHook(() => useBlockViewState(graph, block.id));
+  expect(result.current).toBeUndefined();
+  act(() => {
+    graph.attach(document.createElement("div"));
+    graph.start();
+  });
+  await waitFor(() => expect(result.current?.getEntityId()).toBe(block.id));
   unmount();
   graph.unmount();
 });

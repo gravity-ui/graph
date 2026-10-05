@@ -1,13 +1,16 @@
 import React, { createRef } from "react";
 
-import { Graph, Layer } from "@gravity-ui/graph";
+import { Graph, Layer, LayerProps } from "@gravity-ui/graph";
 import { act, render, waitFor } from "@testing-library/react";
 
 import { GraphCanvas } from "./GraphCanvas";
 import { GraphLayer } from "./GraphLayer";
 
 // Mock Layer for testing
-class MockLayer extends Layer {
+class MockLayer extends Layer<LayerProps & { label?: string }> {
+  public getLabel() {
+    return this.props.label;
+  }
   public testMethod(): string {
     return "test method called";
   }
@@ -61,11 +64,11 @@ describe("GraphLayer", () => {
 
   it("should create layer with correct props", async () => {
     const ref = createRef<MockLayer>();
-    const customProps = { zIndex: 200 };
+    const customProps = { label: "custom" };
 
     render(
       <GraphCanvas graph={graph} renderBlock={() => <div>Block</div>}>
-        <GraphLayer ref={ref} layer={MockLayer} {...customProps} />
+        <GraphLayer ref={ref} layer={MockLayer} props={customProps} />
       </GraphCanvas>
     );
 
@@ -77,8 +80,7 @@ describe("GraphLayer", () => {
     // Wait for layer to be created
     await waitFor(() => {
       expect(ref.current).toBeDefined();
-      // Layer props should be passed correctly (checked through layer existence)
-      expect(ref.current).toBeInstanceOf(MockLayer);
+      expect(ref.current?.getLabel()).toBe("custom");
     });
   });
 });

@@ -1,9 +1,9 @@
 import React from "react";
 
-import { Graph, ICamera, Layer, LayerContext, LayerProps, TBlock } from "@gravity-ui/graph";
+import { Graph, ICamera, Layer, LayerContext, LayerProps } from "@gravity-ui/graph";
 import { createPortal } from "react-dom";
 
-import { BlocksList } from "../BlocksList";
+import { BlocksList, TRenderBlockFn } from "../BlocksList";
 import { parseClassNames } from "../utils/classNames";
 
 export type TReactLayerProps = LayerProps & {
@@ -38,6 +38,7 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
         this.setProps({
           ...this.props,
           html: {
+            zIndex: 3,
             ...this.props.html,
             activationScale: scales[2],
           },
@@ -77,9 +78,9 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
    * @param renderBlock Function to render a block component
    * @returns React Portal with BlocksList component
    */
-  public renderPortal(renderBlock: <T extends TBlock>(graphObject: Graph, block: T) => React.JSX.Element) {
+  public renderPortal(renderBlock?: TRenderBlockFn) {
     const html = this.getHTML();
-    if (!html) {
+    if (!html || !renderBlock) {
       return null;
     }
 
