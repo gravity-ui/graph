@@ -9,7 +9,11 @@ import { Layer } from "./Layer";
 
 export type LayersRootSize = { width: number; height: number; dpr: number };
 
-export class Layers extends Emitter<{ "update-size": (size: LayersRootSize) => void }> {
+export type LayersEvents = {
+  "update-size": (size: LayersRootSize) => void;
+};
+
+export class Layers extends Emitter<LayersEvents> {
   private attached = false;
 
   public readonly rootSize = signal({ width: 0, height: 0, dpr: globalThis.devicePixelRatio || 1 });
