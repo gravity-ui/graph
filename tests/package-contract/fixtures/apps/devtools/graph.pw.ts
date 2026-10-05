@@ -101,3 +101,55 @@ test("detaching and adding DevTools removes its DOM and restores a working layer
   await expect.poll(async () => (await readOverlay(canvas)).red).toBeGreaterThan(100);
   expect(errors).toEqual([]);
 });
+
+test("empty and undefined inputs resolve visual defaults and partial resources", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.getByRole("button", { name: "Verify defaults", exact: true }).click();
+  await expect(page.locator("#graph")).toHaveAttribute("data-defaults-verified", "true");
+  expect(errors).toEqual([]);
+});
+
+test("queued patches and resets keep resolved props and update ruler DOM", async ({ page }) => {
+  const graph = new GraphPO(page.locator("#graph-shell"));
+  const root = page.locator("#graph");
+  const horizontal = page.locator(".devtools-ruler-bg-h");
+  const snapshot = async () => {
+    await graph.waitForFrames(2);
+    await page.getByRole("button", { name: "Snapshot props", exact: true }).click();
+    return JSON.parse((await root.getAttribute("data-props")) ?? "null");
+  };
+  const initial = await snapshot();
+  await page.getByRole("button", { name: "Queue patches", exact: true }).click();
+  expect(await snapshot()).toMatchObject({
+    ...initial,
+    rulerSize: 40,
+    rulerBackgroundColor: "rgb(20, 30, 40)",
+    showRuler: false,
+    showCrosshair: false,
+    rulerTextFont: "13px Arial",
+  });
+  await expect(horizontal).toBeHidden();
+  await page.getByRole("button", { name: "Queue selective reset", exact: true }).click();
+  const selectivelyReset = await snapshot();
+  expect(selectivelyReset).toMatchObject({
+    rulerSize: 32,
+    rulerBackdropBlur: 2,
+    showRuler: true,
+    showCrosshair: false,
+    rulerTextFont: "13px Arial",
+  });
+  await expect(horizontal).toHaveCSS("height", "32px");
+  await expect(horizontal).toHaveCSS("background-color", "rgb(20, 30, 40)");
+  await expect(horizontal).toHaveCSS("backdrop-filter", "blur(2px)");
+  await page.getByRole("button", { name: "Ignore undefined and empty reset", exact: true }).click();
+  expect(await snapshot()).toEqual(selectivelyReset);
+  await page.getByRole("button", { name: "Queue full reset", exact: true }).click();
+  expect(await snapshot()).toEqual(initial);
+  await expect(horizontal).toHaveCSS("height", "32px");
+  await expect(horizontal).toHaveCSS("backdrop-filter", "blur(5px)");
+  await root.hover({ position: { x: 300, y: 250 } });
+  await expect
+    .poll(async () => (await readOverlay(root.locator("canvas.devtools-layer-canvas"))).red)
+    .toBeGreaterThan(100);
+});

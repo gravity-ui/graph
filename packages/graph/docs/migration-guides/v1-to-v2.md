@@ -550,3 +550,27 @@ ELK conversion returns empty records when `edges` or `children` are missing. Edg
 `useBlockState`, `useSyncBlockState` and `useBlockViewState` retain the non-generic lookup contract from #371. They return the shared block/view types and preserve `undefined` for missing entities or views. A `TBlock<MyMeta>` remains typed application data, but passing it to a lookup hook uses its ID and does not establish the schema of the current stored entity. The core store erases metadata types; restoring them in lookup results would require a typed core contract. The library does not validate custom Meta at runtime.
 
 The React package now checks source, unit tests and declaration emit with permanent `strict: true`.
+## Devtools resolved props and explicit resets
+
+`TDevToolsLayerProps` now describes the resolved instance props: every visual
+color, font, visibility flag and dimension is required. Use
+`TDevToolsLayerInput` for direct constructor input, or
+`LayerPublicProps<typeof DevToolsLayer>` for `graph.addLayer` options. Both
+accept partial visual options. Partial `canvas`/`html` configurations preserve
+unspecified devtools resource defaults (the base Layer requires `zIndex`).
+
+Omitted fields and `undefined` preserve current values in `setProps`, including
+multiple updates queued before the next frame. Undefined constructor values use
+library defaults. Replace resets through undefined with `resetProps(keys)` or
+`resetProps()`. Resets restore the visual values established by the constructor,
+including custom overrides; an empty key array changes nothing. Resource props
+(`graph`, `camera`, `root`, `canvas`, `html`) are outside visual resets.
+
+```ts
+const devtools = graph.addLayer(DevToolsLayer, { rulerSize: 32 });
+devtools.setProps({ rulerSize: 40, showCrosshair: false });
+devtools.setProps({ rulerSize: undefined }); // Preserves 40.
+devtools.resetProps(["rulerSize"]); // Restores 32, keeps showCrosshair false.
+devtools.resetProps(); // Restores all constructor visual values.
+const size: number = devtools.props.rulerSize;
+```

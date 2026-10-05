@@ -93,6 +93,9 @@ export function validateSnapshot(value) {
     ) {
       throw new Error("Invalid strict diagnostic record");
     }
+    if (diagnostic.project === "packages/graph-devtools/tsconfig.json") {
+      throw new Error(`Devtools must have zero strict diagnostics: ${identity(diagnostic)}`);
+    }
     if (diagnostic.file.startsWith("packages/graph/src/lib/Scheduler/")) {
       throw new Error(`Scheduler must have zero strict diagnostics: ${identity(diagnostic)}`);
     }
@@ -246,6 +249,7 @@ async function main(args) {
       `${project}: ${actual.diagnostics.filter((diagnostic) => diagnostic.project === project).reduce((total, diagnostic) => total + diagnostic.count, 0)} existing diagnostics`
     );
   }
+  console.log("Devtools: zero strict diagnostics (full package checked).");
   console.log("Component factories, descriptors, refs and group contracts: zero strict diagnostics.");
   console.log("Scheduler: zero strict diagnostics (full projects checked).");
   console.log("Scheduling wrappers and text helpers: zero strict diagnostics.");

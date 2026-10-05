@@ -138,7 +138,7 @@ Hook for managing graph layers. Automatically handles layer initialization, prop
 
 ```typescript
 import { useLayer } from "@gravity-ui/graph-react";
-import { DevToolsLayer, type TDevToolsLayerProps } from "@gravity-ui/graph-devtools";
+import { DevToolsLayer } from "@gravity-ui/graph-devtools";
 import "@gravity-ui/graph-devtools/styles.css";
 import type { Graph } from "@gravity-ui/graph";
 

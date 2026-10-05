@@ -270,6 +270,7 @@ try {
       "fixtures/apps/devtools/tsconfig.json",
       "fixtures/apps/devtools/tsconfig.non-strict.json",
       "fixtures/types/devtools-node-esm/tsconfig.json",
+      "fixtures/types/devtools-node-esm/tsconfig.non-strict.json",
     ],
     entryPoint: "fixtures/apps/devtools/app.ts",
     nativeImports: ["root", "devtools", "playwright"],

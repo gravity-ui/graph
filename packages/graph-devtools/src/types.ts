@@ -1,34 +1,40 @@
 import type { LayerProps, TComponentState } from "@gravity-ui/graph";
 
 /** Configuration options for the DevToolsLayer */
-export interface TDevToolsLayerProps extends LayerProps {
+export type TDevToolsLayerOptions = {
   /** Show rulers */
-  showRuler?: boolean;
+  showRuler: boolean;
   /** Show crosshair */
-  showCrosshair?: boolean;
+  showCrosshair: boolean;
   /** Size (width/height) of the rulers in pixels */
-  rulerSize?: number;
+  rulerSize: number;
   /** Minimum screen distance between major ticks in pixels */
-  minMajorTickDistance?: number;
+  minMajorTickDistance: number;
   /** Background color for the rulers */
-  rulerBackgroundColor?: string;
+  rulerBackgroundColor: string;
   /** Color for the ruler ticks */
-  rulerTickColor?: string;
+  rulerTickColor: string;
   /** Color for the ruler text labels */
-  rulerTextColor?: string;
+  rulerTextColor: string;
   /** Font for the ruler text labels */
-  rulerTextFont?: string;
+  rulerTextFont: string;
   /** Color for the crosshair lines */
-  crosshairColor?: string;
+  crosshairColor: string;
   /** Color for the crosshair coordinate text */
-  crosshairTextColor?: string;
+  crosshairTextColor: string;
   /** Font for the crosshair coordinate text */
-  crosshairTextFont?: string;
+  crosshairTextFont: string;
   /** Background color for the crosshair coordinate text */
-  crosshairTextBackgroundColor?: string;
+  crosshairTextBackgroundColor: string;
   /** Blur strength for the background under the rulers */
-  rulerBackdropBlur?: number;
-}
+  rulerBackdropBlur: number;
+};
+
+/** Resolved props exposed by a DevToolsLayer instance. */
+export type TDevToolsLayerProps = LayerProps & TDevToolsLayerOptions;
+
+/** Constructor input: graph infrastructure plus optional visual overrides. */
+export type TDevToolsLayerInput = LayerProps & Partial<TDevToolsLayerOptions>;
 
 /** State managed by the DevToolsLayer */
 export interface TDevToolsLayerState extends TComponentState {

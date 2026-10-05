@@ -1,5 +1,5 @@
 import { Graph, Layer } from "@gravity-ui/graph";
-import { DevToolsLayer } from "@gravity-ui/graph-devtools";
+import { DEFAULT_DEVTOOLS_LAYER_PROPS, DevToolsLayer } from "@gravity-ui/graph-devtools";
 import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-devtools/styles.css";
 
@@ -35,6 +35,51 @@ addControl("Change appearance", () =>
 addControl("Detach DevTools", () => graph.detachLayer(devtools));
 addControl("Add DevTools", () => {
   devtools = addDevtools();
+});
+
+addControl("Verify defaults", () => {
+  for (const options of [{}, { rulerTextFont: undefined, crosshairColor: undefined }]) {
+    const layer = graph.addLayer(DevToolsLayer, options);
+    for (const [key, value] of Object.entries(DEFAULT_DEVTOOLS_LAYER_PROPS)) {
+      if (Reflect.get(layer.props, key) !== value) throw new Error(`Unresolved devtools prop: ${key}`);
+    }
+    graph.detachLayer(layer);
+  }
+  const resources = graph.addLayer(DevToolsLayer, { canvas: { zIndex: 200 }, html: { zIndex: 199 } });
+  if (!resources.getCanvas()?.classList.contains("devtools-layer-canvas")) {
+    throw new Error("Partial canvas input lost devtools classes");
+  }
+  if (!resources.getHTML()?.classList.contains("devtools-layer-html")) {
+    throw new Error("Partial HTML input lost devtools classes");
+  }
+  if (resources.props.canvas?.transformByCameraPosition !== false) {
+    throw new Error("Partial canvas input lost devtools transform defaults");
+  }
+  graph.detachLayer(resources);
+  root.dataset.defaultsVerified = "true";
+});
+addControl("Queue patches", () => {
+  devtools.setProps({ rulerSize: 40, rulerBackgroundColor: "rgb(20, 30, 40)", showRuler: false });
+  devtools.setProps({ rulerSize: undefined, rulerTextFont: "13px Arial", showCrosshair: false });
+});
+addControl("Queue selective reset", () => {
+  devtools.setProps({ rulerSize: 50, rulerBackdropBlur: 2 });
+  devtools.resetProps(["rulerSize", "showRuler"]);
+  devtools.setProps({ rulerSize: undefined, showRuler: undefined });
+});
+addControl("Queue full reset", () => {
+  devtools.setProps({ rulerSize: 60, crosshairColor: "blue" });
+  devtools.resetProps();
+});
+addControl("Ignore undefined and empty reset", () => {
+  devtools.setProps();
+  devtools.setProps({ rulerSize: undefined, crosshairColor: undefined });
+  devtools.resetProps([]);
+});
+addControl("Snapshot props", () => {
+  root.dataset.props = JSON.stringify(devtools.props, (key, value) =>
+    ["graph", "camera", "root"].includes(key) ? undefined : value
+  );
 });
 
 root.dataset.devtoolsReady = "true";
