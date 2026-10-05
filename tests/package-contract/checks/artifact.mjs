@@ -55,7 +55,7 @@ function getPackMetadata(output) {
 
 function assertPackedFiles(metadata, kind) {
   const addon = kind !== "graph";
-  const hasStyles = kind !== "graph-minimap";
+  const hasStyles = true;
   assert.equal(metadata.name, `@gravity-ui/${kind}`);
   assert.ok(Array.isArray(metadata.files), "pnpm pack did not report the packed file list.");
 
@@ -168,7 +168,7 @@ export async function buildAndPackArtifact({ packageRoot, staleBuildSentinelPath
 export async function checkInstalledArtifact(consumerDirectory, expectedVersion, kind = "graph") {
   const addon = kind !== "graph";
   const react = kind === "graph-react";
-  const hasStyles = kind !== "graph-minimap";
+  const hasStyles = true;
   const packageRoot = path.join(consumerDirectory, "node_modules", "@gravity-ui", kind);
   const manifest = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
 
@@ -281,10 +281,8 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     assert.deepEqual(Object.keys(manifest.peerDependencies), ["@gravity-ui/graph"]);
     assert.deepEqual(manifest.dependencies ?? {}, {});
     assert.deepEqual(manifest.optionalDependencies ?? {}, {});
-    await assertPathDoesNotExist(
-      path.join(packageRoot, "build/styles.css"),
-      "Minimap must not publish an unused stylesheet."
-    );
+    assert.match(publicStyles, /\.graph-minimap/);
+    assert.match(publicStyles, /background:\s*lightgr[ae]y/);
     return;
   }
   if (kind === "graph-devtools") {

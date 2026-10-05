@@ -1,0 +1,4 @@
+.layer.graph-minimap {
+  border: 2px solid var(--g-color-private-cool-grey-1000-solid);
+  background: lightgrey;
+}

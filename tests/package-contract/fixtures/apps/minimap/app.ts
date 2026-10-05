@@ -1,3 +1,4 @@
+import "@gravity-ui/graph-minimap/styles.css";
 import { ECanDrag, Graph, Layer, type TBlock, type TConnection } from "@gravity-ui/graph";
 import { MiniMapLayer } from "@gravity-ui/graph-minimap";
 import "@gravity-ui/graph/styles.css";

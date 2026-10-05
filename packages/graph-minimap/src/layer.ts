@@ -22,6 +22,7 @@ export type MiniMapLayerContext = LayerContext & {
 };
 
 export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> {
+  private readonly minimapCanvas: HTMLCanvasElement;
   private minimapWidth: number;
   private minimapHeight: number;
   private relativeX: number;
@@ -42,7 +43,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
       ...props,
     });
 
-    this.requireCanvas();
+    this.minimapCanvas = this.requireCanvas();
 
     this.minimapWidth = this.props.width ?? 200;
     this.minimapHeight = this.props.height ?? 200;
@@ -73,9 +74,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     this.onGraphEvent("block-change", onBlocksMoved);
     this.onGraphEvent("blocks-geometry-change", onBlocksMoved);
 
-    if (this.canvas) {
-      this.onCanvasEvent("mousedown", this.handleMouseDownEvent);
-    }
+    this.onCanvasEvent("mousedown", this.handleMouseDownEvent);
 
     super.afterInit();
   }
@@ -85,16 +84,10 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   }
 
   protected updateCanvasSize(): void {
+    const canvas = this.minimapCanvas;
     const dpr = this.getDRP();
-    this.requireCanvas().width = this.minimapWidth * dpr;
-    this.requireCanvas().height = this.minimapHeight * dpr;
-  }
-
-  protected willRender(): void {
-    if (this.firstRender) {
-      this.requireCanvas().style.width = `${this.minimapWidth}px`;
-      this.requireCanvas().style.height = `${this.minimapHeight}px`;
-    }
+    canvas.width = this.minimapWidth * dpr;
+    canvas.height = this.minimapHeight * dpr;
   }
 
   protected render(): void {
@@ -116,12 +109,10 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   }
 
   private applyPositionStyle(): void {
-    const canvas = this.requireCanvas();
+    const canvas = this.minimapCanvas;
     Object.assign(canvas.style, this.getPositionOfMiniMap(this.props.location), {
       width: `${this.minimapWidth}px`,
       height: `${this.minimapHeight}px`,
-      border: "2px solid var(--g-color-private-cool-grey-1000-solid)",
-      background: "lightgrey",
     });
   }
 
@@ -207,43 +198,21 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   protected getPositionOfMiniMap(
     location: TMiniMapLocation = "topLeft"
   ): Pick<CSSStyleDeclaration, "top" | "left" | "bottom" | "right"> {
-    let position: Pick<CSSStyleDeclaration, "top" | "left" | "bottom" | "right"> = {
-      left: "unset",
-      top: "unset",
-      bottom: "unset",
-      right: "unset",
+    const offsets =
+      typeof location === "string"
+        ? {
+            topLeft: { top: "0px", left: "0px" },
+            topRight: { top: "0px", right: "0px" },
+            bottomLeft: { bottom: "0px", left: "0px" },
+            bottomRight: { bottom: "0px", right: "0px" },
+          }[location]
+        : location;
+    return {
+      top: "top" in offsets ? offsets.top ?? "unset" : "unset",
+      left: "left" in offsets ? offsets.left ?? "unset" : "unset",
+      bottom: "bottom" in offsets ? offsets.bottom ?? "unset" : "unset",
+      right: "right" in offsets ? offsets.right ?? "unset" : "unset",
     };
-
-    if (!location || location === "topLeft") {
-      position.top = "0px";
-      position.left = "0px";
-    }
-
-    if (location === "topRight") {
-      position.top = "0px";
-      position.right = "0px";
-    }
-
-    if (location === "bottomRight") {
-      position.bottom = "0px";
-      position.right = "0px";
-    }
-
-    if (location === "bottomLeft") {
-      position.bottom = "0px";
-      position.left = "0px";
-    }
-
-    if (typeof location === "object") {
-      position = {
-        top: location.top ?? "unset",
-        left: location.left ?? "unset",
-        bottom: location.bottom ?? "unset",
-        right: location.right ?? "unset",
-      };
-    }
-
-    return position;
   }
 
   private renderUsableRectBelow(): void {

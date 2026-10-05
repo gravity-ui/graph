@@ -1,3 +1,4 @@
+import "@gravity-ui/graph-minimap/styles.css";
 // React E2E bundle entry point
 import React from "react";
 import ReactDOM from "react-dom/client";
