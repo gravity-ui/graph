@@ -34,7 +34,9 @@ export class ToolboxLayer extends Layer {
   }
 
   protected override afterInit(): void {
-    this.reactRoot = ReactDOM.createRoot(this.getHTML());
+    const html = this.getHTML();
+    if (!html) return;
+    this.reactRoot = ReactDOM.createRoot(html);
     this.reactRoot.render(<Toolbox graph={this.props.graph} />);
   }
 

@@ -29,8 +29,8 @@ export class SelectionLayer extends Layer<
     });
 
     this.setContext({
-      canvas: this.getCanvas(),
-      ctx: this.getCanvas().getContext("2d"),
+      canvas: this.requireCanvas(),
+      ctx: this.requireCanvasContext(),
     });
   }
 

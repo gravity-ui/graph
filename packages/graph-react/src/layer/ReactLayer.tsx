@@ -8,7 +8,7 @@ import { parseClassNames } from "../utils/classNames";
 
 export type TReactLayerProps = LayerProps & {
   camera: ICamera;
-  root: HTMLDivElement;
+  root?: HTMLElement;
   blockListClassName?: string;
 };
 
@@ -78,7 +78,8 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
    * @returns React Portal with BlocksList component
    */
   public renderPortal(renderBlock: <T extends TBlock>(graphObject: Graph, block: T) => React.JSX.Element) {
-    if (!this.getHTML()) {
+    const html = this.getHTML();
+    if (!html) {
       return null;
     }
 
@@ -87,7 +88,7 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
         graphObject: this.context.graph,
         renderBlock: renderBlock,
       }),
-      this.getHTML() as HTMLDivElement,
+      html,
       "graph-blocks-list"
     );
   }

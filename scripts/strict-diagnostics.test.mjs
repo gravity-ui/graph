@@ -67,6 +67,17 @@ test("Resolved configuration errors cannot be admitted even by a baseline", () =
   }
 });
 
+test("Layer lifecycle and Block initialization/null errors cannot be admitted by a baseline", () => {
+  for (const file of ["packages/graph/src/services/Layer.ts", "packages/graph/src/services/LayersService.ts"]) {
+    assert.throws(() => validateSnapshot(snapshot([{ ...diagnostic, file }])), /Layer lifecycle/);
+  }
+  for (const code of [2564, 2532, 18047, 18048]) {
+    assert.throws(() => validateSnapshot(snapshot([{
+      ...diagnostic, code, file: "packages/graph/src/components/canvas/blocks/Block.ts",
+    }])), /Block lifecycle/);
+  }
+});
+
 test("rejects malformed baseline metadata and duplicate diagnostic identities", () => {
   for (const invalid of [
     null,

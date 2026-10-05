@@ -36,15 +36,21 @@ describe("ReactLayer", () => {
     return new ReactLayer({
       graph,
       camera,
-      root: undefined as unknown as HTMLDivElement,
+      root: undefined,
       blockListClassName,
     });
+  };
+
+  const readHTMLElement = (layer: ReactLayer): HTMLElement => {
+    const element = layer.getHTML();
+    if (!element) throw new Error("React layer HTML was not created");
+    return element;
   };
 
   // Helper function to get HTML element safely
   const getHTMLElement = (layer: ReactLayer): HTMLElement => {
     layer.attachLayer(rootElement);
-    const htmlElement = layer.getHTML();
+    const htmlElement = readHTMLElement(layer);
     expect(htmlElement).toBeTruthy();
     return htmlElement;
   };
@@ -79,7 +85,7 @@ describe("ReactLayer", () => {
 
     it("should handle layer creation without attachment", () => {
       const layer = createUnattachedLayer("test-class");
-      const htmlElement = layer.getHTML();
+      const htmlElement = readHTMLElement(layer);
 
       expect(htmlElement).toBeTruthy();
       expect(htmlElement.parentNode).toBeNull(); // Not attached to DOM
@@ -249,8 +255,8 @@ describe("ReactLayer", () => {
       const layer = createUnattachedLayer();
       const renderBlock = jest.fn();
 
-      // Mock getHTML to return null
-      jest.spyOn(layer, "getHTML").mockReturnValue(null);
+      // Mock getHTML to return undefined
+      jest.spyOn(layer, "getHTML").mockReturnValue(undefined);
 
       const portal = layer.renderPortal(renderBlock);
       expect(portal).toBeNull();
@@ -327,7 +333,7 @@ describe("ReactLayer", () => {
 
       // Before attachment - HTML element exists but blockListClassName is not applied
       // because afterInit() hasn't been called yet
-      const htmlElementBefore = layer.getHTML();
+      const htmlElementBefore = readHTMLElement(layer);
       expect(htmlElementBefore).toBeTruthy();
       expect(htmlElementBefore.parentNode).toBeNull();
       expect(htmlElementBefore.classList.contains(className)).toBe(false);
@@ -335,7 +341,7 @@ describe("ReactLayer", () => {
       // After attachLayer - HTML element should be in DOM and have the class
       // because attachLayer calls afterInit() which applies blockListClassName
       layer.attachLayer(rootElement);
-      const htmlElementAfter = layer.getHTML();
+      const htmlElementAfter = readHTMLElement(layer);
       expect(htmlElementAfter.classList.contains(className)).toBe(true);
       expect(htmlElementAfter.parentNode).toBe(rootElement);
     });
@@ -346,7 +352,7 @@ describe("ReactLayer", () => {
 
       // First attachment
       layer.attachLayer(rootElement);
-      let htmlElement = layer.getHTML();
+      let htmlElement = readHTMLElement(layer);
       expect(htmlElement.classList.contains(className)).toBe(true);
 
       // Detach
@@ -357,7 +363,7 @@ describe("ReactLayer", () => {
       document.body.appendChild(newRoot);
 
       layer.attachLayer(newRoot);
-      htmlElement = layer.getHTML();
+      htmlElement = readHTMLElement(layer);
       expect(htmlElement.classList.contains(className)).toBe(true);
 
       // Cleanup

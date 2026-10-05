@@ -21,9 +21,7 @@ export type MiniMapLayerContext = LayerContext & {
   ctx: CanvasRenderingContext2D;
 };
 
-export class MiniMapLayer extends Layer<MiniMapLayerProps> {
-  public declare context: MiniMapLayerContext;
-
+export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> {
   private minimapWidth: number;
   private minimapHeight: number;
   private relativeX: number;
@@ -43,6 +41,8 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps> {
       },
       ...props,
     });
+
+    this.setContext({ canvas: this.requireCanvas(), ctx: this.requireCanvasContext() });
 
     this.minimapWidth = this.props.width ?? 200;
     this.minimapHeight = this.props.height ?? 200;
@@ -86,14 +86,14 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps> {
 
   protected updateCanvasSize(): void {
     const dpr = this.getDRP();
-    this.canvas.width = this.minimapWidth * dpr;
-    this.canvas.height = this.minimapHeight * dpr;
+    this.requireCanvas().width = this.minimapWidth * dpr;
+    this.requireCanvas().height = this.minimapHeight * dpr;
   }
 
   protected willRender(): void {
     if (this.firstRender) {
-      this.canvas.style.width = `${this.minimapWidth}px`;
-      this.canvas.style.height = `${this.minimapHeight}px`;
+      this.requireCanvas().style.width = `${this.minimapWidth}px`;
+      this.requireCanvas().style.height = `${this.minimapHeight}px`;
     }
   }
 

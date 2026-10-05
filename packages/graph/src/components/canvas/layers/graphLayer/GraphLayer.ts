@@ -13,13 +13,13 @@ import { BlockConnections } from "../../connections/BlockConnections";
 
 export type TGraphLayerProps = LayerProps & {
   camera: ICamera;
-  root: HTMLDivElement;
+  root?: HTMLElement;
 };
 
 export type TGraphLayerContext = LayerContext & {
   canvas: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
-  root: HTMLDivElement;
+  root?: HTMLElement;
   ownerDocument: Document;
   graph: Graph;
 };
@@ -78,11 +78,11 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
       ...props,
     });
 
-    const canvas = this.getCanvas();
+    const canvas = this.requireCanvas();
 
     this.setContext({
       canvas: canvas,
-      ctx: canvas.getContext("2d"),
+      ctx: this.requireCanvasContext(),
       root: this.props.root,
       camera: this.props.camera,
       ownerDocument: canvas.ownerDocument,
@@ -100,16 +100,20 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     this.performRender = this.performRender.bind(this);
   }
 
+  public override getCanvas(): HTMLCanvasElement {
+    return this.requireCanvas();
+  }
+
   protected afterInit(): void {
     this.setContext({
-      root: this.root as HTMLDivElement,
+      root: this.root,
     });
     this.attachListeners();
 
-    this.context.graph.rootStore.blocksList.$blocks.subscribe(() => {
+    this.onSignal(this.context.graph.rootStore.blocksList.$blocks, () => {
       this.performRender();
     });
-    this.context.graph.rootStore.connectionsList.$connections.subscribe(() => {
+    this.onSignal(this.context.graph.rootStore.connectionsList.$connections, () => {
       this.performRender();
     });
     super.afterInit();

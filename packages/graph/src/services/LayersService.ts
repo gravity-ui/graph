@@ -33,7 +33,7 @@ export class Layers extends Emitter {
       ...props,
     }) as InstanceType<T>;
     this.layers.add(layer);
-    if (this.attached) {
+    if (this.attached && this.$root) {
       layer.attachLayer(this.$root);
     }
     return layer;
@@ -52,14 +52,15 @@ export class Layers extends Emitter {
     return Array.from(this.layers);
   }
 
-  public attach(root: HTMLDivElement = this.$root) {
+  public attach(root: HTMLDivElement | undefined = this.$root) {
+    if (!root) throw new Error("Root not specified");
     this.$root = root;
     this.layers.forEach((layer) => {
-      layer.attachLayer(this.$root);
+      layer.attachLayer(root);
     });
   }
 
-  public start(root: HTMLDivElement = this.$root) {
+  public start(root: HTMLDivElement | undefined = this.$root) {
     if (this.attached) {
       return;
     }
@@ -83,6 +84,7 @@ export class Layers extends Emitter {
 
     window.removeEventListener("resize", this.handleRootResize);
     this.unwatchDPR?.();
+    this.unwatchDPR = undefined;
 
     this.handleRootResize.cancel();
     this.resizeObserver.disconnect();
@@ -121,6 +123,7 @@ export class Layers extends Emitter {
     this.layers.forEach((layer) => {
       Component.unmount(layer);
     });
+    this.layers.clear();
   }
 
   public updateSize = () => {

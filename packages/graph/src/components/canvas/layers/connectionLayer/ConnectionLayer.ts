@@ -136,9 +136,9 @@ export class ConnectionLayer extends Layer<
     });
 
     this.setContext({
-      canvas: this.getCanvas(),
+      canvas: this.requireCanvas(),
       graphCanvas: props.graph.getGraphCanvas(),
-      ctx: this.getCanvas().getContext("2d"),
+      ctx: this.requireCanvasContext(),
       camera: props.camera,
       constants: this.props.graph.graphConstants,
       colors: this.props.graph.graphColors,

@@ -23,6 +23,10 @@ export const NULLABLE_LOOKUP_FILES = [
   "packages/graph-react/src/hooks/useBlockState.ts",
   "packages/graph-react/src/hooks/useBlockAnchorState.ts",
 ];
+export const LAYER_LIFECYCLE_FILES = [
+  "packages/graph/src/services/Layer.ts",
+  "packages/graph/src/services/LayersService.ts",
+];
 const script = fileURLToPath(import.meta.url);
 const root = path.resolve(path.dirname(script), "..");
 const baselinePath = path.join(root, "docs/audits/strict-typescript-baseline.json");
@@ -66,6 +70,12 @@ export function validateSnapshot(value) {
     }
     if (NULLABLE_LOOKUP_FILES.includes(diagnostic.file)) {
       throw new Error(`Nullable lookups must have zero strict diagnostics: ${identity(diagnostic)}`);
+    }
+    if (LAYER_LIFECYCLE_FILES.includes(diagnostic.file)) {
+      throw new Error(`Layer lifecycle must have zero strict diagnostics: ${identity(diagnostic)}`);
+    }
+    if (diagnostic.file === "packages/graph/src/components/canvas/blocks/Block.ts" && [2564, 2532, 18047, 18048].includes(diagnostic.code)) {
+      throw new Error(`Block lifecycle must have zero initialization/null diagnostics: ${identity(diagnostic)}`);
     }
     const key = identity(diagnostic);
     if (seen.has(key)) throw new Error(`Duplicate diagnostic identity: ${key}`);
@@ -178,6 +188,7 @@ async function main(args) {
   console.log("Scheduler: zero strict diagnostics (full projects checked).");
   console.log("Resolved configuration boundaries: zero strict diagnostics.");
   console.log("Nullable lookup boundaries: zero strict diagnostics.");
+  console.log("Layer lifecycle: zero strict diagnostics; Block lifecycle initialization/null checks: zero diagnostics.");
 }
 
 if (process.argv[1] && process.argv[1] !== "-" && realpathSync(process.argv[1]) === script) {

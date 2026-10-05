@@ -46,7 +46,7 @@ export interface NewBlockLayerProps extends LayerProps {
 
 export class NewBlockLayer extends Layer<
   NewBlockLayerProps,
-  LayerContext & { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }
+  LayerContext & { canvas: HTMLCanvasElement; graphCanvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }
 > {
   private copyBlocks: BlockState[] = [];
   private initialPoint: TPoint;
@@ -70,9 +70,9 @@ export class NewBlockLayer extends Layer<
     });
 
     this.setContext({
-      canvas: this.getCanvas(),
+      canvas: this.requireCanvas(),
       graphCanvas: props.graph.getGraphCanvas(),
-      ctx: this.getCanvas().getContext("2d"),
+      ctx: this.requireCanvasContext(),
       camera: props.camera,
       constants: this.props.graph.graphConstants,
       colors: this.props.graph.graphColors,

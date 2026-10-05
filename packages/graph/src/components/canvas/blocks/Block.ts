@@ -111,11 +111,11 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   protected startDragCoords: number[] = [];
 
-  protected shouldRenderText: boolean;
+  protected shouldRenderText = false;
 
-  protected shouldRenderHtml: boolean;
+  protected shouldRenderHtml = false;
 
-  protected raised: boolean;
+  protected raised = false;
 
   /**
    * True when the block is fully hidden by CollapsibleGroup (hitbox removed).
@@ -134,6 +134,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   constructor(props: Props, parent: Component) {
     super(props, parent);
 
+    this.connectedState = this.getConnectedState(props.id);
     this.subscribe(props.id);
   }
 
@@ -186,14 +187,18 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.context.graph.rootStore.settings.getConfigFlag(flagPath);
   }
 
+  private getConnectedState(id: TBlockId): BlockState<T> {
+    const blockState = this.context.graph.rootStore.blocksList.getBlockState(id);
+    if (!blockState) throw new Error(`Cannot bind Block to missing block ${id}`);
+    // The registered custom block declares its data shape; the caller owns that contract.
+    return blockState as BlockState<T>;
+  }
+
   protected subscribe(id: TBlockId) {
     this.connectedStateUnsubscribers.forEach((unsub) => unsub());
     this.connectedStateUnsubscribers = [];
 
-    const blockState = this.context.graph.rootStore.blocksList.getBlockState(id);
-    if (!blockState) throw new Error(`Cannot bind Block to missing block ${id}`);
-    // The registered custom block declares its data shape; the caller owns that contract.
-    this.connectedState = blockState as BlockState<T>;
+    this.connectedState = this.getConnectedState(id);
     this.state = cloneDeep(this.connectedState.$state.value);
     this.connectedState.setViewComponent(this);
     this.setState({
@@ -473,7 +478,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
       return undefined;
     }
 
-    return this.state.anchors.map((anchor) => {
+    return this.state.anchors?.map((anchor) => {
       return this.renderAnchor(anchor);
     });
   }
@@ -598,7 +603,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     connectionsList.releasePort(createBlockPointPortId(this.state.id, true), this);
     connectionsList.releasePort(createBlockPointPortId(this.state.id, false), this);
 
-    this.state.anchors.forEach((anchor) => {
+    this.state.anchors?.forEach((anchor) => {
       connectionsList.releasePort(createAnchorPortId(this.state.id, anchor.id), this);
     });
 

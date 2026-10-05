@@ -7,7 +7,7 @@ import { PortsStore } from "./PortList";
 // Mock component for testing
 class MockComponent extends Component {
   constructor() {
-    super({}, null);
+    super({}, undefined);
   }
 }
 

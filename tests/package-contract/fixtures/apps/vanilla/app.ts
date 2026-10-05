@@ -2,6 +2,7 @@ import {
   CanvasBlock,
   ECanDrag,
   Graph,
+  Layer,
   type TBlock,
   type TBlockProps,
   type TConnection,
@@ -166,3 +167,21 @@ function checkCustomBlockRegistration() {
   graph.updateSettings({ blockComponents: { invalid: class {} } });
 }
 void checkCustomBlockRegistration;
+
+// This consumer contract is compiled against both source APIs and packed declarations.
+function layerResourceContracts(layer: Layer) {
+  // @ts-expect-error A base layer can be HTML-only.
+  layer.getCanvas().width;
+  // @ts-expect-error A base layer can be canvas-only.
+  layer.getHTML().classList;
+  // @ts-expect-error A base layer may have no drawing context.
+  layer.context.ctx.clearRect(0, 0, 1, 1);
+  // @ts-expect-error A base layer may have no canvas in its context.
+  layer.context.graphCanvas.width;
+  const canvas = layer.getCanvas();
+  if (canvas) canvas.width = 100;
+  const html = layer.getHTML();
+  if (html) html.classList.add("custom-layer");
+  if (layer.context.ctx) layer.context.ctx.clearRect(0, 0, 1, 1);
+}
+void layerResourceContracts;

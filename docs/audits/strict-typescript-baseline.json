@@ -20,41 +20,6 @@
     {
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/blocks/Block.ts",
-      "code": 2532,
-      "message": "Object is possibly 'undefined'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
-      "code": 2564,
-      "message": "Property 'connectedState' has no initializer and is not definitely assigned in the constructor.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
-      "code": 2564,
-      "message": "Property 'raised' has no initializer and is not definitely assigned in the constructor.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
-      "code": 2564,
-      "message": "Property 'shouldRenderHtml' has no initializer and is not definitely assigned in the constructor.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
-      "code": 2564,
-      "message": "Property 'shouldRenderText' has no initializer and is not definitely assigned in the constructor.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
       "code": 7053,
       "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'BlockViewState'.\n  No index signature with a parameter of type 'string' was found on type 'BlockViewState'.",
       "count": 1
@@ -215,13 +180,6 @@
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/GraphComponent/GraphComponent.test.ts",
-      "code": 2345,
-      "message": "Argument of type 'undefined' is not assignable to parameter of type 'CoreComponent<CoreComponentProps, CoreComponentContext>'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/GraphComponent/index.ts",
       "code": 2322,
       "message": "Type 'PortState<unknown> | undefined' is not assignable to type 'PortState<unknown>'.\n  Type 'undefined' is not assignable to type 'PortState<unknown>'.",
@@ -247,27 +205,6 @@
       "code": 2345,
       "message": "Argument of type 'boolean | undefined' is not assignable to parameter of type 'boolean'.\n  Type 'undefined' is not assignable to type 'boolean'.",
       "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/GraphComponent/index.ts",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(type: K, listener: (this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n      Type 'EventListenerObject' is not assignable to type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n        Type 'EventListenerObject' provides no match for the signature '(this: HTMLDivElement, ev: HTMLElementEventMap[K]): any'.\n  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.\n      Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListenerOrEventListenerObject'.\n        Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListener'.\n          Types of parameters 'ev' and 'evt' are incompatible.\n            Type 'Event' is not assignable to type 'HTMLElementEventMap[K]'.\n              Type 'Event' is not assignable to type 'Event & UIEvent & AnimationEvent & PointerEvent & InputEvent & ToggleEvent & FocusEvent & ... 12 more ... & WheelEvent'.\n                Type 'Event' is missing the following properties from type 'UIEvent': detail, view, which, initUIEvent",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/GraphComponent/index.ts",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(type: K, listener: (this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | EventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n      Type 'EventListenerObject' is not assignable to type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n        Type 'EventListenerObject' provides no match for the signature '(this: HTMLDivElement, ev: HTMLElementEventMap[K]): any'.\n  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.\n      Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListenerOrEventListenerObject'.\n        Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListener'.\n          Types of parameters 'ev' and 'evt' are incompatible.\n            Type 'Event' is not assignable to type 'HTMLElementEventMap[K]'.\n              Type 'Event' is not assignable to type 'Event & UIEvent & AnimationEvent & PointerEvent & InputEvent & ToggleEvent & FocusEvent & ... 12 more ... & WheelEvent'.\n                Type 'Event' is missing the following properties from type 'UIEvent': detail, view, which, initUIEvent",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/groups/BlockGroups.ts",
-      "code": 2322,
-      "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D | undefined'.\n  Type 'null' is not assignable to type 'CanvasRenderingContext2D | undefined'.",
-      "count": 1
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -322,13 +259,6 @@
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/layers/connectionLayer/ConnectionLayer.ts",
       "code": 2322,
-      "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D | undefined'.\n  Type 'null' is not assignable to type 'CanvasRenderingContext2D | undefined'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/connectionLayer/ConnectionLayer.ts",
-      "code": 2322,
       "message": "Type 'string | undefined' is not assignable to type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
       "count": 2
     },
@@ -345,13 +275,6 @@
       "code": 2532,
       "message": "Object is possibly 'undefined'.",
       "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/graphLayer/GraphLayer.ts",
-      "code": 2322,
-      "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D | undefined'.\n  Type 'null' is not assignable to type 'CanvasRenderingContext2D | undefined'.",
-      "count": 1
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -380,13 +303,6 @@
       "code": 18048,
       "message": "'targetId' is possibly 'undefined'.",
       "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/newBlockLayer/NewBlockLayer.ts",
-      "code": 2322,
-      "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D | undefined'.\n  Type 'null' is not assignable to type 'CanvasRenderingContext2D | undefined'.",
-      "count": 1
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -434,13 +350,6 @@
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/layers/portConnectionLayer/PortConnectionLayer.ts",
       "code": 2322,
-      "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D | undefined'.\n  Type 'null' is not assignable to type 'CanvasRenderingContext2D | undefined'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/portConnectionLayer/PortConnectionLayer.ts",
-      "code": 2322,
       "message": "Type 'PortState<unknown> | undefined' is not assignable to type 'PortState<unknown>'.\n  Type 'undefined' is not assignable to type 'PortState<unknown>'.",
       "count": 2
     },
@@ -478,13 +387,6 @@
       "code": 7053,
       "message": "Element implicitly has an 'any' type because expression of type 'unique symbol' can't be used to index type '{}'.\n  Property '[\"./PortConnectionLayer\".PortConnectionLayer.PortMetaKey]' does not exist on type '{}'.",
       "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/layers/selectionLayer/SelectionLayer.ts",
-      "code": 2322,
-      "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'CanvasRenderingContext2D | undefined'.\n  Type 'null' is not assignable to type 'CanvasRenderingContext2D | undefined'.",
-      "count": 1
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -716,90 +618,6 @@
       "code": 2345,
       "message": "Argument of type '(event: CustomEvent<KeyboardEvent>) => void' is not assignable to parameter of type 'EventListenerOrEventListenerObject | null'.\n  Type '(event: CustomEvent<KeyboardEvent>) => void' is not assignable to type 'EventListener'.\n    Types of parameters 'event' and 'evt' are incompatible.\n      Type 'Event' is missing the following properties from type 'CustomEvent<KeyboardEvent>': detail, initCustomEvent",
       "count": 4
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/Layer.ts",
-      "code": 18047,
-      "message": "'context' is possibly 'null'.",
-      "count": 3
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/Layer.ts",
-      "code": 18048,
-      "message": "'params' is possibly 'undefined'.",
-      "count": 10
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/Layer.ts",
-      "code": 2322,
-      "message": "Type 'boolean | undefined' is not assignable to type 'boolean'.\n  Type 'undefined' is not assignable to type 'boolean'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/Layer.ts",
-      "code": 2322,
-      "message": "Type 'CanvasRenderingContext2D | null' is not assignable to type 'Context[\"ctx\"] | undefined'.\n  Type 'null' is not assignable to type 'Context[\"ctx\"] | undefined'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/Layer.ts",
-      "code": 2345,
-      "message": "Argument of type 'CoreComponent<CoreComponentProps, CoreComponentContext> | undefined' is not assignable to parameter of type 'CoreComponent<CoreComponentProps, CoreComponentContext>'.\n  Type 'undefined' is not assignable to type 'CoreComponent<CoreComponentProps, CoreComponentContext>'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/Layer.ts",
-      "code": 2564,
-      "message": "Property 'canvas' has no initializer and is not definitely assigned in the constructor.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/Layer.ts",
-      "code": 2564,
-      "message": "Property 'html' has no initializer and is not definitely assigned in the constructor.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/Layer.ts",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(type: K, listener: (this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type '(this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => any'.\n      Type 'EventListenerObject' is not assignable to type '(this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => any'.\n        Type 'EventListenerObject' provides no match for the signature '(this: HTMLCanvasElement, ev: HTMLElementEventMap[K]): any'.\n  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.\n      Type '(this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListenerOrEventListenerObject'.\n        Type '(this: HTMLCanvasElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListener'.\n          Types of parameters 'ev' and 'evt' are incompatible.\n            Type 'Event' is not assignable to type 'HTMLElementEventMap[K]'.\n              Type 'Event' is not assignable to type 'Event & UIEvent & AnimationEvent & PointerEvent & InputEvent & ToggleEvent & FocusEvent & ... 12 more ... & WheelEvent'.\n                Type 'Event' is missing the following properties from type 'UIEvent': detail, view, which, initUIEvent",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/Layer.ts",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(type: K, listener: (this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n      Type 'EventListenerObject' is not assignable to type '(this: HTMLDivElement, ev: HTMLElementEventMap[K]) => any'.\n        Type 'EventListenerObject' provides no match for the signature '(this: HTMLDivElement, ev: HTMLElementEventMap[K]): any'.\n  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.\n      Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListenerOrEventListenerObject'.\n        Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListener'.\n          Types of parameters 'ev' and 'evt' are incompatible.\n            Type 'Event' is not assignable to type 'HTMLElementEventMap[K]'.\n              Type 'Event' is not assignable to type 'Event & UIEvent & AnimationEvent & PointerEvent & InputEvent & ToggleEvent & FocusEvent & ... 12 more ... & WheelEvent'.\n                Type 'Event' is missing the following properties from type 'UIEvent': detail, view, which, initUIEvent",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/Layer.ts",
-      "code": 2769,
-      "message": "No overload matches this call.\n  Overload 1 of 2, '(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => any'.\n      Type 'EventListenerObject' is not assignable to type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => any'.\n        Type 'EventListenerObject' provides no match for the signature '(this: HTMLElement, ev: HTMLElementEventMap[K]): any'.\n  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.\n    Argument of type 'EventListenerObject | ((this: HTMLElement, ev: HTMLElementEventMap[K]) => void)' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.\n      Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListenerOrEventListenerObject'.\n        Type '(this: HTMLElement, ev: HTMLElementEventMap[K]) => void' is not assignable to type 'EventListener'.\n          Types of parameters 'ev' and 'evt' are incompatible.\n            Type 'Event' is not assignable to type 'HTMLElementEventMap[K]'.\n              Type 'Event' is not assignable to type 'Event & UIEvent & AnimationEvent & PointerEvent & InputEvent & ToggleEvent & FocusEvent & ... 12 more ... & WheelEvent'.\n                Type 'Event' is missing the following properties from type 'UIEvent': detail, view, which, initUIEvent",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/LayersService.ts",
-      "code": 2322,
-      "message": "Type 'HTMLDivElement | undefined' is not assignable to type 'HTMLDivElement'.\n  Type 'undefined' is not assignable to type 'HTMLDivElement'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/LayersService.ts",
-      "code": 2345,
-      "message": "Argument of type 'HTMLDivElement | undefined' is not assignable to parameter of type 'HTMLElement'.\n  Type 'undefined' is not assignable to type 'HTMLElement'.",
-      "count": 2
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -1051,13 +869,6 @@
       "file": "packages/graph/src/store/connection/port/Port.ts",
       "code": 7024,
       "message": "Function implicitly has return type 'any' because it does not have a return type annotation and is referenced directly or indirectly in one of its return expressions.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/store/connection/port/PortList.test.ts",
-      "code": 2345,
-      "message": "Argument of type 'null' is not assignable to parameter of type 'CoreComponent<CoreComponentProps, CoreComponentContext>'.",
       "count": 1
     },
     {
@@ -1422,13 +1233,6 @@
       "file": "packages/graph-react/src/layer/ReactLayer.test.ts",
       "code": 18047,
       "message": "'portal' is possibly 'null'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/layer/ReactLayer.test.ts",
-      "code": 2345,
-      "message": "Argument of type 'null' is not assignable to parameter of type 'HTMLElement'.",
       "count": 1
     },
     {

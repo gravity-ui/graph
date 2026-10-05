@@ -50,8 +50,8 @@ export type LayerContext = {
   camera: ICamera;
   constants: TGraphConstants;
   colors: TGraphColors;
-  graphCanvas: HTMLCanvasElement;
-  ctx: CanvasRenderingContext2D;
+  graphCanvas: HTMLCanvasElement | undefined;
+  ctx: CanvasRenderingContext2D | undefined;
   layer: Layer;
 };
 
@@ -82,13 +82,15 @@ export class Layer<
 > extends Component<Props, State, Context> {
   public static id?: string;
 
-  protected canvas: HTMLCanvasElement;
+  protected canvas?: HTMLCanvasElement;
 
-  protected html: HTMLElement;
+  protected html?: HTMLElement;
 
-  protected root?: HTMLDivElement;
+  protected root?: HTMLElement;
 
   protected attached = false;
+
+  private hiddenByUser = false;
 
   /**
    * Indicates whether the HTML layer is currently active based on camera scale.
@@ -131,17 +133,21 @@ export class Layer<
   }
 
   public hide() {
+    this.hiddenByUser = true;
     this.canvas?.classList.add(HIDDEN_CLASS_NAME);
     this.html?.classList.add(HIDDEN_CLASS_NAME);
   }
 
   public isHidden() {
-    return this.canvas?.classList.contains(HIDDEN_CLASS_NAME) || this.html?.classList.contains(HIDDEN_CLASS_NAME);
+    return Boolean(
+      this.canvas?.classList.contains(HIDDEN_CLASS_NAME) || this.html?.classList.contains(HIDDEN_CLASS_NAME)
+    );
   }
 
   public show() {
+    this.hiddenByUser = false;
     this.canvas?.classList.remove(HIDDEN_CLASS_NAME);
-    this.html?.classList.remove(HIDDEN_CLASS_NAME);
+    this.html?.classList.toggle(HIDDEN_CLASS_NAME, !this.htmlActive);
   }
 
   /**
@@ -168,10 +174,12 @@ export class Layer<
       throw new Error("Attempt to add event listener to non-existent HTML element");
     }
 
-    this.html.addEventListener(eventName, handler, {
-      ...options,
-      signal: this.eventAbortController.signal,
-    });
+    const listenerOptions = { ...options, signal: this.eventAbortController.signal };
+    if (typeof handler === "function") {
+      this.html.addEventListener(eventName, handler, listenerOptions);
+    } else {
+      this.html.addEventListener(eventName, handler, listenerOptions);
+    }
   }
 
   /**
@@ -198,10 +206,12 @@ export class Layer<
       throw new Error("Attempt to add event listener to non-existent canvas element");
     }
 
-    this.canvas.addEventListener(eventName, handler, {
-      ...options,
-      signal: this.eventAbortController.signal,
-    });
+    const listenerOptions = { ...options, signal: this.eventAbortController.signal };
+    if (typeof handler === "function") {
+      this.canvas.addEventListener(eventName, handler, listenerOptions);
+    } else {
+      this.canvas.addEventListener(eventName, handler, listenerOptions);
+    }
   }
 
   /**
@@ -228,10 +238,12 @@ export class Layer<
       throw new Error("Attempt to add event listener to non-existent root element");
     }
 
-    this.root.addEventListener(eventName, handler, {
-      ...options,
-      signal: this.eventAbortController.signal,
-    });
+    const listenerOptions = { ...options, signal: this.eventAbortController.signal };
+    if (typeof handler === "function") {
+      this.root.addEventListener(eventName, handler, listenerOptions);
+    } else {
+      this.root.addEventListener(eventName, handler, listenerOptions);
+    }
   }
 
   /**
@@ -250,13 +262,18 @@ export class Layer<
     S extends { subscribe: (handler: (value: T) => void) => () => void },
     T = S extends { subscribe: (handler: (value: infer U) => void) => () => void } ? U : unknown,
   >(signal: S, handler: (value: T) => void): () => void {
+    const abortSignal = this.eventAbortController.signal;
     const unsubscribe = signal.subscribe(handler);
-    const abortHandler = () => {
+    let subscribed = true;
+    const cleanup = () => {
+      if (!subscribed) return;
+      subscribed = false;
+      abortSignal.removeEventListener("abort", cleanup);
       unsubscribe();
-      this.eventAbortController.signal.removeEventListener("abort", abortHandler);
     };
-    this.eventAbortController.signal.addEventListener("abort", abortHandler);
-    return unsubscribe;
+    if (abortSignal.aborted) cleanup();
+    else abortSignal.addEventListener("abort", cleanup, { once: true });
+    return cleanup;
   }
 
   constructor(props: Props, parent?: CoreComponent) {
@@ -270,6 +287,8 @@ export class Layer<
       colors: this.props.graph.$graphColors.value,
       constants: this.props.graph.$graphConstants.value,
       layer: this,
+      graphCanvas: undefined,
+      ctx: undefined,
     });
 
     this.init();
@@ -321,9 +340,7 @@ export class Layer<
     if (this.html && this.props.html?.activationScale !== undefined) {
       const cameraState = this.context.camera.getCameraState();
       this.htmlActive = cameraState.scale >= this.props.html.activationScale;
-      if (!this.htmlActive) {
-        this.onHtmlActiveChange(false);
-      }
+      this.onHtmlActiveChange(this.htmlActive);
     }
 
     this.handleCommittedCameraChange(this.context.camera.getCameraState());
@@ -394,11 +411,7 @@ export class Layer<
    * @param active - Whether the HTML layer is now active
    */
   protected onHtmlActiveChange(active: boolean) {
-    if (active) {
-      this.html.classList.remove("layer-hidden");
-    } else {
-      this.html.classList.add("layer-hidden");
-    }
+    this.html?.classList.toggle(HIDDEN_CLASS_NAME, this.hiddenByUser || !active);
   }
 
   /**
@@ -427,14 +440,12 @@ export class Layer<
   }
 
   protected unmountLayer() {
-    if (this.canvas) {
-      const cameraState = this.context.camera.getCameraState();
-      const context = this.canvas.getContext("2d");
-      context.setTransform(1, 0, 0, 1, 0, 0);
-
-      context.clearRect(0, 0, cameraState.width, cameraState.height);
-
-      context.setTransform(cameraState.scale, 0, 0, cameraState.scale, cameraState.x, cameraState.y);
+    this.stopCameraMoving.cancel();
+    this.moving = false;
+    this.html?.classList.remove("layer-with-camera-moving");
+    if (this.canvas && this.context.ctx) {
+      this.context.ctx.setTransform(1, 0, 0, 1, 0, 0);
+      this.context.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     }
     this.canvas?.parentNode?.removeChild(this.canvas);
     this.html?.parentNode?.removeChild(this.html);
@@ -445,20 +456,30 @@ export class Layer<
     // This ensures that if the layer is reattached, new event listeners can be registered
     this.eventAbortController = new AbortController();
     this.attached = false;
+    this.root = undefined;
   }
 
   protected unmount(): void {
-    this.stopCameraMoving.cancel();
     this.unmountLayer();
     super.unmount();
   }
 
-  public getCanvas() {
+  public getCanvas(): HTMLCanvasElement | undefined {
     return this.canvas;
   }
 
-  public getHTML() {
+  public getHTML(): HTMLElement | undefined {
     return this.html;
+  }
+
+  protected requireCanvas(): HTMLCanvasElement {
+    if (!this.canvas) throw new Error("Canvas is not configured for this layer");
+    return this.canvas;
+  }
+
+  protected requireCanvasContext(): CanvasRenderingContext2D {
+    if (!this.context.ctx) throw new Error("2D canvas context is unavailable");
+    return this.context.ctx;
   }
 
   public attachLayer(root: HTMLElement) {
@@ -468,7 +489,7 @@ export class Layer<
     if (this.root) {
       this.unmountLayer();
     }
-    this.root = root as HTMLDivElement;
+    this.root = root;
     if (this.canvas) {
       root.appendChild(this.canvas);
     }
@@ -484,23 +505,22 @@ export class Layer<
     this.root = undefined;
   }
 
-  protected createCanvas(params: LayerProps["canvas"]) {
+  protected createCanvas(params: NonNullable<LayerProps["canvas"]>) {
     const canvas = document.createElement("canvas");
     canvas.classList.add("layer", "layer-canvas");
     if (Array.isArray(params.classNames)) canvas.classList.add(...params.classNames);
     canvas.style.zIndex = `${Number(params.zIndex)}`;
-    this.setContext({
-      graphCanvas: canvas,
-      ctx: canvas.getContext("2d", {
-        desynchronized: params.desynchronized ?? false,
-        willReadFrequently: params.willReadFrequently ?? false,
-        alpha: params.alpha ?? true,
-      }),
+    const ctx = canvas.getContext("2d", {
+      desynchronized: params.desynchronized ?? false,
+      willReadFrequently: params.willReadFrequently ?? false,
+      alpha: params.alpha ?? true,
     });
+    if (!ctx) throw new Error("2D canvas context is unavailable");
+    this.setContext({ graphCanvas: canvas, ctx });
     return canvas;
   }
 
-  protected createHTML(params: LayerProps["html"]) {
+  protected createHTML(params: NonNullable<LayerProps["html"]>) {
     const div = document.createElement("div");
     div.classList.add("layer", "layer-html");
     if (Array.isArray(params.classNames)) div.classList.add(...params.classNames);
@@ -520,20 +540,23 @@ export class Layer<
     x: number,
     y: number,
     scale: number,
-    respectPixelRatio: boolean = this.props.canvas?.respectPixelRatio
+    respectPixelRatio: boolean = this.props.canvas?.respectPixelRatio ?? true
   ) {
     const ctx = this.context.ctx;
+    if (!ctx) return;
     const dpr = respectPixelRatio ? this.getDRP() : 1;
     ctx.setTransform(scale * dpr, 0, 0, scale * dpr, x * dpr, y * dpr);
   }
 
   protected updateCanvasSize() {
+    if (!this.canvas) return;
     const { width, height, dpr } = this.context.graph.layers.getRootSize();
     this.canvas.width = width * dpr;
     this.canvas.height = height * dpr;
   }
 
   public resetTransform() {
+    if (!this.canvas || !this.context.ctx) return;
     if (this.sizeTouched) {
       this.sizeTouched = false;
       this.updateCanvasSize();
