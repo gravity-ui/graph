@@ -5,7 +5,7 @@ import { act, renderHook } from "@testing-library/react";
 import { useBlockAnchorState } from "./useBlockAnchorState";
 import { useBlockState, useBlockViewState, useSyncBlockState } from "./useBlockState";
 
-const block: TBlock = {
+const block = {
   id: "block",
   is: "Block",
   name: "Block",
@@ -14,7 +14,7 @@ const block: TBlock = {
   width: 100,
   height: 100,
   anchors: [{ id: "anchor", blockId: "block", type: "IN" }],
-};
+} satisfies TBlock;
 
 test("block and anchor hooks follow missing, added, removed and recreated IDs", () => {
   const graph = new Graph({});
