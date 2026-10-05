@@ -2,11 +2,11 @@ import { batch, computed, signal } from "@preact/signals-core";
 
 import { TAnchor, TAnchorId } from "../../components/canvas/anchors";
 import { Block, TBlock, isTBlock } from "../../components/canvas/blocks/Block";
-import { generateRandomId } from "../../components/canvas/blocks/generate";
 import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
 import { SingleSelectionBucket } from "../../services/selection/SingleSelectionBucket";
 import { ESelectionStrategy } from "../../services/selection/types";
+import { generateRandomId } from "../../utils/functions/generateRandomId";
 import { AnchorState } from "../anchor/Anchor";
 import { RootStore } from "../index";
 
@@ -244,7 +244,7 @@ export class BlockListStore {
     }
 
     this.graph.executеDefaultEventAction("block-change", { block: blockState.asTBlockShallow() }, () => {
-      if (this.getBlockState(id) !== blockState) return;
+      if (!blockState.isAttached()) return;
       blockState.updateBlock(nextState);
       const geometry = blockState.$geometry.value;
       this.batchedGeometryPending.set(id, { state: blockState, geometry: { id, ...geometry } });
@@ -283,7 +283,7 @@ export class BlockListStore {
       return;
     }
     const blocks = Array.from(this.batchedGeometryPending.values())
-      .filter(({ state }) => this.getBlockState(state.id) === state)
+      .filter(({ state }) => state.isAttached())
       .map(({ geometry }) => geometry);
     this.batchedGeometryPending.clear();
     if (blocks.length) this.graph.emit("blocks-geometry-change", { blocks });

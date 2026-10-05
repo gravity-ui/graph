@@ -155,12 +155,17 @@ export class BlockState<T extends TBlock = TBlock> {
   }
 
   public onAnchorSelected(anchorId: AnchorState["id"], selected: boolean) {
-    if (this.store.getBlockState(this.id) !== this) return;
+    if (!this.isAttached()) return;
     this.store.setAnchorSelection(this.id, anchorId, selected);
   }
 
+  /** Whether this state is still the entity registered under its ID. */
+  public isAttached(): boolean {
+    return this.store.getBlockState(this.id) === this;
+  }
+
   public setSelection(selected: boolean, strategy: ESelectionStrategy = ESelectionStrategy.REPLACE) {
-    if (this.store.getBlockState(this.id) !== this) return;
+    if (!this.isAttached()) return;
     this.store.updateBlocksSelection([this.id], selected, strategy);
   }
 
@@ -173,7 +178,7 @@ export class BlockState<T extends TBlock = TBlock> {
   }
 
   public updateXY(x: number, y: number, forceUpdate = false) {
-    if (this.store.getBlockState(this.id) !== this) return;
+    if (!this.isAttached()) return;
     this.store.updatePosition(this.id, { x, y });
     if (forceUpdate) {
       this.$viewComponent.value?.updatePosition(x, y, true);

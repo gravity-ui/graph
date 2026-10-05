@@ -139,7 +139,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   public override isEntityAvailable(): boolean {
-    return super.isEntityAvailable() && this.context.graph.blocks.getBlockState(this.props.id) === this.connectedState;
+    return super.isEntityAvailable() && this.connectedState.isAttached();
   }
 
   public getEntityId() {
@@ -151,13 +151,12 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected updateViewState(params: Partial<BlockViewState>) {
-    let hasChanges = false;
-    for (const key of ["zIndex", "order"] as const) {
-      if (params[key] !== undefined && this.$viewState.value[key] !== params[key]) {
-        hasChanges = true;
-        break;
-      }
-    }
+    const current = this.$viewState.value;
+    const isViewStateKey = (key: string): key is keyof BlockViewState =>
+      Object.prototype.hasOwnProperty.call(current, key);
+    const hasChanges = Object.entries(params).some(
+      ([key, value]) => isViewStateKey(key) && value !== undefined && current[key] !== value
+    );
 
     if (!hasChanges) {
       return;

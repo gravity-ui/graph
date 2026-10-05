@@ -68,6 +68,8 @@ export interface ISelectionBucket<
     | "$selected"
     | "$selectedEntities"
     | "$selectedComponents"
+    | "attachToManager"
+    | "detachFromManager"
     | "isRelatedElement"
     | "updateSelection"
     | "select"

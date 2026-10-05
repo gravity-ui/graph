@@ -35,10 +35,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   public static DETAILED_HOVER_FACTOR = 1.2;
 
   public override isEntityAvailable(): boolean {
-    return (
-      super.isEntityAvailable() &&
-      this.context.graph.blocks.getBlockState(this.props.blockId)?.getAnchorById(this.props.id) === this.connectedState
-    );
+    return super.isEntityAvailable() && this.connectedState.isAttached();
   }
 
   public getEntityId(): number | string {

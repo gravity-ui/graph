@@ -15,7 +15,7 @@ graph.addLayer(ConnectionLayer, {
     viewWidth: 14,
     viewHeight: 14,
     fill: "#someColor", // optional
-    stroke: "#someColor" // optional
+    stroke: "#someColor", // optional
   },
   point: {
     path: "M15.53 1.53A...",
@@ -24,7 +24,7 @@ graph.addLayer(ConnectionLayer, {
     viewWidth: 16,
     viewHeight: 16,
     fill: "#someColor", // optional
-    stroke: "#someColor" // optional
+    stroke: "#someColor", // optional
   },
   drawLine: (start, end) => {
     const path = new Path2D();
@@ -32,19 +32,19 @@ graph.addLayer(ConnectionLayer, {
     path.lineTo(end.x, end.y);
     return {
       path,
-      style: { color: "blue", dash: [5, 5] }
+      style: { color: "blue", dash: [5, 5] },
     };
   },
   isConnectionAllowed: (sourceComponent) => {
     // Example: Only allow connections from anchor components
     const isSourceAnchor = sourceComponent instanceof AnchorState;
     return isSourceAnchor;
-    
+
     // Or validate based on component properties
     // return sourceComponent.someProperty === true;
   },
   // ... other props
-})
+});
 ```
 
 ## Properties
@@ -60,12 +60,12 @@ type ConnectionLayerProps = LayerProps & {
 };
 
 type TIcon = {
-  path: string;       // SVG path
-  fill?: string;      // Fill color
-  stroke?: string;    // Stroke color
-  width: number;      // Width of the icon
-  height: number;     // Height of the icon
-  viewWidth: number;  // View width
+  path: string; // SVG path
+  fill?: string; // Fill color
+  stroke?: string; // Stroke color
+  width: number; // Width of the icon
+  height: number; // Height of the icon
+  viewWidth: number; // View width
   viewHeight: number; // View height
 };
 ```
@@ -90,11 +90,11 @@ Fired when a user initiates a connection from a block or anchor. This happens wh
 
 ```typescript
 graph.on("connection-create-start", (event) => {
-  console.log('Creating connection from block', event.detail.blockId);
-  
+  console.log("Creating connection from block", event.detail.blockId);
+
   // If you prevent this event, the source component won't be selected
   // event.preventDefault();
-})
+});
 ```
 
 ### connection-create-hover
@@ -105,7 +105,7 @@ Fired when the dragged connection endpoint hovers over a potential target block 
 graph.on("connection-create-hover", (event) => {
   // If you prevent this event, the target component won't be selected
   // event.preventDefault();
-})
+});
 ```
 
 ### connection-created
@@ -117,19 +117,19 @@ graph.on("connection-created", (event) => {
   // The connection is added to connectionsList by default
   // If you prevent this event, the connection won't be added to the store
   // event.preventDefault();
-})
+});
 ```
 
 ### connection-create-drop
 
-Fired when the user releases the mouse button to complete the connection process. This event fires regardless of whether a valid connection was established. Can be used for cleanup or to handle custom connection drop behavior.
+Fired once when the user releases the mouse button or the source disappears during the drag. If the source disappears, the hovered target is deselected and the event contains the captured source IDs and the last processed point; no connection is created. This event fires regardless of whether a valid connection was established. Can be used for cleanup or to handle custom connection drop behavior.
 
 ```typescript
 graph.on("connection-create-drop", (event) => {
-  console.log('Connection dropped at', event.detail.point);
-  
+  console.log("Connection dropped at", event.detail.point);
+
   // This event is useful for cleanup or custom drop handling
-})
+});
 ```
 
 ## How Connections Work

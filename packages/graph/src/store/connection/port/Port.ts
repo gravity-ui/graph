@@ -4,6 +4,10 @@ import isPlainObject from "lodash/isPlainObject";
 import { Component } from "../../../lib";
 import { TPoint } from "../../../utils/types/shapes";
 
+function isPlainRecord(value: unknown): value is Record<PropertyKey, unknown> {
+  return isPlainObject(value);
+}
+
 export const IS_PORT_TYPE = "Port" as const;
 
 export type TPortId = string | number | symbol;
@@ -227,15 +231,7 @@ export class PortState<T = unknown> {
   public updatePort(port: Partial<TPort<T>>): void {
     const previous = this.$state.value.meta;
     const incoming = port.meta;
-    const meta =
-      isPlainObject(previous) &&
-      isPlainObject(incoming) &&
-      typeof previous === "object" &&
-      previous !== null &&
-      typeof incoming === "object" &&
-      incoming !== null
-        ? { ...previous, ...incoming }
-        : incoming;
+    const meta = isPlainRecord(previous) && isPlainRecord(incoming) ? { ...previous, ...incoming } : incoming;
     this.$state.value = {
       ...this.$state.value,
       ...port,

@@ -52,7 +52,7 @@ export class PortsStore {
     const existingPort = this.getPort(id);
     if (existingPort) {
       if (component && !existingPort.owner) {
-        if (component) existingPort.setOwner(component);
+        existingPort.setOwner(component);
       }
       return existingPort;
     }

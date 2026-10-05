@@ -39,8 +39,13 @@ export class AnchorState {
     this.$state.value = anchor;
   }
 
+  /** Whether this state is still the entity registered under its ID. */
+  public isAttached(): boolean {
+    return this.block.isAttached() && this.block.getAnchorById(this.id) === this;
+  }
+
   public setSelection(selected: boolean) {
-    if (this.block.getAnchorById(this.id) !== this) return;
+    if (!this.isAttached()) return;
     this.block.onAnchorSelected(this.id, selected);
   }
 

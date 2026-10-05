@@ -73,25 +73,25 @@ export function createObject(simpleObject: object, forDefineProperties: Property
   return simpleObject;
 }
 
-export function addEventListeners(
+/** Subscribe to named events. Callback types must match the events dispatched by the target. */
+export function addEventListeners<Events extends { [K in keyof Events]: Event }>(
   instance: EventTarget,
-  mapEventsToFn?: Record<string, (event: CustomEvent | MouseEvent) => void>
+  mapEventsToFn?: { [K in keyof Events]: (event: Events[K]) => void }
 ): () => void {
   if (mapEventsToFn === undefined) return noop;
-
-  const subs: (() => void)[] = [];
-  const events = Object.keys(mapEventsToFn);
-
-  for (let i = 0; i < events.length; i += 1) {
-    const callback = mapEventsToFn[events[i]];
-    const listener = (event: Event) => {
-      if (event instanceof MouseEvent || event instanceof CustomEvent) callback.call(instance, event);
+  const subscribes: (() => void)[] = [];
+  for (const name in mapEventsToFn) {
+    if (!Object.prototype.hasOwnProperty.call(mapEventsToFn, name)) continue;
+    const callback = mapEventsToFn[name];
+    const listener: EventListenerObject = {
+      handleEvent(event: Events[typeof name]) {
+        callback.call(instance, event);
+      },
     };
-    instance.addEventListener(events[i], listener);
-    subs.push(() => instance.removeEventListener(events[i], listener));
+    instance.addEventListener(name, listener);
+    subscribes.push(() => instance.removeEventListener(name, listener));
   }
-
-  return () => subs.forEach((f) => f());
+  return () => subscribes.forEach((unsubscribe) => unsubscribe());
 }
 
 /**

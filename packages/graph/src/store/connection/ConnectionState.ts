@@ -3,12 +3,12 @@ import cloneDeep from "lodash/cloneDeep";
 
 import { Anchor } from "../../components/canvas/anchors";
 import { Block } from "../../components/canvas/blocks/Block";
-import { generateRandomId } from "../../components/canvas/blocks/generate";
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "../../components/canvas/connections";
 import type { TLabel, TMultipointConnection } from "../../components/canvas/connections/types";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
 import { TConnectionColors } from "../../graphConfig";
 import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
+import { generateRandomId } from "../../utils/functions/generateRandomId";
 import { TPoint } from "../../utils/types/shapes";
 import { TBlockId } from "../block/Block";
 
@@ -250,8 +250,13 @@ export class ConnectionState<T extends TConnection = TConnection> {
     return this.$selected.value;
   }
 
+  /** Whether this state is still the entity registered under its ID. */
+  public isAttached(): boolean {
+    return !this.$destroyed.value && this.store.getConnectionState(this.id) === this;
+  }
+
   public setSelection(selected: boolean, strategy: ESelectionStrategy = ESelectionStrategy.REPLACE) {
-    if (this.$destroyed.value || this.store.getConnectionState(this.id) !== this) return;
+    if (!this.isAttached()) return;
     this.store.setConnectionsSelection([this.id], selected, strategy);
   }
 
@@ -283,11 +288,11 @@ export class ConnectionState<T extends TConnection = TConnection> {
    * @returns {void}
    */
   public updateConnection(connection: Partial<T>): void {
+    if (this.$destroyed.value) return;
     const { styles, id: _id, ...newProps } = connection;
 
     const newStyles = Object.assign({}, this.$rawState.value.styles, styles);
 
-    if (this.$destroyed.value) return;
     const sourceId = this.$sourcePortId.value;
     const targetId = this.$targetPortId.value;
     this.$rawState.value = Object.assign({}, this.$rawState.value, newProps, { styles: newStyles });

@@ -68,3 +68,21 @@ test("connection-created handler cannot connect a replacement target block", () 
   expect(graph.connections.getConnections()).toHaveLength(0);
   cleanup();
 });
+
+test.each(["move", "end"])("source deletion during %s deselects the target and completes the drag once", (phase) => {
+  const { graph, target, callbacks, event, cleanup } = setup();
+  const drop = jest.fn();
+  graph.on("connection-create-drop", drop);
+  jest.spyOn(graph, "getElementOverPoint").mockReturnValue(target);
+  callbacks.onStart?.(event, [0, 0]);
+  callbacks.onUpdate?.(event, [10, 10]);
+  expect(target.connectedState.$selected.value).toBe(true);
+  graph.blocks.deleteBlocks(["s"]);
+  if (phase === "move") callbacks.onUpdate?.(event, [20, 20]);
+  callbacks.onEnd?.(event, [20, 20]);
+  expect(target.connectedState.$selected.value).toBe(false);
+  expect(drop).toHaveBeenCalledTimes(1);
+  expect(drop.mock.calls[0][0].detail.sourceBlockId).toBe("s");
+  expect(graph.connections.getConnections()).toHaveLength(0);
+  cleanup();
+});

@@ -598,7 +598,7 @@ export class PortConnectionLayer extends Layer<
         sourcePort: actualSourcePort,
         targetPort: actualTargetPort,
       },
-      () => this.createConnection(actualSourcePort, actualTargetPort)
+      () => this.createConnection(actualSourcePort, actualTargetPort, actualSourceParams, actualTargetParams)
     );
 
     this.selectPort(this.sourcePort, false);
@@ -626,10 +626,13 @@ export class PortConnectionLayer extends Layer<
     this.targetPort = undefined;
   }
 
-  protected createConnection(source: PortState, target: PortState): void {
+  protected createConnection(
+    source: PortState,
+    target: PortState,
+    sourceParams = this.getEventParams(source),
+    targetParams = this.getEventParams(target)
+  ): void {
     if (!this.isPortAvailable(source) || !this.isPortAvailable(target)) return;
-    const sourceParams = this.getEventParams(source);
-    const targetParams = this.getEventParams(target);
     const connection: TConnection = {
       sourceBlockId: sourceParams.blockId,
       sourceAnchorId: sourceParams.anchorId,
@@ -639,6 +642,7 @@ export class PortConnectionLayer extends Layer<
     if (sourceParams.blockId === undefined) connection.sourcePortId = source.id;
     if (targetParams.blockId === undefined) connection.targetPortId = target.id;
     const store = this.context.graph.connections;
+    // Only custom ports need this one-off search; block/anchor connections have deterministic IDs.
     if (connection.sourcePortId !== undefined || connection.targetPortId !== undefined) {
       const existing = Array.from(store.$connectionsMap.value.values()).find(
         (state) => state.$sourcePortId.value === source.id && state.$targetPortId.value === target.id

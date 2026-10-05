@@ -76,7 +76,7 @@ declare module "../../../../graphEvents" {
     ) => void;
 
     /**
-     * Fired when the user releases the mouse button to complete the connection process.
+     * Fired when the user releases the mouse button or the source disappears during a drag.
      * This event fires regardless of whether a valid connection was established.
      * Can be used for cleanup or to handle custom connection drop behavior.
      */
@@ -286,9 +286,7 @@ export class ConnectionLayer extends Layer<
   }
 
   private isStateAvailable(state: BlockState | AnchorState): boolean {
-    const blocks = this.context.graph.blocks;
-    if (state instanceof AnchorState) return blocks.getBlockState(state.blockId)?.getAnchorById(state.id) === state;
-    return blocks.getBlockState(state.id) === state;
+    return state.isAttached();
   }
 
   private getBlockId(component: BlockState | AnchorState) {
@@ -334,12 +332,27 @@ export class ConnectionLayer extends Layer<
     this.performRender();
   }
 
+  private cancelConnection(point: TPoint) {
+    const source = this.sourceComponent;
+    this.target?.connectedState.setSelection(false);
+    source?.setSelection(false);
+    this.sourceComponent = undefined;
+    this.target = undefined;
+    this.startState = null;
+    this.endState = null;
+    this.performRender();
+    if (source) {
+      this.context.graph.executеDefaultEventAction(
+        "connection-create-drop",
+        { sourceBlockId: this.getBlockId(source), sourceAnchorId: this.getAnchorId(source), point },
+        () => {}
+      );
+    }
+  }
+
   private onMoveNewConnection(event: MouseEvent, point: TPoint) {
     if (!this.startState || !this.sourceComponent || !this.isStateAvailable(this.sourceComponent)) {
-      this.startState = null;
-      this.endState = null;
-      this.target = undefined;
-      this.performRender();
+      this.cancelConnection(point);
       return;
     }
 
@@ -384,11 +397,7 @@ export class ConnectionLayer extends Layer<
 
   private onEndNewConnection(point: TPoint) {
     if (!this.sourceComponent || !this.startState || !this.endState || !this.isStateAvailable(this.sourceComponent)) {
-      this.startState = null;
-      this.endState = null;
-      this.target = undefined;
-      this.sourceComponent = undefined;
-      this.performRender();
+      this.cancelConnection(point);
       return;
     }
 

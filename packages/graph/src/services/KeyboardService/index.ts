@@ -83,9 +83,10 @@ export class KeyboardService {
   }
 
   public onPress(key: string, cb: (event: CustomEvent<KeyboardEvent>) => void, options?: AddEventListenerOptions) {
-    const listener = (event: Event) => {
-      if (event instanceof CustomEvent && event.detail instanceof KeyboardEvent) return cb(event);
-      return undefined;
+    const listener: EventListenerObject = {
+      handleEvent(event: CustomEvent<KeyboardEvent>) {
+        cb(event);
+      },
     };
     this.keybordEvents.addEventListener(`press-${key}`, listener, options);
     return () => {
@@ -94,9 +95,10 @@ export class KeyboardService {
   }
 
   public onRelease(key: string, cb: (event: CustomEvent<KeyboardEvent>) => void, options?: AddEventListenerOptions) {
-    const listener = (event: Event) => {
-      if (event instanceof CustomEvent && event.detail instanceof KeyboardEvent) return cb(event);
-      return undefined;
+    const listener: EventListenerObject = {
+      handleEvent(event: CustomEvent<KeyboardEvent>) {
+        cb(event);
+      },
     };
     this.keybordEvents.addEventListener(`release-${key}`, listener, options);
     return () => {

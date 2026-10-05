@@ -83,16 +83,14 @@ export class BaseConnection<
    * @deprecated use port system instead
    */
   protected get sourceBlock(): Block | undefined {
-    const component = this.connectedState.$sourcePortState.value.component;
-    return component instanceof Block ? component : undefined;
+    return this.connectedState.$sourceBlock.value?.getViewComponent();
   }
 
   /**
    * @deprecated use port system instead
    */
   protected get targetBlock(): Block | undefined {
-    const component = this.connectedState.$targetPortState.value.component;
-    return component instanceof Block ? component : undefined;
+    return this.connectedState.$targetBlock.value?.getViewComponent();
   }
 
   /**
@@ -173,10 +171,7 @@ export class BaseConnection<
   }
 
   public override isEntityAvailable(): boolean {
-    return (
-      super.isEntityAvailable() &&
-      this.context.graph.connections.getConnectionState(this.props.id) === this.connectedState
-    );
+    return super.isEntityAvailable() && this.connectedState.isAttached();
   }
 
   protected hasGeometry(): boolean {
@@ -234,7 +229,8 @@ export class BaseConnection<
    * @returns {void}
    */
   protected updatePoints(additionalPoints?: TPoint[]): void {
-    this.connectionPoints = this.connectedState.$geometry.value;
+    const geometry = this.connectedState.$geometry.value;
+    this.connectionPoints = geometry ? [{ ...geometry[0] }, { ...geometry[1] }] : undefined;
     if (!this.isEntityAvailable() || !this.hasGeometry()) {
       this.bBox = [0, 0, 0, 0];
       this.removeHitBox();
