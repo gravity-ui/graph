@@ -241,3 +241,32 @@ class CustomBlock extends CanvasBlock<MyBlock> {
 
 Canvas Block/Anchor/Connection construction requires an existing corresponding state and
 throws a descriptive error when the required entity is absent.
+
+## Layer resources and lifecycle
+
+Base `Layer.getCanvas()` and `Layer.getHTML()` return `undefined` when that
+resource was not configured. `LayerContext.ctx` and `graphCanvas` are also
+`undefined` for layers without a canvas. `LayerContext.canvas` is the layer's own
+canvas; `root` is set on attach and cleared on detach. `ownerDocument` comes from
+the created elements or attached root and can be `undefined` for an empty layer
+before attachment. Guard optional resources before use. Canvas resources
+are created during construction, before attachment, and retained when detached
+so that the same elements can be reattached. A configured canvas that cannot
+provide a 2D context throws a descriptive error during construction.
+
+```ts
+const html = layer.getHTML();
+if (html) html.classList.add("custom-layer");
+```
+
+Custom canvas layers may use the protected `requireCanvas()` and
+`requireCanvasContext()` helpers when they require those resources. These helpers
+throw if the layer has no canvas. The graph's own canvas accessor remains required.
+
+A layer can be constructed before the graph has a root element. Register graph,
+DOM and signal subscriptions in `afterInit()` using `onGraphEvent`, `onRootEvent`,
+`onCanvasEvent`, `onHtmlEvent` and `onSignal`, and call `super.afterInit()`.
+Detach cleans these subscriptions and pending camera movement; reattach installs
+them again. Calling the cleanup returned by `onSignal` is also safe more than once.
+Starting the layers service without a root throws `Root not specified` before
+attaching any layer.

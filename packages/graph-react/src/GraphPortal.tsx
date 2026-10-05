@@ -47,7 +47,7 @@ class GraphPortalLayer extends Layer<GraphPortalLayerProps, LayerContext, TCompo
    * Get HTML element for creating portal
    */
   public getPortalTarget(): HTMLElement | null {
-    return this.getHTML();
+    return this.getHTML() ?? null;
   }
 }
 

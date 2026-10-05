@@ -204,14 +204,9 @@ export class PortConnectionLayer extends Layer<
       ...props,
     });
 
+    this.requireCanvas();
     this.setContext({
-      canvas: this.getCanvas(),
       graphCanvas: props.graph.getGraphCanvas(),
-      ctx: this.getCanvas().getContext("2d"),
-      camera: props.camera,
-      constants: this.props.graph.graphConstants,
-      colors: this.props.graph.graphColors,
-      graph: this.props.graph,
     });
 
     this.enabled = Boolean(this.props.graph.rootStore.settings.getConfigFlag("canCreateNewConnections"));

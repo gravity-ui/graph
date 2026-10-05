@@ -28,10 +28,7 @@ export class SelectionLayer extends Layer<
       ...props,
     });
 
-    this.setContext({
-      canvas: this.getCanvas(),
-      ctx: this.getCanvas().getContext("2d"),
-    });
+    this.requireCanvas();
   }
 
   /**

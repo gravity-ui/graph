@@ -15,7 +15,7 @@ import { schedule } from "../../utils/utils/schedule";
 import { ICamera, TCameraState } from "./CameraService";
 
 export type TCameraProps = TComponentProps & {
-  root?: HTMLDivElement;
+  root?: HTMLElement;
   children: ComponentDescriptor[];
 };
 

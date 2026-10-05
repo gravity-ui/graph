@@ -299,16 +299,12 @@ export class GraphComponent<
       throw new Error("Attempt to add event listener to non-existent root element");
     }
 
-    const listener =
-      typeof handler === "function"
-        ? (handler as (this: HTMLElement, ev: HTMLElementEventMap[K]) => void)
-        : (handler as EventListenerObject);
-
-    root.addEventListener(eventName, listener, options);
-
     const unsubscribe = () => {
-      root.removeEventListener(eventName, listener, options);
+      if (typeof handler === "function") root.removeEventListener(eventName, handler, options);
+      else root.removeEventListener(eventName, handler, options);
     };
+    if (typeof handler === "function") root.addEventListener(eventName, handler, options);
+    else root.addEventListener(eventName, handler, options);
 
     this.unsubscribe.push(unsubscribe);
 

@@ -25,7 +25,7 @@ export class Component<
     nextState: undefined,
   };
 
-  constructor(props: Props, parent: CoreComponent) {
+  constructor(props: Props, parent?: CoreComponent) {
     super(props, parent);
     this.state = {} as State;
   }

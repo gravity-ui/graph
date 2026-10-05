@@ -180,18 +180,7 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
       ...props,
     });
 
-    const canvas = this.getCanvas();
-
-    this.setContext({
-      canvas,
-      ctx: canvas.getContext("2d"),
-      root: this.props.root,
-      camera: this.props.camera,
-      constants: this.props.graph.graphConstants,
-      colors: this.props.graph.graphColors,
-      graph: this.props.graph,
-      ownerDocument: this.props.root,
-    });
+    this.requireCanvas();
   }
 
   protected afterInit(): void {
