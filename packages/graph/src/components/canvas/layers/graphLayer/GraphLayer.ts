@@ -216,10 +216,8 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     const point = this.context.graph.getPointInCameraSpace(event);
 
     // Store canvas-relative coordinates for camera-change emulation
-    if (point.origPoint) {
-      this.lastMouseCanvasX = point.origPoint.x;
-      this.lastMouseCanvasY = point.origPoint.y;
-    }
+    this.lastMouseCanvasX = point.canvas.x;
+    this.lastMouseCanvasY = point.canvas.y;
 
     this.targetComponent = this.context.graph.getElementOverPoint(point) || this.$.camera;
   }
@@ -228,8 +226,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     if (this.lastMouseCanvasX === undefined || this.lastMouseCanvasY === undefined) return;
     if (this.capturedTargetComponent) return;
 
-    const [worldX, worldY] = this.context.camera.applyToPoint(this.lastMouseCanvasX, this.lastMouseCanvasY);
-    const point = new Point(worldX, worldY, { x: this.lastMouseCanvasX, y: this.lastMouseCanvasY });
+    const point = this.context.camera.createCameraPoint(Point(this.lastMouseCanvasX, this.lastMouseCanvasY), "canvas");
     const newTarget = this.context.graph.getElementOverPoint(point) || this.$.camera;
 
     if (newTarget === this.targetComponent) return;

@@ -35,7 +35,12 @@ export type TCameraState = {
 
 - `getRelative(n)` / `getRelativeXY(x, y)` – screen → camera space.
 - `getAbsolute(n)` / `getAbsoluteXY(x, y)` – camera → screen space.
-- `applyToPoint(x, y)` / `applyToRect(x, y, w, h)` – fast helpers to apply camera transform.
+- `createCameraPoint(point, space = "world")` – captures a `CameraPoint` with exact
+  `world` and `canvas` coordinates. Pass `"canvas"` for canvas-relative CSS input.
+  Both fields are copied, canvas coordinates exclude DPR, and the pair describes
+  the current camera state. Recreate it after pan/zoom. Hit testing consumes this
+  prepared pair without calling the camera service.
+- `applyToPoint(x, y)` / `applyToRect(x, y, w, h)` – legacy helpers that apply the camera transform with integer truncation.
 
 ## Camera control
 

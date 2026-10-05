@@ -406,7 +406,7 @@ export class BlockGroupsTransferLayer<
    */
   protected findGroupAtPoint(point: [number, number]): Group | null {
     const [x, y] = point;
-    return this.props.graph.getElementOverPoint(new Point(x, y), [Group]) ?? null;
+    return this.props.graph.getElementOverPoint(Point(x, y), [Group]) ?? null;
   }
 
   /**

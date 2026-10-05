@@ -1,7 +1,7 @@
 import { ESchedulerPriority } from "../../../../lib";
 import { Component, TComponentProps, TComponentState } from "../../../../lib/Component";
 import { debounce } from "../../../../utils/functions";
-import { IRect, Rect, TRect } from "../../../../utils/types/shapes";
+import { Rect, TRect } from "../../../../utils/types/shapes";
 
 import { TBelowLayerContext } from "./BelowLayer";
 import { PointerGrid } from "./PointerGrid";
@@ -9,7 +9,7 @@ import { PointerGrid } from "./PointerGrid";
 type TBackgroundState = TComponentState & TRect;
 
 export class Background extends Component<TComponentProps, TBackgroundState, TBelowLayerContext> {
-  private extendedUsableRect: IRect = new Rect(0, 0, 0, 0);
+  private extendedUsableRect: TRect = Rect(0, 0, 0, 0);
 
   protected readonly unsubscribe: () => void;
 

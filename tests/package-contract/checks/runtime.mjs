@@ -16,6 +16,9 @@ const nativeImportProbes = {
         throw new Error(\`Root entrypoint does not export \${schedulerFunction}.\`);
       }
     }
+    const { deepStrictEqual } = await import("node:assert/strict");
+    deepStrictEqual(graph.Point(-1.5, 0), { x: -1.5, y: 0 });
+    deepStrictEqual(graph.Rect(-1.5, 0, 300, 200.5), { x: -1.5, y: 0, width: 300, height: 200.5 });
   `,
   react: `
     const react = await import("@gravity-ui/graph-react");

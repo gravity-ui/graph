@@ -21,4 +21,12 @@ Completed component contracts (#360), including CoreComponent, Component, class
 utilities, BlockGroups, BelowLayer and React GraphLayer/useLayer, must stay at zero
 strict errors. Their factories validate required props and concrete refs in both
 source and packed consumer fixtures. The refreshed baseline only removes retired
-diagnostics: graph 223 → 200, React 25 → 23; other projects are unchanged.
+diagnostics relative to `v2` after #379: graph 217 → 194, React 25 → 23;
+other projects are unchanged.
+
+## Structural geometry baseline update
+
+Removing `Point`/`Rect` and their interfaces retires six diagnostics: four implicit-any
+constructor parameters and two possibly-undefined `origPoint` coordinates.
+The baseline update only removes these resolved diagnostics; it adds no new
+diagnostics or suppressions and preserves the event-contract guarantees above.

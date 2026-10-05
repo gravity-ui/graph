@@ -297,6 +297,13 @@ function componentConstructionContracts(graph: Graph) {
   graph.setConstants({
     selectionLayer: { SELECTABLE_ENTITY_TYPES: [CanvasBlock, CustomBlockTypeContract, GenericCustomBlock] },
   });
+  // Structural geometry inputs must preserve the concrete custom/generic filter result.
+  graph.getElementsOverPoint({ x: 0, y: 0 }, [CustomBlockTypeContract]).forEach((block) => block.getDescription());
+  const cameraPoint = graph.cameraService.createCameraPoint({ x: 0, y: 0 });
+  const genericBlock = graph.getElementOverPoint(cameraPoint, [GenericCustomBlock]);
+  genericBlock?.getRows();
+  // @ts-expect-error A filtered result is a typed generic block, not an untyped instance.
+  genericBlock?.missingMethod();
   const found = graph.getElementsInViewport([CustomBlockTypeContract]);
   found.forEach((block) => {
     const description: string | undefined = block.getDescription();
