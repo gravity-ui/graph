@@ -326,6 +326,15 @@ importers:
       '@gravity-ui/eslint-config':
         specifier: ^3.2.0
         version: 3.2.0(@types/eslint@9.6.1)(eslint@8.57.0)(prettier@3.3.2)(typescript@5.9.2)
+      '@swc/core':
+        specifier: ^1.13.3
+        version: 1.13.3
+      '@swc/jest':
+        specifier: ^0.2.39
+        version: 0.2.39(@swc/core@1.13.3)
+      '@types/jest':
+        specifier: ^30.0.0
+        version: 30.0.0
       '@typescript-eslint/eslint-plugin':
         specifier: 5.39.0
         version: 5.39.0(@typescript-eslint/parser@5.39.0(eslint@8.57.0)(typescript@5.9.2))(eslint@8.57.0)(typescript@5.9.2)
@@ -344,6 +353,15 @@ importers:
       eslint-plugin-prettier:
         specifier: ^5.0.0
         version: 5.1.3(@types/eslint@9.6.1)(eslint-config-prettier@8.10.0(eslint@8.57.0))(eslint@8.57.0)(prettier@3.3.2)
+      jest:
+        specifier: ^30.0.5
+        version: 30.0.5(@types/node@20.19.43)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.13.3)(@types/node@20.19.43)(typescript@5.9.2))
+      jest-canvas-mock:
+        specifier: ^2.5.2
+        version: 2.5.2
+      jest-environment-jsdom:
+        specifier: ^30.0.5
+        version: 30.0.5
       prettier:
         specifier: ^3.0.0
         version: 3.3.2

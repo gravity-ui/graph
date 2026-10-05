@@ -56,7 +56,8 @@ export function useLayer<T extends GraphClassConstructor<Layer> = GraphClassCons
   const prevProps = usePrevious(props);
   useLayoutEffect(() => {
     if (layer && (!prevProps || !isEqual(prevProps, props))) {
-      layer.setProps(props);
+      // Constructor-specific input is checked above; dispatch through the concrete layer's update API.
+      Reflect.apply(layer.setProps, layer, [props]);
     }
   }, [layer, props, prevProps]);
 

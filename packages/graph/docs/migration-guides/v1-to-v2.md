@@ -13,6 +13,7 @@ The temporary branch and release process is documented separately in
 - Replace `canChangeBlockGeometry` / `ECanChangeBlockGeometry` with `canDrag` / `ECanDrag`.
 - Treat configuration input types as patches and use the complete configuration types for stored state.
 - Replace resets through `undefined` with `resetSettings(keys)` or `resetSettings()`.
+- Use `TDevToolsLayerInput` for devtools input and resolved `TDevToolsLayerProps` for instance props; replace devtools resets through `undefined` with `resetProps(keys?)`.
 - Supply complete arrays/tuples when updating constants.
 - Use plain `TPoint` / `TRect` objects instead of geometry classes and their conversion methods.
 
@@ -574,3 +575,19 @@ devtools.resetProps(["rulerSize"]); // Restores 32, keeps showCrosshair false.
 devtools.resetProps(); // Restores all constructor visual values.
 const size: number = devtools.props.rulerSize;
 ```
+
+
+`LayerPublicProps<typeof CustomLayer>` now derives its input from the first
+constructor parameter, independently of `Layer<RuntimeProps>`. Custom layers can
+therefore normalize partial constructor input while keeping their runtime props
+complete. Generic metadata and discriminated constructor inputs are preserved. Keep the
+actual constructor type in layer configurations: use
+`LayerConfig<typeof CustomLayer>` instead of
+`LayerConfig<GraphClassConstructor<CustomLayer>>`. The latter erases constructor
+arguments, so its public input can only fall back to the shared Layer fields.
+
+Resource defaults are merged when constructing DevTools. Later `setProps` calls
+and reused component descriptors apply shallow patches; supplied `canvas`/`html`
+objects replace the previous configuration. DOM classes and z-index are created
+once by base Layer and are not changed by such patches. Create a new layer to
+change its DOM resource configuration. Resource input still requires `zIndex`.

@@ -17,7 +17,17 @@ import { calculateNiceNumber } from "./utils/calculateNiceNumber";
 
 import "./devtools-layer.css"; // Import the CSS file after type imports
 
-/** Merge a shallow patch without letting undefined erase current values. */
+/** Forward only defined entries from a typed patch; keys are discovered at runtime. */
+function definedPatch<T extends object>(patch: T) {
+  const result = {};
+  for (const key in patch) {
+    const value = patch[key];
+    if (value !== undefined) Object.assign(result, { [key]: value });
+  }
+  return result;
+}
+
+/** Merge defaults and defined overrides. */
 function mergeDefined<T extends object>(current: T, patch?: Partial<T>): T {
   const result = { ...current };
   for (const key in patch) {
@@ -38,9 +48,7 @@ function pickOptions<T extends object>(defaults: T, source: T): T {
  * DevToolsLayer: Provides rulers and crosshairs for precise positioning and measurement.
  * Uses two HTML divs with backdrop-filter for ruler background and blur.
  */
-export class DevToolsLayer extends Layer<TDevToolsLayerInput, LayerContext, TDevToolsLayerState> {
-  public declare props: TDevToolsLayerProps;
-
+export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDevToolsLayerState> {
   public state = { ...INITIAL_DEVTOOLS_LAYER_STATE };
 
   private readonly initialOptions: TDevToolsLayerOptions;
@@ -50,7 +58,10 @@ export class DevToolsLayer extends Layer<TDevToolsLayerInput, LayerContext, TDev
   private verticalRulerBgEl: HTMLDivElement | null = null;
 
   constructor(props: TDevToolsLayerInput) {
-    const resolvedProps = mergeDefined({ ...props, ...DEFAULT_DEVTOOLS_LAYER_PROPS }, props);
+    const resolvedProps = {
+      ...props,
+      ...mergeDefined(DEFAULT_DEVTOOLS_LAYER_PROPS, props),
+    };
     super({
       ...resolvedProps,
       canvas: mergeDefined<NonNullable<TDevToolsLayerInput["canvas"]>>(
@@ -77,8 +88,7 @@ export class DevToolsLayer extends Layer<TDevToolsLayerInput, LayerContext, TDev
   /** Queue a partial update. Omitted and undefined values preserve the latest queued props. */
   public setProps(props?: Partial<TDevToolsLayerInput>): void {
     if (props === undefined) return;
-    const current = this.__data.nextProps ?? this.props;
-    super.setProps(mergeDefined(current, props));
+    super.setProps(definedPatch(props));
   }
 
   /** Restore visual props to their constructor values; an empty key list changes nothing. */
@@ -87,10 +97,10 @@ export class DevToolsLayer extends Layer<TDevToolsLayerInput, LayerContext, TDev
       this.setProps(this.initialOptions);
       return;
     }
-    keys.forEach((key) => {
-      const current = this.__data.nextProps ?? this.props;
-      super.setProps({ ...current, [key]: this.initialOptions[key] });
-    });
+    if (keys.length === 0) return;
+    const patch = {};
+    keys.forEach((key) => Object.assign(patch, { [key]: this.initialOptions[key] }));
+    this.setProps(patch);
   }
 
   protected propsChanged(nextProps: TDevToolsLayerProps): void {

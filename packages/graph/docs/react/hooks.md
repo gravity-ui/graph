@@ -164,6 +164,29 @@ function MyGraph(): JSX.Element {
 }
 ```
 
+
+For DevTools, `useLayer` updates are patches: omitting a visual field or passing
+`undefined` keeps its current value. In particular,
+`rulerSize: expanded ? 40 : undefined` does not return to the default when
+`expanded` becomes false. Supply a concrete value for declarative switching:
+
+```tsx
+import type { Graph } from "@gravity-ui/graph";
+import { DEFAULT_DEVTOOLS_LAYER_PROPS, DevToolsLayer } from "@gravity-ui/graph-devtools";
+import { useLayer } from "@gravity-ui/graph-react";
+
+function DevToolsOverlay({ graph, expanded }: { graph: Graph | null; expanded: boolean }) {
+  useLayer(graph, DevToolsLayer, {
+    rulerSize: expanded ? 40 : DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize,
+  });
+  return null;
+}
+```
+
+For an explicit imperative reset, call `devToolsLayer?.resetProps(["rulerSize"])`.
+It restores the value established when that layer was constructed, which can
+include a custom override; `resetProps()` restores all visual constructor values.
+
 #### Parameters
 
 | Parameter | Type | Description |

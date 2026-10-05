@@ -1,4 +1,4 @@
-import { Graph, Layer, type LayerPublicProps } from "@gravity-ui/graph";
+import { Graph, Layer, type GraphClassConstructor, type LayerProps, type LayerPublicProps } from "@gravity-ui/graph";
 import {
   DevToolsLayer,
   DEFAULT_DEVTOOLS_LAYER_PROPS,
@@ -45,3 +45,55 @@ const customOptions: LayerPublicProps<typeof CustomDevTools> = {};
 const custom = graph.addLayer(CustomDevTools, customOptions);
 const customColor: string = custom.props.crosshairColor;
 void [direct, descriptor, customColor];
+
+// Runtime Layer props remain resolved even when the constructor accepts optional input.
+class NormalizedLayer extends Layer<LayerProps & { size: number }> {
+  constructor(input: LayerProps & { size?: number }) {
+    super({ ...input, size: input.size ?? 10 });
+  }
+}
+const normalizedOptions: LayerPublicProps<typeof NormalizedLayer> = {};
+const normalizedLayer = graph.addLayer(NormalizedLayer, normalizedOptions);
+const normalizedSize: number = normalizedLayer.props.size;
+const serviceLayer = graph.layers.createLayer(NormalizedLayer, { graph, camera: graph.cameraService });
+const serviceSize: number = serviceLayer.props.size;
+// @ts-expect-error Constructor input still rejects invalid visual values.
+graph.addLayer(NormalizedLayer, { size: "10" });
+const erasedOptions: LayerPublicProps<GraphClassConstructor<Layer>> = {};
+
+class GenericLayer<Meta extends { label: string }> extends Layer<LayerProps & { meta: Meta; size: number }> {
+  constructor(input: LayerProps & { meta: Meta; size?: number }) {
+    super({ ...input, size: input.size ?? 10 });
+  }
+}
+const genericLayer = graph.addLayer(GenericLayer<{ label: string; rows: readonly number[] }>, {
+  meta: { label: "table", rows: [1, 2] },
+});
+const rows: readonly number[] = genericLayer.props.meta.rows;
+// @ts-expect-error Required generic constructor metadata remains required.
+graph.addLayer(GenericLayer, {});
+// @ts-expect-error Metadata keeps its consumer-specified structure.
+graph.addLayer(GenericLayer<{ label: string; rows: readonly number[] }>, { meta: { label: "table" } });
+
+class ModeLayer extends Layer<LayerProps & { mode: "single" | "multi"; size: number }> {
+  constructor(
+    input: LayerProps & ({ mode: "single"; size?: number } | { mode: "multi"; ticks: number; size?: number })
+  ) {
+    super({ ...input, size: input.size ?? 10 });
+  }
+}
+graph.addLayer(ModeLayer, { mode: "single" });
+graph.addLayer(ModeLayer, { mode: "multi", ticks: 5 });
+// @ts-expect-error Constructor union must retain mode-dependent required fields.
+graph.addLayer(ModeLayer, { mode: "multi" });
+void [normalizedSize, serviceSize, erasedOptions, rows];
+
+class OptionalRootLayer extends Layer<LayerProps & { root?: HTMLDivElement }> {
+  constructor(input: Partial<LayerProps & { root?: HTMLDivElement }> = {}) {
+    super({ ...input, graph: input.graph ?? graph, camera: input.camera ?? graph.cameraService });
+  }
+}
+graph.addLayer(OptionalRootLayer, { root: document.createElement("div") });
+// @ts-expect-error Constructor root narrowing is preserved even with optional infrastructure input.
+graph.addLayer(OptionalRootLayer, { root: document.createElement("span") });
+OptionalRootLayer.create();

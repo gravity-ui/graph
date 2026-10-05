@@ -63,8 +63,21 @@ export type LayerContext = {
   layer: Layer;
 };
 
+// Erased or argument-free constructors retain the shared Layer input contract.
+type LayerConstructorInput<T extends GraphClassConstructor<Layer>> = [
+  NonNullable<ConstructorParameters<T>[0]>,
+] extends [never]
+  ? LayerProps
+  : NonNullable<ConstructorParameters<T>[0]>;
+
+type PublicLayerInput<Props> = Props extends unknown
+  ? Omit<Props, "root" | "camera" | "graph"> & {
+      root?: "root" extends keyof Props ? Props["root"] : LayerProps["root"];
+    }
+  : never;
+
 /**
- * Utility type to extract public props for a Layer constructor.
+ * Extract public input from a Layer constructor, independently of its runtime props.
  * Excludes internal props that are provided by the graph instance:
  * - root: managed by the layers service
  * - camera: provided by the graph's camera service
@@ -74,10 +87,7 @@ export type LayerContext = {
  *
  * @template T - Layer constructor type
  */
-export type LayerPublicProps<T extends GraphClassConstructor<Layer>> =
-  T extends GraphClassConstructor<Layer<infer Props>>
-    ? Omit<Props, "root" | "camera" | "graph"> & { root?: Props["root"] }
-    : never;
+export type LayerPublicProps<T extends GraphClassConstructor<Layer>> = PublicLayerInput<LayerConstructorInput<T>>;
 
 export type LayerConstructor<T extends GraphClassConstructor<Layer>> =
   T extends GraphClassConstructor<Layer> ? T : never;
