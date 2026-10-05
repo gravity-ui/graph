@@ -59,6 +59,31 @@ describe("useLayer hook", () => {
     consoleErrorSpy.mockRestore();
   });
 
+  it("keeps custom normalization when construction and updates accept the same input", () => {
+    class ConvertedLayer extends Layer<LayerProps & { size: number }> {
+      constructor(input: LayerProps & { size: string }) {
+        super({ ...input, size: Number(input.size) });
+      }
+      public setProps(input?: Partial<LayerProps> & { size?: string | number }) {
+        if (input === undefined) return;
+        if (input.size !== undefined) super.setProps({ size: Number(input.size) });
+      }
+      public flush() {
+        this.checkData();
+      }
+    }
+    addLayerSpy.mockRestore();
+    const { result, rerender, unmount } = renderHook(({ size }) => useLayer(graph, ConvertedLayer, { size }), {
+      initialProps: { size: "10" },
+    });
+    expect(result.current?.props.size).toBe(10);
+    act(() => rerender({ size: "20" }));
+    result.current?.flush();
+    expect(result.current?.props.size).toBe(20);
+    unmount();
+    graph.unmount();
+  });
+
   describe("Initial rendering", () => {
     it("should return null when graph is null", () => {
       // Execute

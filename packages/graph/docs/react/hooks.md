@@ -1033,3 +1033,5 @@ function CameraInfo({ graph }: Props): JSX.Element {
   );
 }
 ```
+
+For custom layers, `useLayer` and `GraphLayer` props must be accepted by both the constructor and `setProps`. If a constructor converts input to a different runtime type (for example, a string to a number), provide a `setProps` override that accepts and normalizes the same input. Constructor-only normalization remains available through `graph.addLayer`.
