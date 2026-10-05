@@ -403,3 +403,45 @@ instance methods. A custom layer with required public props must receive them, i
 Group mixins retain required props and inherited methods from custom `BlockGroups`
 subclasses. `getGroupById` returns `null` when no mounted group matches the id.
 Canvas blocks and their custom/generic subclasses remain valid selection filters.
+
+
+## Scheduling and text helpers
+
+`debounce` and `throttle` preserve callback arguments and the call-site `this`
+receiver. Both wrappers return `void`, including immediate throttle calls; they
+discard callback results and do not copy arbitrary properties from the original
+function. If you need its result, call that function directly. Wrappers preserve
+unions of callback signatures, permitting only calls safe for every possible
+branch. Callback overloads follow the last signature.
+For generic callbacks whose parameter relationships depend on their type parameter,
+pass a concrete callback adapter to keep useful inference.
+
+```ts
+const update = debounce((label: string) => saveLabel(label));
+update("Latest"); // void
+update.flush(); // invokes the pending callback now; also returns void
+```
+
+Debounce uses the latest arguments and receiver. `cancel()` discards a pending
+invocation; `flush()` runs it immediately. Throttle runs the first call immediately
+and drops calls during the cooldown. Its `cancel()` and `flush()` reset that
+cooldown; they do not replay a suppressed call. Cancelling and rescheduling keeps
+the full configured interval. A callback may schedule a debounced follow-up for a
+later frame.
+
+`schedule` accepts a callback that can be invoked without arguments or a receiver.
+Bind required arguments and `this` before scheduling, for example
+`schedule(() => updatePosition(x, y), options)`. Its returned function prevents
+pending invocations immediately, even
+though the Scheduler processes physical removal after the frame. `once: true`
+also prevents another invocation during a nested Scheduler update. Scheduling
+options use the same priority range as `Scheduler` (0–4 or the corresponding `ESchedulerPriority` member).
+
+`getFontSize` accepts numeric font size and scale. `measureText` returns a numeric
+width for both fresh and cached measurements. If the browser cannot create a 2D
+Canvas context, text measurement throws a descriptive error; a later call retries
+context creation.
+
+The unused internal `FrameDebouncer` implementation was removed. Use the public
+`debounce`, `throttle` and `schedule` functions instead of importing that internal
+service.

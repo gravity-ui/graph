@@ -52,6 +52,12 @@ export const COMPONENT_CONTRACT_FILES = [
   "packages/graph-react/src/GraphLayer.tsx",
   "packages/graph-react/src/hooks/useLayer.ts",
 ];
+const SCHEDULING_TEXT_FILES = [
+  "packages/graph/src/services/optimizations/frameDebouncer.ts",
+  "packages/graph/src/utils/utils/schedule.ts",
+  "packages/graph/src/utils/functions/text.ts",
+  "packages/graph/src/utils/functions/text.test.ts",
+];
 const script = fileURLToPath(import.meta.url);
 const root = path.resolve(path.dirname(script), "..");
 const baselinePath = path.join(root, "docs/audits/strict-typescript-baseline.json");
@@ -116,6 +122,9 @@ export function validateSnapshot(value) {
     }
     if (COMPONENT_CONTRACT_FILES.includes(diagnostic.file)) {
       throw new Error(`Component contracts must have zero strict diagnostics: ${identity(diagnostic)}`);
+    }
+    if (SCHEDULING_TEXT_FILES.includes(diagnostic.file)) {
+      throw new Error(`Scheduling and text must have zero strict diagnostics: ${identity(diagnostic)}`);
     }
     const key = identity(diagnostic);
     if (seen.has(key)) throw new Error(`Duplicate diagnostic identity: ${key}`);
@@ -227,6 +236,7 @@ async function main(args) {
   }
   console.log("Component factories, descriptors, refs and group contracts: zero strict diagnostics.");
   console.log("Scheduler: zero strict diagnostics (full projects checked).");
+  console.log("Scheduling wrappers and text helpers: zero strict diagnostics.");
   console.log("Resolved configuration boundaries: zero strict diagnostics.");
   console.log("Nullable lookup boundaries: zero strict diagnostics.");
   console.log("Event contracts: zero strict diagnostics in completed files and graph/block listener arguments.");

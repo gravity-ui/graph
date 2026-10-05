@@ -13,28 +13,29 @@ export type TScheduleOptions = {
   once?: boolean;
 };
 
-export const schedule = (fn: Function, options: TScheduleOptions) => {
+export const schedule = (fn: (this: void) => unknown, options: TScheduleOptions) => {
   const { priority, frameInterval, once } = options;
   let frameCounter = 0;
   let isRemoved = false;
-  const debounceScheduler = {
+  const registration = {
     performUpdate: () => {
+      // Physical removal is deferred, but the returned remover invalidates the task immediately.
+      if (isRemoved) return;
       frameCounter++;
       if (frameCounter >= frameInterval) {
-        if (once && !isRemoved) {
-          scheduler.removeScheduler(debounceScheduler, priority);
-          isRemoved = true;
-        }
-        fn();
         frameCounter = 0;
-        if (once) {
-          isRemoved = true;
-          scheduler.removeScheduler(debounceScheduler, priority);
-        }
+        if (once) remove();
+        fn();
       }
     },
   };
-  return scheduler.addScheduler(debounceScheduler, priority);
+  const removeRegistration = scheduler.addScheduler(registration, priority);
+  function remove() {
+    if (isRemoved) return;
+    isRemoved = true;
+    removeRegistration();
+  }
+  return remove;
 };
 
 export type TDebounceOptions = {
@@ -43,186 +44,126 @@ export type TDebounceOptions = {
   frameTimeout?: number;
 };
 
-/**
- * Creates a debounced function that delays execution until after frameInterval frames
- * and frameTimeout milliseconds have passed since it was last invoked.
- * Both conditions must be met for execution.
- * @param fn - The function to debounce
- * @param options - Configuration options
- * @param options.priority - Scheduler priority (default: MEDIUM)
- * @param options.frameInterval - Number of frames to wait before execution (default: 1)
- * @param options.frameTimeout - Minimum time in milliseconds to wait before execution (default: 0)
- * @returns A debounced version of the function with cancel and flush methods
- */
-export const debounce = <T extends (...args: Parameters<T>) => void>(
-  fn: T,
-  { priority = 2, frameInterval = 1, frameTimeout = 0 }: TDebounceOptions = {}
-): T & { cancel: () => void; flush: () => void; isScheduled: () => boolean } => {
-  let frameCounter = 0;
-  let isScheduled = false;
-  let cancelled = false;
-  let removeScheduler: (() => void) | null = null;
-  let latestArgs: Parameters<T> | undefined;
-  let startTime = 0;
-
-  const debouncedScheduler = {
-    performUpdate: () => {
-      // cancel() was called before this frame's performUpdate ran — skip execution
-      if (cancelled) {
-        cancelled = false;
-        return;
-      }
-      frameCounter++;
-      const currentTime = getNow();
-      const elapsedTime = currentTime - startTime;
-
-      if (frameCounter >= frameInterval && elapsedTime >= frameTimeout) {
-        // Save the current removeScheduler before resetting state
-        // to prevent race condition when fn() triggers new debounced calls
-        const currentRemoveScheduler = removeScheduler;
-        isScheduled = false;
-        frameCounter = 0;
-        startTime = 0;
-        removeScheduler = null;
-        const args = latestArgs;
-        latestArgs = undefined;
-        fn(...((args ?? []) as Parameters<T>));
-        if (currentRemoveScheduler) {
-          currentRemoveScheduler();
-        }
-      }
-    },
-  };
-
-  const cancel = () => {
-    if (isScheduled && removeScheduler) {
-      // Mark as cancelled so performUpdate skips execution if it runs this frame
-      // before GlobalScheduler processes the deferred removal from toRemove
-      cancelled = true;
-      removeScheduler();
-    }
-    isScheduled = false;
-    frameCounter = 0;
-    startTime = 0;
-    removeScheduler = null;
-    latestArgs = undefined;
-  };
-
-  const flush = () => {
-    if (isScheduled) {
-      const currentRemoveScheduler = removeScheduler;
-      isScheduled = false;
-      frameCounter = 0;
-      startTime = 0;
-      removeScheduler = null;
-      const args = latestArgs;
-      latestArgs = undefined;
-      // Remove the old scheduler handle BEFORE calling fn() so that any
-      // re-scheduling triggered inside fn() is not accidentally canceled.
-      if (currentRemoveScheduler) {
-        currentRemoveScheduler();
-      }
-      fn(...((args ?? []) as Parameters<T>));
-    }
-  };
-
-  const debouncedFn = ((...args: Parameters<T>) => {
-    latestArgs = args; // Store latest arguments
-    frameCounter = 0; // Reset counter on each call
-    startTime = getNow(); // Reset start time on each call
-    cancelled = false; // A new call overrides any pending cancel
-
-    if (!isScheduled) {
-      isScheduled = true;
-      removeScheduler = scheduler.addScheduler(debouncedScheduler, priority);
-    }
-  }) as T & { cancel: () => void; flush: () => void; isScheduled: () => boolean };
-
-  debouncedFn.cancel = cancel;
-  debouncedFn.flush = flush;
-  debouncedFn.isScheduled = () => {
-    return isScheduled;
-  };
-
-  return debouncedFn;
+type TCallback = (...args: never[]) => unknown;
+// Preserve callable unions rather than accepting the union of their argument tuples.
+type TWrappedCallback<T extends TCallback> = T extends unknown
+  ? (this: ThisParameterType<T>, ...args: Parameters<T>) => void
+  : never;
+type TDebounced<T extends TCallback> = TWrappedCallback<T> & {
+  cancel: () => void;
+  flush: () => void;
+  isScheduled: () => boolean;
+};
+type TThrottled<T extends TCallback> = TWrappedCallback<T> & {
+  cancel: () => void;
+  flush: () => void;
 };
 
 /**
- * Creates a throttled function that only executes at most once per frameInterval frames
- * and frameTimeout milliseconds. Both conditions must be met for execution.
- * @param fn - The function to throttle
- * @param options - Configuration options
- * @param options.priority - Scheduler priority (default: MEDIUM)
- * @param options.frameInterval - Number of frames between executions (default: 1)
- * @param options.frameTimeout - Minimum time in milliseconds between executions (default: 0)
- * @returns A throttled version of the function with cancel and flush methods
+ * Delay the latest invocation until both frameInterval frames and frameTimeout milliseconds pass.
+ * Arguments and the receiver are forwarded; callback results are discarded.
+ * flush invokes a pending call immediately, and cancel discards it.
  */
-export const throttle = <T extends (...args: Parameters<T>) => void>(
+export function debounce<T extends TCallback>(fn: T, options?: TDebounceOptions): TDebounced<T>;
+export function debounce<T extends TCallback>(
   fn: T,
   { priority = 2, frameInterval = 1, frameTimeout = 0 }: TDebounceOptions = {}
-): T & { cancel: () => void; flush: () => void } => {
+) {
   let frameCounter = 0;
-  let canExecute = true;
-  let isScheduled = false;
-  let removeScheduler: (() => void) | null = null;
   let startTime = 0;
+  let executionDepth = 0;
+  let latestCall: { args: Parameters<T>; receiver: ThisParameterType<T> } | undefined;
+  let registration: { performUpdate: () => void } | undefined;
+  let removeScheduler: (() => void) | undefined;
 
-  const throttledScheduler = {
-    performUpdate: () => {
-      frameCounter++;
-      const currentTime = getNow();
-      const elapsedTime = currentTime - startTime;
-
-      if (frameCounter >= frameInterval && elapsedTime >= frameTimeout) {
-        // Save the current removeScheduler before resetting state
-        // to prevent race condition when new throttled calls happen
-        const currentRemoveScheduler = removeScheduler;
-        canExecute = true;
-        isScheduled = false;
-        frameCounter = 0;
-        startTime = 0;
-        removeScheduler = null;
-        if (currentRemoveScheduler) {
-          currentRemoveScheduler();
-        }
-      }
-    },
+  const release = () => {
+    const remove = removeScheduler;
+    registration = undefined;
+    removeScheduler = undefined;
+    remove?.();
   };
 
   const cancel = () => {
-    if (isScheduled && removeScheduler) {
-      removeScheduler();
-      removeScheduler = null;
-    }
-    isScheduled = false;
-    frameCounter = 0;
-    startTime = 0;
-    canExecute = true; // Reset throttle state
+    latestCall = undefined;
+    if (executionDepth === 0) release();
   };
 
   const flush = () => {
-    cancel(); // Reset the timer and allow immediate execution
+    const call = latestCall;
+    if (!call) return;
+    latestCall = undefined;
+    executionDepth++;
+    try {
+      // The wrapper checked this invocation's arguments and receiver before storage.
+      Reflect.apply(fn, call.receiver, call.args);
+    } finally {
+      executionDepth--;
+      // Keep the registration while invoking callbacks (including nested flush calls).
+      // Even cancel + replacement inside fn must not register another task in this frame.
+      if (executionDepth === 0 && !latestCall) release();
+    }
   };
 
-  const throttledFn = ((...args: Parameters<T>) => {
-    if (canExecute) {
-      fn(...args);
-      canExecute = false;
-      frameCounter = 0;
-      startTime = getNow(); // Start timing from this execution
+  const wrapped = function (this: ThisParameterType<T>, ...args: Parameters<T>): void {
+    latestCall = { args, receiver: this };
+    frameCounter = 0;
+    startTime = getNow();
+    if (registration) return;
 
-      if (!isScheduled) {
-        isScheduled = true;
-        removeScheduler = scheduler.addScheduler(throttledScheduler, priority);
-      }
-    }
-  }) as T & { cancel: () => void; flush: () => void };
+    const nextRegistration = {
+      performUpdate: () => {
+        // Removals are deferred; a cancelled registration must not advance a new call's timer.
+        if (registration !== nextRegistration || !latestCall) return;
+        frameCounter++;
+        if (frameCounter >= frameInterval && getNow() - startTime >= frameTimeout) flush();
+      },
+    };
+    registration = nextRegistration;
+    removeScheduler = scheduler.addScheduler(nextRegistration, priority);
+  };
 
-  throttledFn.cancel = cancel;
-  throttledFn.flush = flush;
+  return Object.assign(wrapped, { cancel, flush, isScheduled: () => latestCall !== undefined });
+}
 
-  return throttledFn;
-};
+/**
+ * Run immediately, then suppress invocations until both frameInterval frames and frameTimeout
+ * milliseconds pass. Arguments and the receiver are forwarded; callback results are discarded.
+ * cancel and flush reset the cooldown; suppressed calls are not queued.
+ */
+export function throttle<T extends TCallback>(fn: T, options?: TDebounceOptions): TThrottled<T>;
+export function throttle<T extends TCallback>(
+  fn: T,
+  { priority = 2, frameInterval = 1, frameTimeout = 0 }: TDebounceOptions = {}
+) {
+  let registration: { performUpdate: () => void } | undefined;
+  let removeScheduler: (() => void) | undefined;
+
+  const cancel = () => {
+    const remove = removeScheduler;
+    registration = undefined;
+    removeScheduler = undefined;
+    remove?.();
+  };
+
+  const wrapped = function (this: ThisParameterType<T>, ...args: Parameters<T>): void {
+    if (registration) return;
+    let frameCounter = 0;
+    const startTime = getNow();
+    const nextRegistration = {
+      performUpdate: () => {
+        if (registration !== nextRegistration) return;
+        frameCounter++;
+        if (frameCounter >= frameInterval && getNow() - startTime >= frameTimeout) cancel();
+      },
+    };
+    registration = nextRegistration;
+    removeScheduler = scheduler.addScheduler(nextRegistration, priority);
+    // Enter the cooldown before invoking fn so recursive calls are also throttled.
+    Reflect.apply(fn, this, args);
+  };
+
+  return Object.assign(wrapped, { cancel, flush: cancel });
+}
 
 /**
  * Usage examples:

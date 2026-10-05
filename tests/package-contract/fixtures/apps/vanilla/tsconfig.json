@@ -3,6 +3,7 @@
   "include": [
     "app.ts",
     "component-factories.ts",
+    "scheduling.ts",
     "graph.pw.ts",
     "../../shared/assets.d.ts"
   ]
