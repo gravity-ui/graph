@@ -7,6 +7,9 @@ import {
   GraphPortal,
   GraphPortalLayer,
   useBlockAnchorPosition,
+  useBlockState,
+  useSyncBlockState,
+  useBlockViewState,
   useComputedSignal,
   useLayer,
   useSignal,
@@ -72,6 +75,25 @@ export function LayerAndSignalContracts({ graph }: { graph: Graph }) {
     meta: { label: "custom", count: 1 },
     anchors: [],
   };
+  const inferred = useBlockState(graph, block);
+  const declared = useSyncBlockState<Meta>(graph, block.id);
+  const view = useBlockViewState<Meta>(graph, block.id);
+  if (inferred && declared) {
+    const count: number | undefined = inferred.$state.value.meta?.count;
+    const label: string | undefined = declared.$state.value.meta?.label;
+    void count;
+    void label;
+    // @ts-expect-error metadata-only generics do not promise arbitrary entity fields
+    declared.$state.value.customField;
+    // @ts-expect-error declared Meta cannot expose unrelated metadata fields
+    declared.$state.value.meta?.missing;
+  }
+  if (view) {
+    const count: number | undefined = view.connectedState.$state.value.meta?.count;
+    void count;
+  }
+  // @ts-expect-error data metadata does not promise custom view methods
+  view?.customMethod();
   const domRef = React.createRef<HTMLDivElement>();
   const blockElement = (
     <GraphBlock graph={graph} block={block} ref={domRef}>

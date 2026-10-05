@@ -268,8 +268,9 @@ Legacy internal selector modules are removed. Use the existing
 `rootStore.blocksList.getBlockState(id)` and
 `rootStore.connectionsList.getConnectionState(id)` methods directly.
 
-Lookup hooks and store methods do not accept a type argument that promises
-custom metadata from an ID. Custom canvas blocks retain `CanvasBlock<T, Props>`
+Core store methods do not accept a type argument that promises custom metadata
+from an ID. React hooks accept a caller-declared metadata schema as described in
+the React strict contracts section below. Custom canvas blocks retain `CanvasBlock<T, Props>`
 for declaring their state/Meta and component props. The application is responsible
 for matching that declaration to the data supplied for its registered block type;
 the library does not validate the shape of custom Meta at runtime.
@@ -546,5 +547,7 @@ without `!important`. Single-class selectors such as `.my-minimap` or
 `useSignal` accepts both mutable and readonly/computed signals. A definite signal returns its value type; a nullable or missing signal returns `T | undefined`. `useBlockViewState` observes asynchronous view readiness, and `useBlockAnchorPosition` accepts nullable DOM refs, initializes a DOM node mounted after anchor readiness, and clears previous CSS coordinates when the anchor or its position becomes absent. Missing blocks and anchors remain absent until available. `GraphCanvas` without `renderBlock` renders its canvas and child portals without a React block list.
 
 ELK conversion returns empty records when `edges` or `children` are missing. Edges without a first section (including an empty `sections` array) and children without both coordinates are omitted. Positioned children and the first routed section retain their existing conversion. `useElk` permits an absent `onError` callback and sets loading for each new layout request.
+
+`useBlockState`, `useSyncBlockState` and `useBlockViewState` now take a metadata-only generic parameter: `useBlockState<MyMeta>(graph, id)`, or infer it from a supplied `TBlock<MyMeta>`. Their results expose `TBlock<MyMeta>` data while retaining `undefined` for missing entities/views. The generic parameter represents the metadata schema, rather than an entire entity subtype or custom canvas class. The application declares that schema; no runtime Meta validation is performed. These hooks do not promise arbitrary entity fields or methods of a custom canvas subclass.
 
 The React package now checks source, unit tests and declaration emit with permanent `strict: true`.
