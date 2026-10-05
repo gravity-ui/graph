@@ -1,8 +1,8 @@
 import React, { useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 
-import { Graph, GraphState, Layer, type TBlock } from "@gravity-ui/graph";
-import { GraphBlock, GraphCanvas, GraphPortal, useBlockState, useSyncBlockState, useBlockViewState, useBlockAnchorState, useGraph, useGraphEvent, useGraphEvents, type GraphEvent, type GraphEventDetail } from "@gravity-ui/graph-react";
+import { Graph, GraphState, Layer, type LayerProps, type TBlock } from "@gravity-ui/graph";
+import { GraphBlock, GraphCanvas, GraphLayer, useLayer, GraphPortal, useBlockState, useSyncBlockState, useBlockViewState, useBlockAnchorState, useGraph, useGraphEvent, useGraphEvents, type GraphEvent, type GraphEventDetail } from "@gravity-ui/graph-react";
 import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-react/styles.css";
 
@@ -117,3 +117,42 @@ function ReactEventTypeContracts({ graph }: { graph: Graph }) {
   return null;
 }
 void ReactEventTypeContracts;
+
+// Compile-only contracts: JSX and useLayer preserve custom required props and the concrete ref instance.
+class RequiredReactLayer extends Layer<LayerProps & { label: string }> {
+  public getLabel() {
+    return this.props.label;
+  }
+}
+function LayerConstructionContracts({ graph }: { graph: Graph }) {
+  const layer = useLayer(graph, RequiredReactLayer, { label: "custom" });
+  layer?.getLabel();
+  // @ts-expect-error useLayer is null before initialization, even with a non-null Graph.
+  layer.getLabel();
+  // @ts-expect-error useLayer requires the custom label after Graph injects its internal props.
+  useLayer(graph, RequiredReactLayer, {});
+  const valid = (
+    <GraphLayer
+      layer={RequiredReactLayer}
+      props={{ label: "custom" }}
+      ref={(instance) => {
+        if (instance) {
+          const label: string = instance.getLabel();
+          // @ts-expect-error The ref is the concrete layer, not an untyped instance.
+          instance.missingMethod();
+          void label;
+        }
+      }}
+    />
+  );
+  // @ts-expect-error Required custom props cannot be omitted through the React wrapper.
+  const missing = <GraphLayer layer={RequiredReactLayer} />;
+  // @ts-expect-error The supplied props must satisfy the concrete layer class.
+  const wrong = <GraphLayer layer={RequiredReactLayer} props={{}} />;
+  const optional = <GraphLayer layer={Layer} />;
+  void valid;
+  void missing;
+  void wrong;
+  return optional;
+}
+void LayerConstructionContracts;

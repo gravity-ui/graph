@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo } from "react";
 
 import type {
+  GraphClassConstructor,
   Layer,
   LayerPublicProps,
   TBlock,
@@ -92,7 +93,7 @@ export function useGraph(config: HookGraphParams): UseGraphResult {
     }),
     setViewConfiguration,
     addLayer: useFn(
-      <T extends Constructor<Layer> = Constructor<Layer>>(
+      <T extends GraphClassConstructor<Layer> = GraphClassConstructor<Layer>>(
         layerCtor: T,
         props: LayerPublicProps<T>
       ): InstanceType<T> => {

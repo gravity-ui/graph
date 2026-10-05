@@ -1,6 +1,6 @@
 import { Graph } from "../../../../graph";
 import { Component } from "../../../../lib";
-import { ComponentDescriptor, CoreComponentContext, CoreComponentProps } from "../../../../lib/CoreComponent";
+import { ChildDescriptor } from "../../../../lib/CoreComponent";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { ICamera } from "../../../../services/camera/CameraService";
 
@@ -43,7 +43,7 @@ export class BelowLayer extends Layer<TBelowLayerProps, TBelowLayerContext> {
     super.afterInit();
   }
 
-  public updateChildren(): ComponentDescriptor<CoreComponentProps, CoreComponentContext>[] {
+  public updateChildren(): ChildDescriptor[] {
     return [this.background.create({})];
   }
 }

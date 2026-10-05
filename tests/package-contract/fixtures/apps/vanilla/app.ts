@@ -1,5 +1,13 @@
 import {
   CanvasBlock,
+  BlockGroups,
+  Component,
+  type BlockGroupsProps,
+  type LayerProps,
+  type GraphClassConstructor,
+  type ChildDescriptor,
+  type ComponentDescriptor,
+  type Interface,
   ECanDrag,
   Graph,
   Layer,
@@ -251,3 +259,103 @@ class EventContractLayer extends Layer {
   }
 }
 void EventContractLayer;
+
+class RequiredPropsComponent extends Component<{ label: string }> {
+  getLabel(): string {
+    return this.props.label;
+  }
+}
+function componentConstructionContracts(graph: Graph) {
+  RequiredPropsComponent.create(
+    { label: "child" },
+    {
+      ref: (instance) => {
+        const label: string = instance.getLabel();
+        void label;
+        // @ts-expect-error A ref must infer this concrete component, which has no missingMethod.
+        instance.missingMethod();
+      },
+    }
+  );
+  // @ts-expect-error A required label cannot be omitted from create.
+  RequiredPropsComponent.create();
+  // @ts-expect-error An empty props object cannot replace a required label.
+  RequiredPropsComponent.create({});
+  const descriptor: ComponentDescriptor<typeof RequiredPropsComponent> = RequiredPropsComponent.create({
+    label: "checked",
+  });
+  const children: ChildDescriptor[] = [descriptor];
+  // @ts-expect-error Raw children cannot bypass the concrete factory validation.
+  const unchecked: ChildDescriptor = { klass: RequiredPropsComponent, props: {}, options: {} };
+  void children;
+  void unchecked;
+  const mounted = Component.mount(RequiredPropsComponent, { label: "root" });
+  const label: string = mounted.getLabel();
+  void label;
+  // @ts-expect-error mount must require label props for this constructor.
+  Component.mount(RequiredPropsComponent);
+  graph.setConstants({
+    selectionLayer: { SELECTABLE_ENTITY_TYPES: [CanvasBlock, CustomBlockTypeContract, GenericCustomBlock] },
+  });
+  // Structural geometry inputs must preserve the concrete custom/generic filter result.
+  graph.getElementsOverPoint({ x: 0, y: 0 }, [CustomBlockTypeContract]).forEach((block) => block.getDescription());
+  const cameraPoint = graph.cameraService.createCameraPoint({ x: 0, y: 0 });
+  const genericBlock = graph.getElementOverPoint(cameraPoint, [GenericCustomBlock]);
+  genericBlock?.getRows();
+  // @ts-expect-error A filtered result is a typed generic block, not an untyped instance.
+  genericBlock?.missingMethod();
+  const found = graph.getElementsInViewport([CustomBlockTypeContract]);
+  found.forEach((block) => {
+    const description: string | undefined = block.getDescription();
+    void description;
+  });
+}
+void componentConstructionContracts;
+
+// Compile-only contracts: layer injection and group mixins retain custom props and inherited methods.
+class RequiredLayer extends Layer<LayerProps & { label: string }> {
+  public getLabel() {
+    return this.props.label;
+  }
+}
+class CustomGroups extends BlockGroups<BlockGroupsProps & { label: string }> {
+  public getLabel() {
+    return this.props.label;
+  }
+}
+function layerAndGroupConstructionContracts(graph: Graph) {
+  const layer = graph.addLayer(RequiredLayer, { label: "custom" });
+  const label: string = layer.getLabel();
+  // @ts-expect-error Graph injects camera/graph/root, but the custom label remains required.
+  graph.addLayer(RequiredLayer, {});
+  const Groups = CustomGroups.withPredefinedGroups();
+  const groups = graph.addLayer(Groups, { label });
+  groups.getLabel();
+  groups.defineGroups([]);
+  // @ts-expect-error A mixin must not erase required props from its custom base.
+  graph.addLayer(Groups, {});
+  const Grouped = CustomGroups.withBlockGrouping({
+    groupingFn: () => ({}),
+    mapToGroups: (id, { rect }) => ({ id, rect }),
+  });
+  graph.addLayer(Grouped, { label }).getLabel();
+  // Utility types are named imports and do not require global declaration injection.
+  const ctor: GraphClassConstructor<RequiredLayer> = RequiredLayer;
+  const publicLayer: Interface<RequiredLayer> = layer;
+  void ctor;
+  void publicLayer;
+}
+void layerAndGroupConstructionContracts;
+
+class NoPropsComponent extends Component { constructor() { super({}); } }
+class OptionalPropsComponent extends Component<{ label: string }> {
+  constructor(props = { label: "default" }) { super(props); }
+}
+// Constructors with zero or optional arguments must remain callable through the factories.
+function optionalComponentConstructionContracts() {
+  NoPropsComponent.create(); Component.mount(NoPropsComponent);
+  OptionalPropsComponent.create(); Component.mount(OptionalPropsComponent);
+  // @ts-expect-error Supplied optional props still need their required label field.
+  OptionalPropsComponent.create({});
+}
+void optionalComponentConstructionContracts;

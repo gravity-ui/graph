@@ -5,6 +5,7 @@ import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
 import { ESchedulerPriority } from "../lib/Scheduler";
 import { TypedEventListener, addTypedEventListener } from "../utils/eventListener";
+import type { GraphClassConstructor } from "../utils/types/classes";
 import { debounce } from "../utils/utils/schedule";
 
 import { ICamera, TCameraState } from "./camera/CameraService";
@@ -70,12 +71,13 @@ export type LayerContext = {
  *
  * @template T - Layer constructor type
  */
-export type LayerPublicProps<T extends Constructor<Layer>> =
-  T extends Constructor<Layer<infer Props>>
+export type LayerPublicProps<T extends GraphClassConstructor<Layer>> =
+  T extends GraphClassConstructor<Layer<infer Props>>
     ? Omit<Props, "root" | "camera" | "graph"> & { root?: Props["root"] }
     : never;
 
-export type LayerConstructor<T extends Constructor<Layer>> = T extends Constructor<Layer> ? T : never;
+export type LayerConstructor<T extends GraphClassConstructor<Layer>> =
+  T extends GraphClassConstructor<Layer> ? T : never;
 
 const HIDDEN_CLASS_NAME = "layer-hidden";
 

@@ -17,6 +17,13 @@ dragListener, Camera and React event helpers/tests, must stay at zero strict err
 Graph and canvas Block must also have zero TS2345 argument errors. These rules
 apply to baseline writes as well as CI comparisons.
 
+Completed component contracts (#360), including CoreComponent, Component, class
+utilities, BlockGroups, BelowLayer and React GraphLayer/useLayer, must stay at zero
+strict errors. Their factories validate required props and concrete refs in both
+source and packed consumer fixtures. The refreshed baseline only removes retired
+diagnostics relative to `v2` after #379: graph 217 → 194, React 25 → 23;
+other projects are unchanged.
+
 ## Structural geometry baseline update
 
 Removing `Point`/`Rect` and their interfaces retires six diagnostics: four implicit-any

@@ -200,6 +200,7 @@ try {
     },
     typecheckConfigs: [
       "fixtures/apps/vanilla/tsconfig.json",
+      "fixtures/apps/vanilla/tsconfig.non-strict.json",
       "fixtures/types/playwright-bundler/tsconfig.json",
       "fixtures/types/node-cjs-playwright/tsconfig.json",
     ],

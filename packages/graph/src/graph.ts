@@ -32,10 +32,13 @@ import { TypedEventListener, addTypedEventListener, removeTypedEventListener } f
 import { clearColorCache, getXY } from "./utils/functions";
 import { clearGraphInstance, setGraphInstance } from "./utils/graphInstance";
 import { clearTextCache } from "./utils/renderers/text";
-import "./utils/types/global";
+import type { GraphClassConstructor } from "./utils/types/classes";
 import { Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
 
-export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
+export type LayerConfig<T extends GraphClassConstructor<Layer> = GraphClassConstructor<Layer>> = [
+  T,
+  LayerPublicProps<T>,
+];
 export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   configurationName?: string;
   blocks?: Block[];
@@ -239,7 +242,7 @@ export class Graph {
   }
 
   /** Returns elements at a world point or a prepared pair of world and canvas coordinates. */
-  public getElementsOverPoint<T extends Constructor<GraphComponent>>(
+  public getElementsOverPoint<T extends GraphComponentConstructor>(
     point: TPoint | CameraPoint,
     filter?: T[]
   ): InstanceType<T>[] {
@@ -252,7 +255,7 @@ export class Graph {
   }
 
   /** Returns the topmost element at a world-space point. */
-  public getElementOverPoint<T extends Constructor<GraphComponent>>(
+  public getElementOverPoint<T extends GraphComponentConstructor>(
     point: TPoint | CameraPoint,
     filter?: T[]
   ): InstanceType<T> | undefined {
@@ -275,7 +278,7 @@ export class Graph {
     return { x, y, width, height };
   }
 
-  public getElementsInViewport<T extends Constructor<GraphComponent>>(filter?: T[]): InstanceType<T>[] {
+  public getElementsInViewport<T extends GraphComponentConstructor>(filter?: T[]): InstanceType<T>[] {
     const viewportRect = this.getViewportRect();
     return this.getElementsOverRect(viewportRect, filter);
   }
@@ -286,11 +289,9 @@ export class Graph {
       minY: rect.y,
       maxX: rect.x + rect.width,
       maxY: rect.y + rect.height,
-    }) as InstanceType<T>[] | [];
-    if (filter.length && items.length > 0) {
-      return items.filter((item: InstanceType<T>) =>
-        filter.some((Component) => item instanceof Component)
-      ) as InstanceType<T>[];
+    });
+    if (filter?.length && items.length > 0) {
+      return items.filter((item) => filter.some((Component) => item instanceof Component)) as InstanceType<T>[];
     }
     return items as InstanceType<T>[];
   }
@@ -400,12 +401,12 @@ export class Graph {
     }
   }
 
-  public addLayer<T extends Constructor<Layer> = Constructor<Layer>>(
+  public addLayer<T extends GraphClassConstructor<Layer> = GraphClassConstructor<Layer>>(
     layerCtor: T,
     props: LayerPublicProps<T>
   ): InstanceType<T> {
     // TODO: These types are too complicated, try to simplify them
-    return this.layers.createLayer(layerCtor as Constructor<Layer>, {
+    return this.layers.createLayer(layerCtor as GraphClassConstructor<Layer>, {
       ...props,
       camera: this.cameraService,
       graph: this,

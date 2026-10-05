@@ -349,3 +349,57 @@ incompatible callback arguments are rejected.
 In `@gravity-ui/graph-react`, `GraphEvent<CallbackName>` now describes the actual
 event passed as the second callback argument. Use `GraphEventDetail<CallbackName>`
 for the first argument. React event callbacks infer both arguments from the key.
+
+## Component factories, descriptors and refs
+
+`create` infers props and callback-ref instances from the concrete component
+class. `Component.mount(CustomComponent, props)` returns `CustomComponent`.
+Pass props when the constructor requires fields; omitting them is allowed only
+when `{}` satisfies its props type or the constructor accepts no props argument.
+Omitted arguments preserve custom constructor defaults. When a defaulted props
+parameter precedes a required parent parameter, pass `create(undefined)` explicitly;
+non-strict declarations cannot distinguish that default from a required argument. If a custom constructor
+reads empty props before calling `super`, give that parameter a default value
+(e.g. `constructor(props = {})`). Remove former props/context type arguments from
+`create` and `mount`; their types now follow the supplied class.
+Callback refs receive the concrete instance
+and run when a child mounts. Keyed reuse does not call the callback again.
+
+```ts
+class Label extends Component<{ text: string }> {}
+const child = Label.create(
+  { text: "Hello" },
+  {
+    key: "label",
+    ref: (label) => label.setProps({ text: "Updated" }),
+  }
+);
+```
+
+Use `ComponentDescriptor<typeof Label>` for a concrete descriptor and
+`ChildDescriptor[]` for heterogeneous `updateChildren()` results. Build these
+through `create`; manually constructed descriptor objects and spread copies are no
+longer accepted. Descriptor fields and their exposed props are readonly; create a
+new descriptor to change its class, props or ref.
+String refs are typed as optional `CoreComponent` instances and are cleared when
+the child is removed or replaced. Declare specific optional refs on your subclass
+when you need its concrete type, or use a callback ref.
+
+`GraphClassConstructor`, `Class` and `Interface` are named exports from `@gravity-ui/graph`.
+Add explicit type imports wherever you previously relied on their ambient global
+declarations. Replace the old global `Constructor<T>` with an explicit import of
+`GraphClassConstructor<T>`. It describes class identity; use the concrete class's
+`ConstructorParameters` to inspect its constructor arguments. Unused ambient
+`PartialObject`, `IWithEvent` and `ICustomElement` declarations were removed.
+
+React `GraphLayer` and `useLayer` retain the concrete layer's props and instance
+ref. `useLayer` returns `null` before initialization; check it before accessing
+instance methods. A custom layer with required public props must receive them, including in JSX:
+
+```tsx
+<GraphLayer layer={CustomLayer} props={{ label: "Custom" }} ref={customLayerRef} />
+```
+
+Group mixins retain required props and inherited methods from custom `BlockGroups`
+subclasses. `getGroupById` returns `null` when no mounted group matches the id.
+Canvas blocks and their custom/generic subclasses remain valid selection filters.

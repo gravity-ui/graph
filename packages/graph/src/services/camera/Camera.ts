@@ -4,7 +4,7 @@ import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/Gr
 import { GraphMouseEvent, isGraphEvent } from "../../graphEvents";
 import { Component, ESchedulerPriority } from "../../lib";
 import { TComponentProps, TComponentState } from "../../lib/Component";
-import { ComponentDescriptor } from "../../lib/CoreComponent";
+import { ChildDescriptor } from "../../lib/CoreComponent";
 import { getXY, isMetaKeyEvent } from "../../utils/functions";
 import { clamp } from "../../utils/functions/clamp";
 import { dragListener } from "../../utils/functions/dragListener";
@@ -16,7 +16,7 @@ import { ICamera, TCameraState } from "./CameraService";
 
 export type TCameraProps = TComponentProps & {
   root?: HTMLElement;
-  children: ComponentDescriptor[];
+  children: ChildDescriptor[];
 };
 
 export class Camera extends EventedComponent<TCameraProps, TComponentState, TGraphLayerContext> {

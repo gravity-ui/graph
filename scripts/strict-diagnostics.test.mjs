@@ -22,6 +22,7 @@ import {
   PROJECTS,
   COMPILER,
   EVENT_CONTRACT_FILES,
+  COMPONENT_CONTRACT_FILES,
 } from "./strict-diagnostics.mjs";
 
 const diagnostic = {
@@ -214,5 +215,11 @@ test("completed event contracts cannot be added to a baseline", () => {
   }
   for (const file of ["packages/graph/src/graph.ts", "packages/graph/src/components/canvas/blocks/Block.ts"]) {
     assert.throws(() => validateSnapshot(snapshot([{ ...diagnostic, file, code: 2345 }])), /Event contracts/);
+  }
+});
+
+test("completed component contracts cannot be added to a baseline", () => {
+  for (const file of COMPONENT_CONTRACT_FILES) {
+    assert.throws(() => validateSnapshot(snapshot([{ ...diagnostic, file }])), /Component contracts/);
   }
 });
