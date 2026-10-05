@@ -23,10 +23,18 @@ class SyntheticKeyboardService extends KeyboardService {
   }
 }
 
-test.each(["press", "release"])("keyboard %s subscriptions forward synthetic detail", (type) => {
+test.each([
+  { type: "press", capture: false },
+  { type: "press", capture: true },
+  { type: "release", capture: false },
+  { type: "release", capture: true },
+])("keyboard $type capture=$capture subscriptions forward synthetic detail and unsubscribe", ({ type, capture }) => {
   const service = new SyntheticKeyboardService(new Graph({}));
   const callback = jest.fn();
-  const unsubscribe = type === "press" ? service.onPress("Escape", callback) : service.onRelease("Escape", callback);
+  const unsubscribe =
+    type === "press"
+      ? service.onPress("Escape", callback, { capture })
+      : service.onRelease("Escape", callback, { capture });
   const event = new CustomEvent(`${type}-Escape`, { detail: { key: "Escape" } });
   service.dispatch(event);
   expect(callback).toHaveBeenCalledWith(event);

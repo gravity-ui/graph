@@ -236,13 +236,13 @@ export class PublicGraphApi {
     });
   }
 
-  /** Updates an existing connection. A missing ID is a no-op; omitted fields are preserved and the stored ID cannot be changed. Missing endpoints suspend geometry until resolved. */
+  /** Updates an existing connection. A missing ID is a no-op; omitted fields are preserved and the stored ID cannot be changed. Missing endpoints suspend endpoint-derived geometry until resolved. */
   public updateConnection(id: TConnectionId, connection: Partial<TConnection>) {
     const connectionStore = this.graph.rootStore.connectionsList.getConnectionState(id);
     connectionStore?.updateConnection(connection);
   }
 
-  /** Adds or updates a connection and returns its resolved ID. Missing endpoints are accepted and have no geometry. An absent ID uses endpoint identity when available, otherwise a generated ID. */
+  /** Adds or updates a connection and returns its resolved ID. Missing endpoints are accepted; endpoint-derived geometry waits for resolution. An absent ID uses endpoint identity when available, otherwise a generated ID. */
   public addConnection(connection: TConnection) {
     return this.graph.rootStore.connectionsList.addConnection(connection);
   }
