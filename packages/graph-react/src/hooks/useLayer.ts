@@ -30,7 +30,7 @@ export function useLayer<T extends GraphClassConstructor<Layer> = GraphClassCons
   graph: Graph | null,
   layerCtor: T,
   props: LayerPublicProps<T>
-) {
+): InstanceType<T> | null {
   const [layer, setLayer] = useState<InstanceType<T> | null>(null);
   const deferredLayer = useDeferredValue(layer);
 

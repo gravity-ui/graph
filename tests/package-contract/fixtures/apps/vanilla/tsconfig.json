@@ -2,6 +2,7 @@
   "extends": "../../shared/tsconfig.json",
   "include": [
     "app.ts",
+    "component-factories.ts",
     "graph.pw.ts",
     "../../shared/assets.d.ts"
   ]

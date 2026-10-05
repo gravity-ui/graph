@@ -1,0 +1,5 @@
+{
+  "extends": "../../shared/tsconfig.json",
+  "compilerOptions": { "strict": false },
+  "include": ["component-factories.ts"]
+}

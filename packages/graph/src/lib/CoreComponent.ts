@@ -4,8 +4,6 @@ import { GraphClassConstructor } from "../utils/types/classes";
 import { Scheduler } from "./Scheduler";
 import { ITree, Tree } from "./Tree";
 
-const descriptorBrand = Symbol("component-descriptor");
-
 export type ComponentOptions<Instance> = {
   readonly key?: string | number;
   readonly ref?: ((instance: Instance) => void) | string;
@@ -15,25 +13,31 @@ export type TCoreComponent = CoreComponent<CoreComponentProps, CoreComponentCont
 export type ComponentConstructor = GraphClassConstructor<CoreComponent>;
 export type ComponentProps<C extends ComponentConstructor> = ConstructorParameters<C>[0];
 type OptionalFactoryProps<C extends ComponentConstructor> =
-  undefined extends ComponentProps<C> ? true : {} extends ComponentProps<C> ? true : false;
+  [] extends ConstructorParameters<C> ? true : {} extends ComponentProps<C> ? true : false;
 type DescriptorProps<C extends ComponentConstructor> =
   | ComponentProps<C>
   | (OptionalFactoryProps<C> extends true ? undefined : never);
 
-export type ComponentDescriptor<C extends ComponentConstructor> = {
-  readonly [descriptorBrand]: true;
-  props: DescriptorProps<C>;
-  options: ComponentOptions<InstanceType<C>>;
-  klass: C;
-};
+// A private member keeps spread copies from recreating a checked descriptor structurally.
+// The readonly view prevents consumers from changing its class/props/ref after type erasure.
+class CheckedDescriptor<Props, C extends ComponentConstructor, Instance> {
+  private declare readonly descriptorBrand: void;
+
+  constructor(
+    public readonly props: Readonly<Props>,
+    public readonly options: ComponentOptions<Instance>,
+    public readonly klass: C
+  ) {}
+}
+
+export type ComponentDescriptor<C extends ComponentConstructor> = CheckedDescriptor<
+  DescriptorProps<C>,
+  C,
+  InstanceType<C>
+>;
 
 /** Heterogeneous children erase class-specific props and refs only after factory validation. */
-export type ChildDescriptor = {
-  readonly [descriptorBrand]: true;
-  props: CoreComponentProps | undefined;
-  options: ComponentOptions<never>;
-  klass: ComponentConstructor;
-};
+export type ChildDescriptor = CheckedDescriptor<CoreComponentProps | undefined, ComponentConstructor, never>;
 
 type FactoryArguments<C extends ComponentConstructor> =
   OptionalFactoryProps<C> extends true
@@ -236,7 +240,7 @@ export class CoreComponent<
   public static create<C extends ComponentConstructor>(this: C, ...args: FactoryArguments<C>): ComponentDescriptor<C> {
     // Preserve omitted arguments so custom constructor defaults run; CoreComponent normalizes its own props.
     const props = args[0] as DescriptorProps<C>;
-    return { [descriptorBrand]: true, props, options: args[1] ?? {}, klass: this };
+    return new CheckedDescriptor(props, args[1] ?? {}, this);
   }
 
   public static mount<C extends ComponentConstructor>(

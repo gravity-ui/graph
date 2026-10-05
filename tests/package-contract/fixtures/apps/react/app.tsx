@@ -127,6 +127,8 @@ class RequiredReactLayer extends Layer<LayerProps & { label: string }> {
 function LayerConstructionContracts({ graph }: { graph: Graph }) {
   const layer = useLayer(graph, RequiredReactLayer, { label: "custom" });
   layer?.getLabel();
+  // @ts-expect-error useLayer is null before initialization, even with a non-null Graph.
+  layer.getLabel();
   // @ts-expect-error useLayer requires the custom label after Graph injects its internal props.
   useLayer(graph, RequiredReactLayer, {});
   const valid = (
