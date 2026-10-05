@@ -186,11 +186,15 @@ function layerResourceContracts(layer: Layer) {
 }
 void layerResourceContracts;
 
+// Type-only checks; this function is never called. Compile against source APIs and packed declarations.
+// Deliberately invalid payloads/listeners must be rejected; unused expect-error directives detect
+// regressions where an event name loses its payload type or inference becomes any.
 function eventTypeContracts(graph: Graph, block: CanvasBlock) {
   graph.on("state-change", (event) => {
     const state: import("@gravity-ui/graph").GraphState = event.detail.state;
     void state;
-    // @ts-expect-error This payload contains state, not colors.
+    // colors belongs to colors-changed; this access must fail for the inferred state-change payload.
+    // @ts-expect-error state-change exposes { state: GraphState }, so event.detail.colors is invalid.
     event.detail.colors;
   });
   graph.on("colors-changed", { handleEvent: (event) => {
@@ -199,27 +203,27 @@ function eventTypeContracts(graph: Graph, block: CanvasBlock) {
   } });
   graph.on("mousemove", (event) => { const source: Event = event.detail.sourceEvent; void source; });
   graph.emit("colors-changed", { colors: graph.graphColors });
-  // @ts-expect-error The name fixes the payload.
+  // @ts-expect-error colors-changed requires { colors: TGraphColors }; a state-change payload is invalid.
   graph.emit("colors-changed", { state: 0 });
   // @ts-expect-error Native mouse callbacks cannot handle graph CustomEvents.
   graph.on("click", (event: MouseEvent) => { void event; });
-  // @ts-expect-error Object listeners preserve the same event contract.
+  // @ts-expect-error state-change must reject an object listener expecting colors-changed.
   graph.on("state-change", { handleEvent: (event: CustomEvent<{ colors: TGraphColors }>) => { void event; } });
-  // @ts-expect-error off validates the event/listener relationship too.
+  // @ts-expect-error off for state-change requires a listener for its CustomEvent, not a native MouseEvent.
   graph.off("state-change", (event: MouseEvent) => { void event; });
   block.listenEvents(["click", "mousedown"], { handleEvent: (event) => { const x: number = event.clientX; void x; } });
   // @ts-expect-error A keyboard listener cannot handle these mouse events.
   block.listenEvents(["click", "mousedown"], (event: KeyboardEvent) => { void event; });
   block.addEventListener("click", (event) => { const x: number = event.clientX; void x; });
   block.addEventListener("click", { handleEvent: (event) => { const x: number = event.clientX; void x; } });
-  // @ts-expect-error Component clicks are native mouse events.
+  // @ts-expect-error Component click listeners receive MouseEvent; a KeyboardEvent listener is incompatible.
   block.addEventListener("click", (event: KeyboardEvent) => { void event; });
   graph.layers.on("update-size", (size) => { const dpr: number = size.dpr; void dpr; });
   // @ts-expect-error Typed emitters reject unknown events.
   graph.layers.on("unknown", () => {});
-  // @ts-expect-error Typed emitters reject incompatible listener arguments.
+  // @ts-expect-error update-size passes LayersRootSize to its listener, not a string.
   graph.layers.on("update-size", (size: string) => { void size; });
-  // @ts-expect-error Typed emitters reject invalid argument tuples.
+  // @ts-expect-error update-size requires a LayersRootSize argument, not a string.
   graph.layers.emit("update-size", "invalid");
   graph.hitTest.on("update", (hitTest) => { const box = hitTest.$usableRect.value; void box; });
 }
@@ -230,11 +234,11 @@ class EventContractLayer extends Layer {
     this.onGraphEvent("state-change", { handleEvent: (event) => { const state: number = event.detail.state; void state; } });
     this.onCanvasEvent("click", function(event) { const x: number = event.clientX; this.width = x; });
     this.onRootEvent("keydown", { handleEvent: (event) => { const key: string = event.key; void key; } });
-    // @ts-expect-error DOM object listeners must match their event name.
+    // @ts-expect-error keydown requires a KeyboardEvent object listener, not a MouseEvent listener.
     this.onRootEvent("keydown", { handleEvent: (event: MouseEvent) => { void event; } });
-    // @ts-expect-error Canvas listeners must match their event name.
+    // @ts-expect-error Canvas click requires a MouseEvent listener, not a KeyboardEvent listener.
     this.onCanvasEvent("click", (event: KeyboardEvent) => { void event; });
-    // @ts-expect-error Graph object listeners must match the graph payload.
+    // @ts-expect-error Graph state-change requires its CustomEvent object listener, not a MouseEvent listener.
     this.onGraphEvent("state-change", { handleEvent: (event: MouseEvent) => { void event; } });
     super.afterInit();
   }

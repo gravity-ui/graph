@@ -92,12 +92,16 @@ function LookupContracts({ graph }: { graph: Graph }) {
 }
 void LookupContracts;
 
-function ReactEventContracts({ graph }: { graph: Graph }) {
+// Type-only checks; this component is never mounted. Compile against source APIs and packed declarations.
+// Deliberately invalid payloads/listeners must be rejected: if inference becomes any, the unused
+// expect-error directives below fail compilation instead of silently accepting the regression.
+function ReactEventTypeContracts({ graph }: { graph: Graph }) {
   useGraphEvent(graph, "state-change", (data, event) => {
     const state: GraphState = data.state;
     const payload: typeof data = event.detail;
     void state; void payload;
-    // @ts-expect-error State-change has no colors.
+    // colors belongs to colors-changed. Reading it here must fail to prove state-change inferred its own payload.
+    // @ts-expect-error state-change exposes { state: GraphState }, so data.colors is invalid.
     data.colors;
   });
   useGraphEvents(graph, { onStateChanged: (data, event) => {
@@ -105,10 +109,10 @@ function ReactEventContracts({ graph }: { graph: Graph }) {
     const typedEvent: GraphEvent<"onStateChanged"> = event;
     void detail; void typedEvent;
   } });
-  // @ts-expect-error Known event names reject unrelated detail callbacks.
+  // @ts-expect-error state-change must reject a callback expecting the colors-changed payload.
   useGraphEvent(graph, "state-change", (data: { colors: unknown }) => { void data; });
-  // @ts-expect-error Named callbacks preserve payload types.
+  // @ts-expect-error onStateChanged must reject a callback expecting colors instead of state.
   useGraphEvents(graph, { onStateChanged: (data: { colors: unknown }) => { void data; } });
   return null;
 }
-void ReactEventContracts;
+void ReactEventTypeContracts;
