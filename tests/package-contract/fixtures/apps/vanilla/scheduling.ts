@@ -41,12 +41,7 @@ function schedulingContracts() {
   };
   schedule(scheduledReceiver.bind({ prefix: "bound-" }), { priority: ESchedulerPriority.MEDIUM, frameInterval: 1 });
   // @ts-expect-error schedule supplies no receiver; bind callbacks that require one.
-  schedule(
-    function (this: { prefix: string }) {
-      return this.prefix;
-    },
-    { priority: ESchedulerPriority.MEDIUM, frameInterval: 1 }
-  );
+  schedule(scheduledReceiver, { priority: ESchedulerPriority.MEDIUM, frameInterval: 1 });
   // @ts-expect-error A priority outside the Scheduler's range is invalid.
   debounce(callback, { priority: 5 });
   const size: number = getFontSize(12, 2);
