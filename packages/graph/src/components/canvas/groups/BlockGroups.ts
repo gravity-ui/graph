@@ -73,13 +73,8 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
         );
         super.afterInit();
       }
-      /**
-       * We use `as any` here because TypeScript has trouble inferring the correct type
-       * for an anonymous class extending a generic base with protected members.
-       * The public method signature ensures strict type safety for consumers.
-       */
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any;
+      // The runtime base is this constructor, so inherited members of Instance remain present.
+    } as unknown as new (props: P) => Instance & { $groupsBlocksMap: ReadonlySignal<Record<string, BlockState[]>> };
   }
 
   public static withPredefinedGroups<
@@ -136,13 +131,11 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
         );
         super.afterInit();
       }
-      /**
-       * We use `as any` here because TypeScript has trouble inferring the correct type
-       * for an anonymous class extending a generic base with protected members.
-       * The public method signature ensures strict type safety for consumers.
-       */
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any;
+      // The runtime base is this constructor, so inherited members of Instance remain present.
+    } as unknown as new (props: Props) => Instance & {
+      $groupsBlocksMap: ReadonlySignal<Record<string, BlockState[]>>;
+      defineGroups(groups: P[]): void;
+    };
   }
 
   /**
@@ -197,7 +190,7 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
      * Override parent to delegate click events to camera.
      * This allows camera movement when mouse button is held down.
      */
-    return this.props.graph.getGraphLayer().$.camera as CoreComponent;
+    return this.props.graph.getGraphLayer().$.camera;
   }
 
   public updateBlocks = (groupId: TGroupId, { deltaX, deltaY }: { deltaX: number; deltaY: number }) => {
@@ -253,6 +246,7 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
    * Find a Group component by its ID
    */
   public getGroupById(groupId: string): Group | null {
-    return this.$?.[groupId];
+    const group = this.$[groupId];
+    return group instanceof Group ? group : null;
   }
 }

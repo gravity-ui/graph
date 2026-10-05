@@ -187,13 +187,6 @@
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/groups/BlockGroups.ts",
-      "code": 7053,
-      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.\n  No index signature with a parameter of type 'string' was found on type '{}'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/groups/Group.ts",
       "code": 2322,
       "message": "Type 'GroupState<T> | undefined' is not assignable to type 'GroupState<T>'.\n  Type 'undefined' is not assignable to type 'GroupState<T>'.",
@@ -370,13 +363,6 @@
     {
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/graph.ts",
-      "code": 18048,
-      "message": "'filter' is possibly 'undefined'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/graph.ts",
       "code": 2322,
       "message": "Type 'HTMLDivElement | undefined' is not assignable to type 'HTMLDivElement'.\n  Type 'undefined' is not assignable to type 'HTMLDivElement'.",
       "count": 1
@@ -394,41 +380,6 @@
       "code": 2564,
       "message": "Property 'config' has no initializer and is not definitely assigned in the constructor.",
       "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/lib/CoreComponent.ts",
-      "code": 2339,
-      "message": "Property '__comp' does not exist on type 'never'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/lib/CoreComponent.ts",
-      "code": 2345,
-      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'never'.\n  Type 'undefined' is not assignable to type 'never'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/lib/CoreComponent.ts",
-      "code": 2538,
-      "message": "Type 'undefined' cannot be used as an index type.",
-      "count": 8
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/lib/CoreComponent.ts",
-      "code": 7006,
-      "message": "Parameter 'instance' implicitly has an 'any' type.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/lib/CoreComponent.ts",
-      "code": 7053,
-      "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{}'.\n  No index signature with a parameter of type 'string' was found on type '{}'.",
-      "count": 8
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -1079,20 +1030,6 @@
       "file": "packages/graph-react/src/GraphCanvas.tsx",
       "code": 2345,
       "message": "Argument of type 'TRenderBlockFn | undefined' is not assignable to parameter of type '<T extends TBlock>(graphObject: Graph, block: T) => Element'.\n  Type 'undefined' is not assignable to type '<T extends TBlock>(graphObject: Graph, block: T) => Element'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/GraphLayer.tsx",
-      "code": 2345,
-      "message": "Argument of type 'LayerPublicProps<TLayer> | undefined' is not assignable to parameter of type 'LayerPublicProps<TLayer>'.\n  Type 'undefined' is not assignable to type 'LayerPublicProps<TLayer>'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/GraphLayer.tsx",
-      "code": 7006,
-      "message": "Parameter 'ref' implicitly has an 'any' type.",
       "count": 1
     },
     {

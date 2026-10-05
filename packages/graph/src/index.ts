@@ -73,3 +73,13 @@ export * from "./services/selection/index.public";
 export type { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
 export type { RecursivePartial } from "./utils/types/helpers";
 export type { TDebounceOptions, TScheduleOptions } from "./utils/utils/schedule";
+
+export type { Constructor, Class, Interface } from "./utils/types/classes";
+export { CoreComponent } from "./lib/CoreComponent";
+export type {
+  ComponentOptions,
+  ComponentConstructor,
+  ComponentProps,
+  ComponentDescriptor,
+  ChildDescriptor,
+} from "./lib/CoreComponent";

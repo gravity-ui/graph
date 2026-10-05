@@ -5,6 +5,7 @@ import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
 import { ESchedulerPriority } from "../lib/Scheduler";
 import { TypedEventListener, addTypedEventListener } from "../utils/eventListener";
+import type { Constructor } from "../utils/types/classes";
 import { debounce } from "../utils/utils/schedule";
 
 import { ICamera, TCameraState } from "./camera/CameraService";

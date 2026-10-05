@@ -1,6 +1,6 @@
 import { useDeferredValue, useLayoutEffect, useState } from "react";
 
-import type { Graph, Layer, LayerPublicProps } from "@gravity-ui/graph";
+import type { Constructor, Graph, Layer, LayerPublicProps } from "@gravity-ui/graph";
 import isEqual from "lodash/isEqual";
 
 import { usePrevious } from "./usePrevious";

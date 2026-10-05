@@ -42,6 +42,16 @@ export const EVENT_CONTRACT_FILES = [
   "packages/graph-react/src/hooks/useGraphEvents.ts",
   "packages/graph-react/src/hooks/useGraphEvents.test.ts",
 ];
+export const COMPONENT_CONTRACT_FILES = [
+  "packages/graph/src/lib/CoreComponent.ts",
+  "packages/graph/src/lib/CoreComponent.test.ts",
+  "packages/graph/src/lib/Component.ts",
+  "packages/graph/src/utils/types/classes.ts",
+  "packages/graph/src/components/canvas/groups/BlockGroups.ts",
+  "packages/graph/src/components/canvas/layers/belowLayer/BelowLayer.ts",
+  "packages/graph-react/src/GraphLayer.tsx",
+  "packages/graph-react/src/hooks/useLayer.ts",
+];
 const script = fileURLToPath(import.meta.url);
 const root = path.resolve(path.dirname(script), "..");
 const baselinePath = path.join(root, "docs/audits/strict-typescript-baseline.json");
@@ -103,6 +113,9 @@ export function validateSnapshot(value) {
         diagnostic.code === 2345)
     ) {
       throw new Error(`Event contracts must have zero strict diagnostics: ${identity(diagnostic)}`);
+    }
+    if (COMPONENT_CONTRACT_FILES.includes(diagnostic.file)) {
+      throw new Error(`Component contracts must have zero strict diagnostics: ${identity(diagnostic)}`);
     }
     const key = identity(diagnostic);
     if (seen.has(key)) throw new Error(`Duplicate diagnostic identity: ${key}`);
@@ -212,6 +225,7 @@ async function main(args) {
       `${project}: ${actual.diagnostics.filter((diagnostic) => diagnostic.project === project).reduce((total, diagnostic) => total + diagnostic.count, 0)} existing diagnostics`
     );
   }
+  console.log("Component factories, descriptors, refs and group contracts: zero strict diagnostics.");
   console.log("Scheduler: zero strict diagnostics (full projects checked).");
   console.log("Resolved configuration boundaries: zero strict diagnostics.");
   console.log("Nullable lookup boundaries: zero strict diagnostics.");

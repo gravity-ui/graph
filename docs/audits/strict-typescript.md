@@ -16,3 +16,9 @@ Completed event files (#359), including EventedComponent, Emitter, the DOM adapt
 dragListener, Camera and React event helpers/tests, must stay at zero strict errors.
 Graph and canvas Block must also have zero TS2345 argument errors. These rules
 apply to baseline writes as well as CI comparisons.
+
+Completed component contracts (#360), including CoreComponent, Component, class
+utilities, BlockGroups, BelowLayer and React GraphLayer/useLayer, must stay at zero
+strict errors. Their factories validate required props and concrete refs in both
+source and packed consumer fixtures. The refreshed baseline only removes retired
+diagnostics: graph 223 → 200, React 25 → 23; other projects are unchanged.

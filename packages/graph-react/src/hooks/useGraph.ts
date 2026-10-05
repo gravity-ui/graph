@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo } from "react";
 
 import type {
+  Constructor,
   Layer,
   LayerPublicProps,
   TBlock,

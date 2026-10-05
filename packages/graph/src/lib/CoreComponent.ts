@@ -1,13 +1,44 @@
 /* eslint-disable complexity */
+import { Constructor } from "../utils/types/classes";
+
 import { Scheduler } from "./Scheduler";
 import { ITree, Tree } from "./Tree";
 
-type TOptions = {
-  readonly key?: string;
-  readonly ref?: ((inst: unknown) => void) | string;
+const descriptorBrand = Symbol("component-descriptor");
+
+export type ComponentOptions<Instance> = {
+  readonly key?: string | number;
+  readonly ref?: ((instance: Instance) => void) | string;
 };
 
 export type TCoreComponent = CoreComponent<CoreComponentProps, CoreComponentContext>;
+export type ComponentConstructor = Constructor<CoreComponent>;
+export type ComponentProps<C extends ComponentConstructor> = ConstructorParameters<C>[0];
+type OptionalFactoryProps<C extends ComponentConstructor> =
+  undefined extends ComponentProps<C> ? true : {} extends ComponentProps<C> ? true : false;
+type DescriptorProps<C extends ComponentConstructor> =
+  | ComponentProps<C>
+  | (OptionalFactoryProps<C> extends true ? undefined : never);
+
+export type ComponentDescriptor<C extends ComponentConstructor> = {
+  readonly [descriptorBrand]: true;
+  props: DescriptorProps<C>;
+  options: ComponentOptions<InstanceType<C>>;
+  klass: C;
+};
+
+/** Heterogeneous children erase class-specific props and refs only after factory validation. */
+export type ChildDescriptor = {
+  readonly [descriptorBrand]: true;
+  props: CoreComponentProps | undefined;
+  options: ComponentOptions<never>;
+  klass: ComponentConstructor;
+};
+
+type FactoryArguments<C extends ComponentConstructor> =
+  OptionalFactoryProps<C> extends true
+    ? [props?: ComponentProps<NoInfer<C>>, options?: ComponentOptions<InstanceType<NoInfer<C>>>]
+    : [props: ComponentProps<NoInfer<C>>, options?: ComponentOptions<InstanceType<NoInfer<C>>>];
 
 type TPrivateComponentData = {
   parent: CoreComponent | undefined;
@@ -16,24 +47,16 @@ type TPrivateComponentData = {
     scheduler: Scheduler;
     globalIterateId: number;
   };
-  children: object;
+  children: Map<string, CoreComponent>;
   childrenKeys: string[];
-  prevChildrenArr: object[];
+  prevChildrenArr: ChildDescriptor[];
+  stringRef: string | undefined;
   updated: boolean;
   iterateId: number;
 };
 
 export type CoreComponentProps = Record<string, unknown>;
 export type CoreComponentContext = Record<string, unknown>;
-
-export type ComponentDescriptor<
-  Props extends CoreComponentProps = CoreComponentProps,
-  Context extends CoreComponentContext = CoreComponentContext,
-> = {
-  props: Props;
-  options: TOptions;
-  klass: Constructor<CoreComponent<Props, Context>>;
-};
 
 function createDefaultPrivateContext() {
   return {
@@ -47,7 +70,7 @@ export class CoreComponent<
   Context extends CoreComponentContext = CoreComponentContext,
 > implements ITree
 {
-  public $: object = {};
+  public $: Record<string, CoreComponent | undefined> = Object.create(null);
 
   public context: Context = {} as Context;
 
@@ -75,13 +98,14 @@ export class CoreComponent<
       parent,
       context: parent ? parent.__comp.context : createDefaultPrivateContext(),
       treeNode: new Tree(this),
-      children: {},
+      children: new Map(),
       childrenKeys: [],
       prevChildrenArr: [],
+      stringRef: undefined,
       updated: false,
       iterateId: 0,
     };
-    this.props = props;
+    this.props = props ?? ({} as Props);
   }
 
   public isIterated(): boolean {
@@ -104,7 +128,7 @@ export class CoreComponent<
     const childrenKeys = this.__comp.childrenKeys;
 
     for (let i = 0; i < childrenKeys.length; i += 1) {
-      const child = children[childrenKeys[i]];
+      const child = children.get(childrenKeys[i]);
       if (child) {
         child.setContext(context);
       }
@@ -119,11 +143,11 @@ export class CoreComponent<
   protected render() {
     // noop
   }
-  protected updateChildren(): void | ComponentDescriptor[] {
+  protected updateChildren(): void | ChildDescriptor[] {
     // noop
   }
 
-  protected setProps<K extends keyof Props>(_: Pick<Props, K>) {
+  protected setProps(_: never) {
     // noop
   }
 
@@ -142,158 +166,93 @@ export class CoreComponent<
     return true;
   }
 
+  private mountChild(descriptor: ChildDescriptor, key: string): CoreComponent {
+    // The descriptor factory checked the props against the concrete class. Construction and
+    // ref invocation erase that relationship only at this heterogeneous runtime boundary.
+    const child = Reflect.construct(descriptor.klass, [descriptor.props, this]) as CoreComponent;
+    this.__comp.children.set(key, child);
+    const ref = descriptor.options.ref;
+    if (typeof ref === "function") Reflect.apply(ref, undefined, [child]);
+    else if (typeof ref === "string") {
+      child.__comp.stringRef = ref;
+      this.$[ref] = child;
+    }
+    return child;
+  }
+
+  private removeChild(key: string, child: CoreComponent): void {
+    const ref = child.__comp.stringRef;
+    if (ref !== undefined && this.$[ref] === child) delete this.$[ref];
+    child.__unmount();
+    this.__comp.children.delete(key);
+  }
+
   protected __updateChildren() {
-    const nextChildrenArr = this.updateChildren();
+    const next = this.updateChildren();
+    if (!next || next === this.__comp.prevChildrenArr) return;
+    const previousKeys = this.__comp.childrenKeys;
+    const nextKeys: string[] = [];
+    const descriptorsToMount: Array<{ key: string; descriptor: ChildDescriptor }> = [];
+    this.__comp.prevChildrenArr = next;
+    this.__comp.treeNode.clearChildren();
 
-    if (typeof nextChildrenArr === "undefined") return;
-
-    const __comp = this.__comp;
-    const children = __comp.children;
-    const childrenKeys = __comp.childrenKeys;
-    const nextChildrenKeys = (__comp.childrenKeys = []);
-
-    if (nextChildrenArr === __comp.prevChildrenArr) return;
-
-    let key;
-    let ref;
-    let child;
-    let currentChild;
-    const treeNode = __comp.treeNode;
-
-    __comp.prevChildrenArr = nextChildrenArr;
-
-    treeNode.clearChildren();
-
-    if (nextChildrenArr.length === 0) {
-      if (childrenKeys.length > 0) {
-        for (let i = 0; i < childrenKeys.length; i += 1) {
-          key = childrenKeys[i];
-          child = children[key];
-
-          child.__unmount();
-          children[key] = undefined;
-        }
-      }
-
-      return;
-    }
-
-    if (childrenKeys.length === 0) {
-      if (nextChildrenArr.length > 0) {
-        for (let i = 0; i < nextChildrenArr.length; i += 1) {
-          child = nextChildrenArr[i];
-          // eslint-disable-next-line no-prototype-builtins
-          key = child.options.hasOwnProperty("key") ? child.options.key : `${child.klass.name}|${i}|defaultKey`;
-          ref = child.options.ref;
-          // eslint-disable-next-line new-cap
-          children[key] = new child.klass(child.props, this);
-
-          if (typeof ref === "function") {
-            ref(children[key]);
-          } else if (typeof ref === "string") {
-            this.$[ref] = children[key];
-          }
-
-          nextChildrenKeys.push(key);
-          treeNode.append(children[key].__comp.treeNode);
-        }
-      }
-
-      return;
-    }
-
-    const childForMount = [];
-    const keyForMount = [];
-
-    for (let i = 0; i < nextChildrenArr.length; i += 1) {
-      child = nextChildrenArr[i];
-      // eslint-disable-next-line no-prototype-builtins
-      key = child.options.hasOwnProperty("key") ? child.options.key : `${child.klass.name}|${i}|defaultKey`;
-      currentChild = children[key];
-
-      nextChildrenKeys.push(key);
-
-      if (
-        currentChild !== undefined &&
-        currentChild instanceof child.klass &&
-        currentChild.constructor === child.klass
-      ) {
-        currentChild.setProps(child.props);
-        currentChild.__comp.updated = true;
+    next.forEach((descriptor, index) => {
+      const key = String(descriptor.options.key ?? `${descriptor.klass.name}|${index}|defaultKey`);
+      const child = this.__comp.children.get(key);
+      nextKeys.push(key);
+      if (child && child.constructor === descriptor.klass) {
+        // Each descriptor came from its concrete factory; this is the shared runtime update boundary.
+        Reflect.apply(child.setProps, child, [descriptor.props]);
+        child.__comp.updated = true;
       } else {
-        childForMount.push(child);
-        keyForMount.push(key);
+        descriptorsToMount.push({ key, descriptor });
       }
-    }
+    });
 
-    for (let i = 0; i < childrenKeys.length; i += 1) {
-      key = childrenKeys[i];
-      child = children[key];
-
-      if (child === undefined) continue;
-
-      if (child.__comp.updated === true) {
-        child.__comp.updated = false;
-      } else {
-        child.__unmount();
-        children[key] = undefined;
-      }
-    }
-
-    for (let i = 0; i < childForMount.length; i += 1) {
-      child = childForMount[i];
-      key = keyForMount[i];
-      ref = child.options.ref;
-      // eslint-disable-next-line new-cap
-      child = children[key] = new child.klass(child.props, this);
-
-      if (typeof ref === "function") {
-        ref(children[key]);
-      } else if (typeof ref === "string") {
-        this.$[ref] = children[key];
-      }
-    }
-
-    for (let i = 0; i < nextChildrenKeys.length; i += 1) {
-      if ((child = children[nextChildrenKeys[i]]) !== undefined) {
-        treeNode.append(child.__comp.treeNode);
-      }
-    }
+    previousKeys.forEach((key) => {
+      const child = this.__comp.children.get(key);
+      if (!child) return;
+      if (child.__comp.updated) child.__comp.updated = false;
+      else this.removeChild(key, child);
+    });
+    descriptorsToMount.forEach(({ key, descriptor }) => this.mountChild(descriptor, key));
+    this.__comp.childrenKeys = nextKeys;
+    nextKeys.forEach((key) => {
+      const child = this.__comp.children.get(key);
+      if (child) this.__comp.treeNode.append(child.__comp.treeNode);
+    });
   }
 
   private __unmountChildren() {
     this.__comp.treeNode.clearChildren();
-
-    const children = this.__comp.children;
-    const childrenKeys = this.__comp.childrenKeys;
-
-    for (let i = 0; i < childrenKeys.length; i += 1) {
-      children[childrenKeys[i]].__unmount();
-    }
+    this.__comp.childrenKeys.forEach((key) => {
+      const child = this.__comp.children.get(key);
+      if (child) this.removeChild(key, child);
+    });
+    this.__comp.childrenKeys = [];
+    this.__comp.prevChildrenArr = [];
   }
 
-  public static create<Props extends CoreComponentProps, Context extends CoreComponentContext>(
-    this: Constructor<CoreComponent<Props, Context>>,
-    props: Props = {} as Props,
-    options: TOptions = {}
-  ): ComponentDescriptor<Props, Context> {
-    return { props, options, klass: this };
+  public static create<C extends ComponentConstructor>(this: C, ...args: FactoryArguments<C>): ComponentDescriptor<C> {
+    // Preserve omitted arguments so custom constructor defaults run; CoreComponent normalizes its own props.
+    const props = args[0] as DescriptorProps<C>;
+    return { [descriptorBrand]: true, props, options: args[1] ?? {}, klass: this };
   }
 
-  public static mount<Props extends CoreComponentProps, Context extends CoreComponentContext>(
-    Component: Constructor<CoreComponent<Props, Context>>,
-    props?: Props
-  ) {
-    const root = new Component(props);
-
+  public static mount<C extends ComponentConstructor>(
+    Component: C,
+    ...args: OptionalFactoryProps<C> extends true
+      ? [props?: ComponentProps<NoInfer<C>>]
+      : [props: ComponentProps<NoInfer<C>>]
+  ): InstanceType<C> {
+    const root = Reflect.construct(Component, [args[0]]) as InstanceType<C>;
     const scheduler = root.__comp.context.scheduler;
     scheduler.setRoot(root.__comp.treeNode);
     scheduler.scheduleUpdate();
-
     return root;
   }
 
-  public static unmount(instance) {
+  public static unmount(instance: CoreComponent) {
     instance.__unmount();
   }
 }

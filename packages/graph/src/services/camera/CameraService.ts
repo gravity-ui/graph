@@ -3,6 +3,7 @@ import intersects from "intersects";
 import { Graph } from "../../graph";
 import { Emitter } from "../../utils/Emitter";
 import { clamp } from "../../utils/functions/clamp";
+import type { Interface } from "../../utils/types/classes";
 import { TRect } from "../../utils/types/shapes";
 
 import { ECameraScaleLevel } from "./cameraScaleEnums";

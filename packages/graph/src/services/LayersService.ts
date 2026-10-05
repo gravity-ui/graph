@@ -4,8 +4,9 @@ import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
 import { observeDPR, throttle } from "../utils/functions";
+import type { Constructor } from "../utils/types/classes";
 
-import { Layer } from "./Layer";
+import { Layer, LayerProps } from "./Layer";
 
 export type LayersRootSize = { width: number; height: number; dpr: number };
 
@@ -34,7 +35,8 @@ export class Layers extends Emitter<LayersEvents> {
     layerCtor: T,
     props: T extends Constructor<Layer<infer Props>> ? Omit<Props, "root"> & { root?: Props["root"] } : never
   ): InstanceType<T> {
-    const layer = Component.mount(layerCtor, {
+    // Public props retain the concrete class fields; mounting adapts their shared Layer contract.
+    const layer = Component.mount(layerCtor as unknown as new (props: LayerProps) => Layer, {
       root: this.$root,
       ...props,
     }) as InstanceType<T>;

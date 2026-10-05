@@ -3,6 +3,7 @@ import { Block } from "./components/canvas/blocks/Block";
 import { ESelectionStrategy } from "./services/selection";
 import { mergeDefined } from "./utils/functions/mergeDefined";
 import type { TMouseWheelBehavior, TWheelInputDevice } from "./utils/functions/wheelIntent";
+import type { Class } from "./utils/types/classes";
 
 export type {
   TResolveWheelIntent,
@@ -109,9 +110,9 @@ export const initGraphColors: TGraphColors = {
 };
 
 /**
- * Constructor type for any class that extends GraphComponent
+ * Class identity for instanceof/selection filters; this class is not constructed by the filter.
  */
-export type GraphComponentConstructor = Constructor<GraphComponent>;
+export type GraphComponentConstructor = Class<GraphComponent>;
 
 export type TGraphConstants = {
   /**

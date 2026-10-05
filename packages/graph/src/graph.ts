@@ -31,7 +31,7 @@ import { TypedEventListener, addTypedEventListener, removeTypedEventListener } f
 import { clearColorCache, getXY } from "./utils/functions";
 import { clearGraphInstance, setGraphInstance } from "./utils/graphInstance";
 import { clearTextCache } from "./utils/renderers/text";
-import "./utils/types/global";
+import type { Constructor } from "./utils/types/classes";
 import { IPoint, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
 
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
@@ -237,7 +237,7 @@ export class Graph {
     return true;
   }
 
-  public getElementsOverPoint<T extends Constructor<GraphComponent>>(point: IPoint, filter?: T[]): InstanceType<T>[] {
+  public getElementsOverPoint<T extends GraphComponentConstructor>(point: IPoint, filter?: T[]): InstanceType<T>[] {
     const items = this.hitTest.testPoint(point, this.layers.getDPR());
     if (filter && items.length > 0) {
       return items.filter((item) => filter.some((Component) => item instanceof Component)) as InstanceType<T>[];
@@ -245,7 +245,7 @@ export class Graph {
     return items as InstanceType<T>[];
   }
 
-  public getElementOverPoint<T extends Constructor<GraphComponent>>(
+  public getElementOverPoint<T extends GraphComponentConstructor>(
     point: IPoint,
     filter?: T[]
   ): InstanceType<T> | undefined {
@@ -268,7 +268,7 @@ export class Graph {
     return { x, y, width, height };
   }
 
-  public getElementsInViewport<T extends Constructor<GraphComponent>>(filter?: T[]): InstanceType<T>[] {
+  public getElementsInViewport<T extends GraphComponentConstructor>(filter?: T[]): InstanceType<T>[] {
     const viewportRect = this.getViewportRect();
     return this.getElementsOverRect(viewportRect, filter);
   }
@@ -279,11 +279,9 @@ export class Graph {
       minY: rect.y,
       maxX: rect.x + rect.width,
       maxY: rect.y + rect.height,
-    }) as InstanceType<T>[] | [];
-    if (filter.length && items.length > 0) {
-      return items.filter((item: InstanceType<T>) =>
-        filter.some((Component) => item instanceof Component)
-      ) as InstanceType<T>[];
+    });
+    if (filter?.length && items.length > 0) {
+      return items.filter((item) => filter.some((Component) => item instanceof Component)) as InstanceType<T>[];
     }
     return items as InstanceType<T>[];
   }

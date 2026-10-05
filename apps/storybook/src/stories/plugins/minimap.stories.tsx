@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
 
+import type { Constructor } from "@gravity-ui/graph";
 import { ECanDrag, Graph, LayerConfig } from "@gravity-ui/graph";
 import { MiniMapLayer } from "@gravity-ui/graph-minimap";
 import { ThemeProvider } from "@gravity-ui/uikit";
