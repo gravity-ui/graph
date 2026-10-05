@@ -56,7 +56,7 @@ export { ESchedulerPriority } from "./lib/Scheduler";
 export { computeCssVariable, debounce, throttle, schedule } from "./utils/functions";
 export * from "./utils/renderers/text";
 export { EVENTS } from "./utils/types/events";
-export { type TPoint, type TRect } from "./utils/types/shapes";
+export { type TPoint, type THitTestPoint, type TRect } from "./utils/types/shapes";
 export { ESelectionStrategy } from "./services/selection/types";
 export * from "./utils/shapes";
 export { applyAlpha, clearColorCache } from "./utils/functions/color";

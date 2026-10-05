@@ -1,5 +1,13 @@
 import type { Locator } from "@playwright/test";
-import type { Graph, TBlock, TConnection } from "@gravity-ui/graph";
+import type {
+  Graph,
+  TBlock,
+  TConnection,
+  TPoint,
+  THitTestPoint,
+  TRect,
+  UnwrapGraphEventsDetail,
+} from "@gravity-ui/graph";
 import { GraphPO, type GraphPoint } from "@gravity-ui/graph/playwright";
 
 type Equal<Left, Right> =
@@ -40,4 +48,22 @@ export async function checkPlaywrightConsumerTypes(root: Locator): Promise<void>
 
   await Promise.all([graphState, blockState, connectionState]);
   await graph.clickAt(point);
+}
+
+export function checkStructuralGeometry(graph: Graph, event: MouseEvent): void {
+  const point: TPoint = { x: 100, y: 200 };
+  const hitPoint: THitTestPoint = { ...point, origPoint: { x: 50, y: 100 } };
+  const rect: TRect = { ...point, width: 300, height: 400 };
+  const dropPoint: UnwrapGraphEventsDetail<"connection-create-drop">["point"] = point;
+  const portDropPoint: UnwrapGraphEventsDetail<"port-connection-create-drop">["point"] = point;
+  const mousePoint: THitTestPoint = graph.getPointInCameraSpace(event);
+
+  graph.getElementOverPoint(point);
+  graph.getElementsOverPoint(point);
+  graph.getElementOverPoint(hitPoint);
+  graph.getElementsOverPoint(mousePoint);
+  graph.hitTest.testPoint(point, 2);
+  graph.zoomTo(rect);
+  void dropPoint;
+  void portDropPoint;
 }

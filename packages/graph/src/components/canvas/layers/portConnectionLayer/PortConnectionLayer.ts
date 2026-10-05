@@ -12,7 +12,7 @@ import type { DragEmitter } from "../../../../utils/functions/dragListener";
 import { stopDragListening } from "../../../../utils/functions/dragListener";
 import { render } from "../../../../utils/renderers/render";
 import { renderSVG } from "../../../../utils/renderers/svgPath";
-import { Point, TPoint } from "../../../../utils/types/shapes";
+import { TPoint } from "../../../../utils/types/shapes";
 import { Anchor } from "../../../canvas/anchors";
 import { Block } from "../../../canvas/blocks/Block";
 import { GraphComponent } from "../../GraphComponent";
@@ -137,7 +137,7 @@ declare module "../../../../graphEvents" {
         sourceAnchorId: string;
         targetBlockId?: TBlockId;
         targetAnchorId?: string;
-        point: Point;
+        point: TPoint;
         sourcePort: PortState;
         targetPort?: PortState;
       }>
@@ -181,8 +181,8 @@ export class PortConnectionLayer extends Layer<
    */
   static readonly PortMetaKey = Symbol.for("PortConnectionLayer.PortMeta");
 
-  private startState: Point | null = null;
-  private endState: Point | null = null;
+  private startState: TPoint | null = null;
+  private endState: TPoint | null = null;
 
   private sourcePort?: PortState;
   private targetPort?: PortState;
@@ -282,7 +282,7 @@ export class PortConnectionLayer extends Layer<
     const searchRadius = this.props.searchRadius || PORT_SEARCH_RADIUS;
     const port = this.context.graph.rootStore.connectionsList.ports.findPortAtPointByComponent(
       initialComponent,
-      new Point(worldX, worldY),
+      { x: worldX, y: worldY },
       searchRadius,
       (candidate) => this.isSnappablePort(candidate)
     );
@@ -298,10 +298,10 @@ export class PortConnectionLayer extends Layer<
     this.currentListener = this.context.graph.dragService.startDrag(
       {
         onStart: (_event, coords) => {
-          this.onStartConnection(port, new Point(coords[0], coords[1]));
+          this.onStartConnection(port, { x: coords[0], y: coords[1] });
         },
-        onUpdate: (event, coords) => this.onMoveNewConnection(event, new Point(coords[0], coords[1])),
-        onEnd: (_event, coords) => this.onEndNewConnection(new Point(coords[0], coords[1])),
+        onUpdate: (event, coords) => this.onMoveNewConnection(event, { x: coords[0], y: coords[1] }),
+        onEnd: (_event, coords) => this.onEndNewConnection({ x: coords[0], y: coords[1] }),
       },
       { cursor: "crosshair", initialEvent: initEvent }
     );
@@ -375,7 +375,7 @@ export class PortConnectionLayer extends Layer<
     });
   }
 
-  private onStartConnection(port: PortState, _worldCoords: Point): void {
+  private onStartConnection(port: PortState, _worldCoords: TPoint): void {
     if (!port) {
       return;
     }
@@ -383,7 +383,7 @@ export class PortConnectionLayer extends Layer<
     const params = this.getEventParams(port);
 
     this.sourcePort = port;
-    this.startState = new Point(port.x, port.y);
+    this.startState = { x: port.x, y: port.y };
 
     this.context.graph.executеDefaultEventAction(
       "port-connection-create-start",
@@ -400,7 +400,7 @@ export class PortConnectionLayer extends Layer<
     this.performRender();
   }
 
-  private onMoveNewConnection(event: MouseEvent, point: Point): void {
+  private onMoveNewConnection(event: MouseEvent, point: TPoint): void {
     if (!this.startState || !this.sourcePort) {
       return;
     }
@@ -413,7 +413,7 @@ export class PortConnectionLayer extends Layer<
 
     if (snapResult) {
       // Snap to port
-      actualEndPoint = new Point(snapResult.snapPoint.x, snapResult.snapPoint.y);
+      actualEndPoint = { x: snapResult.snapPoint.x, y: snapResult.snapPoint.y };
       newTargetPort = snapResult.port;
     } else {
       // Try to find port at cursor without snapping
@@ -423,7 +423,7 @@ export class PortConnectionLayer extends Layer<
       });
     }
 
-    this.endState = new Point(actualEndPoint.x, actualEndPoint.y);
+    this.endState = { x: actualEndPoint.x, y: actualEndPoint.y };
     this.performRender();
 
     // Handle target port change
@@ -490,7 +490,7 @@ export class PortConnectionLayer extends Layer<
     this.targetPort = undefined;
   }
 
-  private onEndNewConnection(point: Point): void {
+  private onEndNewConnection(point: TPoint): void {
     if (!this.sourcePort || !this.startState || !this.endState) {
       return;
     }

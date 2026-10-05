@@ -13,6 +13,7 @@ The temporary branch and release process is documented separately in
 - Treat configuration input types as patches and use the complete configuration types for stored state.
 - Replace resets through `undefined` with `resetSettings(keys)` or `resetSettings()`.
 - Supply complete arrays/tuples when updating constants.
+- Use plain `TPoint` / `TRect` objects instead of geometry classes and their conversion methods.
 
 ## React package boundary
 
@@ -90,6 +91,36 @@ declare module "*.css";
 This declaration describes CSS imports to TypeScript. Your bundler validates
 that the imported files exist. Published declaration locations and NodeNext/CJS
 consumers remain supported.
+
+## Structural geometry
+
+`Point`, `Rect`, `IPoint`, and `IRect` are removed. Geometry APIs use plain objects;
+`TPoint`, `TRect`, and `THitTestPoint` are exported from `@gravity-ui/graph`.
+
+```ts
+import { Graph, type TPoint, type TRect } from "@gravity-ui/graph";
+
+const graph = new Graph({});
+const point: TPoint = { x: 100, y: 200 };
+const rect: TRect = { x: 0, y: 0, width: 300, height: 400 };
+
+graph.getElementOverPoint(point);
+graph.getElementsOverPoint(point);
+graph.zoomTo(rect);
+```
+
+Point lookups take world coordinates. They convert to canvas pixels internally,
+including camera translation, scale, and device pixel ratio. `THitTestPoint` adds
+an optional `origPoint: TPoint` with exact canvas-relative CSS coordinates, before
+device pixel ratio. `getPointInCameraSpace(event)` returns a plain object containing
+both world coordinates and `origPoint`; pass it directly to a point lookup to
+preserve mouse precision.
+
+The `point` payloads of `connection-create-drop` and `port-connection-create-drop`
+are plain `TPoint` values. Replace `point.toArray()` with `[point.x, point.y]` and
+`point.toObject()` with `{ x: point.x, y: point.y }`. For rectangles, use
+`[rect.x, rect.y, rect.width, rect.height]` or an object with those four fields.
+Remove imports of the internal geometry classes and `instanceof` checks for them.
 
 ## Scheduler lifecycle
 

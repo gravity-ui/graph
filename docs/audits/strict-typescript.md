@@ -16,3 +16,10 @@ Completed event files (#359), including EventedComponent, Emitter, the DOM adapt
 dragListener, Camera and React event helpers/tests, must stay at zero strict errors.
 Graph and canvas Block must also have zero TS2345 argument errors. These rules
 apply to baseline writes as well as CI comparisons.
+
+## Structural geometry baseline update
+
+Removing `Point`/`Rect` and their interfaces retires six diagnostics: four implicit-any
+constructor parameters and two possibly-undefined `origPoint` coordinates.
+The baseline update only removes these resolved diagnostics; it adds no new
+diagnostics or suppressions and preserves the event-contract guarantees above.

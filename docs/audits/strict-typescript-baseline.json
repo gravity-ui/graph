@@ -503,20 +503,6 @@
     {
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/services/HitTest.ts",
-      "code": 18048,
-      "message": "'point.origPoint.x' is possibly 'undefined'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/HitTest.ts",
-      "code": 18048,
-      "message": "'point.origPoint.y' is possibly 'undefined'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/HitTest.ts",
       "code": 2564,
       "message": "Property 'maxX' has no initializer and is not definitely assigned in the constructor.",
       "count": 1
@@ -981,34 +967,6 @@
       "file": "packages/graph/src/utils/renderers/text.ts",
       "code": 2345,
       "message": "Argument of type 'string | number' is not assignable to parameter of type 'string'.\n  Type 'number' is not assignable to type 'string'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/utils/types/shapes.ts",
-      "code": 7006,
-      "message": "Parameter 'height' implicitly has an 'any' type.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/utils/types/shapes.ts",
-      "code": 7006,
-      "message": "Parameter 'width' implicitly has an 'any' type.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/utils/types/shapes.ts",
-      "code": 7006,
-      "message": "Parameter 'x' implicitly has an 'any' type.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/utils/types/shapes.ts",
-      "code": 7006,
-      "message": "Parameter 'y' implicitly has an 'any' type.",
       "count": 1
     },
     {

@@ -6,7 +6,7 @@ import { BlockState, TBlockId } from "../../../../store/block/Block";
 import { isBlock, isShiftKeyEvent } from "../../../../utils/functions";
 import { render } from "../../../../utils/renderers/render";
 import { renderSVG } from "../../../../utils/renderers/svgPath";
-import { Point, TPoint } from "../../../../utils/types/shapes";
+import { TPoint } from "../../../../utils/types/shapes";
 import { Anchor } from "../../../canvas/anchors";
 import { Block } from "../../../canvas/blocks/Block";
 import { GraphComponent } from "../../GraphComponent";
@@ -87,7 +87,7 @@ declare module "../../../../graphEvents" {
         sourceAnchorId: string;
         targetBlockId?: TBlockId;
         targetAnchorId?: string;
-        point: Point;
+        point: TPoint;
       }>
     ) => void;
   }
@@ -116,8 +116,8 @@ export class ConnectionLayer extends Layer<
   ConnectionLayerProps,
   LayerContext & { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D }
 > {
-  private startState: Point | null = null;
-  private endState: Point | null = null;
+  private startState: TPoint | null = null;
+  private endState: TPoint | null = null;
 
   protected target?: Block | Anchor;
   protected sourceComponent?: BlockState | AnchorState;
@@ -205,9 +205,9 @@ export class ConnectionLayer extends Layer<
       }
       this.context.graph.dragService.startDrag(
         {
-          onStart: (_event, coords) => this.onStartConnection(target, new Point(coords[0], coords[1])),
-          onUpdate: (event, coords) => this.onMoveNewConnection(event, new Point(coords[0], coords[1])),
-          onEnd: (_event, coords) => this.onEndNewConnection(new Point(coords[0], coords[1])),
+          onStart: (_event, coords) => this.onStartConnection(target, { x: coords[0], y: coords[1] }),
+          onUpdate: (event, coords) => this.onMoveNewConnection(event, { x: coords[0], y: coords[1] }),
+          onEnd: (_event, coords) => this.onEndNewConnection({ x: coords[0], y: coords[1] }),
         },
         { cursor: "crosshair" }
       );
@@ -299,16 +299,16 @@ export class ConnectionLayer extends Layer<
     return undefined;
   }
 
-  private onStartConnection(sourceComponent: Block | Anchor, worldCoords: Point) {
+  private onStartConnection(sourceComponent: Block | Anchor, worldCoords: TPoint) {
     if (!sourceComponent) {
       return;
     }
     this.sourceComponent = sourceComponent.connectedState;
     if (sourceComponent instanceof Block) {
-      this.startState = new Point(worldCoords.x, worldCoords.y);
+      this.startState = { x: worldCoords.x, y: worldCoords.y };
     } else if (sourceComponent instanceof Anchor) {
       const point = sourceComponent.getPosition();
-      this.startState = new Point(point.x, point.y);
+      this.startState = { x: point.x, y: point.y };
     }
 
     this.context.graph.executеDefaultEventAction(
@@ -332,7 +332,7 @@ export class ConnectionLayer extends Layer<
     this.performRender();
   }
 
-  private onMoveNewConnection(event: MouseEvent, point: Point) {
+  private onMoveNewConnection(event: MouseEvent, point: TPoint) {
     if (!this.startState || !this.sourceComponent) {
       return;
     }
@@ -340,7 +340,7 @@ export class ConnectionLayer extends Layer<
     const newTargetComponent = this.context.graph.getElementOverPoint(point, [Block, Anchor]);
 
     // Use world coordinates from point instead of screen coordinates
-    this.endState = new Point(point.x, point.y);
+    this.endState = { x: point.x, y: point.y };
     this.performRender();
 
     if (!newTargetComponent || !newTargetComponent.connectedState) {
@@ -376,7 +376,7 @@ export class ConnectionLayer extends Layer<
     }
   }
 
-  private onEndNewConnection(point: Point) {
+  private onEndNewConnection(point: TPoint) {
     if (!this.sourceComponent || !this.startState || !this.endState) {
       return;
     }

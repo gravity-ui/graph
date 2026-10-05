@@ -32,7 +32,7 @@ import { clearColorCache, getXY } from "./utils/functions";
 import { clearGraphInstance, setGraphInstance } from "./utils/graphInstance";
 import { clearTextCache } from "./utils/renderers/text";
 import "./utils/types/global";
-import { IPoint, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
+import { THitTestPoint, TPoint, TRect, isTRect } from "./utils/types/shapes";
 
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
 export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
@@ -237,7 +237,11 @@ export class Graph {
     return true;
   }
 
-  public getElementsOverPoint<T extends Constructor<GraphComponent>>(point: IPoint, filter?: T[]): InstanceType<T>[] {
+  /** Returns elements at a world-space point, optionally with exact canvas coordinates in origPoint. */
+  public getElementsOverPoint<T extends Constructor<GraphComponent>>(
+    point: THitTestPoint,
+    filter?: T[]
+  ): InstanceType<T>[] {
     const items = this.hitTest.testPoint(point, this.layers.getDPR());
     if (filter && items.length > 0) {
       return items.filter((item) => filter.some((Component) => item instanceof Component)) as InstanceType<T>[];
@@ -245,8 +249,9 @@ export class Graph {
     return items as InstanceType<T>[];
   }
 
+  /** Returns the topmost element at a world-space point. */
   public getElementOverPoint<T extends Constructor<GraphComponent>>(
-    point: IPoint,
+    point: THitTestPoint,
     filter?: T[]
   ): InstanceType<T> | undefined {
     return this.getElementsOverPoint(point, filter)?.[0] as InstanceType<T> | undefined;
@@ -288,11 +293,12 @@ export class Graph {
     return items as InstanceType<T>[];
   }
 
-  public getPointInCameraSpace(event: MouseEvent) {
+  /** Returns world coordinates and the original canvas-relative CSS coordinates of a mouse event. */
+  public getPointInCameraSpace(event: MouseEvent): THitTestPoint {
     const xy = getXY(this.graphLayer.getCanvas(), event);
 
     const applied = this.cameraService.applyToPoint(xy[0], xy[1]);
-    return new Point(applied[0], applied[1], { x: xy[0], y: xy[1] });
+    return { x: applied[0], y: applied[1], origPoint: { x: xy[0], y: xy[1] } };
   }
 
   public updateEntities({

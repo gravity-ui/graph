@@ -4,7 +4,7 @@ import { GraphComponent } from "../../../components/canvas/GraphComponent";
 import { Graph } from "../../../graph";
 import { Component, ESchedulerPriority } from "../../../lib";
 import { vectorDistance } from "../../../utils/functions";
-import { Point, TPoint } from "../../../utils/types/shapes";
+import { TPoint } from "../../../utils/types/shapes";
 import { debounce } from "../../../utils/utils/schedule";
 import { RootStore } from "../../index";
 
@@ -132,8 +132,7 @@ export class PortsStore {
     filter?: (port: PortState) => boolean
   ): PortState | undefined {
     // Get all components under cursor (GraphComponent only)
-    const pointObj = new Point(point.x, point.y);
-    const component = this.graph.getElementOverPoint(pointObj, [GraphComponent]);
+    const component = this.graph.getElementOverPoint(point, [GraphComponent]);
     if (!component) {
       return undefined;
     }

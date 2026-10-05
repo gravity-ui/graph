@@ -6,7 +6,7 @@ import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
 import { noop } from "../utils/functions";
-import { IPoint, TRect } from "../utils/types/shapes";
+import { THitTestPoint, TRect } from "../utils/types/shapes";
 import { debounce } from "../utils/utils/schedule";
 
 import { IncrementalBoundingBoxTracker } from "./IncrementalBoundingBoxTracker";
@@ -278,18 +278,23 @@ export class HitTest extends Emitter<{ update: (hitTest: HitTest) => void }> {
 
   /**
    * Test hit at specific point
-   * @param point Point to test
+   * @param point World-space point, optionally with exact canvas-relative CSS coordinates in origPoint
    * @param pixelRatio Pixel ratio for coordinate conversion
    * @returns Array of hit components
    */
-  public testPoint(point: IPoint, pixelRatio: number): Component[] {
+  public testPoint(point: THitTestPoint, pixelRatio: number): Component[] {
+    // Mouse events retain their exact canvas coordinates because applyToPoint rounds world coordinates.
+    const [canvasX, canvasY] = point.origPoint
+      ? [point.origPoint.x, point.origPoint.y]
+      : this.graph.cameraService.getAbsoluteXY(point.x, point.y);
+
     return this.testHitBox({
       minX: point.x - 1,
       minY: point.y - 1,
       maxX: point.x + 1,
       maxY: point.y + 1,
-      x: point.origPoint?.x * pixelRatio,
-      y: point.origPoint?.y * pixelRatio,
+      x: canvasX * pixelRatio,
+      y: canvasY * pixelRatio,
     });
   }
 
