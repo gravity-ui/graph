@@ -57,3 +57,45 @@ function schedulingContracts() {
   void width;
 }
 void schedulingContracts;
+
+// A callback union is callable only with arguments/receivers safe for every possible branch.
+function unionCallbackContracts(flag: boolean) {
+  const incompatible = flag ? (value: string) => value.toUpperCase() : (value: number) => value.toFixed();
+  const debounced = debounce(incompatible);
+  const throttled = throttle(incompatible);
+  // @ts-expect-error The selected callback may require a string, so a number is unsafe.
+  debounced(123);
+  // @ts-expect-error The selected callback may require a number, so a string is unsafe.
+  throttled("unsafe");
+  const compatible = flag ? (value: string) => value.toUpperCase() : (value: string) => value.length;
+  const result: void = debounce(compatible)("safe");
+  const differingReceivers = flag
+    ? function (this: { label: string }, value: number) {
+        return this.label + value;
+      }
+    : function (this: { count: number }, value: number) {
+        return this.count + value;
+      };
+  const safeReceiver = { label: "item", count: 1, wrapped: debounce(differingReceivers) };
+  safeReceiver.wrapped(1);
+  const unsafeReceiver = { label: "item", wrapped: throttle(differingReceivers) };
+  // @ts-expect-error The selected callback may require count on its receiver.
+  unsafeReceiver.wrapped(1);
+  const mixedArity: (() => void) | ((value: number) => void) = flag
+    ? () => {}
+    : (value: number) => {
+        void value;
+      };
+  debounce(mixedArity)(1);
+  const optionalSecond: ((value: number) => void) | ((value: number, label?: string) => void) = flag
+    ? (value: number) => {
+        void value;
+      }
+    : (value: number, label?: string) => {
+        void value;
+        void label;
+      };
+  throttle(optionalSecond)(1, "safe");
+  void result;
+}
+void unionCallbackContracts;

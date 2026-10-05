@@ -38,6 +38,15 @@ describe("schedule", () => {
     expect(callback).toHaveBeenCalledTimes(1);
   });
 
+  it("removing a task prevents a pending invocation even before deferred removal is processed", () => {
+    const callback = jest.fn();
+    const remove = schedule(callback, { priority: MEDIUM_PRIORITY, frameInterval: 1 });
+    remove();
+    remove();
+    scheduler.performUpdate();
+    expect(callback).not.toHaveBeenCalled();
+  });
+
   it("runs only once when requested", () => {
     const callback = jest.fn();
 
@@ -51,6 +60,18 @@ describe("schedule", () => {
     scheduler.performUpdate();
 
     expect(callback).toHaveBeenCalledTimes(1);
+  });
+  it("a once task stays removed during a callback-triggered nested scheduler update", () => {
+    let calls = 0;
+    schedule(
+      () => {
+        calls++;
+        if (calls === 1) scheduler.performUpdate();
+      },
+      { priority: MEDIUM_PRIORITY, frameInterval: 1, once: true }
+    );
+    scheduler.performUpdate();
+    expect(calls).toBe(1);
   });
 });
 

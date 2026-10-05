@@ -410,8 +410,9 @@ Canvas blocks and their custom/generic subclasses remain valid selection filters
 `debounce` and `throttle` preserve callback arguments and the call-site `this`
 receiver. Both wrappers return `void`, including immediate throttle calls; they
 discard callback results and do not copy arbitrary properties from the original
-function. If you need its result, call that function directly. The wrapper signature
-uses `Parameters<T>` and `ThisParameterType<T>`; overloads follow the last signature.
+function. If you need its result, call that function directly. Wrappers preserve
+unions of callback signatures, permitting only calls safe for every possible
+branch. Callback overloads follow the last signature.
 For generic callbacks whose parameter relationships depend on their type parameter,
 pass a concrete callback adapter to keep useful inference.
 
@@ -429,9 +430,12 @@ the full configured interval. A callback may schedule a debounced follow-up for 
 later frame.
 
 `schedule` accepts a callback that can be invoked without arguments or a receiver.
-Bind required arguments and `this` before scheduling, for example `schedule(() => updatePosition(x, y),
-options)`. Its returned function removes the task. Scheduling options use the same
-priority range as `Scheduler` (0–4 or the corresponding `ESchedulerPriority` member).
+Bind required arguments and `this` before scheduling, for example
+`schedule(() => updatePosition(x, y), options)`. Its returned function prevents
+pending invocations immediately, even
+though the Scheduler processes physical removal after the frame. `once: true`
+also prevents another invocation during a nested Scheduler update. Scheduling
+options use the same priority range as `Scheduler` (0–4 or the corresponding `ESchedulerPriority` member).
 
 `getFontSize` accepts numeric font size and scale. `measureText` returns a numeric
 width for both fresh and cached measurements. If the browser cannot create a 2D

@@ -17,24 +17,25 @@ export const schedule = (fn: (this: void) => unknown, options: TScheduleOptions)
   const { priority, frameInterval, once } = options;
   let frameCounter = 0;
   let isRemoved = false;
-  const debounceScheduler = {
+  const registration = {
     performUpdate: () => {
+      // Physical removal is deferred, but the returned remover invalidates the task immediately.
+      if (isRemoved) return;
       frameCounter++;
       if (frameCounter >= frameInterval) {
-        if (once && !isRemoved) {
-          scheduler.removeScheduler(debounceScheduler, priority);
-          isRemoved = true;
-        }
-        fn();
         frameCounter = 0;
-        if (once) {
-          isRemoved = true;
-          scheduler.removeScheduler(debounceScheduler, priority);
-        }
+        if (once) remove();
+        fn();
       }
     },
   };
-  return scheduler.addScheduler(debounceScheduler, priority);
+  const removeRegistration = scheduler.addScheduler(registration, priority);
+  function remove() {
+    if (isRemoved) return;
+    isRemoved = true;
+    removeRegistration();
+  }
+  return remove;
 };
 
 export type TDebounceOptions = {
@@ -44,7 +45,10 @@ export type TDebounceOptions = {
 };
 
 type TCallback = (...args: never[]) => unknown;
-type TWrappedCallback<T extends TCallback> = (this: ThisParameterType<T>, ...args: Parameters<T>) => void;
+// Preserve callable unions rather than accepting the union of their argument tuples.
+type TWrappedCallback<T extends TCallback> = T extends unknown
+  ? (this: ThisParameterType<T>, ...args: Parameters<T>) => void
+  : never;
 type TDebounced<T extends TCallback> = TWrappedCallback<T> & {
   cancel: () => void;
   flush: () => void;
@@ -60,10 +64,11 @@ type TThrottled<T extends TCallback> = TWrappedCallback<T> & {
  * Arguments and the receiver are forwarded; callback results are discarded.
  * flush invokes a pending call immediately, and cancel discards it.
  */
-export const debounce = <T extends TCallback>(
+export function debounce<T extends TCallback>(fn: T, options?: TDebounceOptions): TDebounced<T>;
+export function debounce<T extends TCallback>(
   fn: T,
   { priority = 2, frameInterval = 1, frameTimeout = 0 }: TDebounceOptions = {}
-): TDebounced<T> => {
+) {
   let frameCounter = 0;
   let startTime = 0;
   let executionDepth = 0;
@@ -89,7 +94,7 @@ export const debounce = <T extends TCallback>(
     latestCall = undefined;
     executionDepth++;
     try {
-      // The wrapper's Parameters<T>/ThisParameterType<T> checked this invocation before storage.
+      // The wrapper checked this invocation's arguments and receiver before storage.
       Reflect.apply(fn, call.receiver, call.args);
     } finally {
       executionDepth--;
@@ -118,17 +123,18 @@ export const debounce = <T extends TCallback>(
   };
 
   return Object.assign(wrapped, { cancel, flush, isScheduled: () => latestCall !== undefined });
-};
+}
 
 /**
  * Run immediately, then suppress invocations until both frameInterval frames and frameTimeout
  * milliseconds pass. Arguments and the receiver are forwarded; callback results are discarded.
  * cancel and flush reset the cooldown; suppressed calls are not queued.
  */
-export const throttle = <T extends TCallback>(
+export function throttle<T extends TCallback>(fn: T, options?: TDebounceOptions): TThrottled<T>;
+export function throttle<T extends TCallback>(
   fn: T,
   { priority = 2, frameInterval = 1, frameTimeout = 0 }: TDebounceOptions = {}
-): TThrottled<T> => {
+) {
   let registration: { performUpdate: () => void } | undefined;
   let removeScheduler: (() => void) | undefined;
 
@@ -157,7 +163,7 @@ export const throttle = <T extends TCallback>(
   };
 
   return Object.assign(wrapped, { cancel, flush: cancel });
-};
+}
 
 /**
  * Usage examples:

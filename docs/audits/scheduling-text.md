@@ -3,11 +3,11 @@
 Issue: https://github.com/gravity-ui/graph/issues/361.
 
 The public scheduling facade re-exports the implementation and its options,
-without a second cast-defined contract. Wrappers forward Parameters<T> and
-ThisParameterType<T> and return void; they do not promise callback results or
-properties. Reflect.apply is confined to invoking those checked arguments and
-receiver. Runtime registrations have an identity guard because GlobalScheduler
-removes tasks after the frame. Debounce keeps its registration when the callback
+without a second cast-defined contract. Wrappers preserve unions of callable
+signatures and return void; they do not promise callback results or properties. Reflect.apply is confined to invoking those checked arguments and
+receiver. Schedule removal marks the task inactive synchronously, including once
+tasks during nested updates. Runtime registrations have an identity guard because
+GlobalScheduler removes tasks after the frame. Debounce keeps its registration when the callback
 schedules a follow-up, including cancel/replacement inside the callback, preventing
 another invocation in the same frame.
 
