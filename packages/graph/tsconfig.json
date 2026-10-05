@@ -9,7 +9,7 @@
     "esModuleInterop": true,
     "experimentalDecorators": true,
     "skipLibCheck": true,
-    "strict": false,
+    "strict": true,
     "lib": [
       "es2020",
       "dom",

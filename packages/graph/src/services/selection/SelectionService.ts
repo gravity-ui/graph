@@ -2,13 +2,7 @@ import { batch, computed, signal } from "@preact/signals-core";
 
 import { GraphComponent } from "../../components/canvas/GraphComponent";
 
-import {
-  ESelectionStrategy,
-  IEntityWithComponent,
-  ISelectionBucket,
-  TMultiEntitySelection,
-  TSelectionEntityId,
-} from "./types";
+import { ESelectionStrategy, ISelectionBucket, TMultiEntitySelection, TSelectionEntityId } from "./types";
 
 /**
  * Service responsible for managing selection across different entity types
@@ -81,17 +75,7 @@ export class SelectionService {
   public readonly $selectedComponents = computed(() => {
     const result: GraphComponent[] = [];
     for (const bucket of this.buckets.value.values()) {
-      const entities = bucket.$selectedEntities.value;
-      for (const entity of entities) {
-        if (entity instanceof GraphComponent) {
-          result.push(entity as GraphComponent);
-        } else {
-          const component = (entity as IEntityWithComponent).getViewComponent();
-          if (component) {
-            result.push(component);
-          }
-        }
-      }
+      result.push(...bucket.$selectedComponents.value);
     }
     return result;
   });
@@ -340,7 +324,7 @@ export class SelectionService {
     if (typeof entityTypeOrQueries === "string") {
       // Single entity type API
       const entityType = entityTypeOrQueries;
-      if (!id) {
+      if (id === undefined) {
         throw new Error(`id must be provided for single entity selection: ${entityType}`);
       }
       const finalId = id;

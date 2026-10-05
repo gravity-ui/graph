@@ -144,7 +144,9 @@ export class GraphPO {
 
   public async getBounds(): Promise<GraphRect> {
     return this.evaluate((graph) => {
-      const rect = graph.layers.$root.getBoundingClientRect();
+      const root = graph.layers.$root;
+      if (!root) throw new Error("Cannot get bounds of a detached graph");
+      const rect = root.getBoundingClientRect();
       return {
         x: rect.left,
         y: rect.top,
@@ -268,7 +270,11 @@ export class GraphPO {
   }
 
   public async getCursor(): Promise<string> {
-    return this.evaluate((graph) => window.getComputedStyle(graph.layers.$root).cursor);
+    return this.evaluate((graph) => {
+      const root = graph.layers.$root;
+      if (!root) throw new Error("Cannot get cursor of a detached graph");
+      return window.getComputedStyle(root).cursor;
+    });
   }
 
   private async toRootPoint(point: GraphPoint): Promise<GraphPoint> {

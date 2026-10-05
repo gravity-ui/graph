@@ -138,6 +138,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.subscribe(props.id);
   }
 
+  public override isEntityAvailable(): boolean {
+    return super.isEntityAvailable() && this.context.graph.blocks.getBlockState(this.props.id) === this.connectedState;
+  }
+
   public getEntityId() {
     return this.props.id;
   }
@@ -148,8 +152,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   protected updateViewState(params: Partial<BlockViewState>) {
     let hasChanges = false;
-    for (const [key, value] of Object.entries(params)) {
-      if (this.$viewState.value[key] !== value) {
+    for (const key of ["zIndex", "order"] as const) {
+      if (params[key] !== undefined && this.$viewState.value[key] !== params[key]) {
         hasChanges = true;
         break;
       }
@@ -239,7 +243,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected getNextState() {
-    // @ts-ignore
     return this.__data.nextState || this.state;
   }
 

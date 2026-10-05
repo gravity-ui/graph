@@ -1,13 +1,14 @@
 import { Component } from "../../../lib/Component";
 import { CoreComponent } from "../../../lib/CoreComponent";
 import { BlockState } from "../../../store/block/Block";
+import { TGraphSettingsConfig } from "../../../store/settings";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
 import { Block } from "./Block";
 
 export class Blocks extends Component {
   protected blocks: BlockState[] = [];
-  protected blocksView = {};
+  protected blocksView: TGraphSettingsConfig["blockComponents"] = {};
 
   public declare context: TGraphLayerContext;
 
@@ -20,7 +21,7 @@ export class Blocks extends Component {
 
     this.unsubscribe = this.subscribe();
 
-    this.prepareFont(this.getFontScale());
+    this.font = this.prepareFont(this.getFontScale());
   }
 
   protected getFontScale() {
@@ -48,8 +49,8 @@ export class Blocks extends Component {
     ];
   }
 
-  private prepareFont(scaleFontSize) {
-    this.font = `bold ${Math.round(this.context.constants.text.BASE_FONT_SIZE * scaleFontSize)}px sans-serif`;
+  private prepareFont(scaleFontSize: number) {
+    return `bold ${Math.round(this.context.constants.text.BASE_FONT_SIZE * scaleFontSize)}px sans-serif`;
   }
 
   protected unmount() {

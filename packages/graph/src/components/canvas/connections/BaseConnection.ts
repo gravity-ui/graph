@@ -82,29 +82,33 @@ export class BaseConnection<
   /**
    * @deprecated use port system instead
    */
-  protected get sourceBlock(): Block {
-    return this.connectedState.$sourcePortState.value.component as Block;
+  protected get sourceBlock(): Block | undefined {
+    const component = this.connectedState.$sourcePortState.value.component;
+    return component instanceof Block ? component : undefined;
   }
 
   /**
    * @deprecated use port system instead
    */
-  protected get targetBlock(): Block {
-    return this.connectedState.$targetPortState.value.component as Block;
+  protected get targetBlock(): Block | undefined {
+    const component = this.connectedState.$targetPortState.value.component;
+    return component instanceof Block ? component : undefined;
   }
 
   /**
    * @deprecated use port system instead
    */
   protected get sourceAnchor(): TAnchor | undefined {
-    return this.sourceBlock.connectedState.getAnchorById(this.connectedState.sourceAnchorId)?.asTAnchor();
+    const id = this.connectedState.sourceAnchorId;
+    return id === undefined ? undefined : this.sourceBlock?.connectedState.getAnchorById(id)?.asTAnchor();
   }
 
   /**
    * @deprecated use port system instead
    */
   protected get targetAnchor(): TAnchor | undefined {
-    return this.targetBlock.connectedState.getAnchorById(this.connectedState.targetAnchorId)?.asTAnchor();
+    const id = this.connectedState.targetAnchorId;
+    return id === undefined ? undefined : this.targetBlock?.connectedState.getAnchorById(id)?.asTAnchor();
   }
 
   /**
@@ -123,7 +127,7 @@ export class BaseConnection<
    * Bounding box for the connection [minX, minY, maxX, maxY]
    * Used for hit detection and rendering optimizations
    */
-  protected bBox: [minX: number, minY: number, maxX: number, maxY: number];
+  protected bBox: [minX: number, minY: number, maxX: number, maxY: number] = [0, 0, 0, 0];
 
   constructor(props: Props, parent: Component) {
     super(props, parent);
@@ -133,10 +137,6 @@ export class BaseConnection<
     if (!connectionState) throw new Error(`Cannot bind Connection to missing connection ${this.props.id}`);
     this.connectedState = connectionState as ConnectionState<Connection>;
     this.connectedState.setViewComponent(this);
-
-    // Subscribe to port changes for automatic geometry updates
-    this.connectedState.$sourcePortState.value.addObserver(this);
-    this.connectedState.$targetPortState.value.addObserver(this);
 
     // Initialize component state with connection data
     this.setState({ ...(this.connectedState.$state.value as TBaseConnectionState), hovered: false });
@@ -170,7 +170,19 @@ export class BaseConnection<
     this.listenEvents(["mouseenter", "mouseleave"]);
   }
 
+  public override isEntityAvailable(): boolean {
+    return (
+      super.isEntityAvailable() &&
+      this.context.graph.connections.getConnectionState(this.props.id) === this.connectedState
+    );
+  }
+
+  protected hasGeometry(): boolean {
+    return this.connectedState.$geometry.value !== undefined;
+  }
+
   protected override isVisible(): boolean {
+    if (!this.isEntityAvailable() || !this.hasGeometry()) return false;
     if (this.connectedState.$hidden.value) return false;
     return super.isVisible();
   }
@@ -207,12 +219,6 @@ export class BaseConnection<
     }
   );
 
-  protected override unmount(): void {
-    this.connectedState.$sourcePortState.value.removeObserver(this);
-    this.connectedState.$targetPortState.value.removeObserver(this);
-    super.unmount();
-  }
-
   /**
    * Updates connection points based on current port positions
    * Called automatically when port geometry changes
@@ -226,19 +232,12 @@ export class BaseConnection<
    * @returns {void}
    */
   protected updatePoints(additionalPoints?: TPoint[]): void {
-    // Initialize with default points
-    this.connectionPoints = [
-      { x: 0, y: 0 },
-      { x: 0, y: 0 },
-    ];
-
-    // Update with actual port positions if available
-    if (this.connectedState.$geometry.value) {
-      const [source, target] = this.connectedState.$geometry.value;
-      this.connectionPoints = [
-        { x: source.x, y: source.y },
-        { x: target.x, y: target.y },
-      ];
+    this.connectionPoints = this.connectedState.$geometry.value;
+    if (!this.isEntityAvailable() || !this.hasGeometry()) {
+      this.bBox = [0, 0, 0, 0];
+      this.removeHitBox();
+      this.performRender();
+      return;
     }
 
     // Calculate bounding box from connection points, additional points, and subclass points
@@ -251,7 +250,7 @@ export class BaseConnection<
     const x = points.map((p) => p.x).filter(Number.isFinite);
     const y = points.map((p) => p.y).filter(Number.isFinite);
 
-    this.bBox = [Math.min(...x), Math.min(...y), Math.max(...x), Math.max(...y)];
+    this.bBox = x.length && y.length ? [Math.min(...x), Math.min(...y), Math.max(...x), Math.max(...y)] : [0, 0, 0, 0];
 
     // Update interaction area
     this.updateHitBox();

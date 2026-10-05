@@ -23,8 +23,8 @@ export type TConnectionProps = TBaseConnectionProps & {
 
 export type TBlockConnection = {
   id: string;
-  addInRenderOrder(cmp, setting: object): void;
-  removeFromRenderOrder(cmp): void;
+  addInRenderOrder(cmp: Path2DRenderInstance, setting: object): void;
+  removeFromRenderOrder(cmp: Path2DRenderInstance): void;
 };
 
 export class BlockConnection<T extends TConnection>
@@ -84,6 +84,10 @@ export class BlockConnection<T extends TConnection>
     } else {
       this.context.batch.delete(this.arrowShape);
     }
+  }
+
+  public isPathVisible(): boolean {
+    return this.isVisible();
   }
 
   public getPath(): Path2D {

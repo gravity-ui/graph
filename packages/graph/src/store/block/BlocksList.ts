@@ -244,6 +244,7 @@ export class BlockListStore {
     }
 
     this.graph.executеDefaultEventAction("block-change", { block: blockState.asTBlockShallow() }, () => {
+      if (this.getBlockState(id) !== blockState) return;
       blockState.updateBlock(nextState);
       const geometry = blockState.$geometry.value;
       this.batchedGeometryPending.set(id, { id, ...geometry });
@@ -281,9 +282,11 @@ export class BlockListStore {
     if (this.batchedGeometryPending.size === 0) {
       return;
     }
-    const blocks = Array.from(this.batchedGeometryPending.values());
+    const blocks = Array.from(this.batchedGeometryPending.values()).filter((block) =>
+      this.$blocksMap.value.has(block.id)
+    );
     this.batchedGeometryPending.clear();
-    this.graph.emit("blocks-geometry-change", { blocks });
+    if (blocks.length) this.graph.emit("blocks-geometry-change", { blocks });
   }
 
   private cancelBatchedBlocksGeometry(): void {
@@ -306,13 +309,13 @@ export class BlockListStore {
    * @returns void
    */
   public addBlock(block: Omit<TBlock, "id"> & { id?: TBlockId }) {
-    const id = block.id || (generateRandomId("block") as TBlockId);
+    const id = block.id ?? generateRandomId("block");
 
     this.$blocksMap.value.set(
       id,
       this.getOrCraeateBlockState({
-        id,
         ...block,
+        id,
       })
     );
 

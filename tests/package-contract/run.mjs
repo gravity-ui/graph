@@ -229,7 +229,11 @@ try {
         "@types/react-dom": reactDomTypesVersion,
       },
     },
-    typecheckConfigs: ["fixtures/apps/react/tsconfig.json", "fixtures/types/node-esm/tsconfig.json"],
+    typecheckConfigs: [
+      "fixtures/apps/react/tsconfig.json",
+      "fixtures/apps/react/tsconfig.non-strict.json",
+      "fixtures/types/node-esm/tsconfig.json",
+    ],
     entryPoint: "fixtures/apps/react/app.tsx",
     nativeImports: ["root", "react", "playwright"],
   });
@@ -243,7 +247,11 @@ try {
       name: "gravity-graph-installed-minimap-consumer",
       dependencies: { ...commonManifest.dependencies, "@gravity-ui/graph-minimap": `file:${minimapTarballPath}` },
     },
-    typecheckConfigs: ["fixtures/apps/minimap/tsconfig.json", "fixtures/types/minimap-node-esm/tsconfig.json"],
+    typecheckConfigs: [
+      "fixtures/apps/minimap/tsconfig.json",
+      "fixtures/apps/minimap/tsconfig.non-strict.json",
+      "fixtures/types/minimap-node-esm/tsconfig.json",
+    ],
     entryPoint: "fixtures/apps/minimap/app.ts",
     nativeImports: ["root", "minimap", "playwright"],
     expectNoReact: true,
@@ -258,7 +266,11 @@ try {
       name: "gravity-graph-installed-devtools-consumer",
       dependencies: { ...commonManifest.dependencies, "@gravity-ui/graph-devtools": `file:${devtoolsTarballPath}` },
     },
-    typecheckConfigs: ["fixtures/apps/devtools/tsconfig.json", "fixtures/types/devtools-node-esm/tsconfig.json"],
+    typecheckConfigs: [
+      "fixtures/apps/devtools/tsconfig.json",
+      "fixtures/apps/devtools/tsconfig.non-strict.json",
+      "fixtures/types/devtools-node-esm/tsconfig.json",
+    ],
     entryPoint: "fixtures/apps/devtools/app.ts",
     nativeImports: ["root", "devtools", "playwright"],
     expectNoReact: true,

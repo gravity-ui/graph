@@ -4,6 +4,7 @@
     "app.ts",
     "component-factories.ts",
     "scheduling.ts",
+    "core-operations.ts",
     "graph.pw.ts",
     "../../shared/assets.d.ts"
   ]

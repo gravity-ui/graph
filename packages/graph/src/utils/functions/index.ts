@@ -21,8 +21,8 @@ export function getXY(root: HTMLElement, event: Event | WheelEvent | MouseEvent)
   return [event.pageX - rect.left - window.scrollX, event.pageY - rect.top - window.scrollY];
 }
 
-export function getCoord(event: TouchEvent | MouseEvent, coord: string) {
-  const name = `page${coord.toUpperCase()}`;
+export function getCoord(event: TouchEvent | MouseEvent, coord: "x" | "y") {
+  const name = coord === "x" ? "pageX" : "pageY";
 
   if (isTouchEvent(event)) {
     const touch = event.touches[0] ?? event.changedTouches[0];
@@ -79,12 +79,16 @@ export function addEventListeners(
 ): () => void {
   if (mapEventsToFn === undefined) return noop;
 
-  const subs = [];
+  const subs: (() => void)[] = [];
   const events = Object.keys(mapEventsToFn);
 
   for (let i = 0; i < events.length; i += 1) {
-    instance.addEventListener(events[i], mapEventsToFn[events[i]].bind(instance));
-    subs.push(instance.removeEventListener.bind(instance, events[i], mapEventsToFn[events[i]]));
+    const callback = mapEventsToFn[events[i]];
+    const listener = (event: Event) => {
+      if (event instanceof MouseEvent || event instanceof CustomEvent) callback.call(instance, event);
+    };
+    instance.addEventListener(events[i], listener);
+    subs.push(() => instance.removeEventListener(events[i], listener));
   }
 
   return () => subs.forEach((f) => f());

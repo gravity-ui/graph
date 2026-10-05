@@ -187,7 +187,10 @@ export function GraphPLayground() {
     "connection-created",
     ({ sourceBlockId, sourceAnchorId, targetBlockId, targetAnchorId }, event) => {
       event.preventDefault();
-      const pullSourceAnchor = graph.rootStore.blocksList.getBlockState(sourceBlockId)?.getAnchorById(sourceAnchorId);
+      const pullSourceAnchor =
+        sourceAnchorId === undefined
+          ? undefined
+          : graph.rootStore.blocksList.getBlockState(sourceBlockId)?.getAnchorById(sourceAnchorId);
       if (!pullSourceAnchor) return;
       if (pullSourceAnchor.state.type === EAnchorType.IN) {
         graph.api.addConnection({
@@ -213,7 +216,10 @@ export function GraphPLayground() {
       return;
     }
     let block: TBlock;
-    const pullSourceAnchor = graph.rootStore.blocksList.getBlockState(sourceBlockId)?.getAnchorById(sourceAnchorId);
+    const pullSourceAnchor =
+      sourceAnchorId === undefined
+        ? undefined
+        : graph.rootStore.blocksList.getBlockState(sourceBlockId)?.getAnchorById(sourceAnchorId);
     const nextIndex = getNextBlockIndex();
     if (pullSourceAnchor?.state.type === EAnchorType.IN) {
       block = createActionBlock(point.x - 126, point.y - 63, nextIndex);

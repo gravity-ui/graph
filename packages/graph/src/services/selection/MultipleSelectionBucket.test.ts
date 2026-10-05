@@ -142,9 +142,9 @@ describe("MultipleSelectionBucket", () => {
   });
 
   describe("Edge cases and error conditions", () => {
-    it("handles null and undefined IDs gracefully", () => {
-      bucket.updateSelection([null, undefined], true, ESelectionStrategy.APPEND);
-      expect(bucket.$selected.value).toEqual(new Set([null, undefined]));
+    it("handles empty string IDs", () => {
+      bucket.updateSelection([""], true, ESelectionStrategy.APPEND);
+      expect(bucket.$selected.value).toEqual(new Set([""]));
     });
   });
 

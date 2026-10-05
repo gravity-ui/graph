@@ -80,7 +80,7 @@ export class EventedComponent<
   }
 
   public isInteractive() {
-    return this.props.interactive;
+    return this.props.interactive ?? false;
   }
 
   public setInteractive(interactive: boolean) {

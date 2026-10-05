@@ -53,8 +53,18 @@ class Path2DChunk {
     this.visibleItems.reset();
   }
 
+  private lastVisibleItems: Path2DRenderInstance[] = [];
+
   public render(ctx: CanvasRenderingContext2D) {
+    this.visibleItems.reset();
     const vis = this.visibleItems.get();
+    if (
+      vis.length !== this.lastVisibleItems.length ||
+      vis.some((item, index) => item !== this.lastVisibleItems[index])
+    ) {
+      this.path.reset();
+      this.lastVisibleItems = vis;
+    }
     if (!vis.length) return;
 
     ctx.save();
@@ -137,30 +147,32 @@ export class BatchPath2DRenderer {
   public orderedPaths = cache(() => {
     return Array.from(this.indexes.entries())
       .sort(([indexA], [indexB]) => indexA - indexB)
-      .reduce((acc, [_, items]) => {
+      .reduce<Path2DGroup[]>((acc, [_, items]) => {
         acc.push(...Array.from(items.values()));
         return acc;
-      }, [] satisfies Path2DGroup[]);
+      }, []);
   });
 
   protected requestRender = () => this.onChange?.();
 
   protected getGroup(zIndex: number, group: string) {
-    if (!this.indexes.has(zIndex)) {
-      this.indexes.set(zIndex, new Map());
+    let index = this.indexes.get(zIndex);
+    if (!index) {
+      index = new Map();
+      this.indexes.set(zIndex, index);
     }
-    const index = this.indexes.get(zIndex);
-
-    if (!index.has(group)) {
-      index.set(group, new Path2DGroup(this.chunkSize));
+    let bucket = index.get(group);
+    if (!bucket) {
+      bucket = new Path2DGroup(this.chunkSize);
+      index.set(group, bucket);
     }
-
-    return index.get(group);
+    return bucket;
   }
 
   public add(item: Path2DRenderInstance, params: { zIndex: number; group: string }) {
     if (this.itemParams.has(item)) {
       this.update(item, params);
+      return;
     }
     const bucket = this.getGroup(params.zIndex, params.group);
     bucket.add(item);
@@ -170,8 +182,8 @@ export class BatchPath2DRenderer {
   }
 
   public update(item: Path2DRenderInstance, params: { zIndex: number; group: string }) {
-    if (this.itemParams.has(item)) {
-      const prev = this.itemParams.get(item);
+    const prev = this.itemParams.get(item);
+    if (prev) {
       /**
        * Reasons to update path2d is different
        * 1. zIndex changed
@@ -191,10 +203,10 @@ export class BatchPath2DRenderer {
   }
 
   public delete(item: Path2DRenderInstance) {
-    if (!this.itemParams.has(item)) {
+    const params = this.itemParams.get(item);
+    if (!params) {
       return;
     }
-    const params = this.itemParams.get(item);
     const bucket = this.getGroup(params.zIndex, params.group);
     bucket.delete(item);
     this.itemParams.delete(item);

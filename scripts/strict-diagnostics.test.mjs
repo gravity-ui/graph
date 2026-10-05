@@ -26,8 +26,8 @@ import {
 } from "./strict-diagnostics.mjs";
 
 const diagnostic = {
-  project: PROJECTS[0],
-  file: "packages/graph/src/lib/Tree.ts",
+  project: PROJECTS[1],
+  file: "packages/graph-react/src/unfinished.ts",
   code: 2564,
   message: "Property 'parent' has no initializer.",
   count: 1,
@@ -37,7 +37,7 @@ const snapshot = (diagnostics = []) => ({ schemaVersion: 1, compiler: COMPILER, 
 test("allows decreases but rejects new identities and increased occurrence counts", () => {
   assert.deepEqual(compareDiagnostics(snapshot([]), snapshot([diagnostic])), []);
   assert.equal(compareDiagnostics(snapshot([{ ...diagnostic, count: 2 }]), snapshot([diagnostic])).length, 1);
-  for (const change of [{ file: "other.ts" }, { project: PROJECTS[1] }, { code: 2322 }, { message: "different" }]) {
+  for (const change of [{ file: "other.ts" }, { project: PROJECTS[2] }, { code: 2322 }, { message: "different" }]) {
     assert.equal(compareDiagnostics(snapshot([{ ...diagnostic, ...change }]), snapshot([diagnostic])).length, 1);
   }
 });
@@ -105,7 +105,7 @@ test("rejects malformed baseline metadata and duplicate diagnostic identities", 
 
 test("compiler result must be successful, parseable and from the requested project", () => {
   const output = JSON.stringify(snapshot([diagnostic]));
-  assert.deepEqual(decodeCompilerResult({ status: 0, stdout: output, stderr: "" }, PROJECTS[0]), [diagnostic]);
+  assert.deepEqual(decodeCompilerResult({ status: 0, stdout: output, stderr: "" }, PROJECTS[1]), [diagnostic]);
   for (const result of [
     { status: 1, stdout: output },
     { status: null, signal: "SIGTERM", stdout: output },
@@ -115,7 +115,7 @@ test("compiler result must be successful, parseable and from the requested proje
   ]) {
     assert.throws(() => decodeCompilerResult(result, PROJECTS[0]));
   }
-  assert.throws(() => decodeCompilerResult({ status: 0, stdout: output }, PROJECTS[1]), /project/);
+  assert.throws(() => decodeCompilerResult({ status: 0, stdout: output }, PROJECTS[2]), /project/);
 });
 
 test("CLI baseline is reproducible across line shifts and rejects regressions/config failures", () => {
@@ -147,7 +147,9 @@ test("CLI baseline is reproducible across line shifts and rejects regressions/co
       );
       writeFileSync(
         path.join(projectRoot, "source.ts"),
-        "import value from 'untyped';\nexport const text: string = null;\n"
+        project === PROJECTS[0]
+          ? "export const text = 'ready';\n"
+          : "import value from 'untyped';\nexport const text: string = null;\n"
       );
     }
     const run = (...args) =>
@@ -159,7 +161,7 @@ test("CLI baseline is reproducible across line shifts and rejects regressions/co
     const baselineFile = path.join(directory, "docs/audits/strict-typescript-baseline.json");
     const baseline = readFileSync(baselineFile, "utf8");
     writeFileSync(
-      path.join(directory, "packages/graph/source.ts"),
+      path.join(directory, "packages/graph-react/source.ts"),
       "\n\nimport value from 'untyped';\nexport const text: string = null;\n"
     );
     assert.equal(run("--write-baseline").status, 0);
@@ -177,7 +179,7 @@ test("CLI baseline is reproducible across line shifts and rejects regressions/co
     assert.equal(relocatedResult.status, 0, relocatedResult.stderr);
 
     writeFileSync(
-      path.join(directory, "packages/graph/source.ts"),
+      path.join(directory, "packages/graph-react/source.ts"),
       "export const value: string = null;\nexport const other: string = null;\n"
     );
     const regression = run();
@@ -224,7 +226,6 @@ test("completed component contracts cannot be added to a baseline", () => {
   }
 });
 
-
 test("completed scheduling and text helpers cannot be added to a baseline", () => {
   for (const file of [
     "packages/graph/src/services/optimizations/frameDebouncer.ts",
@@ -233,5 +234,11 @@ test("completed scheduling and text helpers cannot be added to a baseline", () =
     "packages/graph/src/utils/functions/text.test.ts",
   ]) {
     assert.throws(() => validateSnapshot(snapshot([{ ...diagnostic, file }])), /Scheduling and text/);
+  }
+});
+
+test("all graph source and tests reject baseline debt", () => {
+  for (const file of ["packages/graph/src/store/block/Block.ts", "packages/graph/src/services/HitTest.test.ts"]) {
+    assert.throws(() => validateSnapshot(snapshot([{ ...diagnostic, file }])), /Graph must have zero/);
   }
 });

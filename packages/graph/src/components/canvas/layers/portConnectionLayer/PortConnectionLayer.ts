@@ -84,7 +84,7 @@ declare module "../../../../graphEvents" {
      */
     "port-connection-create-start": (
       event: CustomEvent<{
-        blockId: TBlockId;
+        blockId: TBlockId | undefined;
         anchorId: string | undefined;
         sourcePort: PortState;
       }>
@@ -96,7 +96,7 @@ declare module "../../../../graphEvents" {
      */
     "port-connection-create-hover": (
       event: CustomEvent<{
-        sourceBlockId: TBlockId;
+        sourceBlockId: TBlockId | undefined;
         sourceAnchorId: string | undefined;
         targetBlockId: TBlockId | undefined;
         targetAnchorId: string | undefined;
@@ -111,9 +111,9 @@ declare module "../../../../graphEvents" {
      */
     "port-connection-created": (
       event: CustomEvent<{
-        sourceBlockId: TBlockId;
+        sourceBlockId: TBlockId | undefined;
         sourceAnchorId?: string;
-        targetBlockId: TBlockId;
+        targetBlockId: TBlockId | undefined;
         targetAnchorId?: string;
         sourcePort: PortState;
         targetPort: PortState;
@@ -122,8 +122,8 @@ declare module "../../../../graphEvents" {
 
     "port-connection-cancel": (
       event: CustomEvent<{
-        sourcePort: PortState;
-        targetPort: PortState;
+        sourcePort: PortState | undefined;
+        targetPort: PortState | undefined;
       }>
     ) => void;
 
@@ -133,8 +133,8 @@ declare module "../../../../graphEvents" {
      */
     "port-connection-create-drop": (
       event: CustomEvent<{
-        sourceBlockId: TBlockId;
-        sourceAnchorId: string;
+        sourceBlockId: TBlockId | undefined;
+        sourceAnchorId: string | undefined;
         targetBlockId?: TBlockId;
         targetAnchorId?: string;
         point: TPoint;
@@ -255,8 +255,26 @@ export class PortConnectionLayer extends Layer<
 
   protected currentListener: DragEmitter | null = null;
 
+  private getConnectionMeta(port: PortState): IPortConnectionMeta | undefined {
+    const metadata = port.meta;
+    if (typeof metadata !== "object" || metadata === null || !(PortConnectionLayer.PortMetaKey in metadata)) return;
+    const value = metadata[PortConnectionLayer.PortMetaKey];
+    if (typeof value !== "object" || value === null) return undefined;
+    // This symbol is the explicit PortConnectionLayer metadata contract.
+    return value as IPortConnectionMeta;
+  }
+
+  private isPortAvailable(port: PortState): boolean {
+    return (
+      this.context.graph.connections.getPort(port.id) === port &&
+      !port.lookup &&
+      port.owner !== undefined &&
+      (!(port.owner instanceof GraphComponent) || port.owner.isEntityAvailable())
+    );
+  }
+
   private isSnappablePort(port: PortState): boolean {
-    const meta = port.meta?.[PortConnectionLayer.PortMetaKey] as IPortConnectionMeta | undefined;
+    const meta = this.getConnectionMeta(port);
     return Boolean(meta?.snappable);
   }
 
@@ -308,6 +326,7 @@ export class PortConnectionLayer extends Layer<
   };
 
   protected renderEndpoint(ctx: CanvasRenderingContext2D): void {
+    if (!this.endState) return;
     ctx.beginPath();
 
     const scale = this.context.camera.getCameraScale();
@@ -376,7 +395,7 @@ export class PortConnectionLayer extends Layer<
   }
 
   private onStartConnection(port: PortState, _worldCoords: TPoint): void {
-    if (!port) {
+    if (!this.isPortAvailable(port)) {
       return;
     }
 
@@ -402,6 +421,11 @@ export class PortConnectionLayer extends Layer<
 
   private onMoveNewConnection(event: MouseEvent, point: TPoint): void {
     if (!this.startState || !this.sourcePort) {
+      return;
+    }
+
+    if (!this.isPortAvailable(this.sourcePort)) {
+      this.cancelNewConnection();
       return;
     }
 
@@ -454,7 +478,7 @@ export class PortConnectionLayer extends Layer<
     }
   }
 
-  protected selectPort(port: PortState, select: boolean): void {
+  protected selectPort(port: PortState | undefined, select: boolean): void {
     if (!port) return;
     const component = port.owner;
     if (component instanceof GraphComponent) {
@@ -474,6 +498,9 @@ export class PortConnectionLayer extends Layer<
     if (this.currentListener) {
       stopDragListening(this.currentListener);
     }
+    this.currentListener = null;
+    this.selectPort(this.sourcePort, false);
+    this.selectPort(this.targetPort, false);
     this.startState = null;
     this.endState = null;
     this.performRender();
@@ -492,6 +519,11 @@ export class PortConnectionLayer extends Layer<
 
   private onEndNewConnection(point: TPoint): void {
     if (!this.sourcePort || !this.startState || !this.endState) {
+      return;
+    }
+
+    if (!this.isPortAvailable(this.sourcePort)) {
+      this.cancelNewConnection();
       return;
     }
 
@@ -565,7 +597,10 @@ export class PortConnectionLayer extends Layer<
         targetPort: actualTargetPort,
       },
       () => {
+        if (!this.isPortAvailable(actualSourcePort) || !this.isPortAvailable(actualTargetPort)) return;
         this.context.graph.rootStore.connectionsList.addConnection({
+          sourcePortId: actualSourcePort.id,
+          targetPortId: actualTargetPort.id,
           sourceBlockId: actualSourceParams.blockId,
           sourceAnchorId: actualSourceParams.anchorId,
           targetBlockId: actualTargetParams.blockId,
@@ -626,6 +661,7 @@ export class PortConnectionLayer extends Layer<
 
     for (const candidate of candidates) {
       const port = candidate.port;
+      if (!this.isPortAvailable(port)) continue;
 
       // Skip source port
       if (sourcePort && port.id === sourcePort.id) {
@@ -636,7 +672,7 @@ export class PortConnectionLayer extends Layer<
       const distance = vectorDistance(point, port);
 
       // Check custom condition if provided
-      const meta = port.meta?.[PortConnectionLayer.PortMetaKey] as IPortConnectionMeta | undefined;
+      const meta = this.getConnectionMeta(port);
       if (meta?.snapCondition && sourcePort) {
         const canSnap = meta.snapCondition({
           sourcePort: sourcePort,
@@ -748,7 +784,7 @@ export class PortConnectionLayer extends Layer<
     const component = port.owner;
 
     if (!component) {
-      throw new Error("Port has no owner component");
+      return {};
     }
 
     if (component instanceof Anchor) {
@@ -773,6 +809,7 @@ export class PortConnectionLayer extends Layer<
       this.portsUnsubscribe = undefined;
     }
     this.snappingPortsTree = null;
+    if (this.currentListener) this.cancelNewConnection();
     super.unmount();
   }
 }

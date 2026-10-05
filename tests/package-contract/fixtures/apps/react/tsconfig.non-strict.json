@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "strict": false },
+  "include": ["core-operations.tsx", "../../shared/assets.d.ts"]
+}

@@ -1,3 +1,6 @@
+import { GraphComponent } from "../../components/canvas/GraphComponent";
+import { Graph } from "../../graph";
+
 import { MultipleSelectionBucket } from "./MultipleSelectionBucket";
 import { SingleSelectionBucket } from "./SingleSelectionBucket";
 import { ESelectionStrategy } from "./types";
@@ -171,11 +174,13 @@ describe("Selection Resolver Integration", () => {
 
   describe("Component resolution", () => {
     // Mock GraphComponent-like entity
-    class MockComponent {
+    class MockComponent extends GraphComponent {
       constructor(
         public id: string,
         public name: string
-      ) {}
+      ) {
+        super({}, new Graph({}).getGraphLayer());
+      }
 
       public getEntityId() {
         return this.id;
@@ -211,8 +216,8 @@ describe("Selection Resolver Integration", () => {
       const components = bucket.$selectedComponents.value;
 
       expect(components).toHaveLength(2);
-      expect((components[0] as unknown as MockComponent).name).toBe("Component 1");
-      expect((components[1] as unknown as MockComponent).name).toBe("Component 2");
+      expect(components[0]).toBe(component1);
+      expect(components[1]).toBe(component2);
     });
 
     it("should resolve entities that are already components", () => {
@@ -232,7 +237,7 @@ describe("Selection Resolver Integration", () => {
       const resolvedComponents = bucket.$selectedComponents.value;
 
       expect(resolvedComponents).toHaveLength(1);
-      expect((resolvedComponents[0] as unknown as MockComponent).name).toBe("Component 1");
+      expect(resolvedComponents[0]).toBe(component1);
     });
 
     it("should return empty array for entities without components", () => {
@@ -288,4 +293,12 @@ describe("Selection Resolver Integration", () => {
       expect(updates[3]).toHaveLength(0); // Cleared
     });
   });
+});
+
+test("plain resolver entities and component-shaped objects cannot become canvas views", () => {
+  const entities = [{ id: "a", getViewComponent: () => ({ getEntityId: () => "fake" }) }, { id: "b" }];
+  const bucket = new MultipleSelectionBucket<string>("plain", undefined, undefined, () => entities);
+  bucket.select(["a", "b"], ESelectionStrategy.REPLACE);
+  expect(bucket.$selectedEntities.value).toHaveLength(2);
+  expect(bucket.$selectedComponents.value).toEqual([]);
 });

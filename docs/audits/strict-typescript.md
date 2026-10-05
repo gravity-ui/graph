@@ -2,7 +2,7 @@
 
 Issue: https://github.com/gravity-ui/graph/issues/354. Compiler: **TypeScript 5.9.2**, pinned at the workspace root and checked by each compiler worker.
 
-Run `pnpm run typecheck:strict`. It rebuilds all four packages before checking the complete existing source/test tsconfigs for graph, React, minimap, devtools, Storybook and E2E with `strict: true` and `noEmit: true`. Other options remain those of each project. Scheduler's entire source/test directory must have zero errors in every project, regardless of baseline contents. Graph's permanent strict setting is deferred to #362.
+Run `pnpm run typecheck:strict`. It rebuilds all four packages before checking the complete existing source/test tsconfigs for graph, React, minimap, devtools, Storybook and E2E with `strict: true` and `noEmit: true`. Other options remain those of each project. Scheduler's entire source/test directory must have zero errors in every project, regardless of baseline contents. Graph source/tests and its inherited publish config use permanent strict checking (#362). No diagnostic anywhere under packages/graph may be admitted to the baseline.
 
 The baseline contains project, repository-relative file, error code, **complete** diagnostic message and occurrence count. Absolute checkout paths inside messages are normalized to `<repo>/` while retaining the complete message. Positions are excluded, so line movement does not affect the check. A new identity or increased count fails even when total debt decreases. Decreases are allowed; remove retired debt explicitly in the PR that fixes it. Global/configuration errors, empty projects, failed/timed-out compiler processes, wrong compiler versions, malformed results and malformed baselines fail the check.
 
@@ -30,3 +30,11 @@ Removing `Point`/`Rect` and their interfaces retires six diagnostics: four impli
 constructor parameters and two possibly-undefined `origPoint` coordinates.
 The baseline update only removes these resolved diagnostics; it adds no new
 diagnostics or suppressions and preserves the event-contract guarantees above.
+
+## Core entity operations (#362)
+
+All graph source/test diagnostics are retired, with only graph records removed from
+the baseline. Graph diagnostics are rejected in every project and during baseline
+writes. Core consumer fixtures check strict and non-strict source/declarations,
+including optional canvas views, resolved connection IDs and generic Block/Layer
+authoring. Packed consumers check all four packages with skipLibCheck disabled.

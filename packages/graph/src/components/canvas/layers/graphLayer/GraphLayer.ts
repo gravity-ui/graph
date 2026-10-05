@@ -36,7 +36,7 @@ const rootBubblingEventTypes = new Set([
 // const rootCapturingEventTypes = new Set(["mousedown", "touchstart", "mouseup", "touchend"]);
 
 export type GraphMouseEvent = CustomEvent<{
-  target: EventedComponent;
+  target: EventedComponent | undefined;
   sourceEvent: MouseEvent;
   pointerPressed: boolean;
 }>;
@@ -46,9 +46,9 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   private camera: ICamera;
 
-  private targetComponent: EventedComponent;
+  private targetComponent?: EventedComponent;
 
-  private prevTargetComponent: EventedComponent;
+  private prevTargetComponent?: EventedComponent;
 
   private canEmulateClick?: boolean;
 

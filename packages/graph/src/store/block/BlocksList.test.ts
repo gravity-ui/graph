@@ -187,7 +187,9 @@ describe("Anchors selection", () => {
     // Проставляем blockId в блоке для якоря
     block.id = "block-1";
     store.setBlocks([block]);
-    anchorId = block.anchors[0].id;
+    const anchor = block.anchors?.[0];
+    if (!anchor) throw new Error("Expected fixture anchor");
+    anchorId = anchor.id;
   });
 
   it("Should select anchor", () => {

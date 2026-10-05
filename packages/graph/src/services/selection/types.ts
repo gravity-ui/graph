@@ -62,4 +62,16 @@ export type TSelectionDiff<IDType extends TSelectionEntityId> = {
 export interface ISelectionBucket<
   IDType extends TSelectionEntityId = TSelectionEntityId,
   TEntity extends TSelectionEntity = TSelectionEntity,
-> extends BaseSelectionBucket<IDType, TEntity> {}
+> extends Pick<
+    BaseSelectionBucket<IDType, TEntity>,
+    | "entityType"
+    | "$selected"
+    | "$selectedEntities"
+    | "$selectedComponents"
+    | "isRelatedElement"
+    | "updateSelection"
+    | "select"
+    | "deselect"
+    | "reset"
+    | "isSelected"
+  > {}

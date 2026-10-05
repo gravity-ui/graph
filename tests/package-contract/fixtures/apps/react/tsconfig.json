@@ -5,6 +5,7 @@
   },
   "include": [
     "app.tsx",
+    "core-operations.tsx",
     "graph.pw.ts",
     "../../shared/assets.d.ts"
   ]

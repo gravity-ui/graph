@@ -18,7 +18,7 @@ export class BlockState<T extends TBlock = TBlock> {
     return new BlockState(store, block, store.blockSelectionBucket);
   }
 
-  protected $rawState = signal<T>(undefined);
+  protected $rawState: Signal<T>;
 
   /**
    * Block state signal
@@ -103,7 +103,7 @@ export class BlockState<T extends TBlock = TBlock> {
    * @returns {ReadonlySignal<Map<string, number>>} Block anchor indexes
    */
   public $anchorIndexs = computed(() => {
-    const typeIndex = {};
+    const typeIndex: Record<string, number> = {};
     return new Map(
       this.$anchorStates.value
         ?.sort((a, b) => (a.state.index || 0) - (b.state.index || 0))
@@ -150,15 +150,17 @@ export class BlockState<T extends TBlock = TBlock> {
     block: T,
     private readonly blockSelectionBucket: ISelectionBucket<string | number>
   ) {
-    this.$rawState.value = block;
+    this.$rawState = signal(block);
     this.$anchorStates.value = block.anchors?.map((anchor) => new AnchorState(this, anchor)) ?? [];
   }
 
   public onAnchorSelected(anchorId: AnchorState["id"], selected: boolean) {
+    if (this.store.getBlockState(this.id) !== this) return;
     this.store.setAnchorSelection(this.id, anchorId, selected);
   }
 
   public setSelection(selected: boolean, strategy: ESelectionStrategy = ESelectionStrategy.REPLACE) {
+    if (this.store.getBlockState(this.id) !== this) return;
     this.store.updateBlocksSelection([this.id], selected, strategy);
   }
 
@@ -171,6 +173,7 @@ export class BlockState<T extends TBlock = TBlock> {
   }
 
   public updateXY(x: number, y: number, forceUpdate = false) {
+    if (this.store.getBlockState(this.id) !== this) return;
     this.store.updatePosition(this.id, { x, y });
     if (forceUpdate) {
       this.$viewComponent.value?.updatePosition(x, y, true);
@@ -222,8 +225,8 @@ export class BlockState<T extends TBlock = TBlock> {
   public updateAnchors(anchors: TAnchor[]) {
     const anchorsMap = new Map(this.$anchorStates.value.map((a) => [a.id, a]));
     this.$anchorStates.value = anchors.map((anchor) => {
-      if (anchorsMap.has(anchor.id)) {
-        const anchorState = anchorsMap.get(anchor.id);
+      const anchorState = anchorsMap.get(anchor.id);
+      if (anchorState) {
         anchorState.update(anchor);
         return anchorState;
       }
@@ -237,13 +240,13 @@ export class BlockState<T extends TBlock = TBlock> {
    * @param block {Partial<TBlock>} Block to update
    * @returns void
    */
-  public updateBlock(block: Partial<TBlock>): void {
+  public updateBlock(block: Partial<T>): void {
     // Update anchors first to ensure they have correct state when geometry changes
     if (block.anchors) {
       this.updateAnchors(block.anchors);
     }
 
-    this.$rawState.value = Object.assign({}, this.$rawState.value, block);
+    this.$rawState.value = Object.assign({}, this.$rawState.value, block, { id: this.id });
     this.getViewComponent()?.updateHitBox(this.$geometry.value, true);
   }
 
@@ -256,7 +259,7 @@ export class BlockState<T extends TBlock = TBlock> {
    *
    * @returns {TBlock} TBlock
    */
-  public asTBlock(): TBlock {
+  public asTBlock(): T {
     return cloneDeep({
       ...this.$rawState.toJSON(),
       selected: this.$selected.value,
@@ -267,7 +270,7 @@ export class BlockState<T extends TBlock = TBlock> {
    * Cheap snapshot for graph events (e.g. `block-change`): one object spread, no deep clone.
    * Nested values (`anchors`, `meta`, `settings`, …) are shared with the live store — treat as read-only.
    */
-  public asTBlockShallow(): Readonly<TBlock> {
+  public asTBlockShallow(): Readonly<T> {
     return {
       ...this.$rawState.value,
       selected: this.$selected.value,

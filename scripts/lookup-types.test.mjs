@@ -47,19 +47,54 @@ for (const built of [false, true]) {
 for (const strict of [true, false]) {
   for (const built of [false, true]) {
     test(`public factories and scheduling helpers preserve validated arguments (${strict ? "strict" : "non-strict"}, ${built ? "declarations" : "source"})`, () => {
-      const fixtures = ["component-factories.ts", "scheduling.ts"].map((file) =>
+      const fixtures = ["component-factories.ts", "scheduling.ts", "core-operations.ts"].map((file) =>
         path.join(root, "tests/package-contract/fixtures/apps/vanilla", file)
       );
-      const program = ts.createProgram(fixtures, {
-        strict, noEmit: true, skipLibCheck: true,
-        target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext,
-        moduleResolution: ts.ModuleResolutionKind.Bundler,
-        paths: { "@gravity-ui/graph": [path.join(root, built ? "packages/graph/build/index.d.ts" : "packages/graph/src/index.ts")] },
-      });
-      const errors = ts.getPreEmitDiagnostics(program).filter((error) =>
-        error.category === ts.DiagnosticCategory.Error && (!error.file || fixtures.includes(error.file.fileName))
+      fixtures.push(
+        ...["react/core-operations.tsx", "minimap/app.ts", "devtools/app.ts"].map((file) =>
+          path.join(root, "tests/package-contract/fixtures/apps", file)
+        )
       );
-      assert.deepEqual(errors.map((error) => ts.flattenDiagnosticMessageText(error.messageText, "\n")), []);
+      const program = ts.createProgram(
+        [
+          ...fixtures,
+          path.join(root, "packages/graph/src/assets.d.ts"),
+          path.join(root, "packages/graph-react/src/assets.d.ts"),
+        ],
+        {
+          strict,
+          noEmit: true,
+          skipLibCheck: false,
+          jsx: ts.JsxEmit.ReactJSX,
+          typeRoots: [
+            path.join(root, "packages/graph-react/node_modules/@types"),
+            path.join(root, "node_modules/@types"),
+          ],
+          target: ts.ScriptTarget.ES2022,
+          module: ts.ModuleKind.ESNext,
+          moduleResolution: ts.ModuleResolutionKind.Bundler,
+          paths: {
+            react: [path.join(root, "packages/graph-react/node_modules/@types/react/index.d.ts")],
+            "react-dom/*": [path.join(root, "packages/graph-react/node_modules/@types/react-dom/*")],
+            ...Object.fromEntries(
+              ["graph", "graph-react", "graph-minimap", "graph-devtools"].map((pkg) => [
+                `@gravity-ui/${pkg}`,
+                [path.join(root, `packages/${pkg}/${built ? "build/index.d.ts" : "src/index.ts"}`)],
+              ])
+            ),
+          },
+        }
+      );
+      const errors = ts
+        .getPreEmitDiagnostics(program)
+        .filter(
+          (error) =>
+            error.category === ts.DiagnosticCategory.Error && (!error.file || fixtures.includes(error.file.fileName))
+        );
+      assert.deepEqual(
+        errors.map((error) => ts.flattenDiagnosticMessageText(error.messageText, "\n")),
+        []
+      );
     });
   }
 }

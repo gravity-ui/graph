@@ -84,7 +84,7 @@ declare module "../../../../graphEvents" {
     "connection-create-drop": (
       event: CustomEvent<{
         sourceBlockId: TBlockId;
-        sourceAnchorId: string;
+        sourceAnchorId: string | undefined;
         targetBlockId?: TBlockId;
         targetAnchorId?: string;
         point: TPoint;
@@ -215,6 +215,7 @@ export class ConnectionLayer extends Layer<
   };
 
   protected renderEndpoint(ctx: CanvasRenderingContext2D) {
+    if (!this.endState) return;
     ctx.beginPath();
 
     // Icons should remain constant size on screen, so scale them inversely to camera scale
@@ -285,6 +286,12 @@ export class ConnectionLayer extends Layer<
     });
   }
 
+  private isStateAvailable(state: BlockState | AnchorState): boolean {
+    const blocks = this.context.graph.blocks;
+    if (state instanceof AnchorState) return blocks.getBlockState(state.blockId)?.getAnchorById(state.id) === state;
+    return blocks.getBlockState(state.id) === state;
+  }
+
   private getBlockId(component: BlockState | AnchorState) {
     if (component instanceof AnchorState) {
       return component.blockId;
@@ -300,7 +307,7 @@ export class ConnectionLayer extends Layer<
   }
 
   private onStartConnection(sourceComponent: Block | Anchor, worldCoords: TPoint) {
-    if (!sourceComponent) {
+    if (!sourceComponent.isEntityAvailable()) {
       return;
     }
     this.sourceComponent = sourceComponent.connectedState;
@@ -322,7 +329,7 @@ export class ConnectionLayer extends Layer<
       },
       () => {
         if (sourceComponent instanceof Block) {
-          this.context.graph.api.selectBlocks([this.sourceComponent.id], true, ESelectionStrategy.REPLACE);
+          this.context.graph.api.selectBlocks([sourceComponent.connectedState.id], true, ESelectionStrategy.REPLACE);
         } else if (sourceComponent instanceof Anchor) {
           this.context.graph.api.setAnchorSelection(sourceComponent.props.blockId, sourceComponent.props.id, true);
         }
@@ -333,7 +340,11 @@ export class ConnectionLayer extends Layer<
   }
 
   private onMoveNewConnection(event: MouseEvent, point: TPoint) {
-    if (!this.startState || !this.sourceComponent) {
+    if (!this.startState || !this.sourceComponent || !this.isStateAvailable(this.sourceComponent)) {
+      this.startState = null;
+      this.endState = null;
+      this.target = undefined;
+      this.performRender();
       return;
     }
 
@@ -370,14 +381,19 @@ export class ConnectionLayer extends Layer<
           targetBlockId: target instanceof AnchorState ? target.blockId : target.id,
         },
         () => {
-          this.target.connectedState.setSelection(true);
+          newTargetComponent.connectedState.setSelection(true);
         }
       );
     }
   }
 
   private onEndNewConnection(point: TPoint) {
-    if (!this.sourceComponent || !this.startState || !this.endState) {
+    if (!this.sourceComponent || !this.startState || !this.endState || !this.isStateAvailable(this.sourceComponent)) {
+      this.startState = null;
+      this.endState = null;
+      this.target = undefined;
+      this.sourceComponent = undefined;
+      this.performRender();
       return;
     }
 
@@ -412,7 +428,12 @@ export class ConnectionLayer extends Layer<
           targetBlockId: targetComponent.connectedState.blockId,
         };
         this.context.graph.executеDefaultEventAction("connection-created", params, () => {
-          this.context.graph.rootStore.connectionsList.addConnection(params);
+          if (
+            this.context.graph.blocks.getBlockState(params.sourceBlockId) &&
+            this.context.graph.blocks.getBlockState(params.targetBlockId)
+          ) {
+            this.context.graph.rootStore.connectionsList.addConnection(params);
+          }
         });
       } else if (this.sourceComponent instanceof BlockState && targetComponent.connectedState instanceof BlockState) {
         const params = {
@@ -420,7 +441,12 @@ export class ConnectionLayer extends Layer<
           targetBlockId: targetComponent.connectedState.id,
         };
         this.context.graph.executеDefaultEventAction("connection-created", params, () => {
-          this.context.graph.rootStore.connectionsList.addConnection(params);
+          if (
+            this.context.graph.blocks.getBlockState(params.sourceBlockId) &&
+            this.context.graph.blocks.getBlockState(params.targetBlockId)
+          ) {
+            this.context.graph.rootStore.connectionsList.addConnection(params);
+          }
         });
       }
       this.sourceComponent.setSelection(false);

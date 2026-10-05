@@ -126,6 +126,9 @@ export function validateSnapshot(value) {
     if (SCHEDULING_TEXT_FILES.includes(diagnostic.file)) {
       throw new Error(`Scheduling and text must have zero strict diagnostics: ${identity(diagnostic)}`);
     }
+    if (diagnostic.file.startsWith("packages/graph/")) {
+      throw new Error(`Graph must have zero strict diagnostics: ${identity(diagnostic)}`);
+    }
     const key = identity(diagnostic);
     if (seen.has(key)) throw new Error(`Duplicate diagnostic identity: ${key}`);
     seen.add(key);

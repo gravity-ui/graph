@@ -5,6 +5,10 @@ import { BlockConnection } from "../BlockConnection";
 export class ConnectionArrow<T extends TConnection> implements Path2DRenderInstance {
   constructor(protected connection: BlockConnection<T>) {}
 
+  public isPathVisible(): boolean {
+    return this.connection.isPathVisible();
+  }
+
   public getPath() {
     return this.connection.createArrowPath();
   }

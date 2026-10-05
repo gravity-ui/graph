@@ -1,4 +1,4 @@
-import { computed, signal } from "@preact/signals-core";
+import { Signal, computed, signal } from "@preact/signals-core";
 
 import { Component } from "../../../lib";
 import { TPoint } from "../../../utils/types/shapes";
@@ -47,7 +47,7 @@ export type TPort<T = unknown> = {
  * remain and no component owns the port, it can be safely garbage collected.
  */
 export class PortState<T = unknown> {
-  public $state = signal<TPort<T>>(undefined);
+  public $state: Signal<TPort<T>>;
 
   public owner?: Component;
 
@@ -99,7 +99,7 @@ export class PortState<T = unknown> {
     return this.owner || this.$state.value.component;
   }
 
-  public $point = computed(() => {
+  public $point = computed((): TPoint => {
     const delegate = this.$delegate.value;
     if (delegate) {
       return delegate.$point.value;
@@ -126,7 +126,7 @@ export class PortState<T = unknown> {
   }
 
   constructor(port: TPort<T>) {
-    this.$state.value = { ...port };
+    this.$state = signal({ ...port });
     // Initialize owner if component was provided in the constructor
     if (port.component) {
       this.owner = port.component;
@@ -227,10 +227,7 @@ export class PortState<T = unknown> {
     this.$state.value = {
       ...this.$state.value,
       ...port,
-      meta: {
-        ...this.$state.value.meta,
-        ...port.meta,
-      },
+      id: this.id,
     };
   }
 
