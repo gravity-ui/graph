@@ -201,3 +201,32 @@ test("plain metadata merge preserves an own __proto__ data property", () => {
   expect(Object.getPrototypeOf(port.meta)).toBe(Object.prototype);
   expect(port.meta?.label).toBe("old");
 });
+
+test("deletion rejects a connection from another graph with the same ID", () => {
+  const input = { connections: [{ id: "same", sourcePortId: "s", targetPortId: "t" }] };
+  const first = new Graph(input);
+  const second = new Graph(input);
+  const local = first.connections.getConnectionState("same");
+  const foreign = second.connections.getConnectionState("same");
+  if (!local || !foreign) throw new Error("Expected connections");
+  const localPort = local.$sourcePortState.value;
+  const foreignPort = foreign.$sourcePortState.value;
+  first.connections.deleteConnections([foreign]);
+  expect(first.connections.getConnectionState("same")).toBe(local);
+  expect(second.connections.getConnectionState("same")).toBe(foreign);
+  expect(localPort.observers.has(local)).toBe(true);
+  expect(foreignPort.observers.has(foreign)).toBe(true);
+  expect(local.isAttached()).toBe(true);
+  expect(foreign.isAttached()).toBe(true);
+});
+
+test("deletion removes an already destroyed connection registered in the receiving store", () => {
+  const graph = new Graph({ connections: [{ id: "c", sourcePortId: "s", targetPortId: "t" }] });
+  const state = graph.connections.getConnectionState("c");
+  if (!state) throw new Error("Expected connection");
+  const port = state.$sourcePortState.value;
+  state.destroy();
+  graph.connections.deleteConnections([state]);
+  expect(graph.connections.getConnectionState("c")).toBeUndefined();
+  expect(port.observers.size).toBe(0);
+});

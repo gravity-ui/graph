@@ -208,7 +208,8 @@ export class ConnectionsStore {
 
   public deleteConnections(connections: ConnectionState[]) {
     connections.forEach((c) => {
-      if (!c.isAttached()) return;
+      // Check this store: foreign handles are rejected; destroyed local handles can still be removed.
+      if (this.getConnectionState(c.id) !== c) return;
       c.destroy(); // Clean up port observers
       this.$connectionsMap.value.delete(c.id);
     });
