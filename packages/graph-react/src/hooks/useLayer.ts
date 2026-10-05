@@ -1,6 +1,6 @@
 import { useDeferredValue, useLayoutEffect, useState } from "react";
 
-import type { Constructor, Graph, Layer, LayerPublicProps } from "@gravity-ui/graph";
+import type { GraphClassConstructor, Graph, Layer, LayerPublicProps } from "@gravity-ui/graph";
 import isEqual from "lodash/isEqual";
 
 import { usePrevious } from "./usePrevious";
@@ -26,7 +26,7 @@ import { usePrevious } from "./usePrevious";
  * @param props - Layer properties (excluding internal props like root, camera, graph, emitter)
  * @returns Layer instance or null if graph is not initialized
  */
-export function useLayer<T extends Constructor<Layer> = Constructor<Layer>>(
+export function useLayer<T extends GraphClassConstructor<Layer> = GraphClassConstructor<Layer>>(
   graph: Graph | null,
   layerCtor: T,
   props: LayerPublicProps<T>

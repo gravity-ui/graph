@@ -337,9 +337,10 @@ String refs are typed as optional `CoreComponent` instances and are cleared when
 the child is removed or replaced. Declare specific optional refs on your subclass
 when you need its concrete type, or use a callback ref.
 
-`Constructor`, `Class` and `Interface` are named exports from `@gravity-ui/graph`.
+`GraphClassConstructor`, `Class` and `Interface` are named exports from `@gravity-ui/graph`.
 Add explicit type imports wherever you previously relied on their ambient global
-declarations. `Constructor` describes class identity; use the concrete class's
+declarations. Replace the old global `Constructor<T>` with an explicit import of
+`GraphClassConstructor<T>`. It describes class identity; use the concrete class's
 `ConstructorParameters` to inspect its constructor arguments. Unused ambient
 `PartialObject`, `IWithEvent` and `ICustomElement` declarations were removed.
 

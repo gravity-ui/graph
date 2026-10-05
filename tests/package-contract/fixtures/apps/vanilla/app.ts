@@ -4,7 +4,7 @@ import {
   Component,
   type BlockGroupsProps,
   type LayerProps,
-  type Constructor,
+  type GraphClassConstructor,
   type ChildDescriptor,
   type ComponentDescriptor,
   type Interface,
@@ -333,7 +333,7 @@ function layerAndGroupConstructionContracts(graph: Graph) {
   });
   graph.addLayer(Grouped, { label }).getLabel();
   // Utility types are named imports and do not require global declaration injection.
-  const ctor: Constructor<RequiredLayer> = RequiredLayer;
+  const ctor: GraphClassConstructor<RequiredLayer> = RequiredLayer;
   const publicLayer: Interface<RequiredLayer> = layer;
   void ctor;
   void publicLayer;

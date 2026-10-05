@@ -22,5 +22,6 @@ only members inherited from the actual runtime base and added by the mixin.
 
 Source and packed strict fixtures cover required props, concrete mount results
 and callback refs, generic/custom block selection, custom layer JSX/hook props,
-and custom group mixin methods/props. Named class utility exports replace ambient
+and custom group mixin methods/props. The library-specific `GraphClassConstructor` name avoids collisions with consumer
+constructor helpers. Named class utility exports replace ambient
 global declaration injection. LayerNext remains deferred to #373.

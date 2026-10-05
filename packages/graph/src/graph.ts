@@ -31,10 +31,13 @@ import { TypedEventListener, addTypedEventListener, removeTypedEventListener } f
 import { clearColorCache, getXY } from "./utils/functions";
 import { clearGraphInstance, setGraphInstance } from "./utils/graphInstance";
 import { clearTextCache } from "./utils/renderers/text";
-import type { Constructor } from "./utils/types/classes";
+import type { GraphClassConstructor } from "./utils/types/classes";
 import { IPoint, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
 
-export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
+export type LayerConfig<T extends GraphClassConstructor<Layer> = GraphClassConstructor<Layer>> = [
+  T,
+  LayerPublicProps<T>,
+];
 export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   configurationName?: string;
   blocks?: Block[];
@@ -392,12 +395,12 @@ export class Graph {
     }
   }
 
-  public addLayer<T extends Constructor<Layer> = Constructor<Layer>>(
+  public addLayer<T extends GraphClassConstructor<Layer> = GraphClassConstructor<Layer>>(
     layerCtor: T,
     props: LayerPublicProps<T>
   ): InstanceType<T> {
     // TODO: These types are too complicated, try to simplify them
-    return this.layers.createLayer(layerCtor as Constructor<Layer>, {
+    return this.layers.createLayer(layerCtor as GraphClassConstructor<Layer>, {
       ...props,
       camera: this.cameraService,
       graph: this,

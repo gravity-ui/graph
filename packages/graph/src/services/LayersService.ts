@@ -4,7 +4,7 @@ import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
 import { observeDPR, throttle } from "../utils/functions";
-import type { Constructor } from "../utils/types/classes";
+import type { GraphClassConstructor } from "../utils/types/classes";
 
 import { Layer, LayerProps } from "./Layer";
 
@@ -31,9 +31,9 @@ export class Layers extends Emitter<LayersEvents> {
     return globalThis.devicePixelRatio || 1;
   }
 
-  public createLayer<T extends Constructor<Layer> = Constructor<Layer>>(
+  public createLayer<T extends GraphClassConstructor<Layer> = GraphClassConstructor<Layer>>(
     layerCtor: T,
-    props: T extends Constructor<Layer<infer Props>> ? Omit<Props, "root"> & { root?: Props["root"] } : never
+    props: T extends GraphClassConstructor<Layer<infer Props>> ? Omit<Props, "root"> & { root?: Props["root"] } : never
   ): InstanceType<T> {
     // Public props retain the concrete class fields; mounting adapts their shared Layer contract.
     const layer = Component.mount(layerCtor as unknown as new (props: LayerProps) => Layer, {

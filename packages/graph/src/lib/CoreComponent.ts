@@ -1,5 +1,5 @@
 /* eslint-disable complexity */
-import { Constructor } from "../utils/types/classes";
+import { GraphClassConstructor } from "../utils/types/classes";
 
 import { Scheduler } from "./Scheduler";
 import { ITree, Tree } from "./Tree";
@@ -12,7 +12,7 @@ export type ComponentOptions<Instance> = {
 };
 
 export type TCoreComponent = CoreComponent<CoreComponentProps, CoreComponentContext>;
-export type ComponentConstructor = Constructor<CoreComponent>;
+export type ComponentConstructor = GraphClassConstructor<CoreComponent>;
 export type ComponentProps<C extends ComponentConstructor> = ConstructorParameters<C>[0];
 type OptionalFactoryProps<C extends ComponentConstructor> =
   undefined extends ComponentProps<C> ? true : {} extends ComponentProps<C> ? true : false;
