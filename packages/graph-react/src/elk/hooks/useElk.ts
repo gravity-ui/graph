@@ -5,7 +5,11 @@ import type { ELK, ElkLayoutArguments, ElkNode } from "elkjs";
 import { elkConverter } from "../converters/eklConverter";
 import { ConverterResult } from "../types";
 
-export const useElk = (config: ElkNode, elk: ELK, args?: ElkLayoutArguments & { onError?: (e: Error) => void }) => {
+export const useElk = (
+  config: ElkNode,
+  elk: ELK,
+  args?: ElkLayoutArguments & { onError?: (e: Error) => void }
+): { result: ConverterResult | null; isLoading: boolean } => {
   const [result, setResult] = useState<ConverterResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 

@@ -245,9 +245,9 @@ describe("useLayer hook", () => {
       };
 
       // Mock a specific implementation for isEqual that we can track
-      let comparedNewProps: any = null;
+      let comparedNewProps: TestLayerProps | null = null;
 
-      mockedIsEqual.mockImplementation((a, b) => {
+      mockedIsEqual.mockImplementation((_a: TestLayerProps, b: TestLayerProps) => {
         comparedNewProps = b;
         return false; // Always trigger setProps
       });

@@ -11,8 +11,8 @@ import React, {
 
 import { ESchedulerPriority, Graph, TBlock } from "@gravity-ui/graph";
 
-import { useComputedSignal, useSchedulerDebounce, useSignalEffect } from "./hooks";
-import { useBlockState } from "./hooks/useBlockState";
+import { useSchedulerDebounce, useSignalEffect } from "./hooks";
+import { useBlockState, useBlockViewState } from "./hooks/useBlockState";
 import { applyBlockContainerLayout } from "./utils/applyBlockContainerLayout";
 import { cn } from "./utils/cn";
 
@@ -114,7 +114,7 @@ function GraphBlockInner<T extends TBlock>(
     { priority: ESchedulerPriority.LOW, frameTimeout: 150 }
   );
 
-  const viewState = useComputedSignal(() => state?.$viewComponent.value, [state]);
+  const viewState = useBlockViewState(graph, block);
   const [interactive, setInteractive] = useState(viewState?.isInteractive() ?? false);
 
   /**

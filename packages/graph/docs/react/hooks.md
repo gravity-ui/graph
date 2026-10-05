@@ -174,7 +174,7 @@ function MyGraph(): JSX.Element {
 
 #### Returns
 
-Returns `InstanceType<T> | null` - the layer instance or `null` before the layer attaches or after it detaches.
+Returns `InstanceType<T> | null` - the layer instance or `null` before graph attachment or after full graph detachment. Readiness currently follows graph state; `stop(false)` and direct layer detachment can leave a returned layer detached until core exposes an attachment signal.
 
 ## Event Hooks
 

@@ -537,11 +537,11 @@ without `!important`. Single-class selectors such as `.my-minimap` or
 `context.root` remains optional before attachment and after detachment;
 `context.canvas` and `context.ctx` are available after successful construction.
 
-## React readiness and strict contracts (#363)
+## React readiness and strict contracts
 
 `GraphLayer` and `useLayer` keep the concrete layer constructor's public props and instance type. Required custom props must be supplied through `props`; use a specialized generic constructor (for example `MyLayer<MyMeta>`) when authoring generic layers. Callback refs receive the concrete instance or `null`.
 
-`useLayer`, `GraphLayer` refs, `GraphPortal` refs and `GraphCanvas.reactLayerRef` are `null` before graph attachment and after detachment/cleanup. A registered layer can exist internally before attachment. Call hooks unconditionally and guard their results before invoking instance methods. `GraphPortalLayer` is exported for typing portal refs. `GraphBlock` DOM refs become `null` whenever the block's DOM disappears, including entity removal.
+`useLayer`, `GraphLayer` refs, `GraphPortal` refs and `GraphCanvas.reactLayerRef` are `null` before graph attachment and after full graph detachment/cleanup. A registered layer can exist internally before attachment. Layer readiness currently follows graph state: `stop(false)` and direct layer detachment can leave a returned instance detached. A public core attachment signal is pending under [the core migration](https://github.com/gravity-ui/graph/issues/362); layer-specific readiness must be revisited after #385. Call hooks unconditionally and guard their results before invoking instance methods. `GraphPortalLayer` is exported for typing portal refs. `GraphBlock` DOM refs become `null` whenever the block's DOM disappears, including entity removal.
 
 `useSignal` accepts both mutable and readonly/computed signals. A definite signal returns its value type; a nullable or missing signal returns `T | undefined`. `useBlockViewState` observes asynchronous view readiness, and `useBlockAnchorPosition` accepts nullable DOM refs, initializes a DOM node mounted after anchor readiness, and clears previous CSS coordinates when the anchor or its position becomes absent. Missing blocks and anchors remain absent until available. `GraphCanvas` without `renderBlock` renders its canvas and child portals without a React block list.
 

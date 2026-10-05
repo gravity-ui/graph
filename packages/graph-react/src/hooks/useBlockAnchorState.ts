@@ -14,7 +14,7 @@ export function useBlockAnchorState(graph: Graph, anchor: TAnchor): AnchorState 
 export function useBlockAnchorPosition(
   state: AnchorState | undefined,
   anchorContainerRef: React.RefObject<HTMLDivElement> | undefined
-) {
+): void {
   const updatePosition = useCallback(() => {
     // Subscribe even while the DOM ref is empty, so later mounts keep receiving
     // geometry and view-readiness changes without replacing the ref object.

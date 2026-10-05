@@ -6,6 +6,8 @@ import { createPortal } from "react-dom";
 import { BlocksList, TRenderBlockFn } from "../BlocksList";
 import { parseClassNames } from "../utils/classNames";
 
+const DEFAULT_REACT_LAYER_Z_INDEX = 3;
+
 export type TReactLayerProps = LayerProps & {
   camera: ICamera;
   root?: HTMLElement;
@@ -21,7 +23,7 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
   constructor(props: TReactLayerProps) {
     super({
       html: {
-        zIndex: 3,
+        zIndex: DEFAULT_REACT_LAYER_Z_INDEX,
         classNames: ["no-user-select", "no-pointer-events"],
         transformByCameraPosition: true,
         activationScale: props.graph.graphConstants.block.SCALES[2],
@@ -38,7 +40,7 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
         this.setProps({
           ...this.props,
           html: {
-            zIndex: 3,
+            zIndex: DEFAULT_REACT_LAYER_Z_INDEX,
             ...this.props.html,
             activationScale: scales[2],
           },
