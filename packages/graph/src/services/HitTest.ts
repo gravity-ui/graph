@@ -6,10 +6,16 @@ import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
 import { noop } from "../utils/functions";
-import { THitTestPoint, TRect } from "../utils/types/shapes";
+import type { TPoint, TRect } from "../utils/types/shapes";
 import { debounce } from "../utils/utils/schedule";
 
 import { IncrementalBoundingBoxTracker } from "./IncrementalBoundingBoxTracker";
+
+/** A world-space point with optional exact canvas coordinates for hit testing. */
+export type THitTestPoint = TPoint & {
+  /** Canvas-relative CSS pixels, before applying device pixel ratio. */
+  origPoint?: TPoint;
+};
 
 export interface IWithHitTest {
   hitBox: IHitBox;

@@ -5,12 +5,6 @@ export type TPoint = {
   y: number;
 };
 
-/** A world-space point with optional exact canvas coordinates for hit testing. */
-export type THitTestPoint = TPoint & {
-  /** Canvas-relative CSS pixels, before applying device pixel ratio. */
-  origPoint?: TPoint;
-};
-
 export type TRect = {
   x: number;
   y: number;

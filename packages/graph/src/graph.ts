@@ -17,6 +17,7 @@ import {
 import { GraphEvent, GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
+import type { THitTestPoint } from "./services/HitTest";
 import { KeyboardService } from "./services/KeyboardService";
 import { Layer, LayerPublicProps } from "./services/Layer";
 import { Layers, LayersRootSize } from "./services/LayersService";
@@ -32,7 +33,7 @@ import { clearColorCache, getXY } from "./utils/functions";
 import { clearGraphInstance, setGraphInstance } from "./utils/graphInstance";
 import { clearTextCache } from "./utils/renderers/text";
 import "./utils/types/global";
-import { Point, THitTestPoint, TPoint, TRect, isTRect } from "./utils/types/shapes";
+import { Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
 
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
 export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {

@@ -42,6 +42,7 @@ export {
   type TCameraState,
 } from "./services/camera/CameraService";
 export * from "./services/Layer";
+export type { THitTestPoint } from "./services/HitTest";
 export * from "./store";
 export { EAnchorType } from "./store/anchor/Anchor";
 export type { BlockState, TBlockId } from "./store/block/Block";
@@ -56,7 +57,7 @@ export { ESchedulerPriority } from "./lib/Scheduler";
 export { computeCssVariable, debounce, throttle, schedule } from "./utils/functions";
 export * from "./utils/renderers/text";
 export { EVENTS } from "./utils/types/events";
-export { Point, Rect, type TPoint, type THitTestPoint, type TRect } from "./utils/types/shapes";
+export { Point, Rect, type TPoint, type TRect } from "./utils/types/shapes";
 export { ESelectionStrategy } from "./services/selection/types";
 export * from "./utils/shapes";
 export { applyAlpha, clearColorCache } from "./utils/functions/color";
