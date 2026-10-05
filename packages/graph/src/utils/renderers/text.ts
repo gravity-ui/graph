@@ -47,6 +47,7 @@ export function layoutText(text: string, ctx: CanvasRenderingContext2D, rect: TT
     maxWidth: rect.width,
     maxHeight: rect.height,
     ...params,
+    font: ctx.font,
   });
   const lines: [string, number, number][] = [];
   for (const line of measures.linesWords) {

@@ -61,7 +61,9 @@ export class PortsStore {
   }
 
   public deletePort(id: TPortId): boolean {
-    this.getPort(id)?.removeOwner();
+    const port = this.getPort(id);
+    port?.removeOwner();
+    port?.observers.clear();
     const deleted = this.$portsMap.value.delete(id);
     if (deleted) {
       this.notifyPortMapChanged();
@@ -71,14 +73,19 @@ export class PortsStore {
 
   public deletePorts(ids: TPortId[]): void {
     ids.forEach((id) => {
-      this.getPort(id)?.removeOwner();
+      const port = this.getPort(id);
+      port?.removeOwner();
+      port?.observers.clear();
       this.$portsMap.value.delete(id);
     });
     this.notifyPortMapChanged();
   }
 
   public clearPorts(): void {
-    for (const port of this.$portsMap.value.values()) port.removeOwner();
+    for (const port of this.$portsMap.value.values()) {
+      port.removeOwner();
+      port.observers.clear();
+    }
     this.$portsMap.value.clear();
     this.notifyPortMapChanged();
   }
@@ -103,7 +110,7 @@ export class PortsStore {
 
   public unownPort(port: PortState, component: GraphComponent): void {
     port.removeObserver(component);
-    if (port.observers.size === 0 && !port.component) {
+    if (this.getPort(port.id) === port && port.observers.size === 0 && !port.component) {
       this.deletePort(port.id);
     }
   }

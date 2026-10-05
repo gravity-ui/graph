@@ -121,6 +121,10 @@ function checkNullableLookups(graph: Graph) {
   const state = graph.rootStore.blocksList.getBlockState("missing");
   const connection = graph.rootStore.connectionsList.getConnectionState("missing");
   const anchor = state?.getAnchorById("missing");
+  if (state) {
+    // @ts-expect-error no anchor may be selected
+    state.getSelectedAnchor().id;
+  }
   if (connection) {
     // @ts-expect-error connection canvas views are absent until bound
     connection.getViewComponent().isMounted();

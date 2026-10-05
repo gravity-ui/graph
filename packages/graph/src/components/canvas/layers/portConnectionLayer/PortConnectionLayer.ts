@@ -257,7 +257,8 @@ export class PortConnectionLayer extends Layer<
 
   private getConnectionMeta(port: PortState): IPortConnectionMeta | undefined {
     const metadata = port.meta;
-    if (typeof metadata !== "object" || metadata === null || !(PortConnectionLayer.PortMetaKey in metadata)) return;
+    if (typeof metadata !== "object" || metadata === null || !(PortConnectionLayer.PortMetaKey in metadata))
+      return undefined;
     const value = metadata[PortConnectionLayer.PortMetaKey];
     if (typeof value !== "object" || value === null) return undefined;
     // This symbol is the explicit PortConnectionLayer metadata contract.
@@ -479,7 +480,7 @@ export class PortConnectionLayer extends Layer<
   }
 
   protected selectPort(port: PortState | undefined, select: boolean): void {
-    if (!port) return;
+    if (!port || !this.isPortAvailable(port)) return;
     const component = port.owner;
     if (component instanceof GraphComponent) {
       const bucket = this.context.graph.rootStore.selectionService.getBucketByElement(component);

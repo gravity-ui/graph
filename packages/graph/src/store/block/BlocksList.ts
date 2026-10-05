@@ -78,7 +78,7 @@ export class BlockListStore {
 
   public $blocks = signal<BlockState[]>([]);
 
-  private batchedGeometryPending = new Map<BlockState["id"], TBlockGeometrySnapshot>();
+  private batchedGeometryPending = new Map<BlockState["id"], { state: BlockState; geometry: TBlockGeometrySnapshot }>();
 
   private batchedGeometryRaf: number | null = null;
 
@@ -247,7 +247,7 @@ export class BlockListStore {
       if (this.getBlockState(id) !== blockState) return;
       blockState.updateBlock(nextState);
       const geometry = blockState.$geometry.value;
-      this.batchedGeometryPending.set(id, { id, ...geometry });
+      this.batchedGeometryPending.set(id, { state: blockState, geometry: { id, ...geometry } });
       this.scheduleBatchedBlocksGeometryFlush();
     });
   }
@@ -282,9 +282,9 @@ export class BlockListStore {
     if (this.batchedGeometryPending.size === 0) {
       return;
     }
-    const blocks = Array.from(this.batchedGeometryPending.values()).filter((block) =>
-      this.$blocksMap.value.has(block.id)
-    );
+    const blocks = Array.from(this.batchedGeometryPending.values())
+      .filter(({ state }) => this.getBlockState(state.id) === state)
+      .map(({ geometry }) => geometry);
     this.batchedGeometryPending.clear();
     if (blocks.length) this.graph.emit("blocks-geometry-change", { blocks });
   }

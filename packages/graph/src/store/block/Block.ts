@@ -103,15 +103,15 @@ export class BlockState<T extends TBlock = TBlock> {
    * @returns {ReadonlySignal<Map<string, number>>} Block anchor indexes
    */
   public $anchorIndexs = computed(() => {
-    const typeIndex: Record<string, number> = {};
+    const typeIndex = new Map<string, number>();
     return new Map(
       this.$anchorStates.value
         ?.sort((a, b) => (a.state.index || 0) - (b.state.index || 0))
         .map((anchorState) => {
-          if (!typeIndex[anchorState.state.type]) {
-            typeIndex[anchorState.state.type] = 0;
-          }
-          return [anchorState.id, typeIndex[anchorState.state.type]++];
+          const type = anchorState.state.type;
+          const index = typeIndex.get(type) ?? 0;
+          typeIndex.set(type, index + 1);
+          return [anchorState.id, index];
         }) || []
     );
   });
@@ -164,7 +164,7 @@ export class BlockState<T extends TBlock = TBlock> {
     this.store.updateBlocksSelection([this.id], selected, strategy);
   }
 
-  public getSelectedAnchor() {
+  public getSelectedAnchor(): AnchorState | undefined {
     return this.$selectedAnchors.value[0];
   }
 

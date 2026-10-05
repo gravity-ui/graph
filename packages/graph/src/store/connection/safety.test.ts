@@ -99,3 +99,66 @@ test("zooming an empty rectangle before attachment keeps camera coordinates fini
   const camera = graph.cameraService.getCameraState();
   expect([camera.x, camera.y, camera.scale].every(Number.isFinite)).toBe(true);
 });
+
+test("retained anchor state cannot select a replacement with the same ID", () => {
+  const anchor = { id: "a", blockId: 0, type: "OUT" };
+  const graph = new Graph({ blocks: [{ ...block, anchors: [anchor] }] });
+  const state = graph.blocks.getBlockState(0);
+  const previous = state?.getAnchorById("a");
+  state?.updateAnchors([]);
+  state?.updateAnchors([anchor]);
+  previous?.setSelection(true);
+  expect(graph.blocks.anchorSelectionBucket.isSelected("a")).toBe(false);
+});
+
+test("arbitrary anchor types produce finite per-type indexes", () => {
+  const graph = new Graph({
+    blocks: [
+      {
+        ...block,
+        anchors: [
+          { id: "a", blockId: 0, type: "constructor" },
+          { id: "b", blockId: 0, type: "constructor" },
+          { id: "c", blockId: 0, type: "__proto__" },
+        ],
+      },
+    ],
+  });
+  expect(Array.from(graph.blocks.getBlockState(0)?.$anchorIndexs.value.values() ?? [])).toEqual([0, 1, 0]);
+});
+
+test("deleting a port releases observers even before connection destruction", () => {
+  const graph = new Graph({ connections: [{ id: "c", sourcePortId: "s", targetPortId: "t" }] });
+  const state = graph.connections.getConnectionState("c");
+  if (!state) throw new Error("Expected connection");
+  const port = state.$sourcePortState.value;
+  expect(port.observers.has(state)).toBe(true);
+  graph.connections.deletePorts(["s"]);
+  graph.connections.deleteConnections([state]);
+  expect(port.observers.size).toBe(0);
+});
+
+test("pending geometry cannot describe a replacement block", () => {
+  const graph = new Graph({ blocks: [block] });
+  const changed = jest.fn();
+  graph.on("blocks-geometry-change", changed);
+  graph.blocks.updatePosition(0, { x: 10, y: 20 });
+  graph.blocks.deleteBlocks([0]);
+  graph.api.addBlock({ ...block, x: 500, y: 500 });
+  graph.blocks.flushBatchedBlocksGeometryEmit();
+  expect(changed).not.toHaveBeenCalled();
+});
+
+test("repeated deletion of a retained connection state preserves its replacement", () => {
+  const graph = new Graph({ connections: [{ id: "c", sourcePortId: "old", targetPortId: "t" }] });
+  const previous = graph.connections.getConnectionState("c");
+  if (!previous) throw new Error("Expected connection");
+  graph.connections.deleteConnections([previous]);
+  graph.api.addConnection({ id: "c", sourcePortId: "new", targetPortId: "t" });
+  const current = graph.connections.getConnectionState("c");
+  if (!current) throw new Error("Expected replacement");
+  const port = current.$sourcePortState.value;
+  graph.connections.deleteConnections([previous]);
+  expect(graph.connections.getConnectionState("c")).toBe(current);
+  expect(port.observers.has(current)).toBe(true);
+});

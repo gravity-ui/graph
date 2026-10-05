@@ -451,7 +451,7 @@ service.
 The graph source, unit tests and declaration build now use permanent `strict: true`.
 Lookup results and canvas views retain their availability in published declarations:
 `ConnectionState.getViewComponent()` and `AnchorState.getViewComponent()` can return
-`undefined`. Guard the result before using the view. `ConnectionState.id` and the ID
+`undefined`. `BlockState.getSelectedAnchor()` is also absent when no anchor is selected. Guard these results before use. `ConnectionState.id` and the ID
 in its JSON snapshot are always present; `TConnection.id` remains optional input.
 `BlockState<T>.asTBlock()` / `asTBlockShallow()` and `ConnectionState<T>.toJSON()` /
 `asTConnection()` preserve custom data, including declared Meta. State updates accept
@@ -474,7 +474,7 @@ The changing-entity behavior is:
   IDs receive generated IDs. Changing endpoints releases unused port observers;
   replacing/deleting connections cleans up their observers.
 - Deleting a port invalidates its geometry immediately. Retained destroyed connection
-  states cannot recreate observers. Retained block/connection state handles cannot
+  states cannot recreate observers. Retained block/connection/anchor state handles cannot
   move/select a replacement entity with the same ID. Removed components are skipped
   during drag, and deleted blocks are omitted from pending geometry events.
 - Multipoint connections with fewer than two points have empty paths/arrows; incomplete
@@ -501,7 +501,7 @@ or from `getViewComponent()`. Return a real canvas component from that method.
 use a component; built-in entity components also check store identity.
 
 `isInteractive()` resolves omitted props to `false`; camera `resize` preserves omitted
-width/height. Text layout uses the canvas font when no font is supplied. The internal
+width/height. Text layout and measurement use the same canvas font when no font is supplied. The internal
 page object reports a detached graph error for bounds/cursor reads. Binding a canvas
 Block, Anchor, Connection or Group to a missing entity throws a descriptive error;
 create its data before constructing the view. A missing 2D canvas context for grid or

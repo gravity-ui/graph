@@ -40,6 +40,7 @@ export class AnchorState {
   }
 
   public setSelection(selected: boolean) {
+    if (this.block.getAnchorById(this.id) !== this) return;
     this.block.onAnchorSelected(this.id, selected);
   }
 

@@ -208,6 +208,7 @@ export class ConnectionsStore {
 
   public deleteConnections(connections: ConnectionState[]) {
     connections.forEach((c) => {
+      if (this.getConnectionState(c.id) !== c) return;
       c.destroy(); // Clean up port observers
       this.$connectionsMap.value.delete(c.id);
     });

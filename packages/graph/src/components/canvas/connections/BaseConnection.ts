@@ -129,6 +129,8 @@ export class BaseConnection<
    */
   protected bBox: [minX: number, minY: number, maxX: number, maxY: number] = [0, 0, 0, 0];
 
+  private hitBoxNeedsRestore = true;
+
   constructor(props: Props, parent: Component) {
     super(props, parent);
 
@@ -236,6 +238,7 @@ export class BaseConnection<
     if (!this.isEntityAvailable() || !this.hasGeometry()) {
       this.bBox = [0, 0, 0, 0];
       this.removeHitBox();
+      this.hitBoxNeedsRestore = true;
       this.performRender();
       return;
     }
@@ -292,6 +295,13 @@ export class BaseConnection<
   private updateHitBox = (): void => {
     const { x, y, width, height } = this.getHitBoxRect();
     const threshold = this.context.constants.connection.THRESHOLD_LINE_HIT;
-    this.setHitBox(x - threshold, y - threshold, x + width + threshold, y + height + threshold);
+    this.setHitBox(
+      x - threshold,
+      y - threshold,
+      x + width + threshold,
+      y + height + threshold,
+      this.hitBoxNeedsRestore
+    );
+    this.hitBoxNeedsRestore = false;
   };
 }

@@ -17,6 +17,8 @@ import {
 
 // Compile in strict and non-strict consumers, against source and packed declarations.
 export function coreOperations(graph: Graph, connection: ConnectionState, anchor: AnchorState) {
+  const selectedAnchor: AnchorState | undefined = anchor.block.getSelectedAnchor();
+  void selectedAnchor;
   const id: TConnectionId = connection.id;
   const snapshotId: TConnectionId = connection.toJSON().id;
   const endpoints: [TPoint, TPoint] | undefined = connection.$geometry.value;
