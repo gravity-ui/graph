@@ -18,6 +18,16 @@ export type TRect = {
   height: number;
 };
 
+/** Creates a plain point object. Call without `new`. */
+export function Point(x: number, y: number): TPoint {
+  return { x, y };
+}
+
+/** Creates a plain rectangle object. Call without `new`. */
+export function Rect(x: number, y: number, width: number, height: number): TRect {
+  return { x, y, width, height };
+}
+
 export function isTRect(rect: unknown): rect is TRect {
   return (
     isObject(rect) &&

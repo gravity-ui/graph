@@ -1,6 +1,7 @@
 import { effect } from "@preact/signals-core";
 
 import type { DragState } from "../../../services/drag/types";
+import { Point } from "../../../utils/types/shapes";
 import { Block, TBlock } from "../blocks/Block";
 
 import { BlockGroups, BlockGroupsProps } from "./BlockGroups";
@@ -405,7 +406,7 @@ export class BlockGroupsTransferLayer<
    */
   protected findGroupAtPoint(point: [number, number]): Group | null {
     const [x, y] = point;
-    return this.props.graph.getElementOverPoint({ x, y }, [Group]) ?? null;
+    return this.props.graph.getElementOverPoint(Point(x, y), [Group]) ?? null;
   }
 
   /**

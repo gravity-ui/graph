@@ -2,7 +2,7 @@ import { GraphComponent } from "../../components/canvas/GraphComponent";
 import { Block, TBlock } from "../../components/canvas/blocks/Block";
 import { ECanDrag } from "../../store/settings";
 import { SELECTION_EVENT_TYPES } from "../types/events";
-import { TRect } from "../types/shapes";
+import { Rect, TRect } from "../types/shapes";
 
 export { applyAlpha, clearColorCache } from "./color";
 
@@ -113,7 +113,7 @@ export function isAllowDrag(canDrag: ECanDrag, isSelected: boolean): boolean {
 export function getBlocksRect(blocks: TBlock[]): TRect {
   // If no blocks or all blocks are not found, return a default rectangle to prevent camera state issues with Infinity values.
   if (blocks.length === 0) {
-    return { x: 0, y: 0, width: 0, height: 0 };
+    return Rect(0, 0, 0, 0);
   }
 
   const geometry = blocks.reduce(
@@ -126,15 +126,10 @@ export function getBlocksRect(blocks: TBlock[]): TRect {
     },
     { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
   );
-  const rect: TRect = {
-    x: geometry.minX,
-    y: geometry.minY,
-    width: geometry.maxX - geometry.minX,
-    height: geometry.maxY - geometry.minY,
-  };
+  const rect = Rect(geometry.minX, geometry.minY, geometry.maxX - geometry.minX, geometry.maxY - geometry.minY);
 
   if (isGeometryHaveInfinity(rect)) {
-    return { x: 0, y: 0, width: 0, height: 0 };
+    return Rect(0, 0, 0, 0);
   }
 
   return rect;
@@ -142,7 +137,7 @@ export function getBlocksRect(blocks: TBlock[]): TRect {
 
 export function getElementsRect<T extends GraphComponent = GraphComponent>(elements: T[]): TRect {
   if (elements.length === 0) {
-    return { x: 0, y: 0, width: 0, height: 0 };
+    return Rect(0, 0, 0, 0);
   }
 
   const elementsRect = elements.reduce(
@@ -157,12 +152,12 @@ export function getElementsRect<T extends GraphComponent = GraphComponent>(eleme
     { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
   );
 
-  return {
-    x: elementsRect.minX,
-    y: elementsRect.minY,
-    width: elementsRect.maxX - elementsRect.minX,
-    height: elementsRect.maxY - elementsRect.minY,
-  };
+  return Rect(
+    elementsRect.minX,
+    elementsRect.minY,
+    elementsRect.maxX - elementsRect.minX,
+    elementsRect.maxY - elementsRect.minY
+  );
 }
 
 export function isGeometryHaveInfinity(geometry: TRect): boolean {

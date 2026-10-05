@@ -94,11 +94,13 @@ consumers remain supported.
 
 ## Structural geometry
 
-`Point`, `Rect`, `IPoint`, and `IRect` are removed. Geometry APIs use plain objects;
-`TPoint`, `TRect`, and `THitTestPoint` are exported from `@gravity-ui/graph`.
+The `Point` / `Rect` classes and `IPoint` / `IRect` interfaces are removed.
+Geometry APIs use plain objects; `TPoint`, `TRect`, and `THitTestPoint` are exported
+from `@gravity-ui/graph`. Optional `Point(x, y)` and `Rect(x, y, width, height)`
+factories create plain objects with these shapes. Call them without `new`.
 
 ```ts
-import { Graph, type TPoint, type TRect } from "@gravity-ui/graph";
+import { Graph, Point, Rect, type TPoint, type TRect } from "@gravity-ui/graph";
 
 const graph = new Graph({});
 const point: TPoint = { x: 100, y: 200 };
@@ -107,6 +109,10 @@ const rect: TRect = { x: 0, y: 0, width: 300, height: 400 };
 graph.getElementOverPoint(point);
 graph.getElementsOverPoint(point);
 graph.zoomTo(rect);
+
+// Equivalent factory syntax; the API accepts either form.
+graph.getElementOverPoint(Point(100, 200));
+graph.zoomTo(Rect(0, 0, 300, 400));
 ```
 
 Point lookups take world coordinates. They convert to canvas pixels internally,

@@ -1,4 +1,5 @@
 import type { Locator } from "@playwright/test";
+import { Point, Rect } from "@gravity-ui/graph";
 import type {
   Graph,
   TBlock,
@@ -64,6 +65,11 @@ export function checkStructuralGeometry(graph: Graph, event: MouseEvent): void {
   graph.getElementsOverPoint(mousePoint);
   graph.hitTest.testPoint(point, 2);
   graph.zoomTo(rect);
+  const createdPoint: TPoint = Point(100, 200);
+  const createdRect: TRect = Rect(0, 0, 300, 400);
+  graph.getElementOverPoint(createdPoint);
+  graph.getElementsOverPoint(createdPoint);
+  graph.zoomTo(createdRect);
   void dropPoint;
   void portDropPoint;
 }

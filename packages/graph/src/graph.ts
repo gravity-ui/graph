@@ -32,7 +32,7 @@ import { clearColorCache, getXY } from "./utils/functions";
 import { clearGraphInstance, setGraphInstance } from "./utils/graphInstance";
 import { clearTextCache } from "./utils/renderers/text";
 import "./utils/types/global";
-import { THitTestPoint, TPoint, TRect, isTRect } from "./utils/types/shapes";
+import { Point, THitTestPoint, TPoint, TRect, isTRect } from "./utils/types/shapes";
 
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
 export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
@@ -298,7 +298,7 @@ export class Graph {
     const xy = getXY(this.graphLayer.getCanvas(), event);
 
     const applied = this.cameraService.applyToPoint(xy[0], xy[1]);
-    return { x: applied[0], y: applied[1], origPoint: { x: xy[0], y: xy[1] } };
+    return { x: applied[0], y: applied[1], origPoint: Point(xy[0], xy[1]) };
   }
 
   public updateEntities({

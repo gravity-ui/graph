@@ -6,7 +6,7 @@ import { BlockState, TBlockId } from "../../../../store/block/Block";
 import { isBlock, isShiftKeyEvent } from "../../../../utils/functions";
 import { render } from "../../../../utils/renderers/render";
 import { renderSVG } from "../../../../utils/renderers/svgPath";
-import { TPoint } from "../../../../utils/types/shapes";
+import { Point, TPoint } from "../../../../utils/types/shapes";
 import { Anchor } from "../../../canvas/anchors";
 import { Block } from "../../../canvas/blocks/Block";
 import { GraphComponent } from "../../GraphComponent";
@@ -205,9 +205,9 @@ export class ConnectionLayer extends Layer<
       }
       this.context.graph.dragService.startDrag(
         {
-          onStart: (_event, coords) => this.onStartConnection(target, { x: coords[0], y: coords[1] }),
-          onUpdate: (event, coords) => this.onMoveNewConnection(event, { x: coords[0], y: coords[1] }),
-          onEnd: (_event, coords) => this.onEndNewConnection({ x: coords[0], y: coords[1] }),
+          onStart: (_event, coords) => this.onStartConnection(target, Point(coords[0], coords[1])),
+          onUpdate: (event, coords) => this.onMoveNewConnection(event, Point(coords[0], coords[1])),
+          onEnd: (_event, coords) => this.onEndNewConnection(Point(coords[0], coords[1])),
         },
         { cursor: "crosshair" }
       );
@@ -305,10 +305,10 @@ export class ConnectionLayer extends Layer<
     }
     this.sourceComponent = sourceComponent.connectedState;
     if (sourceComponent instanceof Block) {
-      this.startState = { x: worldCoords.x, y: worldCoords.y };
+      this.startState = Point(worldCoords.x, worldCoords.y);
     } else if (sourceComponent instanceof Anchor) {
       const point = sourceComponent.getPosition();
-      this.startState = { x: point.x, y: point.y };
+      this.startState = Point(point.x, point.y);
     }
 
     this.context.graph.executеDefaultEventAction(
@@ -340,7 +340,7 @@ export class ConnectionLayer extends Layer<
     const newTargetComponent = this.context.graph.getElementOverPoint(point, [Block, Anchor]);
 
     // Use world coordinates from point instead of screen coordinates
-    this.endState = { x: point.x, y: point.y };
+    this.endState = Point(point.x, point.y);
     this.performRender();
 
     if (!newTargetComponent || !newTargetComponent.connectedState) {

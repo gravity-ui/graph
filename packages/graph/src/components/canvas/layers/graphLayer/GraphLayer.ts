@@ -5,6 +5,7 @@ import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { Camera, TCameraProps } from "../../../../services/camera/Camera";
 import { ICamera, TCameraState } from "../../../../services/camera/CameraService";
 import { getEventDelta } from "../../../../utils/functions";
+import { Point } from "../../../../utils/types/shapes";
 import { EventedComponent } from "../../EventedComponent/EventedComponent";
 import { Blocks } from "../../blocks/Blocks";
 import { BlockConnection } from "../../connections/BlockConnection";
@@ -228,7 +229,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     if (this.capturedTargetComponent) return;
 
     const [worldX, worldY] = this.context.camera.applyToPoint(this.lastMouseCanvasX, this.lastMouseCanvasY);
-    const point = { x: worldX, y: worldY, origPoint: { x: this.lastMouseCanvasX, y: this.lastMouseCanvasY } };
+    const point = { x: worldX, y: worldY, origPoint: Point(this.lastMouseCanvasX, this.lastMouseCanvasY) };
     const newTarget = this.context.graph.getElementOverPoint(point) || this.$.camera;
 
     if (newTarget === this.targetComponent) return;
