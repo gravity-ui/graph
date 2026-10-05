@@ -42,7 +42,7 @@ export {
   type TCameraState,
 } from "./services/camera/CameraService";
 export * from "./services/Layer";
-export type { THitTestPoint } from "./services/HitTest";
+export type { CameraPoint } from "./services/camera/CameraPoint";
 export * from "./store";
 export { EAnchorType } from "./store/anchor/Anchor";
 export type { BlockState, TBlockId } from "./store/block/Block";

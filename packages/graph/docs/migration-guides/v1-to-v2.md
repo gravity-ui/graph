@@ -95,7 +95,7 @@ consumers remain supported.
 ## Structural geometry
 
 The `Point` / `Rect` classes and `IPoint` / `IRect` interfaces are removed.
-Geometry APIs use plain objects; `TPoint`, `TRect`, and `THitTestPoint` are exported
+Geometry APIs use plain objects; `TPoint`, `TRect`, and `CameraPoint` are exported
 from `@gravity-ui/graph`. Optional `Point(x, y)` and `Rect(x, y, width, height)`
 factories create plain objects with these shapes. Call them without `new`.
 
@@ -115,12 +115,19 @@ graph.getElementOverPoint(Point(100, 200));
 graph.zoomTo(Rect(0, 0, 300, 400));
 ```
 
-Point lookups take world coordinates. They convert to canvas pixels internally,
-including camera translation, scale, and device pixel ratio. `THitTestPoint` adds
-an optional `origPoint: TPoint` with exact canvas-relative CSS coordinates, before
-device pixel ratio. `getPointInCameraSpace(event)` returns a plain object containing
-both world coordinates and `origPoint`; pass it directly to a point lookup to
-preserve mouse precision.
+Point lookups accept a world `TPoint` or a `CameraPoint` with two required fields:
+`world: TPoint` and `canvas: TPoint`. Canvas coordinates use CSS pixels before
+device pixel ratio. `graph.cameraService.createCameraPoint(point)` captures both
+spaces from a world point; pass `"canvas"` as the second argument for canvas input.
+Conversion belongs to the camera. Direct `graph.hitTest.testPoint` calls require a
+prepared `CameraPoint` and a device pixel ratio.
+
+`getPointInCameraSpace(event)` now returns a `CameraPoint`. Read `.world.x/y`
+instead of `.x/y`, and `.canvas` instead of `.origPoint`. Both coordinate spaces
+retain fractional precision. Pass the result directly to a point lookup, or use
+its `.world` point. Camera points are snapshots: recreate them after camera changes.
+The legacy `cameraService.applyToPoint` helper continues to produce integer
+coordinates for drag operations.
 
 The `point` payloads of `connection-create-drop` and `port-connection-create-drop`
 are plain `TPoint` values. Replace `point.toArray()` with `[point.x, point.y]` and

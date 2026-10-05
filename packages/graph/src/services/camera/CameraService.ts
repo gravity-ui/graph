@@ -3,8 +3,9 @@ import intersects from "intersects";
 import { Graph } from "../../graph";
 import { Emitter } from "../../utils/Emitter";
 import { clamp } from "../../utils/functions/clamp";
-import { TRect } from "../../utils/types/shapes";
+import { Point, TPoint, TRect } from "../../utils/types/shapes";
 
+import type { CameraPoint } from "./CameraPoint";
 import { ECameraScaleLevel } from "./cameraScaleEnums";
 
 export { ECameraScaleLevel } from "./cameraScaleEnums";
@@ -240,6 +241,21 @@ export class CameraService extends Emitter {
    */
   public getAbsoluteXY(x: number, y: number) {
     return [x * this.state.scale + this.state.x, y * this.state.scale + this.state.y];
+  }
+
+  /**
+   * Captures a point in both world and canvas coordinates using the current camera state.
+   * Input is in world space by default; canvas input uses CSS pixels before DPR.
+   * Coordinates are copied without rounding. Recreate the point after camera changes.
+   */
+  public createCameraPoint(point: TPoint, space: "world" | "canvas" = "world"): CameraPoint {
+    if (space === "canvas") {
+      const [x, y] = this.getRelativeXY(point.x, point.y);
+      return { world: Point(x, y), canvas: Point(point.x, point.y) };
+    }
+
+    const [x, y] = this.getAbsoluteXY(point.x, point.y);
+    return { world: Point(point.x, point.y), canvas: Point(x, y) };
   }
 
   /**

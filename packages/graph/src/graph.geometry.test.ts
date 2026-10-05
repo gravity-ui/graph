@@ -29,7 +29,11 @@ describe("Graph structural geometry", () => {
     graph.getElementOverPoint(point);
     expect(testHitBox).toHaveBeenLastCalledWith(expectedHitBox);
 
-    graph.hitTest.testPoint(point, dpr);
+    const cameraPoint = graph.cameraService.createCameraPoint(point);
+    graph.getElementOverPoint(cameraPoint);
+    expect(testHitBox).toHaveBeenLastCalledWith(expectedHitBox);
+
+    graph.hitTest.testPoint(cameraPoint, dpr);
     expect(testHitBox).toHaveBeenLastCalledWith(expectedHitBox);
   });
 
@@ -41,16 +45,16 @@ describe("Graph structural geometry", () => {
 
     const point = graph.getPointInCameraSpace(new MouseEvent("mousemove", { clientX: 40.75, clientY: 69.5 }));
 
-    expect(point).toStrictEqual({ x: 10, y: 179, origPoint: { x: 30.75, y: 49.5 } });
+    expect(point).toStrictEqual({ world: { x: 10.5, y: 179.5 }, canvas: { x: 30.75, y: 49.5 } });
     graph.getElementOverPoint(point);
-    expect(testHitBox).toHaveBeenCalledWith({ minX: 9, minY: 178, maxX: 11, maxY: 180, x: 61.5, y: 99 });
+    expect(testHitBox).toHaveBeenCalledWith({ minX: 9.5, minY: 178.5, maxX: 11.5, maxY: 180.5, x: 61.5, y: 99 });
   });
 
   it("honors an explicit canvas origin at zero", () => {
     graph.cameraService.set({ x: 100, y: 200, scale: 0.5 });
     const testHitBox = jest.spyOn(graph.hitTest, "testHitBox").mockReturnValue([]);
 
-    graph.getElementOverPoint({ x: -200, y: -400, origPoint: { x: 0, y: 0 } });
+    graph.getElementOverPoint({ world: { x: -200, y: -400 }, canvas: { x: 0, y: 0 } });
 
     expect(testHitBox).toHaveBeenCalledWith({ minX: -201, minY: -401, maxX: -199, maxY: -399, x: 0, y: 0 });
   });

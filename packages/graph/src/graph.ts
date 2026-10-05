@@ -17,10 +17,10 @@ import {
 import { GraphEvent, GraphEventsDefinitions, UnwrapGraphEvents, UnwrapGraphEventsDetail } from "./graphEvents";
 import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
-import type { THitTestPoint } from "./services/HitTest";
 import { KeyboardService } from "./services/KeyboardService";
 import { Layer, LayerPublicProps } from "./services/Layer";
 import { Layers, LayersRootSize } from "./services/LayersService";
+import type { CameraPoint } from "./services/camera/CameraPoint";
 import { CameraService, getInitCameraState } from "./services/camera/CameraService";
 import type { TCameraState } from "./services/camera/CameraService";
 import { DragService } from "./services/drag";
@@ -238,12 +238,13 @@ export class Graph {
     return true;
   }
 
-  /** Returns elements at a world-space point, optionally with exact canvas coordinates in origPoint. */
+  /** Returns elements at a world point or a prepared pair of world and canvas coordinates. */
   public getElementsOverPoint<T extends Constructor<GraphComponent>>(
-    point: THitTestPoint,
+    point: TPoint | CameraPoint,
     filter?: T[]
   ): InstanceType<T>[] {
-    const items = this.hitTest.testPoint(point, this.layers.getDPR());
+    const cameraPoint = "world" in point ? point : this.cameraService.createCameraPoint(point);
+    const items = this.hitTest.testPoint(cameraPoint, this.layers.getDPR());
     if (filter && items.length > 0) {
       return items.filter((item) => filter.some((Component) => item instanceof Component)) as InstanceType<T>[];
     }
@@ -252,7 +253,7 @@ export class Graph {
 
   /** Returns the topmost element at a world-space point. */
   public getElementOverPoint<T extends Constructor<GraphComponent>>(
-    point: THitTestPoint,
+    point: TPoint | CameraPoint,
     filter?: T[]
   ): InstanceType<T> | undefined {
     return this.getElementsOverPoint(point, filter)?.[0] as InstanceType<T> | undefined;
@@ -294,12 +295,10 @@ export class Graph {
     return items as InstanceType<T>[];
   }
 
-  /** Returns world coordinates and the original canvas-relative CSS coordinates of a mouse event. */
-  public getPointInCameraSpace(event: MouseEvent): THitTestPoint {
+  /** Returns exact world and canvas-relative CSS coordinates of a mouse event. */
+  public getPointInCameraSpace(event: MouseEvent): CameraPoint {
     const xy = getXY(this.graphLayer.getCanvas(), event);
-
-    const applied = this.cameraService.applyToPoint(xy[0], xy[1]);
-    return { x: applied[0], y: applied[1], origPoint: Point(xy[0], xy[1]) };
+    return this.cameraService.createCameraPoint(Point(xy[0], xy[1]), "canvas");
   }
 
   public updateEntities({

@@ -6,16 +6,11 @@ import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
 import { noop } from "../utils/functions";
-import type { TPoint, TRect } from "../utils/types/shapes";
+import type { TRect } from "../utils/types/shapes";
 import { debounce } from "../utils/utils/schedule";
 
 import { IncrementalBoundingBoxTracker } from "./IncrementalBoundingBoxTracker";
-
-/** A world-space point with optional exact canvas coordinates for hit testing. */
-export type THitTestPoint = TPoint & {
-  /** Canvas-relative CSS pixels, before applying device pixel ratio. */
-  origPoint?: TPoint;
-};
+import type { CameraPoint } from "./camera/CameraPoint";
 
 export interface IWithHitTest {
   hitBox: IHitBox;
@@ -284,23 +279,18 @@ export class HitTest extends Emitter<{ update: (hitTest: HitTest) => void }> {
 
   /**
    * Test hit at specific point
-   * @param point World-space point, optionally with exact canvas-relative CSS coordinates in origPoint
+   * @param point Prepared world and canvas coordinates for the same camera state
    * @param pixelRatio Pixel ratio for coordinate conversion
    * @returns Array of hit components
    */
-  public testPoint(point: THitTestPoint, pixelRatio: number): Component[] {
-    // Mouse events retain their exact canvas coordinates because applyToPoint rounds world coordinates.
-    const [canvasX, canvasY] = point.origPoint
-      ? [point.origPoint.x, point.origPoint.y]
-      : this.graph.cameraService.getAbsoluteXY(point.x, point.y);
-
+  public testPoint(point: CameraPoint, pixelRatio: number): Component[] {
     return this.testHitBox({
-      minX: point.x - 1,
-      minY: point.y - 1,
-      maxX: point.x + 1,
-      maxY: point.y + 1,
-      x: canvasX * pixelRatio,
-      y: canvasY * pixelRatio,
+      minX: point.world.x - 1,
+      minY: point.world.y - 1,
+      maxX: point.world.x + 1,
+      maxY: point.world.y + 1,
+      x: point.canvas.x * pixelRatio,
+      y: point.canvas.y * pixelRatio,
     });
   }
 

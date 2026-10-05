@@ -44,14 +44,31 @@ for (const deviceScaleFactor of [1, 2]) {
 
         const hits = await graph.evaluate((instance) => {
           const point = { x: 350, y: 150 };
+          const cameraPoint = instance.cameraService.createCameraPoint(point);
+          const [canvasX, canvasY] = instance.cameraService.getAbsoluteXY(350, 159);
+          const rect = instance.getGraphCanvas().getBoundingClientRect();
+          const mousePoint = instance.getPointInCameraSpace(
+            new MouseEvent("mousemove", { clientX: rect.left + canvasX, clientY: rect.top + canvasY })
+          );
           return {
             top: instance.getElementOverPoint(point)?.getEntityId(),
             all: instance.getElementsOverPoint(point).map((element) => element.getEntityId()),
+            prepared: instance.getElementOverPoint(cameraPoint)?.getEntityId(),
             miss: instance.getElementOverPoint({ x: 350, y: 200 })?.getEntityId() ?? null,
+            // Rounding the mouse's world coordinates can turn this near-edge miss into a hit.
+            mouseMiss: instance.getElementOverPoint(mousePoint)?.getEntityId() ?? null,
+            worldMiss: instance.getElementOverPoint(mousePoint.world)?.getEntityId() ?? null,
           };
         });
 
-        expect(hits).toEqual({ top: "source:target", all: ["source:target"], miss: null });
+        expect(hits).toEqual({
+          top: "source:target",
+          all: ["source:target"],
+          prepared: "source:target",
+          miss: null,
+          mouseMiss: null,
+          worldMiss: null,
+        });
       });
     }
   });
