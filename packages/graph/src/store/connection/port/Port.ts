@@ -1,4 +1,5 @@
 import { Signal, computed, signal } from "@preact/signals-core";
+import isPlainObject from "lodash/isPlainObject";
 
 import { Component } from "../../../lib";
 import { TPoint } from "../../../utils/types/shapes";
@@ -224,9 +225,21 @@ export class PortState<T = unknown> {
    * @param port Partial port data to merge with current state
    */
   public updatePort(port: Partial<TPort<T>>): void {
+    const previous = this.$state.value.meta;
+    const incoming = port.meta;
+    const meta =
+      isPlainObject(previous) &&
+      isPlainObject(incoming) &&
+      typeof previous === "object" &&
+      previous !== null &&
+      typeof incoming === "object" &&
+      incoming !== null
+        ? Object.assign({}, previous, incoming)
+        : incoming;
     this.$state.value = {
       ...this.$state.value,
       ...port,
+      ...("meta" in port ? { meta } : {}),
       id: this.id,
     };
   }

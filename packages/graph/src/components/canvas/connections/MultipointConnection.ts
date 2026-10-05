@@ -16,7 +16,8 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
   private labelsGeometry: { x: number; y: number; width: number; height: number }[] = [];
 
   protected override hasGeometry(): boolean {
-    return this.getPoints().length >= 2;
+    const count = this.getPoints().length;
+    return count === 0 ? super.hasGeometry() : count >= 2;
   }
 
   protected override collectBBoxPoints() {
@@ -25,17 +26,15 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
 
   public createPath() {
     const points = this.getPoints();
-    if (points.length < 2) {
-      return new Path2D();
-    }
+    if (points.length === 0) return super.createPath();
+    if (points.length === 1) return new Path2D();
     return curvePolyline(points, 10);
   }
 
   public createArrowPath(): Path2D {
     const points = this.getPoints();
-    if (points.length < 2) {
-      return new Path2D();
-    }
+    if (points.length === 0) return super.createArrowPath();
+    if (points.length === 1) return new Path2D();
 
     const [start, end] = points.slice(points.length - 2);
     return trangleArrowForVector(start, end, 16, 10);

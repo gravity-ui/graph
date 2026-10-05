@@ -53,18 +53,8 @@ class Path2DChunk {
     this.visibleItems.reset();
   }
 
-  private lastVisibleItems: Path2DRenderInstance[] = [];
-
   public render(ctx: CanvasRenderingContext2D) {
-    this.visibleItems.reset();
     const vis = this.visibleItems.get();
-    if (
-      vis.length !== this.lastVisibleItems.length ||
-      vis.some((item, index) => item !== this.lastVisibleItems[index])
-    ) {
-      this.path.reset();
-      this.lastVisibleItems = vis;
-    }
     if (!vis.length) return;
 
     ctx.save();

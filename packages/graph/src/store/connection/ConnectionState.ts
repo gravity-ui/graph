@@ -43,6 +43,10 @@ export type TConnection = {
   selected?: boolean;
 } & (TConnectionBlockPoint | TConnectionPortPoint);
 
+function hasId<T>(id: T | null | undefined): id is T {
+  return id !== undefined && id !== null;
+}
+
 export class ConnectionState<T extends TConnection = TConnection> {
   protected $rawState: Signal<T & { id: TConnectionId }>;
 
@@ -90,17 +94,17 @@ export class ConnectionState<T extends TConnection = TConnection> {
 
   public $sourcePortId = computed(() => {
     const state = this.$state.value;
-    if (state.sourcePortId !== undefined) return state.sourcePortId;
-    if (state.sourceBlockId === undefined) return this.missingSourcePortId;
-    if (state.sourceAnchorId !== undefined) return createAnchorPortId(state.sourceBlockId, state.sourceAnchorId);
+    if (hasId(state.sourcePortId)) return state.sourcePortId;
+    if (!hasId(state.sourceBlockId)) return this.missingSourcePortId;
+    if (hasId(state.sourceAnchorId)) return createAnchorPortId(state.sourceBlockId, state.sourceAnchorId);
     return createBlockPointPortId(state.sourceBlockId, false);
   });
 
   public $targetPortId = computed(() => {
     const state = this.$state.value;
-    if (state.targetPortId !== undefined) return state.targetPortId;
-    if (state.targetBlockId === undefined) return this.missingTargetPortId;
-    if (state.targetAnchorId !== undefined) return createAnchorPortId(state.targetBlockId, state.targetAnchorId);
+    if (hasId(state.targetPortId)) return state.targetPortId;
+    if (!hasId(state.targetBlockId)) return this.missingTargetPortId;
+    if (hasId(state.targetAnchorId)) return createAnchorPortId(state.targetBlockId, state.targetAnchorId);
     return createBlockPointPortId(state.targetBlockId, true);
   });
 
@@ -195,14 +199,14 @@ export class ConnectionState<T extends TConnection = TConnection> {
   });
 
   public static getConnectionId(connection: TConnection) {
-    if (connection.id !== undefined) return connection.id;
+    if (hasId(connection.id)) return connection.id;
     if (
-      connection.sourcePortId !== undefined ||
-      connection.targetPortId !== undefined ||
-      (connection.sourceBlockId === undefined && connection.targetBlockId === undefined)
+      hasId(connection.sourcePortId) ||
+      hasId(connection.targetPortId) ||
+      (!hasId(connection.sourceBlockId) && !hasId(connection.targetBlockId))
     )
       return generateRandomId("connection");
-    if (connection.sourceAnchorId !== undefined && connection.targetAnchorId !== undefined) {
+    if (hasId(connection.sourceAnchorId) && hasId(connection.targetAnchorId)) {
       return [connection.sourceAnchorId, connection.targetAnchorId].join(":");
     }
     return [connection.sourceBlockId, connection.targetBlockId].join(":");

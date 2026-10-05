@@ -162,3 +162,34 @@ test("repeated deletion of a retained connection state preserves its replacement
   expect(graph.connections.getConnectionState("c")).toBe(current);
   expect(port.observers.has(current)).toBe(true);
 });
+
+test("plain object port metadata preserves symbol settings across plugin updates", () => {
+  const snapping = Symbol("snapping");
+  const port = new PortState<{ [snapping]?: { enabled: boolean }; label?: string }>({
+    id: "p",
+    x: 0,
+    y: 0,
+    meta: { [snapping]: { enabled: true } },
+  });
+  port.updatePort({ meta: { label: "plugin" } });
+  expect(port.meta).toEqual({ [snapping]: { enabled: true }, label: "plugin" });
+});
+
+test("untyped null IDs and endpoints behave as omitted while zero IDs remain valid", () => {
+  const graph = new Graph({});
+  const id = graph.api.addConnection(
+    JSON.parse(
+      '{"id":null,"sourceBlockId":0,"targetBlockId":1,"sourceAnchorId":null,"targetAnchorId":null,"sourcePortId":null,"targetPortId":null}'
+    )
+  );
+  expect(id).toBe("0:1");
+  const state = graph.connections.getConnectionState(id);
+  expect(state?.$sourcePortId.value).toBe("0_output");
+  expect(state?.$targetPortId.value).toBe("1_input");
+});
+
+test("array port metadata is replaced without object spreading", () => {
+  const port = new PortState<number[]>({ id: "p", x: 0, y: 0, meta: [1, 2] });
+  port.updatePort({ meta: [3] });
+  expect(port.meta).toEqual([3]);
+});

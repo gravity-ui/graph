@@ -42,7 +42,7 @@ test("missing endpoint geometry does not create an origin hitbox or visible path
 });
 
 test.each([{ points: [] }, { points: [{ x: 1, y: 2 }] }])(
-  "minimal multipoint geometry %j has finite bounds and empty arrow",
+  "unresolved minimal multipoint geometry %j stays finite and invisible",
   ({ points }) => {
     const connection = { id: "c", points };
     const graph = new Graph({ connections: [connection] });
@@ -79,5 +79,23 @@ test("restoring endpoint geometry at unchanged coordinates restores hit testing"
   view.refresh();
   hitTest.flush();
   expect(graph.hitTest.testBox(search)).toContain(view);
+  Component.unmount(view);
+});
+
+test("multipoint without points falls back to resolved endpoint geometry without viewport culling", () => {
+  const graph = new Graph({ connections: [{ id: "c", sourcePortId: "s", targetPortId: "t" }] });
+  const state = graph.connections.getConnectionState("c");
+  if (!state) throw new Error("Expected connection");
+  state.$sourcePortState.value.updatePort({ x: 10, y: 10, lookup: false });
+  state.$targetPortState.value.updatePort({ x: 100, y: 100, lookup: false });
+  const parent = new BlockConnections({}, graph.getGraphLayer());
+  const view = new MultipointConnection(props, parent);
+  view.updatePoints();
+  const cameraCheck = jest.spyOn(graph.cameraService, "isRectVisible").mockReturnValue(false);
+  expect(view.isPathVisible()).toBe(true);
+  expect(cameraCheck).not.toHaveBeenCalled();
+  expect(view.getBBox()).toEqual([10, 10, 100, 100]);
+  expect(view.createPath().lineTo).toHaveBeenCalled();
+  expect(view.createArrowPath().lineTo).toHaveBeenCalled();
   Component.unmount(view);
 });

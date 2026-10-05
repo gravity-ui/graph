@@ -6,6 +6,7 @@ import { TCameraState } from "../../../../services/camera/CameraService";
 import { ESelectionStrategy } from "../../../../services/selection";
 import { EAnchorType } from "../../../../store/anchor/Anchor";
 import { TBlockId } from "../../../../store/block/Block";
+import { TConnection } from "../../../../store/connection/ConnectionState";
 import { PortState } from "../../../../store/connection/port/Port";
 import { getXY, vectorDistance } from "../../../../utils/functions";
 import type { DragEmitter } from "../../../../utils/functions/dragListener";
@@ -597,17 +598,7 @@ export class PortConnectionLayer extends Layer<
         sourcePort: actualSourcePort,
         targetPort: actualTargetPort,
       },
-      () => {
-        if (!this.isPortAvailable(actualSourcePort) || !this.isPortAvailable(actualTargetPort)) return;
-        this.context.graph.rootStore.connectionsList.addConnection({
-          sourcePortId: actualSourcePort.id,
-          targetPortId: actualTargetPort.id,
-          sourceBlockId: actualSourceParams.blockId,
-          sourceAnchorId: actualSourceParams.anchorId,
-          targetBlockId: actualTargetParams.blockId,
-          targetAnchorId: actualTargetParams.anchorId,
-        });
-      }
+      () => this.createConnection(actualSourcePort, actualTargetPort)
     );
 
     this.selectPort(this.sourcePort, false);
@@ -633,6 +624,28 @@ export class PortConnectionLayer extends Layer<
     // Cleanup
     this.sourcePort = undefined;
     this.targetPort = undefined;
+  }
+
+  protected createConnection(source: PortState, target: PortState): void {
+    if (!this.isPortAvailable(source) || !this.isPortAvailable(target)) return;
+    const sourceParams = this.getEventParams(source);
+    const targetParams = this.getEventParams(target);
+    const connection: TConnection = {
+      sourceBlockId: sourceParams.blockId,
+      sourceAnchorId: sourceParams.anchorId,
+      targetBlockId: targetParams.blockId,
+      targetAnchorId: targetParams.anchorId,
+    };
+    if (sourceParams.blockId === undefined) connection.sourcePortId = source.id;
+    if (targetParams.blockId === undefined) connection.targetPortId = target.id;
+    const store = this.context.graph.connections;
+    if (connection.sourcePortId !== undefined || connection.targetPortId !== undefined) {
+      const existing = Array.from(store.$connectionsMap.value.values()).find(
+        (state) => state.$sourcePortId.value === source.id && state.$targetPortId.value === target.id
+      );
+      if (existing) connection.id = existing.id;
+    }
+    store.addConnection(connection);
   }
 
   private findNearestSnappingPort(

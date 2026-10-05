@@ -477,17 +477,19 @@ The changing-entity behavior is:
   states cannot recreate observers. Retained block/connection/anchor state handles cannot
   move/select a replacement entity with the same ID. Removed components are skipped
   during drag, and deleted blocks are omitted from pending geometry events.
-- Multipoint connections with fewer than two points have empty paths/arrows; incomplete
-  labels are skipped. Labels at `(0, 0)` are valid when their geometry is complete.
-- `TPort<T>.meta` is replaced when provided to `updatePort`, preserved when omitted,
-  and cleared by `meta: undefined`. To merge object metadata, pass the complete merged
-  object explicitly. This also supports primitives, arrays and other consumer Meta.
+- Multipoint connections without points retain the straight/bezier endpoint fallback.
+  Exactly one point produces empty paths/arrows; incomplete labels are skipped. Labels at `(0, 0)` are valid when their geometry is complete.
+- `TPort<T>.meta` preserves shallow merge for plain object metadata, including symbol keys.
+  Primitives, arrays and other non-plain values are replaced when supplied. Omitted meta
+  is preserved; `meta: undefined` clears it. Consumer Meta retains its declared generic type.
 
 Port connection events describe custom component ports, which may have no block or
 anchor. Check the optional `blockId`, `sourceBlockId`, `targetBlockId` and anchor IDs
 before invoking block/anchor APIs. `connection-create-drop.sourceAnchorId` is also
 `string | undefined`, since block-to-block creation has no anchor. The default
-port connection action connects the actual port IDs, including custom component ports.
+port connection action preserves block/anchor endpoints and their deterministic connection
+IDs. Custom component endpoints use actual port IDs; repeating a drag between the same
+custom endpoints updates the existing connection.
 Cancellation can happen before a source or target exists; its port fields preserve
 that absence. The internal `GraphLayer` mouse-event target can be absent, as can the
 public graph mouse-event target.
@@ -500,7 +502,7 @@ or from `getViewComponent()`. Return a real canvas component from that method.
 `GraphComponent.isEntityAvailable()` indicates whether delayed interaction can still
 use a component; built-in entity components also check store identity.
 
-`isInteractive()` resolves omitted props to `false`; camera `resize` preserves omitted
+`isInteractive()` resolves omitted props to `true`; camera `resize` preserves omitted
 width/height. Text layout and measurement use the same canvas font when no font is supplied. The internal
 page object reports a detached graph error for bounds/cursor reads. Binding a canvas
 Block, Anchor, Connection or Group to a missing entity throws a descriptive error;

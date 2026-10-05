@@ -3,6 +3,9 @@ import { Component } from "../../../lib/Component";
 import { EventedComponent, TEventedAreaParams } from "./EventedComponent";
 
 class TestComponent extends EventedComponent {
+  public clearInteractive() {
+    this.props.interactive = undefined;
+  }
   public readonly handled = jest.fn();
   protected handleEvent(event: Event) {
     this.handled(event);
@@ -58,4 +61,13 @@ test("component area hover uses native synthetic events and bubbling preserves g
   child.dispatchEvent(event);
   expect(listener).toHaveBeenCalledTimes(1);
   Component.unmount(parent);
+});
+
+test("interactive defaults to true when omitted or cleared, while false stays false", () => {
+  const parent = new Component({});
+  const component = new TestComponent({}, parent);
+  expect(component.isInteractive()).toBe(true);
+  component.clearInteractive();
+  expect(component.isInteractive()).toBe(true);
+  expect(new TestComponent({ interactive: false }, parent).isInteractive()).toBe(false);
 });

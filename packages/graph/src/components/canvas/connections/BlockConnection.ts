@@ -86,8 +86,18 @@ export class BlockConnection<T extends TConnection>
     }
   }
 
+  protected override willMount(): void {
+    super.willMount();
+    this.subscribeSignal(this.connectedState.$hidden, () => this.applyShape());
+  }
+
+  protected override setVisibility(visible: boolean, options: { removeHitbox: boolean }): void {
+    super.setVisibility(visible, options);
+    this.applyShape();
+  }
+
   public isPathVisible(): boolean {
-    return this.isVisible();
+    return this.isEntityAvailable() && this.hasGeometry() && !this.hidden && !this.connectedState.$hidden.value;
   }
 
   public getPath(): Path2D {
@@ -234,6 +244,7 @@ export class BlockConnection<T extends TConnection>
     super.updatePoints();
 
     if (!this.connectionPoints) {
+      this.applyShape();
       return;
     }
 
