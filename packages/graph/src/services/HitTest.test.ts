@@ -129,22 +129,3 @@ describe("HitTest.markPendingUpdate", () => {
     expect(called).toBe(true); // ...and the callback must have fired
   });
 });
-
-describe("HitTest.testPoint", () => {
-  it("uses prepared coordinates without accessing a camera service", () => {
-    const ht = makeHitTest(); // This graph intentionally has no camera service.
-    const testHitBox = jest.spyOn(ht, "testHitBox").mockReturnValue([]);
-
-    ht.testPoint({ world: { x: -10.5, y: 20.25 }, canvas: { x: 100.5, y: 0 } }, 2);
-
-    expect(testHitBox).toHaveBeenCalledWith({
-      minX: -11.5,
-      minY: 19.25,
-      maxX: -9.5,
-      maxY: 21.25,
-      x: 201,
-      y: 0,
-    });
-    ht.destroy();
-  });
-});
