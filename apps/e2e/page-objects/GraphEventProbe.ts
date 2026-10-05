@@ -1,3 +1,4 @@
+import type { GraphEventsDefinitions } from "@gravity-ui/graph";
 import type { Page } from "@playwright/test";
 
 let listenerIdCounter = 0;
@@ -54,7 +55,7 @@ export class GraphEventProbe {
           (window as any)[storageKey].push(event);
         };
         (window as any)[`${storageKey}_handler`] = handler;
-        window.graph.on(browserEventName as any, handler);
+        window.graph.on(browserEventName as keyof GraphEventsDefinitions, handler);
       },
       { key, eventName }
     );
@@ -73,7 +74,7 @@ export class GraphEventProbe {
           (window as any)[storageKey].push(event.detail);
         };
         (window as any)[`${storageKey}_handler`] = handler;
-        window.graph.on(browserEventName as any, handler);
+        window.graph.on(browserEventName as keyof GraphEventsDefinitions, handler);
       },
       { key, eventName }
     );

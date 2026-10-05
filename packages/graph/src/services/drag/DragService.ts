@@ -5,9 +5,8 @@ import type { Graph } from "../../graph";
 import { isGraphEvent } from "../../graphEvents";
 import type { GraphMouseEvent } from "../../graphEvents";
 import { ECanDrag } from "../../store/settings";
-import { Emitter } from "../../utils/Emitter";
 import { getXY } from "../../utils/functions";
-import { dragListener } from "../../utils/functions/dragListener";
+import { DragEmitter, dragListener } from "../../utils/functions/dragListener";
 import { EVENTS } from "../../utils/types/events";
 
 import type { DragContext, DragDiff, DragOperationCallbacks, DragOperationOptions, DragState } from "./types";
@@ -32,7 +31,7 @@ export class DragService {
   private prevCoords: [number, number] | null = null;
 
   /** Current drag listener emitter (null when not dragging) */
-  private currentDragEmitter: Emitter | null = null;
+  private currentDragEmitter: DragEmitter | null = null;
 
   /** Unsubscribe function for graph mousedown event */
   private unsubscribeMouseDown: (() => void) | null = null;

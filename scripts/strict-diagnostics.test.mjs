@@ -21,6 +21,7 @@ import {
   validateSnapshot,
   PROJECTS,
   COMPILER,
+  EVENT_CONTRACT_FILES,
 } from "./strict-diagnostics.mjs";
 
 const diagnostic = {
@@ -72,9 +73,19 @@ test("Layer lifecycle and Block initialization/null errors cannot be admitted by
     assert.throws(() => validateSnapshot(snapshot([{ ...diagnostic, file }])), /Layer lifecycle/);
   }
   for (const code of [2564, 2532, 18047, 18048]) {
-    assert.throws(() => validateSnapshot(snapshot([{
-      ...diagnostic, code, file: "packages/graph/src/components/canvas/blocks/Block.ts",
-    }])), /Block lifecycle/);
+    assert.throws(
+      () =>
+        validateSnapshot(
+          snapshot([
+            {
+              ...diagnostic,
+              code,
+              file: "packages/graph/src/components/canvas/blocks/Block.ts",
+            },
+          ])
+        ),
+      /Block lifecycle/
+    );
   }
 });
 
@@ -187,8 +198,21 @@ test("nullable lookup contracts reject diagnostics even in a baseline", () => {
     "packages/graph-react/src/hooks/useBlockState.ts",
     "packages/graph-react/src/hooks/useBlockAnchorState.ts",
   ]) {
-    const value = { schemaVersion: 1, compiler: COMPILER, projects: PROJECTS,
-      diagnostics: [{ project: PROJECTS[0], file, code: 2322, message: "new debt", count: 1 }] };
+    const value = {
+      schemaVersion: 1,
+      compiler: COMPILER,
+      projects: PROJECTS,
+      diagnostics: [{ project: PROJECTS[0], file, code: 2322, message: "new debt", count: 1 }],
+    };
     assert.throws(() => validateSnapshot(value), /Nullable lookups must have zero/);
+  }
+});
+
+test("completed event contracts cannot be added to a baseline", () => {
+  for (const file of EVENT_CONTRACT_FILES) {
+    assert.throws(() => validateSnapshot(snapshot([{ ...diagnostic, file }])), /Event contracts/);
+  }
+  for (const file of ["packages/graph/src/graph.ts", "packages/graph/src/components/canvas/blocks/Block.ts"]) {
+    assert.throws(() => validateSnapshot(snapshot([{ ...diagnostic, file, code: 2345 }])), /Event contracts/);
   }
 });

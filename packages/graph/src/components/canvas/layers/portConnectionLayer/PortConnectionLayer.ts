@@ -7,8 +7,8 @@ import { ESelectionStrategy } from "../../../../services/selection";
 import { EAnchorType } from "../../../../store/anchor/Anchor";
 import { TBlockId } from "../../../../store/block/Block";
 import { PortState } from "../../../../store/connection/port/Port";
-import type { Emitter } from "../../../../utils/Emitter";
 import { getXY, vectorDistance } from "../../../../utils/functions";
+import type { DragEmitter } from "../../../../utils/functions/dragListener";
 import { stopDragListening } from "../../../../utils/functions/dragListener";
 import { render } from "../../../../utils/renderers/render";
 import { renderSVG } from "../../../../utils/renderers/svgPath";
@@ -253,7 +253,7 @@ export class PortConnectionLayer extends Layer<
     this.enabled = false;
   };
 
-  protected currentListener: Emitter | null = null;
+  protected currentListener: DragEmitter | null = null;
 
   private isSnappablePort(port: PortState): boolean {
     const meta = port.meta?.[PortConnectionLayer.PortMetaKey] as IPortConnectionMeta | undefined;

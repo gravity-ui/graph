@@ -2,7 +2,7 @@ import React, { useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 
 import { Graph, GraphState, Layer, type TBlock } from "@gravity-ui/graph";
-import { GraphBlock, GraphCanvas, GraphPortal, useBlockState, useSyncBlockState, useBlockViewState, useBlockAnchorState, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
+import { GraphBlock, GraphCanvas, GraphPortal, useBlockState, useSyncBlockState, useBlockViewState, useBlockAnchorState, useGraph, useGraphEvent, useGraphEvents, type GraphEvent, type GraphEventDetail } from "@gravity-ui/graph-react";
 import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-react/styles.css";
 
@@ -68,7 +68,7 @@ if (!root) {
 
 createRoot(root).render(<ReactGraph />);
 
-// Type-only contract probe; never mount this component.
+// Compile-only hook checks; never mounted. Unguarded reads must fail so hook declarations preserve missing entities.
 function LookupContracts({ graph }: { graph: Graph }) {
   const state = useBlockState(graph, "missing");
   const sync = useSyncBlockState(graph, "missing");
@@ -91,3 +91,29 @@ function LookupContracts({ graph }: { graph: Graph }) {
   return null;
 }
 void LookupContracts;
+
+// Type-only checks; this component is never mounted. Compile against source APIs and packed declarations.
+// Deliberately invalid payloads/listeners must be rejected: if inference becomes any, the unused
+// expect-error directives below fail compilation instead of silently accepting the regression.
+function ReactEventTypeContracts({ graph }: { graph: Graph }) {
+  useGraphEvent(graph, "state-change", (data, event) => {
+    const state: GraphState = data.state;
+    const payload: typeof data = event.detail;
+    void state; void payload;
+    // colors belongs to colors-changed. Reading it here must fail to prove state-change inferred its own payload.
+    // @ts-expect-error state-change exposes { state: GraphState }, so data.colors is invalid.
+    data.colors;
+  });
+  // Positive check: the named callback must infer detail and event separately; GraphEvent denotes the second argument.
+  useGraphEvents(graph, { onStateChanged: (data, event) => {
+    const detail: GraphEventDetail<"onStateChanged"> = data;
+    const typedEvent: GraphEvent<"onStateChanged"> = event;
+    void detail; void typedEvent;
+  } });
+  // @ts-expect-error state-change must reject a callback expecting the colors-changed payload.
+  useGraphEvent(graph, "state-change", (data: { colors: unknown }) => { void data; });
+  // @ts-expect-error onStateChanged must reject a callback expecting colors instead of state.
+  useGraphEvents(graph, { onStateChanged: (data: { colors: unknown }) => { void data; } });
+  return null;
+}
+void ReactEventTypeContracts;

@@ -11,3 +11,8 @@ To propose an update, first rebuild (`pnpm run build`), then explicitly run `nod
 The initial baseline is a fresh measurement of origin/v2 at e61f12e314ab7f51354ec40aa34ff15cba045d0b plus #354 fixes. It uses freshly built non-strict declarations for downstream imports. E2E's existing config excludes tests; extending application/test coverage belongs to #367. This gate protects the currently declared roots without claiming excluded files have passed strict.
 
 Run `pnpm run test:strict-diagnostics` for the gate's regression tests. Retire the debt baseline when all areas in #353 have permanent strict checks.
+
+Completed event files (#359), including EventedComponent, Emitter, the DOM adapter,
+dragListener, Camera and React event helpers/tests, must stay at zero strict errors.
+Graph and canvas Block must also have zero TS2345 argument errors. These rules
+apply to baseline writes as well as CI comparisons.

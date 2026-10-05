@@ -13,13 +13,6 @@
     {
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/blocks/Block.ts",
-      "code": 2345,
-      "message": "Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type 'TEventedComponentListener'.\n  Type '(event: MouseEvent) => void' is not assignable to type '(e: Event) => void'.\n    Types of parameters 'event' and 'e' are incompatible.\n      Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/blocks/Block.ts",
       "code": 7053,
       "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'BlockViewState'.\n  No index signature with a parameter of type 'string' was found on type 'BlockViewState'.",
       "count": 1
@@ -173,13 +166,6 @@
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/EventedComponent/EventedComponent.ts",
-      "code": 2532,
-      "message": "Object is possibly 'undefined'.",
-      "count": 3
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/components/canvas/GraphComponent/index.ts",
       "code": 2322,
       "message": "Type 'PortState<unknown> | undefined' is not assignable to type 'PortState<unknown>'.\n  Type 'undefined' is not assignable to type 'PortState<unknown>'.",
@@ -191,13 +177,6 @@
       "code": 2322,
       "message": "Type 'undefined' is not assignable to type '[number, number]'.",
       "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/GraphComponent/index.ts",
-      "code": 2345,
-      "message": "Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type 'TEventedComponentListener'.\n  Type '(event: MouseEvent) => void' is not assignable to type '(e: Event) => void'.\n    Types of parameters 'event' and 'e' are incompatible.\n      Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.",
-      "count": 1
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -218,13 +197,6 @@
       "file": "packages/graph/src/components/canvas/groups/Group.ts",
       "code": 2322,
       "message": "Type 'GroupState<T> | undefined' is not assignable to type 'GroupState<T>'.\n  Type 'undefined' is not assignable to type 'GroupState<T>'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/components/canvas/groups/Group.ts",
-      "code": 2345,
-      "message": "Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type 'TEventedComponentListener'.\n  Type '(event: MouseEvent) => void' is not assignable to type '(e: Event) => void'.\n    Types of parameters 'event' and 'e' are incompatible.\n      Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.",
       "count": 1
     },
     {
@@ -419,20 +391,6 @@
     {
       "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/graph.ts",
-      "code": 2345,
-      "message": "Argument of type '((event: GraphMouseEvent<Event>) => void) | ((event: GraphMouseEvent<Event>) => void) | ((event: GraphMouseEvent<Event>) => void) | ... 26 more ... | ((event: CustomEvent<...>) => void)' is not assignable to parameter of type 'EventListenerOrEventListenerObject | null'.\n  Type '(event: GraphMouseEvent<Event>) => void' is not assignable to type 'EventListenerOrEventListenerObject | null'.\n    Type '(event: GraphMouseEvent<Event>) => void' is not assignable to type 'EventListener'.\n      Types of parameters 'event' and 'evt' are incompatible.\n        Type 'Event' is missing the following properties from type 'CustomEvent<{ target?: EventedComponent<TEventedComponentProps, TComponentState, CoreComponentContext> | undefined; sourceEvent: Event; pointerPressed?: boolean | undefined; }>': detail, initCustomEvent",
-      "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/graph.ts",
-      "code": 2345,
-      "message": "Argument of type '(event: IRect) => void' is not assignable to parameter of type '(...args: unknown[]) => void'.\n  Types of parameters 'event' and 'args' are incompatible.\n    Type 'unknown' is not assignable to type 'IRect'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/graph.ts",
       "code": 2564,
       "message": "Property 'config' has no initializer and is not definitely assigned in the constructor.",
       "count": 1
@@ -530,13 +488,6 @@
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/camera/Camera.ts",
-      "code": 2345,
-      "message": "Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type '(...args: unknown[]) => void'.\n  Types of parameters 'event' and 'args' are incompatible.\n    Type 'unknown' is not assignable to type 'MouseEvent'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/services/camera/CameraService.ts",
       "code": 18048,
       "message": "'newState.height' is possibly 'undefined'.",
@@ -548,13 +499,6 @@
       "code": 18048,
       "message": "'newState.width' is possibly 'undefined'.",
       "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/services/drag/DragService.ts",
-      "code": 2345,
-      "message": "Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type '(...args: unknown[]) => void'.\n  Types of parameters 'event' and 'args' are incompatible.\n    Type 'unknown' is not assignable to type 'MouseEvent'.",
-      "count": 6
     },
     {
       "project": "packages/graph/tsconfig.json",
@@ -901,27 +845,6 @@
     },
     {
       "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/utils/Emitter.ts",
-      "code": 2564,
-      "message": "Property 'gcLaunched' has no initializer and is not definitely assigned in the constructor.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/utils/functions/dragListener.ts",
-      "code": 2345,
-      "message": "Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.\n  Type '(event: MouseEvent) => void' is not assignable to type 'EventListener'.\n    Types of parameters 'event' and 'evt' are incompatible.\n      Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.",
-      "count": 5
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
-      "file": "packages/graph/src/utils/functions/dragListener.ts",
-      "code": 2345,
-      "message": "Argument of type 'Event' is not assignable to parameter of type 'MouseEvent'.\n  Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph/tsconfig.json",
       "file": "packages/graph/src/utils/functions/index.ts",
       "code": 2345,
       "message": "Argument of type '(event: MouseEvent | CustomEvent<any>) => void' is not assignable to parameter of type 'EventListenerOrEventListenerObject | null'.\n  Type '(event: MouseEvent | CustomEvent<any>) => void' is not assignable to type 'EventListener'.\n    Types of parameters 'event' and 'evt' are incompatible.\n      Type 'Event' is not assignable to type 'MouseEvent | CustomEvent<any>'.\n        Type 'Event' is missing the following properties from type 'CustomEvent<any>': detail, initCustomEvent",
@@ -1177,41 +1100,6 @@
       "file": "packages/graph-react/src/GraphPortal.tsx",
       "code": 2322,
       "message": "Type 'GraphPortalLayer | null' is not assignable to type 'GraphPortalLayer'.\n  Type 'null' is not assignable to type 'GraphPortalLayer'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/hooks/useGraphEvents.ts",
-      "code": 2345,
-      "message": "Argument of type '((data: { target?: EventedComponent<TEventedComponentProps, TComponentState, CoreComponentContext> | undefined; sourceEvent: Event; pointerPressed?: boolean | undefined; }, event: GraphMouseEvent<...>) => void) | ... 10 more ... | ((data: { ...; }, event: CustomEvent<...>) => void)' is not assignable to parameter of type '(data: TEventDetailForCallback<K>, event: UnwrapGraphEvents<TEventNameForCallback<K>, GraphEventsDefinitions[TEventNameForCallback<...>], Parameters<...>[0]>) => void'.\n  Type '(data: { target?: EventedComponent<TEventedComponentProps, TComponentState, CoreComponentContext> | undefined; sourceEvent: Event; pointerPressed?: boolean | undefined; }, event: GraphMouseEvent<...>) => void' is not assignable to type '(data: TEventDetailForCallback<K>, event: UnwrapGraphEvents<TEventNameForCallback<K>, GraphEventsDefinitions[TEventNameForCallback<...>], Parameters<...>[0]>) => void'.\n    Types of parameters 'data' and 'data' are incompatible.\n      Type 'TEventDetailForCallback<K>' is not assignable to type '{ target?: EventedComponent<TEventedComponentProps, TComponentState, CoreComponentContext> | undefined; sourceEvent: Event; pointerPressed?: boolean | undefined; }'.\n        Type '{ target?: EventedComponent<TEventedComponentProps, TComponentState, CoreComponentContext> | undefined; sourceEvent: Event; pointerPressed?: boolean | undefined; } | ... 9 more ... | { ...; }' is not assignable to type '{ target?: EventedComponent<TEventedComponentProps, TComponentState, CoreComponentContext> | undefined; sourceEvent: Event; pointerPressed?: boolean | undefined; }'.\n          Property 'sourceEvent' is missing in type 'TCameraState' but required in type '{ target?: EventedComponent<TEventedComponentProps, TComponentState, CoreComponentContext> | undefined; sourceEvent: Event; pointerPressed?: boolean | undefined; }'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/hooks/useGraphEvents.ts",
-      "code": 2345,
-      "message": "Argument of type '(e: UnwrapGraphEvents<Event>) => void' is not assignable to parameter of type 'GraphEventsDefinitions[Event]'.\n  Type '(e: UnwrapGraphEvents<Event>) => void' is not assignable to type '((event: GraphMouseEvent<Event>) => void) & ((event: CustomEvent<TCameraState>) => void) & ((event: CustomEvent<{ constants: TGraphConstants; }>) => void) & ... 26 more ... & ((event: GraphMouseEvent<...>) => void)'.\n    Type '(e: UnwrapGraphEvents<Event>) => void' is not assignable to type '(event: GraphMouseEvent<Event>) => void'.\n      Types of parameters 'e' and 'event' are incompatible.\n        Type 'GraphMouseEvent<Event>' is not assignable to type 'UnwrapGraphEvents<Event>'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/hooks/useGraphEvents.ts",
-      "code": 2345,
-      "message": "Argument of type '(event: TEventForCallback<K>) => void' is not assignable to parameter of type 'GraphEventsDefinitions[{ readonly click: \"click\"; readonly dblclick: \"dblclick\"; readonly onCameraChange: \"camera-change\"; readonly onBlockDragStart: \"block-drag-start\"; ... 7 more ...; readonly onStateChanged: \"state-change\"; }[K]]'.\n  Type '(event: TEventForCallback<K>) => void' is not assignable to type '((event: GraphMouseEvent<Event>) => void) & ((event: CustomEvent<TCameraState>) => void) & ((event: CustomEvent<{ state: GraphState; }>) => void) & ... 8 more ... & ((event: GraphMouseEvent<...>) => void)'.\n    Type '(event: TEventForCallback<K>) => void' is not assignable to type '(event: GraphMouseEvent<Event>) => void'.\n      Types of parameters 'event' and 'event' are incompatible.\n        Type 'GraphMouseEvent<Event>' is not assignable to type 'UnwrapGraphEvents<TEventNameForCallback<K>, GraphEventsDefinitions[TEventNameForCallback<K>], Parameters<GraphEventsDefinitions[TEventNameForCallback<...>]>[0]>'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/hooks/useGraphEvents.ts",
-      "code": 7005,
-      "message": "Variable 'unsubscribe' implicitly has an 'any[]' type.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph-react/tsconfig.json",
-      "file": "packages/graph-react/src/hooks/useGraphEvents.ts",
-      "code": 7034,
-      "message": "Variable 'unsubscribe' implicitly has type 'any[]' in some locations where its type cannot be determined.",
       "count": 1
     },
     {

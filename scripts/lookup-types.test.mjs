@@ -6,7 +6,7 @@ import ts from "typescript";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-test("strict lookup fixtures check source APIs as well as packed declarations", () => {
+test("strict public consumer fixtures check source APIs as well as packed declarations", () => {
   const fixtures = [
     "tests/package-contract/fixtures/apps/vanilla/app.ts",
     "tests/package-contract/fixtures/apps/react/app.tsx",
@@ -31,7 +31,9 @@ test("strict lookup fixtures check source APIs as well as packed declarations", 
     },
   });
   // Production source debt is checked separately by the exact strict diagnostic gate.
-  // Here the same positive/negative consumer fixtures must accept the source entrypoints.
+  // Positive consumer examples must compile; negative examples use expect-error directives to require rejection.
+  // If an invalid access becomes accepted (for example through any), TypeScript reports an unused directive.
+  // The same fixtures are also compiled against packed declarations by the package-contract harness.
   const errors = ts.getPreEmitDiagnostics(program).filter((diagnostic) =>
     diagnostic.category === ts.DiagnosticCategory.Error &&
     (!diagnostic.file || fixtures.includes(diagnostic.file.fileName))

@@ -1,5 +1,5 @@
 import { Graph } from "../../../graph";
-import { GraphEventsDefinitions } from "../../../graphEvents";
+import { GraphEventsDefinitions, UnwrapGraphEvents } from "../../../graphEvents";
 import { Component } from "../../../lib/Component";
 import { HitBox } from "../../../services/HitTest";
 
@@ -12,7 +12,7 @@ class TestGraphComponent extends GraphComponent {
 
   public subscribeGraphEvent<EventName extends keyof GraphEventsDefinitions>(
     eventName: EventName,
-    handler: GraphEventsDefinitions[EventName],
+    handler: (event: UnwrapGraphEvents<EventName>) => void,
     options?: AddEventListenerOptions | boolean
   ): () => void {
     return this.onGraphEvent(eventName, handler, options);
