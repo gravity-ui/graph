@@ -110,3 +110,98 @@ test.describe("MiniMap – styling", () => {
     expect(Math.abs(pos.fromBottom - 30)).toBeLessThanOrEqual(POSITION_TOLERANCE);
   });
 });
+
+test("minimaps keep independent positions and dimensions", async ({ page }) => {
+  const graphPO = new GraphPageObject(page);
+  await graphPO.initialize({ blocks: BLOCKS, connections: [] });
+  await page.evaluate(() => {
+    const { MiniMapLayer } = window.GraphModule;
+    window.graph.addLayer(MiniMapLayer, { location: "topLeft", width: 120, height: 80 });
+    window.graph.addLayer(MiniMapLayer, { location: "bottomRight", width: 180, height: 100 });
+  });
+  await graphPO.waitForFrames(5);
+  const canvases = page.locator("canvas.graph-minimap");
+  await expect(canvases.nth(0)).toHaveCSS("top", "0px");
+  await expect(canvases.nth(0)).toHaveCSS("left", "0px");
+  await expect(canvases.nth(0)).toHaveCSS("width", "120px");
+  await expect(canvases.nth(1)).toHaveCSS("bottom", "0px");
+  await expect(canvases.nth(1)).toHaveCSS("right", "0px");
+  await expect(canvases.nth(1)).toHaveCSS("width", "180px");
+});
+
+test("partial custom offsets resolve omitted sides", async ({ page }) => {
+  const graphPO = new GraphPageObject(page);
+  await graphPO.initialize({ blocks: BLOCKS, connections: [] });
+  const minimapPO = new MiniMapPageObject(page, graphPO);
+  await minimapPO.addLayer({ location: { right: "20px", bottom: "30px" } });
+  const pos = await minimapPO.getPositionRelativeToRoot();
+  expect(Math.abs(pos.fromRight - 20)).toBeLessThanOrEqual(POSITION_TOLERANCE);
+  expect(Math.abs(pos.fromBottom - 30)).toBeLessThanOrEqual(POSITION_TOLERANCE);
+});
+
+test("construction before attachment and reattachment keep root and navigation valid", async ({ page }) => {
+  const graphPO = new GraphPageObject(page);
+  await graphPO.initialize({ blocks: BLOCKS, connections: [] });
+  const lifecycle = await page.evaluate(() => {
+    const { MiniMapLayer } = window.GraphModule;
+    const layer = new MiniMapLayer({ graph: window.graph, camera: window.graph.cameraService });
+    const before = layer.context.root === undefined;
+    const root = document.getElementById("root");
+    if (!root) throw new Error("Missing root");
+    const styleCount = root.querySelectorAll("style").length;
+    layer.attachLayer(root);
+    layer.detachLayer();
+    const detached = layer.context.root === undefined;
+    const nextRoot = document.createElement("div");
+    nextRoot.style.cssText = "position:absolute;inset:0";
+    root.appendChild(nextRoot);
+    layer.attachLayer(nextRoot);
+    layer.detachLayer();
+    layer.attachLayer(root);
+    return {
+      before,
+      detached,
+      attached: layer.context.root === root,
+      extraStyles: root.querySelectorAll("style").length - styleCount,
+    };
+  });
+  expect(lifecycle).toEqual({ before: true, detached: true, attached: true, extraStyles: 0 });
+  await graphPO.waitForFrames(5);
+  const minimapPO = new MiniMapPageObject(page, graphPO);
+  const before = await graphPO.camera().getState();
+  await minimapPO.clickAt(0.2, 0.2);
+  const after = await graphPO.camera().getState();
+  expect(after.x).not.toBe(before.x);
+});
+
+for (const custom of [false, true]) {
+  test(`camera border resolves ${custom ? "custom" : "default"} color and size`, async ({ page }) => {
+    const graphPO = new GraphPageObject(page);
+    await graphPO.initialize({ blocks: BLOCKS, connections: [] });
+    await page.evaluate((useCustom) => {
+      const { MiniMapLayer } = window.GraphModule;
+      const layer = window.graph.addLayer(
+        MiniMapLayer,
+        useCustom
+          ? {
+              cameraBorderColor: "rgb(10, 20, 30)",
+              cameraBorderSize: 4,
+            }
+          : {}
+      );
+      const ctx = layer.context.ctx;
+      const strokeRect = ctx.strokeRect.bind(ctx);
+      ctx.strokeRect = (...args) => {
+        const canvas = layer.getCanvas();
+        if (!canvas) throw new Error("Missing minimap canvas");
+        canvas.dataset.borderColor = String(ctx.strokeStyle);
+        canvas.dataset.borderSize = String((ctx.lineWidth * ctx.getTransform().a) / layer.getDRP());
+        strokeRect(...args);
+      };
+      layer.updateSize();
+    }, custom);
+    const canvas = page.locator("canvas.graph-minimap");
+    await expect(canvas).toHaveAttribute("data-border-color", custom ? "#0a141e" : "rgba(255, 119, 0, 0.9)");
+    await expect.poll(async () => Number(await canvas.getAttribute("data-border-size"))).toBeCloseTo(custom ? 4 : 2);
+  });
+}

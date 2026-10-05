@@ -508,3 +508,19 @@ page object reports a detached graph error for bounds/cursor reads. Binding a ca
 Block, Anchor, Connection or Group to a missing entity throws a descriptive error;
 create its data before constructing the view. A missing 2D canvas context for grid or
 text creation likewise produces a descriptive error.
+
+## Minimap location and lifecycle
+
+`@gravity-ui/graph-minimap` now checks its source and declaration build with strict
+TypeScript. Omitted `location` still places the minimap at `topLeft`; dimensions
+still default to 200 × 200 and the camera border to 2px in
+`rgba(255, 119, 0, 0.9)`.
+
+Custom locations accept partial offsets, for example
+`graph.addLayer(MiniMapLayer, { location: { right: "20px", bottom: "30px" } })`.
+Omitted custom sides resolve to `unset`. Position, size, background and border
+styles belong to each canvas, so multiple minimaps no longer override one another
+and detach/reattach does not leave styles on the old root. To override these
+canvas styles, set the canvas style after attachment or use an `!important` CSS
+rule. `context.root` remains optional before attachment and after detachment;
+`context.canvas` and `context.ctx` are available after successful construction.

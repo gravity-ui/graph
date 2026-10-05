@@ -116,20 +116,6 @@
       "count": 1
     },
     {
-      "project": "packages/graph-minimap/tsconfig.json",
-      "file": "packages/graph-minimap/src/layer.ts",
-      "code": 2345,
-      "message": "Argument of type 'TMiniMapLocation | undefined' is not assignable to parameter of type 'TMiniMapLocation'.\n  Type 'undefined' is not assignable to type 'TMiniMapLocation'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph-minimap/tsconfig.json",
-      "file": "packages/graph-minimap/src/layer.ts",
-      "code": 2532,
-      "message": "Object is possibly 'undefined'.",
-      "count": 1
-    },
-    {
       "project": "packages/graph-devtools/tsconfig.json",
       "file": "packages/graph-devtools/src/DevToolsLayer.ts",
       "code": 18048,

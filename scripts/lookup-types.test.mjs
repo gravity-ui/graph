@@ -98,3 +98,27 @@ for (const strict of [true, false]) {
     });
   }
 }
+
+for (const strict of [true, false]) {
+  for (const built of [false, true]) {
+    test(`minimap consumer defaults, offsets and lifecycle (${strict ? "strict" : "non-strict"}, ${built ? "declarations" : "source"})`, () => {
+      const fixture = path.join(root, "tests/package-contract/fixtures/types/minimap-node-esm/index.mts");
+      const program = ts.createProgram([fixture], {
+        strict, noEmit: true, skipLibCheck: false,
+        target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+        experimentalDecorators: true,
+        paths: {
+          "@gravity-ui/graph": [path.join(root, built ? "packages/graph/build/index.d.ts" : "packages/graph/src/index.ts")],
+          "@gravity-ui/graph-minimap": [path.join(root, built ? "packages/graph-minimap/build/index.d.ts" : "packages/graph-minimap/src/index.ts")],
+        },
+      });
+      // Unfinished graph source debt is protected by the separate strict baseline.
+      const errors = ts.getPreEmitDiagnostics(program).filter((error) =>
+        error.category === ts.DiagnosticCategory.Error &&
+        (!error.file || built || error.file.fileName === fixture || error.file.fileName.startsWith(path.join(root, "packages/graph-minimap/")))
+      );
+      assert.deepEqual(errors.map((error) => ts.flattenDiagnosticMessageText(error.messageText, "\n")), []);
+    });
+  }
+}

@@ -5,7 +5,7 @@ export type TMiniMapLocation =
   | "topRight"
   | "bottomLeft"
   | "bottomRight"
-  | Pick<CSSStyleDeclaration, "top" | "left" | "bottom" | "right">;
+  | Partial<Pick<CSSStyleDeclaration, "top" | "left" | "bottom" | "right">>;
 
 export type MiniMapLayerProps = LayerProps & {
   width?: number;
@@ -54,7 +54,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   }
 
   protected afterInit(): void {
-    this.injectPositionStyle();
+    this.applyPositionStyle();
 
     // Fires immediately with the current value — initialises scale/relativeX/Y before the first render.
     // Also fires on every subsequent usableRect change (blocks moved/resized/added/removed).
@@ -115,21 +115,14 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     this.drawCameraBorderFrame();
   }
 
-  private injectPositionStyle(): void {
-    const minimapPosition = this.getPositionOfMiniMap(this.props.location);
-    const style = document.createElement("style");
-    style.innerHTML = `
-      .layer.graph-minimap {
-        top: ${minimapPosition.top};
-        left: ${minimapPosition.left};
-        bottom: ${minimapPosition.bottom};
-        right: ${minimapPosition.right};
-        width: ${this.minimapWidth}px;
-        height: ${this.minimapHeight}px;
-        border: 2px solid var(--g-color-private-cool-grey-1000-solid);
-        background: lightgrey;
-      }`;
-    this.root.appendChild(style);
+  private applyPositionStyle(): void {
+    const canvas = this.requireCanvas();
+    Object.assign(canvas.style, this.getPositionOfMiniMap(this.props.location), {
+      width: `${this.minimapWidth}px`,
+      height: `${this.minimapHeight}px`,
+      border: "2px solid var(--g-color-private-cool-grey-1000-solid)",
+      background: "lightgrey",
+    });
   }
 
   private calculateViewPortCoords(): void {
@@ -212,7 +205,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   }
 
   protected getPositionOfMiniMap(
-    location: TMiniMapLocation
+    location: TMiniMapLocation = "topLeft"
   ): Pick<CSSStyleDeclaration, "top" | "left" | "bottom" | "right"> {
     let position: Pick<CSSStyleDeclaration, "top" | "left" | "bottom" | "right"> = {
       left: "unset",
@@ -242,7 +235,12 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     }
 
     if (typeof location === "object") {
-      position = location;
+      position = {
+        top: location.top ?? "unset",
+        left: location.left ?? "unset",
+        bottom: location.bottom ?? "unset",
+        right: location.right ?? "unset",
+      };
     }
 
     return position;
