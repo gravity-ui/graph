@@ -110,7 +110,7 @@ export class NewBlockLayer extends Layer<
       const blockTarget = target;
       this.context.graph.dragService.startDrag(
         {
-          onStart: (event) => this.onStartNewBlock(event, blockTarget),
+          onStart: (event, coords) => this.onStartNewBlock(event, blockTarget, { x: coords[0], y: coords[1] }),
           onUpdate: (event) => this.onMoveNewBlock(event),
           onEnd: (event, coords) => this.onEndNewBlock(event, { x: coords[0], y: coords[1] }),
         },
@@ -139,7 +139,7 @@ export class NewBlockLayer extends Layer<
     });
   }
 
-  private onStartNewBlock(event: MouseEvent, block: Block) {
+  private onStartNewBlock(event: MouseEvent, block: Block, point: TPoint) {
     // Check if the clicked block is selected
     const isBlockSelected = block.connectedState.selected;
 
@@ -178,7 +178,7 @@ export class NewBlockLayer extends Layer<
     this.copyBlocks = blockStates;
 
     // Store the initial point for calculating the offset later
-    this.initialPoint = this.context.graph.getPointInCameraSpace(event);
+    this.initialPoint = point;
 
     this.context.graph.executеDefaultEventAction("block-add-start-from-shadow", { blocks }, () => {
       const scale = this.context.camera.getCameraScale();

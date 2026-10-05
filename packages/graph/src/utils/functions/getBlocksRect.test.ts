@@ -1,5 +1,4 @@
 import { TBlock } from "../../components/canvas/blocks/Block";
-import { Rect } from "../types/shapes";
 
 import { getBlocksRect } from "./index";
 
@@ -23,7 +22,6 @@ describe("getBlocksRect", () => {
     const blocks = [createMockTBlock("block1", 10, 20, 100, 50)];
     const result = getBlocksRect(blocks);
 
-    expect(result).toBeInstanceOf(Rect);
     expect(result.x).toBe(10);
     expect(result.y).toBe(20);
     expect(result.width).toBe(100);
@@ -34,7 +32,6 @@ describe("getBlocksRect", () => {
     const blocks = [createMockTBlock("block1", 10, 20, 100, 50), createMockTBlock("block2", 50, 30, 80, 60)];
     const result = getBlocksRect(blocks);
 
-    expect(result).toBeInstanceOf(Rect);
     expect(result.x).toBe(10);
     expect(result.y).toBe(20);
     expect(result.width).toBe(120); // 50 + 80
@@ -44,7 +41,7 @@ describe("getBlocksRect", () => {
   it("should return default rect when blocks array is empty", () => {
     const result = getBlocksRect([]);
 
-    expect(result).toBeInstanceOf(Rect);
+    expect(result).toStrictEqual({ x: 0, y: 0, width: 0, height: 0 });
     expect(result.x).toBe(0);
     expect(result.y).toBe(0);
     expect(result.width).toBe(0);
@@ -55,7 +52,6 @@ describe("getBlocksRect", () => {
     const blocks = [createMockTBlock("block1", -10, -20, 100, 50), createMockTBlock("block2", 50, 30, 80, 60)];
     const result = getBlocksRect(blocks);
 
-    expect(result).toBeInstanceOf(Rect);
     expect(result.x).toBe(-10);
     expect(result.y).toBe(-20);
     expect(result.width).toBe(140); // 50 + 80
@@ -66,7 +62,6 @@ describe("getBlocksRect", () => {
     const blocks = [createMockTBlock("block1", 0, 0, 0, 0)];
     const result = getBlocksRect(blocks);
 
-    expect(result).toBeInstanceOf(Rect);
     expect(result.x).toBe(0);
     expect(result.y).toBe(0);
     expect(result.width).toBe(0);
@@ -80,7 +75,6 @@ describe("getBlocksRect", () => {
     ];
     const result = getBlocksRect(blocks);
 
-    expect(result).toBeInstanceOf(Rect);
     expect(result.x).toBe(1000000);
     expect(result.y).toBe(2000000);
     expect(result.width).toBe(180); // 100 + 80

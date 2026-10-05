@@ -13,6 +13,7 @@ The temporary branch and release process is documented separately in
 - Treat configuration input types as patches and use the complete configuration types for stored state.
 - Replace resets through `undefined` with `resetSettings(keys)` or `resetSettings()`.
 - Supply complete arrays/tuples when updating constants.
+- Use plain `TPoint` / `TRect` objects instead of geometry classes and their conversion methods.
 
 ## React package boundary
 
@@ -90,6 +91,49 @@ declare module "*.css";
 This declaration describes CSS imports to TypeScript. Your bundler validates
 that the imported files exist. Published declaration locations and NodeNext/CJS
 consumers remain supported.
+
+## Structural geometry
+
+The `Point` / `Rect` classes and `IPoint` / `IRect` interfaces are removed.
+Geometry APIs use plain objects; `TPoint`, `TRect`, and `CameraPoint` are exported
+from `@gravity-ui/graph`. Optional `Point(x, y)` and `Rect(x, y, width, height)`
+factories create plain objects with these shapes. Call them without `new`.
+
+```ts
+import { Graph, Point, Rect, type TPoint, type TRect } from "@gravity-ui/graph";
+
+const graph = new Graph({});
+const point: TPoint = { x: 100, y: 200 };
+const rect: TRect = { x: 0, y: 0, width: 300, height: 400 };
+
+graph.getElementOverPoint(point);
+graph.getElementsOverPoint(point);
+graph.zoomTo(rect);
+
+// Equivalent factory syntax; the API accepts either form.
+graph.getElementOverPoint(Point(100, 200));
+graph.zoomTo(Rect(0, 0, 300, 400));
+```
+
+Point lookups accept a world `TPoint` or a `CameraPoint` with two required fields:
+`world: TPoint` and `canvas: TPoint`. Canvas coordinates use CSS pixels before
+device pixel ratio. `graph.cameraService.createCameraPoint(point)` captures both
+spaces from a world point; pass `"canvas"` as the second argument for canvas input.
+Conversion belongs to the camera. Direct `graph.hitTest.testPoint` calls require a
+prepared `CameraPoint` and a device pixel ratio.
+
+`getPointInCameraSpace(event)` now returns a `CameraPoint`. Read `.world.x/y`
+instead of `.x/y`, and `.canvas` instead of `.origPoint`. Both coordinate spaces
+retain fractional precision. Pass the result directly to a point lookup, or use
+its `.world` point. Camera points are snapshots: recreate them after camera changes.
+The legacy `cameraService.applyToPoint` helper continues to produce integer
+coordinates for drag operations.
+
+The `point` payloads of `connection-create-drop` and `port-connection-create-drop`
+are plain `TPoint` values. Replace `point.toArray()` with `[point.x, point.y]` and
+`point.toObject()` with `{ x: point.x, y: point.y }`. For rectangles, use
+`[rect.x, rect.y, rect.width, rect.height]` or an object with those four fields.
+Remove imports of the internal geometry classes and `instanceof` checks for them.
 
 ## Scheduler lifecycle
 

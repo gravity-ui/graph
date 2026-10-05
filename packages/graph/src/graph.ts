@@ -20,6 +20,7 @@ import { HitTest } from "./services/HitTest";
 import { KeyboardService } from "./services/KeyboardService";
 import { Layer, LayerPublicProps } from "./services/Layer";
 import { Layers, LayersRootSize } from "./services/LayersService";
+import type { CameraPoint } from "./services/camera/CameraPoint";
 import { CameraService, getInitCameraState } from "./services/camera/CameraService";
 import type { TCameraState } from "./services/camera/CameraService";
 import { DragService } from "./services/drag";
@@ -32,7 +33,7 @@ import { clearColorCache, getXY } from "./utils/functions";
 import { clearGraphInstance, setGraphInstance } from "./utils/graphInstance";
 import { clearTextCache } from "./utils/renderers/text";
 import "./utils/types/global";
-import { IPoint, Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
+import { Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
 
 export type LayerConfig<T extends Constructor<Layer> = Constructor<Layer>> = [T, LayerPublicProps<T>];
 export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
@@ -237,16 +238,22 @@ export class Graph {
     return true;
   }
 
-  public getElementsOverPoint<T extends Constructor<GraphComponent>>(point: IPoint, filter?: T[]): InstanceType<T>[] {
-    const items = this.hitTest.testPoint(point, this.layers.getDPR());
+  /** Returns elements at a world point or a prepared pair of world and canvas coordinates. */
+  public getElementsOverPoint<T extends Constructor<GraphComponent>>(
+    point: TPoint | CameraPoint,
+    filter?: T[]
+  ): InstanceType<T>[] {
+    const cameraPoint = "world" in point ? point : this.cameraService.createCameraPoint(point);
+    const items = this.hitTest.testPoint(cameraPoint, this.layers.getDPR());
     if (filter && items.length > 0) {
       return items.filter((item) => filter.some((Component) => item instanceof Component)) as InstanceType<T>[];
     }
     return items as InstanceType<T>[];
   }
 
+  /** Returns the topmost element at a world-space point. */
   public getElementOverPoint<T extends Constructor<GraphComponent>>(
-    point: IPoint,
+    point: TPoint | CameraPoint,
     filter?: T[]
   ): InstanceType<T> | undefined {
     return this.getElementsOverPoint(point, filter)?.[0] as InstanceType<T> | undefined;
@@ -288,11 +295,10 @@ export class Graph {
     return items as InstanceType<T>[];
   }
 
-  public getPointInCameraSpace(event: MouseEvent) {
+  /** Returns exact world and canvas-relative CSS coordinates of a mouse event. */
+  public getPointInCameraSpace(event: MouseEvent): CameraPoint {
     const xy = getXY(this.graphLayer.getCanvas(), event);
-
-    const applied = this.cameraService.applyToPoint(xy[0], xy[1]);
-    return new Point(applied[0], applied[1], { x: xy[0], y: xy[1] });
+    return this.cameraService.createCameraPoint(Point(xy[0], xy[1]), "canvas");
   }
 
   public updateEntities({

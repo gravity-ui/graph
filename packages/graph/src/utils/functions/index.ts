@@ -113,7 +113,7 @@ export function isAllowDrag(canDrag: ECanDrag, isSelected: boolean): boolean {
 export function getBlocksRect(blocks: TBlock[]): TRect {
   // If no blocks or all blocks are not found, return a default rectangle to prevent camera state issues with Infinity values.
   if (blocks.length === 0) {
-    return new Rect(0, 0, 0, 0);
+    return Rect(0, 0, 0, 0);
   }
 
   const geometry = blocks.reduce(
@@ -126,10 +126,10 @@ export function getBlocksRect(blocks: TBlock[]): TRect {
     },
     { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
   );
-  const rect = new Rect(geometry.minX, geometry.minY, geometry.maxX - geometry.minX, geometry.maxY - geometry.minY);
+  const rect = Rect(geometry.minX, geometry.minY, geometry.maxX - geometry.minX, geometry.maxY - geometry.minY);
 
   if (isGeometryHaveInfinity(rect)) {
-    return new Rect(0, 0, 0, 0);
+    return Rect(0, 0, 0, 0);
   }
 
   return rect;
@@ -137,7 +137,7 @@ export function getBlocksRect(blocks: TBlock[]): TRect {
 
 export function getElementsRect<T extends GraphComponent = GraphComponent>(elements: T[]): TRect {
   if (elements.length === 0) {
-    return new Rect(0, 0, 0, 0);
+    return Rect(0, 0, 0, 0);
   }
 
   const elementsRect = elements.reduce(
@@ -152,7 +152,7 @@ export function getElementsRect<T extends GraphComponent = GraphComponent>(eleme
     { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
   );
 
-  return new Rect(
+  return Rect(
     elementsRect.minX,
     elementsRect.minY,
     elementsRect.maxX - elementsRect.minX,

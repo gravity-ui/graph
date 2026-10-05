@@ -57,6 +57,8 @@
     }
   ],
   "rules": {
+    // Geometry factories return plain objects and are intentionally called without new.
+    "new-cap": ["error", { "capIsNewExceptions": ["Point", "Rect"] }],
     "no-negated-condition": "off",
     "@typescript-eslint/parameter-properties": "off",
     "no-param-reassign": "off",

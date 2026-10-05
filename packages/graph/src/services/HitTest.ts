@@ -6,10 +6,11 @@ import { ESchedulerPriority } from "../lib";
 import { Component } from "../lib/Component";
 import { Emitter } from "../utils/Emitter";
 import { noop } from "../utils/functions";
-import { IPoint, TRect } from "../utils/types/shapes";
+import type { TRect } from "../utils/types/shapes";
 import { debounce } from "../utils/utils/schedule";
 
 import { IncrementalBoundingBoxTracker } from "./IncrementalBoundingBoxTracker";
+import type { CameraPoint } from "./camera/CameraPoint";
 
 export interface IWithHitTest {
   hitBox: IHitBox;
@@ -278,18 +279,18 @@ export class HitTest extends Emitter<{ update: (hitTest: HitTest) => void }> {
 
   /**
    * Test hit at specific point
-   * @param point Point to test
+   * @param point Prepared world and canvas coordinates for the same camera state
    * @param pixelRatio Pixel ratio for coordinate conversion
    * @returns Array of hit components
    */
-  public testPoint(point: IPoint, pixelRatio: number): Component[] {
+  public testPoint(point: CameraPoint, pixelRatio: number): Component[] {
     return this.testHitBox({
-      minX: point.x - 1,
-      minY: point.y - 1,
-      maxX: point.x + 1,
-      maxY: point.y + 1,
-      x: point.origPoint?.x * pixelRatio,
-      y: point.origPoint?.y * pixelRatio,
+      minX: point.world.x - 1,
+      minY: point.world.y - 1,
+      maxX: point.world.x + 1,
+      maxY: point.world.y + 1,
+      x: point.canvas.x * pixelRatio,
+      y: point.canvas.y * pixelRatio,
     });
   }
 
