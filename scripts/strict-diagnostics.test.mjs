@@ -223,3 +223,15 @@ test("completed component contracts cannot be added to a baseline", () => {
     assert.throws(() => validateSnapshot(snapshot([{ ...diagnostic, file }])), /Component contracts/);
   }
 });
+
+
+test("completed scheduling and text helpers cannot be added to a baseline", () => {
+  for (const file of [
+    "packages/graph/src/services/optimizations/frameDebouncer.ts",
+    "packages/graph/src/utils/utils/schedule.ts",
+    "packages/graph/src/utils/functions/text.ts",
+    "packages/graph/src/utils/functions/text.test.ts",
+  ]) {
+    assert.throws(() => validateSnapshot(snapshot([{ ...diagnostic, file }])), /Scheduling and text/);
+  }
+});

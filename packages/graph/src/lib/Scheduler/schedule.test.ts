@@ -146,3 +146,97 @@ describe("throttle", () => {
     throttled.cancel();
   });
 });
+
+// Wrappers discard callback results, but keep the invocation's arguments and receiver.
+describe("scheduling invocation contracts", () => {
+  beforeEach(resetScheduler);
+  afterEach(resetScheduler);
+
+  it("debounce invokes the latest receiver with the latest arguments", () => {
+    const calls: string[] = [];
+    const wrapped = debounce(function (this: { name: string }, suffix: string) {
+      calls.push(this.name + suffix);
+      return calls.length;
+    });
+    expect(wrapped.call({ name: "first" }, "-old")).toBeUndefined();
+    expect(wrapped.call({ name: "latest" }, "-new")).toBeUndefined();
+    wrapped.flush();
+    expect(calls).toEqual(["latest-new"]);
+  });
+
+  it("debounce cancellation followed by rescheduling waits the whole interval", () => {
+    const calls: string[] = [];
+    const wrapped = debounce((value: string) => calls.push(value), { frameInterval: 2 });
+    wrapped("cancelled");
+    wrapped.cancel();
+    wrapped("latest");
+    scheduler.performUpdate();
+    expect(calls).toEqual([]);
+    scheduler.performUpdate();
+    expect(calls).toEqual(["latest"]);
+    scheduler.performUpdate();
+    expect(calls).toEqual(["latest"]);
+  });
+
+  it("a debounced callback can schedule a follow-up for a later frame", () => {
+    const calls: string[] = [];
+    const wrapped = debounce((value: string) => {
+      calls.push(value);
+      if (value === "initial") wrapped("follow-up");
+    });
+    wrapped("initial");
+    scheduler.performUpdate();
+    expect(calls).toEqual(["initial"]);
+    expect(wrapped.isScheduled()).toBe(true);
+    scheduler.performUpdate();
+    expect(calls).toEqual(["initial", "follow-up"]);
+    expect(wrapped.isScheduled()).toBe(false);
+  });
+
+  it("a debounced callback can cancel and replace its follow-up without running twice in a frame", () => {
+    const calls: string[] = [];
+    const wrapped = debounce((value: string) => {
+      calls.push(value);
+      if (value === "initial") {
+        wrapped("discarded");
+        wrapped.cancel();
+        wrapped("replacement");
+      }
+    });
+    wrapped("initial");
+    scheduler.performUpdate();
+    expect(calls).toEqual(["initial"]);
+    scheduler.performUpdate();
+    expect(calls).toEqual(["initial", "replacement"]);
+  });
+
+  it("throttle preserves the receiver and discards callback results", () => {
+    const calls: string[] = [];
+    const wrapped = throttle(function (this: { name: string }, suffix: string) {
+      calls.push(this.name + suffix);
+      return calls.length;
+    });
+    expect(wrapped.call({ name: "first" }, "-allowed")).toBeUndefined();
+    wrapped.call({ name: "second" }, "-suppressed");
+    expect(calls).toEqual(["first-allowed"]);
+    wrapped.flush();
+    wrapped.call({ name: "second" }, "-allowed");
+    expect(calls).toEqual(["first-allowed", "second-allowed"]);
+    wrapped.cancel();
+  });
+
+  it("throttle cancellation followed by rescheduling does not shorten the cooldown", () => {
+    const callback = jest.fn();
+    const wrapped = throttle(callback, { frameInterval: 2 });
+    wrapped("first");
+    wrapped.cancel();
+    wrapped("second");
+    scheduler.performUpdate();
+    wrapped("suppressed");
+    expect(callback).toHaveBeenCalledTimes(2);
+    scheduler.performUpdate();
+    wrapped("third");
+    expect(callback).toHaveBeenLastCalledWith("third");
+    wrapped.cancel();
+  });
+});

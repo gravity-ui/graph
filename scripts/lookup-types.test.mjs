@@ -10,6 +10,7 @@ for (const built of [false, true]) {
   test(`strict public consumer fixtures check ${built ? "declarations" : "source APIs"}`, () => {
     const fixtures = [
       "tests/package-contract/fixtures/apps/vanilla/app.ts",
+      "tests/package-contract/fixtures/apps/vanilla/scheduling.ts",
       "tests/package-contract/fixtures/apps/react/app.tsx",
     ].map((file) => path.join(root, file));
     const configPath = path.join(root, "packages/graph-react/tsconfig.json");
@@ -45,16 +46,18 @@ for (const built of [false, true]) {
 
 for (const strict of [true, false]) {
   for (const built of [false, true]) {
-    test(`component factories preserve validated arguments (${strict ? "strict" : "non-strict"}, ${built ? "declarations" : "source"})`, () => {
-      const fixture = path.join(root, "tests/package-contract/fixtures/apps/vanilla/component-factories.ts");
-      const program = ts.createProgram([fixture], {
+    test(`public factories and scheduling helpers preserve validated arguments (${strict ? "strict" : "non-strict"}, ${built ? "declarations" : "source"})`, () => {
+      const fixtures = ["component-factories.ts", "scheduling.ts"].map((file) =>
+        path.join(root, "tests/package-contract/fixtures/apps/vanilla", file)
+      );
+      const program = ts.createProgram(fixtures, {
         strict, noEmit: true, skipLibCheck: true,
         target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext,
         moduleResolution: ts.ModuleResolutionKind.Bundler,
         paths: { "@gravity-ui/graph": [path.join(root, built ? "packages/graph/build/index.d.ts" : "packages/graph/src/index.ts")] },
       });
       const errors = ts.getPreEmitDiagnostics(program).filter((error) =>
-        error.category === ts.DiagnosticCategory.Error && (!error.file || error.file.fileName === fixture)
+        error.category === ts.DiagnosticCategory.Error && (!error.file || fixtures.includes(error.file.fileName))
       );
       assert.deepEqual(errors.map((error) => ts.flattenDiagnosticMessageText(error.messageText, "\n")), []);
     });

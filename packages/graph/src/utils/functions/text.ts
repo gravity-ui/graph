@@ -1,14 +1,16 @@
 /* eslint-disable no-unmodified-loop-condition */
 import memoize from "lodash/memoize";
 
-export function getFontSize(fontSize, scale) {
+export function getFontSize(fontSize: number, scale: number) {
   return (fontSize / scale) | 0;
 }
 
 function canvasContextGetter() {
   const canvas: HTMLCanvasElement = document.createElement("canvas");
 
-  return canvas.getContext("2d");
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Cannot measure text: a 2D Canvas context is unavailable");
+  return context;
 }
 
 const getCanvasContext = memoize(canvasContextGetter, () => "canvasContext");
@@ -26,11 +28,11 @@ export function measureText(text: string, font: string, approximate = true): num
 
   const key = `${text}-${font}`;
 
-  if (!mapTextToMeasures.has(key)) {
-    mapTextToMeasures.set(key, Math.floor(context.measureText(text).width + 1));
-  }
-
-  return mapTextToMeasures.get(key);
+  const cached = mapTextToMeasures.get(key);
+  if (cached !== undefined) return cached;
+  const width = Math.floor(context.measureText(text).width + 1);
+  mapTextToMeasures.set(key, width);
+  return width;
 }
 
 function sliceAt(string: string, index: number): Array<string> {
@@ -68,15 +70,14 @@ function wrapLines(
     wordWrap = true,
   }: TWordWrapOptions
 ): Array<TWordWrapResult> {
-  let lines = [];
+  const lines: TWordWrapResult[] = [];
 
   if (!text) {
     return lines;
   }
 
   if (!wordWrap) {
-    lines = [{ text, width: measureText(text) }];
-    return lines;
+    return [{ text, width: measureText(text) }];
   }
 
   // split string by space-like symbols/sequences.
@@ -90,8 +91,6 @@ function wrapLines(
   let currentLine = "";
   let currentLineWidth = 0;
 
-  let nextWordWidth;
-  let nextWidth;
   let totalHeight = 0;
 
   const lineBreak = () => {
@@ -113,19 +112,19 @@ function wrapLines(
 
   // Presenting words as a stack so that we can push() bits of words on top of it.
   const stack = words.slice().reverse();
-  let nextWord;
   let iterations = 0;
 
   // We also watch for next total height so that we don't overflow.
   while (iterations < MAX_ITERATIONS && stack.length > 0 && totalHeight + lineHeight <= maxHeight) {
     iterations++;
-    nextWord = stack.pop();
-    nextWordWidth = measureText(nextWord);
+    const nextWord = stack.pop();
+    if (nextWord === undefined) break;
+    let nextWordWidth = measureText(nextWord);
 
     // We don't check for currentLineWidth === 0,
     // so all lines have space symbol at the start.
     // We will trim it later.
-    nextWidth = currentLineWidth + spaceWidth + nextWordWidth;
+    const nextWidth = currentLineWidth + spaceWidth + nextWordWidth;
 
     // if the next word fits, append it
     if (nextWidth <= maxWidth) {
@@ -190,7 +189,7 @@ export function measureMultilineText(
   font = "12px",
   { lineHeight, wordWrap = false, maxWidth = Infinity, maxHeight = Infinity }: TMeasureTextOptions
 ): TWrapText {
-  const boundMeasureText = (text) => measureText(text, font);
+  const boundMeasureText = (text: string) => measureText(text, font);
   lineHeight = lineHeight || parseInt(font.replace(/\D/gi, ""), 10);
   const lines = wrapLines(text, {
     measureText: boundMeasureText,
