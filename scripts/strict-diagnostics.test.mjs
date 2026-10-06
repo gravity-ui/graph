@@ -37,7 +37,7 @@ const snapshot = (diagnostics = []) => ({ schemaVersion: 1, compiler: COMPILER, 
 test("allows decreases but rejects new identities and increased occurrence counts", () => {
   assert.deepEqual(compareDiagnostics(snapshot([]), snapshot([diagnostic])), []);
   assert.equal(compareDiagnostics(snapshot([{ ...diagnostic, count: 2 }]), snapshot([diagnostic])).length, 1);
-  for (const change of [{ file: "other.ts" }, { project: PROJECTS[2] }, { code: 2322 }, { message: "different" }]) {
+  for (const change of [{ file: "other.ts" }, { project: PROJECTS[3] }, { code: 2322 }, { message: "different" }]) {
     assert.equal(compareDiagnostics(snapshot([{ ...diagnostic, ...change }]), snapshot([diagnostic])).length, 1);
   }
 });
