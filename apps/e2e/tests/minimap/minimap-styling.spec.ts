@@ -144,6 +144,18 @@ test.describe("MiniMap – styling", () => {
     await expect(canvases.nth(1)).toHaveCSS("width", "180px");
   });
 
+  test("unknown location from JavaScript leaves all offsets unset", async ({ page }) => {
+    const offsets = await page.evaluate(`(() => {
+      const layer = window.graph.addLayer(window.GraphModule.MiniMapLayer, { location: "center" });
+      const style = layer.context.canvas.style;
+      const offsets = [style.top, style.left, style.bottom, style.right];
+      window.graph.detachLayer(layer);
+      window.GraphModule.Component.unmount(layer);
+      return offsets;
+    })()`);
+    expect(offsets).toEqual(["unset", "unset", "unset", "unset"]);
+  });
+
   test("partial custom offsets resolve omitted sides", async ({ page }) => {
     await minimapPO.addLayer({ location: { right: "20px", bottom: "30px" } });
     const pos = await minimapPO.getPositionRelativeToRoot();

@@ -523,11 +523,16 @@ Custom locations accept partial offsets, for example
 Omitted custom sides resolve to `unset`. Position and size
 styles belong to each canvas, so multiple minimaps no longer override one another
 and detach/reattach does not leave styles on the old root.
+These position and size styles are now inline. Configure them through layer props;
+CSS overrides that worked in v1 now require `!important`.
 
 Import `@gravity-ui/graph-minimap/styles.css` alongside the core stylesheet for
 its default background and border. Load core styles before minimap styles.
 Override these visual defaults with ordinary
 CSS (for example `.graph-minimap.my-minimap` with `classNames: ["my-minimap"]`);
-these custom rules override the defaults regardless of their load order, without `!important`.
+Two-class selectors like this example override the default
+`canvas.layer:where(.graph-minimap)` (specificity `(0,1,1)`) regardless of load order,
+without `!important`. Single-class selectors such as `.my-minimap` or
+`.graph-minimap` have lower specificity and do not override the defaults.
 `context.root` remains optional before attachment and after detachment;
 `context.canvas` and `context.ctx` are available after successful construction.

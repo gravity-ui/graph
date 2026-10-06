@@ -200,7 +200,7 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
             topRight: { top: "0px", right: "0px" },
             bottomLeft: { bottom: "0px", left: "0px" },
             bottomRight: { bottom: "0px", right: "0px" },
-          }[location]
+          }[location] ?? {}
         : location;
     return {
       top: offsets.top ?? "unset",

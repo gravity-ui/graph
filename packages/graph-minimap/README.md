@@ -23,7 +23,7 @@ graph.start();
 
 `@gravity-ui/graph` is a required peer dependency. This package uses its public `Layer` API and shares the consumer's core runtime. React is not required.
 
-The layer sets its per-instance position and dimensions when attached. Import core styles before `@gravity-ui/graph-minimap/styles.css` for the default border and background. Custom `classNames` rules such as `.graph-minimap.my-minimap` override these visual defaults regardless of their load order.
+The layer sets its per-instance position and dimensions inline on the canvas when attached. Configure them through the layer props; overriding them with CSS requires `!important`. Import core styles before `@gravity-ui/graph-minimap/styles.css` for the default border and background. The default selector `canvas.layer:where(.graph-minimap)` has specificity `(0,1,1)`. Custom rules with two classes, such as `.graph-minimap.my-minimap`, override these visual defaults regardless of their load order. A single-class selector such as `.my-minimap` or `.graph-minimap` has lower specificity and does not override them.
 
 ## API
 
