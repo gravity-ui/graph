@@ -8,7 +8,8 @@ The temporary branch and release process is documented separately in
 ## Migration checklist
 
 - Move React, Minimap and DevTools imports to their dedicated packages and install their peers.
-- Import the stylesheets for each package you use.
+- Import the stylesheets for each package you use, with core styles before addon styles.
+- Add `import "@gravity-ui/graph-minimap/styles.css"` when using Minimap: its default border and background now require this explicit import.
 - Replace `canChangeBlockGeometry` / `ECanChangeBlockGeometry` with `canDrag` / `ECanDrag`.
 - Treat configuration input types as patches and use the complete configuration types for stored state.
 - Replace resets through `undefined` with `resetSettings(keys)` or `resetSettings()`.
@@ -44,6 +45,7 @@ declarations, and checks that the React adapter uses the application's core clas
 import { Graph } from "@gravity-ui/graph";
 import { MiniMapLayer } from "@gravity-ui/graph-minimap";
 import "@gravity-ui/graph/styles.css";
+import "@gravity-ui/graph-minimap/styles.css";
 
 const graph = new Graph({ blocks: [] }, document.getElementById("graph")!);
 graph.addLayer(MiniMapLayer, { location: "bottomRight" });
@@ -51,8 +53,8 @@ graph.start();
 ```
 
 Minimap requires core as a peer dependency and does not require React. It uses the public core `Layer` and shares the
-consumer's graph, camera, and block components. Navigation, geometry updates, and injected layer styles are unchanged;
-there is no separate minimap stylesheet to import. Core no longer includes or re-exports the minimap implementation.
+consumer's graph, camera, and block components. Navigation and geometry updates are unchanged;
+import its stylesheet for default border and background styles. Core no longer includes or re-exports the minimap implementation.
 
 ## DevTools package boundary
 
@@ -78,7 +80,7 @@ Core no longer contains DevTools code or declarations. The shared text measureme
 ## Styles and TypeScript
 
 Each package owns its stylesheet. Keep the explicit stylesheet imports shown
-above; Minimap does not have a separate stylesheet.
+above, including `@gravity-ui/graph-minimap/styles.css` for the minimap.
 
 For TypeScript applications that enable `noUncheckedSideEffectImports`, provide
 your bundler's CSS declaration or include an ambient declaration in your
@@ -508,3 +510,29 @@ page object reports a detached graph error for bounds/cursor reads. Binding a ca
 Block, Anchor, Connection or Group to a missing entity throws a descriptive error;
 create its data before constructing the view. A missing 2D canvas context for grid or
 text creation likewise produces a descriptive error.
+
+## Minimap location and lifecycle
+
+`@gravity-ui/graph-minimap` now checks its source and declaration build with strict
+TypeScript. Omitted `location` still places the minimap at `topLeft`; dimensions
+still default to 200 × 200 and the camera border to 2px in
+`rgba(255, 119, 0, 0.9)`.
+
+Custom locations accept partial offsets, for example
+`graph.addLayer(MiniMapLayer, { location: { right: "20px", bottom: "30px" } })`.
+Omitted custom sides resolve to `unset`. Position and size
+styles belong to each canvas, so multiple minimaps no longer override one another
+and detach/reattach does not leave styles on the old root.
+These position and size styles are now inline. Configure them through layer props;
+CSS overrides that worked in v1 now require `!important`.
+
+Import `@gravity-ui/graph-minimap/styles.css` alongside the core stylesheet for
+its default background and border. Load core styles before minimap styles.
+Override these visual defaults with ordinary
+CSS (for example `.graph-minimap.my-minimap` with `classNames: ["my-minimap"]`);
+Two-class selectors like this example override the default
+`canvas.layer:where(.graph-minimap)` (specificity `(0,1,1)`) regardless of load order,
+without `!important`. Single-class selectors such as `.my-minimap` or
+`.graph-minimap` have lower specificity and do not override the defaults.
+`context.root` remains optional before attachment and after detachment;
+`context.canvas` and `context.ctx` are available after successful construction.

@@ -37,7 +37,7 @@ const snapshot = (diagnostics = []) => ({ schemaVersion: 1, compiler: COMPILER, 
 test("allows decreases but rejects new identities and increased occurrence counts", () => {
   assert.deepEqual(compareDiagnostics(snapshot([]), snapshot([diagnostic])), []);
   assert.equal(compareDiagnostics(snapshot([{ ...diagnostic, count: 2 }]), snapshot([diagnostic])).length, 1);
-  for (const change of [{ file: "other.ts" }, { project: PROJECTS[2] }, { code: 2322 }, { message: "different" }]) {
+  for (const change of [{ file: "other.ts" }, { project: PROJECTS[3] }, { code: 2322 }, { message: "different" }]) {
     assert.equal(compareDiagnostics(snapshot([{ ...diagnostic, ...change }]), snapshot([diagnostic])).length, 1);
   }
 });
@@ -147,7 +147,7 @@ test("CLI baseline is reproducible across line shifts and rejects regressions/co
       );
       writeFileSync(
         path.join(projectRoot, "source.ts"),
-        project === PROJECTS[0]
+        project === PROJECTS[0] || project === "packages/graph-minimap/tsconfig.json"
           ? "export const text = 'ready';\n"
           : "import value from 'untyped';\nexport const text: string = null;\n"
       );
@@ -241,4 +241,20 @@ test("all graph source and tests reject baseline debt", () => {
   for (const file of ["packages/graph/src/store/block/Block.ts", "packages/graph/src/services/HitTest.test.ts"]) {
     assert.throws(() => validateSnapshot(snapshot([{ ...diagnostic, file }])), /Graph must have zero/);
   }
+});
+
+test("minimap diagnostics cannot be admitted by a baseline", () => {
+  assert.throws(
+    () =>
+      validateSnapshot(
+        snapshot([
+          {
+            ...diagnostic,
+            project: "packages/graph-minimap/tsconfig.json",
+            file: "packages/graph-minimap/src/layer.ts",
+          },
+        ])
+      ),
+    /Minimap/
+  );
 });

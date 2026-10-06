@@ -8,6 +8,7 @@ This package is being developed on the unpublished v2 branch. Use it with the ma
 import { Graph } from "@gravity-ui/graph";
 import { MiniMapLayer } from "@gravity-ui/graph-minimap";
 import "@gravity-ui/graph/styles.css";
+import "@gravity-ui/graph-minimap/styles.css";
 
 const graph = new Graph({ blocks: [] }, document.getElementById("graph")!);
 graph.addLayer(MiniMapLayer, {
@@ -22,7 +23,7 @@ graph.start();
 
 `@gravity-ui/graph` is a required peer dependency. This package uses its public `Layer` API and shares the consumer's core runtime. React is not required.
 
-The layer installs its own position and appearance rules when attached. Only the core stylesheet is needed; this package has no separate stylesheet export.
+The layer sets its per-instance position and dimensions inline on the canvas when attached. Configure them through the layer props; overriding them with CSS requires `!important`. Import core styles before `@gravity-ui/graph-minimap/styles.css` for the default border and background. The default selector `canvas.layer:where(.graph-minimap)` has specificity `(0,1,1)`. Custom rules with two classes, such as `.graph-minimap.my-minimap`, override these visual defaults regardless of their load order. A single-class selector such as `.my-minimap` or `.graph-minimap` has lower specificity and does not override them.
 
 ## API
 

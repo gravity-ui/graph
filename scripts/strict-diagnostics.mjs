@@ -129,6 +129,12 @@ export function validateSnapshot(value) {
     if (diagnostic.file.startsWith("packages/graph/")) {
       throw new Error(`Graph must have zero strict diagnostics: ${identity(diagnostic)}`);
     }
+    if (
+      diagnostic.project === "packages/graph-minimap/tsconfig.json" ||
+      diagnostic.file.startsWith("packages/graph-minimap/")
+    ) {
+      throw new Error(`Minimap must have zero strict diagnostics: ${identity(diagnostic)}`);
+    }
     const key = identity(diagnostic);
     if (seen.has(key)) throw new Error(`Duplicate diagnostic identity: ${key}`);
     seen.add(key);

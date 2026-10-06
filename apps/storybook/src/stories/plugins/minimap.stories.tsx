@@ -9,6 +9,8 @@ import type { Meta, StoryFn } from "@storybook/react-webpack5";
 import { generatePrettyBlocks } from "../configurations/generatePretty";
 import { GraphComponentStory } from "../main/GraphEditor";
 
+import "@gravity-ui/graph/styles.css";
+import "@gravity-ui/graph-minimap/styles.css";
 import "@gravity-ui/uikit/styles/styles.css";
 
 const layers: LayerConfig<GraphClassConstructor<MiniMapLayer>>[] = [

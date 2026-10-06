@@ -41,6 +41,24 @@ test.describe("MiniMap – styling", () => {
     expect(await minimapPO.hasClass("my-custom-class")).toBe(true);
   });
 
+  for (const beforeDefaults of [true, false]) {
+    test(`consumer CSS overrides defaults loaded ${beforeDefaults ? "after" : "before"} it`, async ({ page }) => {
+      await minimapPO.addLayer({ classNames: ["custom-minimap"] });
+      await page.addStyleTag({ content: ":root { --g-color-private-cool-grey-1000-solid: rgb(10, 20, 30); }" });
+      const canvas = page.locator("canvas.graph-minimap");
+      await expect(canvas).toHaveCSS("border-top-width", "2px");
+      await page.evaluate((prepend) => {
+        const style = document.createElement("style");
+        style.textContent =
+          ".graph-minimap.custom-minimap { border: 3px solid rgb(10, 20, 30); background: rgb(40, 50, 60); }";
+        if (prepend) document.head.prepend(style);
+        else document.head.append(style);
+      }, beforeDefaults);
+      await expect(canvas).toHaveCSS("border-top-width", "3px");
+      await expect(canvas).toHaveCSS("background-color", "rgb(40, 50, 60)");
+    });
+  }
+
   // ─── Size ─────────────────────────────────────────────────────────────────
 
   test("default size should be 200×200 pixels", async () => {
@@ -108,5 +126,85 @@ test.describe("MiniMap – styling", () => {
     const pos = await minimapPO.getPositionRelativeToRoot();
     expect(Math.abs(pos.fromRight - 20)).toBeLessThanOrEqual(POSITION_TOLERANCE);
     expect(Math.abs(pos.fromBottom - 30)).toBeLessThanOrEqual(POSITION_TOLERANCE);
+  });
+
+  test("minimaps keep independent positions and dimensions", async ({ page }) => {
+    await page.evaluate(() => {
+      const { MiniMapLayer } = window.GraphModule;
+      window.graph.addLayer(MiniMapLayer, { location: "topLeft", width: 120, height: 80 });
+      window.graph.addLayer(MiniMapLayer, { location: "bottomRight", width: 180, height: 100 });
+    });
+    await graphPO.waitForFrames(5);
+    const canvases = page.locator("canvas.graph-minimap");
+    await expect(canvases.nth(0)).toHaveCSS("top", "0px");
+    await expect(canvases.nth(0)).toHaveCSS("left", "0px");
+    await expect(canvases.nth(0)).toHaveCSS("width", "120px");
+    await expect(canvases.nth(1)).toHaveCSS("bottom", "0px");
+    await expect(canvases.nth(1)).toHaveCSS("right", "0px");
+    await expect(canvases.nth(1)).toHaveCSS("width", "180px");
+  });
+
+  test("unknown location from JavaScript leaves all offsets unset", async ({ page }) => {
+    const offsets = await page.evaluate(`(() => {
+      const layer = window.graph.addLayer(window.GraphModule.MiniMapLayer, { location: "center" });
+      const style = layer.context.canvas.style;
+      const offsets = [style.top, style.left, style.bottom, style.right];
+      window.graph.detachLayer(layer);
+      window.GraphModule.Component.unmount(layer);
+      return offsets;
+    })()`);
+    expect(offsets).toEqual(["unset", "unset", "unset", "unset"]);
+  });
+
+  test("partial custom offsets resolve omitted sides", async ({ page }) => {
+    await minimapPO.addLayer({ location: { right: "20px", bottom: "30px" } });
+    const pos = await minimapPO.getPositionRelativeToRoot();
+    expect(Math.abs(pos.fromRight - 20)).toBeLessThanOrEqual(POSITION_TOLERANCE);
+    expect(Math.abs(pos.fromBottom - 30)).toBeLessThanOrEqual(POSITION_TOLERANCE);
+  });
+
+  test("construction before attachment and reattachment keep root and navigation valid", async ({ page }) => {
+    const lifecycle = await page.evaluate(() => {
+      const { MiniMapLayer } = window.GraphModule;
+      const graph = window.graph;
+      graph.detach();
+      const layer = graph.addLayer(MiniMapLayer, {});
+      const before = layer.context.root === undefined;
+      const root = document.getElementById("root");
+      if (!root) throw new Error("Missing root");
+      const styleCount = root.querySelectorAll("style").length;
+      graph.attach(root);
+      graph.start();
+      graph.detach();
+      const detached = layer.context.root === undefined;
+      const nextRoot = document.createElement("div");
+      nextRoot.style.cssText = "position:absolute;inset:0";
+      root.appendChild(nextRoot);
+      graph.attach(nextRoot);
+      graph.start();
+      graph.detach();
+      nextRoot.remove();
+      graph.attach(root);
+      graph.start();
+      return {
+        before,
+        detached,
+        attached: layer.context.root === root,
+        extraStyles: root.querySelectorAll("style").length - styleCount,
+      };
+    });
+    expect(lifecycle).toEqual({ before: true, detached: true, attached: true, extraStyles: 0 });
+    await graphPO.waitForFrames(5);
+    const before = await graphPO.camera().getState();
+    await minimapPO.clickAt(0.2, 0.2);
+    const after = await graphPO.camera().getState();
+    expect(after.x).not.toBe(before.x);
+    await page.evaluate(() => {
+      const { MiniMapLayer, Component } = window.GraphModule;
+      const layer = window.graph.layers.getLayers().find((candidate) => candidate instanceof MiniMapLayer);
+      if (!layer) throw new Error("Missing minimap layer");
+      window.graph.detachLayer(layer);
+      Component.unmount(layer);
+    });
   });
 });

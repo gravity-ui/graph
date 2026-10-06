@@ -18,7 +18,8 @@
       "types": "./build/index.d.ts",
       "import": "./build/index.js",
       "default": "./build/index.js"
-    }
+    },
+    "./styles.css": "./build/styles.css"
   },
   "files": [
     "build"

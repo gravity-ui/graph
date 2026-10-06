@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 
 import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-react/styles.css";
+import "@gravity-ui/graph-minimap/styles.css";
 
 export * from "@gravity-ui/graph";
 export { MiniMapLayer } from "@gravity-ui/graph-minimap";

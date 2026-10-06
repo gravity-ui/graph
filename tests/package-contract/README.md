@@ -45,7 +45,7 @@ production builder rejects bundled external dependencies and source imports outs
 
 Core styles own canvas layers; React styles own `.graph-wrapper`, `.graph-block-container`, and `.graph-block-anchor`.
 DevTools styles own `.devtools-ruler-bg` and its horizontal/vertical variants. Each stylesheet excludes the other packages' selectors.
-Minimap retains its injected styles and has no stylesheet export. Its isolated consumer cannot resolve React, React DOM,
+Minimap exports `styles.css`; consumers load it after the core stylesheet. Its isolated consumer cannot resolve React, React DOM,
 ELK, or the React package. Core must not export `MiniMapLayer`, ship its declarations, or depend on the minimap package.
 DevTools also has core as its only required peer and no runtime dependencies. Its isolated consumer must not resolve
 React. Core must not export DevTools symbols, ship its code/declarations/styles, or depend on the DevTools package.
