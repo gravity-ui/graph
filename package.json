@@ -31,7 +31,8 @@
     "typecheck:strict": "pnpm run build && node scripts/strict-diagnostics.mjs",
     "test:strict-diagnostics": "node --test scripts/strict-diagnostics.test.mjs",
     "typecheck:native-configs": "pnpm run build && node scripts/check-native-configs.mjs",
-    "test:type-configs": "node --test scripts/lookup-types.test.mjs scripts/css-assets.test.mjs scripts/native-configs.test.mjs scripts/style-observer-types.test.mjs scripts/devtools-types.test.mjs"
+    "test:type-configs": "node --test scripts/css-assets.test.mjs scripts/native-configs.test.mjs scripts/style-observer-types.test.mjs scripts/devtools-config.test.mjs && pnpm run typecheck:type-fixtures",
+    "typecheck:type-fixtures": "node scripts/tsc-projects.mjs --compiler=classic tests/types"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",

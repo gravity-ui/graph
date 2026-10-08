@@ -1,0 +1,15 @@
+{
+  // Resolve the public packages to their generated declarations (run `pnpm run build` first).
+  // React and signals are pinned to graph-react's copies so every project sees one instance.
+  "compilerOptions": {
+    "paths": {
+      "react": ["../../packages/graph-react/node_modules/@types/react/index.d.ts"],
+      "react-dom/*": ["../../packages/graph-react/node_modules/@types/react-dom/*"],
+      "@preact/signals-core": ["../../packages/graph-react/node_modules/@preact/signals-core"],
+      "@gravity-ui/graph": ["../../packages/graph/build/index.d.ts"],
+      "@gravity-ui/graph-react": ["../../packages/graph-react/build/index.d.ts"],
+      "@gravity-ui/graph-minimap": ["../../packages/graph-minimap/build/index.d.ts"],
+      "@gravity-ui/graph-devtools": ["../../packages/graph-devtools/build/index.d.ts"]
+    }
+  }
+}

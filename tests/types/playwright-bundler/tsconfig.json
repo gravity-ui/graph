@@ -1,0 +1,7 @@
+{
+  // Fast local guard for the public Playwright declarations in packages/graph/build
+  // (run `pnpm run build` first). It reuses the bundler consumer fixture from the slower
+  // packed-and-installed package contract suite, resolving @gravity-ui/graph through the
+  // workspace link, with strict: true and skipLibCheck: false.
+  "extends": "../../package-contract/fixtures/types/playwright-bundler/tsconfig.json"
+}
