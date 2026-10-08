@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { CanvasBlock, TBlock, TGraphConfig } from "@gravity-ui/graph";
 
 import { random } from "../../storyUtils";

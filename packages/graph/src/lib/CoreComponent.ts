@@ -1,4 +1,3 @@
-/* eslint-disable complexity */
 import { GraphClassConstructor } from "../utils/types/classes";
 
 import { Scheduler } from "./Scheduler";
