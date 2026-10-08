@@ -141,7 +141,7 @@ test("CLI baseline is reproducible across line shifts and rejects regressions/co
       writeFileSync(
         path.join(directory, project),
         JSON.stringify({
-          compilerOptions: { types: [], skipLibCheck: true, moduleResolution: "node" },
+          compilerOptions: { types: [], skipLibCheck: true, module: "esnext", moduleResolution: "bundler" },
           files: ["source.ts"],
         })
       );
