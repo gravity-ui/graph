@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "compiler": "5.9.2",
+  "compiler": "6.0.3",
   "projects": [
     "packages/graph/tsconfig.json",
     "packages/graph-react/tsconfig.json",
@@ -37,13 +37,6 @@
       "code": 2322,
       "message": "Type 'MutableRefObject<Graph | undefined>' is not assignable to type 'MutableRefObject<Graph>'.\n  Type 'Graph | undefined' is not assignable to type 'Graph'.\n    Type 'undefined' is not assignable to type 'Graph'.",
       "count": 1
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/api/updateConnection/updateConnection.stories.tsx",
-      "code": 7006,
-      "message": "Parameter 'value' implicitly has an 'any' type.",
-      "count": 7
     },
     {
       "project": "apps/storybook/tsconfig.json",
@@ -363,13 +356,6 @@
     {
       "project": "apps/storybook/tsconfig.json",
       "file": "apps/storybook/src/stories/examples/themeChange/themeChange.stories.tsx",
-      "code": 7006,
-      "message": "Parameter 'value' implicitly has an 'any' type.",
-      "count": 1
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/examples/themeChange/themeChange.stories.tsx",
       "code": 7053,
       "message": "Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'TGraphColorsPatch'.\n  No index signature with a parameter of type 'string' was found on type 'TGraphColorsPatch'.",
       "count": 4
@@ -561,13 +547,6 @@
       "file": "apps/storybook/src/stories/Playground/GraphPlayground.tsx",
       "code": 2345,
       "message": "Argument of type '{ selected: boolean; id?: TBlockId | undefined; is?: string | undefined; x?: number | undefined; y?: number | undefined; group?: string | undefined; width?: number | undefined; ... 4 more ...; meta?: {} | undefined; }[]' is not assignable to parameter of type 'TBlock[]'.\n  Type '{ selected: boolean; id?: TBlockId | undefined; is?: string | undefined; x?: number | undefined; y?: number | undefined; group?: string; width?: number | undefined; height?: number | undefined; name?: string | undefined; anchors?: TAnchor[]; settings?: TBlockSettings; meta?: {} | undefined; }' is not assignable to type 'TBlock'.\n    Types of property 'id' are incompatible.\n      Type 'TBlockId | undefined' is not assignable to type 'TBlockId'.\n        Type 'undefined' is not assignable to type 'TBlockId'.",
-      "count": 1
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/Playground/GraphPlayground.tsx",
-      "code": 2345,
-      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
       "count": 1
     },
     {

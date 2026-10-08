@@ -11,13 +11,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - name: Install Packages
@@ -30,23 +30,43 @@ jobs:
         run: pnpm run typecheck:strict
       - name: Type configuration tests
         run: pnpm run test:type-configs
-      - name: Native configuration compatibility
-        run: node scripts/check-native-configs.mjs
       - name: Typecheck
         run: pnpm run typecheck
+
+  typescript_7:
+    name: TypeScript 7 compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install Packages
+        run: pnpm install --frozen-lockfile
+      # Builds the packages, then runs the native TypeScript 7 CLI from tools/typescript-native
+      # over every source config (--noEmit), every publish config (declaration emit to a temp
+      # directory) and every tests/types consumer fixture. The first line names the compiler.
+      - name: Typecheck with TypeScript 7
+        run: pnpm run typecheck:ts7
 
   tests:
     name: Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - name: Install Packages

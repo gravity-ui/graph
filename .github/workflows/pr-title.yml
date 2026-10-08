@@ -15,16 +15,19 @@ jobs:
     if: ${{github.event.action != 'edited' || github.event.changes.title}}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - name: Install Packages
         run: pnpm install --frozen-lockfile
       - name: Run Commitlint
-        run: echo "${{github.event.pull_request.title}}" | pnpm exec commitlint
+        # Pass the untrusted title through the environment, never by interpolating it into the script.
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | pnpm exec commitlint

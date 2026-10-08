@@ -4,9 +4,9 @@ Issue: https://github.com/gravity-ui/graph/issues/355. Base: merged #354 (`078d9
 
 All six esbuild source projects use `bundler` resolution, explicit Node/DOM environments and checked side-effect imports. Graph and React source configs explicitly include Jest; publish configs exclude Jest. React explicitly selects its React type environment. E2E no longer uses `baseUrl`. Publish configs keep `rootDir: ./src`; packed NodeNext/CJS consumers keep their own resolution modes.
 
-`strict: false` is explicit for unfinished source projects so the native compiler's default does not enable strict ahead of the migration issues. The TS 5.9.2 debt gate still checks all six projects with a strict overlay and protects Scheduler at zero. Each completed project's follow-up will set permanent strict to true.
+`strict: false` is explicit for unfinished source projects so the native compiler's default does not enable strict ahead of the migration issues. The TypeScript 6.0.3 debt gate still checks all six projects with a strict overlay and protects Scheduler at zero. Each completed project's follow-up will set permanent strict to true.
 
-Run `pnpm run typecheck:native-configs`. It rebuilds packages and invokes pinned native TS 7.0.2 through its CLI for all six source and four publish configs with no emit. The compiler is isolated in `tools/typescript-native` so it cannot replace TS 5.9.2's CLI/API used by current builds and the debt gate. Declaration emit migration remains #366. CI runs the native check after the strict gate has rebuilt declarations.
+Run `pnpm run typecheck:ts7`. It rebuilds packages and runs the pinned native TypeScript 7.0.2 CLI through `scripts/tsc-projects.mjs --compiler=native` (which prints the selected compiler and version) over all six source configs with no emit, all four publish configs with declaration emit into a temporary directory, and every `tests/types` consumer fixture. The compiler is isolated in `tools/typescript-native` (pnpm catalog `typescript7`) so it cannot replace the TypeScript 6.0.3 CLI/API used by builds, ESLint and the debt gate. CI runs it as the separate "TypeScript 7 compatibility" job.
 
 Ambient `*.css` declarations cover source side-effect imports. The bundlers resolve CSS imports and reject missing files in their input graphs. A regression test invokes the real package build to confirm this for static and dynamic imports, including the JavaScript bundle’s empty CSS loader. `scripts/css-assets.mjs` only checks the public stylesheet contract: package builds require the public `./styles.css` export to match the built stylesheet; minimap cannot advertise a stylesheet it does not build. Existing packed artifact and browser checks validate the distributed files and styles. Consumer fixtures explicitly include a CSS declaration and check side-effect imports.
 
@@ -20,4 +20,4 @@ Re-resolving the real style-observer types removes TS7016 for the module and bot
 
 The baseline update is explicit and must be reviewed alongside the above exact identity changes. Remaining counts and unchanged identities are verified by the full strict gate; Scheduler remains at zero. E2E test-root expansion remains #367.
 
-Run `pnpm run test:type-configs` for CSS and native process-failure regressions and the dependency runtime check.
+Run `pnpm run test:type-configs` for CSS and compiler-runner failure regressions, the dependency runtime check and the `tests/types` fixtures with TypeScript 6.0.3.

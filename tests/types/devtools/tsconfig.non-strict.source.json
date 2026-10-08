@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.strict.source.json",
+  "compilerOptions": { "strict": false }
+}

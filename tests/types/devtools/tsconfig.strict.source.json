@@ -1,0 +1,14 @@
+{
+  // DevTools consumer fixture compiled against the package sources (bundler resolution).
+  // The same fixture runs against the packed declarations with Node16 resolution in tests/package-contract.
+  "extends": "../../package-contract/fixtures/types/devtools-node-esm/tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "paths": {
+      "@gravity-ui/graph-devtools": ["../../../packages/graph-devtools/src/index.ts"]
+    }
+  },
+  "files": ["../../../packages/graph-devtools/src/assets.d.ts"]
+}

@@ -1,0 +1,23 @@
+{
+  // Strict public consumer examples compiled with graph-react's compiler options.
+  // Positive examples must compile; negative examples use @ts-expect-error so an
+  // accidentally accepted invalid access (for example through any) fails as an unused directive.
+  // The same fixtures are also compiled against packed declarations by tests/package-contract.
+  "extends": "../../../packages/graph-react/tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    // The inherited outDir would otherwise anchor rootDir to this directory.
+    "rootDir": "../../..",
+    "skipLibCheck": false,
+    "typeRoots": ["../../../packages/graph-react/node_modules/@types", "../../../node_modules/@types"]
+  },
+  "files": [
+    "../../package-contract/fixtures/apps/vanilla/app.ts",
+    "../../package-contract/fixtures/apps/vanilla/scheduling.ts",
+    "../../package-contract/fixtures/apps/react/app.tsx",
+    "../../../packages/graph/src/assets.d.ts",
+    "../../../packages/graph-react/src/assets.d.ts"
+  ],
+  "include": []
+}

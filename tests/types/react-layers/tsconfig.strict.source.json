@@ -1,0 +1,10 @@
+{
+  "extends": ["./base.json", "../paths.source.json"],
+  // Readiness narrowing is a strict-mode contract.
+  "files": [
+    "../../package-contract/fixtures/apps/react/layer-signals.tsx",
+    "../../package-contract/fixtures/apps/react/readiness.tsx",
+    "../../../packages/graph/src/assets.d.ts",
+    "../../../packages/graph-react/src/assets.d.ts"
+  ]
+}

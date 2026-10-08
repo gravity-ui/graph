@@ -1,0 +1,18 @@
+{
+  // React generic layers and readonly signals, compiled with graph-react's compiler options.
+  "extends": "../../../packages/graph-react/tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    // The inherited outDir would otherwise anchor rootDir to this directory.
+    "rootDir": "../../..",
+    "skipLibCheck": false,
+    "typeRoots": ["../../../packages/graph-react/node_modules/@types", "../../../node_modules/@types"]
+  },
+  "files": [
+    "../../package-contract/fixtures/apps/react/layer-signals.tsx",
+    "../../../packages/graph/src/assets.d.ts",
+    "../../../packages/graph-react/src/assets.d.ts"
+  ],
+  "include": []
+}
