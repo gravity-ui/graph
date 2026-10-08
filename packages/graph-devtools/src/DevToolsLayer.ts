@@ -6,40 +6,101 @@ import {
   MAJOR_TICK_LENGTH,
   MINOR_TICK_LENGTH_FACTOR,
 } from "./constants";
-import { TDevToolsLayerProps, TDevToolsLayerState, TickInfo } from "./types";
+import {
+  TDevToolsLayerInput,
+  TDevToolsLayerOptions,
+  TDevToolsLayerProps,
+  TDevToolsLayerState,
+  TickInfo,
+} from "./types";
 import { calculateNiceNumber } from "./utils/calculateNiceNumber";
 
 import "./devtools-layer.css"; // Import the CSS file after type imports
+
+/** Forward only defined entries from a typed patch; keys are discovered at runtime. */
+function definedPatch<T extends object>(patch: T) {
+  const result = {};
+  for (const key in patch) {
+    const value = patch[key];
+    if (value !== undefined) Object.assign(result, { [key]: value });
+  }
+  return result;
+}
+
+/** Merge defaults and defined overrides. */
+function mergeDefined<T extends object>(current: T, patch?: Partial<T>): T {
+  const result = { ...current };
+  for (const key in patch) {
+    const value = patch[key];
+    if (value !== undefined) result[key] = value;
+  }
+  return result;
+}
+
+/** Snapshot only the visual option keys, excluding graph infrastructure. */
+function pickOptions<T extends object>(defaults: T, source: T): T {
+  const result = { ...defaults };
+  for (const key in defaults) result[key] = source[key];
+  return result;
+}
 
 /**
  * DevToolsLayer: Provides rulers and crosshairs for precise positioning and measurement.
  * Uses two HTML divs with backdrop-filter for ruler background and blur.
  */
 export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDevToolsLayerState> {
-  public state = INITIAL_DEVTOOLS_LAYER_STATE;
+  public state = { ...INITIAL_DEVTOOLS_LAYER_STATE };
+
+  private readonly initialOptions: TDevToolsLayerOptions;
 
   // HTML elements for ruler backgrounds
   private horizontalRulerBgEl: HTMLDivElement | null = null;
   private verticalRulerBgEl: HTMLDivElement | null = null;
 
-  constructor(props: TDevToolsLayerProps) {
-    const finalProps = { ...DEFAULT_DEVTOOLS_LAYER_PROPS, ...props };
+  constructor(props: TDevToolsLayerInput) {
+    const resolvedProps = {
+      ...props,
+      ...mergeDefined(DEFAULT_DEVTOOLS_LAYER_PROPS, props),
+    };
     super({
-      canvas: {
-        zIndex: 150, // Canvas (ticks, text) above HTML background
-        classNames: ["devtools-layer-canvas", "no-pointer-events"],
-        respectPixelRatio: true,
-        transformByCameraPosition: false,
-        ...(props.canvas ?? {}),
-      },
-      html: {
-        zIndex: 149, // HTML backgrounds below the canvas
-        classNames: ["devtools-layer-html", "no-pointer-events"], // Keep base class for container
-        transformByCameraPosition: false, // Fixed to viewport
-        ...(props.html ?? {}),
-      },
-      ...finalProps,
+      ...resolvedProps,
+      canvas: mergeDefined<NonNullable<TDevToolsLayerInput["canvas"]>>(
+        {
+          zIndex: 150,
+          classNames: ["devtools-layer-canvas", "no-pointer-events"],
+          respectPixelRatio: true,
+          transformByCameraPosition: false,
+        },
+        props.canvas
+      ),
+      html: mergeDefined<NonNullable<TDevToolsLayerInput["html"]>>(
+        {
+          zIndex: 149,
+          classNames: ["devtools-layer-html", "no-pointer-events"],
+          transformByCameraPosition: false,
+        },
+        props.html
+      ),
     });
+    this.initialOptions = pickOptions(DEFAULT_DEVTOOLS_LAYER_PROPS, this.props);
+  }
+
+  /** Queue a partial update. Omitted and undefined values preserve the latest queued props. */
+  public setProps(props?: Partial<TDevToolsLayerInput>): void {
+    if (props === undefined) return;
+    super.setProps(definedPatch(props));
+  }
+
+  /** Restore visual props to their constructor values; an empty key list changes nothing. */
+  public resetProps(keys?: readonly (keyof TDevToolsLayerOptions)[]): void {
+    if (keys === undefined) {
+      this.setProps(this.initialOptions);
+      return;
+    }
+    if (keys.length === 0) return;
+    const patch = {};
+    keys.forEach((key) => Object.assign(patch, { [key]: this.initialOptions[key] }));
+    this.setProps(patch);
   }
 
   protected propsChanged(nextProps: TDevToolsLayerProps): void {
@@ -50,18 +111,18 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
 
     // Update CSS variables on the container (used by devtools-layer.css)
     if (this.props.rulerBackgroundColor !== nextProps.rulerBackgroundColor) {
-      const bgColorValue = nextProps.rulerBackgroundColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackgroundColor;
+      const bgColorValue = nextProps.rulerBackgroundColor;
       htmlContainer.style.setProperty("--devtools-ruler-bg-color", bgColorValue);
     }
 
     if (this.props.rulerBackdropBlur !== nextProps.rulerBackdropBlur) {
-      const blurValue = nextProps.rulerBackdropBlur ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackdropBlur;
+      const blurValue = nextProps.rulerBackdropBlur;
       htmlContainer.style.setProperty("--devtools-ruler-blur", `${blurValue}px`);
     }
 
     // Rerender still needed if ruler size or visibility changes to update div positions/display
     if (this.props.rulerSize !== nextProps.rulerSize) {
-      const sizeValue = nextProps.rulerSize ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize;
+      const sizeValue = nextProps.rulerSize;
       htmlContainer.style.setProperty("--devtools-ruler-size", `${sizeValue}px`);
     }
 
@@ -96,9 +157,9 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     const htmlContainer = this.getHTML();
     if (htmlContainer) {
       // Set initial CSS variables on the container (can still be useful)
-      const initialBlur = this.props.rulerBackdropBlur ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackdropBlur;
-      const initialSize = this.props.rulerSize ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize;
-      const initialBgColor = this.props.rulerBackgroundColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerBackgroundColor;
+      const initialBlur = this.props.rulerBackdropBlur;
+      const initialSize = this.props.rulerSize;
+      const initialBgColor = this.props.rulerBackgroundColor;
       const initialDisplay = this.props.showRuler ? "block" : "none";
       htmlContainer.style.setProperty("--devtools-ruler-blur", `${initialBlur}px`);
       htmlContainer.style.setProperty("--devtools-ruler-bg-color", initialBgColor);
@@ -138,7 +199,7 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     const { ctx, camera, graphCanvas } = this.context;
     const cameraState = camera.getCameraState();
     const dpr = this.getDRP();
-    const rulerSize = this.props.rulerSize ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize;
+    const rulerSize = this.props.rulerSize;
     const viewWidth = graphCanvas.width / dpr; // Logical width
     const viewHeight = graphCanvas.height / dpr; // Logical height
 
@@ -169,7 +230,7 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
   // --- Drawing Helpers ---
 
   private calculateTickInfo(scale: number): TickInfo {
-    const minMajorTickDistance = this.props.minMajorTickDistance ?? DEFAULT_DEVTOOLS_LAYER_PROPS.minMajorTickDistance;
+    const minMajorTickDistance = this.props.minMajorTickDistance;
     const minWorldStep = minMajorTickDistance / scale;
     const majorTickStep = calculateNiceNumber(minWorldStep);
 
@@ -209,9 +270,9 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
 
     const firstMinorTickWorldX = Math.floor(worldViewLeft / minorTickStep) * minorTickStep;
 
-    const currentFont = this.props.rulerTextFont ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTextFont;
-    ctx.strokeStyle = this.props.rulerTickColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTickColor;
-    ctx.fillStyle = this.props.rulerTextColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTextColor;
+    const currentFont = this.props.rulerTextFont;
+    ctx.strokeStyle = this.props.rulerTickColor;
+    ctx.fillStyle = this.props.rulerTextColor;
     ctx.font = currentFont;
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
@@ -264,9 +325,9 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
 
     const firstMinorTickWorldY = Math.floor(worldViewTop / minorTickStep) * minorTickStep;
 
-    const currentFont = this.props.rulerTextFont ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTextFont;
-    ctx.strokeStyle = this.props.rulerTickColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTickColor;
-    ctx.fillStyle = this.props.rulerTextColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.rulerTextColor;
+    const currentFont = this.props.rulerTextFont;
+    ctx.strokeStyle = this.props.rulerTickColor;
+    ctx.fillStyle = this.props.rulerTextColor;
     ctx.font = currentFont;
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
@@ -325,7 +386,7 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     const [worldX, worldY] = camera.applyToPoint(logicalMouseX, logicalMouseY);
 
     // Draw Lines
-    ctx.strokeStyle = this.props.crosshairColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairColor;
+    ctx.strokeStyle = this.props.crosshairColor;
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
@@ -338,7 +399,7 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
 
     // Draw Coordinate Text
     const coordText = `X: ${worldX.toFixed(1)}, Y: ${worldY.toFixed(1)}`;
-    const currentFont = this.props.crosshairTextFont ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextFont;
+    const currentFont = this.props.crosshairTextFont;
     ctx.font = currentFont;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
@@ -353,11 +414,10 @@ export class DevToolsLayer extends Layer<TDevToolsLayerProps, LayerContext, TDev
     const textRectWidth = logicalTextWidth + 2 * logicalPadding;
     const textRectHeight = logicalTextHeight + 2 * logicalPadding;
 
-    ctx.fillStyle =
-      this.props.crosshairTextBackgroundColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextBackgroundColor;
+    ctx.fillStyle = this.props.crosshairTextBackgroundColor;
     ctx.fillRect(textRectX, textRectY, textRectWidth, textRectHeight);
 
-    ctx.fillStyle = this.props.crosshairTextColor ?? DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextColor;
+    ctx.fillStyle = this.props.crosshairTextColor;
     ctx.fillText(coordText, textRectX + logicalPadding, textRectY + logicalPadding);
   }
 }

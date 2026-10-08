@@ -138,7 +138,7 @@ Hook for managing graph layers. Automatically handles layer initialization, prop
 
 ```typescript
 import { useLayer } from "@gravity-ui/graph-react";
-import { DevToolsLayer, type TDevToolsLayerProps } from "@gravity-ui/graph-devtools";
+import { DevToolsLayer } from "@gravity-ui/graph-devtools";
 import "@gravity-ui/graph-devtools/styles.css";
 import type { Graph } from "@gravity-ui/graph";
 
@@ -163,6 +163,29 @@ function MyGraph(): JSX.Element {
   return <GraphCanvas graph={graph} />;
 }
 ```
+
+
+For DevTools, `useLayer` updates are patches: omitting a visual field or passing
+`undefined` keeps its current value. In particular,
+`rulerSize: expanded ? 40 : undefined` does not return to the default when
+`expanded` becomes false. Supply a concrete value for declarative switching:
+
+```tsx
+import type { Graph } from "@gravity-ui/graph";
+import { DEFAULT_DEVTOOLS_LAYER_PROPS, DevToolsLayer } from "@gravity-ui/graph-devtools";
+import { useLayer } from "@gravity-ui/graph-react";
+
+function DevToolsOverlay({ graph, expanded }: { graph: Graph | null; expanded: boolean }) {
+  useLayer(graph, DevToolsLayer, {
+    rulerSize: expanded ? 40 : DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize,
+  });
+  return null;
+}
+```
+
+For an explicit imperative reset, call `devToolsLayer?.resetProps(["rulerSize"])`.
+It restores the value established when that layer was constructed, which can
+include a custom override; `resetProps()` restores all visual constructor values.
 
 #### Parameters
 
@@ -1010,3 +1033,5 @@ function CameraInfo({ graph }: Props): JSX.Element {
   );
 }
 ```
+
+For custom layers, `useLayer` and `GraphLayer` props must be accepted by both the constructor and `setProps`. If a constructor converts input to a different runtime type (for example, a string to a number), provide a `setProps` override that accepts and normalizes the same input. Constructor-only normalization remains available through `graph.addLayer`.

@@ -64,6 +64,12 @@ const baselinePath = path.join(root, "docs/audits/strict-typescript-baseline.jso
 const identity = ({ project, file, code, message }) => JSON.stringify([project, file, code, message]);
 const snapshot = (diagnostics) => ({ schemaVersion: 1, compiler: COMPILER, projects: PROJECTS, diagnostics });
 
+function assertPackageHasNoDebt(diagnostic, directory, label) {
+  if (diagnostic.project === `${directory}/tsconfig.json` || diagnostic.file.startsWith(`${directory}/`)) {
+    throw new Error(`${label} must have zero strict diagnostics: ${identity(diagnostic)}`);
+  }
+}
+
 export function validateSnapshot(value) {
   if (
     !value ||
@@ -93,6 +99,7 @@ export function validateSnapshot(value) {
     ) {
       throw new Error("Invalid strict diagnostic record");
     }
+    assertPackageHasNoDebt(diagnostic, "packages/graph-devtools", "Devtools");
     if (diagnostic.file.startsWith("packages/graph/src/lib/Scheduler/")) {
       throw new Error(`Scheduler must have zero strict diagnostics: ${identity(diagnostic)}`);
     }
@@ -126,18 +133,9 @@ export function validateSnapshot(value) {
     if (SCHEDULING_TEXT_FILES.includes(diagnostic.file)) {
       throw new Error(`Scheduling and text must have zero strict diagnostics: ${identity(diagnostic)}`);
     }
-    if (diagnostic.file.startsWith("packages/graph/")) {
-      throw new Error(`Graph must have zero strict diagnostics: ${identity(diagnostic)}`);
-    }
-    if (
-      diagnostic.project === "packages/graph-minimap/tsconfig.json" ||
-      diagnostic.file.startsWith("packages/graph-minimap/")
-    ) {
-      throw new Error(`Minimap must have zero strict diagnostics: ${identity(diagnostic)}`);
-    }
-    if (diagnostic.file.startsWith("packages/graph-react/")) {
-      throw new Error(`Graph React must have zero strict diagnostics: ${identity(diagnostic)}`);
-    }
+    assertPackageHasNoDebt(diagnostic, "packages/graph", "Graph");
+    assertPackageHasNoDebt(diagnostic, "packages/graph-minimap", "Minimap");
+    assertPackageHasNoDebt(diagnostic, "packages/graph-react", "Graph React");
     const key = identity(diagnostic);
     if (seen.has(key)) throw new Error(`Duplicate diagnostic identity: ${key}`);
     seen.add(key);
@@ -246,6 +244,7 @@ async function main(args) {
       `${project}: ${actual.diagnostics.filter((diagnostic) => diagnostic.project === project).reduce((total, diagnostic) => total + diagnostic.count, 0)} existing diagnostics`
     );
   }
+  console.log("Devtools: zero strict diagnostics (full package checked).");
   console.log("Component factories, descriptors, refs and group contracts: zero strict diagnostics.");
   console.log("Scheduler: zero strict diagnostics (full projects checked).");
   console.log("Scheduling wrappers and text helpers: zero strict diagnostics.");

@@ -37,4 +37,6 @@ addControl("Add DevTools", () => {
   devtools = addDevtools();
 });
 
+addControl("Reset appearance", () => devtools.resetProps());
+
 root.dataset.devtoolsReady = "true";

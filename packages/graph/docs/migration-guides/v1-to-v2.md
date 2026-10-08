@@ -13,6 +13,7 @@ The temporary branch and release process is documented separately in
 - Replace `canChangeBlockGeometry` / `ECanChangeBlockGeometry` with `canDrag` / `ECanDrag`.
 - Treat configuration input types as patches and use the complete configuration types for stored state.
 - Replace resets through `undefined` with `resetSettings(keys)` or `resetSettings()`.
+- Use `TDevToolsLayerInput` for devtools input and resolved `TDevToolsLayerProps` for instance props; replace devtools resets through `undefined` with `resetProps(keys?)`.
 - Supply complete arrays/tuples when updating constants.
 - Use plain `TPoint` / `TRect` objects instead of geometry classes and their conversion methods.
 
@@ -550,3 +551,43 @@ ELK conversion returns empty records when `edges` or `children` are missing. Edg
 `useBlockState`, `useSyncBlockState` and `useBlockViewState` retain the non-generic lookup contract from #371. They return the shared block/view types and preserve `undefined` for missing entities or views. A `TBlock<MyMeta>` remains typed application data, but passing it to a lookup hook uses its ID and does not establish the schema of the current stored entity. The core store erases metadata types; restoring them in lookup results would require a typed core contract. The library does not validate custom Meta at runtime.
 
 The React package now checks source, unit tests and declaration emit with permanent `strict: true`.
+## Devtools resolved props and explicit resets
+
+`TDevToolsLayerProps` now describes the resolved instance props: every visual
+color, font, visibility flag and dimension is required. Use
+`TDevToolsLayerInput` for direct constructor input, or
+`LayerPublicProps<typeof DevToolsLayer>` for `graph.addLayer` options. Both
+accept partial visual options. Partial `canvas`/`html` configurations preserve
+unspecified devtools resource defaults (the base Layer requires `zIndex`).
+
+Omitted fields and `undefined` preserve current values in `setProps`, including
+multiple updates queued before the next frame. Undefined constructor values use
+library defaults. Replace resets through undefined with `resetProps(keys)` or
+`resetProps()`. Resets restore the visual values established by the constructor,
+including custom overrides; an empty key array changes nothing. Resource props
+(`graph`, `camera`, `root`, `canvas`, `html`) are outside visual resets.
+
+```ts
+const devtools = graph.addLayer(DevToolsLayer, { rulerSize: 32 });
+devtools.setProps({ rulerSize: 40, showCrosshair: false });
+devtools.setProps({ rulerSize: undefined }); // Preserves 40.
+devtools.resetProps(["rulerSize"]); // Restores 32, keeps showCrosshair false.
+devtools.resetProps(); // Restores all constructor visual values.
+const size: number = devtools.props.rulerSize;
+```
+
+
+`LayerPublicProps<typeof CustomLayer>` now derives its input from the first
+constructor parameter, independently of `Layer<RuntimeProps>`. Custom layers can
+therefore normalize partial constructor input while keeping their runtime props
+complete. Generic metadata and discriminated constructor inputs are preserved. Keep the
+actual constructor type in layer configurations: use
+`LayerConfig<typeof CustomLayer>` instead of
+`LayerConfig<GraphClassConstructor<CustomLayer>>`. The latter erases constructor
+arguments, so its public input can only fall back to the shared Layer fields.
+
+Resource defaults are merged when constructing DevTools. Later `setProps` calls
+and reused component descriptors apply shallow patches; supplied `canvas`/`html`
+objects replace the previous configuration. DOM classes and z-index are created
+once by base Layer and are not changed by such patches. Create a new layer to
+change its DOM resource configuration. Resource input still requires `zIndex`.

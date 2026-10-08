@@ -52,6 +52,10 @@ test("installed styles and ruler drawing respond to props and camera changes", a
   await page.getByRole("button", { name: "Toggle rulers" }).click();
   await expect(horizontal).toBeVisible();
   await expect.poll(async () => (await readOverlay(canvas)).visible).toBeGreaterThan(100);
+  await page.getByRole("button", { name: "Reset appearance" }).click();
+  await expect(horizontal).toHaveCSS("height", "32px");
+  await expect(horizontal).toHaveCSS("background-color", "rgba(46, 46, 46, 0.4)");
+  await expect(horizontal).toHaveCSS("backdrop-filter", "blur(5px)");
 });
 
 test("crosshair follows the pointer, hides over rulers and respects visibility", async ({ page }) => {

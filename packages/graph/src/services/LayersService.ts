@@ -6,7 +6,7 @@ import { Emitter } from "../utils/Emitter";
 import { observeDPR, throttle } from "../utils/functions";
 import type { GraphClassConstructor } from "../utils/types/classes";
 
-import { Layer, LayerProps } from "./Layer";
+import { Layer, LayerProps, LayerPublicProps } from "./Layer";
 
 export type LayersRootSize = { width: number; height: number; dpr: number };
 
@@ -33,7 +33,7 @@ export class Layers extends Emitter<LayersEvents> {
 
   public createLayer<T extends GraphClassConstructor<Layer> = GraphClassConstructor<Layer>>(
     layerCtor: T,
-    props: T extends GraphClassConstructor<Layer<infer Props>> ? Omit<Props, "root"> & { root?: Props["root"] } : never
+    props: LayerPublicProps<T> & Pick<LayerProps, "graph" | "camera">
   ): InstanceType<T> {
     // Public props retain the concrete class fields; mounting adapts their shared Layer contract.
     const layer = Component.mount(layerCtor as unknown as new (props: LayerProps) => Layer, {

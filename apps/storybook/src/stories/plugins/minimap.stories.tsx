@@ -1,6 +1,5 @@
 import React, { useRef } from "react";
 
-import type { GraphClassConstructor } from "@gravity-ui/graph";
 import { ECanDrag, Graph, LayerConfig } from "@gravity-ui/graph";
 import { MiniMapLayer } from "@gravity-ui/graph-minimap";
 import { ThemeProvider } from "@gravity-ui/uikit";
@@ -13,7 +12,7 @@ import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-minimap/styles.css";
 import "@gravity-ui/uikit/styles/styles.css";
 
-const layers: LayerConfig<GraphClassConstructor<MiniMapLayer>>[] = [
+const layers: LayerConfig<typeof MiniMapLayer>[] = [
   [
     MiniMapLayer,
     {

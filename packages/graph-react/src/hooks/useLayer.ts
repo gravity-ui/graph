@@ -1,10 +1,20 @@
 import { useLayoutEffect, useState } from "react";
 
-import type { Graph, GraphClassConstructor, Layer, LayerPublicProps } from "@gravity-ui/graph";
+import type { Graph, GraphClassConstructor, Layer, LayerProps, LayerPublicProps } from "@gravity-ui/graph";
 import isEqual from "lodash/isEqual";
 
 import { usePrevious } from "./usePrevious";
 import { useSignal } from "./useSignal";
+
+type PublicUpdateProps<Props> = Props extends unknown
+  ? Omit<Props, "root" | "camera" | "graph"> & {
+      root?: "root" extends keyof Props ? Props["root"] : LayerProps["root"];
+    }
+  : never;
+
+/** Declarative input must be accepted by both construction and subsequent updates. */
+export type LayerReactiveProps<T extends GraphClassConstructor<Layer>> = LayerPublicProps<T> &
+  PublicUpdateProps<NonNullable<Parameters<InstanceType<T>["setProps"]>[0]>>;
 
 /**
  * Hook for managing graph layers.
@@ -32,7 +42,7 @@ import { useSignal } from "./useSignal";
 export function useLayer<T extends GraphClassConstructor<Layer> = GraphClassConstructor<Layer>>(
   graph: Graph | null,
   layerCtor: T,
-  props: LayerPublicProps<NoInfer<T>>
+  props: LayerReactiveProps<NoInfer<T>>
 ): InstanceType<T> | null {
   const [registration, setRegistration] = useState<{
     graph: Graph;
@@ -56,7 +66,8 @@ export function useLayer<T extends GraphClassConstructor<Layer> = GraphClassCons
   const prevProps = usePrevious(props);
   useLayoutEffect(() => {
     if (layer && (!prevProps || !isEqual(prevProps, props))) {
-      layer.setProps(props);
+      // Both constructor and setter input are checked above; dispatch through the concrete update API.
+      Reflect.apply(layer.setProps, layer, [props]);
     }
   }, [layer, props, prevProps]);
 

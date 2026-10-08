@@ -1,7 +1,7 @@
-import type { TDevToolsLayerProps, TDevToolsLayerState } from "./types";
+import type { TDevToolsLayerOptions, TDevToolsLayerState } from "./types";
 
 /** Default properties for the DevToolsLayer */
-export const DEFAULT_DEVTOOLS_LAYER_PROPS: Omit<TDevToolsLayerProps, "graph" | "camera" | "root" | "emitter"> = {
+export const DEFAULT_DEVTOOLS_LAYER_PROPS: TDevToolsLayerOptions = {
   showRuler: true,
   showCrosshair: true,
   rulerSize: 25,

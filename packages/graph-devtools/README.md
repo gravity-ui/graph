@@ -39,8 +39,19 @@ backgrounds and their size, visibility, and blur. The JavaScript entrypoint does
 ## API
 
 - `DevToolsLayer`: pass it to `graph.addLayer()` or a graph layer configuration.
-- `TDevToolsLayerProps`: ruler and crosshair visibility, sizes, colors, fonts, tick spacing, and blur.
+- `TDevToolsLayerProps`: resolved instance props with required visual values.
+- `TDevToolsLayerInput`: direct constructor input with optional visual overrides.
+- `TDevToolsLayerOptions`: the complete visual options (colors, fonts, dimensions, visibility and blur).
 - `DEFAULT_DEVTOOLS_LAYER_PROPS`: the default values for those options.
+
+`setProps(patch)` preserves omitted and `undefined` fields, including earlier queued updates.
+`resetProps(keys?)` restores visual props to their constructor values: omit the argument for all
+visual options, or pass selected keys. `resetProps([])` changes nothing.
+
+Constructor `canvas`/`html` overrides must include `zIndex`; omitted optional resource fields
+use devtools defaults. For example, `{ canvas: { zIndex: 200 } }` keeps the default class names.
+Resource defaults are merged only during construction. Later resource patches replace the supplied
+objects; base Layer does not recreate DOM classes or z-index. Create a new layer to change those DOM properties.
 
 For v2, import these symbols from `@gravity-ui/graph-devtools` instead of `@gravity-ui/graph`.
 Core no longer includes or re-exports DevTools or its styles. The detailed options are documented in

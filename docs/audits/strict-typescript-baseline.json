@@ -11,55 +11,6 @@
   ],
   "diagnostics": [
     {
-      "project": "packages/graph-devtools/tsconfig.json",
-      "file": "packages/graph-devtools/src/DevToolsLayer.ts",
-      "code": 18048,
-      "message": "'minMajorTickDistance' is possibly 'undefined'.",
-      "count": 1
-    },
-    {
-      "project": "packages/graph-devtools/tsconfig.json",
-      "file": "packages/graph-devtools/src/DevToolsLayer.ts",
-      "code": 18048,
-      "message": "'rulerSize' is possibly 'undefined'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph-devtools/tsconfig.json",
-      "file": "packages/graph-devtools/src/DevToolsLayer.ts",
-      "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.\n  Type 'undefined' is not assignable to type 'string | CanvasGradient | CanvasPattern'.",
-      "count": 7
-    },
-    {
-      "project": "packages/graph-devtools/tsconfig.json",
-      "file": "packages/graph-devtools/src/DevToolsLayer.ts",
-      "code": 2322,
-      "message": "Type 'string | undefined' is not assignable to type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
-      "count": 3
-    },
-    {
-      "project": "packages/graph-devtools/tsconfig.json",
-      "file": "packages/graph-devtools/src/DevToolsLayer.ts",
-      "code": 2345,
-      "message": "Argument of type 'number | undefined' is not assignable to parameter of type 'number'.\n  Type 'undefined' is not assignable to type 'number'.",
-      "count": 3
-    },
-    {
-      "project": "packages/graph-devtools/tsconfig.json",
-      "file": "packages/graph-devtools/src/DevToolsLayer.ts",
-      "code": 2345,
-      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string | null'.\n  Type 'undefined' is not assignable to type 'string | null'.",
-      "count": 2
-    },
-    {
-      "project": "packages/graph-devtools/tsconfig.json",
-      "file": "packages/graph-devtools/src/DevToolsLayer.ts",
-      "code": 2345,
-      "message": "Argument of type 'string | undefined' is not assignable to parameter of type 'string'.\n  Type 'undefined' is not assignable to type 'string'.",
-      "count": 3
-    },
-    {
       "project": "apps/storybook/tsconfig.json",
       "file": "apps/storybook/src/stories/api/updateBlock/updateBlock.stories.tsx",
       "code": 18048,

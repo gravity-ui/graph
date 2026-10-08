@@ -3,15 +3,15 @@ import React, { forwardRef, useImperativeHandle } from "react";
 import type { GraphClassConstructor, Layer, LayerPublicProps } from "@gravity-ui/graph";
 
 import { useGraphContext } from "./GraphContext";
-import { useLayer } from "./hooks/useLayer";
+import { LayerReactiveProps, useLayer } from "./hooks/useLayer";
 
 /** Public props follow the concrete layer, including required fields and its instance ref. */
 export type GraphLayerProps<TLayer extends GraphClassConstructor<Layer> = typeof Layer> = {
   layer: TLayer;
   ref?: React.Ref<InstanceType<NoInfer<TLayer>>>;
-} & ({} extends LayerPublicProps<TLayer>
-  ? { props?: LayerPublicProps<NoInfer<TLayer>> }
-  : { props: LayerPublicProps<NoInfer<TLayer>> });
+} & ({} extends LayerReactiveProps<TLayer>
+  ? { props?: LayerReactiveProps<NoInfer<TLayer>> }
+  : { props: LayerReactiveProps<NoInfer<TLayer>> });
 
 /**
  * GraphLayer component provides declarative way to add existing Layer classes to the graph

@@ -89,9 +89,12 @@ function MyGraphComponent() {
 }
 ```
 
-## Configuration Options (`TDevToolsLayerProps`)
+## Configuration Options (`TDevToolsLayerInput`)
 
-The layer accepts the following options (extending base `LayerProps`), with defaults defined in `DEFAULT_DEVTOOLS_LAYER_PROPS`:
+The constructor accepts `TDevToolsLayerInput`, extending base `LayerProps` with optional visual overrides.
+Use `LayerPublicProps<typeof DevToolsLayer>` for `graph.addLayer` or `useLayer` input.
+The instance exposes `TDevToolsLayerProps` with every visual field resolved to a concrete value.
+Defaults are defined in `DEFAULT_DEVTOOLS_LAYER_PROPS`:
 
 | Prop                       | Type      | Default                        | Description                                                                 |
 | :------------------------- | :-------- | :----------------------------- | :-------------------------------------------------------------------------- |
@@ -109,4 +112,44 @@ The layer accepts the following options (extending base `LayerProps`), with defa
 | `crosshairTextBackgroundColor` | `string`  | `"rgba(0, 0, 0, 0.7)"`       | Background color for the coordinate text display box.                       |
 | `rulerBackdropBlur`        | `number`  | `5`                            | Blur strength (in px) for the backdrop filter under the ruler backgrounds.  |
 
-*Note: Base `LayerProps` like `graph`, `camera`, `root`, `emitter` are provided automatically when using `graph.addLayer` or `useLayer`.*
+*Note: Base `LayerProps` like `graph`, `camera`, `root` are provided automatically when using `graph.addLayer` or `useLayer`.*
+
+
+### Updating and resetting visual props
+
+`setProps` applies a partial patch; omitted fields and `undefined` leave current
+values unchanged. Multiple patches queued before rendering accumulate.
+`resetProps(["rulerSize"])` restores selected visual values from the constructor,
+including custom initial overrides. `resetProps()` restores every visual option;
+`resetProps([])` changes nothing. Resets do not change graph infrastructure or
+canvas/HTML configuration.
+
+
+Resource defaults are merged only at construction. Base Layer creates DOM
+classes and z-index once; `setProps` and reused component descriptors do not
+reconfigure those DOM properties. Resource objects in later patches replace
+previous `canvas`/`html` props shallowly. Create a new layer for different DOM
+resource configuration. Even constructor resource overrides must supply `zIndex`.
+
+
+For DevTools, `useLayer` updates are patches: omitting a visual field or passing
+`undefined` keeps its current value. In particular,
+`rulerSize: expanded ? 40 : undefined` does not return to the default when
+`expanded` becomes false. Supply a concrete value for declarative switching:
+
+```tsx
+import type { Graph } from "@gravity-ui/graph";
+import { DEFAULT_DEVTOOLS_LAYER_PROPS, DevToolsLayer } from "@gravity-ui/graph-devtools";
+import { useLayer } from "@gravity-ui/graph-react";
+
+function DevToolsOverlay({ graph, expanded }: { graph: Graph | null; expanded: boolean }) {
+  useLayer(graph, DevToolsLayer, {
+    rulerSize: expanded ? 40 : DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize,
+  });
+  return null;
+}
+```
+
+For an explicit imperative reset, call `devToolsLayer?.resetProps(["rulerSize"])`.
+It restores the value established when that layer was constructed, which can
+include a custom override; `resetProps()` restores all visual constructor values.

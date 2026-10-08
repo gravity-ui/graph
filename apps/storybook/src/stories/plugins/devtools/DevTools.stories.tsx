@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect } from "react";
 
-import { Graph, TBlock } from "@gravity-ui/graph";
-import { DEFAULT_DEVTOOLS_LAYER_PROPS, DevToolsLayer, TDevToolsLayerProps } from "@gravity-ui/graph-devtools";
+import { Graph, LayerPublicProps, TBlock } from "@gravity-ui/graph";
+import { DEFAULT_DEVTOOLS_LAYER_PROPS, DevToolsLayer } from "@gravity-ui/graph-devtools";
 import { GraphBlock, GraphCanvas, useGraph, useLayer } from "@gravity-ui/graph-react";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
@@ -28,7 +28,7 @@ const RenderBlock = ({ graph, block }: { graph: Graph; block: TBlock }) => {
 };
 
 // Storybook Component Template
-const DevToolsStoryComponent = (args: Omit<TDevToolsLayerProps, "graph" | "camera" | "root" | "emitter">) => {
+const DevToolsStoryComponent = (args: LayerPublicProps<typeof DevToolsLayer>) => {
   const { graph } = useGraph({
     settings: {
       canZoomCamera: true,
@@ -125,7 +125,7 @@ function MyGraphWithDevTools() {
     crosshairTextColor: '${DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextColor}',
     crosshairTextBackgroundColor: '${DEFAULT_DEVTOOLS_LAYER_PROPS.crosshairTextBackgroundColor}',
     rulerBackdropBlur: 5,
-    // ... other TDevToolsLayerProps
+    // ... other devtools visual options
   });
 
   // Add graph data and start in useEffect
