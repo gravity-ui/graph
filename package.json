@@ -46,7 +46,7 @@
     "prettier": "^3.0.0",
     "publint": "^0.3.23",
     "release-please": "17.6.0",
-    "typescript": "5.9.2",
+    "typescript": "catalog:",
     "yaml": "2.8.1"
   }
 }

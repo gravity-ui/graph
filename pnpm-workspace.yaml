@@ -2,5 +2,12 @@ packages:
   - "packages/*"
   - "apps/*"
   - "tools/*"
+catalog:
+  typescript: 6.0.3
+catalogs:
+  # TypeScript 7 (native) is installed only in tools/typescript-native so it never
+  # shadows the classic `typescript` package used by tsc, ESLint and build scripts.
+  typescript7:
+    typescript: 7.0.2
 patchedDependencies:
   style-observer@0.1.1: patches/style-observer@0.1.1.patch

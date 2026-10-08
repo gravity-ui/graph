@@ -51,6 +51,6 @@
     "jest-canvas-mock": "^2.5.2",
     "jest-environment-jsdom": "^30.0.5",
     "prettier": "^3.0.0",
-    "typescript": "^5.9.2"
+    "typescript": "catalog:"
   }
 }

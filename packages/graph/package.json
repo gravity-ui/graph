@@ -114,6 +114,6 @@
     "mitata": "^1.0.34",
     "prettier": "^3.0.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.2"
+    "typescript": "catalog:"
   }
 }
