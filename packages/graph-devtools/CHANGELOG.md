@@ -9,18 +9,12 @@
 
 ### Features
 
-* extract React integration into graph-react ([#343](https://github.com/gravity-ui/graph/issues/343)) ([7ed145e](https://github.com/gravity-ui/graph/commit/7ed145ee8ed356a1b01f9d03839bf3543b3bc9cf))
-* **graph:** normalize configuration and add explicit resets ([#370](https://github.com/gravity-ui/graph/issues/370)) ([f9b9f22](https://github.com/gravity-ui/graph/commit/f9b9f222642882fe62cf10af6a618e354cd994a5))
-* preserve component construction contracts ([#380](https://github.com/gravity-ui/graph/issues/380)) ([3ffdaa0](https://github.com/gravity-ui/graph/commit/3ffdaa018a8aaac43f9609b0e97a4f809eff419b))
+* extract DevTools into graph-devtools package ([b6d97d8](https://github.com/gravity-ui/graph/commit/b6d97d8df6f77be16fc9c5d199597c3d509345ac))
 
 
 ### Bug Fixes
 
 * **graph-devtools:** normalize visual props and enable strict ([#383](https://github.com/gravity-ui/graph/issues/383)) ([a6adb7b](https://github.com/gravity-ui/graph/commit/a6adb7b72d516ac06c3100f91b765fa435985846))
-* **graph:** preserve nullable lookup contracts ([#371](https://github.com/gravity-ui/graph/issues/371)) ([3c7469d](https://github.com/gravity-ui/graph/commit/3c7469d36e1475e487ee3cd1c653798132311bb0))
-* **graph:** preserve typed event payloads and listener cleanup ([#378](https://github.com/gravity-ui/graph/issues/378)) ([a50a06c](https://github.com/gravity-ui/graph/commit/a50a06cd54644a1f3c9c816924a5f465f13eda2a))
-* make Scheduler strict-safe and guard TypeScript debt ([#368](https://github.com/gravity-ui/graph/issues/368)) ([078d936](https://github.com/gravity-ui/graph/commit/078d936e8022ba375fec6b9722a77779bc6ed162))
-* **react:** preserve readiness and enable strict contracts ([#384](https://github.com/gravity-ui/graph/issues/384)) ([a38cbbb](https://github.com/gravity-ui/graph/commit/a38cbbb29b482af00eb9bf99f14009212a098ce2))
 
 
 ### Miscellaneous Chores
@@ -60,5 +54,3 @@
 * The following workspace dependencies were updated
   * peerDependencies
     * @gravity-ui/graph bumped to 2.0.0-next.0
-
-## Changelog
