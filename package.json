@@ -30,8 +30,8 @@
     "e2e:dev": "pnpm --filter @gravity-ui/graph-e2e run e2e:dev",
     "typecheck:strict": "pnpm run build && node scripts/strict-diagnostics.mjs",
     "test:strict-diagnostics": "node --test scripts/strict-diagnostics.test.mjs",
-    "typecheck:native-configs": "pnpm run build && node scripts/check-native-configs.mjs",
-    "test:type-configs": "node --test scripts/css-assets.test.mjs scripts/native-configs.test.mjs scripts/style-observer-types.test.mjs scripts/devtools-config.test.mjs && pnpm run typecheck:type-fixtures",
+    "typecheck:ts7": "pnpm run build && node scripts/tsc-projects.mjs --compiler=native packages/graph/tsconfig.json packages/graph-react/tsconfig.json packages/graph-minimap/tsconfig.json packages/graph-devtools/tsconfig.json apps/storybook/tsconfig.json apps/e2e/tsconfig.json packages/graph/tsconfig.publish.json packages/graph-react/tsconfig.publish.json packages/graph-minimap/tsconfig.publish.json packages/graph-devtools/tsconfig.publish.json tests/types",
+    "test:type-configs": "node --test scripts/css-assets.test.mjs scripts/style-observer-types.test.mjs scripts/devtools-config.test.mjs scripts/tsc-projects.test.mjs && pnpm run typecheck:type-fixtures",
     "typecheck:type-fixtures": "node scripts/tsc-projects.mjs --compiler=classic tests/types"
   },
   "devDependencies": {
