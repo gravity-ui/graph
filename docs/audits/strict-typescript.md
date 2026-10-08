@@ -1,6 +1,6 @@
 # Strict TypeScript debt gate
 
-Issue: https://github.com/gravity-ui/graph/issues/354. Compiler: **TypeScript 5.9.2**, pinned at the workspace root and checked by each compiler worker.
+Issue: https://github.com/gravity-ui/graph/issues/354. Compiler: **TypeScript 6.0.3**, pinned through the workspace pnpm catalog and checked by each compiler worker.
 
 Run `pnpm run typecheck:strict`. It rebuilds all four packages before checking the complete existing source/test tsconfigs for graph, React, minimap, devtools, Storybook and E2E with `strict: true` and `noEmit: true`. Other options remain those of each project. Scheduler's entire source/test directory must have zero errors in every project, regardless of baseline contents. Graph source/tests and its inherited publish config use permanent strict checking (#362). No diagnostic anywhere under packages/graph may be admitted to the baseline.
 
@@ -38,3 +38,12 @@ the baseline. Graph diagnostics are rejected in every project and during baselin
 writes. Core consumer fixtures check strict and non-strict source/declarations,
 including optional canvas views, resolved connection IDs and generic Block/Layer
 authoring. Packed consumers check all four packages with skipLibCheck disabled.
+
+## TypeScript 6.0.3 compiler refresh
+
+The gate's compiler identity moved from TypeScript 5.9.2 to 6.0.3. A fresh
+`--write-baseline` only removes nine Storybook records and adds none: seven
+implicit-any `value` parameters in `updateConnection.stories.tsx` and one in
+`themeChange.stories.tsx` (handlers typed through `useCallback`, which TypeScript 6
+now infers contextually), and one `string | undefined` argument in
+`GraphPlayground.tsx`. Every completed package remains at zero.
