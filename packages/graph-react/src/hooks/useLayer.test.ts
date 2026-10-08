@@ -25,6 +25,7 @@ class TestLayer extends Layer {
 describe("useLayer hook", () => {
   // Real instances
   let graph: Graph;
+  let graphs: Graph[];
   let addLayerSpy: jest.SpyInstance;
   let detachLayerSpy: jest.SpyInstance;
 
@@ -37,17 +38,13 @@ describe("useLayer hook", () => {
 
     // Create a real Graph instance
     graph = new Graph({});
+    graphs = [graph];
+    graph.attach(document.createElement("div"));
+    graph.start();
 
     // Spy on its methods
     addLayerSpy = jest.spyOn(graph, "addLayer");
     detachLayerSpy = jest.spyOn(graph, "detachLayer");
-
-    // Mock the Layer's setProps method when it's created
-    addLayerSpy.mockImplementation(() => {
-      const layer = new TestLayer({ camera: graph.cameraService, graph } as any);
-      jest.spyOn(layer, "setProps");
-      return layer;
-    });
 
     // Setup isEqual mock with default implementation
     mockedIsEqual.mockImplementation((a, b) => JSON.stringify(a) === JSON.stringify(b));
@@ -57,6 +54,7 @@ describe("useLayer hook", () => {
   });
 
   afterEach(() => {
+    act(() => graphs.forEach((instance) => instance.unmount()));
     // Restore console.error
     consoleErrorSpy.mockRestore();
   });
@@ -92,6 +90,7 @@ describe("useLayer hook", () => {
 
       // Get the created layer
       const layer = result.current;
+      if (!layer) throw new Error("Expected an attached layer");
 
       // Trigger unmount inside act
       act(() => {
@@ -105,8 +104,8 @@ describe("useLayer hook", () => {
 
     it("should handle null graph safely on unmount", () => {
       // First render with a graph
-      const { rerender, unmount } = renderHook(({ g }) => useLayer(g, TestLayer, createValidLayerProps()), {
-        initialProps: { g: graph },
+      const { result, rerender, unmount } = renderHook(({ g }) => useLayer(g, TestLayer, createValidLayerProps()), {
+        initialProps: { g: graph as Graph | null },
       });
 
       // Then change to null graph
@@ -114,13 +113,15 @@ describe("useLayer hook", () => {
         rerender({ g: null });
       });
 
+      expect(result.current).toBeNull();
+
       // Unmount should not cause errors
       act(() => {
         unmount();
       });
 
       // Test passes if no error is thrown
-      expect(true).toBe(true);
+      expect(detachLayerSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -154,6 +155,7 @@ describe("useLayer hook", () => {
 
       // Get the layer instance
       const layer = result.current;
+      if (!layer) throw new Error("Expected an attached layer");
 
       // Reset the calls to setProps after initial render
       (layer.setProps as jest.Mock).mockClear();
@@ -182,6 +184,7 @@ describe("useLayer hook", () => {
 
       // Get the layer instance
       const layer = result.current;
+      if (!layer) throw new Error("Expected an attached layer");
 
       // Reset the calls to setProps after initial render
       (layer.setProps as jest.Mock).mockClear();
@@ -203,12 +206,10 @@ describe("useLayer hook", () => {
 
       // Setup new graph
       const newGraph = new Graph({});
+      graphs.push(newGraph);
+      newGraph.attach(document.createElement("div"));
+      newGraph.start();
       const newGraphAddLayerSpy = jest.spyOn(newGraph, "addLayer");
-      newGraphAddLayerSpy.mockImplementation(() => {
-        const layer = new TestLayer({ camera: newGraph.cameraService, graph: newGraph } as any);
-        jest.spyOn(layer, "setProps");
-        return layer;
-      });
 
       // Execute initial render
       const { result, rerender } = renderHook(({ g }) => useLayer(g, TestLayer, createValidLayerProps()), {
@@ -244,9 +245,9 @@ describe("useLayer hook", () => {
       };
 
       // Mock a specific implementation for isEqual that we can track
-      let comparedNewProps: any = null;
+      let comparedNewProps: TestLayerProps | null = null;
 
-      mockedIsEqual.mockImplementation((a, b) => {
+      mockedIsEqual.mockImplementation((_a: TestLayerProps, b: TestLayerProps) => {
         comparedNewProps = b;
         return false; // Always trigger setProps
       });
@@ -258,6 +259,7 @@ describe("useLayer hook", () => {
 
       // Get the layer instance
       const layer = result.current;
+      if (!layer) throw new Error("Expected an attached layer");
 
       // Clear calls from initial render
       mockedIsEqual.mockClear();

@@ -5,7 +5,11 @@ import type { ELK, ElkLayoutArguments, ElkNode } from "elkjs";
 import { elkConverter } from "../converters/eklConverter";
 import { ConverterResult } from "../types";
 
-export const useElk = (config: ElkNode, elk: ELK, args?: ElkLayoutArguments & { onError?: (e: Error) => void }) => {
+export const useElk = (
+  config: ElkNode,
+  elk: ELK,
+  args?: ElkLayoutArguments & { onError?: (e: Error) => void }
+): { result: ConverterResult | null; isLoading: boolean } => {
   const [result, setResult] = useState<ConverterResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
@@ -15,6 +19,7 @@ export const useElk = (config: ElkNode, elk: ELK, args?: ElkLayoutArguments & { 
 
   useEffect(() => {
     let isCancelled = false;
+    setIsLoading(true);
 
     layout()
       .then((data) => {
@@ -22,10 +27,11 @@ export const useElk = (config: ElkNode, elk: ELK, args?: ElkLayoutArguments & { 
         setResult(elkConverter(data));
         setIsLoading(false);
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         if (!isCancelled) {
-          args?.onError(error);
+          setResult(null);
           setIsLoading(false);
+          args?.onError?.(error instanceof Error ? error : new Error(String(error)));
         }
       });
 

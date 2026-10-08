@@ -1,15 +1,18 @@
-import { useDeferredValue, useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 import type { Graph, GraphClassConstructor, Layer, LayerPublicProps } from "@gravity-ui/graph";
 import isEqual from "lodash/isEqual";
 
 import { usePrevious } from "./usePrevious";
+import { useSignal } from "./useSignal";
 
 /**
  * Hook for managing graph layers.
  *
  * Provides a convenient way to add and manage layers in the graph.
  * Automatically handles layer initialization and props updates.
+ * Returns null before layer attachment and after detachment. Call hooks
+ * unconditionally to observe readiness and graph replacement.
  * Uses deep props comparison to optimize re-renders.
  *
  * @example
@@ -24,37 +27,38 @@ import { usePrevious } from "./usePrevious";
  * @param graph - Graph instance
  * @param layerCtor - Layer class constructor
  * @param props - Layer properties (excluding internal props like root, camera, graph, emitter)
- * @returns Layer instance or null if graph is not initialized
+ * @returns Layer instance or null if the layer is not attached
  */
 export function useLayer<T extends GraphClassConstructor<Layer> = GraphClassConstructor<Layer>>(
   graph: Graph | null,
   layerCtor: T,
-  props: LayerPublicProps<T>
+  props: LayerPublicProps<NoInfer<T>>
 ): InstanceType<T> | null {
-  const [layer, setLayer] = useState<InstanceType<T> | null>(null);
-  const deferredLayer = useDeferredValue(layer);
+  const [registration, setRegistration] = useState<{
+    graph: Graph;
+    ctor: T;
+    layer: InstanceType<T>;
+  } | null>(null);
 
   useLayoutEffect(() => {
-    // setLayer will apply the next state not immediately,
-    // so we have to store link to layer instance in useLayoutEffect
-    // in order to detach that layer from graph in case of fast re-run of effect
-    const layerInstance = graph ? graph.addLayer(layerCtor, props) : null;
-    setLayer(layerInstance);
-    return () => {
-      // detach layer from graph
-      if (layerInstance) {
-        graph?.detachLayer(layerInstance);
-      }
-    };
+    if (!graph) {
+      setRegistration(null);
+      return undefined;
+    }
+    const layer = graph.addLayer(layerCtor, props);
+    setRegistration({ graph, ctor: layerCtor, layer });
+    // Capture this registration: cleanup must never detach a replacement layer.
+    return () => graph.detachLayer(layer);
   }, [layerCtor, graph]);
 
+  const layer = registration?.graph === graph && registration?.ctor === layerCtor ? registration.layer : null;
+  const attached = useSignal(layer?.$attached);
   const prevProps = usePrevious(props);
-
   useLayoutEffect(() => {
-    if (deferredLayer && (!prevProps || !isEqual(prevProps, props))) {
-      deferredLayer.setProps(props);
+    if (layer && (!prevProps || !isEqual(prevProps, props))) {
+      layer.setProps(props);
     }
   }, [layer, props, prevProps]);
 
-  return layer;
+  return attached ? layer : null;
 }

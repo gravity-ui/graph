@@ -31,11 +31,13 @@ function MyGraph() {
     <GraphCanvas graph={graph} renderBlock={renderBlock}>
       <GraphLayer 
         layer={DevToolsLayer}
-        showRuler={true}
-        showCrosshair={true}
-        rulerSize={20}
-        rulerBackgroundColor="rgba(0, 0, 0, 0.8)"
-        crosshairColor="rgba(255, 0, 0, 0.8)"
+        props={{
+          showRuler: true,
+          showCrosshair: true,
+          rulerSize: 20,
+          rulerBackgroundColor: "rgba(0, 0, 0, 0.8)",
+          crosshairColor: "rgba(255, 0, 0, 0.8)",
+        }}
       />
     </GraphCanvas>
   );
@@ -68,7 +70,7 @@ function MyGraph() {
       <GraphLayer 
         ref={layerRef}
         layer={DevToolsLayer}
-        showRuler={true}
+        props={{ showRuler: true }}
       />
       <button onClick={toggleLayer}>
         Toggle DevTools
@@ -193,9 +195,7 @@ function MyGraph() {
       {/* DevTools via GraphLayer */}
       <GraphLayer 
         layer={DevToolsLayer} 
-        showRuler={true} 
-        showCrosshair={false} 
-        rulerSize={15} 
+        props={{ showRuler: true, showCrosshair: false, rulerSize: 15 }}
       />
 
       {/* Info panel via GraphPortal */}
@@ -276,8 +276,7 @@ const devTools = useLayer(graph, DevToolsLayer, {
 // After (declarative)
 <GraphLayer 
   layer={DevToolsLayer}
-  showRuler={true}
-  rulerSize={20}
+  props={{ showRuler: true, rulerSize: 20 }}
 />
 ```
 

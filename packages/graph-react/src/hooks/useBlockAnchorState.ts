@@ -1,3 +1,5 @@
+import { useCallback, useLayoutEffect } from "react";
+
 import { AnchorState, Graph, TAnchor } from "@gravity-ui/graph";
 
 import { useComputedSignal, useSignalEffect } from "./useSignal";
@@ -11,35 +13,27 @@ export function useBlockAnchorState(graph: Graph, anchor: TAnchor): AnchorState 
 
 export function useBlockAnchorPosition(
   state: AnchorState | undefined,
-  anchorContainerRef: React.MutableRefObject<HTMLDivElement> | undefined
-) {
-  useSignalEffect(() => {
-    if (!state || !anchorContainerRef?.current) {
-      return;
-    }
-
-    if (!state.$viewComponentReady.value) {
-      return;
-    }
-
-    const viewComponent = state.getViewComponent();
-    if (!viewComponent) {
-      return;
-    }
-
-    const position = viewComponent.getPosition();
-    if (!position) {
-      return;
-    }
-
-    const blockGeometry = state.block.$geometry.value;
+  anchorContainerRef: React.RefObject<HTMLDivElement> | undefined
+): void {
+  const updatePosition = useCallback(() => {
+    // Subscribe even while the DOM ref is empty, so later mounts keep receiving
+    // geometry and view-readiness changes without replacing the ref object.
+    const blockGeometry = state?.block.$geometry.value;
+    const position = state?.$viewComponentReady.value ? state.getViewComponent()?.getPosition() : undefined;
+    const container = anchorContainerRef?.current;
+    if (!container) return;
 
     if (!position || !blockGeometry) {
-      anchorContainerRef.current?.style.removeProperty("--graph-block-anchor-x");
-      anchorContainerRef.current?.style.removeProperty("--graph-block-anchor-y");
+      container.style.removeProperty("--graph-block-anchor-x");
+      container.style.removeProperty("--graph-block-anchor-y");
       return;
     }
-    anchorContainerRef.current?.style.setProperty("--graph-block-anchor-x", `${position.x - blockGeometry.x}px`);
-    anchorContainerRef.current?.style.setProperty("--graph-block-anchor-y", `${position.y - blockGeometry.y}px`);
-  }, [state?.block]);
+    container.style.setProperty("--graph-block-anchor-x", `${position.x - blockGeometry.x}px`);
+    container.style.setProperty("--graph-block-anchor-y", `${position.y - blockGeometry.y}px`);
+  }, [state, anchorContainerRef]);
+
+  // A stable ref object can acquire a new DOM node without changing identity.
+  // Initialize that node after every commit, then keep signal-driven updates.
+  useLayoutEffect(updatePosition);
+  useSignalEffect(updatePosition, [updatePosition]);
 }

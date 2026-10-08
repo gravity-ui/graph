@@ -1,8 +1,8 @@
 import React, {
   ForwardedRef,
   forwardRef,
+  useCallback,
   useEffect,
-  useImperativeHandle,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -11,8 +11,8 @@ import React, {
 
 import { ESchedulerPriority, Graph, TBlock } from "@gravity-ui/graph";
 
-import { useComputedSignal, useSchedulerDebounce, useSignalEffect } from "./hooks";
-import { useBlockState } from "./hooks/useBlockState";
+import { useSchedulerDebounce, useSignalEffect } from "./hooks";
+import { useBlockState, useBlockViewState } from "./hooks/useBlockState";
 import { applyBlockContainerLayout } from "./utils/applyBlockContainerLayout";
 import { cn } from "./utils/cn";
 
@@ -95,8 +95,15 @@ function GraphBlockInner<T extends TBlock>(
   { graph, block, children, className, containerClassName, autoHideCanvas = true, canvasVisible }: TGraphBlockProps<T>,
   ref: ForwardedRef<HTMLDivElement>
 ) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  useImperativeHandle(ref, () => containerRef.current);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const setContainerRef = useCallback(
+    (container: HTMLDivElement | null) => {
+      containerRef.current = container;
+      if (typeof ref === "function") ref(container);
+      else if (ref) ref.current = container;
+    },
+    [ref]
+  );
   const lastStateRef = useRef({ x: 0, y: 0, width: 0, height: 0, zIndex: 0 });
   const state = useBlockState(graph, block);
 
@@ -107,7 +114,7 @@ function GraphBlockInner<T extends TBlock>(
     { priority: ESchedulerPriority.LOW, frameTimeout: 150 }
   );
 
-  const viewState = useComputedSignal(() => state?.$viewComponent.value, [state]);
+  const viewState = useBlockViewState(graph, block);
   const [interactive, setInteractive] = useState(viewState?.isInteractive() ?? false);
 
   /**
@@ -129,7 +136,7 @@ function GraphBlockInner<T extends TBlock>(
       viewState?.setRenderDelegated(true);
     }
     return () => viewState?.setRenderDelegated(false);
-  }, [viewState, canvasVisible]);
+  }, [viewState, autoHideCanvas, canvasVisible]);
 
   /**
    * Synchronously set initial block geometry before the browser paints
@@ -191,7 +198,7 @@ function GraphBlockInner<T extends TBlock>(
   }
 
   return (
-    <div className={containerClassNames} ref={containerRef}>
+    <div className={containerClassNames} ref={setContainerRef}>
       <div className={wrapperClassNames}>{children}</div>
     </div>
   );

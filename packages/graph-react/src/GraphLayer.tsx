@@ -1,10 +1,8 @@
-import React, { forwardRef, useImperativeHandle, useState } from "react";
+import React, { forwardRef, useImperativeHandle } from "react";
 
-import { GraphState } from "@gravity-ui/graph";
 import type { GraphClassConstructor, Layer, LayerPublicProps } from "@gravity-ui/graph";
 
 import { useGraphContext } from "./GraphContext";
-import { useGraphEvent } from "./hooks/useGraphEvents";
 import { useLayer } from "./hooks/useLayer";
 
 /** Public props follow the concrete layer, including required fields and its instance ref. */
@@ -26,12 +24,8 @@ export const GraphLayer = forwardRef<
   }
 >(function GraphLayer({ layer: LayerClass, props = {} }, ref): React.ReactElement | null {
   const { graph } = useGraphContext();
-  const [_graphState, setGraphState] = useState<GraphState>(graph?.state ?? GraphState.INIT);
-  useGraphEvent(graph, "state-change", ({ state }) => {
-    setGraphState(state);
-  });
   const layer = useLayer(graph, LayerClass, props);
-  useImperativeHandle(ref, () => layer, [layer]);
+  useImperativeHandle<Layer | null, Layer | null>(ref, () => layer, [layer]);
   return null;
   // forwardRef stores a single render function; the public signature preserves each class/props/ref relationship.
 }) as <TLayer extends GraphClassConstructor<Layer>>(props: GraphLayerProps<TLayer>) => React.ReactElement | null;

@@ -516,3 +516,9 @@ protected afterInit() {
 ```
 
 > Unsubscription will happen automatically when the internal AbortController of the layer is aborted (for example, on detachLayer or destroy).
+
+### Attachment readiness
+
+`Layer.$attached` is a public `ReadonlySignal<boolean>`. It becomes true after the attach lifecycle completes and false after detachment or unmount. It follows the layer independently of graph state, including `graph.stop(false)` and direct `graph.detachLayer(layer)` calls. Consumers can read or subscribe to it; they cannot assign its value through the public type.
+
+A synchronous subscriber may detach the layer when it becomes attached. The notification runs after `afterInit`, so detachment cleans up the subscriptions established during initialization. A layer that detaches itself in `afterInit` stays absent.

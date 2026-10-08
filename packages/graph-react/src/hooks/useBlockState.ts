@@ -2,17 +2,19 @@ import { BlockState, CanvasBlock, Graph, TBlock, TBlockId, isTBlock } from "@gra
 
 import { useComputedSignal } from "./useSignal";
 
+function getBlockState(graph: Graph, block: TBlock | TBlockId): BlockState | undefined {
+  return graph.rootStore.blocksList.$blocksMap.value.get(isTBlock(block) ? block.id : block);
+}
+
 export function useBlockState(graph: Graph, block: TBlock | TBlockId): BlockState | undefined {
-  return useComputedSignal(() => {
-    return graph.rootStore.blocksList.$blocksMap.value.get(isTBlock(block) ? block.id : block);
-  }, [graph, block]);
+  return useComputedSignal(() => getBlockState(graph, block), [graph, block]);
 }
 
 export function useSyncBlockState(graph: Graph, block: TBlock | TBlockId): BlockState | undefined {
-  return graph.rootStore.blocksList.$blocksMap.value.get(isTBlock(block) ? block.id : block);
+  return getBlockState(graph, block);
 }
 
 export function useBlockViewState(graph: Graph, block: TBlock | TBlockId): CanvasBlock | undefined {
   const blockState = useBlockState(graph, block);
-  return blockState?.getViewComponent();
+  return useComputedSignal(() => blockState?.$viewComponent.value, [blockState]);
 }

@@ -1,7 +1,7 @@
 import { DependencyList, useCallback, useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from "react";
 
 import { computed, effect } from "@preact/signals-core";
-import type { Signal } from "@preact/signals-core";
+import type { ReadonlySignal } from "@preact/signals-core";
 
 import { useFn } from "../utils/hooks/useFn";
 
@@ -15,15 +15,17 @@ import { useFn } from "../utils/hooks/useFn";
  * const geometry = useSignal(block.$geometry);
  * ```
  */
-export function useSignal<T>(signal: Signal<T>) {
+export function useSignal<T>(signal: ReadonlySignal<T>): T;
+export function useSignal<T>(signal: ReadonlySignal<T> | null | undefined): T | undefined;
+export function useSignal<T>(signal: ReadonlySignal<T> | null | undefined): T | undefined {
   const subscribe = useCallback(
     (onChangeFn: () => void) => {
-      return signal.subscribe(onChangeFn);
+      return signal?.subscribe(onChangeFn) ?? (() => {});
     },
     [signal]
   );
   const getSnapshot = useCallback(() => {
-    return signal.value;
+    return signal?.value;
   }, [signal]);
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

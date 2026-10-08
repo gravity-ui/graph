@@ -1,5 +1,5 @@
-import { signal } from "@preact/signals-core";
-import type { Signal } from "@preact/signals-core";
+import { computed, signal } from "@preact/signals-core";
+import type { ReadonlySignal, Signal } from "@preact/signals-core";
 import { act, renderHook } from "@testing-library/react";
 
 import { useComputedSignal, useSignal, useSignalEffect, useSignalLayoutEffect } from "./useSignal";
@@ -624,4 +624,26 @@ describe("useSignalLayoutEffect hook", () => {
     expect(effectFn).toHaveBeenCalledWith("updated");
     expect(effectFn).toHaveBeenCalledTimes(2);
   });
+});
+
+test("useSignal handles absence and switches readonly subscriptions", () => {
+  const source = signal(1);
+  const readonly = computed(() => source.value * 2);
+  const { result, rerender, unmount } = renderHook(({ sig }) => useSignal(sig), {
+    initialProps: { sig: undefined as ReadonlySignal<number> | null | undefined },
+  });
+  expect(result.current).toBeUndefined();
+  rerender({ sig: readonly });
+  expect(result.current).toBe(2);
+  act(() => {
+    source.value = 3;
+  });
+  expect(result.current).toBe(6);
+  rerender({ sig: null });
+  expect(result.current).toBeUndefined();
+  act(() => {
+    source.value = 4;
+  });
+  expect(result.current).toBeUndefined();
+  unmount();
 });

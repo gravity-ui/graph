@@ -122,3 +122,30 @@ for (const strict of [true, false]) {
     });
   }
 }
+
+for (const strict of [true, false]) {
+  for (const built of [false, true]) {
+    test(`React generic layers and readonly signals (${strict ? "strict" : "non-strict"}, ${built ? "declarations" : "source"})`, () => {
+      const fixtures = ["layer-signals.tsx", ...(strict ? ["readiness.tsx"] : [])].map((file) =>
+        path.join(root, "tests/package-contract/fixtures/apps/react", file)
+      );
+      const configPath = path.join(root, "packages/graph-react/tsconfig.json");
+      const config = ts.readConfigFile(configPath, ts.sys.readFile);
+      const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, path.dirname(configPath));
+      const program = ts.createProgram(fixtures, {
+        ...parsed.options, strict, noEmit: true, skipLibCheck: false,
+        typeRoots: [path.join(root, "packages/graph-react/node_modules/@types"), path.join(root, "node_modules/@types")],
+        paths: {
+          "react": [path.join(root, "packages/graph-react/node_modules/@types/react/index.d.ts")],
+          "@preact/signals-core": [path.join(root, "packages/graph-react/node_modules/@preact/signals-core")],
+          "@gravity-ui/graph": [path.join(root, built ? "packages/graph/build/index.d.ts" : "packages/graph/src/index.ts")],
+          "@gravity-ui/graph-react": [path.join(root, built ? "packages/graph-react/build/index.d.ts" : "packages/graph-react/src/index.ts")],
+        },
+      });
+      const errors = ts.getPreEmitDiagnostics(program).filter((error) =>
+        error.category === ts.DiagnosticCategory.Error && (!error.file || fixtures.includes(error.file.fileName))
+      );
+      assert.deepEqual(errors.map((error) => ts.flattenDiagnosticMessageText(error.messageText, "\n")), []);
+    });
+  }
+}

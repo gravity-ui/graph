@@ -135,6 +135,9 @@ export function validateSnapshot(value) {
     ) {
       throw new Error(`Minimap must have zero strict diagnostics: ${identity(diagnostic)}`);
     }
+    if (diagnostic.file.startsWith("packages/graph-react/")) {
+      throw new Error(`Graph React must have zero strict diagnostics: ${identity(diagnostic)}`);
+    }
     const key = identity(diagnostic);
     if (seen.has(key)) throw new Error(`Duplicate diagnostic identity: ${key}`);
     seen.add(key);

@@ -296,6 +296,7 @@ describe("ReactLayer", () => {
       expect(portal).toHaveProperty("containerInfo", _htmlElement);
       expect(portal).toHaveProperty("key", "graph-blocks-list");
       // Check that children is a React element (BlocksList)
+      if (!portal) throw new Error("Expected a portal for an attached HTML layer");
       expect(portal.children).toBeTruthy();
     });
   });

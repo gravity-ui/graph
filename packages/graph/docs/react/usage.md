@@ -236,11 +236,13 @@ function MyGraph() {
     <GraphCanvas graph={graph} renderBlock={renderBlock}>
       <GraphLayer 
         layer={DevToolsLayer}
-        showRuler={true}
-        showCrosshair={true}
-        rulerSize={20}
-        rulerBackgroundColor="rgba(0, 0, 0, 0.8)"
-        crosshairColor="rgba(255, 0, 0, 0.8)"
+        props={{
+          showRuler: true,
+          showCrosshair: true,
+          rulerSize: 20,
+          rulerBackgroundColor: "rgba(0, 0, 0, 0.8)",
+          crosshairColor: "rgba(255, 0, 0, 0.8)",
+        }}
       />
     </GraphCanvas>
   );

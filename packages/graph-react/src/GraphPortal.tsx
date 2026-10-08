@@ -1,10 +1,9 @@
-import React, { forwardRef, useImperativeHandle, useState } from "react";
+import React, { forwardRef, useImperativeHandle } from "react";
 
-import { Graph, GraphState, Layer, LayerContext, LayerProps, TComponentState } from "@gravity-ui/graph";
+import { Graph, Layer, LayerContext, LayerProps, TComponentState } from "@gravity-ui/graph";
 import { createPortal } from "react-dom";
 
 import { useGraphContext } from "./GraphContext";
-import { useGraphEvent } from "./hooks/useGraphEvents";
 import { useLayer } from "./hooks/useLayer";
 
 /**
@@ -29,7 +28,7 @@ export interface GraphPortalLayerProps extends LayerProps {
  * Internal Layer class for GraphPortal
  * Creates HTML element and provides it through portal
  */
-class GraphPortalLayer extends Layer<GraphPortalLayerProps, LayerContext, TComponentState> {
+export class GraphPortalLayer extends Layer<GraphPortalLayerProps, LayerContext, TComponentState> {
   constructor(props: GraphPortalLayerProps) {
     super({
       html: {
@@ -119,20 +118,12 @@ export interface GraphPortalProps {
  * </GraphPortal>
  * ```
  */
-export const GraphPortal = forwardRef<GraphPortalLayer, GraphPortalProps>(function GraphPortal(
+export const GraphPortal = forwardRef<GraphPortalLayer | null, GraphPortalProps>(function GraphPortal(
   { className, zIndex, transformByCameraPosition = false, children }: GraphPortalProps,
   ref
 ): React.ReactElement | null {
   // Get graph from context
   const { graph } = useGraphContext();
-
-  // Track graph state to determine readiness for portal creation
-  const [graphState, setGraphState] = useState<GraphState>(graph?.state ?? GraphState.INIT);
-
-  // Subscribe to graph state changes
-  useGraphEvent(graph, "state-change", ({ state }) => {
-    setGraphState(state);
-  });
 
   // Always create internal layer using useLayer (hooks must be called unconditionally)
   const layer = useLayer(graph, GraphPortalLayer, {
@@ -142,10 +133,10 @@ export const GraphPortal = forwardRef<GraphPortalLayer, GraphPortalProps>(functi
   });
 
   // Expose layer through ref
-  useImperativeHandle(ref, () => layer, [layer]);
+  useImperativeHandle<GraphPortalLayer | null, GraphPortalLayer | null>(ref, () => layer, [layer]);
 
   // If graph is not ready or layer not yet created, don't render portal
-  if (!graph || graphState < GraphState.ATTACHED || !layer) {
+  if (!layer) {
     return null;
   }
 

@@ -174,7 +174,7 @@ function MyGraph(): JSX.Element {
 
 #### Returns
 
-Returns `InstanceType<T> | null` - the layer instance or `null` if graph is not initialized.
+Returns `InstanceType<T> | null` - the layer instance or `null` before layer attachment or after detachment. Readiness follows the public readonly `Layer.$attached` signal, including `stop(false)` and direct layer detachment.
 
 ## Event Hooks
 
@@ -758,7 +758,7 @@ import type { ESchedulerPriority, Graph, TBlockId } from "@gravity-ui/graph";
 // Example: Prepare derived state for the next render frame
 function BlockMetrics({ graph, blockId }: { graph: Graph; blockId: TBlockId }): JSX.Element {
   const blockState = useBlockState(graph, blockId);
-  const geometry = blockState ? useSignal(blockState.$geometry) : null;
+  const geometry = useSignal(blockState?.$geometry);
   
   const [metrics, setMetrics] = useState<{ area: number; center: { x: number; y: number } } | null>(null);
 

@@ -82,7 +82,7 @@ function LookupContracts({ graph }: { graph: Graph }) {
   view.getEntityId();
   // @ts-expect-error an anchor may be absent
   anchor.id;
-  // @ts-expect-error an ID does not establish a custom metadata shape
+  // @ts-expect-error ID lookup cannot promise custom metadata
   useSyncBlockState<TBlock<{ custom: string }>>(graph, "missing");
   if (sync) {
     const id: string | number = sync.id;

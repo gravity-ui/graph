@@ -1,10 +1,12 @@
 import React from "react";
 
-import { Graph, ICamera, Layer, LayerContext, LayerProps, TBlock } from "@gravity-ui/graph";
+import { Graph, ICamera, Layer, LayerContext, LayerProps } from "@gravity-ui/graph";
 import { createPortal } from "react-dom";
 
-import { BlocksList } from "../BlocksList";
+import { BlocksList, TRenderBlockFn } from "../BlocksList";
 import { parseClassNames } from "../utils/classNames";
+
+const DEFAULT_REACT_LAYER_Z_INDEX = 3;
 
 export type TReactLayerProps = LayerProps & {
   camera: ICamera;
@@ -21,7 +23,7 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
   constructor(props: TReactLayerProps) {
     super({
       html: {
-        zIndex: 3,
+        zIndex: DEFAULT_REACT_LAYER_Z_INDEX,
         classNames: ["no-user-select", "no-pointer-events"],
         transformByCameraPosition: true,
         activationScale: props.graph.graphConstants.block.SCALES[2],
@@ -38,6 +40,7 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
         this.setProps({
           ...this.props,
           html: {
+            zIndex: DEFAULT_REACT_LAYER_Z_INDEX,
             ...this.props.html,
             activationScale: scales[2],
           },
@@ -77,9 +80,9 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
    * @param renderBlock Function to render a block component
    * @returns React Portal with BlocksList component
    */
-  public renderPortal(renderBlock: <T extends TBlock>(graphObject: Graph, block: T) => React.JSX.Element) {
+  public renderPortal(renderBlock?: TRenderBlockFn) {
     const html = this.getHTML();
-    if (!html) {
+    if (!html || !renderBlock) {
       return null;
     }
 

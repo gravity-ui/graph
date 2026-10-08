@@ -268,8 +268,8 @@ Legacy internal selector modules are removed. Use the existing
 `rootStore.blocksList.getBlockState(id)` and
 `rootStore.connectionsList.getConnectionState(id)` methods directly.
 
-Lookup hooks and store methods do not accept a type argument that promises
-custom metadata from an ID. Custom canvas blocks retain `CanvasBlock<T, Props>`
+Core store methods and React lookup hooks do not accept a type argument that
+promises custom metadata from an ID. Custom canvas blocks retain `CanvasBlock<T, Props>`
 for declaring their state/Meta and component props. The application is responsible
 for matching that declaration to the data supplied for its registered block type;
 the library does not validate the shape of custom Meta at runtime.
@@ -536,3 +536,17 @@ without `!important`. Single-class selectors such as `.my-minimap` or
 `.graph-minimap` have lower specificity and do not override the defaults.
 `context.root` remains optional before attachment and after detachment;
 `context.canvas` and `context.ctx` are available after successful construction.
+
+## React readiness and strict contracts
+
+`GraphLayer` and `useLayer` keep the concrete layer constructor's public props and instance type. Required custom props must be supplied through `props`; use a specialized generic constructor (for example `MyLayer<MyMeta>`) when authoring generic layers. Callback refs receive the concrete instance or `null`.
+
+`useLayer`, `GraphLayer` refs, `GraphPortal` refs and `GraphCanvas.reactLayerRef` are `null` before their layer attaches and after detachment/cleanup. A registered layer can exist internally before attachment. Core `Layer.$attached` is a public `ReadonlySignal<boolean>` that follows attachment, detachment and unmount independently of graph state. React subscribes to it, so `stop(false)` and direct layer detachment also clear layer refs without modifying layer methods. Call hooks unconditionally and guard their results before invoking instance methods. `GraphPortalLayer` is exported for typing portal refs. `GraphBlock` DOM refs become `null` whenever the block's DOM disappears, including entity removal.
+
+`useSignal` accepts both mutable and readonly/computed signals. A definite signal returns its value type; a nullable or missing signal returns `T | undefined`. `useBlockViewState` observes asynchronous view readiness, and `useBlockAnchorPosition` accepts nullable DOM refs, initializes a DOM node mounted after anchor readiness, and clears previous CSS coordinates when the anchor or its position becomes absent. Missing blocks and anchors remain absent until available. `GraphCanvas` without `renderBlock` renders its canvas and child portals without a React block list.
+
+ELK conversion returns empty records when `edges` or `children` are missing. Edges without a first section (including an empty `sections` array) and children without both coordinates are omitted. Positioned children and the first routed section retain their existing conversion. `useElk` permits an absent `onError` callback and sets loading for each new layout request. A failed layout clears the previous result and reports an `Error`, including when ELK rejects with another value.
+
+`useBlockState`, `useSyncBlockState` and `useBlockViewState` retain the non-generic lookup contract from #371. They return the shared block/view types and preserve `undefined` for missing entities or views. A `TBlock<MyMeta>` remains typed application data, but passing it to a lookup hook uses its ID and does not establish the schema of the current stored entity. The core store erases metadata types; restoring them in lookup results would require a typed core contract. The library does not validate custom Meta at runtime.
+
+The React package now checks source, unit tests and declaration emit with permanent `strict: true`.
