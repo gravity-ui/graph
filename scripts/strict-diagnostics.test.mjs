@@ -264,3 +264,31 @@ test("the entire React package cannot reenter the strict baseline", () => {
     assert.throws(() => validateSnapshot(snapshot([{ ...diagnostic, project: PROJECTS[1], file }])), /Graph React/);
   }
 });
+
+test("devtools diagnostics cannot be admitted by a baseline", () => {
+  for (const file of ["packages/graph-devtools/src/DevToolsLayer.ts", "packages/graph-devtools/src/new-file.ts"]) {
+    assert.throws(
+      () => validateSnapshot(snapshot([{ ...diagnostic, project: "packages/graph-devtools/tsconfig.json", file }])),
+      /Devtools/
+    );
+  }
+});
+
+test("completed package guards check both the project and the file", () => {
+  for (const [directory, label] of [
+    ["packages/graph", "Graph"],
+    ["packages/graph-react", "Graph React"],
+    ["packages/graph-minimap", "Minimap"],
+    ["packages/graph-devtools", "Devtools"],
+  ]) {
+    for (const debt of [
+      { ...diagnostic, project: `${directory}/tsconfig.json` },
+      { ...diagnostic, file: `${directory}/src/new-file.ts` },
+    ]) {
+      assert.throws(
+        () => validateSnapshot(snapshot([debt])),
+        new RegExp(`${label} must have zero strict diagnostics`)
+      );
+    }
+  }
+});
