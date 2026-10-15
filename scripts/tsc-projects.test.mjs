@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const runner = fileURLToPath(new URL("./tsc-projects.mjs", import.meta.url));
 const run = (...args) => spawnSync(process.execPath, [runner, ...args], { encoding: "utf8", timeout: 120_000 });
 
-for (const compiler of ["classic", "native"]) {
+for (const compiler of ["classic"]) {
   test(`${compiler} compiler: passing projects succeed and diagnostics fail the run`, () => {
     const directory = mkdtempSync(path.join(tmpdir(), "tsc-projects-"));
     try {

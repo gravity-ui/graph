@@ -1,10 +1,8 @@
-// Runs the TypeScript CLI (never the compiler API) over tsconfig projects so the same
-// checks work with the classic compiler and with the native TypeScript 7 compiler.
+// Runs the TypeScript CLI (never the compiler API) over tsconfig projects.
 //
-// Usage: node scripts/tsc-projects.mjs --compiler=<classic|native> <tsconfig.json | directory>...
+// Usage: node scripts/tsc-projects.mjs --compiler=classic <tsconfig.json | directory>...
 //
 // - classic: the workspace `typescript` package (pnpm catalog default).
-// - native:  the isolated `typescript` package installed in tools/typescript-native.
 // Paths are relative to the current directory; a directory expands to every tsconfig*.json below it.
 // Publish configs (tsconfig.publish.json) emit declarations into a temporary directory;
 // every other project runs with --noEmit.
@@ -18,7 +16,6 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const COMPILERS = {
   classic: "package.json",
-  native: "tools/typescript-native/package.json",
 };
 
 function resolveCompiler(name) {
@@ -43,7 +40,7 @@ function main(args) {
   const compilerArg = args.find((arg) => arg.startsWith("--compiler="));
   const targets = args.filter((arg) => !arg.startsWith("--"));
   if (!compilerArg || !targets.length || args.some((arg) => arg.startsWith("--") && arg !== compilerArg)) {
-    throw new Error("Usage: tsc-projects.mjs --compiler=<classic|native> <tsconfig.json | directory>...");
+    throw new Error("Usage: tsc-projects.mjs --compiler=classic <tsconfig.json | directory>...");
   }
   const compiler = resolveCompiler(compilerArg.slice("--compiler=".length));
   const version = spawnSync(process.execPath, [compiler.tsc, "--version"], { encoding: "utf8" });
