@@ -1,6 +1,9 @@
 import { test, expect } from "@playwright/test";
 import { GraphPageObject } from "../../page-objects/GraphPageObject";
 
+/** Shape of the mouseenter/mouseleave detail fields read by these tests. */
+type TMouseTargetDetail = { target?: { props?: { id?: string } } };
+
 const BLOCK_1 = {
   id: "block-1",
   is: "Block" as const,
@@ -55,7 +58,7 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       await graphPO.page.mouse.move(screenCenterX, screenCenterY);
       await graphPO.waitForFrames(3);
 
-      const listener = await graphPO.events.listen("mouseenter");
+      const listener = await graphPO.events.listen<TMouseTargetDetail>("mouseenter");
 
       await camera.panWorldPointUnderCursor(
         BLOCK_1.x + BLOCK_1.width / 2,
@@ -100,7 +103,7 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       await graphPO.page.mouse.move(screenCenterX, screenCenterY);
       await graphPO.waitForFrames(3);
 
-      const listener = await graphPO.events.listen("mouseenter");
+      const listener = await graphPO.events.listen<TMouseTargetDetail>("mouseenter");
 
       await camera.panWorldPointUnderCursor(
         BLOCK_1.x + BLOCK_1.width / 2,
@@ -136,7 +139,7 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       await graphPO.page.mouse.move(blockScreenPos.x, blockScreenPos.y);
       await graphPO.waitForFrames(2);
 
-      const listener = await graphPO.events.listen("mouseleave");
+      const listener = await graphPO.events.listen<TMouseTargetDetail>("mouseleave");
 
       await camera.trackpadPan(400, 0);
       await graphPO.waitForFrames(5);
@@ -159,8 +162,8 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       await graphPO.page.mouse.move(screenCenterX, screenCenterY);
       await graphPO.waitForFrames(3);
 
-      const enterListener = await graphPO.events.listen("mouseenter");
-      const leaveListener = await graphPO.events.listen("mouseleave");
+      const enterListener = await graphPO.events.listen<TMouseTargetDetail>("mouseenter");
+      const leaveListener = await graphPO.events.listen<TMouseTargetDetail>("mouseleave");
 
       // Phase 1: pan block-1 under cursor → mouseenter
       await camera.panWorldPointUnderCursor(
@@ -199,8 +202,8 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       await graphPO.page.mouse.move(emptyAreaX, emptyAreaY);
       await graphPO.waitForFrames(3);
 
-      const enterListener = await graphPO.events.listen("mouseenter");
-      const leaveListener = await graphPO.events.listen("mouseleave");
+      const enterListener = await graphPO.events.listen<TMouseTargetDetail>("mouseenter");
+      const leaveListener = await graphPO.events.listen<TMouseTargetDetail>("mouseleave");
 
       // Pan camera — cursor stays over empty space, no block should enter/leave
       await camera.trackpadPan(40, 0);
@@ -279,8 +282,8 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       await graphPO.page.mouse.move(screenCenterX, screenCenterY);
       await graphPO.waitForFrames(3);
 
-      const enterListener = await graphPO.events.listen("mouseenter");
-      const leaveListener = await graphPO.events.listen("mouseleave");
+      const enterListener = await graphPO.events.listen<TMouseTargetDetail>("mouseenter");
+      const leaveListener = await graphPO.events.listen<TMouseTargetDetail>("mouseleave");
 
       // Pan block-1 under cursor
       await camera.panWorldPointUnderCursor(
@@ -324,7 +327,7 @@ test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)",
       const block1Center = await block1.getCenter();
       await graphPO.hoverAt({ x: block1Center.x, y: block1Center.y }, { waitForFrames: 3 });
 
-      const listener = await graphPO.events.listen("mouseenter");
+      const listener = await graphPO.events.listen<TMouseTargetDetail>("mouseenter");
 
       // Position mouse over block-1's screen position before zooming
       const mouseScreenPos = await graphPO.page.evaluate(() => {

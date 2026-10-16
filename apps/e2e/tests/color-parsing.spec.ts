@@ -57,7 +57,7 @@ async function runColors(page: Page, colors: ColorFixture[]): Promise<PixelResul
       return { r: d[0], g: d[1], b: d[2] };
     }
 
-    const { applyAlpha, clearColorCache } = (window as any).GraphModule;
+    const { applyAlpha, clearColorCache } = window.GraphModule;
     clearColorCache();
     return colors.map(({ input }) => readPixelFromColor(applyAlpha(input, 1.0)));
   }, colors);

@@ -97,11 +97,11 @@ test.describe("Bezier Connection Hitbox", () => {
 
       await page.evaluate(() => {
         const rootEl = document.getElementById("root");
-        if (!rootEl) {
+        if (!(rootEl instanceof HTMLDivElement)) {
           throw new Error("Root element not found");
         }
 
-        const { Graph, CanvasBlock } = (window as any).GraphModule;
+        const { Graph, CanvasBlock } = window.GraphModule;
 
         // Custom block with vertical connection points (out=bottom, in=top)
         class VerticalBlock extends CanvasBlock {
@@ -117,7 +117,7 @@ test.describe("Bezier Connection Hitbox", () => {
           configurationName: "vertical-e2e",
           settings: {
             useBezierConnections: true,
-            bezierConnectionDirection: "vertical",
+            bezierConnectionDirection: "vertical" as const,
             blockComponents: {
               verticalBlock: VerticalBlock,
             },
