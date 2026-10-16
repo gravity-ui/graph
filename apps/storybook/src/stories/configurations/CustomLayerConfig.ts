@@ -1,4 +1,4 @@
-import { TGraphConfig } from "@gravity-ui/graph";
+import { TGraphConfig, layerConfig } from "@gravity-ui/graph";
 
 import { ToolboxLayer } from "../main/ToolboxLayer";
 
@@ -28,5 +28,5 @@ export const CustomLayerConfig: TGraphConfig = {
     height: 494,
   },
   settings: storiesSettings,
-  layers: [[ToolboxLayer, {}]],
+  layers: [layerConfig(ToolboxLayer, {})],
 };

@@ -113,7 +113,7 @@ this.html.style.transform = `matrix(${camera.scale}, 0, 0, ${camera.scale}, ${ca
       const graphConfig = {
           // ... other config
           layers: [
-              [MyLayer, { myCustomProp: 'value' }] // Pass only custom/overridden props here
+              layerConfig(MyLayer, { myCustomProp: 'value' }) // Pass only custom/overridden props here
           ]
       };
 

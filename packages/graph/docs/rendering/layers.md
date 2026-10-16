@@ -94,16 +94,14 @@ interface GraphEventsDefinitions {
 ## Using Layers
 
 ```typescript
-import { Graph } from "@/graph";
-import { NewBlockLayer } from "@/components/canvas/layers/newBlockLayer";
-import { ConnectionLayer } from "@/components/canvas/layers/connectionLayer";
+import { Graph, layerConfig, NewBlockLayer, ConnectionLayer } from "@gravity-ui/graph";
 
 // Attach when creating a graph
 const graph = new Graph({
   layers: [
-    [NewBlockLayer, { ghostBackground: "rgba(0, 0, 255, 0.3)" }],
-    [ConnectionLayer, {}]
-  ]
+    layerConfig(NewBlockLayer, { ghostBackground: "rgba(0, 0, 255, 0.3)" }),
+    layerConfig(ConnectionLayer, {}),
+  ],
 });
 
 // Or add dynamically

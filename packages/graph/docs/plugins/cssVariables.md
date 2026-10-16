@@ -39,20 +39,20 @@ The `CSSVariablesLayer` can be added to the graph like any other layer.
 ### 1. Via Graph Configuration
 
 ```typescript
-import { Graph, CSSVariablesLayer } from "@gravity-ui/graph";
+import { Graph, CSSVariablesLayer, layerConfig } from "@gravity-ui/graph";
 
 const graph = new Graph({
   // ... other graph settings
   layers: [
     // Other layers...
-    [CSSVariablesLayer, {
+    layerConfig(CSSVariablesLayer, {
       containerClass: "graph-theme", // CSS class for the container
       debug: false, // Enable debug logging
       onChange: (changes) => {
         console.log("CSS variables changed:", changes);
-      }
-    }]
-  ]
+      },
+    }),
+  ],
 });
 ```
 

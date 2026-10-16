@@ -3,6 +3,7 @@ export { Block as CanvasBlock, isTBlock, type TBlock, type TBlockProps } from ".
 export { GraphComponent } from "./components/canvas/GraphComponent";
 export * from "./components/canvas/connections";
 export * from "./graph";
+export { layerConfig, type LayerConfig } from "./services/LayerConfig";
 export type {
   GraphComponentConstructor,
   TGraphColorsPatch,

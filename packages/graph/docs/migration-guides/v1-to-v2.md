@@ -17,6 +17,7 @@ The temporary branch and release process is documented separately in
 - Supply complete arrays/tuples when updating constants.
 - Use plain `TPoint` / `TRect` objects instead of geometry classes and their conversion methods.
 - Use TypeScript 6.0: v2 declarations are built and checked with it.
+- Create graph `layers` entries with `layerConfig(Layer, props)` instead of `[Layer, props]` tuples.
 
 ## React package boundary
 
@@ -584,11 +585,20 @@ const size: number = devtools.props.rulerSize;
 `LayerPublicProps<typeof CustomLayer>` now derives its input from the first
 constructor parameter, independently of `Layer<RuntimeProps>`. Custom layers can
 therefore normalize partial constructor input while keeping their runtime props
-complete. Generic metadata and discriminated constructor inputs are preserved. Keep the
-actual constructor type in layer configurations: use
-`LayerConfig<typeof CustomLayer>` instead of
-`LayerConfig<GraphClassConstructor<CustomLayer>>`. The latter erases constructor
-arguments, so its public input can only fall back to the shared Layer fields.
+complete. Generic metadata and discriminated constructor inputs are preserved.
+
+Graph configuration entries are created with `layerConfig(CustomLayer, props)`, which
+checks the props against that constructor. Raw `[CustomLayer, props]` tuples and the
+generic `LayerConfig<T>` type are removed: a tuple in a heterogeneous array cannot be
+checked, so valid custom props were rejected while missing required props were accepted.
+`LayerConfig` is now an opaque entry type that only `layerConfig()` creates.
+
+```ts
+// Before
+const graph = new Graph({ layers: [[MiniMapLayer, { location: "topLeft" }]] });
+// After
+const graph = new Graph({ layers: [layerConfig(MiniMapLayer, { location: "topLeft" })] });
+```
 
 Resource defaults are merged when constructing DevTools. Later `setProps` calls
 and reused component descriptors apply shallow patches; supplied `canvas`/`html`

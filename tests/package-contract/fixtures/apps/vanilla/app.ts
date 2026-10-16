@@ -11,6 +11,7 @@ import {
   ECanDrag,
   Graph,
   Layer,
+  layerConfig,
   type TBlock,
   type TBlockProps,
   type TConnection,
@@ -371,3 +372,18 @@ function optionalComponentConstructionContracts() {
   OptionalPropsComponent.create({});
 }
 void optionalComponentConstructionContracts;
+
+type TFixtureLabelLayerProps = LayerProps & { label: string };
+class FixtureLabelLayer extends Layer<TFixtureLabelLayerProps> {}
+
+function checkLayerConfiguration() {
+  const graph = new Graph({ layers: [layerConfig(FixtureLabelLayer, { label: "ok" })] });
+  // @ts-expect-error a required custom layer prop must be supplied
+  layerConfig(FixtureLabelLayer, {});
+  // @ts-expect-error unknown layer props are rejected
+  layerConfig(FixtureLabelLayer, { label: "ok", unknown: 1 });
+  // @ts-expect-error raw tuples bypass the constructor check and are not accepted
+  new Graph({ layers: [[FixtureLabelLayer, { label: "ok" }]] });
+  return graph;
+}
+void checkLayerConfiguration;

@@ -20,7 +20,7 @@ newBlockLayer.disable();
 or
 ```typescript
 const graph = useGraph({
-    layers: [[NewBlockLayer, {}]]
+    layers: [layerConfig(NewBlockLayer, {})]
 });
 ```
 
