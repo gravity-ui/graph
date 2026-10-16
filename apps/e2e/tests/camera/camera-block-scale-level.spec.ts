@@ -62,7 +62,7 @@ test.describe("getCameraBlockScaleLevel setting", () => {
       await page.evaluate(() => {
         const { Graph, ECameraScaleLevel } = window.GraphModule;
         const rootEl = document.getElementById("root");
-        if (!rootEl) {
+        if (!(rootEl instanceof HTMLDivElement)) {
           throw new Error("Root element not found");
         }
         const blocks = [

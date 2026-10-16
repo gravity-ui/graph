@@ -171,7 +171,7 @@ test.describe("MiniMap – styling", () => {
       const layer = graph.addLayer(MiniMapLayer, {});
       const before = layer.context.root === undefined;
       const root = document.getElementById("root");
-      if (!root) throw new Error("Missing root");
+      if (!(root instanceof HTMLDivElement)) throw new Error("Missing root");
       const styleCount = root.querySelectorAll("style").length;
       graph.attach(root);
       graph.start();

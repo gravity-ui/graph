@@ -14,8 +14,8 @@ declare global {
     graphInitialized: boolean;
     graphStarted?: boolean;
     graphLibraryLoaded?: boolean;
-    React?: any;
-    ReactDOM?: any;
+    React?: typeof import("react");
+    ReactDOM?: typeof import("react-dom/client");
   }
 }
 
