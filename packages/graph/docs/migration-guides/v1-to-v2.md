@@ -18,6 +18,7 @@ The temporary branch and release process is documented separately in
 - Use plain `TPoint` / `TRect` objects instead of geometry classes and their conversion methods.
 - Use TypeScript 6.0: v2 declarations are built and checked with it.
 - Create graph `layers` entries with `layerConfig(Layer, props)` instead of `[Layer, props]` tuples.
+- Use `graph.removeLayer(layer)` to destroy a layer; `graph.detachLayer(layer)` only detaches it for later reattachment.
 
 ## React package boundary
 
@@ -610,3 +611,39 @@ and reused component descriptors apply shallow patches; supplied `canvas`/`html`
 objects replace the previous configuration. DOM classes and z-index are created
 once by base Layer and are not changed by such patches. Create a new layer to
 change its DOM resource configuration. Resource input still requires `zIndex`.
+
+## Layer removal and root unmount
+
+`graph.detachLayer(layer)` stays reversible: it removes the layer from the graph
+and the DOM and keeps the instance and its children alive. The caller can attach
+it again with `layer.attachLayer(root)`; from then on the caller owns it, and
+`graph.stop()` / `graph.unmount()` no longer manage it.
+
+Use the new `graph.removeLayer(layer)` when a layer is no longer needed. It
+forgets the layer and unmounts it together with its children; the instance
+cannot be reused. It accepts layers created by the same graph (attached
+or detached) and ignores repeated calls, layers already destroyed by
+`graph.unmount()` and layers of other graphs. Replace
+`graph.detachLayer(layer); Component.unmount(layer);` with
+`graph.removeLayer(layer)`; do not combine `removeLayer` with a direct
+`Component.unmount(layer)`. Built-in layers (`graphLayer`, `selectionLayer`,
+`belowLayer`, `cursorLayer`) belong to the graph and must not be removed.
+
+`graph.unmount()` destroys only the layers that are still attached to the graph.
+A layer detached with `graph.detachLayer` stays owned by the caller: pass it to
+`graph.removeLayer` when it is no longer needed, otherwise it keeps the graph
+reachable.
+
+`useLayer`, `GraphLayer`, `GraphPortal` and `GraphCanvas` now destroy their layer
+on cleanup (unmount, graph change or constructor change) with `graph.removeLayer`.
+Do not keep and reattach a layer instance obtained from them after cleanup;
+render the hook or component again to get a new layer.
+
+`Component.unmount(root)` on a root mounted with `Component.mount` (including
+layers created by the graph) stops the root's scheduler. The unmounted subtree is
+no longer iterated or rebuilt. Children share their root's scheduler, so
+unmounting a child does not stop it. An unmounted graph no longer keeps
+scheduler registrations or document keyboard listeners. Work that was still
+pending in the global scheduler at unmount is released on its next frame, so
+the graph becomes collectable once the global scheduler runs again (for
+example, while another graph is started).
