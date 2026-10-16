@@ -229,7 +229,7 @@ export class Graph {
       if (target.every((item) => item instanceof GraphComponent)) {
         return this.api.zoomToElements(target, config);
       }
-      if (target.every((item) => typeof item === "string")) {
+      if (target.every((item) => typeof item === "string" || typeof item === "number")) {
         return this.api.zoomToBlocks(target, config);
       }
     }
