@@ -26,7 +26,7 @@ const ConnectionArrowsVariants: SegmentedRadioGroupOptionProps[] = [
 
 export function GraphSettings({ className, graph }: { className: string; graph: Graph }) {
   const rerender = useRerender();
-  const settingBtnRef = useRef();
+  const settingBtnRef = useRef<HTMLButtonElement>(null);
   const [settingsOpened, setSettingsOpened] = useState(false);
   return (
     <>

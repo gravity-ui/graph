@@ -1,4 +1,10 @@
-export function findBlockPositionsMonaco(model, blockId) {
+import type { TBlockId } from "@gravity-ui/graph";
+import type { IPosition, editor } from "monaco-editor/esm/vs/editor/editor.api";
+
+export function findBlockPositionsMonaco(
+  model: editor.ITextModel,
+  blockId: TBlockId
+): { start: IPosition; end: IPosition } {
   const configString = model.getValue();
   const blockSearchStr = `"id": "${blockId}"`;
   const startIndex = configString.indexOf(blockSearchStr);

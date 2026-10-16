@@ -1,6 +1,6 @@
 import React, { ChangeEvent, useCallback } from "react";
 
-import { Graph, Layer } from "@gravity-ui/graph";
+import { CoreComponent, Graph, Layer, LayerProps } from "@gravity-ui/graph";
 import ReactDOM from "react-dom/client";
 
 function Toolbox(props: { graph: Graph }) {
@@ -18,18 +18,18 @@ function Toolbox(props: { graph: Graph }) {
 }
 
 export class ToolboxLayer extends Layer {
-  protected reactRoot: ReactDOM.Root;
+  protected reactRoot?: ReactDOM.Root;
 
-  constructor(props, context) {
+  constructor(props: LayerProps, parent?: CoreComponent) {
     super(
       {
         html: {
           zIndex: 300,
-          className: "custom-control",
+          classNames: ["custom-control"],
         },
         ...props,
       },
-      context
+      parent
     );
   }
 

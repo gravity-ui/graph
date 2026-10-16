@@ -1,7 +1,9 @@
-import { EAnchorType, TBlock, TGraphConfig } from "@gravity-ui/graph";
+import { EAnchorType, TAnchor, TBlock, TConnection } from "@gravity-ui/graph";
 
 export const GravityActionBlockIS = "block-action";
 export type TGravityActionBlock = TBlock<{ description: string }> & { is: typeof GravityActionBlockIS };
+/** Action block created by `createActionBlock`: anchors are always `[in, out]`. */
+export type TGravityActionBlockWithAnchors = TGravityActionBlock & { anchors: [TAnchor, TAnchor] };
 
 export const GravityTextBlockIS = "block-text";
 export type TGravityTextBlock = TBlock<{ text: string }> & { is: typeof GravityTextBlockIS };
@@ -10,7 +12,7 @@ function getActionBlockId(num: number): string {
   return `action_${num}`;
 }
 
-export function createActionBlock(x: number, y: number, index: number): TGravityActionBlock {
+export function createActionBlock(x: number, y: number, index: number): TGravityActionBlockWithAnchors {
   const blockId = getActionBlockId(index);
 
   return {
@@ -40,7 +42,7 @@ export function createActionBlock(x: number, y: number, index: number): TGravity
   };
 }
 
-export function createTextBlock(x: number, y: number, width: number, index: number, text): TGravityTextBlock {
+export function createTextBlock(x: number, y: number, width: number, index: number, text: string): TGravityTextBlock {
   const blockId = `text_${index}`;
 
   return {
@@ -59,15 +61,16 @@ export function createTextBlock(x: number, y: number, width: number, index: numb
   };
 }
 
-function getRandomArbitrary(min, max) {
+function getRandomArbitrary(min: number, max: number): number {
   return (Math.random() * (max - min) + min) | 0;
 }
 
-export function generatePlaygroundActionBlocks(layersCount: number, connectionsPerLayer: number) {
-  const config: TGraphConfig<TGravityActionBlock> = {
-    blocks: [],
-    connections: [],
-  };
+export function generatePlaygroundActionBlocks(
+  layersCount: number,
+  connectionsPerLayer: number
+): { blocks: TGravityActionBlock[]; connections: TConnection[] } {
+  const blocks: TGravityActionBlock[] = [];
+  const connections: TConnection[] = [];
 
   const gapX = 500;
   const gapY = 200;
@@ -87,23 +90,20 @@ export function generatePlaygroundActionBlocks(layersCount: number, connectionsP
 
       const block = createActionBlock(layerX, y, ++index);
 
-      config.blocks.push(block);
+      blocks.push(block);
       currentLayerBlocks.push(block);
     }
     if (i > 1) {
       for (let c = 0; c <= connectionsPerLayer; c++) {
         const indexSource = getRandomArbitrary(
-          config.blocks.length - currentLayerBlocks.length - prevLayerBlocks.length - 1,
-          config.blocks.length - currentLayerBlocks.length - 1
+          blocks.length - currentLayerBlocks.length - prevLayerBlocks.length - 1,
+          blocks.length - currentLayerBlocks.length - 1
         );
-        const indexTarget = getRandomArbitrary(
-          config.blocks.length - currentLayerBlocks.length - 1,
-          config.blocks.length - 1
-        );
+        const indexTarget = getRandomArbitrary(blocks.length - currentLayerBlocks.length - 1, blocks.length - 1);
         if (indexSource !== indexTarget) {
           const sourceBlockId = getActionBlockId(indexSource);
           const targetBlockId = getActionBlockId(indexTarget);
-          config.connections.push({
+          connections.push({
             sourceBlockId: sourceBlockId,
             sourceAnchorId: `${sourceBlockId}_out`,
             targetBlockId: targetBlockId,
@@ -115,5 +115,5 @@ export function generatePlaygroundActionBlocks(layersCount: number, connectionsP
     }
   }
 
-  return config;
+  return { blocks, connections };
 }
