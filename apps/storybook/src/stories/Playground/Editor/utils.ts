@@ -1,7 +1,30 @@
-export function findBlockPositionsMonaco(model, blockId) {
+import type { TBlockId } from "@gravity-ui/graph";
+import type { IPosition, editor } from "monaco-editor/esm/vs/editor/editor.api";
+
+/** Index of `search` followed by the end of a JSON value, so `"id": 1` does not match `"id": 12`. */
+function findValueIndex(text: string, search: string): number {
+  let index = text.indexOf(search);
+  while (index !== -1) {
+    const next = text[index + search.length];
+    if (next === undefined || next === "," || next === "}" || /\s/.test(next)) {
+      return index;
+    }
+    index = text.indexOf(search, index + 1);
+  }
+  return -1;
+}
+
+export function findBlockPositionsMonaco(
+  model: editor.ITextModel,
+  blockId: TBlockId
+): { start: IPosition; end: IPosition } | null {
   const configString = model.getValue();
-  const blockSearchStr = `"id": "${blockId}"`;
-  const startIndex = configString.indexOf(blockSearchStr);
+  // Match the id as JSON serializes it: numeric ids are not quoted.
+  const blockSearchStr = `"id": ${JSON.stringify(blockId)}`;
+  const startIndex = findValueIndex(configString, blockSearchStr);
+  if (startIndex === -1) {
+    return null;
+  }
 
   const blockStart = configString.lastIndexOf("{", startIndex);
   let blockEnd = configString.indexOf("}", startIndex);

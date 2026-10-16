@@ -13,24 +13,36 @@ const GraphApp = () => {
   const [colors, setColors] = useState<TGraphColorsPatch>();
   const graphRef = useRef<Graph | undefined>(undefined);
 
-  const updateReactComponentsColors = useCallback((colors) => {
+  const updateReactComponentsColors = useCallback((colors: TGraphColorsPatch) => {
     setColors(colors);
   }, []);
 
   const onRedClick: ButtonButtonProps["onClick"] = useCallback(() => {
-    graphRef.current.api.updateGraphColors({ block: { background: "#febcb8" } });
+    const graph = graphRef.current;
+    if (!graph) {
+      return;
+    }
+    graph.api.updateGraphColors({ block: { background: "#febcb8" } });
 
     updateReactComponentsColors({ block: { background: "#febcb8" } });
   }, [updateReactComponentsColors]);
 
   const onGreenClick: ButtonButtonProps["onClick"] = useCallback(() => {
-    graphRef.current.api.updateGraphColors({ block: { background: "#b7e6b0" } });
+    const graph = graphRef.current;
+    if (!graph) {
+      return;
+    }
+    graph.api.updateGraphColors({ block: { background: "#b7e6b0" } });
 
     updateReactComponentsColors({ block: { background: "#b7e6b0" } });
   }, [updateReactComponentsColors]);
 
   const onYellowClick: ButtonButtonProps["onClick"] = useCallback(() => {
-    graphRef.current.api.updateGraphColors({ block: { background: "#fee0b0" } });
+    const graph = graphRef.current;
+    if (!graph) {
+      return;
+    }
+    graph.api.updateGraphColors({ block: { background: "#fee0b0" } });
 
     updateReactComponentsColors({ block: { background: "#fee0b0" } });
   }, [updateReactComponentsColors]);

@@ -29,7 +29,7 @@ export class TextBlock extends CanvasBlock<TGravityTextBlock> {
   protected renderName(ctx: CanvasRenderingContext2D) {
     ctx.fillStyle = "rgba(189, 142, 75, 1)";
     ctx.textAlign = "center";
-    this.renderText(this.state.meta.text, ctx);
+    this.renderText(this.state.meta?.text ?? "", ctx);
   }
 
   public renderHTML() {

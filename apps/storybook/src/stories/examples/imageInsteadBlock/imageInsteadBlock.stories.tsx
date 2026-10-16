@@ -34,26 +34,30 @@ type TBlockMeta = {
 class SpecificBlockView extends CanvasBlock<TBlock<TBlockMeta>> {
   public override renderSchematicView() {
     const blockMetaState = this.state.meta;
+    if (!blockMetaState) {
+      return;
+    }
     if (blockMetaState.shouldInitImage) {
-      blockMetaState.img = new Image();
+      const img = new Image();
+      blockMetaState.img = img;
 
-      blockMetaState.img.onload = () => {
-        const hRatio = this.state.width / blockMetaState.img.width;
-        const vRatio = this.state.height / blockMetaState.img.height;
+      img.onload = () => {
+        const hRatio = this.state.width / img.width;
+        const vRatio = this.state.height / img.height;
         const imageRatio = Math.min(hRatio, vRatio);
 
-        blockMetaState.imageWidth = blockMetaState.img.width * imageRatio;
-        blockMetaState.imageHeight = blockMetaState.img.width * imageRatio;
+        blockMetaState.imageWidth = img.width * imageRatio;
+        blockMetaState.imageHeight = img.width * imageRatio;
 
         blockMetaState.imageOffsetX = (this.state.width - blockMetaState.imageWidth) / 2;
         blockMetaState.imageOffsetY = (this.state.height - blockMetaState.imageHeight) / 2;
 
         this.context.ctx.drawImage(
-          blockMetaState.img,
+          img,
           0,
           0,
-          blockMetaState.img.width,
-          blockMetaState.img.height,
+          img.width,
+          img.height,
           this.state.x + blockMetaState.imageOffsetX,
           this.state.y + blockMetaState.imageOffsetY,
           blockMetaState.imageWidth,
@@ -62,14 +66,15 @@ class SpecificBlockView extends CanvasBlock<TBlock<TBlockMeta>> {
         blockMetaState.shouldInitImage = false;
       };
 
-      blockMetaState.img.src = getImageByStatus(this.state.meta.status);
-    } else {
+      img.src = getImageByStatus(blockMetaState.status);
+    } else if (blockMetaState.img) {
+      const img = blockMetaState.img;
       this.context.ctx.drawImage(
-        blockMetaState.img,
+        img,
         0,
         0,
-        blockMetaState.img.width,
-        blockMetaState.img.height,
+        img.width,
+        img.height,
         this.state.x + blockMetaState.imageOffsetX,
         this.state.y + blockMetaState.imageOffsetY,
         blockMetaState.imageWidth,
@@ -81,7 +86,7 @@ class SpecificBlockView extends CanvasBlock<TBlock<TBlockMeta>> {
 
 const SpecificBlockIs = "some-specific-view";
 
-function getImageByStatus(status: EBlockStatus) {
+function getImageByStatus(status: EBlockStatus | undefined): string {
   switch (status) {
     case EBlockStatus.DONE: {
       return imageDone;
@@ -106,35 +111,38 @@ const GraphApp = () => {
 
   useEffect(() => {
     const newConfig = generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 100, dashedLine: true });
-    newConfig.settings.blockComponents = {};
-    newConfig.settings.blockComponents[SpecificBlockIs] = SpecificBlockView;
+    newConfig.settings = {
+      ...newConfig.settings,
+      blockComponents: { [SpecificBlockIs]: SpecificBlockView },
+    };
 
-    newConfig.blocks.forEach((block: TBlock<TBlockMeta>) => {
+    newConfig.blocks.forEach((block) => {
       block.is = SpecificBlockIs;
       const randomVal = Math.floor(Math.random() * 4) + 1;
-      block.meta = {
+      const meta: TBlockMeta = {
         shouldInitImage: true,
         imageWidth: 1,
         imageHeight: 1,
         imageOffsetX: 1,
         imageOffsetY: 1,
       };
+      block.meta = meta;
       switch (randomVal) {
         case 1: {
-          block.meta.status = EBlockStatus.DONE;
+          meta.status = EBlockStatus.DONE;
           break;
         }
         case 2: {
-          block.meta.status = EBlockStatus.FAIL;
+          meta.status = EBlockStatus.FAIL;
           break;
         }
         case 3: {
-          block.meta.status = EBlockStatus.RUNNING;
+          meta.status = EBlockStatus.RUNNING;
           break;
         }
         case 4:
         default: {
-          block.meta.status = EBlockStatus.WAITING;
+          meta.status = EBlockStatus.WAITING;
           break;
         }
       }
