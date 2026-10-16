@@ -1,7 +1,10 @@
 import { Graph } from "../../../graph";
 import { GraphEventsDefinitions, UnwrapGraphEvents } from "../../../graphEvents";
 import { Component } from "../../../lib/Component";
+import { globalScheduler } from "../../../lib/Scheduler";
 import { HitBox } from "../../../services/HitTest";
+import { EventedComponent } from "../EventedComponent/EventedComponent";
+import { Block, TBlock } from "../blocks/Block";
 
 import { GraphComponent, GraphComponentContext } from "./index";
 
@@ -125,5 +128,118 @@ describe("GraphComponent event helpers", () => {
     const [removedEventName, removeListener] = removeSpy.mock.calls[0];
     expect(removedEventName).toBe("click");
     expect(typeof removeListener).toBe("function");
+  });
+});
+
+describe("GraphComponent.onUnmounted", () => {
+  const block: TBlock = {
+    id: "b1",
+    is: "Block",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 50,
+    selected: false,
+    name: "b1",
+    anchors: [],
+  };
+
+  const graphs: Graph[] = [];
+
+  afterEach(() => {
+    graphs.splice(0).forEach((graph) => graph.unmount());
+  });
+
+  async function mountBlock(): Promise<{ graph: Graph; view: Block }> {
+    const graph = new Graph({ blocks: [block], connections: [] }, document.createElement("div"));
+    graphs.push(graph);
+    graph.start();
+    await new Promise<void>((resolve) => graph.hitTest.waitUsableRectUpdate(() => resolve()));
+    const [view] = graph.getElementsOverRect({ x: 0, y: 0, width: 100, height: 50 }, [Block]);
+    if (!view) throw new Error("Expected the block view to be mounted");
+    return { graph, view };
+  }
+
+  function removeBlocks(graph: Graph): void {
+    graph.setEntities({ blocks: [], connections: [] });
+    globalScheduler.performUpdate();
+    globalScheduler.performUpdate();
+  }
+
+  function dispatchUnmounted(view: Block): void {
+    view.dispatchEvent(new CustomEvent("graph-component-unmounted", { detail: { component: view } }));
+  }
+
+  it("runs registered callbacks exactly once when a mounted component is removed", async () => {
+    const { graph, view } = await mountBlock();
+    const onUnmounted = jest.fn();
+    const listener = jest.fn<void, [Event]>();
+    view.onUnmounted(onUnmounted);
+    view.addEventListener("graph-component-unmounted", listener);
+
+    removeBlocks(graph);
+
+    expect(graph.getElementsOverRect({ x: 0, y: 0, width: 100, height: 50 }, [Block])).not.toContain(view);
+    expect(onUnmounted).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener.mock.calls[0][0]).toMatchObject({ detail: { component: view } });
+
+    dispatchUnmounted(view);
+    expect(onUnmounted).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs callbacks of non-interactive components", async () => {
+    const { graph, view } = await mountBlock();
+    const onUnmounted = jest.fn();
+    view.setInteractive(false);
+    globalScheduler.performUpdate();
+    expect(view.isInteractive()).toBe(false);
+    view.onUnmounted(onUnmounted);
+
+    removeBlocks(graph);
+
+    expect(onUnmounted).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs callbacks when the whole graph is unmounted", async () => {
+    const { graph, view } = await mountBlock();
+    const onUnmounted = jest.fn();
+    view.onUnmounted(onUnmounted);
+
+    graphs.splice(graphs.indexOf(graph), 1);
+    graph.unmount();
+
+    expect(onUnmounted).toHaveBeenCalledTimes(1);
+  });
+
+  it("still bubbles the event to evented ancestors", () => {
+    const { component } = createTestComponent();
+    const parent = component.getParent();
+    if (!(parent instanceof Component)) throw new Error("Expected a component parent");
+    const evented = new EventedComponent({}, parent);
+    const child = new TestGraphComponent({}, evented);
+    const ancestorListener = jest.fn<void, [Event]>();
+    evented.addEventListener("graph-component-unmounted", ancestorListener);
+
+    Component.unmount(child);
+
+    expect(ancestorListener).toHaveBeenCalledTimes(1);
+    expect(ancestorListener.mock.calls[0][0]).toMatchObject({ detail: { component: child } });
+  });
+
+  it("clears listeners even when an unmount callback throws", async () => {
+    const { view } = await mountBlock();
+    const failing = jest.fn(() => {
+      throw new Error("listener failed");
+    });
+    view.onUnmounted(failing);
+
+    // The view stays in its parent's children, so afterEach unmounts it a second time.
+    expect(() => Component.unmount(view)).toThrow("listener failed");
+    expect(failing).toHaveBeenCalledTimes(1);
+
+    dispatchUnmounted(view);
+    expect(failing).toHaveBeenCalledTimes(1);
   });
 });
