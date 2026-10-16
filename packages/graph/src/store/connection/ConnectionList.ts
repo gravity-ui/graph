@@ -165,14 +165,19 @@ export class ConnectionsStore {
   }
 
   public updateConnections(connections: TConnection[]): void {
-    if (!connections.length) return;
     // Mutate sequentially so getOrCreateConnection sees earlier entries of this batch (duplicate ids),
     // then publish a new Map reference: reassigning the same Map would not notify subscribers.
-    connections.forEach((connection) => {
-      const c = this.getOrCreateConnection(connection);
-      this.$connectionsMap.value.set(c.id, c);
-    });
-    this.notifyConnectionMapChanged();
+    // Publish in finally so entries applied before a throwing entry are not left unpublished.
+    let changed = false;
+    try {
+      connections.forEach((connection) => {
+        const c = this.getOrCreateConnection(connection);
+        this.$connectionsMap.value.set(c.id, c);
+        changed = true;
+      });
+    } finally {
+      if (changed) this.notifyConnectionMapChanged();
+    }
   }
 
   public setConnections(connections: TConnection[]) {

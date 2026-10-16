@@ -3,7 +3,7 @@ import { BlockConnection } from "../../components/canvas/connections/BlockConnec
 import { Graph } from "../../graph";
 import { globalScheduler } from "../../lib/Scheduler";
 
-import { ConnectionState } from "./ConnectionState";
+import { ConnectionState, TConnection } from "./ConnectionState";
 
 const createBlock = (id: string, x: number): TBlock => ({
   is: "Block",
@@ -93,8 +93,28 @@ describe("ConnectionsStore.updateConnections", () => {
     listener.mockClear();
 
     store.updateConnections([]);
+    store.updateConnections(new Array<TConnection>(2));
 
     expect(listener).not.toHaveBeenCalled();
+    expect(store.$connectionsMap.value.size).toBe(0);
+    unsubscribe();
+  });
+
+  it("publishes entries applied before an invalid entry throws", () => {
+    const graph = new Graph({ blocks });
+    const store = graph.rootStore.connectionsList;
+    const listener = jest.fn();
+    const unsubscribe = store.$connections.subscribe(listener);
+    listener.mockClear();
+    // Simulates untyped JS input: a null entry makes ConnectionState.getConnectionId throw.
+    const invalid = null as unknown as TConnection;
+
+    expect(() => store.updateConnections([{ id: "c1", sourceBlockId: "a", targetBlockId: "b" }, invalid])).toThrow(
+      TypeError
+    );
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(store.toJSON()).toEqual([expect.objectContaining({ id: "c1" })]);
     unsubscribe();
   });
 
