@@ -3,7 +3,7 @@ import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const COMPILER = "5.9.2";
+export const COMPILER = "6.0.3";
 export const PROJECTS = [
   "packages/graph/tsconfig.json",
   "packages/graph-react/tsconfig.json",

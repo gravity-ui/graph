@@ -571,7 +571,6 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.performRender();
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   public renderDetailedView(ctx: CanvasRenderingContext2D) {
     return this.renderBody(ctx);
   }

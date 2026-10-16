@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { CanvasBlock, Graph, TBlock, TGraphConfig } from "@gravity-ui/graph";

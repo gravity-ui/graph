@@ -99,7 +99,6 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(
       const data = JSON.parse(monacoRef.current.getModel().getValue());
       props?.onChange?.({ blocks: data.blocks, connections: data.conections });
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.error(e);
     }
   });

@@ -41,7 +41,6 @@ export function getPointOfBezierCurve(
   mode: "vertical" | "horizontal" = "horizontal"
 ) {
   const [start, firstPoint, secondPoint, end] = generateBezierParams(startPos, endPos, mode);
-  /* eslint-disable no-restricted-properties */
   return {
     x:
       Math.pow(1 - time, 3) * start.x +
@@ -54,7 +53,6 @@ export function getPointOfBezierCurve(
       3 * (1 - time) * Math.pow(time, 2) * secondPoint.y +
       Math.pow(time, 3) * end.y,
   };
-  /* eslint-enable no-restricted-properties */
 }
 
 export function isPointInStroke(

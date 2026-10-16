@@ -127,7 +127,7 @@ class Path2DGroup {
 export class BatchPath2DRenderer {
   constructor(
     protected onChange: () => void,
-    private chunkSize: number = 100
+    private chunkSize = 100
   ) {}
 
   protected indexes: Map<number, Map<string, Path2DGroup>> = new Map();

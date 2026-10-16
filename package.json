@@ -9,8 +9,7 @@
     "url": "https://github.com/gravity-ui/graph"
   },
   "scripts": {
-    "typecheck": "pnpm --filter @gravity-ui/graph run typecheck && pnpm --filter @gravity-ui/graph-react run typecheck && pnpm --filter @gravity-ui/graph-minimap run typecheck && pnpm --filter @gravity-ui/graph-devtools run typecheck && pnpm --filter @gravity-ui/graph-storybook run typecheck && pnpm --filter @gravity-ui/graph-e2e run typecheck",
-    "typecheck:published-playwright-types": "pnpm --filter @gravity-ui/graph run typecheck:published-playwright-types",
+    "typecheck": "pnpm run build && pnpm --filter \"./packages/*\" --filter \"./apps/*\" run typecheck",
     "lint": "pnpm --filter \"./packages/*\" run lint && pnpm --filter @gravity-ui/graph-storybook run lint",
     "test:unit": "pnpm --filter \"./packages/*\" run test:unit",
     "test": "pnpm --filter \"./packages/*\" run test",
@@ -30,8 +29,8 @@
     "e2e:dev": "pnpm --filter @gravity-ui/graph-e2e run e2e:dev",
     "typecheck:strict": "pnpm run build && node scripts/strict-diagnostics.mjs",
     "test:strict-diagnostics": "node --test scripts/strict-diagnostics.test.mjs",
-    "typecheck:native-configs": "pnpm run build && node scripts/check-native-configs.mjs",
-    "test:type-configs": "node --test scripts/lookup-types.test.mjs scripts/css-assets.test.mjs scripts/native-configs.test.mjs scripts/style-observer-types.test.mjs scripts/devtools-types.test.mjs"
+    "test:type-configs": "node --test scripts/css-assets.test.mjs scripts/style-observer-types.test.mjs scripts/devtools-config.test.mjs && pnpm run typecheck:type-fixtures",
+    "typecheck:type-fixtures": "tsc -b tests/types"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
@@ -46,7 +45,7 @@
     "prettier": "^3.0.0",
     "publint": "^0.3.23",
     "release-please": "17.6.0",
-    "typescript": "5.9.2",
+    "typescript": "catalog:",
     "yaml": "2.8.1"
   }
 }

@@ -63,6 +63,11 @@ npm install @gravity-ui/graph
 
 For React integration in v2, also install the matching `@gravity-ui/graph-react` package, React 18, and React DOM 18.
 
+### TypeScript
+
+Published declarations are built and checked with TypeScript 6.0 (`strict: true`, `skipLibCheck: false`;
+Bundler, Node16 ESM and Node16 CommonJS consumers). Other TypeScript versions are not tested.
+
 
 ## Usage
 

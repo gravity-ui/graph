@@ -1,6 +1,7 @@
 packages:
   - "packages/*"
   - "apps/*"
-  - "tools/*"
+catalog:
+  typescript: 6.0.3
 patchedDependencies:
   style-observer@0.1.1: patches/style-observer@0.1.1.patch
