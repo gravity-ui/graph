@@ -68,13 +68,21 @@ type LayerConstructorInput<T extends GraphClassConstructor<Layer>> = [
   NonNullable<ConstructorParameters<T>[0]>,
 ] extends [never]
   ? LayerProps
-  : NonNullable<ConstructorParameters<T>[0]>;
+  : // Strip null/undefined only when present, so a non-nullable input keeps its alias name.
+    [ConstructorParameters<T>[0]] extends [NonNullable<ConstructorParameters<T>[0]>]
+    ? ConstructorParameters<T>[0]
+    : NonNullable<ConstructorParameters<T>[0]>;
 
-type PublicLayerInput<Props> = Props extends unknown
-  ? Omit<Props, "root" | "camera" | "graph"> & {
-      root?: "root" extends keyof Props ? Props["root"] : LayerProps["root"];
-    }
-  : never;
+/**
+ * Public input of a layer with the given constructor props: graph-provided `graph`, `camera`
+ * and `root` are removed, and `root` may be overridden optionally.
+ * A named alias keeps compiler messages readable, e.g. `LayerPublicInput<MiniMapLayerProps>`.
+ */
+export type LayerPublicInput<Props> = Omit<Props, "root" | "camera" | "graph"> & {
+  root?: "root" extends keyof Props ? Props["root"] : LayerProps["root"];
+};
+
+type PublicLayerInput<Props> = Props extends unknown ? LayerPublicInput<Props> : never;
 
 /**
  * Extract public input from a Layer constructor, independently of its runtime props.

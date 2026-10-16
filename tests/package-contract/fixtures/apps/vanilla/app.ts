@@ -388,6 +388,25 @@ function checkLayerConfiguration() {
   layerConfig(FixtureLabelLayer, { label: "ok", unknown: 1 });
   // @ts-expect-error raw tuples bypass the constructor check and are not accepted
   new Graph({ layers: [[FixtureLabelLayer, { label: "ok" }]] });
+  // @ts-expect-error structural copies bypass the constructor check and are not accepted
+  new Graph({ layers: [{ layer: FixtureLabelLayer, props: { label: "ok" } }] });
   return graph;
 }
 void checkLayerConfiguration;
+
+// Compile-only: nullable and optional constructor input must still require custom props.
+declare class FixtureNullableLayer extends Layer<TFixtureLabelLayerProps> {
+  constructor(props: TFixtureLabelLayerProps | null);
+}
+declare class FixtureOptionalLayer extends Layer<TFixtureLabelLayerProps> {
+  constructor(props?: TFixtureLabelLayerProps);
+}
+function checkNullableLayerInput() {
+  layerConfig(FixtureNullableLayer, { label: "ok" });
+  layerConfig(FixtureOptionalLayer, { label: "ok" });
+  // @ts-expect-error null in the constructor input does not relax required props
+  layerConfig(FixtureNullableLayer, {});
+  // @ts-expect-error an optional constructor parameter does not relax required props
+  layerConfig(FixtureOptionalLayer, {});
+}
+void checkNullableLayerInput;
