@@ -287,7 +287,7 @@ export class Graph {
       maxX: rect.x + rect.width,
       maxY: rect.y + rect.height,
     });
-    if (filter?.length && items.length > 0) {
+    if (filter && items.length > 0) {
       return items.filter((item) => filter.some((Component) => item instanceof Component)) as InstanceType<T>[];
     }
     return items as InstanceType<T>[];

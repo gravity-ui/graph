@@ -491,6 +491,9 @@ The changing-entity behavior is:
   Primitives, arrays and other non-plain values are replaced when supplied. Omitted meta
   is preserved; `meta: undefined` clears it. Consumer Meta retains its declared generic type.
 
+`getElementsOverRect(rect, filter)` and `getElementsInViewport(filter)` now treat a supplied empty
+filter as matching nothing, like `getElementsOverPoint`. Omit the filter to receive every component.
+
 Port connection events describe custom component ports, which may have no block or
 anchor. Check the optional `blockId`, `sourceBlockId`, `targetBlockId` and anchor IDs
 before invoking block/anchor APIs. `connection-create-drop.sourceAnchorId` is also
