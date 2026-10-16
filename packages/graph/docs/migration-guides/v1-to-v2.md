@@ -16,6 +16,7 @@ The temporary branch and release process is documented separately in
 - Use `TDevToolsLayerInput` for devtools input and resolved `TDevToolsLayerProps` for instance props; replace devtools resets through `undefined` with `resetProps(keys?)`.
 - Supply complete arrays/tuples when updating constants.
 - Use plain `TPoint` / `TRect` objects instead of geometry classes and their conversion methods.
+- Use TypeScript 6.0: v2 declarations are built and checked with it.
 
 ## React package boundary
 
@@ -79,6 +80,9 @@ Core no longer contains DevTools code or declarations. The shared text measureme
 `measureText(text, font, approximate?)` from `@gravity-ui/graph`; the ruler tick calculation belongs to DevTools.
 
 ## Styles and TypeScript
+
+v2 declarations are built and checked with TypeScript 6.0 (`strict: true`, `skipLibCheck: false`).
+Other TypeScript versions are not tested.
 
 Each package owns its stylesheet. Keep the explicit stylesheet imports shown
 above, including `@gravity-ui/graph-minimap/styles.css` for the minimap.

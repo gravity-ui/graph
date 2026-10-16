@@ -8,6 +8,9 @@ This package is part of the v2 monorepo and has not been published yet.
 Use matching builds of `@gravity-ui/graph` and `@gravity-ui/graph-react`, with React 18 and React DOM 18.
 The React package declares the core library and React as peer dependencies so the application owns their instances.
 
+Published declarations are built and checked with TypeScript 6.0 (`strict: true`, `skipLibCheck: false`).
+Other TypeScript versions are not tested.
+
 ## Usage
 
 Import graph data types, canvas layers and plugins from `@gravity-ui/graph`; import React components and hooks from
