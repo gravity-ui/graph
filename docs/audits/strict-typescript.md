@@ -50,10 +50,10 @@ now infers contextually), and one `string | undefined` argument in
 
 ## Remaining conventions
 
-These contracts are documented and tested but not proven by types:
+These contracts are documented conventions, not proven by types:
 
 - `settings.blockComponents` accepts block classes with additional required props. Class constructors
-  are compared bivariantly, so the registry cannot reject them; the built-in renderer supplies only
-  `id`, `initialIndex` and `font` (covered by `Blocks.test.ts`).
+  are compared bivariantly, so the registry cannot reject them. By convention of the built-in
+  `Blocks` renderer, they are constructed with `id`, `initialIndex` and `font` only.
 - `Component` state and context start as `{}` typed as the declared State/Context. Components must
   initialize required state in the constructor.
