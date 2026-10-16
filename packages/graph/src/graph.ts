@@ -410,8 +410,21 @@ export class Graph {
     }) as InstanceType<T>;
   }
 
+  /**
+   * Removes the layer from the graph and DOM without destroying it. The caller owns it afterwards:
+   * reattach it with `layer.attachLayer(root)` or release it with `removeLayer`.
+   */
   public detachLayer(layer: Layer) {
     this.layers.detachLayer(layer);
+  }
+
+  /**
+   * Permanently removes a layer created by this graph: detaches it and unmounts it with its
+   * children. The layer cannot be reused afterwards. Repeated calls and foreign layers are ignored.
+   * Built-in layers belong to the graph and must not be removed.
+   */
+  public removeLayer(layer: Layer): void {
+    this.layers.removeLayer(layer);
   }
 
   public setupGraph(config: TGraphConfig = {}) {

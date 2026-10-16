@@ -157,6 +157,11 @@ export class CoreComponent<
   private __unmount() {
     this.__unmountChildren();
     this.unmount();
+    if (!this.__comp.parent) {
+      // A root owns its scheduler; children share it and must leave it running.
+      this.__comp.context.scheduler.stop();
+      return;
+    }
     this.performRender();
   }
 
