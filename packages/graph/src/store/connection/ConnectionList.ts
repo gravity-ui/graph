@@ -164,12 +164,20 @@ export class ConnectionsStore {
     this.ports.deletePorts(ports);
   }
 
-  public updateConnections(connections: TConnection[]) {
-    this.$connectionsMap.value = connections.reduce((acc, connection) => {
-      const c = this.getOrCreateConnection(connection);
-      acc.set(c.id, c);
-      return acc;
-    }, this.$connectionsMap.value);
+  public updateConnections(connections: TConnection[]): void {
+    // Mutate sequentially so getOrCreateConnection sees earlier entries of this batch (duplicate ids),
+    // then publish a new Map reference: reassigning the same Map would not notify subscribers.
+    // Publish in finally so entries applied before a throwing entry are not left unpublished.
+    let changed = false;
+    try {
+      connections.forEach((connection) => {
+        const c = this.getOrCreateConnection(connection);
+        this.$connectionsMap.value.set(c.id, c);
+        changed = true;
+      });
+    } finally {
+      if (changed) this.notifyConnectionMapChanged();
+    }
   }
 
   public setConnections(connections: TConnection[]) {
