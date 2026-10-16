@@ -29,7 +29,7 @@ class SpecificBlockView extends CanvasBlock<TBlock<TBlockMeta>> {
 const SpecificBlockIs = "some-specific-view";
 
 async function generateByImage() {
-  return new Promise<TGraphConfig>((resolve) => {
+  return new Promise<TGraphConfig>((resolve, reject) => {
     const blocks: TBlock<TBlockMeta>[] = [];
     const config: TGraphConfig<TBlock<TBlockMeta>> = {
       configurationName: "power of 2",
@@ -60,7 +60,7 @@ async function generateByImage() {
       canvas.height = pic.height;
       const ctx = canvas.getContext("2d");
       if (!ctx) {
-        console.error("imageByBlocks: 2D canvas context is not available");
+        reject(new Error("imageByBlocks: 2D canvas context is not available"));
         return;
       }
 
@@ -104,7 +104,9 @@ const GraphApp = () => {
   }, []);
 
   useEffect(() => {
-    generateByImage().then((newConfig) => setConfig(newConfig));
+    generateByImage()
+      .then((newConfig) => setConfig(newConfig))
+      .catch((error: unknown) => console.error(error));
   }, []);
 
   if (!config) return null;
