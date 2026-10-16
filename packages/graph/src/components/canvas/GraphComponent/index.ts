@@ -88,6 +88,8 @@ export class GraphComponent<
 
   private mounted = false;
 
+  private unmounting = false;
+
   protected hidden = false;
 
   constructor(props: Props, parent: Component) {
@@ -313,11 +315,31 @@ export class GraphComponent<
     this.unsubscribe.push(signal.subscribe(cb));
   }
 
-  public onUnmounted(cb: () => void) {
-    return this.addEventListener("graph-component-unmounted", cb);
+  /**
+   * Registers a callback for this component's own unmount.
+   * Unmount events bubbling up from descendants do not trigger it.
+   *
+   * @param cb - Callback invoked once when this component is unmounted
+   * @returns Function that removes the callback
+   */
+  public onUnmounted(cb: () => void): () => void {
+    return this.addEventListener("graph-component-unmounted", (event) => {
+      if (!this.isOwnUnmountEvent(event)) return;
+      cb();
+    });
   }
 
-  protected unmount() {
+  private isOwnUnmountEvent(event: Event): boolean {
+    if (!(event instanceof CustomEvent)) return false;
+    const detail: unknown = event.detail;
+    return typeof detail === "object" && detail !== null && "component" in detail && detail.component === this;
+  }
+
+  protected unmount(): void {
+    // An unmount callback may unmount this component again. Skip GraphComponent's teardown and
+    // dispatch on re-entry; the outer call completes them.
+    if (this.unmounting) return;
+    this.unmounting = true;
     this.unsubscribe.forEach((cb) => cb());
     this.ports.forEach((port) => {
       this.context.graph.rootStore.connectionsList.releasePort(port.id, this);
@@ -330,6 +352,7 @@ export class GraphComponent<
     try {
       this.dispatchEvent(new CustomEvent("graph-component-unmounted", { detail: { component: this } }));
     } finally {
+      this.unmounting = false;
       super.unmount();
     }
   }
