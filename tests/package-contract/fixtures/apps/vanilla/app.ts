@@ -153,7 +153,7 @@ type CustomBlockData = TBlock<{ description: string }>;
 type CustomBlockProps = TBlockProps & { accent: string };
 // Compile-only custom block: verify declared Meta and props survive CanvasBlock generics. Never registered at runtime.
 // The registry accepts this class, but the built-in renderer never supplies `accent`.
-// Custom block data belongs in TBlock meta; see docs/system/graph-settings.md.
+// Custom block data belongs in TBlock meta; see packages/graph/docs/system/graph-settings.md.
 class CustomBlockTypeContract extends CanvasBlock<CustomBlockData, CustomBlockProps> {
   getDescription(): string | undefined {
     return this.state.meta?.description;

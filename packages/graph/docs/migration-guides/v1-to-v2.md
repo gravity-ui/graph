@@ -595,8 +595,8 @@ checks the props against that constructor. Raw `[CustomLayer, props]` tuples and
 generic `LayerConfig<T>` type are removed: a tuple in a heterogeneous array cannot be
 checked, so valid custom props were rejected while missing required props were accepted.
 `LayerConfig` is now an opaque entry type that only `layerConfig()` creates. Prop errors name the
-layer's input type, for example `LayerPublicInput<MiniMapLayerProps>`; the exported
-`LayerPublicInput<Props>` is the same input expressed through a props type.
+layer's input type, for example `LayerPublicInput<MiniMapLayerProps>` (an internal alias; name
+the input in code with `LayerPublicProps<typeof CustomLayer>`).
 
 ```ts
 // Before

@@ -73,12 +73,10 @@ type LayerConstructorInput<T extends GraphClassConstructor<Layer>> = [
     ? ConstructorParameters<T>[0]
     : NonNullable<ConstructorParameters<T>[0]>;
 
-/**
- * Public input of a layer with the given constructor props: graph-provided `graph`, `camera`
- * and `root` are removed, and `root` may be overridden optionally.
- * A named alias keeps compiler messages readable, e.g. `LayerPublicInput<MiniMapLayerProps>`.
- */
-export type LayerPublicInput<Props> = Omit<Props, "root" | "camera" | "graph"> & {
+// One member of the public input: graph-provided props removed, `root` optional.
+// Internal on purpose: it is not distributive, so unions must go through LayerPublicProps.
+// The named alias keeps compiler messages readable, e.g. `LayerPublicInput<MiniMapLayerProps>`.
+type LayerPublicInput<Props> = Omit<Props, "root" | "camera" | "graph"> & {
   root?: "root" extends keyof Props ? Props["root"] : LayerProps["root"];
 };
 
