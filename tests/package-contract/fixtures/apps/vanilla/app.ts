@@ -152,6 +152,8 @@ void checkNullableLookups;
 type CustomBlockData = TBlock<{ description: string }>;
 type CustomBlockProps = TBlockProps & { accent: string };
 // Compile-only custom block: verify declared Meta and props survive CanvasBlock generics. Never registered at runtime.
+// The registry accepts this class, but the built-in renderer never supplies `accent`.
+// Custom block data belongs in TBlock meta; see docs/system/graph-settings.md.
 class CustomBlockTypeContract extends CanvasBlock<CustomBlockData, CustomBlockProps> {
   getDescription(): string | undefined {
     return this.state.meta?.description;
@@ -165,6 +167,8 @@ class CustomBlockTypeContract extends CanvasBlock<CustomBlockData, CustomBlockPr
   }
 }
 void CustomBlockTypeContract;
+const customBlockRegistry: TGraphSettingsPatch = { blockComponents: { Custom: CustomBlockTypeContract } };
+void customBlockRegistry;
 
 type ComplexMeta = {
   payload: { status: "ready" | "busy"; rows: ReadonlyArray<{ key: string; values: readonly number[] }> };

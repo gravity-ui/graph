@@ -54,8 +54,8 @@ The Component class extends CoreComponent with additional lifecycle hooks:
 
 During component iteration, methods are called in this order:
 
-1. First Iteration Only:
-   - `willMount()`
+1. First iteration only: `willMount()` runs inside `willIterate`, after `checkData`. State queued
+   there is applied on the next iteration, so the first render sees the constructor state.
 
 2. Every Iteration:
    ```mermaid
@@ -106,21 +106,25 @@ Components use several boolean flags to control their behavior:
 ### Basic Component
 
 ```typescript
-import { Component } from "@gravity-ui/graph";
+import { Component, TComponentProps } from "@gravity-ui/graph";
 
-class MyComponent extends Component {
+class MyComponent extends Component<TComponentProps, { counter: number }> {
+  constructor(props: TComponentProps, parent?: Component) {
+    super(props, parent);
+    // Initial state must exist before the first render; setState is queued.
+    this.state = { counter: 0 };
+  }
+
   protected willMount() {
-    // Initialize, similar to constructor but guaranteed to run before first render
-    this.setState({ counter: 0 });
+    // Subscribe here. setState called here applies on the next iteration, after the first render.
   }
-  
+
   protected render() {
-    // Render logic
-    console.log('Rendering with counter:', this.state.counter);
+    console.log("Rendering with counter:", this.state.counter);
   }
-  
+
   public increment() {
-    this.setState({ counter: this.state.counter + 1 });
+    this.setState({ counter: this.getState().counter + 1 });
   }
 }
 ```
