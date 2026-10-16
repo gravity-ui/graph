@@ -19,6 +19,7 @@ import { scheduler } from "./lib/Scheduler";
 import { HitTest } from "./services/HitTest";
 import { KeyboardService } from "./services/KeyboardService";
 import { Layer, LayerPublicProps } from "./services/Layer";
+import type { LayerConfig } from "./services/LayerConfig";
 import { Layers, LayersRootSize } from "./services/LayersService";
 import type { CameraPoint } from "./services/camera/CameraPoint";
 import { CameraService, getInitCameraState } from "./services/camera/CameraService";
@@ -35,10 +36,6 @@ import { clearTextCache } from "./utils/renderers/text";
 import type { GraphClassConstructor } from "./utils/types/classes";
 import { Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
 
-export type LayerConfig<T extends GraphClassConstructor<Layer> = GraphClassConstructor<Layer>> = [
-  T,
-  LayerPublicProps<T>,
-];
 export type TGraphConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   configurationName?: string;
   blocks?: Block[];
@@ -232,7 +229,7 @@ export class Graph {
       if (target.every((item) => item instanceof GraphComponent)) {
         return this.api.zoomToElements(target, config);
       }
-      if (target.every((item) => typeof item === "string")) {
+      if (target.every((item) => typeof item === "string" || typeof item === "number")) {
         return this.api.zoomToBlocks(target, config);
       }
     }
@@ -290,7 +287,7 @@ export class Graph {
       maxX: rect.x + rect.width,
       maxY: rect.y + rect.height,
     });
-    if (filter?.length && items.length > 0) {
+    if (filter && items.length > 0) {
       return items.filter((item) => filter.some((Component) => item instanceof Component)) as InstanceType<T>[];
     }
     return items as InstanceType<T>[];
@@ -430,8 +427,8 @@ export class Graph {
     }
 
     if (config.layers) {
-      config.layers.forEach(([layer, params]) => {
-        this.addLayer(layer, params);
+      config.layers.forEach(({ layer, props }) => {
+        this.addLayer(layer, props);
       });
     }
   }

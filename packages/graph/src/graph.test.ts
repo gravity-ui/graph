@@ -184,3 +184,18 @@ describe("Resolved graph configuration", () => {
     expect(colorsChanged.mock.calls[0][0].detail.colors.anchor.background).toBeDefined();
   });
 });
+
+describe("Graph.zoomTo block ids", () => {
+  it("routes numeric and mixed block ids to zoomToBlocks", () => {
+    const graph = new Graph({}, document.createElement("div"));
+    const zoomToBlocks = jest.spyOn(graph.api, "zoomToBlocks").mockReturnValue(true);
+    const zoomToViewPort = jest.spyOn(graph.api, "zoomToViewPort").mockImplementation(() => undefined);
+
+    expect(graph.zoomTo([0])).toBe(true);
+    expect(graph.zoomTo([0, "b"])).toBe(true);
+    expect(zoomToBlocks).toHaveBeenNthCalledWith(1, [0], undefined);
+    expect(zoomToBlocks).toHaveBeenNthCalledWith(2, [0, "b"], undefined);
+    expect(zoomToViewPort).not.toHaveBeenCalled();
+    graph.unmount();
+  });
+});

@@ -19,7 +19,7 @@ alwaysApply: false
   const MyStoryComponent = (props) => {
       const { graph } = useGraph({
           // Initial graph configuration (e.g., layers, renderBlock)
-          layers: [[MyCustomLayer, { customProp: 'value' }]],
+          layers: [layerConfig(MyCustomLayer, { customProp: 'value' })],
           renderBlock: (g, block) => <GraphBlock graph={g} block={block}>...</GraphBlock>
       });
       // ... useEffect for setting data and starting

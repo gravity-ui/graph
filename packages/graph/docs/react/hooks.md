@@ -115,7 +115,7 @@ function MyGraph(): JSX.Element {
 | `name` | `string` | Configuration name for the graph |
 | `settings` | `TGraphSettingsPatch` | Graph behavior settings |
 | `viewConfiguration` | `{ colors?: TGraphColorsPatch; constants?: TGraphConstantsPatch }` | Visual configuration |
-| `layers` | `LayerConfig[]` | Initial layers to add to the graph |
+| `layers` | `LayerConfig[]` | Initial layers to add to the graph, created with `layerConfig(Layer, props)` |
 
 #### Returns
 

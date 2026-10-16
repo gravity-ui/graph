@@ -30,7 +30,7 @@ In v2, core no longer re-exports DevTools or includes its styles.
 ### 1. Via Graph Configuration
 
 ```typescript
-import { Graph } from "@gravity-ui/graph";
+import { Graph, layerConfig } from "@gravity-ui/graph";
 import { DevToolsLayer } from "@gravity-ui/graph-devtools";
 import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-devtools/styles.css";
@@ -39,12 +39,12 @@ const graph = new Graph({
   // ... other graph settings
   layers: [
     // Other layers...
-    [DevToolsLayer, {
+    layerConfig(DevToolsLayer, {
       showRuler: true, // Default
       showCrosshair: true, // Default
       // Add other custom options here if needed
-    }]
-  ]
+    }),
+  ],
 });
 ```
 

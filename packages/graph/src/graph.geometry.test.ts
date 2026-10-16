@@ -1,4 +1,6 @@
+import { Block } from "./components/canvas/blocks/Block";
 import { Graph } from "./graph";
+import { Component } from "./lib/Component";
 
 describe("Graph structural geometry", () => {
   let graph: Graph;
@@ -57,5 +59,16 @@ describe("Graph structural geometry", () => {
     graph.getElementOverPoint({ world: { x: -200, y: -400 }, canvas: { x: 0, y: 0 } });
 
     expect(testHitBox).toHaveBeenCalledWith({ minX: -201, minY: -401, maxX: -199, maxY: -399, x: 0, y: 0 });
+  });
+
+  it("treats a supplied empty filter as matching nothing", () => {
+    const component = new Component({});
+    jest.spyOn(graph.hitTest, "testBox").mockReturnValue([component]);
+    const rect = { x: 0, y: 0, width: 10, height: 10 };
+    const noTypes: Array<typeof Block> = [];
+
+    expect(graph.getElementsOverRect(rect)).toEqual([component]);
+    expect(graph.getElementsOverRect(rect, noTypes)).toEqual([]);
+    expect(graph.getElementsInViewport(noTypes)).toEqual([]);
   });
 });

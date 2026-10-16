@@ -1,7 +1,7 @@
 import React, { useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 
-import { Graph, GraphState, Layer, type LayerProps, type TBlock } from "@gravity-ui/graph";
+import { Graph, GraphState, Layer, layerConfig, type LayerProps, type TBlock } from "@gravity-ui/graph";
 import { GraphBlock, GraphCanvas, GraphLayer, useLayer, GraphPortal, useBlockState, useSyncBlockState, useBlockViewState, useBlockAnchorState, useGraph, useGraphEvent, useGraphEvents, type GraphEvent, type GraphEventDetail } from "@gravity-ui/graph-react";
 import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-react/styles.css";
@@ -21,6 +21,13 @@ const blocks = [
     anchors: [],
   },
 ] satisfies TBlock[];
+
+class ReactFixtureLabelLayer extends Layer<LayerProps & { label: string }> {}
+
+function useConfiguredLayerGraph() {
+  return useGraph({ layers: [layerConfig(ReactFixtureLabelLayer, { label: "ok" })] });
+}
+void useConfiguredLayerGraph;
 
 function ReactGraph() {
   const { graph, setEntities, start } = useGraph({ settings: {} });

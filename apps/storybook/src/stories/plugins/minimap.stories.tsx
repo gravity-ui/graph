@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
 
-import { ECanDrag, Graph, LayerConfig } from "@gravity-ui/graph";
+import { ECanDrag, Graph, layerConfig } from "@gravity-ui/graph";
 import { MiniMapLayer } from "@gravity-ui/graph-minimap";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
@@ -12,17 +12,14 @@ import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-minimap/styles.css";
 import "@gravity-ui/uikit/styles/styles.css";
 
-const layers: LayerConfig<typeof MiniMapLayer>[] = [
-  [
-    MiniMapLayer,
-    {
-      location: "topLeft",
-      cameraBorderColor: "var(--g-color-private-yellow-550-solid)",
-      cameraBorderSize: 2,
-      width: 200,
-      height: 200,
-    },
-  ],
+const layers = [
+  layerConfig(MiniMapLayer, {
+    location: "topLeft",
+    cameraBorderColor: "var(--g-color-private-yellow-550-solid)",
+    cameraBorderSize: 2,
+    width: 200,
+    height: 200,
+  }),
 ];
 
 const GraphApp = () => {

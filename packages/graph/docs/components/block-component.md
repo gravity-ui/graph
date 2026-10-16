@@ -350,6 +350,10 @@ const graphConfig: TGraphConfig = {
 const graph = new Graph(graphConfig, rootElement);
 ```
 
+The built-in renderer constructs registered block components with `id`, `initialIndex` and `font`
+only. The registry type cannot reject classes that declare additional required props, so put custom
+data into the block's `meta`, or give extra props defaults in the constructor.
+
 ## Complete Example of a Custom Block
 
 Here's a complete example of creating and using a custom block:
