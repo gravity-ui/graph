@@ -318,7 +318,6 @@ export class GraphComponent<
   }
 
   protected unmount() {
-    super.unmount();
     this.unsubscribe.forEach((cb) => cb());
     this.ports.forEach((port) => {
       this.context.graph.rootStore.connectionsList.releasePort(port.id, this);
@@ -326,7 +325,13 @@ export class GraphComponent<
     this.ports.clear();
     this.destroyHitBox();
     this.mounted = false;
-    this.dispatchEvent(new CustomEvent("graph-component-unmounted", { detail: { component: this } }));
+    // Dispatch before super.unmount(): EventedComponent.unmount() drops this component's listeners,
+    // so dispatching afterwards would never reach onUnmounted() callbacks.
+    try {
+      this.dispatchEvent(new CustomEvent("graph-component-unmounted", { detail: { component: this } }));
+    } finally {
+      super.unmount();
+    }
   }
 
   public setHitBox(minX: number, minY: number, maxX: number, maxY: number, force?: boolean) {
