@@ -15,7 +15,7 @@
     "types": [
       "node"
     ],
-    "strict": false,
+    "strict": true,
     "noUncheckedSideEffectImports": true
   },
   "include": [

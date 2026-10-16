@@ -1,10 +1,10 @@
-import { CanvasBlock, TBlock, TGraphConfig } from "@gravity-ui/graph";
+import { CanvasBlock, TBlock, TConnection, TGraphConfig } from "@gravity-ui/graph";
 
 import { random } from "../../storyUtils";
 
 import { storiesSettings } from "./definitions";
 
-export function createBlock(x: number, y: number, index): TBlock {
+export function createBlock(x: number, y: number, index: number | string): TBlock {
   const blockId = `block_${index}`;
   return {
     id: blockId,
@@ -19,9 +19,12 @@ export function createBlock(x: number, y: number, index): TBlock {
   };
 }
 
-function getRandomArbitrary(min, max) {
+function getRandomArbitrary(min: number, max: number): number {
   return (Math.random() * (max - min) + min) | 0;
 }
+
+/** Generated config: `blocks` and `connections` are always present. */
+export type TGeneratedGraphConfig = TGraphConfig & { blocks: TBlock[]; connections: TConnection[] };
 
 type Props = {
   layersCount: number;
@@ -37,11 +40,13 @@ export function generatePrettyBlocks({
   dashedLine,
   overrideSettings = {},
   startIndex = 0,
-}: Props) {
-  const config: TGraphConfig = {
+}: Props): TGeneratedGraphConfig {
+  const blocks: TBlock[] = [];
+  const connections: TConnection[] = [];
+  const config: TGeneratedGraphConfig = {
     configurationName: "power of 2",
-    blocks: [],
-    connections: [],
+    blocks,
+    connections,
     rect: {
       x: -500,
       y: -2000,
@@ -74,22 +79,19 @@ export function generatePrettyBlocks({
 
       const block = createBlock(layerX, y, startIndex + ++index);
 
-      config.blocks.push(block);
+      blocks.push(block);
       currentLayerBlocks.push(block);
     }
     if (i > 1) {
       for (let c = 0; c <= connectionsPerLayer; c++) {
         const indexSource = getRandomArbitrary(
-          config.blocks.length - currentLayerBlocks.length - prevLayerBlocks.length - 1,
-          config.blocks.length - currentLayerBlocks.length - 1
+          blocks.length - currentLayerBlocks.length - prevLayerBlocks.length - 1,
+          blocks.length - currentLayerBlocks.length - 1
         );
-        const indexTarget = getRandomArbitrary(
-          config.blocks.length - currentLayerBlocks.length - 1,
-          config.blocks.length - 1
-        );
+        const indexTarget = getRandomArbitrary(blocks.length - currentLayerBlocks.length - 1, blocks.length - 1);
         const sourceBlockId = `block_${startIndex + indexSource}`;
         const targetBlockId = `block_${startIndex + indexTarget}`;
-        config.connections.push({
+        connections.push({
           id: `${sourceBlockId}/${targetBlockId}`,
           sourceBlockId: sourceBlockId,
           targetBlockId: targetBlockId,
@@ -101,8 +103,8 @@ export function generatePrettyBlocks({
     }
   }
 
-  console.log("Blocks count: ", config.blocks.length);
-  console.log("Connections count: ", config.connections.length);
+  console.log("Blocks count: ", blocks.length);
+  console.log("Connections count: ", connections.length);
 
   return config;
 }

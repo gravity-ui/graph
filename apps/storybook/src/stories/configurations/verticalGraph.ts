@@ -1,4 +1,4 @@
-import { CanvasBlock as Block, TPoint } from "@gravity-ui/graph";
+import { CanvasBlock as Block, TGraphConfig, TPoint } from "@gravity-ui/graph";
 
 import { storiesSettings } from "./definitions";
 
@@ -11,7 +11,7 @@ class VerticalBlock extends Block {
   }
 }
 
-export const verticalGraphConfig = {
+export const verticalGraphConfig: TGraphConfig = {
   configurationName: "simple vertical graph",
   blocks: [
     {

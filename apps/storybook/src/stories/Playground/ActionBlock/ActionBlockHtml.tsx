@@ -12,7 +12,7 @@ import "./ActionBlock.css";
 export function ActionBlockHtml({ graph, block }: { graph: Graph; block: TGravityActionBlock }) {
   return (
     <GraphBlock graph={graph} block={block} className="action-block-wrapper">
-      {block.anchors.map((anchor) => {
+      {block.anchors?.map((anchor) => {
         return (
           <GraphBlockAnchor
             className="action-block-achor"
@@ -28,7 +28,7 @@ export function ActionBlockHtml({ graph, block }: { graph: Graph; block: TGravit
           {block.name}
         </Text>
         <Text as="div" ellipsis variant="caption-1" color="secondary">
-          {block.meta.description}
+          {block.meta?.description}
         </Text>
       </Flex>
       <Flex>

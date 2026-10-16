@@ -9,15 +9,16 @@ import { BlockStory } from "./Block";
 
 export type TGraphComponentProps = {
   config: TGraphConfig;
-  graphRef?: React.MutableRefObject<Graph>;
+  graphRef?: React.MutableRefObject<Graph | undefined>;
   colors?: TGraphColorsPatch;
   constants?: NonNullable<HookGraphParams["viewConfiguration"]>["constants"];
-  renderBlock?: <T extends TBlock>(graphObject: Graph, block: T) => React.JSX.Element;
+  /** Return `null` to fall back to the default `BlockStory`. */
+  renderBlock?: <T extends TBlock>(graphObject: Graph, block: T) => React.JSX.Element | null;
 };
 
 const action =
   (name: string) =>
-  (...args) => {
+  (...args: unknown[]) => {
     console.log(name, "[", ...args, "]");
   };
 

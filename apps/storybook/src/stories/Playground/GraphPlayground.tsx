@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { ConnectionLayer, ECanDrag, Graph, GraphState, TBlock, TGraphConfig } from "@gravity-ui/graph";
+import { ConnectionLayer, ECanDrag, Graph, GraphState, TBlock, TGraphConfig, TPoint } from "@gravity-ui/graph";
 import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph-react";
 import {
   Flex,
@@ -25,6 +25,7 @@ import {
   GravityActionBlockIS,
   GravityTextBlockIS,
   TGravityActionBlock,
+  TGravityActionBlockWithAnchors,
   TGravityTextBlock,
   createActionBlock,
   createTextBlock,
@@ -119,7 +120,7 @@ const pointIcon = {
 };
 
 // Function for drawing connection line
-const drawLine = (start, end) => {
+const drawLine = (start: TPoint, end: TPoint) => {
   const path = new Path2D();
   path.moveTo(start.x, start.y);
   path.lineTo(end.x, end.y);
@@ -149,7 +150,7 @@ export function GraphPLayground() {
 
   const updateVisibleConfig = useFn(() => {
     const config = graph.rootStore.getAsConfig();
-    editorRef?.current.setContent({
+    editorRef.current?.setContent({
       blocks: config.blocks || [],
       connections: config.connections || [],
     });
@@ -170,15 +171,13 @@ export function GraphPLayground() {
   });
 
   useGraphEvent(graph, "blocks-selection-change", ({ changes }) => {
-    editorRef?.current.updateBlocks([
-      ...changes.add.map((id) => ({
-        ...graph.rootStore.blocksList.getBlock(id),
-        selected: true,
-      })),
-      ...changes.removed.map((id) => ({
-        ...graph.rootStore.blocksList.getBlock(id),
-        selected: false,
-      })),
+    const withSelection = (id: TBlock["id"], selected: boolean): TBlock[] => {
+      const block = graph.rootStore.blocksList.getBlock(id);
+      return block ? [{ ...block, selected }] : [];
+    };
+    editorRef.current?.updateBlocks([
+      ...changes.add.flatMap((id) => withSelection(id, true)),
+      ...changes.removed.flatMap((id) => withSelection(id, false)),
     ]);
   });
 
@@ -215,7 +214,7 @@ export function GraphPLayground() {
     if (targetBlockId) {
       return;
     }
-    let block: TBlock;
+    let block: TGravityActionBlockWithAnchors;
     const pullSourceAnchor =
       sourceAnchorId === undefined
         ? undefined
@@ -242,7 +241,7 @@ export function GraphPLayground() {
     }
     graph.zoomTo([block.id], { transition: 250 });
     updateVisibleConfig();
-    editorRef?.current.scrollTo(block.id);
+    editorRef.current?.scrollTo(block.id);
   });
 
   useLayoutEffect(() => {
@@ -266,7 +265,7 @@ export function GraphPLayground() {
     graph.api.addBlock(block);
     graph.zoomTo([block.id], { transition: 250 });
     updateVisibleConfig();
-    editorRef?.current.scrollTo(block.id);
+    editorRef.current?.scrollTo(block.id);
   });
 
   const renderBlockFn = useFn((graph: Graph, block: TBlock) => {
@@ -286,7 +285,7 @@ export function GraphPLayground() {
 
   useGraphEvent(graph, "blocks-selection-change", ({ list }) => {
     if (list.length === 1) {
-      editorRef?.current.scrollTo(list[0]);
+      editorRef.current?.scrollTo(list[0]);
     }
   });
 
@@ -301,7 +300,7 @@ export function GraphPLayground() {
     return () => document.body.removeEventListener("keydown", fn);
   });
 
-  const updateGraphSize = useFn<Parameters<SegmentedRadioGroupProps["onUpdate"]>, void>((value) => {
+  const updateGraphSize = useFn<Parameters<NonNullable<SegmentedRadioGroupProps["onUpdate"]>>, void>((value) => {
     let config: TGraphConfig<TGravityActionBlock | TGravityTextBlock>;
     setGraphSize(value);
 
@@ -324,6 +323,9 @@ export function GraphPLayground() {
         });
         config = generatePlaygroundActionBlocks(50, 150);
         break;
+      }
+      default: {
+        return;
       }
     }
     setEntities(config);

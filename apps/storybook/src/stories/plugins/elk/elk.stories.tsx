@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo } from "react";
 
 import type { TMultipointConnection } from "@gravity-ui/graph";
-import { Graph, GraphState, MultipointConnection, TBlock, TConnection, TGraphConfig } from "@gravity-ui/graph";
+import { Graph, GraphState, MultipointConnection, TBlock, TConnection } from "@gravity-ui/graph";
 import { GraphCanvas, useElk, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import { Description, Meta as StorybookMeta, Title } from "@storybook/addon-docs/blocks";
@@ -9,6 +9,7 @@ import type { Meta, StoryFn } from "@storybook/react-webpack5";
 import ELK, { ElkNode } from "elkjs";
 
 import { useFn } from "../../../useFn";
+import { TGeneratedGraphConfig } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 
 import { getExampleConfig } from "./getExampleConfig";
@@ -29,8 +30,8 @@ export enum Algorithm {
 import "@gravity-ui/uikit/styles/styles.css";
 
 interface GraphAppProps {
-  elkConfig?: ElkNode;
-  graphConfig?: TGraphConfig;
+  elkConfig: ElkNode;
+  graphConfig: TGeneratedGraphConfig;
 }
 
 const GraphApp = ({ elkConfig, graphConfig }: GraphAppProps) => {
@@ -50,7 +51,7 @@ const GraphApp = ({ elkConfig, graphConfig }: GraphAppProps) => {
     const connections = graphConfig.connections.reduce<
       (TConnection & Pick<TMultipointConnection, "points" | "labels">)[]
     >((acc, connection) => {
-      if (connection.id in result.edges) {
+      if (connection.id !== undefined && connection.id in result.edges) {
         acc.push({
           ...connection,
           ...result.edges[connection.id],

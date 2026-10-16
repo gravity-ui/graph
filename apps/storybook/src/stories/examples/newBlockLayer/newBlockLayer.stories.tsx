@@ -20,7 +20,7 @@ const GraphApp = () => {
     zoomTo("center", { padding: 300 });
   }, [graph]);
 
-  const newBlockLayerRef = useRef<NewBlockLayer>(null);
+  const newBlockLayerRef = useRef<NewBlockLayer | null>(null);
 
   useLayoutEffect(() => {
     newBlockLayerRef.current = addLayer(NewBlockLayer, {});
@@ -33,10 +33,10 @@ const GraphApp = () => {
 
   const switchNewBlockEnabled = useFn((addEnabled: boolean) => {
     if (addEnabled) {
-      newBlockLayerRef.current.enable();
+      newBlockLayerRef.current?.enable();
       setEnabled(true);
     } else {
-      newBlockLayerRef.current.disable();
+      newBlockLayerRef.current?.disable();
       setEnabled(false);
     }
   });

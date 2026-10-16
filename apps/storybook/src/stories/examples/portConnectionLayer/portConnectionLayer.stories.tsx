@@ -9,6 +9,7 @@ import {
   IPortConnectionMeta,
   PortConnectionLayer,
   TBlock,
+  TPoint,
   createAnchorPortId,
 } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
@@ -239,7 +240,7 @@ const GraphApp = () => {
     zoomTo("center", { padding: 300 });
   }, [graph]);
 
-  const layerRef = useRef<PortConnectionLayer>(null);
+  const layerRef = useRef<PortConnectionLayer | null>(null);
 
   useLayoutEffect(() => {
     // Create icon for creating connections
@@ -264,7 +265,7 @@ const GraphApp = () => {
     };
 
     // Function for drawing connection line
-    const drawLine = (start, end) => {
+    const drawLine = (start: TPoint, end: TPoint) => {
       const path = new Path2D();
       path.moveTo(start.x, start.y);
       path.lineTo(end.x, end.y);

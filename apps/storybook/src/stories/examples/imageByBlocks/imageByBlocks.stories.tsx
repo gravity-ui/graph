@@ -17,7 +17,11 @@ type TBlockMeta = {
 
 class SpecificBlockView extends CanvasBlock<TBlock<TBlockMeta>> {
   public override renderSchematicView() {
-    this.context.ctx.fillStyle = this.state.meta.color;
+    const meta = this.state.meta;
+    if (!meta) {
+      return;
+    }
+    this.context.ctx.fillStyle = meta.color;
     this.context.ctx.fillRect(this.state.x, this.state.y, this.state.width, this.state.height);
   }
 }
@@ -26,9 +30,10 @@ const SpecificBlockIs = "some-specific-view";
 
 async function generateByImage() {
   return new Promise<TGraphConfig>((resolve) => {
+    const blocks: TBlock<TBlockMeta>[] = [];
     const config: TGraphConfig<TBlock<TBlockMeta>> = {
       configurationName: "power of 2",
-      blocks: [],
+      blocks,
       connections: [],
       rect: {
         x: -500,
@@ -54,6 +59,10 @@ async function generateByImage() {
       canvas.width = pic.width;
       canvas.height = pic.height;
       const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        console.error("imageByBlocks: 2D canvas context is not available");
+        return;
+      }
 
       ctx.drawImage(pic, 0, 0);
 
@@ -63,7 +72,7 @@ async function generateByImage() {
 
           if (!colorData[0] && !colorData[1] && !colorData[2]) continue;
 
-          config.blocks.push({
+          blocks.push({
             id: `block_${x}-${y}`,
             is: SpecificBlockIs,
             x: x * 10,
@@ -79,7 +88,7 @@ async function generateByImage() {
           });
         }
       }
-      console.log("Blocks count: ", config.blocks.length);
+      console.log("Blocks count: ", blocks.length);
       resolve(config);
     };
   });
