@@ -1,4 +1,4 @@
-import React, { StrictMode, Suspense } from "react";
+import React, { StrictMode, Suspense, useEffect } from "react";
 
 import { Graph } from "@gravity-ui/graph";
 import { act, render, renderHook } from "@testing-library/react";
@@ -43,6 +43,27 @@ function ExternalGraphApp({ graph }: { graph: Graph }): React.ReactElement {
 afterEach(() => {
   jest.restoreAllMocks();
 });
+
+/** Records start/stop calls on the global scheduler shared by every graph. */
+function recordSchedulerTransitions(): string[] {
+  const probe = new Graph({});
+  const { scheduler } = probe;
+  probe.unmount();
+  const transitions: string[] = [];
+  jest.spyOn(scheduler, "start").mockImplementation((): void => {
+    transitions.push("start");
+  });
+  jest.spyOn(scheduler, "stop").mockImplementation((): void => {
+    transitions.push("stop");
+  });
+  return transitions;
+}
+
+function StartingApp(): React.ReactElement {
+  const { graph, start } = useGraph({});
+  useEffect(() => start(), [graph, start]);
+  return <GraphCanvas graph={graph} renderBlock={() => <div />} />;
+}
 
 /** Owned-graph disposal is deferred by one macrotask; let it run inside act. */
 async function flushDeferredDisposal(): Promise<void> {
@@ -111,13 +132,48 @@ test("unmounting the component disposes the owned graph", async () => {
     throw new Error("useGraph did not return a graph");
   }
   expect(graph.layers.getLayers()).toHaveLength(5);
+  await flushDeferredDisposal();
   const unmountSpy = jest.spyOn(graph, "unmount");
 
   unmount();
-  await flushDeferredDisposal();
 
+  // Disposal is synchronous once the mount pass is over.
   expect(unmountSpy).toHaveBeenCalledTimes(1);
   expect(graph.layers.getLayers()).toHaveLength(0);
+});
+
+test("an error thrown while disposing an owned graph reaches the error boundary", async () => {
+  class Boundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
+    public state = { failed: false };
+
+    public static getDerivedStateFromError(): { failed: boolean } {
+      return { failed: true };
+    }
+
+    public render(): React.ReactNode {
+      return this.state.failed ? <span>failed</span> : this.props.children;
+    }
+  }
+  let graph: Graph | undefined;
+  const renderApp = (show: boolean): React.ReactElement => (
+    <Boundary>{show ? <OwnedGraphApp onGraph={(g) => (graph = g)} /> : <span>hidden</span>}</Boundary>
+  );
+  const { findByText, rerender, unmount } = render(renderApp(true));
+  await flushDeferredDisposal();
+  if (!graph) {
+    throw new Error("useGraph did not return a graph");
+  }
+  const unmountSpy = jest.spyOn(graph, "unmount").mockImplementation((): void => {
+    throw new Error("dispose failed");
+  });
+  jest.spyOn(console, "error").mockImplementation((): void => undefined);
+
+  rerender(renderApp(false));
+
+  expect(await findByText("failed")).toBeInstanceOf(HTMLSpanElement);
+  unmount();
+  unmountSpy.mockRestore();
+  graph.unmount();
 });
 
 test("unmounting under StrictMode disposes the committed owned graph", async () => {
@@ -152,6 +208,226 @@ test("remounting with a new key disposes the old owned graph and keeps the new o
   expect(graphs.get("b")?.layers.getLayers()).toHaveLength(5);
   unmount();
   await flushDeferredDisposal();
+});
+
+test("disposing a replaced owned graph does not stop the scheduler the new graph started", async () => {
+  const renderApp = (key: string): React.ReactElement => (
+    <StrictMode>
+      <StartingApp key={key} />
+    </StrictMode>
+  );
+  const { rerender, unmount } = render(renderApp("a"));
+  await flushDeferredDisposal();
+  const transitions = recordSchedulerTransitions();
+
+  rerender(renderApp("b"));
+  await flushDeferredDisposal();
+
+  // The shared global scheduler must end up running for the new graph.
+  expect(transitions[transitions.length - 1]).toBe("start");
+  unmount();
+  await flushDeferredDisposal();
+});
+
+test("a replacement mounted in the same pass as the first graph keeps the scheduler running", async () => {
+  // A layout-effect state update re-renders synchronously, in the same pass as the first mount.
+  function RemountingApp(): React.ReactElement {
+    const [key, setKey] = React.useState("a");
+    React.useLayoutEffect(() => {
+      if (key === "a") {
+        setKey("b");
+      }
+    }, [key]);
+    return <StartingApp key={key} />;
+  }
+  const transitions = recordSchedulerTransitions();
+
+  const { unmount } = render(<RemountingApp />);
+  await flushDeferredDisposal();
+
+  expect(transitions[transitions.length - 1]).toBe("start");
+  unmount();
+});
+
+test("a replacement started in the layout phase keeps the scheduler running", async () => {
+  // Attaches and starts in useLayoutEffect, before the old graph's passive cleanup disposes it.
+  function LayoutStartingApp(): React.ReactElement {
+    const { graph } = useGraph({});
+    const rootRef = React.useRef<HTMLDivElement>(null);
+    React.useLayoutEffect(() => {
+      if (rootRef.current) {
+        graph.attach(rootRef.current);
+        graph.start();
+      }
+    }, [graph]);
+    return <div ref={rootRef} />;
+  }
+  const { rerender, unmount } = render(<LayoutStartingApp key="a" />);
+  await flushDeferredDisposal();
+  const transitions = recordSchedulerTransitions();
+
+  rerender(<LayoutStartingApp key="b" />);
+  await flushDeferredDisposal();
+
+  expect(transitions[transitions.length - 1]).toBe("start");
+  unmount();
+});
+
+test.each([
+  ["without StrictMode", false],
+  ["with StrictMode", true],
+])(
+  // The StrictMode case also passes on the original hook; it guards against regressions.
+  "the README pattern keeps the scheduler running after a same-pass replacement (%s)",
+  async (_, strict) => {
+    function ReadmeApp(): React.ReactElement {
+      const { graph, setEntities, start } = useGraph({});
+      React.useLayoutEffect(() => {
+        setEntities({ blocks: [] });
+        start();
+      }, [graph, setEntities, start]);
+      return <GraphCanvas graph={graph} renderBlock={() => <div />} />;
+    }
+    function RemountingApp(): React.ReactElement {
+      const [key, setKey] = React.useState("a");
+      React.useLayoutEffect(() => {
+        if (key === "a") {
+          setKey("b");
+        }
+      }, [key]);
+      return <ReadmeApp key={key} />;
+    }
+    const transitions = recordSchedulerTransitions();
+
+    const { unmount } = render(
+      strict ? (
+        <StrictMode>
+          <RemountingApp />
+        </StrictMode>
+      ) : (
+        <RemountingApp />
+      )
+    );
+    await flushDeferredDisposal();
+
+    expect(transitions[transitions.length - 1]).toBe("start");
+    unmount();
+  }
+);
+
+describe("a running external graph is not frozen by a deferred owned-graph disposal", () => {
+  function ExternalStarted({ graph }: { graph: Graph }): React.ReactElement {
+    useGraph({ graph });
+    const rootRef = React.useRef<HTMLDivElement>(null);
+    React.useLayoutEffect(() => {
+      if (rootRef.current) {
+        graph.attach(rootRef.current);
+        graph.start();
+      }
+    }, [graph]);
+    return <div ref={rootRef} />;
+  }
+  function Owned(): null {
+    useGraph({});
+    return null;
+  }
+  function useSamePassKey(): string {
+    const [key, setKey] = React.useState("a");
+    React.useLayoutEffect(() => {
+      if (key === "a") {
+        setKey("b");
+      }
+    }, [key]);
+    return key;
+  }
+
+  test("when the next owned graph mounts in the same pass", async () => {
+    const external = new Graph({});
+    function App(): React.ReactElement {
+      const key = useSamePassKey();
+      return (
+        <>
+          {key === "b" && <ExternalStarted graph={external} />}
+          <Owned key={key} />
+        </>
+      );
+    }
+    const transitions = recordSchedulerTransitions();
+
+    const { unmount } = render(<App />);
+    await flushDeferredDisposal();
+
+    expect(transitions[transitions.length - 1]).toBe("start");
+    unmount();
+    external.unmount();
+  });
+
+  test("while another unmounting hook still held the same external graph", async () => {
+    const external = new Graph({});
+    function Holder({ graph }: { graph: Graph }): null {
+      useGraph({ graph });
+      return null;
+    }
+    function App(): React.ReactElement {
+      const key = useSamePassKey();
+      return (
+        <>
+          <ExternalStarted graph={external} />
+          {key === "a" && <Holder graph={external} />}
+          {key === "a" && <Owned />}
+        </>
+      );
+    }
+    const transitions = recordSchedulerTransitions();
+
+    const { unmount } = render(<App />);
+    await flushDeferredDisposal();
+
+    expect(transitions[transitions.length - 1]).toBe("start");
+    unmount();
+    external.unmount();
+  });
+
+  test("when the disposal runs on its timer", async () => {
+    const external = new Graph({});
+    function App(): React.ReactElement {
+      const key = useSamePassKey();
+      return key === "a" ? <Owned /> : <ExternalStarted graph={external} />;
+    }
+    const transitions = recordSchedulerTransitions();
+
+    const { unmount } = render(<App />);
+    await flushDeferredDisposal();
+
+    expect(transitions[transitions.length - 1]).toBe("start");
+    unmount();
+    external.unmount();
+  });
+});
+
+test("an owned graph passed back as config.graph is not disposed", async () => {
+  let created: Graph | undefined;
+  function PassBackApp({ passBack }: { passBack: boolean }): React.ReactElement {
+    const { graph } = useGraph({ graph: passBack ? created : undefined });
+    created = created ?? graph;
+    return <GraphCanvas graph={graph} renderBlock={() => <div />} />;
+  }
+  const { rerender, unmount } = render(<PassBackApp passBack={false} />);
+  await flushDeferredDisposal();
+  if (!created) {
+    throw new Error("useGraph did not return a graph");
+  }
+  const graph = created;
+  const unmountSpy = jest.spyOn(graph, "unmount");
+
+  rerender(<PassBackApp passBack />);
+  await flushDeferredDisposal();
+  expect(unmountSpy).not.toHaveBeenCalled();
+  expect(graph.layers.getLayers()).toHaveLength(5);
+
+  unmount();
+  await flushDeferredDisposal();
+  expect(unmountSpy).toHaveBeenCalledTimes(1);
 });
 
 test("switching from an owned graph to an external graph disposes only the owned one", async () => {
