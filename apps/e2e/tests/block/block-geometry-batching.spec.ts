@@ -171,7 +171,7 @@ test.describe("block-change + coalesced blocks-geometry-change", () => {
     });
 
     await graphPO.page.evaluate((pad: number) => {
-      const { BlockGroups, Group } = (window as any).GraphModule;
+      const { BlockGroups, Group } = window.GraphModule;
       const graph = window.graph;
 
       const GroupingLayer = BlockGroups.withBlockGrouping({

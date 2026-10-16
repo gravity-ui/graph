@@ -1,5 +1,7 @@
+import type { TCollapsibleGroup } from "@gravity-ui/graph";
 import { test, expect } from "@playwright/test";
 import { GraphPageObject } from "../../page-objects/GraphPageObject";
+import { requireValue } from "../../page-objects/requireValue";
 
 /**
  * Tests for the "collapsed group drop prevention" behavior:
@@ -52,7 +54,7 @@ test.describe("CollapsibleGroup — collapsed drop prevention and hitbox", () =>
 
     await graphPO.page.evaluate(
       ({ expandedRect, collapsedRect }) => {
-        const { CollapsibleGroup, BlockGroups } = (window as any).GraphModule;
+        const { CollapsibleGroup, BlockGroups } = window.GraphModule;
         const graph = window.graph;
 
         graph.addLayer(BlockGroups, {});
@@ -81,11 +83,17 @@ test.describe("CollapsibleGroup — collapsed drop prevention and hitbox", () =>
   // ---------------------------------------------------------------------------
 
   test("group-collapsed stores collapsedRect immediately on mount (fix 1.1)", async () => {
-    const state = await graphPO.page.evaluate(() =>
-      window.graph.rootStore.groupsList.getGroupState("group-collapsed")?.$state.value
+    const state = requireValue(
+      await graphPO.page.evaluate(() => {
+        // "group-collapsed" is created with `component: CollapsibleGroup` in beforeEach.
+        const groups = window.graph.rootStore.groupsList;
+        return groups.getGroupState<TCollapsibleGroup>("group-collapsed")?.$state.value;
+      }),
+      "group-collapsed state"
     );
-    expect((state as any).collapsedRect).toBeDefined();
-    expect((state as any).collapsedRect.height).toBe(48); // DEFAULT_COLLAPSED_HEIGHT
+    expect(state.collapsedRect).toBeDefined();
+    const collapsedRect = requireValue(state.collapsedRect, "group-collapsed collapsedRect");
+    expect(collapsedRect.height).toBe(48); // DEFAULT_COLLAPSED_HEIGHT
   });
 
   // ---------------------------------------------------------------------------
@@ -125,7 +133,7 @@ test.describe("CollapsibleGroup — collapsed drop prevention and hitbox", () =>
 
   test("after expand, click at group left-padding area (below former header) hits the group", async () => {
     await graphPO.page.evaluate(() => {
-      const { CollapsibleGroup } = (window as any).GraphModule;
+      const { CollapsibleGroup } = window.GraphModule;
       for (const layer of window.graph.layers.getLayers()) {
         const g = (layer as any).$?.["group-collapsed"];
         if (g instanceof CollapsibleGroup) { g.expand(); break; }
