@@ -134,13 +134,23 @@ test.describe("Port Delegation", () => {
       if (!portC) throw new Error("Expected output port of block-c");
       const conn = window.graph.connections.getConnectionState("conn-ab");
       if (!conn) throw new Error("Expected connection conn-ab");
+      const blockC = window.graph.blocks.getBlockState("block-c");
+      if (!blockC) throw new Error("Expected block-c");
       const geometry = conn.$geometry.value;
+      const blockGeometry = blockC.$geometry.value;
 
       return {
         portCPoint: portC.$point.value,
         connSource: geometry ? geometry[0] : null,
+        blockC: { x: blockGeometry.x, y: blockGeometry.y, width: blockGeometry.width, height: blockGeometry.height },
       };
     });
+
+    // block-c really moved, and its output port follows it (right edge, vertical center)
+    expect(result.blockC.x).toBe(300);
+    expect(result.blockC.y).toBe(600);
+    expect(result.portCPoint.x).toBe(result.blockC.x + result.blockC.width);
+    expect(result.portCPoint.y).toBe(result.blockC.y + Math.floor(result.blockC.height / 2));
 
     expect(result.connSource).not.toBeNull();
     const connSource = requireValue(result.connSource, "conn-ab source point");
