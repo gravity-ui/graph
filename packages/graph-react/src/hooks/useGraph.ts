@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo } from "react";
+import { useEffect, useLayoutEffect, useMemo } from "react";
 
 import type {
   GraphClassConstructor,
@@ -37,28 +37,57 @@ export type UseGraphResult = {
   zoomTo: Graph["zoomTo"];
 };
 
+/**
+ * Owned graphs whose disposal is scheduled but has not run yet.
+ * Keyed by graph so that re-running the effect for one graph never cancels another graph's disposal.
+ */
+const pendingDisposals = new WeakMap<Graph, ReturnType<typeof setTimeout>>();
+
 export function useGraph(config: HookGraphParams): UseGraphResult {
-  const graph = useMemo(() => {
+  const { graph, owned } = useMemo(() => {
     if (config.graph) {
-      return config.graph;
+      return { graph: config.graph, owned: false };
     }
-    return new Graph({
-      configurationName: config.name || "",
-      blocks: [],
-      connections: [],
-      settings: {},
-      layers: config.layers, // layers init only once
-    });
+    return {
+      graph: new Graph({
+        configurationName: config.name || "",
+        blocks: [],
+        connections: [],
+        settings: {},
+        layers: config.layers, // layers init only once
+      }),
+      owned: true,
+    };
   }, [config.graph]);
 
-  // Cleanup graph on unmount to prevent memory leaks in strict mode
-  useLayoutEffect(() => {
+  // Dispose the owned graph on unmount. Disposal is deferred by one macrotask because StrictMode runs
+  // effect cleanup and setup back to back for the same graph: the setup cancels the pending disposal,
+  // so the graph returned by this hook stays alive. A real unmount or a switch to another graph never
+  // re-runs setup for this graph, so the timer fires and unmounts it. Fast Refresh recomputes useMemo,
+  // so it creates a new graph and the old one is disposed.
+  // A passive effect is used on purpose: in React 18 a Suspense boundary that hides already shown
+  // content runs layout-effect cleanups but keeps passive effects, and the graph must survive that.
+  // (React 19 <Activity> also disconnects passive effects; the peer range is React 18 only.)
+  // External graphs (`config.graph`) are owned by the caller and are never disposed here.
+  // Known limitation: a Graph built by a render that never commits never reaches this effect and is
+  // not disposed. In development React 18 StrictMode renders twice on mount, so one such Graph is
+  // created per mount; suspended first mounts and interrupted renders can create more.
+  useEffect(() => {
+    if (!owned) {
+      return undefined;
+    }
+    clearTimeout(pendingDisposals.get(graph));
+    pendingDisposals.delete(graph);
     return () => {
-      if (!config.graph && graph) {
-        graph.unmount();
-      }
+      pendingDisposals.set(
+        graph,
+        setTimeout(() => {
+          pendingDisposals.delete(graph);
+          graph.unmount();
+        }, 0)
+      );
     };
-  }, [graph]);
+  }, [graph, owned]);
 
   const setViewConfiguration = useFn((viewConfig: NonNullable<HookGraphParams["viewConfiguration"]>) => {
     if (viewConfig.colors) {
