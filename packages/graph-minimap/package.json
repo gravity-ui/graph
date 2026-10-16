@@ -1,6 +1,6 @@
 {
   "name": "@gravity-ui/graph-minimap",
-  "version": "0.0.0",
+  "version": "1.0.0-next.0",
   "type": "module",
   "packageManager": "pnpm@10.34.5",
   "description": "Canvas minimap and navigation for Gravity UI Graph",
