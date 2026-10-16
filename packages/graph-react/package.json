@@ -26,12 +26,12 @@
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
     "test:unit": "jest --passWithNoTests",
     "test": "pnpm run test:unit",
     "test:package-contract": "node ../../tests/package-contract/run.mjs graph-react",
-    "prepublishOnly": "pnpm run typecheck && pnpm run test",
+    "prepublishOnly": "pnpm run build && pnpm run typecheck && pnpm run test",
     "dev": "chokidar \"src/**/*\" \"../graph/build/**/*\" -c \"pnpm run build\" --initial"
   },
   "peerDependencies": {

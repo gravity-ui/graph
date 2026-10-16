@@ -1,6 +1,6 @@
 {
-  // Public factories and scheduling helpers must preserve validated arguments for
-  // strict and non-strict consumers, against both sources and generated declarations.
+  // Public factories and scheduling helpers must preserve validated arguments for strict and
+  // non-strict consumers. Packed declarations are covered by tests/package-contract.
   "compilerOptions": {
     "strict": true,
     "noEmit": true,

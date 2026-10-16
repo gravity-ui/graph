@@ -9,6 +9,8 @@
     "noEmit": true,
     // The inherited outDir would otherwise anchor rootDir to this directory.
     "rootDir": "../../..",
+    // tsc -b writes build info into outDir; keep it beside this fixture, not in graph-react's published build.
+    "outDir": "../../..",
     "skipLibCheck": false,
     "typeRoots": ["../../../packages/graph-react/node_modules/@types", "../../../node_modules/@types"]
   },

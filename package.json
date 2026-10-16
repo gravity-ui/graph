@@ -9,8 +9,7 @@
     "url": "https://github.com/gravity-ui/graph"
   },
   "scripts": {
-    "typecheck": "pnpm --filter @gravity-ui/graph run typecheck && pnpm --filter @gravity-ui/graph-react run typecheck && pnpm --filter @gravity-ui/graph-minimap run typecheck && pnpm --filter @gravity-ui/graph-devtools run typecheck && pnpm --filter @gravity-ui/graph-storybook run typecheck && pnpm --filter @gravity-ui/graph-e2e run typecheck",
-    "typecheck:published-playwright-types": "pnpm --filter @gravity-ui/graph run typecheck:published-playwright-types",
+    "typecheck": "pnpm run build && pnpm --filter \"./packages/*\" --filter \"./apps/*\" run typecheck",
     "lint": "pnpm --filter \"./packages/*\" run lint && pnpm --filter @gravity-ui/graph-storybook run lint",
     "test:unit": "pnpm --filter \"./packages/*\" run test:unit",
     "test": "pnpm --filter \"./packages/*\" run test",
@@ -30,8 +29,8 @@
     "e2e:dev": "pnpm --filter @gravity-ui/graph-e2e run e2e:dev",
     "typecheck:strict": "pnpm run build && node scripts/strict-diagnostics.mjs",
     "test:strict-diagnostics": "node --test scripts/strict-diagnostics.test.mjs",
-    "test:type-configs": "node --test scripts/css-assets.test.mjs scripts/style-observer-types.test.mjs scripts/devtools-config.test.mjs scripts/tsc-projects.test.mjs && pnpm run typecheck:type-fixtures",
-    "typecheck:type-fixtures": "node scripts/tsc-projects.mjs --compiler=classic tests/types"
+    "test:type-configs": "node --test scripts/css-assets.test.mjs scripts/style-observer-types.test.mjs scripts/devtools-config.test.mjs && pnpm run typecheck:type-fixtures",
+    "typecheck:type-fixtures": "tsc -b tests/types"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",

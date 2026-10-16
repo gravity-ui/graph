@@ -20,4 +20,4 @@ Re-resolving the real style-observer types removes TS7016 for the module and bot
 
 The baseline update is explicit and must be reviewed alongside the above exact identity changes. Remaining counts and unchanged identities are verified by the full strict gate; Scheduler remains at zero. E2E test-root expansion remains #367.
 
-Run `pnpm run test:type-configs` for CSS and compiler-runner failure regressions, the dependency runtime check and the `tests/types` fixtures with TypeScript 6.0.3.
+Run `pnpm run test:type-configs` for CSS regressions, the dependency runtime check and the `tests/types` fixtures (`tsc -b tests/types`, against package sources) with TypeScript 6.0.3.

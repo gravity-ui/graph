@@ -5,7 +5,7 @@ dist
 .vscode
 .DS_Store
 storybook-static
-.tsbuildinfo
+*.tsbuildinfo
 build
 playwright-report
 test-results

@@ -1,4 +1,0 @@
-{
-  "extends": ["./base.json", "../paths.built.json"],
-  "compilerOptions": { "strict": false }
-}

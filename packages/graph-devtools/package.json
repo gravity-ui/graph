@@ -26,10 +26,10 @@
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.ts\"",
     "test:package-contract": "node ../../tests/package-contract/run.mjs graph-devtools",
-    "prepublishOnly": "pnpm run typecheck",
+    "prepublishOnly": "pnpm run build && pnpm run typecheck",
     "test:unit": "jest --passWithNoTests",
     "test": "pnpm run test:unit"
   },

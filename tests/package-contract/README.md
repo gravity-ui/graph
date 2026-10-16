@@ -58,8 +58,9 @@ entrypoints. `fixtures/types/playwright-bundler` is also reused by core's fast d
 `fixtures/types/minimap-node-esm` checks minimap's public options, context, and compatibility with core's layer API.
 `fixtures/types/devtools-node-esm` checks DevTools defaults, props, and compatibility with core's layer API.
 The shared fixture tree is copied into each consumer so relative paths remain stable.
-`tests/types` compiles the same fixtures against the workspace sources and the freshly built declarations
-(strict and non-strict) with plain `tsc -p` projects, without the compiler API.
+`tests/types` compiles the same fixtures against the workspace sources (strict and non-strict) with
+`tsc -b tests/types`, without building or packing. Declarations and packaging are covered only here,
+against the packed tarballs.
 
 ## Preserving a validated artifact
 

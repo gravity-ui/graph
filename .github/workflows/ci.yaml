@@ -22,16 +22,17 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - name: Install Packages
         run: pnpm install --frozen-lockfile
+      # Builds the packages once; later steps read the built declarations of workspace dependencies.
+      - name: Typecheck
+        run: pnpm run typecheck
       - name: Lint Files
         run: pnpm run lint
       - name: Strict diagnostic gate tests
         run: pnpm run test:strict-diagnostics
       - name: Strict diagnostic debt gate
-        run: pnpm run typecheck:strict
+        run: node scripts/strict-diagnostics.mjs
       - name: Type configuration tests
         run: pnpm run test:type-configs
-      - name: Typecheck
-        run: pnpm run typecheck
 
   tests:
     name: Tests
