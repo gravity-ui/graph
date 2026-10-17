@@ -1,0 +1,65 @@
+{
+  "name": "@gravity-ui/graph-layered",
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "description": "Layered (hierarchical) layout algorithm for Gravity UI Graph",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gravity-ui/graph",
+    "directory": "packages/graph-layered"
+  },
+  "main": "build/index.js",
+  "module": "build/index.js",
+  "types": "build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "import": "./build/index.js",
+      "default": "./build/index.js"
+    },
+    "./react": {
+      "types": "./build/react/index.d.ts",
+      "import": "./build/react/index.js",
+      "default": "./build/react/index.js"
+    }
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test:unit": "jest --passWithNoTests",
+    "test": "pnpm run test:unit",
+    "test:package-contract": "node ../../tests/package-contract/run.mjs graph-layered",
+    "prepublishOnly": "pnpm run build && pnpm run typecheck && pnpm run test"
+  },
+  "peerDependencies": {
+    "@gravity-ui/graph": "workspace:^",
+    "react": "^18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@gravity-ui/eslint-config": "^4.3.2",
+    "@swc/core": "^1.13.3",
+    "@swc/jest": "^0.2.39",
+    "@testing-library/react": "^16.3.0",
+    "@types/jest": "^30.0.0",
+    "@types/react": "^18.3.31",
+    "eslint": "^9.39.5",
+    "globals": "^16.5.0",
+    "jest": "^30.0.5",
+    "jest-environment-jsdom": "^30.0.5",
+    "prettier": "^3.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "catalog:"
+  }
+}

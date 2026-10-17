@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { ConverterResult, LayeredLayoutInput, LayeredLayoutOptions } from "@gravity-ui/graph";
-import { Node, computeLevels, layeredConverter, layoutGraph } from "@gravity-ui/graph";
+import { computeLevels, layeredConverter, layoutGraph } from "..";
+import type { ConverterResult, LayeredLayoutInput, LayeredLayoutOptions, Node } from "..";
 
 export type UseLayeredLayoutParams = LayeredLayoutInput & {
   /** Layout algorithm options (gaps, default sizes, spacing factor, etc.) */

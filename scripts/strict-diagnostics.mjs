@@ -11,6 +11,7 @@ export const PROJECTS = [
   "packages/graph-devtools/tsconfig.json",
   "apps/storybook/tsconfig.json",
   "apps/e2e/tsconfig.json",
+  "packages/graph-layered/tsconfig.json",
 ];
 export const RESOLVED_CONFIGURATION_FILES = [
   "packages/graph/src/graphConfig.ts",
@@ -135,6 +136,7 @@ export function validateSnapshot(value) {
     }
     assertPackageHasNoDebt(diagnostic, "packages/graph", "Graph");
     assertPackageHasNoDebt(diagnostic, "packages/graph-minimap", "Minimap");
+    assertPackageHasNoDebt(diagnostic, "packages/graph-layered", "Layered");
     assertPackageHasNoDebt(diagnostic, "packages/graph-react", "Graph React");
     const key = identity(diagnostic);
     if (seen.has(key)) throw new Error(`Duplicate diagnostic identity: ${key}`);

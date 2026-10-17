@@ -7,6 +7,9 @@ const nativeImportProbes = {
     if ("DevToolsLayer" in graph || "DEFAULT_DEVTOOLS_LAYER_PROPS" in graph) {
       throw new Error("Core still exports the extracted DevTools.");
     }
+    if (["layoutGraph", "layeredConverter", "computeLevels"].some((name) => name in graph)) {
+      throw new Error("Core still exports the extracted layered layout.");
+    }
     if (typeof graph.Graph !== "function") throw new Error("Root entrypoint does not export Graph.");
     if (graph.ESchedulerPriority?.LOWEST !== 4) {
       throw new Error("Root entrypoint does not export ESchedulerPriority.");
@@ -25,6 +28,7 @@ const nativeImportProbes = {
     const core = await import("@gravity-ui/graph");
     if (react.MultipointConnection !== core.MultipointConnection) throw new Error("React has a second core connection class.");
     if (typeof react.GraphCanvas !== "function") throw new Error("React entrypoint does not export GraphCanvas.");
+    if ("useLayeredLayout" in react) throw new Error("React still exports the extracted layered hook.");
   `,
   minimap: `
     const { MiniMapLayer } = await import("@gravity-ui/graph-minimap");
@@ -40,6 +44,41 @@ const nativeImportProbes = {
       throw new Error("DevTools has a second core Layer class.");
     }
     if (DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize !== 25) throw new Error("DevTools defaults are missing or changed.");
+  `,
+  layered: `
+    const { computeLevels, layoutGraph, layeredConverter } = await import("@gravity-ui/graph-layered");
+    const levels = computeLevels(["a", "b"], [{ sourceBlockId: "a", targetBlockId: "b" }]);
+    if (levels.get("b") !== 1) throw new Error("computeLevels did not assign the successor to level 1.");
+    const layout = await layoutGraph({ nodes: [{ id: "a", level: 0 }, { id: "b", level: 1 }], edges: [{ from: "a", to: "b" }] });
+    const result = layeredConverter({
+      layoutResult: layout,
+      connectionIdBySourceTarget: new Map([["a/b", ["edge"]]]),
+      blockSizes: new Map(),
+    });
+    if (!(result.blocks.b.x > result.blocks.a.x)) throw new Error("Layered layout did not place levels left to right.");
+    if (result.edges.edge?.points.length !== 2) throw new Error("Layered converter did not return connection points.");
+    let reactEntrypointError;
+    try {
+      await import("@gravity-ui/graph-layered/react");
+    } catch (error) {
+      reactEntrypointError = error;
+    }
+    if (reactEntrypointError?.code !== "ERR_MODULE_NOT_FOUND" || !String(reactEntrypointError.message).includes("'react'")) {
+      throw new Error("The layered React entrypoint must need only the optional react peer: " + reactEntrypointError);
+    }
+  `,
+  "layered-react": `
+    const { useLayeredLayout } = await import("@gravity-ui/graph-layered/react");
+    if (typeof useLayeredLayout !== "function") throw new Error("Layered React entrypoint does not export useLayeredLayout.");
+    for (const specifier of ["@gravity-ui/graph-react", "react-dom"]) {
+      try {
+        await import(specifier);
+      } catch (error) {
+        if (error?.code === "ERR_MODULE_NOT_FOUND") continue;
+        throw error;
+      }
+      throw new Error("The layered React consumer unexpectedly resolves " + specifier);
+    }
   `,
   playwright: `
     const playwright = await import("@gravity-ui/graph/playwright");

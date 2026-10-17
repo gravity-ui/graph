@@ -6,6 +6,7 @@ export async function checkTarballTypes({
   reactTarballPath,
   minimapTarballPath,
   devtoolsTarballPath,
+  layeredTarballPath,
 }) {
   console.log("\n[package-contract] Checking the public package ESM type contracts with ATTW...");
   for (const artifact of [tarballPath, reactTarballPath, minimapTarballPath, devtoolsTarballPath]) {
@@ -15,6 +16,22 @@ export async function checkTarballTypes({
       { cwd: packageRoot }
     );
   }
+  await run(
+    "pnpm",
+    [
+      "exec",
+      "attw",
+      layeredTarballPath,
+      "--profile",
+      "esm-only",
+      "--entrypoints",
+      ".",
+      "./react",
+      "--no-emoji",
+      "--no-color",
+    ],
+    { cwd: packageRoot }
+  );
 
   console.log("\n[package-contract] Checking the Playwright ESM and CommonJS type contracts with ATTW...");
   await run(

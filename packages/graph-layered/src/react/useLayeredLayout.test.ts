@@ -1,12 +1,13 @@
-import { layeredConverter, layoutGraph } from "@gravity-ui/graph";
-import type { ConverterResult } from "@gravity-ui/graph";
 import { act, renderHook, waitFor } from "@testing-library/react";
+
+import { layeredConverter, layoutGraph } from "..";
+import type { ConverterResult } from "..";
 
 import { useLayeredLayout } from "./useLayeredLayout";
 import type { UseLayeredLayoutParams } from "./useLayeredLayout";
 
-jest.mock("@gravity-ui/graph", () => ({
-  ...jest.requireActual("@gravity-ui/graph"),
+jest.mock("..", () => ({
+  ...jest.requireActual(".."),
   layoutGraph: jest.fn(),
   layeredConverter: jest.fn(),
 }));
@@ -159,6 +160,26 @@ describe("useLayeredLayout", () => {
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
+    });
+  });
+
+  it("passes an explicit block level to the layout instead of the computed one", async () => {
+    const deferred = createDeferred<TLayoutResult>();
+    mockedLayoutGraph.mockReturnValueOnce(deferred.promise);
+
+    const blocks = [baseBlocks[0], { ...baseBlocks[1], level: 3 }];
+
+    renderHook(() => useLayeredLayout({ blocks, connections: baseConnections }));
+
+    expect(mockedLayoutGraph).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nodes: [expect.objectContaining({ id: "a", level: 0 }), expect.objectContaining({ id: "b", level: 3 })],
+      })
+    );
+
+    await act(async () => {
+      deferred.resolve(baseLayoutResult);
+      await deferred.promise;
     });
   });
 

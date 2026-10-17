@@ -1,6 +1,8 @@
-import { TPoint } from "../../../utils/types/shapes";
-import { DEFAULT_NODE_WIDTH, Edge } from "../layout";
-import { ConverterResult } from "../types";
+import type { TPoint } from "@gravity-ui/graph";
+
+import { DEFAULT_NODE_WIDTH } from "../layout";
+import type { Edge } from "../layout";
+import type { ConverterResult } from "../types";
 
 function buildAdjacency(edges: Edge<string>[]) {
   const adjacency = new Map<string, Array<{ to: string; arrows?: Edge<string>["arrows"] }>>();

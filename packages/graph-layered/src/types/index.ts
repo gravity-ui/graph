@@ -1,23 +1,21 @@
-import type { TMultipointConnection } from "../../../components/canvas/connections/types";
-import type { TConnectionId } from "../../../store/connection/ConnectionState";
-import type { TPoint } from "../../../utils/types/shapes";
+import type { TBlockId, TConnectionId, TMultipointConnection, TPoint } from "@gravity-ui/graph";
 
 export type ConverterResult = {
   edges: Record<TConnectionId, Pick<TMultipointConnection, "points" | "labels">>;
-  blocks: Record<TConnectionId, TPoint>;
+  blocks: Record<TBlockId, TPoint>;
 };
 
 export type LayeredLayoutInput = {
   blocks: Array<{
-    id: TConnectionId;
+    id: TBlockId;
     width: number;
     height: number;
     level?: number;
   }>;
   connections: Array<{
     id?: TConnectionId;
-    sourceBlockId: TConnectionId;
-    targetBlockId: TConnectionId;
+    sourceBlockId: TBlockId;
+    targetBlockId: TBlockId;
   }>;
 };
 

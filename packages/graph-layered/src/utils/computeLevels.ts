@@ -1,14 +1,14 @@
-import { TConnectionId } from "../../../store/connection/ConnectionState";
+import type { TBlockId } from "@gravity-ui/graph";
 
 /**
  * Assigns level to each block by BFS from nodes with no incoming edges (roots).
  * Levels are 0-based; roots get 0, their direct successors 1, etc.
  */
 export function computeLevels(
-  blockIds: TConnectionId[],
-  connections: Array<{ sourceBlockId: TConnectionId; targetBlockId: TConnectionId }>
-): Map<TConnectionId, number> {
-  const idToStr = (id: TConnectionId) => String(id);
+  blockIds: TBlockId[],
+  connections: Array<{ sourceBlockId: TBlockId; targetBlockId: TBlockId }>
+): Map<TBlockId, number> {
+  const idToStr = (id: TBlockId) => String(id);
   const inDegree = new Map<string, number>();
   const outEdges = new Map<string, string[]>();
 
@@ -61,7 +61,7 @@ export function computeLevels(
     }
   }
 
-  const result = new Map<TConnectionId, number>();
+  const result = new Map<TBlockId, number>();
   for (const id of blockIds) {
     result.set(id, level.get(idToStr(id)) ?? 0);
   }

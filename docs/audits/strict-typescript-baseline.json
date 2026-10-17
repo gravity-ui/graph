@@ -7,7 +7,8 @@
     "packages/graph-minimap/tsconfig.json",
     "packages/graph-devtools/tsconfig.json",
     "apps/storybook/tsconfig.json",
-    "apps/e2e/tsconfig.json"
+    "apps/e2e/tsconfig.json",
+    "packages/graph-layered/tsconfig.json"
   ],
   "diagnostics": [
     {

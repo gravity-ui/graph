@@ -26,6 +26,15 @@ const expectedExports = {
   "./styles.css": "./build/styles.css",
 };
 
+const expectedLayeredExports = {
+  ".": expectedExports["."],
+  "./react": {
+    types: "./build/react/index.d.ts",
+    import: "./build/react/index.js",
+    default: "./build/react/index.js",
+  },
+};
+
 const expectedTypesVersions = {
   "*": {
     playwright: ["build/playwright/index.d.ts"],
@@ -55,12 +64,16 @@ function getPackMetadata(output) {
 
 function assertPackedFiles(metadata, kind) {
   const addon = kind !== "graph";
+  const layered = kind === "graph-layered";
   assert.equal(metadata.name, `@gravity-ui/${kind}`);
   assert.ok(Array.isArray(metadata.files), "pnpm pack did not report the packed file list.");
 
   const packedFiles = metadata.files.map(({ path: packedPath }) => packedPath).sort();
   const unexpectedFiles = packedFiles.filter((packedPath) => {
     if (allowedPackageRootFiles.has(packedPath) || allowedRuntimeFiles.has(packedPath)) {
+      return false;
+    }
+    if (layered && packedPath === "build/react/index.js") {
       return false;
     }
 
@@ -75,7 +88,7 @@ function assertPackedFiles(metadata, kind) {
       forbiddenPackedPathPatterns.some((pattern) => pattern.test(packedPath)) ||
       (addon
         ? /(?:^|\/)(?:playwright|docs)(?:\/|$)/.test(packedPath)
-        : /(?:^|\/)(?:react-components|plugins\/(?:minimap|devtools))(?:\/|$)/.test(packedPath))
+        : /(?:^|\/)(?:react-components|plugins\/(?:minimap|devtools|layered))(?:\/|$)/.test(packedPath))
   );
 
   assert.deepEqual(unexpectedFiles, [], `Tarball contains files outside the public allowlist: ${unexpectedFiles}`);
@@ -85,7 +98,7 @@ function assertPackedFiles(metadata, kind) {
     ...allowedPackageRootFiles,
     "build/index.js",
     "build/index.d.ts",
-    "build/styles.css",
+    ...(layered ? ["build/react/index.js", "build/react/index.d.ts"] : ["build/styles.css"]),
     ...(addon
       ? []
       : [
@@ -167,6 +180,7 @@ export async function buildAndPackArtifact({ packageRoot, staleBuildSentinelPath
 export async function checkInstalledArtifact(consumerDirectory, expectedVersion, kind = "graph") {
   const addon = kind !== "graph";
   const react = kind === "graph-react";
+  const layered = kind === "graph-layered";
   const packageRoot = path.join(consumerDirectory, "node_modules", "@gravity-ui", kind);
   const manifest = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
 
@@ -180,7 +194,11 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   assert.deepEqual(manifest.files, ["build"]);
   assert.deepEqual(
     manifest.exports,
-    addon ? { ".": expectedExports["."], "./styles.css": expectedExports["./styles.css"] } : expectedExports
+    layered
+      ? expectedLayeredExports
+      : addon
+        ? { ".": expectedExports["."], "./styles.css": expectedExports["./styles.css"] }
+        : expectedExports
   );
   assert.deepEqual(manifest.typesVersions, addon ? undefined : expectedTypesVersions);
   if (addon) {
@@ -190,6 +208,10 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     assert.equal(manifest.dependencies?.["@gravity-ui/graph"], undefined);
   }
   if (react) {
+    for (const field of ["dependencies", "peerDependencies", "optionalDependencies"]) {
+      assert.equal(manifest[field]?.["@gravity-ui/graph-layered"], undefined, `React must not depend on layered.`);
+    }
+    await assertPathDoesNotExist(path.join(packageRoot, "build/layered"), "React still ships the layered hook.");
     assert.equal(manifest.peerDependencies?.react, "^18.0.0");
     assert.equal(manifest.peerDependencies?.["react-dom"], "^18.0.0");
     assert.equal(manifest.peerDependenciesMeta?.react?.optional, undefined);
@@ -213,6 +235,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
         "@gravity-ui/graph-react",
         "@gravity-ui/graph-minimap",
         "@gravity-ui/graph-devtools",
+        "@gravity-ui/graph-layered",
         "elkjs",
       ]) {
         assert.equal(manifest[field]?.[name], undefined, `Core must not depend on ${name} through ${field}.`);
@@ -242,7 +265,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     [
       "build/index.js",
       "build/index.d.ts",
-      "build/styles.css",
+      ...(layered ? ["build/react/index.js", "build/react/index.d.ts"] : ["build/styles.css"]),
       ...(addon
         ? []
         : [
@@ -263,7 +286,6 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   );
   await assertNoPrivateSchedulerSpecifiers(packageRoot);
 
-  const publicStyles = await readFile(path.join(packageRoot, "build", "styles.css"), "utf8");
   if (addon) {
     for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
       assert.doesNotMatch(
@@ -273,6 +295,29 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
       );
     }
   }
+  if (layered) {
+    // Core is a type-only peer: emitted JavaScript must not load it, and only the /react entry may load React.
+    assert.deepEqual(Object.keys(manifest.peerDependencies).sort(), ["@gravity-ui/graph", "react"]);
+    assert.equal(manifest.peerDependencies.react, "^18.0.0");
+    assert.deepEqual(manifest.peerDependenciesMeta, { react: { optional: true } });
+    assert.deepEqual(manifest.dependencies ?? {}, {});
+    assert.deepEqual(manifest.optionalDependencies ?? {}, {});
+    await assertPathDoesNotExist(path.join(packageRoot, "build/styles.css"), "Layered must not ship styles.");
+    for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
+      if (!file.endsWith(".js")) continue;
+      const contents = await readFile(file, "utf8");
+      assert.doesNotMatch(contents, /["']@gravity-ui\/graph["']/, `Layered runtime file ${file} must not import core.`);
+      if (path.relative(packageRoot, file) !== path.join("build", "react", "index.js")) {
+        assert.doesNotMatch(
+          contents,
+          /["']react(?:-dom)?(?:\/[^"']*)?["']/,
+          `Layered file ${file} must not import React.`
+        );
+      }
+    }
+    return;
+  }
+  const publicStyles = await readFile(path.join(packageRoot, "build", "styles.css"), "utf8");
   if (kind === "graph-minimap") {
     assert.deepEqual(Object.keys(manifest.peerDependencies), ["@gravity-ui/graph"]);
     assert.deepEqual(manifest.dependencies ?? {}, {});
@@ -309,10 +354,14 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
       "Core still ships DevTools declarations."
     );
     assert.doesNotMatch(await readFile(path.join(packageRoot, "build/index.js"), "utf8"), /devtools-layer/);
+    await assertPathDoesNotExist(
+      path.join(packageRoot, "build/plugins/layered"),
+      "Core still ships layered layout declarations."
+    );
     for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
       assert.doesNotMatch(
         await readFile(file, "utf8"),
-        /(?:from\s+|import\s*\(|require\s*\()["'](?:react(?:-dom)?(?:\/[^"']*)?|@gravity-ui\/graph-(?:react|minimap|devtools))["']/
+        /(?:from\s+|import\s*\(|require\s*\()["'](?:react(?:-dom)?(?:\/[^"']*)?|@gravity-ui\/graph-(?:react|minimap|devtools|layered))["']/
       );
     }
   }

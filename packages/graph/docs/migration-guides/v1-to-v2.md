@@ -8,6 +8,7 @@ The temporary branch and release process is documented separately in
 ## Migration checklist
 
 - Move React, Minimap and DevTools imports to their dedicated packages and install their peers.
+- Import the layered layout from `@gravity-ui/graph-layered` and `useLayeredLayout` from `@gravity-ui/graph-layered/react`.
 - Import the stylesheets for each package you use, with core styles before addon styles.
 - Add `import "@gravity-ui/graph-minimap/styles.css"` when using Minimap: its default border and background now require this explicit import.
 - Replace `canChangeBlockGeometry` / `ECanChangeBlockGeometry` with `canDrag` / `ECanDrag`.
@@ -32,12 +33,12 @@ Replace React imports and load the two independently owned stylesheets:
 
 ```ts
 import { Graph } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph, useLayeredLayout } from "@gravity-ui/graph-react";
+import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-react/styles.css";
 ```
 
-The layered layout algorithm and converters remain framework-independent core APIs; the React package owns the hook.
+The layered layout and its `useLayeredLayout` hook moved to `@gravity-ui/graph-layered` (see below).
 Storybook and E2E consume the same public package entrypoints. `pnpm run build` builds core before React, and the shared
 `tests/package-contract` suite builds and installs one tarball per public package, verifies native imports and strict
 declarations, and checks that the React adapter uses the application's core classes.
@@ -82,6 +83,23 @@ are now owned by the separate stylesheet; core styles only supply the base layer
 props, camera behavior, and lifecycle, and can still be used with `useLayer` or `GraphLayer` from `@gravity-ui/graph-react`.
 Core no longer contains DevTools code or declarations. The shared text measurement helper is available as
 `measureText(text, font, approximate?)` from `@gravity-ui/graph`; the ruler tick calculation belongs to DevTools.
+
+## Layered layout package boundary
+
+`layoutGraph`, `layeredConverter`, `computeLevels`, `DEFAULT_NODE_WIDTH`, `DEFAULT_NODE_HEIGHT` and the types
+`LayeredLayoutInput`, `LayeredLayoutOptions`, `LayoutGraphParams`, `Node`, `Edge`, `ConverterResult`,
+`LayeredConverterParams` and `LayeredLayoutResult` now belong to `@gravity-ui/graph-layered`.
+`useLayeredLayout` and `UseLayeredLayoutParams` moved from `@gravity-ui/graph-react` to its `/react` subpath:
+
+```ts
+import { computeLevels, layeredConverter, layoutGraph } from "@gravity-ui/graph-layered";
+import { useLayeredLayout } from "@gravity-ui/graph-layered/react";
+```
+
+Names, signatures and results are unchanged. Block ids in `LayeredLayoutInput`, `ConverterResult.blocks` and
+`computeLevels` are now typed as `TBlockId` instead of `TConnectionId` (both are `string | number`).
+The package requires core as a peer dependency for its types; React is an optional peer, needed only for `/react`.
+Core and `@gravity-ui/graph-react` no longer include or re-export the layered layout.
 
 ## Styles and TypeScript
 

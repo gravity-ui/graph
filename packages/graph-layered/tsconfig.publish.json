@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig",
+  "compilerOptions": {
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "rootDir": "./src",
+    "types": [
+      "react"
+    ]
+  },
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts"
+  ]
+}

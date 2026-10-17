@@ -8,6 +8,8 @@
     { "path": "./devtools/tsconfig.strict.source.json" },
     { "path": "./factories/tsconfig.non-strict.source.json" },
     { "path": "./factories/tsconfig.strict.source.json" },
+    { "path": "./layered/tsconfig.non-strict.source.json" },
+    { "path": "./layered/tsconfig.strict.source.json" },
     { "path": "./minimap/tsconfig.non-strict.source.json" },
     { "path": "./minimap/tsconfig.strict.source.json" },
     { "path": "./public-consumers/tsconfig.source.json" },

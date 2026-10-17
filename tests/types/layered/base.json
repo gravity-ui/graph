@@ -1,0 +1,21 @@
+{
+  // Layered consumer fixtures (vanilla and React hook) for strict and non-strict consumers.
+  // The same fixtures run against the packed declarations with Node16 resolution in tests/package-contract.
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": false,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "experimentalDecorators": true,
+    // Package sources reference Node globals (for example Emitter.ts).
+    "types": ["node"],
+    "typeRoots": ["../../../node_modules/@types"]
+  },
+  "files": [
+    "../../package-contract/fixtures/types/layered-node-esm/index.mts",
+    "../../package-contract/fixtures/types/layered-react-node-esm/index.mts",
+    "../../../packages/graph/src/assets.d.ts"
+  ]
+}

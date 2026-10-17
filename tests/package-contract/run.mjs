@@ -17,7 +17,7 @@ const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "gravity-graph-pack
 const requestedTarballPath = process.env.PACKAGE_CONTRACT_TARBALL_PATH;
 const defaultTarballPath = path.join(temporaryDirectory, "tarballs", "gravity-ui-graph.tgz");
 const testedPackage = process.argv[2] ?? "graph";
-if (!["graph", "graph-react", "graph-minimap", "graph-devtools"].includes(testedPackage))
+if (!["graph", "graph-react", "graph-minimap", "graph-devtools", "graph-layered"].includes(testedPackage))
   throw new Error(`Unknown package: ${testedPackage}`);
 const testingReactPackage = testedPackage === "graph-react";
 const testingMinimapPackage = testedPackage === "graph-minimap";
@@ -33,6 +33,12 @@ const devtoolsTarballPath =
     ? path.resolve(requestedTarballPath)
     : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-devtools.tgz");
 const devtoolsStaleBuildSentinelPath = path.join(devtoolsPackageRoot, "build", "package-contract-stale-sentinel.txt");
+const layeredPackageRoot = path.join(workspaceRoot, "packages/graph-layered");
+const layeredTarballPath =
+  requestedTarballPath && testedPackage === "graph-layered"
+    ? path.resolve(requestedTarballPath)
+    : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-layered.tgz");
+const layeredStaleBuildSentinelPath = path.join(layeredPackageRoot, "build", "package-contract-stale-sentinel.txt");
 const workspaceTarballs = JSON.parse(process.env.PACKAGE_CONTRACT_WORKSPACE_TARBALLS || "{}");
 const suppliedCoreTarball = testedPackage !== "graph" ? workspaceTarballs["@gravity-ui/graph"] : undefined;
 const tarballPath = suppliedCoreTarball
@@ -46,7 +52,7 @@ const reactTarballPath =
     : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-react.tgz");
 const reactStaleBuildSentinelPath = path.join(reactPackageRoot, "build", "package-contract-stale-sentinel.txt");
 const staleBuildSentinelPath = path.join(packageRoot, "build", "package-contract-stale-sentinel.txt");
-const consumerNames = ["vanilla", "react", "minimap", "devtools"];
+const consumerNames = ["vanilla", "react", "minimap", "devtools", "layered", "layered-react"];
 
 async function getInstalledVersion(packageName) {
   const owner = ["react", "react-dom", "@types/react", "@types/react-dom"].includes(packageName)
@@ -71,8 +77,10 @@ async function runConsumer({
   expectedReactVersion,
   expectedMinimapVersion,
   expectedDevtoolsVersion,
+  expectedLayeredVersion,
   typecheckConfigs,
   entryPoint,
+  browser = true,
   nativeImports,
   expectNoReact = false,
   verifySignalInterop = false,
@@ -92,6 +100,7 @@ async function runConsumer({
   if (expectedMinimapVersion) await checkInstalledArtifact(consumerDirectory, expectedMinimapVersion, "graph-minimap");
   if (expectedDevtoolsVersion)
     await checkInstalledArtifact(consumerDirectory, expectedDevtoolsVersion, "graph-devtools");
+  if (expectedLayeredVersion) await checkInstalledArtifact(consumerDirectory, expectedLayeredVersion, "graph-layered");
   await checkRuntimeConsumer({
     consumerDirectory,
     entrypoints: nativeImports,
@@ -103,12 +112,15 @@ async function runConsumer({
     consumerName: name,
     configs: typecheckConfigs,
   });
-  await checkBrowserConsumer({
-    consumerDirectory,
-    consumerName: name,
-    appName: name,
-    entryPoint,
-  });
+  // Consumers that opt out of the browser scenario are covered in the browser by apps/e2e.
+  if (browser) {
+    await checkBrowserConsumer({
+      consumerDirectory,
+      consumerName: name,
+      appName: name,
+      entryPoint,
+    });
+  }
 }
 
 try {
@@ -117,7 +129,9 @@ try {
   const reactManifest = JSON.parse(await readFile(path.join(reactPackageRoot, "package.json"), "utf8"));
   const minimapManifest = JSON.parse(await readFile(path.join(minimapPackageRoot, "package.json"), "utf8"));
   const devtoolsManifest = JSON.parse(await readFile(path.join(devtoolsPackageRoot, "package.json"), "utf8"));
+  const layeredManifest = JSON.parse(await readFile(path.join(layeredPackageRoot, "package.json"), "utf8"));
   await mkdir(path.dirname(devtoolsTarballPath), { recursive: true });
+  await mkdir(path.dirname(layeredTarballPath), { recursive: true });
   await mkdir(path.dirname(minimapTarballPath), { recursive: true });
   await mkdir(path.dirname(tarballPath), { recursive: true });
   await mkdir(path.dirname(reactTarballPath), { recursive: true });
@@ -145,7 +159,20 @@ try {
     tarballPath: devtoolsTarballPath,
     kind: "graph-devtools",
   });
-  await checkTarballTypes({ packageRoot, tarballPath, reactTarballPath, minimapTarballPath, devtoolsTarballPath });
+  await buildAndPackArtifact({
+    packageRoot: layeredPackageRoot,
+    staleBuildSentinelPath: layeredStaleBuildSentinelPath,
+    tarballPath: layeredTarballPath,
+    kind: "graph-layered",
+  });
+  await checkTarballTypes({
+    packageRoot,
+    tarballPath,
+    reactTarballPath,
+    minimapTarballPath,
+    devtoolsTarballPath,
+    layeredTarballPath,
+  });
 
   const workspaceManifest = JSON.parse(await readFile(path.join(workspaceRoot, "package.json"), "utf8"));
   if (!workspaceManifest.packageManager) {
@@ -277,6 +304,47 @@ try {
     expectNoReact: true,
   });
 
+  await runConsumer({
+    name: "layered",
+    expectedVersion,
+    expectedLayeredVersion: layeredManifest.version,
+    manifest: {
+      ...commonManifest,
+      name: "gravity-graph-installed-layered-consumer",
+      dependencies: { ...commonManifest.dependencies, "@gravity-ui/graph-layered": `file:${layeredTarballPath}` },
+    },
+    typecheckConfigs: [
+      "fixtures/types/layered-node-esm/tsconfig.json",
+      "fixtures/types/layered-node-esm/tsconfig.non-strict.json",
+    ],
+    nativeImports: ["root", "layered", "playwright"],
+    browser: false,
+    expectNoReact: true,
+  });
+
+  // The hook needs React but not @gravity-ui/graph-react or React DOM.
+  await runConsumer({
+    name: "layered-react",
+    expectedVersion,
+    expectedLayeredVersion: layeredManifest.version,
+    manifest: {
+      ...commonManifest,
+      name: "gravity-graph-installed-layered-react-consumer",
+      dependencies: {
+        ...commonManifest.dependencies,
+        "@gravity-ui/graph-layered": `file:${layeredTarballPath}`,
+        react: reactVersion,
+      },
+      devDependencies: { ...commonManifest.devDependencies, "@types/react": reactTypesVersion },
+    },
+    typecheckConfigs: [
+      "fixtures/types/layered-react-node-esm/tsconfig.json",
+      "fixtures/types/layered-react-node-esm/tsconfig.non-strict.json",
+    ],
+    nativeImports: ["root", "layered-react", "playwright"],
+    browser: false,
+  });
+
   console.log("\n[package-contract] Packed package contract passed.");
 } catch (error) {
   await preserveBrowserArtifacts({ consumerNames, packageRoot: workspaceRoot, temporaryDirectory });
@@ -286,6 +354,7 @@ try {
   await rm(reactStaleBuildSentinelPath, { force: true });
   await rm(minimapStaleBuildSentinelPath, { force: true });
   await rm(devtoolsStaleBuildSentinelPath, { force: true });
+  await rm(layeredStaleBuildSentinelPath, { force: true });
 
   if (process.env.KEEP_PACKAGE_CONTRACT_TMP === "1") {
     console.log(`\n[package-contract] Preserved temporary projects at ${temporaryDirectory}`);
