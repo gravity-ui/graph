@@ -19,6 +19,9 @@ The temporary branch and release process is documented separately in
 - Use TypeScript 6.0: v2 declarations are built and checked with it.
 - Create graph `layers` entries with `layerConfig(Layer, props)` instead of `[Layer, props]` tuples.
 - Use `graph.removeLayer(layer)` to destroy a layer; `graph.detachLayer(layer)` only detaches it for later reattachment.
+- Expect `graph.stop()`, `graph.detach()` and `graph.unmount()` to stop only that graph: the shared frame loop keeps running while another started graph retains it.
+- Add `retain`, `release` and `isRunning` to custom implementations of the exported `GlobalScheduler` interface.
+- Expect root layers to render only while attached; a detached layer is no longer iterated on other graphs' frames.
 
 ## React package boundary
 
@@ -643,7 +646,38 @@ render the hook or component again to get a new layer.
 layers created by the graph) stops the root's scheduler. The unmounted subtree is
 no longer iterated or rebuilt. Children share their root's scheduler, so
 unmounting a child does not stop it. An unmounted graph no longer keeps
-scheduler registrations or document keyboard listeners. Work that was still
-pending in the global scheduler at unmount is released on its next frame, so
-the graph becomes collectable once the global scheduler runs again (for
-example, while another graph is started).
+scheduler registrations or document keyboard listeners. `graph.unmount()` also
+cancels or flushes the hit-test and store work it queues while tearing down and, when no
+other graph keeps the frame loop running, applies the pending scheduler
+removals immediately, so the graph becomes collectable without another frame.
+
+## Shared frame loop and layer scheduling
+
+All graphs share one global scheduler and one `requestAnimationFrame` loop. In
+v1 any `graph.stop()`, `graph.detach()` or `graph.unmount()` stopped that loop,
+which also froze every other running graph on the page. In v2 the global
+scheduler counts its owners: `graph.start()` calls
+`globalScheduler.retain(graph)`, and `stop()` / `unmount()` call
+`globalScheduler.release(graph)`. The loop stops when the last owner releases
+it, and `globalScheduler.isRunning()` reports whether a frame is scheduled.
+
+- Stopping or unmounting one graph no longer pauses the others. If you relied
+  on `graph.stop()` to pause rendering of every graph, stop each graph.
+- `globalScheduler.start()` and `globalScheduler.stop()` keep their v1
+  behaviour and ignore owners: `stop()` stops the loop even while graphs retain
+  it, and the next `retain()` starts it again. Prefer `retain()` / `release()`
+  with your own owner object when you drive the loop for custom roots.
+
+Root layers no longer register their scheduler when they are constructed. A
+root layer registers it in `attachLayer` and unregisters it when it is detached
+or unmounted, so a graph that was created but never attached (for example a
+graph created by a render that React discarded) holds no global references and
+is garbage collected. Before, a detached graph's layers were still iterated on
+frames driven by other graphs; now they are not.
+
+Roots mounted with `Component.mount` that are not layers keep registering on
+construction. A custom root that should render only while it is in use can set
+`public static readonly autoStartScheduler = false` and call `start()` / `stop()`
+on its scheduler itself, as `Layer` does; a subclass reaches it through the
+protected component context, `this.__comp.context.scheduler`. `new Scheduler(false)` creates a
+scheduler that is not registered until `start()`.

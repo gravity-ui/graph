@@ -315,3 +315,39 @@ describe("Graph.removeLayer", () => {
     expect(LifecycleChild.unmounted).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("root layer scheduling", () => {
+  // Layers that forward events to the camera override getParent(), like BlockGroups.
+  class CameraForwardingLayer extends Layer {
+    public readonly iterated = jest.fn();
+
+    public getParent(): Component | undefined {
+      return this.props.graph.getGraphLayer().$.camera;
+    }
+
+    public iterate(): boolean {
+      this.iterated();
+      return super.iterate();
+    }
+  }
+
+  it("renders a layer that overrides getParent when it is added after the first frame", () => {
+    const graph = new Graph({}, document.createElement("div"));
+    graph.start();
+    globalScheduler.performUpdate();
+    expect(graph.getGraphLayer().$.camera).toBeDefined();
+
+    const layer = graph.addLayer(CameraForwardingLayer, {});
+    layer.performRender();
+    globalScheduler.performUpdate();
+    expect(layer.iterated).toHaveBeenCalled();
+
+    graph.stop();
+    layer.iterated.mockClear();
+    layer.performRender();
+    globalScheduler.performUpdate();
+    globalScheduler.performUpdate();
+    expect(layer.iterated).not.toHaveBeenCalled();
+    graph.unmount();
+  });
+});

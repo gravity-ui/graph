@@ -163,3 +163,100 @@ describe("Scheduler root readiness", () => {
     globalScheduler.performUpdate();
   });
 });
+
+describe("GlobalScheduler owners", () => {
+  let scheduler: GlobalScheduler;
+
+  beforeEach(() => {
+    scheduler = new GlobalScheduler();
+  });
+
+  afterEach(() => {
+    scheduler.destroy();
+  });
+
+  it("runs while any owner retains it", () => {
+    const first = {};
+    const second = {};
+
+    scheduler.retain(first);
+    scheduler.retain(second);
+    expect(scheduler.isRunning()).toBe(true);
+
+    scheduler.release(first);
+    expect(scheduler.isRunning()).toBe(true);
+
+    scheduler.release(second);
+    expect(scheduler.isRunning()).toBe(false);
+  });
+
+  it("applies pending removals when the last owner releases it", () => {
+    const owner = {};
+    const task = { performUpdate: jest.fn() };
+    scheduler.retain(owner);
+    const remove = scheduler.addScheduler(task, 3);
+    remove();
+    expect(scheduler.getSchedulers()[3]).toEqual([task]);
+
+    scheduler.release(owner);
+
+    expect(scheduler.getSchedulers()[3]).toEqual([]);
+    expect(task.performUpdate).not.toHaveBeenCalled();
+  });
+
+  it("defers removals to the end of the frame when released during an update", () => {
+    const owner = {};
+    const remove = { current: (): void => undefined };
+    const task = {
+      performUpdate: jest.fn(() => {
+        remove.current();
+        scheduler.release(owner);
+        expect(scheduler.getSchedulers()[2]).toContain(task);
+      }),
+    };
+    const sibling = { performUpdate: jest.fn() };
+    scheduler.retain(owner);
+    remove.current = scheduler.addScheduler(task);
+    scheduler.addScheduler(sibling);
+
+    scheduler.performUpdate();
+
+    expect(sibling.performUpdate).toHaveBeenCalledTimes(1);
+    expect(scheduler.getSchedulers()[2]).toEqual([sibling]);
+    expect(scheduler.isRunning()).toBe(false);
+  });
+
+  it("does not stop a directly started loop for an owner that never retained it", () => {
+    scheduler.start();
+
+    scheduler.release({});
+
+    expect(scheduler.isRunning()).toBe(true);
+  });
+
+  it("lets stop() override owners until the next retain", () => {
+    const owner = {};
+    scheduler.retain(owner);
+
+    scheduler.stop();
+    expect(scheduler.isRunning()).toBe(false);
+
+    scheduler.retain({});
+    expect(scheduler.isRunning()).toBe(true);
+  });
+});
+
+describe("Scheduler autoStart", () => {
+  it("registers only after start() when autoStart is false", () => {
+    const before = globalScheduler.getSchedulers()[2].length;
+    const lazy = new Scheduler(false);
+    expect(globalScheduler.getSchedulers()[2]).toHaveLength(before);
+
+    lazy.start();
+    expect(globalScheduler.getSchedulers()[2]).toHaveLength(before + 1);
+
+    lazy.stop();
+    globalScheduler.performUpdate();
+    expect(globalScheduler.getSchedulers()[2]).toHaveLength(before);
+  });
+});

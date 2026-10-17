@@ -23,8 +23,12 @@ classDiagram
         -schedulers: IScheduler[][]
         -_cAFID: number
         -visibilityChangeHandler: Function | null
+        -owners: Set~object~
         +addScheduler(scheduler, index)
         +removeScheduler(scheduler, index)
+        +retain(owner)
+        +release(owner)
+        +isRunning()
         +start()
         +stop()
         +destroy()
@@ -38,6 +42,7 @@ classDiagram
     class Scheduler {
         -scheduled: boolean
         -root: Tree
+        +constructor(autoStart = true)
         +setRoot(root)
         +start()
         +stop()
@@ -421,12 +426,53 @@ The traversal process follows these rules:
 
 For detailed flow diagrams showing these processes, see [Component Rendering and Lifecycle Integration](./component-rendering-lifecycle.md).
 
+## Frame Loop Ownership
+
+Every graph on the page shares the global scheduler's `requestAnimationFrame`
+loop. Its owners decide when the loop runs:
+
+- `retain(owner)` adds an owner and starts the loop. `graph.start()` retains the
+  global scheduler with the graph as owner.
+- `release(owner)` removes an owner. When the last owner releases it, the loop
+  stops and removals that were waiting for the next frame are applied at once
+  (unless a frame is in progress, which applies them when it ends). Releasing an
+  object that never retained the loop does not stop a loop started with
+  `start()`. `graph.stop()` and
+  `graph.unmount()` release the graph, so stopping one graph never pauses the
+  others.
+- `isRunning()` reports whether a frame is scheduled.
+- `start()` and `stop()` drive the loop directly and ignore owners: `stop()`
+  stops it even while owners retain it, and the next `retain()` starts it again.
+
+`removeScheduler` defers the removal so that a scheduler can remove itself
+during iteration without other schedulers being skipped:
+
+- removed during a frame, it is dropped when that frame ends;
+- removed between frames, it receives one more `performUpdate` in the next frame
+  and is dropped after it;
+- when `release()` leaves the loop without owners, pending removals are applied
+  at once, without that extra call.
+
+The library's own registrations (`Scheduler`, `schedule`, `debounce`,
+`throttle`) ignore a call that arrives after they were removed.
+
+## Root Scheduler Registration
+
+Each root component (a component mounted without a parent) owns a `Scheduler`.
+By default it registers in the global scheduler when it is constructed and
+unregisters when the root is unmounted. Layers render only while attached, so
+`Layer` sets `static autoStartScheduler = false`: its scheduler registers in
+`attachLayer` and unregisters when the layer is detached or unmounted. A graph
+that is never attached therefore keeps nothing in the global scheduler and can
+be garbage collected. `new Scheduler(false)` creates a scheduler that is not
+registered until `start()` is called.
+
 ## Scheduler Lifecycle
 
 ```mermaid
 flowchart TD
     A[New Scheduler] --> B[Constructor]
-    B --> C[Register with GlobalScheduler]
+    B --> C["Register with GlobalScheduler: on construction, or on start() for autoStart = false"]
     C --> D[Wait for updates]
     D --> E{Is scheduled?}
     E -->|Yes| F[Update tree]
@@ -444,18 +490,21 @@ flowchart TD
 ### Basic Scheduler Usage
 
 ```typescript
-// Create a scheduler
-const scheduler = new Scheduler();
+// Create a scheduler that is not registered until start()
+const scheduler = new Scheduler(false);
 
 // Set the root component
 const rootComponent = CoreComponent.mount(MyRootComponent, props);
 scheduler.setRoot(rootComponent.__comp.treeNode);
 
-// Start the scheduler
+// Register it in the global scheduler, and keep the frame loop running
 scheduler.start();
+const owner = {};
+globalScheduler.retain(owner);
 
-// Later, stop the scheduler when done
+// Later, when done
 scheduler.stop();
+globalScheduler.release(owner);
 ```
 
 ### Component Integration with Scheduler
@@ -477,16 +526,17 @@ class MyComponent extends Component {
 ### Using Multiple Schedulers with Different Priority Levels
 
 ```typescript
-// Create two schedulers with different priority levels
-const highPriorityScheduler = new Scheduler();
-const lowPriorityScheduler = new Scheduler();
+// Create two schedulers without registering them at the default priority
+const highPriorityScheduler = new Scheduler(false);
+const lowPriorityScheduler = new Scheduler(false);
 
 // Add the schedulers to the global scheduler with different priority levels
 globalScheduler.addScheduler(highPriorityScheduler, 0); // High priority
 globalScheduler.addScheduler(lowPriorityScheduler, 4); // Low priority
 
-// Start the global scheduler
-globalScheduler.start();
+// Keep the frame loop running while they are needed
+const owner = {};
+globalScheduler.retain(owner);
 
 // Assign different components to the schedulers
 highPriorityScheduler.setRoot(highPriorityRootComponent.__comp.treeNode);

@@ -61,9 +61,9 @@ type TPrivateComponentData = {
 export type CoreComponentProps = Record<string, unknown>;
 export type CoreComponentContext = Record<string, unknown>;
 
-function createDefaultPrivateContext() {
+function createDefaultPrivateContext(autoStartScheduler: boolean): TPrivateComponentData["context"] {
   return {
-    scheduler: new Scheduler(),
+    scheduler: new Scheduler(autoStartScheduler),
     globalIterateId: 0,
   };
 }
@@ -73,6 +73,12 @@ export class CoreComponent<
   Context extends CoreComponentContext = CoreComponentContext,
 > implements ITree
 {
+  /**
+   * Whether a root registers its scheduler in the global scheduler on construction. Roots that
+   * render only while attached (layers) start it themselves, so unattached roots stay collectable.
+   */
+  public static readonly autoStartScheduler: boolean = true;
+
   public $: Record<string, CoreComponent | undefined> = Object.create(null);
 
   public context: Context = {} as Context;
@@ -99,7 +105,7 @@ export class CoreComponent<
 
     this.__comp = {
       parent,
-      context: parent ? parent.__comp.context : createDefaultPrivateContext(),
+      context: parent ? parent.__comp.context : createDefaultPrivateContext(new.target.autoStartScheduler),
       treeNode: new Tree(this),
       children: new Map(),
       childrenKeys: [],

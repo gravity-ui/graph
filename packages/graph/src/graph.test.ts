@@ -226,3 +226,23 @@ describe("Graph unmount lifecycle", () => {
     expect(countRegistrations()).toBeLessThanOrEqual(baseline);
   });
 });
+
+describe("Graph unmount with pending readiness work", () => {
+  it("does not run pending ready callbacks or zoom while unmounting", () => {
+    const graph = new Graph({}, document.createElement("div"));
+    graph.setEntities({
+      blocks: [{ id: "a", is: "Block", name: "A", x: 0, y: 0, width: 10, height: 10, anchors: [] }],
+    });
+    graph.start();
+    const ready = jest.fn();
+    const cameraChange = jest.fn();
+    graph.runAfterGraphReady(ready);
+    graph.on("camera-change", cameraChange);
+    graph.zoomTo("center");
+
+    graph.unmount();
+
+    expect(ready).not.toHaveBeenCalled();
+    expect(cameraChange).not.toHaveBeenCalled();
+  });
+});
