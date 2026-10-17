@@ -117,6 +117,8 @@ export class PortsStore {
 
   public reset(): void {
     this.clearPorts();
+    // Notify now: a pending debounce would keep the store reachable until the next frame.
+    this.notifyPortMapChanged.flush();
   }
 
   /**

@@ -21,6 +21,9 @@ export class Layers extends Emitter<LayersEvents> {
 
   protected layers: Set<Layer> = new Set();
 
+  /** Layers created here that have not been unmounted yet, including detached ones. */
+  private removableLayers = new WeakSet<Layer>();
+
   private unwatchDPR?: () => void;
 
   constructor(public $root?: HTMLDivElement) {
@@ -41,6 +44,7 @@ export class Layers extends Emitter<LayersEvents> {
       ...props,
     }) as InstanceType<T>;
     this.layers.add(layer);
+    this.removableLayers.add(layer);
     if (this.attached && this.$root) {
       layer.attachLayer(this.$root);
     }
@@ -50,6 +54,16 @@ export class Layers extends Emitter<LayersEvents> {
   public detachLayer(layer: Layer) {
     this.layers.delete(layer);
     layer.detachLayer();
+  }
+
+  /**
+   * Forgets the layer and unmounts it with its children; unlike detachLayer, this is terminal.
+   * Only layers created by this service and not yet removed are unmounted.
+   */
+  public removeLayer(layer: Layer): void {
+    this.layers.delete(layer);
+    if (!this.removableLayers.delete(layer)) return;
+    Component.unmount(layer);
   }
 
   public getRootSize() {
@@ -128,10 +142,7 @@ export class Layers extends Emitter<LayersEvents> {
   }
 
   protected destroyLayers() {
-    this.layers.forEach((layer) => {
-      Component.unmount(layer);
-    });
-    this.layers.clear();
+    Array.from(this.layers).forEach((layer) => this.removeLayer(layer));
   }
 
   public updateSize = () => {

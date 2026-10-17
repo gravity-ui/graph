@@ -25,7 +25,14 @@ export interface GlobalScheduler {
   getSchedulers(): [IScheduler[], IScheduler[], IScheduler[], IScheduler[], IScheduler[]];
   addScheduler(scheduler: IScheduler, index?: ESchedulerPriority): () => void;
   removeScheduler(scheduler: IScheduler, index?: ESchedulerPriority): void;
+  /** Keeps the frame loop running until the same owner releases it; started graphs retain it. */
+  retain(owner: object): void;
+  /** Releases an owner; the frame loop stops once no owner retains it. */
+  release(owner: object): void;
+  /** Whether the frame loop is currently scheduled. */
+  isRunning(): boolean;
   start(): void;
+  /** Stops the frame loop regardless of owners; the next retain() starts it again. */
   stop(): void;
   destroy(): void;
   tick(): void;
@@ -47,7 +54,7 @@ export interface Scheduler {
   performUpdate(): void;
 }
 
-type TSchedulerConstructor = new () => Scheduler;
+type TSchedulerConstructor = new (autoStart?: boolean) => Scheduler;
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const Scheduler: TSchedulerConstructor = RuntimeScheduler;

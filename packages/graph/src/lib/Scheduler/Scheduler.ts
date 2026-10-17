@@ -35,6 +35,8 @@ export class GlobalScheduler {
   private schedulers: [IScheduler[], IScheduler[], IScheduler[], IScheduler[], IScheduler[]];
   private _cAFID: TFrameHandle | undefined;
   private toRemove: Array<[IScheduler, TSchedulerPriority]> = [];
+  /** Nesting depth of performUpdate; removals are applied only outside of every iteration. */
+  private updateDepth = 0;
   private visibilityChangeHandler: (() => void) | null = null;
 
   constructor() {
@@ -94,6 +96,37 @@ export class GlobalScheduler {
     this.toRemove.push([scheduler, index]);
   }
 
+  /** Consumers that need the frame loop, e.g. started graphs. */
+  private owners = new Set<object>();
+
+  /** Keeps the frame loop running until the same owner releases it. */
+  public retain(owner: object): void {
+    this.owners.add(owner);
+    this.start();
+  }
+
+  /**
+   * Releases an owner; the frame loop stops when no owner needs it. With no owner left no frame
+   * will process deferred removals, so they are applied now and stop referencing their owners.
+   */
+  public release(owner: object): void {
+    const retained = this.owners.delete(owner);
+    if (this.owners.size > 0) {
+      return;
+    }
+    // An owner that never retained the loop must not stop a loop started directly with start().
+    if (retained) {
+      this.stop();
+    }
+    if (this.updateDepth === 0) {
+      this.applyRemovals();
+    }
+  }
+
+  public isRunning(): boolean {
+    return this._cAFID !== undefined;
+  }
+
   public start() {
     if (this._cAFID === undefined) {
       this._cAFID = rAF(this.tick);
@@ -127,15 +160,25 @@ export class GlobalScheduler {
     const startTime = getNow();
     let schedulers: IScheduler[] = [];
 
-    for (let i = 0; i < this.schedulers.length; i += 1) {
-      schedulers = this.schedulers[i];
+    this.updateDepth += 1;
+    try {
+      for (let i = 0; i < this.schedulers.length; i += 1) {
+        schedulers = this.schedulers[i];
 
-      for (let j = 0; j < schedulers.length; j += 1) {
-        schedulers[j].performUpdate(getNow() - startTime);
+        for (let j = 0; j < schedulers.length; j += 1) {
+          schedulers[j].performUpdate(getNow() - startTime);
+        }
+      }
+    } finally {
+      this.updateDepth -= 1;
+      // Process deferred removals after all schedulers have been executed, even if one threw.
+      if (this.updateDepth === 0) {
+        this.applyRemovals();
       }
     }
+  }
 
-    // Process deferred removals after all schedulers have been executed
+  private applyRemovals(): void {
     for (const [scheduler, index] of this.toRemove) {
       const schedulerIndex = this.schedulers[index].indexOf(scheduler);
       if (schedulerIndex !== -1) {
@@ -154,12 +197,14 @@ export class Scheduler {
   private root: TSchedulerTree | undefined;
   private registration: IScheduler | undefined;
 
-  constructor() {
+  constructor(autoStart = true) {
     this.performUpdate = this.performUpdate.bind(this);
 
     this.sheduled = false;
 
-    this.start();
+    if (autoStart) {
+      this.start();
+    }
   }
 
   public setRoot(root: TSchedulerTree) {

@@ -24,9 +24,9 @@ const devtools = graph.addLayer(DevToolsLayer, {
 });
 graph.start();
 
-// Update appearance or detach the layer when it is no longer needed.
+// Update appearance or remove the layer when it is no longer needed.
 devtools.setProps({ rulerBackgroundColor: "rgba(46, 46, 46, 0.4)" });
-// graph.detachLayer(devtools);
+// graph.removeLayer(devtools);
 ```
 
 `@gravity-ui/graph` is a required peer dependency. This package uses its public `Layer` API and shares
