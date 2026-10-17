@@ -35,6 +35,8 @@ Layers follow a specific initialization and attachment lifecycle that's importan
 4. **Detachment Phase (`detachLayer` and `unmount`)**
    - Layer is removed from the DOM
    - Resources are cleaned up
+   - `graph.detachLayer(layer)` is reversible: the caller can attach the layer again with `layer.attachLayer(root)` and owns it from then on
+   - `graph.removeLayer(layer)` is terminal: it unmounts the layer with its children and stops its scheduler
 
 **Important**: Any operations that require the layer to be attached to the DOM (such as DOM manipulations, style injections, or measurements) should be performed in the `afterInit` method, not in `init` or the constructor.
 

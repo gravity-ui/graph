@@ -1,5 +1,6 @@
 import { TBlock } from "./components/canvas/blocks/Block";
 import { Graph } from "./graph";
+import { globalScheduler } from "./lib/Scheduler";
 import { GRAPH_INSTANCE_SYMBOL_KEY, LEGACY_GRAPH_INSTANCE_SYMBOL_KEY } from "./utils/graphInstance";
 
 describe("Graph DOM instance bridge", () => {
@@ -197,5 +198,31 @@ describe("Graph.zoomTo block ids", () => {
     expect(zoomToBlocks).toHaveBeenNthCalledWith(2, [0, "b"], undefined);
     expect(zoomToViewPort).not.toHaveBeenCalled();
     graph.unmount();
+  });
+});
+
+describe("Graph unmount lifecycle", () => {
+  function countRegistrations(): number {
+    // Flush deferred removals before counting the scheduler registry.
+    globalScheduler.performUpdate();
+    return globalScheduler.getSchedulers().reduce((total, list) => total + list.length, 0);
+  }
+
+  it("releases layer schedulers and does not iterate unmounted layers", () => {
+    const baseline = countRegistrations();
+    const graph = new Graph({}, document.createElement("div"));
+    graph.start();
+    globalScheduler.performUpdate();
+    const layers = graph.layers.getLayers();
+    expect(layers.length).toBeGreaterThan(0);
+
+    graph.unmount();
+    const iterations = layers.map((layer) => jest.spyOn(layer, "iterate"));
+    layers.forEach((layer) => layer.performRender());
+    globalScheduler.performUpdate();
+
+    iterations.forEach((iterate) => expect(iterate).not.toHaveBeenCalled());
+    // Short-lived throttle tasks share the registry, so only an upper bound is deterministic.
+    expect(countRegistrations()).toBeLessThanOrEqual(baseline);
   });
 });
