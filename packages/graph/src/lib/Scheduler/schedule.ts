@@ -19,8 +19,6 @@ export const schedule = (fn: (this: void) => unknown, options: TScheduleOptions)
   let isRemoved = false;
   const registration = {
     performUpdate: () => {
-      // Physical removal is deferred, but the returned remover invalidates the task immediately.
-      if (isRemoved) return;
       frameCounter++;
       if (frameCounter >= frameInterval) {
         frameCounter = 0;
@@ -112,7 +110,7 @@ export function debounce<T extends TCallback>(
 
     const nextRegistration = {
       performUpdate: () => {
-        // Removals are deferred; a cancelled registration must not advance a new call's timer.
+        // A registration kept during a flush may have no pending call left to advance.
         if (registration !== nextRegistration || !latestCall) return;
         frameCounter++;
         if (frameCounter >= frameInterval && getNow() - startTime >= frameTimeout) flush();

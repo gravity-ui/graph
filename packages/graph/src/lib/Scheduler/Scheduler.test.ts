@@ -30,22 +30,15 @@ describe("GlobalScheduler", () => {
     expect(defaultPriority.performUpdate).toHaveBeenCalledTimes(1);
   });
 
-  it("defers removal until the next update completes", () => {
+  it("removes a task immediately", () => {
     const task = { performUpdate: jest.fn() };
     const remove = scheduler.addScheduler(task, 3);
 
     remove();
 
-    expect(scheduler.getSchedulers()[3]).toEqual([task]);
-
-    scheduler.performUpdate();
-
-    expect(task.performUpdate).toHaveBeenCalledTimes(1);
     expect(scheduler.getSchedulers()[3]).toEqual([]);
-
     scheduler.performUpdate();
-
-    expect(task.performUpdate).toHaveBeenCalledTimes(1);
+    expect(task.performUpdate).not.toHaveBeenCalled();
   });
 
   it("does not skip remaining schedulers when one removes itself", () => {
@@ -71,6 +64,56 @@ describe("GlobalScheduler", () => {
     expect(first.performUpdate).toHaveBeenCalledTimes(1);
     expect(second.performUpdate).toHaveBeenCalledTimes(2);
   });
+
+  it("does not call a task that an earlier task removed in the same frame", () => {
+    let removeLater = () => {};
+    const earlier = { performUpdate: jest.fn(() => removeLater()) };
+    const later = { performUpdate: jest.fn() };
+    const last = { performUpdate: jest.fn() };
+    scheduler.addScheduler(earlier);
+    removeLater = scheduler.addScheduler(later);
+    scheduler.addScheduler(last);
+
+    scheduler.performUpdate();
+
+    expect(later.performUpdate).not.toHaveBeenCalled();
+    expect(last.performUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the outer frame consistent when a nested update removes a task", () => {
+    let removeLater = () => {};
+    let removeNested = () => {};
+    const nested = {
+      performUpdate: jest.fn(() => {
+        removeNested();
+        scheduler.performUpdate();
+        removeLater();
+      }),
+    };
+    const later = { performUpdate: jest.fn() };
+    const last = { performUpdate: jest.fn() };
+    removeNested = scheduler.addScheduler(nested);
+    removeLater = scheduler.addScheduler(later);
+    scheduler.addScheduler(last);
+
+    scheduler.performUpdate();
+
+    // The nested update ran later and last once; the outer frame skips the removed task only.
+    expect(nested.performUpdate).toHaveBeenCalledTimes(1);
+    expect(later.performUpdate).toHaveBeenCalledTimes(1);
+    expect(last.performUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it("calls a task added during a frame in that frame when it comes later", () => {
+    const added = { performUpdate: jest.fn() };
+    const adding = { performUpdate: jest.fn(() => scheduler.addScheduler(added, 4)) };
+    const remove = scheduler.addScheduler(adding, 0);
+
+    scheduler.performUpdate();
+    remove();
+
+    expect(added.performUpdate).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("GlobalScheduler frame lifecycle", () => {
@@ -86,26 +129,35 @@ describe("GlobalScheduler frame lifecycle", () => {
     jest.useRealTimers();
   });
 
-  it("starts only one loop and restarts after repeated stops", () => {
-    const task = { performUpdate: jest.fn() };
-    scheduler.addScheduler(task);
-    scheduler.start();
-    scheduler.start();
+  it("runs the frame loop exactly while tasks are registered", () => {
+    expect(jest.getTimerCount()).toBe(0);
+    const first = { performUpdate: jest.fn() };
+    const second = { performUpdate: jest.fn() };
+    const removeFirst = scheduler.addScheduler(first);
+    const removeSecond = scheduler.addScheduler(second);
+    expect(jest.getTimerCount()).toBe(1);
+
     jest.advanceTimersByTime(16);
-    expect(task.performUpdate).toHaveBeenCalledTimes(1);
-    scheduler.stop();
-    scheduler.stop();
+    expect(first.performUpdate).toHaveBeenCalledTimes(1);
+
+    removeFirst();
+    jest.advanceTimersByTime(16);
+    expect(second.performUpdate).toHaveBeenCalledTimes(2);
+
+    removeSecond();
+    expect(jest.getTimerCount()).toBe(0);
     jest.advanceTimersByTime(32);
-    expect(task.performUpdate).toHaveBeenCalledTimes(1);
-    scheduler.start();
+    expect(second.performUpdate).toHaveBeenCalledTimes(2);
+
+    scheduler.addScheduler(first);
     jest.advanceTimersByTime(16);
-    expect(task.performUpdate).toHaveBeenCalledTimes(2);
+    expect(first.performUpdate).toHaveBeenCalledTimes(2);
   });
 
-  it("stays stopped when an update stops the loop", () => {
-    const task = { performUpdate: jest.fn(() => scheduler.stop()) };
-    scheduler.addScheduler(task);
-    scheduler.start();
+  it("stops when the last task removes itself during a frame", () => {
+    let remove = () => {};
+    const task = { performUpdate: jest.fn(() => remove()) };
+    remove = scheduler.addScheduler(task);
     jest.advanceTimersByTime(48);
     expect(task.performUpdate).toHaveBeenCalledTimes(1);
     expect(jest.getTimerCount()).toBe(0);
@@ -113,36 +165,13 @@ describe("GlobalScheduler frame lifecycle", () => {
 });
 
 describe("Scheduler root readiness", () => {
-  it("keeps one active registration across start, repeated stop and immediate restart", () => {
-    const before = globalScheduler.getSchedulers()[2].length;
+  it("does not register in the global scheduler", () => {
+    const before = globalScheduler.getSchedulers().flat().length;
     const scheduler = new Scheduler();
-    const iterate = jest.fn(() => true);
-    scheduler.setRoot({
-      traverseDown: (iterator) => {
-        iterator({ data: { iterate } });
-      },
-    });
-    scheduler.start();
-    scheduler.start();
-    expect(globalScheduler.getSchedulers()[2]).toHaveLength(before + 1);
-    scheduler.stop();
-    scheduler.stop();
     scheduler.scheduleUpdate();
-    globalScheduler.performUpdate();
-    expect(iterate).not.toHaveBeenCalled();
-    scheduler.start();
-    scheduler.stop();
-    scheduler.start();
-    globalScheduler.performUpdate();
-    expect(iterate).toHaveBeenCalledTimes(1);
-    expect(globalScheduler.getSchedulers()[2]).toHaveLength(before + 1);
-    scheduler.scheduleUpdate();
-    globalScheduler.performUpdate();
-    expect(iterate).toHaveBeenCalledTimes(2);
-    scheduler.stop();
-    globalScheduler.performUpdate();
-    expect(globalScheduler.getSchedulers()[2]).toHaveLength(before);
+    expect(globalScheduler.getSchedulers().flat()).toHaveLength(before);
   });
+
   it("treats updates before root initialization as a no-op", () => {
     const scheduler = new Scheduler();
     expect(() => scheduler.update()).not.toThrow();
@@ -159,7 +188,5 @@ describe("Scheduler root readiness", () => {
     scheduler.scheduleUpdate();
     scheduler.performUpdate();
     expect(iterate).toHaveBeenCalledTimes(1);
-    scheduler.stop();
-    globalScheduler.performUpdate();
   });
 });

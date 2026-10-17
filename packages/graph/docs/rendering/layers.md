@@ -31,12 +31,14 @@ Layers follow a specific initialization and attachment lifecycle that's importan
 3. **Update Phase (rendering cycle)**
    - Layer responds to state changes
    - Rendering occurs based on component lifecycle
+   - The graph updates its layers on each frame while it is started; a layer only calls `performRender()` and never deals with the scheduler
 
 4. **Detachment Phase (`detachLayer` and `unmount`)**
    - Layer is removed from the DOM
    - Resources are cleaned up
-   - `graph.detachLayer(layer)` is reversible: the caller can attach the layer again with `layer.attachLayer(root)` and owns it from then on
-   - `graph.removeLayer(layer)` is terminal: it unmounts the layer with its children and stops its scheduler
+   - `graph.detachLayer(layer)` removes the layer from the graph and the DOM without destroying it; the graph no longer updates it
+   - `graph.attachLayer(layer)` returns a detached layer to the graph: the graph updates it again and attaches it to the graph root while started
+   - `graph.removeLayer(layer)` is terminal: it unmounts the layer with its children
 
 **Important**: Any operations that require the layer to be attached to the DOM (such as DOM manipulations, style injections, or measurements) should be performed in the `afterInit` method, not in `init` or the constructor.
 

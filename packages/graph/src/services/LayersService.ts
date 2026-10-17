@@ -52,8 +52,26 @@ export class Layers extends Emitter<LayersEvents> {
   }
 
   public detachLayer(layer: Layer) {
+    if (!this.removableLayers.has(layer)) return;
     this.layers.delete(layer);
     layer.detachLayer();
+  }
+
+  /**
+   * Returns a layer detached with detachLayer to the graph: the graph updates it again and, while
+   * started, attaches it to the graph root (moving it from any root the caller attached it to).
+   * Layers of other graphs and removed layers are ignored.
+   */
+  public attachLayer(layer: Layer): void {
+    if (!this.removableLayers.has(layer)) return;
+    this.layers.add(layer);
+    // A layer attached by hand to another root leaves it now, even if the graph is not started.
+    if (layer.$attached.value && layer.context.root !== this.$root) {
+      layer.detachLayer();
+    }
+    if (this.attached && this.$root && !layer.$attached.value) {
+      layer.attachLayer(this.$root);
+    }
   }
 
   /**
@@ -72,6 +90,15 @@ export class Layers extends Emitter<LayersEvents> {
 
   public getLayers(): Layer[] {
     return Array.from(this.layers);
+  }
+
+  /**
+   * Runs the pending update of every layer of the graph, in the order they were added or returned.
+   * The graph calls it on each frame while it is started; a detached or removed layer is not
+   * part of it.
+   */
+  public update(): void {
+    this.layers.forEach((layer) => Component.update(layer));
   }
 
   public attach(root: HTMLDivElement | undefined = this.$root) {

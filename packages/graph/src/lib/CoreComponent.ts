@@ -61,7 +61,7 @@ type TPrivateComponentData = {
 export type CoreComponentProps = Record<string, unknown>;
 export type CoreComponentContext = Record<string, unknown>;
 
-function createDefaultPrivateContext() {
+function createDefaultPrivateContext(): TPrivateComponentData["context"] {
   return {
     scheduler: new Scheduler(),
     globalIterateId: 0,
@@ -158,8 +158,8 @@ export class CoreComponent<
     this.__unmountChildren();
     this.unmount();
     if (!this.__comp.parent) {
-      // A root owns its scheduler; children share it and must leave it running.
-      this.__comp.context.scheduler.stop();
+      // An unmounted root has no parent to re-render, and its tree is never traversed again.
+      this.__comp.context.scheduler.setRoot(undefined);
       return;
     }
     this.performRender();
@@ -262,5 +262,15 @@ export class CoreComponent<
 
   public static unmount(instance: CoreComponent) {
     instance.__unmount();
+  }
+
+  /**
+   * Runs the pending update of a root mounted with `mount`. Roots are not driven by anything on
+   * their own: the graph updates its layers on each frame, and code that mounts a root itself
+   * calls this from its own loop. Children are updated with their root, so for them it is a no-op.
+   */
+  public static update(root: CoreComponent): void {
+    if (root.__comp.parent) return;
+    root.__comp.context.scheduler.performUpdate();
   }
 }

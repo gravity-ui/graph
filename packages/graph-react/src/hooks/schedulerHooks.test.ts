@@ -1,21 +1,15 @@
-import { ESchedulerPriority, Graph } from "@gravity-ui/graph";
+import { ESchedulerPriority } from "@gravity-ui/graph";
 import { act, renderHook } from "@testing-library/react";
 
 import { useSchedulerDebounce, useSchedulerThrottle } from "./schedulerHooks";
-
-const scheduler = new Graph({}).scheduler;
 
 describe("useSchedulerDebounce hook", () => {
   beforeEach(() => {
     // Use modern fake timers - automatically mocks performance.now() and synchronizes it
     jest.useFakeTimers();
-
-    // Start the global scheduler
-    scheduler.start();
   });
 
   afterEach(() => {
-    scheduler.stop();
     jest.useRealTimers();
   });
 
@@ -516,13 +510,9 @@ describe("useSchedulerThrottle hook", () => {
   beforeEach(() => {
     // Use modern fake timers - automatically mocks performance.now() and synchronizes it
     jest.useFakeTimers();
-
-    // Start the global scheduler
-    scheduler.start();
   });
 
   afterEach(() => {
-    scheduler.stop();
     jest.useRealTimers();
   });
 

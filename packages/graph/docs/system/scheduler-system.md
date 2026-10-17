@@ -8,12 +8,16 @@ This document describes the scheduling system that coordinates component updates
 
 The scheduling system consists of two main classes:
 
-1. **GlobalScheduler** - Manages the animation frame loop and coordinates multiple schedulers
-2. **Scheduler** - Manages updates for a specific component tree
+1. **GlobalScheduler** - Runs registered tasks once per animation frame, in priority order
+2. **Scheduler** - Holds the update state of one component tree (a "needs update" flag and a traversal)
+
+A component tree does not register itself anywhere. Its owner drives it: a graph
+drives the trees of its layers (see [Who Drives Component Trees](#who-drives-component-trees)).
 
 ```mermaid
 classDiagram
-    GlobalScheduler <-- Scheduler
+    GlobalScheduler <-- Graph : frame task while started
+    Graph --> Scheduler : updates each layer root
     Scheduler -- Tree
     Tree -- ITree
     CoreComponent ..|> ITree
@@ -25,8 +29,6 @@ classDiagram
         -visibilityChangeHandler: Function | null
         +addScheduler(scheduler, index)
         +removeScheduler(scheduler, index)
-        +start()
-        +stop()
         +destroy()
         +tick()
         +performUpdate()
@@ -39,8 +41,6 @@ classDiagram
         -scheduled: boolean
         -root: Tree
         +setRoot(root)
-        +start()
-        +stop()
         +update()
         +iterator(node)
         +scheduleUpdate()
@@ -66,6 +66,34 @@ classDiagram
     }
 ```
 
+## Who Drives Component Trees
+
+- **The frame loop runs while there is work.** Registering the first task with
+  `addScheduler` requests an animation frame; removing the last task cancels the
+  loop. Nothing else starts or stops it.
+- **A graph drives its layers.** `graph.start()` registers one frame task, and
+  `graph.stop()`, `graph.detach()` and `graph.unmount()` remove it. On each frame
+  the task updates the graph's layers in the order they were added or returned.
+  Components rendered by a layer (`Component.create(...)` in `updateChildren`)
+  belong to the layer's tree and are updated with it. Components and layers never
+  touch the scheduler: they call `performRender()`, and the graph updates them on
+  the next frame.
+- **Stopping one graph does not affect others.** A graph only removes its own
+  task, so the other started graphs keep rendering.
+- **A graph that is not started is not driven.** It has no frame task in the
+  global scheduler (debounced work it queued earlier still runs to completion), and a graph that was never attached, or was detached, can be garbage
+  collected.
+- **A root outside a graph is driven by its owner.** A root created with
+  `Component.mount` outside a graph is not updated by anything; whoever mounted it
+  calls `Component.update(root)`, for example from a `schedule` task.
+- **A detached layer is not updated until it returns.** `graph.detachLayer(layer)`
+  takes the layer out of the graph; `graph.attachLayer(layer)` returns it, and the
+  graph updates it again.
+- **Removal is immediate.** `removeScheduler` (or the function returned by
+  `addScheduler`) removes a task at once: a task removed during a frame is not
+  called later in that frame, and the remaining tasks are not skipped. A task
+  added during a frame at a later position runs in that frame.
+
 ## Animation Frame Integration
 
 The scheduler system integrates with the browser's requestAnimationFrame API (or setTimeout in non-browser environments):
@@ -74,13 +102,15 @@ The scheduler system integrates with the browser's requestAnimationFrame API (or
 sequenceDiagram
     participant Browser
     participant GlobalScheduler
+    participant Graph
     participant Scheduler
     participant Component
     
     Browser->>GlobalScheduler: requestAnimationFrame
     GlobalScheduler->>GlobalScheduler: tick()
     GlobalScheduler->>GlobalScheduler: performUpdate()
-    GlobalScheduler->>Scheduler: performUpdate()
+    GlobalScheduler->>Graph: frame task
+    Graph->>Scheduler: performUpdate() for each layer
     Scheduler->>Scheduler: update()
     Scheduler->>Tree: traverseDown(iterator)
     Tree->>Component: iterate()
@@ -129,7 +159,7 @@ private setupVisibilityListener(): void {
 
 private handleVisibilityChange(): void {
   // Only update if page becomes visible and scheduler is running
-  if (!document.hidden && this._cAFID) {
+  if (!document.hidden && this._cAFID !== undefined) {
     // Perform immediate update when tab becomes visible
     this.performUpdate();
   }
@@ -166,7 +196,7 @@ The scheduling system coordinates when component updates happen:
 
 1. Component calls `performRender()` to schedule an update
 2. This sets a `scheduled` flag in the Scheduler
-3. On the next animation frame, GlobalScheduler triggers updates for all scheduled components
+3. On the next animation frame, the graph's frame task updates the trees of its layers that have the flag set
 4. The Scheduler traverses the component tree in a depth-first order
 5. Each component's `iterate()` method is called during traversal
 6. Components can control whether their children are processed by returning true/false from `iterate()`
@@ -221,8 +251,7 @@ flowchart TD
     C --> D[Process MEDIUM Priority Queue]
     D --> E[Process LOW Priority Queue]
     E --> F[Process LOWEST Priority Queue]
-    F --> G[Process Deferred Removals]
-    G --> H[Wait for Next Frame]
+    F --> H[Wait for Next Frame]
     H --> A
 ```
 
@@ -230,7 +259,7 @@ flowchart TD
 
 Tasks can be added to the queue through several mechanisms:
 
-1. **Component Schedulers** - When `performRender()` is called on a component
+1. **Graph Frame Tasks** - Each started graph registers one task that updates its layers; `performRender()` only marks a tree for that update
 2. **Manual Schedule** - Using `schedule()` utility function
 3. **Debounced Functions** - Using `debounce()` with frame-based timing
 4. **Throttled Functions** - Using `throttle()` with frame-based timing
@@ -295,8 +324,7 @@ public performUpdate() {
     }
   }
   
-  // Clean up removed schedulers
-  this.processRemovals();
+  // Tasks removed during the frame were taken out immediately; nothing to clean up
 }
 ```
 
@@ -328,7 +356,7 @@ const debouncedScheduler = {
 | **Tasks per frame** | All queued tasks execute each frame | O(n) where n = total tasks |
 | **Priority processing** | Sequential, highest to lowest | Higher priority tasks execute first |
 | **Frame budget** | No time limit per frame | Can cause frame drops if too many tasks |
-| **Task removal** | Deferred until after all tasks execute | Prevents array mutation during iteration |
+| **Task removal** | Immediate; the frame's iteration cursor is adjusted | A removed task is never called again and no task is skipped |
 
 ### Best Practices for Queue Management
 
@@ -425,8 +453,7 @@ For detailed flow diagrams showing these processes, see [Component Rendering and
 
 ```mermaid
 flowchart TD
-    A[New Scheduler] --> B[Constructor]
-    B --> C[Register with GlobalScheduler]
+    A[Layer mounted by the graph] --> C[Graph started: frame task registered]
     C --> D[Wait for updates]
     D --> E{Is scheduled?}
     E -->|Yes| F[Update tree]
@@ -441,21 +468,25 @@ flowchart TD
 
 ## Code Examples
 
-### Basic Scheduler Usage
+### Driving a Standalone Root
+
+Inside a graph you never need this: the graph updates its layers. A root mounted
+on its own is driven by its owner:
 
 ```typescript
-// Create a scheduler
-const scheduler = new Scheduler();
+import { Component, ESchedulerPriority, schedule } from "@gravity-ui/graph";
 
-// Set the root component
-const rootComponent = CoreComponent.mount(MyRootComponent, props);
-scheduler.setRoot(rootComponent.__comp.treeNode);
+const root = Component.mount(MyRootComponent, props);
 
-// Start the scheduler
-scheduler.start();
+// Runs the pending update, if any, on every frame of the shared loop
+const removeTask = schedule(() => Component.update(root), {
+  priority: ESchedulerPriority.MEDIUM,
+  frameInterval: 1,
+});
 
-// Later, stop the scheduler when done
-scheduler.stop();
+// Later, when done
+removeTask();
+Component.unmount(root);
 ```
 
 ### Component Integration with Scheduler
@@ -474,24 +505,22 @@ class MyComponent extends Component {
 }
 ```
 
-### Using Multiple Schedulers with Different Priority Levels
+### Registering a Custom Frame Task
+
+`graph.scheduler` is the shared frame loop. A task keeps the loop running until
+it is removed:
 
 ```typescript
-// Create two schedulers with different priority levels
-const highPriorityScheduler = new Scheduler();
-const lowPriorityScheduler = new Scheduler();
+const removeTask = graph.scheduler.addScheduler(
+  { performUpdate: () => updateOverlay() },
+  ESchedulerPriority.LOW,
+);
 
-// Add the schedulers to the global scheduler with different priority levels
-globalScheduler.addScheduler(highPriorityScheduler, 0); // High priority
-globalScheduler.addScheduler(lowPriorityScheduler, 4); // Low priority
-
-// Start the global scheduler
-globalScheduler.start();
-
-// Assign different components to the schedulers
-highPriorityScheduler.setRoot(highPriorityRootComponent.__comp.treeNode);
-lowPriorityScheduler.setRoot(lowPriorityRootComponent.__comp.treeNode);
+// Later
+removeTask();
 ```
+
+For delayed or rate-limited work, prefer `schedule`, `debounce` and `throttle`.
 
 ## Optimizing Performance
 
@@ -529,12 +558,14 @@ The scheduler system interacts with component lifecycle as follows:
 sequenceDiagram
     participant C as Component
     participant S as Scheduler
+    participant Gr as Graph
     participant G as GlobalScheduler
     
     C->>C: setState/setProps
     C->>S: performRender()
     S->>S: Set scheduled flag
-    G->>S: Animation frame triggers performUpdate()
+    G->>Gr: Animation frame runs the graph's frame task
+    Gr->>S: performUpdate() for each layer root
     S->>C: Tree traversal causes iterate()
     C->>C: Process lifecycle (checkData, render, etc.)
     C->>C: Update complete
@@ -543,23 +574,20 @@ sequenceDiagram
 
 ## Global Scheduler Instance
 
-The system provides a global scheduler instance for convenience:
-
-```typescript
-export const globalScheduler = new GlobalScheduler();
-export const scheduler = globalScheduler;
-```
-
-This allows components to share a single scheduler instance and animation frame loop.
+All graphs share one global scheduler instance, available as `graph.scheduler`,
+so the page runs a single animation frame loop however many graphs it shows.
 
 ### Cleanup
 
 In rare cases where you need to completely destroy the scheduler (e.g., testing, cleanup):
 
 ```typescript
-// Stop scheduler and remove all event listeners
+// Cancel the pending frame and remove the visibility listener
 globalScheduler.destroy();
 ```
+
+`destroy()` does not remove registered tasks, and registering a task afterwards
+starts the frame loop again.
 
 > **Note:** In normal application usage, you don't need to call `destroy()`. The global scheduler is designed to run for the entire lifetime of the application.
 

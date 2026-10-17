@@ -123,6 +123,11 @@ export class Graph {
 
   protected startRequested = false;
 
+  /** Updates this graph's layers on each frame while the graph is started. */
+  private readonly frameTask = { performUpdate: (): void => this.layers.update() };
+
+  private removeFrameTask: (() => void) | undefined;
+
   public get blocks() {
     return this.rootStore.blocksList;
   }
@@ -411,11 +416,20 @@ export class Graph {
   }
 
   /**
-   * Removes the layer from the graph and DOM without destroying it. The caller owns it afterwards:
-   * reattach it with `layer.attachLayer(root)` or release it with `removeLayer`.
+   * Removes the layer from the graph and DOM without destroying it. The graph no longer updates it:
+   * return it with `attachLayer` or release it with `removeLayer`.
    */
   public detachLayer(layer: Layer) {
     this.layers.detachLayer(layer);
+  }
+
+  /**
+   * Returns a layer detached with `detachLayer` to this graph, which updates it again and attaches
+   * it to the graph root while started. A layer attached by hand to another root leaves it.
+   * Layers of other graphs and layers removed with `removeLayer` are ignored.
+   */
+  public attachLayer(layer: Layer): void {
+    this.layers.attachLayer(layer);
   }
 
   /**
@@ -483,19 +497,21 @@ export class Graph {
   }
 
   public start(rootEl: HTMLDivElement | undefined = this.layers.$root): void {
+    if (this.state === GraphState.READY) {
+      return;
+    }
     if (this.state !== GraphState.ATTACHED) {
       this.startRequested = true;
       return;
     }
-    if (this.state >= GraphState.READY) {
-      throw new Error("Graph already started");
-    }
+    this.startRequested = false;
     if (rootEl) {
       this.attach(rootEl);
     }
     this.layers.on("update-size", this.onUpdateSize);
     this.layers.start();
-    this.scheduler.start();
+    // One frame task per started graph, however start() is reached.
+    this.removeFrameTask ??= this.scheduler.addScheduler(this.frameTask);
 
     this.setGraphState(GraphState.READY);
     this.runAfterGraphReady(() => {
@@ -523,7 +539,9 @@ export class Graph {
       clearGraphInstance(root, this);
     }
     clearTextCache();
-    this.scheduler.stop();
+    this.startRequested = false;
+    this.removeFrameTask?.();
+    this.removeFrameTask = undefined;
     this.setGraphState(this.layers.$root ? GraphState.ATTACHED : GraphState.INIT);
   }
 
@@ -548,12 +566,13 @@ export class Graph {
     this.detach();
     this.layers.off("update-size", this.onUpdateSize);
     this.setGraphState(GraphState.INIT);
-    this.hitTest.clear();
+    // Before the layers are unmounted: pending ready waiters must not fire on a graph that is
+    // being torn down, and removing the layers' hit boxes must not queue hit-test work.
+    this.hitTest.destroy();
     this.layers.unmount();
     clearTextCache();
     clearColorCache();
     this.rootStore.reset();
-    this.scheduler.stop();
     this.dragService.destroy();
   }
 

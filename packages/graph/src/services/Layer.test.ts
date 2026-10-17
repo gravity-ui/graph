@@ -315,3 +315,157 @@ describe("Graph.removeLayer", () => {
     expect(LifecycleChild.unmounted).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("root layer scheduling", () => {
+  // Layers that forward events to the camera override getParent(), like BlockGroups.
+  class CameraForwardingLayer extends Layer {
+    public readonly iterated = jest.fn();
+
+    public getParent(): Component | undefined {
+      return this.props.graph.getGraphLayer().$.camera;
+    }
+
+    public iterate(): boolean {
+      this.iterated();
+      return super.iterate();
+    }
+  }
+
+  it("renders a layer that overrides getParent when it is added after the first frame", () => {
+    const graph = new Graph({}, document.createElement("div"));
+    graph.start();
+    globalScheduler.performUpdate();
+    expect(graph.getGraphLayer().$.camera).toBeDefined();
+
+    const layer = graph.addLayer(CameraForwardingLayer, {});
+    layer.performRender();
+    globalScheduler.performUpdate();
+    expect(layer.iterated).toHaveBeenCalled();
+
+    graph.stop();
+    layer.iterated.mockClear();
+    layer.performRender();
+    globalScheduler.performUpdate();
+    globalScheduler.performUpdate();
+    expect(layer.iterated).not.toHaveBeenCalled();
+    graph.unmount();
+  });
+});
+
+describe("Graph.attachLayer", () => {
+  class TrackedLayer extends Layer {
+    public readonly iterated = jest.fn();
+
+    public iterate(): boolean {
+      this.iterated();
+      return super.iterate();
+    }
+  }
+
+  let graph: Graph;
+  let root: HTMLDivElement;
+
+  beforeEach(() => {
+    root = document.createElement("div");
+    graph = new Graph({}, root);
+    graph.start();
+    globalScheduler.performUpdate();
+  });
+
+  afterEach(() => graph.unmount());
+
+  function rendersOnNextFrame(layer: TrackedLayer): boolean {
+    layer.iterated.mockClear();
+    layer.performRender();
+    globalScheduler.performUpdate();
+    return layer.iterated.mock.calls.length > 0;
+  }
+
+  it("returns a detached layer to the graph, which updates it again", () => {
+    const layer = graph.addLayer(TrackedLayer, { html: { zIndex: 1 } });
+    graph.detachLayer(layer);
+    expect(rendersOnNextFrame(layer)).toBe(false);
+
+    graph.attachLayer(layer);
+
+    expect(graph.layers.getLayers()).toContain(layer);
+    expect(layer.$attached.value).toBe(true);
+    expect(layer.context.root).toBe(root);
+    expect(rendersOnNextFrame(layer)).toBe(true);
+  });
+
+  it("moves a layer the caller attached elsewhere back to the graph root", () => {
+    const layer = graph.addLayer(TrackedLayer, { html: { zIndex: 1 } });
+    graph.detachLayer(layer);
+    const elsewhere = document.createElement("div");
+    layer.attachLayer(elsewhere);
+
+    graph.attachLayer(layer);
+
+    expect(layer.context.root).toBe(root);
+    expect(elsewhere.childElementCount).toBe(0);
+  });
+
+  it("moves a hand-attached layer to the graph root when the graph starts later", () => {
+    const layer = graph.addLayer(TrackedLayer, { html: { zIndex: 1 } });
+    graph.detachLayer(layer);
+    graph.stop();
+    const elsewhere = document.createElement("div");
+    layer.attachLayer(elsewhere);
+
+    graph.attachLayer(layer);
+    expect(elsewhere.childElementCount).toBe(0);
+    graph.start();
+
+    expect(layer.context.root).toBe(root);
+    expect(rendersOnNextFrame(layer)).toBe(true);
+  });
+
+  it("does not detach a layer of another graph", () => {
+    const other = new Graph({}, document.createElement("div"));
+    other.start();
+    const foreign = other.addLayer(TrackedLayer, { html: { zIndex: 1 } });
+
+    graph.detachLayer(foreign);
+
+    expect(foreign.$attached.value).toBe(true);
+    expect(other.layers.getLayers()).toContain(foreign);
+    other.unmount();
+  });
+
+  it("does not add a layer twice", () => {
+    const layer = graph.addLayer(TrackedLayer, { html: { zIndex: 1 } });
+    const count = graph.layers.getLayers().length;
+
+    graph.attachLayer(layer);
+
+    expect(graph.layers.getLayers()).toHaveLength(count);
+  });
+
+  it("attaches a returned layer when a stopped graph starts again", () => {
+    const layer = graph.addLayer(TrackedLayer, { html: { zIndex: 1 } });
+    graph.detachLayer(layer);
+    graph.stop();
+
+    graph.attachLayer(layer);
+    expect(layer.$attached.value).toBe(false);
+    graph.start();
+
+    expect(layer.$attached.value).toBe(true);
+    expect(rendersOnNextFrame(layer)).toBe(true);
+  });
+
+  it("ignores removed layers and layers of another graph", () => {
+    const removed = graph.addLayer(TrackedLayer, { html: { zIndex: 1 } });
+    graph.removeLayer(removed);
+    const other = new Graph({}, document.createElement("div"));
+    const foreign = other.addLayer(TrackedLayer, { html: { zIndex: 1 } });
+
+    graph.attachLayer(removed);
+    graph.attachLayer(foreign);
+
+    expect(graph.layers.getLayers()).not.toContain(removed);
+    expect(graph.layers.getLayers()).not.toContain(foreign);
+    other.unmount();
+  });
+});

@@ -117,6 +117,8 @@ export class PortsStore {
 
   public reset(): void {
     this.clearPorts();
+    // A reset is final: publish the empty map now instead of on a later frame.
+    this.notifyPortMapChanged.flush();
   }
 
   /**
