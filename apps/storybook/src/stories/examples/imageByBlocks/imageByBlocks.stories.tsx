@@ -30,10 +30,9 @@ const SpecificBlockIs = "some-specific-view";
 
 async function generateByImage() {
   return new Promise<TGraphConfig>((resolve, reject) => {
-    const blocks: TBlock<TBlockMeta>[] = [];
-    const config: TGraphConfig<TBlock<TBlockMeta>> = {
+    const config: TGraphConfig<TBlock<TBlockMeta>> & { blocks: TBlock<TBlockMeta>[] } = {
       configurationName: "power of 2",
-      blocks,
+      blocks: [],
       connections: [],
       rect: {
         x: -500,
@@ -72,7 +71,7 @@ async function generateByImage() {
 
           if (!colorData[0] && !colorData[1] && !colorData[2]) continue;
 
-          blocks.push({
+          config.blocks.push({
             id: `block_${x}-${y}`,
             is: SpecificBlockIs,
             x: x * 10,
@@ -88,7 +87,7 @@ async function generateByImage() {
           });
         }
       }
-      console.log("Blocks count: ", blocks.length);
+      console.log("Blocks count: ", config.blocks.length);
       resolve(config);
     };
   });

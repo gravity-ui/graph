@@ -65,12 +65,13 @@ function getRandomArbitrary(min: number, max: number): number {
   return (Math.random() * (max - min) + min) | 0;
 }
 
-export function generatePlaygroundActionBlocks(
-  layersCount: number,
-  connectionsPerLayer: number
-): { blocks: TGravityActionBlock[]; connections: TConnection[] } {
-  const blocks: TGravityActionBlock[] = [];
-  const connections: TConnection[] = [];
+type TPlaygroundConfig = { blocks: TGravityActionBlock[]; connections: TConnection[] };
+
+export function generatePlaygroundActionBlocks(layersCount: number, connectionsPerLayer: number): TPlaygroundConfig {
+  const config: TPlaygroundConfig = {
+    blocks: [],
+    connections: [],
+  };
 
   const gapX = 500;
   const gapY = 200;
@@ -90,20 +91,23 @@ export function generatePlaygroundActionBlocks(
 
       const block = createActionBlock(layerX, y, ++index);
 
-      blocks.push(block);
+      config.blocks.push(block);
       currentLayerBlocks.push(block);
     }
     if (i > 1) {
       for (let c = 0; c <= connectionsPerLayer; c++) {
         const indexSource = getRandomArbitrary(
-          blocks.length - currentLayerBlocks.length - prevLayerBlocks.length - 1,
-          blocks.length - currentLayerBlocks.length - 1
+          config.blocks.length - currentLayerBlocks.length - prevLayerBlocks.length - 1,
+          config.blocks.length - currentLayerBlocks.length - 1
         );
-        const indexTarget = getRandomArbitrary(blocks.length - currentLayerBlocks.length - 1, blocks.length - 1);
+        const indexTarget = getRandomArbitrary(
+          config.blocks.length - currentLayerBlocks.length - 1,
+          config.blocks.length - 1
+        );
         if (indexSource !== indexTarget) {
           const sourceBlockId = getActionBlockId(indexSource);
           const targetBlockId = getActionBlockId(indexTarget);
-          connections.push({
+          config.connections.push({
             sourceBlockId: sourceBlockId,
             sourceAnchorId: `${sourceBlockId}_out`,
             targetBlockId: targetBlockId,
@@ -115,5 +119,5 @@ export function generatePlaygroundActionBlocks(
     }
   }
 
-  return { blocks, connections };
+  return config;
 }

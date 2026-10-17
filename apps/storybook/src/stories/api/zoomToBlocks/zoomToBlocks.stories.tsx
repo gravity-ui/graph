@@ -19,11 +19,7 @@ const GraphApp = () => {
   const graphRef = useRef<Graph | undefined>(undefined);
 
   const onClick: ButtonButtonProps["onClick"] = useCallback(() => {
-    const graph = graphRef.current;
-    if (!graph) {
-      return;
-    }
-    graph.api.zoomToBlocks(blocksId.split(/,\s?/g), {
+    graphRef.current?.api.zoomToBlocks(blocksId.split(/,\s?/g), {
       transition: Number(transition),
       padding: Number(padding),
     });

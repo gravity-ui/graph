@@ -18,11 +18,7 @@ const GraphApp = () => {
   const graphRef = useRef<Graph | undefined>(undefined);
 
   const onClick: ButtonButtonProps["onClick"] = useCallback(() => {
-    const graph = graphRef.current;
-    if (!graph) {
-      return;
-    }
-    graph.api.zoomToViewPort({ transition: Number(transition), padding: Number(padding) });
+    graphRef.current?.api.zoomToViewPort({ transition: Number(transition), padding: Number(padding) });
   }, [transition, padding]);
 
   return (

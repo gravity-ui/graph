@@ -68,13 +68,12 @@ class SpecificBlockView extends CanvasBlock<TBlock<TBlockMeta>> {
 
       img.src = getImageByStatus(blockMetaState.status);
     } else if (blockMetaState.img) {
-      const img = blockMetaState.img;
       this.context.ctx.drawImage(
-        img,
+        blockMetaState.img,
         0,
         0,
-        img.width,
-        img.height,
+        blockMetaState.img.width,
+        blockMetaState.img.height,
         this.state.x + blockMetaState.imageOffsetX,
         this.state.y + blockMetaState.imageOffsetY,
         blockMetaState.imageWidth,

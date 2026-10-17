@@ -19,11 +19,7 @@ const GraphApp = () => {
   const graphRef = useRef<Graph | undefined>(undefined);
 
   const onApplyZoom: ButtonButtonProps["onClick"] = useCallback(() => {
-    const graph = graphRef.current;
-    if (!graph) {
-      return;
-    }
-    graph.setConstants({
+    graphRef.current?.setConstants({
       camera: {
         SPEED: Number(speed),
         STEP: Number(step),
@@ -32,11 +28,7 @@ const GraphApp = () => {
   }, [speed, step]);
 
   const onApplyPan: ButtonButtonProps["onClick"] = useCallback(() => {
-    const graph = graphRef.current;
-    if (!graph) {
-      return;
-    }
-    graph.setConstants({
+    graphRef.current?.setConstants({
       camera: {
         PAN_SPEED: Number(panSpeed),
       },

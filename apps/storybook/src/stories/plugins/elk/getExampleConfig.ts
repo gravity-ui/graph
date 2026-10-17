@@ -88,11 +88,7 @@ const ElkOptionalMap: Record<Algorithm, LayoutOptions> = {
 };
 
 export const getExampleConfig = (algorithm: Algorithm): { elkConfig: ElkNode; graphConfig: TGeneratedGraphConfig } => {
-  let config: TGeneratedGraphConfig = generatePrettyBlocks({
-    layersCount: 10,
-    connectionsPerLayer: 30,
-    dashedLine: true,
-  });
+  let config = generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 30, dashedLine: true });
 
   const elkConfig = {
     id: "root",

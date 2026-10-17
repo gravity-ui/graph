@@ -51,11 +51,7 @@ const GraphApp = () => {
   const graphRef = useRef<Graph | undefined>(undefined);
 
   const onConnectionChange: TOnConnectionChange = useCallback((connection) => {
-    const graph = graphRef.current;
-    if (!graph) {
-      return;
-    }
-    graph.api.updateConnection("OneLeft:TwoRight", connection);
+    graphRef.current?.api.updateConnection("OneLeft:TwoRight", connection);
   }, []);
 
   const onSourceBlockUpdate: SelectProps<string>["onUpdate"] = useCallback(

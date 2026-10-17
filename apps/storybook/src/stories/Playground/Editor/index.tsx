@@ -52,11 +52,8 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(
         return;
       }
       const range = findBlockPositionsMonaco(model, blockId);
-      if (!range) {
-        return;
-      }
 
-      if (range.start.column) {
+      if (range?.start.column) {
         monacoRef.current?.revealLinesInCenter(range.start.lineNumber, range.end.lineNumber, 0);
       }
 
@@ -75,23 +72,18 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(
       if (!model) {
         return;
       }
-      const edits = blocks.flatMap((block) => {
+      const edits = blocks.map((block) => {
         const range = findBlockPositionsMonaco(model, block.id);
-        if (!range) {
-          return [];
-        }
         const text = JSON.stringify({ block: [block] }, null, 2);
-        return [
-          {
-            range: {
-              startColumn: range.start.column,
-              startLineNumber: range.start.lineNumber,
-              endColumn: range.end.column,
-              endLineNumber: range.end.lineNumber,
-            },
-            text: text.slice(19, text.length - 6),
+        return {
+          range: {
+            startColumn: range.start.column,
+            startLineNumber: range.start.lineNumber,
+            endColumn: range.end.column,
+            endLineNumber: range.end.lineNumber,
           },
-        ];
+          text: text.slice(19, text.length - 6),
+        };
       });
 
       model.applyEdits(edits);
