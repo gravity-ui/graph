@@ -132,6 +132,24 @@ function MyGraph(): JSX.Element {
 | `start` | `() => void` | Start the graph |
 | `stop` | `() => void` | Stop the graph |
 
+#### Graph ownership and disposal
+
+- Without `graph`, the hook creates the graph and owns it: the graph is
+  unmounted when the component unmounts or when `graph` changes to another
+  instance. Passing that same instance back as `graph` keeps it owned.
+- A graph passed in `graph` belongs to the caller and is never unmounted by
+  the hook.
+- React 18 StrictMode replays effects on mount, and the owned graph survives
+  the replay. A cleanup in the same synchronous pass as the mount is deferred
+  by one macrotask: the replayed setup cancels it, while a real unmount in that
+  pass (a mount immediately followed by an unmount) disposes the graph on the
+  timer. In tests with fake timers, advance timers to observe that disposal;
+  an error thrown by it is reported as uncaught instead of reaching an error
+  boundary.
+- Renders that React discards (the StrictMode double render in development,
+  interrupted or suspended renders) can create extra graphs. They are never
+  attached and are garbage collected.
+
 ### useLayer
 
 Hook for managing graph layers. Automatically handles layer initialization, props updates, and cleanup.
