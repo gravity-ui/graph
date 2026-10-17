@@ -3,6 +3,8 @@
 Issue: https://github.com/gravity-ui/graph/issues/356. Base: merged #355
 (`beb73d3faccf6bad0ccec315a2e0318e61cb79e7`).
 
+Note: the strict debt gate and baseline mentioned below have since been retired; all six projects are now protected by ordinary strict `tsc` checks (see [Baseline retired](strict-typescript.md#baseline-retired)).
+
 The public input types `TGraphColorsPatch`, `TGraphConstantsPatch` and
 `TGraphSettingsPatch` describe partial patches. Runtime signals, rendering
 contexts, getters and color/constant events use `TGraphColors`,

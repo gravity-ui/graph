@@ -2,6 +2,8 @@
 
 Issue: https://github.com/gravity-ui/graph/issues/361.
 
+Note: the strict debt gate and baseline mentioned below have since been retired; all six projects are now protected by ordinary strict `tsc` checks (see [Baseline retired](strict-typescript.md#baseline-retired)).
+
 The public scheduling facade re-exports the implementation and its options,
 without a second cast-defined contract. Wrappers preserve unions of callable
 signatures and return void; they do not promise callback results or properties. Reflect.apply is confined to invoking those checked arguments and

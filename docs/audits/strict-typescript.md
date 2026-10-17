@@ -1,6 +1,8 @@
-# Strict TypeScript debt gate
+# Strict TypeScript debt gate (retired)
 
 Issue: https://github.com/gravity-ui/graph/issues/354. Compiler: **TypeScript 6.0.3**, pinned through the workspace pnpm catalog and checked by each compiler worker.
+
+**Status:** retired in #366/#367, see [Baseline retired](#baseline-retired). The gate commands, scripts, compiler workers and baseline described here no longer exist; this record is kept as history, except [Remaining conventions](#remaining-conventions), which still applies.
 
 Run `pnpm run typecheck:strict`. It rebuilds all four packages before checking the complete existing source/test tsconfigs for graph, React, minimap, devtools, Storybook and E2E with `strict: true` and `noEmit: true`. Other options remain those of each project. Scheduler's entire source/test directory must have zero errors in every project, regardless of baseline contents. Graph source/tests and its inherited publish config use permanent strict checking (#362). No diagnostic anywhere under packages/graph may be admitted to the baseline.
 
@@ -57,3 +59,23 @@ These contracts are documented conventions, not proven by types:
   `Blocks` renderer, they are constructed with `id`, `initialIndex` and `font` only.
 - `Component` state and context start as `{}` typed as the declared State/Context. Components must
   initialize required state in the constructor.
+
+## Baseline retired
+
+#366 and #367 complete #353. All six projects (graph, React, minimap, devtools, Storybook
+and E2E including `tests/**`) set `strict: true` in their own tsconfig and have zero errors,
+so the baseline only held stale Storybook records and protected nothing. The baseline,
+`scripts/strict-diagnostics.mjs` with its tests, `typecheck:strict`, `test:strict-diagnostics`
+and both CI gate steps are removed.
+
+All six projects are now protected by ordinary strict `tsc` checks with TypeScript 6.0.3.
+`pnpm run typecheck` (the CI Typecheck step) builds the packages once and runs
+`tsc -p tsconfig.json` in every project, so any strict error fails CI. The zero-error
+guarantees above and in the area audits (Scheduler, resolved configuration, nullable lookups,
+layer and Block lifecycle, event and component contracts, scheduling and text helpers) are
+subsets of these whole-project checks. The gate also forced `strict: true` regardless of each
+tsconfig and did not depend on package scripts; `scripts/tsconfig-strict.test.mjs`
+(`pnpm run test:type-configs`) keeps both guarantees by asserting, for all six projects, the
+resolved `strict: true` through `tsc --showConfig` and a package `typecheck` script that runs
+`tsc -p tsconfig.json`. The compiler stays pinned through the pnpm catalog and the frozen
+lockfile, and no repository script uses the TypeScript compiler API.

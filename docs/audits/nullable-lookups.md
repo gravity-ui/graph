@@ -3,6 +3,8 @@
 Issue: https://github.com/gravity-ui/graph/issues/357. Base: merged #356,
 `f9b9f222642882fe62cf10af6a618e354cd994a5`.
 
+Note: the strict debt gate and baseline mentioned below have since been retired; all six projects are now protected by ordinary strict `tsc` checks (see [Baseline retired](strict-typescript.md#baseline-retired)).
+
 Public block/connection state lookups, block data, anchors, and block view hooks
 explicitly return undefined for absence, preserving the union under transitional
 non-strict declaration emit. Connection lists filter out missing IDs. Updating a

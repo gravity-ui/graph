@@ -2,6 +2,8 @@
 
 Issue: https://github.com/gravity-ui/graph/issues/355. Base: merged #354 (`078d936e8022ba375fec6b9722a77779bc6ed162`).
 
+Note: the strict debt gate and baseline mentioned below have since been retired; all six projects are now protected by ordinary strict `tsc` checks (see [Baseline retired](strict-typescript.md#baseline-retired)).
+
 All six esbuild source projects use `bundler` resolution, explicit Node/DOM environments and checked side-effect imports. Graph and React source configs explicitly include Jest; publish configs exclude Jest. React explicitly selects its React type environment. E2E no longer uses `baseUrl`. Publish configs keep `rootDir: ./src`; packed NodeNext/CJS consumers keep their own resolution modes.
 
 `strict: false` is explicit for unfinished source projects so the TypeScript 6 default does not enable strict ahead of the migration issues. The TypeScript 6.0.3 debt gate still checks all six projects with a strict overlay and protects Scheduler at zero. Each completed project's follow-up will set permanent strict to true.

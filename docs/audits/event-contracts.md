@@ -2,6 +2,8 @@
 
 Issue: #359. Base: v2 after #358. Compiler: TypeScript 5.9.2.
 
+Note: the strict debt gate and baseline mentioned below have since been retired; all six projects are now protected by ordinary strict `tsc` checks (see [Baseline retired](strict-typescript.md#baseline-retired)).
+
 Graph subscription and emission derive their types from the event name, rather
 than a separately inferred callback subtype. Graph supports both functions and
 objects with handleEvent. React callback types derive from GraphCallbacksMap,

@@ -2,6 +2,8 @@
 
 Issue: #358. Base: v2 after #357. Compiler: TypeScript 5.9.2.
 
+Note: the strict debt gate and baseline mentioned below have since been retired; all six projects are now protected by ordinary strict `tsc` checks (see [Baseline retired](strict-typescript.md#baseline-retired)).
+
 `Layer` creates configured Canvas/HTML resources during construction. Missing
 resources are explicit `undefined`, including `LayerContext.ctx` and `graphCanvas`.
 Base Layer initializes the shared canvas/context/document fields; subclasses
