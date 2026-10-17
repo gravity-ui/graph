@@ -21,6 +21,8 @@ type ComponentEvent<K extends string> = K extends keyof EventedComponentEvents ?
 type TEventedComponentListener<K extends string> = EventedComponent | TypedEventListener<ComponentEvent<K>, undefined>;
 type StoredListener = EventedComponent | EventListenerOrEventListenerObject;
 const listeners = new WeakMap<object, Map<string, Set<StoredListener>>>();
+// Lifecycle notifications must reach their listeners even when pointer interaction is disabled.
+const INTERACTIVITY_INDEPENDENT_EVENTS: ReadonlySet<string> = new Set(["graph-component-unmounted"]);
 
 function createSyntheticHoverEvent(type: "mouseenter" | "mouseleave"): MouseEvent {
   return new MouseEvent(type, {
@@ -251,7 +253,7 @@ export class EventedComponent<
   }
 
   protected _fireEvent(cmp: object, event: Event) {
-    if (cmp instanceof EventedComponent && !cmp.isInteractive?.()) {
+    if (this._isMutedByInteractivity(cmp, event.type)) {
       return;
     }
     const handlers = listeners.get(cmp)?.get?.(event.type);
@@ -299,7 +301,7 @@ export class EventedComponent<
     };
 
     while (parent) {
-      if ((parent instanceof EventedComponent && !parent.isInteractive?.()) || !this._hasListener(parent, event.type)) {
+      if (this._isMutedByInteractivity(parent, event.type) || !this._hasListener(parent, event.type)) {
         parent = parent.getParent();
         continue;
       }
@@ -311,6 +313,10 @@ export class EventedComponent<
     }
 
     return true;
+  }
+
+  protected _isMutedByInteractivity(cmp: object, type: string): boolean {
+    return cmp instanceof EventedComponent && !cmp.isInteractive?.() && !INTERACTIVITY_INDEPENDENT_EVENTS.has(type);
   }
 
   protected _hasListener(comp: object, type: string) {
