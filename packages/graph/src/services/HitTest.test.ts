@@ -129,3 +129,32 @@ describe("HitTest.markPendingUpdate", () => {
     expect(called).toBe(true); // ...and the callback must have fired
   });
 });
+
+describe("HitTest.destroy", () => {
+  it("drops pending readiness waiters without calling them", () => {
+    const ht = makeHitTest(true);
+    const ready = jest.fn();
+    ht.waitUsableRectUpdate(ready);
+
+    ht.destroy();
+    // Without disposal this change would make the graph stable and call the waiter.
+    ht.$usableRect.value = { x: 0, y: 0, width: 10, height: 10 };
+
+    expect(ready).not.toHaveBeenCalled();
+  });
+
+  it("never reports readiness and ignores hit box changes afterwards", () => {
+    const ht = makeHitTest(false);
+    ht.destroy();
+    const ready = jest.fn();
+
+    ht.waitUsableRectUpdate(ready);
+    ht.add(makeHitBox());
+    ht.update(makeHitBox(), { ...STUB_BBOX });
+    ht.remove(makeHitBox());
+
+    expect(ready).not.toHaveBeenCalled();
+    // processQueue is protected; the cast only reads its state from the test.
+    expect((ht as unknown as { processQueue: { isScheduled(): boolean } }).processQueue.isScheduled()).toBe(false);
+  });
+});

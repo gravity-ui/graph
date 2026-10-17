@@ -164,15 +164,13 @@ Leveraging all three systems, developers can optimize performance:
    this.zIndex = 5; // Higher z-index components render on top
    ```
 
-4. **Use scheduler priority levels**
+4. **Use scheduler priority levels for extra frame work**
    ```typescript
-   // Create schedulers with different priority levels
-   const highPriorityScheduler = new Scheduler();
-   const lowPriorityScheduler = new Scheduler();
-   
-   // Add schedulers with different priorities
-   globalScheduler.addScheduler(highPriorityScheduler, 0); // High priority
-   globalScheduler.addScheduler(lowPriorityScheduler, 4); // Low priority
+   // Components are updated by their graph; register only additional per-frame work
+   const removeTask = graph.scheduler.addScheduler(
+     { performUpdate: () => updateOverlay() },
+     ESchedulerPriority.LOW,
+   );
    ```
 
 ## Debugging and Troubleshooting

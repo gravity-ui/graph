@@ -118,6 +118,12 @@ export class HitTest extends Emitter<{ update: (hitTest: HitTest) => void }> {
     this.interactiveTree.load(items);
   }
 
+  /** Disposers of pending waitUsableRectUpdate subscriptions. */
+  private readonly readinessWaiters = new Set<() => void>();
+
+  /** Set by destroy(): the graph is torn down and hit-test updates are ignored. */
+  private isDestroyed = false;
+
   // Optimized debounced processing with incremental updates for drag operations
   protected processQueue = debounce(
     () => {
@@ -169,6 +175,7 @@ export class HitTest extends Emitter<{ update: (hitTest: HitTest) => void }> {
    * @returns void
    */
   public update(item: HitBox, bbox: HitBoxData, _force = false): void {
+    if (this.isDestroyed) return;
     this.queue.set(item, bbox);
     this.processQueue();
   }
@@ -204,7 +211,7 @@ export class HitTest extends Emitter<{ update: (hitTest: HitTest) => void }> {
    * @param item HitBox item to add
    */
   public add(item: HitBox): void {
-    if (item.destroyed) {
+    if (item.destroyed || this.isDestroyed) {
       return;
     }
     this.queue.set(item, item);
@@ -217,6 +224,10 @@ export class HitTest extends Emitter<{ update: (hitTest: HitTest) => void }> {
    * @returns Unsubscribe function
    */
   public waitUsableRectUpdate(callback: (rect: TRect) => void): () => void {
+    // A destroyed graph never becomes ready.
+    if (this.isDestroyed) {
+      return noop;
+    }
     // For empty graphs, immediately call callback with current usableRect
     if (!this.hasGraphElements()) {
       callback(this.$usableRect.value);
@@ -229,8 +240,10 @@ export class HitTest extends Emitter<{ update: (hitTest: HitTest) => void }> {
       const cleanup = () => {
         if (cleaned) return;
         cleaned = true;
+        this.readinessWaiters.delete(cleanup);
         unsubscribers.forEach((unsubscribe) => unsubscribe());
       };
+      this.readinessWaiters.add(cleanup);
       const check = () => {
         if (!this.isUnstable) {
           cleanup();
@@ -273,6 +286,7 @@ export class HitTest extends Emitter<{ update: (hitTest: HitTest) => void }> {
    * @param item HitBox item to remove
    */
   public remove(item: HitBox): void {
+    if (this.isDestroyed) return;
     this.queue.set(item, null);
     this.processQueue();
   }
@@ -322,10 +336,15 @@ export class HitTest extends Emitter<{ update: (hitTest: HitTest) => void }> {
   }
 
   /*
-   * Destroy HitTest system, clears all items and stops processing queue
+   * Destroy HitTest system: drops pending readiness waiters, clears all items, stops processing
+   * and ignores later updates. Terminal; used by graph.unmount().
    * @returns void
    */
   public destroy(): void {
+    if (this.isDestroyed) return;
+    this.isDestroyed = true;
+    // Pending waiters belong to a graph that will never be ready again: drop them without calling.
+    Array.from(this.readinessWaiters).forEach((dispose) => dispose());
     this.clear();
     super.destroy();
   }

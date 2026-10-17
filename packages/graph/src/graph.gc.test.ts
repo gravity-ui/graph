@@ -17,13 +17,6 @@ const WeakRef = (globalThis as unknown as { WeakRef: new <T extends object>(targ
 
 const GRAPH_COUNT = 20;
 
-// setupJest's jest.fn ResizeObserver keeps every callback (and so every Layers) in mock.calls.
-globalThis.ResizeObserver = class {
-  public observe(): void {}
-  public unobserve(): void {}
-  public disconnect(): void {}
-} as unknown as typeof ResizeObserver;
-
 function mountAndUnmountGraph(removeCustomLayer: boolean): IWeakRef<Graph> {
   const graph = new Graph({}, document.createElement("div"));
   graph.start();
@@ -70,6 +63,29 @@ describe("Graph garbage collection", () => {
 
   it("releases graphs whose layers were removed before unmount", async () => {
     const refs = Array.from({ length: GRAPH_COUNT }, () => mountAndUnmountGraph(true));
+    expect(await countCollected(refs)).toBe(GRAPH_COUNT);
+  });
+
+  it("releases graphs that were attached and detached without being started", async () => {
+    const refs = Array.from({ length: GRAPH_COUNT }, () => {
+      const graph = new Graph({}, document.createElement("div"));
+      graph.detach();
+      return new WeakRef(graph);
+    });
+    expect(await countCollected(refs)).toBe(GRAPH_COUNT);
+  });
+
+  it("releases started graphs with entities after detach, without unmount", async () => {
+    const refs = Array.from({ length: GRAPH_COUNT }, () => {
+      const graph = new Graph({}, document.createElement("div"));
+      graph.setEntities({
+        blocks: [{ id: "a", is: "Block", name: "A", x: 0, y: 0, width: 10, height: 10, anchors: [] }],
+      });
+      graph.start();
+      globalScheduler.performUpdate();
+      graph.detach();
+      return new WeakRef(graph);
+    });
     expect(await countCollected(refs)).toBe(GRAPH_COUNT);
   });
 
