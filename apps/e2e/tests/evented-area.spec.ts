@@ -6,9 +6,9 @@ class EventedAreaPageObject extends GraphPageObject {
   protected async setupGraph(config: GraphConfig): Promise<void> {
     await this.page.evaluate((cfg) => {
       const rootEl = document.getElementById("root");
-      if (!rootEl) throw new Error("Root element not found");
+      if (!(rootEl instanceof HTMLDivElement)) throw new Error("Root element not found");
 
-      const { CanvasBlock, Graph } = (window as any).GraphModule;
+      const { CanvasBlock, Graph } = window.GraphModule;
 
       (window as any).__eventedAreaEvents = {};
       (window as any).__eventLog = [];

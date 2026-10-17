@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 import { GraphPageObject } from "../../page-objects/GraphPageObject";
+import { requireValue } from "../../page-objects/requireValue";
 
 /**
  * Layout:
@@ -81,8 +82,9 @@ test.describe("Connections", () => {
     const state = await graphPO.connection("conn-1").getState();
 
     expect(state).not.toBeNull();
-    expect(state.sourceBlockId).toBe("block-1");
-    expect(state.targetBlockId).toBe("block-2");
+    const { sourceBlockId, targetBlockId } = requireValue(state, "conn-1 state");
+    expect(sourceBlockId).toBe("block-1");
+    expect(targetBlockId).toBe("block-2");
   });
 
   test("total connection count matches initial data", async () => {

@@ -1,6 +1,13 @@
+import type { GraphEventsDefinitions, TCollapsibleGroup } from "@gravity-ui/graph";
 import { test, expect } from "@playwright/test";
 
 import { GraphPageObject } from "../../page-objects/GraphPageObject";
+import { requireValue } from "../../page-objects/requireValue";
+
+type TGroupCollapseChangeDetail = Parameters<GraphEventsDefinitions["group-collapse-change"]>[0]["detail"];
+
+// Note: every group in this suite is created with `component: CollapsibleGroup`, so reading its state via
+// `getGroupState<TCollapsibleGroup>()` (an unchecked library generic) matches the real data shape.
 
 /**
  * Layout used across all tests:
@@ -122,7 +129,7 @@ test.describe("CollapsibleGroup", () => {
 
     await graphPO.page.evaluate(
       ({ groupRect }) => {
-        const { CollapsibleGroup, BlockGroups } = (window as any).GraphModule;
+        const { CollapsibleGroup, BlockGroups } = window.GraphModule;
         const graph = window.graph;
 
         graph.addLayer(BlockGroups, { draggable: false });
@@ -247,15 +254,19 @@ test.describe("CollapsibleGroup", () => {
 
       await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
-      const state = await graphPO.page.evaluate(() => {
-        return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
-      });
+      const state = requireValue(
+        await graphPO.page.evaluate(() => {
+          return window.graph.rootStore.groupsList.getGroupState<TCollapsibleGroup>("group-1")?.$state.value;
+        }),
+        "group-1 state"
+      );
+      const collapsedRect = requireValue(state.collapsedRect, "group-1 collapsedRect");
 
       // collapsedRect has the compact header dimensions
-      expect(state.collapsedRect.x).toBe(GROUP_RECT.x);
-      expect(state.collapsedRect.y).toBe(GROUP_RECT.y);
-      expect(state.collapsedRect.width).toBe(200); // DEFAULT_COLLAPSED_WIDTH
-      expect(state.collapsedRect.height).toBe(48); // DEFAULT_COLLAPSED_HEIGHT
+      expect(collapsedRect.x).toBe(GROUP_RECT.x);
+      expect(collapsedRect.y).toBe(GROUP_RECT.y);
+      expect(collapsedRect.width).toBe(200); // DEFAULT_COLLAPSED_WIDTH
+      expect(collapsedRect.height).toBe(48); // DEFAULT_COLLAPSED_HEIGHT
 
       // rect is still the real bounding box (not locked)
       expect(state.rect.width).toBe(GROUP_RECT.width);
@@ -267,7 +278,7 @@ test.describe("CollapsibleGroup", () => {
     });
 
     test("emits group-collapse-change event with correct detail", async () => {
-      const getEvents = await graphPO.events.collectDetails("group-collapse-change");
+      const getEvents = await graphPO.events.collectDetails<TGroupCollapseChangeDetail>("group-collapse-change");
 
       await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
@@ -284,7 +295,7 @@ test.describe("CollapsibleGroup", () => {
     test("preventDefault cancels collapse", async () => {
       // Register a handler that prevents collapse
       await graphPO.page.evaluate(() => {
-        window.graph.on("group-collapse-change" as any, (event: any) => {
+        window.graph.on("group-collapse-change", (event) => {
           event.preventDefault();
         });
       });
@@ -292,7 +303,7 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const collapsed = await graphPO.page.evaluate(() => {
-        return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value.collapsed;
+        return window.graph.rootStore.groupsList.getGroupState<TCollapsibleGroup>("group-1")?.$state.value.collapsed;
       });
 
       expect(collapsed).toBe(false);
@@ -307,7 +318,7 @@ test.describe("CollapsibleGroup", () => {
         const canvasBlock = b1?.getViewComponent();
         const outputPort = canvasBlock?.getOutputPort();
         const point = outputPort?.$point?.value;
-        const groupState = store.groupsList.getGroupState("group-1")?.$state.value;
+        const groupState = store.groupsList.getGroupState<TCollapsibleGroup>("group-1")?.$state.value;
         const collapsedRect = groupState?.collapsedRect ?? groupState?.rect;
 
         // Group.getRect() adds padding, so port positions are at padded rect edges
@@ -338,11 +349,16 @@ test.describe("CollapsibleGroup", () => {
       const geo = await getConnectionGeometry(graphPO, "block-1", "block-outer");
       expect(geo).not.toBeNull();
       // Source point should have moved to the group's right edge (not block-1's original x)
-      const state = await graphPO.page.evaluate(
-        () => window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value
+      const collapsedRect = requireValue(
+        await graphPO.page.evaluate(
+          () =>
+            window.graph.rootStore.groupsList.getGroupState<TCollapsibleGroup>("group-1")?.$state.value.collapsedRect
+        ),
+        "group-1 collapsedRect"
       );
-      const collapsedRect = (state as any)?.collapsedRect;
-      expect(geo!.source.x).toBe(collapsedRect.x + collapsedRect.width + GROUP_PAD);
+      expect(requireValue(geo, "block-1 → block-outer geometry").source.x).toBe(
+        collapsedRect.x + collapsedRect.width + GROUP_PAD
+      );
     });
   });
 
@@ -366,9 +382,12 @@ test.describe("CollapsibleGroup", () => {
       const collapsedCenter = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 24 };
       await graphPO.doubleClickAt({ x: collapsedCenter.x, y: collapsedCenter.y }, { waitForFrames: 5 });
 
-      const state = await graphPO.page.evaluate(() => {
-        return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
-      });
+      const state = requireValue(
+        await graphPO.page.evaluate(() => {
+          return window.graph.rootStore.groupsList.getGroupState<TCollapsibleGroup>("group-1")?.$state.value;
+        }),
+        "group-1 state"
+      );
 
       expect(state.collapsed).toBe(false);
       expect(state.collapsedRect).toBeUndefined();
@@ -387,7 +406,7 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       // Set up event collection for the expand
-      const getEvents = await graphPO.events.collectDetails("group-collapse-change");
+      const getEvents = await graphPO.events.collectDetails<TGroupCollapseChangeDetail>("group-collapse-change");
 
       const collapsedCenter = { x: GROUP_RECT.x + 100, y: GROUP_RECT.y + 24 };
       await graphPO.doubleClickAt({ x: collapsedCenter.x, y: collapsedCenter.y }, { waitForFrames: 5 });
@@ -402,7 +421,7 @@ test.describe("CollapsibleGroup", () => {
     test("group hitbox is restored after expand — click on group works", async () => {
       // Collapse programmatically
       await graphPO.page.evaluate(() => {
-        const { CollapsibleGroup } = (window as any).GraphModule;
+        const { CollapsibleGroup } = window.GraphModule;
         const layers = window.graph.layers.getLayers();
         for (const layer of layers) {
           const group = layer.$?.["group-1"];
@@ -416,7 +435,7 @@ test.describe("CollapsibleGroup", () => {
 
       // Expand programmatically
       await graphPO.page.evaluate(() => {
-        const { CollapsibleGroup } = (window as any).GraphModule;
+        const { CollapsibleGroup } = window.GraphModule;
         const layers = window.graph.layers.getLayers();
         for (const layer of layers) {
           const group = layer.$?.["group-1"];
@@ -497,7 +516,7 @@ test.describe("CollapsibleGroup", () => {
 
       await graphPO.page.evaluate(
         ({ rect }) => {
-          const { CollapsibleGroup, BlockGroups } = (window as any).GraphModule;
+          const { CollapsibleGroup, BlockGroups } = window.GraphModule;
           const graph = window.graph;
 
           graph.addLayer(BlockGroups, { draggable: false });
@@ -539,7 +558,7 @@ test.describe("CollapsibleGroup", () => {
 
         const anchorPort = canvasBlock?.getAnchorPort("anchor-out");
         const point = anchorPort?.$point?.value;
-        const gs = store.groupsList.getGroupState("group-anchors")?.$state.value;
+        const gs = store.groupsList.getGroupState<TCollapsibleGroup>("group-anchors")?.$state.value;
         const groupRect = gs?.collapsedRect ?? gs?.rect;
 
         // Group.getRect() adds padding, so port positions are at padded rect edges
@@ -565,7 +584,7 @@ test.describe("CollapsibleGroup", () => {
 
         const anchorPort = canvasBlock?.getAnchorPort("anchor-in");
         const point = anchorPort?.$point?.value;
-        const gs = store.groupsList.getGroupState("group-anchors")?.$state.value;
+        const gs = store.groupsList.getGroupState<TCollapsibleGroup>("group-anchors")?.$state.value;
         const groupRect = gs?.collapsedRect ?? gs?.rect;
 
         // Group.getRect() adds padding, left edge is shifted by -padding
@@ -590,11 +609,17 @@ test.describe("CollapsibleGroup", () => {
       // Geometry must be resolved and source endpoint moved to group right edge
       const geo = await getConnectionGeometry(graphPO, "block-a", "block-b");
       expect(geo).not.toBeNull();
-      const gs = await graphPO.page.evaluate(
-        () => window.graph.rootStore.groupsList.getGroupState("group-anchors")?.$state.value
+      const collapsedRect = requireValue(
+        await graphPO.page.evaluate(
+          () =>
+            window.graph.rootStore.groupsList.getGroupState<TCollapsibleGroup>("group-anchors")?.$state.value
+              .collapsedRect
+        ),
+        "group-anchors collapsedRect"
       );
-      const collapsedRect = (gs as any)?.collapsedRect;
-      expect(geo!.source.x).toBe(collapsedRect.x + collapsedRect.width + GROUP_PAD);
+      expect(requireValue(geo, "block-a → block-b geometry").source.x).toBe(
+        collapsedRect.x + collapsedRect.width + GROUP_PAD
+      );
     });
   });
 
@@ -620,7 +645,7 @@ test.describe("CollapsibleGroup", () => {
       // Use withBlockGrouping so $groupsBlocksMap is populated (required for updateBlocksOnDrag)
       await graphPO.page.evaluate(
         ({ groupRect }) => {
-          const { CollapsibleGroup, BlockGroups } = (window as any).GraphModule;
+          const { CollapsibleGroup, BlockGroups } = window.GraphModule;
           const graph = window.graph;
 
           const CollapsibleBlockGroups = BlockGroups.withBlockGrouping({
@@ -678,7 +703,7 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const before = await graphPO.page.evaluate(() => {
-        const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+        const g = window.graph.rootStore.groupsList.getGroupState<TCollapsibleGroup>("group-1")?.$state.value;
         return { collapsedRect: g?.collapsedRect, rect: g?.rect };
       });
       expect(before.collapsedRect).toBeDefined();
@@ -696,7 +721,7 @@ test.describe("CollapsibleGroup", () => {
       );
 
       const after = await graphPO.page.evaluate(() => {
-        const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+        const g = window.graph.rootStore.groupsList.getGroupState<TCollapsibleGroup>("group-1")?.$state.value;
         return { collapsedRect: g?.collapsedRect, rect: g?.rect };
       });
 
@@ -717,7 +742,7 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.doubleClickAt({ x: collapsedCenter.x, y: collapsedCenter.y }, { waitForFrames: 5 });
 
       const expanded = await graphPO.page.evaluate(() => {
-        const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+        const g = window.graph.rootStore.groupsList.getGroupState<TCollapsibleGroup>("group-1")?.$state.value;
         return { collapsed: g?.collapsed, collapsedRect: g?.collapsedRect, rect: g?.rect };
       });
       expect(expanded.collapsed).toBe(false);
@@ -746,7 +771,7 @@ test.describe("CollapsibleGroup", () => {
       await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
       const innerBefore = await graphPO.page.evaluate(() => {
-        const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+        const g = window.graph.rootStore.groupsList.getGroupState<TCollapsibleGroup>("group-1")?.$state.value;
         return { rect: g?.rect, collapsedRect: g?.collapsedRect };
       });
       expect(innerBefore?.collapsedRect).toBeDefined();
@@ -764,7 +789,7 @@ test.describe("CollapsibleGroup", () => {
       );
 
       const after = await graphPO.page.evaluate(() => {
-        const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+        const g = window.graph.rootStore.groupsList.getGroupState<TCollapsibleGroup>("group-1")?.$state.value;
         return { rect: g?.rect, collapsedRect: g?.collapsedRect };
       });
 
@@ -785,7 +810,7 @@ test.describe("CollapsibleGroup", () => {
       );
 
       const rectAfterDrag = await graphPO.page.evaluate(() => {
-        const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+        const g = window.graph.rootStore.groupsList.getGroupState<TCollapsibleGroup>("group-1")?.$state.value;
         return g?.rect;
       });
       expect(rectAfterDrag).toBeDefined();
@@ -796,7 +821,7 @@ test.describe("CollapsibleGroup", () => {
       );
 
       const collapsed = await graphPO.page.evaluate(() => {
-        const g = window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
+        const g = window.graph.rootStore.groupsList.getGroupState<TCollapsibleGroup>("group-1")?.$state.value;
         return g?.collapsedRect;
       });
       expect(collapsed).toBeDefined();
@@ -858,7 +883,7 @@ test.describe("CollapsibleGroup", () => {
 
       await graphPO.page.evaluate(
         ({ groupRect }) => {
-          const { CollapsibleGroup, BlockGroups } = (window as any).GraphModule;
+          const { CollapsibleGroup, BlockGroups } = window.GraphModule;
           const graph = window.graph;
 
           graph.addLayer(BlockGroups, { draggable: false });
@@ -893,17 +918,21 @@ test.describe("CollapsibleGroup", () => {
     });
 
     test("collapsedRect is stored in group state immediately after mount", async () => {
-      const state = await graphPO.page.evaluate(() => {
-        return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value;
-      });
+      const state = requireValue(
+        await graphPO.page.evaluate(() => {
+          return window.graph.rootStore.groupsList.getGroupState<TCollapsibleGroup>("group-1")?.$state.value;
+        }),
+        "group-1 state"
+      );
 
       expect(state.collapsed).toBe(true);
       expect(state.collapsedRect).toBeDefined();
+      const collapsedRect = requireValue(state.collapsedRect, "group-1 collapsedRect");
       // Default collapsed rect aligns top-left with expanded rect
-      expect(state.collapsedRect.x).toBe(GROUP_RECT.x);
-      expect(state.collapsedRect.y).toBe(GROUP_RECT.y);
-      expect(state.collapsedRect.width).toBe(200); // DEFAULT_COLLAPSED_WIDTH
-      expect(state.collapsedRect.height).toBe(48); // DEFAULT_COLLAPSED_HEIGHT
+      expect(collapsedRect.x).toBe(GROUP_RECT.x);
+      expect(collapsedRect.y).toBe(GROUP_RECT.y);
+      expect(collapsedRect.width).toBe(200); // DEFAULT_COLLAPSED_WIDTH
+      expect(collapsedRect.height).toBe(48); // DEFAULT_COLLAPSED_HEIGHT
     });
 
     test("click inside collapsed header rect registers on the group", async () => {
@@ -968,7 +997,7 @@ test.describe("CollapsibleGroup", () => {
       // No dblclick handler — all state changes go through setGroups.
       await graphPO.page.evaluate(
         ({ groupRect }) => {
-          const { CollapsibleGroup, BlockGroups } = (window as any).GraphModule;
+          const { CollapsibleGroup, BlockGroups } = window.GraphModule;
           const graph = window.graph;
 
           graph.addLayer(BlockGroups, { draggable: false });
@@ -995,7 +1024,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: true,
             },
           ]);
@@ -1032,7 +1061,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: true,
             },
           ]);
@@ -1047,7 +1076,7 @@ test.describe("CollapsibleGroup", () => {
         const canvasBlock = b1?.getViewComponent();
         const outputPort = canvasBlock?.getOutputPort();
         const point = outputPort?.$point?.value;
-        const gs = store.groupsList.getGroupState("group-1")?.$state.value;
+        const gs = store.groupsList.getGroupState<TCollapsibleGroup>("group-1")?.$state.value;
         const collapsedRect = gs?.collapsedRect ?? gs?.rect;
 
         return {
@@ -1075,7 +1104,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: true,
             },
           ]);
@@ -1091,7 +1120,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: false,
             },
           ]);
@@ -1129,7 +1158,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: true,
             },
           ]);
@@ -1145,7 +1174,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: false,
             },
           ]);
@@ -1186,7 +1215,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: true,
             },
           ]);
@@ -1228,7 +1257,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: true,
             },
           ]);
@@ -1244,7 +1273,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: false,
             },
           ]);
@@ -1269,7 +1298,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: true,
             },
           ]);
@@ -1299,7 +1328,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: true,
             },
           ]);
@@ -1315,7 +1344,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: false,
             },
           ]);
@@ -1344,7 +1373,7 @@ test.describe("CollapsibleGroup", () => {
               {
                 id: "group-1",
                 rect: groupRect,
-                component: (window as any).GraphModule.CollapsibleGroup,
+                component: window.GraphModule.CollapsibleGroup,
                 collapsed: true,
               },
             ]);
@@ -1372,7 +1401,7 @@ test.describe("CollapsibleGroup", () => {
               {
                 id: "group-1",
                 rect: groupRect,
-                component: (window as any).GraphModule.CollapsibleGroup,
+                component: window.GraphModule.CollapsibleGroup,
                 collapsed: false,
               },
             ]);
@@ -1411,7 +1440,7 @@ test.describe("CollapsibleGroup", () => {
 
       await graphPO.page.evaluate(
         ({ groupRect }) => {
-          const { CollapsibleGroup, BlockGroups } = (window as any).GraphModule;
+          const { CollapsibleGroup, BlockGroups } = window.GraphModule;
           const graph = window.graph;
 
           graph.addLayer(BlockGroups, { draggable: false });
@@ -1452,9 +1481,13 @@ test.describe("CollapsibleGroup", () => {
       // Collapse via double-click on group padding area
       await graphPO.doubleClickAt({ x: GROUP_CLICK.x, y: GROUP_CLICK.y }, { waitForFrames: 5 });
 
-      const collapsedRect = await graphPO.page.evaluate(() => {
-        return window.graph.rootStore.groupsList.getGroupState("group-1")?.$state.value.collapsedRect;
-      });
+      const collapsedRect = requireValue(
+        await graphPO.page.evaluate(() => {
+          return window.graph.rootStore.groupsList.getGroupState<TCollapsibleGroup>("group-1")?.$state.value
+            .collapsedRect;
+        }),
+        "group-1 collapsedRect"
+      );
 
       // Custom rect: centered at x, top-aligned y, 150x40
       expect(collapsedRect.width).toBe(150);
@@ -1484,7 +1517,7 @@ test.describe("CollapsibleGroup", () => {
 
       await graphPO.page.evaluate(
         ({ groupRect }) => {
-          const { CollapsibleGroup, BlockGroups } = (window as any).GraphModule;
+          const { CollapsibleGroup, BlockGroups } = window.GraphModule;
           const graph = window.graph;
           graph.addLayer(BlockGroups, { draggable: false });
           graph.rootStore.groupsList.setGroups([
@@ -1521,7 +1554,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: true,
             },
           ]);
@@ -1562,7 +1595,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: true,
             },
           ]);
@@ -1606,7 +1639,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: false,
             },
           ]);
@@ -1640,7 +1673,7 @@ test.describe("CollapsibleGroup", () => {
 
       await graphPO.page.evaluate(
         ({ groupRect }) => {
-          const { CollapsibleGroup, BlockGroups } = (window as any).GraphModule;
+          const { CollapsibleGroup, BlockGroups } = window.GraphModule;
           const graph = window.graph;
           graph.addLayer(BlockGroups, { draggable: false });
           graph.rootStore.groupsList.setGroups([
@@ -1714,7 +1747,7 @@ test.describe("CollapsibleGroup", () => {
             {
               id: "group-1",
               rect: groupRect,
-              component: (window as any).GraphModule.CollapsibleGroup,
+              component: window.GraphModule.CollapsibleGroup,
               collapsed: true,
             },
           ]);
