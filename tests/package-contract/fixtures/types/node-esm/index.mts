@@ -1,7 +1,6 @@
 import { ESchedulerPriority, Graph, Layer, LayerProps, debounce, schedule, throttle } from "@gravity-ui/graph";
 import {
   GraphCanvas,
-  useElk,
   useLayeredLayout,
   GraphLayer,
   GraphLayerProps,
@@ -33,7 +32,6 @@ const structuralScheduler: Graph["scheduler"] = {
 void structuralScheduler;
 void Graph;
 void GraphCanvas;
-void useElk;
 void removeScheduledTask;
 
 // Declarative construction and updates must agree on input types.

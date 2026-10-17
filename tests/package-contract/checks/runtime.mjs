@@ -22,8 +22,9 @@ const nativeImportProbes = {
   `,
   react: `
     const react = await import("@gravity-ui/graph-react");
-    const core = await import("@gravity-ui/graph");
-    if (react.MultipointConnection !== core.MultipointConnection) throw new Error("React has a second core connection class.");
+    for (const extracted of ["useElk", "MultipointConnection"]) {
+      if (extracted in react) throw new Error(\`React still exports the extracted \${extracted}.\`);
+    }
     if (typeof react.GraphCanvas !== "function") throw new Error("React entrypoint does not export GraphCanvas.");
   `,
   minimap: `
@@ -40,6 +41,24 @@ const nativeImportProbes = {
       throw new Error("DevTools has a second core Layer class.");
     }
     if (DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize !== 25) throw new Error("DevTools defaults are missing or changed.");
+  `,
+  elk: `
+    const { elkConverter } = await import("@gravity-ui/graph-elk");
+    const { useElk } = await import("@gravity-ui/graph-elk/react");
+    const { default: ELK } = await import("elkjs");
+    if (typeof useElk !== "function") throw new Error("ELK React entrypoint does not export useElk.");
+    const laidOut = await new ELK().layout({
+      id: "root",
+      layoutOptions: { "elk.algorithm": "layered", "elk.direction": "RIGHT" },
+      children: [
+        { id: "a", width: 100, height: 40 },
+        { id: "b", width: 100, height: 40 },
+      ],
+      edges: [{ id: "a-b", sources: ["a"], targets: ["b"] }],
+    });
+    const { blocks, edges } = elkConverter(laidOut);
+    if (!(blocks.b.x > blocks.a.x)) throw new Error("ELK result was not converted to block positions.");
+    if (!(edges["a-b"].points.length >= 2)) throw new Error("ELK result was not converted to connection points.");
   `,
   playwright: `
     const playwright = await import("@gravity-ui/graph/playwright");

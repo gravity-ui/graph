@@ -32,6 +32,15 @@ const expectedTypesVersions = {
   },
 };
 
+const elkExports = {
+  ".": expectedExports["."],
+  "./react": {
+    types: "./build/react/index.d.ts",
+    import: "./build/react/index.js",
+    default: "./build/react/index.js",
+  },
+};
+
 const allowedPackageRootFiles = new Set(["LICENSE", "README.md", "package.json"]);
 const allowedRuntimeFiles = new Set([
   "build/index.js",
@@ -40,6 +49,7 @@ const allowedRuntimeFiles = new Set([
   "build/playwright/index.d.cts",
   "build/styles.css",
 ]);
+const allowedElkRuntimeFiles = new Set(["build/index.js", "build/react/index.js"]);
 const forbiddenPackedPathPatterns = [
   /(?:^|\/)(?:src|story|stories|__tests__)(?:\/|$)/i,
   /(?:^|\/)[^/]*\.(?:test|spec|story|stories)\.[^/]+$/i,
@@ -55,12 +65,14 @@ function getPackMetadata(output) {
 
 function assertPackedFiles(metadata, kind) {
   const addon = kind !== "graph";
+  const elk = kind === "graph-elk";
+  const runtimeFiles = elk ? allowedElkRuntimeFiles : allowedRuntimeFiles;
   assert.equal(metadata.name, `@gravity-ui/${kind}`);
   assert.ok(Array.isArray(metadata.files), "pnpm pack did not report the packed file list.");
 
   const packedFiles = metadata.files.map(({ path: packedPath }) => packedPath).sort();
   const unexpectedFiles = packedFiles.filter((packedPath) => {
-    if (allowedPackageRootFiles.has(packedPath) || allowedRuntimeFiles.has(packedPath)) {
+    if (allowedPackageRootFiles.has(packedPath) || runtimeFiles.has(packedPath)) {
       return false;
     }
 
@@ -85,7 +97,7 @@ function assertPackedFiles(metadata, kind) {
     ...allowedPackageRootFiles,
     "build/index.js",
     "build/index.d.ts",
-    "build/styles.css",
+    ...(elk ? ["build/react/index.js", "build/react/index.d.ts"] : ["build/styles.css"]),
     ...(addon
       ? []
       : [
@@ -167,6 +179,7 @@ export async function buildAndPackArtifact({ packageRoot, staleBuildSentinelPath
 export async function checkInstalledArtifact(consumerDirectory, expectedVersion, kind = "graph") {
   const addon = kind !== "graph";
   const react = kind === "graph-react";
+  const elk = kind === "graph-elk";
   const packageRoot = path.join(consumerDirectory, "node_modules", "@gravity-ui", kind);
   const manifest = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
 
@@ -180,7 +193,11 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   assert.deepEqual(manifest.files, ["build"]);
   assert.deepEqual(
     manifest.exports,
-    addon ? { ".": expectedExports["."], "./styles.css": expectedExports["./styles.css"] } : expectedExports
+    elk
+      ? elkExports
+      : addon
+        ? { ".": expectedExports["."], "./styles.css": expectedExports["./styles.css"] }
+        : expectedExports
   );
   assert.deepEqual(manifest.typesVersions, addon ? undefined : expectedTypesVersions);
   if (addon) {
@@ -194,6 +211,9 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     assert.equal(manifest.peerDependencies?.["react-dom"], "^18.0.0");
     assert.equal(manifest.peerDependenciesMeta?.react?.optional, undefined);
     assert.equal(manifest.peerDependenciesMeta?.["react-dom"]?.optional, undefined);
+    for (const field of ["dependencies", "peerDependencies", "optionalDependencies"]) {
+      assert.equal(manifest[field]?.elkjs, undefined, `React must not depend on elkjs through ${field}.`);
+    }
   }
   if (!addon) {
     assert.equal(manifest.peerDependencies?.["@playwright/test"], ">=1.58.0");
@@ -242,7 +262,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     [
       "build/index.js",
       "build/index.d.ts",
-      "build/styles.css",
+      ...(elk ? ["build/react/index.js", "build/react/index.d.ts"] : ["build/styles.css"]),
       ...(addon
         ? []
         : [
@@ -263,7 +283,6 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   );
   await assertNoPrivateSchedulerSpecifiers(packageRoot);
 
-  const publicStyles = await readFile(path.join(packageRoot, "build", "styles.css"), "utf8");
   if (addon) {
     for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
       assert.doesNotMatch(
@@ -273,6 +292,27 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
       );
     }
   }
+  if (elk) {
+    assert.deepEqual(Object.keys(manifest.peerDependencies).sort(), ["@gravity-ui/graph", "elkjs", "react"]);
+    assert.deepEqual(manifest.peerDependenciesMeta, { react: { optional: true } });
+    assert.deepEqual(manifest.dependencies ?? {}, {});
+    assert.deepEqual(manifest.optionalDependencies ?? {}, {});
+    const reactEntry = await readFile(path.join(packageRoot, "build/react/index.js"), "utf8");
+    assert.match(reactEntry, /from\s*["']react["']/, "The /react entrypoint must import React.");
+    for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
+      const contents = await readFile(file, "utf8");
+      if (file.endsWith(".js")) {
+        // elkjs is used for types only; the consumer creates the ELK instance.
+        assert.doesNotMatch(contents, /["']elkjs(?:\/[^"']*)?["']/, `${file} must not import elkjs at runtime.`);
+        assert.doesNotMatch(contents, /["']@gravity-ui\/graph["']/, `${file} must not import core at runtime.`);
+      }
+      if (!file.includes(`${path.sep}react${path.sep}`)) {
+        assert.doesNotMatch(contents, /["']react(?:-dom)?(?:\/[^"']*)?["']/, `${file} must not reference React.`);
+      }
+    }
+    return;
+  }
+  const publicStyles = await readFile(path.join(packageRoot, "build", "styles.css"), "utf8");
   if (kind === "graph-minimap") {
     assert.deepEqual(Object.keys(manifest.peerDependencies), ["@gravity-ui/graph"]);
     assert.deepEqual(manifest.dependencies ?? {}, {});
@@ -291,6 +331,9 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     return;
   }
   if (react) {
+    for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
+      assert.doesNotMatch(await readFile(file, "utf8"), /elkjs|useElk/, `React artifact ${file} still references ELK.`);
+    }
     assert.match(publicStyles, /\.graph-wrapper\b/);
     assert.match(publicStyles, /\.graph-block-container\b/);
     assert.match(publicStyles, /\.graph-block-anchor\b/);

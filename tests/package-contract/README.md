@@ -1,6 +1,6 @@
 # Public package contract
 
-This suite validates the exact `@gravity-ui/graph`, `@gravity-ui/graph-react`, `@gravity-ui/graph-minimap`, and `@gravity-ui/graph-devtools` tarballs that an external application
+This suite validates the exact `@gravity-ui/graph`, `@gravity-ui/graph-react`, `@gravity-ui/graph-minimap`, `@gravity-ui/graph-devtools`, and `@gravity-ui/graph-elk` tarballs that an external application
 installs. It owns package metadata, generated declarations, dependency isolation, native imports, and browser bundling.
 Detailed graph behavior remains in `apps/e2e`.
 
@@ -13,13 +13,13 @@ pnpm run test:package-contract
 ```
 
 Install Chromium once with `pnpm exec playwright install chromium`. Do not run the suite concurrently with another
-package build or typecheck: it deliberately cleans and rebuilds all four packages. Set `KEEP_PACKAGE_CONTRACT_TMP=1` to retain
+package build or typecheck: it deliberately cleans and rebuilds all public packages. Set `KEEP_PACKAGE_CONTRACT_TMP=1` to retain
 the isolated consumers. With `CI=1`, failed browser reports are copied to the root `playwright-report/package-contract`
 and `test-results/package-contract` directories.
 
 ## Structure and ownership
 
-`run.mjs` builds and packs each public package once, then installs separate vanilla, React, minimap, and DevTools consumers. Every
+`run.mjs` builds and packs each public package once, then installs separate vanilla, React, minimap, DevTools, and ELK consumers. Every
 check uses those same artifacts. It resolves workspace tool versions for the generated manifests so the test does not
 silently select a newer React, TypeScript, or Playwright release.
 
@@ -49,6 +49,10 @@ Minimap exports `styles.css`; consumers load it after the core stylesheet. Its i
 ELK, or the React package. Core must not export `MiniMapLayer`, ship its declarations, or depend on the minimap package.
 DevTools also has core as its only required peer and no runtime dependencies. Its isolated consumer must not resolve
 React. Core must not export DevTools symbols, ship its code/declarations/styles, or depend on the DevTools package.
+ELK declares core, `elkjs`, and an optional React as peers and has no runtime dependencies. Its emitted JavaScript imports
+neither `elkjs` nor core, and only the `/react` entrypoint references React. The React package must not depend on or
+reference `elkjs`, `useElk`, or the removed `MultipointConnection` alias. The ELK consumer lays out a graph with the
+installed `elkjs` both in Node and, through `useElk`, in the browser.
 
 ## Fixtures
 
@@ -57,6 +61,7 @@ entrypoints. `fixtures/types/playwright-bundler` is also reused by core's fast d
 `fixtures/types/node-esm` checks core and React together; `fixtures/types/node-cjs-playwright` checks the CommonJS contract.
 `fixtures/types/minimap-node-esm` checks minimap's public options, context, and compatibility with core's layer API.
 `fixtures/types/devtools-node-esm` checks DevTools defaults, props, and compatibility with core's layer API.
+`fixtures/types/elk-node-esm` checks both ELK entrypoints and that converted results merge into core entity types.
 The shared fixture tree is copied into each consumer so relative paths remain stable.
 `tests/types` compiles the same fixtures against the workspace sources (strict and non-strict) with
 `tsc -b tests/types`, without building or packing. Declarations and packaging are covered only here,
@@ -71,9 +76,10 @@ PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/graph.tgz pnpm --filter @gravity-ui
 PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/graph-react.tgz pnpm --filter @gravity-ui/graph-react run test:package-contract
 PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/graph-minimap.tgz pnpm --filter @gravity-ui/graph-minimap run test:package-contract
 PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/graph-devtools.tgz pnpm --filter @gravity-ui/graph-devtools run test:package-contract
+PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/graph-elk.tgz pnpm --filter @gravity-ui/graph-elk run test:package-contract
 ```
 
-All commands validate the four packages. The requested tarball remains after temporary consumers are removed. The
+All commands validate every public package. The requested tarball remains after temporary consumers are removed. The
 release process must publish that validated file. When a dependency tarball is supplied through
 `PACKAGE_CONTRACT_WORKSPACE_TARBALLS` as `@gravity-ui/graph`, the suite installs that same core artifact instead of repacking it.
 

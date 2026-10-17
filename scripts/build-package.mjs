@@ -11,6 +11,7 @@ export async function buildPackage({
   playwright = false,
   docs = false,
   styles = true,
+  entries = { index: "src/index.ts" },
 }) {
   const buildDirectory = path.join(packageRoot, "build");
   const manifest = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
@@ -224,9 +225,7 @@ export async function buildPackage({
       ...sharedOptions,
       chunkNames: "chunks/[name]-[hash]",
       entryNames: "[dir]/[name]",
-      entryPoints: {
-        index: "src/index.ts",
-      },
+      entryPoints: entries,
       format: "esm",
       loader: { ".css": "empty" },
       outdir: buildDirectory,

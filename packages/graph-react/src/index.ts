@@ -6,7 +6,6 @@ export * from "./GraphPortal";
 export * from "./GraphContext";
 export * from "./hooks";
 export * from "./events";
-export * from "./elk";
 export { useLayeredLayout } from "./layered/hooks/useLayeredLayout";
 export type { UseLayeredLayoutParams } from "./layered/hooks/useLayeredLayout";
 export { TRenderBlockFn } from "./BlocksList";

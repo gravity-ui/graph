@@ -1,6 +1,6 @@
-import { ElkExtendedEdge, ElkNode } from "elkjs";
+import type { ElkExtendedEdge, ElkNode } from "elkjs";
 
-import { ConverterResult } from "../types";
+import type { ConverterResult } from "./types";
 
 const convertElkEdges = (edges: ElkExtendedEdge[] = []): ConverterResult["edges"] => {
   return edges.reduce<ConverterResult["edges"]>((acc, edge) => {

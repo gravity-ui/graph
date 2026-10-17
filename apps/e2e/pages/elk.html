@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Graph ELK E2E Test</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+      #root {
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="elk-root"></div>
+    <script src="/e2e/dist/graph.bundle.js"></script>
+    <script src="/e2e/dist/graph-elk.bundle.js"></script>
+    <script>
+      // Bundles expose GraphModule and ElkModule globals
+      window.graphLibraryLoaded = true;
+    </script>
+  </body>
+</html>

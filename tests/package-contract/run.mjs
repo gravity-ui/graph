@@ -17,7 +17,7 @@ const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "gravity-graph-pack
 const requestedTarballPath = process.env.PACKAGE_CONTRACT_TARBALL_PATH;
 const defaultTarballPath = path.join(temporaryDirectory, "tarballs", "gravity-ui-graph.tgz");
 const testedPackage = process.argv[2] ?? "graph";
-if (!["graph", "graph-react", "graph-minimap", "graph-devtools"].includes(testedPackage))
+if (!["graph", "graph-react", "graph-minimap", "graph-devtools", "graph-elk"].includes(testedPackage))
   throw new Error(`Unknown package: ${testedPackage}`);
 const testingReactPackage = testedPackage === "graph-react";
 const testingMinimapPackage = testedPackage === "graph-minimap";
@@ -33,6 +33,12 @@ const devtoolsTarballPath =
     ? path.resolve(requestedTarballPath)
     : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-devtools.tgz");
 const devtoolsStaleBuildSentinelPath = path.join(devtoolsPackageRoot, "build", "package-contract-stale-sentinel.txt");
+const elkPackageRoot = path.join(workspaceRoot, "packages/graph-elk");
+const elkTarballPath =
+  requestedTarballPath && testedPackage === "graph-elk"
+    ? path.resolve(requestedTarballPath)
+    : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-elk.tgz");
+const elkStaleBuildSentinelPath = path.join(elkPackageRoot, "build", "package-contract-stale-sentinel.txt");
 const workspaceTarballs = JSON.parse(process.env.PACKAGE_CONTRACT_WORKSPACE_TARBALLS || "{}");
 const suppliedCoreTarball = testedPackage !== "graph" ? workspaceTarballs["@gravity-ui/graph"] : undefined;
 const tarballPath = suppliedCoreTarball
@@ -46,14 +52,16 @@ const reactTarballPath =
     : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-react.tgz");
 const reactStaleBuildSentinelPath = path.join(reactPackageRoot, "build", "package-contract-stale-sentinel.txt");
 const staleBuildSentinelPath = path.join(packageRoot, "build", "package-contract-stale-sentinel.txt");
-const consumerNames = ["vanilla", "react", "minimap", "devtools"];
+const consumerNames = ["vanilla", "react", "minimap", "devtools", "elk"];
 
 async function getInstalledVersion(packageName) {
   const owner = ["react", "react-dom", "@types/react", "@types/react-dom"].includes(packageName)
     ? reactPackageRoot
     : packageName === "@preact/signals-core"
       ? packageRoot
-      : workspaceRoot;
+      : packageName === "elkjs"
+        ? elkPackageRoot
+        : workspaceRoot;
   const manifestPath = path.join(owner, "node_modules", ...packageName.split("/"), "package.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 
@@ -71,6 +79,7 @@ async function runConsumer({
   expectedReactVersion,
   expectedMinimapVersion,
   expectedDevtoolsVersion,
+  expectedElkVersion,
   typecheckConfigs,
   entryPoint,
   nativeImports,
@@ -92,6 +101,7 @@ async function runConsumer({
   if (expectedMinimapVersion) await checkInstalledArtifact(consumerDirectory, expectedMinimapVersion, "graph-minimap");
   if (expectedDevtoolsVersion)
     await checkInstalledArtifact(consumerDirectory, expectedDevtoolsVersion, "graph-devtools");
+  if (expectedElkVersion) await checkInstalledArtifact(consumerDirectory, expectedElkVersion, "graph-elk");
   await checkRuntimeConsumer({
     consumerDirectory,
     entrypoints: nativeImports,
@@ -117,6 +127,8 @@ try {
   const reactManifest = JSON.parse(await readFile(path.join(reactPackageRoot, "package.json"), "utf8"));
   const minimapManifest = JSON.parse(await readFile(path.join(minimapPackageRoot, "package.json"), "utf8"));
   const devtoolsManifest = JSON.parse(await readFile(path.join(devtoolsPackageRoot, "package.json"), "utf8"));
+  const elkManifest = JSON.parse(await readFile(path.join(elkPackageRoot, "package.json"), "utf8"));
+  await mkdir(path.dirname(elkTarballPath), { recursive: true });
   await mkdir(path.dirname(devtoolsTarballPath), { recursive: true });
   await mkdir(path.dirname(minimapTarballPath), { recursive: true });
   await mkdir(path.dirname(tarballPath), { recursive: true });
@@ -145,7 +157,20 @@ try {
     tarballPath: devtoolsTarballPath,
     kind: "graph-devtools",
   });
-  await checkTarballTypes({ packageRoot, tarballPath, reactTarballPath, minimapTarballPath, devtoolsTarballPath });
+  await buildAndPackArtifact({
+    packageRoot: elkPackageRoot,
+    staleBuildSentinelPath: elkStaleBuildSentinelPath,
+    tarballPath: elkTarballPath,
+    kind: "graph-elk",
+  });
+  await checkTarballTypes({
+    packageRoot,
+    tarballPath,
+    reactTarballPath,
+    minimapTarballPath,
+    devtoolsTarballPath,
+    elkTarballPath,
+  });
 
   const workspaceManifest = JSON.parse(await readFile(path.join(workspaceRoot, "package.json"), "utf8"));
   if (!workspaceManifest.packageManager) {
@@ -162,6 +187,7 @@ try {
     reactDomVersion,
     reactTypesVersion,
     reactDomTypesVersion,
+    elkjsVersion,
   ] = await Promise.all(
     [
       "@playwright/test",
@@ -173,6 +199,7 @@ try {
       "react-dom",
       "@types/react",
       "@types/react-dom",
+      "elkjs",
     ].map(getInstalledVersion)
   );
   const commonManifest = {
@@ -277,6 +304,35 @@ try {
     expectNoReact: true,
   });
 
+  await runConsumer({
+    name: "elk",
+    expectedVersion,
+    expectedElkVersion: elkManifest.version,
+    manifest: {
+      ...commonManifest,
+      name: "gravity-graph-installed-elk-consumer",
+      dependencies: {
+        ...commonManifest.dependencies,
+        "@gravity-ui/graph-elk": `file:${elkTarballPath}`,
+        elkjs: elkjsVersion,
+        react: reactVersion,
+        "react-dom": reactDomVersion,
+      },
+      devDependencies: {
+        ...commonManifest.devDependencies,
+        "@types/react": reactTypesVersion,
+        "@types/react-dom": reactDomTypesVersion,
+      },
+    },
+    typecheckConfigs: [
+      "fixtures/apps/elk/tsconfig.json",
+      "fixtures/apps/elk/tsconfig.non-strict.json",
+      "fixtures/types/elk-node-esm/tsconfig.json",
+    ],
+    entryPoint: "fixtures/apps/elk/app.tsx",
+    nativeImports: ["root", "elk", "playwright"],
+  });
+
   console.log("\n[package-contract] Packed package contract passed.");
 } catch (error) {
   await preserveBrowserArtifacts({ consumerNames, packageRoot: workspaceRoot, temporaryDirectory });
@@ -286,6 +342,7 @@ try {
   await rm(reactStaleBuildSentinelPath, { force: true });
   await rm(minimapStaleBuildSentinelPath, { force: true });
   await rm(devtoolsStaleBuildSentinelPath, { force: true });
+  await rm(elkStaleBuildSentinelPath, { force: true });
 
   if (process.env.KEEP_PACKAGE_CONTRACT_TMP === "1") {
     console.log(`\n[package-contract] Preserved temporary projects at ${temporaryDirectory}`);

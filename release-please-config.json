@@ -44,6 +44,14 @@
       "versioning": "prerelease",
       "prerelease": true,
       "prerelease-type": "next"
+    },
+    "packages/graph-elk": {
+      "package-name": "@gravity-ui/graph-elk",
+      "component": "graph-elk",
+      "release-as": "1.0.0-next.0",
+      "versioning": "prerelease",
+      "prerelease": true,
+      "prerelease-type": "next"
     }
   }
 }
