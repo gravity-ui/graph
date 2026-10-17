@@ -1,6 +1,6 @@
 # Public package contract
 
-This suite validates the exact `@gravity-ui/graph`, `@gravity-ui/graph-react`, `@gravity-ui/graph-minimap`, and `@gravity-ui/graph-devtools` tarballs that an external application
+This suite validates the exact `@gravity-ui/graph`, `@gravity-ui/graph-react`, `@gravity-ui/graph-minimap`, `@gravity-ui/graph-devtools`, and `@gravity-ui/graph-css-variables` tarballs that an external application
 installs. It owns package metadata, generated declarations, dependency isolation, native imports, and browser bundling.
 Detailed graph behavior remains in `apps/e2e`.
 
@@ -13,13 +13,13 @@ pnpm run test:package-contract
 ```
 
 Install Chromium once with `pnpm exec playwright install chromium`. Do not run the suite concurrently with another
-package build or typecheck: it deliberately cleans and rebuilds all four packages. Set `KEEP_PACKAGE_CONTRACT_TMP=1` to retain
+package build or typecheck: it deliberately cleans and rebuilds all five packages. Set `KEEP_PACKAGE_CONTRACT_TMP=1` to retain
 the isolated consumers. With `CI=1`, failed browser reports are copied to the root `playwright-report/package-contract`
 and `test-results/package-contract` directories.
 
 ## Structure and ownership
 
-`run.mjs` builds and packs each public package once, then installs separate vanilla, React, minimap, and DevTools consumers. Every
+`run.mjs` builds and packs each public package once, then installs separate vanilla, React, minimap, DevTools, and CSS variables consumers. Every
 check uses those same artifacts. It resolves workspace tool versions for the generated manifests so the test does not
 silently select a newer React, TypeScript, or Playwright release.
 
@@ -49,6 +49,9 @@ Minimap exports `styles.css`; consumers load it after the core stylesheet. Its i
 ELK, or the React package. Core must not export `MiniMapLayer`, ship its declarations, or depend on the minimap package.
 DevTools also has core as its only required peer and no runtime dependencies. Its isolated consumer must not resolve
 React. Core must not export DevTools symbols, ship its code/declarations/styles, or depend on the DevTools package.
+CSS variables has core as its only peer, declares its own `lodash` and `style-observer` dependencies and ships no
+stylesheet or `./styles.css` export. Core must not export its symbols, ship its declarations, or import `style-observer`.
+Its browser fixture checks that theme variables reach the installed graph's colors and constants.
 
 ## Fixtures
 
@@ -57,6 +60,7 @@ entrypoints. `fixtures/types/playwright-bundler` is also reused by core's fast d
 `fixtures/types/node-esm` checks core and React together; `fixtures/types/node-cjs-playwright` checks the CommonJS contract.
 `fixtures/types/minimap-node-esm` checks minimap's public options, context, and compatibility with core's layer API.
 `fixtures/types/devtools-node-esm` checks DevTools defaults, props, and compatibility with core's layer API.
+`fixtures/types/css-variables-node-esm` checks the CSS variables layer props, mapping helpers, and core layer compatibility.
 The shared fixture tree is copied into each consumer so relative paths remain stable.
 `tests/types` compiles the same fixtures against the workspace sources (strict and non-strict) with
 `tsc -b tests/types`, without building or packing. Declarations and packaging are covered only here,

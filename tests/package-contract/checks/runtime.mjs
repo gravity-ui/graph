@@ -7,6 +7,9 @@ const nativeImportProbes = {
     if ("DevToolsLayer" in graph || "DEFAULT_DEVTOOLS_LAYER_PROPS" in graph) {
       throw new Error("Core still exports the extracted DevTools.");
     }
+    if ("CSSVariablesLayer" in graph || "CSS_VARIABLE_MAPPINGS" in graph) {
+      throw new Error("Core still exports the extracted CSS variables layer.");
+    }
     if (typeof graph.Graph !== "function") throw new Error("Root entrypoint does not export Graph.");
     if (graph.ESchedulerPriority?.LOWEST !== 4) {
       throw new Error("Root entrypoint does not export ESchedulerPriority.");
@@ -40,6 +43,17 @@ const nativeImportProbes = {
       throw new Error("DevTools has a second core Layer class.");
     }
     if (DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize !== 25) throw new Error("DevTools defaults are missing or changed.");
+  `,
+  cssVariables: `
+    const { CSSVariablesLayer, mapCSSChangesToGraphColors } = await import("@gravity-ui/graph-css-variables");
+    const { Layer } = await import("@gravity-ui/graph");
+    if (Object.getPrototypeOf(CSSVariablesLayer.prototype) !== Layer.prototype) {
+      throw new Error("CSSVariablesLayer has a second core Layer class.");
+    }
+    const { deepStrictEqual } = await import("node:assert/strict");
+    deepStrictEqual(mapCSSChangesToGraphColors([{ name: "--graph-block-background", value: "red" }]), {
+      block: { background: "red" },
+    });
   `,
   playwright: `
     const playwright = await import("@gravity-ui/graph/playwright");

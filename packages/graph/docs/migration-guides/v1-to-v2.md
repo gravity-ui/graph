@@ -8,6 +8,7 @@ The temporary branch and release process is documented separately in
 ## Migration checklist
 
 - Move React, Minimap and DevTools imports to their dedicated packages and install their peers.
+- Import `CSSVariablesLayer` and its mapping helpers from `@gravity-ui/graph-css-variables`.
 - Import the stylesheets for each package you use, with core styles before addon styles.
 - Add `import "@gravity-ui/graph-minimap/styles.css"` when using Minimap: its default border and background now require this explicit import.
 - Replace `canChangeBlockGeometry` / `ECanChangeBlockGeometry` with `canDrag` / `ECanDrag`.
@@ -82,6 +83,23 @@ are now owned by the separate stylesheet; core styles only supply the base layer
 props, camera behavior, and lifecycle, and can still be used with `useLayer` or `GraphLayer` from `@gravity-ui/graph-react`.
 Core no longer contains DevTools code or declarations. The shared text measurement helper is available as
 `measureText(text, font, approximate?)` from `@gravity-ui/graph`; the ruler tick calculation belongs to DevTools.
+
+## CSS variables package boundary
+
+`CSSVariablesLayer`, its props, state and change types, `CSS_VARIABLE_MAPPINGS`, `SUPPORTED_CSS_VARIABLES`,
+`DEFAULT_CSS_VARIABLES_LAYER_PROPS` and the `map*` / `filterSupportedCSSChanges` helpers now belong to
+`@gravity-ui/graph-css-variables`. Install it and replace their imports from core:
+
+```ts
+import { Graph } from "@gravity-ui/graph";
+import { CSSVariablesLayer } from "@gravity-ui/graph-css-variables";
+
+const graph = new Graph({ blocks: [] }, document.getElementById("graph")!);
+graph.addLayer(CSSVariablesLayer, { containerClass: "graph-theme" });
+```
+
+The package requires core as a peer dependency, does not require React and ships no stylesheet. Props, supported
+variables and behavior are unchanged. Core no longer contains the layer and no longer depends on `style-observer`.
 
 ## Styles and TypeScript
 
@@ -177,7 +195,7 @@ const border: string = current.block.border;
 
 Use the input types for options you pass to Graph, and the complete configuration types when
 you annotate snapshots received from getters, signals or events. The helpers
-`mapGraphColorsToCSSVariables` and `mapGraphConstantsToCSSVariables` also accept
+`mapGraphColorsToCSSVariables` and `mapGraphConstantsToCSSVariables` (from `@gravity-ui/graph-css-variables`) also accept
 resolved state, for example `mapGraphColorsToCSSVariables(graph.graphColors)`. Replace
 `RecursivePartial<TGraphConstants>` with `TGraphConstantsPatch`; partial arrays are
 no longer valid constant patches.

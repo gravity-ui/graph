@@ -1,8 +1,7 @@
 /* eslint-disable no-console */
+import { Layer, LayerContext } from "@gravity-ui/graph";
 import merge from "lodash/merge";
 import StyleObserver from "style-observer";
-
-import { Layer, LayerContext } from "../../services/Layer";
 
 import { DEFAULT_CSS_VARIABLES_LAYER_PROPS, SUPPORTED_CSS_VARIABLES } from "./constants";
 import { filterSupportedCSSChanges, mapCSSChangesToGraphColors, mapCSSChangesToGraphConstants } from "./mapping";

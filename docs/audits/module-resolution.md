@@ -12,7 +12,7 @@ Ambient `*.css` declarations cover source side-effect imports. The bundlers reso
 
 ## Dependency declaration repair
 
-Resolving style-observer 0.1.1's own published types exposes invalid inheritance in `MultiWeakMap.d.ts`: runtime `has` supports one or two arguments, and runtime `delete` returns void instead of WeakMap's boolean. A pnpm patch models the inherited base with `has`/`delete` omitted and supplies the accurate custom methods. Only this declaration is patched; runtime code is unchanged. No library checks are disabled. Native publish checks run with the existing `skipLibCheck: false`, and a test verifies these methods against the dependency's real JS implementation. Remove the patch when an upstream release fixes these types.
+Resolving style-observer 0.1.1's own published types exposes invalid inheritance in `MultiWeakMap.d.ts`: runtime `has` supports one or two arguments, and runtime `delete` returns void instead of WeakMap's boolean. A pnpm patch models the inherited base with `has`/`delete` omitted and supplies the accurate custom methods. Only this declaration is patched; runtime code is unchanged. No library checks are disabled. Native publish checks run with the existing `skipLibCheck: false`, and a test verifies these methods against the dependency's real JS implementation. Remove the patch when an upstream release fixes these types. Since #402, `style-observer` is a dependency of `packages/graph-css-variables` rather than core, and the test resolves it from that package.
 
 ## Reviewed strict debt change
 

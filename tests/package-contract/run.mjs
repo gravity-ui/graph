@@ -17,7 +17,7 @@ const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "gravity-graph-pack
 const requestedTarballPath = process.env.PACKAGE_CONTRACT_TARBALL_PATH;
 const defaultTarballPath = path.join(temporaryDirectory, "tarballs", "gravity-ui-graph.tgz");
 const testedPackage = process.argv[2] ?? "graph";
-if (!["graph", "graph-react", "graph-minimap", "graph-devtools"].includes(testedPackage))
+if (!["graph", "graph-react", "graph-minimap", "graph-devtools", "graph-css-variables"].includes(testedPackage))
   throw new Error(`Unknown package: ${testedPackage}`);
 const testingReactPackage = testedPackage === "graph-react";
 const testingMinimapPackage = testedPackage === "graph-minimap";
@@ -33,6 +33,16 @@ const devtoolsTarballPath =
     ? path.resolve(requestedTarballPath)
     : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-devtools.tgz");
 const devtoolsStaleBuildSentinelPath = path.join(devtoolsPackageRoot, "build", "package-contract-stale-sentinel.txt");
+const cssVariablesPackageRoot = path.join(workspaceRoot, "packages/graph-css-variables");
+const cssVariablesTarballPath =
+  requestedTarballPath && testedPackage === "graph-css-variables"
+    ? path.resolve(requestedTarballPath)
+    : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-css-variables.tgz");
+const cssVariablesStaleBuildSentinelPath = path.join(
+  cssVariablesPackageRoot,
+  "build",
+  "package-contract-stale-sentinel.txt"
+);
 const workspaceTarballs = JSON.parse(process.env.PACKAGE_CONTRACT_WORKSPACE_TARBALLS || "{}");
 const suppliedCoreTarball = testedPackage !== "graph" ? workspaceTarballs["@gravity-ui/graph"] : undefined;
 const tarballPath = suppliedCoreTarball
@@ -46,7 +56,7 @@ const reactTarballPath =
     : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-react.tgz");
 const reactStaleBuildSentinelPath = path.join(reactPackageRoot, "build", "package-contract-stale-sentinel.txt");
 const staleBuildSentinelPath = path.join(packageRoot, "build", "package-contract-stale-sentinel.txt");
-const consumerNames = ["vanilla", "react", "minimap", "devtools"];
+const consumerNames = ["vanilla", "react", "minimap", "devtools", "css-variables"];
 
 async function getInstalledVersion(packageName) {
   const owner = ["react", "react-dom", "@types/react", "@types/react-dom"].includes(packageName)
@@ -71,6 +81,7 @@ async function runConsumer({
   expectedReactVersion,
   expectedMinimapVersion,
   expectedDevtoolsVersion,
+  expectedCssVariablesVersion,
   typecheckConfigs,
   entryPoint,
   nativeImports,
@@ -92,6 +103,8 @@ async function runConsumer({
   if (expectedMinimapVersion) await checkInstalledArtifact(consumerDirectory, expectedMinimapVersion, "graph-minimap");
   if (expectedDevtoolsVersion)
     await checkInstalledArtifact(consumerDirectory, expectedDevtoolsVersion, "graph-devtools");
+  if (expectedCssVariablesVersion)
+    await checkInstalledArtifact(consumerDirectory, expectedCssVariablesVersion, "graph-css-variables");
   await checkRuntimeConsumer({
     consumerDirectory,
     entrypoints: nativeImports,
@@ -117,6 +130,8 @@ try {
   const reactManifest = JSON.parse(await readFile(path.join(reactPackageRoot, "package.json"), "utf8"));
   const minimapManifest = JSON.parse(await readFile(path.join(minimapPackageRoot, "package.json"), "utf8"));
   const devtoolsManifest = JSON.parse(await readFile(path.join(devtoolsPackageRoot, "package.json"), "utf8"));
+  const cssVariablesManifest = JSON.parse(await readFile(path.join(cssVariablesPackageRoot, "package.json"), "utf8"));
+  await mkdir(path.dirname(cssVariablesTarballPath), { recursive: true });
   await mkdir(path.dirname(devtoolsTarballPath), { recursive: true });
   await mkdir(path.dirname(minimapTarballPath), { recursive: true });
   await mkdir(path.dirname(tarballPath), { recursive: true });
@@ -145,7 +160,20 @@ try {
     tarballPath: devtoolsTarballPath,
     kind: "graph-devtools",
   });
-  await checkTarballTypes({ packageRoot, tarballPath, reactTarballPath, minimapTarballPath, devtoolsTarballPath });
+  await buildAndPackArtifact({
+    packageRoot: cssVariablesPackageRoot,
+    staleBuildSentinelPath: cssVariablesStaleBuildSentinelPath,
+    tarballPath: cssVariablesTarballPath,
+    kind: "graph-css-variables",
+  });
+  await checkTarballTypes({
+    packageRoot,
+    tarballPath,
+    reactTarballPath,
+    minimapTarballPath,
+    devtoolsTarballPath,
+    cssVariablesTarballPath,
+  });
 
   const workspaceManifest = JSON.parse(await readFile(path.join(workspaceRoot, "package.json"), "utf8"));
   if (!workspaceManifest.packageManager) {
@@ -277,6 +305,29 @@ try {
     expectNoReact: true,
   });
 
+  await runConsumer({
+    name: "css-variables",
+    expectedVersion,
+    expectedCssVariablesVersion: cssVariablesManifest.version,
+    manifest: {
+      ...commonManifest,
+      name: "gravity-graph-installed-css-variables-consumer",
+      dependencies: {
+        ...commonManifest.dependencies,
+        "@gravity-ui/graph-css-variables": `file:${cssVariablesTarballPath}`,
+      },
+    },
+    typecheckConfigs: [
+      "fixtures/apps/css-variables/tsconfig.json",
+      "fixtures/apps/css-variables/tsconfig.non-strict.json",
+      "fixtures/types/css-variables-node-esm/tsconfig.json",
+      "fixtures/types/css-variables-node-esm/tsconfig.non-strict.json",
+    ],
+    entryPoint: "fixtures/apps/css-variables/app.ts",
+    nativeImports: ["root", "cssVariables", "playwright"],
+    expectNoReact: true,
+  });
+
   console.log("\n[package-contract] Packed package contract passed.");
 } catch (error) {
   await preserveBrowserArtifacts({ consumerNames, packageRoot: workspaceRoot, temporaryDirectory });
@@ -286,6 +337,7 @@ try {
   await rm(reactStaleBuildSentinelPath, { force: true });
   await rm(minimapStaleBuildSentinelPath, { force: true });
   await rm(devtoolsStaleBuildSentinelPath, { force: true });
+  await rm(cssVariablesStaleBuildSentinelPath, { force: true });
 
   if (process.env.KEEP_PACKAGE_CONTRACT_TMP === "1") {
     console.log(`\n[package-contract] Preserved temporary projects at ${temporaryDirectory}`);

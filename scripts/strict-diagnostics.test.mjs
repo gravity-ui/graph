@@ -147,7 +147,7 @@ test("CLI baseline is reproducible across line shifts and rejects regressions/co
       );
       writeFileSync(
         path.join(projectRoot, "source.ts"),
-        project === PROJECTS[0] || project === "packages/graph-minimap/tsconfig.json" || project === "packages/graph-react/tsconfig.json" || project === "packages/graph-devtools/tsconfig.json"
+        project === PROJECTS[0] || project === "packages/graph-minimap/tsconfig.json" || project === "packages/graph-react/tsconfig.json" || project === "packages/graph-devtools/tsconfig.json" || project === "packages/graph-css-variables/tsconfig.json"
           ? "export const text = 'ready';\n"
           : "import value from 'untyped';\nexport const text: string = null;\n"
       );

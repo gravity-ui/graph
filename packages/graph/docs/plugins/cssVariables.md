@@ -34,12 +34,19 @@ This layer creates an invisible HTML div element with a specified CSS class and 
 
 ## Usage
 
+The layer is published as `@gravity-ui/graph-css-variables`, with `@gravity-ui/graph` as a peer dependency:
+
+```sh
+pnpm add @gravity-ui/graph @gravity-ui/graph-css-variables
+```
+
 The `CSSVariablesLayer` can be added to the graph like any other layer.
 
 ### 1. Via Graph Configuration
 
 ```typescript
-import { Graph, CSSVariablesLayer, layerConfig } from "@gravity-ui/graph";
+import { Graph, layerConfig } from "@gravity-ui/graph";
+import { CSSVariablesLayer } from "@gravity-ui/graph-css-variables";
 
 const graph = new Graph({
   // ... other graph settings
@@ -59,7 +66,7 @@ const graph = new Graph({
 ### 2. Dynamic Addition
 
 ```typescript
-import { CSSVariablesLayer } from "@gravity-ui/graph";
+import { CSSVariablesLayer } from "@gravity-ui/graph-css-variables";
 
 // Assuming 'graph' is an existing Graph instance
 graph.addLayer(CSSVariablesLayer, {
@@ -74,7 +81,8 @@ This is the recommended way when using the React bindings.
 
 ```tsx
 import React from 'react';
-import { useGraph, GraphCanvas, useLayer, CSSVariablesLayer } from '@gravity-ui/graph';
+import { CSSVariablesLayer } from "@gravity-ui/graph-css-variables";
+import { GraphCanvas, useGraph, useLayer } from "@gravity-ui/graph-react";
 
 function MyGraphComponent() {
   const { graph } = useGraph({ /* ... initial config ... */ });

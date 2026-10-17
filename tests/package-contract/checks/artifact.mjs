@@ -32,6 +32,10 @@ const expectedTypesVersions = {
   },
 };
 
+// Addons that ship no stylesheet and therefore no ./styles.css export.
+const addonsWithoutStyles = new Set(["graph-css-variables"]);
+const hasStyles = (kind) => !addonsWithoutStyles.has(kind);
+
 const allowedPackageRootFiles = new Set(["LICENSE", "README.md", "package.json"]);
 const allowedRuntimeFiles = new Set([
   "build/index.js",
@@ -75,7 +79,7 @@ function assertPackedFiles(metadata, kind) {
       forbiddenPackedPathPatterns.some((pattern) => pattern.test(packedPath)) ||
       (addon
         ? /(?:^|\/)(?:playwright|docs)(?:\/|$)/.test(packedPath)
-        : /(?:^|\/)(?:react-components|plugins\/(?:minimap|devtools))(?:\/|$)/.test(packedPath))
+        : /(?:^|\/)(?:react-components|plugins\/(?:minimap|devtools|cssVariables))(?:\/|$)/.test(packedPath))
   );
 
   assert.deepEqual(unexpectedFiles, [], `Tarball contains files outside the public allowlist: ${unexpectedFiles}`);
@@ -85,7 +89,7 @@ function assertPackedFiles(metadata, kind) {
     ...allowedPackageRootFiles,
     "build/index.js",
     "build/index.d.ts",
-    "build/styles.css",
+    ...(hasStyles(kind) ? ["build/styles.css"] : []),
     ...(addon
       ? []
       : [
@@ -180,7 +184,12 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   assert.deepEqual(manifest.files, ["build"]);
   assert.deepEqual(
     manifest.exports,
-    addon ? { ".": expectedExports["."], "./styles.css": expectedExports["./styles.css"] } : expectedExports
+    addon
+      ? {
+          ".": expectedExports["."],
+          ...(hasStyles(kind) ? { "./styles.css": expectedExports["./styles.css"] } : {}),
+        }
+      : expectedExports
   );
   assert.deepEqual(manifest.typesVersions, addon ? undefined : expectedTypesVersions);
   if (addon) {
@@ -213,7 +222,9 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
         "@gravity-ui/graph-react",
         "@gravity-ui/graph-minimap",
         "@gravity-ui/graph-devtools",
+        "@gravity-ui/graph-css-variables",
         "elkjs",
+        "style-observer",
       ]) {
         assert.equal(manifest[field]?.[name], undefined, `Core must not depend on ${name} through ${field}.`);
       }
@@ -242,7 +253,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     [
       "build/index.js",
       "build/index.d.ts",
-      "build/styles.css",
+      ...(hasStyles(kind) ? ["build/styles.css"] : []),
       ...(addon
         ? []
         : [
@@ -263,7 +274,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   );
   await assertNoPrivateSchedulerSpecifiers(packageRoot);
 
-  const publicStyles = await readFile(path.join(packageRoot, "build", "styles.css"), "utf8");
+  const publicStyles = hasStyles(kind) ? await readFile(path.join(packageRoot, "build", "styles.css"), "utf8") : "";
   if (addon) {
     for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
       assert.doesNotMatch(
@@ -279,6 +290,13 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     assert.deepEqual(manifest.optionalDependencies ?? {}, {});
     assert.match(publicStyles, /\.graph-minimap/);
     assert.match(publicStyles, /background:\s*lightgr[ae]y/);
+    return;
+  }
+  if (kind === "graph-css-variables") {
+    assert.deepEqual(Object.keys(manifest.peerDependencies), ["@gravity-ui/graph"]);
+    assert.deepEqual(Object.keys(manifest.dependencies ?? {}).sort(), ["lodash", "style-observer"]);
+    assert.deepEqual(manifest.optionalDependencies ?? {}, {});
+    await assertPathDoesNotExist(path.join(packageRoot, "build/styles.css"), "CSS variables must not ship a stylesheet.");
     return;
   }
   if (kind === "graph-devtools") {
@@ -309,10 +327,14 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
       "Core still ships DevTools declarations."
     );
     assert.doesNotMatch(await readFile(path.join(packageRoot, "build/index.js"), "utf8"), /devtools-layer/);
+    await assertPathDoesNotExist(
+      path.join(packageRoot, "build/plugins/cssVariables"),
+      "Core still ships CSS variables declarations."
+    );
     for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
       assert.doesNotMatch(
         await readFile(file, "utf8"),
-        /(?:from\s+|import\s*\(|require\s*\()["'](?:react(?:-dom)?(?:\/[^"']*)?|@gravity-ui\/graph-(?:react|minimap|devtools))["']/
+        /(?:from\s+|import\s*\(|require\s*\()["'](?:react(?:-dom)?(?:\/[^"']*)?|style-observer|@gravity-ui\/graph-(?:react|minimap|devtools|css-variables))["']/
       );
     }
   }
