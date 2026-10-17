@@ -33,15 +33,8 @@ export function coreOperations(graph: Graph, connection: ConnectionState, anchor
   const manager = graph.selectionService;
   manager.registerBucket(bucket);
   const port: TPort<string> = { id: 0, x: 0, y: 0, meta: "metadata" };
-  graph.on("port-connection-created", ({ detail }) => {
-    const blockId: string | number | undefined = detail.sourceBlockId;
-    const target: string | number | undefined = detail.targetBlockId;
-    void [blockId, target];
-  });
-  graph.on("connection-create-drop", ({ detail }) => {
-    const anchorId: string | undefined = detail.sourceAnchorId;
-    void anchorId;
-  });
+  // @ts-expect-error connection creation events are declared by @gravity-ui/graph-connection-editing
+  graph.on("connection-created", () => undefined);
   void [id, snapshotId, endpoints, view, anchorView, port];
 }
 

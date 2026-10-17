@@ -301,10 +301,13 @@ export class DragService {
    * @param callbacks - Lifecycle callbacks (onStart, onUpdate, onEnd)
    * @param options - Drag options (document, cursor, autopanning, etc.)
    *
+   * @returns The drag handle. Call `handle.emit("cancel")` to stop the operation without `onEnd`:
+   * it removes the listeners and releases the cursor and auto-panning.
+   *
    * @example
    * ```typescript
-   * // In ConnectionLayer
-   * graph.dragService.startOperation(
+   * // In a connection creation layer
+   * const handle = graph.dragService.startDrag(
    *   {
    *     onStart: (event, coords) => this.onStartConnection(event, coords),
    *     onUpdate: (event, coords) => this.onMoveConnection(event, coords),
@@ -312,6 +315,8 @@ export class DragService {
    *   },
    *   { cursor: "crosshair", autopanning: true }
    * );
+   * // On Escape
+   * handle.emit("cancel");
    * ```
    */
   public startDrag(callbacks: DragOperationCallbacks, options: DragOperationOptions = {}) {

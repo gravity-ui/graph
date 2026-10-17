@@ -6,12 +6,12 @@ import {
   EAnchorType,
   ECanDrag,
   Graph,
-  IPortConnectionMeta,
-  PortConnectionLayer,
   TBlock,
   TPoint,
   createAnchorPortId,
 } from "@gravity-ui/graph";
+import { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";
+import type { IPortConnectionMeta } from "@gravity-ui/graph-connection-editing";
 import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
@@ -51,7 +51,7 @@ function isValidConnection(sourcePort: { owner?: unknown }, targetPort: { owner?
 }
 
 /**
- * Custom block with port-based snapping using PortConnectionLayer
+ * Custom block with port-based snapping using ConnectionEditingLayer
  * Demonstrates the new port-centric approach
  * Rules:
  * - Can connect IN to OUT or OUT to IN (bidirectional)
@@ -82,7 +82,7 @@ class PortBasedBlock extends CanvasBlock {
       // Configure port for snapping
       this.updatePort(portId, {
         meta: {
-          [PortConnectionLayer.PortMetaKey]: snapMeta,
+          [ConnectionEditingLayer.PortMetaKey]: snapMeta,
         },
       });
     });
@@ -133,7 +133,7 @@ class ConditionalPortBlock extends CanvasBlock {
       // Store both snap metadata and data type
       this.updatePort(portId, {
         meta: {
-          [PortConnectionLayer.PortMetaKey]: snapMeta,
+          [ConnectionEditingLayer.PortMetaKey]: snapMeta,
           dataType: dataType,
         },
       });
@@ -223,7 +223,6 @@ const GraphApp = () => {
   const { graph, setEntities, start, addLayer, zoomTo } = useGraph({
     settings: {
       canDrag: ECanDrag.ALL,
-      canCreateNewConnections: true,
       useBlocksAnchors: true,
       blockComponents: {
         "port-based-block": PortBasedBlock,
@@ -240,7 +239,7 @@ const GraphApp = () => {
     zoomTo("center", { padding: 300 });
   }, [graph]);
 
-  const layerRef = useRef<PortConnectionLayer | null>(null);
+  const layerRef = useRef<ConnectionEditingLayer | null>(null);
 
   useLayoutEffect(() => {
     // Create icon for creating connections
@@ -278,7 +277,7 @@ const GraphApp = () => {
       };
     };
 
-    layerRef.current = addLayer(PortConnectionLayer, {
+    layerRef.current = addLayer(ConnectionEditingLayer, {
       createIcon,
       point: pointIcon,
       drawLine,
@@ -302,7 +301,7 @@ const GraphApp = () => {
 };
 
 const meta: Meta = {
-  title: "Examples/PortConnectionLayer",
+  title: "Examples/ConnectionEditingLayer/Ports",
   component: GraphApp,
   parameters: {
     layout: "fullscreen",

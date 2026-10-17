@@ -10,7 +10,7 @@ Layers are fundamental to the Canvas rendering pipeline in @gravity-ui/graph. Th
 **Primary Goal: Extensibility:** Layers are the primary mechanism for extending the library's core functionality. If a user request involves adding new visual elements or behaviors without altering the base logic, creating a new custom layer is the preferred approach.
 
 ## Key Layer Concepts
-- **Purpose:** Each layer is responsible for a specific aspect of the graph, which can include **rendering visual elements** (e.g., `BackgroundLayer`, `ConnectionLayer`) or **managing behavior and logic** (e.g., handling specific user interactions, managing non-visual state). A layer might not have a direct visual representation but still participate in the graph's lifecycle and logic.
+- **Purpose:** Each layer is responsible for a specific aspect of the graph, which can include **rendering visual elements** (e.g., `BackgroundLayer`, `ConnectionEditingLayer` from `@gravity-ui/graph-connection-editing`) or **managing behavior and logic** (e.g., handling specific user interactions, managing non-visual state). A layer might not have a direct visual representation but still participate in the graph's lifecycle and logic.
 - **Base Class:** `packages/graph/src/services/Layer.ts` (Exports `Layer`, `LayerProps`, `LayerContext`).
 - **`LayerProps` Interface:** Defines configuration for a layer. Key properties include:
     - `canvas`: Configuration for the HTML5 Canvas element (optional).

@@ -7,6 +7,9 @@ const nativeImportProbes = {
     if ("DevToolsLayer" in graph || "DEFAULT_DEVTOOLS_LAYER_PROPS" in graph) {
       throw new Error("Core still exports the extracted DevTools.");
     }
+    if ("ConnectionLayer" in graph || "PortConnectionLayer" in graph) {
+      throw new Error("Core still exports the extracted connection layers.");
+    }
     if (typeof graph.Graph !== "function") throw new Error("Root entrypoint does not export Graph.");
     if (graph.ESchedulerPriority?.LOWEST !== 4) {
       throw new Error("Root entrypoint does not export ESchedulerPriority.");
@@ -40,6 +43,16 @@ const nativeImportProbes = {
       throw new Error("DevTools has a second core Layer class.");
     }
     if (DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize !== 25) throw new Error("DevTools defaults are missing or changed.");
+  `,
+  connectionEditing: `
+    const { ConnectionEditingLayer } = await import("@gravity-ui/graph-connection-editing");
+    const { Layer } = await import("@gravity-ui/graph");
+    if (Object.getPrototypeOf(ConnectionEditingLayer.prototype) !== Layer.prototype) {
+      throw new Error("ConnectionEditingLayer has a second core Layer class.");
+    }
+    if (ConnectionEditingLayer.PortMetaKey !== Symbol.for("PortConnectionLayer.PortMeta")) {
+      throw new Error("ConnectionEditingLayer port meta key changed.");
+    }
   `,
   playwright: `
     const playwright = await import("@gravity-ui/graph/playwright");

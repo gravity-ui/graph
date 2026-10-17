@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { ConnectionLayer, Graph, TBlock, TPoint } from "@gravity-ui/graph";
+import { Graph, TBlock, TPoint } from "@gravity-ui/graph";
+import { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";
 import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 import { Flex, Hotkey, Switch, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
@@ -12,11 +13,7 @@ import { BlockStory } from "../../main/Block";
 import "@gravity-ui/uikit/styles/styles.css";
 
 const GraphApp = () => {
-  const { graph, setEntities, start, addLayer, zoomTo } = useGraph({
-    settings: {
-      canCreateNewConnections: true,
-    },
-  });
+  const { graph, setEntities, start, addLayer, zoomTo } = useGraph({});
 
   useEffect(() => {
     setEntities(generatePrettyBlocks({ layersCount: 3, connectionsPerLayer: 5, dashedLine: false }));
@@ -24,7 +21,7 @@ const GraphApp = () => {
     zoomTo("center", { padding: 300 });
   }, [graph]);
 
-  const connectionLayerRef = useRef<ConnectionLayer | null>(null);
+  const connectionLayerRef = useRef<ConnectionEditingLayer | null>(null);
 
   useLayoutEffect(() => {
     // Create icon for creating connections
@@ -62,7 +59,7 @@ const GraphApp = () => {
       };
     };
 
-    connectionLayerRef.current = addLayer(ConnectionLayer, {
+    connectionLayerRef.current = addLayer(ConnectionEditingLayer, {
       createIcon,
       point: pointIcon,
       drawLine,
@@ -93,8 +90,9 @@ const GraphApp = () => {
 
     // Listen for connection creation completion events
     graph.on("connection-create-drop", (event) => {
-      if (!event.detail.targetBlockId) {
-        const source = graph.rootStore.blocksList.getBlock(event.detail.sourceBlockId);
+      const sourceBlockId = event.detail.sourceBlockId;
+      if (!event.detail.targetBlockId && sourceBlockId !== undefined) {
+        const source = graph.rootStore.blocksList.getBlock(sourceBlockId);
         if (source) {
           const block = graph.api.addBlock({
             id: `${graph.rootStore.blocksList.$blocksMap.value.size}`,
@@ -109,7 +107,7 @@ const GraphApp = () => {
           });
           graph.api.addConnection({
             id: `${String(source.id)}-${String(block)}`,
-            sourceBlockId: event.detail.sourceBlockId,
+            sourceBlockId,
             sourceAnchorId: event.detail.sourceAnchorId,
             targetBlockId: block,
             targetAnchorId: "bottom",
@@ -125,7 +123,7 @@ const GraphApp = () => {
       connectionLayerRef.current?.enable();
       setEnabled(true);
     } else {
-      connectionLayerRef.current?.disable(); // Обратите внимание, что в оригинале метод назван disabled, а не disable
+      connectionLayerRef.current?.disable();
       setEnabled(false);
     }
   });
@@ -138,7 +136,7 @@ const GraphApp = () => {
     <ThemeProvider theme="light">
       <Flex direction="column" style={{ height: "100vh" }}>
         <Flex direction="column" gap={2} style={{ padding: 16 }}>
-          <Text variant="header-1">ConnectionLayer Demo</Text>
+          <Text variant="header-1">ConnectionEditingLayer: anchors and blocks</Text>
           <Text variant="body-1">
             This layer allows creating connections between blocks and anchors. To create a connection between blocks,
             hold <Hotkey value={"shift"} /> and drag from one block to another. To connect anchors, simply drag from one
@@ -150,7 +148,7 @@ const GraphApp = () => {
               <Switch
                 checked={enabled}
                 onChange={() => switchConnectionEnabled(!enabled)}
-                content="Enable ConnectionLayer"
+                content="Enable connection editing"
               />
             </Flex>
           </Flex>
@@ -164,7 +162,7 @@ const GraphApp = () => {
 };
 
 const meta: Meta = {
-  title: "Examples/ConnectionLayer",
+  title: "Examples/ConnectionEditingLayer/Anchors and blocks",
   component: GraphApp,
   parameters: {
     layout: "fullscreen",

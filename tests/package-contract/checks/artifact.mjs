@@ -53,8 +53,12 @@ function getPackMetadata(output) {
   return Array.isArray(metadata) ? metadata[0] : metadata;
 }
 
+// Addons without a public stylesheet.
+const unstyledAddons = new Set(["graph-connection-editing"]);
+
 function assertPackedFiles(metadata, kind) {
   const addon = kind !== "graph";
+  const styled = !unstyledAddons.has(kind);
   assert.equal(metadata.name, `@gravity-ui/${kind}`);
   assert.ok(Array.isArray(metadata.files), "pnpm pack did not report the packed file list.");
 
@@ -85,7 +89,7 @@ function assertPackedFiles(metadata, kind) {
     ...allowedPackageRootFiles,
     "build/index.js",
     "build/index.d.ts",
-    "build/styles.css",
+    ...(styled ? ["build/styles.css"] : []),
     ...(addon
       ? []
       : [
@@ -167,6 +171,7 @@ export async function buildAndPackArtifact({ packageRoot, staleBuildSentinelPath
 export async function checkInstalledArtifact(consumerDirectory, expectedVersion, kind = "graph") {
   const addon = kind !== "graph";
   const react = kind === "graph-react";
+  const styled = !unstyledAddons.has(kind);
   const packageRoot = path.join(consumerDirectory, "node_modules", "@gravity-ui", kind);
   const manifest = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
 
@@ -180,7 +185,9 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   assert.deepEqual(manifest.files, ["build"]);
   assert.deepEqual(
     manifest.exports,
-    addon ? { ".": expectedExports["."], "./styles.css": expectedExports["./styles.css"] } : expectedExports
+    addon
+      ? { ".": expectedExports["."], ...(styled ? { "./styles.css": expectedExports["./styles.css"] } : {}) }
+      : expectedExports
   );
   assert.deepEqual(manifest.typesVersions, addon ? undefined : expectedTypesVersions);
   if (addon) {
@@ -213,6 +220,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
         "@gravity-ui/graph-react",
         "@gravity-ui/graph-minimap",
         "@gravity-ui/graph-devtools",
+        "@gravity-ui/graph-connection-editing",
         "elkjs",
       ]) {
         assert.equal(manifest[field]?.[name], undefined, `Core must not depend on ${name} through ${field}.`);
@@ -242,7 +250,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     [
       "build/index.js",
       "build/index.d.ts",
-      "build/styles.css",
+      ...(styled ? ["build/styles.css"] : []),
       ...(addon
         ? []
         : [
@@ -263,7 +271,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   );
   await assertNoPrivateSchedulerSpecifiers(packageRoot);
 
-  const publicStyles = await readFile(path.join(packageRoot, "build", "styles.css"), "utf8");
+  const publicStyles = styled ? await readFile(path.join(packageRoot, "build", "styles.css"), "utf8") : "";
   if (addon) {
     for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
       assert.doesNotMatch(
@@ -279,6 +287,13 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     assert.deepEqual(manifest.optionalDependencies ?? {}, {});
     assert.match(publicStyles, /\.graph-minimap/);
     assert.match(publicStyles, /background:\s*lightgr[ae]y/);
+    return;
+  }
+  if (kind === "graph-connection-editing") {
+    assert.deepEqual(Object.keys(manifest.peerDependencies), ["@gravity-ui/graph"]);
+    assert.deepEqual(Object.keys(manifest.dependencies ?? {}), ["rbush"]);
+    assert.deepEqual(manifest.optionalDependencies ?? {}, {});
+    await assertPathDoesNotExist(path.join(packageRoot, "build/styles.css"), "Connection editing ships no styles.");
     return;
   }
   if (kind === "graph-devtools") {
@@ -312,7 +327,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
       assert.doesNotMatch(
         await readFile(file, "utf8"),
-        /(?:from\s+|import\s*\(|require\s*\()["'](?:react(?:-dom)?(?:\/[^"']*)?|@gravity-ui\/graph-(?:react|minimap|devtools))["']/
+        /(?:from\s+|import\s*\(|require\s*\()["'](?:react(?:-dom)?(?:\/[^"']*)?|@gravity-ui\/graph-(?:react|minimap|devtools|connection-editing))["']/
       );
     }
   }

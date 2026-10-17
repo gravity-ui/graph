@@ -1,6 +1,6 @@
 # Public package contract
 
-This suite validates the exact `@gravity-ui/graph`, `@gravity-ui/graph-react`, `@gravity-ui/graph-minimap`, and `@gravity-ui/graph-devtools` tarballs that an external application
+This suite validates the exact `@gravity-ui/graph`, `@gravity-ui/graph-react`, `@gravity-ui/graph-minimap`, `@gravity-ui/graph-devtools`, and `@gravity-ui/graph-connection-editing` tarballs that an external application
 installs. It owns package metadata, generated declarations, dependency isolation, native imports, and browser bundling.
 Detailed graph behavior remains in `apps/e2e`.
 
@@ -13,7 +13,7 @@ pnpm run test:package-contract
 ```
 
 Install Chromium once with `pnpm exec playwright install chromium`. Do not run the suite concurrently with another
-package build or typecheck: it deliberately cleans and rebuilds all four packages. Set `KEEP_PACKAGE_CONTRACT_TMP=1` to retain
+package build or typecheck: it deliberately cleans and rebuilds all packages. Set `KEEP_PACKAGE_CONTRACT_TMP=1` to retain
 the isolated consumers. With `CI=1`, failed browser reports are copied to the root `playwright-report/package-contract`
 and `test-results/package-contract` directories.
 
@@ -71,9 +71,10 @@ PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/graph.tgz pnpm --filter @gravity-ui
 PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/graph-react.tgz pnpm --filter @gravity-ui/graph-react run test:package-contract
 PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/graph-minimap.tgz pnpm --filter @gravity-ui/graph-minimap run test:package-contract
 PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/graph-devtools.tgz pnpm --filter @gravity-ui/graph-devtools run test:package-contract
+PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/graph-connection-editing.tgz pnpm --filter @gravity-ui/graph-connection-editing run test:package-contract
 ```
 
-All commands validate the four packages. The requested tarball remains after temporary consumers are removed. The
+All commands validate every package. The requested tarball remains after temporary consumers are removed. The
 release process must publish that validated file. When a dependency tarball is supplied through
 `PACKAGE_CONTRACT_WORKSPACE_TARBALLS` as `@gravity-ui/graph`, the suite installs that same core artifact instead of repacking it.
 

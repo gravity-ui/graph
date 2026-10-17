@@ -147,7 +147,7 @@ test("CLI baseline is reproducible across line shifts and rejects regressions/co
       );
       writeFileSync(
         path.join(projectRoot, "source.ts"),
-        project === PROJECTS[0] || project === "packages/graph-minimap/tsconfig.json" || project === "packages/graph-react/tsconfig.json" || project === "packages/graph-devtools/tsconfig.json"
+        project === PROJECTS[0] || project === "packages/graph-minimap/tsconfig.json" || project === "packages/graph-react/tsconfig.json" || project === "packages/graph-devtools/tsconfig.json" || project === "packages/graph-connection-editing/tsconfig.json"
           ? "export const text = 'ready';\n"
           : "import value from 'untyped';\nexport const text: string = null;\n"
       );
@@ -280,6 +280,7 @@ test("completed package guards check both the project and the file", () => {
     ["packages/graph-react", "Graph React"],
     ["packages/graph-minimap", "Minimap"],
     ["packages/graph-devtools", "Devtools"],
+    ["packages/graph-connection-editing", "Connection editing"],
   ]) {
     for (const debt of [
       { ...diagnostic, project: `${directory}/tsconfig.json` },

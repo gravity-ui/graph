@@ -8,5 +8,6 @@ import "@gravity-ui/graph-minimap/styles.css";
 
 export * from "@gravity-ui/graph";
 export { MiniMapLayer } from "@gravity-ui/graph-minimap";
+export { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";
 export { GraphBlock, GraphBlockAnchor, GraphCanvas } from "@gravity-ui/graph-react";
 export { React, ReactDOM };

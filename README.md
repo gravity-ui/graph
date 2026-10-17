@@ -8,6 +8,7 @@ This repository contains the Gravity UI Graph packages and their development too
 - [`@gravity-ui/graph-react`](packages/graph-react) — React components, hooks, and their styles, depending on the core public API.
 - [`@gravity-ui/graph-minimap`](packages/graph-minimap) — optional Canvas minimap with navigation, depending on the core public API.
 - [`@gravity-ui/graph-devtools`](packages/graph-devtools) — optional rulers, cursor crosshair, and their styles, depending on the core public API.
+- [`@gravity-ui/graph-connection-editing`](packages/graph-connection-editing) — optional layer for creating connections by drag, depending on the core public API.
 
 Shared build tooling lives in `scripts/`; `tests/package-contract` installs the public tarballs into isolated vanilla, React, minimap, and DevTools projects.
 

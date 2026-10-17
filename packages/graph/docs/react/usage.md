@@ -337,7 +337,6 @@ const config = {
     canDrag: ECanDrag.ALL, // ECanDrag.NONE | ECanDrag.ONLY_SELECTED
     
     // Connection settings
-    canCreateNewConnections: true,
     showConnectionArrows: true,
     useBezierConnections: true,
     
@@ -362,7 +361,7 @@ The library provides a rich set of events you can listen to:
 ```tsx
 import { useGraphEvent } from '@gravity-ui/graph-react';
 
-// When a new connection is created
+// When a new connection is created (requires ConnectionEditingLayer from @gravity-ui/graph-connection-editing)
 useGraphEvent(graph, "connection-created", 
   ({ sourceBlockId, targetBlockId }, event) => {
     // Handle new connection
@@ -494,7 +493,6 @@ function CustomGraph() {
     settings: {
       canDragCamera: true,
       canZoomCamera: true,
-      canCreateNewConnections: true,
       useBezierConnections: true,
     },
   });

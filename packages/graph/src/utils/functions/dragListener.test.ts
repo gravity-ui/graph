@@ -110,3 +110,26 @@ test("custom drag operations accept omitted lifecycle callbacks", () => {
   }).not.toThrow();
   graph.unmount();
 });
+
+test("the handle returned by dragService.startDrag cancels the operation with emit('cancel')", () => {
+  const graph = new Graph({});
+  const unlock = jest.spyOn(graph, "unlockCursor");
+  const callbacks = { onStart: jest.fn(), onUpdate: jest.fn(), onEnd: jest.fn() };
+  const handle = graph.dragService.startDrag(callbacks, {
+    document,
+    cursor: "crosshair",
+    threshold: 0,
+    autopanning: false,
+    suppressTextSelection: false,
+  });
+  document.dispatchEvent(new MouseEvent("mousemove", { clientX: 10 }));
+  expect(callbacks.onStart).toHaveBeenCalledTimes(1);
+  callbacks.onUpdate.mockClear();
+  handle.emit("cancel");
+  expect(unlock).toHaveBeenCalledTimes(1);
+  document.dispatchEvent(new MouseEvent("mousemove", { clientX: 20 }));
+  document.dispatchEvent(new MouseEvent("mouseup"));
+  expect(callbacks.onUpdate).not.toHaveBeenCalled();
+  expect(callbacks.onEnd).not.toHaveBeenCalled();
+  graph.unmount();
+});

@@ -11,6 +11,7 @@ export const PROJECTS = [
   "packages/graph-devtools/tsconfig.json",
   "apps/storybook/tsconfig.json",
   "apps/e2e/tsconfig.json",
+  "packages/graph-connection-editing/tsconfig.json",
 ];
 export const RESOLVED_CONFIGURATION_FILES = [
   "packages/graph/src/graphConfig.ts",
@@ -100,6 +101,7 @@ export function validateSnapshot(value) {
       throw new Error("Invalid strict diagnostic record");
     }
     assertPackageHasNoDebt(diagnostic, "packages/graph-devtools", "Devtools");
+    assertPackageHasNoDebt(diagnostic, "packages/graph-connection-editing", "Connection editing");
     if (diagnostic.file.startsWith("packages/graph/src/lib/Scheduler/")) {
       throw new Error(`Scheduler must have zero strict diagnostics: ${identity(diagnostic)}`);
     }
@@ -245,6 +247,7 @@ async function main(args) {
     );
   }
   console.log("Devtools: zero strict diagnostics (full package checked).");
+  console.log("Connection editing: zero strict diagnostics (full package checked).");
   console.log("Component factories, descriptors, refs and group contracts: zero strict diagnostics.");
   console.log("Scheduler: zero strict diagnostics (full projects checked).");
   console.log("Scheduling wrappers and text helpers: zero strict diagnostics.");

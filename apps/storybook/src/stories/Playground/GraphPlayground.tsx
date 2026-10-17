@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { ConnectionLayer, ECanDrag, Graph, GraphState, TBlock, TGraphConfig, TPoint } from "@gravity-ui/graph";
+import { ECanDrag, Graph, GraphState, TBlock, TGraphConfig, TPoint } from "@gravity-ui/graph";
+import { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";
 import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph-react";
 import {
   Flex,
@@ -79,7 +80,6 @@ const config: HookGraphParams = {
     canZoomCamera: true,
     canDuplicateBlocks: false,
     canDrag: ECanDrag.ALL,
-    canCreateNewConnections: true,
     showConnectionArrows: false,
     scaleFontSize: 1,
     useBezierConnections: true,
@@ -138,7 +138,7 @@ export function GraphPLayground() {
   const editorRef = useRef<ConfigEditorController>(null);
   const [graphSize, setGraphSize] = useState<string>("1");
 
-  useLayer(graph, ConnectionLayer, {
+  useLayer(graph, ConnectionEditingLayer, {
     createIcon,
     point: pointIcon,
     drawLine,
@@ -187,7 +187,7 @@ export function GraphPLayground() {
     ({ sourceBlockId, sourceAnchorId, targetBlockId, targetAnchorId }, event) => {
       event.preventDefault();
       const pullSourceAnchor =
-        sourceAnchorId === undefined
+        sourceAnchorId === undefined || sourceBlockId === undefined
           ? undefined
           : graph.rootStore.blocksList.getBlockState(sourceBlockId)?.getAnchorById(sourceAnchorId);
       if (!pullSourceAnchor) return;
@@ -216,7 +216,7 @@ export function GraphPLayground() {
     }
     let block: TGravityActionBlockWithAnchors;
     const pullSourceAnchor =
-      sourceAnchorId === undefined
+      sourceAnchorId === undefined || sourceBlockId === undefined
         ? undefined
         : graph.rootStore.blocksList.getBlockState(sourceBlockId)?.getAnchorById(sourceAnchorId);
     const nextIndex = getNextBlockIndex();

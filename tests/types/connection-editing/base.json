@@ -1,0 +1,19 @@
+{
+  // ConnectionEditingLayer props, port meta and augmented graph events for strict and non-strict consumers.
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": false,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "experimentalDecorators": true,
+    // Package sources reference Node globals (for example Emitter.ts).
+    "types": ["node"],
+    "typeRoots": ["../../../node_modules/@types"]
+  },
+  "files": [
+    "../../package-contract/fixtures/types/connection-editing-node-esm/index.mts",
+    "../../../packages/graph/src/assets.d.ts"
+  ]
+}
