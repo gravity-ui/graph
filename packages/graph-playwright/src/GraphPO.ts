@@ -1,19 +1,16 @@
+import type { Graph, TBlockId, TConnection, TConnectionId } from "@gravity-ui/graph";
 import type { ElementHandle, JSHandle, Locator, Page } from "@playwright/test";
-
-import type { Graph } from "../graph";
-import type { TBlockId } from "../store/block/Block";
-import type { TConnection, TConnectionId } from "../store/connection/ConnectionState";
-import { GRAPH_INSTANCE_SYMBOL_KEY, LEGACY_GRAPH_INSTANCE_SYMBOL_KEY } from "../utils/graphInstance";
 
 import { GraphBlockPO } from "./GraphBlockPO";
 import { GraphCameraPO } from "./GraphCameraPO";
 import { GraphConnectionPO } from "./GraphConnectionPO";
 import type { GraphClickOptions, GraphDragOptions, GraphHoverOptions, GraphPoint, GraphRect } from "./types";
 
-const GRAPH_SYMBOL_KEYS = {
-  current: GRAPH_INSTANCE_SYMBOL_KEY,
-  legacy: LEGACY_GRAPH_INSTANCE_SYMBOL_KEY,
-};
+/**
+ * Mirrors `GRAPH_INSTANCE_SYMBOL_KEY` from `@gravity-ui/graph`. The value is kept here because this
+ * module runs in Node and must not load the core runtime; E2E tests assert that both values match.
+ */
+const GRAPH_INSTANCE_SYMBOL_KEY = "@gravity-ui/graph/instance";
 
 type BrowserGraphRecord = Record<symbol, unknown>;
 
@@ -55,29 +52,23 @@ export class GraphPO {
     const timeout = options.timeout ?? 5000;
 
     await this.root.evaluate(
-      async (scope, { keys, timeoutMs }) => {
+      async (scope, { key, timeoutMs }) => {
         const deadline = performance.now() + timeoutMs;
         const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
         const findGraphs = () => {
           const elements = [scope, ...Array.from(scope.querySelectorAll("*"))];
-          const currentGraphs: Array<{ state?: number }> = [];
-          const legacyGraphs: Array<{ state?: number }> = [];
+          const graphs: Array<{ state?: number }> = [];
 
           for (const element of elements) {
-            const record = element as unknown as BrowserGraphRecord;
-            const currentGraph = record[Symbol.for(keys.current)];
-            const legacyGraph = record[Symbol.for(keys.legacy)];
+            const graph = (element as unknown as BrowserGraphRecord)[Symbol.for(key)];
 
-            if (currentGraph && !currentGraphs.includes(currentGraph as { state?: number })) {
-              currentGraphs.push(currentGraph as { state?: number });
-            }
-            if (legacyGraph && !legacyGraphs.includes(legacyGraph as { state?: number })) {
-              legacyGraphs.push(legacyGraph as { state?: number });
+            if (graph && !graphs.includes(graph as { state?: number })) {
+              graphs.push(graph as { state?: number });
             }
           }
 
-          return currentGraphs.length > 0 ? currentGraphs : legacyGraphs;
+          return graphs;
         };
 
         while (performance.now() <= deadline) {
@@ -85,7 +76,7 @@ export class GraphPO {
           if (graphs.length > 1) {
             throw new Error("GraphPO locator contains multiple graphs. Pass a more specific locator.");
           }
-          // GraphState.READY is currently the third enum member (2).
+          // GraphState.READY (2); apps/e2e/tests/playwright-page-object.spec.ts guards this value.
           if (graphs[0]?.state === 2) {
             await nextFrame();
             return;
@@ -95,7 +86,7 @@ export class GraphPO {
 
         throw new Error(`Graph did not become ready within ${timeoutMs}ms.`);
       },
-      { keys: GRAPH_SYMBOL_KEYS, timeoutMs: timeout },
+      { key: GRAPH_INSTANCE_SYMBOL_KEY, timeoutMs: timeout },
       { timeout }
     );
   }
@@ -285,23 +276,16 @@ export class GraphPO {
   }
 
   private async getGraphHandle(): Promise<JSHandle<Graph>> {
-    const handle = await this.root.evaluateHandle((scope, keys) => {
+    const handle = await this.root.evaluateHandle((scope, key) => {
       const elements = [scope, ...Array.from(scope.querySelectorAll("*"))];
-      const currentGraphs: unknown[] = [];
-      const legacyGraphs: unknown[] = [];
+      const graphs: unknown[] = [];
 
       for (const element of elements) {
-        const record = element as unknown as BrowserGraphRecord;
-        const currentGraph = record[Symbol.for(keys.current)];
-        const legacyGraph = record[Symbol.for(keys.legacy)];
-        if (currentGraph && !currentGraphs.includes(currentGraph)) {
-          currentGraphs.push(currentGraph);
-        }
-        if (legacyGraph && !legacyGraphs.includes(legacyGraph)) {
-          legacyGraphs.push(legacyGraph);
+        const graph = (element as unknown as BrowserGraphRecord)[Symbol.for(key)];
+        if (graph && !graphs.includes(graph)) {
+          graphs.push(graph);
         }
       }
-      const graphs = currentGraphs.length > 0 ? currentGraphs : legacyGraphs;
 
       if (graphs.length === 0) {
         throw new Error(
@@ -314,7 +298,7 @@ export class GraphPO {
       }
 
       return graphs[0];
-    }, GRAPH_SYMBOL_KEYS);
+    }, GRAPH_INSTANCE_SYMBOL_KEY);
 
     return handle as JSHandle<Graph>;
   }

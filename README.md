@@ -4,10 +4,11 @@ This repository contains the Gravity UI Graph packages and their development too
 
 ## Packages
 
-- [`@gravity-ui/graph`](packages/graph) — the framework-independent graph editor, layouts, plugins, and public Playwright page objects.
+- [`@gravity-ui/graph`](packages/graph) — the framework-independent graph editor, layouts, and plugins.
 - [`@gravity-ui/graph-react`](packages/graph-react) — React components, hooks, and their styles, depending on the core public API.
 - [`@gravity-ui/graph-minimap`](packages/graph-minimap) — optional Canvas minimap with navigation, depending on the core public API.
 - [`@gravity-ui/graph-devtools`](packages/graph-devtools) — optional rulers, cursor crosshair, and their styles, depending on the core public API.
+- [`@gravity-ui/graph-playwright`](packages/graph-playwright) — Playwright page objects for testing graph applications, using core types only.
 
 Shared build tooling lives in `scripts/`; `tests/package-contract` installs the public tarballs into isolated vanilla, React, minimap, and DevTools projects.
 

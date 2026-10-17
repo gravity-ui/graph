@@ -1,0 +1,52 @@
+{
+  "name": "@gravity-ui/graph-playwright",
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "description": "Playwright page objects for applications built with Gravity UI Graph",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gravity-ui/graph",
+    "directory": "packages/graph-playwright"
+  },
+  "main": "build/index.js",
+  "module": "build/index.js",
+  "types": "build/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./build/index.d.ts",
+        "default": "./build/index.js"
+      },
+      "require": {
+        "types": "./build/index.d.cts",
+        "default": "./build/index.cjs"
+      },
+      "default": "./build/index.js"
+    }
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test:package-contract": "node ../../tests/package-contract/run.mjs graph-playwright",
+    "prepublishOnly": "pnpm run build && pnpm run typecheck"
+  },
+  "peerDependencies": {
+    "@gravity-ui/graph": "workspace:^",
+    "@playwright/test": ">=1.58.0"
+  },
+  "devDependencies": {
+    "@gravity-ui/eslint-config": "^4.3.2",
+    "@playwright/test": "^1.58.0",
+    "@types/node": "^20.17.0",
+    "eslint": "^9.39.5",
+    "globals": "^16.5.0",
+    "prettier": "^3.0.0",
+    "typescript": "catalog:"
+  }
+}

@@ -12,34 +12,26 @@ const expectedExports = {
     import: "./build/index.js",
     default: "./build/index.js",
   },
-  "./playwright": {
-    import: {
-      types: "./build/playwright/index.d.ts",
-      default: "./build/playwright/index.js",
-    },
-    require: {
-      types: "./build/playwright/index.d.cts",
-      default: "./build/playwright/index.cjs",
-    },
-    default: "./build/playwright/index.js",
-  },
   "./styles.css": "./build/styles.css",
 };
 
-const expectedTypesVersions = {
-  "*": {
-    playwright: ["build/playwright/index.d.ts"],
+const expectedPlaywrightExports = {
+  ".": {
+    import: {
+      types: "./build/index.d.ts",
+      default: "./build/index.js",
+    },
+    require: {
+      types: "./build/index.d.cts",
+      default: "./build/index.cjs",
+    },
+    default: "./build/index.js",
   },
 };
 
 const allowedPackageRootFiles = new Set(["LICENSE", "README.md", "package.json"]);
-const allowedRuntimeFiles = new Set([
-  "build/index.js",
-  "build/playwright/index.js",
-  "build/playwright/index.cjs",
-  "build/playwright/index.d.cts",
-  "build/styles.css",
-]);
+const allowedRuntimeFiles = new Set(["build/index.js", "build/styles.css"]);
+const allowedPlaywrightRuntimeFiles = new Set(["build/index.js", "build/index.cjs"]);
 const forbiddenPackedPathPatterns = [
   /(?:^|\/)(?:src|story|stories|__tests__)(?:\/|$)/i,
   /(?:^|\/)[^/]*\.(?:test|spec|story|stories)\.[^/]+$/i,
@@ -53,20 +45,35 @@ function getPackMetadata(output) {
   return Array.isArray(metadata) ? metadata[0] : metadata;
 }
 
+function getRequiredBuildFiles(kind) {
+  if (kind === "graph-playwright") {
+    return ["build/index.js", "build/index.d.ts", "build/index.cjs", "build/index.d.cts"];
+  }
+
+  return [
+    "build/index.js",
+    "build/index.d.ts",
+    "build/styles.css",
+    ...(kind === "graph" ? ["build/docs/INDEX.md"] : []),
+  ];
+}
+
 function assertPackedFiles(metadata, kind) {
   const addon = kind !== "graph";
+  const playwright = kind === "graph-playwright";
+  const runtimeFiles = playwright ? allowedPlaywrightRuntimeFiles : allowedRuntimeFiles;
   assert.equal(metadata.name, `@gravity-ui/${kind}`);
   assert.ok(Array.isArray(metadata.files), "pnpm pack did not report the packed file list.");
 
   const packedFiles = metadata.files.map(({ path: packedPath }) => packedPath).sort();
   const unexpectedFiles = packedFiles.filter((packedPath) => {
-    if (allowedPackageRootFiles.has(packedPath) || allowedRuntimeFiles.has(packedPath)) {
+    if (allowedPackageRootFiles.has(packedPath) || runtimeFiles.has(packedPath)) {
       return false;
     }
 
     return (
-      !/^build\/.+\.d\.(?:ts|cts)$/.test(packedPath) &&
-      !/^build\/chunks\/[^/]+\.js$/.test(packedPath) &&
+      !(playwright ? /^build\/[^/]+\.d\.(?:ts|cts)$/ : /^build\/.+\.d\.ts$/).test(packedPath) &&
+      !(!playwright && /^build\/chunks\/[^/]+\.js$/.test(packedPath)) &&
       !/^build\/docs\/.+\.md$/.test(packedPath)
     );
   });
@@ -75,27 +82,13 @@ function assertPackedFiles(metadata, kind) {
       forbiddenPackedPathPatterns.some((pattern) => pattern.test(packedPath)) ||
       (addon
         ? /(?:^|\/)(?:playwright|docs)(?:\/|$)/.test(packedPath)
-        : /(?:^|\/)(?:react-components|plugins\/(?:minimap|devtools))(?:\/|$)/.test(packedPath))
+        : /(?:^|\/)(?:react-components|playwright|plugins\/(?:minimap|devtools))(?:\/|$)/.test(packedPath))
   );
 
   assert.deepEqual(unexpectedFiles, [], `Tarball contains files outside the public allowlist: ${unexpectedFiles}`);
   assert.deepEqual(forbiddenFiles, [], `Tarball contains repository-only artifacts: ${forbiddenFiles}`);
 
-  for (const requiredFile of [
-    ...allowedPackageRootFiles,
-    "build/index.js",
-    "build/index.d.ts",
-    "build/styles.css",
-    ...(addon
-      ? []
-      : [
-          "build/playwright/index.js",
-          "build/playwright/index.d.ts",
-          "build/playwright/index.cjs",
-          "build/playwright/index.d.cts",
-          "build/docs/INDEX.md",
-        ]),
-  ]) {
+  for (const requiredFile of [...allowedPackageRootFiles, ...getRequiredBuildFiles(kind)]) {
     assert.ok(packedFiles.includes(requiredFile), `Tarball is missing required file ${requiredFile}.`);
   }
 }
@@ -167,6 +160,7 @@ export async function buildAndPackArtifact({ packageRoot, staleBuildSentinelPath
 export async function checkInstalledArtifact(consumerDirectory, expectedVersion, kind = "graph") {
   const addon = kind !== "graph";
   const react = kind === "graph-react";
+  const playwright = kind === "graph-playwright";
   const packageRoot = path.join(consumerDirectory, "node_modules", "@gravity-ui", kind);
   const manifest = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
 
@@ -180,9 +174,13 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   assert.deepEqual(manifest.files, ["build"]);
   assert.deepEqual(
     manifest.exports,
-    addon ? { ".": expectedExports["."], "./styles.css": expectedExports["./styles.css"] } : expectedExports
+    playwright
+      ? expectedPlaywrightExports
+      : addon
+        ? { ".": expectedExports["."], "./styles.css": expectedExports["./styles.css"] }
+        : expectedExports
   );
-  assert.deepEqual(manifest.typesVersions, addon ? undefined : expectedTypesVersions);
+  assert.equal(manifest.typesVersions, undefined);
   if (addon) {
     const coreManifest = JSON.parse(await readFile(path.join(packageRoot, "../graph/package.json"), "utf8"));
     assert.equal(manifest.peerDependencies?.["@gravity-ui/graph"], `^${coreManifest.version}`);
@@ -195,9 +193,16 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     assert.equal(manifest.peerDependenciesMeta?.react?.optional, undefined);
     assert.equal(manifest.peerDependenciesMeta?.["react-dom"]?.optional, undefined);
   }
+  if (playwright) {
+    assert.deepEqual(Object.keys(manifest.peerDependencies).sort(), ["@gravity-ui/graph", "@playwright/test"]);
+    assert.equal(manifest.peerDependencies["@playwright/test"], ">=1.58.0");
+    assert.equal(manifest.peerDependenciesMeta, undefined);
+    assert.deepEqual(manifest.dependencies ?? {}, {});
+    assert.deepEqual(manifest.optionalDependencies ?? {}, {});
+  }
   if (!addon) {
-    assert.equal(manifest.peerDependencies?.["@playwright/test"], ">=1.58.0");
-    assert.equal(manifest.peerDependenciesMeta?.["@playwright/test"]?.optional, true);
+    assert.equal(manifest.peerDependencies, undefined);
+    assert.equal(manifest.peerDependenciesMeta, undefined);
     for (const field of [
       "dependencies",
       "devDependencies",
@@ -213,6 +218,8 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
         "@gravity-ui/graph-react",
         "@gravity-ui/graph-minimap",
         "@gravity-ui/graph-devtools",
+        "@gravity-ui/graph-playwright",
+        "@playwright/test",
         "elkjs",
       ]) {
         assert.equal(manifest[field]?.[name], undefined, `Core must not depend on ${name} through ${field}.`);
@@ -239,22 +246,9 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   }
 
   await Promise.all(
-    [
-      "build/index.js",
-      "build/index.d.ts",
-      "build/styles.css",
-      ...(addon
-        ? []
-        : [
-            "build/playwright/index.js",
-            "build/playwright/index.d.ts",
-            "build/playwright/index.cjs",
-            "build/playwright/index.d.cts",
-            "build/docs/INDEX.md",
-          ]),
-      "README.md",
-      "LICENSE",
-    ].map((relativePath) => access(path.join(packageRoot, relativePath)))
+    [...getRequiredBuildFiles(kind), "README.md", "LICENSE"].map((relativePath) =>
+      access(path.join(packageRoot, relativePath))
+    )
   );
 
   await assertPathDoesNotExist(
@@ -262,6 +256,35 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     `The isolated consumer installed the private package ${privateSchedulerPackage}.`
   );
   await assertNoPrivateSchedulerSpecifiers(packageRoot);
+
+  if (playwright) {
+    const declaredPackages = new Set([
+      ...Object.keys(manifest.dependencies ?? {}),
+      ...Object.keys(manifest.peerDependencies ?? {}),
+    ]);
+    const bareSpecifierPattern = /(?<!["'\w])(?:from\s*|import\s*\(?\s*|require\s*\(\s*)["']([^"'./\s][^"'\s]*)["']/g;
+    for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
+      const contents = await readFile(file, "utf8");
+      const runtime = /\.c?js$/.test(file);
+      for (const [, specifier] of contents.matchAll(bareSpecifierPattern)) {
+        const packageName = specifier.startsWith("@")
+          ? specifier.split("/").slice(0, 2).join("/")
+          : specifier.split("/")[0];
+        assert.ok(
+          declaredPackages.has(packageName),
+          `Playwright artifact ${file} imports undeclared package ${specifier}.`
+        );
+        assert.equal(specifier, packageName, `Playwright artifact ${file} uses a deep import ${specifier}.`);
+        // The page objects run in Node and use core for types only.
+        assert.ok(
+          !runtime || packageName !== "@gravity-ui/graph",
+          `Playwright runtime ${file} must not load the core runtime in Node.`
+        );
+      }
+    }
+    await assertPathDoesNotExist(path.join(packageRoot, "build/styles.css"), "Playwright package ships styles.");
+    return;
+  }
 
   const publicStyles = await readFile(path.join(packageRoot, "build", "styles.css"), "utf8");
   if (addon) {
@@ -300,6 +323,10 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     assert.doesNotMatch(publicStyles, /\.devtools-ruler-bg\b/);
     assert.doesNotMatch(publicStyles, /\.(?:graph-wrapper|graph-block-container|graph-block-anchor)\b/);
     await assertPathDoesNotExist(
+      path.join(packageRoot, "build/playwright"),
+      "Core still ships the Playwright page objects."
+    );
+    await assertPathDoesNotExist(
       path.join(packageRoot, "build/plugins/minimap"),
       "Core still ships minimap declarations."
     );
@@ -312,7 +339,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
       assert.doesNotMatch(
         await readFile(file, "utf8"),
-        /(?:from\s+|import\s*\(|require\s*\()["'](?:react(?:-dom)?(?:\/[^"']*)?|@gravity-ui\/graph-(?:react|minimap|devtools))["']/
+        /(?:from\s+|import\s*\(|require\s*\()["'](?:react(?:-dom)?(?:\/[^"']*)?|@playwright\/test|@gravity-ui\/graph-(?:react|minimap|devtools|playwright))["']/
       );
     }
   }

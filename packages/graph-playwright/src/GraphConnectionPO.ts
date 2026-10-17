@@ -1,4 +1,4 @@
-import type { TConnection, TConnectionId } from "../store/connection/ConnectionState";
+import type { TConnection, TConnectionId } from "@gravity-ui/graph";
 
 import type { GraphPO } from "./GraphPO";
 import type { GraphClickOptions, GraphHoverOptions, GraphPoint } from "./types";

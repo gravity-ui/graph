@@ -9,7 +9,7 @@ import type {
   TRect,
   UnwrapGraphEventsDetail,
 } from "@gravity-ui/graph";
-import { GraphPO, type GraphPoint } from "@gravity-ui/graph/playwright";
+import { GraphPO, type GraphPoint } from "@gravity-ui/graph-playwright";
 
 type Equal<Left, Right> =
   (<Value>() => Value extends Left ? 1 : 2) extends <Value>() => Value extends Right ? 1 : 2 ? true : false;

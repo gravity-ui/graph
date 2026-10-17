@@ -17,7 +17,7 @@ const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "gravity-graph-pack
 const requestedTarballPath = process.env.PACKAGE_CONTRACT_TARBALL_PATH;
 const defaultTarballPath = path.join(temporaryDirectory, "tarballs", "gravity-ui-graph.tgz");
 const testedPackage = process.argv[2] ?? "graph";
-if (!["graph", "graph-react", "graph-minimap", "graph-devtools"].includes(testedPackage))
+if (!["graph", "graph-react", "graph-minimap", "graph-devtools", "graph-playwright"].includes(testedPackage))
   throw new Error(`Unknown package: ${testedPackage}`);
 const testingReactPackage = testedPackage === "graph-react";
 const testingMinimapPackage = testedPackage === "graph-minimap";
@@ -33,6 +33,16 @@ const devtoolsTarballPath =
     ? path.resolve(requestedTarballPath)
     : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-devtools.tgz");
 const devtoolsStaleBuildSentinelPath = path.join(devtoolsPackageRoot, "build", "package-contract-stale-sentinel.txt");
+const playwrightPackageRoot = path.join(workspaceRoot, "packages/graph-playwright");
+const playwrightTarballPath =
+  requestedTarballPath && testedPackage === "graph-playwright"
+    ? path.resolve(requestedTarballPath)
+    : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-playwright.tgz");
+const playwrightStaleBuildSentinelPath = path.join(
+  playwrightPackageRoot,
+  "build",
+  "package-contract-stale-sentinel.txt"
+);
 const workspaceTarballs = JSON.parse(process.env.PACKAGE_CONTRACT_WORKSPACE_TARBALLS || "{}");
 const suppliedCoreTarball = testedPackage !== "graph" ? workspaceTarballs["@gravity-ui/graph"] : undefined;
 const tarballPath = suppliedCoreTarball
@@ -71,6 +81,7 @@ async function runConsumer({
   expectedReactVersion,
   expectedMinimapVersion,
   expectedDevtoolsVersion,
+  expectedPlaywrightVersion,
   typecheckConfigs,
   entryPoint,
   nativeImports,
@@ -92,6 +103,8 @@ async function runConsumer({
   if (expectedMinimapVersion) await checkInstalledArtifact(consumerDirectory, expectedMinimapVersion, "graph-minimap");
   if (expectedDevtoolsVersion)
     await checkInstalledArtifact(consumerDirectory, expectedDevtoolsVersion, "graph-devtools");
+  // Every consumer drives its browser scenario through the published page objects.
+  await checkInstalledArtifact(consumerDirectory, expectedPlaywrightVersion, "graph-playwright");
   await checkRuntimeConsumer({
     consumerDirectory,
     entrypoints: nativeImports,
@@ -117,6 +130,8 @@ try {
   const reactManifest = JSON.parse(await readFile(path.join(reactPackageRoot, "package.json"), "utf8"));
   const minimapManifest = JSON.parse(await readFile(path.join(minimapPackageRoot, "package.json"), "utf8"));
   const devtoolsManifest = JSON.parse(await readFile(path.join(devtoolsPackageRoot, "package.json"), "utf8"));
+  const playwrightManifest = JSON.parse(await readFile(path.join(playwrightPackageRoot, "package.json"), "utf8"));
+  await mkdir(path.dirname(playwrightTarballPath), { recursive: true });
   await mkdir(path.dirname(devtoolsTarballPath), { recursive: true });
   await mkdir(path.dirname(minimapTarballPath), { recursive: true });
   await mkdir(path.dirname(tarballPath), { recursive: true });
@@ -145,7 +160,20 @@ try {
     tarballPath: devtoolsTarballPath,
     kind: "graph-devtools",
   });
-  await checkTarballTypes({ packageRoot, tarballPath, reactTarballPath, minimapTarballPath, devtoolsTarballPath });
+  await buildAndPackArtifact({
+    packageRoot: playwrightPackageRoot,
+    staleBuildSentinelPath: playwrightStaleBuildSentinelPath,
+    tarballPath: playwrightTarballPath,
+    kind: "graph-playwright",
+  });
+  await checkTarballTypes({
+    packageRoot,
+    tarballPath,
+    reactTarballPath,
+    minimapTarballPath,
+    devtoolsTarballPath,
+    playwrightTarballPath,
+  });
 
   const workspaceManifest = JSON.parse(await readFile(path.join(workspaceRoot, "package.json"), "utf8"));
   if (!workspaceManifest.packageManager) {
@@ -184,6 +212,7 @@ try {
       "@preact/signals-core": signalsVersion,
     },
     devDependencies: {
+      "@gravity-ui/graph-playwright": `file:${playwrightTarballPath}`,
       "@playwright/test": playwrightVersion,
       "@types/node": nodeTypesVersion,
       esbuild: esbuildVersion,
@@ -194,6 +223,7 @@ try {
   await runConsumer({
     name: "vanilla",
     expectedVersion,
+    expectedPlaywrightVersion: playwrightManifest.version,
     manifest: {
       ...commonManifest,
       name: "gravity-graph-installed-vanilla-consumer",
@@ -213,6 +243,7 @@ try {
   await runConsumer({
     name: "react",
     expectedVersion,
+    expectedPlaywrightVersion: playwrightManifest.version,
     expectedReactVersion: reactManifest.version,
     manifest: {
       ...commonManifest,
@@ -241,6 +272,7 @@ try {
   await runConsumer({
     name: "minimap",
     expectedVersion,
+    expectedPlaywrightVersion: playwrightManifest.version,
     expectedMinimapVersion: minimapManifest.version,
     manifest: {
       ...commonManifest,
@@ -260,6 +292,7 @@ try {
   await runConsumer({
     name: "devtools",
     expectedVersion,
+    expectedPlaywrightVersion: playwrightManifest.version,
     expectedDevtoolsVersion: devtoolsManifest.version,
     manifest: {
       ...commonManifest,
@@ -286,6 +319,7 @@ try {
   await rm(reactStaleBuildSentinelPath, { force: true });
   await rm(minimapStaleBuildSentinelPath, { force: true });
   await rm(devtoolsStaleBuildSentinelPath, { force: true });
+  await rm(playwrightStaleBuildSentinelPath, { force: true });
 
   if (process.env.KEEP_PACKAGE_CONTRACT_TMP === "1") {
     console.log(`\n[package-contract] Preserved temporary projects at ${temporaryDirectory}`);

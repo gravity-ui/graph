@@ -1,6 +1,6 @@
 # Public package contract
 
-This suite validates the exact `@gravity-ui/graph`, `@gravity-ui/graph-react`, `@gravity-ui/graph-minimap`, and `@gravity-ui/graph-devtools` tarballs that an external application
+This suite validates the exact `@gravity-ui/graph`, `@gravity-ui/graph-react`, `@gravity-ui/graph-minimap`, `@gravity-ui/graph-devtools`, and `@gravity-ui/graph-playwright` tarballs that an external application
 installs. It owns package metadata, generated declarations, dependency isolation, native imports, and browser bundling.
 Detailed graph behavior remains in `apps/e2e`.
 
@@ -13,21 +13,22 @@ pnpm run test:package-contract
 ```
 
 Install Chromium once with `pnpm exec playwright install chromium`. Do not run the suite concurrently with another
-package build or typecheck: it deliberately cleans and rebuilds all four packages. Set `KEEP_PACKAGE_CONTRACT_TMP=1` to retain
+package build or typecheck: it deliberately cleans and rebuilds all five packages. Set `KEEP_PACKAGE_CONTRACT_TMP=1` to retain
 the isolated consumers. With `CI=1`, failed browser reports are copied to the root `playwright-report/package-contract`
 and `test-results/package-contract` directories.
 
 ## Structure and ownership
 
 `run.mjs` builds and packs each public package once, then installs separate vanilla, React, minimap, and DevTools consumers. Every
+consumer installs `@gravity-ui/graph-playwright` and drives its browser scenario through `GraphPO`. Every
 check uses those same artifacts. It resolves workspace tool versions for the generated manifests so the test does not
 silently select a newer React, TypeScript, or Playwright release.
 
 - `checks/artifact.mjs` verifies clean output, exact package names and versions, metadata, bounded file lists, styles, and
   retired private scheduler reference checks. `publint --strict` checks all tarballs.
-- `checks/types.mjs` checks all ESM roots with ATTW and the core Playwright entrypoint with the Node16 profile. External
+- `checks/types.mjs` checks all ESM roots with ATTW and the `@gravity-ui/graph-playwright` entrypoint with the Node16 profile. External
   TypeScript fixtures use Bundler, Node16 ESM, and Node16 CommonJS resolution with `strict: true` and `skipLibCheck: false`.
-- `checks/runtime.mjs` imports each package with native Node ESM and requires the Playwright subpath with CommonJS. It
+- `checks/runtime.mjs` imports each package with native Node ESM and requires the Playwright package with CommonJS. It
   confirms that React's connection class and the minimap and DevTools base layers share the application's core runtime and that core signals
   interoperate with the consumer's signals runtime.
 - `checks/browser.mjs` bundles the installed artifacts and runs vanilla, React, minimap, and DevTools browser scenarios. The React
@@ -49,12 +50,16 @@ Minimap exports `styles.css`; consumers load it after the core stylesheet. Its i
 ELK, or the React package. Core must not export `MiniMapLayer`, ship its declarations, or depend on the minimap package.
 DevTools also has core as its only required peer and no runtime dependencies. Its isolated consumer must not resolve
 React. Core must not export DevTools symbols, ship its code/declarations/styles, or depend on the DevTools package.
+The Playwright package ships ESM and CommonJS with matching declarations, has core and `@playwright/test` as its only
+required peers, no runtime dependencies and no styles, and its runtime must not import core. Core has no `./playwright`
+export, `typesVersions`, `@playwright/test` peer, or `build/playwright` files; the removed subpath must fail resolution.
 
 ## Fixtures
 
 `fixtures/apps/vanilla`, `fixtures/apps/react`, `fixtures/apps/minimap`, and `fixtures/apps/devtools` represent external applications and import only documented package
-entrypoints. `fixtures/types/playwright-bundler` is also reused by core's fast declaration check during `pnpm run typecheck`.
-`fixtures/types/node-esm` checks core and React together; `fixtures/types/node-cjs-playwright` checks the CommonJS contract.
+entrypoints.
+`fixtures/types/playwright-bundler` checks the Playwright package with Bundler resolution.
+`fixtures/types/node-esm` checks core and React together; `fixtures/types/node-cjs-playwright` checks the Playwright package's CommonJS contract.
 `fixtures/types/minimap-node-esm` checks minimap's public options, context, and compatibility with core's layer API.
 `fixtures/types/devtools-node-esm` checks DevTools defaults, props, and compatibility with core's layer API.
 The shared fixture tree is copied into each consumer so relative paths remain stable.
@@ -71,9 +76,10 @@ PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/graph.tgz pnpm --filter @gravity-ui
 PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/graph-react.tgz pnpm --filter @gravity-ui/graph-react run test:package-contract
 PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/graph-minimap.tgz pnpm --filter @gravity-ui/graph-minimap run test:package-contract
 PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/graph-devtools.tgz pnpm --filter @gravity-ui/graph-devtools run test:package-contract
+PACKAGE_CONTRACT_TARBALL_PATH=/absolute/path/graph-playwright.tgz pnpm --filter @gravity-ui/graph-playwright run test:package-contract
 ```
 
-All commands validate the four packages. The requested tarball remains after temporary consumers are removed. The
+All commands validate the five packages. The requested tarball remains after temporary consumers are removed. The
 release process must publish that validated file. When a dependency tarball is supplied through
 `PACKAGE_CONTRACT_WORKSPACE_TARBALLS` as `@gravity-ui/graph`, the suite installs that same core artifact instead of repacking it.
 

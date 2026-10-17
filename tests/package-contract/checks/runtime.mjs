@@ -8,6 +8,9 @@ const nativeImportProbes = {
       throw new Error("Core still exports the extracted DevTools.");
     }
     if (typeof graph.Graph !== "function") throw new Error("Root entrypoint does not export Graph.");
+    if (graph.GRAPH_INSTANCE_SYMBOL_KEY !== "@gravity-ui/graph/instance") {
+      throw new Error("Root entrypoint does not export the public graph instance key.");
+    }
     if (graph.ESchedulerPriority?.LOWEST !== 4) {
       throw new Error("Root entrypoint does not export ESchedulerPriority.");
     }
@@ -42,8 +45,14 @@ const nativeImportProbes = {
     if (DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize !== 25) throw new Error("DevTools defaults are missing or changed.");
   `,
   playwright: `
-    const playwright = await import("@gravity-ui/graph/playwright");
+    const playwright = await import("@gravity-ui/graph-playwright");
     if (typeof playwright.GraphPO !== "function") throw new Error("Playwright entrypoint does not export GraphPO.");
+    try {
+      await import("@gravity-ui/graph/playwright");
+      throw new Error("The removed core Playwright subpath is still exported.");
+    } catch (error) {
+      if (error?.code !== "ERR_PACKAGE_PATH_NOT_EXPORTED") throw error;
+    }
   `,
 };
 
@@ -62,7 +71,7 @@ async function checkNativeImports(consumerDirectory, entrypoints) {
       "--input-type=commonjs",
       "--eval",
       `
-        const playwright = require("@gravity-ui/graph/playwright");
+        const playwright = require("@gravity-ui/graph-playwright");
         if (typeof playwright.GraphPO !== "function") {
           throw new Error("Playwright CommonJS entrypoint does not export GraphPO.");
         }

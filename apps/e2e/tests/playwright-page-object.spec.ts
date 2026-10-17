@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { GraphPO } from "@gravity-ui/graph/playwright";
+import { GraphPO } from "@gravity-ui/graph-playwright";
 
 import { GraphPageObject } from "../page-objects/GraphPageObject";
 
@@ -47,6 +47,25 @@ test.describe("Public Playwright page objects", () => {
     // rather than relying on the graph's internal CSS classes.
     graph = new GraphPO(page.locator("body"));
     await graph.waitForReady();
+  });
+
+  test("finds the graph through the public core instance key", async ({ page }) => {
+    // The package keeps its own copy of the key and of the READY state value because it must not
+    // load the core runtime in Node. These assertions fail if core changes either contract.
+    const contract = await page.evaluate(() => {
+      const { GRAPH_INSTANCE_SYMBOL_KEY, GraphState } = window.GraphModule;
+      const root = document.querySelector("#root") as (Element & Record<symbol, unknown>) | null;
+      return {
+        key: GRAPH_INSTANCE_SYMBOL_KEY,
+        ready: GraphState.READY,
+        attached: root?.[Symbol.for(GRAPH_INSTANCE_SYMBOL_KEY)] === window.graph,
+        legacy: root?.[Symbol.for("graph")] === undefined,
+      };
+    });
+
+    expect(contract).toEqual({ key: "@gravity-ui/graph/instance", ready: 2, attached: true, legacy: true });
+    expect(await graph.evaluate((instance) => instance === window.graph)).toBe(true);
+    expect(await graph.evaluate((instance) => instance.state)).toBe(contract.ready);
   });
 
   test("finds and interacts with blocks through an ancestor locator", async () => {
