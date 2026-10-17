@@ -21,7 +21,8 @@ export type LayerReactiveProps<T extends GraphClassConstructor<Layer>> = LayerPu
  *
  * Provides a convenient way to add and manage layers in the graph.
  * Automatically handles layer initialization and props updates.
- * Returns null before layer attachment and after detachment. Call hooks
+ * On unmount or when the graph or constructor changes, the layer is destroyed
+ * with `graph.removeLayer`. Returns null before layer attachment and after detachment. Call hooks
  * unconditionally to observe readiness and graph replacement.
  * Uses deep props comparison to optimize re-renders.
  *
@@ -57,8 +58,9 @@ export function useLayer<T extends GraphClassConstructor<Layer> = GraphClassCons
     }
     const layer = graph.addLayer(layerCtor, props);
     setRegistration({ graph, ctor: layerCtor, layer });
-    // Capture this registration: cleanup must never detach a replacement layer.
-    return () => graph.detachLayer(layer);
+    // Capture this registration: cleanup must never remove a replacement layer.
+    // Each effect run owns a fresh layer, so StrictMode replay can destroy the previous one.
+    return () => graph.removeLayer(layer);
   }, [layerCtor, graph]);
 
   const layer = registration?.graph === graph && registration?.ctor === layerCtor ? registration.layer : null;

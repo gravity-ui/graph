@@ -834,7 +834,7 @@ protected afterInit(): void {
 ```typescript
 const graphConfig = {
   layers: [
-    [MyLayer, { myCustomProp: "value" }], // Only custom props
+    layerConfig(MyLayer, { myCustomProp: "value" }), // Only custom props, checked against MyLayer
   ],
 };
 ```
@@ -1010,11 +1010,12 @@ useGraphEvent(graph, "block:click", (detail, event) => {
 
 **GraphCanvas - Main Container:**
 ```tsx
+import { layerConfig } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 
 function App() {
   const { graph } = useGraph({
-    layers: [[MyLayer, { customProp: "value" }]],
+    layers: [layerConfig(MyLayer, { customProp: "value" })],
   });
 
   return (
@@ -1181,12 +1182,13 @@ const config: TGraphConfig = {
 
 **Use `useGraph` hook (Recommended):**
 ```typescript
+import { layerConfig } from "@gravity-ui/graph";
 import { useGraph, GraphCanvas, GraphBlock } from "@gravity-ui/graph-react";
 import { useEffect } from "react";
 
 export const MyStory = () => {
   const { graph } = useGraph({
-    layers: [[MyLayer, { customProp: "value" }]],
+    layers: [layerConfig(MyLayer, { customProp: "value" })],
     renderBlock: (g, block) => (
       <GraphBlock graph={g} block={block}>
         <div>{block.name}</div>

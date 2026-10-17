@@ -17,6 +17,11 @@ The temporary branch and release process is documented separately in
 - Supply complete arrays/tuples when updating constants.
 - Use plain `TPoint` / `TRect` objects instead of geometry classes and their conversion methods.
 - Use TypeScript 6.0: v2 declarations are built and checked with it.
+- Create graph `layers` entries with `layerConfig(Layer, props)` instead of `[Layer, props]` tuples.
+- Use `graph.removeLayer(layer)` to destroy a layer; `graph.detachLayer(layer)` only detaches it for later reattachment.
+- Expect `graph.stop()`, `graph.detach()` and `graph.unmount()` to stop only that graph: the shared frame loop keeps running while another started graph retains it.
+- Add `retain`, `release` and `isRunning` to custom implementations of the exported `GlobalScheduler` interface.
+- Expect root layers to render only while attached; a detached layer is no longer iterated on other graphs' frames.
 
 ## React package boundary
 
@@ -490,6 +495,9 @@ The changing-entity behavior is:
   Primitives, arrays and other non-plain values are replaced when supplied. Omitted meta
   is preserved; `meta: undefined` clears it. Consumer Meta retains its declared generic type.
 
+`getElementsOverRect(rect, filter)` and `getElementsInViewport(filter)` now treat a supplied empty
+filter as matching nothing, like `getElementsOverPoint`. Omit the filter to receive every component.
+
 Port connection events describe custom component ports, which may have no block or
 anchor. Check the optional `blockId`, `sourceBlockId`, `targetBlockId` and anchor IDs
 before invoking block/anchor APIs. `connection-create-drop.sourceAnchorId` is also
@@ -584,14 +592,92 @@ const size: number = devtools.props.rulerSize;
 `LayerPublicProps<typeof CustomLayer>` now derives its input from the first
 constructor parameter, independently of `Layer<RuntimeProps>`. Custom layers can
 therefore normalize partial constructor input while keeping their runtime props
-complete. Generic metadata and discriminated constructor inputs are preserved. Keep the
-actual constructor type in layer configurations: use
-`LayerConfig<typeof CustomLayer>` instead of
-`LayerConfig<GraphClassConstructor<CustomLayer>>`. The latter erases constructor
-arguments, so its public input can only fall back to the shared Layer fields.
+complete. Generic metadata and discriminated constructor inputs are preserved.
+
+Graph configuration entries are created with `layerConfig(CustomLayer, props)`, which
+checks the props against that constructor. Raw `[CustomLayer, props]` tuples and the
+generic `LayerConfig<T>` type are removed: a tuple in a heterogeneous array cannot be
+checked, so valid custom props were rejected while missing required props were accepted.
+`LayerConfig` is now an opaque entry type that only `layerConfig()` creates. Prop errors name the
+layer's input type, for example `LayerPublicInput<MiniMapLayerProps>` (an internal alias; name
+the input in code with `LayerPublicProps<typeof CustomLayer>`).
+
+```ts
+// Before
+const graph = new Graph({ layers: [[MiniMapLayer, { location: "topLeft" }]] });
+// After
+const graph = new Graph({ layers: [layerConfig(MiniMapLayer, { location: "topLeft" })] });
+```
 
 Resource defaults are merged when constructing DevTools. Later `setProps` calls
 and reused component descriptors apply shallow patches; supplied `canvas`/`html`
 objects replace the previous configuration. DOM classes and z-index are created
 once by base Layer and are not changed by such patches. Create a new layer to
 change its DOM resource configuration. Resource input still requires `zIndex`.
+
+## Layer removal and root unmount
+
+`graph.detachLayer(layer)` stays reversible: it removes the layer from the graph
+and the DOM and keeps the instance and its children alive. The caller can attach
+it again with `layer.attachLayer(root)`; from then on the caller owns it, and
+`graph.stop()` / `graph.unmount()` no longer manage it.
+
+Use the new `graph.removeLayer(layer)` when a layer is no longer needed. It
+forgets the layer and unmounts it together with its children; the instance
+cannot be reused. It accepts layers created by the same graph (attached
+or detached) and ignores repeated calls, layers already destroyed by
+`graph.unmount()` and layers of other graphs. Replace
+`graph.detachLayer(layer); Component.unmount(layer);` with
+`graph.removeLayer(layer)`; do not combine `removeLayer` with a direct
+`Component.unmount(layer)`. Built-in layers (`graphLayer`, `selectionLayer`,
+`belowLayer`, `cursorLayer`) belong to the graph and must not be removed.
+
+`graph.unmount()` destroys only the layers that are still attached to the graph.
+A layer detached with `graph.detachLayer` stays owned by the caller: pass it to
+`graph.removeLayer` when it is no longer needed, otherwise it keeps the graph
+reachable.
+
+`useLayer`, `GraphLayer`, `GraphPortal` and `GraphCanvas` now destroy their layer
+on cleanup (unmount, graph change or constructor change) with `graph.removeLayer`.
+Do not keep and reattach a layer instance obtained from them after cleanup;
+render the hook or component again to get a new layer.
+
+`Component.unmount(root)` on a root mounted with `Component.mount` (including
+layers created by the graph) stops the root's scheduler. The unmounted subtree is
+no longer iterated or rebuilt. Children share their root's scheduler, so
+unmounting a child does not stop it. An unmounted graph no longer keeps
+scheduler registrations or document keyboard listeners. `graph.unmount()` also
+cancels or flushes the hit-test and store work it queues while tearing down and, when no
+other graph keeps the frame loop running, applies the pending scheduler
+removals immediately, so the graph becomes collectable without another frame.
+
+## Shared frame loop and layer scheduling
+
+All graphs share one global scheduler and one `requestAnimationFrame` loop. In
+v1 any `graph.stop()`, `graph.detach()` or `graph.unmount()` stopped that loop,
+which also froze every other running graph on the page. In v2 the global
+scheduler counts its owners: `graph.start()` calls
+`globalScheduler.retain(graph)`, and `stop()` / `unmount()` call
+`globalScheduler.release(graph)`. The loop stops when the last owner releases
+it, and `globalScheduler.isRunning()` reports whether a frame is scheduled.
+
+- Stopping or unmounting one graph no longer pauses the others. If you relied
+  on `graph.stop()` to pause rendering of every graph, stop each graph.
+- `globalScheduler.start()` and `globalScheduler.stop()` keep their v1
+  behaviour and ignore owners: `stop()` stops the loop even while graphs retain
+  it, and the next `retain()` starts it again. Prefer `retain()` / `release()`
+  with your own owner object when you drive the loop for custom roots.
+
+Root layers no longer register their scheduler when they are constructed. A
+root layer registers it in `attachLayer` and unregisters it when it is detached
+or unmounted, so a graph that was created but never attached (for example a
+graph created by a render that React discarded) holds no global references and
+is garbage collected. Before, a detached graph's layers were still iterated on
+frames driven by other graphs; now they are not.
+
+Roots mounted with `Component.mount` that are not layers keep registering on
+construction. A custom root that should render only while it is in use can set
+`public static readonly autoStartScheduler = false` and call `start()` / `stop()`
+on its scheduler itself, as `Layer` does; a subclass reaches it through the
+protected component context, `this.__comp.context.scheduler`. `new Scheduler(false)` creates a
+scheduler that is not registered until `start()`.

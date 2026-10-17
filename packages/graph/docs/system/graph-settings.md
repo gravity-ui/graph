@@ -74,7 +74,7 @@ These settings control the interactive behaviors and visual styles of the graph.
 | `bezierConnectionDirection` | 'vertical' \| 'horizontal' | `'horizontal'` | Direction of bezier connections |
 | `useBlocksAnchors` | boolean | `true` | Controls whether blocks should display anchors for connections |
 | `showConnectionLabels` | boolean | `false` | Controls visibility of connection labels |
-| `blockComponents` | Record<string, typeof Block> | `{}` | Registry of custom block components |
+| `blockComponents` | Record<string, typeof Block> | `{}` | Registry of custom block components. The built-in renderer constructs them with `id`, `initialIndex` and `font` only: put custom data into the block's `meta`, or give extra props defaults in the constructor. |
 | `connection` | typeof BlockConnection | `undefined` | Custom connection component |
 | `background` | typeof Component | `undefined` | Custom background component |
 

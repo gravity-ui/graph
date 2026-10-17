@@ -205,6 +205,12 @@ export class BaseConnection<
     this.setState({ hovered: hoverState });
   }
 
+  protected override unmount(): void {
+    // A pending hover update would keep the unmounted graph reachable from the global scheduler.
+    this.debounceHover.cancel();
+    super.unmount();
+  }
+
   protected debounceHover = debounce(
     (hovered: boolean) => {
       this.onHoverChange(hovered);

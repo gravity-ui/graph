@@ -4,6 +4,8 @@ import { Block } from "../components/canvas/blocks/Block";
 import { GraphLayer } from "../components/canvas/layers/graphLayer/GraphLayer";
 import { Graph } from "../graph";
 import { Component } from "../lib/Component";
+import type { ChildDescriptor } from "../lib/CoreComponent";
+import { globalScheduler } from "../lib/Scheduler";
 
 import { Layer } from "./Layer";
 import { Layers } from "./LayersService";
@@ -220,5 +222,132 @@ describe("Layer resources and lifecycle", () => {
     layers.destroy();
     expect(layers.getLayers()).toEqual([]);
     layers.destroy();
+  });
+});
+
+describe("Graph.removeLayer", () => {
+  class LifecycleChild extends Component {
+    public static readonly unmounted = jest.fn();
+    protected unmount(): void {
+      LifecycleChild.unmounted();
+      super.unmount();
+    }
+  }
+
+  class LifecycleLayer extends Layer {
+    public readonly unmounted = jest.fn();
+    protected updateChildren(): ChildDescriptor[] {
+      return [LifecycleChild.create({}, { key: "child" })];
+    }
+    protected unmount(): void {
+      this.unmounted();
+      super.unmount();
+    }
+  }
+
+  let graph: Graph;
+  let root: HTMLDivElement;
+
+  beforeEach(() => {
+    LifecycleChild.unmounted.mockClear();
+    root = document.createElement("div");
+    graph = new Graph({}, root);
+    graph.start();
+  });
+
+  afterEach(() => graph.unmount());
+
+  function addMountedLayer(): LifecycleLayer {
+    const layer = graph.addLayer(LifecycleLayer, { html: { zIndex: 1 } });
+    globalScheduler.performUpdate();
+    return layer;
+  }
+
+  it("unmounts the layer and its children and forgets it", () => {
+    const layer = addMountedLayer();
+    expect(layer.$attached.value).toBe(true);
+
+    graph.removeLayer(layer);
+
+    expect(layer.unmounted).toHaveBeenCalledTimes(1);
+    expect(LifecycleChild.unmounted).toHaveBeenCalledTimes(1);
+    expect(layer.$attached.value).toBe(false);
+    expect(layer.getHTML()?.parentElement).toBeNull();
+    expect(graph.layers.getLayers()).not.toContain(layer);
+
+    const iterate = jest.spyOn(layer, "iterate");
+    layer.performRender();
+    globalScheduler.performUpdate();
+    expect(iterate).not.toHaveBeenCalled();
+  });
+
+  it("destroys a previously detached layer exactly once", () => {
+    const layer = addMountedLayer();
+    graph.detachLayer(layer);
+    expect(layer.unmounted).not.toHaveBeenCalled();
+
+    graph.removeLayer(layer);
+    graph.removeLayer(layer);
+    graph.unmount();
+
+    expect(layer.unmounted).toHaveBeenCalledTimes(1);
+    expect(LifecycleChild.unmounted).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores layers created by another graph", () => {
+    const other = new Graph({}, document.createElement("div"));
+    const foreign = other.addLayer(LifecycleLayer, { html: { zIndex: 1 } });
+
+    graph.removeLayer(foreign);
+
+    expect(foreign.unmounted).not.toHaveBeenCalled();
+    expect(other.layers.getLayers()).toContain(foreign);
+    other.unmount();
+    expect(foreign.unmounted).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores layers already destroyed by graph.unmount", () => {
+    const layer = addMountedLayer();
+    graph.unmount();
+    graph.removeLayer(layer);
+
+    expect(layer.unmounted).toHaveBeenCalledTimes(1);
+    expect(LifecycleChild.unmounted).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("root layer scheduling", () => {
+  // Layers that forward events to the camera override getParent(), like BlockGroups.
+  class CameraForwardingLayer extends Layer {
+    public readonly iterated = jest.fn();
+
+    public getParent(): Component | undefined {
+      return this.props.graph.getGraphLayer().$.camera;
+    }
+
+    public iterate(): boolean {
+      this.iterated();
+      return super.iterate();
+    }
+  }
+
+  it("renders a layer that overrides getParent when it is added after the first frame", () => {
+    const graph = new Graph({}, document.createElement("div"));
+    graph.start();
+    globalScheduler.performUpdate();
+    expect(graph.getGraphLayer().$.camera).toBeDefined();
+
+    const layer = graph.addLayer(CameraForwardingLayer, {});
+    layer.performRender();
+    globalScheduler.performUpdate();
+    expect(layer.iterated).toHaveBeenCalled();
+
+    graph.stop();
+    layer.iterated.mockClear();
+    layer.performRender();
+    globalScheduler.performUpdate();
+    globalScheduler.performUpdate();
+    expect(layer.iterated).not.toHaveBeenCalled();
+    graph.unmount();
   });
 });

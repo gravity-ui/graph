@@ -11,6 +11,7 @@ import {
   ECanDrag,
   Graph,
   Layer,
+  layerConfig,
   type TBlock,
   type TBlockProps,
   type TConnection,
@@ -151,6 +152,8 @@ void checkNullableLookups;
 type CustomBlockData = TBlock<{ description: string }>;
 type CustomBlockProps = TBlockProps & { accent: string };
 // Compile-only custom block: verify declared Meta and props survive CanvasBlock generics. Never registered at runtime.
+// The registry accepts this class, but the built-in renderer never supplies `accent`.
+// Custom block data belongs in TBlock meta; see packages/graph/docs/system/graph-settings.md.
 class CustomBlockTypeContract extends CanvasBlock<CustomBlockData, CustomBlockProps> {
   getDescription(): string | undefined {
     return this.state.meta?.description;
@@ -164,6 +167,8 @@ class CustomBlockTypeContract extends CanvasBlock<CustomBlockData, CustomBlockPr
   }
 }
 void CustomBlockTypeContract;
+const customBlockRegistry: TGraphSettingsPatch = { blockComponents: { Custom: CustomBlockTypeContract } };
+void customBlockRegistry;
 
 type ComplexMeta = {
   payload: { status: "ready" | "busy"; rows: ReadonlyArray<{ key: string; values: readonly number[] }> };
@@ -371,3 +376,37 @@ function optionalComponentConstructionContracts() {
   OptionalPropsComponent.create({});
 }
 void optionalComponentConstructionContracts;
+
+type TFixtureLabelLayerProps = LayerProps & { label: string };
+class FixtureLabelLayer extends Layer<TFixtureLabelLayerProps> {}
+
+function checkLayerConfiguration() {
+  const graph = new Graph({ layers: [layerConfig(FixtureLabelLayer, { label: "ok" })] });
+  // @ts-expect-error a required custom layer prop must be supplied
+  layerConfig(FixtureLabelLayer, {});
+  // @ts-expect-error unknown layer props are rejected
+  layerConfig(FixtureLabelLayer, { label: "ok", unknown: 1 });
+  // @ts-expect-error raw tuples bypass the constructor check and are not accepted
+  new Graph({ layers: [[FixtureLabelLayer, { label: "ok" }]] });
+  // @ts-expect-error structural copies bypass the constructor check and are not accepted
+  new Graph({ layers: [{ layer: FixtureLabelLayer, props: { label: "ok" } }] });
+  return graph;
+}
+void checkLayerConfiguration;
+
+// Compile-only: nullable and optional constructor input must still require custom props.
+declare class FixtureNullableLayer extends Layer<TFixtureLabelLayerProps> {
+  constructor(props: TFixtureLabelLayerProps | null);
+}
+declare class FixtureOptionalLayer extends Layer<TFixtureLabelLayerProps> {
+  constructor(props?: TFixtureLabelLayerProps);
+}
+function checkNullableLayerInput() {
+  layerConfig(FixtureNullableLayer, { label: "ok" });
+  layerConfig(FixtureOptionalLayer, { label: "ok" });
+  // @ts-expect-error null in the constructor input does not relax required props
+  layerConfig(FixtureNullableLayer, {});
+  // @ts-expect-error an optional constructor parameter does not relax required props
+  layerConfig(FixtureOptionalLayer, {});
+}
+void checkNullableLayerInput;

@@ -68,13 +68,19 @@ type LayerConstructorInput<T extends GraphClassConstructor<Layer>> = [
   NonNullable<ConstructorParameters<T>[0]>,
 ] extends [never]
   ? LayerProps
-  : NonNullable<ConstructorParameters<T>[0]>;
+  : // Strip null/undefined only when present, so a non-nullable input keeps its alias name.
+    [ConstructorParameters<T>[0]] extends [NonNullable<ConstructorParameters<T>[0]>]
+    ? ConstructorParameters<T>[0]
+    : NonNullable<ConstructorParameters<T>[0]>;
 
-type PublicLayerInput<Props> = Props extends unknown
-  ? Omit<Props, "root" | "camera" | "graph"> & {
-      root?: "root" extends keyof Props ? Props["root"] : LayerProps["root"];
-    }
-  : never;
+// One member of the public input: graph-provided props removed, `root` optional.
+// Internal on purpose: it is not distributive, so unions must go through LayerPublicProps.
+// The named alias keeps compiler messages readable, e.g. `LayerPublicInput<MiniMapLayerProps>`.
+type LayerPublicInput<Props> = Omit<Props, "root" | "camera" | "graph"> & {
+  root?: "root" extends keyof Props ? Props["root"] : LayerProps["root"];
+};
+
+type PublicLayerInput<Props> = Props extends unknown ? LayerPublicInput<Props> : never;
 
 /**
  * Extract public input from a Layer constructor, independently of its runtime props.
@@ -294,6 +300,9 @@ export class Layer<
     return cleanup;
   }
 
+  /** A root layer renders only while attached, so it registers its scheduler on attach. */
+  public static readonly autoStartScheduler: boolean = false;
+
   constructor(props: Props, parent?: CoreComponent) {
     super(props, parent);
 
@@ -477,6 +486,9 @@ export class Layer<
     // This ensures that if the layer is reattached, new event listeners can be registered
     this.eventAbortController = new AbortController();
     this.attached = false;
+    if (!this.__comp.parent) {
+      this.__comp.context.scheduler.stop();
+    }
     this.root = undefined;
     this.setContext({ root: undefined });
     this.attachedSignal.value = false;
@@ -520,6 +532,10 @@ export class Layer<
       root.appendChild(this.html);
     }
     this.attached = true;
+    // Structural root check: layers may override getParent() to forward events to the camera.
+    if (!this.__comp.parent) {
+      this.__comp.context.scheduler.start();
+    }
     this.setContext({ root, ownerDocument: root.ownerDocument });
     try {
       this.afterInit();

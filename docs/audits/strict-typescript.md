@@ -47,3 +47,13 @@ implicit-any `value` parameters in `updateConnection.stories.tsx` and one in
 `themeChange.stories.tsx` (handlers typed through `useCallback`, which TypeScript 6
 now infers contextually), and one `string | undefined` argument in
 `GraphPlayground.tsx`. Every completed package remains at zero.
+
+## Remaining conventions
+
+These contracts are documented conventions, not proven by types:
+
+- `settings.blockComponents` accepts block classes with additional required props. Class constructors
+  are compared bivariantly, so the registry cannot reject them. By convention of the built-in
+  `Blocks` renderer, they are constructed with `id`, `initialIndex` and `font` only.
+- `Component` state and context start as `{}` typed as the declared State/Context. Components must
+  initialize required state in the constructor.

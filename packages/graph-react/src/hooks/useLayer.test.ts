@@ -1,4 +1,6 @@
-import { Graph, Layer, LayerProps } from "@gravity-ui/graph";
+import { StrictMode } from "react";
+
+import { ChildDescriptor, Component, Graph, Layer, LayerProps } from "@gravity-ui/graph";
 import { act, renderHook } from "@testing-library/react";
 import isEqual from "lodash/isEqual";
 
@@ -27,7 +29,7 @@ describe("useLayer hook", () => {
   let graph: Graph;
   let graphs: Graph[];
   let addLayerSpy: jest.SpyInstance;
-  let detachLayerSpy: jest.SpyInstance;
+  let removeLayerSpy: jest.SpyInstance;
 
   // Mock console.error to suppress act warnings
   let consoleErrorSpy: jest.SpyInstance;
@@ -44,7 +46,7 @@ describe("useLayer hook", () => {
 
     // Spy on its methods
     addLayerSpy = jest.spyOn(graph, "addLayer");
-    detachLayerSpy = jest.spyOn(graph, "detachLayer");
+    removeLayerSpy = jest.spyOn(graph, "removeLayer");
 
     // Setup isEqual mock with default implementation
     mockedIsEqual.mockImplementation((a, b) => JSON.stringify(a) === JSON.stringify(b));
@@ -109,7 +111,7 @@ describe("useLayer hook", () => {
   });
 
   describe("Layer lifecycle", () => {
-    it("should detach layer when component unmounts", () => {
+    it("should remove layer when component unmounts", () => {
       // Execute
       const { unmount, result } = renderHook(() => useLayer(graph, TestLayer, createValidLayerProps()));
 
@@ -123,8 +125,8 @@ describe("useLayer hook", () => {
       });
 
       // Verify
-      expect(detachLayerSpy).toHaveBeenCalledWith(layer);
-      expect(detachLayerSpy).toHaveBeenCalledTimes(1);
+      expect(removeLayerSpy).toHaveBeenCalledWith(layer);
+      expect(removeLayerSpy).toHaveBeenCalledTimes(1);
     });
 
     it("should handle null graph safely on unmount", () => {
@@ -146,7 +148,7 @@ describe("useLayer hook", () => {
       });
 
       // Test passes if no error is thrown
-      expect(detachLayerSpy).toHaveBeenCalledTimes(1);
+      expect(removeLayerSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -300,5 +302,79 @@ describe("useLayer hook", () => {
       expect(comparedNewProps).toEqual(newProps);
       expect(layer.setProps).toHaveBeenCalledWith(newProps);
     });
+  });
+});
+
+describe("useLayer destruction", () => {
+  class LifecycleChild extends Component {
+    public static readonly unmounted = jest.fn();
+    protected unmount(): void {
+      LifecycleChild.unmounted();
+      super.unmount();
+    }
+  }
+
+  class LifecycleLayer extends Layer {
+    public static readonly created: LifecycleLayer[] = [];
+    public readonly unmounted = jest.fn();
+    constructor(props: LayerProps) {
+      super(props);
+      LifecycleLayer.created.push(this);
+    }
+    protected updateChildren(): ChildDescriptor[] {
+      return [LifecycleChild.create({}, { key: "child" })];
+    }
+    protected unmount(): void {
+      this.unmounted();
+      super.unmount();
+    }
+  }
+
+  let graph: Graph;
+
+  beforeEach(() => {
+    LifecycleLayer.created.length = 0;
+    LifecycleChild.unmounted.mockClear();
+    graph = new Graph({});
+    graph.attach(document.createElement("div"));
+    graph.start();
+  });
+
+  afterEach(() => act(() => graph.unmount()));
+
+  it("unmounts the layer and its children when the hook unmounts", () => {
+    const { result, unmount } = renderHook(() => useLayer(graph, LifecycleLayer, {}));
+    const layer = result.current;
+    if (!layer) throw new Error("Expected an attached layer");
+    act(() => graph.scheduler.performUpdate());
+    expect(LifecycleChild.unmounted).not.toHaveBeenCalled();
+
+    act(() => unmount());
+
+    expect(layer.unmounted).toHaveBeenCalledTimes(1);
+    expect(LifecycleChild.unmounted).toHaveBeenCalledTimes(1);
+    expect(graph.layers.getLayers()).not.toContain(layer);
+  });
+
+  it("destroys the replayed layer in StrictMode and keeps the live one", () => {
+    const { result } = renderHook(() => useLayer(graph, LifecycleLayer, {}), { wrapper: StrictMode });
+
+    expect(LifecycleLayer.created).toHaveLength(2);
+    const [replayed, live] = LifecycleLayer.created;
+    expect(replayed.unmounted).toHaveBeenCalledTimes(1);
+    expect(live.unmounted).not.toHaveBeenCalled();
+    expect(result.current).toBe(live);
+    expect(graph.layers.getLayers().filter((layer) => layer instanceof LifecycleLayer)).toEqual([live]);
+  });
+
+  it("destroys a layer once when the graph unmounts before the hook cleanup", () => {
+    const { result, unmount } = renderHook(() => useLayer(graph, LifecycleLayer, {}));
+    const layer = result.current;
+    if (!layer) throw new Error("Expected an attached layer");
+
+    act(() => graph.unmount());
+    act(() => unmount());
+
+    expect(layer.unmounted).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,4 +1,4 @@
-import { Graph, Layer, type LayerPublicProps } from "@gravity-ui/graph";
+import { Graph, Layer, layerConfig, type LayerPublicProps } from "@gravity-ui/graph";
 import { MiniMapLayer, type MiniMapLayerProps, type MiniMapLayerContext, type TMiniMapLocation } from "@gravity-ui/graph-minimap";
 
 const location: TMiniMapLocation = "bottomRight";
@@ -22,3 +22,11 @@ void [beforeAttachment, canvas, ctx];
 graph.addLayer(MiniMapLayer, { location: "center" });
 // @ts-expect-error custom offsets use CSS strings
 graph.addLayer(MiniMapLayer, { location: { top: 20 } });
+
+// Graph configuration entries are checked against the minimap constructor.
+const configured = new Graph({ layers: [layerConfig(MiniMapLayer, { location: "topLeft", width: 200 })] });
+void configured;
+// @ts-expect-error configured minimap props keep their types
+layerConfig(MiniMapLayer, { width: "200" });
+// @ts-expect-error configured minimap props reject unknown keys
+layerConfig(MiniMapLayer, { location: "topLeft", unknown: 1 });
