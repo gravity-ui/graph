@@ -66,19 +66,14 @@ export class KeyboardService {
   protected keybordEvents = new EventTarget();
 
   protected startListening(): void {
-    this.graph.layers.$root?.ownerDocument?.addEventListener("keydown", this.handleKeyDown, {
-      capture: true,
-    });
-    this.graph.layers.$root?.ownerDocument?.addEventListener("keyup", this.handleKeyDown, {
-      capture: true,
-    });
+    // Capture the document: the graph releases its root before it reports the INIT state.
+    const ownerDocument = this.graph.layers.$root?.ownerDocument;
+    if (!ownerDocument) return;
+    ownerDocument.addEventListener("keydown", this.handleKeyDown, { capture: true });
+    ownerDocument.addEventListener("keyup", this.handleKeyDown, { capture: true });
     this.unsubscribes.push(() => {
-      this.graph.layers.$root?.ownerDocument?.removeEventListener("keydown", this.handleKeyDown, {
-        capture: true,
-      });
-      this.graph.layers.$root?.ownerDocument?.removeEventListener("keyup", this.handleKeyDown, {
-        capture: true,
-      });
+      ownerDocument.removeEventListener("keydown", this.handleKeyDown, { capture: true });
+      ownerDocument.removeEventListener("keyup", this.handleKeyDown, { capture: true });
     });
   }
 

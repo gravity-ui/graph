@@ -1,5 +1,6 @@
 import { Component } from "./Component";
 import { ChildDescriptor, CoreComponent } from "./CoreComponent";
+import { globalScheduler } from "./Scheduler";
 
 class Child extends Component<{ label: string }> {
   public readonly removed = jest.fn();
@@ -116,4 +117,66 @@ test("zero-argument and optional-props constructors keep their defaults through 
   parent.syncChildren();
   expect(parent.$.defaults?.props.label).toBe("default");
   CoreComponent.unmount(parent);
+});
+
+function countRegistrations(): number {
+  // Flush deferred removals before counting the scheduler registry.
+  globalScheduler.performUpdate();
+  return globalScheduler.getSchedulers().reduce((total, list) => total + list.length, 0);
+}
+
+class RenderingRoot extends Parent {
+  public readonly rendered = jest.fn();
+  public childCount(): number {
+    return this.__comp.children.size;
+  }
+  public refresh(): void {
+    this.shouldUpdateChildren = true;
+    this.performRender();
+  }
+  protected render(): void {
+    this.rendered();
+  }
+}
+
+describe("root scheduler lifecycle", () => {
+  it("releases the root scheduler on unmount and does not rebuild the subtree", () => {
+    const baseline = countRegistrations();
+    const root = Component.mount(RenderingRoot);
+    root.descriptors = [Child.create({ label: "child" }, { key: "child" })];
+    root.refresh();
+    globalScheduler.performUpdate();
+    expect(root.childCount()).toBe(1);
+    expect(countRegistrations()).toBe(baseline + 1);
+
+    CoreComponent.unmount(root);
+    root.rendered.mockClear();
+    root.refresh();
+    globalScheduler.performUpdate();
+
+    expect(root.childCount()).toBe(0);
+    expect(root.rendered).not.toHaveBeenCalled();
+    expect(countRegistrations()).toBe(baseline);
+  });
+
+  it("keeps the shared scheduler running when a child unmounts", () => {
+    const baseline = countRegistrations();
+    const root = Component.mount(RenderingRoot);
+    root.descriptors = [Child.create({ label: "child" }, { key: "child" })];
+    root.refresh();
+    globalScheduler.performUpdate();
+
+    root.descriptors = [];
+    root.refresh();
+    globalScheduler.performUpdate();
+    expect(root.childCount()).toBe(0);
+
+    root.rendered.mockClear();
+    root.refresh();
+    globalScheduler.performUpdate();
+    expect(root.rendered).toHaveBeenCalledTimes(1);
+    expect(countRegistrations()).toBe(baseline + 1);
+    CoreComponent.unmount(root);
+    expect(countRegistrations()).toBe(baseline);
+  });
 });

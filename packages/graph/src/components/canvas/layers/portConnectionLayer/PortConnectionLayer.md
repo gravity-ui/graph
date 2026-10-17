@@ -25,7 +25,7 @@ Port-based connection layer for creating connections between graph elements usin
 import { PortConnectionLayer } from "@gravity-ui/graph";
 
 const GraphApp = () => {
-  const { graph, addLayer } = useGraph({
+  const { graph } = useGraph({
     settings: {
       canCreateNewConnections: true,
       useBlocksAnchors: true,
@@ -33,15 +33,15 @@ const GraphApp = () => {
   });
 
   useLayoutEffect(() => {
-    const layer = addLayer(PortConnectionLayer, {
+    const layer = graph.addLayer(PortConnectionLayer, {
       searchRadius: 30, // Port detection radius in pixels
       createIcon: { /* icon config */ },
       point: { /* point icon config */ },
       drawLine: (start, end) => { /* custom line renderer */ }
     });
 
-    return () => layer.detachLayer();
-  }, []);
+    return () => graph.removeLayer(layer);
+  }, [graph]);
 };
 ```
 
