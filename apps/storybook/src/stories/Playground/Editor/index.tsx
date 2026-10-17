@@ -36,18 +36,21 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(
   props: ConfigEditorProps,
   ref: Ref<ConfigEditorController>
 ) {
-  const [errorMarker, setErrorMarker] = useState<ExtractTypeFromArray<Parameters<OnValidate>[0]>>(null);
+  const [errorMarker, setErrorMarker] = useState<ExtractTypeFromArray<Parameters<OnValidate>[0]> | null>(null);
 
-  const monacoRef = useRef<Parameters<OnMount>[0]>(null);
+  const monacoRef = useRef<Parameters<OnMount>[0] | null>(null);
 
   const valueRef = useRef<{ blocks: TBlock[]; connections: TConnection[] }>({ blocks: [], connections: [] });
 
   useImperativeHandle(ref, () => ({
-    scrollTo: (blockId: string) => {
+    scrollTo: (blockId: TBlockId) => {
       if (!monacoRef.current) {
         return;
       }
       const model = monacoRef.current.getModel();
+      if (!model) {
+        return;
+      }
       const range = findBlockPositionsMonaco(model, blockId);
 
       if (range?.start.column) {
@@ -66,6 +69,9 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(
         return;
       }
       const model = monacoRef.current.getModel();
+      if (!model) {
+        return;
+      }
       const edits = blocks.map((block) => {
         const range = findBlockPositionsMonaco(model, block.id);
         const text = JSON.stringify({ block: [block] }, null, 2);
@@ -96,7 +102,11 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(
 
   const applyChanges = useFn(() => {
     try {
-      const data = JSON.parse(monacoRef.current.getModel().getValue());
+      const model = monacoRef.current?.getModel();
+      if (!model) {
+        return;
+      }
+      const data = JSON.parse(model.getValue());
       props?.onChange?.({ blocks: data.blocks, connections: data.conections });
     } catch (e) {
       console.error(e);
@@ -147,7 +157,7 @@ export const ConfigEditor = React.forwardRef(function ConfigEditor(
                 onClick={() => {
                   monacoRef.current?.revealLinesInCenter(errorMarker.startLineNumber, errorMarker.endLineNumber, 0);
 
-                  monacoRef.current.setSelection({
+                  monacoRef.current?.setSelection({
                     startColumn: errorMarker.startColumn,
                     startLineNumber: errorMarker.startLineNumber,
                     endColumn: errorMarker.endColumn,

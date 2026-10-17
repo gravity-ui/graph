@@ -52,11 +52,11 @@ const graphColors: TGraphColorsPatch = {
 };
 
 function parseTheme(colors: TGraphColorsPatch): TGraphColorsPatch {
-  const parsed: TGraphColorsPatch = {};
+  const parsed: Record<string, Record<string, string>> = {};
 
-  for (const element in colors) {
+  for (const [element, group] of Object.entries(colors)) {
     parsed[element] = {};
-    Object.keys(colors[element]).forEach((key) => (parsed[element][key] = computeCssVariable(colors[element][key])));
+    Object.entries(group ?? {}).forEach(([key, value]) => (parsed[element][key] = computeCssVariable(value)));
   }
 
   return parsed;
@@ -77,7 +77,7 @@ const GraphApp = () => {
 
   // The values of css variables occur after the theme is changed.
   useEffect(() => {
-    graphRef.current.api.updateGraphColors(parseTheme(graphColors));
+    graphRef.current?.api.updateGraphColors(parseTheme(graphColors));
   }, [theme]);
 
   return (

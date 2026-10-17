@@ -9,7 +9,7 @@ import { ActionBlockHtml } from "./ActionBlockHtml";
 
 import "./ActionBlock.css";
 
-function getAnchorY(index) {
+function getAnchorY(index: number): number {
   let y = 18 * index;
   if (index >= 1) {
     y += 8 * index;
@@ -65,7 +65,7 @@ export class ActionBlock extends CanvasBlock<TGravityActionBlock> {
   }
 
   protected getAnchorsYOffter(type: EAnchorType) {
-    const anchors = this.connectedState.$state.value.anchors.filter((a) => a.type === type);
+    const anchors = (this.connectedState.$state.value.anchors ?? []).filter((a) => a.type === type);
     const { height } = this.getContentRect();
     return (height - getAnchorY(anchors.length - 1)) / 2;
   }

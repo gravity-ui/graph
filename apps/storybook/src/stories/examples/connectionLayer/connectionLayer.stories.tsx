@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { ConnectionLayer, Graph, TBlock } from "@gravity-ui/graph";
+import { ConnectionLayer, Graph, TBlock, TPoint } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 import { Flex, Hotkey, Switch, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
@@ -24,7 +24,7 @@ const GraphApp = () => {
     zoomTo("center", { padding: 300 });
   }, [graph]);
 
-  const connectionLayerRef = useRef<ConnectionLayer>(null);
+  const connectionLayerRef = useRef<ConnectionLayer | null>(null);
 
   useLayoutEffect(() => {
     // Create icon for creating connections
@@ -49,7 +49,7 @@ const GraphApp = () => {
     };
 
     // Function for drawing connection line
-    const drawLine = (start, end) => {
+    const drawLine = (start: TPoint, end: TPoint) => {
       const path = new Path2D();
       path.moveTo(start.x, start.y);
       path.lineTo(end.x, end.y);
@@ -95,24 +95,26 @@ const GraphApp = () => {
     graph.on("connection-create-drop", (event) => {
       if (!event.detail.targetBlockId) {
         const source = graph.rootStore.blocksList.getBlock(event.detail.sourceBlockId);
-        const block = graph.api.addBlock({
-          id: `${graph.rootStore.blocksList.$blocksMap.value.size}`,
-          name: `from ${source.name}`,
-          x: event.detail.point.x,
-          y: event.detail.point.y,
-          width: source.width,
-          height: source.height,
-          is: "block",
-          selected: false,
-          anchors: [],
-        });
-        graph.api.addConnection({
-          id: `${String(source.id)}-${String(block)}`,
-          sourceBlockId: event.detail.sourceBlockId,
-          sourceAnchorId: event.detail.sourceAnchorId,
-          targetBlockId: block,
-          targetAnchorId: "bottom",
-        });
+        if (source) {
+          const block = graph.api.addBlock({
+            id: `${graph.rootStore.blocksList.$blocksMap.value.size}`,
+            name: `from ${source.name}`,
+            x: event.detail.point.x,
+            y: event.detail.point.y,
+            width: source.width,
+            height: source.height,
+            is: "block",
+            selected: false,
+            anchors: [],
+          });
+          graph.api.addConnection({
+            id: `${String(source.id)}-${String(block)}`,
+            sourceBlockId: event.detail.sourceBlockId,
+            sourceAnchorId: event.detail.sourceAnchorId,
+            targetBlockId: block,
+            targetAnchorId: "bottom",
+          });
+        }
       }
       console.log("Connection creation completed:", event.detail);
     });
@@ -120,10 +122,10 @@ const GraphApp = () => {
 
   const switchConnectionEnabled = useFn((enabled: boolean) => {
     if (enabled) {
-      connectionLayerRef.current.enable();
+      connectionLayerRef.current?.enable();
       setEnabled(true);
     } else {
-      connectionLayerRef.current.disable(); // Обратите внимание, что в оригинале метод назван disabled, а не disable
+      connectionLayerRef.current?.disable(); // Обратите внимание, что в оригинале метод назван disabled, а не disable
       setEnabled(false);
     }
   });

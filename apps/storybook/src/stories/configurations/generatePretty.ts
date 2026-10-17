@@ -1,10 +1,10 @@
-import { CanvasBlock, TBlock, TGraphConfig } from "@gravity-ui/graph";
+import { CanvasBlock, TBlock, TConnection, TGraphConfig } from "@gravity-ui/graph";
 
 import { random } from "../../storyUtils";
 
 import { storiesSettings } from "./definitions";
 
-export function createBlock(x: number, y: number, index): TBlock {
+export function createBlock(x: number, y: number, index: number | string): TBlock {
   const blockId = `block_${index}`;
   return {
     id: blockId,
@@ -19,9 +19,12 @@ export function createBlock(x: number, y: number, index): TBlock {
   };
 }
 
-function getRandomArbitrary(min, max) {
+function getRandomArbitrary(min: number, max: number): number {
   return (Math.random() * (max - min) + min) | 0;
 }
+
+/** Generated config: `blocks` and `connections` are always present. */
+export type TGeneratedGraphConfig = TGraphConfig & { blocks: TBlock[]; connections: TConnection[] };
 
 type Props = {
   layersCount: number;
@@ -37,8 +40,8 @@ export function generatePrettyBlocks({
   dashedLine,
   overrideSettings = {},
   startIndex = 0,
-}: Props) {
-  const config: TGraphConfig = {
+}: Props): TGeneratedGraphConfig {
+  const config: TGeneratedGraphConfig = {
     configurationName: "power of 2",
     blocks: [],
     connections: [],

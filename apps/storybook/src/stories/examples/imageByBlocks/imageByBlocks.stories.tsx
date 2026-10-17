@@ -17,7 +17,11 @@ type TBlockMeta = {
 
 class SpecificBlockView extends CanvasBlock<TBlock<TBlockMeta>> {
   public override renderSchematicView() {
-    this.context.ctx.fillStyle = this.state.meta.color;
+    const meta = this.state.meta;
+    if (!meta) {
+      return;
+    }
+    this.context.ctx.fillStyle = meta.color;
     this.context.ctx.fillRect(this.state.x, this.state.y, this.state.width, this.state.height);
   }
 }
@@ -25,8 +29,8 @@ class SpecificBlockView extends CanvasBlock<TBlock<TBlockMeta>> {
 const SpecificBlockIs = "some-specific-view";
 
 async function generateByImage() {
-  return new Promise<TGraphConfig>((resolve) => {
-    const config: TGraphConfig<TBlock<TBlockMeta>> = {
+  return new Promise<TGraphConfig>((resolve, reject) => {
+    const config: TGraphConfig<TBlock<TBlockMeta>> & { blocks: TBlock<TBlockMeta>[] } = {
       configurationName: "power of 2",
       blocks: [],
       connections: [],
@@ -54,6 +58,10 @@ async function generateByImage() {
       canvas.width = pic.width;
       canvas.height = pic.height;
       const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("imageByBlocks: 2D canvas context is not available"));
+        return;
+      }
 
       ctx.drawImage(pic, 0, 0);
 
@@ -95,7 +103,9 @@ const GraphApp = () => {
   }, []);
 
   useEffect(() => {
-    generateByImage().then((newConfig) => setConfig(newConfig));
+    generateByImage()
+      .then((newConfig) => setConfig(newConfig))
+      .catch((error: unknown) => console.error(error));
   }, []);
 
   if (!config) return null;

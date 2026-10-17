@@ -20,7 +20,7 @@ const GraphApp = () => {
   const [height, setHeight] = useState(blockConfig.height.toString());
 
   const onClick: ButtonButtonProps["onClick"] = useCallback(() => {
-    graphRef.current.api.updateBlock({
+    graphRef.current?.api.updateBlock({
       ...blockConfig,
       x: Number(x),
       y: Number(y),

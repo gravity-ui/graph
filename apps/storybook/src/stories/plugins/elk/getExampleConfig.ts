@@ -1,15 +1,15 @@
-import { TGraphConfig } from "@gravity-ui/graph";
+import { TBlock, TConnection } from "@gravity-ui/graph";
 import { ElkExtendedEdge, ElkNode, LayoutOptions } from "elkjs";
 
 import { measureText } from "../../../storyUtils";
-import { createBlock, generatePrettyBlocks } from "../../configurations/generatePretty";
+import { TGeneratedGraphConfig, createBlock, generatePrettyBlocks } from "../../configurations/generatePretty";
 
 import { Algorithm } from "./elk.stories";
 import { generateExampleTree } from "./generateExampleTree";
 
 const FONT_SIZE = 14;
 
-const prepareChildren = (blocks: TGraphConfig["blocks"]) => {
+const prepareChildren = (blocks: TBlock[]) => {
   return blocks.map((b) => {
     return {
       id: b.id as string,
@@ -19,7 +19,7 @@ const prepareChildren = (blocks: TGraphConfig["blocks"]) => {
   });
 };
 
-const prepareEdges = (connections: TGraphConfig["connections"], skipLabels?: boolean) => {
+const prepareEdges = (connections: TConnection[], skipLabels?: boolean) => {
   return connections.map((c, i) => {
     const labelText = `label ${i}`;
 
@@ -87,7 +87,7 @@ const ElkOptionalMap: Record<Algorithm, LayoutOptions> = {
   },
 };
 
-export const getExampleConfig = (algorithm: Algorithm): { elkConfig: ElkNode; graphConfig: TGraphConfig } => {
+export const getExampleConfig = (algorithm: Algorithm): { elkConfig: ElkNode; graphConfig: TGeneratedGraphConfig } => {
   let config = generatePrettyBlocks({ layersCount: 10, connectionsPerLayer: 30, dashedLine: true });
 
   const elkConfig = {

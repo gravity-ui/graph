@@ -22,7 +22,7 @@ const GraphApp = () => {
   const graphRef = useRef<Graph | undefined>(undefined);
 
   const onClick: ButtonButtonProps["onClick"] = useCallback(() => {
-    graphRef.current.api.zoomToRect(
+    graphRef.current?.api.zoomToRect(
       { height: Number(height), width: Number(width), x: Number(x), y: Number(y) },
       { transition: Number(transition), padding: Number(padding) }
     );
