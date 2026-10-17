@@ -37,48 +37,15 @@ export type UseGraphResult = {
   zoomTo: Graph["zoomTo"];
 };
 
-/**
- * Owned graphs whose effect setup ran in the current synchronous pass. React 18 StrictMode replays
- * effect cleanup and setup in that same pass, so a cleanup inside it may be a replay.
- */
-const justMountedGraphs = new WeakSet<Graph>();
-
-/**
- * Owned graphs whose disposal is deferred because their cleanup may be a StrictMode replay.
- * Keyed by graph so that re-running the effect for one graph never cancels another graph's disposal.
- */
+/** Deferred disposals of owned graphs, keyed by graph so one graph never cancels another's. */
 const pendingDisposals = new WeakMap<Graph, ReturnType<typeof setTimeout>>();
 
-/**
- * Graphs returned by mounted useGraph instances, owned or external, with the number of instances.
- * Entries are removed by effect cleanup, so a React root dropped without unmounting keeps them.
- */
-const liveGraphs = new Map<Graph, number>();
-
-/**
- * `graph.unmount()` stops the global scheduler shared by every graph. Restart it while any graph
- * held by a mounted useGraph instance is still running. Restarting is idempotent.
- */
-function restartSchedulerForLiveGraphs(): void {
-  for (const liveGraph of liveGraphs.keys()) {
-    if (liveGraph.state === GraphState.READY) {
-      liveGraph.scheduler.start();
-    }
-  }
-}
-
-function disposeGraph(graph: Graph): void {
-  try {
-    graph.unmount();
-  } finally {
-    restartSchedulerForLiveGraphs();
-  }
-}
+/** Owned graphs first set up in the current synchronous pass, where StrictMode replays effects. */
+const justMountedGraphs = new WeakSet<Graph>();
 
 export function useGraph(config: HookGraphParams): UseGraphResult {
-  // The graph this hook instance created. It stays owned even if the caller passes it back as
-  // `config.graph`, so that switch neither disposes it nor makes the hook forget to dispose it.
-  // It is written while rendering on purpose: ownership must be known in the same useMemo call.
+  // The graph this instance created stays owned even if the caller passes it back as `config.graph`.
+  // Written while rendering on purpose: ownership must be known in the same useMemo call.
   const createdGraphRef = useRef<Graph | null>(null);
   const { graph, owned } = useMemo(() => {
     if (config.graph) {
@@ -95,69 +62,37 @@ export function useGraph(config: HookGraphParams): UseGraphResult {
     return { graph: created, owned: true };
   }, [config.graph]);
 
-  // Dispose the owned graph when it is unmounted or replaced, synchronously in the passive cleanup
-  // of that commit. `graph.unmount()` stops the global scheduler shared by every graph, and a
-  // passive cleanup can run after a replacement started in the layout phase, so every disposal and
-  // every setup restarts the scheduler while a graph held by a mounted useGraph is running.
-  // The exception is a cleanup in the same synchronous pass as the graph's first setup, which is how
-  // React 18 StrictMode replays effects on mount. Such a disposal is deferred by one macrotask and
-  // cancelled by the replayed setup, so the graph returned by this hook stays alive. A real unmount
-  // in that pass is deferred too and runs on the timer, where an error from `graph.unmount()` is
-  // uncaught instead of reaching an error boundary.
-  // A passive effect is used on purpose: in React 18 a Suspense boundary that hides already shown
-  // content runs layout-effect cleanups but keeps passive effects, and the graph must survive that.
-  // (React 19 <Activity> also disconnects passive effects; the peer range is React 18 only.)
-  // External graphs (`config.graph`) are owned by the caller and are never disposed here.
-  // A graph no useGraph holds that is started in the layout phase of the commit that disposes an
-  // owned graph is stopped by that disposal; it used to run in a layout cleanup, before such starts.
-  // Known limitation: a Graph built by a render that never commits never reaches this effect and is
-  // not disposed. In development React 18 StrictMode renders twice on mount, so one such Graph is
-  // created per mount; suspended first mounts and interrupted renders can create more.
+  // Dispose the owned graph when its effect is cleaned up. StrictMode replays cleanup and setup in
+  // the same synchronous pass as the first setup, so a cleanup in that pass is deferred by one
+  // macrotask and the replayed setup cancels it. A passive effect keeps the graph alive while a
+  // Suspense boundary hides it. External graphs are never disposed here.
+  // A real unmount in that pass also disposes on the timer, where an error thrown by unmount() is
+  // uncaught. Verified on React 18 (the peer range); React 19 <Activity> also disconnects passive
+  // effects and is not supported here.
   useEffect(() => {
-    const pending = owned ? pendingDisposals.get(graph) : undefined;
-    if (pending !== undefined) {
-      clearTimeout(pending);
-      pendingDisposals.delete(graph);
-    } else if (owned) {
+    if (!owned) {
+      return undefined;
+    }
+    const pending = pendingDisposals.get(graph);
+    if (pending === undefined) {
       justMountedGraphs.add(graph);
       queueMicrotask(() => justMountedGraphs.delete(graph));
     }
-    // An old graph's disposal runs in passive cleanup, after this commit's layout effects (which may
-    // have started this graph) but before this graph is registered here, so its restart missed it.
-    liveGraphs.set(graph, (liveGraphs.get(graph) ?? 0) + 1);
-    restartSchedulerForLiveGraphs();
-    const release = (): void => {
-      const count = liveGraphs.get(graph) ?? 0;
-      if (count > 1) {
-        liveGraphs.set(graph, count - 1);
-      } else {
-        liveGraphs.delete(graph);
-      }
-    };
-    if (!owned) {
-      return release;
-    }
-    const dispose = (): void => {
-      // A disposed graph is no longer this hook's to own, even if the caller passes it back.
-      if (createdGraphRef.current === graph) {
-        createdGraphRef.current = null;
-      }
-      disposeGraph(graph);
-    };
+    clearTimeout(pending);
+    pendingDisposals.delete(graph);
     return () => {
-      release();
-      if (!justMountedGraphs.has(graph)) {
+      const dispose = (): void => {
+        pendingDisposals.delete(graph);
+        if (createdGraphRef.current === graph) {
+          createdGraphRef.current = null;
+        }
+        graph.unmount();
+      };
+      if (justMountedGraphs.delete(graph)) {
+        pendingDisposals.set(graph, setTimeout(dispose, 0));
+      } else {
         dispose();
-        return;
       }
-      justMountedGraphs.delete(graph);
-      pendingDisposals.set(
-        graph,
-        setTimeout(() => {
-          pendingDisposals.delete(graph);
-          dispose();
-        }, 0)
-      );
     };
   }, [graph, owned]);
 
