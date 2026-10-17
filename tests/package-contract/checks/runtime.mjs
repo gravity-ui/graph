@@ -7,6 +7,9 @@ const nativeImportProbes = {
     if ("DevToolsLayer" in graph || "DEFAULT_DEVTOOLS_LAYER_PROPS" in graph) {
       throw new Error("Core still exports the extracted DevTools.");
     }
+    if ("NewBlockLayer" in graph || "DuplicateBlockLayer" in graph) {
+      throw new Error("Core still exports the extracted block duplication layer.");
+    }
     if (typeof graph.Graph !== "function") throw new Error("Root entrypoint does not export Graph.");
     if (graph.ESchedulerPriority?.LOWEST !== 4) {
       throw new Error("Root entrypoint does not export ESchedulerPriority.");
@@ -40,6 +43,13 @@ const nativeImportProbes = {
       throw new Error("DevTools has a second core Layer class.");
     }
     if (DEFAULT_DEVTOOLS_LAYER_PROPS.rulerSize !== 25) throw new Error("DevTools defaults are missing or changed.");
+  `,
+  duplicateBlock: `
+    const { DuplicateBlockLayer } = await import("@gravity-ui/graph-duplicate-block");
+    const { Layer } = await import("@gravity-ui/graph");
+    if (Object.getPrototypeOf(DuplicateBlockLayer.prototype) !== Layer.prototype) {
+      throw new Error("Duplicate block package has a second core Layer class.");
+    }
   `,
   playwright: `
     const playwright = await import("@gravity-ui/graph/playwright");

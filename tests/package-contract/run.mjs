@@ -17,7 +17,7 @@ const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "gravity-graph-pack
 const requestedTarballPath = process.env.PACKAGE_CONTRACT_TARBALL_PATH;
 const defaultTarballPath = path.join(temporaryDirectory, "tarballs", "gravity-ui-graph.tgz");
 const testedPackage = process.argv[2] ?? "graph";
-if (!["graph", "graph-react", "graph-minimap", "graph-devtools"].includes(testedPackage))
+if (!["graph", "graph-react", "graph-minimap", "graph-devtools", "graph-duplicate-block"].includes(testedPackage))
   throw new Error(`Unknown package: ${testedPackage}`);
 const testingReactPackage = testedPackage === "graph-react";
 const testingMinimapPackage = testedPackage === "graph-minimap";
@@ -33,6 +33,16 @@ const devtoolsTarballPath =
     ? path.resolve(requestedTarballPath)
     : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-devtools.tgz");
 const devtoolsStaleBuildSentinelPath = path.join(devtoolsPackageRoot, "build", "package-contract-stale-sentinel.txt");
+const duplicateBlockPackageRoot = path.join(workspaceRoot, "packages/graph-duplicate-block");
+const duplicateBlockTarballPath =
+  requestedTarballPath && testedPackage === "graph-duplicate-block"
+    ? path.resolve(requestedTarballPath)
+    : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-duplicate-block.tgz");
+const duplicateBlockStaleBuildSentinelPath = path.join(
+  duplicateBlockPackageRoot,
+  "build",
+  "package-contract-stale-sentinel.txt"
+);
 const workspaceTarballs = JSON.parse(process.env.PACKAGE_CONTRACT_WORKSPACE_TARBALLS || "{}");
 const suppliedCoreTarball = testedPackage !== "graph" ? workspaceTarballs["@gravity-ui/graph"] : undefined;
 const tarballPath = suppliedCoreTarball
@@ -46,7 +56,7 @@ const reactTarballPath =
     : path.join(temporaryDirectory, "tarballs", "gravity-ui-graph-react.tgz");
 const reactStaleBuildSentinelPath = path.join(reactPackageRoot, "build", "package-contract-stale-sentinel.txt");
 const staleBuildSentinelPath = path.join(packageRoot, "build", "package-contract-stale-sentinel.txt");
-const consumerNames = ["vanilla", "react", "minimap", "devtools"];
+const consumerNames = ["vanilla", "react", "minimap", "devtools", "duplicate-block"];
 
 async function getInstalledVersion(packageName) {
   const owner = ["react", "react-dom", "@types/react", "@types/react-dom"].includes(packageName)
@@ -71,6 +81,7 @@ async function runConsumer({
   expectedReactVersion,
   expectedMinimapVersion,
   expectedDevtoolsVersion,
+  expectedDuplicateBlockVersion,
   typecheckConfigs,
   entryPoint,
   nativeImports,
@@ -92,6 +103,8 @@ async function runConsumer({
   if (expectedMinimapVersion) await checkInstalledArtifact(consumerDirectory, expectedMinimapVersion, "graph-minimap");
   if (expectedDevtoolsVersion)
     await checkInstalledArtifact(consumerDirectory, expectedDevtoolsVersion, "graph-devtools");
+  if (expectedDuplicateBlockVersion)
+    await checkInstalledArtifact(consumerDirectory, expectedDuplicateBlockVersion, "graph-duplicate-block");
   await checkRuntimeConsumer({
     consumerDirectory,
     entrypoints: nativeImports,
@@ -117,6 +130,10 @@ try {
   const reactManifest = JSON.parse(await readFile(path.join(reactPackageRoot, "package.json"), "utf8"));
   const minimapManifest = JSON.parse(await readFile(path.join(minimapPackageRoot, "package.json"), "utf8"));
   const devtoolsManifest = JSON.parse(await readFile(path.join(devtoolsPackageRoot, "package.json"), "utf8"));
+  const duplicateBlockManifest = JSON.parse(
+    await readFile(path.join(duplicateBlockPackageRoot, "package.json"), "utf8")
+  );
+  await mkdir(path.dirname(duplicateBlockTarballPath), { recursive: true });
   await mkdir(path.dirname(devtoolsTarballPath), { recursive: true });
   await mkdir(path.dirname(minimapTarballPath), { recursive: true });
   await mkdir(path.dirname(tarballPath), { recursive: true });
@@ -145,7 +162,20 @@ try {
     tarballPath: devtoolsTarballPath,
     kind: "graph-devtools",
   });
-  await checkTarballTypes({ packageRoot, tarballPath, reactTarballPath, minimapTarballPath, devtoolsTarballPath });
+  await buildAndPackArtifact({
+    packageRoot: duplicateBlockPackageRoot,
+    staleBuildSentinelPath: duplicateBlockStaleBuildSentinelPath,
+    tarballPath: duplicateBlockTarballPath,
+    kind: "graph-duplicate-block",
+  });
+  await checkTarballTypes({
+    packageRoot,
+    tarballPath,
+    reactTarballPath,
+    minimapTarballPath,
+    devtoolsTarballPath,
+    duplicateBlockTarballPath,
+  });
 
   const workspaceManifest = JSON.parse(await readFile(path.join(workspaceRoot, "package.json"), "utf8"));
   if (!workspaceManifest.packageManager) {
@@ -277,6 +307,29 @@ try {
     expectNoReact: true,
   });
 
+  await runConsumer({
+    name: "duplicate-block",
+    expectedVersion,
+    expectedDuplicateBlockVersion: duplicateBlockManifest.version,
+    manifest: {
+      ...commonManifest,
+      name: "gravity-graph-installed-duplicate-block-consumer",
+      dependencies: {
+        ...commonManifest.dependencies,
+        "@gravity-ui/graph-duplicate-block": `file:${duplicateBlockTarballPath}`,
+      },
+    },
+    typecheckConfigs: [
+      "fixtures/apps/duplicate-block/tsconfig.json",
+      "fixtures/apps/duplicate-block/tsconfig.non-strict.json",
+      "fixtures/types/duplicate-block-node-esm/tsconfig.json",
+      "fixtures/types/duplicate-block-node-esm/tsconfig.non-strict.json",
+    ],
+    entryPoint: "fixtures/apps/duplicate-block/app.ts",
+    nativeImports: ["root", "duplicateBlock", "playwright"],
+    expectNoReact: true,
+  });
+
   console.log("\n[package-contract] Packed package contract passed.");
 } catch (error) {
   await preserveBrowserArtifacts({ consumerNames, packageRoot: workspaceRoot, temporaryDirectory });
@@ -286,6 +339,7 @@ try {
   await rm(reactStaleBuildSentinelPath, { force: true });
   await rm(minimapStaleBuildSentinelPath, { force: true });
   await rm(devtoolsStaleBuildSentinelPath, { force: true });
+  await rm(duplicateBlockStaleBuildSentinelPath, { force: true });
 
   if (process.env.KEEP_PACKAGE_CONTRACT_TMP === "1") {
     console.log(`\n[package-contract] Preserved temporary projects at ${temporaryDirectory}`);

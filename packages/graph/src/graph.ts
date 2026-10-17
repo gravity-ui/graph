@@ -373,7 +373,8 @@ export class Graph {
      * Simply subscribing to the "mousedown" event does not allow handling the event at the very end of the chain,
      * so manual handling of the event is required here.
      *
-     * In example - NewBlockLayer prevent default drag action to allow duplicate blocks with Alt key.
+     * Preventing a graph "mousedown" also stops dispatching it to the target component and the camera drag,
+     * so a layer can take over the gesture and start its own operation with `dragService.startDrag`.
      *
      * @example
      * ```typescript

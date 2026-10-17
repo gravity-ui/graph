@@ -1,0 +1,25 @@
+# @gravity-ui/graph-duplicate-block
+
+Alt+drag block duplication for `@gravity-ui/graph`. Hold Alt and drag a block to drop a copy of it; dragging a selected block copies the whole selection with the connections between the copied blocks.
+
+This package is being developed on the unpublished v2 branch. Use it with the matching v2 core build.
+
+```ts
+import { Graph } from "@gravity-ui/graph";
+import { DuplicateBlockLayer } from "@gravity-ui/graph-duplicate-block";
+
+const graph = new Graph({ blocks: [] }, document.getElementById("graph")!);
+graph.addLayer(DuplicateBlockLayer, {
+  isDuplicateAllowed: (block) => block.connectedState.$state.value.is !== "restricted-block",
+});
+graph.on("blocks-duplicate", (event) => {
+  console.log("Copied", event.detail.items.length, "blocks by", event.detail.delta);
+});
+graph.start();
+```
+
+`@gravity-ui/graph` is a required peer dependency. The package has no stylesheet and does not require React.
+
+Props, methods and the `blocks-duplicate-start` / `blocks-duplicate` events are described in the [full documentation](https://github.com/gravity-ui/graph/blob/v2/packages/graph/docs/plugins/duplicate-block.md).
+
+For v2, replace `NewBlockLayer` from `@gravity-ui/graph` with `DuplicateBlockLayer` from this package.

@@ -306,20 +306,6 @@
     },
     {
       "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/examples/newBlockLayer/newBlockLayer.stories.tsx",
-      "code": 18047,
-      "message": "'newBlockLayerRef.current' is possibly 'null'.",
-      "count": 2
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
-      "file": "apps/storybook/src/stories/examples/newBlockLayer/newBlockLayer.stories.tsx",
-      "code": 2540,
-      "message": "Cannot assign to 'current' because it is a read-only property.",
-      "count": 1
-    },
-    {
-      "project": "apps/storybook/tsconfig.json",
       "file": "apps/storybook/src/stories/examples/portConnectionLayer/portConnectionLayer.stories.tsx",
       "code": 2540,
       "message": "Cannot assign to 'current' because it is a read-only property.",

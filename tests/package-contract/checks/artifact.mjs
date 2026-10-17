@@ -33,6 +33,8 @@ const expectedTypesVersions = {
 };
 
 const allowedPackageRootFiles = new Set(["LICENSE", "README.md", "package.json"]);
+// Addons that publish no stylesheet and therefore no ./styles.css export.
+const addonsWithoutStyles = new Set(["graph-duplicate-block"]);
 const allowedRuntimeFiles = new Set([
   "build/index.js",
   "build/playwright/index.js",
@@ -85,7 +87,7 @@ function assertPackedFiles(metadata, kind) {
     ...allowedPackageRootFiles,
     "build/index.js",
     "build/index.d.ts",
-    "build/styles.css",
+    ...(addonsWithoutStyles.has(kind) ? [] : ["build/styles.css"]),
     ...(addon
       ? []
       : [
@@ -180,7 +182,11 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   assert.deepEqual(manifest.files, ["build"]);
   assert.deepEqual(
     manifest.exports,
-    addon ? { ".": expectedExports["."], "./styles.css": expectedExports["./styles.css"] } : expectedExports
+    addon
+      ? addonsWithoutStyles.has(kind)
+        ? { ".": expectedExports["."] }
+        : { ".": expectedExports["."], "./styles.css": expectedExports["./styles.css"] }
+      : expectedExports
   );
   assert.deepEqual(manifest.typesVersions, addon ? undefined : expectedTypesVersions);
   if (addon) {
@@ -213,6 +219,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
         "@gravity-ui/graph-react",
         "@gravity-ui/graph-minimap",
         "@gravity-ui/graph-devtools",
+        "@gravity-ui/graph-duplicate-block",
         "elkjs",
       ]) {
         assert.equal(manifest[field]?.[name], undefined, `Core must not depend on ${name} through ${field}.`);
@@ -242,7 +249,7 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     [
       "build/index.js",
       "build/index.d.ts",
-      "build/styles.css",
+      ...(addonsWithoutStyles.has(kind) ? [] : ["build/styles.css"]),
       ...(addon
         ? []
         : [
@@ -263,7 +270,15 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
   );
   await assertNoPrivateSchedulerSpecifiers(packageRoot);
 
-  const publicStyles = await readFile(path.join(packageRoot, "build", "styles.css"), "utf8");
+  if (addonsWithoutStyles.has(kind)) {
+    await assertPathDoesNotExist(
+      path.join(packageRoot, "build", "styles.css"),
+      "The addon ships an unused stylesheet."
+    );
+  }
+  const publicStyles = addonsWithoutStyles.has(kind)
+    ? ""
+    : await readFile(path.join(packageRoot, "build", "styles.css"), "utf8");
   if (addon) {
     for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
       assert.doesNotMatch(
@@ -279,6 +294,12 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
     assert.deepEqual(manifest.optionalDependencies ?? {}, {});
     assert.match(publicStyles, /\.graph-minimap/);
     assert.match(publicStyles, /background:\s*lightgr[ae]y/);
+    return;
+  }
+  if (kind === "graph-duplicate-block") {
+    assert.deepEqual(Object.keys(manifest.peerDependencies), ["@gravity-ui/graph"]);
+    assert.deepEqual(manifest.dependencies ?? {}, {});
+    assert.deepEqual(manifest.optionalDependencies ?? {}, {});
     return;
   }
   if (kind === "graph-devtools") {
@@ -309,10 +330,14 @@ export async function checkInstalledArtifact(consumerDirectory, expectedVersion,
       "Core still ships DevTools declarations."
     );
     assert.doesNotMatch(await readFile(path.join(packageRoot, "build/index.js"), "utf8"), /devtools-layer/);
+    assert.doesNotMatch(
+      await readFile(path.join(packageRoot, "build/index.js"), "utf8"),
+      /NewBlockLayer|blocks-duplicate|from-shadow/
+    );
     for (const file of await collectGeneratedContractFiles(path.join(packageRoot, "build"))) {
       assert.doesNotMatch(
         await readFile(file, "utf8"),
-        /(?:from\s+|import\s*\(|require\s*\()["'](?:react(?:-dom)?(?:\/[^"']*)?|@gravity-ui\/graph-(?:react|minimap|devtools))["']/
+        /(?:from\s+|import\s*\(|require\s*\()["'](?:react(?:-dom)?(?:\/[^"']*)?|@gravity-ui\/graph-(?:react|minimap|devtools|duplicate-block))["']/
       );
     }
   }

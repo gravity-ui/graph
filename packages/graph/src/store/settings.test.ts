@@ -22,13 +22,13 @@ describe("Settings store", () => {
   });
 
   it("Should get config via key", () => {
-    expect(store.getConfigFlag("canDuplicateBlocks")).toBe(false);
+    expect(store.getConfigFlag("canZoomCamera")).toBe(true);
   });
 
   it("Should set config via key", () => {
-    expect(store.getConfigFlag("canDuplicateBlocks")).toBe(false);
-    store.setConfigFlag("canDuplicateBlocks", true);
-    expect(store.getConfigFlag("canDuplicateBlocks")).toBe(true);
+    expect(store.getConfigFlag("canZoomCamera")).toBe(true);
+    store.setConfigFlag("canZoomCamera", false);
+    expect(store.getConfigFlag("canZoomCamera")).toBe(false);
   });
 
   it.each([ECanDrag.ALL, ECanDrag.ONLY_SELECTED, ECanDrag.NONE])("uses canDrag %s directly", (canDrag) => {

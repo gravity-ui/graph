@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { Graph, NewBlockLayer, TBlock } from "@gravity-ui/graph";
+import { Graph, TBlock } from "@gravity-ui/graph";
+import { DuplicateBlockLayer } from "@gravity-ui/graph-duplicate-block";
 import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 import { Flex, Hotkey, Switch, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
@@ -20,23 +21,23 @@ const GraphApp = () => {
     zoomTo("center", { padding: 300 });
   }, [graph]);
 
-  const newBlockLayerRef = useRef<NewBlockLayer | null>(null);
+  const duplicateLayerRef = useRef<DuplicateBlockLayer | null>(null);
 
   useLayoutEffect(() => {
-    newBlockLayerRef.current = addLayer(NewBlockLayer, {});
+    duplicateLayerRef.current = addLayer(DuplicateBlockLayer, {});
     return () => {
-      newBlockLayerRef.current?.detachLayer();
+      duplicateLayerRef.current?.detachLayer();
     };
   }, []);
 
   const [enabled, setEnabled] = useState(true);
 
-  const switchNewBlockEnabled = useFn((addEnabled: boolean) => {
+  const switchDuplicateEnabled = useFn((addEnabled: boolean) => {
     if (addEnabled) {
-      newBlockLayerRef.current?.enable();
+      duplicateLayerRef.current?.enable();
       setEnabled(true);
     } else {
-      newBlockLayerRef.current?.disable();
+      duplicateLayerRef.current?.disable();
       setEnabled(false);
     }
   });
@@ -49,7 +50,7 @@ const GraphApp = () => {
     <ThemeProvider theme="light">
       <Flex direction="column" style={{ height: "100vh" }}>
         <Flex direction="column" gap={2} style={{ padding: 16 }}>
-          <Text variant="header-1">NewBlockLayer Demo</Text>
+          <Text variant="header-1">DuplicateBlockLayer Demo</Text>
           <Text variant="body-1">
             This layer allows you to create copies of blocks using the <Hotkey value={"alt"} /> key. Hold down{" "}
             <Hotkey value={"alt"} /> and drag the block to create a copy of it.
@@ -59,8 +60,8 @@ const GraphApp = () => {
             <Flex alignItems="center">
               <Switch
                 checked={enabled}
-                onChange={() => switchNewBlockEnabled(!enabled)}
-                content="Включить NewBlockLayer"
+                onChange={() => switchDuplicateEnabled(!enabled)}
+                content="Enable DuplicateBlockLayer"
               />
             </Flex>
           </Flex>
@@ -74,7 +75,7 @@ const GraphApp = () => {
 };
 
 const meta: Meta = {
-  title: "Examples/NewBlockLayer",
+  title: "Examples/DuplicateBlockLayer",
   component: GraphApp,
   parameters: {
     layout: "fullscreen",
