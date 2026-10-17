@@ -43,21 +43,35 @@ function ExternalGraphApp({ graph }: { graph: Graph }): React.ReactElement {
 afterEach(async () => {
   jest.restoreAllMocks();
   await flushDeferredDisposal();
-  // Every test releases its graphs, so a later "running" check reflects only its own scenario.
-  expect(globalSchedulerProbe().isRunning()).toBe(false);
+  // Every test disposes its graphs, so nothing may stay registered in the shared frame loop.
+  expect(new Graph({}).scheduler.getSchedulers().flat()).toHaveLength(0);
 });
 
-/** Returns a check for the global scheduler shared by every graph. */
-function globalSchedulerProbe(): { isRunning: () => boolean } {
-  const probe = new Graph({});
-  const { scheduler } = probe;
-  probe.unmount();
-  return { isRunning: () => scheduler.isRunning() };
+/** Whether the graph's layers are updated on the next frame, i.e. the graph is live. */
+function rendersOnNextFrame(graph: Graph | undefined): boolean {
+  if (!graph) {
+    throw new Error("Expected a committed graph");
+  }
+  const layer = graph.getGraphLayer();
+  const iterate = jest.spyOn(layer, "iterate");
+  layer.performRender();
+  graph.scheduler.performUpdate();
+  const rendered = iterate.mock.calls.length > 0;
+  iterate.mockRestore();
+  return rendered;
 }
 
-function StartingApp(): React.ReactElement {
+/** Captures the graph each committed render uses (StrictMode's discarded renders never commit). */
+function useCommittedGraph(graph: Graph, onGraph?: (graph: Graph) => void): void {
+  useEffect(() => {
+    onGraph?.(graph);
+  }, [graph, onGraph]);
+}
+
+function StartingApp({ onGraph }: { onGraph?: (graph: Graph) => void }): React.ReactElement {
   const { graph, start } = useGraph({});
   useEffect(() => start(), [graph, start]);
+  useCommittedGraph(graph, onGraph);
   return <GraphCanvas graph={graph} renderBlock={() => <div />} />;
 }
 
@@ -206,26 +220,29 @@ test("remounting with a new key disposes the old owned graph and keeps the new o
   await flushDeferredDisposal();
 });
 
-test("disposing a replaced owned graph does not stop the scheduler the new graph started", async () => {
+test("disposing a replaced owned graph leaves the new graph rendering", async () => {
+  let live: Graph | undefined;
   const renderApp = (key: string): React.ReactElement => (
     <StrictMode>
-      <StartingApp key={key} />
+      <StartingApp key={key} onGraph={(g) => (live = g)} />
     </StrictMode>
   );
   const { rerender, unmount } = render(renderApp("a"));
   await flushDeferredDisposal();
-  const scheduler = globalSchedulerProbe();
+  const first = live;
 
   rerender(renderApp("b"));
   await flushDeferredDisposal();
 
-  // The shared global scheduler must end up running for the new graph.
-  expect(scheduler.isRunning()).toBe(true);
+  expect(live).not.toBe(first);
+  expect(rendersOnNextFrame(first)).toBe(false);
+  expect(rendersOnNextFrame(live)).toBe(true);
   unmount();
   await flushDeferredDisposal();
 });
 
-test("a replacement mounted in the same pass as the first graph keeps the scheduler running", async () => {
+test("a replacement mounted in the same pass as the first graph keeps rendering", async () => {
+  let live: Graph | undefined;
   // A layout-effect state update re-renders synchronously, in the same pass as the first mount.
   function RemountingApp(): React.ReactElement {
     const [key, setKey] = React.useState("a");
@@ -234,18 +251,18 @@ test("a replacement mounted in the same pass as the first graph keeps the schedu
         setKey("b");
       }
     }, [key]);
-    return <StartingApp key={key} />;
+    return <StartingApp key={key} onGraph={(g) => (live = g)} />;
   }
-  const scheduler = globalSchedulerProbe();
 
   const { unmount } = render(<RemountingApp />);
   await flushDeferredDisposal();
 
-  expect(scheduler.isRunning()).toBe(true);
+  expect(rendersOnNextFrame(live)).toBe(true);
   unmount();
 });
 
-test("a replacement started in the layout phase keeps the scheduler running", async () => {
+test("a replacement started in the layout phase keeps rendering", async () => {
+  let live: Graph | undefined;
   // Attaches and starts in useLayoutEffect, before the old graph's passive cleanup disposes it.
   function LayoutStartingApp(): React.ReactElement {
     const { graph } = useGraph({});
@@ -256,16 +273,16 @@ test("a replacement started in the layout phase keeps the scheduler running", as
         graph.start();
       }
     }, [graph]);
+    useCommittedGraph(graph, (g) => (live = g));
     return <div ref={rootRef} />;
   }
   const { rerender, unmount } = render(<LayoutStartingApp key="a" />);
   await flushDeferredDisposal();
-  const scheduler = globalSchedulerProbe();
 
   rerender(<LayoutStartingApp key="b" />);
   await flushDeferredDisposal();
 
-  expect(scheduler.isRunning()).toBe(true);
+  expect(rendersOnNextFrame(live)).toBe(true);
   unmount();
 });
 
@@ -274,14 +291,16 @@ test.each([
   ["with StrictMode", true],
 ])(
   // The StrictMode case also passes on the original hook; it guards against regressions.
-  "the README pattern keeps the scheduler running after a same-pass replacement (%s)",
+  "the README pattern keeps rendering after a same-pass replacement (%s)",
   async (_, strict) => {
+    let live: Graph | undefined;
     function ReadmeApp(): React.ReactElement {
       const { graph, setEntities, start } = useGraph({});
       React.useLayoutEffect(() => {
         setEntities({ blocks: [] });
         start();
       }, [graph, setEntities, start]);
+      useCommittedGraph(graph, (g) => (live = g));
       return <GraphCanvas graph={graph} renderBlock={() => <div />} />;
     }
     function RemountingApp(): React.ReactElement {
@@ -293,8 +312,6 @@ test.each([
       }, [key]);
       return <ReadmeApp key={key} />;
     }
-    const scheduler = globalSchedulerProbe();
-
     const { unmount } = render(
       strict ? (
         <StrictMode>
@@ -306,7 +323,7 @@ test.each([
     );
     await flushDeferredDisposal();
 
-    expect(scheduler.isRunning()).toBe(true);
+    expect(rendersOnNextFrame(live)).toBe(true);
     unmount();
   }
 );
@@ -348,12 +365,10 @@ describe("a running external graph is not frozen by a deferred owned-graph dispo
         </>
       );
     }
-    const scheduler = globalSchedulerProbe();
-
     const { unmount } = render(<App />);
     await flushDeferredDisposal();
 
-    expect(scheduler.isRunning()).toBe(true);
+    expect(rendersOnNextFrame(external)).toBe(true);
     unmount();
     external.unmount();
   });
@@ -374,12 +389,10 @@ describe("a running external graph is not frozen by a deferred owned-graph dispo
         </>
       );
     }
-    const scheduler = globalSchedulerProbe();
-
     const { unmount } = render(<App />);
     await flushDeferredDisposal();
 
-    expect(scheduler.isRunning()).toBe(true);
+    expect(rendersOnNextFrame(external)).toBe(true);
     unmount();
     external.unmount();
   });
@@ -390,12 +403,10 @@ describe("a running external graph is not frozen by a deferred owned-graph dispo
       const key = useSamePassKey();
       return key === "a" ? <Owned /> : <ExternalStarted graph={external} />;
     }
-    const scheduler = globalSchedulerProbe();
-
     const { unmount } = render(<App />);
     await flushDeferredDisposal();
 
-    expect(scheduler.isRunning()).toBe(true);
+    expect(rendersOnNextFrame(external)).toBe(true);
     unmount();
     external.unmount();
   });

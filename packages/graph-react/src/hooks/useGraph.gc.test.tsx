@@ -10,13 +10,6 @@ import { GraphCanvas } from "../GraphCanvas";
 
 import { useGraph } from "./useGraph";
 
-// setupJest's jest.fn ResizeObserver keeps every callback (and so every Layers) in mock.calls.
-globalThis.ResizeObserver = class {
-  public observe(): void {}
-  public unobserve(): void {}
-  public disconnect(): void {}
-} as unknown as typeof ResizeObserver;
-
 setFlagsFromString("--expose-gc");
 // The flag exposes `gc` only to contexts created afterwards; the vm result is that native function.
 const collectGarbage = runInNewContext("gc") as () => void;
