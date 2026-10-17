@@ -21,19 +21,16 @@ export enum ESchedulerPriority {
 
 type TGlobalSchedulerConstructor = new () => GlobalScheduler;
 
+/**
+ * Frame loop shared by all graphs. It runs while at least one task is registered; registering a
+ * task requests a frame and removing the last task cancels the loop.
+ */
 export interface GlobalScheduler {
   getSchedulers(): [IScheduler[], IScheduler[], IScheduler[], IScheduler[], IScheduler[]];
+  /** Registers a task and starts the frame loop if needed; returns a function that removes it. */
   addScheduler(scheduler: IScheduler, index?: ESchedulerPriority): () => void;
+  /** Removes a task immediately; the loop stops when no task remains. */
   removeScheduler(scheduler: IScheduler, index?: ESchedulerPriority): void;
-  /** Keeps the frame loop running until the same owner releases it; started graphs retain it. */
-  retain(owner: object): void;
-  /** Releases an owner; the frame loop stops once no owner retains it. */
-  release(owner: object): void;
-  /** Whether the frame loop is currently scheduled. */
-  isRunning(): boolean;
-  start(): void;
-  /** Stops the frame loop regardless of owners; the next retain() starts it again. */
-  stop(): void;
   destroy(): void;
   tick(): void;
   performUpdate(): void;
@@ -44,17 +41,16 @@ export const GlobalScheduler: TGlobalSchedulerConstructor = RuntimeGlobalSchedul
 export const globalScheduler: GlobalScheduler = runtimeGlobalScheduler;
 export const scheduler: GlobalScheduler = runtimeScheduler;
 
+/** Update state of one component tree; its owner calls performUpdate on each frame. */
 export interface Scheduler {
-  setRoot(root: Tree): void;
-  start(): void;
-  stop(): void;
+  setRoot(root: Tree | undefined): void;
   update(): void;
   iterator(node: Tree): boolean;
   scheduleUpdate(): void;
   performUpdate(): void;
 }
 
-type TSchedulerConstructor = new (autoStart?: boolean) => Scheduler;
+type TSchedulerConstructor = new () => Scheduler;
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const Scheduler: TSchedulerConstructor = RuntimeScheduler;

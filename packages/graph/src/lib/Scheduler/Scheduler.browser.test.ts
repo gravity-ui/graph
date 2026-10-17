@@ -10,20 +10,20 @@ it("treats browser frame zero as pending and remains stopped after visibility ch
   const cancel = jest.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
   const scheduler = new GlobalScheduler();
   const update = jest.fn();
-  scheduler.addScheduler({ performUpdate: update });
+  const task = { performUpdate: update };
   try {
-    scheduler.start();
-    scheduler.start();
+    const remove = scheduler.addScheduler(task);
+    scheduler.addScheduler({ performUpdate: () => undefined }, 4)();
     expect(request).toHaveBeenCalledTimes(1);
     document.dispatchEvent(new Event("visibilitychange"));
     expect(update).toHaveBeenCalledTimes(1);
-    scheduler.stop();
-    scheduler.stop();
+    remove();
+    remove();
     expect(cancel).toHaveBeenCalledWith(0);
     expect(cancel).toHaveBeenCalledTimes(1);
     document.dispatchEvent(new Event("visibilitychange"));
     expect(update).toHaveBeenCalledTimes(1);
-    scheduler.start();
+    scheduler.addScheduler(task);
     onFrame?.(16);
     expect(update).toHaveBeenCalledTimes(2);
     expect(request).toHaveBeenCalledTimes(3);

@@ -120,8 +120,6 @@ test("zero-argument and optional-props constructors keep their defaults through 
 });
 
 function countRegistrations(): number {
-  // Flush deferred removals before counting the scheduler registry.
-  globalScheduler.performUpdate();
   return globalScheduler.getSchedulers().reduce((total, list) => total + list.length, 0);
 }
 
@@ -139,44 +137,52 @@ class RenderingRoot extends Parent {
   }
 }
 
-describe("root scheduler lifecycle", () => {
-  it("releases the root scheduler on unmount and does not rebuild the subtree", () => {
+describe("root update lifecycle", () => {
+  it("registers nothing in the global scheduler; the owner drives the root", () => {
     const baseline = countRegistrations();
     const root = Component.mount(RenderingRoot);
+    expect(countRegistrations()).toBe(baseline);
+
     root.descriptors = [Child.create({ label: "child" }, { key: "child" })];
     root.refresh();
     globalScheduler.performUpdate();
+    expect(root.childCount()).toBe(0);
+
+    Component.update(root);
     expect(root.childCount()).toBe(1);
-    expect(countRegistrations()).toBe(baseline + 1);
+    CoreComponent.unmount(root);
+  });
+
+  it("does not rebuild the subtree of an unmounted root", () => {
+    const root = Component.mount(RenderingRoot);
+    root.descriptors = [Child.create({ label: "child" }, { key: "child" })];
+    root.refresh();
+    Component.update(root);
+    expect(root.childCount()).toBe(1);
 
     CoreComponent.unmount(root);
     root.rendered.mockClear();
-    root.refresh();
-    globalScheduler.performUpdate();
+    Component.update(root);
 
     expect(root.childCount()).toBe(0);
     expect(root.rendered).not.toHaveBeenCalled();
-    expect(countRegistrations()).toBe(baseline);
   });
 
-  it("keeps the shared scheduler running when a child unmounts", () => {
-    const baseline = countRegistrations();
+  it("keeps updating the root when a child unmounts", () => {
     const root = Component.mount(RenderingRoot);
     root.descriptors = [Child.create({ label: "child" }, { key: "child" })];
     root.refresh();
-    globalScheduler.performUpdate();
+    Component.update(root);
 
     root.descriptors = [];
     root.refresh();
-    globalScheduler.performUpdate();
+    Component.update(root);
     expect(root.childCount()).toBe(0);
 
     root.rendered.mockClear();
     root.refresh();
-    globalScheduler.performUpdate();
+    Component.update(root);
     expect(root.rendered).toHaveBeenCalledTimes(1);
-    expect(countRegistrations()).toBe(baseline + 1);
     CoreComponent.unmount(root);
-    expect(countRegistrations()).toBe(baseline);
   });
 });

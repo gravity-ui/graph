@@ -300,9 +300,6 @@ export class Layer<
     return cleanup;
   }
 
-  /** A root layer renders only while attached, so it registers its scheduler on attach. */
-  public static readonly autoStartScheduler: boolean = false;
-
   constructor(props: Props, parent?: CoreComponent) {
     super(props, parent);
 
@@ -486,9 +483,6 @@ export class Layer<
     // This ensures that if the layer is reattached, new event listeners can be registered
     this.eventAbortController = new AbortController();
     this.attached = false;
-    if (!this.__comp.parent) {
-      this.__comp.context.scheduler.stop();
-    }
     this.root = undefined;
     this.setContext({ root: undefined });
     this.attachedSignal.value = false;
@@ -532,10 +526,6 @@ export class Layer<
       root.appendChild(this.html);
     }
     this.attached = true;
-    // Structural root check: layers may override getParent() to forward events to the camera.
-    if (!this.__comp.parent) {
-      this.__comp.context.scheduler.start();
-    }
     this.setContext({ root, ownerDocument: root.ownerDocument });
     try {
       this.afterInit();

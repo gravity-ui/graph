@@ -31,12 +31,19 @@ type TSchedulerTree = {
 
 const MEDIUM_PRIORITY: TSchedulerPriority = 2;
 
+/** Position of an in-progress iteration, adjusted when a task is removed before or at it. */
+type TIterationCursor = { level: number; index: number };
+
+/**
+ * Runs registered tasks once per animation frame, in priority order. The frame loop runs exactly
+ * while at least one task is registered: the first registration requests a frame, and removing the
+ * last one cancels it. Owners (graphs, debounced helpers) register work and remove it when done.
+ */
 export class GlobalScheduler {
   private schedulers: [IScheduler[], IScheduler[], IScheduler[], IScheduler[], IScheduler[]];
   private _cAFID: TFrameHandle | undefined;
-  private toRemove: Array<[IScheduler, TSchedulerPriority]> = [];
-  /** Nesting depth of performUpdate; removals are applied only outside of every iteration. */
-  private updateDepth = 0;
+  /** Cursors of the iterations in progress (more than one only for nested performUpdate calls). */
+  private cursors: TIterationCursor[] = [];
   private visibilityChangeHandler: (() => void) | null = null;
 
   constructor() {
@@ -87,53 +94,40 @@ export class GlobalScheduler {
     return this.schedulers;
   }
 
-  public addScheduler(scheduler: IScheduler, index: TSchedulerPriority = MEDIUM_PRIORITY) {
+  public addScheduler(scheduler: IScheduler, index: TSchedulerPriority = MEDIUM_PRIORITY): () => void {
     this.schedulers[index].push(scheduler);
+    this.start();
     return () => this.removeScheduler(scheduler, index);
   }
 
-  public removeScheduler(scheduler: IScheduler, index: TSchedulerPriority = MEDIUM_PRIORITY) {
-    this.toRemove.push([scheduler, index]);
-  }
-
-  /** Consumers that need the frame loop, e.g. started graphs. */
-  private owners = new Set<object>();
-
-  /** Keeps the frame loop running until the same owner releases it. */
-  public retain(owner: object): void {
-    this.owners.add(owner);
-    this.start();
-  }
-
   /**
-   * Releases an owner; the frame loop stops when no owner needs it. With no owner left no frame
-   * will process deferred removals, so they are applied now and stop referencing their owners.
+   * Removes a task immediately. A task removed during a frame is not called later in that frame,
+   * and the remaining tasks are not skipped.
    */
-  public release(owner: object): void {
-    const retained = this.owners.delete(owner);
-    if (this.owners.size > 0) {
+  public removeScheduler(scheduler: IScheduler, index: TSchedulerPriority = MEDIUM_PRIORITY): void {
+    const tasks = this.schedulers[index];
+    const taskIndex = tasks.indexOf(scheduler);
+    if (taskIndex === -1) {
       return;
     }
-    // An owner that never retained the loop must not stop a loop started directly with start().
-    if (retained) {
+    tasks.splice(taskIndex, 1);
+    for (const cursor of this.cursors) {
+      if (cursor.level === index && taskIndex <= cursor.index) {
+        cursor.index -= 1;
+      }
+    }
+    if (this.schedulers.every((level) => level.length === 0)) {
       this.stop();
     }
-    if (this.updateDepth === 0) {
-      this.applyRemovals();
-    }
   }
 
-  public isRunning(): boolean {
-    return this._cAFID !== undefined;
-  }
-
-  public start() {
+  private start(): void {
     if (this._cAFID === undefined) {
       this._cAFID = rAF(this.tick);
     }
   }
 
-  public stop() {
+  private stop(): void {
     if (this._cAFID !== undefined) {
       cAF(this._cAFID);
     }
@@ -156,76 +150,37 @@ export class GlobalScheduler {
     this.performUpdate();
   }
 
-  public performUpdate() {
+  public performUpdate(): void {
     const startTime = getNow();
-    let schedulers: IScheduler[] = [];
-
-    this.updateDepth += 1;
+    const cursor: TIterationCursor = { level: 0, index: 0 };
+    this.cursors.push(cursor);
     try {
-      for (let i = 0; i < this.schedulers.length; i += 1) {
-        schedulers = this.schedulers[i];
-
-        for (let j = 0; j < schedulers.length; j += 1) {
-          schedulers[j].performUpdate(getNow() - startTime);
+      for (cursor.level = 0; cursor.level < this.schedulers.length; cursor.level += 1) {
+        const tasks = this.schedulers[cursor.level];
+        for (cursor.index = 0; cursor.index < tasks.length; cursor.index += 1) {
+          tasks[cursor.index].performUpdate(getNow() - startTime);
         }
       }
     } finally {
-      this.updateDepth -= 1;
-      // Process deferred removals after all schedulers have been executed, even if one threw.
-      if (this.updateDepth === 0) {
-        this.applyRemovals();
-      }
+      this.cursors.splice(this.cursors.indexOf(cursor), 1);
     }
-  }
-
-  private applyRemovals(): void {
-    for (const [scheduler, index] of this.toRemove) {
-      const schedulerIndex = this.schedulers[index].indexOf(scheduler);
-      if (schedulerIndex !== -1) {
-        this.schedulers[index].splice(schedulerIndex, 1);
-      }
-    }
-    this.toRemove.length = 0;
   }
 }
 
 export const globalScheduler = new GlobalScheduler();
 
 export const scheduler = globalScheduler;
+/**
+ * Update state of one component tree: a dirty flag and a traversal. It does not register anywhere;
+ * whoever owns the root (the graph, for its layers) calls performUpdate on each frame.
+ */
 export class Scheduler {
-  private sheduled: boolean;
+  private sheduled = false;
   private root: TSchedulerTree | undefined;
-  private registration: IScheduler | undefined;
 
-  constructor(autoStart = true) {
-    this.performUpdate = this.performUpdate.bind(this);
-
-    this.sheduled = false;
-
-    if (autoStart) {
-      this.start();
-    }
-  }
-
-  public setRoot(root: TSchedulerTree) {
+  /** Sets the tree to traverse; `undefined` detaches it, so later updates do nothing. */
+  public setRoot(root: TSchedulerTree | undefined): void {
     this.root = root;
-  }
-
-  public start() {
-    if (this.registration) return;
-    const registration = {
-      performUpdate: () => {
-        if (this.registration === registration) this.performUpdate();
-      },
-    };
-    this.registration = registration;
-    globalScheduler.addScheduler(registration);
-  }
-
-  public stop() {
-    if (!this.registration) return;
-    globalScheduler.removeScheduler(this.registration);
-    this.registration = undefined;
   }
 
   public update() {
