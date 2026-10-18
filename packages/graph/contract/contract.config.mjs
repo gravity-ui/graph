@@ -16,7 +16,7 @@ export default {
   },
   packedFiles: {
     allowedPatterns: [/^build\/docs\/.+\.md$/],
-    forbiddenPatterns: [/(?:^|\/)(?:react-components|playwright|plugins\/(?:minimap|devtools))(?:\/|$)/, /\.d\.cts$/],
+    forbiddenPatterns: [/(?:^|\/)(?:react-components|playwright|plugins\/(?:minimap|devtools|layered))(?:\/|$)/, /\.d\.cts$/],
     requiredFiles: ["build/docs/INDEX.md"],
   },
   // The browser scenario drives the graph through the published page objects.
@@ -33,6 +33,9 @@ export default {
         }
         if ("NewBlockLayer" in graph || "DuplicateBlockLayer" in graph) {
           throw new Error("Core still exports the extracted block duplication layer.");
+        }
+        if (["layoutGraph", "layeredConverter", "computeLevels"].some((name) => name in graph)) {
+          throw new Error("Core still exports the extracted layered layout.");
         }
         if (typeof graph.Graph !== "function") throw new Error("Root entrypoint does not export Graph.");
         if (graph.GRAPH_INSTANCE_SYMBOL_KEY !== "@gravity-ui/graph/instance") {
@@ -122,6 +125,7 @@ export default {
     assert.doesNotMatch(styles, /\.(?:graph-wrapper|graph-block-container|graph-block-anchor)\b/);
     await assertMissing("build/plugins/minimap", "Core still ships minimap declarations.");
     await assertMissing("build/plugins/devtools", "Core still ships DevTools declarations.");
+    await assertMissing("build/plugins/layered", "Core still ships layered layout declarations.");
     const entry = await readText("build/index.js");
     assert.doesNotMatch(entry, /graph-minimap/);
     assert.doesNotMatch(entry, /devtools-layer/);

@@ -2,7 +2,7 @@ export { layoutGraph, DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from "./layout";
 export type { LayoutGraphParams } from "./layout";
 export type { LayeredLayoutOptions } from "./types";
 export type { Node, Edge } from "./layout";
-export type { ConverterResult, LayeredLayoutInput } from "./types";
+export type { ConverterResult, LayeredLayoutConnection, LayeredLayoutInput } from "./types";
 
 export { layeredConverter } from "./converters/layeredConverter";
 export type { LayeredConverterParams, LayeredLayoutResult } from "./converters/layeredConverter";

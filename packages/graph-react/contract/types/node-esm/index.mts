@@ -2,7 +2,6 @@ import { ESchedulerPriority, Graph, Layer, LayerProps, debounce, schedule, throt
 import {
   GraphCanvas,
   useElk,
-  useLayeredLayout,
   GraphLayer,
   GraphLayerProps,
   GraphPortal,
