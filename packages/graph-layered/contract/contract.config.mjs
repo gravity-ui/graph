@@ -15,12 +15,8 @@ export default {
       default: "./build/react/index.js",
     },
   },
-  styles: false,
-  packedFiles: {
-    runtimeFiles: ["build/react/index.js"],
-    requiredFiles: ["build/react/index.js", "build/react/index.d.ts"],
-    forbiddenPatterns: [/(?:^|\/)(?:playwright|docs)(?:\/|$)/],
-  },
+  // Packed and required files are derived from `exports`; there is no stylesheet export.
+  packedFiles: { forbiddenPatterns: [/(?:^|\/)(?:playwright|docs)(?:\/|$)/] },
   attw: [
     { entrypoint: ".", profile: "esm-only" },
     { entrypoint: "./react", profile: "esm-only" },
