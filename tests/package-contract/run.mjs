@@ -251,6 +251,7 @@ try {
       "fixtures/apps/minimap/tsconfig.json",
       "fixtures/apps/minimap/tsconfig.non-strict.json",
       "fixtures/types/minimap-node-esm/tsconfig.json",
+      "fixtures/types/minimap-node-esm/tsconfig.non-strict.json",
     ],
     entryPoint: "fixtures/apps/minimap/app.ts",
     nativeImports: ["root", "minimap", "playwright"],
