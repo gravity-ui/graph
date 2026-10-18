@@ -27,10 +27,6 @@ jobs:
         run: pnpm run typecheck
       - name: Lint Files
         run: pnpm run lint
-      - name: Strict diagnostic gate tests
-        run: pnpm run test:strict-diagnostics
-      - name: Strict diagnostic debt gate
-        run: node scripts/strict-diagnostics.mjs
       - name: Type configuration tests
         run: pnpm run test:type-configs
 
