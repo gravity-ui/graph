@@ -47,18 +47,23 @@ package entrypoints. `typecheckConfigs` and `entryPoint` are relative to the pac
 
 `contract.config.mjs` exports an object with:
 
-| Field                             | Meaning                                                                                            |
-| --------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `exports`, `typesVersions`        | Expected installed manifest fields; `build/styles.css` is packed only with a `./styles.css` export |
-| `packedFiles`                     | Extra `runtimeFiles`, `allowedPatterns`, `forbiddenPatterns`, `requiredFiles` for the tarball      |
-| `attw`                            | `[{ entrypoint, profile }]`, default `[{ entrypoint: ".", profile: "esm-only" }]`                  |
-| `workspaceDependencies`           | Other package directories to pack and install (core is always installed)                           |
-| `dependencies`, `devDependencies` | External packages for the consumer; versions come from the workspace                               |
-| `mustNotResolve`                  | Specifiers the isolated consumer must not resolve                                                  |
-| `probes`                          | `[{ label, type?: "module" \| "commonjs", source }]` evaluated with Node in the consumer           |
-| `typecheckConfigs`                | Consumer-relative tsconfig paths compiled with `tsc --noEmit`                                      |
-| `entryPoint`                      | Browser bundle entry, e.g. `contract/app/app.ts`                                                   |
-| `checkArtifact(context)`          | Package-specific assertions on the installed package                                               |
+| Field                             | Meaning                                                                                       |
+| --------------------------------- | --------------------------------------------------------------------------------------------- |
+| `exports`, `typesVersions`        | Expected installed manifest fields; every file named in `exports` must be packed              |
+| `packedFiles`                     | Extra `runtimeFiles`, `allowedPatterns`, `forbiddenPatterns`, `requiredFiles` for the tarball |
+| `attw`                            | `[{ entrypoint, profile }]`, default `[{ entrypoint: ".", profile: "esm-only" }]`             |
+| `workspaceDependencies`           | Other package directories to pack and install (core is always installed)                      |
+| `dependencies`, `devDependencies` | External packages for the consumer; versions come from the workspace                          |
+| `mustNotResolve`                  | Specifiers the isolated consumer must not resolve                                             |
+| `probes`                          | `[{ label, type?: "module" \| "commonjs", source }]` evaluated with Node in the consumer      |
+| `typecheckConfigs`                | Consumer-relative tsconfig paths compiled with `tsc --noEmit`                                 |
+| `entryPoint`                      | Browser bundle entry, e.g. `contract/app/app.ts`                                              |
+| `checkArtifact(context)`          | Package-specific assertions; `context.styles` is undefined without a `./styles.css` export    |
+
+Packed files are derived from the contract: `build/index.js`, `build/index.d.ts` and every file named in `exports` are
+required, plus root `LICENSE`, `README.md` and `package.json`. A package that ships no stylesheet simply omits
+`./styles.css` from `exports`; it then must not pack `build/styles.css`. `packedFiles` only adds what `exports` cannot
+describe (chunks, docs, extra required files).
 
 A new public package adds its own `contract/` directory and a `test:package-contract` script
 (`node ../../scripts/package-contract/run.mjs <directory>`); the runner discovers it automatically. Core's script runs
