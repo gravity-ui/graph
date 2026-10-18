@@ -11,6 +11,8 @@ export default {
     },
   },
   packedFiles: { forbiddenPatterns: [/(?:^|\/)(?:playwright|docs)(?:\/|$)/] },
+  // The browser scenario drives the graph through the published page objects.
+  workspaceDependencies: ["graph-playwright"],
   mustNotResolve: ["react", "react-dom", "@gravity-ui/graph-react", "elkjs"],
   probes: [
     {

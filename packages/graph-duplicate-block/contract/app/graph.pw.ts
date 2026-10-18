@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { GraphPO } from "@gravity-ui/graph/playwright";
+import { GraphPO } from "@gravity-ui/graph-playwright";
 
 test("Alt-drag of an installed DuplicateBlockLayer adds a copy of the block", async ({ page }) => {
   await page.goto("/");

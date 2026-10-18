@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { GraphPO } from "@gravity-ui/graph/playwright";
+import { GraphPO } from "@gravity-ui/graph-playwright";
 
 test("installed minimap shares the core layer and moves the consumer camera", async ({ page }) => {
   const errors: string[] = [];

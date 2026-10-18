@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { GraphPO } from "@gravity-ui/graph/playwright";
+import { GraphPO } from "@gravity-ui/graph-playwright";
 
 test("installed React entrypoint renders with public styles", async ({ page }) => {
   await page.goto("/");

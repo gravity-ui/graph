@@ -2,7 +2,7 @@
 
 This directory contains the library's end-to-end tests. The suite uses the same
 `GraphPO`, `GraphBlockPO`, `GraphConnectionPO`, and `GraphCameraPO` classes that
-are published for consumers from `@gravity-ui/graph/playwright`.
+are published for consumers from `@gravity-ui/graph-playwright`.
 
 ## Structure
 
@@ -23,7 +23,7 @@ apps/e2e/
 `GraphPageObject` is deliberately small: it navigates to a fixture page,
 creates a graph, and adapts `waitForFrames` to the library scheduler. General
 graph actions and queries belong to the public page objects exported from
-`@gravity-ui/graph/playwright`.
+`@gravity-ui/graph-playwright`.
 Tests that inspect implementation details use a focused internal extension such
 as `GraphEventProbe` instead of expanding the general graph PO.
 

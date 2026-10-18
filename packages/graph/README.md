@@ -277,7 +277,7 @@ graph.zoomTo("center", { padding: 100 });
    - [Canvas Connection System](docs/connections/canvas-connection-system.md)
 
 5. Testing
-   - [Playwright page objects](docs/testing/playwright.md)
+   - [Playwright page objects](https://github.com/gravity-ui/graph/blob/v2/packages/graph-playwright/README.md)
 
 ## License
 
