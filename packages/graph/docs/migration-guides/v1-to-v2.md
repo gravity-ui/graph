@@ -110,7 +110,7 @@ the package is imported. The payload types are exported as `TBlocksDuplicateStar
 | `block-add-start-from-shadow` | `blocks-duplicate-start` |
 | `block-added-from-shadow` | `blocks-duplicate` |
 
-The default action of `blocks-duplicate` changed in two ways:
+The default action of `blocks-duplicate` changed in three ways:
 
 - A copy keeps the `is` of its source block. In v1 every copy got `is: "block"` and lost its custom block component.
 - A copied connection keeps all its fields except selection and gets a new unique `id`; its route `points` and
