@@ -25,17 +25,22 @@ export default {
         const core = await import("@gravity-ui/graph");
         if (react.MultipointConnection !== core.MultipointConnection) throw new Error("React has a second core connection class.");
         if (typeof react.GraphCanvas !== "function") throw new Error("React entrypoint does not export GraphCanvas.");
+        if ("useLayeredLayout" in react) throw new Error("React still exports the extracted layered hook.");
       `,
     },
   ],
   typecheckConfigs: ["app/tsconfig.json", "app/tsconfig.non-strict.json", "types/node-esm/tsconfig.json"],
   entryPoint: "app/app.tsx",
 
-  checkArtifact({ manifest, styles }) {
+  async checkArtifact({ manifest, styles, assertMissing }) {
     assert.equal(manifest.peerDependencies?.react, "^18.0.0");
     assert.equal(manifest.peerDependencies?.["react-dom"], "^18.0.0");
     assert.equal(manifest.peerDependenciesMeta?.react?.optional, undefined);
     assert.equal(manifest.peerDependenciesMeta?.["react-dom"]?.optional, undefined);
+    for (const field of ["dependencies", "peerDependencies", "optionalDependencies"]) {
+      assert.equal(manifest[field]?.["@gravity-ui/graph-layered"], undefined, "React must not depend on layered.");
+    }
+    await assertMissing("build/layered", "React still ships the layered hook.");
     assert.match(styles, /\.graph-wrapper\b/);
     assert.match(styles, /\.graph-block-container\b/);
     assert.match(styles, /\.graph-block-anchor\b/);
