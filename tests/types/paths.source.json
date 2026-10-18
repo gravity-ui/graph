@@ -11,8 +11,7 @@
       "@gravity-ui/graph": ["../../packages/graph/src/index.ts"],
       "@gravity-ui/graph-react": ["../../packages/graph-react/src/index.ts"],
       "@gravity-ui/graph-minimap": ["../../packages/graph-minimap/src/index.ts"],
-      "@gravity-ui/graph-devtools": ["../../packages/graph-devtools/src/index.ts"],
-      "@gravity-ui/graph-css-variables": ["../../packages/graph-css-variables/src/index.ts"]
+      "@gravity-ui/graph-devtools": ["../../packages/graph-devtools/src/index.ts"]
     }
   }
 }

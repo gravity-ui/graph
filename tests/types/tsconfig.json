@@ -4,8 +4,6 @@
   // Add every new fixture project here.
   "files": [],
   "references": [
-    { "path": "./css-variables/tsconfig.non-strict.source.json" },
-    { "path": "./css-variables/tsconfig.strict.source.json" },
     { "path": "./devtools/tsconfig.non-strict.source.json" },
     { "path": "./devtools/tsconfig.strict.source.json" },
     { "path": "./factories/tsconfig.non-strict.source.json" },
