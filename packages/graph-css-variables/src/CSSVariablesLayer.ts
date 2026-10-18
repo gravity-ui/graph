@@ -27,6 +27,9 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
 
   private containerElement: HTMLDivElement | null = null;
   private styleObserver: CSSVariablesObserver | null = null;
+  // Kept outside state: setState() is applied on the next render, so a stop followed by a start in
+  // the same call would still see the old value.
+  private observing = false;
 
   constructor(props: CSSVariablesLayerProps) {
     const finalProps = { ...DEFAULT_CSS_VARIABLES_LAYER_PROPS, ...props };
@@ -36,8 +39,10 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
   protected propsChanged(nextProps: CSSVariablesLayerProps): void {
     super.propsChanged(nextProps);
 
-    // If containerClass changed, we need to recreate the container and restart observing
-    if (this.props.containerClass !== nextProps.containerClass) {
+    // If containerClass changed, we need to recreate the container and restart observing.
+    // this.props still holds the previous props here: they are assigned after propsChanged().
+    // Before afterInit() there is no container yet; afterInit() then uses the updated class.
+    if (this.containerElement && this.props.containerClass !== nextProps.containerClass) {
       if (this.props.debug) {
         console.log(
           "CSSVariablesLayer: Container class changed from",
@@ -49,7 +54,8 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
 
       this.stopObserving();
       this.removeContainerElement();
-      this.createContainerElement();
+      this.createContainerElement(nextProps.containerClass);
+      this.readInitialCSSVariables();
       this.startObserving();
     }
   }
@@ -70,7 +76,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
   /**
    * Creates the container HTML element with specified CSS class
    */
-  private createContainerElement(): void {
+  private createContainerElement(containerClass: string = this.props.containerClass): void {
     if (!this.getHTML()) {
       if (this.props.debug) {
         console.warn("CSSVariablesLayer: HTML element not available");
@@ -79,7 +85,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
     }
 
     this.containerElement = document.createElement("div");
-    this.containerElement.className = this.props.containerClass;
+    this.containerElement.className = containerClass;
 
     // Make the container invisible and non-interactive
     this.containerElement.style.cssText = `
@@ -96,7 +102,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
     this.getHTML()?.appendChild(this.containerElement);
 
     if (this.props.debug) {
-      console.log("CSSVariablesLayer: Container element created with class", this.props.containerClass);
+      console.log("CSSVariablesLayer: Container element created with class", containerClass);
       console.log("CSSVariablesLayer: Container element:", this.containerElement);
       console.log("CSSVariablesLayer: Container in DOM:", document.contains(this.containerElement));
     }
@@ -190,7 +196,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
       return;
     }
 
-    if (this.state.isObserving) {
+    if (this.observing) {
       return;
     }
 
@@ -199,6 +205,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
       const variablesToObserve = Array.from(SUPPORTED_CSS_VARIABLES);
 
       this.styleObserver = this.createStyleObserver();
+      this.observing = true;
 
       this.setState({ isObserving: true });
 
@@ -221,6 +228,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
     }
 
     this.styleObserver = null;
+    this.observing = false;
 
     this.setState({ isObserving: false });
 
@@ -271,12 +279,12 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
 
       this.setState({ colors, constants });
 
-      this.props.graph.setColors(colors);
+      this.context.graph.setColors(colors);
       if (this.props.debug) {
         console.log("CSSVariablesLayer: Applied color changes:", colorChanges);
       }
 
-      this.props.graph.setConstants(constants);
+      this.context.graph.setConstants(constants);
       if (this.props.debug) {
         console.log("CSSVariablesLayer: Applied constant changes:", constantChanges);
       }

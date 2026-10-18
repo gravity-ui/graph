@@ -29,24 +29,29 @@ const THEME_STYLES = `
   }
 `;
 
-async function addCSSVariablesLayer(page: Page, containerClass: string): Promise<void> {
-  await page.evaluate((className) => {
+// Globals hold only what the graph cannot return: the layer instance and the onChange log.
+async function addCSSVariablesLayer(graphPO: GraphPageObject, containerClass: string): Promise<void> {
+  await graphPO.evaluate((graph, className) => {
     const { CSSVariablesLayer } = window.GraphModule;
     const changes: string[] = [];
     window.cssVariableChanges = changes;
-    window.cssVariablesLayer = window.graph.addLayer(CSSVariablesLayer, {
+    window.cssVariablesLayer = graph.addLayer(CSSVariablesLayer, {
       containerClass: className,
       onChange: (batch) => changes.push(...batch.map((change) => `${change.name}=${change.value}`)),
     });
   }, containerClass);
 }
 
-function readBlockBackground(page: Page): Promise<string> {
-  return page.evaluate(() => window.graph.graphColors.block.background);
+function readBlockBackground(graphPO: GraphPageObject): Promise<string> {
+  return graphPO.evaluate((graph) => graph.graphColors.block.background);
 }
 
-function readCanvasBackground(page: Page): Promise<string> {
-  return page.evaluate(() => window.graph.graphColors.canvas.layerBackground);
+function readCanvasBackground(graphPO: GraphPageObject): Promise<string> {
+  return graphPO.evaluate((graph) => graph.graphColors.canvas.layerBackground);
+}
+
+function readBlockWidth(graphPO: GraphPageObject): Promise<number> {
+  return graphPO.evaluate((graph) => graph.graphConstants.block.WIDTH);
 }
 
 async function setRootVariable(page: Page, name: string, value: string): Promise<void> {
@@ -67,10 +72,10 @@ test.describe("CSSVariablesLayer", () => {
   });
 
   test("applies variables that exist before the layer is added", async ({ page }) => {
-    await addCSSVariablesLayer(page, "e2e-graph-theme");
+    await addCSSVariablesLayer(graphPO, "e2e-graph-theme");
 
-    expect(await readBlockBackground(page)).toBe("rgb(10, 20, 30)");
-    expect(await page.evaluate(() => window.graph.graphConstants.system.GRID_SIZE)).toBe(24);
+    expect(await readBlockBackground(graphPO)).toBe("rgb(10, 20, 30)");
+    expect(await graphPO.evaluate((graph) => graph.graphConstants.system.GRID_SIZE)).toBe(24);
     expect(await page.evaluate(() => window.cssVariableChanges)).toEqual(
       expect.arrayContaining(["--graph-block-background=rgb(10, 20, 30)", "--graph-grid-size=24"])
     );
@@ -78,51 +83,53 @@ test.describe("CSSVariablesLayer", () => {
 
   test("follows theme switches, inline overrides and stylesheet changes", async ({ page }) => {
     await page.evaluate(() => document.querySelector("#root")?.classList.add("e2e-theme-light"));
-    await addCSSVariablesLayer(page, "e2e-graph-theme");
-    expect(await readCanvasBackground(page)).toBe("rgb(250, 250, 250)");
-    expect(await page.evaluate(() => window.graph.graphConstants.block.WIDTH)).toBe(220);
+    await addCSSVariablesLayer(graphPO, "e2e-graph-theme");
+    expect(await readCanvasBackground(graphPO)).toBe("rgb(250, 250, 250)");
+    expect(await readBlockWidth(graphPO)).toBe(220);
 
     // The container inherits theme variables from an ancestor of the graph.
     await page.evaluate(() => document.querySelector("#root")?.classList.replace("e2e-theme-light", "e2e-theme-dark"));
-    await expect.poll(() => readCanvasBackground(page)).toBe("rgb(20, 20, 20)");
-    await expect.poll(() => page.evaluate(() => window.graph.graphConstants.block.WIDTH)).toBe(240);
+    await expect.poll(() => readCanvasBackground(graphPO)).toBe("rgb(20, 20, 20)");
+    await expect.poll(() => readBlockWidth(graphPO)).toBe(240);
 
     await setRootVariable(page, "--graph-canvas-background", "rgb(5, 6, 7)");
-    await expect.poll(() => readCanvasBackground(page)).toBe("rgb(5, 6, 7)");
+    await expect.poll(() => readCanvasBackground(graphPO)).toBe("rgb(5, 6, 7)");
 
     await page.addStyleTag({ content: ".e2e-graph-theme { --graph-block-background: rgb(40, 50, 60); }" });
-    await expect.poll(() => readBlockBackground(page)).toBe("rgb(40, 50, 60)");
+    await expect.poll(() => readBlockBackground(graphPO)).toBe("rgb(40, 50, 60)");
     expect(await page.evaluate(() => window.cssVariableChanges)).toContain("--graph-block-background=rgb(40, 50, 60)");
   });
 
   // Known defect, unchanged by the package extraction: style-observer misses the first assignment of a
   // variable that had no value when observation started; later changes are reported.
   test.fixme("applies a variable first defined after the layer is added", async ({ page }) => {
-    await addCSSVariablesLayer(page, "e2e-graph-theme");
+    await addCSSVariablesLayer(graphPO, "e2e-graph-theme");
     await setRootVariable(page, "--graph-canvas-dots", "rgb(3, 3, 3)");
-    await expect.poll(() => page.evaluate(() => window.graph.graphColors.canvas.dots)).toBe("rgb(3, 3, 3)");
+    await expect.poll(() => graphPO.evaluate((graph) => graph.graphColors.canvas.dots)).toBe("rgb(3, 3, 3)");
   });
 
-  // Known defect, unchanged by the package extraction: propsChanged() recreates the container with the
-  // previous containerClass and does not restart the observer.
-  test.fixme("observes the new container class after setProps", async ({ page }) => {
-    await addCSSVariablesLayer(page, "e2e-graph-theme");
-    await expect.poll(() => readBlockBackground(page)).toBe("rgb(10, 20, 30)");
+  test("observes the new container class after setProps", async ({ page }) => {
+    await addCSSVariablesLayer(graphPO, "e2e-graph-theme");
+    await expect.poll(() => readBlockBackground(graphPO)).toBe("rgb(10, 20, 30)");
 
     await page.evaluate(() => window.cssVariablesLayer?.setProps({ containerClass: "e2e-other-theme" }));
-    await expect.poll(() => readBlockBackground(page)).toBe("rgb(1, 2, 3)");
+    await expect.poll(() => readBlockBackground(graphPO)).toBe("rgb(1, 2, 3)");
     await expect(page.locator(".e2e-graph-theme")).toHaveCount(0);
     await expect(page.locator(".e2e-other-theme")).toHaveCount(1);
+
+    // The observer is restarted on the new container, so later changes keep arriving.
+    await page.addStyleTag({ content: ".e2e-other-theme { --graph-block-background: rgb(70, 80, 90); }" });
+    await expect.poll(() => readBlockBackground(graphPO)).toBe("rgb(70, 80, 90)");
   });
 
   test("removing the layer removes its container and stops syncing", async ({ page }) => {
     await page.evaluate(() => document.querySelector("#root")?.classList.add("e2e-theme-light"));
-    await addCSSVariablesLayer(page, "e2e-graph-theme");
+    await addCSSVariablesLayer(graphPO, "e2e-graph-theme");
     await expect(page.locator(".e2e-graph-theme")).toHaveCount(1);
-    expect(await readCanvasBackground(page)).toBe("rgb(250, 250, 250)");
+    expect(await readCanvasBackground(graphPO)).toBe("rgb(250, 250, 250)");
 
-    await page.evaluate(() => {
-      if (window.cssVariablesLayer) window.graph.removeLayer(window.cssVariablesLayer);
+    await graphPO.evaluate((graph) => {
+      if (window.cssVariablesLayer) graph.removeLayer(window.cssVariablesLayer);
     });
     await expect(page.locator(".e2e-graph-theme")).toHaveCount(0);
 
@@ -135,7 +142,7 @@ test.describe("CSSVariablesLayer", () => {
       await page.evaluate(() => window.cssVariableChanges?.some((change) => change.includes("rgb(20, 20, 20)")))
     ).toBe(false);
     // Values applied before removal stay in the graph.
-    expect(await readCanvasBackground(page)).toBe("rgb(250, 250, 250)");
-    expect(await readBlockBackground(page)).toBe("rgb(10, 20, 30)");
+    expect(await readCanvasBackground(graphPO)).toBe("rgb(250, 250, 250)");
+    expect(await readBlockBackground(graphPO)).toBe("rgb(10, 20, 30)");
   });
 });

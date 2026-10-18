@@ -98,8 +98,12 @@ const graph = new Graph({ blocks: [] }, document.getElementById("graph")!);
 graph.addLayer(CSSVariablesLayer, { containerClass: "graph-theme" });
 ```
 
-The package requires core as a peer dependency, does not require React and ships no stylesheet. Props, supported
-variables and behavior are unchanged. Core no longer contains the layer and no longer depends on `style-observer`.
+The package requires core as a peer dependency, does not require React and ships no stylesheet. Props and supported
+variables are unchanged. Core no longer contains the layer and no longer depends on `style-observer`.
+
+Changing `containerClass` after the layer is created, through `setProps` or `useLayer`, now works: the layer
+observes the new class, applies its current variables and keeps following later changes. In v1 the container kept
+the previous class and stopped reporting changes.
 
 ## Styles and TypeScript
 

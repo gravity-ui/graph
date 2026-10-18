@@ -23,7 +23,7 @@ import { Graph } from "@gravity-ui/graph";
 import { CSSVariablesLayer } from "@gravity-ui/graph-css-variables";
 import "@gravity-ui/graph/styles.css";
 
-const root = document.getElementById("graph");
+const root = document.querySelector<HTMLDivElement>("#graph");
 if (!root) throw new Error("Graph container is missing.");
 
 const graph = new Graph({ blocks: [] }, root);
@@ -31,8 +31,34 @@ graph.addLayer(CSSVariablesLayer, { containerClass: "graph-theme" });
 graph.start();
 ```
 
+The layer can also be part of the graph configuration:
+
+```ts
+import { Graph, layerConfig } from "@gravity-ui/graph";
+import { CSSVariablesLayer } from "@gravity-ui/graph-css-variables";
+
+const graph = new Graph({ layers: [layerConfig(CSSVariablesLayer, { containerClass: "graph-theme" })] }, root);
+graph.start();
+```
+
+With React, install `@gravity-ui/graph-react` as well and add the layer with `useLayer`:
+
+```tsx
+import { useLayoutEffect } from "react";
+import { GraphCanvas, useGraph, useLayer } from "@gravity-ui/graph-react";
+import { CSSVariablesLayer } from "@gravity-ui/graph-css-variables";
+import "@gravity-ui/graph/styles.css";
+import "@gravity-ui/graph-react/styles.css";
+
+export function ThemedGraph() {
+  const { graph, start } = useGraph({});
+  useLayer(graph, CSSVariablesLayer, { containerClass: "graph-theme" });
+  useLayoutEffect(() => start(), [start]);
+  return <GraphCanvas graph={graph} />;
+}
+```
+
 The variables can also be inherited from an ancestor of the graph root, for example a theme wrapper.
-With `@gravity-ui/graph-react`, pass the layer to `useLayer(graph, CSSVariablesLayer, { containerClass })`.
 
 `@gravity-ui/graph` is a required peer dependency; React is not required. The package ships no stylesheet.
 Sync is one-way: the layer never writes CSS variables. Use `mapGraphColorsToCSSVariables` and
