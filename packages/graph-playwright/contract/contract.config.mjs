@@ -16,12 +16,9 @@ export default {
       default: "./build/index.js",
     },
   },
-  styles: false,
   packedFiles: {
-    runtimeFiles: ["build/index.cjs"],
     // Node-only single-file bundles: no chunks, no nested declarations.
     forbiddenPatterns: [/^build\/chunks\//, /^build\/.+\/.+\.d\.c?ts$/, /(?:^|\/)docs(?:\/|$)/],
-    requiredFiles: ["build/index.cjs", "build/index.d.cts"],
   },
   attw: [{ entrypoint: ".", profile: "node16" }],
   mustNotResolve: ["react", "react-dom", "@gravity-ui/graph-react", "elkjs"],
