@@ -34,7 +34,7 @@
     "lint": "eslint \"src/**/*.ts\"",
     "test:unit": "jest --passWithNoTests",
     "test": "pnpm run test:unit",
-    "test:package-contract": "node ../../tests/package-contract/run.mjs graph-layered",
+    "test:package-contract": "node ../../scripts/package-contract/run.mjs graph-layered",
     "prepublishOnly": "pnpm run build && pnpm run typecheck && pnpm run test"
   },
   "peerDependencies": {

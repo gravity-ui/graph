@@ -65,7 +65,7 @@
     "build": "node scripts/build.mjs",
     "prepublishOnly": "pnpm run build && pnpm run typecheck && pnpm run test",
     "dev": "chokidar \"src/**/*\" -c \"pnpm run build\" --initial",
-    "test:package-contract": "node ../../tests/package-contract/run.mjs"
+    "test:package-contract": "node ../../scripts/package-contract/run.mjs"
   },
   "peerDependencies": {
     "@playwright/test": ">=1.58.0"
