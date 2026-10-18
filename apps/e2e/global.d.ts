@@ -3,7 +3,10 @@ import type { Graph } from "@gravity-ui/graph";
 type GraphModule = typeof import("@gravity-ui/graph") &
   Pick<typeof import("@gravity-ui/graph-minimap"), "MiniMapLayer"> &
   Pick<typeof import("@gravity-ui/graph-connection-editing"), "ConnectionEditingLayer"> &
-  Pick<typeof import("@gravity-ui/graph-react"), "GraphBlock" | "GraphBlockAnchor" | "GraphCanvas"> & {
+  Pick<
+    typeof import("@gravity-ui/graph-react"),
+    "GraphBlock" | "GraphBlockAnchor" | "GraphCanvas" | "useGraph" | "useLayer"
+  > & {
     React: typeof import("react");
     ReactDOM: typeof import("react-dom/client");
   };

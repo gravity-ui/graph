@@ -311,10 +311,10 @@ html: {
 import { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";
 
 // Access another layer
-const connectionLayer = this.context.graph.layers.find(layer => layer instanceof ConnectionEditingLayer);
+const connectionLayer = this.context.graph.layers.getLayers().find((layer) => layer instanceof ConnectionEditingLayer);
 
-// Use events
-this.context.graph.on("connection-created", (event) => {
+// Use events (in afterInit(); removed automatically when the layer unmounts)
+this.onGraphEvent("connection-created", (event) => {
   // React to connection creation
 });
 ```

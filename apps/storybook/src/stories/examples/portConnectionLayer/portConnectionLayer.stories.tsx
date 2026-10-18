@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef } from "react";
+import React, { useEffect } from "react";
 
 import {
   Anchor,
@@ -12,7 +12,7 @@ import {
 } from "@gravity-ui/graph";
 import { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";
 import type { IPortConnectionMeta } from "@gravity-ui/graph-connection-editing";
-import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
+import { GraphCanvas, useGraph, useLayer } from "@gravity-ui/graph-react";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
@@ -219,8 +219,43 @@ const generatePortBlocks = (): TBlock[] => {
   ];
 };
 
+// Icon for creating connections
+const createIcon = {
+  path: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z",
+  fill: "#FFD700",
+  width: 24,
+  height: 24,
+  viewWidth: 24,
+  viewHeight: 24,
+};
+
+// Icon for connection point
+const pointIcon = {
+  path: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z",
+  fill: "#4CAF50",
+  stroke: "#FFFFFF",
+  width: 24,
+  height: 24,
+  viewWidth: 24,
+  viewHeight: 24,
+};
+
+// Function for drawing connection line
+const drawLine = (start: TPoint, end: TPoint) => {
+  const path = new Path2D();
+  path.moveTo(start.x, start.y);
+  path.lineTo(end.x, end.y);
+  return {
+    path,
+    style: {
+      color: "#4CAF50",
+      dash: [],
+    },
+  };
+};
+
 const GraphApp = () => {
-  const { graph, setEntities, start, addLayer, zoomTo } = useGraph({
+  const { graph, setEntities, start, zoomTo } = useGraph({
     settings: {
       canDrag: ECanDrag.ALL,
       useBlocksAnchors: true,
@@ -239,55 +274,7 @@ const GraphApp = () => {
     zoomTo("center", { padding: 300 });
   }, [graph]);
 
-  const layerRef = useRef<ConnectionEditingLayer | null>(null);
-
-  useLayoutEffect(() => {
-    // Create icon for creating connections
-    const createIcon = {
-      path: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z",
-      fill: "#FFD700",
-      width: 24,
-      height: 24,
-      viewWidth: 24,
-      viewHeight: 24,
-    };
-
-    // Icon for connection point
-    const pointIcon = {
-      path: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z",
-      fill: "#4CAF50",
-      stroke: "#FFFFFF",
-      width: 24,
-      height: 24,
-      viewWidth: 24,
-      viewHeight: 24,
-    };
-
-    // Function for drawing connection line
-    const drawLine = (start: TPoint, end: TPoint) => {
-      const path = new Path2D();
-      path.moveTo(start.x, start.y);
-      path.lineTo(end.x, end.y);
-      return {
-        path,
-        style: {
-          color: "#4CAF50",
-          dash: [],
-        },
-      };
-    };
-
-    layerRef.current = addLayer(ConnectionEditingLayer, {
-      createIcon,
-      point: pointIcon,
-      drawLine,
-      searchRadius: 30,
-    });
-
-    return () => {
-      layerRef.current?.detachLayer();
-    };
-  }, []);
+  useLayer(graph, ConnectionEditingLayer, { createIcon, point: pointIcon, drawLine, searchRadius: 30 });
 
   const renderBlock = (graphInstance: Graph, block: TBlock) => {
     return <BlockStory graph={graphInstance} block={block} />;

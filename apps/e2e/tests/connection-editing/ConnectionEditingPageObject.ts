@@ -130,6 +130,61 @@ export class ConnectionEditingPageObject {
     }, eventName);
   }
 
+  /** ID of an anchor's port, as the library builds it. */
+  public async anchorPortId(blockId: string, anchorId: string): Promise<string> {
+    return this.page.evaluate((ids) => String(window.GraphModule.createAnchorPortId(ids.blockId, ids.anchorId)), {
+      blockId,
+      anchorId,
+    });
+  }
+
+  /** ID of a block's default point port (`isInput`: the target point). */
+  public async blockPointPortId(blockId: string, isInput: boolean): Promise<string> {
+    return this.page.evaluate((ids) => String(window.GraphModule.createBlockPointPortId(ids.blockId, ids.isInput)), {
+      blockId,
+      isInput,
+    });
+  }
+
+  /**
+   * Adds groups rendered by the BlockGroups layer (plain GraphComponents, neither blocks nor anchors).
+   * Groups are draggable: the camera does not pan when a drag starts on a draggable component.
+   */
+  public async addGroups(
+    groups: Array<{ id: string; rect: { x: number; y: number; width: number; height: number } }>
+  ): Promise<void> {
+    await this.page.evaluate((list) => {
+      // Groups have no public accessor on Graph; the groups store is reached through rootStore.
+      window.graph.addLayer(window.GraphModule.BlockGroups, { draggable: true });
+      window.graph.rootStore.groupsList.setGroups(list);
+    }, groups);
+    await this.graphPO.waitForFrames(3);
+  }
+
+  /** Creates a connection port with the given ID on a block or group view component, at a world point. */
+  public async addCustomPort(
+    owner: { blockId: string } | { groupId: string },
+    portId: string,
+    point: GraphPoint
+  ): Promise<void> {
+    await this.graphPO.evaluate(
+      (graph, args) => {
+        const view =
+          "blockId" in args.owner
+            ? graph.blocks.getBlockState(args.owner.blockId)?.getViewComponent()
+            : graph.rootStore.groupsList.getGroupState(args.owner.groupId)?.getViewComponent();
+        if (!view) throw new Error("Port owner has no view component");
+        view.getPort(args.portId).updatePort({
+          x: args.point.x,
+          y: args.point.y,
+          meta: { [window.GraphModule.ConnectionEditingLayer.PortMetaKey]: { snappable: true } },
+        });
+      },
+      { owner, portId, point }
+    );
+    await this.graphPO.waitForFrames(1);
+  }
+
   /** World position of an anchor's port. */
   public async getAnchorPoint(blockId: string, anchorId: string): Promise<GraphPoint> {
     return this.graphPO.evaluate(
@@ -199,16 +254,8 @@ export class ConnectionEditingPageObject {
 
   /** Presses the mouse at `point` without moving. */
   public async press(point: GraphPoint): Promise<void> {
-    const position = await this.toViewport(point);
-    await this.page.mouse.move(position.x, position.y);
+    await this.graphPO.hoverAt(point);
     await this.page.mouse.down();
-  }
-
-  /** Clicks without moving. */
-  public async click(point: GraphPoint): Promise<void> {
-    const position = await this.toViewport(point);
-    await this.page.mouse.click(position.x, position.y);
-    await this.graphPO.waitForFrames(2);
   }
 
   public async release(): Promise<void> {

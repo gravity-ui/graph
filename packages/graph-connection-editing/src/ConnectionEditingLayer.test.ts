@@ -64,3 +64,62 @@ test("repeated custom port connections keep the actual symbol ports without dupl
   expect(states[0]?.toJSON().targetPortId).toBe(target.id);
   graph.unmount();
 });
+
+test("a custom port on a block is written by port ID, not as the block's default point", () => {
+  const graph = new Graph({
+    blocks: [
+      { ...block, id: "s" },
+      { ...block, id: "t" },
+    ],
+  });
+  const source = new CanvasBlock({ id: "s" }, graph.getGraphLayer()).getPort("custom-out");
+  const target = new CanvasBlock({ id: "t" }, graph.getGraphLayer()).getInputPort();
+  const layer = new TestLayer({ graph, camera: graph.cameraService });
+  layer.connect(source, target);
+  const states = Array.from(graph.connections.$connectionsMap.value.values());
+  expect(states).toHaveLength(1);
+  const json = states[0]?.toJSON();
+  expect(json?.sourcePortId).toBe("custom-out");
+  expect(json?.targetPortId).toBe(target.id);
+  expect(json?.sourceBlockId).toBeUndefined();
+  expect(json?.targetBlockId).toBeUndefined();
+  expect(json?.sourceAnchorId).toBeUndefined();
+  expect(json?.targetAnchorId).toBeUndefined();
+  graph.unmount();
+});
+
+test("an anchor connected to a custom port is written with port IDs on both ends", () => {
+  const graph = new Graph({
+    blocks: [{ ...block, id: "s", anchors: [{ id: "out", blockId: "s", type: "OUT" }] }],
+  });
+  const source = new CanvasBlock({ id: "s" }, graph.getGraphLayer()).getAnchorPort("out");
+  const component = new GraphComponent({}, graph.getGraphLayer());
+  const target = component.getPort("custom-in");
+  const layer = new TestLayer({ graph, camera: graph.cameraService });
+  layer.connect(source, target);
+  const json = Array.from(graph.connections.$connectionsMap.value.values())[0]?.toJSON();
+  expect(json?.sourcePortId).toBe(source.id);
+  expect(json?.targetPortId).toBe("custom-in");
+  expect(json?.sourceBlockId).toBeUndefined();
+  expect(json?.sourceAnchorId).toBeUndefined();
+  graph.unmount();
+});
+
+test("block point ports and anchor ports are written by block and anchor IDs", () => {
+  const graph = new Graph({
+    blocks: [
+      { ...block, id: "s", anchors: [{ id: "out", blockId: "s", type: "OUT" }] },
+      { ...block, id: "t" },
+    ],
+  });
+  const source = new CanvasBlock({ id: "s" }, graph.getGraphLayer()).getAnchorPort("out");
+  const target = new CanvasBlock({ id: "t" }, graph.getGraphLayer()).getInputPort();
+  const layer = new TestLayer({ graph, camera: graph.cameraService });
+  layer.connect(source, target);
+  const json = Array.from(graph.connections.$connectionsMap.value.values())[0]?.toJSON();
+  expect(json).toMatchObject({ sourceBlockId: "s", sourceAnchorId: "out", targetBlockId: "t" });
+  expect(json?.targetAnchorId).toBeUndefined();
+  expect(json?.sourcePortId).toBeUndefined();
+  expect(json?.targetPortId).toBeUndefined();
+  graph.unmount();
+});

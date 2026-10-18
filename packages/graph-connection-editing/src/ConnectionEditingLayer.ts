@@ -1,4 +1,13 @@
-import { Anchor, CanvasBlock, EAnchorType, ESelectionStrategy, GraphComponent, Layer } from "@gravity-ui/graph";
+import {
+  Anchor,
+  CanvasBlock,
+  EAnchorType,
+  ESelectionStrategy,
+  GraphComponent,
+  Layer,
+  createAnchorPortId,
+  createBlockPointPortId,
+} from "@gravity-ui/graph";
 import type {
   Graph,
   GraphEventsDefinitions,
@@ -80,6 +89,9 @@ type TEndpointParams = {
   blockId?: TBlockId;
   anchorId?: string;
 };
+
+/** Role of a port in the connection: a block's default point port differs for sources and targets. */
+type TEndpointRole = "source" | "target";
 
 type TDragHandle = ReturnType<Graph["dragService"]["startDrag"]>;
 
@@ -358,7 +370,7 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
       return;
     }
 
-    const params = this.getEventParams(port);
+    const params = this.getEventParams(port, "source");
 
     this.sourcePort = port;
     this.sourceKind = kind;
@@ -401,8 +413,8 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
 
       this.targetPort = newTargetPort;
 
-      const sourceParams = this.getEventParams(this.sourcePort);
-      const targetParams = this.getEventParams(newTargetPort);
+      const sourceParams = this.getEventParams(this.sourcePort, "source");
+      const targetParams = this.getEventParams(newTargetPort, "target");
 
       this.emitWithDefault(
         "connection-create-hover",
@@ -482,7 +494,7 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
       return;
     }
     if (component instanceof GraphComponent) {
-      const bucket = this.context.graph.rootStore.selectionService.getBucketByElement(component);
+      const bucket = this.context.graph.selectionService.getBucketByElement(component);
       if (!bucket) {
         return;
       }
@@ -538,7 +550,7 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
     this.selectPort(this.targetPort, false);
     this.resetState();
 
-    const sourceParams = this.getEventParams(sourcePort);
+    const sourceParams = this.getEventParams(sourcePort, "source");
 
     if (!targetPort) {
       this.context.graph.emit("connection-create-drop", {
@@ -550,17 +562,23 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
       return;
     }
 
-    const targetParams = this.getEventParams(targetPort);
+    const connectable = this.canConnect(sourceKind, sourcePort, targetPort);
+    // A drop that creates a port-mode connection reports no block IDs, like connection-created.
+    const portMode = connectable && !this.getConnectionEndpoints(sourcePort, targetPort);
+    const dropSourceParams = portMode ? {} : sourceParams;
+    const dropTargetParams = portMode ? {} : this.getEventParams(targetPort, "target");
 
-    if (this.canConnect(sourceKind, sourcePort, targetPort)) {
+    if (connectable) {
       // Determine port types to ensure correct connection direction (OUT -> IN)
       const [actualSourcePort, actualTargetPort] =
         this.getPortType(sourcePort) === EAnchorType.IN && this.getPortType(targetPort) === EAnchorType.OUT
           ? [targetPort, sourcePort]
           : [sourcePort, targetPort];
 
-      const actualSourceParams = this.getEventParams(actualSourcePort);
-      const actualTargetParams = this.getEventParams(actualTargetPort);
+      // The event describes the connection that the default action writes.
+      const endpoints = this.getConnectionEndpoints(actualSourcePort, actualTargetPort);
+      const actualSourceParams = endpoints?.source ?? {};
+      const actualTargetParams = endpoints?.target ?? {};
 
       this.emitWithDefault(
         "connection-created",
@@ -572,15 +590,15 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
           sourcePort: actualSourcePort,
           targetPort: actualTargetPort,
         },
-        () => this.createConnection(actualSourcePort, actualTargetPort, actualSourceParams, actualTargetParams)
+        () => this.createConnection(actualSourcePort, actualTargetPort)
       );
     }
 
     this.context.graph.emit("connection-create-drop", {
-      sourceBlockId: sourceParams.blockId,
-      sourceAnchorId: sourceParams.anchorId,
-      targetBlockId: targetParams.blockId,
-      targetAnchorId: targetParams.anchorId,
+      sourceBlockId: dropSourceParams.blockId,
+      sourceAnchorId: dropSourceParams.anchorId,
+      targetBlockId: dropTargetParams.blockId,
+      targetAnchorId: dropTargetParams.anchorId,
       point,
       sourcePort,
       targetPort,
@@ -610,29 +628,31 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
     return false;
   }
 
-  protected createConnection(
-    source: PortState,
-    target: PortState,
-    sourceParams = this.getEventParams(source),
-    targetParams = this.getEventParams(target)
-  ): void {
+  /**
+   * Writes the connection in one addressing mode:
+   * - both ends are block point ports or anchor ports: block IDs (and anchor IDs);
+   * - otherwise (any custom port): port IDs for both ends.
+   */
+  protected createConnection(source: PortState, target: PortState): void {
     if (!this.isPortAvailable(source) || !this.isPortAvailable(target)) return;
-    const connection: TConnection = {
-      sourceBlockId: sourceParams.blockId,
-      sourceAnchorId: sourceParams.anchorId,
-      targetBlockId: targetParams.blockId,
-      targetAnchorId: targetParams.anchorId,
-    };
-    if (sourceParams.blockId === undefined) connection.sourcePortId = source.id;
-    if (targetParams.blockId === undefined) connection.targetPortId = target.id;
     const store = this.context.graph.connections;
-    // Only custom ports need this one-off search; block/anchor connections have deterministic IDs.
-    if (connection.sourcePortId !== undefined || connection.targetPortId !== undefined) {
-      const existing = Array.from(store.$connectionsMap.value.values()).find(
-        (state) => state.$sourcePortId.value === source.id && state.$targetPortId.value === target.id
-      );
-      if (existing) connection.id = existing.id;
+    const endpoints = this.getConnectionEndpoints(source, target);
+    if (endpoints) {
+      const connection: TConnection = {
+        sourceBlockId: endpoints.source.blockId,
+        targetBlockId: endpoints.target.blockId,
+      };
+      if (endpoints.source.anchorId !== undefined) connection.sourceAnchorId = endpoints.source.anchorId;
+      if (endpoints.target.anchorId !== undefined) connection.targetAnchorId = endpoints.target.anchorId;
+      // Block and anchor connections have deterministic IDs.
+      store.addConnection(connection);
+      return;
     }
+    const connection: TConnection = { sourcePortId: source.id, targetPortId: target.id };
+    const existing = Array.from(store.$connectionsMap.value.values()).find(
+      (state) => state.$sourcePortId.value === source.id && state.$targetPortId.value === target.id
+    );
+    if (existing) connection.id = existing.id;
     store.addConnection(connection);
   }
 
@@ -756,22 +776,45 @@ export class ConnectionEditingLayer extends Layer<TConnectionEditingLayerProps, 
   }
 
   /**
-   * Block and anchor IDs of the port owner. Custom component ports have neither.
+   * Block address of a port: a block's default point port for the role (`_output` for sources,
+   * `_input` for targets) or an anchor port. Any other port, including a custom port on a block,
+   * has no block address.
    */
-  protected getEventParams(port?: PortState): TEndpointParams {
+  protected getBlockEndpoint(port: PortState | undefined, role: TEndpointRole): TEndpointParams | undefined {
     const component = port?.owner;
+    if (!port || !component) {
+      return undefined;
+    }
     if (component instanceof Anchor) {
-      return {
-        blockId: component.connectedState.blockId,
-        anchorId: component.connectedState.id,
-      };
+      const { blockId, id: anchorId } = component.connectedState;
+      return port.id === createAnchorPortId(blockId, anchorId) ? { blockId, anchorId } : undefined;
     }
     if (component instanceof CanvasBlock) {
-      return {
-        blockId: component.connectedState.id,
-      };
+      const blockId = component.connectedState.id;
+      if (port.id === createBlockPointPortId(blockId, role === "target")) {
+        return { blockId };
+      }
+      const anchor = component.connectedState.$anchorStates.value.find(
+        (state) => createAnchorPortId(blockId, state.id) === port.id
+      );
+      return anchor ? { blockId, anchorId: anchor.id } : undefined;
     }
-    return {};
+    return undefined;
+  }
+
+  /** Block addresses of both ends, or `undefined` when the connection must be written with port IDs. */
+  private getConnectionEndpoints(
+    source: PortState,
+    target: PortState
+  ): { source: TEndpointParams; target: TEndpointParams } | undefined {
+    const sourceEndpoint = this.getBlockEndpoint(source, "source");
+    const targetEndpoint = this.getBlockEndpoint(target, "target");
+    return sourceEndpoint && targetEndpoint ? { source: sourceEndpoint, target: targetEndpoint } : undefined;
+  }
+
+  /** Block and anchor IDs for event payloads; empty for a port without a block address. */
+  protected getEventParams(port: PortState | undefined, role: TEndpointRole): TEndpointParams {
+    return this.getBlockEndpoint(port, role) ?? {};
   }
 
   public override unmount(): void {

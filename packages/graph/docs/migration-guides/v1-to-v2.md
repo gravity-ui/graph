@@ -137,7 +137,9 @@ by `PortConnectionLayer` but ignored, now style the default preview line.
 
 Every payload includes `sourcePort` (and `targetPort` when there is a target). Block IDs are
 `TBlockId | undefined` in all events, since a custom component port has no block: check them before calling
-block APIs. Detail types are exported as `TConnectionCreate*Detail` / `TConnectionCreatedDetail`.
+block APIs. A created connection uses one `TConnection` addressing mode: block (and anchor) IDs when both ends are
+a block's default point port or an anchor port, otherwise `sourcePortId` / `targetPortId` for both ends, and
+`connection-created` reports the same mode. Detail types are exported as `TConnectionCreate*Detail` / `TConnectionCreatedDetail`.
 
 **Behaviour changes for former `ConnectionLayer` users:**
 
@@ -160,6 +162,9 @@ block APIs. Detail types are exported as `TConnectionCreate*Detail` / `TConnecti
   `canStart` that accepts only ports whose `meta[ConnectionEditingLayer.PortMetaKey]?.snappable` is `true`
   (see the [Connection Editing guide](../plugins/connection-editing.md)).
 - Anchors are highlighted during the drag (previously the anchor highlight was skipped).
+- A custom port on a block is saved by its port ID; previously it was saved as the block's default point. A
+  connection between an anchor or block point and a custom port is saved with port IDs on both ends instead of
+  mixing block and port fields.
 - Previously `canCreateNewConnections: true` made every anchor undraggable. Now only an enabled layer captures
   anchor presses (`captureAnchors`).
 

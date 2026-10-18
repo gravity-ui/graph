@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import type { TBlock } from "@gravity-ui/graph";
+import type { TBlock, TConnection } from "@gravity-ui/graph";
 
 import { GraphPageObject } from "../../page-objects/GraphPageObject";
 
@@ -71,6 +71,22 @@ async function isAnchorSelected(blockId: string, anchorId: string): Promise<bool
   );
 }
 
+/** The connection's endpoint fields that are set, to assert one addressing mode and the absence of the other. */
+function endpointFields(connection: TConnection | undefined): Partial<TConnection> {
+  const fields: Partial<TConnection> = {};
+  for (const key of [
+    "sourceBlockId",
+    "sourceAnchorId",
+    "targetBlockId",
+    "targetAnchorId",
+    "sourcePortId",
+    "targetPortId",
+  ] as const) {
+    if (connection?.[key] !== undefined) Object.assign(fields, { [key]: connection[key] });
+  }
+  return fields;
+}
+
 async function isBlockSelected(blockId: string): Promise<boolean> {
   return (await graphPO.getSelectedBlockIds()).includes(blockId);
 }
@@ -88,14 +104,15 @@ test.describe("ConnectionEditingLayer – anchors", () => {
 
     await graphPO.drag(from, to);
 
-    expect(await graphPO.getConnections()).toEqual([
-      expect.objectContaining({
-        sourceBlockId: "block-a",
-        sourceAnchorId: "out-a",
-        targetBlockId: "block-b",
-        targetAnchorId: "in-b",
-      }),
-    ]);
+    // Block mode with anchors: no port IDs.
+    const connections = await graphPO.getConnections();
+    expect(connections).toHaveLength(1);
+    expect(endpointFields(connections[0])).toEqual({
+      sourceBlockId: "block-a",
+      sourceAnchorId: "out-a",
+      targetBlockId: "block-b",
+      targetAnchorId: "in-b",
+    });
 
     const events = await layerPO.getEvents();
     const types = events.map((event) => event.type);
@@ -103,7 +120,11 @@ test.describe("ConnectionEditingLayer – anchors", () => {
     expect(types).toContain("connection-create-hover");
     expect(types.slice(-2)).toEqual(["connection-created", "connection-create-drop"]);
     expect(types).not.toContain("connection-create-cancel");
-    expect(events[0]).toMatchObject({ blockId: "block-a", anchorId: "out-a", sourcePortId: "block-a/out-a" });
+    expect(events[0]).toMatchObject({
+      blockId: "block-a",
+      anchorId: "out-a",
+      sourcePortId: await layerPO.anchorPortId("block-a", "out-a"),
+    });
     expect(events.find((event) => event.type === "connection-create-drop")).toMatchObject({
       sourceAnchorId: "out-a",
       targetAnchorId: "in-b",
@@ -120,14 +141,14 @@ test.describe("ConnectionEditingLayer – anchors", () => {
 
     await graphPO.drag(from, to);
 
-    expect(await graphPO.getConnections()).toEqual([
-      expect.objectContaining({
-        sourceBlockId: "block-b",
-        sourceAnchorId: "out-b",
-        targetBlockId: "block-a",
-        targetAnchorId: "in-a",
-      }),
-    ]);
+    const connections = await graphPO.getConnections();
+    expect(connections).toHaveLength(1);
+    expect(endpointFields(connections[0])).toEqual({
+      sourceBlockId: "block-b",
+      sourceAnchorId: "out-b",
+      targetBlockId: "block-a",
+      targetAnchorId: "in-a",
+    });
     expect((await layerPO.getEvents()).find((event) => event.type === "connection-created")).toMatchObject({
       sourceAnchorId: "out-b",
       targetAnchorId: "in-a",
@@ -168,7 +189,7 @@ test.describe("ConnectionEditingLayer – anchors", () => {
     await layerPO.release();
 
     const hovers = (await layerPO.getEvents()).filter((event) => event.type === "connection-create-hover");
-    expect(hovers.at(-2)).toMatchObject({ targetPortId: "block-b/in-b" });
+    expect(hovers.at(-2)).toMatchObject({ targetPortId: await layerPO.anchorPortId("block-b", "in-b") });
     expect(hovers.at(-1)?.targetPortId).toBeUndefined();
     expect(await graphPO.getConnections()).toEqual([]);
   });
@@ -185,7 +206,7 @@ test.describe("ConnectionEditingLayer – anchors", () => {
   });
 
   test("clicking an anchor without dragging emits nothing, even on Escape or layer removal", async ({ page }) => {
-    await layerPO.click(await layerPO.getAnchorPoint("block-a", "out-a"));
+    await graphPO.clickAt(await layerPO.getAnchorPoint("block-a", "out-a"));
     await page.keyboard.press("Escape");
     await layerPO.removeLayer();
 
@@ -324,16 +345,20 @@ test.describe("ConnectionEditingLayer – blocks", () => {
     await graphPO.drag(from, to);
     await page.keyboard.up("Shift");
 
+    // Block mode without anchors: only block IDs.
     const connections = await graphPO.getConnections();
     expect(connections).toHaveLength(1);
-    expect(connections[0]).toMatchObject({ sourceBlockId: "block-a", targetBlockId: "block-c" });
-    expect(connections[0].sourceAnchorId).toBeUndefined();
-    expect(connections[0].targetAnchorId).toBeUndefined();
+    expect(endpointFields(connections[0])).toEqual({ sourceBlockId: "block-a", targetBlockId: "block-c" });
     expect(await graphPO.block("block-a").getGeometry()).toMatchObject({ x: 0, y: 0 });
-    expect((await layerPO.getEvents()).find((event) => event.type === "connection-created")).toMatchObject({
+    const created = (await layerPO.getEvents()).find((event) => event.type === "connection-created");
+    expect(created).toMatchObject({
       sourceBlockId: "block-a",
       targetBlockId: "block-c",
+      sourcePortId: await layerPO.blockPointPortId("block-a", false),
+      targetPortId: await layerPO.blockPointPortId("block-c", true),
     });
+    expect(created?.sourceAnchorId).toBeUndefined();
+    expect(created?.targetAnchorId).toBeUndefined();
   });
 
   test("a block to anchor drop does not create a connection", async ({ page }) => {
@@ -355,6 +380,63 @@ test.describe("ConnectionEditingLayer – blocks", () => {
     expect(await graphPO.getConnections()).toEqual([]);
     expect(await layerPO.getEventTypes()).toEqual([]);
     expect(await graphPO.block("block-c").getGeometry()).toMatchObject({ x: 350, y: 350 });
+  });
+});
+
+test.describe("ConnectionEditingLayer – port addressing mode", () => {
+  test.beforeEach(async ({ page }) => {
+    await setup(page);
+    await layerPO.addLayer();
+  });
+
+  async function expectPortModeCreated(sourcePortId: string, targetPortId: string): Promise<void> {
+    // Port mode: only port IDs, no block or anchor IDs, in the store and in the event.
+    const connections = await graphPO.getConnections();
+    expect(connections).toHaveLength(1);
+    expect(endpointFields(connections[0])).toEqual({ sourcePortId, targetPortId });
+    const events = await layerPO.getEvents();
+    for (const type of ["connection-created", "connection-create-drop"]) {
+      const event = events.find((recorded) => recorded.type === type);
+      expect(event).toBeDefined();
+      for (const key of ["sourceBlockId", "sourceAnchorId", "targetBlockId", "targetAnchorId"] as const) {
+        expect(event?.[key], `${type}.${key}`).toBeUndefined();
+      }
+    }
+    expect(events.find((event) => event.type === "connection-created")).toMatchObject({ sourcePortId, targetPortId });
+  }
+
+  test("a custom component port connects to another custom component port by port IDs", async () => {
+    await layerPO.addGroups([
+      { id: "group-src", rect: { x: 0, y: 150, width: 180, height: 120 } },
+      { id: "group-dst", rect: { x: 520, y: 150, width: 180, height: 120 } },
+    ]);
+    await layerPO.addCustomPort({ groupId: "group-src" }, "group-src-out", { x: 160, y: 210 });
+    await layerPO.addCustomPort({ groupId: "group-dst" }, "group-dst-in", { x: 540, y: 210 });
+    await layerPO.recordEvents();
+
+    await graphPO.drag({ x: 160, y: 210 }, { x: 540, y: 210 });
+
+    await expectPortModeCreated("group-src-out", "group-dst-in");
+  });
+
+  test("a custom port on a block is saved by its port ID, not as the block's default point", async () => {
+    await layerPO.addCustomPort({ blockId: "block-a" }, "block-a-custom", { x: 150, y: 70 });
+    await layerPO.addCustomPort({ blockId: "block-b" }, "block-b-custom", { x: 550, y: 70 });
+    await layerPO.recordEvents();
+
+    await graphPO.drag({ x: 150, y: 70 }, { x: 550, y: 70 });
+
+    await expectPortModeCreated("block-a-custom", "block-b-custom");
+  });
+
+  test("an anchor connected to a custom port is saved with port IDs on both ends", async () => {
+    await layerPO.addCustomPort({ blockId: "block-b" }, "block-b-custom", { x: 550, y: 70 });
+    await layerPO.recordEvents();
+    const from = await layerPO.getAnchorPoint("block-a", "out-a");
+
+    await graphPO.drag(from, { x: 550, y: 70 });
+
+    await expectPortModeCreated(await layerPO.anchorPortId("block-a", "out-a"), "block-b-custom");
   });
 });
 
@@ -382,8 +464,8 @@ test.describe("ConnectionEditingLayer – ports and snapping", () => {
       expect.objectContaining({ sourceAnchorId: "out-a", targetAnchorId: "in-b" }),
     ]);
     expect((await layerPO.getEvents()).find((event) => event.type === "connection-created")).toMatchObject({
-      sourcePortId: "block-a/out-a",
-      targetPortId: "block-b/in-b",
+      sourcePortId: await layerPO.anchorPortId("block-a", "out-a"),
+      targetPortId: await layerPO.anchorPortId("block-b", "in-b"),
     });
   });
 
@@ -399,7 +481,7 @@ test.describe("ConnectionEditingLayer – ports and snapping", () => {
   });
 
   test("isConnectionAllowed rejects a snapping target", async () => {
-    await layerPO.addLayer({ rejectTargetPortIds: ["block-b/in-b"] });
+    await layerPO.addLayer({ rejectTargetPortIds: [await layerPO.anchorPortId("block-b", "in-b")] });
     await layerPO.makeAnchorPortsSnappable(SNAPPABLE);
     const from = await layerPO.getAnchorPoint("block-a", "out-a");
     const to = await layerPO.getAnchorPoint("block-b", "in-b");
@@ -429,7 +511,7 @@ test.describe("ConnectionEditingLayer – ports and snapping", () => {
   });
 
   test("isConnectionAllowed rejects a target", async () => {
-    await layerPO.addLayer({ rejectTargetPortIds: ["block-b/in-b"] });
+    await layerPO.addLayer({ rejectTargetPortIds: [await layerPO.anchorPortId("block-b", "in-b")] });
     await layerPO.recordEvents();
     const from = await layerPO.getAnchorPoint("block-a", "out-a");
     const to = await layerPO.getAnchorPoint("block-b", "in-b");

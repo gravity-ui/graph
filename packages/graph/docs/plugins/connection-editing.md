@@ -83,7 +83,14 @@ this.updatePort(portId, { meta: { [ConnectionEditingLayer.PortMetaKey]: meta } }
 
 ## Events
 
-The events are typed on `graph.on` once the package is imported. Block and anchor IDs are `undefined` when the endpoint is a custom component port.
+The events are typed on `graph.on` once the package is imported.
+
+A connection is written in one of two `TConnection` addressing modes, never mixed:
+
+- **Block mode**: both ends are a block's default point port or an anchor port. The connection has `sourceBlockId` / `targetBlockId` and, for anchors, `sourceAnchorId` / `targetAnchorId`.
+- **Port mode**: at least one end is any other port (a custom component port, or a custom port on a block). The connection has `sourcePortId` / `targetPortId` only.
+
+`connection-created` and the `connection-create-drop` that follows it use the same rule: in port mode their block and anchor IDs are `undefined`; use `sourcePort.id` / `targetPort.id`. In the other events (start, hover, a drop that creates nothing), the block and anchor IDs of an end are `undefined` when that end has no block address.
 
 | Event | Detail | `preventDefault()` |
 |---|---|---|
@@ -96,9 +103,13 @@ The events are typed on `graph.on` once the package is imported. Block and ancho
 ```typescript
 graph.on("connection-created", (event) => {
   event.preventDefault();
-  const { sourceBlockId, sourceAnchorId, targetBlockId, targetAnchorId } = event.detail;
+  const { sourceBlockId, sourceAnchorId, targetBlockId, targetAnchorId, sourcePort, targetPort } = event.detail;
   if (sourceBlockId !== undefined && targetBlockId !== undefined) {
+    // Block mode
     myModel.connect({ sourceBlockId, sourceAnchorId, targetBlockId, targetAnchorId });
+  } else {
+    // Port mode
+    myModel.connect({ sourcePortId: sourcePort.id, targetPortId: targetPort.id });
   }
 });
 
@@ -111,4 +122,4 @@ graph.on("connection-create-drop", ({ detail }) => {
 
 ## Known limitation
 
-The camera subscribes to the graph `mousedown` event before any layer, so it decides on panning first. Shift + drag from a block that cannot be dragged (`canDrag` is `none`, or `onlySelected` and the block is not selected) pans the camera while the connection is created. Anchors and connection ports are not affected.
+The camera subscribes to the graph `mousedown` event before any layer, so it decides on panning first. A drag that starts on a component that cannot be dragged pans the camera while the connection is created: for example, Shift + drag from a block when `canDrag` is `none` (or `onlySelected` and the block is not selected), or a drag from a connection port on a non-draggable group or custom component. Anchors are not affected.
