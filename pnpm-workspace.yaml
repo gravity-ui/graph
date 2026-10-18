@@ -4,4 +4,9 @@ packages:
 catalog:
   typescript: 6.0.3
 patchedDependencies:
+  # style-observer 0.1.1 publishes an invalid MultiWeakMap.d.ts: at runtime has() takes one or two
+  # arguments and delete() returns void, unlike WeakMap. The patch fixes only that declaration, so
+  # publish builds and type fixtures keep skipLibCheck false; runtime code is unchanged.
+  # scripts/style-observer-types.test.mjs checks it against the real implementation. Once an
+  # upstream release fixes the types, remove the patch, that test and its test:type-configs entry.
   style-observer@0.1.1: patches/style-observer@0.1.1.patch

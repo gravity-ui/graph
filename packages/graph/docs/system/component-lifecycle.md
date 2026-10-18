@@ -34,6 +34,10 @@ During initialization:
 2. The component is registered in the Tree structure
 3. Initial props and state are established
 
+`state` starts as `{}` and `context` as the parent's context (or `{}` without a parent), both typed
+as the declared State/Context, so the types do not prove that required fields exist. Initialize
+required state in the constructor, as in the [basic example](#basic-component).
+
 ### 2. CoreComponent Lifecycle
 
 The CoreComponent provides the foundation with three main methods:
