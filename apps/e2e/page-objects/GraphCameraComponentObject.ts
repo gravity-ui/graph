@@ -1,4 +1,4 @@
-import { GraphCameraPO } from "@gravity-ui/graph/playwright";
+import { GraphCameraPO } from "@gravity-ui/graph-playwright";
 import type { GraphPageObject } from "./GraphPageObject";
 
 let cameraSignalListenerId = 0;

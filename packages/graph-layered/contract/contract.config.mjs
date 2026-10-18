@@ -21,6 +21,7 @@ export default {
     { entrypoint: ".", profile: "esm-only" },
     { entrypoint: "./react", profile: "esm-only" },
   ],
+  workspaceDependencies: ["graph-playwright"],
   // The hook needs React, but neither React DOM nor @gravity-ui/graph-react.
   dependencies: ["react"],
   devDependencies: ["@types/react"],

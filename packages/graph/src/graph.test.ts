@@ -1,7 +1,7 @@
 import { TBlock } from "./components/canvas/blocks/Block";
 import { Graph } from "./graph";
 import { globalScheduler } from "./lib/Scheduler";
-import { GRAPH_INSTANCE_SYMBOL_KEY, LEGACY_GRAPH_INSTANCE_SYMBOL_KEY } from "./utils/graphInstance";
+import { GRAPH_INSTANCE_SYMBOL_KEY } from "./utils/graphInstance";
 
 describe("Graph DOM instance bridge", () => {
   it("registers the graph on attach and clears it on detach", () => {
@@ -10,12 +10,12 @@ describe("Graph DOM instance bridge", () => {
     const record = root as unknown as Record<symbol, Graph | undefined>;
 
     expect(record[Symbol.for(GRAPH_INSTANCE_SYMBOL_KEY)]).toBe(graph);
-    expect(record[Symbol.for(LEGACY_GRAPH_INSTANCE_SYMBOL_KEY)]).toBe(graph);
+    // The undocumented v1 key is no longer written.
+    expect(record[Symbol.for("graph")]).toBeUndefined();
 
     graph.detach();
 
     expect(record[Symbol.for(GRAPH_INSTANCE_SYMBOL_KEY)]).toBeUndefined();
-    expect(record[Symbol.for(LEGACY_GRAPH_INSTANCE_SYMBOL_KEY)]).toBeUndefined();
   });
 
   it("moves the bridge when an attached graph receives a new root", () => {

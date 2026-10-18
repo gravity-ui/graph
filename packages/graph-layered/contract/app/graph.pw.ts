@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { TMultipointConnection } from "@gravity-ui/graph";
-import { GraphPO } from "@gravity-ui/graph/playwright";
+import { GraphPO } from "@gravity-ui/graph-playwright";
 
 test("installed layered layout positions blocks applied to the consumer graph", async ({ page }) => {
   const errors: string[] = [];

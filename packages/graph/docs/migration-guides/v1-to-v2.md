@@ -9,6 +9,7 @@ The temporary branch and release process is documented separately in
 
 - Move React, Minimap and DevTools imports to their dedicated packages and install their peers.
 - Import the layered layout from `@gravity-ui/graph-layered` and `useLayeredLayout` from `@gravity-ui/graph-layered/react`.
+- Import Playwright page objects from `@gravity-ui/graph-playwright` instead of `@gravity-ui/graph/playwright`.
 - Import the stylesheets for each package you use, with core styles before addon styles.
 - Add `import "@gravity-ui/graph-minimap/styles.css"` when using Minimap: its default border and background now require this explicit import.
 - Replace `canChangeBlockGeometry` / `ECanChangeBlockGeometry` with `canDrag` / `ECanDrag`.
@@ -114,6 +115,22 @@ are laid out: a port-only connection is skipped and gets no entry in `ConverterR
 values (block ids, sizes and levels, connection ids and endpoints, option values), or a new `onError`.
 The package requires core as a peer dependency for its types; React is an optional peer, needed only for `/react`.
 Core and `@gravity-ui/graph-react` no longer include or re-export the layered layout.
+
+## Playwright package boundary
+
+The Playwright page objects (`GraphPO`, `GraphBlockPO`, `GraphConnectionPO`, `GraphCameraPO` and their option types)
+moved from the `@gravity-ui/graph/playwright` subpath to `@gravity-ui/graph-playwright`. Install it as a dev
+dependency next to `@playwright/test` and replace the import:
+
+```diff
+- import { GraphPO } from "@gravity-ui/graph/playwright";
++ import { GraphPO } from "@gravity-ui/graph-playwright";
+```
+
+The package ships ESM and CommonJS builds; class names, methods and behavior are unchanged. Core no longer has a
+`./playwright` export, `typesVersions` or an optional `@playwright/test` peer. An attached graph is stored on its root
+element only under `Symbol.for(GRAPH_INSTANCE_SYMBOL_KEY)` (`"@gravity-ui/graph/instance"`, exported from core); the
+undocumented `Symbol.for("graph")` key is no longer written.
 
 ## Styles and TypeScript
 

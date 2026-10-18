@@ -51,7 +51,7 @@ The public entrypoint includes `GraphCanvas`, `GraphBlock`, `GraphBlockAnchor`, 
 helpers, graph/signal/scheduler hooks, and `useElk`. `useLayeredLayout` moved to `@gravity-ui/graph-layered/react`.
 The old `@gravity-ui/graph/react` subpath is removed in v2; replace its imports with `@gravity-ui/graph-react` and add
 the React stylesheet. Core and Playwright consumers continue to use `@gravity-ui/graph` and
-`@gravity-ui/graph/playwright` without installing React.
+`@gravity-ui/graph-playwright` without installing React.
 
 See the [React guide](https://github.com/gravity-ui/graph/blob/v2/packages/graph/docs/react/usage.md) and
 [hooks reference](https://github.com/gravity-ui/graph/blob/v2/packages/graph/docs/react/hooks.md).

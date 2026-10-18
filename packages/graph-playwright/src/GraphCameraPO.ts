@@ -1,4 +1,4 @@
-import type { TBlockId } from "../store/block/Block";
+import type { TBlockId } from "@gravity-ui/graph";
 
 import type { GraphPO } from "./GraphPO";
 import type { GraphPoint, GraphRect } from "./types";

@@ -1,5 +1,4 @@
-import type { TBlock } from "../components/canvas/blocks/Block";
-import type { TBlockId } from "../store/block/Block";
+import type { TBlock, TBlockId } from "@gravity-ui/graph";
 
 import type { GraphPO } from "./GraphPO";
 import type { GraphClickOptions, GraphDragOptions, GraphHoverOptions, GraphPoint, GraphRect } from "./types";
