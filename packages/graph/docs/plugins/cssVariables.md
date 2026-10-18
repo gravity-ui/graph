@@ -196,6 +196,7 @@ The layer supports the following CSS variables, automatically mapped to graph pr
 | :------------------------------------ | :------------------------------ | :------ |
 | `--graph-camera-speed`                | `camera.SPEED`                  | Float   |
 | `--graph-camera-step`                 | `camera.STEP`                   | Float   |
+| `--graph-camera-pan-speed`            | `camera.PAN_SPEED`              | Float   |
 
 ### Text Constants
 
