@@ -208,7 +208,8 @@ export async function checkInstalledArtifact({
   await contract.checkArtifact?.({
     manifest,
     installedRoot,
-    styles: stylesFiles(contract).length > 0 ? await readFile(path.join(installedRoot, "build", "styles.css"), "utf8") : "",
+    styles:
+      stylesFiles(contract).length > 0 ? await readFile(path.join(installedRoot, "build", "styles.css"), "utf8") : "",
     generatedFiles,
     readText: (relativePath) => readFile(path.join(installedRoot, relativePath), "utf8"),
     assertMissing: (relativePath, message) => assertPathDoesNotExist(path.join(installedRoot, relativePath), message),
