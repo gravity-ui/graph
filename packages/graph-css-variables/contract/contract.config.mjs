@@ -9,7 +9,6 @@ export default {
       default: "./build/index.js",
     },
   },
-  styles: false,
   packedFiles: { forbiddenPatterns: [/(?:^|\/)(?:playwright|docs)(?:\/|$)/] },
   mustNotResolve: ["react", "react-dom", "@gravity-ui/graph-react", "elkjs"],
   probes: [
