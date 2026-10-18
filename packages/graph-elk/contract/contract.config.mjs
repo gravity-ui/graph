@@ -10,7 +10,6 @@ const reactEntry = {
 
 /** Package contract of @gravity-ui/graph-elk. See scripts/package-contract/README.md. */
 export default {
-  styles: false,
   exports: {
     ".": {
       types: "./build/index.d.ts",
@@ -19,9 +18,8 @@ export default {
     },
     "./react": reactEntry,
   },
+  // Files named in `exports` (including build/react/*) are required and allowed by the runner.
   packedFiles: {
-    runtimeFiles: ["build/react/index.js"],
-    requiredFiles: ["build/react/index.js", "build/react/index.d.ts"],
     forbiddenPatterns: [/(?:^|\/)(?:playwright|docs)(?:\/|$)/],
   },
   attw: [
