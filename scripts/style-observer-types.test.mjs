@@ -5,8 +5,8 @@ import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 
 test("MultiWeakMap signatures in the dependency patch match its runtime operations", async () => {
-  const requireGraph = createRequire(new URL("../packages/graph/package.json", import.meta.url));
-  const root = path.dirname(requireGraph.resolve("style-observer"));
+  const requirePackage = createRequire(new URL("../packages/graph-css-variables/package.json", import.meta.url));
+  const root = path.dirname(requirePackage.resolve("style-observer"));
   const { default: MultiWeakMap } = await import(pathToFileURL(path.join(root, "src/util/MultiWeakMap.js")));
   const map = new MultiWeakMap();
   const key = {};

@@ -1,6 +1,4 @@
-import type { TGraphColorsPatch, TGraphConstantsPatch } from "../../graphConfig";
-import type { TComponentState } from "../../lib/Component";
-import type { LayerProps } from "../../services/Layer";
+import type { LayerProps, TComponentState, TGraphColorsPatch, TGraphConstantsPatch } from "@gravity-ui/graph";
 
 /**
  * Describes a change to a CSS variable

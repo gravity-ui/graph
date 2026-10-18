@@ -1,0 +1,9 @@
+.theme-light {
+  --graph-block-background: rgb(240, 241, 242);
+  --graph-grid-size: 20;
+}
+
+.theme-dark {
+  --graph-block-background: rgb(30, 31, 32);
+  --graph-grid-size: 32;
+}
