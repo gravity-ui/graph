@@ -101,6 +101,11 @@ Install `@gravity-ui/graph-elk` and `elkjs`. Core and `elkjs` are required peers
 by the `/react` subpath. The application still creates the `ELK` instance (bundled or worker build), and `useElk`
 keeps its arguments and `{ result, isLoading }` result. `ConverterResult["blocks"]` is now keyed by `TBlockId`.
 
+`useElk` now restarts the layout only when the `ELK` instance, the `ElkNode`, `layoutOptions`, `logging` or
+`measureExecutionTime` change. A new `onError` function no longer starts another layout, so inline `{ onError }` options
+no longer re-run the layout on every render; the latest `onError` is called on failure. Only these known options are
+passed to `elk.layout()`.
+
 ELK conversion returns empty records when `edges` or `children` are missing. Edges without a first section (including an empty `sections` array) and children without both coordinates are omitted. Positioned children and the first routed section retain their existing conversion. `useElk` permits an absent `onError` callback and sets loading for each new layout request. A failed layout clears the previous result and reports an `Error`, including when ELK rejects with another value.
 
 ## Styles and TypeScript

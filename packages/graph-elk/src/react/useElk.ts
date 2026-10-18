@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { ELK, ElkLayoutArguments, ElkNode } from "elkjs";
 
@@ -15,15 +15,20 @@ export const useElk = (
   const [result, setResult] = useState<ConverterResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const layout = useCallback(() => {
-    return elk.layout(config, args);
-  }, [elk, config, args]);
+  // The latest callback is read when a layout fails; changing it does not start a new layout.
+  const onErrorRef = useRef(args?.onError);
+  onErrorRef.current = args?.onError;
+
+  const layoutOptions = args?.layoutOptions;
+  const logging = args?.logging;
+  const measureExecutionTime = args?.measureExecutionTime;
 
   useEffect(() => {
     let isCancelled = false;
     setIsLoading(true);
 
-    layout()
+    elk
+      .layout(config, { layoutOptions, logging, measureExecutionTime })
       .then((data) => {
         if (isCancelled) return;
         setResult(elkConverter(data));
@@ -33,14 +38,14 @@ export const useElk = (
         if (!isCancelled) {
           setResult(null);
           setIsLoading(false);
-          args?.onError?.(error instanceof Error ? error : new Error(String(error)));
+          onErrorRef.current?.(error instanceof Error ? error : new Error(String(error)));
         }
       });
 
     return () => {
       isCancelled = true;
     };
-  }, [layout]);
+  }, [elk, config, layoutOptions, logging, measureExecutionTime]);
 
   return { result, isLoading };
 };

@@ -69,6 +69,8 @@ const elkBundle = esbuild
     platform: "browser",
     target: ["es2020"],
     sourcemap: true,
+    plugins: [cssPlugin],
+    jsx: "automatic",
   })
   .then(() => {
     console.log("E2E ELK bundle created successfully");

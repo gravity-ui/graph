@@ -7,12 +7,9 @@ type GraphModule = typeof import("@gravity-ui/graph") &
     ReactDOM: typeof import("react-dom/client");
   };
 
-type ElkModule = typeof import("./elk-entry");
-
 declare global {
   interface Window {
     GraphModule: GraphModule;
-    ElkModule: ElkModule;
     graph: Graph;
     graphInitialized: boolean;
     graphStarted?: boolean;

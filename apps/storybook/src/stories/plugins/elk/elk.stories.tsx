@@ -49,17 +49,11 @@ const GraphApp = ({ elkConfig, graphConfig }: GraphAppProps) => {
   useEffect(() => {
     if (isLoading || !result) return;
 
-    const connections = graphConfig.connections.reduce<
-      (TConnection & Pick<TMultipointConnection, "points" | "labels">)[]
-    >((acc, connection) => {
-      if (connection.id !== undefined && connection.id in result.edges) {
-        acc.push({
-          ...connection,
-          ...result.edges[connection.id],
-        });
-      }
-      return acc;
-    }, []);
+    // Connections that were not laid out keep their own state.
+    const connections = graphConfig.connections.map(
+      (connection): TConnection & Pick<TMultipointConnection, "points" | "labels"> =>
+        connection.id === undefined ? connection : { ...connection, ...result.edges[connection.id] }
+    );
 
     const blocks = graphConfig.blocks.map((block) => {
       return {
@@ -74,7 +68,7 @@ const GraphApp = ({ elkConfig, graphConfig }: GraphAppProps) => {
     });
 
     graph.zoomTo("center", { padding: 300 });
-  }, [isLoading, result]);
+  }, [isLoading, result, graphConfig, setEntities, graph]);
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {
@@ -129,42 +123,53 @@ const meta: Meta<typeof GraphApp> = {
           "- `mrtree`: Traditional tree layout\n" +
           "- `radial`: Radial layout\n" +
           "- `random`: Random node placement\n\n" +
-          "## Example\n\n" +
+          "## Example\n" +
+          "\n" +
           "```tsx\n" +
-          "import React from 'react';\n" +
-          "import { GraphCanvas, useGraph } from '@gravity-ui/graph-react';\n" +
-          "import { useElk } from '@gravity-ui/graph-elk/react';\n" +
-          "import ELK from 'elkjs';\n\n" +
+          'import React from "react";\n' +
+          'import ELK from "elkjs";\n' +
+          'import { MultipointConnection } from "@gravity-ui/graph";\n' +
+          'import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";\n' +
+          'import { useElk } from "@gravity-ui/graph-elk/react";\n' +
+          "\n" +
+          "// renderBlock comes from your application.\n" +
+          "const blocks = [\n" +
+          '  { id: "n1", is: "Block", x: 0, y: 0, width: 120, height: 60, name: "n1", anchors: [] },\n' +
+          '  { id: "n2", is: "Block", x: 0, y: 0, width: 120, height: 60, name: "n2", anchors: [] },\n' +
+          "];\n" +
+          'const connections = [{ id: "e1", sourceBlockId: "n1", targetBlockId: "n2" }];\n' +
+          "\n" +
           "const elkConfig = {\n" +
           '  id: "root",\n' +
-          "  children: [\n" +
-          '    { id: "n1", width: 30, height: 30 },\n' +
-          '    { id: "n2", width: 30, height: 30 }\n' +
-          "  ],\n" +
-          "  edges: [\n" +
-          '    { id: "e1", sources: ["n1"], targets: ["n2"] }\n' +
-          "  ],\n" +
-          "  layoutOptions: {\n" +
-          "    'algorithm': 'layered',\n" +
-          "    'elk.direction': 'DOWN',\n" +
-          "    'elk.spacing.nodeNode': '50'\n" +
-          "  }\n" +
-          "};\n\n" +
+          '  layoutOptions: { "elk.algorithm": "layered", "elk.direction": "DOWN", "elk.spacing.nodeNode": "50" },\n' +
+          "  children: blocks.map(({ id, width, height }) => ({ id, width, height })),\n" +
+          "  // ELK edges connect blocks: skip connections without an id or block ids (for example port-only ones).\n" +
+          "  edges: connections.flatMap(({ id, sourceBlockId, targetBlockId }) =>\n" +
+          "    id === undefined || sourceBlockId === undefined || targetBlockId === undefined\n" +
+          "      ? []\n" +
+          "      : [{ id: String(id), sources: [String(sourceBlockId)], targets: [String(targetBlockId)] }]\n" +
+          "  ),\n" +
+          "};\n" +
+          "\n" +
           "function MyGraphWithElk() {\n" +
           "  const elk = React.useMemo(() => new ELK(), []);\n" +
-          "  const { graph } = useGraph();\n\n" +
-          "  const { isLoading, result } = useElk(elkConfig, elk);\n\n" +
+          "  const { graph, setEntities, start } = useGraph({ settings: { connection: MultipointConnection } });\n" +
+          "  const { isLoading, result } = useElk(elkConfig, elk);\n" +
+          "\n" +
           "  React.useEffect(() => {\n" +
-          "    if (!isLoading && result) {\n" +
-          "      graph.setEntities({\n" +
-          "        blocks: result.blocks,\n" +
-          "        connections: result.edges\n" +
-          "      });\n" +
-          "    }\n" +
-          "  }, [isLoading, result]);\n\n" +
-          "  return <GraphCanvas graph={graph} />;\n" +
+          "    if (isLoading || !result) return;\n" +
+          "    // Merge positions and routes into your own entities.\n" +
+          "    setEntities({\n" +
+          "      blocks: blocks.map((block) => ({ ...block, ...result.blocks[block.id] })),\n" +
+          "      connections: connections.map((c) => (c.id === undefined ? c : { ...c, ...result.edges[c.id] })),\n" +
+          "    });\n" +
+          "    start();\n" +
+          "  }, [isLoading, result, setEntities, start]);\n" +
+          "\n" +
+          "  return <GraphCanvas graph={graph} renderBlock={renderBlock} />;\n" +
           "}\n" +
-          "```\n\n" +
+          "```\n" +
+          "\n" +
           "## Resources\n\n" +
           "- [ELK.js on GitHub](https://github.com/kieler/elkjs)\n" +
           "- [ELK Documentation](https://eclipse.dev/elk/documentation.html)\n" +

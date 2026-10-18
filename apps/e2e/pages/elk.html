@@ -17,11 +17,10 @@
   </head>
   <body>
     <div id="root"></div>
-    <div id="elk-root"></div>
-    <script src="/e2e/dist/graph.bundle.js"></script>
     <script src="/e2e/dist/graph-elk.bundle.js"></script>
     <script>
-      // Bundles expose GraphModule and ElkModule globals
+      // One bundle holds core, React and ELK; shared helpers read core exports from GraphModule.
+      window.GraphModule = window.ElkModule;
       window.graphLibraryLoaded = true;
     </script>
   </body>
