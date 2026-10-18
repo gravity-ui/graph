@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 /** Package contract of @gravity-ui/graph-duplicate-block. See scripts/package-contract/README.md. */
 export default {
+  // No ./styles.css export: the package publishes no stylesheet, so none may be packed.
   exports: {
     ".": {
       types: "./build/index.d.ts",
@@ -9,8 +10,6 @@ export default {
       default: "./build/index.js",
     },
   },
-  // The package publishes no stylesheet and no ./styles.css export.
-  stylesheet: false,
   packedFiles: { forbiddenPatterns: [/(?:^|\/)(?:playwright|docs)(?:\/|$)/] },
   mustNotResolve: ["react", "react-dom", "@gravity-ui/graph-react", "elkjs"],
   probes: [
