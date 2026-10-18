@@ -7,9 +7,9 @@ import { run } from "../utils.mjs";
 const privateSchedulerPackage = "@gravity-ui/graph-scheduler";
 
 const allowedPackageRootFiles = ["LICENSE", "README.md", "package.json"];
-const baseRuntimeFiles = ["build/index.js", "build/styles.css"];
 const baseAllowedPatterns = [/^build\/.+\.d\.(?:ts|cts)$/, /^build\/chunks\/[^/]+\.js$/];
-const baseRequiredFiles = [...allowedPackageRootFiles, "build/index.js", "build/index.d.ts", "build/styles.css"];
+const entryFiles = ["build/index.js", "build/index.d.ts"];
+const stylesExport = "./styles.css";
 const forbiddenPackedPathPatterns = [
   /(?:^|\/)(?:src|story|stories|__tests__)(?:\/|$)/i,
   /^contract(?:\/|$)/,
@@ -19,6 +19,27 @@ const forbiddenPackedPathPatterns = [
 ];
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+
+// Every file named by the expected `exports` map must be packed and nothing else may be shipped unless the
+// contract allows it, so a package without `./styles.css` in its exports must not pack a stylesheet.
+function collectExportTargets(value) {
+  if (typeof value === "string") return value.includes("*") ? [] : [value.replace(/^\.\//, "")];
+  if (value && typeof value === "object") return Object.values(value).flatMap(collectExportTargets);
+  return [];
+}
+
+function getPublicFiles(contract) {
+  return [...new Set([...entryFiles, ...collectExportTargets(contract.exports)])];
+}
+
+function getRequiredFiles(contract) {
+  return [...allowedPackageRootFiles, ...getPublicFiles(contract), ...(contract.packedFiles?.requiredFiles ?? [])];
+}
+
+function getStylesheetPath(contract) {
+  const target = contract.exports?.[stylesExport];
+  return typeof target === "string" ? target.replace(/^\.\//, "") : undefined;
+}
 
 export const staleBuildSentinelName = "package-contract-stale-sentinel.txt";
 
@@ -30,7 +51,11 @@ function getPackMetadata(output) {
 
 function assertPackedFiles(metadata, contract) {
   const packed = contract.packedFiles ?? {};
-  const allowedFiles = new Set([...allowedPackageRootFiles, ...baseRuntimeFiles, ...(packed.runtimeFiles ?? [])]);
+  const allowedFiles = new Set([
+    ...allowedPackageRootFiles,
+    ...getPublicFiles(contract),
+    ...(packed.runtimeFiles ?? []),
+  ]);
   const allowedPatterns = [...baseAllowedPatterns, ...(packed.allowedPatterns ?? [])];
   const forbiddenPatterns = [...forbiddenPackedPathPatterns, ...(packed.forbiddenPatterns ?? [])];
 
@@ -48,7 +73,7 @@ function assertPackedFiles(metadata, contract) {
   assert.deepEqual(unexpectedFiles, [], `Tarball contains files outside the public allowlist: ${unexpectedFiles}`);
   assert.deepEqual(forbiddenFiles, [], `Tarball contains repository-only artifacts: ${forbiddenFiles}`);
 
-  for (const requiredFile of [...baseRequiredFiles, ...(packed.requiredFiles ?? [])]) {
+  for (const requiredFile of getRequiredFiles(contract)) {
     assert.ok(packedFiles.includes(requiredFile), `Tarball is missing required file ${requiredFile}.`);
   }
 }
@@ -175,7 +200,7 @@ export async function checkInstalledArtifact({
   }
 
   await Promise.all(
-    [...baseRequiredFiles, ...(contract.packedFiles?.requiredFiles ?? [])]
+    getRequiredFiles(contract)
       .filter((relativePath) => relativePath !== "package.json")
       .map((relativePath) => access(path.join(installedRoot, relativePath)))
   );
@@ -188,7 +213,10 @@ export async function checkInstalledArtifact({
 
   const generatedFiles = await collectGeneratedContractFiles(path.join(installedRoot, "build"));
   if (!isCore) {
-    const deepCoreImport = new RegExp(`["']${escapeRegExp(coreContract.packageName)}/`);
+    // Only module specifiers count: other strings may legitimately start with the core package name.
+    const deepCoreImport = new RegExp(
+      `(?:\\bfrom\\s*|\\bimport\\s*\\(?\\s*|\\brequire\\s*\\(\\s*)["']${escapeRegExp(coreContract.packageName)}/`
+    );
     for (const file of generatedFiles) {
       assert.doesNotMatch(
         await readFile(file, "utf8"),
@@ -198,10 +226,11 @@ export async function checkInstalledArtifact({
     }
   }
 
+  const stylesheetPath = getStylesheetPath(contract);
   await contract.checkArtifact?.({
     manifest,
     installedRoot,
-    styles: await readFile(path.join(installedRoot, "build", "styles.css"), "utf8"),
+    styles: stylesheetPath ? await readFile(path.join(installedRoot, stylesheetPath), "utf8") : undefined,
     generatedFiles,
     readText: (relativePath) => readFile(path.join(installedRoot, relativePath), "utf8"),
     assertMissing: (relativePath, message) => assertPathDoesNotExist(path.join(installedRoot, relativePath), message),
