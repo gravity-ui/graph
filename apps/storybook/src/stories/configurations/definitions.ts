@@ -9,7 +9,6 @@ export const storiesSettings = {
   canDragCamera: true,
   canZoomCamera: true,
   canDrag: ECanDrag.ALL,
-  canCreateNewConnections: true,
   showConnectionArrows: true,
   scaleFontSize: 1,
   useBezierConnections: true,

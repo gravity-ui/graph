@@ -58,10 +58,6 @@ const meta: Meta<typeof GraphApp> = {
       options: [ECanDrag.ALL, ECanDrag.ONLY_SELECTED, ECanDrag.NONE],
       description: "allow drag blocks",
     },
-    canCreateNewConnections: {
-      control: "boolean",
-      description: "Allow create new connection via GraphEditor",
-    },
     showConnectionArrows: {
       control: "boolean",
       description: "Show connection arrow",
@@ -81,7 +77,6 @@ const meta: Meta<typeof GraphApp> = {
     canDragCamera: true,
     canZoomCamera: true,
     canDrag: ECanDrag.ALL,
-    canCreateNewConnections: true,
     scaleFontSize: 1,
     showConnectionArrows: true,
   },

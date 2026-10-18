@@ -190,7 +190,6 @@ const config = {
     canDragCamera: true,
     canZoomCamera: true,
     canDragBlocks: true,
-    canCreateNewConnections: true,
     showConnectionArrows: true,
     useBezierConnections: true
   }

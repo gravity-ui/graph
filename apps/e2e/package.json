@@ -6,7 +6,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "e2e:bundle": "node build-bundle.js",
     "e2e:serve": "node server.js",
-    "e2e:build": "pnpm --filter @gravity-ui/graph --filter @gravity-ui/graph-react --filter @gravity-ui/graph-minimap --filter @gravity-ui/graph-duplicate-block --filter @gravity-ui/graph-layered --filter @gravity-ui/graph-playwright --filter @gravity-ui/graph-css-variables --filter @gravity-ui/graph-elk run build && pnpm run e2e:bundle",
+    "e2e:build": "pnpm --filter @gravity-ui/graph --filter @gravity-ui/graph-react --filter @gravity-ui/graph-minimap --filter @gravity-ui/graph-duplicate-block --filter @gravity-ui/graph-layered --filter @gravity-ui/graph-playwright --filter @gravity-ui/graph-css-variables --filter @gravity-ui/graph-elk --filter @gravity-ui/graph-connection-editing run build && pnpm run e2e:bundle",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
@@ -24,7 +24,8 @@
     "@gravity-ui/graph-duplicate-block": "workspace:*",
     "@gravity-ui/graph-css-variables": "workspace:*",
     "@gravity-ui/graph-elk": "workspace:*",
-    "elkjs": "^0.9.3"
+    "elkjs": "^0.9.3",
+    "@gravity-ui/graph-connection-editing": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.0",

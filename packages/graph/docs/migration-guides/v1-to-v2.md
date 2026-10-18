@@ -8,6 +8,7 @@ The temporary branch and release process is documented separately in
 ## Migration checklist
 
 - Move React, Minimap, DevTools and ELK (`useElk`) imports to their dedicated packages and install their peers.
+- Replace `ConnectionLayer` / `PortConnectionLayer` and the `canCreateNewConnections` setting with `ConnectionEditingLayer` from `@gravity-ui/graph-connection-editing`, and rename `port-connection-*` event listeners.
 - Import the layered layout from `@gravity-ui/graph-layered` and `useLayeredLayout` from `@gravity-ui/graph-layered/react`.
 - Import Playwright page objects from `@gravity-ui/graph-playwright` instead of `@gravity-ui/graph/playwright`.
 - Import `CSSVariablesLayer` and its mapping helpers from `@gravity-ui/graph-css-variables`.
@@ -128,6 +129,90 @@ the camera pans with the cursor during the gesture ([#405](https://github.com/gr
 
 The deprecated `canDuplicateBlocks` setting is removed; it had no effect. Add the layer to enable duplication, and
 call `disable()` or detach the layer to turn it off.
+
+## Connection editing package boundary
+
+`ConnectionLayer` and `PortConnectionLayer` are merged into `ConnectionEditingLayer` from
+`@gravity-ui/graph-connection-editing`. The package has a peer dependency on core and depends on `rbush`; it does not
+require React. Core no longer exports either layer, `IPortConnectionMeta` or `TPortSnapCondition`, and no longer declares
+the connection creation events: they are typed once the package is imported.
+
+```ts
+import { Graph } from "@gravity-ui/graph";
+import { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";
+
+const graph = new Graph({ settings: { useBlocksAnchors: true } }, root);
+const layer = graph.addLayer(ConnectionEditingLayer, { searchRadius: 20 });
+layer.disable(); // previously settings.canCreateNewConnections = false
+```
+
+**Setting.** `canCreateNewConnections` is removed from the graph settings. Mount the layer to allow connection
+creation, and use the `enabled` prop, `layer.setProps({ enabled })`, `enable()` / `disable()` or
+`useLayer(graph, ConnectionEditingLayer, { enabled })` to toggle it. `enable()` / `disable()` are no longer reset by
+unrelated settings updates. Remove the key from settings objects: TypeScript reports it as an unknown property.
+
+**Anchor drag.** `Anchor.isDraggable()` no longer reads a setting and always delegates the drag to the block.
+While `ConnectionEditingLayer` is enabled, it prevents the default action of the `mousedown` graph event on anchors,
+so dragging an anchor never moves its block (`captureAnchors: false` restores the block drag). Without the layer,
+or with the layer disabled, dragging an anchor drags its block. Previously `canCreateNewConnections: true` made
+anchors undraggable even when no connection layer was mounted.
+
+**Sources and targets.** Both previous gestures work in the merged layer:
+
+- a port with `meta[ConnectionEditingLayer.PortMetaKey].snappable` (former `PortConnectionLayer`). The key is still
+  `Symbol.for("PortConnectionLayer.PortMeta")`, so existing port meta keeps working; replace
+  `PortConnectionLayer.PortMetaKey` with `ConnectionEditingLayer.PortMetaKey`;
+- an anchor with `useBlocksAnchors` on, connecting to an anchor of another block, and Shift + drag between blocks
+  (former `ConnectionLayer`). Ports with connection meta take priority over these gestures.
+
+**Props.** `ConnectionLayer`'s `isConnectionAllowed(sourceState)` becomes
+`canStart({ sourcePort, sourceComponent, event })`; narrow `sourceComponent` with `instanceof Anchor` /
+`instanceof CanvasBlock` and read its `connectedState` to reach the `AnchorState` / `BlockState`. The new `isConnectionAllowed({ sourcePort, targetPort })` rejects targets.
+`createIcon`, `point`, `drawLine` and `searchRadius` are unchanged. `lineWidth` and `lineDash`, previously declared
+by `PortConnectionLayer` but ignored, now style the default preview line.
+
+**Events.** There is one event set. Rename the port events and read the extended payloads:
+
+| v1 | v2 |
+|---|---|
+| `connection-create-start`, `port-connection-create-start` | `connection-create-start` |
+| `connection-create-hover`, `port-connection-create-hover` | `connection-create-hover` |
+| `connection-created`, `port-connection-created` | `connection-created` |
+| `connection-create-drop`, `port-connection-create-drop` | `connection-create-drop` |
+| `port-connection-cancel` | `connection-create-cancel` |
+
+Every payload includes `sourcePort` (and `targetPort` when there is a target). Block IDs are
+`TBlockId | undefined` in all events, since a custom component port has no block: check them before calling
+block APIs. A created connection uses one `TConnection` addressing mode: block (and anchor) IDs when both ends are
+a block's default point port or an anchor port, otherwise `sourcePortId` / `targetPortId` for both ends, and
+`connection-created` reports the same mode. Detail types are exported as `TConnectionCreate*Detail` / `TConnectionCreatedDetail`.
+
+**Behaviour changes for former `ConnectionLayer` users:**
+
+- Anchor connections are normalized to OUT → IN: dragging from an IN anchor to an OUT anchor emits
+  `connection-created` with the OUT anchor as the source.
+- `connection-create-hover` also fires when the endpoint leaves a target (`targetPort` is `undefined`).
+- When the source disappears mid-drag, the layer emits `connection-create-cancel` instead of
+  `connection-create-drop`. Escape and detaching the layer mid-drag also cancel. Listen to both events for cleanup.
+- The default preview line is 3 screen pixels wide (was 2) and honours `style.width` from `drawLine`.
+- The line of a Shift + drag starts at the mousedown point rather than at the point where the drag threshold was
+  exceeded.
+- A drop on empty space or on an invalid target clears the source highlight.
+- The layer prevents the `mousedown` graph event with `preventDefault()`, which also calls `preventDefault()` on
+  the native event.
+
+**Behaviour changes for former `PortConnectionLayer` users:**
+
+- Anchors without connection meta (with `useBlocksAnchors` on) and Shift + drag from a block now also start
+  connections. To keep port-only creation, pass
+  `canStart` that accepts only ports whose `meta[ConnectionEditingLayer.PortMetaKey]?.snappable` is `true`
+  (see the [Connection Editing guide](../plugins/connection-editing.md)).
+- Anchors are highlighted during the drag (previously the anchor highlight was skipped).
+- A custom port on a block is saved by its port ID; previously it was saved as the block's default point. A
+  connection between an anchor or block point and a custom port is saved with port IDs on both ends instead of
+  mixing block and port fields.
+- Previously `canCreateNewConnections: true` made every anchor undraggable. Now only an enabled layer captures
+  anchor presses (`captureAnchors`).
 
 ## ELK package boundary
 
@@ -283,8 +368,8 @@ its `.world` point. Camera points are snapshots: recreate them after camera chan
 The legacy `cameraService.applyToPoint` helper continues to produce integer
 coordinates for drag operations.
 
-The `point` payloads of `connection-create-drop` and `port-connection-create-drop`
-are plain `TPoint` values. Replace `point.toArray()` with `[point.x, point.y]` and
+The `point` payload of `connection-create-drop` (now emitted by
+`@gravity-ui/graph-connection-editing`) is a plain `TPoint` value. Replace `point.toArray()` with `[point.x, point.y]` and
 `point.toObject()` with `{ x: point.x, y: point.y }`. For rectangles, use
 `[rect.x, rect.y, rect.width, rect.height]` or an object with those four fields.
 Remove imports of the internal geometry classes and `instanceof` checks for them.
@@ -641,7 +726,7 @@ The changing-entity behavior is:
 `getElementsOverRect(rect, filter)` and `getElementsInViewport(filter)` now treat a supplied empty
 filter as matching nothing, like `getElementsOverPoint`. Omit the filter to receive every component.
 
-Port connection events describe custom component ports, which may have no block or
+Connection creation events describe custom component ports, which may have no block or
 anchor. Check the optional `blockId`, `sourceBlockId`, `targetBlockId` and anchor IDs
 before invoking block/anchor APIs. `connection-create-drop.sourceAnchorId` is also
 `string | undefined`, since block-to-block creation has no anchor. The default

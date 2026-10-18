@@ -14,7 +14,6 @@ const GRAPH_SETTINGS: NonNullable<HookGraphParams["settings"]> = {
   canDragCamera: true,
   canZoomCamera: true,
   canDrag: ECanDrag.ALL,
-  canCreateNewConnections: true,
   showConnectionArrows: false,
   scaleFontSize: 1,
   useBezierConnections: true,

@@ -37,6 +37,14 @@
       "prerelease": true,
       "prerelease-type": "next"
     },
+    "packages/graph-connection-editing": {
+      "package-name": "@gravity-ui/graph-connection-editing",
+      "component": "graph-connection-editing",
+      "release-as": "1.0.0-next.0",
+      "versioning": "prerelease",
+      "prerelease": true,
+      "prerelease-type": "next"
+    },
     "packages/graph-minimap": {
       "package-name": "@gravity-ui/graph-minimap",
       "component": "graph-minimap",
