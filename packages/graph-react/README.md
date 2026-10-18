@@ -48,10 +48,10 @@ export function Editor() {
 Give the editor container a nonzero width and height.
 
 The public entrypoint includes `GraphCanvas`, `GraphBlock`, `GraphBlockAnchor`, `GraphLayer`, `GraphPortal`, context
-helpers, graph/signal/scheduler hooks, and `useLayeredLayout`. ELK layout lives in `@gravity-ui/graph-elk`. The old
-`@gravity-ui/graph/react` subpath is removed in v2; replace its imports with `@gravity-ui/graph-react` and add the React
-stylesheet. Core and Playwright consumers continue to use `@gravity-ui/graph` and `@gravity-ui/graph-playwright` without
-installing React.
+helpers, and graph/signal/scheduler hooks. ELK layout lives in `@gravity-ui/graph-elk`, and `useLayeredLayout` moved to
+`@gravity-ui/graph-layered/react`. The old `@gravity-ui/graph/react` subpath is removed in v2; replace its imports with
+`@gravity-ui/graph-react` and add the React stylesheet. Core and Playwright consumers continue to use `@gravity-ui/graph`
+and `@gravity-ui/graph-playwright` without installing React.
 
 See the [React guide](https://github.com/gravity-ui/graph/blob/v2/packages/graph/docs/react/usage.md) and
 [hooks reference](https://github.com/gravity-ui/graph/blob/v2/packages/graph/docs/react/hooks.md).

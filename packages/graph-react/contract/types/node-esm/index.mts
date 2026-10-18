@@ -1,7 +1,6 @@
 import { ESchedulerPriority, Graph, Layer, LayerProps, debounce, schedule, throttle } from "@gravity-ui/graph";
 import {
   GraphCanvas,
-  useLayeredLayout,
   GraphLayer,
   GraphLayerProps,
   GraphPortal,

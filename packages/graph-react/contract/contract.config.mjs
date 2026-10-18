@@ -27,20 +27,23 @@ export default {
           if (extracted in react) throw new Error(\`React still exports the extracted \${extracted}.\`);
         }
         if (typeof react.GraphCanvas !== "function") throw new Error("React entrypoint does not export GraphCanvas.");
+        if ("useLayeredLayout" in react) throw new Error("React still exports the extracted layered hook.");
       `,
     },
   ],
   typecheckConfigs: ["app/tsconfig.json", "app/tsconfig.non-strict.json", "types/node-esm/tsconfig.json"],
   entryPoint: "app/app.tsx",
 
-  async checkArtifact({ manifest, styles, generatedFiles }) {
+  async checkArtifact({ manifest, styles, generatedFiles, assertMissing }) {
     assert.equal(manifest.peerDependencies?.react, "^18.0.0");
     assert.equal(manifest.peerDependencies?.["react-dom"], "^18.0.0");
     assert.equal(manifest.peerDependenciesMeta?.react?.optional, undefined);
     assert.equal(manifest.peerDependenciesMeta?.["react-dom"]?.optional, undefined);
     for (const field of ["dependencies", "peerDependencies", "optionalDependencies"]) {
       assert.equal(manifest[field]?.elkjs, undefined, `React must not depend on elkjs through ${field}.`);
+      assert.equal(manifest[field]?.["@gravity-ui/graph-layered"], undefined, "React must not depend on layered.");
     }
+    await assertMissing("build/layered", "React still ships the layered hook.");
     for (const file of generatedFiles) {
       assert.doesNotMatch(await readFile(file, "utf8"), /elkjs|useElk/, `React artifact ${file} still references ELK.`);
     }

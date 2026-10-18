@@ -8,6 +8,7 @@ The temporary branch and release process is documented separately in
 ## Migration checklist
 
 - Move React, Minimap, DevTools and ELK (`useElk`) imports to their dedicated packages and install their peers.
+- Import the layered layout from `@gravity-ui/graph-layered` and `useLayeredLayout` from `@gravity-ui/graph-layered/react`.
 - Import Playwright page objects from `@gravity-ui/graph-playwright` instead of `@gravity-ui/graph/playwright`.
 - Import the stylesheets for each package you use, with core styles before addon styles.
 - Add `import "@gravity-ui/graph-minimap/styles.css"` when using Minimap: its default border and background now require this explicit import.
@@ -34,12 +35,12 @@ Replace React imports and load the two independently owned stylesheets:
 
 ```ts
 import { Graph } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph, useLayeredLayout } from "@gravity-ui/graph-react";
+import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 import "@gravity-ui/graph/styles.css";
 import "@gravity-ui/graph-react/styles.css";
 ```
 
-The layered layout algorithm and converters remain framework-independent core APIs; the React package owns the hook.
+The layered layout and its `useLayeredLayout` hook moved to `@gravity-ui/graph-layered` (see below).
 Storybook and E2E consume the same public package entrypoints. `pnpm run build` builds core before React, and each
 package's contract (`packages/<name>/contract`, run by `scripts/package-contract`) builds and installs its tarball,
 verifies native imports and strict declarations, and checks that the React adapter uses the application's core classes.
@@ -108,6 +109,37 @@ no longer re-run the layout on every render; the latest `onError` is called on f
 passed to `elk.layout()`.
 
 ELK conversion returns empty records when `edges` or `children` are missing. Edges without a first section (including an empty `sections` array) and children without both coordinates are omitted. Positioned children and the first routed section retain their existing conversion. `useElk` permits an absent `onError` callback and sets loading for each new layout request. A failed layout clears the previous result and reports an `Error`, including when ELK rejects with another value.
+
+## Layered layout package boundary
+
+`layoutGraph`, `layeredConverter`, `computeLevels`, `DEFAULT_NODE_WIDTH`, `DEFAULT_NODE_HEIGHT` and the types
+`LayeredLayoutInput`, `LayeredLayoutOptions`, `LayoutGraphParams`, `Node`, `Edge`, `ConverterResult`,
+`LayeredConverterParams` and `LayeredLayoutResult` now belong to `@gravity-ui/graph-layered`, which also adds
+`LayeredLayoutConnection`.
+`useLayeredLayout` and `UseLayeredLayoutParams` moved from `@gravity-ui/graph-react` to its `/react` subpath:
+
+```ts
+import { computeLevels, layeredConverter, layoutGraph } from "@gravity-ui/graph-layered";
+import { useLayeredLayout } from "@gravity-ui/graph-layered/react";
+```
+
+Block ids in `LayeredLayoutInput`, `ConverterResult.blocks` and `computeLevels` are now typed as `TBlockId` instead of
+`TConnectionId` (both are `string | number`). `layeredConverter` takes the layout input `connections` instead of a
+prebuilt `connectionIdBySourceTarget` map and matches edges to connection ids itself:
+
+```ts
+// v1
+layeredConverter({ layoutResult, connectionIdBySourceTarget: new Map([["a/b", ["a-b"]]]), blockSizes });
+// v2
+layeredConverter({ layoutResult, connections: [{ id: "a-b", sourceBlockId: "a", targetBlockId: "b" }], blockSizes });
+```
+
+Connections may now omit block ids, so graph connections (`TConnection[]`) can be passed directly. Only block endpoints
+are laid out: a port-only connection is skipped and gets no entry in `ConverterResult.edges`, and anchors are ignored.
+`useLayeredLayout` no longer restarts the layout when it receives new arrays or options with the same layout-relevant
+values (block ids, sizes and levels, connection ids and endpoints, option values), or a new `onError`.
+The package requires core as a peer dependency for its types; React is an optional peer, needed only for `/react`.
+Core and `@gravity-ui/graph-react` no longer include or re-export the layered layout.
 
 ## Playwright package boundary
 

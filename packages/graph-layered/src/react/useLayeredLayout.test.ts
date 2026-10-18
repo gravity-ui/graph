@@ -1,12 +1,13 @@
-import { layeredConverter, layoutGraph } from "@gravity-ui/graph";
-import type { ConverterResult } from "@gravity-ui/graph";
 import { act, renderHook, waitFor } from "@testing-library/react";
+
+import { layeredConverter, layoutGraph } from "..";
+import type { ConverterResult } from "..";
 
 import { useLayeredLayout } from "./useLayeredLayout";
 import type { UseLayeredLayoutParams } from "./useLayeredLayout";
 
-jest.mock("@gravity-ui/graph", () => ({
-  ...jest.requireActual("@gravity-ui/graph"),
+jest.mock("..", () => ({
+  ...jest.requireActual(".."),
   layoutGraph: jest.fn(),
   layeredConverter: jest.fn(),
 }));
@@ -162,6 +163,26 @@ describe("useLayeredLayout", () => {
     });
   });
 
+  it("passes an explicit block level to the layout instead of the computed one", async () => {
+    const deferred = createDeferred<TLayoutResult>();
+    mockedLayoutGraph.mockReturnValueOnce(deferred.promise);
+
+    const blocks = [baseBlocks[0], { ...baseBlocks[1], level: 3 }];
+
+    renderHook(() => useLayeredLayout({ blocks, connections: baseConnections }));
+
+    expect(mockedLayoutGraph).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nodes: [expect.objectContaining({ id: "a", level: 0 }), expect.objectContaining({ id: "b", level: 3 })],
+      })
+    );
+
+    await act(async () => {
+      deferred.resolve(baseLayoutResult);
+      await deferred.promise;
+    });
+  });
+
   it("calls onError and clears loading state when layout calculation fails", async () => {
     const deferred = createDeferred<TLayoutResult>();
     const onError = jest.fn<void, [Error]>();
@@ -190,5 +211,87 @@ describe("useLayeredLayout", () => {
 
     expect(onError).toHaveBeenCalledWith(error);
     expect(result.current.result).toBeNull();
+  });
+
+  it("does not restart the layout for inline inputs that describe the same layout", async () => {
+    mockedLayoutGraph.mockResolvedValue(baseLayoutResult);
+
+    const { result, rerender } = renderHook(() =>
+      useLayeredLayout({
+        blocks: [
+          { id: "a", width: 100, height: 50 },
+          { id: "b", width: 100, height: 50 },
+        ],
+        connections: [{ sourceBlockId: "a", targetBlockId: "b" }],
+        layoutOptions: { nodeVerticalGap: 120 },
+        onError: () => {},
+      })
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    rerender();
+    rerender();
+    await act(async () => {});
+
+    expect(mockedLayoutGraph).toHaveBeenCalledTimes(1);
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it("restarts the layout when an option value changes", async () => {
+    mockedLayoutGraph.mockResolvedValue(baseLayoutResult);
+
+    const { result, rerender } = renderHook(
+      ({ gap }) =>
+        useLayeredLayout({ blocks: baseBlocks, connections: baseConnections, layoutOptions: { nodeVerticalGap: gap } }),
+      { initialProps: { gap: 120 } }
+    );
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    rerender({ gap: 200 });
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(mockedLayoutGraph).toHaveBeenCalledTimes(2);
+    expect(mockedLayoutGraph).toHaveBeenLastCalledWith(expect.objectContaining({ options: { nodeVerticalGap: 200 } }));
+  });
+
+  it("reports errors to the latest onError without restarting the layout", async () => {
+    const deferred = createDeferred<TLayoutResult>();
+    mockedLayoutGraph.mockReturnValueOnce(deferred.promise);
+    const firstOnError = jest.fn<void, [Error]>();
+    const latestOnError = jest.fn<void, [Error]>();
+
+    const { rerender } = renderHook(
+      ({ onError }) => useLayeredLayout({ blocks: baseBlocks, connections: baseConnections, onError }),
+      { initialProps: { onError: firstOnError } }
+    );
+    rerender({ onError: latestOnError });
+
+    await act(async () => {
+      deferred.reject(new Error("layout failed"));
+      await deferred.promise.catch(() => {});
+    });
+
+    expect(mockedLayoutGraph).toHaveBeenCalledTimes(1);
+    expect(firstOnError).not.toHaveBeenCalled();
+    expect(latestOnError).toHaveBeenCalledWith(expect.objectContaining({ message: "layout failed" }));
+  });
+
+  it("leaves port-only connections out of the layout", async () => {
+    mockedLayoutGraph.mockResolvedValue(baseLayoutResult);
+    const connections = [...baseConnections, { id: "ports" }];
+
+    const { result } = renderHook(() => useLayeredLayout({ blocks: baseBlocks, connections }));
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(mockedLayoutGraph).toHaveBeenCalledWith(expect.objectContaining({ edges: [{ from: "a", to: "b" }] }));
+    expect(mockedLayeredConverter).toHaveBeenCalledWith(expect.objectContaining({ connections }));
   });
 });

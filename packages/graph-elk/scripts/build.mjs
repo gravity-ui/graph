@@ -3,6 +3,6 @@ import { buildPackage } from "../../../scripts/build-package.mjs";
 
 await buildPackage({
   packageRoot: fileURLToPath(new URL("../", import.meta.url)),
-  entries: { index: "src/index.ts", "react/index": "src/react/index.ts" },
+  entryPoints: { index: "src/index.ts", "react/index": "src/react/index.ts" },
   styles: false,
 });
