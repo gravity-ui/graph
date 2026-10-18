@@ -30,6 +30,8 @@ export default {
   ],
   dependencies: ["elkjs", "react", "react-dom"],
   devDependencies: ["@types/react", "@types/react-dom"],
+  // The hook needs React only; the ELK consumer works without the React package.
+  mustNotResolve: ["@gravity-ui/graph-react"],
   probes: [
     {
       label: "Laying out a graph with the ELK entrypoints and the installed elkjs in Node ESM",
@@ -59,8 +61,16 @@ export default {
   async checkArtifact({ manifest, generatedFiles, readText }) {
     assert.deepEqual(Object.keys(manifest.peerDependencies).sort(), ["@gravity-ui/graph", "elkjs", "react"]);
     assert.deepEqual(manifest.peerDependenciesMeta, { react: { optional: true } });
+    assert.equal(manifest.peerDependencies.elkjs, "^0.9.3");
     assert.deepEqual(manifest.dependencies ?? {}, {});
     assert.deepEqual(manifest.optionalDependencies ?? {}, {});
+    for (const field of ["dependencies", "peerDependencies", "optionalDependencies", "devDependencies"]) {
+      assert.equal(
+        manifest[field]?.["@gravity-ui/graph-react"],
+        undefined,
+        `ELK must not depend on graph-react (${field}).`
+      );
+    }
     assert.match(
       await readText("build/react/index.js"),
       /from\s*["']react["']/,
