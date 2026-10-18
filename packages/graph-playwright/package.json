@@ -33,7 +33,7 @@
     "build": "node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.ts\"",
-    "test:package-contract": "node ../../tests/package-contract/run.mjs graph-playwright",
+    "test:package-contract": "node ../../scripts/package-contract/run.mjs graph-playwright",
     "prepublishOnly": "pnpm run build && pnpm run typecheck"
   },
   "peerDependencies": {

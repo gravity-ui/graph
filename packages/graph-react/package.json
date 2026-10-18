@@ -30,7 +30,7 @@
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
     "test:unit": "jest --passWithNoTests",
     "test": "pnpm run test:unit",
-    "test:package-contract": "node ../../tests/package-contract/run.mjs graph-react",
+    "test:package-contract": "node ../../scripts/package-contract/run.mjs graph-react",
     "prepublishOnly": "pnpm run build && pnpm run typecheck && pnpm run test",
     "dev": "chokidar \"src/**/*\" \"../graph/build/**/*\" -c \"pnpm run build\" --initial"
   },

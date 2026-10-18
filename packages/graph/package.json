@@ -47,7 +47,7 @@
     "build": "node scripts/build.mjs",
     "prepublishOnly": "pnpm run build && pnpm run typecheck && pnpm run test",
     "dev": "chokidar \"src/**/*\" -c \"pnpm run build\" --initial",
-    "test:package-contract": "node ../../tests/package-contract/run.mjs"
+    "test:package-contract": "node ../../scripts/package-contract/run.mjs"
   },
   "dependencies": {
     "@preact/signals-core": "^1.12.2",
