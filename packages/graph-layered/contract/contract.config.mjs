@@ -78,6 +78,8 @@ export default {
       assert.doesNotMatch(contents, /["']@gravity-ui\/graph["']/, `Layered runtime file ${file} must not import core.`);
       if (relativePath !== path.join("build", "react", "index.js")) {
         assert.doesNotMatch(contents, /["']react(?:-dom)?(?:\/[^"']*)?["']/, `Layered file ${file} must not import React.`);
+        // React can only reach the root indirectly, through the React entry.
+        assert.doesNotMatch(contents, /["'][./]*react\/index\.js["']/, `Layered file ${file} must not load the React entry.`);
       }
     }
   },

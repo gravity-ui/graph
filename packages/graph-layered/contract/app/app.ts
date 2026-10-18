@@ -17,7 +17,7 @@ if (!root) {
   throw new Error("Graph root was not found.");
 }
 
-// The browser bundle is not a module, so the asynchronous layout runs inside a function.
+// The esbuild bundle is an IIFE without top-level await, so the asynchronous layout runs inside a function.
 async function applyLayout(target: HTMLDivElement): Promise<void> {
   const levels = computeLevels(
     blocks.map((block) => block.id),
