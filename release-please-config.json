@@ -45,6 +45,14 @@
       "prerelease": true,
       "prerelease-type": "next"
     },
+    "packages/graph-layered": {
+      "package-name": "@gravity-ui/graph-layered",
+      "component": "graph-layered",
+      "release-as": "1.0.0-next.0",
+      "versioning": "prerelease",
+      "prerelease": true,
+      "prerelease-type": "next"
+    },
     "packages/graph-playwright": {
       "package-name": "@gravity-ui/graph-playwright",
       "component": "graph-playwright",

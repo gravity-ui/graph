@@ -1,24 +1,32 @@
-import type { TMultipointConnection } from "../../../components/canvas/connections/types";
-import type { TConnectionId } from "../../../store/connection/ConnectionState";
-import type { TPoint } from "../../../utils/types/shapes";
+import type { TBlockId, TConnectionId, TMultipointConnection, TPoint } from "@gravity-ui/graph";
 
 export type ConverterResult = {
   edges: Record<TConnectionId, Pick<TMultipointConnection, "points" | "labels">>;
-  blocks: Record<TConnectionId, TPoint>;
+  blocks: Record<TBlockId, TPoint>;
+};
+
+/**
+ * A connection as seen by the layout. Only block endpoints are laid out:
+ * a connection without both `sourceBlockId` and `targetBlockId` (for example a port-only
+ * `sourcePortId`/`targetPortId` connection) is skipped and gets no entry in `ConverterResult.edges`.
+ * Anchors (`sourceAnchorId`/`targetAnchorId`) are ignored: points start at the right middle
+ * of the source block and end at the left middle of the target block.
+ * Give connections ids: a connection without an id is reported under "sourceBlockId/targetBlockId".
+ */
+export type LayeredLayoutConnection = {
+  id?: TConnectionId;
+  sourceBlockId?: TBlockId;
+  targetBlockId?: TBlockId;
 };
 
 export type LayeredLayoutInput = {
   blocks: Array<{
-    id: TConnectionId;
+    id: TBlockId;
     width: number;
     height: number;
     level?: number;
   }>;
-  connections: Array<{
-    id?: TConnectionId;
-    sourceBlockId: TConnectionId;
-    targetBlockId: TConnectionId;
-  }>;
+  connections: LayeredLayoutConnection[];
 };
 
 /**
