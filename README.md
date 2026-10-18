@@ -10,7 +10,7 @@ This repository contains the Gravity UI Graph packages and their development too
 - [`@gravity-ui/graph-devtools`](packages/graph-devtools) — optional rulers, cursor crosshair, and their styles, depending on the core public API.
 - [`@gravity-ui/graph-duplicate-block`](packages/graph-duplicate-block) — optional Alt+drag block duplication layer, depending on the core public API.
 
-Shared build tooling lives in `scripts/`; `tests/package-contract` installs the public tarballs into isolated vanilla, React, minimap, DevTools, and duplicate block projects.
+Shared build tooling lives in `scripts/`. Each public package keeps its packed-package contract in `packages/<name>/contract`; `scripts/package-contract` installs the tarballs into an isolated consumer per package.
 
 ## Applications
 

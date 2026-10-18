@@ -1,4 +1,0 @@
-{
-  "extends": "../../shared/tsconfig.json",
-  "include": ["app.ts", "graph.pw.ts", "../../shared/assets.d.ts"]
-}
