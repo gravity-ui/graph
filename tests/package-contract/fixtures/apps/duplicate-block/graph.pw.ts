@@ -19,9 +19,10 @@ test("Alt-drag of an installed DuplicateBlockLayer adds a copy of the block", as
   await expect(page.locator("#graph")).toHaveAttribute("data-duplicate-items", "1");
   expect(await source.getGeometry()).toEqual(before);
   const copies = await graph.evaluate((instance) =>
-    instance.rootStore.blocksList.$blocks.value
+    instance.blocks
+      .toJSON()
       .filter((block) => !["source", "other"].includes(String(block.id)))
-      .map((block) => ({ name: block.$state.value.name, y: block.y }))
+      .map((block) => ({ name: block.name, y: block.y }))
   );
   expect(copies).toHaveLength(1);
   expect(copies[0].name).toBe("Source");

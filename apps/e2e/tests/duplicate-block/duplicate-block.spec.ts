@@ -33,10 +33,10 @@ test.describe("DuplicateBlockLayer", () => {
     return (await duplicatePO.getBlockIds()).filter((id) => !ORIGINAL_IDS.includes(id));
   }
 
-  /** The graph starts the drag after the threshold, so allow a few screen pixels of difference. */
+  /** The drag is anchored at the press point, so the copy lands within a screen pixel of the drop offset. */
   async function getTolerance(): Promise<number> {
     const { scale } = await graphPO.camera().getState();
-    return 10 / scale;
+    return 1 / scale;
   }
 
   async function altDragBlock(blockId: TBlockId): Promise<void> {
@@ -97,6 +97,11 @@ test.describe("DuplicateBlockLayer", () => {
 
     await duplicatePO.startAltDrag(center, target);
     expect(await duplicatePO.getPreviewAlphaAt(target)).toBe(255);
+    // The preview edge is where the copy will be: block-1 starts at (0, 0), so its copy starts at SHIFT.
+    const { scale } = await graphPO.camera().getState();
+    const inset = 3 / scale;
+    expect(await duplicatePO.getPreviewAlphaAt({ x: SHIFT.x + inset, y: SHIFT.y + inset })).toBe(255);
+    expect(await duplicatePO.getPreviewAlphaAt({ x: SHIFT.x - inset, y: SHIFT.y - inset })).toBe(0);
     expect(await getCopyIds()).toHaveLength(0);
 
     await duplicatePO.finishAltDrag();
@@ -209,6 +214,118 @@ test.describe("DuplicateBlockLayer", () => {
 
     expect(await getCopyIds()).toHaveLength(0);
     expect((await graphPO.block("block-1").getGeometry()).x).toBeGreaterThan(0);
+  });
+
+  test.describe("connection addressing", () => {
+    function anchoredBlock(id: string, x: number): TBlock {
+      return {
+        ...block(id, x, 0),
+        anchors: [
+          { id: "out", blockId: id, type: "OUT" },
+          { id: "in", blockId: id, type: "IN" },
+        ],
+      };
+    }
+
+    const ANCHORED_IDS = ["anchored-a", "anchored-b"];
+
+    async function duplicateAnchoredPair(): Promise<TBlockId[]> {
+      const before = await duplicatePO.getBlockIds();
+      await graphPO.evaluate((graph, ids) => graph.api.selectBlocks(ids, true), ANCHORED_IDS);
+      await altDragBlock("anchored-a");
+      const copies = (await duplicatePO.getBlockIds()).filter((id) => !before.includes(id));
+      const names = await Promise.all(copies.map(async (id) => (await graphPO.block(id).getState())?.name));
+      // Order the copies as [copy of anchored-a, copy of anchored-b].
+      return ANCHORED_IDS.map((name) => copies[names.indexOf(name)]);
+    }
+
+    test.beforeEach(async () => {
+      await duplicatePO.addLayer();
+    });
+
+    test("a block + anchor connection is copied between the duplicates with its anchors", async () => {
+      // No explicit ID: core derives "out:in" from the anchors, the same ID an anchor copy without ID would get.
+      await graphPO.setEntities({
+        blocks: [anchoredBlock("anchored-a", 0), anchoredBlock("anchored-b", 400)],
+        connections: [
+          { sourceBlockId: "anchored-a", sourceAnchorId: "out", targetBlockId: "anchored-b", targetAnchorId: "in" },
+        ],
+      });
+      const [original] = await duplicatePO.getConnections();
+
+      const [firstA, firstB] = await duplicateAnchoredPair();
+      const [secondA, secondB] = await duplicateAnchoredPair();
+
+      const connections = await duplicatePO.getConnections();
+      expect(connections).toHaveLength(3);
+      expect(new Set(connections.map((connection) => connection.id)).size).toBe(3);
+      expect(connections).toContainEqual(original);
+      for (const [sourceBlockId, targetBlockId] of [
+        [firstA, firstB],
+        [secondA, secondB],
+      ]) {
+        const copy = connections.find((connection) => connection.sourceBlockId === sourceBlockId);
+        expect(copy).toEqual({
+          id: expect.any(String),
+          sourceBlockId,
+          sourceAnchorId: "out",
+          targetBlockId,
+          targetAnchorId: "in",
+          selected: false,
+        });
+      }
+    });
+
+    test("a port connection is copied to the same ports of the duplicates", async () => {
+      await graphPO.evaluate((graph) => {
+        const { createAnchorPortId } = window.GraphModule;
+        graph.setEntities({
+          blocks: [
+            {
+              id: "anchored-a",
+              is: "Block",
+              x: 0,
+              y: 0,
+              width: 200,
+              height: 100,
+              name: "anchored-a",
+              anchors: [{ id: "out", blockId: "anchored-a", type: "OUT" }],
+            },
+            {
+              id: "anchored-b",
+              is: "Block",
+              x: 400,
+              y: 0,
+              width: 200,
+              height: 100,
+              name: "anchored-b",
+              anchors: [{ id: "in", blockId: "anchored-b", type: "IN" }],
+            },
+          ],
+          connections: [
+            {
+              id: "ported",
+              sourcePortId: createAnchorPortId("anchored-a", "out"),
+              targetPortId: createAnchorPortId("anchored-b", "in"),
+            },
+          ],
+        });
+      });
+
+      const [copyA, copyB] = await duplicateAnchoredPair();
+
+      const expected = await graphPO.evaluate(
+        (_graph, ids) => {
+          const { createAnchorPortId } = window.GraphModule;
+          return { sourcePortId: createAnchorPortId(ids[0], "out"), targetPortId: createAnchorPortId(ids[1], "in") };
+        },
+        [copyA, copyB]
+      );
+      const connections = await duplicatePO.getConnections();
+      expect(connections).toHaveLength(2);
+      const copy = connections.find((connection) => connection.id !== "ported");
+      expect(copy).toEqual({ id: expect.any(String), ...expected, selected: false });
+    });
   });
 
   // Known core issue https://github.com/gravity-ui/graph/issues/405: Camera subscribes to the graph "mousedown"

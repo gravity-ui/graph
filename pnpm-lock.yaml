@@ -363,6 +363,12 @@ importers:
       jest:
         specifier: ^30.0.5
         version: 30.0.5(@types/node@20.19.43)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.13.3)(@types/node@20.19.43)(typescript@6.0.3))
+      jest-canvas-mock:
+        specifier: ^2.5.2
+        version: 2.5.2
+      jest-environment-jsdom:
+        specifier: ^30.0.5
+        version: 30.0.5
       prettier:
         specifier: ^3.0.0
         version: 3.3.2

@@ -1,7 +1,7 @@
 import { CanvasBlock, ESelectionStrategy, Layer } from "@gravity-ui/graph";
 import type { BlockState, LayerContext, LayerProps, TPoint, UnwrapGraphEvents } from "@gravity-ui/graph";
 
-import { createDuplicateBlockId, createDuplicates } from "./createDuplicates";
+import { createDuplicateBlockId, createDuplicateConnectionId, createDuplicates } from "./createDuplicates";
 
 export type TBlocksDuplicateStartDetail = {
   /** Blocks that will be duplicated. */
@@ -57,10 +57,9 @@ export class DuplicateBlockLayer extends Layer<
 > {
   private copyBlocks: BlockState[] = [];
   private initialPoint: TPoint | null = null;
+  /** Preview rectangles in world coordinates, so they stay where the copies will be added. */
   private ghosts: TGhost[] = [];
   private enabled = true;
-  private lastMouseX?: number;
-  private lastMouseY?: number;
 
   constructor(props: TDuplicateBlockLayerProps) {
     super({
@@ -79,11 +78,12 @@ export class DuplicateBlockLayer extends Layer<
   }
 
   protected afterInit(): void {
-    super.afterInit();
-    // Capture runs before the graph's own mousedown handling, so preventing the event stops the block drag.
+    // Preventing the graph mousedown stops the block drag and DragService. Graph listeners run in registration
+    // order, so a camera pan that has already started is not stopped (https://github.com/gravity-ui/graph/issues/405).
     this.onGraphEvent("mousedown", this.handleMouseDown, {
       capture: true,
     });
+    super.afterInit();
   }
 
   protected handleMouseDown = (graphEvent: UnwrapGraphEvents<"mousedown">): void => {
@@ -99,17 +99,18 @@ export class DuplicateBlockLayer extends Layer<
       return;
     }
 
-    // Prevents the block drag, the camera drag and the context menu.
+    // Prevents the block drag and the context menu.
     graphEvent.preventDefault();
     event.preventDefault();
 
     this.context.graph.dragService.startDrag(
       {
-        onStart: (event, coords) => this.onStartDuplicate(event, target, { x: coords[0], y: coords[1] }),
-        onUpdate: (event) => this.onMoveDuplicate(event),
+        onStart: (_event, coords) => this.onStartDuplicate(target, { x: coords[0], y: coords[1] }),
+        onUpdate: (_event, coords) => this.onMoveDuplicate({ x: coords[0], y: coords[1] }),
         onEnd: (_event, coords) => this.onEndDuplicate({ x: coords[0], y: coords[1] }),
       },
-      { cursor: "copy" }
+      // Anchors the drag at the press point rather than at the first move past the drag threshold.
+      { cursor: "copy", initialEvent: event }
     );
   };
 
@@ -120,26 +121,28 @@ export class DuplicateBlockLayer extends Layer<
       return;
     }
 
+    const scale = this.context.camera.getCameraScale();
+    const cameraRect = this.context.camera.getCameraRect();
     const ctx = this.context.ctx;
     ctx.save();
     ctx.fillStyle = this.props.ghostBackground || this.context.colors.block.border;
     for (const ghost of this.ghosts) {
-      ctx.fillRect(ghost.x, ghost.y, ghost.width, ghost.height);
+      ctx.fillRect(
+        ghost.x * scale + cameraRect.x,
+        ghost.y * scale + cameraRect.y,
+        ghost.width * scale,
+        ghost.height * scale
+      );
     }
     ctx.restore();
   }
 
-  private getMousePosition(event: MouseEvent): TPoint {
-    const rect = this.context.graphCanvas.getBoundingClientRect();
-    return { x: event.pageX - rect.left - window.scrollX, y: event.pageY - rect.top - window.scrollY };
-  }
-
-  private onStartDuplicate(event: MouseEvent, block: CanvasBlock, point: TPoint): void {
+  private onStartDuplicate(block: CanvasBlock, point: TPoint): void {
     const isBlockSelected = block.connectedState.selected;
 
     let blockStates: BlockState[];
     if (isBlockSelected) {
-      const selectedBlockStates = this.context.graph.rootStore.blocksList.$selectedBlocks.value;
+      const selectedBlockStates = this.context.graph.blocks.$selectedBlocks.value;
       const isDuplicateAllowed = this.props.isDuplicateAllowed;
       if (isDuplicateAllowed) {
         blockStates = selectedBlockStates.filter((blockState) => {
@@ -168,47 +171,17 @@ export class DuplicateBlockLayer extends Layer<
       return;
     }
 
-    const scale = this.context.camera.getCameraScale();
-    const mouse = this.getMousePosition(event);
-    const cameraRect = this.context.camera.getCameraRect();
-    const clickedBlockX = block.connectedState.x * scale + cameraRect.x;
-    const clickedBlockY = block.connectedState.y * scale + cameraRect.y;
-    // Keeps the cursor at the same point of the pressed block's preview.
-    const clickOffsetX = mouse.x - clickedBlockX;
-    const clickOffsetY = mouse.y - clickedBlockY;
-
-    this.ghosts = this.copyBlocks.map((blockState) => {
-      const blockScreenX = blockState.x * scale + cameraRect.x;
-      const blockScreenY = blockState.y * scale + cameraRect.y;
-      return {
-        width: blockState.width * scale,
-        height: blockState.height * scale,
-        x: mouse.x - clickOffsetX + (blockScreenX - clickedBlockX),
-        y: mouse.y - clickOffsetY + (blockScreenY - clickedBlockY),
-      };
-    });
-
+    this.ghosts = this.copyBlocks.map(({ x, y, width, height }) => ({ x, y, width, height }));
     this.performRender();
   }
 
-  private onMoveDuplicate(event: MouseEvent): void {
-    if (!this.copyBlocks.length) {
+  private onMoveDuplicate(point: TPoint): void {
+    if (!this.ghosts.length || !this.initialPoint) {
       return;
     }
 
-    const mouse = this.getMousePosition(event);
-    if (this.lastMouseX === undefined || this.lastMouseY === undefined) {
-      this.lastMouseX = mouse.x;
-      this.lastMouseY = mouse.y;
-      return;
-    }
-
-    const deltaX = mouse.x - this.lastMouseX;
-    const deltaY = mouse.y - this.lastMouseY;
-    this.ghosts = this.ghosts.map((ghost) => ({ ...ghost, x: ghost.x + deltaX, y: ghost.y + deltaY }));
-    this.lastMouseX = mouse.x;
-    this.lastMouseY = mouse.y;
-
+    const delta = { x: point.x - this.initialPoint.x, y: point.y - this.initialPoint.y };
+    this.ghosts = this.copyBlocks.map(({ x, y, width, height }) => ({ x: x + delta.x, y: y + delta.y, width, height }));
     this.performRender();
   }
 
@@ -218,8 +191,6 @@ export class DuplicateBlockLayer extends Layer<
     }
 
     this.ghosts = [];
-    this.lastMouseX = undefined;
-    this.lastMouseY = undefined;
     this.performRender();
 
     const delta = {
@@ -246,18 +217,20 @@ export class DuplicateBlockLayer extends Layer<
     const duplicates = createDuplicates({
       // Listeners may change `coord` without preventing the event, so the copies use it as is.
       blocks: sources.map((item) => ({ block: item.block.connectedState.asTBlock(), coord: item.coord })),
-      connections: graph.rootStore.connectionsList.$connections.value.map((connection) => connection.toJSON()),
+      connections: graph.connections.toJSON(),
       delta,
       createId: createDuplicateBlockId,
+      createConnectionId: createDuplicateConnectionId,
     });
 
+    // Three store writes: `batch` is not part of the public core API, and updateEntities batches its own.
     graph.api.unsetSelection();
-    for (const block of duplicates.blocks) {
-      graph.api.addBlock(block, { selected: true, strategy: ESelectionStrategy.APPEND });
-    }
-    for (const connection of duplicates.connections) {
-      graph.api.addConnection(connection);
-    }
+    graph.updateEntities(duplicates);
+    graph.api.selectBlocks(
+      duplicates.blocks.map((duplicate) => duplicate.id),
+      true,
+      ESelectionStrategy.REPLACE
+    );
   }
 
   public enable(): void {

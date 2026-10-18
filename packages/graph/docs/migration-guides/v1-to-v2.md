@@ -112,8 +112,12 @@ the package is imported. The payload types are exported as `TBlocksDuplicateStar
 The default action of `blocks-duplicate` changed in two ways:
 
 - A copy keeps the `is` of its source block. In v1 every copy got `is: "block"` and lost its custom block component.
-- A copied connection keeps all its fields except `id`, selection and port IDs; its route `points` and positioned
-  `labels` are shifted with the blocks. In v1 only anchors, `styles`, `dashed` and `label` were copied.
+- A copied connection keeps all its fields except selection and gets a new unique `id`; its route `points` and
+  positioned `labels` are shifted with the blocks. In v1 only anchors, `styles`, `dashed` and `label` were copied, and
+  copies had no `id`, so a copy of an anchor-to-anchor connection could replace the original or an earlier copy.
+- Port-based connections (`sourcePortId` / `targetPortId`) are copied when both ports are the block point or an anchor
+  of a duplicated block; v1 skipped them. Connections whose end uses a custom port are not copied. v1 copied them when
+  they also had block IDs and re-attached the copy to the block.
 
 Like `NewBlockLayer`, the layer duplicates correctly only when blocks are draggable (`canDrag: ECanDrag.ALL`): otherwise
 the camera pans with the cursor during the gesture ([#405](https://github.com/gravity-ui/graph/issues/405)).

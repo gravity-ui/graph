@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import type { TBlockId } from "@gravity-ui/graph";
+import type { TBlockId, TConnection } from "@gravity-ui/graph";
 import type { GraphPoint } from "@gravity-ui/graph/playwright";
 
 import type { GraphPageObject } from "../../page-objects/GraphPageObject";
@@ -52,7 +52,10 @@ export class DuplicateBlockPageObject {
     }
   }
 
-  /** Presses Alt + mouse on a world point and moves to another one without releasing. */
+  /**
+   * Presses Alt + mouse on a world point and moves to another one without releasing.
+   * GraphPO has no press-and-hold drag or modifier option, so this drives `page.mouse` directly.
+   */
   public async startAltDrag(from: GraphPoint, to: GraphPoint): Promise<void> {
     const [start, end] = await Promise.all([this.toViewport(from), this.toViewport(to)]);
     await this.page.keyboard.down("Alt");
@@ -84,7 +87,11 @@ export class DuplicateBlockPageObject {
   }
 
   public async getBlockIds(): Promise<TBlockId[]> {
-    return this.graphPO.evaluate((graph) => graph.rootStore.blocksList.$blocks.value.map((block) => block.id));
+    return this.graphPO.evaluate((graph) => graph.blocks.toJSON().map((block) => block.id));
+  }
+
+  public async getConnections(): Promise<TConnection[]> {
+    return this.graphPO.evaluate((graph) => graph.connections.toJSON());
   }
 
   private async toViewport(point: GraphPoint): Promise<GraphPoint> {
@@ -93,11 +100,8 @@ export class DuplicateBlockPageObject {
         const [x, y] = graph.cameraService.getAbsoluteXY(worldPoint.x, worldPoint.y);
         return { x, y };
       }, point),
-      this.page.locator("#root").boundingBox(),
+      this.graphPO.getBounds(),
     ]);
-    if (!bounds) {
-      throw new Error("Graph root is not visible.");
-    }
     return { x: bounds.x + position.x, y: bounds.y + position.y };
   }
 }

@@ -1,8 +1,8 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 
-import { Graph, TBlock } from "@gravity-ui/graph";
+import { ECanDrag, Graph, TBlock } from "@gravity-ui/graph";
 import { DuplicateBlockLayer } from "@gravity-ui/graph-duplicate-block";
-import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
+import { GraphCanvas, useGraph, useLayer } from "@gravity-ui/graph-react";
 import { Flex, Hotkey, Switch, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
@@ -13,7 +13,8 @@ import { BlockStory } from "../../main/Block";
 import "@gravity-ui/uikit/styles/styles.css";
 
 const GraphApp = () => {
-  const { graph, setEntities, start, addLayer, zoomTo } = useGraph({});
+  // Duplication needs draggable blocks until https://github.com/gravity-ui/graph/issues/405 is fixed.
+  const { graph, setEntities, start, zoomTo } = useGraph({ settings: { canDrag: ECanDrag.ALL } });
 
   useEffect(() => {
     setEntities(generatePrettyBlocks({ layersCount: 3, connectionsPerLayer: 5, dashedLine: false }));
@@ -21,23 +22,16 @@ const GraphApp = () => {
     zoomTo("center", { padding: 300 });
   }, [graph]);
 
-  const duplicateLayerRef = useRef<DuplicateBlockLayer | null>(null);
-
-  useLayoutEffect(() => {
-    duplicateLayerRef.current = addLayer(DuplicateBlockLayer, {});
-    return () => {
-      duplicateLayerRef.current?.detachLayer();
-    };
-  }, []);
+  const duplicateLayer = useLayer(graph, DuplicateBlockLayer, {});
 
   const [enabled, setEnabled] = useState(true);
 
   const switchDuplicateEnabled = useFn((addEnabled: boolean) => {
     if (addEnabled) {
-      duplicateLayerRef.current?.enable();
+      duplicateLayer?.enable();
       setEnabled(true);
     } else {
-      duplicateLayerRef.current?.disable();
+      duplicateLayer?.disable();
       setEnabled(false);
     }
   });

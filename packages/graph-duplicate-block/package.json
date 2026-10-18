@@ -43,6 +43,8 @@
     "eslint": "^9.39.5",
     "globals": "^16.5.0",
     "jest": "^30.0.5",
+    "jest-canvas-mock": "^2.5.2",
+    "jest-environment-jsdom": "^30.0.5",
     "prettier": "^3.0.0",
     "typescript": "catalog:"
   }

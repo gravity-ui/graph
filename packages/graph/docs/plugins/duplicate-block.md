@@ -28,7 +28,12 @@ duplicateLayer.enable();
 duplicateLayer.disable();
 ```
 
-In React, add it with `useLayer(graph, DuplicateBlockLayer, props)` from `@gravity-ui/graph-react`.
+In React, attach it with `useLayer` from `@gravity-ui/graph-react` instead of calling `graph.addLayer`:
+
+```tsx
+const { graph } = useGraph({ settings: { canDrag: ECanDrag.ALL } });
+const duplicateLayer = useLayer(graph, DuplicateBlockLayer, {});
+```
 
 ## Configuration Options
 
@@ -86,7 +91,16 @@ graph.on("blocks-duplicate", (event) => {
 - A preview of the blocks follows the cursor.
 - On release, the copies are added:
   - each copy keeps all fields of its source, including its type (`is`), and gets a new `id` and position;
-  - when several blocks are copied, every connection between them is copied too. The copy keeps all connection fields except `id`, selection and port IDs; its route points and positioned labels move with the blocks.
+  - when several blocks are copied, the connections between them are copied too (see below).
+
+## Copying connections
+
+Connections are copied only when at least two blocks are duplicated. Each end of a connection is addressed in one of two ways, and core uses the port ID when both are set:
+
+- **By block** — `sourceBlockId` / `targetBlockId`, optionally with `sourceAnchorId` / `targetAnchorId`. The end is copied when its block is duplicated: the copy points at the duplicate and keeps the anchor ID.
+- **By port** — `sourcePortId` / `targetPortId`. The end is copied only when the port is one core derives for a duplicated block: its block point (`createBlockPointPortId`) or one of its anchors (`createAnchorPortId`). The copy points at the same port of the duplicate. Custom ports cannot be mapped to a duplicate, so connections that use them are not copied.
+
+A connection is copied only when both its ends can be copied. The copy keeps all other fields except selection and gets a new unique `id`, so repeated duplication never replaces existing connections. Its route `points` and positioned `labels` move with the blocks.
 
 ## Duplication Validation
 
