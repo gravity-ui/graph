@@ -1,0 +1,8 @@
+{
+  "extends": "../../../../../scripts/package-contract/shared/tsconfig.json",
+  "compilerOptions": {
+    "module": "Node16",
+    "moduleResolution": "Node16"
+  },
+  "include": ["index.cts"]
+}
