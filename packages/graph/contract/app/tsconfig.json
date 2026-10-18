@@ -5,6 +5,7 @@
     "component-factories.ts",
     "scheduling.ts",
     "core-operations.ts",
+    "geometry.ts",
     "graph.pw.ts",
     "../../../../scripts/package-contract/shared/assets.d.ts"
   ]

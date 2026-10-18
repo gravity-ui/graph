@@ -8,6 +8,7 @@ The temporary branch and release process is documented separately in
 ## Migration checklist
 
 - Move React, Minimap and DevTools imports to their dedicated packages and install their peers.
+- Import Playwright page objects from `@gravity-ui/graph-playwright` instead of `@gravity-ui/graph/playwright`.
 - Import `CSSVariablesLayer` and its mapping helpers from `@gravity-ui/graph-css-variables`.
 - Import the stylesheets for each package you use, with core styles before addon styles.
 - Add `import "@gravity-ui/graph-minimap/styles.css"` when using Minimap: its default border and background now require this explicit import.
@@ -83,6 +84,22 @@ are now owned by the separate stylesheet; core styles only supply the base layer
 props, camera behavior, and lifecycle, and can still be used with `useLayer` or `GraphLayer` from `@gravity-ui/graph-react`.
 Core no longer contains DevTools code or declarations. The shared text measurement helper is available as
 `measureText(text, font, approximate?)` from `@gravity-ui/graph`; the ruler tick calculation belongs to DevTools.
+
+## Playwright package boundary
+
+The Playwright page objects (`GraphPO`, `GraphBlockPO`, `GraphConnectionPO`, `GraphCameraPO` and their option types)
+moved from the `@gravity-ui/graph/playwright` subpath to `@gravity-ui/graph-playwright`. Install it as a dev
+dependency next to `@playwright/test` and replace the import:
+
+```diff
+- import { GraphPO } from "@gravity-ui/graph/playwright";
++ import { GraphPO } from "@gravity-ui/graph-playwright";
+```
+
+The package ships ESM and CommonJS builds; class names, methods and behavior are unchanged. Core no longer has a
+`./playwright` export, `typesVersions` or an optional `@playwright/test` peer. An attached graph is stored on its root
+element only under `Symbol.for(GRAPH_INSTANCE_SYMBOL_KEY)` (`"@gravity-ui/graph/instance"`, exported from core); the
+undocumented `Symbol.for("graph")` key is no longer written.
 
 ## CSS variables package boundary
 

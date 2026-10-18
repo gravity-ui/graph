@@ -12,40 +12,15 @@ export default {
       import: "./build/index.js",
       default: "./build/index.js",
     },
-    "./playwright": {
-      import: {
-        types: "./build/playwright/index.d.ts",
-        default: "./build/playwright/index.js",
-      },
-      require: {
-        types: "./build/playwright/index.d.cts",
-        default: "./build/playwright/index.cjs",
-      },
-      default: "./build/playwright/index.js",
-    },
     "./styles.css": "./build/styles.css",
   },
-  typesVersions: {
-    "*": {
-      playwright: ["build/playwright/index.d.ts"],
-    },
-  },
   packedFiles: {
-    runtimeFiles: ["build/playwright/index.js", "build/playwright/index.cjs", "build/playwright/index.d.cts"],
     allowedPatterns: [/^build\/docs\/.+\.md$/],
-    forbiddenPatterns: [/(?:^|\/)(?:react-components|plugins\/(?:minimap|devtools|cssVariables))(?:\/|$)/],
-    requiredFiles: [
-      "build/playwright/index.js",
-      "build/playwright/index.d.ts",
-      "build/playwright/index.cjs",
-      "build/playwright/index.d.cts",
-      "build/docs/INDEX.md",
-    ],
+    forbiddenPatterns: [/(?:^|\/)(?:react-components|playwright|plugins\/(?:minimap|devtools|cssVariables))(?:\/|$)/, /\.d\.cts$/],
+    requiredFiles: ["build/docs/INDEX.md"],
   },
-  attw: [
-    { entrypoint: ".", profile: "esm-only" },
-    { entrypoint: "./playwright", profile: "node16" },
-  ],
+  // The browser scenario drives the graph through the published page objects.
+  workspaceDependencies: ["graph-playwright"],
   mustNotResolve: ["react", "react-dom", "@gravity-ui/graph-react", "elkjs"],
   probes: [
     {
@@ -60,6 +35,9 @@ export default {
           throw new Error("Core still exports the extracted CSS variables layer.");
         }
         if (typeof graph.Graph !== "function") throw new Error("Root entrypoint does not export Graph.");
+        if (graph.GRAPH_INSTANCE_SYMBOL_KEY !== "@gravity-ui/graph/instance") {
+          throw new Error("Root entrypoint does not export the public graph instance key.");
+        }
         if (graph.ESchedulerPriority?.LOWEST !== 4) {
           throw new Error("Root entrypoint does not export ESchedulerPriority.");
         }
@@ -85,19 +63,13 @@ export default {
       `,
     },
     {
-      label: "Importing the Playwright entrypoint with Node ESM",
+      label: "Confirming the removed Playwright subpath is not exported",
       source: `
-        const playwright = await import("@gravity-ui/graph/playwright");
-        if (typeof playwright.GraphPO !== "function") throw new Error("Playwright entrypoint does not export GraphPO.");
-      `,
-    },
-    {
-      label: "Requiring the Playwright entrypoint with Node CommonJS",
-      type: "commonjs",
-      source: `
-        const playwright = require("@gravity-ui/graph/playwright");
-        if (typeof playwright.GraphPO !== "function") {
-          throw new Error("Playwright CommonJS entrypoint does not export GraphPO.");
+        try {
+          await import("@gravity-ui/graph/playwright");
+          throw new Error("The removed Playwright subpath is still exported; use @gravity-ui/graph-playwright.");
+        } catch (error) {
+          if (error?.code !== "ERR_PACKAGE_PATH_NOT_EXPORTED") throw error;
         }
       `,
     },
@@ -124,19 +96,15 @@ export default {
       `,
     },
   ],
-  typecheckConfigs: [
-    "app/tsconfig.json",
-    "app/tsconfig.non-strict.json",
-    "types/playwright-bundler/tsconfig.json",
-    "types/node-cjs-playwright/tsconfig.json",
-  ],
+  typecheckConfigs: ["app/tsconfig.json", "app/tsconfig.non-strict.json"],
   entryPoint: "app/app.ts",
 
   async checkArtifact({ manifest, styles, generatedFiles, readText, assertMissing, otherWorkspacePackages }) {
-    assert.equal(manifest.peerDependencies?.["@playwright/test"], ">=1.58.0");
-    assert.equal(manifest.peerDependenciesMeta?.["@playwright/test"]?.optional, true);
+    assert.equal(manifest.peerDependencies, undefined);
+    assert.equal(manifest.peerDependenciesMeta, undefined);
+    await assertMissing("build/playwright", "Core still ships the Playwright page objects.");
 
-    const forbidden = [...reactPackages, ...otherWorkspacePackages, "elkjs", "style-observer"];
+    const forbidden = [...reactPackages, ...otherWorkspacePackages, "@playwright/test", "elkjs", "style-observer"];
     for (const field of [
       "dependencies",
       "devDependencies",
@@ -161,6 +129,7 @@ export default {
 
     const forbiddenSpecifiers = [
       "react(?:-dom)?(?:/[^\"']*)?",
+      escape("@playwright/test"),
       "style-observer",
       ...otherWorkspacePackages.map(escape),
     ].join("|");
