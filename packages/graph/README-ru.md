@@ -261,4 +261,4 @@ graph.zoomTo("center", { padding: 100 });
 
 ### Тестирование
 
-- [Page object-ы для Playwright](docs/testing/playwright.md)
+- [Page object-ы для Playwright](https://github.com/gravity-ui/graph/blob/v2/packages/graph-playwright/README.md)

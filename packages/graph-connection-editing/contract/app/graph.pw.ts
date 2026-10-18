@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createAnchorPortId } from "@gravity-ui/graph";
-import { GraphPO } from "@gravity-ui/graph/playwright";
+import { GraphPO } from "@gravity-ui/graph-playwright";
 
 const sourcePortId = String(createAnchorPortId("source", "out"));
 const targetPortId = String(createAnchorPortId("target", "in"));

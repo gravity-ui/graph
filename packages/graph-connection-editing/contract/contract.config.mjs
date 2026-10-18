@@ -11,6 +11,7 @@ export default {
     },
   },
   packedFiles: { forbiddenPatterns: [/(?:^|\/)(?:playwright|docs)(?:\/|$)/] },
+  workspaceDependencies: ["graph-playwright"],
   mustNotResolve: ["react", "react-dom", "@gravity-ui/graph-react", "elkjs"],
   probes: [
     {

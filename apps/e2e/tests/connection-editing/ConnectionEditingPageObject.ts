@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import type { GraphPoint } from "@gravity-ui/graph/playwright";
+import type { GraphPoint } from "@gravity-ui/graph-playwright";
 
 import type { GraphPageObject } from "../../page-objects/GraphPageObject";
 

@@ -26,6 +26,7 @@ test("every project typechecks its permanently strict tsconfig", () => {
     "packages/graph-minimap",
     "packages/graph-devtools",
     "packages/graph-connection-editing",
+    "packages/graph-playwright",
     "apps/storybook",
     "apps/e2e",
   ]) {

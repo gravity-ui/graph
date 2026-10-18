@@ -3,5 +3,6 @@
   "packages/graph-react": "0.0.0",
   "packages/graph-minimap": "0.0.0",
   "packages/graph-devtools": "0.0.0",
+  "packages/graph-playwright": "0.0.0",
   "packages/graph-connection-editing": "0.0.0"
 }

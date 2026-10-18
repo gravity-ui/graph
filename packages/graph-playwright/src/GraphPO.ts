@@ -1,19 +1,26 @@
+import type { Graph, TBlockId, TConnection, TConnectionId } from "@gravity-ui/graph";
 import type { ElementHandle, JSHandle, Locator, Page } from "@playwright/test";
-
-import type { Graph } from "../graph";
-import type { TBlockId } from "../store/block/Block";
-import type { TConnection, TConnectionId } from "../store/connection/ConnectionState";
-import { GRAPH_INSTANCE_SYMBOL_KEY, LEGACY_GRAPH_INSTANCE_SYMBOL_KEY } from "../utils/graphInstance";
 
 import { GraphBlockPO } from "./GraphBlockPO";
 import { GraphCameraPO } from "./GraphCameraPO";
 import { GraphConnectionPO } from "./GraphConnectionPO";
-import type { GraphClickOptions, GraphDragOptions, GraphHoverOptions, GraphPoint, GraphRect } from "./types";
+import type {
+  GraphClickOptions,
+  GraphConnectionBlockEndpoints,
+  GraphConnectionEndpoints,
+  GraphDragOptions,
+  GraphHoverOptions,
+  GraphPoint,
+  GraphPortId,
+  GraphRect,
+} from "./types";
 
-const GRAPH_SYMBOL_KEYS = {
-  current: GRAPH_INSTANCE_SYMBOL_KEY,
-  legacy: LEGACY_GRAPH_INSTANCE_SYMBOL_KEY,
-};
+/**
+ * Mirrors `GRAPH_INSTANCE_SYMBOL_KEY` from `@gravity-ui/graph`. The value is kept here because this
+ * module runs in Node and must not load the core runtime. apps/e2e and core's package contract
+ * (packages/graph/contract/contract.config.mjs) assert the value.
+ */
+const GRAPH_INSTANCE_SYMBOL_KEY = "@gravity-ui/graph/instance";
 
 type BrowserGraphRecord = Record<symbol, unknown>;
 
@@ -55,29 +62,23 @@ export class GraphPO {
     const timeout = options.timeout ?? 5000;
 
     await this.root.evaluate(
-      async (scope, { keys, timeoutMs }) => {
+      async (scope, { key, timeoutMs }) => {
         const deadline = performance.now() + timeoutMs;
-        const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        const nextFrame = (): Promise<void> => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
-        const findGraphs = () => {
+        const findGraphs = (): Array<{ state?: number }> => {
           const elements = [scope, ...Array.from(scope.querySelectorAll("*"))];
-          const currentGraphs: Array<{ state?: number }> = [];
-          const legacyGraphs: Array<{ state?: number }> = [];
+          const graphs: Array<{ state?: number }> = [];
 
           for (const element of elements) {
-            const record = element as unknown as BrowserGraphRecord;
-            const currentGraph = record[Symbol.for(keys.current)];
-            const legacyGraph = record[Symbol.for(keys.legacy)];
+            const graph = (element as unknown as BrowserGraphRecord)[Symbol.for(key)];
 
-            if (currentGraph && !currentGraphs.includes(currentGraph as { state?: number })) {
-              currentGraphs.push(currentGraph as { state?: number });
-            }
-            if (legacyGraph && !legacyGraphs.includes(legacyGraph as { state?: number })) {
-              legacyGraphs.push(legacyGraph as { state?: number });
+            if (graph && !graphs.includes(graph as { state?: number })) {
+              graphs.push(graph as { state?: number });
             }
           }
 
-          return currentGraphs.length > 0 ? currentGraphs : legacyGraphs;
+          return graphs;
         };
 
         while (performance.now() <= deadline) {
@@ -85,7 +86,7 @@ export class GraphPO {
           if (graphs.length > 1) {
             throw new Error("GraphPO locator contains multiple graphs. Pass a more specific locator.");
           }
-          // GraphState.READY is currently the third enum member (2).
+          // GraphState.READY (2); apps/e2e/tests/playwright-page-object.spec.ts guards this value.
           if (graphs[0]?.state === 2) {
             await nextFrame();
             return;
@@ -95,7 +96,7 @@ export class GraphPO {
 
         throw new Error(`Graph did not become ready within ${timeoutMs}ms.`);
       },
-      { keys: GRAPH_SYMBOL_KEYS, timeoutMs: timeout },
+      { key: GRAPH_INSTANCE_SYMBOL_KEY, timeoutMs: timeout },
       { timeout }
     );
   }
@@ -105,7 +106,12 @@ export class GraphPO {
    * As with Playwright's evaluate APIs, the callback cannot capture variables
    * from the Node.js test context; pass them through `arg` instead.
    */
-  public async evaluate<TResult, TArg = undefined>(
+  public evaluate<TResult>(pageFunction: (graph: Graph) => TResult | Promise<TResult>): Promise<TResult>;
+  public evaluate<TResult, TArg>(
+    pageFunction: (graph: Graph, arg: TArg) => TResult | Promise<TResult>,
+    arg: TArg
+  ): Promise<TResult>;
+  public async evaluate<TResult, TArg>(
     pageFunction: (graph: Graph, arg: TArg) => TResult | Promise<TResult>,
     arg?: TArg
   ): Promise<TResult> {
@@ -252,21 +258,84 @@ export class GraphPO {
     return this.evaluate((graph) => Array.from(graph.blocks.blockSelectionBucket.$selected.value));
   }
 
+  public async getSelectedConnectionIds(): Promise<TConnectionId[]> {
+    return this.evaluate((graph) => Array.from(graph.connections.connectionSelectionBucket.$selected.value));
+  }
+
+  /**
+   * Returns the raw connection data. Values cross the page boundary as serialized data, so symbol
+   * port ids are not supported.
+   */
   public async getConnections(): Promise<TConnection[]> {
     return this.evaluate((graph) => graph.connections.toJSON());
   }
 
-  public async hasConnectionBetween(sourceBlockId: TBlockId, targetBlockId: TBlockId): Promise<boolean> {
-    return this.evaluate(
-      (graph, ids) =>
-        graph.connections
-          .toJSON()
-          .some(
-            (connection) =>
-              connection.sourceBlockId === ids.sourceBlockId && connection.targetBlockId === ids.targetBlockId
-          ),
-      { sourceBlockId, targetBlockId }
-    );
+  /**
+   * Checks for a connection between two blocks; see {@link GraphConnectionBlockEndpoints} for how
+   * anchors and block connection points are matched. Use {@link hasConnectionBetweenPorts} for
+   * port-based connections.
+   */
+  public async hasConnectionBetween(
+    sourceBlockId: TBlockId,
+    targetBlockId: TBlockId,
+    anchors: Pick<GraphConnectionBlockEndpoints, "sourceAnchorId" | "targetAnchorId"> = {}
+  ): Promise<boolean> {
+    const endpoints: GraphConnectionBlockEndpoints = {
+      sourceBlockId,
+      targetBlockId,
+      sourceAnchorId: anchors.sourceAnchorId,
+      targetAnchorId: anchors.targetAnchorId,
+    };
+    return (await this.findConnectionIds(endpoints)).length > 0;
+  }
+
+  /** Checks for a connection whose resolved source and target port ids match. */
+  public async hasConnectionBetweenPorts(sourcePortId: GraphPortId, targetPortId: GraphPortId): Promise<boolean> {
+    return (await this.findConnectionIds({ sourcePortId, targetPortId })).length > 0;
+  }
+
+  /**
+   * Returns the id of the only connection with the given endpoints, or `null` when there is none.
+   * Throws when several connections match; narrow the query (for example with anchor ids).
+   * Useful for connections created without an explicit id.
+   */
+  public async findConnectionId(endpoints: GraphConnectionEndpoints): Promise<TConnectionId | null> {
+    const ids = await this.findConnectionIds(endpoints);
+    if (ids.length > 1) {
+      throw new Error(`Several connections match ${JSON.stringify(endpoints)}: ${ids.join(", ")}.`);
+    }
+    return ids[0] ?? null;
+  }
+
+  private async findConnectionIds(endpoints: GraphConnectionEndpoints): Promise<TConnectionId[]> {
+    return this.evaluate((graph, query) => {
+      // Mirrors createBlockPointPortId/createAnchorPortId from @gravity-ui/graph; the callback runs in
+      // the page and cannot import them. apps/e2e asserts that both formats stay in sync.
+      const blockPortId = (blockId: TBlockId, anchorId: string | undefined, isInput: boolean): string =>
+        anchorId === undefined
+          ? `${String(blockId)}_${isInput ? "input" : "output"}`
+          : `${String(blockId)}/${anchorId}`;
+
+      return graph.connections.$connections.value
+        .filter((connection) => {
+          const sourcePortId = connection.$sourcePortId.value;
+          const targetPortId = connection.$targetPortId.value;
+
+          if (query.sourcePortId !== undefined) {
+            return sourcePortId === query.sourcePortId && targetPortId === query.targetPortId;
+          }
+
+          const matchesSource =
+            sourcePortId === blockPortId(query.sourceBlockId, query.sourceAnchorId, false) ||
+            (query.sourceAnchorId === undefined && connection.sourceBlockId === query.sourceBlockId);
+          const matchesTarget =
+            targetPortId === blockPortId(query.targetBlockId, query.targetAnchorId, true) ||
+            (query.targetAnchorId === undefined && connection.targetBlockId === query.targetBlockId);
+
+          return matchesSource && matchesTarget;
+        })
+        .map((connection) => connection.id);
+    }, endpoints);
   }
 
   public async getCursor(): Promise<string> {
@@ -285,23 +354,16 @@ export class GraphPO {
   }
 
   private async getGraphHandle(): Promise<JSHandle<Graph>> {
-    const handle = await this.root.evaluateHandle((scope, keys) => {
+    const handle = await this.root.evaluateHandle((scope, key) => {
       const elements = [scope, ...Array.from(scope.querySelectorAll("*"))];
-      const currentGraphs: unknown[] = [];
-      const legacyGraphs: unknown[] = [];
+      const graphs: unknown[] = [];
 
       for (const element of elements) {
-        const record = element as unknown as BrowserGraphRecord;
-        const currentGraph = record[Symbol.for(keys.current)];
-        const legacyGraph = record[Symbol.for(keys.legacy)];
-        if (currentGraph && !currentGraphs.includes(currentGraph)) {
-          currentGraphs.push(currentGraph);
-        }
-        if (legacyGraph && !legacyGraphs.includes(legacyGraph)) {
-          legacyGraphs.push(legacyGraph);
+        const graph = (element as unknown as BrowserGraphRecord)[Symbol.for(key)];
+        if (graph && !graphs.includes(graph)) {
+          graphs.push(graph);
         }
       }
-      const graphs = currentGraphs.length > 0 ? currentGraphs : legacyGraphs;
 
       if (graphs.length === 0) {
         throw new Error(
@@ -314,7 +376,7 @@ export class GraphPO {
       }
 
       return graphs[0];
-    }, GRAPH_SYMBOL_KEYS);
+    }, GRAPH_INSTANCE_SYMBOL_KEY);
 
     return handle as JSHandle<Graph>;
   }

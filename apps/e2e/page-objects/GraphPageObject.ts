@@ -1,7 +1,7 @@
 import { Page } from "@playwright/test";
 
 import type { TBlock, TConnection } from "@gravity-ui/graph";
-import { GraphPO } from "@gravity-ui/graph/playwright";
+import { GraphPO } from "@gravity-ui/graph-playwright";
 
 import { GraphCameraComponentObject } from "./GraphCameraComponentObject";
 import { GraphEventProbe } from "./GraphEventProbe";
@@ -15,7 +15,7 @@ export interface GraphConfig {
 /**
  * Repository fixture built on top of the public Playwright page object.
  *
- * Consumer-facing graph interactions belong to `@gravity-ui/graph/playwright`. This class
+ * Consumer-facing graph interactions belong to `@gravity-ui/graph-playwright`. This class
  * only creates the repository's test graph and exposes library-internal probes.
  */
 export class GraphPageObject extends GraphPO {

@@ -7,13 +7,6 @@
   "main": "build/index.js",
   "module": "build/index.js",
   "types": "build/index.d.ts",
-  "typesVersions": {
-    "*": {
-      "playwright": [
-        "build/playwright/index.d.ts"
-      ]
-    }
-  },
   "keywords": [
     "gravity-ui",
     "graph",
@@ -32,17 +25,6 @@
       "types": "./build/index.d.ts",
       "import": "./build/index.js",
       "default": "./build/index.js"
-    },
-    "./playwright": {
-      "import": {
-        "types": "./build/playwright/index.d.ts",
-        "default": "./build/playwright/index.js"
-      },
-      "require": {
-        "types": "./build/playwright/index.d.cts",
-        "default": "./build/playwright/index.cjs"
-      },
-      "default": "./build/playwright/index.js"
     },
     "./styles.css": "./build/styles.css"
   },
@@ -67,14 +49,6 @@
     "dev": "chokidar \"src/**/*\" -c \"pnpm run build\" --initial",
     "test:package-contract": "node ../../scripts/package-contract/run.mjs"
   },
-  "peerDependencies": {
-    "@playwright/test": ">=1.58.0"
-  },
-  "peerDependenciesMeta": {
-    "@playwright/test": {
-      "optional": true
-    }
-  },
   "dependencies": {
     "@preact/signals-core": "^1.12.2",
     "intersects": "^2.7.2",
@@ -89,7 +63,6 @@
     "@gravity-ui/prettier-config": "^1.1.0",
     "@gravity-ui/readme-validator": "^1.3.0",
     "@gravity-ui/tsconfig": "^1.0.0",
-    "@playwright/test": "^1.58.0",
     "@swc/core": "^1.13.3",
     "@swc/jest": "^0.2.39",
     "@types/intersects": "^2.5.0",
