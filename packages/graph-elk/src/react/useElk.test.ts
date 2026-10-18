@@ -64,3 +64,34 @@ test.each([new Error("layout failed"), "layout failed"])(
     expect(onError.mock.calls[0][0].message).toBe("layout failed");
   }
 );
+
+test("inline args with a new onError on every render run the layout once", async () => {
+  const layout = jest.fn((config: ElkNode) => Promise.resolve(config));
+  const elk = elkWithLayout(layout);
+  const config = { id: "root" };
+  const layoutOptions = { "elk.algorithm": "layered" };
+  const { result } = renderHook(() => useElk(config, elk, { layoutOptions, onError: () => {} }));
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+  // Let any re-render triggered by the result settle before counting runs.
+  await act(async () => {});
+  expect(layout).toHaveBeenCalledTimes(1);
+  expect(layout).toHaveBeenCalledWith(config, { layoutOptions, logging: undefined, measureExecutionTime: undefined });
+});
+
+test("failures report the latest onError; new layoutOptions start a new layout", async () => {
+  const layout = jest.fn((_config: ElkNode) => Promise.reject(new Error("layout failed")));
+  const elk = elkWithLayout(layout);
+  const config = { id: "root" };
+  const first = jest.fn();
+  const latest = jest.fn();
+  const options = { "elk.direction": "RIGHT" };
+  const { rerender } = renderHook(({ onError, layoutOptions }) => useElk(config, elk, { layoutOptions, onError }), {
+    initialProps: { onError: first, layoutOptions: options },
+  });
+  rerender({ onError: latest, layoutOptions: options });
+  await waitFor(() => expect(latest).toHaveBeenCalledTimes(1));
+  expect(first).not.toHaveBeenCalled();
+  expect(layout).toHaveBeenCalledTimes(1);
+  rerender({ onError: latest, layoutOptions: { "elk.direction": "DOWN" } });
+  await waitFor(() => expect(layout).toHaveBeenCalledTimes(2));
+});

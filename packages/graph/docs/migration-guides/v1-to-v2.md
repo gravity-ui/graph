@@ -7,7 +7,7 @@ The temporary branch and release process is documented separately in
 
 ## Migration checklist
 
-- Move React, Minimap and DevTools imports to their dedicated packages and install their peers.
+- Move React, Minimap, DevTools and ELK (`useElk`) imports to their dedicated packages and install their peers.
 - Import the layered layout from `@gravity-ui/graph-layered` and `useLayeredLayout` from `@gravity-ui/graph-layered/react`.
 - Import Playwright page objects from `@gravity-ui/graph-playwright` instead of `@gravity-ui/graph/playwright`.
 - Import `CSSVariablesLayer` and its mapping helpers from `@gravity-ui/graph-css-variables`.
@@ -24,6 +24,7 @@ The temporary branch and release process is documented separately in
 - Use `graph.removeLayer(layer)` to destroy a layer; `graph.detachLayer(layer)` only detaches it, and `graph.attachLayer(layer)` returns it to the graph.
 - Remove calls to `graph.scheduler.start()` / `stop()`: the frame loop runs while work is registered, and `graph.start()` / `graph.stop()` affect only that graph.
 - Drive roots you mount yourself with `Component.update(root)`; the graph updates only its own layers.
+- Import `MultipointConnection` from `@gravity-ui/graph`; `@gravity-ui/graph-react` no longer re-exports it or installs `elkjs`.
 
 ## React package boundary
 
@@ -85,6 +86,30 @@ are now owned by the separate stylesheet; core styles only supply the base layer
 props, camera behavior, and lifecycle, and can still be used with `useLayer` or `GraphLayer` from `@gravity-ui/graph-react`.
 Core no longer contains DevTools code or declarations. The shared text measurement helper is available as
 `measureText(text, font, approximate?)` from `@gravity-ui/graph`; the ruler tick calculation belongs to DevTools.
+
+## ELK package boundary
+
+`useElk` moved from `@gravity-ui/graph-react` to `@gravity-ui/graph-elk/react`. The ELK result converter is public as
+`elkConverter` from `@gravity-ui/graph-elk`, together with its `ConverterResult` type. `@gravity-ui/graph-react` no longer
+depends on `elkjs`, and its deprecated `MultipointConnection` alias is removed; import the class from `@gravity-ui/graph`.
+
+```ts
+import ELK from "elkjs";
+import { MultipointConnection } from "@gravity-ui/graph";
+import { useElk } from "@gravity-ui/graph-elk/react";
+import { elkConverter } from "@gravity-ui/graph-elk"; // without React
+```
+
+Install `@gravity-ui/graph-elk` and `elkjs`. Core and `elkjs` are required peers; React is an optional peer needed only
+by the `/react` subpath. The application still creates the `ELK` instance (bundled or worker build), and `useElk`
+keeps its arguments and `{ result, isLoading }` result. `ConverterResult["blocks"]` is now keyed by `TBlockId`.
+
+`useElk` now restarts the layout only when the `ELK` instance, the `ElkNode`, `layoutOptions`, `logging` or
+`measureExecutionTime` change. A new `onError` function no longer starts another layout, so inline `{ onError }` options
+no longer re-run the layout on every render; the latest `onError` is called on failure. Only these known options are
+passed to `elk.layout()`.
+
+ELK conversion returns empty records when `edges` or `children` are missing. Edges without a first section (including an empty `sections` array) and children without both coordinates are omitted. Positioned children and the first routed section retain their existing conversion. `useElk` permits an absent `onError` callback and sets loading for each new layout request. A failed layout clears the previous result and reports an `Error`, including when ELK rejects with another value.
 
 ## Layered layout package boundary
 
@@ -633,8 +658,6 @@ without `!important`. Single-class selectors such as `.my-minimap` or
 `useLayer`, `GraphLayer` refs, `GraphPortal` refs and `GraphCanvas.reactLayerRef` are `null` before their layer attaches and after detachment/cleanup. A registered layer can exist internally before attachment. Core `Layer.$attached` is a public `ReadonlySignal<boolean>` that follows attachment, detachment and unmount independently of graph state. React subscribes to it, so `stop(false)` and direct layer detachment also clear layer refs without modifying layer methods. Call hooks unconditionally and guard their results before invoking instance methods. `GraphPortalLayer` is exported for typing portal refs. `GraphBlock` DOM refs become `null` whenever the block's DOM disappears, including entity removal.
 
 `useSignal` accepts both mutable and readonly/computed signals. A definite signal returns its value type; a nullable or missing signal returns `T | undefined`. `useBlockViewState` observes asynchronous view readiness, and `useBlockAnchorPosition` accepts nullable DOM refs, initializes a DOM node mounted after anchor readiness, and clears previous CSS coordinates when the anchor or its position becomes absent. Missing blocks and anchors remain absent until available. `GraphCanvas` without `renderBlock` renders its canvas and child portals without a React block list.
-
-ELK conversion returns empty records when `edges` or `children` are missing. Edges without a first section (including an empty `sections` array) and children without both coordinates are omitted. Positioned children and the first routed section retain their existing conversion. `useElk` permits an absent `onError` callback and sets loading for each new layout request. A failed layout clears the previous result and reports an `Error`, including when ELK rejects with another value.
 
 `useBlockState`, `useSyncBlockState` and `useBlockViewState` retain the non-generic lookup contract from #371. They return the shared block/view types and preserve `undefined` for missing entities or views. A `TBlock<MyMeta>` remains typed application data, but passing it to a lookup hook uses its ID and does not establish the schema of the current stored entity. The core store erases metadata types; restoring them in lookup results would require a typed core contract. The library does not validate custom Meta at runtime.
 

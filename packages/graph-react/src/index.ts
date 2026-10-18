@@ -6,5 +6,4 @@ export * from "./GraphPortal";
 export * from "./GraphContext";
 export * from "./hooks";
 export * from "./events";
-export * from "./elk";
 export { TRenderBlockFn } from "./BlocksList";

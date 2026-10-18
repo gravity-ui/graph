@@ -14,7 +14,8 @@ Key features:
 
 - [Getting Started with React](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/react/usage.md): Creating your first graph component with React
 - [Layer Development](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/component-lifecycle.md): Creating custom layers (the library's extension mechanism)
-- [Built-in Layers](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/graph-settings.md#layers): Overview of available layers like ELK for auto-layout and Minimap
+- [Built-in Layers](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/graph-settings.md#layers): Overview of available layers like Minimap
+- [ELK Auto-layout](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph-elk/README.md): Laying out a graph with ELK through `@gravity-ui/graph-elk`
 - [Custom Layer Examples](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/component-rendering-lifecycle.md): Examples of custom layer implementation
 - [Event System & Interactions](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/events.md): Working with events and user interactions
 - [Graph Configuration](https://raw.githubusercontent.com/gravity-ui/graph/refs/heads/v2/packages/graph/docs/system/graph-settings.md): Configuring graph behavior and appearance
