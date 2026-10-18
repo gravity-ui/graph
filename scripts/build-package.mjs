@@ -8,7 +8,7 @@ import { validateStyleEntry } from "./css-assets.mjs";
 
 export async function buildPackage({
   packageRoot,
-  playwright = false,
+  cjs = false,
   docs = false,
   styles = true,
 }) {
@@ -160,8 +160,29 @@ export async function buildPackage({
     }
   }
 
-  async function createPlaywrightCjsDeclarations() {
-    const entryDeclaration = path.join(buildDirectory, "playwright/index.d.ts");
+  // A CommonJS declaration may type-import an ESM-only package only with an explicit resolution mode.
+  async function findEsmOnlyExternals() {
+    const esmOnly = new Set();
+
+    for (const name of externalPackages) {
+      const externalManifest = JSON.parse(
+        await readFile(path.join(packageRoot, "node_modules", ...name.split("/"), "package.json"), "utf8")
+      );
+      const rootExport = externalManifest.exports?.["."] ?? externalManifest.exports;
+      const hasRequireCondition = typeof rootExport === "object" && rootExport !== null && "require" in rootExport;
+
+      if (externalManifest.type === "module" && !hasRequireCondition) {
+        esmOnly.add(name);
+      }
+    }
+
+    return esmOnly;
+  }
+
+  async function createCjsDeclarations() {
+    const entryDeclaration = path.join(buildDirectory, "index.d.ts");
+    const esmOnlyExternals = await findEsmOnlyExternals();
+    const typeImportPattern = /^(import type [^;]+ from (["'])([^"'.][^"']*)\2);$/gm;
     const pendingDeclarations = [entryDeclaration];
     const processedDeclarations = new Set();
     const relativeSpecifierPattern = /(["'])(\.{1,2}(?:\/[^"'?#]+)?)\1/g;
@@ -198,6 +219,24 @@ export async function buildPackage({
 
         return replacement ? `${quote}${replacement}${quote}` : match;
       });
+      contents = contents.replace(typeImportPattern, (match, statement, _quote, specifier) => {
+        const packageName = specifier.startsWith("@") ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0];
+
+        return esmOnlyExternals.has(packageName) ? `${statement} with { "resolution-mode": "import" };` : match;
+      });
+
+      for (const line of contents.split("\n")) {
+        const unresolvedExternal = [...esmOnlyExternals].find((name) =>
+          new RegExp(`["']${name.replace(/[/.]/g, "\\$&")}(?:/[^"']*)?["']`).test(line)
+        );
+
+        if (unresolvedExternal && !line.includes("resolution-mode")) {
+          throw new Error(
+            `${path.relative(packageRoot, declarationFile)}: CommonJS declarations reference the ESM-only ` +
+              `${unresolvedExternal} without a resolution mode; use a single-line \`import type\`: ${line.trim()}`
+          );
+        }
+      }
 
       await writeFile(declarationFile.replace(/\.d\.ts$/, ".d.cts"), contents);
     }
@@ -220,33 +259,34 @@ export async function buildPackage({
   };
 
   const buildResults = await Promise.all([
-    build({
-      ...sharedOptions,
-      chunkNames: "chunks/[name]-[hash]",
-      entryNames: "[dir]/[name]",
-      entryPoints: {
-        index: "src/index.ts",
-      },
-      format: "esm",
-      loader: { ".css": "empty" },
-      outdir: buildDirectory,
-      platform: "neutral",
-      splitting: true,
-    }),
-    playwright &&
+    // Node-only packages with a CommonJS twin get a single-file ESM bundle for the same platform.
+    cjs
+      ? build({
+          ...sharedOptions,
+          entryPoints: ["src/index.ts"],
+          format: "esm",
+          outfile: path.join(buildDirectory, "index.js"),
+          platform: "node",
+        })
+      : build({
+          ...sharedOptions,
+          chunkNames: "chunks/[name]-[hash]",
+          entryNames: "[dir]/[name]",
+          entryPoints: {
+            index: "src/index.ts",
+          },
+          format: "esm",
+          loader: { ".css": "empty" },
+          outdir: buildDirectory,
+          platform: "neutral",
+          splitting: true,
+        }),
+    cjs &&
       build({
         ...sharedOptions,
-        entryPoints: ["src/playwright/index.ts"],
-        format: "esm",
-        outfile: path.join(buildDirectory, "playwright/index.js"),
-        platform: "node",
-      }),
-    playwright &&
-      build({
-        ...sharedOptions,
-        entryPoints: ["src/playwright/index.ts"],
+        entryPoints: ["src/index.ts"],
         format: "cjs",
-        outfile: path.join(buildDirectory, "playwright/index.cjs"),
+        outfile: path.join(buildDirectory, "index.cjs"),
         platform: "node",
       }),
     styles &&
@@ -265,6 +305,6 @@ export async function buildPackage({
   const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
   await run(pnpmCommand, ["exec", "tsc", "-p", "tsconfig.publish.json"]);
   await rewriteDeclarationSpecifiersForNodeEsm();
-  if (playwright) await createPlaywrightCjsDeclarations();
+  if (cjs) await createCjsDeclarations();
   if (docs) await import(pathToFileURL(path.join(packageRoot, "scripts/build-docs.mjs")).href);
 }

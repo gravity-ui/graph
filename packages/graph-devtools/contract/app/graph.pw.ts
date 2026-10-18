@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from "@playwright/test";
-import { GraphPO } from "@gravity-ui/graph/playwright";
+import { GraphPO } from "@gravity-ui/graph-playwright";
 
 // Inspect the rendered overlay, not private layer state. Rulers use gray/white;
 // the configured crosshair is red and therefore distinguishable from its labels.
