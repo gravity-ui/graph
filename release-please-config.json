@@ -68,6 +68,14 @@
       "versioning": "prerelease",
       "prerelease": true,
       "prerelease-type": "next"
+    },
+    "packages/graph-css-variables": {
+      "package-name": "@gravity-ui/graph-css-variables",
+      "component": "graph-css-variables",
+      "release-as": "1.0.0-next.0",
+      "versioning": "prerelease",
+      "prerelease": true,
+      "prerelease-type": "next"
     }
   }
 }

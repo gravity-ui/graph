@@ -28,6 +28,7 @@ test("every project typechecks its permanently strict tsconfig", () => {
     "packages/graph-connection-editing",
     "packages/graph-layered",
     "packages/graph-playwright",
+    "packages/graph-css-variables",
     "apps/storybook",
     "apps/e2e",
   ]) {

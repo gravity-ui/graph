@@ -7,6 +7,7 @@ type GraphModule = typeof import("@gravity-ui/graph") &
     "computeLevels" | "layeredConverter" | "layoutGraph"
   > &
   Pick<typeof import("@gravity-ui/graph-layered/react"), "useLayeredLayout"> &
+  Pick<typeof import("@gravity-ui/graph-css-variables"), "CSSVariablesLayer"> &
   Pick<typeof import("@gravity-ui/graph-connection-editing"), "ConnectionEditingLayer"> &
   Pick<
     typeof import("@gravity-ui/graph-react"),

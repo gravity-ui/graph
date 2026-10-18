@@ -11,6 +11,7 @@ The temporary branch and release process is documented separately in
 - Replace `ConnectionLayer` / `PortConnectionLayer` and the `canCreateNewConnections` setting with `ConnectionEditingLayer` from `@gravity-ui/graph-connection-editing`, and rename `port-connection-*` event listeners.
 - Import the layered layout from `@gravity-ui/graph-layered` and `useLayeredLayout` from `@gravity-ui/graph-layered/react`.
 - Import Playwright page objects from `@gravity-ui/graph-playwright` instead of `@gravity-ui/graph/playwright`.
+- Import `CSSVariablesLayer` and its mapping helpers from `@gravity-ui/graph-css-variables`.
 - Import the stylesheets for each package you use, with core styles before addon styles.
 - Add `import "@gravity-ui/graph-minimap/styles.css"` when using Minimap: its default border and background now require this explicit import.
 - Replace `canChangeBlockGeometry` / `ECanChangeBlockGeometry` with `canDrag` / `ECanDrag`.
@@ -217,6 +218,32 @@ The package ships ESM and CommonJS builds; class names, methods and behavior are
 element only under `Symbol.for(GRAPH_INSTANCE_SYMBOL_KEY)` (`"@gravity-ui/graph/instance"`, exported from core); the
 undocumented `Symbol.for("graph")` key is no longer written.
 
+## CSS variables package boundary
+
+`CSSVariablesLayer`, its props, state and change types, `CSS_VARIABLE_MAPPINGS`, `SUPPORTED_CSS_VARIABLES`,
+`DEFAULT_CSS_VARIABLES_LAYER_PROPS` and the `map*` / `filterSupportedCSSChanges` helpers now belong to
+`@gravity-ui/graph-css-variables`. Install it and replace their imports from core:
+
+```ts
+import { Graph } from "@gravity-ui/graph";
+import { CSSVariablesLayer } from "@gravity-ui/graph-css-variables";
+
+const graph = new Graph({ blocks: [] }, document.getElementById("graph")!);
+graph.addLayer(CSSVariablesLayer, { containerClass: "graph-theme" });
+```
+
+The package requires core as a peer dependency, does not require React and ships no stylesheet. Props and supported
+variables are unchanged. Core no longer contains the layer and no longer depends on `style-observer`.
+
+Changing `containerClass` after the layer is created, through `setProps` or `useLayer`, now works: the layer
+observes the new class, applies its current variables and keeps following later changes. In v1 the container kept
+the previous class and stopped reporting changes.
+
+A supported variable that has no value when the layer starts and is defined later, for example by a theme class
+added afterwards, is now applied and reported to `onChange`. In v1 such a first assignment was usually missed;
+only later changes of the variable reached the graph. Unsetting a variable keeps the value applied last; v1 could
+instead apply an empty value (an empty color or `0`) when another variable changed at the same time.
+
 ## Styles and TypeScript
 
 v2 declarations are built and checked with TypeScript 6.0 (`strict: true`, `skipLibCheck: false`).
@@ -311,7 +338,7 @@ const border: string = current.block.border;
 
 Use the input types for options you pass to Graph, and the complete configuration types when
 you annotate snapshots received from getters, signals or events. The helpers
-`mapGraphColorsToCSSVariables` and `mapGraphConstantsToCSSVariables` also accept
+`mapGraphColorsToCSSVariables` and `mapGraphConstantsToCSSVariables` (from `@gravity-ui/graph-css-variables`) also accept
 resolved state, for example `mapGraphColorsToCSSVariables(graph.graphColors)`. Replace
 `RecursivePartial<TGraphConstants>` with `TGraphConstantsPatch`; partial arrays are
 no longer valid constant patches.
