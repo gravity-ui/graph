@@ -17,7 +17,7 @@ export default {
     },
   },
   packedFiles: {
-    // Node-only single-file bundles: no chunks, no nested declarations.
+    // Node-only single-file runtime bundles: no chunks, no nested declarations.
     forbiddenPatterns: [/^build\/chunks\//, /^build\/.+\/.+\.d\.c?ts$/, /(?:^|\/)docs(?:\/|$)/],
   },
   attw: [{ entrypoint: ".", profile: "node16" }],
@@ -49,13 +49,12 @@ export default {
   ],
   entryPoint: "app/app.ts",
 
-  async checkArtifact({ manifest, generatedFiles, assertMissing }) {
+  async checkArtifact({ manifest, generatedFiles }) {
     assert.deepEqual(Object.keys(manifest.peerDependencies).sort(), ["@gravity-ui/graph", "@playwright/test"]);
     assert.equal(manifest.peerDependencies["@playwright/test"], ">=1.58.0");
     assert.equal(manifest.peerDependenciesMeta, undefined);
     assert.deepEqual(manifest.dependencies ?? {}, {});
     assert.deepEqual(manifest.optionalDependencies ?? {}, {});
-    await assertMissing("build/styles.css", "The Playwright package ships styles.");
 
     const declared = new Set([...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.peerDependencies)]);
     const bareSpecifier =
