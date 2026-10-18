@@ -1,7 +1,6 @@
+import type { TGraphColors, TGraphColorsPatch, TGraphConstants, TGraphConstantsPatch } from "@gravity-ui/graph";
 import get from "lodash/get";
 import set from "lodash/set";
-
-import type { TGraphColors, TGraphColorsPatch, TGraphConstants, TGraphConstantsPatch } from "../../graphConfig";
 
 import { CSS_VARIABLE_MAPPINGS, SUPPORTED_CSS_VARIABLES } from "./constants";
 import type { CSSVariableChange } from "./types";
