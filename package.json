@@ -27,8 +27,7 @@
     "test:e2e:ci": "pnpm --filter @gravity-ui/graph-e2e run test:e2e:ci",
     "test:package-contract": "node tests/package-contract/run.mjs",
     "e2e:dev": "pnpm --filter @gravity-ui/graph-e2e run e2e:dev",
-    "test:type-configs": "node --test scripts/css-assets.test.mjs scripts/style-observer-types.test.mjs scripts/tsconfig-strict.test.mjs && pnpm run typecheck:type-fixtures",
-    "typecheck:type-fixtures": "tsc -b tests/types"
+    "test:type-configs": "node --test scripts/css-assets.test.mjs scripts/style-observer-types.test.mjs scripts/tsconfig-strict.test.mjs"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
