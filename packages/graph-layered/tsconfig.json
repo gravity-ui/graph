@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "outDir": "./build/",
+    "moduleResolution": "bundler",
+    "module": "esnext",
+    "target": "es2020",
+    "noEmitOnError": true,
+    "esModuleInterop": true,
+    "skipLibCheck": false,
+    "strict": true,
+    "lib": [
+      "es2020",
+      "dom",
+      "dom.iterable"
+    ],
+    "noUncheckedSideEffectImports": true,
+    "types": [
+      "node",
+      "jest",
+      "react"
+    ]
+  },
+  "include": [
+    "src/**/*.ts"
+  ]
+}

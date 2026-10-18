@@ -2,6 +2,11 @@ import type { Graph } from "@gravity-ui/graph";
 
 type GraphModule = typeof import("@gravity-ui/graph") &
   Pick<typeof import("@gravity-ui/graph-minimap"), "MiniMapLayer"> &
+  Pick<
+    typeof import("@gravity-ui/graph-layered"),
+    "computeLevels" | "layeredConverter" | "layoutGraph"
+  > &
+  Pick<typeof import("@gravity-ui/graph-layered/react"), "useLayeredLayout"> &
   Pick<typeof import("@gravity-ui/graph-connection-editing"), "ConnectionEditingLayer"> &
   Pick<
     typeof import("@gravity-ui/graph-react"),

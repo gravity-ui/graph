@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo } from "react";
 
-import type { LayeredLayoutOptions, TMultipointConnection } from "@gravity-ui/graph";
+import type { TMultipointConnection } from "@gravity-ui/graph";
 import { BezierMultipointConnection, Graph, GraphState, TBlock, TConnection } from "@gravity-ui/graph";
-import { GraphCanvas, useGraph, useGraphEvent, useLayeredLayout } from "@gravity-ui/graph-react";
+import type { LayeredLayoutOptions } from "@gravity-ui/graph-layered";
+import { useLayeredLayout } from "@gravity-ui/graph-layered/react";
+import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import { Description, Meta as StorybookMeta, Title } from "@storybook/addon-docs/blocks";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
@@ -54,20 +56,11 @@ const GraphApp = (args: GraphAppLayoutArgs = {}) => {
   useEffect(() => {
     if (isLoading || !result) return;
 
-    const connections = layeredConfig.connections.reduce<
-      (TConnection & Pick<TMultipointConnection, "points" | "labels">)[]
-    >((acc, connection) => {
-      const id = connection.id ?? `${String(connection.sourceBlockId)}/${String(connection.targetBlockId)}`;
-      if (id in result.edges) {
-        acc.push({
-          id,
-          sourceBlockId: connection.sourceBlockId,
-          targetBlockId: connection.targetBlockId,
-          ...result.edges[id],
-        });
-      }
-      return acc;
-    }, []);
+    // Connections without points (for example port-only ones) are kept as they are.
+    const connections = layeredConfig.connections.map(
+      (connection): TConnection & Pick<TMultipointConnection, "points" | "labels"> =>
+        connection.id === undefined ? connection : { ...connection, ...result.edges[connection.id] }
+    );
 
     const blocks = layeredConfig.blocks.map((block) => ({
       ...block,
@@ -82,7 +75,7 @@ const GraphApp = (args: GraphAppLayoutArgs = {}) => {
     });
 
     graph.zoomTo("center", { padding: 300 });
-  }, [isLoading, result]);
+  }, [graph, setEntities, isLoading, result]);
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {
@@ -137,7 +130,8 @@ const meta: Meta<typeof GraphApp> = {
           "- `layerSpacingFactor`: Multiplier for spacing between layers (default: 1.7)\n\n" +
           "## Example\n\n" +
           "```tsx\n" +
-          "import { useGraph, useLayeredLayout } from '@gravity-ui/graph-react';\n\n" +
+          "import { useGraph } from '@gravity-ui/graph-react';\n" +
+          "import { useLayeredLayout } from '@gravity-ui/graph-layered/react';\n\n" +
           "const { graph, setEntities, start } = useGraph();\n" +
           "const { isLoading, result } = useLayeredLayout({\n" +
           "  blocks: [{ id: '1', width: 100, height: 50 }, { id: '2', width: 100, height: 50 }],\n" +
