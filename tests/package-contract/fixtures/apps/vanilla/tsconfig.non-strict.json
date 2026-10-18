@@ -1,5 +1,0 @@
-{
-  "extends": "../../shared/tsconfig.json",
-  "compilerOptions": { "strict": false },
-  "include": ["component-factories.ts", "scheduling.ts", "core-operations.ts"]
-}

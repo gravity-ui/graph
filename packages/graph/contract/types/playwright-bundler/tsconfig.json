@@ -1,0 +1,4 @@
+{
+  "extends": "../../../../../scripts/package-contract/shared/tsconfig.json",
+  "include": ["index.ts"]
+}
