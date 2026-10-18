@@ -1,0 +1,11 @@
+{
+  "extends": "../../../../scripts/package-contract/shared/tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "app.tsx",
+    "graph.pw.ts",
+    "../../../../scripts/package-contract/shared/assets.d.ts"
+  ]
+}

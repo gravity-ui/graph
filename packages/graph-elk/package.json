@@ -34,7 +34,7 @@
     "lint": "eslint \"src/**/*.ts\"",
     "test:unit": "jest --passWithNoTests",
     "test": "pnpm run test:unit",
-    "test:package-contract": "node ../../tests/package-contract/run.mjs graph-elk",
+    "test:package-contract": "node ../../scripts/package-contract/run.mjs graph-elk",
     "prepublishOnly": "pnpm run build && pnpm run typecheck && pnpm run test"
   },
   "peerDependencies": {
@@ -54,6 +54,7 @@
     "@testing-library/react": "^16.3.0",
     "@types/jest": "^30.0.0",
     "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
     "elkjs": "^0.9.3",
     "eslint": "^9.39.5",
     "globals": "^16.5.0",
