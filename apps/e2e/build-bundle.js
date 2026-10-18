@@ -59,4 +59,25 @@ const reactBundle = esbuild
     process.exit(1);
   });
 
-Promise.all([baseBundle, reactBundle]).catch(() => process.exit(1));
+const elkBundle = esbuild
+  .build({
+    entryPoints: [path.join(__dirname, "elk-entry.ts")],
+    bundle: true,
+    outfile: path.join(__dirname, "dist/graph-elk.bundle.js"),
+    format: "iife",
+    globalName: "ElkModule",
+    platform: "browser",
+    target: ["es2020"],
+    sourcemap: true,
+    plugins: [cssPlugin],
+    jsx: "automatic",
+  })
+  .then(() => {
+    console.log("E2E ELK bundle created successfully");
+  })
+  .catch((err) => {
+    console.error("E2E ELK bundle failed:", err);
+    process.exit(1);
+  });
+
+Promise.all([baseBundle, reactBundle, elkBundle]).catch(() => process.exit(1));

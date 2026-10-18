@@ -1,4 +1,4 @@
-import { elkConverter } from "./eklConverter";
+import { elkConverter } from "./elkConverter";
 
 test("missing ELK arrays produce empty records", () => {
   expect(elkConverter({ id: "root" })).toEqual({ edges: {}, blocks: {} });

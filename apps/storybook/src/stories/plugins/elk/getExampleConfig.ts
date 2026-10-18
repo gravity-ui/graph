@@ -20,17 +20,21 @@ const prepareChildren = (blocks: TBlock[]) => {
 };
 
 const prepareEdges = (connections: TConnection[], skipLabels?: boolean) => {
-  return connections.map((c, i) => {
+  // ELK edges connect blocks: connections without an id or block ids (for example port-only ones) are skipped.
+  return connections.flatMap(({ id, sourceBlockId, targetBlockId }, i) => {
+    if (id === undefined || sourceBlockId === undefined || targetBlockId === undefined) return [];
     const labelText = `label ${i}`;
 
-    return {
-      id: c.id as string,
-      sources: [c.sourceBlockId as string],
-      targets: [c.targetBlockId as string],
-      labels: skipLabels
-        ? []
-        : [{ text: labelText, width: measureText(labelText, `${FONT_SIZE}px sans-serif`), height: FONT_SIZE }],
-    } satisfies ElkExtendedEdge;
+    return [
+      {
+        id: String(id),
+        sources: [String(sourceBlockId)],
+        targets: [String(targetBlockId)],
+        labels: skipLabels
+          ? []
+          : [{ text: labelText, width: measureText(labelText, `${FONT_SIZE}px sans-serif`), height: FONT_SIZE }],
+      } satisfies ElkExtendedEdge,
+    ];
   });
 };
 
