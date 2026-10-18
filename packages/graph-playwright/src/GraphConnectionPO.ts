@@ -7,6 +7,10 @@ export type GraphConnectionActionOptions = GraphClickOptions & {
   curveTime?: number;
 };
 
+export type GraphConnectionHoverOptions = GraphHoverOptions & {
+  curveTime?: number;
+};
+
 export class GraphConnectionPO {
   constructor(
     private readonly graph: GraphPO,
@@ -20,6 +24,10 @@ export class GraphConnectionPO {
     );
   }
 
+  /**
+   * Returns the raw connection data. Values cross the page boundary as serialized data, so symbol
+   * port ids are not supported.
+   */
   public async getState(): Promise<TConnection | null> {
     return this.graph.evaluate((graph, connectionId) => graph.connections.getConnection(connectionId) ?? null, this.id);
   }
@@ -31,6 +39,11 @@ export class GraphConnectionPO {
     );
   }
 
+  /**
+   * Returns a world point at `time` (0..1) along the default straight or bezier path between the
+   * connection's resolved endpoints. For multipoint or custom connection paths the point is
+   * approximate until core exposes the rendered path geometry (gravity-ui/graph#409).
+   */
   public async getPointOnCurve(time = 0.5): Promise<GraphPoint> {
     if (time < 0 || time > 1) {
       throw new Error("curveTime must be between 0 and 1.");
@@ -42,14 +55,14 @@ export class GraphConnectionPO {
         throw new Error(`Connection ${connectionId} was not found.`);
       }
 
-      const view = connection.getViewComponent();
-      if (!view?.connectionPoints) {
-        throw new Error(`Connection ${connectionId} has no rendered geometry.`);
+      const endpoints = connection.$geometry.value;
+      if (!endpoints) {
+        throw new Error(`Connection ${connectionId} has no resolved endpoints.`);
       }
 
       return {
-        start: view.connectionPoints[0],
-        end: view.connectionPoints[1],
+        start: endpoints[0],
+        end: endpoints[1],
         useBezier: graph.rootStore.settings.getConfigFlag("useBezierConnections"),
         direction: graph.rootStore.settings.getConfigFlag("bezierConnectionDirection") ?? "horizontal",
       };
@@ -90,7 +103,7 @@ export class GraphConnectionPO {
     await this.graph.clickAt(await this.getPointOnCurve(curveTime), clickOptions);
   }
 
-  public async hover(options: GraphHoverOptions & { curveTime?: number } = {}): Promise<void> {
+  public async hover(options: GraphConnectionHoverOptions = {}): Promise<void> {
     const { curveTime = 0.5, ...hoverOptions } = options;
     await this.graph.hoverAt(await this.getPointOnCurve(curveTime), hoverOptions);
   }

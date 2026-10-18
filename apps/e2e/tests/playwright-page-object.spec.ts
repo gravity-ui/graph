@@ -53,17 +53,25 @@ test.describe("Public Playwright page objects", () => {
     // The package keeps its own copy of the key and of the READY state value because it must not
     // load the core runtime in Node. These assertions fail if core changes either contract.
     const contract = await page.evaluate(() => {
-      const { GRAPH_INSTANCE_SYMBOL_KEY, GraphState } = window.GraphModule;
+      const { GRAPH_INSTANCE_SYMBOL_KEY, GraphState, createAnchorPortId, createBlockPointPortId } = window.GraphModule;
       const root = document.querySelector("#root") as (Element & Record<symbol, unknown>) | null;
       return {
         key: GRAPH_INSTANCE_SYMBOL_KEY,
         ready: GraphState.READY,
         attached: root?.[Symbol.for(GRAPH_INSTANCE_SYMBOL_KEY)] === window.graph,
         legacy: root?.[Symbol.for("graph")] === undefined,
+        // GraphPO.findConnectionIds builds block and anchor port ids in the page with these formats.
+        portIds: [createBlockPointPortId("b", false), createBlockPointPortId("b", true), createAnchorPortId("b", "a")],
       };
     });
 
-    expect(contract).toEqual({ key: "@gravity-ui/graph/instance", ready: 2, attached: true, legacy: true });
+    expect(contract).toEqual({
+      key: "@gravity-ui/graph/instance",
+      ready: 2,
+      attached: true,
+      legacy: true,
+      portIds: ["b_output", "b_input", "b/a"],
+    });
     expect(await graph.evaluate((instance) => instance === window.graph)).toBe(true);
     expect(await graph.evaluate((instance) => instance.state)).toBe(contract.ready);
   });

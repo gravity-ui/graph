@@ -4,7 +4,16 @@ import type { ElementHandle, JSHandle, Locator, Page } from "@playwright/test";
 import { GraphBlockPO } from "./GraphBlockPO";
 import { GraphCameraPO } from "./GraphCameraPO";
 import { GraphConnectionPO } from "./GraphConnectionPO";
-import type { GraphClickOptions, GraphDragOptions, GraphHoverOptions, GraphPoint, GraphRect } from "./types";
+import type {
+  GraphClickOptions,
+  GraphConnectionBlockEndpoints,
+  GraphConnectionEndpoints,
+  GraphDragOptions,
+  GraphHoverOptions,
+  GraphPoint,
+  GraphPortId,
+  GraphRect,
+} from "./types";
 
 /**
  * Mirrors `GRAPH_INSTANCE_SYMBOL_KEY` from `@gravity-ui/graph`. The value is kept here because this
@@ -54,9 +63,9 @@ export class GraphPO {
     await this.root.evaluate(
       async (scope, { key, timeoutMs }) => {
         const deadline = performance.now() + timeoutMs;
-        const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        const nextFrame = (): Promise<void> => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
-        const findGraphs = () => {
+        const findGraphs = (): Array<{ state?: number }> => {
           const elements = [scope, ...Array.from(scope.querySelectorAll("*"))];
           const graphs: Array<{ state?: number }> = [];
 
@@ -96,7 +105,12 @@ export class GraphPO {
    * As with Playwright's evaluate APIs, the callback cannot capture variables
    * from the Node.js test context; pass them through `arg` instead.
    */
-  public async evaluate<TResult, TArg = undefined>(
+  public evaluate<TResult>(pageFunction: (graph: Graph) => TResult | Promise<TResult>): Promise<TResult>;
+  public evaluate<TResult, TArg>(
+    pageFunction: (graph: Graph, arg: TArg) => TResult | Promise<TResult>,
+    arg: TArg
+  ): Promise<TResult>;
+  public async evaluate<TResult, TArg>(
     pageFunction: (graph: Graph, arg: TArg) => TResult | Promise<TResult>,
     arg?: TArg
   ): Promise<TResult> {
@@ -243,21 +257,84 @@ export class GraphPO {
     return this.evaluate((graph) => Array.from(graph.blocks.blockSelectionBucket.$selected.value));
   }
 
+  public async getSelectedConnectionIds(): Promise<TConnectionId[]> {
+    return this.evaluate((graph) => Array.from(graph.connections.connectionSelectionBucket.$selected.value));
+  }
+
+  /**
+   * Returns the raw connection data. Values cross the page boundary as serialized data, so symbol
+   * port ids are not supported.
+   */
   public async getConnections(): Promise<TConnection[]> {
     return this.evaluate((graph) => graph.connections.toJSON());
   }
 
-  public async hasConnectionBetween(sourceBlockId: TBlockId, targetBlockId: TBlockId): Promise<boolean> {
-    return this.evaluate(
-      (graph, ids) =>
-        graph.connections
-          .toJSON()
-          .some(
-            (connection) =>
-              connection.sourceBlockId === ids.sourceBlockId && connection.targetBlockId === ids.targetBlockId
-          ),
-      { sourceBlockId, targetBlockId }
-    );
+  /**
+   * Checks for a connection between two blocks; see {@link GraphConnectionBlockEndpoints} for how
+   * anchors and block connection points are matched. Use {@link hasConnectionBetweenPorts} for
+   * port-based connections.
+   */
+  public async hasConnectionBetween(
+    sourceBlockId: TBlockId,
+    targetBlockId: TBlockId,
+    anchors: Pick<GraphConnectionBlockEndpoints, "sourceAnchorId" | "targetAnchorId"> = {}
+  ): Promise<boolean> {
+    const endpoints: GraphConnectionBlockEndpoints = {
+      sourceBlockId,
+      targetBlockId,
+      sourceAnchorId: anchors.sourceAnchorId,
+      targetAnchorId: anchors.targetAnchorId,
+    };
+    return (await this.findConnectionIds(endpoints)).length > 0;
+  }
+
+  /** Checks for a connection whose resolved source and target port ids match. */
+  public async hasConnectionBetweenPorts(sourcePortId: GraphPortId, targetPortId: GraphPortId): Promise<boolean> {
+    return (await this.findConnectionIds({ sourcePortId, targetPortId })).length > 0;
+  }
+
+  /**
+   * Returns the id of the only connection with the given endpoints, or `null` when there is none.
+   * Throws when several connections match; narrow the query (for example with anchor ids).
+   * Useful for connections created without an explicit id.
+   */
+  public async findConnectionId(endpoints: GraphConnectionEndpoints): Promise<TConnectionId | null> {
+    const ids = await this.findConnectionIds(endpoints);
+    if (ids.length > 1) {
+      throw new Error(`Several connections match ${JSON.stringify(endpoints)}: ${ids.join(", ")}.`);
+    }
+    return ids[0] ?? null;
+  }
+
+  private async findConnectionIds(endpoints: GraphConnectionEndpoints): Promise<TConnectionId[]> {
+    return this.evaluate((graph, query) => {
+      // Mirrors createBlockPointPortId/createAnchorPortId from @gravity-ui/graph; the callback runs in
+      // the page and cannot import them. apps/e2e asserts that both formats stay in sync.
+      const blockPortId = (blockId: TBlockId, anchorId: string | undefined, isInput: boolean): string =>
+        anchorId === undefined
+          ? `${String(blockId)}_${isInput ? "input" : "output"}`
+          : `${String(blockId)}/${anchorId}`;
+
+      return graph.connections.$connections.value
+        .filter((connection) => {
+          const sourcePortId = connection.$sourcePortId.value;
+          const targetPortId = connection.$targetPortId.value;
+
+          if (query.sourcePortId !== undefined) {
+            return sourcePortId === query.sourcePortId && targetPortId === query.targetPortId;
+          }
+
+          const matchesSource =
+            sourcePortId === blockPortId(query.sourceBlockId, query.sourceAnchorId, false) ||
+            (query.sourceAnchorId === undefined && connection.sourceBlockId === query.sourceBlockId);
+          const matchesTarget =
+            targetPortId === blockPortId(query.targetBlockId, query.targetAnchorId, true) ||
+            (query.targetAnchorId === undefined && connection.targetBlockId === query.targetBlockId);
+
+          return matchesSource && matchesTarget;
+        })
+        .map((connection) => connection.id);
+    }, endpoints);
   }
 
   public async getCursor(): Promise<string> {

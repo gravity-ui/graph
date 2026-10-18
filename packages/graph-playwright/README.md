@@ -45,6 +45,12 @@ test("selects a graph block", async ({ page }) => {
 - `graph.connection(id)` returns a `GraphConnectionPO` for connection state and curve interactions.
 - `graph.camera()` returns a `GraphCameraPO` for camera state, zoom, pan, and wheel gestures.
 - `graph.clickAt()`, `hoverAt()`, and `drag()` interact with arbitrary world coordinates.
+- `graph.hasConnectionBetween(sourceBlockId, targetBlockId, { sourceAnchorId?, targetAnchorId? })`,
+  `hasConnectionBetweenPorts(sourcePortId, targetPortId)` and `findConnectionId(endpoints)` find connections by
+  block/anchor or port endpoints, including port-only connections created without an id.
+- `graph.getSelectedBlockIds()` and `getSelectedConnectionIds()` return the current selection.
+
+Values returned from the page are serialized, so symbol port ids are not supported.
 
 Use `ControlOrMeta` for portable multi-selection tests:
 
