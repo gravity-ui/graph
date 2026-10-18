@@ -26,6 +26,7 @@ export default {
     { entrypoint: ".", profile: "esm-only" },
     { entrypoint: "./react", profile: "esm-only" },
   ],
+  workspaceDependencies: ["graph-playwright"],
   dependencies: ["elkjs", "react", "react-dom"],
   devDependencies: ["@types/react", "@types/react-dom"],
   // The hook needs React only; the ELK consumer works without the React package.

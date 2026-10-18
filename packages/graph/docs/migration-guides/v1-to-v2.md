@@ -8,6 +8,7 @@ The temporary branch and release process is documented separately in
 ## Migration checklist
 
 - Move React, Minimap, DevTools and ELK (`useElk`) imports to their dedicated packages and install their peers.
+- Import Playwright page objects from `@gravity-ui/graph-playwright` instead of `@gravity-ui/graph/playwright`.
 - Import the stylesheets for each package you use, with core styles before addon styles.
 - Add `import "@gravity-ui/graph-minimap/styles.css"` when using Minimap: its default border and background now require this explicit import.
 - Replace `canChangeBlockGeometry` / `ECanChangeBlockGeometry` with `canDrag` / `ECanDrag`.
@@ -107,6 +108,22 @@ no longer re-run the layout on every render; the latest `onError` is called on f
 passed to `elk.layout()`.
 
 ELK conversion returns empty records when `edges` or `children` are missing. Edges without a first section (including an empty `sections` array) and children without both coordinates are omitted. Positioned children and the first routed section retain their existing conversion. `useElk` permits an absent `onError` callback and sets loading for each new layout request. A failed layout clears the previous result and reports an `Error`, including when ELK rejects with another value.
+
+## Playwright package boundary
+
+The Playwright page objects (`GraphPO`, `GraphBlockPO`, `GraphConnectionPO`, `GraphCameraPO` and their option types)
+moved from the `@gravity-ui/graph/playwright` subpath to `@gravity-ui/graph-playwright`. Install it as a dev
+dependency next to `@playwright/test` and replace the import:
+
+```diff
+- import { GraphPO } from "@gravity-ui/graph/playwright";
++ import { GraphPO } from "@gravity-ui/graph-playwright";
+```
+
+The package ships ESM and CommonJS builds; class names, methods and behavior are unchanged. Core no longer has a
+`./playwright` export, `typesVersions` or an optional `@playwright/test` peer. An attached graph is stored on its root
+element only under `Symbol.for(GRAPH_INSTANCE_SYMBOL_KEY)` (`"@gravity-ui/graph/instance"`, exported from core); the
+undocumented `Symbol.for("graph")` key is no longer written.
 
 ## Styles and TypeScript
 

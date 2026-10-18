@@ -14,6 +14,8 @@ const addonExports = {
 export default {
   exports: addonExports,
   packedFiles: { forbiddenPatterns: [/(?:^|\/)(?:playwright|docs)(?:\/|$)/] },
+  // The browser scenario drives the graph through the published page objects.
+  workspaceDependencies: ["graph-playwright"],
   dependencies: ["react", "react-dom"],
   devDependencies: ["@types/react", "@types/react-dom"],
   probes: [

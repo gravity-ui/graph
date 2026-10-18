@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { GraphPO } from "@gravity-ui/graph/playwright";
+import { GraphPO } from "@gravity-ui/graph-playwright";
 
 test("installed ELK hook lays out blocks and connection points", async ({ page }) => {
   const errors: string[] = [];
