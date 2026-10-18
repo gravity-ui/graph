@@ -5,3 +5,4 @@ export * from "@gravity-ui/graph";
 export { MiniMapLayer } from "@gravity-ui/graph-minimap";
 export { computeLevels, layeredConverter, layoutGraph } from "@gravity-ui/graph-layered";
 export { CSSVariablesLayer } from "@gravity-ui/graph-css-variables";
+export { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";

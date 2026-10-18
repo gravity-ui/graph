@@ -12,6 +12,7 @@ This repository contains the Gravity UI Graph packages and their development too
 - [`@gravity-ui/graph-playwright`](packages/graph-playwright) — Playwright page objects for testing graph applications, using core types only.
 - [`@gravity-ui/graph-elk`](packages/graph-elk) — optional ELK auto-layout converter and React hook; `elkjs` is a peer.
 - [`@gravity-ui/graph-css-variables`](packages/graph-css-variables) — optional layer that applies CSS variables to graph colors and constants, depending on the core public API.
+- [`@gravity-ui/graph-connection-editing`](packages/graph-connection-editing) — optional layer for creating connections by drag, depending on the core public API.
 
 Shared build tooling lives in `scripts/`. Each public package keeps its packed-package contract in `packages/<name>/contract`; `scripts/package-contract` installs the tarballs into an isolated consumer per package.
 

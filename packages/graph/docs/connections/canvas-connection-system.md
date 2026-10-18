@@ -128,8 +128,8 @@ graph.updateSettings({
   bezierConnectionDirection: "horizontal", // "horizontal" or "vertical"
   showConnectionArrows: true,           // Show direction arrows
   showConnectionLabels: true,           // Show text labels
-  canCreateNewConnections: true         // Allow user to create connections
 });
+// To let users create connections, add ConnectionEditingLayer from @gravity-ui/graph-connection-editing.
 ```
 
 Individual connections can have custom styling and labels. Set the `label` property to add text, and use `styles` for custom colors and dash patterns:

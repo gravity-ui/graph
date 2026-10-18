@@ -11,5 +11,6 @@ export { MiniMapLayer } from "@gravity-ui/graph-minimap";
 export { computeLevels, layeredConverter, layoutGraph } from "@gravity-ui/graph-layered";
 export { useLayeredLayout } from "@gravity-ui/graph-layered/react";
 export { CSSVariablesLayer } from "@gravity-ui/graph-css-variables";
-export { GraphBlock, GraphBlockAnchor, GraphCanvas } from "@gravity-ui/graph-react";
+export { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";
+export { GraphBlock, GraphBlockAnchor, GraphCanvas, useGraph, useLayer } from "@gravity-ui/graph-react";
 export { React, ReactDOM };

@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { ConnectionLayer, ECanDrag, Graph, GraphState, TBlock, TGraphConfig, TPoint } from "@gravity-ui/graph";
+import { ECanDrag, Graph, GraphState, TBlock, TGraphConfig, TPoint } from "@gravity-ui/graph";
+import { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";
 import { GraphBlock, GraphCanvas, HookGraphParams, useGraph, useGraphEvent, useLayer } from "@gravity-ui/graph-react";
 import {
   Flex,
@@ -79,7 +80,6 @@ const config: HookGraphParams = {
     canZoomCamera: true,
     canDuplicateBlocks: false,
     canDrag: ECanDrag.ALL,
-    canCreateNewConnections: true,
     showConnectionArrows: false,
     scaleFontSize: 1,
     useBezierConnections: true,
@@ -138,7 +138,7 @@ export function GraphPLayground() {
   const editorRef = useRef<ConfigEditorController>(null);
   const [graphSize, setGraphSize] = useState<string>("1");
 
-  useLayer(graph, ConnectionLayer, {
+  useLayer(graph, ConnectionEditingLayer, {
     createIcon,
     point: pointIcon,
     drawLine,
@@ -161,7 +161,7 @@ export function GraphPLayground() {
       return;
     }
     const fullBlocks = geometryBatch
-      .map((g) => graph.rootStore.blocksList.getBlock(g.id))
+      .map((g) => graph.blocks.getBlock(g.id))
       .filter((b): b is TBlock => b !== undefined);
     if (!fullBlocks.length) {
       return;
@@ -172,7 +172,7 @@ export function GraphPLayground() {
 
   useGraphEvent(graph, "blocks-selection-change", ({ changes }) => {
     const withSelection = (id: TBlock["id"], selected: boolean): TBlock[] => {
-      const block = graph.rootStore.blocksList.getBlock(id);
+      const block = graph.blocks.getBlock(id);
       return block ? [{ ...block, selected }] : [];
     };
     editorRef.current?.updateBlocks([
@@ -181,44 +181,17 @@ export function GraphPLayground() {
     ]);
   });
 
-  useGraphEvent(
-    graph,
-    "connection-created",
-    ({ sourceBlockId, sourceAnchorId, targetBlockId, targetAnchorId }, event) => {
-      event.preventDefault();
-      const pullSourceAnchor =
-        sourceAnchorId === undefined
-          ? undefined
-          : graph.rootStore.blocksList.getBlockState(sourceBlockId)?.getAnchorById(sourceAnchorId);
-      if (!pullSourceAnchor) return;
-      if (pullSourceAnchor.state.type === EAnchorType.IN) {
-        graph.api.addConnection({
-          sourceBlockId: targetBlockId,
-          sourceAnchorId: targetAnchorId,
-          targetBlockId: sourceBlockId,
-          targetAnchorId: sourceAnchorId,
-        });
-      } else {
-        graph.api.addConnection({
-          sourceBlockId: sourceBlockId,
-          sourceAnchorId: sourceAnchorId,
-          targetBlockId: targetBlockId,
-          targetAnchorId: targetAnchorId,
-        });
-      }
+  useGraphEvent(graph, "connection-create-drop", ({ sourceBlockId, sourceAnchorId, targetPort, point }) => {
+    if (targetPort) {
+      // The default action of connection-created has already added the connection.
       updateVisibleConfig();
-    }
-  );
-
-  useGraphEvent(graph, "connection-create-drop", ({ sourceBlockId, sourceAnchorId, targetBlockId, point }) => {
-    if (targetBlockId) {
       return;
     }
     let block: TGravityActionBlockWithAnchors;
     const pullSourceAnchor =
-      sourceAnchorId === undefined
+      sourceAnchorId === undefined || sourceBlockId === undefined
         ? undefined
-        : graph.rootStore.blocksList.getBlockState(sourceBlockId)?.getAnchorById(sourceAnchorId);
+        : graph.blocks.getBlockState(sourceBlockId)?.getAnchorById(sourceAnchorId);
     const nextIndex = getNextBlockIndex();
     if (pullSourceAnchor?.state.type === EAnchorType.IN) {
       block = createActionBlock(point.x - 126, point.y - 63, nextIndex);
@@ -269,7 +242,7 @@ export function GraphPLayground() {
   });
 
   const renderBlockFn = useFn((graph: Graph, block: TBlock) => {
-    const view = graph.rootStore.blocksList.getBlockState(block.id)?.getViewComponent();
+    const view = graph.blocks.getBlockState(block.id)?.getViewComponent();
     if (view instanceof ActionBlock) {
       return view.renderHTML();
     }

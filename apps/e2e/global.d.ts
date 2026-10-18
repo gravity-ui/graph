@@ -8,7 +8,11 @@ type GraphModule = typeof import("@gravity-ui/graph") &
   > &
   Pick<typeof import("@gravity-ui/graph-layered/react"), "useLayeredLayout"> &
   Pick<typeof import("@gravity-ui/graph-css-variables"), "CSSVariablesLayer"> &
-  Pick<typeof import("@gravity-ui/graph-react"), "GraphBlock" | "GraphBlockAnchor" | "GraphCanvas"> & {
+  Pick<typeof import("@gravity-ui/graph-connection-editing"), "ConnectionEditingLayer"> &
+  Pick<
+    typeof import("@gravity-ui/graph-react"),
+    "GraphBlock" | "GraphBlockAnchor" | "GraphCanvas" | "useGraph" | "useLayer"
+  > & {
     React: typeof import("react");
     ReactDOM: typeof import("react-dom/client");
   };

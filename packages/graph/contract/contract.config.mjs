@@ -28,6 +28,9 @@ export default {
       source: `
         const graph = await import("@gravity-ui/graph");
         if ("MiniMapLayer" in graph) throw new Error("Core still exports the extracted minimap.");
+        if ("ConnectionLayer" in graph || "PortConnectionLayer" in graph) {
+          throw new Error("Core still exports the extracted connection layers.");
+        }
         if ("DevToolsLayer" in graph || "DEFAULT_DEVTOOLS_LAYER_PROPS" in graph) {
           throw new Error("Core still exports the extracted DevTools.");
         }

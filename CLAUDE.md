@@ -1168,7 +1168,6 @@ const config: TGraphConfig = {
     canZoomCamera: true,
     canDragBlocks: true,
     canSelectBlocks: true,
-    canCreateNewConnections: true,
     showConnectionArrows: true,
     useBezierConnections: true,
     blockSelectionMode: "multiple", // or "single"

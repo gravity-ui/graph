@@ -77,34 +77,27 @@ interface GraphEventsDefinitions {
 }
 ```
 
-### ConnectionLayer
+### ConnectionEditingLayer
 
-[ConnectionLayer](../../src/components/canvas/layers/connectionLayer/ConnectionLayer.md) is another usefull extension that manages connections:
-- Create block-to-block connections (Shift + drag)
-- Create anchor-to-anchor connections
-- Customize connection appearance
+`ConnectionEditingLayer` from the separate `@gravity-ui/graph-connection-editing` package ([guide](../plugins/connection-editing.md)) creates connections by drag:
+- Port-to-port connections with snapping
+- Anchor-to-anchor connections
+- Block-to-block connections (Shift + drag)
+- Customizable preview line and icons
 
-```typescript
-// Key events
-interface GraphEventsDefinitions {
-  "connection-create-start": (event: CustomEvent<{ blockId: string; anchorId: string | undefined }>) => void;
-  "connection-created": (event: CustomEvent<{ 
-    source: { blockId: string; anchorId?: string; };
-    target: { blockId: string; targetAnchorId?: string };
-  }>) => void;
-}
-```
+It emits `connection-create-start`, `connection-create-hover`, `connection-created`, `connection-create-drop` and `connection-create-cancel`; these events are typed once the package is imported.
 
 ## Using Layers
 
 ```typescript
-import { Graph, layerConfig, NewBlockLayer, ConnectionLayer } from "@gravity-ui/graph";
+import { Graph, layerConfig, NewBlockLayer } from "@gravity-ui/graph";
+import { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";
 
 // Attach when creating a graph
 const graph = new Graph({
   layers: [
     layerConfig(NewBlockLayer, { ghostBackground: "rgba(0, 0, 255, 0.3)" }),
-    layerConfig(ConnectionLayer, {}),
+    layerConfig(ConnectionEditingLayer, {}),
   ],
 });
 
@@ -315,13 +308,13 @@ html: {
 ### Layer Interaction
 
 ```typescript
-import { ConnectionLayer } from "@/components/canvas/layers/connectionLayer";
+import { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";
 
 // Access another layer
-const connectionLayer = this.context.graph.layers.find(layer => layer instanceof ConnectionLayer);
+const connectionLayer = this.context.graph.layers.getLayers().find((layer) => layer instanceof ConnectionEditingLayer);
 
-// Use events
-this.context.graph.on("connection-created", (event) => {
+// Use events (in afterInit(); removed automatically when the layer unmounts)
+this.onGraphEvent("connection-created", (event) => {
   // React to connection creation
 });
 ```

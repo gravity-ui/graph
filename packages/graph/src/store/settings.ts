@@ -35,11 +35,6 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    * Helps prevent accidental drags during clicks. Default: 5
    */
   dragThreshold: number;
-  /**
-   * Controls if connections can be created via anchors
-   * If this connection is enabled, then anchors are not draggable and connection creation is handled by ConnectionLayer.
-   * */
-  canCreateNewConnections: boolean;
   scaleFontSize: number;
   showConnectionArrows: boolean;
   useBezierConnections: boolean;
@@ -91,7 +86,6 @@ export const DefaultSettings: TGraphSettingsConfig = {
   canDrag: ECanDrag.NONE,
   dragThreshold: 5,
   emulateMouseEventsOnCameraChange: false,
-  canCreateNewConnections: false,
   showConnectionArrows: true,
   scaleFontSize: 1,
   useBezierConnections: true,
@@ -161,7 +155,6 @@ export class GraphEditorSettings {
     return {
       useBezierConnections: this.$settings.value.useBezierConnections,
       showConnectionLabels: this.$settings.value.showConnectionLabels,
-      canCreateNewConnections: this.$settings.value.canCreateNewConnections,
       showConnectionArrows: this.$settings.value.showConnectionArrows,
       bezierConnectionDirection: this.$settings.value.bezierConnectionDirection,
     };

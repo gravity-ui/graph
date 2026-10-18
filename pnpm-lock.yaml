@@ -67,6 +67,9 @@ importers:
       '@gravity-ui/graph':
         specifier: workspace:*
         version: link:../../packages/graph
+      '@gravity-ui/graph-connection-editing':
+        specifier: workspace:*
+        version: link:../../packages/graph-connection-editing
       '@gravity-ui/graph-css-variables':
         specifier: workspace:*
         version: link:../../packages/graph-css-variables
@@ -122,6 +125,9 @@ importers:
       '@gravity-ui/graph':
         specifier: workspace:*
         version: link:../../packages/graph
+      '@gravity-ui/graph-connection-editing':
+        specifier: workspace:*
+        version: link:../../packages/graph-connection-editing
       '@gravity-ui/graph-css-variables':
         specifier: workspace:*
         version: link:../../packages/graph-css-variables
@@ -304,6 +310,52 @@ importers:
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@swc/core@1.13.3)(@types/node@20.19.43)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/graph-connection-editing:
+    dependencies:
+      '@gravity-ui/graph':
+        specifier: workspace:^
+        version: link:../graph
+      rbush:
+        specifier: ^3.0.1
+        version: 3.0.1
+    devDependencies:
+      '@gravity-ui/eslint-config':
+        specifier: ^4.3.2
+        version: 4.3.2(@types/eslint@9.6.1)(eslint@9.39.5(jiti@2.6.1))(prettier@3.3.2)(typescript@6.0.3)
+      '@swc/core':
+        specifier: ^1.13.3
+        version: 1.13.3
+      '@swc/jest':
+        specifier: ^0.2.39
+        version: 0.2.39(@swc/core@1.13.3)
+      '@types/jest':
+        specifier: ^30.0.0
+        version: 30.0.0
+      '@types/rbush':
+        specifier: ^3.0.0
+        version: 3.0.0
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5(jiti@2.6.1)
+      globals:
+        specifier: ^16.5.0
+        version: 16.5.0
+      jest:
+        specifier: ^30.0.5
+        version: 30.0.5(@types/node@20.19.43)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.13.3)(@types/node@20.19.43)(typescript@6.0.3))
+      jest-canvas-mock:
+        specifier: ^2.5.2
+        version: 2.5.2
+      jest-environment-jsdom:
+        specifier: ^30.0.5
+        version: 30.0.5
+      prettier:
+        specifier: ^3.0.0
+        version: 3.3.2
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
