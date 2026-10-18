@@ -100,12 +100,32 @@ test.describe("CSSVariablesLayer", () => {
     expect(await page.evaluate(() => window.cssVariableChanges)).toContain("--graph-block-background=rgb(40, 50, 60)");
   });
 
-  // Known defect, unchanged by the package extraction: style-observer misses the first assignment of a
-  // variable that had no value when observation started; later changes are reported.
-  test.fixme("applies a variable first defined after the layer is added", async ({ page }) => {
+  test("applies a variable first defined after the layer is added", async ({ page }) => {
+    const readCanvasDots = (): Promise<string> => graphPO.evaluate((graph) => graph.graphColors.canvas.dots);
     await addCSSVariablesLayer(graphPO, "e2e-graph-theme");
+    // style-observer re-reads every property once the container is first rendered. Wait past that
+    // initial read so the assignment below is caught by change detection alone.
+    await graphPO.waitForFrames(5);
+    await page.waitForTimeout(100);
+
     await setRootVariable(page, "--graph-canvas-dots", "rgb(3, 3, 3)");
-    await expect.poll(() => graphPO.evaluate((graph) => graph.graphColors.canvas.dots)).toBe("rgb(3, 3, 3)");
+    await expect.poll(readCanvasDots).toBe("rgb(3, 3, 3)");
+
+    // Unsetting a variable keeps the value applied last; defining it again is reported again.
+    await page.evaluate(() =>
+      document.querySelector<HTMLElement>("#root")?.style.removeProperty("--graph-canvas-dots")
+    );
+    // A negative check needs a fixed wait, as in the layer removal test below.
+    await graphPO.waitForFrames(5);
+    await page.waitForTimeout(200);
+    expect(await readCanvasDots()).toBe("rgb(3, 3, 3)");
+    await page.addStyleTag({ content: ".e2e-graph-theme { --graph-canvas-dots: rgb(4, 4, 4); }" });
+    await expect.poll(readCanvasDots).toBe("rgb(4, 4, 4)");
+    const changes = await page.evaluate(() => window.cssVariableChanges ?? []);
+    expect(changes.filter((change) => change.startsWith("--graph-canvas-dots="))).toEqual([
+      "--graph-canvas-dots=rgb(3, 3, 3)",
+      "--graph-canvas-dots=rgb(4, 4, 4)",
+    ]);
   });
 
   test("observes the new container class after setProps", async ({ page }) => {

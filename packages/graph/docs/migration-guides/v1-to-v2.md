@@ -105,6 +105,11 @@ Changing `containerClass` after the layer is created, through `setProps` or `use
 observes the new class, applies its current variables and keeps following later changes. In v1 the container kept
 the previous class and stopped reporting changes.
 
+A supported variable that has no value when the layer starts and is defined later, for example by a theme class
+added afterwards, is now applied and reported to `onChange`. In v1 such a first assignment was usually missed;
+only later changes of the variable reached the graph. Unsetting a variable keeps the value applied last; v1 could
+instead apply an empty value (an empty color or `0`) when another variable changed at the same time.
+
 ## Styles and TypeScript
 
 v2 declarations are built and checked with TypeScript 6.0 (`strict: true`, `skipLibCheck: false`).

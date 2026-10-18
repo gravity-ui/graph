@@ -11,6 +11,25 @@ interface CSSVariablesObserver {
   unobserve(target: Element): void;
 }
 
+// style-observer reports changes through transitions, and an unregistered custom property does not
+// transition from its initial (guaranteed-invalid) value. So the container observes proxies that
+// always have a value: `--proxy: var(--graph-*, <unset marker>)`. Proxies are local inline styles,
+// so nothing is registered globally and fallbacks such as `var(--graph-*, red)` keep working.
+const PROXY_PREFIX = "--css-variables-layer-observed-";
+const UNSET_VALUE = "--css-variables-layer-unset";
+
+function toProxyName(cssVariable: string): string {
+  return PROXY_PREFIX + cssVariable.slice(2);
+}
+
+function fromProxyName(proxy: string): string {
+  return proxy.startsWith(PROXY_PREFIX) ? "--" + proxy.slice(PROXY_PREFIX.length) : proxy;
+}
+
+function fromProxyValue(value: string): string {
+  return value.trim() === UNSET_VALUE ? "" : value;
+}
+
 /**
  * CSSVariablesLayer: Synchronizes CSS variables with graph colors and constants
  *
@@ -30,6 +49,9 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
   // Kept outside state: setState() is applied on the next render, so a stop followed by a start in
   // the same call would still see the old value.
   private observing = false;
+  // Last value passed on per variable. Unset records are skipped, so the observer's own oldValue may
+  // be the unset marker while the graph still holds this value.
+  private appliedValues = new Map<string, string>();
 
   constructor(props: CSSVariablesLayerProps) {
     const finalProps = { ...DEFAULT_CSS_VARIABLES_LAYER_PROPS, ...props };
@@ -99,6 +121,10 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
       visibility: hidden;
     `;
 
+    for (const cssVariable of SUPPORTED_CSS_VARIABLES) {
+      this.containerElement.style.setProperty(toProxyName(cssVariable), `var(${cssVariable}, ${UNSET_VALUE})`);
+    }
+
     this.getHTML()?.appendChild(this.containerElement);
 
     if (this.props.debug) {
@@ -122,12 +148,22 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
     if (!this.containerElement) throw new Error("Cannot observe CSS variables before creating the container");
     return new StyleObserver(
       (records) => {
-        // Convert StyleObserver records to our CSSVariableChange format
-        const changes: CSSVariableChange[] = records.map((record) => ({
-          name: record.property,
-          value: record.value,
-          oldValue: record.oldValue,
-        }));
+        // Convert proxy records back to the observed variables. A variable that becomes unset is
+        // skipped: the graph keeps the value applied last.
+        const changes: CSSVariableChange[] = records
+          .map((record) => {
+            const name = fromProxyName(record.property);
+            return {
+              name,
+              value: fromProxyValue(record.value),
+              oldValue: this.appliedValues.get(name) ?? fromProxyValue(record.oldValue),
+            };
+          })
+          .filter((change) => change.value !== "");
+
+        if (changes.length === 0) {
+          return;
+        }
 
         if (this.props.debug) {
           console.log("CSSVariablesLayer: CSS variable changes detected:", changes);
@@ -137,7 +173,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
       },
       {
         targets: [this.containerElement],
-        properties: Array.from(SUPPORTED_CSS_VARIABLES),
+        properties: Array.from(SUPPORTED_CSS_VARIABLES, toProxyName),
       }
     );
   }
@@ -246,6 +282,10 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
 
     if (supportedChanges.length === 0) {
       return;
+    }
+
+    for (const change of supportedChanges) {
+      this.appliedValues.set(change.name, change.value);
     }
 
     if (this.props.debug) {
