@@ -5,6 +5,20 @@ export type ConverterResult = {
   blocks: Record<TBlockId, TPoint>;
 };
 
+/**
+ * A connection as seen by the layout. Only block endpoints are laid out:
+ * a connection without both `sourceBlockId` and `targetBlockId` (for example a port-only
+ * `sourcePortId`/`targetPortId` connection) is skipped and gets no entry in `ConverterResult.edges`.
+ * Anchors (`sourceAnchorId`/`targetAnchorId`) are ignored: points start at the right middle
+ * of the source block and end at the left middle of the target block.
+ * Give connections ids: a connection without an id is reported under "sourceBlockId/targetBlockId".
+ */
+export type LayeredLayoutConnection = {
+  id?: TConnectionId;
+  sourceBlockId?: TBlockId;
+  targetBlockId?: TBlockId;
+};
+
 export type LayeredLayoutInput = {
   blocks: Array<{
     id: TBlockId;
@@ -12,11 +26,7 @@ export type LayeredLayoutInput = {
     height: number;
     level?: number;
   }>;
-  connections: Array<{
-    id?: TConnectionId;
-    sourceBlockId: TBlockId;
-    targetBlockId: TBlockId;
-  }>;
+  connections: LayeredLayoutConnection[];
 };
 
 /**

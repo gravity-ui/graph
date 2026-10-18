@@ -88,7 +88,8 @@ Core no longer contains DevTools code or declarations. The shared text measureme
 
 `layoutGraph`, `layeredConverter`, `computeLevels`, `DEFAULT_NODE_WIDTH`, `DEFAULT_NODE_HEIGHT` and the types
 `LayeredLayoutInput`, `LayeredLayoutOptions`, `LayoutGraphParams`, `Node`, `Edge`, `ConverterResult`,
-`LayeredConverterParams` and `LayeredLayoutResult` now belong to `@gravity-ui/graph-layered`.
+`LayeredConverterParams` and `LayeredLayoutResult` now belong to `@gravity-ui/graph-layered`, which also adds
+`LayeredLayoutConnection`.
 `useLayeredLayout` and `UseLayeredLayoutParams` moved from `@gravity-ui/graph-react` to its `/react` subpath:
 
 ```ts
@@ -96,8 +97,21 @@ import { computeLevels, layeredConverter, layoutGraph } from "@gravity-ui/graph-
 import { useLayeredLayout } from "@gravity-ui/graph-layered/react";
 ```
 
-Names, signatures and results are unchanged. Block ids in `LayeredLayoutInput`, `ConverterResult.blocks` and
-`computeLevels` are now typed as `TBlockId` instead of `TConnectionId` (both are `string | number`).
+Block ids in `LayeredLayoutInput`, `ConverterResult.blocks` and `computeLevels` are now typed as `TBlockId` instead of
+`TConnectionId` (both are `string | number`). `layeredConverter` takes the layout input `connections` instead of a
+prebuilt `connectionIdBySourceTarget` map and matches edges to connection ids itself:
+
+```ts
+// v1
+layeredConverter({ layoutResult, connectionIdBySourceTarget: new Map([["a/b", ["a-b"]]]), blockSizes });
+// v2
+layeredConverter({ layoutResult, connections: [{ id: "a-b", sourceBlockId: "a", targetBlockId: "b" }], blockSizes });
+```
+
+Connections may now omit block ids, so graph connections (`TConnection[]`) can be passed directly. Only block endpoints
+are laid out: a port-only connection is skipped and gets no entry in `ConverterResult.edges`, and anchors are ignored.
+`useLayeredLayout` no longer restarts the layout when it receives new arrays or options with the same layout-relevant
+values (block ids, sizes and levels, connection ids and endpoints, option values), or a new `onError`.
 The package requires core as a peer dependency for its types; React is an optional peer, needed only for `/react`.
 Core and `@gravity-ui/graph-react` no longer include or re-export the layered layout.
 

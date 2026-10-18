@@ -30,6 +30,16 @@ describe("computeLevels", () => {
     expect(Object.fromEntries(rootedCycle)).toEqual({ r: 0, p: 1, q: 0 });
   });
 
+  it("ignores connections without both block endpoints", () => {
+    const levels = computeLevels(
+      ["a", "b", "c", "d"],
+      [edge("a", "b"), edge("c", "d"), { targetBlockId: "c" }, { sourceBlockId: "b" }, {}]
+    );
+
+    // Counting the source-less connection would keep "c" from ever becoming a root, leaving "d" at 0.
+    expect(Object.fromEntries(levels)).toEqual({ a: 0, b: 1, c: 0, d: 1 });
+  });
+
   it("keeps the original id values as map keys", () => {
     const levels = computeLevels([1, 2], [edge(1, 2)]);
 

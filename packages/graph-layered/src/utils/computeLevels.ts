@@ -1,13 +1,15 @@
 import type { TBlockId } from "@gravity-ui/graph";
 
+import type { LayeredLayoutConnection } from "../types";
+
+import { hasBlockEndpoints } from "./blockConnections";
+
 /**
  * Assigns level to each block by BFS from nodes with no incoming edges (roots).
  * Levels are 0-based; roots get 0, their direct successors 1, etc.
+ * Connections without both block endpoints (for example port-only connections) are ignored.
  */
-export function computeLevels(
-  blockIds: TBlockId[],
-  connections: Array<{ sourceBlockId: TBlockId; targetBlockId: TBlockId }>
-): Map<TBlockId, number> {
+export function computeLevels(blockIds: TBlockId[], connections: LayeredLayoutConnection[]): Map<TBlockId, number> {
   const idToStr = (id: TBlockId) => String(id);
   const inDegree = new Map<string, number>();
   const outEdges = new Map<string, string[]>();
@@ -18,7 +20,7 @@ export function computeLevels(
     outEdges.set(s, []);
   }
 
-  for (const c of connections) {
+  for (const c of connections.filter(hasBlockEndpoints)) {
     const from = idToStr(c.sourceBlockId);
     const to = idToStr(c.targetBlockId);
     if (!inDegree.has(to)) inDegree.set(to, 0);

@@ -52,7 +52,7 @@ const nativeImportProbes = {
     const layout = await layoutGraph({ nodes: [{ id: "a", level: 0 }, { id: "b", level: 1 }], edges: [{ from: "a", to: "b" }] });
     const result = layeredConverter({
       layoutResult: layout,
-      connectionIdBySourceTarget: new Map([["a/b", ["edge"]]]),
+      connections: [{ id: "edge", sourceBlockId: "a", targetBlockId: "b" }],
       blockSizes: new Map(),
     });
     if (!(result.blocks.b.x > result.blocks.a.x)) throw new Error("Layered layout did not place levels left to right.");

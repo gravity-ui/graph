@@ -56,20 +56,11 @@ const GraphApp = (args: GraphAppLayoutArgs = {}) => {
   useEffect(() => {
     if (isLoading || !result) return;
 
-    const connections = layeredConfig.connections.reduce<
-      (TConnection & Pick<TMultipointConnection, "points" | "labels">)[]
-    >((acc, connection) => {
-      const id = connection.id ?? `${String(connection.sourceBlockId)}/${String(connection.targetBlockId)}`;
-      if (id in result.edges) {
-        acc.push({
-          id,
-          sourceBlockId: connection.sourceBlockId,
-          targetBlockId: connection.targetBlockId,
-          ...result.edges[id],
-        });
-      }
-      return acc;
-    }, []);
+    // Connections without points (for example port-only ones) are kept as they are.
+    const connections = layeredConfig.connections.map(
+      (connection): TConnection & Pick<TMultipointConnection, "points" | "labels"> =>
+        connection.id === undefined ? connection : { ...connection, ...result.edges[connection.id] }
+    );
 
     const blocks = layeredConfig.blocks.map((block) => ({
       ...block,
@@ -84,7 +75,7 @@ const GraphApp = (args: GraphAppLayoutArgs = {}) => {
     });
 
     graph.zoomTo("center", { padding: 300 });
-  }, [isLoading, result]);
+  }, [graph, setEntities, isLoading, result]);
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {

@@ -4,5 +4,5 @@
     "module": "Node16",
     "moduleResolution": "Node16"
   },
-  "include": ["index.mts"]
+  "include": ["index.mts", "contract.mts"]
 }

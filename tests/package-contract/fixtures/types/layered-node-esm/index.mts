@@ -1,57 +1,29 @@
-import { Graph, MultipointConnection, type TBlock, type TMultipointConnection } from "@gravity-ui/graph";
-import {
-  DEFAULT_NODE_HEIGHT,
-  DEFAULT_NODE_WIDTH,
-  computeLevels,
-  layeredConverter,
-  layoutGraph,
-  type ConverterResult,
-  type LayeredLayoutInput,
-  type LayeredLayoutOptions,
-} from "@gravity-ui/graph-layered";
+// The "Usage" example from packages/graph-layered/README.md, kept verbatim so the README stays compilable.
+import { Graph, MultipointConnection, type TBlock } from "@gravity-ui/graph";
+import { computeLevels, layeredConverter, layoutGraph } from "@gravity-ui/graph-layered";
 
-const input: LayeredLayoutInput = {
-  blocks: [
-    { id: "a", width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT },
-    { id: 2, width: 200, height: 100, level: 1 },
-  ],
-  connections: [{ id: "a/2", sourceBlockId: "a", targetBlockId: 2 }],
-};
-const options: LayeredLayoutOptions = { nodeHorizontalGap: 80, nodeVerticalGap: 120, layerSpacingFactor: 2 };
+const blocks = [
+  { id: "a", width: 200, height: 100 },
+  { id: "b", width: 200, height: 100 },
+];
+const connections = [{ id: "a-b", sourceBlockId: "a", targetBlockId: "b" }];
 
-const levels: Map<string | number, number> = computeLevels(
-  input.blocks.map((block) => block.id),
-  input.connections
-);
+const levels = computeLevels(blocks.map((b) => b.id), connections);
 const layout = await layoutGraph({
-  nodes: input.blocks.map((block) => ({ ...block, id: String(block.id), level: levels.get(block.id) ?? 0 })),
-  edges: input.connections.map((c) => ({ from: String(c.sourceBlockId), to: String(c.targetBlockId) })),
-  options,
+  nodes: blocks.map((b) => ({ ...b, id: String(b.id), level: levels.get(b.id) ?? 0 })),
+  edges: connections.map((c) => ({ from: String(c.sourceBlockId), to: String(c.targetBlockId) })),
 });
-const result: ConverterResult = layeredConverter({
+const result = layeredConverter({
   layoutResult: layout,
-  connectionIdBySourceTarget: new Map([["a/2", ["a/2"]]]),
-  blockSizes: new Map(input.blocks.map((block) => [String(block.id), block])),
+  connections,
+  blockSizes: new Map(blocks.map((b) => [String(b.id), b])),
 });
 
-// Results merge into core entities without casts.
-const blocks: TBlock[] = input.blocks.map((block) => ({
-  ...block,
-  ...result.blocks[block.id],
-  is: "Block",
-  name: String(block.id),
-  selected: false,
-  anchors: [],
-}));
-const connections: TMultipointConnection[] = input.connections.map((connection) => ({
-  ...connection,
-  ...result.edges[connection.id ?? ""],
-}));
-const graph = new Graph({ settings: { connection: MultipointConnection } });
-graph.setEntities({ blocks, connections });
-
-// @ts-expect-error layout options keep their types
-const invalidOptions: LayeredLayoutOptions = { nodeVerticalGap: "120" };
-// @ts-expect-error blocks need a size
-const invalidInput: LayeredLayoutInput = { blocks: [{ id: "a" }], connections: [] };
-void [invalidOptions, invalidInput];
+const root = document.getElementById("graph") as HTMLDivElement;
+const graph = new Graph({ settings: { connection: MultipointConnection } }, root);
+graph.setEntities({
+  blocks: blocks.map(
+    (b): TBlock => ({ ...b, ...result.blocks[b.id], is: "Block", name: b.id, selected: false, anchors: [] })
+  ),
+  connections: connections.map((c) => ({ ...c, ...result.edges[c.id] })),
+});

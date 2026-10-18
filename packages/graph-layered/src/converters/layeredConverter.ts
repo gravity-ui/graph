@@ -1,8 +1,9 @@
-import type { TPoint } from "@gravity-ui/graph";
+import type { TConnectionId, TPoint } from "@gravity-ui/graph";
 
 import { DEFAULT_NODE_WIDTH } from "../layout";
 import type { Edge } from "../layout";
-import type { ConverterResult } from "../types";
+import type { ConverterResult, LayeredLayoutConnection } from "../types";
+import { hasBlockEndpoints } from "../utils/blockConnections";
 
 function buildAdjacency(edges: Edge<string>[]) {
   const adjacency = new Map<string, Array<{ to: string; arrows?: Edge<string>["arrows"] }>>();
@@ -68,6 +69,30 @@ function getBlockLeftEdge(
   return pos;
 }
 
+/**
+ * Returns the id of the next connection from `sourceId` to `targetId`, so parallel edges get connection
+ * ids in input order. Connections without an id, or edges with no matching connection, use "sourceId/targetId".
+ */
+function createConnectionIdLookup(
+  connections: LayeredLayoutConnection[]
+): (sourceId: string, targetId: string) => TConnectionId {
+  const idsBySource = new Map<string, Map<string, TConnectionId[]>>();
+  for (const connection of connections.filter(hasBlockEndpoints)) {
+    const sourceId = String(connection.sourceBlockId);
+    const targetId = String(connection.targetBlockId);
+    let idsByTarget = idsBySource.get(sourceId);
+    if (!idsByTarget) {
+      idsByTarget = new Map();
+      idsBySource.set(sourceId, idsByTarget);
+    }
+    const ids = idsByTarget.get(targetId) ?? [];
+    ids.push(connection.id ?? `${sourceId}/${targetId}`);
+    idsByTarget.set(targetId, ids);
+  }
+  return (sourceId: string, targetId: string): TConnectionId =>
+    idsBySource.get(sourceId)?.get(targetId)?.shift() ?? `${sourceId}/${targetId}`;
+}
+
 export type LayeredLayoutResult = {
   nodes: Array<{ id: string; x?: number; y?: number; shape?: string }>;
   edges: Edge<string>[];
@@ -75,8 +100,12 @@ export type LayeredLayoutResult = {
 
 export type LayeredConverterParams = {
   layoutResult: LayeredLayoutResult;
-  /** Map of "sourceId/targetId" -> queue of connection ids (for multiple edges between same pair) */
-  connectionIdBySourceTarget: Map<string, (string | number | symbol)[]>;
+  /**
+   * The connections passed to the layout. Edges are mapped back to their ids, parallel edges in input order.
+   * Connections without both block endpoints are skipped and get no entry in the result.
+   */
+  connections: LayeredLayoutConnection[];
+  /** Block sizes keyed by `String(blockId)`. */
   blockSizes: Map<string, { width: number; height: number }>;
   virtualNodeSize?: number;
 };
@@ -85,10 +114,9 @@ export type LayeredConverterParams = {
  * Converts the result of layoutGraph() into the same format as ELK plugin (ConverterResult)
  * so it can be used with setEntities(blocks, connections) the same way.
  */
-// eslint-disable-next-line complexity
 export function layeredConverter({
   layoutResult,
-  connectionIdBySourceTarget,
+  connections,
   blockSizes,
   virtualNodeSize,
 }: LayeredConverterParams): ConverterResult {
@@ -118,6 +146,7 @@ export function layeredConverter({
   const adjacency = buildAdjacency(edges);
   const visitedEdges = new Set<string>();
   const getVirtualCenter = getVirtualNodeCenter(nodePositions, virtualNodeSize);
+  const takeConnectionId = createConnectionIdLookup(connections);
 
   for (const edge of edges) {
     const from = String(edge.from);
@@ -143,9 +172,7 @@ export function layeredConverter({
 
     const sourceId = chain[0];
     const targetId = chain[chain.length - 1];
-    const key = `${sourceId}/${targetId}`;
-    const idQueue = connectionIdBySourceTarget.get(key);
-    const connectionId = (idQueue?.length ? idQueue.shift() : null) ?? key;
+    const connectionId = takeConnectionId(sourceId, targetId);
 
     const points: TPoint[] = [];
     const sourceEdge = getBlockRightEdge(sourceId, nodePositions, blockSizes);
@@ -162,9 +189,7 @@ export function layeredConverter({
     if (targetEdge) points.push(targetEdge);
 
     if (points.length >= 2) {
-      (edgesResult as Record<string | number | symbol, { points: TPoint[] }>)[connectionId] = {
-        points,
-      };
+      edgesResult[connectionId] = { points };
     }
   }
 
