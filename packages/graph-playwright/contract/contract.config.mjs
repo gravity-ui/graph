@@ -61,7 +61,8 @@ export default {
     await assertMissing("build/styles.css", "The Playwright package ships styles.");
 
     const declared = new Set([...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.peerDependencies)]);
-    const bareSpecifier = /(?<!["'\w])(?:from\s*|import\s*\(?\s*|require\s*\(\s*)["']([^"'./\s][^"'\s]*)["']/g;
+    const bareSpecifier =
+      /(?<!["'])(?:from\s*|import\s*\(?\s*|require\s*\(\s*|declare\s+module\s+|reference\s+types\s*=\s*)["']([^"'./\s][^"'\s]*)["']/g;
     for (const file of generatedFiles) {
       const runtime = /\.c?js$/.test(file);
       for (const [, specifier] of (await readFile(file, "utf8")).matchAll(bareSpecifier)) {

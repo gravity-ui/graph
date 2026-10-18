@@ -17,7 +17,8 @@ import type {
 
 /**
  * Mirrors `GRAPH_INSTANCE_SYMBOL_KEY` from `@gravity-ui/graph`. The value is kept here because this
- * module runs in Node and must not load the core runtime; E2E tests assert that both values match.
+ * module runs in Node and must not load the core runtime. apps/e2e and core's package contract
+ * (packages/graph/contract/contract.config.mjs) assert the value.
  */
 const GRAPH_INSTANCE_SYMBOL_KEY = "@gravity-ui/graph/instance";
 

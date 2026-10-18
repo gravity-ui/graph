@@ -199,10 +199,9 @@ export async function checkInstalledArtifact({
 
   const generatedFiles = await collectGeneratedContractFiles(path.join(installedRoot, "build"));
   if (!isCore) {
-    // Only module specifiers count; string values such as the graph instance key may contain the name.
-    const deepCoreImport = new RegExp(
-      `(?<!["'\\w])(?:from\\s*|import\\s*\\(?\\s*|require\\s*\\(\\s*)["']${escapeRegExp(coreContract.packageName)}/`
-    );
+    // Any quoted "<core>/..." string counts, except the public graph instance key value
+    // ("@gravity-ui/graph/instance", exported by core as GRAPH_INSTANCE_SYMBOL_KEY).
+    const deepCoreImport = new RegExp(`["']${escapeRegExp(coreContract.packageName)}/(?!instance["'])`);
     for (const file of generatedFiles) {
       assert.doesNotMatch(
         await readFile(file, "utf8"),
