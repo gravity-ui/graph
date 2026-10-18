@@ -38,9 +38,9 @@ import "@gravity-ui/graph-react/styles.css";
 ```
 
 The layered layout algorithm and converters remain framework-independent core APIs; the React package owns the hook.
-Storybook and E2E consume the same public package entrypoints. `pnpm run build` builds core before React, and the shared
-`tests/package-contract` suite builds and installs one tarball per public package, verifies native imports and strict
-declarations, and checks that the React adapter uses the application's core classes.
+Storybook and E2E consume the same public package entrypoints. `pnpm run build` builds core before React, and each
+package's contract (`packages/<name>/contract`, run by `scripts/package-contract`) builds and installs its tarball,
+verifies native imports and strict declarations, and checks that the React adapter uses the application's core classes.
 
 ## Minimap package boundary
 

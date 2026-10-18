@@ -1,0 +1,11 @@
+{
+  "extends": "../../../../scripts/package-contract/shared/tsconfig.json",
+  "include": [
+    "app.ts",
+    "component-factories.ts",
+    "scheduling.ts",
+    "core-operations.ts",
+    "graph.pw.ts",
+    "../../../../scripts/package-contract/shared/assets.d.ts"
+  ]
+}
