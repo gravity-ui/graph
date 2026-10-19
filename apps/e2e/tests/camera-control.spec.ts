@@ -121,6 +121,22 @@ test.describe("Camera Control", () => {
     expect(finalGeometry.height).toBe(initialGeometry.height);
   });
 
+  test("should make equal zoom-in and zoom-out steps reversible", async () => {
+    const camera = graphPO.camera();
+    await camera.zoomToScale(0.5);
+
+    const initialCamera = await camera.getState();
+
+    await camera.emulateZoom(-100); // Zoom in
+    const zoomedInCamera = await camera.getState();
+    expect(zoomedInCamera.scale).toBeGreaterThan(initialCamera.scale);
+
+    await camera.emulateZoom(100); // Zoom out by the same step
+    const finalCamera = await camera.getState();
+
+    expect(finalCamera.scale).toBeCloseTo(initialCamera.scale, 12);
+  });
+
   test("should transform screen coordinates correctly after zoom", async () => {
     // Get block and camera COMs
     const block1 = graphPO.block("block-1");

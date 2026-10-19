@@ -275,9 +275,10 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
     const cameraScale = this.camera.getCameraScale();
 
-    // Smooth scale. The closer you get, the higher the speed
-    const smoothDScale = dScale * cameraScale;
-    this.camera.zoom(xy[0], xy[1], cameraScale - smoothDScale);
+    // Apply the delta in log-scale space. This keeps the zoom speed relative to the
+    // current scale while making equal zoom-in and zoom-out steps reciprocal.
+    const nextScale = cameraScale * Math.exp(-dScale);
+    this.camera.zoom(xy[0], xy[1], nextScale);
   }
 
   /**
