@@ -16,7 +16,7 @@
     "storybook": "pnpm run build && pnpm --filter @gravity-ui/graph-storybook run storybook",
     "build-storybook": "pnpm run build && pnpm --filter @gravity-ui/graph-storybook run build-storybook",
     "build:docs": "pnpm --filter @gravity-ui/graph run build:docs",
-    "build": "pnpm --filter @gravity-ui/graph --filter @gravity-ui/graph-react --filter @gravity-ui/graph-minimap --filter @gravity-ui/graph-devtools --filter @gravity-ui/graph-layered --filter @gravity-ui/graph-playwright --filter @gravity-ui/graph-css-variables --filter @gravity-ui/graph-elk --filter @gravity-ui/graph-connection-editing run build",
+    "build": "pnpm --filter @gravity-ui/graph --filter @gravity-ui/graph-react --filter @gravity-ui/graph-minimap --filter @gravity-ui/graph-devtools --filter @gravity-ui/graph-duplicate-block --filter @gravity-ui/graph-layered --filter @gravity-ui/graph-playwright --filter @gravity-ui/graph-css-variables --filter @gravity-ui/graph-elk --filter @gravity-ui/graph-connection-editing run build",
     "dev": "chokidar \"packages/*/src/**/*\" \"scripts/build-package.mjs\" -c \"pnpm run build\" --initial",
     "e2e:bundle": "pnpm --filter @gravity-ui/graph-e2e run e2e:bundle",
     "e2e:serve": "pnpm --filter @gravity-ui/graph-e2e run e2e:serve",

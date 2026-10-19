@@ -9,7 +9,6 @@ export const storiesSettings = {
   canDragCamera: true,
   canZoomCamera: true,
   canDrag: ECanDrag.ALL,
-  canDuplicateBlocks: false,
   showConnectionArrows: true,
   scaleFontSize: 1,
   useBezierConnections: true,

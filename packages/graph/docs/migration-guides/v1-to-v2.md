@@ -25,6 +25,7 @@ The temporary branch and release process is documented separately in
 - Use `graph.removeLayer(layer)` to destroy a layer; `graph.detachLayer(layer)` only detaches it, and `graph.attachLayer(layer)` returns it to the graph.
 - Remove calls to `graph.scheduler.start()` / `stop()`: the frame loop runs while work is registered, and `graph.start()` / `graph.stop()` affect only that graph.
 - Drive roots you mount yourself with `Component.update(root)`; the graph updates only its own layers.
+- Replace `NewBlockLayer` with `DuplicateBlockLayer` from `@gravity-ui/graph-duplicate-block`, rename its events and remove the `canDuplicateBlocks` setting.
 - Import `MultipointConnection` from `@gravity-ui/graph`; `@gravity-ui/graph-react` no longer re-exports it or installs `elkjs`.
 
 ## React package boundary
@@ -87,6 +88,47 @@ are now owned by the separate stylesheet; core styles only supply the base layer
 props, camera behavior, and lifecycle, and can still be used with `useLayer` or `GraphLayer` from `@gravity-ui/graph-react`.
 Core no longer contains DevTools code or declarations. The shared text measurement helper is available as
 `measureText(text, font, approximate?)` from `@gravity-ui/graph`; the ruler tick calculation belongs to DevTools.
+
+## Duplicate block package boundary
+
+`NewBlockLayer` and `NewBlockLayerProps` now belong to `@gravity-ui/graph-duplicate-block` as `DuplicateBlockLayer`
+and `TDuplicateBlockLayerProps`. Replace their imports from core:
+
+```ts
+import { Graph } from "@gravity-ui/graph";
+import { DuplicateBlockLayer } from "@gravity-ui/graph-duplicate-block";
+
+const graph = new Graph({ blocks: [] }, document.getElementById("graph")!);
+const duplicateLayer = graph.addLayer(DuplicateBlockLayer, { ghostBackground: "rgba(0, 0, 255, 0.3)" });
+duplicateLayer.disable();
+```
+
+The package requires core as a peer dependency, has no stylesheet and does not require React. The props
+(`ghostBackground`, `isDuplicateAllowed`) and the `enable()`, `disable()` and `isEnabled()` methods are unchanged.
+
+The events are renamed; their payloads and `preventDefault()` behavior are unchanged. They are typed only where
+the package is imported. The payload types are exported as `TBlocksDuplicateStartDetail` and `TBlocksDuplicateDetail`.
+
+| v1 | v2 |
+|---|---|
+| `block-add-start-from-shadow` | `blocks-duplicate-start` |
+| `block-added-from-shadow` | `blocks-duplicate` |
+
+The default action of `blocks-duplicate` changed in three ways:
+
+- A copy keeps the `is` of its source block. In v1 every copy got `is: "block"` and lost its custom block component.
+- A copied connection keeps all its fields except selection and gets a new unique `id`; its route `points` and
+  positioned `labels` are shifted with the blocks. In v1 only anchors, `styles`, `dashed` and `label` were copied, and
+  copies had no `id`, so a copy of an anchor-to-anchor connection could replace the original or an earlier copy.
+- Port-based connections (`sourcePortId` / `targetPortId`) are copied when both ports are the block point or an anchor
+  of a duplicated block; v1 skipped them. Connections whose end uses a custom port are not copied. v1 copied them when
+  they also had block IDs and re-attached the copy to the block.
+
+Like `NewBlockLayer`, the layer duplicates correctly only when blocks are draggable (`canDrag: ECanDrag.ALL`): otherwise
+the camera pans with the cursor during the gesture ([#405](https://github.com/gravity-ui/graph/issues/405)).
+
+The deprecated `canDuplicateBlocks` setting is removed; it had no effect. Add the layer to enable duplication, and
+call `disable()` or detach the layer to turn it off.
 
 ## Connection editing package boundary
 

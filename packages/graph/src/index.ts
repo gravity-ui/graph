@@ -65,7 +65,6 @@ export { applyAlpha, clearColorCache } from "./utils/functions/color";
 
 export * from "./components/canvas/groups";
 
-export * from "./components/canvas/layers/newBlockLayer/NewBlockLayer";
 export * from "./lib/Component";
 
 export * from "./services/selection/index.public";

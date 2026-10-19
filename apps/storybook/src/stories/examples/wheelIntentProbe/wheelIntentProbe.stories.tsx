@@ -25,7 +25,6 @@ import "@gravity-ui/uikit/styles/styles.css";
 const GRAPH_SETTINGS: NonNullable<HookGraphParams["settings"]> = {
   canDragCamera: true,
   canZoomCamera: true,
-  canDuplicateBlocks: false,
   canDrag: ECanDrag.ALL,
   showConnectionArrows: false,
   scaleFontSize: 1,

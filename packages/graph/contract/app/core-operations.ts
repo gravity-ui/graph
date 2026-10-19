@@ -56,3 +56,7 @@ export function genericAuthoring(graph: Graph) {
   const data: TConnection = { sourcePortId: 0, targetPortId: Symbol("endpoint") };
   void [block, extra, data];
 }
+export function extractedLayerEvents(graph: Graph) {
+  // @ts-expect-error Block duplication events are declared only by @gravity-ui/graph-duplicate-block.
+  graph.on("blocks-duplicate", () => undefined);
+}

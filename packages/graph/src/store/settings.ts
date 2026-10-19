@@ -26,8 +26,6 @@ export enum ECanDrag {
 export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   canDragCamera: boolean;
   canZoomCamera: boolean;
-  /** @deprecated Use NewBlockLayer parameters instead */
-  canDuplicateBlocks: boolean;
   /** Controls which components can be dragged */
   canDrag: ECanDrag;
   /**
@@ -82,7 +80,6 @@ export type TGraphSettingsPatch<B extends TBlock = TBlock, C extends TConnection
 export const DefaultSettings: TGraphSettingsConfig = {
   canDragCamera: true,
   canZoomCamera: true,
-  canDuplicateBlocks: false,
   canDrag: ECanDrag.NONE,
   dragThreshold: 5,
   emulateMouseEventsOnCameraChange: false,

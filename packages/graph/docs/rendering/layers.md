@@ -62,18 +62,20 @@ import { GraphCanvas } from "@gravity-ui/graph-react";
 
 For complete React integration documentation, see [React Components API](../react/usage.md).
 
-### NewBlockLayer
+### DuplicateBlockLayer
 
-[NewBlockLayer](../../src/components/canvas/layers/newBlockLayer/NewBlockLayer.md) is a good example that extends the library by enabling block creation:
-- Clone blocks with Alt + drag
-- Customize ghost block appearance
-- Handle block creation events
+[DuplicateBlockLayer](../plugins/duplicate-block.md) from `@gravity-ui/graph-duplicate-block` is a good example of a layer shipped as a separate package. It extends the library with block duplication:
+- Copy blocks with Alt + drag
+- Customize the preview appearance
+- Handle duplication events
 
 ```typescript
-// Key events
+// Key events, declared by the package
 interface GraphEventsDefinitions {
-  "block-add-start-from-shadow": (event: CustomEvent<{ block: Block }>) => void;
-  "block-added-from-shadow": (event: CustomEvent<{ block: Block; coord: {x: number, y: number} }>) => void;
+  "blocks-duplicate-start": (event: CustomEvent<{ blocks: CanvasBlock[] }>) => void;
+  "blocks-duplicate": (
+    event: CustomEvent<{ items: Array<{ block: CanvasBlock; coord: TPoint }>; delta: TPoint }>
+  ) => void;
 }
 ```
 
@@ -90,19 +92,20 @@ It emits `connection-create-start`, `connection-create-hover`, `connection-creat
 ## Using Layers
 
 ```typescript
-import { Graph, layerConfig, NewBlockLayer } from "@gravity-ui/graph";
+import { Graph, layerConfig } from "@gravity-ui/graph";
 import { ConnectionEditingLayer } from "@gravity-ui/graph-connection-editing";
+import { DuplicateBlockLayer } from "@gravity-ui/graph-duplicate-block";
 
 // Attach when creating a graph
 const graph = new Graph({
   layers: [
-    layerConfig(NewBlockLayer, { ghostBackground: "rgba(0, 0, 255, 0.3)" }),
+    layerConfig(DuplicateBlockLayer, { ghostBackground: "rgba(0, 0, 255, 0.3)" }),
     layerConfig(ConnectionEditingLayer, {}),
   ],
 });
 
 // Or add dynamically
-const newBlockLayer = graph.addLayer(NewBlockLayer, { ghostBackground: "rgba(0, 0, 255, 0.3)" });
+const duplicateLayer = graph.addLayer(DuplicateBlockLayer, { ghostBackground: "rgba(0, 0, 255, 0.3)" });
 ```
 
 ## HTML Rendering in Layers

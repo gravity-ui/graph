@@ -25,6 +25,7 @@ test("every project typechecks its permanently strict tsconfig", () => {
     "packages/graph-react",
     "packages/graph-minimap",
     "packages/graph-devtools",
+    "packages/graph-duplicate-block",
     "packages/graph-connection-editing",
     "packages/graph-elk",
     "packages/graph-layered",

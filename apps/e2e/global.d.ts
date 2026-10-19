@@ -2,6 +2,7 @@ import type { Graph } from "@gravity-ui/graph";
 
 type GraphModule = typeof import("@gravity-ui/graph") &
   Pick<typeof import("@gravity-ui/graph-minimap"), "MiniMapLayer"> &
+  Pick<typeof import("@gravity-ui/graph-duplicate-block"), "DuplicateBlockLayer"> &
   Pick<
     typeof import("@gravity-ui/graph-layered"),
     "computeLevels" | "layeredConverter" | "layoutGraph"

@@ -34,6 +34,9 @@ export default {
         if ("DevToolsLayer" in graph || "DEFAULT_DEVTOOLS_LAYER_PROPS" in graph) {
           throw new Error("Core still exports the extracted DevTools.");
         }
+        if ("NewBlockLayer" in graph || "DuplicateBlockLayer" in graph) {
+          throw new Error("Core still exports the extracted block duplication layer.");
+        }
         if (["layoutGraph", "layeredConverter", "computeLevels"].some((name) => name in graph)) {
           throw new Error("Core still exports the extracted layered layout.");
         }
@@ -133,6 +136,7 @@ export default {
     const entry = await readText("build/index.js");
     assert.doesNotMatch(entry, /graph-minimap/);
     assert.doesNotMatch(entry, /devtools-layer/);
+    assert.doesNotMatch(entry, /NewBlockLayer|blocks-duplicate|from-shadow/);
 
     const forbiddenSpecifiers = [
       "react(?:-dom)?(?:/[^\"']*)?",

@@ -333,7 +333,6 @@ const config = {
     
     // Block interactions
     canDragBlocks: true,
-    canDuplicateBlocks: false,
     canDrag: ECanDrag.ALL, // ECanDrag.NONE | ECanDrag.ONLY_SELECTED
     
     // Connection settings

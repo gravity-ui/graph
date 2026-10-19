@@ -78,7 +78,6 @@ const config: HookGraphParams = {
   settings: {
     canDragCamera: true,
     canZoomCamera: true,
-    canDuplicateBlocks: false,
     canDrag: ECanDrag.ALL,
     showConnectionArrows: false,
     scaleFontSize: 1,
