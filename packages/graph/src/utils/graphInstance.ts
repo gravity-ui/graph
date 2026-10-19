@@ -8,10 +8,10 @@ import type { Graph } from "../graph";
 export const GRAPH_INSTANCE_SYMBOL_KEY = "@gravity-ui/graph/instance";
 
 /**
- * Class the graph adds to its root while attached. Core styles give it `position: relative` in the
- * `gravity-graph` cascade layer with zero specificity, so a root left `static` becomes the
- * containing block of the layers, while a position set by the application's unlayered styles or
- * later layers still wins.
+ * Class the graph adds to its root while attached. `@gravity-ui/graph/styles.css` gives it
+ * `position: relative` in the `gravity-graph` cascade layer with zero specificity, so a root left
+ * `static` becomes the containing block of the layers, while a position set by the application's
+ * unlayered styles or later layers still wins.
  */
 export const GRAPH_ROOT_CLASS_NAME = "graph-root";
 

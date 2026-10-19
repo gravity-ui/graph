@@ -245,10 +245,10 @@ graph.zoomTo("center", { padding: 100 });
 ```
 
 Graph layers are absolutely positioned and fill the root element. While attached, the graph adds the
-`graph-root` class (`GRAPH_ROOT_CLASS_NAME`) to the root. Core styles give it `position: relative` in
-the `gravity-graph` cascade layer with zero specificity, so a root left `static` contains the layers,
-and a position set by your unlayered CSS or by cascade layers declared after `gravity-graph` still
-applies.
+`graph-root` class (`GRAPH_ROOT_CLASS_NAME`) to the root. `@gravity-ui/graph/styles.css` gives it
+`position: relative` in the `gravity-graph` cascade layer with zero specificity, so a root left
+`static` contains the layers, and a position set by your unlayered CSS or by cascade layers declared
+after `gravity-graph` still applies.
 
 ## Live Examples
 
