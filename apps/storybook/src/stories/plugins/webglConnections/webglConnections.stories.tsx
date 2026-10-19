@@ -51,7 +51,7 @@ const GraphApp = () => {
   const { graph, setEntities, start, zoomTo } = useGraph({});
   const [size, setSize] = useState("400");
   const [renderer, setRenderer] = useState("webgl");
-  const [stubs, setStubs] = useState(true);
+  const [stubs, setStubs] = useState(false);
   const [hideFar, setHideFar] = useState(false);
   const fps = useFps();
 
@@ -84,8 +84,8 @@ const GraphApp = () => {
           <Text variant="header-1">WebGL connections</Text>
           <Text variant="body-1">
             Connections are drawn by one WebGL2 layer instead of a canvas component per connection. Pan and zoom only
-            change shader uniforms. Hover and click connections to check hit testing; select a block to see its
-            connections in full while the others are drawn as stubs.
+            change shader uniforms. Hover and click connections to check hit testing. Turn on stubs to draw only the
+            ends of connections when zoomed out; connections of a selected block stay whole.
           </Text>
           <Flex alignItems="center" gap={4} wrap>
             <SegmentedRadioGroup options={renderers} value={renderer} onUpdate={setRenderer} />
