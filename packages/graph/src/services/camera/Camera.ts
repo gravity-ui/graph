@@ -1,7 +1,7 @@
 import { EventedComponent } from "../../components/canvas/EventedComponent/EventedComponent";
 import { GraphComponent } from "../../components/canvas/GraphComponent";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
-import { GraphMouseEvent, isGraphEvent } from "../../graphEvents";
+import { GraphMouseEvent } from "../../graphEvents";
 import { Component, ESchedulerPriority } from "../../lib";
 import { TComponentProps, TComponentState } from "../../lib/Component";
 import { ChildDescriptor } from "../../lib/CoreComponent";
@@ -40,7 +40,6 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
     this.addWheelListener();
     this.addEventListener("click", this.handleClick);
-    this.context.graph.on("mousedown", this.handleMouseDownEvent);
 
     this.unsubscribeCamera = this.context.graph.$camera.subscribe(this.handleCameraStateChange);
   }
@@ -83,7 +82,6 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
 
     this.stopAutoPanning();
     this.props.root?.removeEventListener("wheel", this.handleWheelEvent);
-    this.context.graph.off("mousedown", this.handleMouseDownEvent);
     this.unsubscribeCamera?.();
   }
 
@@ -174,7 +172,15 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     }
   }
 
-  private handleMouseDownEvent = (event: GraphMouseEvent) => {
+  /**
+   * Default action of the graph "mousedown": starts the camera pan.
+   *
+   * Called by {@link Graph.emit} after the event has been dispatched to all listeners and only when none of
+   * them prevented it, so a layer can take over the press regardless of when it subscribed.
+   * Not a graph listener: a plain `EventTarget` calls listeners in registration order, so the camera,
+   * created with the graph, would start panning before any layer could prevent the event.
+   */
+  public handleGraphMouseDown(event: GraphMouseEvent): void {
     const nativeEvent = event.detail.sourceEvent;
     if (!(nativeEvent instanceof MouseEvent)) {
       return;
@@ -182,15 +188,12 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     if (!this.context.graph.rootStore.settings.getConfigFlag("canDragCamera")) {
       return;
     }
-    if (isGraphEvent(event) && event.isDefaultPrevented()) {
-      return;
-    }
     if (isMetaKeyEvent(nativeEvent)) {
       return;
     }
 
     if (nativeEvent.button === 1) {
-      // Middle button: preventDefault stops DragService (see graph.emit guard)
+      // Middle button: preventDefault stops DragService, which Graph.emit runs after the camera,
       // and suppresses the browser's native middle-click autoscroll.
       event.preventDefault();
     } else if (event.detail.target !== this && this.isTargetDraggable(event.detail.target)) {
@@ -205,7 +208,7 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
       .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onDragStart(event))
       .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onDragUpdate(event))
       .on(EVENTS.DRAG_END, () => this.onDragEnd());
-  };
+  }
 
   /**
    * DragService handles draggable graph components; camera pan is deferred in that case.

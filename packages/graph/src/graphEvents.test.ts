@@ -1,4 +1,6 @@
+import { Block } from "./components/canvas/blocks/Block";
 import { Graph } from "./graph";
+import { Component } from "./lib/Component";
 
 // colors-changed is a representative event for capture, once and abort cleanup.
 // Payload assertions verify that function/object listeners receive the original dispatched event.
@@ -75,4 +77,52 @@ test("graph mouse default action runs after listeners and can be prevented", () 
   const emitted = graph.emit("mousedown", { sourceEvent });
   expect(handle).toHaveBeenCalledWith(emitted);
   graph.unmount();
+});
+
+describe("camera pan on the graph mousedown", () => {
+  function setup(): { graph: Graph; block: Block; press: () => void } {
+    const graph = new Graph({
+      settings: { dragThreshold: 0 },
+      blocks: [{ id: "block", is: "Block", name: "Block", x: 0, y: 0, width: 100, height: 100 }],
+    });
+    // Creates the Camera child that subscribes to the graph mousedown.
+    graph.getGraphLayer().iterate();
+    // The default canDrag is NONE, so the camera pans when the block is pressed.
+    const block = new Block({ id: "block" }, graph.getGraphLayer());
+    const press = (): void => {
+      graph.emit("mousedown", { target: block, sourceEvent: new MouseEvent("mousedown") });
+      document.dispatchEvent(new MouseEvent("mousemove", { clientX: 0, clientY: 0 }));
+      document.dispatchEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 30 }));
+      document.dispatchEvent(new MouseEvent("mouseup"));
+    };
+    return { graph, block, press };
+  }
+
+  test("pans the camera when no listener prevents the press", () => {
+    const { graph, block, press } = setup();
+    const before = { ...graph.cameraService.getCameraState() };
+    press();
+    expect(graph.cameraService.getCameraState()).toMatchObject({ x: before.x + 50, y: before.y + 30 });
+    Component.unmount(block);
+    graph.unmount();
+  });
+
+  // https://github.com/gravity-ui/graph/issues/405: layers subscribe after the camera is created.
+  // A non-capture listener is used because jsdom runs capture listeners first, unlike Chromium for EventTarget.
+  test("lets a listener added after the camera prevent the pan", () => {
+    const { graph, block, press } = setup();
+    const before = { ...graph.cameraService.getCameraState() };
+    const preventedBefore: boolean[] = [];
+    const listener = jest.fn((event: Event) => {
+      preventedBefore.push(event.defaultPrevented);
+      event.preventDefault();
+    });
+    graph.on("mousedown", listener);
+    press();
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(preventedBefore).toEqual([false]);
+    expect(graph.cameraService.getCameraState()).toMatchObject({ x: before.x, y: before.y });
+    Component.unmount(block);
+    graph.unmount();
+  });
 });

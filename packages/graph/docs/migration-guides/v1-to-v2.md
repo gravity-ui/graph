@@ -124,8 +124,8 @@ The default action of `blocks-duplicate` changed in three ways:
   of a duplicated block; v1 skipped them. Connections whose end uses a custom port are not copied. v1 copied them when
   they also had block IDs and re-attached the copy to the block.
 
-Like `NewBlockLayer`, the layer duplicates correctly only when blocks are draggable (`canDrag: ECanDrag.ALL`): otherwise
-the camera pans with the cursor during the gesture ([#405](https://github.com/gravity-ui/graph/issues/405)).
+Unlike `NewBlockLayer`, the layer also works when blocks are not draggable (`canDrag: ECanDrag.NONE`, the default): the
+camera no longer pans with the cursor during the gesture ([#405](https://github.com/gravity-ui/graph/issues/405)).
 
 The deprecated `canDuplicateBlocks` setting is removed; it had no effect. Add the layer to enable duplication, and
 call `disable()` or detach the layer to turn it off.
