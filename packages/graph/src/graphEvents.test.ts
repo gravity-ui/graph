@@ -85,7 +85,7 @@ describe("camera pan on the graph mousedown", () => {
       settings: { dragThreshold: 0 },
       blocks: [{ id: "block", is: "Block", name: "Block", x: 0, y: 0, width: 100, height: 100 }],
     });
-    // Creates the Camera child that subscribes to the graph mousedown.
+    // Creates the Camera child that handles the graph mousedown default action.
     graph.getGraphLayer().iterate();
     // The default canDrag is NONE, so the camera pans when the block is pressed.
     const block = new Block({ id: "block" }, graph.getGraphLayer());
@@ -108,7 +108,7 @@ describe("camera pan on the graph mousedown", () => {
   });
 
   // https://github.com/gravity-ui/graph/issues/405: layers subscribe after the camera is created.
-  // A non-capture listener is used because jsdom runs capture listeners first, unlike Chromium for EventTarget.
+  // A non-capture listener: jsdom runs capture listeners first, so only a plain one reproduced the old order.
   test("lets a listener added after the camera prevent the pan", () => {
     const { graph, block, press } = setup();
     const before = { ...graph.cameraService.getCameraState() };

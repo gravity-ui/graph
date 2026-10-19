@@ -179,6 +179,8 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
    * them prevented it, so a layer can take over the press regardless of when it subscribed.
    * Not a graph listener: a plain `EventTarget` calls listeners in registration order, so the camera,
    * created with the graph, would start panning before any layer could prevent the event.
+   *
+   * @internal
    */
   public handleGraphMouseDown(event: GraphMouseEvent): void {
     const nativeEvent = event.detail.sourceEvent;
