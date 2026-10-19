@@ -1,6 +1,7 @@
 {
   "name": "@gravity-ui/graph-webgl-connections",
   "version": "0.0.0",
+  "private": true,
   "type": "module",
   "packageManager": "pnpm@10.34.5",
   "description": "WebGL2 connections layer for Gravity UI Graph",
