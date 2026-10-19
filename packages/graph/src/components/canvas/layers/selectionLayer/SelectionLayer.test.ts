@@ -79,4 +79,32 @@ describe("SelectionLayer", () => {
 
     expect(roundRect).toHaveBeenCalledWith(10, 10, 40, 30, expect.any(Number));
   });
+
+  it("clears the selection rect when dragged back to the start point", () => {
+    const clearRect = jest.spyOn(ctx, "clearRect");
+    const event = new MouseEvent("mousemove");
+
+    callbacks.onStart?.(event, [10, 10]);
+    callbacks.onUpdate?.(event, [50, 40]);
+    renderLayer();
+    roundRect.mockClear();
+    clearRect.mockClear();
+
+    callbacks.onUpdate?.(event, [10, 10]);
+    renderLayer();
+
+    expect(clearRect).toHaveBeenCalled();
+    expect(roundRect).not.toHaveBeenCalled();
+  });
+
+  it("applies a non-zero selection on drag end", () => {
+    const selectRelatedElements = jest.spyOn(graph.rootStore.selectionService, "selectRelatedElements");
+    const event = new MouseEvent("mouseup");
+
+    callbacks.onStart?.(event, [10, 10]);
+    callbacks.onUpdate?.(event, [50, 40]);
+    callbacks.onEnd?.(event, [50, 40]);
+
+    expect(selectRelatedElements).toHaveBeenCalledTimes(1);
+  });
 });
