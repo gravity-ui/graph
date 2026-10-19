@@ -235,6 +235,17 @@ export class ConnectionState<T extends TConnection = TConnection> {
   }
 
   /**
+   * Clears the view component binding if it still points to the given component.
+   * Called when a connection component unmounts while the connection itself stays in the store
+   * (for example when canvas connections are switched off with `useCanvasConnections: false`).
+   */
+  public unsetViewComponent(viewComponent: object): void {
+    if (this.viewComponent === viewComponent) {
+      this.viewComponent = undefined;
+    }
+  }
+
+  /**
    * Gets the view component associated with this connection state.
    * @returns The BaseConnection view component or undefined if not set.
    */

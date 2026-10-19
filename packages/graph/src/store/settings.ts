@@ -46,6 +46,13 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   useBlocksAnchors: boolean;
   connectivityComponentOnClickRaise: boolean;
   showConnectionLabels: boolean;
+  /**
+   * When false, the built-in canvas connection components are not created at all: no per-connection
+   * components, hitboxes or Path2D batches. Connection data, ports and selection stay in the store, so an
+   * external renderer (for example a WebGL connections layer) can draw and hit-test connections instead.
+   * Default: true
+   */
+  useCanvasConnections: boolean;
   blockComponents: Record<string, typeof Block<Block>>;
   connection: typeof BlockConnection<Connection> | undefined;
   background: typeof Component | undefined;
@@ -97,6 +104,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   useBlocksAnchors: true,
   connectivityComponentOnClickRaise: true,
   showConnectionLabels: false,
+  useCanvasConnections: true,
   blockComponents: {},
   connection: undefined,
   background: undefined,
@@ -162,6 +170,7 @@ export class GraphEditorSettings {
       showConnectionArrows: this.$settings.value.showConnectionArrows,
       bezierConnectionDirection: this.$settings.value.bezierConnectionDirection,
       useTightBezierBounds: this.$settings.value.EXP_USE_TIGHT_BEZIER_BOUNDS,
+      useCanvasConnections: this.$settings.value.useCanvasConnections,
     };
   });
 

@@ -72,6 +72,8 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
   protected updateChildren() {
     if (!this.connections) return [];
     const settings = this.context.graph.rootStore.settings.$connectionsSettings.value;
+    // Connections are drawn by an external renderer; keep no per-connection components.
+    if (!settings.useCanvasConnections) return [];
     const ConnectionCtop = this.context.graph.rootStore.settings.$connection.value || BlockConnection;
     return this.connections.map((connection) => {
       const props: TConnectionProps = {
