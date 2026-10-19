@@ -1,6 +1,11 @@
-/* Added to the graph root by Graph.attach(); :where() keeps the application's own position. */
-:where(.graph-root) {
-  position: relative;
+/*
+ * Added to the graph root by Graph.attach(). The layer and :where() let the application's own
+ * position win, including positions set in its own cascade layers declared after this one.
+ */
+@layer gravity-graph {
+  :where(.graph-root) {
+    position: relative;
+  }
 }
 
 .layer {

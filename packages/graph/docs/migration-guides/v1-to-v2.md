@@ -338,11 +338,24 @@ Core layers are absolutely positioned. In v1 only the React `GraphCanvas` wrappe
 root, so a vanilla graph attached to a `static` root laid its layers out against an outer positioned
 ancestor or the viewport, and pointer coordinates were offset from the root.
 
-`graph.attach(root)` (and `new Graph(config, root)`) now adds the `graph-root` class to the root, and a
-full detach (`graph.detach()`, `graph.unmount()` or moving the graph to another root) removes it. Core
-styles declare `:where(.graph-root) { position: relative; }`. The rule has zero specificity, so any
-position set by the application (`absolute`, `fixed`, `sticky` or an explicit `relative`) still
-applies; only a root that would otherwise be `static` changes. Inline styles of the root are not touched.
+`graph.attach(root)` (and `new Graph(config, root)`) now adds the `graph-root` class
+(`GRAPH_ROOT_CLASS_NAME`) to the root. A full detach (`graph.detach()`, `graph.unmount()` or moving the
+graph to another root) removes it once no other graph uses that root; a class the application set
+itself is kept. Core styles declare:
+
+```css
+@layer gravity-graph {
+  :where(.graph-root) {
+    position: relative;
+  }
+}
+```
+
+The rule sits in a cascade layer and has zero specificity, so a position set by the application
+(`absolute`, `fixed`, `sticky` or an explicit `relative`) in unlayered CSS, inline styles or a cascade
+layer declared after `gravity-graph` still applies; only a root that would otherwise be `static`
+changes. If your stylesheets declare their layer order before the graph styles load, list
+`gravity-graph` first (for example `@layer gravity-graph, base, components, utilities;`).
 
 ## Structural geometry
 

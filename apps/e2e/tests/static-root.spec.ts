@@ -70,4 +70,17 @@ test.describe("Graph attached to a statically positioned root", () => {
     expect(position).toBe("absolute");
     expect(canvas).toEqual(root);
   });
+
+  test("keeps a position set in an application cascade layer", async ({ page }) => {
+    const graph = new StaticRootGraphPageObject(page);
+    await graph.initialize({ blocks: [block("block-a", 100, 100)] });
+    await page.addStyleTag({
+      content: "@layer app { #root { position: absolute; left: 40px; top: 40px; } }",
+    });
+    await graph.waitForFrames(2);
+
+    const { root, canvas, position } = await getBoxes(page);
+    expect(position).toBe("absolute");
+    expect(canvas).toEqual(root);
+  });
 });

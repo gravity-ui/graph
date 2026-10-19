@@ -69,6 +69,28 @@ describe("Graph root containing block", () => {
     graph.detach();
   });
 
+  it("keeps the mark until the last graph on a shared root leaves", () => {
+    const root = document.createElement("div");
+    const first = new Graph({}, root);
+    const second = new Graph({}, root);
+
+    first.detach();
+    expect(root.classList.contains("graph-root")).toBe(true);
+
+    second.detach();
+    expect(root.classList.contains("graph-root")).toBe(false);
+  });
+
+  it("keeps a root class set by the application", () => {
+    const root = document.createElement("div");
+    root.classList.add("graph-root");
+    const graph = new Graph({}, root);
+
+    graph.detach();
+
+    expect(root.classList.contains("graph-root")).toBe(true);
+  });
+
   it("does not touch the inline position of the root", () => {
     const root = document.createElement("div");
     root.style.position = "absolute";
