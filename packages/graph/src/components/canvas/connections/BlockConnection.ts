@@ -270,7 +270,7 @@ export class BlockConnection<T extends TConnection>
     super.updatePoints(additionalPoints, props);
 
     if (!this.connectionPoints) {
-      this.applyShape();
+      this.applyShape(this.state, props);
       return;
     }
 
@@ -280,7 +280,7 @@ export class BlockConnection<T extends TConnection>
     this.geometry.y2 = this.connectionPoints[1].y;
 
     this.generatePath();
-    this.applyShape();
+    this.applyShape(this.state, props);
   }
 
   protected override handleEvent(event: MouseEvent) {
