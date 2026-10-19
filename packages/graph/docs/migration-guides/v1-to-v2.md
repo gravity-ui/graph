@@ -26,6 +26,7 @@ The temporary branch and release process is documented separately in
 - Remove calls to `graph.scheduler.start()` / `stop()`: the frame loop runs while work is registered, and `graph.start()` / `graph.stop()` affect only that graph.
 - Drive roots you mount yourself with `Component.update(root)`; the graph updates only its own layers.
 - Replace `NewBlockLayer` with `DuplicateBlockLayer` from `@gravity-ui/graph-duplicate-block`, rename its events and remove the `canDuplicateBlocks` setting.
+- Drop `position: relative` workarounds on vanilla graph roots if you added them only for the graph: `attach()` now makes a static root the containing block of its layers.
 - Import `MultipointConnection` from `@gravity-ui/graph`; `@gravity-ui/graph-react` no longer re-exports it or installs `elkjs`.
 
 ## React package boundary
@@ -330,6 +331,18 @@ declare module "*.css";
 This declaration describes CSS imports to TypeScript. Your bundler validates
 that the imported files exist. Published declaration locations and NodeNext/CJS
 consumers remain supported.
+
+## Graph root positioning
+
+Core layers are absolutely positioned. In v1 only the React `GraphCanvas` wrapper positioned its
+root, so a vanilla graph attached to a `static` root laid its layers out against an outer positioned
+ancestor or the viewport, and pointer coordinates were offset from the root.
+
+`graph.attach(root)` (and `new Graph(config, root)`) now adds the `graph-root` class to the root, and a
+full detach (`graph.detach()`, `graph.unmount()` or moving the graph to another root) removes it. Core
+styles declare `:where(.graph-root) { position: relative; }`. The rule has zero specificity, so any
+position set by the application (`absolute`, `fixed`, `sticky` or an explicit `relative`) still
+applies; only a root that would otherwise be `static` changes. Inline styles of the root are not touched.
 
 ## Structural geometry
 

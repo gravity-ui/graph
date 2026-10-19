@@ -7,6 +7,13 @@ import type { Graph } from "../graph";
  */
 export const GRAPH_INSTANCE_SYMBOL_KEY = "@gravity-ui/graph/instance";
 
+/**
+ * Class the graph adds to its root while attached. Core styles give it `position: relative` with
+ * zero specificity, so a root left `static` becomes the containing block of the layers, while any
+ * position set by the application still wins.
+ */
+export const GRAPH_ROOT_CLASS_NAME = "graph-root";
+
 type GraphHostElement = HTMLElement & Record<symbol, Graph | undefined>;
 
 export function setGraphInstance(element: HTMLElement, graph: Graph): void {

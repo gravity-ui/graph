@@ -244,6 +244,10 @@ graph.start();
 graph.zoomTo("center", { padding: 100 });
 ```
 
+Graph layers are absolutely positioned and fill the root element. While attached, the graph adds the
+`graph-root` class to the root; core styles give it `position: relative` with zero specificity, so a
+root left `static` contains the layers and a position set by your own CSS still applies.
+
 ## Live Examples
 
 - [Basic example](https://preview.gravity-ui.com/graph/?path=/story/stories-main-grapheditor--hundred-blocks)

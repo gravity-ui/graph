@@ -1,3 +1,8 @@
+/* Added to the graph root by Graph.attach(); :where() keeps the application's own position. */
+:where(.graph-root) {
+  position: relative;
+}
+
 .layer {
   position: absolute;
   top: 0;

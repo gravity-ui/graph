@@ -32,6 +32,54 @@ describe("Graph DOM instance bridge", () => {
   });
 });
 
+describe("Graph root containing block", () => {
+  it("marks the root on attach and unmarks it on detach", () => {
+    const root = document.createElement("div");
+    root.className = "app-root";
+    const graph = new Graph({}, root);
+
+    expect(root.classList.contains("graph-root")).toBe(true);
+
+    graph.detach();
+
+    expect(root.classList.contains("graph-root")).toBe(false);
+    expect(root.classList.contains("app-root")).toBe(true);
+  });
+
+  it("keeps the mark while the graph is stopped without a full detach", () => {
+    const root = document.createElement("div");
+    const graph = new Graph({}, root);
+
+    graph.stop();
+
+    expect(root.classList.contains("graph-root")).toBe(true);
+    graph.unmount();
+    expect(root.classList.contains("graph-root")).toBe(false);
+  });
+
+  it("moves the mark when an attached graph receives a new root", () => {
+    const firstRoot = document.createElement("div");
+    const secondRoot = document.createElement("div");
+    const graph = new Graph({}, firstRoot);
+
+    graph.attach(secondRoot);
+
+    expect(firstRoot.classList.contains("graph-root")).toBe(false);
+    expect(secondRoot.classList.contains("graph-root")).toBe(true);
+    graph.detach();
+  });
+
+  it("does not touch the inline position of the root", () => {
+    const root = document.createElement("div");
+    root.style.position = "absolute";
+    const graph = new Graph({}, root);
+
+    expect(root.style.position).toBe("absolute");
+    graph.detach();
+    expect(root.style.position).toBe("absolute");
+  });
+});
+
 describe("Graph export/import and updateBlock integration", () => {
   function createBlock(): TBlock {
     return {
