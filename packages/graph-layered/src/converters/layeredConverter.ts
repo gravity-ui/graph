@@ -1,6 +1,6 @@
 import type { TConnectionId, TPoint } from "@gravity-ui/graph";
 
-import { DEFAULT_NODE_WIDTH } from "../layout";
+import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH } from "../layout";
 import type { Edge } from "../layout";
 import type { ConverterResult, LayeredLayoutConnection } from "../types";
 import { hasBlockEndpoints } from "../utils/blockConnections";
@@ -20,17 +20,23 @@ function buildAdjacency(edges: Edge<string>[]) {
   return adjacency;
 }
 
+type TVirtualNodeSizeParams = Pick<
+  LayeredConverterParams,
+  "virtualNodeWidth" | "virtualNodeHeight" | "virtualNodeSize"
+>;
+
 function getVirtualNodeCenter(
   nodePositions: Map<string, TPoint>,
-  virtualNodeSize?: number
+  { virtualNodeWidth, virtualNodeHeight, virtualNodeSize }: TVirtualNodeSizeParams
 ): (id: string) => TPoint | undefined {
+  const width = virtualNodeWidth ?? virtualNodeSize ?? DEFAULT_NODE_WIDTH;
+  const height = virtualNodeHeight ?? virtualNodeSize ?? DEFAULT_NODE_HEIGHT;
   return (id: string) => {
     const pos = nodePositions.get(id);
     if (!pos) return undefined;
-    const size = virtualNodeSize ?? DEFAULT_NODE_WIDTH;
     return {
-      x: pos.x + size / 2,
-      y: pos.y + size / 2,
+      x: pos.x + width / 2,
+      y: pos.y + height / 2,
     };
   };
 }
@@ -107,6 +113,9 @@ export type LayeredConverterParams = {
   connections: LayeredLayoutConnection[];
   /** Block sizes keyed by `String(blockId)`. */
   blockSizes: Map<string, { width: number; height: number }>;
+  virtualNodeWidth?: number;
+  virtualNodeHeight?: number;
+  /** @deprecated Use virtualNodeWidth and virtualNodeHeight instead. */
   virtualNodeSize?: number;
 };
 
@@ -118,6 +127,8 @@ export function layeredConverter({
   layoutResult,
   connections,
   blockSizes,
+  virtualNodeWidth,
+  virtualNodeHeight,
   virtualNodeSize,
 }: LayeredConverterParams): ConverterResult {
   const { nodes, edges } = layoutResult;
@@ -145,7 +156,11 @@ export function layeredConverter({
   const edgesResult: ConverterResult["edges"] = {};
   const adjacency = buildAdjacency(edges);
   const visitedEdges = new Set<string>();
-  const getVirtualCenter = getVirtualNodeCenter(nodePositions, virtualNodeSize);
+  const getVirtualCenter = getVirtualNodeCenter(nodePositions, {
+    virtualNodeWidth,
+    virtualNodeHeight,
+    virtualNodeSize,
+  });
   const takeConnectionId = createConnectionIdLookup(connections);
 
   for (const edge of edges) {

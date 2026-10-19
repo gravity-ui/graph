@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { computeLevels, layeredConverter, layoutGraph } from "..";
+import { DEFAULT_NODE_HEIGHT, DEFAULT_NODE_WIDTH, computeLevels, layeredConverter, layoutGraph } from "..";
 import type { ConverterResult, Edge, LayeredLayoutInput, LayeredLayoutOptions, Node } from "..";
 import { hasBlockEndpoints } from "../utils/blockConnections";
 
@@ -100,6 +100,8 @@ export function useLayeredLayout(params: UseLayeredLayoutParams): {
           },
           connections,
           blockSizes,
+          virtualNodeWidth: layoutOptions?.defaultNodeWidth ?? DEFAULT_NODE_WIDTH,
+          virtualNodeHeight: layoutOptions?.defaultNodeHeight ?? DEFAULT_NODE_HEIGHT,
         });
         setResult(converted);
         setIsLoading(false);
