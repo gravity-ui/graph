@@ -36,6 +36,14 @@ describe("Settings store", () => {
     expect(store.$canDrag.value).toBe(canDrag);
   });
 
+  it("should enable tight Bezier bounds by default and allow disabling them", () => {
+    expect(store.getConfigFlag("EXP_USE_TIGHT_BEZIER_BOUNDS")).toBe(true);
+
+    store.setupSettings({ EXP_USE_TIGHT_BEZIER_BOUNDS: false });
+
+    expect(store.getConfigFlag("EXP_USE_TIGHT_BEZIER_BOUNDS")).toBe(false);
+  });
+
   it("ignores undefined patches, including callbacks, and preserves falsy values", () => {
     const resolveWheelIntent = jest.fn();
     const getCameraBlockScaleLevel = jest.fn();

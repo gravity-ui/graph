@@ -234,7 +234,7 @@ export class BaseConnection<
    *
    * @returns {void}
    */
-  protected updatePoints(additionalPoints?: TPoint[]): void {
+  protected updatePoints(additionalPoints?: TPoint[], props: Props = this.props): void {
     const geometry = this.connectedState.$geometry.value;
     this.connectionPoints = geometry ? [{ ...geometry[0] }, { ...geometry[1] }] : undefined;
     if (!this.isEntityAvailable() || !this.hasGeometry()) {
@@ -246,7 +246,7 @@ export class BaseConnection<
     }
 
     // Calculate bounding box from connection points, additional points, and subclass points
-    const points = this.collectBBoxPoints();
+    const points = this.collectBBoxPoints(props);
 
     if (additionalPoints) {
       points.push(...additionalPoints);
@@ -265,7 +265,7 @@ export class BaseConnection<
    * Collects points that define the bounding box of the connection.
    * Override in subclasses to include additional points (e.g., bezier control points, labels).
    */
-  protected collectBBoxPoints(): TPoint[] {
+  protected collectBBoxPoints(_props: Props = this.props): TPoint[] {
     if (!this.connectionPoints) {
       return [];
     }
