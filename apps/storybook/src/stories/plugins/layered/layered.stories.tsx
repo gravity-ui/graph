@@ -2,7 +2,7 @@ import React, { useEffect, useMemo } from "react";
 
 import type { TMultipointConnection } from "@gravity-ui/graph";
 import { BezierMultipointConnection, Graph, GraphState, TBlock, TConnection } from "@gravity-ui/graph";
-import type { LayeredLayoutOptions } from "@gravity-ui/graph-layered";
+import type { LayeredLayoutInput, LayeredLayoutOptions } from "@gravity-ui/graph-layered";
 import { useLayeredLayout } from "@gravity-ui/graph-layered/react";
 import { GraphCanvas, useGraph, useGraphEvent } from "@gravity-ui/graph-react";
 import { ThemeProvider } from "@gravity-ui/uikit";
@@ -12,7 +12,7 @@ import type { Meta, StoryFn } from "@storybook/react-webpack5";
 import { useFn } from "../../../useFn";
 import { BlockStory } from "../../main/Block";
 
-import { layeredConfig } from "./config";
+import { layeredConfig, variableSizesConfig } from "./config";
 
 import "@gravity-ui/uikit/styles/styles.css";
 
@@ -24,7 +24,11 @@ export interface GraphAppLayoutArgs {
   defaultNodeHeight?: number;
 }
 
-const GraphApp = (args: GraphAppLayoutArgs = {}) => {
+type GraphAppProps = GraphAppLayoutArgs & {
+  config?: LayeredLayoutInput;
+};
+
+const GraphApp = ({ config = layeredConfig, ...args }: GraphAppProps = {}) => {
   const layoutOptions = useMemo<LayeredLayoutOptions | undefined>(() => {
     const opts: LayeredLayoutOptions = {
       ...(args.nodeHorizontalGap !== undefined && { nodeHorizontalGap: args.nodeHorizontalGap }),
@@ -49,7 +53,7 @@ const GraphApp = (args: GraphAppLayoutArgs = {}) => {
   });
 
   const { isLoading, result } = useLayeredLayout({
-    ...layeredConfig,
+    ...config,
     layoutOptions,
   });
 
@@ -57,12 +61,12 @@ const GraphApp = (args: GraphAppLayoutArgs = {}) => {
     if (isLoading || !result) return;
 
     // Connections without points (for example port-only ones) are kept as they are.
-    const connections = layeredConfig.connections.map(
+    const connections = config.connections.map(
       (connection): TConnection & Pick<TMultipointConnection, "points" | "labels"> =>
         connection.id === undefined ? connection : { ...connection, ...result.edges[connection.id] }
     );
 
-    const blocks = layeredConfig.blocks.map((block) => ({
+    const blocks = config.blocks.map((block) => ({
       ...block,
       ...result.blocks[block.id],
       name: block.id.toString(),
@@ -75,7 +79,7 @@ const GraphApp = (args: GraphAppLayoutArgs = {}) => {
     });
 
     graph.zoomTo("center", { padding: 300 });
-  }, [graph, setEntities, isLoading, result]);
+  }, [config, graph, isLoading, result, setEntities]);
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {
@@ -124,8 +128,8 @@ const meta: Meta<typeof GraphApp> = {
           "- `isLoading`: Boolean indicating if the layout computation is in progress\n" +
           "- `result`: Object with `blocks` (positions by id) and `edges` (points/labels by connection id)\n\n" +
           "## Layout Options\n\n" +
-          "- `nodeHorizontalGap`: Horizontal gap between nodes in the same layer (default: 2× defaultNodeWidth)\n" +
-          "- `nodeVerticalGap`: Vertical gap between adjacent layers (default: 200)\n" +
+          "- `nodeHorizontalGap`: Horizontal gap between adjacent layers/columns (default: 2× defaultNodeWidth)\n" +
+          "- `nodeVerticalGap`: Vertical gap between nodes in the same layer/column (default: 200)\n" +
           "- `defaultNodeWidth` / `defaultNodeHeight`: Default node size when not provided (default: 100)\n" +
           "- `layerSpacingFactor`: Multiplier for spacing between layers (default: 1.7)\n\n" +
           "## Example\n\n" +
@@ -150,11 +154,11 @@ const meta: Meta<typeof GraphApp> = {
   argTypes: {
     nodeHorizontalGap: {
       control: { type: "number", min: 0, max: 300, step: 10 },
-      description: "Horizontal gap between nodes in the same layer",
+      description: "Horizontal gap between adjacent layers/columns",
     },
     nodeVerticalGap: {
       control: { type: "number", min: 0, max: 400, step: 10 },
-      description: "Vertical gap between adjacent layers",
+      description: "Vertical gap between nodes in the same layer/column",
     },
     layerSpacingFactor: {
       control: { type: "number", min: 0.5, max: 4, step: 0.1 },
@@ -174,3 +178,5 @@ const meta: Meta<typeof GraphApp> = {
 export default meta;
 
 export const Default: StoryFn<typeof GraphApp> = (args) => <GraphApp {...args} />;
+
+export const VariableSizes: StoryFn<typeof GraphApp> = (args) => <GraphApp {...args} config={variableSizesConfig} />;
