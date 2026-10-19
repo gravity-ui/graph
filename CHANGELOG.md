@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.3](https://github.com/gravity-ui/graph/compare/v1.12.2...v1.12.3) (2026-10-19)
+
+
+### Bug Fixes
+
+* **connections:** pass next props through bezier bounds updates ([#421](https://github.com/gravity-ui/graph/issues/421)) ([8fa15b9](https://github.com/gravity-ui/graph/commit/8fa15b9d58a7c0fb00aa3b7d0faabbf725baa7d9))
+
 ## [1.12.2](https://github.com/gravity-ui/graph/compare/v1.12.1...v1.12.2) (2026-10-02)
 
 
