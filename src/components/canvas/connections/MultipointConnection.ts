@@ -3,10 +3,10 @@ import intersects from "intersects";
 import { HitBoxData } from "../../../services/HitTest";
 import { curvePolyline } from "../../../utils/shapes/curvePolyline";
 import { trangleArrowForVector } from "../../../utils/shapes/triangle";
-import { TRect } from "../../../utils/types/shapes";
+import { TPoint, TRect } from "../../../utils/types/shapes";
 
 import { Path2DRenderStyleResult } from "./BatchPath2D";
-import { BlockConnection } from "./BlockConnection";
+import { BlockConnection, TConnectionProps } from "./BlockConnection";
 import { isPointInStroke } from "./bezierHelpers";
 import type { TMultipointConnection } from "./types";
 
@@ -50,8 +50,8 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
     this.renderLabelsText(ctx);
   }
 
-  public updatePoints(): void {
-    super.updatePoints();
+  public updatePoints(additionalPoints?: TPoint[], props: TConnectionProps = this.props): void {
+    super.updatePoints(additionalPoints, props);
     return;
   }
 

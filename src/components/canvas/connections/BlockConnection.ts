@@ -265,7 +265,7 @@ export class BlockConnection<T extends TConnection>
     this.geometry.y2 = this.connectionPoints[1].y;
 
     this.generatePath();
-    this.applyShape();
+    this.applyShape(this.state, props);
   }
 
   protected override handleEvent(event: MouseEvent) {
