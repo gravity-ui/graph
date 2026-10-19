@@ -54,8 +54,17 @@ export class SelectionLayer extends Layer<
     this.drawSelectionArea();
   }
 
+  /**
+   * Selection is active only when it has a non-zero size on both axes.
+   * A zero-size rect is neither drawn nor applied.
+   */
   private hasActiveSelection(): boolean {
-    return this.selectionStartWorld !== null && this.selectionEndWorld !== null;
+    if (!this.selectionStartWorld || !this.selectionEndWorld) {
+      return false;
+    }
+    const hasSizeX = Math.abs(this.selectionEndWorld.x - this.selectionStartWorld.x) > 0.1;
+    const hasSizeY = Math.abs(this.selectionEndWorld.y - this.selectionStartWorld.y) > 0.1;
+    return hasSizeX && hasSizeY;
   }
 
   private drawSelectionArea(): void {
@@ -123,11 +132,7 @@ export class SelectionLayer extends Layer<
       return;
     }
 
-    // Check if selection has any size
-    const hasSizeX = Math.abs(this.selectionEndWorld.x - this.selectionStartWorld.x) > 0.1;
-    const hasSizeY = Math.abs(this.selectionEndWorld.y - this.selectionStartWorld.y) > 0.1;
-
-    if (!hasSizeX || !hasSizeY) {
+    if (!this.hasActiveSelection()) {
       this.selectionStartWorld = null;
       this.selectionEndWorld = null;
       this.performRender();
