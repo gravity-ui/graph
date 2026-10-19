@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-import { Graph, TBlock } from "@gravity-ui/graph";
+import { Graph, TBlock, TGraphConfig } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph, useLayer } from "@gravity-ui/graph-react";
 import { TWebGLConnectionsLod, WebGLConnectionsLayer } from "@gravity-ui/graph-webgl-connections";
 import { Flex, SegmentedRadioGroup, Switch, Text, ThemeProvider } from "@gravity-ui/uikit";
@@ -11,11 +11,22 @@ import { BlockStory } from "../../main/Block";
 
 import "@gravity-ui/uikit/styles/styles.css";
 
-const sizes = [
+type TSizeOption = { value: string; content: string };
+type TStorySettings = Partial<TGraphConfig["settings"]>;
+
+/** Options are connections per layer for generatePrettyBlocks. */
+const defaultSizes: TSizeOption[] = [
   { value: "50", content: "~1.5k connections" },
   { value: "400", content: "~12k connections" },
   { value: "1000", content: "~30k connections" },
 ];
+
+const defaultSettings: TStorySettings = { showConnectionLabels: false };
+
+/** Same graph as the GraphStressTest story in GraphEditor.stories.tsx. */
+const stressSizes: TSizeOption[] = [{ value: "1000", content: "~111k blocks, ~109k connections" }];
+
+const stressSettings: TStorySettings = { showConnectionLabels: false, useBezierConnections: false };
 
 const renderers = [
   { value: "webgl", content: "WebGL" },
@@ -47,9 +58,17 @@ function useFps(): number {
   return fps;
 }
 
-const GraphApp = () => {
+type TGraphAppProps = {
+  title: string;
+  layersCount: number;
+  sizes: TSizeOption[];
+  initialSize: string;
+  settings: TStorySettings;
+};
+
+const GraphApp = ({ title, layersCount, sizes, initialSize, settings }: TGraphAppProps) => {
   const { graph, setEntities, start, zoomTo } = useGraph({});
-  const [size, setSize] = useState("400");
+  const [size, setSize] = useState(initialSize);
   const [renderer, setRenderer] = useState("webgl");
   const [stubs, setStubs] = useState(false);
   const [hideFar, setHideFar] = useState(false);
@@ -58,14 +77,14 @@ const GraphApp = () => {
   useEffect(() => {
     setEntities(
       generatePrettyBlocks({
-        layersCount: 30,
+        layersCount,
         connectionsPerLayer: Number(size),
-        overrideSettings: { showConnectionLabels: false },
+        overrideSettings: settings,
       })
     );
     start();
     zoomTo("center", { padding: 100 });
-  }, [graph, size]);
+  }, [graph, size, layersCount, settings]);
 
   const lod = useMemo<TWebGLConnectionsLod>(
     () => ({
@@ -81,7 +100,7 @@ const GraphApp = () => {
     <ThemeProvider theme="light">
       <Flex direction="column" style={{ height: "100vh" }}>
         <Flex direction="column" gap={2} style={{ padding: 16 }}>
-          <Text variant="header-1">WebGL connections</Text>
+          <Text variant="header-1">{title}</Text>
           <Text variant="body-1">
             Connections are drawn by one WebGL2 layer instead of a canvas component per connection. Pan and zoom only
             change shader uniforms. Hover and click connections to check hit testing. Turn on stubs to draw only the
@@ -89,7 +108,11 @@ const GraphApp = () => {
           </Text>
           <Flex alignItems="center" gap={4} wrap>
             <SegmentedRadioGroup options={renderers} value={renderer} onUpdate={setRenderer} />
-            <SegmentedRadioGroup options={sizes} value={size} onUpdate={setSize} />
+            {sizes.length > 1 ? (
+              <SegmentedRadioGroup options={sizes} value={size} onUpdate={setSize} />
+            ) : (
+              <Text variant="body-1">{sizes[0].content}</Text>
+            )}
             <Switch
               checked={stubs}
               disabled={renderer !== "webgl"}
@@ -124,4 +147,22 @@ const meta: Meta = {
 
 export default meta;
 
-export const Default: StoryFn = () => <GraphApp />;
+export const Default: StoryFn = () => (
+  <GraphApp
+    title="WebGL connections"
+    layersCount={30}
+    sizes={defaultSizes}
+    initialSize="400"
+    settings={defaultSettings}
+  />
+);
+
+export const StressTest: StoryFn = () => (
+  <GraphApp
+    title="WebGL connections: stress test"
+    layersCount={110}
+    sizes={stressSizes}
+    initialSize="1000"
+    settings={stressSettings}
+  />
+);
