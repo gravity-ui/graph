@@ -340,8 +340,7 @@ ancestor or the viewport, and pointer coordinates were offset from the root.
 
 `graph.attach(root)` (and `new Graph(config, root)`) now adds the `graph-root` class
 (`GRAPH_ROOT_CLASS_NAME`) to the root. A full detach (`graph.detach()`, `graph.unmount()` or moving the
-graph to another root) removes it once no other graph uses that root; a class the application set
-itself is kept. Core styles declare:
+graph to another root) removes it. `@gravity-ui/graph/styles.css` declares:
 
 ```css
 @layer gravity-graph {

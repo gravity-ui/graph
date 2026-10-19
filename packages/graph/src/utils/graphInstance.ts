@@ -15,14 +15,6 @@ export const GRAPH_INSTANCE_SYMBOL_KEY = "@gravity-ui/graph/instance";
  */
 export const GRAPH_ROOT_CLASS_NAME = "graph-root";
 
-type TGraphRootMark = {
-  graphs: Set<Graph>;
-  /** The application had set the class itself; it stays when the last graph leaves. */
-  preserveClass: boolean;
-};
-
-const graphRootMarks = new WeakMap<HTMLElement, TGraphRootMark>();
-
 type GraphHostElement = HTMLElement & Record<symbol, Graph | undefined>;
 
 export function setGraphInstance(element: HTMLElement, graph: Graph): void {
@@ -35,28 +27,5 @@ export function clearGraphInstance(element: HTMLElement, graph: Graph): void {
 
   if (host[symbol] === graph) {
     delete host[symbol];
-  }
-}
-
-/** Adds the root class while at least one graph is attached to the element. */
-export function markGraphRoot(element: HTMLElement, graph: Graph): void {
-  let mark = graphRootMarks.get(element);
-  if (!mark) {
-    mark = { graphs: new Set(), preserveClass: element.classList.contains(GRAPH_ROOT_CLASS_NAME) };
-    graphRootMarks.set(element, mark);
-  }
-  mark.graphs.add(graph);
-  element.classList.add(GRAPH_ROOT_CLASS_NAME);
-}
-
-/** Removes the root class when the last graph leaves, unless the application had set it. */
-export function unmarkGraphRoot(element: HTMLElement, graph: Graph): void {
-  const mark = graphRootMarks.get(element);
-  if (!mark?.graphs.delete(graph) || mark.graphs.size > 0) {
-    return;
-  }
-  graphRootMarks.delete(element);
-  if (!mark.preserveClass) {
-    element.classList.remove(GRAPH_ROOT_CLASS_NAME);
   }
 }
