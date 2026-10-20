@@ -28,8 +28,8 @@ export class GridLayers extends Component<TRect, TComponentState, TBelowLayerCon
       return;
     }
 
-    const { GRID_SIZE, GRID_LAYERS, GRID_LAYER_FADE } = this.context.constants.system;
-    const layers = resolveGridLayers(GRID_LAYERS, GRID_SIZE, cameraState.scale, GRID_LAYER_FADE);
+    const { GRID_SIZE, GRID_LAYERS, GRID_LAYER_FADE, GRID_DOT_SCALE_LIMIT } = this.context.constants.system;
+    const layers = resolveGridLayers(GRID_LAYERS, GRID_SIZE, cameraState.scale, GRID_LAYER_FADE, GRID_DOT_SCALE_LIMIT);
     const dpr = this.context.layer.getDRP();
     const color = this.context.colors.canvas.dots;
     const ctx = this.context.ctx;

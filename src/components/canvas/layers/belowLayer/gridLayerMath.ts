@@ -12,7 +12,7 @@ export type TResolvedGridLayer = {
   spacingPx: number;
   /** Layer opacity in (0, 1] */
   opacity: number;
-  /** Dot diameter in CSS px */
+  /** Effective dot diameter in CSS px, after `GRID_DOT_SCALE_LIMIT` */
   dotSize: number;
 };
 
@@ -31,14 +31,17 @@ function isPositiveFinite(value: unknown): value is number {
 /**
  * Validates, de-duplicates (first `step` wins) and sorts the configured layers,
  * then keeps only the layers that are at least partially visible at `scale`
- * and whose dots stay apart (on-screen step is at least `dotSize + 1` px).
+ * and whose dots stay apart (on-screen step is at least the effective `dotSize + 1` px).
+ * Below `dotScaleLimit` every dot shrinks together with the world: the effective dot size is
+ * `dotSize × min(1, scale / dotScaleLimit)`. A `dotScaleLimit` that is not a finite number above 0 means no limit.
  * Returns no layers for a missing layer list or a fade window that is not two finite numbers.
  */
 export function resolveGridLayers(
   layers: ReadonlyArray<Partial<TGridLayer> | undefined> | undefined,
   gridSize: number,
   scale: number,
-  fade: readonly [number, number] | undefined
+  fade: readonly [number, number] | undefined,
+  dotScaleLimit?: number
 ): TResolvedGridLayer[] {
   if (!layers || !Array.isArray(fade) || fade.length !== 2 || !fade.every(Number.isFinite)) {
     return [];
@@ -56,14 +59,16 @@ export function resolveGridLayers(
   validLayers.sort((a, b) => a.step - b.step);
 
   const [fadeFrom, fadeTo] = fade;
+  const dotScale = isPositiveFinite(dotScaleLimit) ? Math.min(1, scale / dotScaleLimit) : 1;
   const resolved: TResolvedGridLayer[] = [];
   for (const layer of validLayers) {
     const stepWorld = layer.step * gridSize;
     const spacingPx = stepWorld * scale;
     const opacity = smoothstep(fadeFrom, fadeTo, spacingPx);
+    const dotSize = layer.dotSize * dotScale;
     // Dots that touch would merge into a fill, and the pattern tile would clip a dot into a square
-    if (opacity > 0 && spacingPx >= layer.dotSize + 1) {
-      resolved.push({ stepWorld, spacingPx, opacity, dotSize: layer.dotSize });
+    if (opacity > 0 && spacingPx >= dotSize + 1) {
+      resolved.push({ stepWorld, spacingPx, opacity, dotSize });
     }
   }
   return resolved;

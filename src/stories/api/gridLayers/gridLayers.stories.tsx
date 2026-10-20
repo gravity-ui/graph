@@ -23,13 +23,17 @@ const GraphApp = () => {
   const graphRef = useRef<Graph | undefined>(undefined);
   const [fadeFrom, setFadeFrom] = useState("6");
   const [fadeTo, setFadeTo] = useState("18");
+  const [dotScaleLimit, setDotScaleLimit] = useState("0.125");
   const [dark, setDark] = useState(false);
 
-  const onApplyFade = useCallback(() => {
+  const onApply = useCallback(() => {
     graphRef.current?.setConstants({
-      system: { GRID_LAYER_FADE: [Number(fadeFrom), Number(fadeTo)] },
+      system: {
+        GRID_LAYER_FADE: [Number(fadeFrom), Number(fadeTo)],
+        GRID_DOT_SCALE_LIMIT: Number(dotScaleLimit),
+      },
     });
-  }, [fadeFrom, fadeTo]);
+  }, [fadeFrom, fadeTo, dotScaleLimit]);
 
   const onToggleTheme = useCallback(() => {
     const nextDark = !dark;
@@ -42,8 +46,9 @@ const GraphApp = () => {
       <Flex direction={"row"} gap={4} alignItems={"flex-end"} style={{ marginBottom: "10px" }}>
         <TextInput type="number" label="fade from, px" value={fadeFrom} onUpdate={setFadeFrom} />
         <TextInput type="number" label="fade to, px" value={fadeTo} onUpdate={setFadeTo} />
-        <Button onClick={onApplyFade} view="action">
-          apply fade
+        <TextInput type="number" label="dot scale limit" value={dotScaleLimit} onUpdate={setDotScaleLimit} />
+        <Button onClick={onApply} view="action">
+          apply
         </Button>
         <Button onClick={onToggleTheme}>{dark ? "light canvas" : "dark canvas"}</Button>
       </Flex>

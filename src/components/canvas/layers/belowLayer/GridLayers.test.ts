@@ -13,6 +13,8 @@ type TGridFixtureOptions = {
   dpr?: number;
   /** Mutable camera state, so tests can move the camera between renders */
   camera?: TCameraFixture;
+  /** `constants.system.GRID_DOT_SCALE_LIMIT`; left undefined, no dot size limit is applied */
+  dotScaleLimit?: number;
 };
 
 type TGridFixture = {
@@ -26,6 +28,7 @@ function createGridFixture({
   rect = { x: -500, y: -500, width: 1000, height: 1000 },
   dpr = 1,
   camera = { x: 0, y: 0, width: 1000, height: 800, scale: 1 },
+  dotScaleLimit,
 }: TGridFixtureOptions): TGridFixture {
   const ctx = document.createElement("canvas").getContext("2d");
   if (!ctx) {
@@ -38,7 +41,12 @@ function createGridFixture({
       getCameraState: () => ({ ...camera }),
     },
     constants: {
-      system: { GRID_SIZE: 16, GRID_LAYERS: layers, GRID_LAYER_FADE: [6, 18] },
+      system: {
+        GRID_SIZE: 16,
+        GRID_LAYERS: layers,
+        GRID_LAYER_FADE: [6, 18],
+        GRID_DOT_SCALE_LIMIT: dotScaleLimit,
+      },
     },
     colors: { canvas: { dots: "#000000" } },
     layer: { getDRP: () => dpr },
@@ -154,6 +162,32 @@ describe("GridLayers", () => {
     expect(tile.width).toBe(160);
     const pattern = createPatternSpy.mock.results[0].value as CanvasPattern;
     expect(pattern.setTransform).toHaveBeenCalledWith({ a: 0.5, b: 0, c: 0, d: 0.5, e: -40, f: -40 });
+  });
+
+  it("draws dots at the effective size when the camera is below GRID_DOT_SCALE_LIMIT", () => {
+    const camera = { x: 0, y: 0, width: 1000, height: 800, scale: 0.5 };
+    const { grid, ctx } = createGridFixture({
+      layers: [
+        { step: 1, dotSize: 4 },
+        { step: 125, dotSize: 4 },
+      ],
+      camera,
+      dpr: 2,
+      dotScaleLimit: 1,
+    });
+    const getPatternSpy = jest.spyOn(GridLayerPatterns.prototype, "get");
+    const fillSpy = jest.spyOn(ctx, "fill");
+
+    grid.render();
+
+    // Effective dot = 4 × min(1, 0.5 / 1) = 2 CSS px; step 1 → 16 × 0.5 = 8 px between dots → pattern layer
+    expect(getPatternSpy).toHaveBeenCalledTimes(1);
+    expect(getPatternSpy.mock.calls[0][1]).toMatchObject({ stepWorld: 16, tilePx: 16, dotSizePx: 2 * 2 });
+    // Step 125 → 2000 world units → direct layer, radius = 2 / 2 / scale 0.5 world units
+    expect(fillSpy).toHaveBeenCalledTimes(1);
+    const path = fillSpy.mock.calls[0][0] as unknown as Path2D & { arc: jest.Mock };
+    expect(path.arc).toHaveBeenCalledTimes(1);
+    expect(path.arc.mock.calls[0][2]).toBe(2);
   });
 
   it("clears cached patterns on unmount", () => {

@@ -118,6 +118,63 @@ describe("resolveGridLayers", () => {
   });
 });
 
+describe("resolveGridLayers dot scale limit", () => {
+  it("keeps the configured dot size at or above the limit", () => {
+    const layers = [{ step: 25, dotSize: 3 }];
+
+    expect(resolveGridLayers(layers, 16, 0.25, FADE, 0.125)).toEqual([
+      { stepWorld: 400, spacingPx: 100, opacity: 1, dotSize: 3 },
+    ]);
+    expect(resolveGridLayers(layers, 16, 0.125, FADE, 0.125).map((layer) => layer.dotSize)).toEqual([3]);
+  });
+
+  it("shrinks the dot together with the world below the limit", () => {
+    const layers = [{ step: 25, dotSize: 3 }];
+
+    // 400 × 0.0625 = 25 px between dots, which is inside the visible part of the fade window
+    expect(resolveGridLayers(layers, 16, 0.0625, FADE, 0.125)).toEqual([
+      { stepWorld: 400, spacingPx: 25, opacity: 1, dotSize: 1.5 },
+    ]);
+  });
+
+  it("keeps the size ratio between layers below the limit", () => {
+    const layers = [
+      { step: 25, dotSize: 3 },
+      { step: 125, dotSize: 3.6 },
+    ];
+
+    const resolved = resolveGridLayers(layers, 16, 0.0625, FADE, 0.125);
+
+    expect(resolved.map((layer) => layer.dotSize)).toEqual([1.5, 1.8]);
+    expect(resolved[1].dotSize / resolved[0].dotSize).toBeCloseTo(3.6 / 3);
+  });
+
+  it.each([
+    ["undefined", undefined],
+    ["zero", 0],
+    ["negative", -1],
+    ["NaN", Number.NaN],
+    ["Infinity", Number.POSITIVE_INFINITY],
+  ])("applies no limit for an invalid limit: %s", (_name, limit) => {
+    const layers = [{ step: 25, dotSize: 3 }];
+
+    expect(resolveGridLayers(layers, 16, 0.0625, FADE, limit)).toEqual([
+      { stepWorld: 400, spacingPx: 25, opacity: 1, dotSize: 3 },
+    ]);
+  });
+
+  it("compares the on-screen step against the effective dot size", () => {
+    const layers = [{ step: 1, dotSize: 8 }];
+
+    // 16 × 0.5 = 8 px between dots: below the configured dotSize + 1 = 9 px ...
+    expect(resolveGridLayers(layers, 16, 0.5, [0, 1])).toEqual([]);
+    // ... but above the effective 8 × 0.5 = 4 px dot + 1 px
+    expect(resolveGridLayers(layers, 16, 0.5, [0, 1], 1)).toEqual([
+      { stepWorld: 16, spacingPx: 8, opacity: 1, dotSize: 4 },
+    ]);
+  });
+});
+
 describe("default GRID_LAYERS", () => {
   const { GRID_SIZE, GRID_LAYERS, GRID_LAYER_FADE } = initGraphConstants.system;
   const scales = Array.from({ length: 200 }, (_, index) => 0.01 * Math.pow(100, index / 199));

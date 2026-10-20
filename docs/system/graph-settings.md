@@ -145,12 +145,14 @@ Constants control the sizing, spacing, and other numerical values used throughou
 | `CAMERA_VIEWPORT_TRESHOLD` | `0.5` | Threshold for camera viewport |
 | `GRID_LAYERS` | 4 layers, see below | Stack of background dot grid layers |
 | `GRID_LAYER_FADE` | `[6, 18]` | On-screen step window (CSS px) in which a grid layer fades in |
+| `GRID_DOT_SCALE_LIMIT` | `0.125` | Camera scale below which grid dots shrink together with the world |
 
 #### Background grid layers
 
 The background dots are a stack of regular grids. Each layer is `{ step, dotSize }`:
 `step` is the distance between dots in `GRID_SIZE` units, and `dotSize` is the dot
-diameter in screen CSS pixels (it does not change with zoom).
+diameter in screen CSS pixels (it does not change with zoom until the camera scale drops below
+`GRID_DOT_SCALE_LIMIT`, see below).
 
 The on-screen step of a layer is `step × GRID_SIZE × camera scale`, in CSS pixels.
 
@@ -165,6 +167,13 @@ A layer is hidden while its on-screen step is below `GRID_LAYER_FADE[0]`, fades 
 until `GRID_LAYER_FADE[1]`, and then stays visible. Coarser layers fade in first when
 zooming in, and finer layers fade in after them; zooming out removes the finer layers
 first. Coarser layers are drawn on top of finer ones.
+
+At or above the camera scale `GRID_DOT_SCALE_LIMIT`, dots keep their `dotSize` on screen. Below it,
+every dot shrinks together with the world: the effective dot diameter is
+`dotSize × min(1, scale / GRID_DOT_SCALE_LIMIT)`. This keeps dots from growing larger than blocks when the
+camera is zoomed far out, and the size ratio between layers is preserved. The default `0.125` equals the
+camera scale at which blocks switch to the minimalistic view. A value that is not a finite number above `0`
+disables the limit.
 
 ```typescript
 graph.setConstants({
@@ -185,7 +194,7 @@ Notes:
 - If several layers have the same `step`, the first one wins.
 - If `GRID_LAYER_FADE[1] <= GRID_LAYER_FADE[0]`, layers switch on abruptly at
   `GRID_LAYER_FADE[0]` instead of fading in.
-- A layer is hidden while its on-screen step is smaller than `dotSize + 1` CSS px, so
+- A layer is hidden while its on-screen step is smaller than the effective dot size + 1 CSS px, so
   dots never merge into a solid fill.
 - Keep `GRID_LAYER_FADE[1] / GRID_LAYER_FADE[0]` smaller than the step ratio between
   adjacent layers, so only one layer fades at a time. With a wider window, or with a

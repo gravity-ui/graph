@@ -205,6 +205,12 @@ export type TGraphConstants = {
      * fades in between `from` and `to`, and is fully visible above `to`.
      */
     GRID_LAYER_FADE: [number, number];
+    /**
+     * Camera scale below which grid dots shrink together with the world:
+     * effective dot size = `dotSize × min(1, scale / GRID_DOT_SCALE_LIMIT)`.
+     * Keeps dots smaller than blocks when zoomed far out.
+     */
+    GRID_DOT_SCALE_LIMIT: number;
   };
 
   camera: {
@@ -331,6 +337,7 @@ export const initGraphConstants: TGraphConstants = {
       { step: 125, dotSize: 3.6 },
     ],
     GRID_LAYER_FADE: [6, 18],
+    GRID_DOT_SCALE_LIMIT: 0.125,
   },
   camera: {
     SPEED: 1,

@@ -44,7 +44,11 @@ for (const dpr of [1, 2]) {
     test.use({ deviceScaleFactor: dpr });
 
     test("shows the coarsest layer when zoomed out and the finest when zoomed in", async ({ page }) => {
-      const { probe } = await setupGrid(page);
+      const { graphPO, probe } = await setupGrid(page);
+      // Dots keep their configured size at every scale, so the darkness assertions stay about layer visibility
+      await graphPO.evaluate((graph) => {
+        graph.setConstants({ system: { GRID_DOT_SCALE_LIMIT: 0 } });
+      });
 
       await probe.setCamera(0.01, ZOOM_ANCHOR);
       expect(await probe.nodeDarkness({ x: 2000, y: 0 })).toBeGreaterThanOrEqual(DARK);
@@ -79,6 +83,11 @@ test.describe("BelowLayer grid layers behavior at DPR 2", () => {
   test("fades layers in smoothly while zooming with the mouse wheel and keeps coarse layers", async ({ page }) => {
     test.slow();
     const { graphPO, probe } = await setupGrid(page);
+    // This test checks opacity fading and layer persistence at a constant dot size;
+    // dot shrinking below GRID_DOT_SCALE_LIMIT is covered by its own test
+    await graphPO.evaluate((graph) => {
+      graph.setConstants({ system: { GRID_DOT_SCALE_LIMIT: 0 } });
+    });
     await probe.setCamera(0.01, ZOOM_ANCHOR);
     const anchor = await probe.worldToScreen(ZOOM_ANCHOR);
     const samples = PROBE_STEPS.map((step) => ({ step, point: { x: step, y: 0 }, values: [] as number[] }));
@@ -128,6 +137,21 @@ test.describe("BelowLayer grid layers behavior at DPR 2", () => {
 
     expect(Math.abs(atHalf - atOne)).toBeLessThanOrEqual(1);
     expect(Math.abs(atOne - expectedDiameter)).toBeLessThanOrEqual(1);
+  });
+
+  test("shrinks dots with the world below GRID_DOT_SCALE_LIMIT", async ({ page }) => {
+    const { probe } = await setupGrid(page);
+    // Node (2000, 0) belongs to the coarsest layer (step 125, dotSize 3.6, opacity 1 at both scales)
+    const node = { x: 2000, y: 0 };
+
+    await probe.setCamera(0.125, ZOOM_ANCHOR);
+    const atLimit = await probe.dotDiameter(node);
+    await probe.setCamera(0.0625, ZOOM_ANCHOR);
+    const atHalf = await probe.dotDiameter(node);
+
+    expect(Math.abs(atLimit - 3.6 * 2)).toBeLessThanOrEqual(1);
+    expect(Math.abs(atHalf - 3.6 * 0.5 * 2)).toBeLessThanOrEqual(1);
+    expect(atHalf).toBeLessThan(atLimit);
   });
 
   test("renders crisp dots without blur around them", async ({ page }) => {
