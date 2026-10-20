@@ -8,14 +8,20 @@ import type { TGraphEntity } from "./types";
 
 /** Layer without rendering: mirrors hover, pointer, camera and context-menu input into the kit store. */
 export class UikitInteractionLayer extends Layer {
+  /**
+   * Last real pointer move seen on the root. Core also emits `mouseenter` with a synthetic
+   * `sourceEvent` when the camera moves under a stationary pointer, so the hover point is taken from here.
+   */
+  private lastPointerEvent: MouseEvent | null = null;
+
   protected override afterInit(): void {
     const { graph } = this.props;
     const store = getUikitGraphStore(graph);
 
+    this.onRootEvent("mousemove", this.handlePointerMove);
     this.onGraphEvent("mouseenter", (event) => {
       const entity = resolveGraphEntity(event.detail.target);
-      const source = event.detail.sourceEvent;
-      const worldPoint = source instanceof MouseEvent ? graph.getPointInCameraSpace(source).world : null;
+      const worldPoint = this.lastPointerEvent ? graph.getPointInCameraSpace(this.lastPointerEvent).world : null;
       store.$hovered.value = entity ? { entity, worldPoint } : null;
     });
     this.onGraphEvent("mouseleave", (event) => {
@@ -39,6 +45,7 @@ export class UikitInteractionLayer extends Layer {
 
   protected override unmount(): void {
     const store = getUikitGraphStore(this.props.graph);
+    this.lastPointerEvent = null;
     batch(() => {
       store.$hovered.value = null;
       store.$contextMenu.value = null;
@@ -46,6 +53,10 @@ export class UikitInteractionLayer extends Layer {
     });
     super.unmount();
   }
+
+  private handlePointerMove = (event: MouseEvent): void => {
+    this.lastPointerEvent = event;
+  };
 
   private handlePointerUp = (): void => {
     getUikitGraphStore(this.props.graph).$pointerPressed.value = false;

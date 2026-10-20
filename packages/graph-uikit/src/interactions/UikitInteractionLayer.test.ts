@@ -32,6 +32,38 @@ describe("UikitInteractionLayer", () => {
     disposeUikitGraph(fixture);
   });
 
+  it("anchors the hover point to the last real pointer move, not to the event's own coordinates", () => {
+    const fixture = setup();
+    const { graph } = fixture;
+    const view = getBlockView(graph, "a");
+    const store = getUikitGraphStore(graph);
+    const pointerMove = new MouseEvent("mousemove", { bubbles: true, clientX: 120, clientY: 80 });
+
+    layersRoot(fixture).dispatchEvent(pointerMove);
+    // Core emits mouseenter with a synthetic sourceEvent (camera-position coordinates) when the camera moves.
+    const synthetic = new MouseEvent("mousemove", { clientX: 1, clientY: 1 });
+    graph.emit("mouseenter", { target: view, sourceEvent: synthetic });
+
+    const expected = graph.getPointInCameraSpace(pointerMove).world;
+    expect(store.$hovered.value?.worldPoint).toEqual(expected);
+    expect(store.$hovered.value?.worldPoint).not.toEqual(graph.getPointInCameraSpace(synthetic).world);
+
+    disposeUikitGraph(fixture);
+  });
+
+  it("has no hover point until a real pointer move was seen", () => {
+    const fixture = setup();
+    const { graph } = fixture;
+    const view = getBlockView(graph, "a");
+    const store = getUikitGraphStore(graph);
+
+    graph.emit("mouseenter", { target: view, sourceEvent: new MouseEvent("mousemove", { clientX: 50, clientY: 50 }) });
+
+    expect(store.$hovered.value).toMatchObject({ entity: { kind: "block", id: "a" }, worldPoint: null });
+
+    disposeUikitGraph(fixture);
+  });
+
   it("tracks the pressed pointer and camera changes", () => {
     const fixture = setup();
     const { graph, root } = fixture;
