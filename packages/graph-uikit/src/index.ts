@@ -18,3 +18,6 @@ export * from "./canvas/blockSurfaceStyle";
 export * from "./canvas/UikitBlock";
 export * from "./canvas/connectionStyle";
 export * from "./canvas/UikitConnection";
+export * from "./interactions/entity";
+export * from "./interactions/UikitInteractionLayer";
+export * from "./interactions/useHoveredEntity";
