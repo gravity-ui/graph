@@ -1,0 +1,66 @@
+{
+  "name": "@gravity-ui/graph-uikit",
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "description": "Gravity UI Graph kit for applications built on @gravity-ui/uikit",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gravity-ui/graph",
+    "directory": "packages/graph-uikit"
+  },
+  "main": "build/index.js",
+  "module": "build/index.js",
+  "types": "build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "import": "./build/index.js",
+      "default": "./build/index.js"
+    },
+    "./styles.css": "./build/styles.css"
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "test:unit": "jest --passWithNoTests",
+    "test": "pnpm run test:unit",
+    "test:package-contract": "node ../../scripts/package-contract/run.mjs graph-uikit",
+    "prepublishOnly": "pnpm run build && pnpm run typecheck && pnpm run test"
+  },
+  "peerDependencies": {
+    "@gravity-ui/graph": "workspace:^",
+    "@gravity-ui/graph-connection-editing": "workspace:^",
+    "@gravity-ui/graph-react": "workspace:^",
+    "@gravity-ui/uikit": "^7.19.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "dependencies": {
+    "@preact/signals-core": "^1.12.2"
+  },
+  "devDependencies": {
+    "@gravity-ui/eslint-config": "^4.3.2",
+    "@gravity-ui/uikit": "^7.19.0",
+    "@swc/core": "^1.13.3",
+    "@swc/jest": "^0.2.39",
+    "@testing-library/react": "^16.3.0",
+    "@types/jest": "^30.0.0",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "eslint": "^9.39.5",
+    "globals": "^16.5.0",
+    "jest": "^30.0.5",
+    "jest-canvas-mock": "^2.5.2",
+    "jest-environment-jsdom": "^30.0.5",
+    "prettier": "^3.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "catalog:"
+  }
+}

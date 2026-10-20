@@ -23,6 +23,7 @@ test("every project typechecks its permanently strict tsconfig", () => {
   for (const project of [
     "packages/graph",
     "packages/graph-react",
+    "packages/graph-uikit",
     "packages/graph-minimap",
     "packages/graph-devtools",
     "packages/graph-duplicate-block",

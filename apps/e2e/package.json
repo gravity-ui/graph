@@ -25,7 +25,9 @@
     "@gravity-ui/graph-css-variables": "workspace:*",
     "@gravity-ui/graph-elk": "workspace:*",
     "elkjs": "^0.9.3",
-    "@gravity-ui/graph-connection-editing": "workspace:*"
+    "@gravity-ui/graph-connection-editing": "workspace:*",
+    "@gravity-ui/graph-uikit": "workspace:*",
+    "@gravity-ui/uikit": "^7.19.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.0",
