@@ -1,6 +1,6 @@
 # @gravity-ui/graph-uikit
 
-Kit for building `@gravity-ui/graph` graphs inside `@gravity-ui/uikit` applications: theme-aware colors, uikit typography on canvas, uikit-styled blocks and connections on every zoom level, tooltips and a context menu.
+Kit for building `@gravity-ui/graph` graphs inside `@gravity-ui/uikit` applications: theme-aware colors, uikit typography on canvas, uikit-styled blocks and connections on every zoom level, tooltips, a context menu and a floating toolbar.
 
 This package is being developed on the unpublished v2 branch. Use it with the matching v2 core build.
 
@@ -40,6 +40,7 @@ function App() {
 - **Custom blocks.** Extend `UikitBlock` and override `renderContent(ctx, rect, level)`. Register the class with `useUikitGraph({ blockComponents })`. Pass React content as `UikitGraphBlock` children. `useUikitGraph` registers `UikitBlock` as `Block` only: a block whose `is` is not registered falls back to core's `Block`, not to `UikitBlock`, so register every custom `is`.
 - **Canvas text.** `renderUikitText(ctx, graph, text, rect, { variant, color, ellipsis, ellipsisLines })` mirrors uikit `<Text>`.
 - **Connections.** `UikitConnection` uses uikit line colors, screen-pixel widths and a uikit label.
+- **Toolbar.** `GraphUikitToolbar` is a floating toolbar of uikit buttons with a built-in zoom group; see [Toolbar](#toolbar).
 - **Interactions.**
   - `GraphTooltip` and `GraphContextMenu` work on every zoom level.
   - `useHoveredEntity(graph)` returns the entity under the pointer.
@@ -144,7 +145,7 @@ An action has this shape (`TGraphToolbarAction`):
 }
 ```
 
-Only the zoom group is built in. Project-specific groups are built with `group(...)` from your own actions, for example:
+Only the zoom group is built in. Project-specific groups are built with `group(...)` from your own actions, for example (importing `@gravity-ui/icons` in your own code requires adding it to your application's dependencies, `npm install @gravity-ui/icons`; do not rely on it being installed transitively):
 
 ```tsx
 import { ArrowsRotateRight } from "@gravity-ui/icons";
