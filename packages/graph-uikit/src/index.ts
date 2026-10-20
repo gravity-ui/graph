@@ -16,3 +16,5 @@ export * from "./canvas/types";
 export * from "./canvas/roundedRect";
 export * from "./canvas/blockSurfaceStyle";
 export * from "./canvas/UikitBlock";
+export * from "./canvas/connectionStyle";
+export * from "./canvas/UikitConnection";
