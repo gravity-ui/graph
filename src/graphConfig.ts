@@ -106,6 +106,17 @@ export const initGraphColors: TGraphColors = {
  */
 export type GraphComponentConstructor = new (...args: unknown[]) => GraphComponent;
 
+/**
+ * One layer of the background dot grid.
+ * A layer fades in by its on-screen step and stays visible once shown.
+ */
+export type TGridLayer = {
+  /** Distance between dots in GRID_SIZE units */
+  step: number;
+  /** Dot diameter in screen CSS px (zoom-independent) */
+  dotSize: number;
+};
+
 export type TGraphConstants = {
   /**
    * Configuration for the selection layer behavior.
@@ -184,6 +195,16 @@ export type TGraphConstants = {
     USABLE_RECT_GAP: number;
     /** For preload blocks on the html layer (camera dimensions * (1 + this value)) */
     CAMERA_VIEWPORT_TRESHOLD: number;
+    /**
+     * Stack of background dot grid layers. Replaced as a whole by `setConstants`.
+     * Coarser layers are drawn on top of finer ones.
+     */
+    GRID_LAYERS: TGridLayer[];
+    /**
+     * On-screen step window in CSS px `[from, to]`: a layer is hidden below `from`,
+     * fades in between `from` and `to`, and is fully visible above `to`.
+     */
+    GRID_LAYER_FADE: [number, number];
   };
 
   camera: {
@@ -303,6 +324,13 @@ export const initGraphConstants: TGraphConstants = {
     PIXEL_RATIO: typeof globalThis !== "undefined" ? globalThis.devicePixelRatio || 1 : 1,
     USABLE_RECT_GAP: 400,
     CAMERA_VIEWPORT_TRESHOLD: 0.5,
+    GRID_LAYERS: [
+      { step: 1, dotSize: 1.8 },
+      { step: 5, dotSize: 2.4 },
+      { step: 25, dotSize: 3 },
+      { step: 125, dotSize: 3.6 },
+    ],
+    GRID_LAYER_FADE: [6, 18],
   },
   camera: {
     SPEED: 1,
