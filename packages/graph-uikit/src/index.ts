@@ -22,3 +22,5 @@ export * from "./interactions/entity";
 export * from "./interactions/UikitInteractionLayer";
 export * from "./interactions/useHoveredEntity";
 export * from "./react/UikitGraphBlock";
+export * from "./react/useUikitGraph";
+export * from "./react/UikitGraphCanvas";
