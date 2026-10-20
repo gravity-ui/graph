@@ -12,3 +12,7 @@ export * from "./text/font";
 export * from "./text/layoutUikitText";
 export { clearUikitTextCache } from "./text/measure";
 export * from "./text/renderUikitText";
+export * from "./canvas/types";
+export * from "./canvas/roundedRect";
+export * from "./canvas/blockSurfaceStyle";
+export * from "./canvas/UikitBlock";
