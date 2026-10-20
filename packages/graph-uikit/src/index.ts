@@ -6,3 +6,4 @@ export * from "./theme/tokens";
 export * from "./theme/resolveUikitTheme";
 export * from "./interactions/types";
 export * from "./store/UikitGraphStore";
+export * from "./theme/useUikitGraphTheme";
