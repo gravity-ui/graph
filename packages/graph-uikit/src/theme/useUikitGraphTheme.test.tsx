@@ -63,6 +63,26 @@ describe("useUikitGraphTheme", () => {
     graph.unmount();
   });
 
+  it("sets graph colors before kit palette subscribers run", () => {
+    const graph = createGraph();
+    readUikitThemeMock.mockReturnValue(themeWith("next"));
+    // UikitConnection re-applies its shape from `context.colors` when the palette changes.
+    const seen: string[] = [];
+    const unsubscribe = getUikitGraphStore(graph).$palette.subscribe(() => {
+      seen.push(graph.graphColors.block.background);
+    });
+
+    render(
+      <ThemeProvider theme="light">
+        <Probe graph={graph} />
+      </ThemeProvider>
+    );
+
+    unsubscribe();
+    expect(seen[seen.length - 1]).toBe("next");
+    graph.unmount();
+  });
+
   it("applies the user color patch on top of the theme", () => {
     const graph = createGraph();
     readUikitThemeMock.mockReturnValue(themeWith("theme"));

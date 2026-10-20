@@ -4,6 +4,7 @@ import { signal } from "@preact/signals-core";
 
 import { UIKIT_GRAPH_CONSTANTS } from "../constants";
 import { getUikitGraphStore } from "../store/UikitGraphStore";
+import { getUikitLineHeight } from "../text/font";
 import { renderUikitText } from "../text/renderUikitText";
 import type { TUikitBlockTheme } from "../theme/types";
 
@@ -84,6 +85,10 @@ export class UikitBlock<T extends TUikitBlock = TUikitBlock> extends CanvasBlock
       return;
     }
     const offset = title.height + UIKIT_GRAPH_CONSTANTS.block.gap;
+    // renderUikitText always draws one line; here it would overflow the block.
+    if (rect.height - offset < getUikitLineHeight(graph, "caption-2")) {
+      return;
+    }
     renderUikitText(
       ctx,
       graph,

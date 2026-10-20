@@ -1,10 +1,9 @@
 import type { TGraphColorsPatch } from "@gravity-ui/graph";
-import { TEXT_VARIANTS } from "@gravity-ui/uikit";
 
 import { DEFAULT_UIKIT_PALETTE, UIKIT_STATUSES, UIKIT_TEXT_COLORS } from "./palette";
 import { UIKIT_GRAPH_TOKENS } from "./tokens";
 import type { TUikitGraphTokens } from "./tokens";
-import type { TUikitGraphTheme, TUikitPalette, TUikitTypography } from "./types";
+import type { TUikitGraphTheme, TUikitPalette, TUikitTextVariant, TUikitTypography } from "./types";
 import { DEFAULT_UIKIT_TYPOGRAPHY, getUikitTextGroup } from "./typography";
 
 export type TReadToken = (name: string) => string;
@@ -65,10 +64,17 @@ function parsePixels(value: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-/** Builds fonts from per-variant tokens; the `--g-text-<variant>-font` shorthand has a wrong line height. */
+// Keys of TUikitTypography are TUikitTextVariant.
+const TYPOGRAPHY_VARIANTS = Object.keys(DEFAULT_UIKIT_TYPOGRAPHY) as TUikitTextVariant[];
+
+/**
+ * Builds fonts from per-variant tokens; the `--g-text-<variant>-font` shorthand has a wrong line height.
+ * Iterates the kit defaults, not uikit's runtime `TEXT_VARIANTS`: a variant added by a newer uikit has no
+ * fallback and may use an unknown token group.
+ */
 function resolveTypography(read: TReadToken): TUikitTypography {
   const typography: TUikitTypography = { ...DEFAULT_UIKIT_TYPOGRAPHY };
-  for (const variant of TEXT_VARIANTS) {
+  for (const variant of TYPOGRAPHY_VARIANTS) {
     const group = getUikitTextGroup(variant);
     const fallback = DEFAULT_UIKIT_TYPOGRAPHY[variant];
     typography[variant] = {

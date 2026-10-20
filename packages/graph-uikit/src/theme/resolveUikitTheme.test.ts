@@ -2,6 +2,12 @@ import { DEFAULT_UIKIT_PALETTE } from "./palette";
 import { mergeColorPatches, readUikitTheme, resolveUikitTheme } from "./resolveUikitTheme";
 import { DEFAULT_UIKIT_TYPOGRAPHY } from "./typography";
 
+jest.mock("@gravity-ui/uikit", () => {
+  const actual = jest.requireActual<{ TEXT_VARIANTS: readonly string[] }>("@gravity-ui/uikit");
+  // A variant from a newer uikit, with a token group the kit does not know.
+  return { ...actual, TEXT_VARIANTS: [...actual.TEXT_VARIANTS, "label-1"] };
+});
+
 function reader(values: Record<string, string>): (name: string) => string {
   return (name) => values[name] ?? "";
 }
@@ -57,6 +63,12 @@ describe("resolveUikitTheme", () => {
     });
     expect(theme.typography["body-short"].fontFamily).toBe("Test Sans");
     expect(theme.typography["caption-2"]).toEqual(DEFAULT_UIKIT_TYPOGRAPHY["caption-2"]);
+  });
+
+  it("resolves only the variants the kit has defaults for", () => {
+    const theme = resolveUikitTheme(reader({ "--g-text-label-1-font-size": "99px" }));
+
+    expect(Object.keys(theme.typography).sort()).toEqual(Object.keys(DEFAULT_UIKIT_TYPOGRAPHY).sort());
   });
 
   it("reads computed tokens from an element", () => {

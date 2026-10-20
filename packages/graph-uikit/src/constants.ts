@@ -1,4 +1,7 @@
-/** Metrics shared by canvas rendering and React blocks; values follow uikit (Card radius m, spacing-3). */
+/**
+ * Metrics shared by canvas rendering and React blocks. The block radius matches uikit `--g-border-radius-l`
+ * (8px) and the padding `--g-spacing-3` (12px).
+ */
 export const UIKIT_GRAPH_CONSTANTS = {
   block: {
     radius: 8,

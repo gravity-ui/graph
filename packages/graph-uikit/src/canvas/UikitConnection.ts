@@ -1,8 +1,9 @@
 import { BlockConnection, getLabelCoords } from "@gravity-ui/graph";
-import type { TBaseConnectionState, TConnection } from "@gravity-ui/graph";
+import type { Path2DRenderStyleResult, TBaseConnectionState, TConnection } from "@gravity-ui/graph";
 
 import { UIKIT_GRAPH_CONSTANTS } from "../constants";
 import { getUikitGraphStore } from "../store/UikitGraphStore";
+import { getUikitTextStyle } from "../text/font";
 import { measureUikitText, renderUikitText } from "../text/renderUikitText";
 
 import { getUikitConnectionLineWidth, getUikitConnectionStroke } from "./connectionStyle";
@@ -12,11 +13,15 @@ import { traceRoundedRect } from "./roundedRect";
 export class UikitConnection<T extends TConnection = TConnection> extends BlockConnection<T> {
   protected override willMount(): void {
     super.willMount();
-    this.subscribeSignal(getUikitGraphStore(this.context.graph).$palette, () => {
+    const store = getUikitGraphStore(this.context.graph);
+    const handleThemeChange = (): void => {
       // The stroke color is part of the batch group, so the shape has to be re-applied.
       this.applyShape();
       this.performRender();
-    });
+    };
+    this.subscribeSignal(store.$palette, handleThemeChange);
+    // The label size depends on the typography.
+    this.subscribeSignal(store.$typography, handleThemeChange);
   }
 
   public override getStrokeColor(state: TBaseConnectionState): string {
@@ -32,11 +37,22 @@ export class UikitConnection<T extends TConnection = TConnection> extends BlockC
     ctx.lineWidth = getUikitConnectionLineWidth(state, this.context.camera.getCameraScale());
   }
 
+  public override styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
+    const result = super.styleArrow(ctx);
+    ctx.lineWidth = getUikitConnectionLineWidth(this.state, this.context.camera.getCameraScale());
+    return result;
+  }
+
   protected override renderLabelText(ctx: CanvasRenderingContext2D): void {
     if (!this.isVisible() || !this.state.label) {
       return;
     }
     const graph = this.context.graph;
+    const scale = this.context.camera.getCameraScale();
+    // The text would be skipped as too small; an empty pill is noise.
+    if (getUikitTextStyle(graph, "caption-2").fontSize * scale < UIKIT_GRAPH_CONSTANTS.text.minScreenFontSize) {
+      return;
+    }
     const { labelPaddingX, labelPaddingY, labelRadius } = UIKIT_GRAPH_CONSTANTS.connection;
     const text = measureUikitText(graph, this.state.label, {
       variant: "caption-2",

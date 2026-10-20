@@ -4,6 +4,10 @@
   border: none;
 }
 
+/*
+ * --graph-block-* are the graph colors that GraphCanvas mirrors on its container, so a `colors` override
+ * looks the same here as on canvas. Status, hover and text colors come from the kit palette (uikit tokens).
+ */
 .graph-uikit-block__surface {
   box-sizing: border-box;
   width: 100%;
@@ -11,9 +15,9 @@
   /* Canvas content starts 12px inside the block edge; the 1px border is part of that. */
   padding: calc(var(--g-spacing-3) - 1px);
   overflow: hidden;
-  border: 1px solid var(--g-color-line-generic);
+  border: 1px solid var(--graph-block-border, var(--g-color-line-generic));
   border-radius: var(--g-border-radius-l);
-  background: var(--g-color-base-float);
+  background: var(--graph-block-bg, var(--g-color-base-float));
   color: var(--g-color-text-primary);
 }
 
@@ -24,36 +28,36 @@
 .graph-uikit-block__surface_theme_info {
   border-color: var(--g-color-line-info);
   background: linear-gradient(var(--g-color-base-info-light), var(--g-color-base-info-light)),
-    var(--g-color-base-float);
+    var(--graph-block-bg, var(--g-color-base-float));
 }
 
 .graph-uikit-block__surface_theme_success {
   border-color: var(--g-color-line-positive);
   background: linear-gradient(var(--g-color-base-positive-light), var(--g-color-base-positive-light)),
-    var(--g-color-base-float);
+    var(--graph-block-bg, var(--g-color-base-float));
 }
 
 .graph-uikit-block__surface_theme_warning {
   border-color: var(--g-color-line-warning);
   background: linear-gradient(var(--g-color-base-warning-light), var(--g-color-base-warning-light)),
-    var(--g-color-base-float);
+    var(--graph-block-bg, var(--g-color-base-float));
 }
 
 .graph-uikit-block__surface_theme_danger {
   border-color: var(--g-color-line-danger);
   background: linear-gradient(var(--g-color-base-danger-light), var(--g-color-base-danger-light)),
-    var(--g-color-base-float);
+    var(--graph-block-bg, var(--g-color-base-float));
 }
 
 .graph-uikit-block__surface_theme_utility {
   border-color: var(--g-color-line-utility);
   background: linear-gradient(var(--g-color-base-utility-light), var(--g-color-base-utility-light)),
-    var(--g-color-base-float);
+    var(--graph-block-bg, var(--g-color-base-float));
 }
 
 /* 1px border + 1px inset shadow = the canvas 2px selection, without layout shift. */
 .graph-uikit-block__surface_selected,
 .graph-uikit-block__surface_selected:hover {
-  border-color: var(--g-color-line-brand);
-  box-shadow: inset 0 0 0 1px var(--g-color-line-brand);
+  border-color: var(--graph-block-border-selected, var(--g-color-line-brand));
+  box-shadow: inset 0 0 0 1px var(--graph-block-border-selected, var(--g-color-line-brand));
 }

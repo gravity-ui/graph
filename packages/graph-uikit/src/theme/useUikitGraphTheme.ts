@@ -41,9 +41,10 @@ export function useUikitGraphTheme(graph: Graph): void {
       return;
     }
     batch(() => {
+      // Colors first: palette subscribers (UikitConnection.applyShape) read `context.colors`.
+      graph.setColors(mergeColorPatches(theme.colors, colorsPatch));
       store.$palette.value = theme.palette;
       store.$typography.value = theme.typography;
     });
-    graph.setColors(mergeColorPatches(theme.colors, colorsPatch));
   }, [graph, store, themeValue, colorsPatch]);
 }
