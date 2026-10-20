@@ -1,3 +1,6 @@
+import { deepFreeze } from "../utils/deepFreeze";
+import type { TDeepReadonly } from "../utils/deepFreeze";
+
 import type { TUikitPalette, TUikitStatus, TUikitTextColor } from "./types";
 
 export const UIKIT_TEXT_COLORS: readonly TUikitTextColor[] = [
@@ -16,8 +19,8 @@ export const UIKIT_TEXT_COLORS: readonly TUikitTextColor[] = [
 
 export const UIKIT_STATUSES: readonly TUikitStatus[] = ["info", "success", "warning", "danger", "utility"];
 
-/** uikit 7 light-theme values; used until the theme is read from the DOM. */
-export const DEFAULT_UIKIT_PALETTE: TUikitPalette = {
+/** uikit 7 light-theme values; used until the theme is read from the DOM. Frozen: copy it to change values. */
+export const DEFAULT_UIKIT_PALETTE: TDeepReadonly<TUikitPalette> = deepFreeze<TUikitPalette>({
   blockHoverBorder: "rgba(0, 0, 0, 0.15)",
   connectionHover: "rgba(0, 0, 0, 0.3)",
   text: {
@@ -40,4 +43,4 @@ export const DEFAULT_UIKIT_PALETTE: TUikitPalette = {
     danger: { background: "rgba(255, 0, 61, 0.15)", border: "rgba(255, 0, 61, 0.8)" },
     utility: { background: "rgba(143, 82, 204, 0.15)", border: "rgba(143, 82, 204, 0.8)" },
   },
-};
+});

@@ -78,6 +78,17 @@ describe("renderUikitText", () => {
     expect(renderUikitText(ctx, graph, "a", { x: 0, y: 0, width: 100, height: 20 }).lines).toEqual([]);
     expect(fillText).not.toHaveBeenCalled();
   });
+
+  it("returns a new empty layout every time", () => {
+    const ctx = createContext();
+    jest.spyOn(graph.cameraService, "getCameraScale").mockReturnValue(0.1);
+    const rect = { x: 0, y: 0, width: 100, height: 20 };
+
+    const first = renderUikitText(ctx, graph, "a", rect);
+    first.lines.push("changed");
+
+    expect(renderUikitText(ctx, graph, "a", rect)).toEqual({ lines: [], width: 0, height: 0 });
+  });
 });
 
 describe("measureUikitText", () => {

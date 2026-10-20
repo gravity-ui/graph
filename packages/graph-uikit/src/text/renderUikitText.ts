@@ -8,7 +8,10 @@ import { layoutUikitText } from "./layoutUikitText";
 import { getMeasureContext, measureTextWidth } from "./measure";
 import type { TUikitTextLayout, TUikitTextProps } from "./types";
 
-const EMPTY_LAYOUT: TUikitTextLayout = { lines: [], width: 0, height: 0 };
+/** A new object per call: callers own the returned layout. */
+function createEmptyLayout(): TUikitTextLayout {
+  return { lines: [], width: 0, height: 0 };
+}
 
 export function measureUikitText(
   graph: Graph,
@@ -17,7 +20,7 @@ export function measureUikitText(
   ctx: CanvasRenderingContext2D | null = getMeasureContext()
 ): TUikitTextLayout {
   if (!ctx) {
-    return EMPTY_LAYOUT;
+    return createEmptyLayout();
   }
   const style = getUikitTextStyle(graph, props.variant);
   const font = buildUikitFont(style);
@@ -45,7 +48,7 @@ export function renderUikitText(
 ): TUikitTextLayout {
   const style = getUikitTextStyle(graph, props.variant);
   if (style.fontSize * graph.cameraService.getCameraScale() < UIKIT_GRAPH_CONSTANTS.text.minScreenFontSize) {
-    return EMPTY_LAYOUT;
+    return createEmptyLayout();
   }
   const font = buildUikitFont(style);
   const maxLines = Math.max(1, Math.floor(rect.height / style.lineHeight));

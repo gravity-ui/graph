@@ -4,6 +4,8 @@ import type { Signal } from "@preact/signals-core";
 
 import type { TGraphContextMenuState, TGraphHoverState } from "../interactions/types";
 import { DEFAULT_UIKIT_PALETTE } from "../theme/palette";
+import { UIKIT_GRAPH_TOKENS } from "../theme/tokens";
+import type { TUikitGraphTokens } from "../theme/tokens";
 import type { TUikitPalette, TUikitTypography } from "../theme/types";
 import { DEFAULT_UIKIT_TYPOGRAPHY } from "../theme/typography";
 
@@ -11,9 +13,13 @@ export type TUikitGraphMode = "view" | "edit";
 
 /** Kit state attached to one graph. Canvas classes read it; React subscribes with `useSignal`. */
 export class UikitGraphStore {
-  public readonly $palette: Signal<TUikitPalette> = signal(DEFAULT_UIKIT_PALETTE);
+  // TODO(graph-core): extensible TGraphColors groups — hover border, status and text colors cannot live in graph colors.
+  public readonly $palette: Signal<TUikitPalette> = signal<TUikitPalette>(DEFAULT_UIKIT_PALETTE);
 
-  public readonly $typography: Signal<TUikitTypography> = signal(DEFAULT_UIKIT_TYPOGRAPHY);
+  public readonly $typography: Signal<TUikitTypography> = signal<TUikitTypography>(DEFAULT_UIKIT_TYPOGRAPHY);
+
+  /** uikit token names the theme is read from (`useUikitGraph({ tokens })`). */
+  public readonly $tokens: Signal<TUikitGraphTokens> = signal<TUikitGraphTokens>(UIKIT_GRAPH_TOKENS);
 
   public readonly $mode: Signal<TUikitGraphMode> = signal<TUikitGraphMode>("view");
 

@@ -4,6 +4,8 @@ import { renderHook } from "@testing-library/react";
 import { UikitBlock } from "../canvas/UikitBlock";
 import { UikitConnection } from "../canvas/UikitConnection";
 import { getUikitGraphStore } from "../store/UikitGraphStore";
+import { UIKIT_GRAPH_TOKENS } from "../theme/tokens";
+import type { TUikitGraphTokens } from "../theme/tokens";
 
 import { useUikitGraph } from "./useUikitGraph";
 import type { TUikitGraphParams } from "./useUikitGraph";
@@ -32,5 +34,19 @@ describe("useUikitGraph", () => {
     rerender({ mode: "edit", settings: { canDrag: ECanDrag.ONLY_SELECTED }, colors });
     expect(graph.rootStore.settings.$settings.value.canDrag).toBe(ECanDrag.ONLY_SELECTED);
     expect(getUikitGraphStore(graph).$colorsPatch.value).toBe(colors);
+  });
+
+  it("stores the token table and falls back to the default one", () => {
+    const tokens: TUikitGraphTokens = {
+      ...UIKIT_GRAPH_TOKENS,
+      palette: { ...UIKIT_GRAPH_TOKENS.palette, blockHoverBorder: "--custom-hover" },
+    };
+    const initialProps: TUikitGraphParams = { tokens };
+    const { result, rerender } = renderHook((props: TUikitGraphParams) => useUikitGraph(props), { initialProps });
+    const store = getUikitGraphStore(result.current.graph);
+
+    expect(store.$tokens.value).toBe(tokens);
+    rerender({});
+    expect(store.$tokens.value).toBe(UIKIT_GRAPH_TOKENS);
   });
 });

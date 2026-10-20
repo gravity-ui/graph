@@ -27,6 +27,7 @@ export function useUikitGraphTheme(graph: Graph): void {
   const themeValue = useThemeValue();
   const store = getUikitGraphStore(graph);
   const colorsPatch = useSignal(store.$colorsPatch);
+  const tokens = useSignal(store.$tokens);
 
   // Passive effect on purpose: a global ThemeProvider updates body classes in its own layout effect,
   // which runs after the layout effects of its children.
@@ -35,7 +36,7 @@ export function useUikitGraphTheme(graph: Graph): void {
     if (!root) {
       return;
     }
-    const theme = readUikitTheme(root);
+    const theme = readUikitTheme(root, tokens);
     if (!theme.isAvailable) {
       warnMissingTheme();
       return;
@@ -46,5 +47,5 @@ export function useUikitGraphTheme(graph: Graph): void {
       store.$palette.value = theme.palette;
       store.$typography.value = theme.typography;
     });
-  }, [graph, store, themeValue, colorsPatch]);
+  }, [graph, store, themeValue, colorsPatch, tokens]);
 }

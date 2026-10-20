@@ -1,5 +1,8 @@
 import type { TGraphColorsPatch } from "@gravity-ui/graph";
 
+import { deepFreeze } from "../utils/deepFreeze";
+import type { TDeepReadonly } from "../utils/deepFreeze";
+
 import type { TUikitStatus, TUikitTextColor } from "./types";
 
 /** Token names (not values): graph colors and kit palette → uikit CSS custom properties. */
@@ -13,7 +16,8 @@ export type TUikitGraphTokens = {
   };
 };
 
-export const UIKIT_GRAPH_TOKENS: TUikitGraphTokens = {
+/** Default token table. Frozen: spread it into a new object to override entries. */
+export const UIKIT_GRAPH_TOKENS: TDeepReadonly<TUikitGraphTokens> = deepFreeze<TUikitGraphTokens>({
   colors: {
     canvas: {
       layerBackground: "--g-color-base-background",
@@ -72,4 +76,4 @@ export const UIKIT_GRAPH_TOKENS: TUikitGraphTokens = {
       utility: { background: "--g-color-base-utility-light", border: "--g-color-line-utility" },
     },
   },
-};
+});

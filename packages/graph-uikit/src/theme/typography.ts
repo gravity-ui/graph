@@ -1,3 +1,6 @@
+import { deepFreeze } from "../utils/deepFreeze";
+import type { TDeepReadonly } from "../utils/deepFreeze";
+
 import type { TUikitTextStyle, TUikitTextVariant, TUikitTypography } from "./types";
 
 export type TUikitTextGroup = "display" | "header" | "subheader" | "body" | "caption" | "code";
@@ -31,8 +34,8 @@ function textStyle(group: TUikitTextGroup, fontSize: number, lineHeight: number)
   return { ...GROUP_FONTS[group], fontSize, lineHeight };
 }
 
-/** uikit 7 typography; used until the theme is read from the DOM. */
-export const DEFAULT_UIKIT_TYPOGRAPHY: TUikitTypography = {
+/** uikit 7 typography; used until the theme is read from the DOM. Frozen: copy it to change values. */
+export const DEFAULT_UIKIT_TYPOGRAPHY: TDeepReadonly<TUikitTypography> = deepFreeze<TUikitTypography>({
   "display-1": textStyle("display", 28, 36),
   "display-2": textStyle("display", 32, 40),
   "display-3": textStyle("display", 40, 48),
@@ -54,4 +57,4 @@ export const DEFAULT_UIKIT_TYPOGRAPHY: TUikitTypography = {
   "code-inline-1": textStyle("code", 12, 14),
   "code-inline-2": textStyle("code", 14, 16),
   "code-inline-3": textStyle("code", 16, 20),
-};
+});

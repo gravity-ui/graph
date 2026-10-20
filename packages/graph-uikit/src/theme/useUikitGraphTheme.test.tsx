@@ -2,12 +2,14 @@ import React from "react";
 
 import { Graph } from "@gravity-ui/graph";
 import { ThemeProvider } from "@gravity-ui/uikit";
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 
 import { getUikitGraphStore } from "../store/UikitGraphStore";
 
 import { DEFAULT_UIKIT_PALETTE } from "./palette";
 import { readUikitTheme } from "./resolveUikitTheme";
+import { UIKIT_GRAPH_TOKENS } from "./tokens";
+import type { TUikitGraphTokens } from "./tokens";
 import type { TUikitGraphTheme } from "./types";
 import { DEFAULT_UIKIT_TYPOGRAPHY } from "./typography";
 import { useUikitGraphTheme } from "./useUikitGraphTheme";
@@ -58,7 +60,7 @@ describe("useUikitGraphTheme", () => {
       </ThemeProvider>
     );
     expect(graph.graphColors.block.background).toBe("dark");
-    expect(readUikitThemeMock).toHaveBeenLastCalledWith(graph.layers.$root);
+    expect(readUikitThemeMock).toHaveBeenLastCalledWith(graph.layers.$root, UIKIT_GRAPH_TOKENS);
 
     graph.unmount();
   });
@@ -80,6 +82,28 @@ describe("useUikitGraphTheme", () => {
 
     unsubscribe();
     expect(seen[seen.length - 1]).toBe("next");
+    graph.unmount();
+  });
+
+  it("reads the theme with the token table from the store", () => {
+    const graph = createGraph();
+    readUikitThemeMock.mockReturnValue(themeWith("theme"));
+    const tokens: TUikitGraphTokens = {
+      ...UIKIT_GRAPH_TOKENS,
+      colors: { ...UIKIT_GRAPH_TOKENS.colors, block: { background: "--custom-block-background" } },
+    };
+
+    render(
+      <ThemeProvider theme="light">
+        <Probe graph={graph} />
+      </ThemeProvider>
+    );
+    expect(readUikitThemeMock).toHaveBeenLastCalledWith(graph.layers.$root, UIKIT_GRAPH_TOKENS);
+
+    act(() => {
+      getUikitGraphStore(graph).$tokens.value = tokens;
+    });
+    expect(readUikitThemeMock).toHaveBeenLastCalledWith(graph.layers.$root, tokens);
     graph.unmount();
   });
 
