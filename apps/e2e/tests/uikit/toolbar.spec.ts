@@ -54,6 +54,17 @@ test.describe("graph-uikit toolbar", () => {
     await fitSelection.click();
     // A single 200x100 block fits the viewport at any size above 200x100, so the fit is clamped to scaleMax (1).
     await expect.poll(() => graph.getCameraScale()).toBeCloseTo(1, 2);
+
+    // Scale alone does not tell fit selection from fit to viewport or 1:1 (all end at 1 with these blocks),
+    // so also check that the selected block "a" is centered in the viewport, not just that the scale is 1.
+    const viewport = await graph.getBounds();
+    const { x, y, scale } = await graph.camera().getState();
+    const block = await graph.block("a").getGeometry();
+    const centerX = (block.x + block.width / 2) * scale + x;
+    const centerY = (block.y + block.height / 2) * scale + y;
+    // 3px: the camera position is truncated to integer pixels.
+    expect(Math.abs(centerX - viewport.width / 2), "block a center x").toBeLessThanOrEqual(3);
+    expect(Math.abs(centerY - viewport.height / 2), "block a center y").toBeLessThanOrEqual(3);
   });
 
   test("fit to viewport frames all blocks", async ({ page }) => {
@@ -69,7 +80,7 @@ test.describe("graph-uikit toolbar", () => {
 
     await graph.toolbar().getByRole("button", { name: "Fit to viewport" }).click();
 
-    // 5% tolerance: block hit boxes may extend the fitted rect by a few pixels.
+    // The ~5% tolerance is only rounding slack: block hit boxes use the exact geometry, so they do not enlarge the rect.
     await expect.poll(async () => (await graph.getCameraScale()) / expectedScale).toBeCloseTo(1, 1);
 
     const { x, y, scale } = await graph.camera().getState();

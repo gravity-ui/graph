@@ -42,5 +42,6 @@ export default {
     assert.deepEqual(manifest.optionalDependencies ?? {}, {});
     assert.match(styles, /\.graph-uikit-block__surface\b/);
     assert.match(styles, /\.graph-uikit-tooltip\b/);
+    assert.match(styles, /\.graph-uikit-toolbar__group\b/);
   },
 };
