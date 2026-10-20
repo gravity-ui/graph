@@ -10,11 +10,8 @@ export type TLayoutTextOptions = Pick<TUikitTextProps, "ellipsis" | "ellipsisLin
   maxLines?: number;
 };
 
-// TODO(graph-core): ellipsis / line clamp in layoutText — core has none.
-export function ellipsize(text: string, maxWidth: number, measure: TMeasure): string {
-  if (measure(text) <= maxWidth) {
-    return text;
-  }
+/** Cuts text so that it ends with "…" and fits `maxWidth`; the ellipsis is added even when the text fits. */
+function truncateWithEllipsis(text: string, maxWidth: number, measure: TMeasure): string {
   if (measure(ELLIPSIS) > maxWidth) {
     return "";
   }
@@ -32,6 +29,11 @@ export function ellipsize(text: string, maxWidth: number, measure: TMeasure): st
     }
   }
   return withEllipsis(low);
+}
+
+// TODO(graph-core): ellipsis / line clamp in layoutText — core has none.
+export function ellipsize(text: string, maxWidth: number, measure: TMeasure): string {
+  return measure(text) <= maxWidth ? text : truncateWithEllipsis(text, maxWidth, measure);
 }
 
 function breakWord(word: string, maxWidth: number, measure: TMeasure): string[] {
@@ -96,7 +98,9 @@ export function layoutUikitText(
   if (lines.length > limit) {
     const kept = lines.slice(0, Math.max(limit, 0));
     if (truncate && kept.length > 0) {
-      kept[kept.length - 1] = ellipsize(lines.slice(kept.length - 1).join(" "), maxWidth, measure);
+      // Lines were dropped, so the last kept one always ends with "…" (and keeps room for it).
+      const last = kept.length - 1;
+      kept[last] = truncateWithEllipsis(kept[last], maxWidth, measure);
     }
     lines = kept;
   } else if (truncate && lines.length > 0) {

@@ -27,6 +27,20 @@ describe("layoutUikitText", () => {
     ]);
   });
 
+  it("keeps the ellipsis when clamping hard-newline lines", () => {
+    const options = { maxWidth: 100, whiteSpace: "break-spaces" } as const;
+
+    expect(layoutUikitText("a\nb\nc", { ...options, ellipsisLines: 1 }, measure).lines).toEqual(["a…"]);
+    expect(layoutUikitText("a\nb\nc\nd", { ...options, ellipsisLines: 2 }, measure).lines).toEqual(["a", "b…"]);
+  });
+
+  it("ends the last clamped word-wrapped line with an ellipsis", () => {
+    expect(layoutUikitText("alpha beta gamma delta", { maxWidth: 100, ellipsisLines: 2 }, measure).lines).toEqual([
+      "alpha beta",
+      "gamma…",
+    ]);
+  });
+
   it("drops lines beyond maxLines without ellipsis", () => {
     expect(layoutUikitText("alpha beta gamma", { maxWidth: 100, maxLines: 1 }, measure).lines).toEqual(["alpha beta"]);
   });
