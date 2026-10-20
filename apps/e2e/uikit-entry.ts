@@ -13,9 +13,12 @@ export * from "@gravity-ui/graph";
 export {
   GraphContextMenu,
   GraphTooltip,
+  GraphUikitToolbar,
   UikitGraphCanvas,
   getUikitGraphStore,
+  group,
   useUikitGraph,
+  zoomGroup,
 } from "@gravity-ui/graph-uikit";
 export { ThemeProvider } from "@gravity-ui/uikit";
 export { React, ReactDOM };

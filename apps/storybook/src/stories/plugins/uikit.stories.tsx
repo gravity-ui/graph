@@ -5,11 +5,14 @@ import type { Graph, TBlock, TConnection, TRect } from "@gravity-ui/graph";
 import {
   GraphContextMenu,
   GraphTooltip,
+  GraphUikitToolbar,
   UikitBlock,
   UikitGraphBlock,
   UikitGraphCanvas,
+  group,
   renderUikitText,
   useUikitGraph,
+  zoomGroup,
 } from "@gravity-ui/graph-uikit";
 import type { TUikitBlock, TUikitGraphMode } from "@gravity-ui/graph-uikit";
 import { Flex, Label, SegmentedRadioGroup, Text, ThemeProvider } from "@gravity-ui/uikit";
@@ -128,6 +131,17 @@ const METRIC_BLOCKS: Array<TUikitBlock | TMetricBlock> = [
 
 type TStoryProps = { mode: TUikitGraphMode; custom?: boolean };
 
+const TOOLBAR_ACTIONS = [group(...zoomGroup({ reset: true, viewport: true, selection: true }))];
+
+/** The graph layers have their own z-indexes; the overlay needs one to stay above them. */
+const TOOLBAR_STYLE: React.CSSProperties = {
+  position: "absolute",
+  left: 16,
+  top: "50%",
+  transform: "translateY(-50%)",
+  zIndex: 10,
+};
+
 function UikitGraphStory({ mode, custom = false }: TStoryProps): React.ReactElement {
   const { graph, setEntities, start, zoomTo } = useUikitGraph({
     mode,
@@ -161,7 +175,7 @@ function UikitGraphStory({ mode, custom = false }: TStoryProps): React.ReactElem
   }, []);
 
   return (
-    <div style={{ width: "100%", height: "600px" }}>
+    <div style={{ position: "relative", width: "100%", height: "600px" }}>
       <UikitGraphCanvas graph={graph} renderBlock={renderBlock}>
         <GraphTooltip content={(entity) => (entity.kind === "block" ? `Block ${String(entity.id)}` : null)} />
         <GraphContextMenu
@@ -171,6 +185,9 @@ function UikitGraphStory({ mode, custom = false }: TStoryProps): React.ReactElem
           ]}
         />
       </UikitGraphCanvas>
+      <div style={TOOLBAR_STYLE}>
+        <GraphUikitToolbar graph={graph} actions={TOOLBAR_ACTIONS} layout="vertical" />
+      </div>
     </div>
   );
 }

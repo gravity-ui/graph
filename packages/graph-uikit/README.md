@@ -88,6 +88,82 @@ const { graph } = useUikitGraph({ tokens: TOKENS });
 
 `tokens` changes which variables are read and still follows theme switches; `colors` sets fixed values on top of the resolved theme.
 
+## Toolbar
+
+`GraphUikitToolbar` is a floating toolbar of uikit buttons grouped into cards. It is not positioned by the kit: place it over the graph yourself. Give the graph container `position: relative`, wrap the toolbar in an element with `position: absolute` and a `z-index` above the graph layers.
+
+```tsx
+import { GraphUikitToolbar, UikitGraphCanvas, group, useUikitGraph, zoomGroup } from "@gravity-ui/graph-uikit";
+
+const ACTIONS = [group(...zoomGroup({ reset: true, viewport: true, selection: true }))];
+
+function GraphWithToolbar() {
+  const { graph } = useUikitGraph({ mode: "view" });
+  return (
+    <div style={{ position: "relative", height: 600 }}>
+      <UikitGraphCanvas graph={graph} />
+      <div style={{ position: "absolute", left: 16, top: 16, zIndex: 10 }}>
+        <GraphUikitToolbar graph={graph} actions={ACTIONS} zoomStep={0.1} layout="vertical" />
+      </div>
+    </div>
+  );
+}
+```
+
+Props:
+
+- `actions` — an array of groups (cards). Build a group with `group(...items)`; items are actions or arrays of actions.
+- `zoomStep` — multiplicative zoom step for zoom in and zoom out. Default: `0.1` (zoom in multiplies the scale by 1.1, zoom out divides it by 1.1). The result is clamped to the camera bounds.
+- `layout` — `"vertical"` (default) or `"horizontal"`.
+- `className`, `qa` — class name and `data-qa` of the toolbar root.
+
+`zoomGroup(options, ...extra)` returns the built-in zoom actions in the order zoom in, 1:1, fit to viewport, fit selection, zoom out, then `extra`. Zoom in and zoom out are always present; the others are opt-in:
+
+| Option      | Button          | Title (and accessible name) |
+| ----------- | --------------- | --------------------------- |
+| (always)    | zoom in         | `Zoom in`                   |
+| `reset`     | `1:1`           | `Actual size`               |
+| `viewport`  | fit to viewport | `Fit to viewport`           |
+| `selection` | fit selection   | `Fit selection`             |
+| (always)    | zoom out        | `Zoom out`                  |
+
+Pass `titles: { zoomIn, zoomOut, reset, viewport, selection }` to override the English titles. Zoom in and zoom out disable themselves at the camera bounds (`scaleMax` is `1` by default), 1:1 at scale 1, and fit selection while nothing is selected.
+
+An action has this shape (`TGraphToolbarAction`):
+
+```ts
+{
+  id?: string;                  // stable key, defaults to the title
+  title: string;                // tooltip title and aria-label
+  icon?: IconData;              // uikit Icon data, wins over `label`
+  label?: React.ReactNode;      // content when there is no icon, e.g. "1:1"
+  action: (graph: Graph, toolbar: { zoomStep: number }) => void;
+  disabled?: boolean | ((graph: Graph, toolbar: { zoomStep: number }) => boolean);
+  view?: ButtonView;            // uikit Button view, default "flat"
+  hotkey?: string;              // shown in the tooltip, not bound
+}
+```
+
+Only the zoom group is built in. Project-specific groups are built with `group(...)` from your own actions, for example:
+
+```tsx
+import { ArrowsRotateRight } from "@gravity-ui/icons";
+
+const ACTIONS = [
+  group(...zoomGroup({ reset: true })),
+  group({
+    id: "relayout",
+    icon: ArrowsRotateRight,
+    title: "Re-layout selection",
+    hotkey: "L",
+    action: (graph) => relayout(graph), // your own function
+    disabled: (graph) => graph.blocks.blockSelectionBucket.$selectedComponents.value.length === 0,
+  }),
+];
+```
+
+The toolbar re-renders when the camera or the selection changes, so `disabled` predicates that read camera state or the selection stay current. State outside those signals does not trigger a re-render: if a predicate depends on it, re-render the toolbar when it changes (for example, pass it through React state).
+
 ## Known limitations
 
 - Canvas text: `wordBreak: "break-all"` behaves like `"break-word"` — a word is broken only when it does not fit a line.

@@ -25,7 +25,10 @@ export type UikitFixtureOptions = {
   mode?: TUikitMode;
 };
 
-/** React fixture: ThemeProvider > UikitGraphCanvas with GraphTooltip (no delay) and GraphContextMenu. */
+/**
+ * React fixture: ThemeProvider > UikitGraphCanvas with GraphTooltip (no delay) and GraphContextMenu,
+ * plus a GraphUikitToolbar (step 0.1, all zoom buttons) overlaid at the top left.
+ */
 export class UikitPageObject extends GraphPageObject {
   protected override getUrl(): string {
     return "/uikit.html";
@@ -44,12 +47,17 @@ export class UikitPageObject extends GraphPageObject {
             UikitGraphCanvas,
             GraphTooltip,
             GraphContextMenu,
+            GraphUikitToolbar,
+            group,
+            zoomGroup,
             useUikitGraph,
             GraphState,
           } = window.UikitModule;
           const rootEl = document.getElementById("root");
           if (!rootEl) throw new Error("Root element not found");
           window.uikitMenuActions = [];
+
+          const toolbarActions = [group(...zoomGroup({ reset: true, viewport: true, selection: true }))];
 
           function App(): React.ReactElement {
             const [theme, setTheme] = React.useState<string>(opts.theme ?? "light");
@@ -86,6 +94,16 @@ export class UikitPageObject extends GraphPageObject {
                   items: (entity) => [
                     { text: `menu:${entity.kind}`, action: () => window.uikitMenuActions?.push(entity.kind) },
                   ],
+                })
+              ),
+              React.createElement(
+                "div",
+                { style: { position: "absolute", left: 16, top: 16, zIndex: 10 } },
+                React.createElement(GraphUikitToolbar, {
+                  graph,
+                  actions: toolbarActions,
+                  zoomStep: 0.1,
+                  qa: "graph-uikit-toolbar",
                 })
               )
             );
@@ -134,6 +152,14 @@ export class UikitPageObject extends GraphPageObject {
         | undefined;
       return view?.$hovered?.value ?? false;
     }, blockId);
+  }
+
+  public async getCameraScale(): Promise<number> {
+    return this.evaluate((graph) => graph.cameraService.getCameraScale());
+  }
+
+  public toolbar(): Locator {
+    return this.page.locator('[data-qa="graph-uikit-toolbar"]');
   }
 
   public tooltip(): Locator {
