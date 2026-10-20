@@ -3,6 +3,7 @@ import { CoreComponent } from "../../../lib/CoreComponent";
 import { BlockState } from "../../../store/block/Block";
 import { TGraphSettingsConfig } from "../../../store/settings";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
+import { createViewportCulling } from "../visibilityCulling";
 
 import { Block } from "./Block";
 
@@ -19,6 +20,7 @@ export class Blocks extends Component {
   constructor(props: {}, context: CoreComponent) {
     super(props, context);
 
+    this.setChildrenCulling(createViewportCulling(this.context.graph, () => this.context.camera));
     this.unsubscribe = this.subscribe();
 
     this.font = this.prepareFont(this.getFontScale());

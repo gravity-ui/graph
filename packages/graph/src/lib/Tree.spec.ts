@@ -57,6 +57,33 @@ describe("Tree", () => {
     expect(child2.zIndex).toBe(2);
   });
 
+  test("A child whose z-index changes is walked once, in its new group", () => {
+    const parent = new Tree(createChildData());
+    const child1 = new Tree(createChildData());
+    const child2 = new Tree(createChildData());
+    parent.append(child1);
+    parent.append(child2);
+
+    const walk = () => {
+      const visited: Tree[] = [];
+      parent.traverseDown((node) => {
+        if (node !== parent) visited.push(node);
+        return true;
+      });
+      return visited;
+    };
+
+    child1.updateZIndex(5);
+    expect(walk()).toEqual([child2, child1]);
+    expect(child1.renderOrder).toBe(1);
+
+    child1.updateZIndex(1);
+    expect(walk()).toEqual([child2, child1]);
+
+    parent.remove(child2);
+    expect(walk()).toEqual([child1]);
+  });
+
   test("Traversing the tree", () => {
     const root = new Tree(createChildData());
     const child1 = new Tree(createChildData());

@@ -4,6 +4,7 @@ import { ESchedulerPriority } from "../../../lib/Scheduler";
 import { ConnectionState } from "../../../store/connection/ConnectionState";
 import { debounce } from "../../../utils/utils/schedule";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
+import { createViewportCulling } from "../visibilityCulling";
 
 import { BatchPath2DRenderer } from "./BatchPath2D";
 import { BlockConnection, TConnectionProps } from "./BlockConnection";
@@ -38,6 +39,7 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
 
   constructor(props: {}, parent: Component) {
     super(props, parent);
+    this.setChildrenCulling(createViewportCulling(this.context.graph, () => this.context.camera));
     this.batch = new BatchPath2DRenderer(
       () => this.performRender(),
       this.context.constants.connection.PATH2D_CHUNK_SIZE || 100

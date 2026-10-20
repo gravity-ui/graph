@@ -192,6 +192,13 @@ export type TGraphConstants = {
     USABLE_RECT_GAP: number;
     /** For preload blocks on the html layer (camera dimensions * (1 + this value)) */
     CAMERA_VIEWPORT_TRESHOLD: number;
+    /**
+     * Edge of a visibility tile in world units. Blocks, connections and groups are indexed by
+     * tile so a frame walks only the components near the viewport. Read when a container mounts.
+     */
+    VISIBILITY_TILE_SIZE: number;
+    /** Extra walked area around the viewport for visibility culling, as a fraction of its size per side. */
+    VISIBILITY_CULLING_MARGIN: number;
   };
 
   camera: {
@@ -312,6 +319,8 @@ export const initGraphConstants: TGraphConstants = {
     PIXEL_RATIO: typeof globalThis !== "undefined" ? globalThis.devicePixelRatio || 1 : 1,
     USABLE_RECT_GAP: 400,
     CAMERA_VIEWPORT_TRESHOLD: 0.5,
+    VISIBILITY_TILE_SIZE: 1024,
+    VISIBILITY_CULLING_MARGIN: 0.1,
   },
   camera: {
     SPEED: 1,

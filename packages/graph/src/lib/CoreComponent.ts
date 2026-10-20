@@ -2,6 +2,7 @@ import { GraphClassConstructor } from "../utils/types/classes";
 
 import { Scheduler } from "./Scheduler";
 import { ITree, Tree } from "./Tree";
+import type { TTreeCullingOptions } from "./TreeCulling";
 
 export type ComponentOptions<Instance> = {
   readonly key?: string | number;
@@ -112,12 +113,29 @@ export class CoreComponent<
   }
 
   public isIterated(): boolean {
-    return this.__comp.iterateId === this.__comp.context.globalIterateId;
+    const iterateId = this.__comp.context.globalIterateId;
+    // A child skipped by its parent's visibility culling was out of view with nothing to process,
+    // so for this traversal it counts as iterated.
+    return this.__comp.iterateId === iterateId || this.__comp.treeNode.isSkippedByCulling(iterateId);
   }
 
   public performRender = () => {
     this.__comp.context.scheduler.scheduleUpdate();
+    this.__comp.treeNode.requestWalk();
   };
+
+  /**
+   * Walks only the children whose bounds (see {@link setCullingBounds}) intersect the viewport
+   * returned by `getViewport`, plus children that requested a render. `undefined` disables it.
+   */
+  protected setChildrenCulling(options: Omit<TTreeCullingOptions, "getWalkToken"> | undefined): void {
+    this.__comp.treeNode.setCulling(options && { ...options, getWalkToken: () => this.__comp.context.globalIterateId });
+  }
+
+  /** Reports the world-space bounds this component draws in, used by its parent's culling. */
+  protected setCullingBounds(minX: number, minY: number, maxX: number, maxY: number): void {
+    this.__comp.treeNode.setBounds(minX, minY, maxX, maxY);
+  }
 
   public getParent(): CoreComponent | undefined {
     return this.__comp.parent;
@@ -193,6 +211,7 @@ export class CoreComponent<
     if (ref !== undefined && this.$[ref] === child) delete this.$[ref];
     child.__unmount();
     this.__comp.children.delete(key);
+    this.__comp.treeNode.remove(child.__comp.treeNode);
   }
 
   protected __updateChildren() {
