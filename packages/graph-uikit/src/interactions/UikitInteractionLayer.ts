@@ -18,7 +18,12 @@ export class UikitInteractionLayer extends Layer {
     const { graph } = this.props;
     const store = getUikitGraphStore(graph);
 
-    this.onRootEvent("mousemove", this.handlePointerMove);
+    // The layer can be detached and attached again without `unmount()`, so start from a clean pointer.
+    this.lastPointerEvent = null;
+    // Capture: core's bubbling root `mousemove` handler emits `mouseenter` synchronously, so the current
+    // event has to be stored before it runs.
+    this.onRootEvent("mousemove", this.handlePointerMove, { capture: true });
+    this.onRootEvent("mouseleave", this.handlePointerLeave);
     this.onGraphEvent("mouseenter", (event) => {
       const entity = resolveGraphEntity(event.detail.target);
       const worldPoint = this.lastPointerEvent ? graph.getPointInCameraSpace(this.lastPointerEvent).world : null;
@@ -56,6 +61,10 @@ export class UikitInteractionLayer extends Layer {
 
   private handlePointerMove = (event: MouseEvent): void => {
     this.lastPointerEvent = event;
+  };
+
+  private handlePointerLeave = (): void => {
+    this.lastPointerEvent = null;
   };
 
   private handlePointerUp = (): void => {
