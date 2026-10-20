@@ -25,3 +25,4 @@ export * from "./react/UikitGraphBlock";
 export * from "./react/useUikitGraph";
 export * from "./react/UikitGraphCanvas";
 export * from "./interactions/GraphTooltip";
+export * from "./interactions/GraphContextMenu";
