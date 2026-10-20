@@ -10,3 +10,5 @@ export * from "./theme/useUikitGraphTheme";
 export * from "./text/types";
 export * from "./text/font";
 export * from "./text/layoutUikitText";
+export { clearUikitTextCache } from "./text/measure";
+export * from "./text/renderUikitText";
