@@ -40,12 +40,14 @@ export function GraphTooltip({
   const store = getUikitGraphStore(graph);
   const hovered = useSignal(store.$hovered);
   const pressed = useSignal(store.$pointerPressed);
+  const menuOpen = useSignal(store.$contextMenu) !== null;
   // Subscriptions that only trigger a re-render: the anchor below is rebuilt on every render.
   useSignal(store.$cameraVersion);
   const [active, setActive] = useState<TGraphHoverState | null>(null);
   useSignal(active?.entity.kind === "block" ? active.entity.component.connectedState.$geometry : undefined);
 
-  const target = hovered && !pressed && kinds.includes(hovered.entity.kind) ? hovered : null;
+  // No tooltip next to an open context menu.
+  const target = hovered && !pressed && !menuOpen && kinds.includes(hovered.entity.kind) ? hovered : null;
   const isOpen = active !== null;
 
   useEffect(() => {

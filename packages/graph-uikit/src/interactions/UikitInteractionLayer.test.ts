@@ -75,6 +75,41 @@ describe("UikitInteractionLayer", () => {
     disposeUikitGraph(fixture);
   });
 
+  it("clears the hover when the pointer leaves the root", () => {
+    const fixture = setup();
+    const { graph } = fixture;
+    const view = getBlockView(graph, "a");
+    const store = getUikitGraphStore(graph);
+
+    graph.emit("mouseenter", { target: view, sourceEvent: new MouseEvent("mousemove") });
+    expect(store.$hovered.value).not.toBeNull();
+    // Core emits no graph `mouseleave` when the pointer leaves the root.
+    layersRoot(fixture).dispatchEvent(new MouseEvent("mouseleave"));
+
+    expect(store.$hovered.value).toBeNull();
+    disposeUikitGraph(fixture);
+  });
+
+  it("restores the hover when the pointer comes back over the entity it left on", () => {
+    const fixture = setup();
+    const store = getUikitGraphStore(fixture.graph);
+    const root = layersRoot(fixture);
+    // Client (x, 40) is world (2x, 80): inside block "a" for both moves.
+    const overBlock = (clientX: number): MouseEvent =>
+      new MouseEvent("mousemove", { bubbles: true, clientX, clientY: 40 });
+
+    root.dispatchEvent(overBlock(30));
+    root.dispatchEvent(overBlock(40));
+    expect(store.$hovered.value).toMatchObject({ entity: { kind: "block", id: "a" } });
+    root.dispatchEvent(new MouseEvent("mouseleave"));
+    expect(store.$hovered.value).toBeNull();
+    // Core still targets block "a", so it emits no `mouseenter` for this move.
+    root.dispatchEvent(overBlock(50));
+
+    expect(store.$hovered.value).toMatchObject({ entity: { kind: "block", id: "a" }, worldPoint: { x: 100, y: 80 } });
+    disposeUikitGraph(fixture);
+  });
+
   it("has no hover point until a real pointer move was seen", () => {
     const fixture = setup();
     const { graph } = fixture;
@@ -101,6 +136,25 @@ describe("UikitInteractionLayer", () => {
     const version = store.$cameraVersion.value;
     graph.emit("camera-change", graph.cameraService.getCameraState());
     expect(store.$cameraVersion.value).toBe(version + 1);
+
+    disposeUikitGraph(fixture);
+  });
+
+  it("releases the pressed pointer on window blur and on pointercancel", () => {
+    const fixture = setup();
+    const { graph } = fixture;
+    const store = getUikitGraphStore(graph);
+    const press = (): void => {
+      graph.emit("mousedown", { target: undefined, sourceEvent: new MouseEvent("mousedown") });
+    };
+
+    press();
+    window.dispatchEvent(new Event("blur"));
+    expect(store.$pointerPressed.value).toBe(false);
+
+    press();
+    layersRoot(fixture).dispatchEvent(new Event("pointercancel"));
+    expect(store.$pointerPressed.value).toBe(false);
 
     disposeUikitGraph(fixture);
   });

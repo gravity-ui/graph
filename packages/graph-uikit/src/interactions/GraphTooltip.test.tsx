@@ -92,4 +92,31 @@ describe("GraphTooltip", () => {
 
     disposeUikitGraph(fixture);
   });
+
+  it("hides while the context menu is open", () => {
+    const fixture = renderTooltip({ openDelay: 0 });
+    const store = getUikitGraphStore(fixture.graph);
+
+    hoverBlock(fixture);
+    act(() => jest.advanceTimersByTime(0));
+    expect(screen.getByText("Tooltip a")).toBeTruthy();
+
+    act(() => {
+      store.$contextMenu.value = {
+        entity: { kind: "canvas", worldPoint: { x: 0, y: 0 } },
+        clientPoint: { x: 10, y: 10 },
+        cameraVersion: store.$cameraVersion.value,
+      };
+    });
+    act(() => jest.advanceTimersByTime(0));
+    expect(screen.queryByText("Tooltip a")).toBeNull();
+
+    act(() => {
+      store.$contextMenu.value = null;
+    });
+    act(() => jest.advanceTimersByTime(0));
+    expect(screen.getByText("Tooltip a")).toBeTruthy();
+
+    disposeUikitGraph(fixture);
+  });
 });

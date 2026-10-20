@@ -32,6 +32,10 @@ export function GraphContextMenu({ items }: TGraphContextMenuProps): React.React
     store.$contextMenuConsumers.value += 1;
     return () => {
       store.$contextMenuConsumers.value -= 1;
+      if (store.$contextMenuConsumers.value === 0) {
+        // Nothing renders the menu any more; a kept state would reopen it with the next consumer.
+        store.$contextMenu.value = null;
+      }
     };
   }, [store]);
 
@@ -46,7 +50,16 @@ export function GraphContextMenu({ items }: TGraphContextMenuProps): React.React
   }, [menu, cameraVersion, close]);
 
   const list = menu ? items(menu.entity) : null;
-  if (!menu || !list || list.length === 0) {
+  const isEmpty = !list || list.length === 0;
+
+  useEffect(() => {
+    // Nothing is shown for this entity: drop the state so it cannot reopen later.
+    if (menu && isEmpty) {
+      close();
+    }
+  }, [menu, isEmpty, close]);
+
+  if (!menu || isEmpty) {
     return null;
   }
   return (

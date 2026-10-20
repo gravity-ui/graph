@@ -14,12 +14,16 @@ export class UikitInteractionLayer extends Layer {
    */
   private lastPointerEvent: MouseEvent | null = null;
 
+  /** Set when the pointer leaves the root: core emits no `mouseenter` when it comes back over the same target. */
+  private pointerLeftRoot = false;
+
   protected override afterInit(): void {
     const { graph } = this.props;
     const store = getUikitGraphStore(graph);
 
     // The layer can be detached and attached again without `unmount()`, so start from a clean pointer.
     this.lastPointerEvent = null;
+    this.pointerLeftRoot = false;
     // Capture: core's bubbling root `mousemove` handler emits `mouseenter` synchronously, so the current
     // event has to be stored before it runs.
     this.onRootEvent("mousemove", this.handlePointerMove, { capture: true });
@@ -37,9 +41,15 @@ export class UikitInteractionLayer extends Layer {
     this.onGraphEvent("mousedown", () => {
       store.$pointerPressed.value = true;
     });
-    (this.root?.ownerDocument ?? document).addEventListener("mouseup", this.handlePointerUp, {
+    const ownerDocument = this.root?.ownerDocument ?? document;
+    ownerDocument.addEventListener("mouseup", this.handlePointerUp, {
       signal: this.eventAbortController.signal,
     });
+    // No `mouseup` arrives when the window loses focus or the browser cancels the pointer mid-press.
+    (ownerDocument.defaultView ?? window).addEventListener("blur", this.handlePointerUp, {
+      signal: this.eventAbortController.signal,
+    });
+    this.onRootEvent("pointercancel", this.handlePointerUp);
     this.onGraphEvent("camera-change", () => {
       store.$cameraVersion.value += 1;
     });
@@ -61,10 +71,21 @@ export class UikitInteractionLayer extends Layer {
 
   private handlePointerMove = (event: MouseEvent): void => {
     this.lastPointerEvent = event;
+    if (this.pointerLeftRoot) {
+      this.pointerLeftRoot = false;
+      // Hit-test like core does; when core's target changes, its `mouseenter` replaces this right after.
+      const { graph } = this.props;
+      const point = graph.getPointInCameraSpace(event);
+      const entity = resolveGraphEntity(graph.getElementOverPoint(point));
+      getUikitGraphStore(graph).$hovered.value = entity ? { entity, worldPoint: point.world } : null;
+    }
   };
 
   private handlePointerLeave = (): void => {
     this.lastPointerEvent = null;
+    this.pointerLeftRoot = true;
+    // TODO(graph-core): graph "mouseleave" when the pointer leaves the root — core keeps the last target hovered.
+    getUikitGraphStore(this.props.graph).$hovered.value = null;
   };
 
   private handlePointerUp = (): void => {
