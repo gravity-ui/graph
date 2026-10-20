@@ -35,6 +35,10 @@ describe("public API", () => {
         "useHoveredEntity",
         "UikitInteractionLayer",
         "getEntityViewportRect",
+        // Toolbar
+        "GraphUikitToolbar",
+        "group",
+        "zoomGroup",
         // Constants
         "UIKIT_GRAPH_CONSTANTS",
       ].sort()

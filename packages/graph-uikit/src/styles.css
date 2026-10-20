@@ -1,3 +1,4 @@
 /* Styles of @gravity-ui/graph-uikit. Component stylesheets are imported below. */
 @import "./react/UikitGraphBlock.css";
 @import "./interactions/GraphTooltip.css";
+@import "./toolbar/GraphUikitToolbar.css";

@@ -1,0 +1,36 @@
+.graph-uikit-toolbar {
+  display: inline-flex;
+  gap: var(--g-spacing-2);
+}
+
+.graph-uikit-toolbar_layout_vertical {
+  flex-direction: column;
+}
+
+.graph-uikit-toolbar_layout_horizontal {
+  flex-direction: row;
+}
+
+.graph-uikit-toolbar__group {
+  display: flex;
+  overflow: hidden;
+  border-radius: var(--g-border-radius-l);
+  background: var(--g-color-base-float);
+  box-shadow: 0 1px 5px var(--g-color-sfx-shadow);
+}
+
+.graph-uikit-toolbar_layout_vertical .graph-uikit-toolbar__group {
+  flex-direction: column;
+}
+
+.graph-uikit-toolbar_layout_vertical .graph-uikit-toolbar__group > * + * {
+  border-top: 1px solid var(--g-color-line-generic);
+}
+
+.graph-uikit-toolbar_layout_horizontal .graph-uikit-toolbar__group > * + * {
+  border-left: 1px solid var(--g-color-line-generic);
+}
+
+.graph-uikit-toolbar__button {
+  --g-button-border-radius: 0;
+}

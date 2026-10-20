@@ -55,5 +55,18 @@ export type {
   TGraphHoverState,
 } from "./interactions/types";
 
+// Toolbar
+export { GraphUikitToolbar } from "./toolbar/GraphUikitToolbar";
+export type { TGraphUikitToolbarProps } from "./toolbar/GraphUikitToolbar";
+export { group } from "./toolbar/group";
+export { zoomGroup } from "./toolbar/zoom";
+export type { TZoomGroupOptions } from "./toolbar/zoom";
+export type {
+  TGraphToolbarAction,
+  TGraphToolbarContext,
+  TGraphToolbarGroup,
+  TGraphToolbarLayout,
+} from "./toolbar/types";
+
 // Constants
 export { UIKIT_GRAPH_CONSTANTS } from "./constants";

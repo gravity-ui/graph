@@ -38,7 +38,7 @@ export default {
     assert.equal(manifest.peerDependencies.react, "^18.0.0");
     assert.equal(manifest.peerDependencies["react-dom"], "^18.0.0");
     assert.equal(manifest.peerDependenciesMeta, undefined, "graph-uikit peer dependencies must not be optional.");
-    assert.deepEqual(Object.keys(manifest.dependencies ?? {}), ["@preact/signals-core"]);
+    assert.deepEqual(Object.keys(manifest.dependencies ?? {}).sort(), ["@gravity-ui/icons", "@preact/signals-core"]);
     assert.deepEqual(manifest.optionalDependencies ?? {}, {});
     assert.match(styles, /\.graph-uikit-block__surface\b/);
     assert.match(styles, /\.graph-uikit-tooltip\b/);
