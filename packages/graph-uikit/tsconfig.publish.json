@@ -5,7 +5,8 @@
     "declaration": true,
     "emitDeclarationOnly": true,
     "rootDir": "./src",
-    "skipLibCheck": false,
+    // @gravity-ui/uikit declarations import `react-beautiful-dnd` types that uikit ships only as a devDependency (TS7016).
+    "skipLibCheck": true,
     "types": ["node", "react", "react-dom"]
   },
   "exclude": [
