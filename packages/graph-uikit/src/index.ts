@@ -7,3 +7,6 @@ export * from "./theme/resolveUikitTheme";
 export * from "./interactions/types";
 export * from "./store/UikitGraphStore";
 export * from "./theme/useUikitGraphTheme";
+export * from "./text/types";
+export * from "./text/font";
+export * from "./text/layoutUikitText";
