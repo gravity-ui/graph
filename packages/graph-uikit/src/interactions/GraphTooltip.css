@@ -1,0 +1,10 @@
+.graph-uikit-tooltip {
+  max-width: 360px;
+  padding: var(--g-spacing-1) var(--g-spacing-2);
+  font-family: var(--g-text-body-font-family);
+  font-weight: var(--g-text-body-font-weight);
+  font-size: var(--g-text-body-short-font-size);
+  line-height: var(--g-text-body-short-line-height);
+  color: var(--g-color-text-primary);
+  pointer-events: none;
+}
