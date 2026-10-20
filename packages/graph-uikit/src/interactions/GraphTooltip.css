@@ -6,5 +6,4 @@
   font-size: var(--g-text-body-short-font-size);
   line-height: var(--g-text-body-short-line-height);
   color: var(--g-color-text-primary);
-  pointer-events: none;
 }

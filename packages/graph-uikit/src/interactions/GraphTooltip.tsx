@@ -74,6 +74,11 @@ export function GraphTooltip({
       role="tooltip"
       returnFocus={false}
       disableLayer
+      // Popup sets inline `pointer-events: auto` on its floating wrapper; `none` is inherited by the surface.
+      floatingStyles={{ pointerEvents: "none" }}
+      // The tooltip is controlled by hover only: nothing dismisses it, so skip the document listeners.
+      disableEscapeKeyDown
+      disableOutsideClick
       qa="graph-uikit-tooltip"
     >
       <div className="graph-uikit-tooltip">{node}</div>

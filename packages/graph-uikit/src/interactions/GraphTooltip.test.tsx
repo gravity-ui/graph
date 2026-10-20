@@ -52,6 +52,21 @@ describe("GraphTooltip", () => {
     disposeUikitGraph(fixture);
   });
 
+  it("lets pointer events pass through the open tooltip", () => {
+    const fixture = renderTooltip({ openDelay: 0 });
+
+    hoverBlock(fixture);
+    act(() => jest.advanceTimersByTime(0));
+
+    const surface = document.querySelector('[data-qa="graph-uikit-tooltip"]');
+    // uikit Popup puts its inline `pointer-events: auto` on the floating wrapper around the surface.
+    const floating = surface?.closest<HTMLElement>("[data-floating-ui-placement]");
+    expect(floating).toBeTruthy();
+    expect(floating?.style.pointerEvents).toBe("none");
+
+    disposeUikitGraph(fixture);
+  });
+
   it("renders nothing when content returns null or the kind is filtered out", () => {
     const fixture = renderTooltip({ openDelay: 0, kinds: ["connection"] });
 
