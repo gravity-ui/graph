@@ -43,7 +43,7 @@ describe("GraphUikitToolbar", () => {
     renderToolbar(graph);
 
     expect(screen.getByRole("button", { name: "Zoom in" }).hasAttribute("disabled")).toBe(true);
-    expect(screen.getByRole("button", { name: "Actual size" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Actual size (1:1)" }).hasAttribute("disabled")).toBe(true);
     expect(screen.getByRole("button", { name: "Fit selection" }).hasAttribute("disabled")).toBe(true);
     expect(screen.getByRole("button", { name: "Zoom out" }).hasAttribute("disabled")).toBe(false);
     graph.unmount();
@@ -66,14 +66,14 @@ describe("GraphUikitToolbar", () => {
     const isDisabled = (name: string): boolean => screen.getByRole("button", { name }).hasAttribute("disabled");
 
     expect(isDisabled("Zoom in")).toBe(false);
-    expect(isDisabled("Actual size")).toBe(false);
+    expect(isDisabled("Actual size (1:1)")).toBe(false);
 
     act(() => {
       graph.cameraService.set({ scale: 1 });
     });
 
     expect(isDisabled("Zoom in")).toBe(true);
-    expect(isDisabled("Actual size")).toBe(true);
+    expect(isDisabled("Actual size (1:1)")).toBe(true);
 
     act(() => {
       graph.cameraService.set({ scale: graph.cameraService.getCameraState().scaleMin });

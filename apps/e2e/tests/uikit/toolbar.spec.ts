@@ -34,7 +34,7 @@ test.describe("graph-uikit toolbar", () => {
     await graph.open({ blocks: BLOCKS });
     await graph.camera().zoomToScale(0.5);
 
-    const reset = graph.toolbar().getByRole("button", { name: "Actual size" });
+    const reset = graph.toolbar().getByRole("button", { name: "Actual size (1:1)" });
     await reset.click();
 
     await expect.poll(() => graph.getCameraScale()).toBeCloseTo(1, 2);

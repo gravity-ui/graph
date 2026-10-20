@@ -25,7 +25,7 @@ export type TZoomGroupOptions = {
 const DEFAULT_TITLES: TZoomTitles = {
   zoomIn: "Zoom in",
   zoomOut: "Zoom out",
-  reset: "Actual size",
+  reset: "Actual size (1:1)",
   viewport: "Fit to viewport",
   selection: "Fit selection",
 };

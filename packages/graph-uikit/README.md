@@ -123,7 +123,7 @@ Props:
 | Option      | Button          | Title (and accessible name) |
 | ----------- | --------------- | --------------------------- |
 | (always)    | zoom in         | `Zoom in`                   |
-| `reset`     | `1:1`           | `Actual size`               |
+| `reset`     | `1:1`           | `Actual size (1:1)`         |
 | `viewport`  | fit to viewport | `Fit to viewport`           |
 | `selection` | fit selection   | `Fit selection`             |
 | (always)    | zoom out        | `Zoom out`                  |
