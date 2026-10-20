@@ -33,4 +33,12 @@
 
 .graph-uikit-toolbar__button {
   --g-button-border-radius: 0;
+
+  /*
+   * The group clips its children (overflow: hidden gives the card its rounded corners), and uikit draws the focus
+   * ring outside the button box (offset 0, or 1px for the action view), so it would be cut off. Draw it inside.
+   * The color is explicit because the action view defaults to the brand color, which is invisible on its own fill.
+   */
+  --g-button-focus-outline-offset: -2px;
+  --g-button-focus-outline-color: var(--g-color-line-focus);
 }
