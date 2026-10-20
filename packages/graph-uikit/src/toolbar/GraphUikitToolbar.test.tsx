@@ -2,7 +2,9 @@ import React from "react";
 
 import { Graph } from "@gravity-ui/graph";
 import { ThemeProvider } from "@gravity-ui/uikit";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+
+import { createUikitGraph, disposeUikitGraph, getBlockView } from "../test-utils/graphFixture";
 
 import { GraphUikitToolbar } from "./GraphUikitToolbar";
 import { group } from "./group";
@@ -56,6 +58,63 @@ describe("GraphUikitToolbar", () => {
 
     expect(zoomTo).toHaveBeenCalledWith("center");
     graph.unmount();
+  });
+
+  it("re-renders disabled predicates when the camera changes", () => {
+    const graph = new Graph({});
+    renderToolbar(graph);
+    const isDisabled = (name: string): boolean => screen.getByRole("button", { name }).hasAttribute("disabled");
+
+    expect(isDisabled("Zoom in")).toBe(false);
+    expect(isDisabled("Actual size")).toBe(false);
+
+    act(() => {
+      graph.cameraService.set({ scale: 1 });
+    });
+
+    expect(isDisabled("Zoom in")).toBe(true);
+    expect(isDisabled("Actual size")).toBe(true);
+
+    act(() => {
+      graph.cameraService.set({ scale: graph.cameraService.getCameraState().scaleMin });
+    });
+
+    expect(isDisabled("Zoom in")).toBe(false);
+    expect(isDisabled("Zoom out")).toBe(true);
+    graph.unmount();
+  });
+
+  it("enables fit selection after the block or connection selection changes", () => {
+    const fixture = createUikitGraph();
+    const { graph } = fixture;
+    const zoomTo = jest.spyOn(graph, "zoomTo").mockReturnValue(true);
+    const { unmount } = renderToolbar(graph);
+    const fitSelection = (): HTMLElement => screen.getByRole("button", { name: "Fit selection" });
+
+    expect(fitSelection().hasAttribute("disabled")).toBe(true);
+
+    act(() => {
+      graph.blocks.blockSelectionBucket.select(["a"]);
+    });
+
+    expect(fitSelection().hasAttribute("disabled")).toBe(false);
+    fireEvent.click(fitSelection());
+    expect(zoomTo).toHaveBeenCalledWith([getBlockView(graph, "a")]);
+
+    act(() => {
+      graph.blocks.blockSelectionBucket.deselect(["a"]);
+    });
+
+    expect(fitSelection().hasAttribute("disabled")).toBe(true);
+
+    act(() => {
+      graph.connections.connectionSelectionBucket.select(["a:b"]);
+    });
+
+    expect(fitSelection().hasAttribute("disabled")).toBe(false);
+    // Unmount the toolbar first: disposing the graph resets its stores and would re-render it outside `act`.
+    unmount();
+    disposeUikitGraph(fixture);
   });
 
   it("runs custom actions with the graph and toolbar context and renders groups per layout", () => {

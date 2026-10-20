@@ -30,10 +30,10 @@ export function GraphUikitToolbar({
   className,
   qa,
 }: TGraphUikitToolbarProps): React.ReactElement {
-  // Re-render on camera and selection changes so `disabled(graph)` predicates stay current.
+  // Re-render on camera and selected-component changes so `disabled(graph)` predicates stay current.
   useSignal(graph.$camera);
-  useSignal(graph.blocks.blockSelectionBucket.$selected);
-  useSignal(graph.connections.connectionSelectionBucket.$selected);
+  useSignal(graph.blocks.blockSelectionBucket.$selectedComponents);
+  useSignal(graph.connections.connectionSelectionBucket.$selectedComponents);
 
   const context: TGraphToolbarContext = { zoomStep };
   const placement = layout === "vertical" ? "right" : "top";
