@@ -49,9 +49,21 @@ test.describe("graph-uikit tooltip", () => {
     await graph.open({ blocks: BLOCKS, connections: CONNECTIONS });
     await graph.camera().zoomToScale(0.5);
 
-    await graph.connection("a:b").hover();
-
+    // Off-centre: the connection's bounding box is centred about 37px (screen) to the right of this point.
+    const worldPoint = await graph.connection("a:b").getPointOnCurve(0.2);
+    await graph.connection("a:b").hover({ curveTime: 0.2 });
     await expect(graph.tooltip()).toHaveText("tooltip:connection:a:b");
+
+    const pointer = await graph.evaluate((g, point) => {
+      const [x, y] = g.cameraService.getAbsoluteXY(point.x, point.y);
+      const origin = g.getGraphCanvas()?.getBoundingClientRect();
+      return { x: (origin?.left ?? 0) + x, y: (origin?.top ?? 0) + y };
+    }, worldPoint);
+    const box = await graph.tooltip().boundingBox();
+    if (!box) throw new Error("Expected a visible tooltip");
+
+    expect(Math.abs(box.x + box.width / 2 - pointer.x)).toBeLessThan(20);
+    expect(box.y + box.height).toBeLessThanOrEqual(pointer.y);
   });
 
   test("hides while the pointer is pressed", async ({ page }) => {

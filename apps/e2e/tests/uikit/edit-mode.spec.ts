@@ -68,6 +68,19 @@ test.describe("graph-uikit edit mode", () => {
     ]);
   });
 
+  test("switching from view to edit at runtime enables connection creation", async ({ page }) => {
+    const graph = new UikitPageObject(page);
+    await graph.open({ blocks: BLOCKS, settings: { useBlocksAnchors: true } }, { mode: "view" });
+    await graph.camera().zoomToScale(0.5);
+
+    await graph.setMode("edit");
+    await graph.drag(await anchorPoint(graph, "block-a", "out-a"), await anchorPoint(graph, "block-b", "in-b"));
+
+    expect(await graph.getConnections()).toEqual([
+      expect.objectContaining({ sourceBlockId: "block-a", sourceAnchorId: "out-a", targetBlockId: "block-b" }),
+    ]);
+  });
+
   test("view mode creates no connections and does not move blocks", async ({ page }) => {
     const graph = new UikitPageObject(page);
     await graph.open({ blocks: BLOCKS, settings: { useBlocksAnchors: true } }, { mode: "view" });

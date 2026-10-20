@@ -177,19 +177,25 @@ function UikitGraphStory({ mode, custom = false }: TStoryProps): React.ReactElem
 
 const THEMES = ["light", "dark", "light-hc", "dark-hc"];
 
+/** A grid stretches its only cell, so the scoped theme root (and its background) fills the viewport. */
+const FULL_HEIGHT_STYLE: React.CSSProperties = { display: "grid", minHeight: "100vh" };
+
 function ThemedStory(props: TStoryProps): React.ReactElement {
   const [theme, setTheme] = useState("light");
   return (
-    <ThemeProvider theme={theme}>
-      <Flex direction="column" gap={2}>
-        <SegmentedRadioGroup
-          value={theme}
-          onUpdate={setTheme}
-          options={THEMES.map((value) => ({ value, content: value }))}
-        />
-        <UikitGraphStory {...props} />
-      </Flex>
-    </ThemeProvider>
+    <div style={FULL_HEIGHT_STYLE}>
+      {/* Scoped: the global provider in preview.tsx owns the body theme classes. */}
+      <ThemeProvider theme={theme} scoped>
+        <Flex direction="column" gap={2}>
+          <SegmentedRadioGroup
+            value={theme}
+            onUpdate={setTheme}
+            options={THEMES.map((value) => ({ value, content: value }))}
+          />
+          <UikitGraphStory {...props} />
+        </Flex>
+      </ThemeProvider>
+    </div>
   );
 }
 
