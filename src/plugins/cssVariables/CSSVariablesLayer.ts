@@ -5,7 +5,7 @@ import StyleObserver from "style-observer";
 import { Layer, LayerContext } from "../../services/Layer";
 
 import { DEFAULT_CSS_VARIABLES_LAYER_PROPS, SUPPORTED_CSS_VARIABLES } from "./constants";
-import { filterSupportedCSSChanges, mapCSSChangesToGraphColors, mapCSSChangesToGraphConstants } from "./mapping";
+import { mapCSSChangesToGraphColors, mapCSSChangesToGraphConstants } from "./mapping";
 import type { CSSVariableChange, CSSVariablesLayerProps, CSSVariablesLayerState } from "./types";
 
 /**
@@ -24,6 +24,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
 
   private containerElement: HTMLDivElement | null = null;
   private styleObserver: StyleObserver | null = null;
+  private observerNeedsRestart = false;
 
   constructor(props: CSSVariablesLayerProps) {
     const finalProps = { ...DEFAULT_CSS_VARIABLES_LAYER_PROPS, ...props };
@@ -33,22 +34,27 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
   protected propsChanged(nextProps: CSSVariablesLayerProps): void {
     super.propsChanged(nextProps);
 
-    // If containerClass changed, we need to recreate the container and restart observing
-    if (this.props.containerClass !== nextProps.containerClass) {
-      if (this.props.debug) {
-        console.log(
-          "CSSVariablesLayer: Container class changed from",
-          this.props.containerClass,
-          "to",
-          nextProps.containerClass
-        );
-      }
+    this.observerNeedsRestart =
+      this.props.containerClass !== nextProps.containerClass ||
+      this.props.additionalCSSVariables !== nextProps.additionalCSSVariables;
+  }
 
+  protected willRender(): void {
+    super.willRender();
+
+    // Restart after the new props have been committed by Component.checkData().
+    if (this.observerNeedsRestart && this.containerElement) {
       this.stopObserving();
       this.removeContainerElement();
       this.createContainerElement();
+      this.readInitialCSSVariables();
       this.startObserving();
     }
+    this.observerNeedsRestart = false;
+  }
+
+  private getObservedCSSVariables(): Set<string> {
+    return new Set([...SUPPORTED_CSS_VARIABLES, ...(this.props.additionalCSSVariables ?? [])]);
   }
 
   protected afterInit(): void {
@@ -127,7 +133,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
       },
       {
         targets: [this.containerElement],
-        properties: Array.from(SUPPORTED_CSS_VARIABLES),
+        properties: Array.from(this.getObservedCSSVariables()),
       }
     );
   }
@@ -148,8 +154,8 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
       const computedStyle = window.getComputedStyle(this.containerElement);
       const changes: CSSVariableChange[] = [];
 
-      // Read all supported CSS variables
-      for (const cssVariable of SUPPORTED_CSS_VARIABLES) {
+      // Read all observed CSS variables
+      for (const cssVariable of this.getObservedCSSVariables()) {
         const value = computedStyle.getPropertyValue(cssVariable).trim();
 
         // Only include variables that have non-empty values
@@ -186,13 +192,13 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
       return;
     }
 
-    if (this.state.isObserving) {
+    if (this.getState().isObserving) {
       return;
     }
 
     try {
       // Convert Set to Array for style-observer
-      const variablesToObserve = Array.from(SUPPORTED_CSS_VARIABLES);
+      const variablesToObserve = Array.from(this.getObservedCSSVariables());
 
       this.styleObserver = this.createStyleObserver();
 
@@ -228,8 +234,8 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
    * Handles CSS variable changes from style-observer
    */
   private handleCSSVariableChanges(changes: CSSVariableChange[]): void {
-    // Filter to only supported variables
-    const supportedChanges = filterSupportedCSSChanges(changes);
+    const observedVariables = this.getObservedCSSVariables();
+    const supportedChanges = changes.filter((change) => observedVariables.has(change.name));
 
     if (supportedChanges.length === 0) {
       return;

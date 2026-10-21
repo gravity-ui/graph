@@ -21,6 +21,8 @@ export interface CSSVariableChange {
 export interface CSSVariablesLayerProps extends LayerProps {
   /** CSS class name to apply to the container div */
   containerClass: string;
+  /** Additional CSS variable names to observe and report via onChange, without graph mappings */
+  additionalCSSVariables?: string[];
   /** Optional callback for CSS variable changes */
   onChange?: (changes: CSSVariableChange[]) => void;
   /** Whether to enable debug logging */
