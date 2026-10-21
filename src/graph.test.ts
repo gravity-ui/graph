@@ -1,5 +1,6 @@
 import { TBlock } from "./components/canvas/blocks/Block";
 import { Graph } from "./graph";
+import { initGraphConstants } from "./graphConfig";
 import { GRAPH_INSTANCE_SYMBOL_KEY, LEGACY_GRAPH_INSTANCE_SYMBOL_KEY } from "./utils/graphInstance";
 
 describe("Graph DOM instance bridge", () => {
@@ -127,4 +128,46 @@ describe("setEntities + waitUsableRectUpdate (pendingEntitiesUpdate fix)", () =>
       });
     });
   }, 5000);
+});
+
+describe("Graph constants runtime merge behavior", () => {
+  it("replaces GRID_LAYERS as a whole", () => {
+    const graph = new Graph({});
+    const layers = [
+      { step: 2, dotSize: 4 },
+      { step: 10, dotSize: 5 },
+    ];
+
+    graph.setConstants({ system: { GRID_LAYERS: layers } });
+
+    expect(graph.graphConstants.system.GRID_LAYERS).toEqual(layers);
+  });
+
+  it("replaces GRID_LAYERS with an empty list", () => {
+    const graph = new Graph({});
+
+    graph.setConstants({ system: { GRID_LAYERS: [] } });
+
+    expect(graph.graphConstants.system.GRID_LAYERS).toEqual([]);
+  });
+
+  it("keeps deep-merging other constants", () => {
+    const graph = new Graph({});
+
+    graph.setConstants({ system: { GRID_SIZE: 20 } });
+    graph.setConstants({ block: { SCALES: [0.2] } });
+
+    expect(graph.graphConstants.system.GRID_SIZE).toBe(20);
+    expect(graph.graphConstants.system.USABLE_RECT_GAP).toBe(initGraphConstants.system.USABLE_RECT_GAP);
+    expect(graph.graphConstants.system.GRID_LAYERS).toEqual(initGraphConstants.system.GRID_LAYERS);
+    expect(graph.graphConstants.block.SCALES).toEqual([0.2, ...initGraphConstants.block.SCALES.slice(1)]);
+  });
+
+  it("does not mutate the default GRID_LAYERS", () => {
+    const graph = new Graph({});
+
+    graph.setConstants({ system: { GRID_LAYERS: [{ step: 3, dotSize: 2 }] } });
+
+    expect(initGraphConstants.system.GRID_LAYERS).toHaveLength(4);
+  });
 });

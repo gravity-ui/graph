@@ -1,5 +1,6 @@
 import { batch, signal } from "@preact/signals-core";
 import merge from "lodash/merge";
+import mergeWith from "lodash/mergeWith";
 
 import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
 import { GraphComponent } from "./components/canvas/GraphComponent";
@@ -56,6 +57,13 @@ export enum GraphState {
   INIT,
   ATTACHED,
   READY,
+}
+
+/**
+ * `GRID_LAYERS` is a list, not a tuple: merging it by index would keep stale default layers.
+ */
+function replaceGridLayers(_objValue: unknown, srcValue: unknown, key: string): unknown[] | undefined {
+  return key === "GRID_LAYERS" && Array.isArray(srcValue) ? [...srcValue] : undefined;
 }
 
 export class Graph {
@@ -175,7 +183,7 @@ export class Graph {
   }
 
   public setConstants(constants: RecursivePartial<TGraphConstants>) {
-    this.$graphConstants.value = merge({}, this.$graphConstants.value, constants);
+    this.$graphConstants.value = mergeWith({}, this.$graphConstants.value, constants, replaceGridLayers);
     this.emit("constants-changed", { constants: this.graphConstants });
   }
 

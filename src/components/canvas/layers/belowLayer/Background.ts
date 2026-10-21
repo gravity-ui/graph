@@ -4,7 +4,7 @@ import { debounce } from "../../../../utils/functions";
 import { TRect } from "../../../../utils/types/shapes";
 
 import { TBelowLayerContext } from "./BelowLayer";
-import { PointerGrid } from "./PointerGrid";
+import { GridLayers } from "./GridLayers";
 
 type TBackgroundState = TComponentState & TRect;
 
@@ -86,7 +86,7 @@ export class Background extends Component<TComponentProps, TBackgroundState, TBe
 
   public updateChildren() {
     return [
-      PointerGrid.create({
+      GridLayers.create({
         x: this.state.x,
         y: this.state.y,
         width: this.state.width,

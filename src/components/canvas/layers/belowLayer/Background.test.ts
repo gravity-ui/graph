@@ -4,9 +4,12 @@ import { TRect } from "../../../../utils/types/shapes";
 
 import { Background } from "./Background";
 import { TBelowLayerContext } from "./BelowLayer";
-import { PointerGrid } from "./PointerGrid";
+import { GridLayers } from "./GridLayers";
 
 const USABLE_RECT_GAP = 248;
+
+/** World rect seen by the fixture camera (x: 0, y: 0, width: 1000, height: 800, scale: 1) */
+const VIEWPORT: TRect = { x: 0, y: 0, width: 1000, height: 800 };
 
 type TUsableRectListener = (rect: TRect) => void;
 
@@ -53,6 +56,10 @@ function createBackgroundFixture(): TBackgroundFixture {
     graph,
     camera: {
       getCameraState: () => ({
+        x: 0,
+        y: 0,
+        width: 1000,
+        height: 800,
         relativeX: 0,
         relativeY: 0,
         relativeWidth: 1000,
@@ -65,6 +72,11 @@ function createBackgroundFixture(): TBackgroundFixture {
       system: {
         USABLE_RECT_GAP,
         GRID_SIZE: 20,
+        GRID_LAYERS: [
+          { step: 1, dotSize: 2 },
+          { step: 5, dotSize: 3 },
+        ],
+        GRID_LAYER_FADE: [6, 18],
       },
       block: {
         SCALES: [0.1, 0.5, 0.8],
@@ -80,7 +92,7 @@ function createBackgroundFixture(): TBackgroundFixture {
     },
     graphCanvas: canvas,
     ctx,
-    layer: {},
+    layer: { getDRP: () => 1 },
   } as unknown as TBelowLayerContext);
 
   const background = new Background({}, parent);
@@ -114,22 +126,32 @@ function expandRect(rect: TRect): TRect {
   };
 }
 
+function clipToViewport(rect: TRect): TRect {
+  const x = Math.max(rect.x, VIEWPORT.x);
+  const y = Math.max(rect.y, VIEWPORT.y);
+  return {
+    x,
+    y,
+    width: Math.min(rect.x + rect.width, VIEWPORT.x + VIEWPORT.width) - x,
+    height: Math.min(rect.y + rect.height, VIEWPORT.y + VIEWPORT.height) - y,
+  };
+}
+
 function flushBackgroundUpdate(fixture: TBackgroundFixture): void {
   scheduler.performUpdate();
   fixture.background.iterate();
 }
 
-function renderPointerGrid(fixture: TBackgroundFixture): void {
-  const [pointerGridDescriptor] = fixture.background.updateChildren();
-  const pointerGrid = new PointerGrid(pointerGridDescriptor.props as TRect, fixture.background);
-  pointerGrid.willIterate();
-  pointerGrid.render();
+function renderGridLayers(fixture: TBackgroundFixture): void {
+  const [gridDescriptor] = fixture.background.updateChildren();
+  const gridLayers = new GridLayers(gridDescriptor.props as TRect, fixture.background);
+  gridLayers.render();
 }
 
 function renderGeometry(fixture: TBackgroundFixture, usableRect: TRect): TRect {
   fixture.emitUsableRect(usableRect);
   flushBackgroundUpdate(fixture);
-  renderPointerGrid(fixture);
+  renderGridLayers(fixture);
 
   const fillCalls = fixture.fillSpy.mock.calls;
   const path = fillCalls[fillCalls.length - 1][0] as TMockPath;
@@ -145,7 +167,8 @@ function renderGeometry(fixture: TBackgroundFixture, usableRect: TRect): TRect {
     transform: [1, 0, 0, 1, 0, 0],
     props: expected,
   });
-  expect(gridCall).toEqual([expected.x, expected.y, expected.width, expected.height]);
+  const grid = clipToViewport(expected);
+  expect(gridCall).toEqual([grid.x, grid.y, grid.width, grid.height]);
 
   return expected;
 }
@@ -168,7 +191,7 @@ describe("Background geometry", () => {
     expect(renderGeometry(fixture, usableRect)).toEqual(expandRect(usableRect));
   });
 
-  it("updates both Path2D and PointerGrid when coordinates move to zero", () => {
+  it("updates both Path2D and GridLayers when coordinates move to zero", () => {
     fixture = createBackgroundFixture();
 
     renderGeometry(fixture, { x: 800, y: 800, width: 200, height: 100 });
@@ -207,7 +230,7 @@ describe("Background geometry", () => {
     scheduler.performUpdate();
     fixture.emitUsableRect({ x: 400, y: 248, width: 2100, height: 1700 });
     flushBackgroundUpdate(fixture);
-    renderPointerGrid(fixture);
+    renderGridLayers(fixture);
 
     const expected = expandRect({ x: 400, y: 248, width: 2100, height: 1700 });
     expect(fixture.background.getState()).toEqual(expected);
@@ -220,7 +243,8 @@ describe("Background geometry", () => {
       props: expected,
     });
     const fillRectCalls = fixture.fillRectSpy.mock.calls;
-    expect(fillRectCalls[fillRectCalls.length - 1]).toEqual([expected.x, expected.y, expected.width, expected.height]);
+    const grid = clipToViewport(expected);
+    expect(fillRectCalls[fillRectCalls.length - 1]).toEqual([grid.x, grid.y, grid.width, grid.height]);
   });
 
   it("cancels a pending usableRect update on unmount", () => {
