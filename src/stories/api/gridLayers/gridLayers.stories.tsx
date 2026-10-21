@@ -138,11 +138,12 @@ export const DarkCanvas: TStory = {
   },
 };
 
+// Coarse enough to be visible right away: the story fits the graph at a scale of about 0.05
 export const TwoLayers: TStory = {
   args: {
     gridLayers: [
-      { step: 1, dotSize: 1.5 },
-      { step: 10, dotSize: 3 },
+      { step: 5, dotSize: 2 },
+      { step: 25, dotSize: 3.6 },
     ],
     fadeFrom: 8,
     fadeTo: 20,
