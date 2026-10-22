@@ -55,7 +55,7 @@ export { getFontSize, measureText, type TMeasureTextOptions, type TWrapText } fr
 export type { TBlockGeometrySnapshot } from "./store/block/BlocksList";
 export { ESchedulerPriority } from "./lib/Scheduler";
 export { computeCssVariable, debounce, throttle, schedule } from "./utils/functions";
-export { GRAPH_INSTANCE_SYMBOL_KEY } from "./utils/graphInstance";
+export { GRAPH_INSTANCE_SYMBOL_KEY, GRAPH_ROOT_CLASS_NAME } from "./utils/graphInstance";
 export * from "./utils/renderers/text";
 export { EVENTS } from "./utils/types/events";
 export { Point, Rect, type TPoint, type TRect } from "./utils/types/shapes";

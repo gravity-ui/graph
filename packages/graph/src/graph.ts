@@ -31,7 +31,7 @@ import { TConnection } from "./store/connection/ConnectionState";
 import { TGraphSettingsConfig, TGraphSettingsPatch } from "./store/settings";
 import { TypedEventListener, addTypedEventListener, removeTypedEventListener } from "./utils/eventListener";
 import { clearColorCache, getXY } from "./utils/functions";
-import { clearGraphInstance, setGraphInstance } from "./utils/graphInstance";
+import { GRAPH_ROOT_CLASS_NAME, clearGraphInstance, setGraphInstance } from "./utils/graphInstance";
 import { clearTextCache } from "./utils/renderers/text";
 import type { GraphClassConstructor } from "./utils/types/classes";
 import { Point, TPoint, TRect, isTRect } from "./utils/types/shapes";
@@ -481,8 +481,11 @@ export class Graph {
     const previousRoot = this.layers.$root;
     if (previousRoot && previousRoot !== rootEl) {
       clearGraphInstance(previousRoot, this);
+      previousRoot.classList.remove(GRAPH_ROOT_CLASS_NAME);
     }
     setGraphInstance(rootEl, this);
+    // Layers are absolutely positioned; the class makes a static root their containing block.
+    rootEl.classList.add(GRAPH_ROOT_CLASS_NAME);
     this.layers.attach(rootEl);
 
     const { width: rootWidth, height: rootHeight } = this.layers.getRootSize();
@@ -538,6 +541,7 @@ export class Graph {
     this.layers.detach(full);
     if (full && root) {
       clearGraphInstance(root, this);
+      root.classList.remove(GRAPH_ROOT_CLASS_NAME);
     }
     clearTextCache();
     this.startRequested = false;
