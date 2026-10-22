@@ -62,7 +62,7 @@ class Path2DChunk {
     if (style) {
       const p = this.path.get();
       if (style.type === "fill" || style.type === "both") {
-        ctx.fill(p, style.fillRule);
+        ctx.fill(p, style.fillRule ?? "nonzero");
       }
       if (style.type === "stroke" || style.type === "both") {
         ctx.stroke(p);
@@ -205,11 +205,16 @@ export class BatchPath2DRenderer {
   }
 
   public markDirty(item: Path2DRenderInstance) {
+    this.invalidateVisibility(item);
+    if (this.itemParams.has(item)) this.requestRender();
+  }
+
+  /** Visibility is finalized during the current traversal, before this batch draws. */
+  public invalidateVisibility(item: Path2DRenderInstance) {
     const params = this.itemParams.get(item);
     if (params) {
       const group = this.getGroup(params.zIndex, params.group);
       group.resetItem(item);
-      this.requestRender();
     }
   }
 }

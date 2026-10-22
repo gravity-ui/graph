@@ -1,16 +1,18 @@
+import { ReadonlySignal, computed } from "@preact/signals-core";
+
 import { Component, TComponentState } from "../../../lib/Component";
 import { CoreComponentProps } from "../../../lib/CoreComponent";
 import { ESchedulerPriority } from "../../../lib/Scheduler";
 import { ConnectionState } from "../../../store/connection/ConnectionState";
 import { debounce } from "../../../utils/utils/schedule";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
-import { createViewportCulling } from "../visibilityCulling";
 
 import { BatchPath2DRenderer } from "./BatchPath2D";
 import { BlockConnection, TConnectionProps } from "./BlockConnection";
 
 export type TGraphConnectionsContext = TGraphLayerContext & {
   batch: BatchPath2DRenderer;
+  connectionLabelScale: ReadonlySignal<number>;
 };
 
 export class BlockConnections extends Component<CoreComponentProps, TComponentState, TGraphConnectionsContext> {
@@ -39,7 +41,6 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
 
   constructor(props: {}, parent: Component) {
     super(props, parent);
-    this.setChildrenCulling(createViewportCulling(this.context.graph, () => this.context.camera));
     this.batch = new BatchPath2DRenderer(
       () => this.performRender(),
       this.context.constants.connection.PATH2D_CHUNK_SIZE || 100
@@ -47,6 +48,7 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
     this.unsubscribe = this.subscribe();
     this.setContext({
       batch: this.batch,
+      connectionLabelScale: computed(() => this.context.graph.$camera.value.scale),
     });
   }
 

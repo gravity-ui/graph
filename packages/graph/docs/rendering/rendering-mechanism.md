@@ -21,6 +21,7 @@ The `Tree` class provides the foundational hierarchy structure with:
 - Parent-child relationship management
 - Z-index based ordering of children
 - Traversal methods for walking the tree
+- One shared tile index per layer tree for viewport selection
 
 ### CoreComponent Class
 
@@ -53,9 +54,9 @@ The rendering process follows these steps:
 1. Component state/props update via `setState`/`setProps`
 2. `performRender()` schedules an update through the `Scheduler`
 3. On the next animation frame, `Scheduler` traverses the component tree
-4. Each component's `iterate()` method is called
-5. Components process their data and execute their lifecycle methods
-6. Child components are created, updated, or removed as needed
+4. Tree calls `prepareUpdate()` on visible, new, or dirty components and their ancestors
+5. Components apply data and reconcile children before the tree resolves final viewport membership
+6. `iterate()` paints visible components and completes prepared updates; clean offscreen nodes are skipped
 7. The process repeats for each animation frame when changes occur
 
 ## Component Lifecycle
@@ -99,9 +100,11 @@ This value is set per component class in `graphConfig.ts` and changed via `updat
 
 ### Tier 2: renderOrder — Visual Stacking Within a Type
 
-`renderOrder` determines stacking *within the same zIndex tier*. It is assigned by the scheduler during `_walkDown` traversal: the later a component is visited in the tree, the higher its `renderOrder`.
+`renderOrder` determines stacking *within the same zIndex tier*. Tree assigns every child's order
+when rebuilding its parent's sorted child cache, including children outside the viewport.
 
-`Tree.updateChildZIndex()` is the key mechanism: every time a component's `zIndex` changes, the child is **re-inserted at the end** of the parent's `children` Set (`delete` + `add`). Because the `children` Set preserves insertion order, the most recently interacted component gets the highest `renderOrder` in its tier — it appears on top visually.
+`Tree.updateZIndex()` moves a child between its parent's z-index groups; `updateChildZIndex()`
+re-inserts it at the end of its current group. Group insertion order determines stacking within a tier.
 
 This means drag-and-drop and selection automatically bring the interacted block to the front of its z-group without any extra bookkeeping.
 
@@ -136,7 +139,9 @@ The rendering mechanism integrates with the browser's animation frame:
 - `constructor(props, parent)` - Create a component instance
 - `performRender()` - Schedule a render update
 - `setContext(context)` - Update the context
-- `iterate()` - Process component updates
+- `prepareUpdate()` - Apply pending data and reconcile children before painting
+- `iterate()` - Paint eligible components and complete the update
+- `isInViewport()` - Read the tree's current spatial visibility decision
 - `static create(props, options)` - Factory method
 - `static mount(Component, props)` - Mount a component as root
 - `static unmount(instance)` - Unmount a component

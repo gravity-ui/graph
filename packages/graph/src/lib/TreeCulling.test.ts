@@ -2,249 +2,219 @@ import type { TTileRect } from "./TileIndex";
 import { ITree, Tree } from "./Tree";
 
 type TNodeData = ITree & { name: string };
+const rect = (x: number, y = x, size = 10): TTileRect => ({ minX: x, minY: y, maxX: x + size, maxY: y + size });
 
-const rect = (minX: number, minY: number, maxX: number, maxY: number): TTileRect => ({ minX, minY, maxX, maxY });
-
-function setup({ fullWalkShare = Infinity }: { fullWalkShare?: number } = {}) {
-  const walked: string[] = [];
-  const state: { viewport: TTileRect | undefined; token: number } = { viewport: rect(0, 0, 100, 100), token: 0 };
-  const data = (name: string): TNodeData => ({
-    name,
-    iterate: () => {
-      walked.push(name);
-      return true;
-    },
-  });
-  const root = new Tree<TNodeData>(data("root"));
-  root.setCulling({
-    tileSize: 64,
-    getViewport: () => state.viewport,
-    getWalkToken: () => state.token,
-    fullWalkShare,
-  });
-
-  const add = (name: string, x: number, y: number, zIndex = 1, size = 10): Tree<TNodeData> => {
-    const node = new Tree<TNodeData>(data(name));
-    node.zIndex = zIndex;
-    node.setBounds(x, y, x + size, y + size);
-    root.append(node);
+function setup() {
+  const prepared: string[] = [];
+  const drawn: string[] = [];
+  const visited: string[] = [];
+  const events: string[] = [];
+  const state: { viewport: TTileRect | undefined; token: number } = { viewport: rect(0, 0, 100), token: 0 };
+  const make = (name: string, x?: number) => {
+    const node = new Tree<TNodeData>({
+      name,
+      prepareUpdate: () => {
+        prepared.push(name);
+        events.push(`prepare:${name}`);
+        return true;
+      },
+      onViewportChange: (visible) => {
+        events.push(`visible:${name}:${visible}`);
+      },
+      iterate: () => {
+        visited.push(name);
+        if (node.isVisible()) {
+          drawn.push(name);
+          events.push(`draw:${name}`);
+        }
+        return true;
+      },
+    });
+    if (x !== undefined) node.setBounds(x, x, x + 10, x + 10);
     return node;
   };
-
-  const walk = (): string[] => {
-    state.token += 1;
-    walked.length = 0;
+  const root = make("root");
+  const configure = () =>
+    root.setCulling({ tileSize: 64, getViewport: () => state.viewport, getWalkToken: () => state.token });
+  configure();
+  const add = (name: string, x?: number, parent = root) => {
+    const node = make(name, x);
+    parent.append(node);
+    return node;
+  };
+  const walk = () => {
+    prepared.length = drawn.length = visited.length = events.length = 0;
+    state.token++;
     root.traverseDown((node) => node.data.iterate());
-    return walked.filter((name) => name !== "root");
+    return { prepared: prepared.slice(), drawn: drawn.slice(), visited: visited.slice(), events: events.slice() };
   };
-
-  /** New children are walked twice (first iterate, then to notice they are out of view). */
-  const settle = (): string[] => {
-    walk();
-    walk();
-    return walk();
-  };
-
-  const fullOrder = (): string[] => {
-    const viewport = state.viewport;
-    state.viewport = undefined;
-    const order = walk();
-    state.viewport = viewport;
-    // The full walk made every child "active"; walk once more so they settle again.
-    walk();
-    return order;
-  };
-
-  return { root, state, add, walk, settle, fullOrder };
+  return { root, state, add, make, walk, configure };
 }
 
-describe("Tree visibility culling", () => {
-  it("walks only children in view, in the order of a full walk", () => {
-    const { add, settle, fullOrder } = setup();
-    add("a", 10, 10, 2);
-    add("b", 500, 500, 1);
-    add("c", 20, 20, 1);
-    add("d", 30, 30, 3);
-    add("e", 90, 90, 1);
-    add("f", -500, 40, 2);
-
-    expect(settle()).toEqual(["c", "e", "a", "d"]);
-    expect(fullOrder()).toEqual(["b", "c", "e", "a", "f", "d"]);
-  });
-
-  it("walks every new child, then once more, then only those in view", () => {
+describe("Tree native spatial scope", () => {
+  it("prepares new offscreen nodes once without painting them", () => {
     const { add, walk } = setup();
-    add("in", 10, 10);
-    add("out", 1000, 1000);
-
-    expect(walk()).toEqual(["in", "out"]);
-    expect(walk()).toEqual(["in", "out"]);
-    expect(walk()).toEqual(["in"]);
-  });
-
-  it("keeps renderOrder of every child equal to its position in a full walk", () => {
-    const { root, add, settle } = setup();
-    const nodes = [add("a", 10, 10), add("b", 1000, 1000), add("c", 20, 20), add("d", 2000, 2000)];
-    settle();
-
-    // Raise an out-of-view child: it moves to the end of the draw order.
-    nodes[1].updateZIndex(5);
-    settle();
-
-    const expected = ["a", "c", "d", "b"];
-    for (const node of nodes) {
-      expect(node.renderOrder).toBe(expected.indexOf(node.data.name));
-    }
-    expect(root.children.size).toBe(4);
-  });
-
-  it("walks an out-of-view child that requested an update once", () => {
-    const { add, settle, walk } = setup();
-    add("in", 10, 10);
-    const out = add("out", 1000, 1000);
-    settle();
-
-    out.requestWalk();
-    expect(walk()).toEqual(["in", "out"]);
-    expect(walk()).toEqual(["in"]);
-  });
-
-  it("walks the branch of a descendant that requested an update", () => {
-    const { add, settle, walk } = setup();
-    const out = add("out", 1000, 1000);
-    const leaf = new Tree<TNodeData>({ name: "leaf", iterate: () => true });
-    leaf.setBounds(1000, 1000, 1010, 1010);
-    out.append(leaf);
-    settle();
-
-    leaf.requestWalk();
-    expect(walk()).toEqual(["out"]);
-    expect(walk()).toEqual([]);
-  });
-
-  it("walks a child once more after it leaves the view", () => {
-    const { state, add, settle, walk } = setup();
-    add("a", 10, 10);
-    add("b", 300, 300);
-    expect(settle()).toEqual(["a"]);
-
-    state.viewport = rect(250, 250, 350, 350);
-    expect(walk()).toEqual(["a", "b"]);
-    expect(walk()).toEqual(["b"]);
-  });
-
-  it("follows bounds changes", () => {
-    const { add, settle, walk } = setup();
-    const node = add("a", 1000, 1000);
-    expect(settle()).toEqual([]);
-
-    node.setBounds(50, 50, 60, 60);
-    expect(walk()).toEqual(["a"]);
-
-    node.setBounds(5000, 5000, 5010, 5010);
-    // Once more to notice it left the view.
-    expect(walk()).toEqual(["a"]);
-    expect(walk()).toEqual([]);
-  });
-
-  it("walks children without known bounds every time", () => {
-    const { root, settle } = setup();
-    const node = new Tree<TNodeData>({ name: "unknown", iterate: () => true });
-    root.append(node);
-    expect(settle()).toEqual([]);
-    expect(root.children.has(node)).toBe(true);
-  });
-
-  it("does not walk removed children", () => {
-    const { root, add, settle, walk } = setup();
-    add("in", 10, 10);
-    const out = add("out", 1000, 1000);
-    settle();
-
-    out.requestWalk();
-    root.remove(out);
-    expect(walk()).toEqual(["in"]);
-  });
-
-  it.each([false, true])("releases removed children when the container becomes empty (reconcile: %s)", (reconcile) => {
-    const { root, add, settle, walk } = setup();
-    const active = add("active", 10, 10);
-    const out = add("out", 1000, 1000);
-    expect(settle()).toEqual(["active"]);
-    const fresh = add("fresh", 2000, 2000);
-    fresh.requestWalk();
-
-    if (reconcile) root.clearChildren();
-    for (const node of [active, out, fresh]) root.remove(node);
-    expect(walk()).toEqual([]);
-    // An empty tree does not select children again, so retained references must be gone already.
-    expect(root["culling"]).toMatchObject({
-      index: expect.objectContaining({ size: 0 }),
-      active: [],
-      fresh: [],
-      pending: new Set(),
+    add("visible", 10);
+    add("offscreen", 1000);
+    expect(walk()).toMatchObject({
+      prepared: ["root", "visible", "offscreen"],
+      drawn: ["root", "visible"],
+      visited: ["root", "visible", "offscreen"],
     });
-
-    add("replacement", 3000, 3000);
-    expect(walk()).toEqual(["replacement"]);
-    expect(walk()).toEqual(["replacement"]);
-    expect(walk()).toEqual([]);
+    expect(walk()).toMatchObject({ prepared: ["root", "visible"], visited: ["root", "visible"] });
   });
 
-  it("walks every child without a viewport or when the viewport covers all of them", () => {
-    const { state, add, settle, walk } = setup();
-    add("a", 10, 10);
-    const out = add("b", 1000, 1000);
-    settle();
-    expect(out.isSkippedByCulling(state.token)).toBe(true);
+  it("prepares pending nodes and their ancestors without walking clean siblings", () => {
+    const { add, walk } = setup();
+    const parent = add("parent", 1000);
+    const child = add("child", 2000, parent);
+    add("sibling", 3000, parent);
+    walk();
+    child.requestWalk();
+    expect(walk()).toMatchObject({
+      prepared: ["root", "parent", "child"],
+      visited: ["root", "parent", "child"],
+      drawn: ["root"],
+    });
+    expect(walk().visited).toEqual(["root"]);
+  });
 
+  it("finds children and geometry changed during preparation before any painting", () => {
+    const { add, make, root, walk } = setup();
+    const parent = add("parent", 1000);
+    const moved = add("moved", 2000);
+    walk();
+    const child = make("new", 3000);
+    parent.data.prepareUpdate = () => {
+      parent.append(child);
+      moved.setBounds(30, 30, 40, 40);
+      return true;
+    };
+    child.data.prepareUpdate = () => {
+      child.setBounds(50, 50, 60, 60);
+      return true;
+    };
+    parent.requestWalk();
+    const result = walk();
+    expect(result.drawn).toEqual(["root", "new", "moved"]);
+    expect(result.visited).toEqual(["root", "parent", "new", "moved"]);
+    expect(result.events.indexOf("prepare:moved")).toBeLessThan(result.events.indexOf("draw:root"));
+    expect(root.children.size).toBe(2);
+  });
+
+  it("defers requests from an already prepared node to the next frame", () => {
+    const { add, walk } = setup();
+    const out = add("out", 1000);
+    let count = 0;
+    out.data.prepareUpdate = () => {
+      count++;
+      if (count === 1) out.requestWalk();
+      return true;
+    };
+    walk();
+    expect(count).toBe(1);
+    walk();
+    expect(count).toBe(2);
+    walk();
+    expect(count).toBe(2);
+  });
+
+  it("publishes both viewport transitions before the root draws without iterating a clean exit", () => {
+    const { state, add, walk } = setup();
+    add("left", 10);
+    add("right", 300);
+    walk();
+    state.viewport = rect(250, 250, 100);
+    const result = walk();
+    expect(result.visited).toEqual(["root", "right"]);
+    expect(result.events.indexOf("visible:left:false")).toBeLessThan(result.events.indexOf("draw:root"));
+    expect(result.events.indexOf("visible:right:true")).toBeLessThan(result.events.indexOf("draw:root"));
+  });
+
+  it("uses current exact bounds even for nodes just outside the viewport", () => {
+    const { add, walk } = setup();
+    const edge = add("edge", 100);
+    const out = add("out", 100.01);
+    expect(walk().drawn).toEqual(["root", "edge"]);
+    expect(out.isVisible()).toBe(false);
+    edge.setBounds(1000, 1000, 1010, 1010);
+    out.setBounds(30, 30, 40, 40);
+    expect(walk().drawn).toEqual(["root", "out"]);
+  });
+
+  it("prepares and paints everything when the viewport is disabled", () => {
+    const { state, add, walk } = setup();
+    const parent = add("parent", 1000);
+    add("child", 2000, parent);
+    walk();
     state.viewport = undefined;
-    expect(walk()).toEqual(["a", "b"]);
-    expect(out.isSkippedByCulling(state.token)).toBe(false);
-
-    state.viewport = rect(-10, -10, 2000, 2000);
-    expect(walk()).toEqual(["a", "b"]);
+    expect(walk()).toMatchObject({ prepared: ["root", "parent", "child"], drawn: ["root", "parent", "child"] });
+    expect(parent.isSkippedByCulling(state.token)).toBe(false);
   });
 
-  it("walks every child when most of them are near the viewport", () => {
-    const { add, settle } = setup({ fullWalkShare: 0.5 });
-    add("a", 10, 10);
-    add("b", 20, 20);
-    add("c", 1000, 1000);
-    // Two of three children are candidates: walking all of them is cheaper than culling.
-    expect(settle()).toEqual(["a", "b", "c"]);
-
-    add("d", 2000, 2000);
-    add("e", 3000, 3000);
-    expect(settle()).toEqual(["a", "b"]);
+  it("disables traversal filtering without allowing offscreen paint", () => {
+    const { root, add, walk } = setup();
+    const out = add("out", 1000);
+    root.setCulling({ tileSize: 64, getViewport: () => rect(0, 0, 100), isEnabled: () => false });
+    walk();
+    expect(walk()).toMatchObject({ prepared: ["root", "out"], visited: ["root", "out"], drawn: ["root"] });
+    expect(out.isVisible()).toBe(false);
   });
 
-  it("does not fall back to a full walk when large offscreen children are a minority", () => {
-    const { add, settle } = setup({ fullWalkShare: 0.75 });
+  it("never prepares descendants behind a suppressed ancestor", () => {
+    const { add, walk } = setup();
+    const parent = add("parent", 10);
+    const child = add("child", 20, parent);
+    add("leaf", 30, child);
+    parent.data.prepareUpdate = () => false;
+    const result = walk();
+    expect(result.prepared).toEqual(["root"]);
+    expect(result.visited).toEqual(["root", "parent"]);
+  });
+
+  it("keeps a configured root when attached below an unscoped tree", () => {
+    const { root, add, walk } = setup();
+    add("out", 1000);
+    const outer = new Tree({ iterate: () => true });
+    outer.append(root);
+    expect(walk()).toMatchObject({ prepared: ["root", "out"], visited: ["root", "out"], drawn: ["root"] });
+  });
+
+  it("keeps local z-index ordering after updates without scanning clean siblings each frame", () => {
+    const { root, add, walk } = setup();
+    const a = add("a", 10);
+    const b = add("b", 1000);
+    const c = add("c", 20);
+    a.updateZIndex(5);
+    expect(walk().drawn).toEqual(["root", "c", "a"]);
+    b.updateZIndex(10);
+    expect(walk().drawn).toEqual(["root", "c", "a"]);
+    expect([c.renderOrder, a.renderOrder, b.renderOrder]).toEqual([0, 1, 2]);
+    const siblings = jest.spyOn(root.children, Symbol.iterator);
+    expect(walk().drawn).toEqual(["root", "c", "a"]);
+    expect(siblings).not.toHaveBeenCalled();
+  });
+
+  it("uses the tile query when large offscreen items are a minority", () => {
+    const { root, add, walk } = setup();
     for (let i = 0; i < 1000; i++) {
-      add(`out${i}`, 1000 + i * 1024, 1000, 1, i < 400 ? 512 : 10);
+      const x = 1000 + i * 1024;
+      const size = i < 400 ? 512 : 10;
+      add(`out${i}`).setBounds(x, 1000, x + size, 1000 + size);
     }
+    walk();
+    const scope = root["culling"];
+    if (!scope) throw new Error("Missing root scope");
+    const query = jest.spyOn(scope.index, "query");
+    const linearScan = jest.spyOn(scope.nodes, Symbol.iterator);
 
-    // Only the 400 large children are candidates, below the default full-walk threshold of 750.
-    expect(settle()).toEqual([]);
+    expect(walk().drawn).toEqual(["root"]);
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(linearScan).not.toHaveBeenCalled();
   });
 
-  it("marks out-of-view children as skipped for the traversal that skipped them", () => {
-    const { root, state, add, settle } = setup();
-    const inView = add("in", 10, 10);
-    const out = add("out", 1000, 1000);
-    settle();
-
-    expect(out.isSkippedByCulling(state.token)).toBe(true);
-    expect(out.isSkippedByCulling(state.token - 1)).toBe(false);
-    expect(inView.isSkippedByCulling(state.token)).toBe(false);
-
-    root.remove(out);
-    expect(out.isSkippedByCulling(state.token)).toBe(false);
-  });
-
-  it("orders large and small selections like a full walk", () => {
-    const { state, add, settle, fullOrder } = setup();
+  it("preserves full traversal order for sparse and dense randomized visibility selections", () => {
+    const { root, state, add, walk, configure } = setup();
     let seed = 3;
     const random = () => {
       seed = (seed * 16807) % 2147483647;
@@ -254,14 +224,27 @@ describe("Tree visibility culling", () => {
     for (let i = 0; i < 300; i++) {
       const x = Math.floor(random() * 1000);
       const y = Math.floor(random() * 1000);
-      positions.set(`n${i}`, [x, y]);
-      add(`n${i}`, x, y, 1 + Math.floor(random() * 3));
+      const name = `n${i}`;
+      positions.set(name, [x, y]);
+      const node = add(name);
+      node.setBounds(x, y, x + 10, y + 10);
+      node.updateZIndex(1 + Math.floor(random() * 3));
     }
+    root.setCulling(undefined);
+    const fullOrder = walk().drawn;
+    configure();
+    const scope = root["culling"];
+    if (!scope) throw new Error("Missing root scope");
+    const query = jest.spyOn(scope.index, "query");
+    const linearScan = jest.spyOn(scope.nodes, Symbol.iterator);
 
-    // Small viewport takes the sort path, a large one takes the filter path.
-    for (const viewport of [rect(100, 100, 200, 200), rect(0, 0, 900, 950)]) {
+    for (const [viewport, usesQuery] of [
+      [rect(100, 100, 100), true],
+      [rect(0, 0, 950), false],
+    ] as const) {
       state.viewport = viewport;
-      const culled = settle();
+      query.mockClear();
+      linearScan.mockClear();
       const visible = new Set(
         Array.from(positions.entries())
           .filter(
@@ -270,8 +253,73 @@ describe("Tree visibility culling", () => {
           )
           .map(([name]) => name)
       );
-      expect(culled).toEqual(fullOrder().filter((name) => visible.has(name)));
-      expect(culled.length).toBe(visible.size);
+      expect(walk().drawn).toEqual(fullOrder.filter((name) => name === "root" || visible.has(name)));
+      expect(query).toHaveBeenCalledTimes(usesQuery ? 1 : 0);
+      expect(linearScan).toHaveBeenCalledTimes(usesQuery ? 0 : 1);
     }
+  });
+
+  it("keeps retained descendants indexed and clean during reconciliation", () => {
+    const { root, add, walk } = setup();
+    const container = add("container");
+    add("out", 1000, container);
+    walk();
+    const index = root["culling"]?.index;
+    if (!index) throw new Error("Missing root scope");
+    const updates = jest.spyOn(index, "set");
+    root.data.prepareUpdate = () => {
+      root.setChildren([container]);
+      return true;
+    };
+    expect(walk()).toMatchObject({ prepared: ["container"], visited: ["root", "container"] });
+    expect(updates).not.toHaveBeenCalled();
+    expect(index.size).toBe(2);
+  });
+
+  it("unregisters descendants even when nested children were temporarily cleared", () => {
+    const { root, add, walk } = setup();
+    const parent = add("parent", 10);
+    const child = add("child", 20, parent);
+    add("leaf", 30, child);
+    walk();
+    child.clearChildren();
+    parent.clearChildren();
+    root.remove(parent);
+    expect(root["culling"]?.index.size).toBe(0);
+    expect(walk().visited).toEqual(["root"]);
+  });
+
+  it("releases removed subtrees from the index and every retained work set", () => {
+    const { root, add, walk } = setup();
+    const parent = add("parent", 10);
+    const child = add("child", 1000, parent);
+    walk();
+    add("fresh", 2000, child);
+    child.requestWalk();
+    root.clearChildren();
+    root.remove(parent);
+    const scope = root["culling"];
+    if (!scope) throw new Error("Missing root scope");
+    expect(scope.index.size).toBe(0);
+    expect(scope["pending"].size).toBe(0);
+    expect(scope["fresh"].size).toBe(0);
+    expect(scope["active"].size).toBe(0);
+    expect(walk().visited).toEqual(["root"]);
+    root.append(parent);
+    expect(walk().visited).toEqual(["root", "parent", "child", "fresh"]);
+    expect(scope.index.size).toBe(3);
+  });
+
+  it("detaches the old scope when culling is removed", () => {
+    const { root, add, walk, configure } = setup();
+    const node = add("out", 1000);
+    walk();
+    const scope = root["culling"];
+    if (!scope) throw new Error("Missing root scope");
+    root.setCulling(undefined);
+    expect(scope.index.size).toBe(0);
+    expect(node.isVisible()).toBe(true);
+    configure();
+    expect(walk().drawn).toEqual(["root"]);
   });
 });

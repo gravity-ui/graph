@@ -82,6 +82,8 @@ export class CoreComponent<
 
   protected __comp: TPrivateComponentData;
 
+  protected updatePrepared = false;
+
   public get zIndex() {
     return this.__comp.treeNode.zIndex;
   }
@@ -116,7 +118,20 @@ export class CoreComponent<
     const iterateId = this.__comp.context.globalIterateId;
     // A child skipped by an ancestor's visibility culling was out of view with nothing to process,
     // so for this traversal it counts as iterated.
-    return this.__comp.iterateId === iterateId || this.__comp.treeNode.isSkippedByCulling(iterateId);
+    return (
+      this.__comp.treeNode.isTraversalAllowed() &&
+      (this.__comp.iterateId === iterateId || this.__comp.treeNode.isSkippedByCulling(iterateId))
+    );
+  }
+
+  /** Whether this node's own bounds are visible in the current tree frame. */
+  public isInViewport(): boolean {
+    return this.__comp.treeNode.isVisible();
+  }
+
+  /** @internal Called before painting when the tree's viewport selection changes. */
+  public onViewportChange(_visible: boolean): void {
+    // noop
   }
 
   public performRender = () => {
@@ -125,14 +140,13 @@ export class CoreComponent<
   };
 
   /**
-   * Walks only the children whose bounds (see {@link setCullingBounds}) intersect the viewport
-   * returned by `getViewport`, plus children that requested a render. `undefined` disables it.
+   * Configures the viewport for this tree root and all its descendants.
    */
   protected setChildrenCulling(options: Omit<TTreeCullingOptions, "getWalkToken"> | undefined): void {
     this.__comp.treeNode.setCulling(options && { ...options, getWalkToken: () => this.__comp.context.globalIterateId });
   }
 
-  /** Reports this component's own bounds; culling also includes its descendants' bounds. */
+  /** Reports this component's own bounds to its tree's spatial index. */
   protected setCullingBounds(minX: number, minY: number, maxX: number, maxY: number): void {
     this.__comp.treeNode.setBounds(minX, minY, maxX, maxY);
   }
@@ -183,12 +197,20 @@ export class CoreComponent<
     this.performRender();
   }
 
-  public iterate(): boolean {
+  /** Applies pending work before the tree selects the elements to paint. */
+  public prepareUpdate(): boolean {
+    if (this.updatePrepared) return true;
     if (!this.__comp.parent) {
       this.__comp.context.globalIterateId = Math.random();
     }
     this.__comp.iterateId = this.__comp.context.globalIterateId;
+    this.updatePrepared = true;
+    return true;
+  }
 
+  public iterate(): boolean {
+    this.prepareUpdate();
+    this.updatePrepared = false;
     return true;
   }
 
@@ -221,7 +243,6 @@ export class CoreComponent<
     const nextKeys: string[] = [];
     const descriptorsToMount: Array<{ key: string; descriptor: ChildDescriptor }> = [];
     this.__comp.prevChildrenArr = next;
-    this.__comp.treeNode.clearChildren();
 
     next.forEach((descriptor, index) => {
       const key = String(descriptor.options.key ?? `${descriptor.klass.name}|${index}|defaultKey`);
@@ -244,18 +265,20 @@ export class CoreComponent<
     });
     descriptorsToMount.forEach(({ key, descriptor }) => this.mountChild(descriptor, key));
     this.__comp.childrenKeys = nextKeys;
+    const children: Tree[] = [];
     nextKeys.forEach((key) => {
       const child = this.__comp.children.get(key);
-      if (child) this.__comp.treeNode.append(child.__comp.treeNode);
+      if (child) children.push(child.__comp.treeNode);
     });
+    this.__comp.treeNode.setChildren(children);
   }
 
   private __unmountChildren() {
-    this.__comp.treeNode.clearChildren();
     this.__comp.childrenKeys.forEach((key) => {
       const child = this.__comp.children.get(key);
       if (child) this.removeChild(key, child);
     });
+    this.__comp.treeNode.clearChildren();
     this.__comp.childrenKeys = [];
     this.__comp.prevChildrenArr = [];
   }

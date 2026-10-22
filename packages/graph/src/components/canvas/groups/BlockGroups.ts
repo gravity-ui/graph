@@ -9,7 +9,6 @@ import { BlockState } from "../../../store/block/Block";
 import { GroupState, TGroup, TGroupId } from "../../../store/group/Group";
 import { getBlocksRect } from "../../../utils/functions";
 import { TRect } from "../../../utils/types/shapes";
-import { createViewportCulling } from "../visibilityCulling";
 
 import { Group } from "./Group";
 
@@ -175,7 +174,6 @@ export class BlockGroups<P extends BlockGroupsProps = BlockGroupsProps> extends 
     });
 
     this.requireCanvas();
-    this.setChildrenCulling(createViewportCulling(this.props.graph, () => this.context.camera));
   }
 
   protected afterInit(): void {

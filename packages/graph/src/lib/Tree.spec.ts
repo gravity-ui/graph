@@ -103,3 +103,23 @@ describe("Tree", () => {
     expect(count).toBe(3); // Including the root
   });
 });
+
+test("a scoped legacy iterator can resume child traversal after returning false", () => {
+  let allow = false;
+  let calls = 0;
+  const root = new Tree({ iterate: () => allow });
+  root.setCulling({ tileSize: 64, getViewport: () => ({ minX: 0, minY: 0, maxX: 100, maxY: 100 }) });
+  root.append(
+    new Tree({
+      iterate: () => {
+        calls++;
+        return true;
+      },
+    })
+  );
+  root.traverseDown((node) => node.data.iterate());
+  expect(calls).toBe(0);
+  allow = true;
+  root.traverseDown((node) => node.data.iterate());
+  expect(calls).toBe(1);
+});

@@ -161,7 +161,7 @@ export class BaseConnection<
     });
 
     // When both endpoints are hidden (e.g. both blocks inside a collapsed group)
-    // schedule a re-render so willIterate() picks up the new isVisible() result.
+    // Schedule an update so component and batch visibility use the new hidden state.
     this.subscribeSignal(this.connectedState.$hidden, () => {
       this.performRender();
     });
