@@ -1,4 +1,5 @@
 /* eslint-disable no-console */
+import isEqual from "lodash/isEqual";
 import merge from "lodash/merge";
 import StyleObserver from "style-observer";
 
@@ -36,7 +37,7 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
 
     this.observerNeedsRestart =
       this.props.containerClass !== nextProps.containerClass ||
-      this.props.additionalCSSVariables !== nextProps.additionalCSSVariables;
+      !isEqual(this.props.additionalCSSVariables ?? [], nextProps.additionalCSSVariables ?? []);
   }
 
   protected willRender(): void {
