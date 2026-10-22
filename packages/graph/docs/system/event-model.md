@@ -19,6 +19,7 @@ See also: `docs/system/events.md` for a high-level overview.
 2. `GraphLayer` intercepts it (some events via capturing), recomputes the current target from camera‑space coordinates, and updates gesture state (e.g., whether a button is pressed).
 3. `GraphLayer` may first emit a graph event via `graph.emit(eventName, { target, sourceEvent, pointerPressed })`.
    - If any graph handler calls `event.preventDefault()`, delegation into components is aborted (see `dispatchNativeEvent`).
+   - For `mousedown`, the camera pan and `DragService` are default actions: `graph.emit` runs them after all graph handlers, and only when none prevented the event. Preventing it stops both, whenever the handler subscribed. Handlers therefore never see the event already prevented by the camera.
 4. If not prevented, `GraphLayer` delegates the original or a synthetic event into the canvas component tree via `target.dispatchEvent(event)`.
 5. `EventedComponent` processes the event, including custom bubbling to parents until `stopPropagation` is invoked.
 

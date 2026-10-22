@@ -372,6 +372,23 @@ test.describe("ConnectionEditingLayer – blocks", () => {
     expect(await graphPO.getConnections()).toEqual([]);
   });
 
+  // https://github.com/gravity-ui/graph/issues/405: the layer prevents the press before the camera pans.
+  test("Shift + drag from a non-draggable block does not pan the camera", async ({ page }) => {
+    await graphPO.evaluate((graph) => graph.updateSettings({ canDrag: window.GraphModule.ECanDrag.NONE }));
+    const cameraBefore = await graphPO.camera().getState();
+    const from = await graphPO.block("block-a").getCenter();
+    const to = await graphPO.block("block-c").getCenter();
+
+    await page.keyboard.down("Shift");
+    await graphPO.drag(from, to);
+    await page.keyboard.up("Shift");
+
+    expect(await graphPO.camera().getState()).toMatchObject({ x: cameraBefore.x, y: cameraBefore.y });
+    const connections = await graphPO.getConnections();
+    expect(connections).toHaveLength(1);
+    expect(endpointFields(connections[0])).toEqual({ sourceBlockId: "block-a", targetBlockId: "block-c" });
+  });
+
   test("dragging a block without Shift moves it", async () => {
     const from = await graphPO.block("block-c").getCenter();
 

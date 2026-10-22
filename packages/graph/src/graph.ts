@@ -375,6 +375,7 @@ export class Graph {
      *
      * Preventing a graph "mousedown" also stops dispatching it to the target component and the camera drag,
      * so a layer can take over the gesture and start its own operation with `dragService.startDrag`.
+     * The camera drag and DragService run here, after every listener, so the order of subscription does not matter.
      *
      * @example
      * ```typescript
@@ -385,7 +386,12 @@ export class Graph {
      * */
     if (eventName === "mousedown" && !event.isDefaultPrevented()) {
       // The generic name cannot be narrowed with its indexed payload; this branch fixes it to mousedown.
-      this.dragService.handleMouseDown(event as GraphEvent<UnwrapGraphEventsDetail<"mousedown">>);
+      const mouseDownEvent = event as GraphEvent<UnwrapGraphEventsDetail<"mousedown">>;
+      // The camera goes first: it prevents the event when it takes the press (e.g. middle-button pan).
+      this.graphLayer.$.camera?.handleGraphMouseDown(mouseDownEvent);
+      if (!mouseDownEvent.isDefaultPrevented()) {
+        this.dragService.handleMouseDown(mouseDownEvent);
+      }
     }
     return event;
   }

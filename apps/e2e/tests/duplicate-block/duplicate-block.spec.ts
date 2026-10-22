@@ -24,8 +24,7 @@ test.describe("DuplicateBlockLayer", () => {
   test.beforeEach(async ({ page }) => {
     graphPO = new GraphPageObject(page);
     duplicatePO = new DuplicateBlockPageObject(page, graphPO);
-    // Blocks are draggable: with the default `canDrag: NONE` the camera pans before the layer sees the press
-    // (https://github.com/gravity-ui/graph/issues/405, see the fixme at the end of this file).
+    // Blocks are draggable so the tests can check that a non-duplicated Alt-drag still moves the block.
     await graphPO.initialize({ blocks: BLOCKS, connections: CONNECTIONS, settings: { canDrag: "all" } });
   });
 
@@ -328,10 +327,9 @@ test.describe("DuplicateBlockLayer", () => {
     });
   });
 
-  // Known core issue https://github.com/gravity-ui/graph/issues/405: Camera subscribes to the graph "mousedown"
-  // before any layer, and Chromium invokes listeners of a plain EventTarget in registration order even with
-  // `capture: true`. With non-draggable blocks the camera starts panning before the layer prevents the event.
-  test.fixme("duplicates with the default canDrag setting", async () => {
+  // https://github.com/gravity-ui/graph/issues/405: with non-draggable blocks the camera must not pan
+  // before the layer prevents the graph "mousedown".
+  test("duplicates with the default canDrag setting", async () => {
     await graphPO.evaluate((graph) => graph.updateSettings({ canDrag: window.GraphModule.ECanDrag.NONE }));
     await duplicatePO.addLayer();
     const cameraBefore = await graphPO.camera().getState();
