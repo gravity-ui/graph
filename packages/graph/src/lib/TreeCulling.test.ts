@@ -113,6 +113,7 @@ describe("Tree visibility culling", () => {
     const { add, settle, walk } = setup();
     const out = add("out", 1000, 1000);
     const leaf = new Tree<TNodeData>({ name: "leaf", iterate: () => true });
+    leaf.setBounds(1000, 1000, 1010, 1010);
     out.append(leaf);
     settle();
 
@@ -165,14 +166,41 @@ describe("Tree visibility culling", () => {
     expect(walk()).toEqual(["in"]);
   });
 
+  it.each([false, true])("releases removed children when the container becomes empty (reconcile: %s)", (reconcile) => {
+    const { root, add, settle, walk } = setup();
+    const active = add("active", 10, 10);
+    const out = add("out", 1000, 1000);
+    expect(settle()).toEqual(["active"]);
+    const fresh = add("fresh", 2000, 2000);
+    fresh.requestWalk();
+
+    if (reconcile) root.clearChildren();
+    for (const node of [active, out, fresh]) root.remove(node);
+    expect(walk()).toEqual([]);
+    // An empty tree does not select children again, so retained references must be gone already.
+    expect(root["culling"]).toMatchObject({
+      index: expect.objectContaining({ size: 0 }),
+      active: [],
+      fresh: [],
+      pending: new Set(),
+    });
+
+    add("replacement", 3000, 3000);
+    expect(walk()).toEqual(["replacement"]);
+    expect(walk()).toEqual(["replacement"]);
+    expect(walk()).toEqual([]);
+  });
+
   it("walks every child without a viewport or when the viewport covers all of them", () => {
     const { state, add, settle, walk } = setup();
     add("a", 10, 10);
-    add("b", 1000, 1000);
+    const out = add("b", 1000, 1000);
     settle();
+    expect(out.isSkippedByCulling(state.token)).toBe(true);
 
     state.viewport = undefined;
     expect(walk()).toEqual(["a", "b"]);
+    expect(out.isSkippedByCulling(state.token)).toBe(false);
 
     state.viewport = rect(-10, -10, 2000, 2000);
     expect(walk()).toEqual(["a", "b"]);
@@ -191,6 +219,16 @@ describe("Tree visibility culling", () => {
     expect(settle()).toEqual(["a", "b"]);
   });
 
+  it("does not fall back to a full walk when large offscreen children are a minority", () => {
+    const { add, settle } = setup({ fullWalkShare: 0.75 });
+    for (let i = 0; i < 1000; i++) {
+      add(`out${i}`, 1000 + i * 1024, 1000, 1, i < 400 ? 512 : 10);
+    }
+
+    // Only the 400 large children are candidates, below the default full-walk threshold of 750.
+    expect(settle()).toEqual([]);
+  });
+
   it("marks out-of-view children as skipped for the traversal that skipped them", () => {
     const { root, state, add, settle } = setup();
     const inView = add("in", 10, 10);
@@ -199,8 +237,7 @@ describe("Tree visibility culling", () => {
 
     expect(out.isSkippedByCulling(state.token)).toBe(true);
     expect(out.isSkippedByCulling(state.token - 1)).toBe(false);
-    // Also true for walked children: the parent walked its children in this traversal.
-    expect(inView.isSkippedByCulling(state.token)).toBe(true);
+    expect(inView.isSkippedByCulling(state.token)).toBe(false);
 
     root.remove(out);
     expect(out.isSkippedByCulling(state.token)).toBe(false);

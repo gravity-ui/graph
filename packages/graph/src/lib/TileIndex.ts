@@ -205,7 +205,7 @@ export class TileIndex<T> {
    * It is an upper bound of the query result and a measure of its cost.
    */
   public countCandidates(rect: TTileRect, limit: number): number {
-    let count = this.unbounded.length + this.large.length;
+    let count = this.unbounded.length;
     const visit = (list: TRecord<T>[]): boolean => {
       count += list.length;
       return count > limit;

@@ -1,3 +1,4 @@
+import type { TTileRect } from "./TileIndex";
 import { TTreeCullingOptions, TreeCulling } from "./TreeCulling";
 import { cache } from "./utils";
 
@@ -14,6 +15,8 @@ export class Tree<T extends ITree = ITree> {
   public children: Set<Tree> = new Set();
 
   private childrenArray: Tree[] = [];
+
+  private childrenWalkAllowed = false;
 
   protected childrenDirty = false;
 
@@ -37,7 +40,9 @@ export class Tree<T extends ITree = ITree> {
 
   public zIndex = 1;
 
-  /** World-space bounds reported by the node's data for its parent's culling; NaN when unknown. */
+  private ownBounds?: TTileRect;
+
+  /** World-space bounds of this node and its descendants; NaN when unknown. */
   public boundsMinX = NaN;
 
   public boundsMinY = NaN;
@@ -62,6 +67,7 @@ export class Tree<T extends ITree = ITree> {
     this.childrenDirty = true;
     this.addInZIndex(node);
     this.culling?.add(node);
+    this.updateBounds();
   }
 
   protected addInZIndex(node: Tree) {
@@ -91,6 +97,7 @@ export class Tree<T extends ITree = ITree> {
     this.childrenDirty = true;
     this.removeZIndex(node);
     this.culling?.delete(node);
+    this.updateBounds();
   }
 
   public setChildren(nodes: Tree[]) {
@@ -101,6 +108,7 @@ export class Tree<T extends ITree = ITree> {
       this.addInZIndex(item);
       this.culling?.add(item);
     });
+    this.updateBounds();
   }
 
   /**
@@ -119,13 +127,55 @@ export class Tree<T extends ITree = ITree> {
     this.zIndexChildrenCache.reset();
   }
 
-  /** Reports the world-space bounds this node draws in to the parent's culling. */
+  /** Reports this node's own world-space bounds; culling also includes its descendants. */
   public setBounds(minX: number, minY: number, maxX: number, maxY: number): void {
+    if (!this.ownBounds) this.ownBounds = { minX, minY, maxX, maxY };
+    else {
+      this.ownBounds.minX = minX;
+      this.ownBounds.minY = minY;
+      this.ownBounds.maxX = maxX;
+      this.ownBounds.maxY = maxY;
+    }
+    this.updateBounds();
+  }
+
+  private updateBounds(): void {
+    // Containers without their own bounds are always walked, regardless of their children.
+    if (!this.ownBounds) return;
+    let { minX, minY, maxX, maxY } = this.ownBounds;
+    if (
+      !Number.isFinite(minX) ||
+      !Number.isFinite(minY) ||
+      !Number.isFinite(maxX) ||
+      !Number.isFinite(maxY) ||
+      minX > maxX ||
+      minY > maxY
+    ) {
+      minX = minY = maxX = maxY = NaN;
+    } else {
+      for (const child of this.children) {
+        minX = Math.min(minX, child.boundsMinX);
+        minY = Math.min(minY, child.boundsMinY);
+        maxX = Math.max(maxX, child.boundsMaxX);
+        maxY = Math.max(maxY, child.boundsMaxY);
+      }
+    }
+    if (
+      Object.is(this.boundsMinX, minX) &&
+      Object.is(this.boundsMinY, minY) &&
+      Object.is(this.boundsMaxX, maxX) &&
+      Object.is(this.boundsMaxY, maxY)
+    ) {
+      return;
+    }
     this.boundsMinX = minX;
     this.boundsMinY = minY;
     this.boundsMaxX = maxX;
     this.boundsMaxY = maxY;
-    this.parent?.culling?.update(this);
+    if (this.parent?.children.has(this)) {
+      this.parent.culling?.update(this);
+      this.parent.updateBounds();
+    }
   }
 
   /** Makes every culling ancestor walk the branch with this node in the next traversal. */
@@ -139,15 +189,16 @@ export class Tree<T extends ITree = ITree> {
     }
   }
 
-  /**
-   * Whether the parent's culling chose the children to walk in the traversal identified by
-   * `token` and this node is still a child. A node like that which was not walked was out of view
-   * with nothing to process.
-   */
+  /** Whether this node was skipped by an ancestor's culling in the traversal identified by `token`. */
   public isSkippedByCulling(token: unknown): boolean {
-    const parent = this.parent;
-    if (!parent?.culling) return false;
-    return parent.culling.walkToken === token && parent.children.has(this);
+    let node: Tree = this;
+    while (node.parent) {
+      const parent = node.parent;
+      if (!parent.children.has(node) || !parent.childrenWalkAllowed) return false;
+      if (parent.culling?.isSkipped(node, token)) return true;
+      node = parent;
+    }
+    return false;
   }
 
   public updateZIndex(index: number) {
@@ -179,6 +230,7 @@ export class Tree<T extends ITree = ITree> {
 
     this.zIndexGroups.clear();
     this.zIndexChildrenCache.clear();
+    this.updateBounds();
   }
 
   public traverseDown(iterator: TIterator) {
@@ -195,7 +247,8 @@ export class Tree<T extends ITree = ITree> {
 
   protected _walkDown(iterator: TIterator, order: number) {
     this.renderOrder = order;
-    if (iterator(this)) {
+    this.childrenWalkAllowed = iterator(this);
+    if (this.childrenWalkAllowed) {
       if (!this.children.size) {
         return;
       }

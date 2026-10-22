@@ -114,7 +114,7 @@ export class CoreComponent<
 
   public isIterated(): boolean {
     const iterateId = this.__comp.context.globalIterateId;
-    // A child skipped by its parent's visibility culling was out of view with nothing to process,
+    // A child skipped by an ancestor's visibility culling was out of view with nothing to process,
     // so for this traversal it counts as iterated.
     return this.__comp.iterateId === iterateId || this.__comp.treeNode.isSkippedByCulling(iterateId);
   }
@@ -132,7 +132,7 @@ export class CoreComponent<
     this.__comp.treeNode.setCulling(options && { ...options, getWalkToken: () => this.__comp.context.globalIterateId });
   }
 
-  /** Reports the world-space bounds this component draws in, used by its parent's culling. */
+  /** Reports this component's own bounds; culling also includes its descendants' bounds. */
   protected setCullingBounds(minX: number, minY: number, maxX: number, maxY: number): void {
     this.__comp.treeNode.setBounds(minX, minY, maxX, maxY);
   }

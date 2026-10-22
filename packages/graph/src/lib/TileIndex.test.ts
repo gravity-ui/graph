@@ -116,6 +116,20 @@ describe("TileIndex", () => {
     expect(index.countCandidates(rect(0, 0, 10_000, 10_000), 1)).toBeGreaterThan(1);
   });
 
+  it("counts large and unbounded candidates once each", () => {
+    const index = new TileIndex<string>({ tileSize: 100 });
+    index.set("huge", 0, 0, 1000, 1000);
+    index.set("unknown", NaN, NaN, NaN, NaN);
+    index.set("near", 0, 0, 10, 10);
+    const viewport = rect(100, 100, 110, 110);
+
+    expect(index.countCandidates(viewport, Infinity)).toBe(3);
+    expect(index.countCandidates(viewport, 3)).toBe(3);
+    expect(index.countCandidates(viewport, 1)).toBeGreaterThan(1);
+    expect(collect(index, viewport).sort()).toEqual(["huge", "unknown"]);
+    expect(index.countCandidates(rect(5000, 5000, 5010, 5010), Infinity)).toBe(2);
+  });
+
   it.each([
     { tileSize: 512, maxCellSpan: 2, maxStripSpan: 4 },
     { tileSize: 128, maxCellSpan: 1, maxStripSpan: 1 },

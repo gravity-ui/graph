@@ -48,6 +48,8 @@ export class TreeCulling {
 
   private stamp = 0;
 
+  private didCull = false;
+
   constructor(
     private readonly owner: Tree,
     private readonly options: TTreeCullingOptions
@@ -71,6 +73,11 @@ export class TreeCulling {
   public delete(node: Tree): void {
     this.index.delete(node);
     this.pending.delete(node);
+    // An empty owner skips selection, so it cannot release these references on the next walk.
+    if (!this.index.size) {
+      this.active = [];
+      this.fresh = [];
+    }
   }
 
   /** Walks the child in the next traversal regardless of its bounds. */
@@ -78,11 +85,16 @@ export class TreeCulling {
     this.pending.add(node);
   }
 
+  public isSkipped(node: Tree, token: unknown): boolean {
+    return this.didCull && this.walkToken === token && node.cullingStamp !== this.stamp;
+  }
+
   /**
    * Returns the children to walk in draw order, or `undefined` when every child should be walked.
    * `ordered` is the full draw order; each child's `renderOrder` is its index in it.
    */
   public select(ordered: readonly Tree[]): readonly Tree[] | undefined {
+    this.didCull = false;
     this.walkToken = this.options.getWalkToken?.();
     const viewport = this.options.getViewport();
     // Requests made while the children are walked belong to the next traversal.
@@ -97,6 +109,7 @@ export class TreeCulling {
       return undefined;
     }
 
+    this.didCull = true;
     const owner = this.owner;
     const stamp = ++this.stamp;
     const selected: Tree[] = [];

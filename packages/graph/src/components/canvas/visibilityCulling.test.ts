@@ -2,6 +2,7 @@ import { Graph } from "../../graph";
 import { globalScheduler } from "../../lib/Scheduler";
 import { TBlockId } from "../../store/block/Block";
 
+import { Anchor } from "./anchors";
 import { Block, TBlock } from "./blocks/Block";
 import { BlockConnection } from "./connections/BlockConnection";
 
@@ -112,5 +113,45 @@ describe("Visibility culling of graph components", () => {
 
     expect(connection?.connectionPoints?.[1]).toEqual({ x: 60_000, y: 70_050 });
     expect(view("far").isRendered()).toBe(false);
+  });
+
+  it("draws visible anchors outside their off-screen block's bounds", () => {
+    graph.setEntities({
+      blocks: [
+        {
+          ...block("overflow", 100, -400),
+          anchors: Array.from({ length: 20 }, (_, i) => ({ id: `a${i}`, blockId: "overflow", type: "OUT" })),
+        },
+        block("far", 50_000, 50_000),
+      ],
+      connections: [],
+    });
+    graph.cameraService.set({ x: 0, y: 0, scale: 0.5 });
+    frames(8);
+    const anchor = graph.rootStore.blocksList.getBlockState("overflow")?.getAnchorById("a15")?.getViewComponent();
+    expect(anchor?.getPosition()).toEqual({ x: 200, y: 168 });
+    const arc = jest.spyOn(view("overflow").context.ctx, "arc").mockClear();
+
+    graph.getGraphLayer().performRender();
+    frames(3);
+
+    expect(view("overflow").isRendered()).toBe(false);
+    expect(arc).toHaveBeenCalledWith(200, 168, 9, 0, 2 * Math.PI);
+    expect(graph.getElementOverPoint({ x: 200, y: 168 }, [Anchor])).toBe(anchor);
+  });
+
+  it("keeps point and rectangle queries consistent for anchors in a skipped branch", () => {
+    graph.api.updateBlock({ id: "far", anchors: [{ id: "out", blockId: "far", type: "OUT" }] });
+    frames(5);
+    const anchor = graph.rootStore.blocksList.getBlockState("far")?.getAnchorById("out")?.getViewComponent();
+    expect(anchor).toBeInstanceOf(Anchor);
+    const far = jest.spyOn(view("far"), "iterate");
+
+    graph.getGraphLayer().performRender();
+    frames(3);
+
+    expect(far).not.toHaveBeenCalled();
+    expect(graph.getElementsOverRect({ x: 50_099, y: 50_087, width: 2, height: 2 }, [Anchor])).toContain(anchor);
+    expect(graph.getElementOverPoint({ x: 50_100, y: 50_088 }, [Anchor])).toBe(anchor);
   });
 });

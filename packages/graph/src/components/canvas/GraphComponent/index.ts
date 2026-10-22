@@ -359,7 +359,7 @@ export class GraphComponent<
 
   public setHitBox(minX: number, minY: number, maxX: number, maxY: number, force?: boolean) {
     this.hitBox.update(minX, minY, maxX, maxY, force);
-    // isVisible() checks the hit box, so the parent's culling uses the same rect.
+    // Culling includes this hit box and the bounds reported by descendants.
     if (!this.hitBox.destroyed) this.setCullingBounds(minX, minY, maxX, maxY);
   }
 
