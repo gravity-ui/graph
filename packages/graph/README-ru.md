@@ -218,12 +218,6 @@ graph.start();
 graph.zoomTo("center", { padding: 100 });
 ```
 
-Слои графа позиционируются абсолютно и заполняют корневой элемент. Пока граф подключён, он добавляет
-корню класс `graph-root` (`GRAPH_ROOT_CLASS_NAME`). `@gravity-ui/graph/styles.css` задаёт ему
-`position: relative` в каскадном слое `gravity-graph` с нулевой специфичностью, поэтому корень со
-`static` становится контейнером слоёв, а позиция из ваших стилей вне слоёв или из слоёв,
-объявленных после `gravity-graph`, сохраняется.
-
 ## Демо
 
 - [Базовый пример](https://preview.gravity-ui.com/graph/?path=/story/stories-main-grapheditor--hundred-blocks)
