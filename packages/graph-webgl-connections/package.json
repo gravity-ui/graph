@@ -1,0 +1,56 @@
+{
+  "name": "@gravity-ui/graph-webgl-connections",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "description": "WebGL2 connections layer for Gravity UI Graph",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gravity-ui/graph",
+    "directory": "packages/graph-webgl-connections"
+  },
+  "main": "build/index.js",
+  "module": "build/index.js",
+  "types": "build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "import": "./build/index.js",
+      "default": "./build/index.js"
+    }
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint \"src/**/*.ts\"",
+    "prepublishOnly": "pnpm run build && pnpm run typecheck",
+    "test:unit": "jest --passWithNoTests",
+    "test": "pnpm run test:unit"
+  },
+  "peerDependencies": {
+    "@gravity-ui/graph": "workspace:^"
+  },
+  "dependencies": {
+    "@preact/signals-core": "^1.12.2",
+    "rbush": "^3.0.1"
+  },
+  "devDependencies": {
+    "@gravity-ui/eslint-config": "^4.3.2",
+    "@swc/core": "^1.13.3",
+    "@swc/jest": "^0.2.39",
+    "@types/jest": "^30.0.0",
+    "@types/rbush": "^3.0.0",
+    "eslint": "^9.39.5",
+    "globals": "^16.5.0",
+    "jest": "^30.0.5",
+    "jest-canvas-mock": "^2.5.2",
+    "jest-environment-jsdom": "^30.0.5",
+    "prettier": "^3.0.0",
+    "typescript": "catalog:"
+  }
+}
