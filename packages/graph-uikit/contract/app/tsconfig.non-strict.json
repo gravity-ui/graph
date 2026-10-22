@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": false
+  },
+  "include": ["app.tsx", "third-party.d.ts", "../../../../scripts/package-contract/shared/assets.d.ts"]
+}
