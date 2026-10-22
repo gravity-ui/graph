@@ -99,6 +99,21 @@
   overflow: hidden;
 }
 
+.custom-variable-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #333;
+  font-family: monospace;
+}
+
+.custom-variable-swatch {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
 /* Light theme CSS variables */
 .graph-theme-light {
   --graph-canvas-background: #ffffff;

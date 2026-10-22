@@ -2,12 +2,17 @@ import React, { useState } from "react";
 
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
+import type { TGroup, TGroupGeometry } from "../../../components/canvas/groups";
+import { BlockGroups, Group } from "../../../components/canvas/groups";
 import { Graph, GraphState } from "../../../graph";
 import type { TBlock } from "../../../index";
+import type { CSSVariableChange } from "../../../plugins/cssVariables";
 import { CSSVariablesLayer } from "../../../plugins/cssVariables";
 import { GraphCanvas, useGraphEvent } from "../../../react-components";
 import { useGraph, useLayer } from "../../../react-components/hooks";
+import type { LayerPublicProps } from "../../../services/Layer";
 import { generatePrettyBlocks } from "../../../stories/configurations/generatePretty";
+import { getBlocksRect } from "../../../utils/functions";
 import { BlockStory } from "../../main/Block";
 
 import "./cssVariables.stories.css";
@@ -239,6 +244,123 @@ This demonstrates how to:
 
 Check the console to see debug output when variables change!
         `,
+      },
+    },
+  },
+};
+
+const CUSTOM_CSS_VARIABLES = ["--custom-highlight"];
+
+type HighlightGroupData = TGroup & { color: string };
+
+class HighlightGroup extends Group<HighlightGroupData> {
+  protected geometry: TGroupGeometry = { padding: [60, 60, 60, 60] };
+
+  protected override render() {
+    this.style = {
+      ...this.style,
+      background: this.state.color,
+      border: this.state.color,
+      selectedBackground: this.state.color,
+      selectedBorder: this.state.color,
+    };
+    super.render();
+  }
+}
+
+const CUSTOM_GROUPS_LAYER_PROPS: LayerPublicProps<typeof BlockGroups> = {
+  draggable: false,
+  groupComponent: HighlightGroup,
+};
+
+function CustomVariablesExample() {
+  const [highlight, setHighlight] = useState("#7c3aed");
+  const [lastChange, setLastChange] = useState<CSSVariableChange | null>(null);
+  const { graph, setEntities, start } = useGraph({
+    layers: [[BlockGroups, CUSTOM_GROUPS_LAYER_PROPS]],
+    settings: {
+      canDragCamera: true,
+      canZoomCamera: true,
+    },
+  });
+  const groupsLayer = React.useMemo(
+    () => graph.layers.getLayers().find((layer) => layer instanceof BlockGroups),
+    [graph]
+  );
+
+  const handleChange = React.useCallback(
+    (changes: CSSVariableChange[]) => {
+      const change = changes.find(({ name }) => name === "--custom-highlight");
+      if (!change) return;
+
+      setLastChange(change);
+
+      groupsLayer?.updateGroups<HighlightGroupData>([
+        {
+          id: "custom-highlight-group",
+          rect: getBlocksRect(SAMPLE_BLOCKS.blocks.slice(1, 3)),
+          color: change.value,
+        },
+      ]);
+    },
+    [groupsLayer]
+  );
+
+  useLayer(graph, CSSVariablesLayer, {
+    containerClass: "custom-variables-observer",
+    additionalCSSVariables: CUSTOM_CSS_VARIABLES,
+    onChange: handleChange,
+  });
+
+  useGraphEvent(graph, "state-change", ({ state }) => {
+    if (state === GraphState.ATTACHED) {
+      setEntities({ blocks: SAMPLE_BLOCKS.blocks, connections: SAMPLE_BLOCKS.connections });
+      start();
+      graph.zoomTo("center", { padding: 300 });
+    }
+  });
+
+  const renderBlock = React.useCallback((graphObject: Graph, block: TBlock) => {
+    return <BlockStory graph={graphObject} block={block} />;
+  }, []);
+
+  return (
+    <div className="css-variables-story" style={{ "--custom-highlight": highlight } as React.CSSProperties}>
+      <div className="controls">
+        <div className="control-group">
+          <label htmlFor="custom-highlight">Custom highlight:</label>
+          <input
+            id="custom-highlight"
+            type="color"
+            value={highlight}
+            onChange={(event) => setHighlight(event.target.value)}
+          />
+        </div>
+        <div className="info">
+          <h3>Custom CSS variables</h3>
+          <p>
+            <code>--custom-highlight</code> is passed through <code>additionalCSSVariables</code>. Change the color to
+            trigger <code>onChange</code> and recolor the group around the second column of blocks.
+          </p>
+          <p>The callback updates the existing group's color and the preview below.</p>
+          <output className="custom-variable-preview" aria-live="polite">
+            <span className="custom-variable-swatch" style={{ backgroundColor: lastChange?.value }} />
+            {lastChange ? `${lastChange.oldValue || "(initial)"} → ${lastChange.value}` : "Waiting for initial value…"}
+          </output>
+        </div>
+      </div>
+      <GraphCanvas className="graph-container graph-theme-light" graph={graph} renderBlock={renderBlock} />
+    </div>
+  );
+}
+
+export const CustomVariables: Story = {
+  render: () => <CustomVariablesExample />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Pass custom CSS variable names through additionalCSSVariables to receive their initial values and subsequent changes in onChange. Use the color picker to update --custom-highlight: onChange calls updateGroups to update the color in group state while preserving the group component, without adding graph mappings.",
       },
     },
   },
