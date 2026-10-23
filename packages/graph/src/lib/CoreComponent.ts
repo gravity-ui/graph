@@ -124,7 +124,7 @@ export class CoreComponent<
     );
   }
 
-  /** Whether this node's own bounds are visible in the current tree frame. */
+  /** Whether this node's own bounds intersect its tree's viewport. */
   public isInViewport(): boolean {
     return this.__comp.treeNode.isVisible();
   }

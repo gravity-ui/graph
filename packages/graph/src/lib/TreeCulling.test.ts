@@ -142,6 +142,41 @@ describe("Tree native spatial scope", () => {
     expect(walk().drawn).toEqual(["root", "out"]);
   });
 
+  it("reads live visibility in update hooks without publishing intermediate transitions", () => {
+    const { state, add, walk } = setup();
+    const node = add("node", 300);
+    walk();
+    const visibility: boolean[] = [];
+    node.data.prepareUpdate = () => {
+      visibility.push(node.isVisible());
+      node.setBounds(2000, 2000, 2010, 2010);
+      visibility.push(node.isVisible());
+      node.setBounds(300, 300, 310, 310);
+      return true;
+    };
+    state.viewport = rect(250, 250, 100);
+
+    const result = walk();
+    expect(visibility).toEqual([true, false]);
+    expect(result.events.filter((event) => event.startsWith("visible:node:"))).toEqual(["visible:node:true"]);
+    expect(result.events.indexOf("visible:node:true")).toBeLessThan(result.events.indexOf("draw:root"));
+    expect(result.drawn).toEqual(["root", "node"]);
+  });
+
+  it("resumes live visibility reads after a paint callback throws", () => {
+    const { state, add, walk } = setup();
+    const node = add("node", 10);
+    node.data.iterate = () => {
+      throw new Error("paint failed");
+    };
+    expect(walk).toThrow("paint failed");
+
+    state.viewport = rect(250, 250, 100);
+    expect(node.isVisible()).toBe(false);
+    node.setBounds(300, 300, 310, 310);
+    expect(node.isVisible()).toBe(true);
+  });
+
   it("prepares and paints everything when the viewport is disabled", () => {
     const { state, add, walk } = setup();
     const parent = add("parent", 1000);
@@ -170,6 +205,21 @@ describe("Tree native spatial scope", () => {
     const result = walk();
     expect(result.prepared).toEqual(["root"]);
     expect(result.visited).toEqual(["root", "parent"]);
+  });
+
+  it("keeps a suppressed descendant invisible to update hooks after a full-viewport traversal", () => {
+    const { root, add, walk } = setup();
+    const parent = add("parent", 10);
+    const child = add("child", 20, parent);
+    parent.data.prepareUpdate = () => false;
+    walk();
+    const observed: boolean[] = [];
+    root.data.prepareUpdate = () => {
+      observed.push(child.isVisible());
+      return true;
+    };
+    walk();
+    expect(observed).toEqual([false]);
   });
 
   it("keeps a configured root when attached below an unscoped tree", () => {

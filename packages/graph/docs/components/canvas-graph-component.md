@@ -105,6 +105,22 @@ connection endpoints. Use `firstIterate` for initialization; `firstRender` stays
 component is actually painted. `EXP_VISIBILITY_CULLING = false` enables a full traversal while
 retaining the same viewport paint gate.
 
+`isVisible()` reads the current viewport and bounds during update hooks and between frames. A custom
+`willIterate()` can therefore refresh deferred external state on the first frame that returns to the
+viewport. During painting, components and batches use the finalized Tree selection.
+
+For a custom paint condition, assign `shouldRender` after `super.willIterate()`. This flag controls
+permission to paint; use `isVisible()` to query spatial visibility. The final paint gate also checks
+geometry updated later in the preparation phase. A `shouldRender = false` set during `willMount()`
+is preserved for the first frame.
+
+```typescript
+protected override willIterate(): void {
+  super.willIterate();
+  this.shouldRender = this.hasContentToDraw();
+}
+```
+
 **Visualization of the process:**
 ```
 ┌────────────────────┐

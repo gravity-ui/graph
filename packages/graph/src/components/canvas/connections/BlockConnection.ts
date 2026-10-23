@@ -44,6 +44,8 @@ export class BlockConnection<T extends TConnection>
 
   protected labelGeometry: { x: number; y: number; width: number; height: number } | undefined = undefined;
 
+  private labelPaintGeometry: typeof this.labelGeometry;
+
   private labelFont = "";
 
   private unsubscribeLabelFontSize?: () => void;
@@ -399,12 +401,12 @@ export class BlockConnection<T extends TConnection>
   }
 
   protected renderLabelText(ctx: CanvasRenderingContext2D) {
-    if (!this.state.label || !this.labelGeometry) {
+    if (!this.state.label || !this.labelPaintGeometry) {
       return;
     }
 
     const [labelInnerTopPadding, , , labelInnerLeftPadding] = this.context.constants.connection.LABEL.INNER_PADDINGS;
-    const { x: rectX, y: rectY, width: rectWidth, height: rectHeight } = this.labelGeometry;
+    const { x: rectX, y: rectY, width: rectWidth, height: rectHeight } = this.labelPaintGeometry;
 
     if (this.context.colors.connectionLabel?.background) {
       ctx.fillStyle = this.context.colors.connectionLabel.background;
@@ -440,6 +442,7 @@ export class BlockConnection<T extends TConnection>
 
   protected updateLabelGeometry(props: TConnectionProps): void {
     this.labelGeometry = undefined;
+    this.labelPaintGeometry = undefined;
     const fontSize = this.context.connectionLabelFontSize.peek();
     if (!this.state.label || !props.showConnectionLabels || !this.connectionPoints || !fontSize) {
       return;
@@ -459,7 +462,9 @@ export class BlockConnection<T extends TConnection>
       height,
       this.context.constants.system.GRID_SIZE
     );
-    this.labelGeometry = { x, y, width, height };
+    this.labelPaintGeometry = { x, y, width, height };
+    // Subclasses may extend labelGeometry for their own decoration without resizing the standard label.
+    this.labelGeometry = { ...this.labelPaintGeometry };
   }
 
   public getStrokeColor(state: TConnection) {

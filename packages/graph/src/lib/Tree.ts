@@ -153,10 +153,10 @@ export class Tree<T extends ITree = ITree> {
   /** Own bounds intersect the current exact viewport and ancestors allow traversal. */
   public isVisible(): boolean {
     const scope = this.scope;
-    return (
-      !scope ||
-      (this.visible && ((scope.walking && scope.fullVisibilityRevision === scope.revision) || this.isEligible(scope)))
-    );
+    if (!scope) return true;
+    // Update hooks need current geometry; painting shares the finalized batch selection.
+    const visible = scope.painting ? this.visible : scope.intersects(this, scope.options.getViewport());
+    return visible && ((scope.painting && scope.fullVisibilityRevision === scope.revision) || this.isEligible(scope));
   }
 
   public isSkippedByCulling(token: unknown): boolean {
@@ -168,7 +168,8 @@ export class Tree<T extends ITree = ITree> {
   public isTraversalAllowed(): boolean {
     const scope = this.scope;
     if (scope?.walking) {
-      if (this.visible && this !== scope.owner && scope.fullVisibilityRevision === scope.revision) return true;
+      if (scope.painting && this.visible && this !== scope.owner && scope.fullVisibilityRevision === scope.revision)
+        return true;
       if (this.eligibilityRevision !== scope.revision) {
         const parent = this.parent;
         this.traversalAllowed =
@@ -238,7 +239,9 @@ export class Tree<T extends ITree = ITree> {
 
   private walkScope(iterator: TIterator, scope: TreeCulling): void {
     const wasWalking = scope.walking;
+    const wasPainting = scope.painting;
     scope.walking = true;
+    scope.painting = false;
     scope.stamp = ++Tree.walkStamp;
     // An ancestor outside this scope can change its traversal permission independently.
     if (this.parent) scope.revision++;
@@ -246,6 +249,7 @@ export class Tree<T extends ITree = ITree> {
       this.prepareAndWalk(iterator, scope);
     } finally {
       scope.walking = wasWalking;
+      scope.painting = wasPainting;
     }
   }
 
@@ -339,6 +343,7 @@ export class Tree<T extends ITree = ITree> {
       active.delete(this);
       if (fullyVisible && scope.revision === visibilityRevision) scope.fullVisibilityRevision = visibilityRevision;
     }
+    scope.painting = true;
     this.walkPrepared(iterator, scope, prepared, fullWalk);
   }
 

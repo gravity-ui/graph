@@ -363,9 +363,15 @@ export class GraphComponent<
     if (!this.hitBox.destroyed) this.setCullingBounds(minX, minY, maxX, maxY);
   }
 
+  protected override willIterate(): void {
+    super.willIterate();
+    if (!this.firstIterate) this.shouldRender = true;
+  }
+
   public override iterate(): boolean {
     if (!this.updatePrepared) this.prepareUpdate();
-    this.shouldRender = this.isVisible();
+    // Preserve a subclass's paint veto; geometry may still change after its update hook.
+    this.shouldRender = this.shouldRender && this.isVisible();
     return super.iterate();
   }
 

@@ -32,6 +32,8 @@ export class TreeCulling {
 
   public walking = false;
 
+  public painting = false;
+
   public fullVisibilityRevision = -1;
 
   public fullPreparation?: { revision: number; nodes: Tree[] };
