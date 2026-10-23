@@ -237,6 +237,10 @@ export class BaseConnection<
   protected updatePoints(additionalPoints?: TPoint[], props: Props = this.props): void {
     const geometry = this.connectedState.$geometry.value;
     this.connectionPoints = geometry ? [{ ...geometry[0] }, { ...geometry[1] }] : undefined;
+    this.updateBounds(additionalPoints, props);
+  }
+
+  protected updateBounds(additionalPoints?: TPoint[], props: Props = this.props): void {
     if (!this.isEntityAvailable() || !this.hasGeometry()) {
       this.bBox = [0, 0, 0, 0];
       this.removeHitBox();

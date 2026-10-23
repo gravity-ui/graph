@@ -1,9 +1,10 @@
-import { ReadonlySignal, computed } from "@preact/signals-core";
+import { ReadonlySignal, computed, signal } from "@preact/signals-core";
 
 import { Component, TComponentState } from "../../../lib/Component";
 import { CoreComponentProps } from "../../../lib/CoreComponent";
 import { ESchedulerPriority } from "../../../lib/Scheduler";
 import { ConnectionState } from "../../../store/connection/ConnectionState";
+import { getFontSize } from "../../../utils/functions/text";
 import { debounce } from "../../../utils/utils/schedule";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
@@ -12,7 +13,7 @@ import { BlockConnection, TConnectionProps } from "./BlockConnection";
 
 export type TGraphConnectionsContext = TGraphLayerContext & {
   batch: BatchPath2DRenderer;
-  connectionLabelScale: ReadonlySignal<number>;
+  connectionLabelFontSize: ReadonlySignal<number>;
 };
 
 export class BlockConnections extends Component<CoreComponentProps, TComponentState, TGraphConnectionsContext> {
@@ -23,6 +24,8 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
   protected readonly unsubscribe: (() => void)[];
 
   protected batch: BatchPath2DRenderer;
+
+  private readonly connectionLabelFontSize = signal(0);
 
   /**
    * Debounced update to batch multiple changes into a single render cycle.
@@ -48,12 +51,20 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
     this.unsubscribe = this.subscribe();
     this.setContext({
       batch: this.batch,
-      connectionLabelScale: computed(() => this.context.graph.$camera.value.scale),
+      connectionLabelFontSize: this.connectionLabelFontSize,
     });
   }
 
   protected subscribe() {
     return [
+      computed(() => {
+        const scale = this.context.graph.$camera.value.scale;
+        const threshold = this.context.graph.$graphConstants.value.connection.MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL;
+        return scale < threshold ? 0 : Math.max(14, getFontSize(9, scale));
+      }).subscribe((fontSize) => {
+        // An eager signal stops unchanged camera updates before they reach individual connections.
+        this.connectionLabelFontSize.value = fontSize;
+      }),
       this.context.graph.rootStore.settings.$connectionsSettings.subscribe(() => {
         this.scheduleUpdate();
       }),

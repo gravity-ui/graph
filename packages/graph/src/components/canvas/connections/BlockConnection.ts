@@ -4,7 +4,6 @@ import { HitBoxData } from "../../../services/HitTest";
 import { ESelectionStrategy } from "../../../services/selection/types";
 import { TConnection } from "../../../store/connection/ConnectionState";
 import { isMetaKeyEvent } from "../../../utils/functions";
-import { getFontSize } from "../../../utils/functions/text";
 import { cachedMeasureText } from "../../../utils/renderers/text";
 import { TPoint } from "../../../utils/types/shapes";
 
@@ -46,6 +45,8 @@ export class BlockConnection<T extends TConnection>
   protected labelGeometry: { x: number; y: number; width: number; height: number } | undefined = undefined;
 
   private labelFont = "";
+
+  private unsubscribeLabelFontSize?: () => void;
 
   protected geometry: { x1: number; x2: number; y1: number; y2: number } = { x1: 0, x2: 0, y1: 0, y2: 0 };
 
@@ -99,9 +100,24 @@ export class BlockConnection<T extends TConnection>
   protected override willMount(): void {
     super.willMount();
     this.subscribeSignal(this.connectedState.$hidden, () => this.applyShape());
-    this.subscribeSignal(this.context.connectionLabelScale, () => {
-      if (this.state.label && this.props.showConnectionLabels) this.updatePoints();
-    });
+    this.syncLabelSubscription();
+  }
+
+  private syncLabelSubscription(): void {
+    if (!this.state.label || !this.props.showConnectionLabels) {
+      this.unsubscribeLabelFontSize?.();
+      this.unsubscribeLabelFontSize = undefined;
+    } else if (!this.unsubscribeLabelFontSize) {
+      const fontSize = this.context.connectionLabelFontSize;
+      let previous = fontSize.peek();
+      this.unsubscribeLabelFontSize = fontSize.subscribe((next) => {
+        if (previous === next) return;
+        previous = next;
+        // Offscreen labels can grow into the viewport; keep their bounds current without rebuilding paths.
+        this.updateBounds();
+        this.updateCullingBounds();
+      });
+    }
   }
 
   protected override setVisibility(visible: boolean, options: { removeHitbox: boolean }): void {
@@ -252,7 +268,10 @@ export class BlockConnection<T extends TConnection>
 
   protected override checkData(): boolean {
     const changed = super.checkData();
-    if (changed) this.updatePoints();
+    if (changed) {
+      this.updatePoints();
+      this.syncLabelSubscription();
+    }
     return changed;
   }
 
@@ -309,6 +328,11 @@ export class BlockConnection<T extends TConnection>
     }
 
     this.generatePath();
+    this.updateCullingBounds(props);
+    this.applyShape(this.state, props);
+  }
+
+  private updateCullingBounds(props: TConnectionProps = this.props): void {
     if (this.hasGeometry()) {
       const padding = this.state.hovered || this.state.selected ? 2 : 1;
       const [left, top, right, bottom] = this.getBBox();
@@ -328,7 +352,6 @@ export class BlockConnection<T extends TConnection>
       }
       this.setCullingBounds(minX, minY, maxX, maxY);
     }
-    this.applyShape(this.state, props);
   }
 
   protected override handleEvent(event: MouseEvent) {
@@ -417,17 +440,12 @@ export class BlockConnection<T extends TConnection>
 
   protected updateLabelGeometry(props: TConnectionProps): void {
     this.labelGeometry = undefined;
-    const scale = this.context.camera.getCameraScale();
-    if (
-      !this.state.label ||
-      !props.showConnectionLabels ||
-      !this.connectionPoints ||
-      scale < this.context.constants.connection.MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL
-    ) {
+    const fontSize = this.context.connectionLabelFontSize.peek();
+    if (!this.state.label || !props.showConnectionLabels || !this.connectionPoints || !fontSize) {
       return;
     }
     const [top, right, bottom, left] = this.context.constants.connection.LABEL.INNER_PADDINGS;
-    this.labelFont = `${Math.max(14, getFontSize(9, scale))}px sans-serif`;
+    this.labelFont = `${fontSize}px sans-serif`;
     const measure = cachedMeasureText(this.state.label, { font: this.labelFont });
     const width = measure.width + left + right;
     const height = measure.height + top + bottom;
@@ -451,6 +469,8 @@ export class BlockConnection<T extends TConnection>
   }
 
   protected unmount(): void {
+    this.unsubscribeLabelFontSize?.();
+    this.unsubscribeLabelFontSize = undefined;
     super.unmount();
     this.context.batch.delete(this);
     this.context.batch.delete(this.arrowShape);
