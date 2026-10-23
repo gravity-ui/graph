@@ -70,6 +70,10 @@ const meta: Meta<typeof GraphApp> = {
       control: "boolean",
       description: "Render connection's label",
     },
+    EXP_VISIBILITY_CULLING: {
+      control: "boolean",
+      description: "Walk only blocks, connections and groups near the viewport (tile index)",
+    },
   },
   args: {
     useBezierConnections: true,
@@ -79,6 +83,7 @@ const meta: Meta<typeof GraphApp> = {
     canDrag: ECanDrag.ALL,
     scaleFontSize: 1,
     showConnectionArrows: true,
+    EXP_VISIBILITY_CULLING: true,
   },
 };
 

@@ -382,6 +382,60 @@ class CustomPathConnection extends BlockConnection {
 }
 ```
 
+### Custom Labels and Badges
+
+Prepare custom label bounds in `updateLabelGeometry()`, then draw in `renderLabelText()`. Call `super.updateLabelGeometry(props)` first to obtain the standard label's current position and size, including zoom and label visibility. This example adds a square status badge before the text:
+
+```typescript
+import { BlockConnection, type TConnection, type TConnectionProps, type TRect } from "@gravity-ui/graph";
+
+function getBadgeBounds(label: TRect): TRect {
+  return { x: label.x - label.height - 4, y: label.y, width: label.height, height: label.height };
+}
+
+class BadgeConnection extends BlockConnection<TConnection> {
+  private badgeGeometry?: TRect;
+
+  protected override updateLabelGeometry(props: TConnectionProps): void {
+    super.updateLabelGeometry(props);
+    const label = this.labelGeometry;
+    this.badgeGeometry = label ? getBadgeBounds(label) : undefined;
+    if (!label || !this.badgeGeometry) return;
+
+    this.labelGeometry = {
+      ...label,
+      x: this.badgeGeometry.x,
+      width: label.x + label.width - this.badgeGeometry.x,
+    };
+  }
+
+  protected override renderLabelText(ctx: CanvasRenderingContext2D): void {
+    if (this.badgeGeometry) {
+      const { x, y, width, height } = this.badgeGeometry;
+      ctx.save();
+      ctx.fillStyle = "#4285f4";
+      ctx.fillRect(x, y, width, height);
+      ctx.restore();
+    }
+    super.renderLabelText(ctx);
+  }
+}
+
+graph.updateSettings({ connection: BadgeConnection, showConnectionLabels: true });
+// Both the badge and text follow this setting and the standard zoom threshold.
+graph.updateSettings({ showConnectionLabels: false });
+graph.updateSettings({ showConnectionLabels: true });
+```
+
+The protected `labelGeometry` describes the combined bounds for culling and hit testing. The base class keeps its own cached paint rectangle, so `super.renderLabelText()` draws only the standard label and does not paint over the badge. Preparing the combined bounds before painting makes them available in the same frame, including when only the badge intersects the viewport.
+
+Existing overrides that calculate decoration bounds only inside `renderLabelText()` can still draw their decoration, but cannot make an initially offscreen connection visible through that decoration alone: viewport selection has already happened. Move that calculation to `updateLabelGeometry()` as above; the hook also clears stale decoration geometry when labels are disabled or hidden by zoom.
+
+Apply custom visibility conditions in that hook as well. For a label shown only while the connection
+is selected, call `super.updateLabelGeometry(props)` and clear `this.labelGeometry` when
+`this.state.selected` is false. This keeps viewport selection and hit testing consistent with painting
+as selection changes, including when the line itself is outside the viewport.
+
 ### Custom Connection with Special Rendering
 
 Example of a connection with custom visual elements:

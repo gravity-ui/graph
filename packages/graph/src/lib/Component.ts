@@ -148,21 +148,27 @@ export class Component<
     // noop
   }
 
-  public iterate() {
-    super.iterate();
-
+  public override prepareUpdate(): boolean {
+    if (this.updatePrepared) return this.shouldRenderChildren;
+    super.prepareUpdate();
     this.checkData();
     this.willIterate();
-
-    if (this.shouldRender) {
-      this.renderLifeCycle();
-    } else {
-      this.willNotRender();
-    }
 
     if (this.shouldUpdateChildren) {
       this.shouldUpdateChildren = false;
       this.childrenLifeCycle();
+    }
+    return this.shouldRenderChildren;
+  }
+
+  public iterate() {
+    if (!this.updatePrepared) this.prepareUpdate();
+    super.iterate();
+
+    if (this.shouldRender && this.isInViewport()) {
+      this.renderLifeCycle();
+    } else {
+      this.willNotRender();
     }
 
     this.didIterate();

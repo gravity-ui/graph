@@ -6,49 +6,165 @@ export type Path2DRenderStyleResult =
   | { type: "both"; fillRule?: CanvasFillRule };
 
 export interface Path2DRenderInstance {
+  /** Cached until update/markDirty; viewport changes only refresh visibility. */
   getPath(): Path2D | undefined | null;
+  /** World-space locality hint only; visibility is always decided by isPathVisible. */
+  getPathBounds?(): readonly [number, number, number, number] | undefined;
   style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined;
   afterRender?(ctx: CanvasRenderingContext2D): void;
   isPathVisible?(): boolean;
 }
 
-class Path2DChunk {
-  protected items: Set<Path2DRenderInstance> = new Set();
+interface PathRecord {
+  item: Path2DRenderInstance;
+  path?: Path2D;
+  ready: boolean;
+  visible: boolean;
+  cell?: SpatialPath;
+}
 
-  protected visibleItems = cache(() => {
-    return Array.from(this.items).filter((item) => item.isPathVisible?.() ?? true);
-  });
-
-  protected path = cache(() => {
-    const path = new Path2D();
-    path.moveTo(0, 0);
-    // Use already filtered visibleItems - no need for additional visibility checks
-    for (const item of this.visibleItems.get()) {
-      const subPath = item.getPath();
-      if (subPath) {
-        path.addPath(subPath);
+class SpatialPath {
+  public records = new Set<PathRecord>();
+  public path = cache(() => {
+    let path: Path2D | undefined;
+    for (const record of this.records) {
+      if (record.visible && record.path) {
+        path ??= new Path2D();
+        path.addPath(record.path);
       }
     }
     return path;
   });
+}
 
-  protected applyStyles(ctx: CanvasRenderingContext2D) {
-    // Style comes from first visible item
-    const first = this.visibleItems.get()[0];
-    return first?.style(ctx);
+function getCenter(item: Path2DRenderInstance): [number, number] | undefined {
+  const bounds = item.getPathBounds?.();
+  if (!bounds || !bounds.every(Number.isFinite) || bounds[0] > bounds[2] || bounds[1] > bounds[3]) return undefined;
+  return [bounds[0] / 2 + bounds[2] / 2, bounds[1] / 2 + bounds[3] / 2];
+}
+
+class Path2DChunk {
+  protected items = new Map<Path2DRenderInstance, PathRecord>();
+  private spatial = false;
+  private pathBuilt = false;
+  private cells?: Map<number, SpatialPath>;
+  private extent = [0, 0, 0, 0];
+
+  protected visibleItems = cache(() => {
+    const visible: PathRecord[] = [];
+    for (const record of this.items.values()) {
+      const next = record.item.isPathVisible?.() ?? true;
+      if (record.visible !== next) record.cell?.path.reset();
+      record.visible = next;
+      if (record.visible) visible.push(record);
+    }
+    return visible;
+  });
+
+  protected path = cache(() => {
+    const visible = this.visibleItems.get();
+    // Run custom hooks in registration order, copying mutable paths immediately.
+    for (const record of visible) {
+      if (!record.ready) {
+        const source = record.item.getPath();
+        record.path = source ? new Path2D(source) : undefined;
+        record.ready = true;
+        if (this.cells) this.place(record, getCenter(record.item), this.cells);
+      }
+    }
+    const path = new Path2D();
+    path.moveTo(0, 0);
+    if (this.spatial) {
+      const cells = this.cells ?? this.partition();
+      for (const cell of cells.values()) {
+        const subPath = cell.path.get();
+        if (subPath) path.addPath(subPath);
+      }
+    } else {
+      for (const record of visible) {
+        if (record.path) path.addPath(record.path);
+      }
+    }
+    this.pathBuilt = true;
+    return path;
+  });
+
+  private partition() {
+    const centers = Array.from(this.items.values(), ({ item }) => getCenter(item));
+    const extent = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const center of centers) {
+      if (!center) continue;
+      extent[0] = Math.min(extent[0], center[0]);
+      extent[1] = Math.min(extent[1], center[1]);
+      extent[2] = Math.max(extent[2], center[0]);
+      extent[3] = Math.max(extent[3], center[1]);
+    }
+    this.extent = extent;
+    const cells = new Map<number, SpatialPath>();
+    this.cells = cells;
+    let index = 0;
+    for (const record of this.items.values()) this.place(record, centers[index++], cells);
+    return cells;
+  }
+
+  private place(record: PathRecord, center: [number, number] | undefined, cells: Map<number, SpatialPath>) {
+    let key = -1;
+    if (center) {
+      const coordinate = (axis: number) => {
+        // Halving first avoids overflow for valid, very large world coordinates.
+        const min = this.extent[axis] / 2;
+        const span = this.extent[axis + 2] / 2 - min;
+        return span > 0 ? Math.max(0, Math.min(3, Math.floor(((center[axis] / 2 - min) / span) * 4))) : 0;
+      };
+      key = coordinate(0) + 4 * coordinate(1);
+    }
+    let cell = cells.get(key);
+    if (!cell) {
+      cell = new SpatialPath();
+      cells.set(key, cell);
+    }
+    if (record.cell !== cell) {
+      record.cell?.records.delete(record);
+      record.cell?.path.reset();
+      cell.records.add(record);
+      cell.path.reset();
+      record.cell = cell;
+    }
+  }
+
+  private resetMembership() {
+    if (this.cells) {
+      this.cells = undefined;
+      for (const record of this.items.values()) record.cell = undefined;
+    }
+    this.reset();
   }
 
   public add(item: Path2DRenderInstance) {
-    this.items.add(item);
-    this.reset();
+    this.items.set(item, { item, ready: false, visible: false });
+    this.resetMembership();
   }
 
   public delete(item: Path2DRenderInstance) {
     this.items.delete(item);
+    this.resetMembership();
+  }
+
+  public resetItem(item: Path2DRenderInstance, geometry: boolean) {
+    const record = this.items.get(item);
+    if (!record) return;
+    if (geometry) {
+      record.ready = false;
+      record.path = undefined;
+    } else if (this.pathBuilt && this.items.size > 16) {
+      // Full overview stays flat; spatial caches pay for themselves on viewport changes.
+      this.spatial = true;
+    }
+    record.cell?.path.reset();
     this.reset();
   }
 
-  public reset() {
+  private reset() {
     this.path.reset();
     this.visibleItems.reset();
   }
@@ -58,11 +174,11 @@ class Path2DChunk {
     if (!vis.length) return;
 
     ctx.save();
-    const style = this.applyStyles(ctx);
+    const style = vis[0].item.style(ctx);
     if (style) {
       const p = this.path.get();
       if (style.type === "fill" || style.type === "both") {
-        ctx.fill(p, style.fillRule);
+        ctx.fill(p, style.fillRule ?? "nonzero");
       }
       if (style.type === "stroke" || style.type === "both") {
         ctx.stroke(p);
@@ -70,8 +186,8 @@ class Path2DChunk {
     }
     ctx.restore();
 
-    for (const item of vis) {
-      item.afterRender?.(ctx);
+    for (const record of vis) {
+      record.item.afterRender?.(ctx);
     }
   }
 
@@ -112,9 +228,9 @@ class Path2DGroup {
     }
   }
 
-  public resetItem(item: Path2DRenderInstance) {
+  public resetItem(item: Path2DRenderInstance, geometry: boolean) {
     const chunk = this.itemToChunk.get(item);
-    chunk?.reset();
+    chunk?.resetItem(item, geometry);
   }
 
   public render(ctx: CanvasRenderingContext2D) {
@@ -207,9 +323,17 @@ export class BatchPath2DRenderer {
   public markDirty(item: Path2DRenderInstance) {
     const params = this.itemParams.get(item);
     if (params) {
-      const group = this.getGroup(params.zIndex, params.group);
-      group.resetItem(item);
+      this.getGroup(params.zIndex, params.group).resetItem(item, true);
       this.requestRender();
+    }
+  }
+
+  /** Visibility is finalized during the current traversal, before this batch draws. */
+  public invalidateVisibility(item: Path2DRenderInstance) {
+    const params = this.itemParams.get(item);
+    if (params) {
+      const group = this.getGroup(params.zIndex, params.group);
+      group.resetItem(item, false);
     }
   }
 }

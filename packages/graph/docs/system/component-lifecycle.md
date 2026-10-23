@@ -40,11 +40,12 @@ required state in the constructor, as in the [basic example](#basic-component).
 
 ### 2. CoreComponent Lifecycle
 
-The CoreComponent provides the foundation with three main methods:
+The CoreComponent provides the foundation with four main methods:
 
 | Method | Purpose | When Called |
 |--------|---------|-------------|
-| `iterate()` | Manages the update cycle | Each frame |
+| `prepareUpdate()` | Prepares data and children before viewport selection | For visible, new, or dirty components |
+| `iterate()` | Completes the update and paints eligible components | After preparation |
 | `updateChildren()` | Defines and updates child components | During children update |
 | `render()` | Handles visual rendering | During render phase |
 
@@ -56,28 +57,39 @@ The Component class extends CoreComponent with additional lifecycle hooks:
 
 #### Method Sequence
 
-During component iteration, methods are called in this order:
+Each layer tree prepares selected components before painting them. New or dirty components outside
+the viewport still prepare and complete their update; clean offscreen components are skipped.
+Preparation is idempotent within an iteration, including when `iterate()` is called directly.
+
+Methods are called in this order:
 
 1. First iteration only: `willMount()` runs inside `willIterate`, after `checkData`. State queued
-   there is applied on the next iteration, so the first render sees the constructor state.
+   there is applied on the next iteration. Mounting does not depend on the first render.
 
 2. Every Iteration:
    ```mermaid
    flowchart TD
        A[checkData] --> B[willIterate]
-       B --> C{shouldRender?}
+       B --> H{shouldUpdateChildren?}
+       H -->|Yes| I[willUpdateChildren]
+       I --> J[updateChildren]
+       J --> K[didUpdateChildren]
+       H -->|No| V[Tree resolves viewport selection]
+       K --> V
+       V --> C{shouldRender and in viewport?}
        C -->|Yes| D[willRender]
        D --> E[render]
        E --> F[didRender]
        C -->|No| G[willNotRender]
-       G --> H{shouldUpdateChildren?}
-       F --> H
-       H -->|Yes| I[willUpdateChildren]
-       I --> J[updateChildren]
-       J --> K[didUpdateChildren]
-       H -->|No| L[didIterate]
-       K --> L
+       G --> L[didIterate]
+       F --> L
    ```
+
+Children and their geometry are prepared before the layer draws. Keep initialization, port
+registration, and hit-box updates in constructors or update hooks: `willRender`, `render`, and
+`didRender` are never called for a component whose known bounds are outside the viewport.
+`firstRender` stays true until the component is actually painted; use `firstIterate` for mount-related
+work. A visible child can be painted even when its parent's own bounds are offscreen.
 
 ### 4. State and Props Management
 
@@ -90,7 +102,7 @@ When state or props change:
 | 3 | Update scheduled | `performRender()` |
 | 4 | Changes processed | `checkData()` |
 | 5 | Callbacks triggered | `propsChanged()` or `stateChanged()` |
-| 6 | Render evaluated | Based on `shouldRender` flag |
+| 6 | Render evaluated | Based on `shouldRender` and the tree's viewport selection |
 
 ### 5. Control Flags
 
@@ -103,7 +115,7 @@ Components use several boolean flags to control their behavior:
 | `firstUpdateChildren` | Tracks first children update | `true` |
 | `shouldRender` | Controls render() call | `true` |
 | `shouldUpdateChildren` | Controls children updates | `true` |
-| `shouldRenderChildren` | Controls children rendering | `true` |
+| `shouldRenderChildren` | Explicitly allows or suppresses traversal of descendants | `true` |
 
 ## Examples
 
@@ -120,7 +132,7 @@ class MyComponent extends Component<TComponentProps, { counter: number }> {
   }
 
   protected willMount() {
-    // Subscribe here. setState called here applies on the next iteration, after the first render.
+    // Subscribe here. setState called here applies on the next iteration, even while offscreen.
   }
 
   protected render() {

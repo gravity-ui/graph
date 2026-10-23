@@ -1,4 +1,5 @@
 import { clamp } from "../functions/clamp";
+import { TPoint } from "../types/shapes";
 
 /**
  * Creates a Path2D object that represents a triangle pointing towards the direction defined by
@@ -18,6 +19,22 @@ export function trangleArrowForVector(
   baseWidth = 5,
   t = 1
 ): Path2D {
+  const [tip, left, right] = getTriangleArrowPoints(start, end, height, baseWidth, t);
+  const trianglePath = new Path2D();
+  trianglePath.moveTo(tip.x, tip.y);
+  trianglePath.lineTo(left.x, left.y);
+  trianglePath.lineTo(right.x, right.y);
+  trianglePath.closePath();
+  return trianglePath;
+}
+
+export function getTriangleArrowPoints(
+  start: TPoint,
+  end: TPoint,
+  height = 10,
+  baseWidth = 5,
+  t = 1
+): [TPoint, TPoint, TPoint] {
   const normalizedT = clamp(t, 0, 1);
   // Calculate the tip of the triangle on the line between start and end
   const tipx = (1 - normalizedT) * start.x + normalizedT * end.x;
@@ -45,11 +62,9 @@ export function trangleArrowForVector(
   const rightx = baseMidX + Math.cos(rightAngle) * baseHalfWidth;
   const righty = baseMidY + Math.sin(rightAngle) * baseHalfWidth;
 
-  const trianglePath = new Path2D();
-  trianglePath.moveTo(tipx, tipy); // Tip of the triangle
-  trianglePath.lineTo(leftx, lefty); // Left point of the base
-  trianglePath.lineTo(rightx, righty); // Right point of the base
-  trianglePath.closePath();
-
-  return trianglePath;
+  return [
+    { x: tipx, y: tipy },
+    { x: leftx, y: lefty },
+    { x: rightx, y: righty },
+  ];
 }

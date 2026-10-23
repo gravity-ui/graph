@@ -80,25 +80,46 @@ public setHitBox(minX: number, minY: number, maxX: number, maxY: number, force?:
 }
 ```
 
-### 2. Camera-based Culling with HitBox Visibility Checks
+### 2. Tree-based Viewport Culling
 
-GraphComponent only renders when its hitbox is within the camera's view area:
+Each layer owns one tile index for its entire component tree. `setHitBox()` updates both hit testing
+and the component's own bounds in that index. Custom components and containers participate
+automatically; they do not create or query tiles themselves.
 
 ```typescript
-protected willIterate(): void {
-  super.willIterate();
-  if (!this.firstIterate) {
-    // This optimization prevents drawing components that aren't visible
-    this.shouldRender = this.isVisible();
-  }
+protected isVisible(): boolean {
+  return !this.hidden && this.isInViewport();
 }
 ```
 
 **What's happening here:**
-- Before each render cycle, the component checks if it's within the camera's visible area
-- If not in view, the component skips rendering - saving precious CPU/GPU time
-- This is crucial for performance when handling graphs with hundreds or thousands of elements
-- The first iteration always renders (to establish initial state) but subsequent renders are optimized
+- The tree prepares visible, new, or dirty components before selecting elements to paint.
+- Offscreen components still mount and process changes, including ports, children, and geometry.
+- `willRender`, `render`, and `didRender` run only for eligible components, including on the first frame.
+- Clean offscreen components are skipped entirely. A visible child is still reached through its offscreen parent.
+- Unknown bounds stay eligible. Set bounds during initialization or data updates, before rendering.
+- Connection batches use the same viewport decision, and world-coordinate hit queries remain independent of the viewport.
+
+Keep `isVisible()` overrides for additional semantic conditions, such as hidden elements or missing
+connection endpoints. Use `firstIterate` for initialization; `firstRender` stays true until the
+component is actually painted. `EXP_VISIBILITY_CULLING = false` enables a full traversal while
+retaining the same viewport paint gate.
+
+`isVisible()` reads the current viewport and bounds during update hooks and between frames. A custom
+`willIterate()` can therefore refresh deferred external state on the first frame that returns to the
+viewport. During painting, components and batches use the finalized Tree selection.
+
+For a custom paint condition, assign `shouldRender` after `super.willIterate()`. This flag controls
+permission to paint; use `isVisible()` to query spatial visibility. The final paint gate also checks
+geometry updated later in the preparation phase. A `shouldRender = false` set during `willMount()`
+is preserved for the first frame.
+
+```typescript
+protected override willIterate(): void {
+  super.willIterate();
+  this.shouldRender = this.hasContentToDraw();
+}
+```
 
 **Visualization of the process:**
 ```
@@ -356,7 +377,7 @@ sequenceDiagram
     participant Graph as Graph System
     participant Comp as GraphComponent
     participant HitTest as Spatial Index
-    participant Camera as Camera System
+    participant Tree as Layer Tree
     
     App->>Graph: Create new component
     Graph->>Comp: Initialize component
@@ -365,9 +386,10 @@ sequenceDiagram
     Note over Comp,HitTest: Component now exists in spatial system
     
     loop Each Frame
-        Graph->>Comp: iterate()
-        Comp->>Camera: isVisible check
-        Camera-->>Comp: Visibility result
+        Graph->>Tree: Traverse layer
+        Tree->>Comp: prepareUpdate() when visible, new, or dirty
+        Tree->>Tree: Resolve viewport membership
+        Tree->>Comp: iterate() to paint or complete pending work
         
         alt Component is visible
             Comp->>Comp: render()
@@ -912,9 +934,6 @@ When working with graph visualizations, especially those with hundreds or thousa
 
    ```typescript
    protected updateChildren() {
-     // Only create children if parent is visible
-     if (!this.isVisible()) return [];
-     
      // Use stable keys so React/GraphComponents don't recreate unnecessarily
      return [
        ChildComponent.create({...}, { key: 'stable-id-1' }),

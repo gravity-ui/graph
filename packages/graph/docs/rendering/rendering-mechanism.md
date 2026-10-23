@@ -9,9 +9,10 @@ This document provides a detailed explanation of the rendering mechanism impleme
 The rendering mechanism is built upon a hierarchical tree structure with the following key components:
 
 1. **Tree** - The base hierarchical structure that manages parent-child relationships with z-index ordering
-2. **CoreComponent** - The fundamental component class that implements tree traversal and child management
-3. **Component** - Extends CoreComponent to add lifecycle hooks and state management
-4. **Scheduler** - Manages the timing of updates and traversal of the component tree
+2. **TreeCulling** - Coordinates preparation, viewport selection, and painting for a configured tree root
+3. **CoreComponent** - The fundamental component class that implements tree traversal and child management
+4. **Component** - Extends CoreComponent to add lifecycle hooks and state management
+5. **Scheduler** - Manages the timing of updates and traversal of the component tree
 
 ## Component Structure
 
@@ -21,6 +22,35 @@ The `Tree` class provides the foundational hierarchy structure with:
 - Parent-child relationship management
 - Z-index based ordering of children
 - Traversal methods for walking the tree
+- Own world-space bounds and per-node lifecycle state
+
+### TreeCulling Class
+
+Each configured tree root owns one `TreeCulling` coordinator with a shared tile index. It prepares
+visible, new, and dirty nodes, publishes their final visibility, and then runs painting in local
+z-index order. Components and batch paths use the same published selection. A dirty offscreen
+component still applies data, reconciles children, and reports geometry; its paint hooks are skipped.
+
+Geometry changes update the spatial index without invalidating cached hierarchy or paint order.
+Membership, sibling order, and traversal permissions invalidate those caches separately. When the
+viewport contains all indexed bounds, the coordinator reuses the full traversal order; otherwise it
+selects candidates from tiles or a linear bounds scan for dense views.
+
+Dense partial views reuse a cached registration order and parent positions. Exact selection marks
+identify visible nodes; their unprepared ancestors are included when needed, so this path still skips clean
+offscreen branches. Structural changes during preparation fall back to the ordinary ancestor-aware
+walk and repeat selection before painting. Partial preparation retains registration order with
+required ancestors first, independently of paint z-order, including children attached later.
+
+The coordinator reuses exact selection while geometry, structure, and viewport edges remain unchanged,
+including checking for invalidation from synchronous visibility callbacks. Published visibility also carries
+its ancestry revision, avoiding repeated eligibility checks during painting until structure changes.
+The active registry is updated only when membership changes, including the first registration of a
+new node whose initial visibility is already true.
+
+This coordination does not own a drawing context: layers and component render methods retain their
+existing responsibilities. An explicit child-traversal veto still suppresses descendants, including
+when a parent sets it during painting; already prepared descendants then complete without painting.
 
 ### CoreComponent Class
 
@@ -53,9 +83,9 @@ The rendering process follows these steps:
 1. Component state/props update via `setState`/`setProps`
 2. `performRender()` schedules an update through the `Scheduler`
 3. On the next animation frame, `Scheduler` traverses the component tree
-4. Each component's `iterate()` method is called
-5. Components process their data and execute their lifecycle methods
-6. Child components are created, updated, or removed as needed
+4. The tree's culling coordinator calls `prepareUpdate()` on visible, new, or dirty components and their ancestors
+5. Components apply data and reconcile children before the tree resolves final viewport membership
+6. `iterate()` paints visible components and completes prepared updates; clean offscreen nodes are skipped
 7. The process repeats for each animation frame when changes occur
 
 ## Component Lifecycle
@@ -99,9 +129,11 @@ This value is set per component class in `graphConfig.ts` and changed via `updat
 
 ### Tier 2: renderOrder — Visual Stacking Within a Type
 
-`renderOrder` determines stacking *within the same zIndex tier*. It is assigned by the scheduler during `_walkDown` traversal: the later a component is visited in the tree, the higher its `renderOrder`.
+`renderOrder` determines stacking *within the same zIndex tier*. Tree assigns every child's order
+when rebuilding its parent's sorted child cache, including children outside the viewport.
 
-`Tree.updateChildZIndex()` is the key mechanism: every time a component's `zIndex` changes, the child is **re-inserted at the end** of the parent's `children` Set (`delete` + `add`). Because the `children` Set preserves insertion order, the most recently interacted component gets the highest `renderOrder` in its tier — it appears on top visually.
+`Tree.updateZIndex()` moves a child between its parent's z-index groups; `updateChildZIndex()`
+re-inserts it at the end of its current group. Group insertion order determines stacking within a tier.
 
 This means drag-and-drop and selection automatically bring the interacted block to the front of its z-group without any extra bookkeeping.
 
@@ -136,7 +168,9 @@ The rendering mechanism integrates with the browser's animation frame:
 - `constructor(props, parent)` - Create a component instance
 - `performRender()` - Schedule a render update
 - `setContext(context)` - Update the context
-- `iterate()` - Process component updates
+- `prepareUpdate()` - Apply pending data and reconcile children before painting
+- `iterate()` - Paint eligible components and complete the update
+- `isInViewport()` - Read the tree's current spatial visibility decision
 - `static create(props, options)` - Factory method
 - `static mount(Component, props)` - Mount a component as root
 - `static unmount(instance)` - Unmount a component

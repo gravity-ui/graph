@@ -2,6 +2,7 @@ import { GraphClassConstructor } from "../utils/types/classes";
 
 import { Scheduler } from "./Scheduler";
 import { ITree, Tree } from "./Tree";
+import type { TTreeCullingOptions } from "./TreeCulling";
 
 export type ComponentOptions<Instance> = {
   readonly key?: string | number;
@@ -81,6 +82,8 @@ export class CoreComponent<
 
   protected __comp: TPrivateComponentData;
 
+  protected updatePrepared = false;
+
   public get zIndex() {
     return this.__comp.treeNode.zIndex;
   }
@@ -112,12 +115,41 @@ export class CoreComponent<
   }
 
   public isIterated(): boolean {
-    return this.__comp.iterateId === this.__comp.context.globalIterateId;
+    const iterateId = this.__comp.context.globalIterateId;
+    // A child skipped by an ancestor's visibility culling was out of view with nothing to process,
+    // so for this traversal it counts as iterated.
+    return (
+      this.__comp.treeNode.isTraversalAllowed() &&
+      (this.__comp.iterateId === iterateId || this.__comp.treeNode.isSkippedByCulling(iterateId))
+    );
+  }
+
+  /** Whether this node's own bounds intersect its tree's viewport. */
+  public isInViewport(): boolean {
+    return this.__comp.treeNode.isVisible();
+  }
+
+  /** @internal Called before painting when the tree's viewport selection changes. */
+  public onViewportChange(_visible: boolean): void {
+    // noop
   }
 
   public performRender = () => {
     this.__comp.context.scheduler.scheduleUpdate();
+    this.__comp.treeNode.requestWalk();
   };
+
+  /**
+   * Configures the viewport for this tree root and all its descendants.
+   */
+  protected setChildrenCulling(options: Omit<TTreeCullingOptions, "getWalkToken"> | undefined): void {
+    this.__comp.treeNode.setCulling(options && { ...options, getWalkToken: () => this.__comp.context.globalIterateId });
+  }
+
+  /** Reports this component's own bounds to its tree's spatial index. */
+  protected setCullingBounds(minX: number, minY: number, maxX: number, maxY: number): void {
+    this.__comp.treeNode.setBounds(minX, minY, maxX, maxY);
+  }
 
   public getParent(): CoreComponent | undefined {
     return this.__comp.parent;
@@ -165,12 +197,20 @@ export class CoreComponent<
     this.performRender();
   }
 
-  public iterate(): boolean {
+  /** Applies pending work before the tree selects the elements to paint. */
+  public prepareUpdate(): boolean {
+    if (this.updatePrepared) return true;
     if (!this.__comp.parent) {
       this.__comp.context.globalIterateId = Math.random();
     }
     this.__comp.iterateId = this.__comp.context.globalIterateId;
+    this.updatePrepared = true;
+    return true;
+  }
 
+  public iterate(): boolean {
+    if (!this.updatePrepared) this.prepareUpdate();
+    this.updatePrepared = false;
     return true;
   }
 
@@ -193,6 +233,7 @@ export class CoreComponent<
     if (ref !== undefined && this.$[ref] === child) delete this.$[ref];
     child.__unmount();
     this.__comp.children.delete(key);
+    this.__comp.treeNode.remove(child.__comp.treeNode);
   }
 
   protected __updateChildren() {
@@ -202,7 +243,6 @@ export class CoreComponent<
     const nextKeys: string[] = [];
     const descriptorsToMount: Array<{ key: string; descriptor: ChildDescriptor }> = [];
     this.__comp.prevChildrenArr = next;
-    this.__comp.treeNode.clearChildren();
 
     next.forEach((descriptor, index) => {
       const key = String(descriptor.options.key ?? `${descriptor.klass.name}|${index}|defaultKey`);
@@ -225,18 +265,20 @@ export class CoreComponent<
     });
     descriptorsToMount.forEach(({ key, descriptor }) => this.mountChild(descriptor, key));
     this.__comp.childrenKeys = nextKeys;
+    const children: Tree[] = [];
     nextKeys.forEach((key) => {
       const child = this.__comp.children.get(key);
-      if (child) this.__comp.treeNode.append(child.__comp.treeNode);
+      if (child) children.push(child.__comp.treeNode);
     });
+    this.__comp.treeNode.setChildren(children);
   }
 
   private __unmountChildren() {
-    this.__comp.treeNode.clearChildren();
     this.__comp.childrenKeys.forEach((key) => {
       const child = this.__comp.children.get(key);
       if (child) this.removeChild(key, child);
     });
+    this.__comp.treeNode.clearChildren();
     this.__comp.childrenKeys = [];
     this.__comp.prevChildrenArr = [];
   }

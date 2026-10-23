@@ -161,7 +161,7 @@ export class BaseConnection<
     });
 
     // When both endpoints are hidden (e.g. both blocks inside a collapsed group)
-    // schedule a re-render so willIterate() picks up the new isVisible() result.
+    // Schedule an update so component and batch visibility use the new hidden state.
     this.subscribeSignal(this.connectedState.$hidden, () => {
       this.performRender();
     });
@@ -237,6 +237,10 @@ export class BaseConnection<
   protected updatePoints(additionalPoints?: TPoint[], props: Props = this.props): void {
     const geometry = this.connectedState.$geometry.value;
     this.connectionPoints = geometry ? [{ ...geometry[0] }, { ...geometry[1] }] : undefined;
+    this.updateBounds(additionalPoints, props);
+  }
+
+  protected updateBounds(additionalPoints?: TPoint[], props: Props = this.props): void {
     if (!this.isEntityAvailable() || !this.hasGeometry()) {
       this.bBox = [0, 0, 0, 0];
       this.removeHitBox();

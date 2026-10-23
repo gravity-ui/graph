@@ -9,6 +9,10 @@ export class ConnectionArrow<T extends TConnection> implements Path2DRenderInsta
     return this.connection.isPathVisible();
   }
 
+  public getPathBounds() {
+    return this.connection.getPathBounds();
+  }
+
   public getPath() {
     return this.connection.createArrowPath();
   }
