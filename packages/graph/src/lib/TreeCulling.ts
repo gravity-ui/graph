@@ -36,7 +36,7 @@ export class TreeCulling {
 
   public fullPreparation?: { revision: number; nodes: Tree[] };
 
-  public fullPaint?: { revision: number; nodes: Tree[] };
+  public fullPaint?: { revision: number; nodes: Tree[]; subtreeEnds: number[] };
 
   public walkToken: unknown;
 
@@ -92,15 +92,15 @@ export class TreeCulling {
     );
   }
 
-  public select(viewport: TTileRect | undefined): Set<Tree> {
-    const selected = new Set<Tree>();
+  public select(viewport: TTileRect | undefined): Tree[] {
+    const selected: Tree[] = [];
     const limit = this.nodes.size * (this.options.fullWalkShare ?? 0.75);
     if (!viewport || this.index.covers(viewport) || this.index.countCandidates(viewport, limit) > limit) {
       for (const node of this.nodes) {
-        if (this.intersects(node, viewport)) selected.add(node);
+        if (this.intersects(node, viewport)) selected.push(node);
       }
     } else {
-      this.index.query(viewport, (node) => selected.add(node));
+      this.index.query(viewport, (node) => selected.push(node));
     }
     return selected;
   }

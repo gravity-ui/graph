@@ -344,7 +344,7 @@ export class Tree<T extends ITree = ITree> {
 
   private walkPrepared(iterator: TIterator, scope: TreeCulling, prepared: Tree[], fullWalk: boolean): void {
     let walked: number;
-    if (fullWalk) {
+    if (fullWalk || prepared.length > scope.nodes.size * (scope.options.fullWalkShare ?? 0.75)) {
       walked = this.paintFull(iterator, scope);
     } else {
       const children = new Map<Tree, Tree[]>();
@@ -378,29 +378,40 @@ export class Tree<T extends ITree = ITree> {
     let ordered = scope.fullPaint;
     if (ordered?.revision !== scope.revision) {
       const nodes: Tree[] = [];
+      const subtreeEnds: number[] = [];
       const collect = (node: Tree): void => {
-        if (node !== this && (node.preparedStamp !== scope.stamp || !node.isEligible(scope))) return;
+        if (node !== this && !node.isEligible(scope)) return;
+        const index = nodes.length;
         nodes.push(node);
-        if (!node.childrenWalkAllowed || !node.children.size) return;
-        for (const child of node.zIndexChildrenCache.get()) {
-          if (child.parent === node) collect(child);
+        subtreeEnds.push(0);
+        if (node.childrenWalkAllowed && node.children.size) {
+          for (const child of node.zIndexChildrenCache.get()) {
+            if (child.parent === node) collect(child);
+          }
         }
+        subtreeEnds[index] = nodes.length;
       };
       collect(this);
-      scope.fullPaint = ordered = { revision: scope.revision, nodes };
+      scope.fullPaint = ordered = { revision: scope.revision, nodes, subtreeEnds };
     }
     let walked = 0;
     for (let i = 0; i < ordered.nodes.length; i++) {
       const node = ordered.nodes[i];
       if (
-        scope.revision !== ordered.revision &&
-        node !== this &&
-        (node.preparedStamp !== scope.stamp || node.cullingStamp === scope.stamp || !node.isEligible(scope))
-      )
+        node.preparedStamp !== scope.stamp ||
+        (scope.revision !== ordered.revision &&
+          node !== this &&
+          (node.cullingStamp === scope.stamp || !node.isEligible(scope)))
+      ) {
+        i = ordered.subtreeEnds[i] - 1;
         continue;
+      }
       node.cullingStamp = scope.stamp;
       const allowed = iterator(node);
-      if (!allowed) node.setChildrenWalkAllowed(false);
+      if (!allowed) {
+        node.setChildrenWalkAllowed(false);
+        i = ordered.subtreeEnds[i] - 1;
+      }
       walked++;
     }
     return walked;

@@ -118,6 +118,83 @@ describe("Tree full-viewport traversal", () => {
     expect(scope?.index.size).toBe(3);
   });
 
+  it("updates a dense partial selection without preparing clean exits or losing new entrants", () => {
+    const { state, add, walk } = setup();
+    const names = Array.from({ length: 20 }, (_, i) => `node${i}`);
+    const nodes = names.map((name, i) => add(name, 10 + i * 20));
+    walk();
+    walk();
+    nodes[0].updateZIndex(5);
+    state.viewport = viewport(365);
+    let result = walk();
+    expect(result.prepared).toEqual(["root", ...names.slice(0, 18)]);
+    expect(result.visited).toEqual(["root", ...names.slice(1, 18), "node0"]);
+    expect(result.drawn).toEqual(result.visited);
+    expect(result.events).toContain(`batch:${names.slice(0, 18).sort().join(",")}`);
+
+    state.viewport = { minX: 41, minY: 41, maxX: 410, maxY: 410 };
+    result = walk();
+    expect(result.prepared).toEqual(["root", ...names.slice(2)]);
+    expect(result.visited).toEqual(["root", ...names.slice(2)]);
+    expect(result.drawn).toEqual(result.visited);
+    expect(result.events).toContain(`batch:${names.slice(2).sort().join(",")}`);
+    for (const event of ["visible:node0:false", "visible:node1:false", "visible:node18:true", "visible:node19:true"]) {
+      expect(result.events.indexOf(event)).toBeGreaterThanOrEqual(0);
+      expect(result.events.indexOf(event)).toBeLessThan(result.events.indexOf("draw:root"));
+    }
+
+    state.viewport = viewport(1000);
+    expect(walk().drawn).toEqual(["root", ...names.slice(1), "node0"]);
+  });
+
+  it("finishes a prepared subtree without painting it after preparation moves it under an unprepared ancestor", () => {
+    const { state, add, walk } = setup();
+    state.viewport = viewport(100);
+    const original = add("original", 10);
+    const child = add("child", 20, original);
+    add("grandchild", 30, child);
+    const trigger = add("trigger", 40);
+    const fillers = Array.from({ length: 8 }, (_, i) => `filler${i}`);
+    for (const name of fillers) add(name, 50);
+    const far = add("far", 5000);
+    walk();
+    walk();
+    trigger.data.prepare = () => {
+      far.append(child);
+      return true;
+    };
+
+    const result = walk();
+    expect(result.prepared).toEqual(["root", "original", "child", "grandchild", "trigger", ...fillers]);
+    expect(result.drawn).toEqual(["root", "original", "trigger", ...fillers]);
+    expect(result.visited).toEqual(["root", "original", "trigger", ...fillers, "child", "grandchild"]);
+  });
+
+  it("defers a node appended by a viewport callback until its first preparation in the next frame", () => {
+    const { root, state, add, make, walk } = setup();
+    add("resident", 10);
+    const trigger = add("trigger", 500);
+    walk();
+    state.viewport = viewport(100);
+    walk();
+    const created = make("created", 20);
+    const onViewportChange = trigger.data.onViewportChange;
+    trigger.data.onViewportChange = (visible) => {
+      onViewportChange?.(visible);
+      if (visible) root.append(created);
+    };
+
+    state.viewport = viewport(1000);
+    expect(walk()).toMatchObject({
+      prepared: ["root", "resident", "trigger"],
+      visited: ["root", "resident", "trigger"],
+    });
+    expect(walk()).toMatchObject({
+      prepared: ["root", "resident", "trigger", "created"],
+      drawn: ["root", "resident", "trigger", "created"],
+    });
+  });
+
   it("uses final geometry and child order when preparation changes a fully visible tree", () => {
     const { root, add, make, walk } = setup();
     const early = add("early", 10);
@@ -255,6 +332,25 @@ describe("Tree full-viewport traversal", () => {
       drawn: ["root", "original", "child", "mover", "destination"],
     });
     expect(walk().drawn).toEqual(["root", "original", "mover", "destination", "child"]);
+  });
+
+  it("keeps the selected paint order when an iterator reparents an unvisited child to a later prepared branch", () => {
+    const { add, walk } = setup();
+    const original = add("original", 10);
+    const child = add("child", 20, original);
+    const destination = add("destination", 30);
+    walk();
+    walk();
+    original.data.paint = () => {
+      destination.append(child);
+      return true;
+    };
+
+    expect(walk()).toMatchObject({
+      visited: ["root", "original", "child", "destination"],
+      drawn: ["root", "original", "child", "destination"],
+    });
+    expect(walk().drawn).toEqual(["root", "original", "destination", "child"]);
   });
 
   it("releases cached preparation references when a subtree is removed without another traversal", () => {
