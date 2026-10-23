@@ -1,3 +1,5 @@
+import { BatchPath2DRenderer } from "../components/canvas/connections/BatchPath2D";
+
 import type { TTileRect } from "./TileIndex";
 import { ITree, Tree } from "./Tree";
 
@@ -220,6 +222,49 @@ describe("Tree native spatial scope", () => {
     };
     walk();
     expect(observed).toEqual([false]);
+  });
+
+  it("excludes a never-prepared descendant from batch visibility when its parent suppresses traversal", () => {
+    const { root, add, walk } = setup();
+    const parent = add("parent", 10);
+    const child = add("child", 20, parent);
+    parent.data.prepareUpdate = () => false;
+    const batchVisible: boolean[] = [];
+    root.data.iterate = () => {
+      batchVisible.push(child.isVisible());
+      return true;
+    };
+    walk();
+    expect(batchVisible).toEqual([false]);
+  });
+
+  it("invalidates a batch cached before a suppressed child's first preparation when the branch resumes", () => {
+    const { root, add, walk } = setup();
+    const parent = add("parent", 10);
+    const child = add("child", 20, parent);
+    parent.data.prepareUpdate = () => false;
+    const batch = new BatchPath2DRenderer(() => {});
+    let draws = 0;
+    const shape = {
+      getPath: () => new Path2D(),
+      style: () => ({ type: "stroke" as const }),
+      isPathVisible: () => child.isVisible(),
+      afterRender: () => draws++,
+    };
+    batch.add(shape, { zIndex: 0, group: "custom" });
+    child.data.onViewportChange = () => batch.invalidateVisibility(shape);
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (!ctx) throw new Error("Missing canvas context");
+    root.data.iterate = () => {
+      for (const group of batch.orderedPaths.get()) group.render(ctx);
+      return true;
+    };
+    walk();
+    expect(draws).toBe(0);
+
+    parent.data.prepareUpdate = () => true;
+    walk();
+    expect(draws).toBe(1);
   });
 
   it("keeps a configured root when attached below an unscoped tree", () => {

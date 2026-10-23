@@ -320,6 +320,8 @@ export class Tree<T extends ITree = ITree> {
         preparationRevision === scope.revision ? { revision: scope.revision, nodes: prepared } : undefined;
     }
 
+    // Publish hidden state for new descendants whose preparation an ancestor blocked.
+    for (const node of scope.fresh) node.setVisible(false);
     const fullyVisible = (!viewport || scope.index.covers(viewport)) && this.isTraversalAllowed();
     this.setVisible(this.isEligible(scope) && scope.intersects(this, viewport));
     // Camera movement cannot change visibility while it still contains the unchanged tree.
