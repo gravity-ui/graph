@@ -203,6 +203,7 @@ export class TreeCulling {
 
   private publishVisibility(prepared: Tree[], viewport: TTileRect | undefined): void {
     const visibilityRevision = this.structureRevision;
+    const publishedRevision = this.visibilityRevision;
     this.visibilityRevision = -1;
     // Publish hidden state for new descendants whose preparation an ancestor blocked.
     for (const node of this.fresh) node.setVisible(false);
@@ -220,7 +221,16 @@ export class TreeCulling {
         }
       }
       let reuseSelection = this.isSelectionCurrent(viewport);
+      const reusePublished = publishedRevision === this.structureRevision;
       for (const node of prepared) {
+        // A valid prior snapshot already published this membership and its ancestor permissions.
+        if (
+          node !== this.owner &&
+          reusePublished &&
+          reuseSelection &&
+          node.activeInViewport === (node.selectedStamp === this.selectionStamp)
+        )
+          continue;
         const visible =
           node.isEligible(this) &&
           (node !== this.owner && reuseSelection && this.selectionRevision === this.revision
@@ -412,16 +422,21 @@ export class TreeCulling {
 
   public select(viewport: TTileRect | undefined): Tree[] {
     const selected: Tree[] = [];
-    this.selectionStamp = ++TreeCulling.selectionStamp;
+    const stamp = (this.selectionStamp = ++TreeCulling.selectionStamp);
     const limit = this.nodes.size * (this.options.fullWalkShare ?? 0.75);
     if (!viewport || this.index.covers(viewport) || this.index.countCandidates(viewport, limit) > limit) {
       for (const node of this.nodes) {
-        if (this.intersects(node, viewport)) selected.push(node);
+        if (this.intersects(node, viewport)) {
+          node.selectedStamp = stamp;
+          selected.push(node);
+        }
       }
     } else {
-      this.index.query(viewport, (node) => selected.push(node));
+      this.index.query(viewport, (node) => {
+        node.selectedStamp = stamp;
+        selected.push(node);
+      });
     }
-    for (const node of selected) node.selectedStamp = this.selectionStamp;
     this.selectionViewport = viewport && { ...viewport };
     this.selectionRevision = this.revision;
     return selected;

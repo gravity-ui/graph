@@ -178,6 +178,34 @@ describe("Tree geometry and structure invalidation", () => {
     expect(work).toEqual({ writes: 0, paintChecks: 0 });
   });
 
+  it("does not republish unchanged visibility when a dense viewport moves within the same selection", () => {
+    const { state, add, walk } = setup();
+    const nodes = Array.from({ length: 25 }, (_, i) => add(`node${i}`, 10 + i * 20));
+    walk();
+    state.viewport = viewport(465);
+    walk();
+    const work = { eligibility: 0, publication: 0 };
+    for (const node of nodes) {
+      const isEligible = node.isEligible.bind(node);
+      node.isEligible = (scope) => {
+        work.eligibility++;
+        return isEligible(scope);
+      };
+      const setVisible = node.setVisible.bind(node);
+      node.setVisible = (visible) => {
+        work.publication++;
+        return setVisible(visible);
+      };
+    }
+
+    state.viewport = viewport(466);
+    const result = walk();
+    expect(result.prepared).toEqual(["root", ...nodes.slice(0, 23).map((node) => node.data.name)]);
+    expect(result.drawn).toEqual(result.prepared);
+    expect(result.events.filter((event) => event.startsWith("visible:"))).toEqual([]);
+    expect(work).toEqual({ eligibility: 0, publication: 0 });
+  });
+
   it.each(["before", "during"])(
     "does not enumerate unchanged hierarchy or ancestry when bounds move %s preparation",
     (timing) => {
