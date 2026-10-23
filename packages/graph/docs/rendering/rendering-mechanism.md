@@ -26,31 +26,35 @@ The `Tree` class provides the foundational hierarchy structure with:
 
 ### TreeCulling Class
 
-Each configured tree root owns one `TreeCulling` coordinator with a shared tile index. It prepares
-visible, new, and dirty nodes, publishes their final visibility, and then runs painting in local
-z-index order. Components and batch paths use the same published selection. A dirty offscreen
-component still applies data, reconciles children, and reports geometry; its paint hooks are skipped.
+Each configured tree root owns one `TreeCulling` coordinator with a shared tile index. A frame has
+three steps:
 
-Geometry changes update the spatial index without invalidating cached hierarchy or paint order.
-Membership, sibling order, and traversal permissions invalidate those caches separately. When the
-viewport contains all indexed bounds, the coordinator reuses the full traversal order; otherwise it
-selects candidates from tiles or a linear bounds scan for dense views.
+1. **Requested work.** The root, new nodes and nodes that requested an update through
+   `performRender()` prepare first, ancestors before descendants. Their data, children and geometry are
+   final before anything paints, including when they are offscreen.
+2. **Visibility.** When the viewport contains every indexed bound, every eligible node is visible.
+   Otherwise visibility is kept between frames: a camera move rechecks only nodes in the parts of the
+   previous and current viewports outside each other, plus nodes whose bounds changed. After a
+   structural change the coordinator runs one complete selection, through tiles or a linear bounds scan
+   for dense views. Visibility callbacks may move nodes, change the viewport, change the structure or
+   request updates; publication repeats until it is stable, so batches paint the final membership.
+3. **Painting.** One pass over the cached local paint order visits published-visible and already
+   prepared nodes. A clean visited component applies its own pending work inside `iterate()` right
+   before it paints (`ITree.preparesOnIterate`); other `ITree` nodes are prepared by the coordinator at
+   the same point. Clean offscreen nodes receive no hooks, and their visible descendants are still
+   reached through them.
 
-Dense partial views reuse a cached registration order and parent positions. Exact selection marks
-identify visible nodes; their unprepared ancestors are included when needed, so this path still skips clean
-offscreen branches. Structural changes during preparation fall back to the ordinary ancestor-aware
-walk and repeat selection before painting. Partial preparation retains registration order with
-required ancestors first, independently of paint z-order, including children attached later.
+A frame therefore costs the visible nodes plus the work that changed. Components and batch paths use
+the same published visibility. Hooks of a node being prepared read live visibility from current bounds;
+nodes being painted read the published value.
 
-The coordinator reuses exact selection while geometry, structure, and viewport edges remain unchanged,
-including checking for invalidation from synchronous visibility callbacks. Published visibility also carries
-its ancestry revision, avoiding repeated eligibility checks during painting until structure changes.
-The active registry is updated only when membership changes, including the first registration of a
-new node whose initial visibility is already true.
+Structure that a clean node changes while painting (for example children it adds from `render()`) is
+painted from the next frame. An explicit child-traversal veto from painting suppresses descendants in
+that frame; for a node that does not prepare itself, its next preparation decides again before the
+next publication. Prepared descendants of a vetoed branch complete without painting.
 
 This coordination does not own a drawing context: layers and component render methods retain their
-existing responsibilities. An explicit child-traversal veto still suppresses descendants, including
-when a parent sets it during painting; already prepared descendants then complete without painting.
+existing responsibilities.
 
 ### CoreComponent Class
 
@@ -83,9 +87,9 @@ The rendering process follows these steps:
 1. Component state/props update via `setState`/`setProps`
 2. `performRender()` schedules an update through the `Scheduler`
 3. On the next animation frame, `Scheduler` traverses the component tree
-4. The tree's culling coordinator calls `prepareUpdate()` on visible, new, or dirty components and their ancestors
-5. Components apply data and reconcile children before the tree resolves final viewport membership
-6. `iterate()` paints visible components and completes prepared updates; clean offscreen nodes are skipped
+4. The tree's culling coordinator prepares new and requested components and their ancestors
+5. The coordinator publishes viewport visibility, rechecking only what the camera move or changed bounds affect
+6. `iterate()` updates and paints visible components; prepared offscreen components complete their update; clean offscreen nodes are skipped
 7. The process repeats for each animation frame when changes occur
 
 ## Component Lifecycle
@@ -168,7 +172,7 @@ The rendering mechanism integrates with the browser's animation frame:
 - `constructor(props, parent)` - Create a component instance
 - `performRender()` - Schedule a render update
 - `setContext(context)` - Update the context
-- `prepareUpdate()` - Apply pending data and reconcile children before painting
+- `prepareUpdate()` - Apply pending data and reconcile children; runs before painting for requested and new components, and inside `iterate()` for clean visible ones
 - `iterate()` - Paint eligible components and complete the update
 - `isInViewport()` - Read the tree's current spatial visibility decision
 - `static create(props, options)` - Factory method

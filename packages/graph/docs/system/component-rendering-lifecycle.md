@@ -33,7 +33,7 @@ sequenceDiagram
     Browser->>Scheduler: requestAnimationFrame
     Scheduler->>Scheduler: tick()
     Scheduler->>Tree: traverseDown()
-    Tree->>Component: prepareUpdate() for visible, new, or dirty nodes
+    Tree->>Component: prepareUpdate() for new or requested nodes
     Component->>Component: checkData()
     Component->>Component: willIterate()
     
@@ -43,9 +43,12 @@ sequenceDiagram
         Component->>Component: didUpdateChildren()
     end
 
-    Tree->>Tree: Resolve own bounds and visible descendants
+    Tree->>Tree: Update visibility from viewport delta and changed bounds
     Tree->>Component: onViewportChange() when membership changes
-    Tree->>Component: iterate() in local z-index order
+    Tree->>Component: iterate() in local z-index order for visible or prepared nodes
+    opt clean visible component
+        Component->>Component: prepareUpdate() inside iterate()
+    end
     alt shouldRender and in viewport
         Component->>Component: willRender()
         Component->>Rendering: render()
@@ -68,8 +71,8 @@ When a component's state or props change:
 2. `performRender()` schedules an update with the `Scheduler`
 3. The `Scheduler` marks the component tree for update
 4. On the next animation frame, the `Scheduler` traverses the component tree
-5. The tree prepares visible, new, or dirty components and their ancestors
-6. After geometry and children are current, `iterate()` paints eligible components and completes updates
+5. The tree prepares the requested component, new components and their ancestors
+6. The tree publishes viewport visibility, then `iterate()` updates and paints visible components and completes prepared offscreen updates
 
 From `scheduler-system.md`:
 > Component calls `performRender()` to schedule an update. This method sets the `scheduled` flag in the component's `Scheduler` instance, indicating that the component tree needs to be updated.
@@ -81,7 +84,7 @@ not discard state or props updates.
 
 The component lifecycle controls the rendering process through several key methods:
 
-1. `prepareUpdate()` - Applies data and reconciles children before painting
+1. `prepareUpdate()` - Applies data and reconciles children; before painting for requested and new components, inside `iterate()` for clean visible ones
 2. `checkData()` - Processes any pending state/props changes
 3. `shouldRender` flag and `isInViewport()` - Together control whether rendering occurs
 4. `iterate()` / `render()` - Complete the update and create eligible visual output
@@ -99,14 +102,16 @@ All three systems interact with the Tree structure, which:
 - Owns one `TileIndex` per layer root, shared by every descendant
 
 The layer supplies its camera's world-space viewport; Tree and Scheduler do not depend on Camera.
-Each component reports its own bounds. The tree selects intersecting nodes plus the ancestors needed
-to reach them, so an offscreen parent does not hide a visible child. Unknown bounds remain eligible.
-New and dirty offscreen nodes still update, but never enter the painting lifecycle. Setting
+Each component reports its own bounds. The tree keeps the published visible set between frames and
+rechecks only nodes that a camera move or a bounds change can affect. A visible child is reached through
+a clean offscreen parent without running the parent's hooks, so an offscreen parent does not hide a
+visible child. Unknown bounds remain eligible. New and requested offscreen nodes still update, but never
+enter the painting lifecycle. Setting
 `shouldRenderChildren` to false explicitly suppresses a branch, independently of spatial culling.
 
 Visibility changes are published before the layer paints, allowing connection batches to invalidate
-affected chunks before drawing. Both the component lifecycle and batch renderer use the same tree
-selection. Hit testing retains its separate spatial index and supports queries outside the viewport.
+affected chunks before drawing. Both the component lifecycle and batch renderer use the same published
+visibility. Hit testing retains its separate spatial index and supports queries outside the viewport.
 
 From `scheduler-system.md`:
 > During an update, the Scheduler traverses the component tree in depth-first order: Tree._walkDown, Iterator returns true/false, Process/Skip children
@@ -129,15 +134,16 @@ Combining all three documents, we can map the complete lifecycle from state chan
    - On the next frame, scheduler traverses the component tree
 
 3. **Preparation**
-   - Component's `prepareUpdate()` method is called
+   - Component's `prepareUpdate()` method is called: before painting when the component is new or
+     requested an update, otherwise inside its own `iterate()` when it is visible
    - `checkData()` processes buffered state/props changes
    - `propsChanged()` or `stateChanged()` handle specific changes
    - `willIterate()` runs, including `willMount()` on the first iteration
-   - If `shouldUpdateChildren` is true, children are reconciled before painting
-   - Tree resolves the resulting bounds and viewport membership
+   - If `shouldUpdateChildren` is true, children are reconciled
+   - For requested components, the tree publishes the resulting bounds before anything paints
 
 4. **Rendering Decision**
-   - Component evaluates `shouldRender` and the tree's viewport selection
+   - Component evaluates `shouldRender` and the tree's published viewport visibility
    - If true: `willRender()` → `render()` → `didRender()`
    - If false: `willNotRender()`
 

@@ -93,10 +93,11 @@ protected isVisible(): boolean {
 ```
 
 **What's happening here:**
-- The tree prepares visible, new, or dirty components before selecting elements to paint.
+- The tree prepares new components and components that requested an update before publishing visibility; clean visible components update inside their own `iterate()`, right before painting.
 - Offscreen components still mount and process changes, including ports, children, and geometry.
 - `willRender`, `render`, and `didRender` run only for eligible components, including on the first frame.
 - Clean offscreen components are skipped entirely. A visible child is still reached through its offscreen parent.
+- A camera move rechecks only components near the viewport edges; visibility is kept between frames.
 - Unknown bounds stay eligible. Set bounds during initialization or data updates, before rendering.
 - Connection batches use the same viewport decision, and world-coordinate hit queries remain independent of the viewport.
 
@@ -105,13 +106,15 @@ connection endpoints. Use `firstIterate` for initialization; `firstRender` stays
 component is actually painted. `EXP_VISIBILITY_CULLING = false` enables a full traversal while
 retaining the same viewport paint gate.
 
-`isVisible()` reads the current viewport and bounds during update hooks and between frames. A custom
-`willIterate()` can therefore refresh deferred external state on the first frame that returns to the
-viewport. During painting, components and batches use the finalized Tree selection.
+`isVisible()` reads the current viewport and bounds between frames and in update hooks that run before
+painting. A custom `willIterate()` can therefore refresh deferred external state on the first frame that
+returns to the viewport. During painting, components and batches use the published Tree visibility. Change
+geometry through `setState()`, `setProps()` or `performRender()`: a change a clean component makes inside
+its own update takes effect for culling from the next frame.
 
 For a custom paint condition, assign `shouldRender` after `super.willIterate()`. This flag controls
 permission to paint; use `isVisible()` to query spatial visibility. The final paint gate also checks
-geometry updated later in the preparation phase. A `shouldRender = false` set during `willMount()`
+geometry that requested updates produced before painting. A `shouldRender = false` set during `willMount()`
 is preserved for the first frame.
 
 ```typescript
@@ -387,8 +390,8 @@ sequenceDiagram
     
     loop Each Frame
         Graph->>Tree: Traverse layer
-        Tree->>Comp: prepareUpdate() when visible, new, or dirty
-        Tree->>Tree: Resolve viewport membership
+        Tree->>Comp: prepareUpdate() when new or requested
+        Tree->>Tree: Update visibility from viewport delta and changed bounds
         Tree->>Comp: iterate() to paint or complete pending work
         
         alt Component is visible

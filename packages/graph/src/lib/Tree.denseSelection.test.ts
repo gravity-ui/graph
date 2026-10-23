@@ -63,11 +63,20 @@ function setup(fullWalkShare: number) {
   return { root, state, add, fill, walk };
 }
 
+/** Every visited node prepares in this frame, and never after its own paint. */
+function expectPreparedBeforeOwnPaint(result: { events: string[]; visited: string[] }): void {
+  for (const name of result.visited) {
+    const prepared = result.events.indexOf(`prepare:${name}`);
+    expect(prepared).toBeGreaterThanOrEqual(0);
+    expect(prepared).toBeLessThan(result.events.indexOf(`iterate:${name}`));
+  }
+}
+
 describe.each([
   ["dense", 0.75],
   ["sparse", 1],
 ] as const)("Tree %s partial selection", (_strategy, fullWalkShare) => {
-  it("prepares required offscreen ancestors without admitting their clean offscreen children", () => {
+  it("reaches a visible child through a clean offscreen ancestor without admitting its clean offscreen children", () => {
     const { state, add, fill, walk } = setup(fullWalkShare);
     const parent = add("parent", 1000);
     const leaf = add("leaf", 30, parent);
@@ -78,17 +87,17 @@ describe.each([
     walk();
 
     const result = walk();
-    expect(result.prepared.slice().sort()).toEqual(["root", "parent", "leaf", "unknown", ...residents].sort());
-    expect(result.prepared.indexOf("parent")).toBeLessThan(result.prepared.indexOf("leaf"));
+    expect(result.prepared).toEqual(["root", "leaf", "unknown", ...residents]);
     expect(result.drawn).toEqual(["root", "leaf", "unknown", ...residents]);
-    expect(result.visited).toEqual(["root", "parent", "leaf", "unknown", ...residents]);
-    expect(parent.isSkippedByCulling(state.token)).toBe(false);
+    expect(result.visited).toEqual(["root", "leaf", "unknown", ...residents]);
+    expectPreparedBeforeOwnPaint(result);
+    expect(parent.isSkippedByCulling(state.token)).toBe(true);
     expect(leaf.isSkippedByCulling(state.token)).toBe(false);
     expect(hiddenSibling.isSkippedByCulling(state.token)).toBe(true);
     expect(unknown.isVisible()).toBe(true);
   });
 
-  it("keeps reconciliation preparation order separate from z-order after a partial traversal warms", () => {
+  it("prepares and paints in local z-order after a partial traversal warms", () => {
     const { add, fill, walk } = setup(fullWalkShare);
     const first = add("first", 10);
     add("child", 20, first);
@@ -100,7 +109,7 @@ describe.each([
     walk();
 
     expect(walk()).toMatchObject({
-      prepared: ["root", "first", "child", "second", ...residents],
+      prepared: ["root", "second", ...residents, "first", "child"],
       drawn: ["root", "second", ...residents, "first", "child"],
     });
     first.updateZIndex(0);
@@ -110,7 +119,7 @@ describe.each([
     });
   });
 
-  it("uses the final selection after preparation moves one candidate out and another into the viewport", () => {
+  it("uses the final selection after a requested preparation moves one candidate out and another in", () => {
     const { add, fill, walk } = setup(fullWalkShare);
     const trigger = add("trigger", 10);
     const exiting = add("exiting", 30);
@@ -123,19 +132,22 @@ describe.each([
       entering.setBounds(40, 40, 50, 50);
       return true;
     };
+    trigger.requestWalk();
 
     const result = walk();
     expect(result.drawn).toEqual(["root", "trigger", "entering", ...residents]);
     expect(result.prepared.filter((name) => name === "entering")).toEqual(["entering"]);
+    expect(result.prepared).not.toContain("exiting");
     expect(result.events).toContain(`batch:${["trigger", "entering", ...residents].sort().join(",")}`);
-    for (const event of ["visible:exiting:false", "visible:entering:true", "prepare:entering"]) {
+    for (const event of ["prepare:trigger", "visible:exiting:false", "visible:entering:true"]) {
       expect(result.events.indexOf(event)).toBeGreaterThanOrEqual(0);
       expect(result.events.indexOf(event)).toBeLessThan(result.events.indexOf("draw:root"));
     }
+    expectPreparedBeforeOwnPaint(result);
     expect(walk().prepared).not.toContain("exiting");
   });
 
-  it("preserves partial preparation order when a child is attached after its parent's sibling", () => {
+  it("paints a child attached after its parent's sibling in local order", () => {
     const { add, fill, walk } = setup(fullWalkShare);
     const first = add("first", 10);
     add("second", 30);
@@ -147,7 +159,7 @@ describe.each([
     walk();
 
     expect(walk()).toMatchObject({
-      prepared: ["root", "first", "second", ...residents, "lateChild"],
+      prepared: ["root", "first", "lateChild", "second", ...residents],
       drawn: ["root", "first", "lateChild", "second", ...residents],
     });
   });
@@ -166,7 +178,7 @@ describe.each([
     state.viewport = { minX: 0, minY: 0, maxX: 150, maxY: 150 };
 
     const result = walk();
-    expect(result.prepared).toContain("changed");
+    expect(result.prepared).not.toContain("changed");
     expect(result.drawn).toEqual(["root", "trigger", ...residents]);
     expect(result.events).toContain(`batch:${["trigger", ...residents].sort().join(",")}`);
     expect(result.events.indexOf("visible:changed:false")).toBeGreaterThan(
@@ -193,6 +205,7 @@ describe.each([
           changeViewport();
           return true;
         };
+        trigger.requestWalk();
       } else {
         trigger.data.visibility = (visible) => {
           if (visible) changeViewport();
@@ -200,16 +213,18 @@ describe.each([
         state.viewport.maxX = state.viewport.maxY = 150;
       }
 
+      // Publication repeats for the final viewport, so the trigger is drawn only if it still intersects it.
       const result = walk();
-      expect(result.prepared).toContain("target");
-      expect(result.drawn).toEqual(["root", "trigger", ...residents]);
-      expect(result.events).toContain(`batch:${["trigger", ...residents].sort().join(",")}`);
+      const shown = phase === "preparation" ? ["trigger", ...residents] : residents;
+      expect(result.prepared).not.toContain("target");
+      expect(result.drawn).toEqual(["root", ...shown]);
+      expect(result.events).toContain(`batch:${shown.slice().sort().join(",")}`);
       expect(result.events.indexOf("visible:target:false")).toBeGreaterThanOrEqual(0);
       expect(result.events.indexOf("visible:target:false")).toBeLessThan(result.events.indexOf("draw:root"));
     }
   );
 
-  it("rechecks descendants when a visibility callback suppresses their prepared ancestor", () => {
+  it("hides descendants when a visibility callback requests their ancestor to suppress them", () => {
     const { state, add, fill, walk } = setup(fullWalkShare);
     const trigger = add("trigger", 120);
     const parent = add("parent", 30);
@@ -218,15 +233,20 @@ describe.each([
     add("outside", 1000);
     walk();
     walk();
+    let suppressed = false;
+    parent.data.prepare = () => !suppressed;
     trigger.data.visibility = (visible) => {
-      if (visible) parent.setChildrenWalkAllowed(false);
+      if (!visible) return;
+      suppressed = true;
+      parent.requestWalk();
     };
     state.viewport = { minX: 0, minY: 0, maxX: 150, maxY: 150 };
 
     const result = walk();
-    expect(result.prepared).toContain("child");
+    expect(result.prepared).not.toContain("child");
+    expect(result.events.indexOf("prepare:parent")).toBeLessThan(result.events.indexOf("draw:root"));
     expect(result.drawn).toEqual(["root", "trigger", "parent", ...residents]);
-    expect(result.visited.filter((name) => name === "child")).toEqual(["child"]);
+    expect(result.visited).not.toContain("child");
     expect(result.events).toContain(`batch:${["trigger", "parent", ...residents].sort().join(",")}`);
     expect(result.events.indexOf("visible:child:false")).toBeGreaterThanOrEqual(0);
     expect(result.events.indexOf("visible:child:false")).toBeLessThan(result.events.indexOf("draw:root"));
@@ -266,7 +286,7 @@ describe.each([
     pending.requestWalk();
 
     const result = walk();
-    expect(result.prepared).toEqual(["root", ...residents, "parent", "pending"]);
+    expect(result.prepared).toEqual(["root", "parent", "pending", ...residents]);
     expect(result.drawn).toEqual(["root", ...residents, "pending"]);
     expect(result.events).toContain(`batch:${[...residents, "pending"].sort().join(",")}`);
     expect(result.events.indexOf("visible:pending:true")).toBeGreaterThanOrEqual(0);

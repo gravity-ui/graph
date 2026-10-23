@@ -100,7 +100,12 @@ describe("Tree native spatial scope", () => {
     const result = walk();
     expect(result.drawn).toEqual(["root", "new", "moved"]);
     expect(result.visited).toEqual(["root", "parent", "new", "moved"]);
-    expect(result.events.indexOf("prepare:moved")).toBeLessThan(result.events.indexOf("draw:root"));
+    // The requested parent and the node it registers prepare before painting; the clean node it moved
+    // into view prepares right before its own paint.
+    for (const name of ["parent", "new"]) {
+      expect(result.events.indexOf(`prepare:${name}`)).toBeLessThan(result.events.indexOf("draw:root"));
+    }
+    expect(result.events.indexOf("prepare:moved")).toBeLessThan(result.events.indexOf("draw:moved"));
     expect(root.children.size).toBe(2);
   });
 
@@ -290,7 +295,7 @@ describe("Tree native spatial scope", () => {
     expect(siblings).not.toHaveBeenCalled();
   });
 
-  it("uses the tile query when large offscreen items are a minority", () => {
+  it("selects through the tile query after a structural change when large offscreen items are a minority", () => {
     const { root, add, walk } = setup();
     for (let i = 0; i < 1000; i++) {
       const x = 1000 + i * 1024;
@@ -303,12 +308,21 @@ describe("Tree native spatial scope", () => {
     const query = jest.spyOn(scope.index, "query");
     const linearScan = jest.spyOn(scope.nodes, Symbol.iterator);
 
+    // An unchanged frame keeps the published selection without any selection work.
+    expect(walk().drawn).toEqual(["root"]);
+    expect(query).not.toHaveBeenCalled();
+    expect(linearScan).not.toHaveBeenCalled();
+
+    add("late", 2000);
+    query.mockClear();
+    linearScan.mockClear();
     expect(walk().drawn).toEqual(["root"]);
     expect(query).toHaveBeenCalledTimes(1);
     expect(linearScan).not.toHaveBeenCalled();
   });
 
   it("preserves full traversal order for sparse and dense randomized visibility selections", () => {
+    // Each viewport starts from a new scope, so its first frame runs a complete selection.
     const { root, state, add, walk, configure } = setup();
     let seed = 3;
     const random = () => {
@@ -330,18 +344,21 @@ describe("Tree native spatial scope", () => {
     configure();
     const scope = root["culling"];
     if (!scope) throw new Error("Missing root scope");
-    const query = jest.spyOn(scope.index, "query");
-    const linearScan = jest.spyOn(scope.nodes, Symbol.iterator);
+    let query = jest.spyOn(scope.index, "query");
+    let linearScan = jest.spyOn(scope.nodes, Symbol.iterator);
 
     for (const [viewport, usesQuery] of [
       [rect(100, 100, 100), true],
       [rect(0, 0, 950), false],
     ] as const) {
       state.viewport = viewport;
-      // Warm the structural preparation order before counting per-frame selection work.
-      walk();
-      query.mockClear();
-      linearScan.mockClear();
+      configure();
+      const current = root["culling"];
+      if (!current) throw new Error("Missing root scope");
+      query.mockRestore();
+      linearScan.mockRestore();
+      query = jest.spyOn(current.index, "query");
+      linearScan = jest.spyOn(current.nodes, Symbol.iterator);
       const visible = new Set(
         Array.from(positions.entries())
           .filter(

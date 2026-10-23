@@ -9,6 +9,11 @@ export interface ITree {
   prepareUpdate?(): boolean;
   /** Runs before painting when this node's own viewport visibility changes. */
   onViewportChange?(visible: boolean): void;
+  /**
+   * `iterate()` applies pending updates itself when `prepareUpdate()` has not run in this traversal.
+   * The tree then lets clean nodes update inside their own `iterate()`. Read once per node.
+   */
+  readonly preparesOnIterate?: boolean;
 }
 
 export class Tree<T extends ITree = ITree> {
@@ -50,9 +55,13 @@ export class Tree<T extends ITree = ITree> {
   private eligibilityRevision = -1;
   private traversalAllowed = true;
 
+  /** @internal See {@link ITree.preparesOnIterate}. */
+  public readonly preparesOnIterate: boolean;
+
   constructor(data: T, parent?: Tree) {
     this.data = data;
     this.parent = parent;
+    this.preparesOnIterate = data.preparesOnIterate === true;
   }
 
   public append(node: Tree) {
@@ -160,7 +169,10 @@ export class Tree<T extends ITree = ITree> {
     const scope = this.scope;
     if (!scope) return true;
     // Update hooks need current geometry; painting shares the finalized batch selection.
-    const visible = scope.painting ? this.visible : scope.intersects(this, scope.options.getViewport());
+    const visible =
+      scope.painting && scope.preparingNode !== this
+        ? this.visible
+        : scope.intersects(this, scope.options.getViewport());
     return (
       visible && ((scope.painting && scope.visibilityRevision === scope.structureRevision) || this.isEligible(scope))
     );
@@ -209,6 +221,11 @@ export class Tree<T extends ITree = ITree> {
     if (this.childrenWalkAllowed === allowed) return;
     this.childrenWalkAllowed = allowed;
     this.scope?.invalidateStructure();
+  }
+
+  /** @internal Published viewport visibility; the paint walk visits published nodes. */
+  public get publishedVisible(): boolean {
+    return this.visible;
   }
 
   /** @internal */

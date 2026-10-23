@@ -216,7 +216,7 @@ describe("Tree geometry and structure invalidation", () => {
       const sibling = add("sibling", 40);
       const nodes = [parent, child, leaf, sibling];
       const initial = walk();
-      expect(initial.work.children).toBeGreaterThan(0);
+      // The first traversal enumerates the hierarchy once to build the paint order.
       expect(initial.work.order).toBeGreaterThan(0);
       walk();
       const stable = walk();
@@ -273,7 +273,7 @@ describe("Tree geometry and structure invalidation", () => {
     expect(walk().drawn).toEqual(["root", "resident", "moved"]);
   });
 
-  it("uses new ancestry after a prepared child moves between warmed branches", () => {
+  it("uses new ancestry after a requested preparation moves a child between warmed branches", () => {
     const { add, walk } = setup();
     const original = add("original", 10);
     const child = add("child", 20, original);
@@ -287,16 +287,18 @@ describe("Tree geometry and structure invalidation", () => {
       destination.data.prepare = undefined;
       return true;
     };
+    destination.requestWalk();
 
+    // Reparenting registers the moved subtree again, so it prepares before painting.
     expect(walk()).toMatchObject({
-      prepared: ["root", "original", "child", "leaf", "destination"],
+      prepared: ["root", "destination", "child", "leaf", "original"],
       drawn: ["root", "original", "destination", "child", "leaf"],
       visited: ["root", "original", "destination", "child", "leaf"],
     });
     expect(walk().prepared).toEqual(["root", "original", "destination", "child", "leaf"]);
   });
 
-  it("updates z-order alongside bounds without changing preparation order", () => {
+  it("updates z-order alongside bounds from a requested preparation", () => {
     const { state, add, walk } = setup();
     const first = add("first", 10);
     add("child", 20, first);
@@ -308,9 +310,10 @@ describe("Tree geometry and structure invalidation", () => {
       first.setBounds(60, 60, 70, 70);
       return true;
     };
+    second.requestWalk();
 
     expect(walk()).toMatchObject({
-      prepared: ["root", "first", "child", "second"],
+      prepared: ["root", "second", "first", "child"],
       drawn: ["root", "second", "first", "child"],
     });
     state.viewport = viewport(50);
@@ -332,6 +335,7 @@ describe("Tree geometry and structure invalidation", () => {
       child.setBounds(50, 50, 60, 60);
       return false;
     };
+    parent.requestWalk();
 
     let result = walk();
     expect(result.prepared).toEqual(["root", "parent", "sibling"]);
@@ -345,8 +349,10 @@ describe("Tree geometry and structure invalidation", () => {
       child.setBounds(300, 300, 310, 310);
       return true;
     };
+    parent.requestWalk();
     result = walk();
-    expect(result.prepared).toEqual(["root", "parent", "child", "leaf", "sibling"]);
+    // The clean offscreen child passes its visible leaf through without preparing.
+    expect(result.prepared).toEqual(["root", "parent", "leaf", "sibling"]);
     expect(result.drawn).toEqual(["root", "parent", "leaf", "sibling"]);
     expect(leaf.isTraversalAllowed()).toBe(true);
     state.viewport = viewport(1000);

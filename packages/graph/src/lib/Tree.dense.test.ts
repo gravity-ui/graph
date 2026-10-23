@@ -54,6 +54,15 @@ function setup() {
   return { root, state, add, make, walk };
 }
 
+/** Every visited node prepares in this frame, and never after its own paint. */
+function expectPreparedBeforeOwnPaint(result: { events: string[]; visited: string[] }): void {
+  for (const name of result.visited) {
+    const prepared = result.events.indexOf(`prepare:${name}`);
+    expect(prepared).toBeGreaterThanOrEqual(0);
+    expect(prepared).toBeLessThan(result.events.indexOf(`iterate:${name}`));
+  }
+}
+
 describe("Tree full-viewport traversal", () => {
   it.each(["deep", "wide"])("keeps ancestor checks linear when every node in a %s tree is visible", (shape) => {
     const { root, add, walk } = setup();
@@ -127,7 +136,7 @@ describe("Tree full-viewport traversal", () => {
     nodes[0].updateZIndex(5);
     state.viewport = viewport(365);
     let result = walk();
-    expect(result.prepared).toEqual(["root", ...names.slice(0, 18)]);
+    expect(result.prepared).toEqual(result.visited);
     expect(result.visited).toEqual(["root", ...names.slice(1, 18), "node0"]);
     expect(result.drawn).toEqual(result.visited);
     expect(result.events).toContain(`batch:${names.slice(0, 18).sort().join(",")}`);
@@ -147,7 +156,7 @@ describe("Tree full-viewport traversal", () => {
     expect(walk().drawn).toEqual(["root", ...names.slice(1), "node0"]);
   });
 
-  it("finishes a prepared subtree without painting it after preparation moves it under an unprepared ancestor", () => {
+  it("paints a visible subtree that a requested preparation moves under an offscreen ancestor", () => {
     const { state, add, walk } = setup();
     state.viewport = viewport(100);
     const original = add("original", 10);
@@ -163,14 +172,18 @@ describe("Tree full-viewport traversal", () => {
       far.append(child);
       return true;
     };
+    trigger.requestWalk();
 
+    // Reparenting registers the subtree again: it prepares before painting with its offscreen ancestor,
+    // and each node's own bounds keep the moved nodes visible below that ancestor.
     const result = walk();
-    expect(result.prepared).toEqual(["root", "original", "child", "grandchild", "trigger", ...fillers]);
-    expect(result.drawn).toEqual(["root", "original", "trigger", ...fillers]);
-    expect(result.visited).toEqual(["root", "original", "trigger", ...fillers, "child", "grandchild"]);
+    expect(result.prepared.slice(0, 5)).toEqual(["root", "trigger", "far", "child", "grandchild"]);
+    expect(result.drawn).toEqual(["root", "original", "trigger", ...fillers, "child", "grandchild"]);
+    expect(result.visited).toEqual(["root", "original", "trigger", ...fillers, "far", "child", "grandchild"]);
+    expectPreparedBeforeOwnPaint(result);
   });
 
-  it("defers a node appended by a viewport callback until its first preparation in the next frame", () => {
+  it("prepares and paints a node appended by a viewport callback in the same frame", () => {
     const { root, state, add, make, walk } = setup();
     add("resident", 10);
     const trigger = add("trigger", 500);
@@ -185,17 +198,17 @@ describe("Tree full-viewport traversal", () => {
     };
 
     state.viewport = viewport(1000);
-    expect(walk()).toMatchObject({
-      prepared: ["root", "resident", "trigger"],
-      visited: ["root", "resident", "trigger"],
-    });
+    const result = walk();
+    expect(result.drawn).toEqual(["root", "resident", "trigger", "created"]);
+    expect(result.events.indexOf("prepare:created")).toBeLessThan(result.events.indexOf("draw:root"));
+    expectPreparedBeforeOwnPaint(result);
     expect(walk()).toMatchObject({
       prepared: ["root", "resident", "trigger", "created"],
       drawn: ["root", "resident", "trigger", "created"],
     });
   });
 
-  it("uses final geometry and child order when preparation changes a fully visible tree", () => {
+  it("uses final geometry and child order when a requested preparation changes a fully visible tree", () => {
     const { root, add, make, walk } = setup();
     const early = add("early", 10);
     add("visibleChild", 20, early);
@@ -210,10 +223,11 @@ describe("Tree full-viewport traversal", () => {
       tail.updateZIndex(0);
       return true;
     };
+    parent.requestWalk();
 
     const result = walk();
     expect(result.drawn).toEqual(["root", "tail", "visibleChild", "parent", "replacement"]);
-    expect(result.prepared.filter((name) => name === "early")).toHaveLength(1);
+    expect(result.prepared).not.toContain("early");
     expect(result.visited).not.toContain("removed");
     expect(result.events.indexOf("prepare:replacement")).toBeLessThan(result.events.indexOf("draw:root"));
     expect(result.events.indexOf("visible:early:false")).toBeLessThan(result.events.indexOf("draw:root"));
@@ -221,7 +235,7 @@ describe("Tree full-viewport traversal", () => {
     expect(root["culling"]?.index.size).toBe(5);
   });
 
-  it("prepares and completes a node once when a later preparation reparents it in the same scope", () => {
+  it("prepares and completes a node once when a requested preparation reparents it in the same scope", () => {
     const { add, walk } = setup();
     const original = add("original", 10);
     const child = add("child", 20, original);
@@ -231,9 +245,11 @@ describe("Tree full-viewport traversal", () => {
       destination.append(child);
       return true;
     };
+    destination.requestWalk();
 
     const result = walk();
-    expect(result.prepared).toEqual(["root", "original", "child", "destination"]);
+    // Reparenting registers the child again, so it prepares before painting.
+    expect(result.prepared).toEqual(["root", "destination", "child", "original"]);
     expect(result.visited).toEqual(["root", "original", "destination", "child"]);
     expect(result.drawn).toEqual(["root", "original", "destination", "child"]);
     expect(child.parent).toBe(destination);
@@ -251,6 +267,7 @@ describe("Tree full-viewport traversal", () => {
       return true;
     };
     destination.data.prepare = () => false;
+    mover.requestWalk();
 
     const result = walk();
     expect(result.prepared).toEqual(["root", "original", "mover", "destination"]);
@@ -258,7 +275,7 @@ describe("Tree full-viewport traversal", () => {
     expect(moved.isTraversalAllowed()).toBe(false);
   });
 
-  it("does not reuse a detached node after a later preparation removes it from a warmed tree", () => {
+  it("does not reuse a detached node after a requested preparation removes it from a warmed tree", () => {
     const { root, add, walk } = setup();
     const removed = add("removed", 10);
     const later = add("later", 20);
@@ -269,14 +286,15 @@ describe("Tree full-viewport traversal", () => {
       later.data.prepare = undefined;
       return true;
     };
+    later.requestWalk();
 
-    expect(walk()).toMatchObject({ prepared: ["root", "removed", "later"], visited: ["root", "later"] });
+    expect(walk()).toMatchObject({ prepared: ["root", "later"], visited: ["root", "later"] });
     expect(walk()).toMatchObject({ prepared: ["root", "later"], visited: ["root", "later"] });
     expect(walk().prepared).toEqual(["root", "later"]);
     expect(removed.parent).toBeUndefined();
   });
 
-  it("discovers a new child in an earlier branch and honors suppression during cached preparation", () => {
+  it("discovers a new child in an earlier branch and honors suppression from a requested preparation", () => {
     const { add, make, walk } = setup();
     const earlier = add("earlier", 10);
     add("retained", 20, earlier);
@@ -290,14 +308,16 @@ describe("Tree full-viewport traversal", () => {
       later.data.prepare = () => false;
       return false;
     };
+    later.requestWalk();
 
     const result = walk();
-    expect(result.prepared).toEqual(["root", "earlier", "retained", "later", "created"]);
+    expect(result.prepared.slice().sort()).toEqual(["created", "earlier", "later", "retained", "root"]);
     expect(result.drawn).toEqual(["root", "earlier", "retained", "created", "later"]);
     expect(result.events.indexOf("prepare:created")).toBeLessThan(result.events.indexOf("draw:root"));
     expect(result.events.indexOf("visible:suppressed:false")).toBeLessThan(result.events.indexOf("draw:root"));
     expect(walk().prepared.sort()).toEqual(["created", "earlier", "later", "retained", "root"]);
     later.data.prepare = () => true;
+    later.requestWalk();
     expect(walk().drawn).toEqual(["root", "earlier", "retained", "created", "later", "suppressed"]);
   });
 
@@ -364,8 +384,7 @@ describe("Tree full-viewport traversal", () => {
     const scope = root["culling"];
     if (!scope) throw new Error("Missing scope");
     expect(scope.nodes.size).toBe(0);
-    expect(scope.fullPreparation?.nodes.some((node) => node !== root) ?? false).toBe(false);
-    expect(scope.fullPaint?.nodes.some((node) => node !== root) ?? false).toBe(false);
+    expect(scope["paintOrder"]?.nodes.some((node) => node !== root) ?? false).toBe(false);
   });
 
   it("prepares and completes transferred descendants once in every destination scope", () => {
@@ -458,7 +477,7 @@ describe("Tree full-viewport traversal", () => {
     expect(walk().drawn).toEqual(["root", "left", "moved"]);
   });
 
-  it("finishes prepared descendants without paint when an ancestor suppresses them during paint", () => {
+  it("skips clean descendants when an ancestor suppresses them during paint", () => {
     const { add, walk } = setup();
     const parent = add("parent", 10);
     const child = add("child", 20, parent);
@@ -466,8 +485,8 @@ describe("Tree full-viewport traversal", () => {
     walk();
     parent.data.paint = () => false;
     let result = walk();
-    expect(result.prepared).toEqual(["root", "parent", "child", "leaf"]);
-    expect(result.visited).toEqual(["root", "parent", "child", "leaf"]);
+    expect(result.prepared).toEqual(["root", "parent"]);
+    expect(result.visited).toEqual(["root", "parent"]);
     expect(result.drawn).toEqual(["root", "parent"]);
     expect([child.isVisible(), leaf.isVisible()]).toEqual([false, false]);
 
@@ -476,6 +495,7 @@ describe("Tree full-viewport traversal", () => {
     expect(result.prepared).toEqual(["root", "parent"]);
     expect(result.visited).toEqual(["root", "parent"]);
     parent.data.prepare = parent.data.paint = () => true;
+    parent.requestWalk();
     expect(walk().drawn).toEqual(["root", "parent", "child", "leaf"]);
   });
 
@@ -496,7 +516,8 @@ describe("Tree full-viewport traversal", () => {
     };
 
     expect(walk().drawn).toEqual(["root", "parent"]);
-    expect(allowed).toEqual([true, false]);
+    // The clean child is not reached once its ancestor suppresses the branch.
+    expect(allowed).toEqual([true]);
     expect(leaf.isTraversalAllowed()).toBe(false);
     root.append(child);
     expect(leaf.isTraversalAllowed()).toBe(true);

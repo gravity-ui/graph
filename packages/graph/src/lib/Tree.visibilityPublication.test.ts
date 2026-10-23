@@ -3,6 +3,7 @@ import { ITree, Tree } from "./Tree";
 
 type Probe = ITree & {
   name: string;
+  prepare?: () => boolean;
   paint?: () => boolean;
   visibility?: (visible: boolean) => void;
 };
@@ -16,7 +17,7 @@ function setup() {
       name,
       prepareUpdate: () => {
         events.push(`prepare:${name}`);
-        return true;
+        return node.data.prepare?.() ?? true;
       },
       onViewportChange: (visible) => {
         events.push(`visible:${name}:${visible}`);
@@ -69,17 +70,23 @@ describe("Tree visibility publication", () => {
       const residents = fill();
       walk();
       walk();
+      let suppressed = false;
+      parent.data.prepare = () => !suppressed;
       exiting.data.visibility = (visible) => {
         if (visible) return;
         if (change === "bounds") target.setBounds(1000, 1000, 1005, 1005);
         else if (change === "viewport") state.viewport.maxX = state.viewport.maxY = 35;
-        else parent.setChildrenWalkAllowed(false);
+        else {
+          // Components suppress children from their own update, requested like any other change.
+          suppressed = true;
+          parent.requestWalk();
+        }
       };
       state.viewport.minX = state.viewport.minY = 20;
 
       const result = walk();
       expect(result.prepared).not.toContain("exiting");
-      expect(result.prepared.filter((name) => name === "target")).toEqual(["target"]);
+      expect(result.prepared).not.toContain("target");
       expect(result.drawn).toEqual(["root", "parent", ...residents]);
       expect(result.events).toContain(`batch:${["parent", ...residents].sort().join(",")}`);
       expect(result.events.indexOf("visible:target:false")).toBeGreaterThan(
@@ -106,7 +113,7 @@ describe("Tree visibility publication", () => {
     expect(walk().prepared).not.toContain("new");
   });
 
-  it("restores visibility before the next batch paint after painting suppressed a prepared branch", () => {
+  it("restores visibility before the next batch paint after painting suppressed a branch", () => {
     const { state, add, fill, walk } = setup();
     const parent = add("parent", 30);
     const child = add("child", 40, parent);
@@ -117,17 +124,17 @@ describe("Tree visibility publication", () => {
 
     let result = walk();
     expect(result.drawn).toEqual(["root", "parent", ...residents]);
-    expect(result.events.filter((event) => event === "iterate:child")).toEqual(["iterate:child"]);
-    expect(result.events).toContain("visible:child:false");
+    expect(result.events).not.toContain("iterate:child");
     expect(child.isVisible()).toBe(false);
 
     parent.data.paint = undefined;
     state.viewport.maxX = state.viewport.maxY = 99;
     result = walk();
     expect(result.drawn).toEqual(["root", "parent", "child", ...residents]);
+    // The veto only lived inside one paint, so the child's published membership never changed.
     expect(result.events).toContain(`batch:${["parent", "child", ...residents].sort().join(",")}`);
-    expect(result.events.indexOf("visible:child:true")).toBeGreaterThanOrEqual(0);
-    expect(result.events.indexOf("visible:child:true")).toBeLessThan(result.events.indexOf("draw:root"));
+    expect(result.events).not.toContain("visible:child:false");
+    expect(result.events.indexOf("prepare:parent")).toBeLessThan(result.events.indexOf("draw:root"));
     expect(child.isVisible()).toBe(true);
   });
 });

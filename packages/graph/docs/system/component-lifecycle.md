@@ -44,8 +44,8 @@ The CoreComponent provides the foundation with four main methods:
 
 | Method | Purpose | When Called |
 |--------|---------|-------------|
-| `prepareUpdate()` | Prepares data and children before viewport selection | For visible, new, or dirty components |
-| `iterate()` | Completes the update and paints eligible components | After preparation |
+| `prepareUpdate()` | Applies pending data and reconciles children | Before painting for new or requested components; inside `iterate()` for clean visible ones |
+| `iterate()` | Completes the update and paints eligible components | For visible components and prepared offscreen ones |
 | `updateChildren()` | Defines and updates child components | During children update |
 | `render()` | Handles visual rendering | During render phase |
 
@@ -57,9 +57,11 @@ The Component class extends CoreComponent with additional lifecycle hooks:
 
 #### Method Sequence
 
-Each layer tree prepares selected components before painting them. New or dirty components outside
-the viewport still prepare and complete their update; clean offscreen components are skipped.
-Preparation is idempotent within an iteration, including when `iterate()` is called directly.
+Each layer tree first prepares new components and components that requested an update, then publishes
+viewport visibility, then paints. New or requested components outside the viewport still prepare and
+complete their update; clean offscreen components are skipped. A clean visible component prepares
+inside its own `iterate()`, right before painting. Preparation is idempotent within an iteration,
+including when `iterate()` is called directly.
 
 Methods are called in this order:
 
@@ -74,7 +76,7 @@ Methods are called in this order:
        H -->|Yes| I[willUpdateChildren]
        I --> J[updateChildren]
        J --> K[didUpdateChildren]
-       H -->|No| V[Tree resolves viewport selection]
+       H -->|No| V[Tree's published viewport visibility]
        K --> V
        V --> C{shouldRender and in viewport?}
        C -->|Yes| D[willRender]
@@ -85,7 +87,9 @@ Methods are called in this order:
        F --> L
    ```
 
-Children and their geometry are prepared before the layer draws. Keep initialization, port
+Children and geometry of new and requested components are prepared before the layer draws. Change
+geometry through `setState()`, `setProps()` or `performRender()`: a change a clean component makes
+inside its own update hook takes effect for culling from the next frame. Keep initialization, port
 registration, and hit-box updates in constructors or update hooks: `willRender`, `render`, and
 `didRender` are never called for a component whose known bounds are outside the viewport.
 `firstRender` stays true until the component is actually painted; use `firstIterate` for mount-related
@@ -102,7 +106,7 @@ When state or props change:
 | 3 | Update scheduled | `performRender()` |
 | 4 | Changes processed | `checkData()` |
 | 5 | Callbacks triggered | `propsChanged()` or `stateChanged()` |
-| 6 | Render evaluated | Based on `shouldRender` and the tree's viewport selection |
+| 6 | Render evaluated | Based on `shouldRender` and the tree's published viewport visibility |
 
 ### 5. Control Flags
 

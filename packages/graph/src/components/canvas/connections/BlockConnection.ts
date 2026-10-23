@@ -34,6 +34,14 @@ export type TBlockConnection = {
   removeFromRenderOrder(cmp: Path2DRenderInstance): void;
 };
 
+function hasChangedValue<V extends object>(next: V | undefined, current: V): boolean {
+  if (!next) return false;
+  for (const key of Object.keys(next) as Array<keyof V>) {
+    if (!Object.is(next[key], current[key])) return true;
+  }
+  return false;
+}
+
 export class BlockConnection<T extends TConnection>
   extends BaseConnection<TConnectionProps, TBaseConnectionState, TGraphConnectionsContext, T>
   implements Path2DRenderInstance
@@ -47,6 +55,9 @@ export class BlockConnection<T extends TConnection>
   private labelPaintGeometry: typeof this.labelGeometry;
 
   private labelFont = "";
+
+  /** Context the current geometry was computed with; constants and label sizes live there. */
+  private geometryContext?: TGraphConnectionsContext;
 
   private unsubscribeLabelFontSize?: () => void;
 
@@ -273,11 +284,16 @@ export class BlockConnection<T extends TConnection>
   }
 
   protected override checkData(): boolean {
+    // Mounting computes geometry from the $geometry subscription; later, only changed inputs recompute it.
+    const { nextProps, nextState } = this.__data;
+    const geometryInputsChanged =
+      !this.firstIterate &&
+      (this.context !== this.geometryContext ||
+        hasChangedValue(nextProps, this.props) ||
+        hasChangedValue(nextState, this.state));
     const changed = super.checkData();
-    if (changed) {
-      this.updatePoints();
-      this.syncLabelSubscription();
-    }
+    if (geometryInputsChanged) this.updatePoints();
+    if (changed) this.syncLabelSubscription();
     return changed;
   }
 
@@ -324,6 +340,7 @@ export class BlockConnection<T extends TConnection>
   }
 
   protected override updatePoints(additionalPoints?: TPoint[], props: TConnectionProps = this.props) {
+    this.geometryContext = this.context;
     super.updatePoints(additionalPoints, props);
 
     if (this.connectionPoints) {

@@ -27,13 +27,13 @@ function setup() {
 }
 
 describe("Tree descendant visibility", () => {
-  it("traverses finite offscreen ancestors to a visible leaf without enlarging their own bounds", () => {
+  it("reaches a visible leaf through finite offscreen ancestors without visiting them or enlarging their bounds", () => {
     const { root, add, walk } = setup();
     const parent = add(root, 1000);
     const child = add(parent, 2000);
     const leaf = add(child, 20);
     walk();
-    expect(walk()).toEqual([parent, child, leaf]);
+    expect(walk()).toEqual([leaf]);
     expect([parent.isVisible(), child.isVisible(), leaf.isVisible()]).toEqual([false, false, true]);
     expect([parent.boundsMinX, parent.boundsMaxX]).toEqual([1000, 1010]);
     expect(root["culling"]?.index.size).toBe(3);

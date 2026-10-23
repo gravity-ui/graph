@@ -93,6 +93,11 @@ export class CoreComponent<
     this.performRender();
   }
 
+  /** {@link iterate} applies pending updates when the tree has not prepared this component. */
+  public get preparesOnIterate(): boolean {
+    return true;
+  }
+
   public get renderOrder() {
     return this.__comp.treeNode.renderOrder;
   }
