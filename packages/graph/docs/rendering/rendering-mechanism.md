@@ -36,6 +36,18 @@ Membership, sibling order, and traversal permissions invalidate those caches sep
 viewport contains all indexed bounds, the coordinator reuses the full traversal order; otherwise it
 selects candidates from tiles or a linear bounds scan for dense views.
 
+Dense partial views reuse a cached registration order and parent positions. Exact selection marks
+identify visible nodes; their unprepared ancestors are included when needed, so this path still skips clean
+offscreen branches. Structural changes during preparation fall back to the ordinary ancestor-aware
+walk and repeat selection before painting. Partial preparation retains registration order with
+required ancestors first, independently of paint z-order, including children attached later.
+
+The coordinator reuses exact selection while geometry, structure, and viewport edges remain unchanged,
+including checking for invalidation from synchronous visibility callbacks. Published visibility also carries
+its ancestry revision, avoiding repeated eligibility checks during painting until structure changes.
+The active registry is updated only when membership changes, including the first registration of a
+new node whose initial visibility is already true.
+
 This coordination does not own a drawing context: layers and component render methods retain their
 existing responsibilities. An explicit child-traversal veto still suppresses descendants, including
 when a parent sets it during painting; already prepared descendants then complete without painting.

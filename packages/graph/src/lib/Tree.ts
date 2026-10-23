@@ -43,6 +43,10 @@ export class Tree<T extends ITree = ITree> {
   private visible = true;
   /** @internal Last traversal that prepared this node. */
   public preparedStamp = 0;
+  /** @internal Exact selection for one spatial query. */
+  public selectedStamp = 0;
+  /** @internal Membership in the scope's published visibility registry. */
+  public activeInViewport = false;
   private eligibilityRevision = -1;
   private traversalAllowed = true;
 
@@ -158,8 +162,7 @@ export class Tree<T extends ITree = ITree> {
     // Update hooks need current geometry; painting shares the finalized batch selection.
     const visible = scope.painting ? this.visible : scope.intersects(this, scope.options.getViewport());
     return (
-      visible &&
-      ((scope.painting && scope.fullVisibilityRevision === scope.structureRevision) || this.isEligible(scope))
+      visible && ((scope.painting && scope.visibilityRevision === scope.structureRevision) || this.isEligible(scope))
     );
   }
 
@@ -176,7 +179,7 @@ export class Tree<T extends ITree = ITree> {
         scope.painting &&
         this.visible &&
         this !== scope.owner &&
-        scope.fullVisibilityRevision === scope.structureRevision
+        scope.visibilityRevision === scope.structureRevision
       )
         return true;
       if (this.eligibilityRevision !== scope.structureRevision) {
@@ -209,10 +212,11 @@ export class Tree<T extends ITree = ITree> {
   }
 
   /** @internal */
-  public setVisible(visible: boolean): void {
-    if (this.visible === visible) return;
+  public setVisible(visible: boolean): boolean {
+    if (this.visible === visible) return false;
     this.visible = visible;
     this.data.onViewportChange?.(visible);
+    return true;
   }
 
   public updateZIndex(index: number) {

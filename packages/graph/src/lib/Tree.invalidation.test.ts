@@ -101,6 +101,83 @@ function setup() {
 }
 
 describe("Tree geometry and structure invalidation", () => {
+  it("reuses unchanged ancestry for a dense partial viewport without preparing clean offscreen nodes", () => {
+    const { state, add, walk } = setup();
+    const names = Array.from({ length: 25 }, (_, i) => `node${i}`);
+    names.forEach((name, i) => add(name, 10 + i * 20));
+    walk();
+    state.viewport = viewport(465);
+    walk();
+    walk();
+
+    state.viewport = viewport(466);
+    const result = walk();
+    expect(result.prepared).toEqual(["root", ...names.slice(0, 23)]);
+    expect(result.drawn).toEqual(result.prepared);
+    expect(result.work.children).toBe(0);
+    expect(result.work.parent).toBeLessThanOrEqual(4);
+  });
+
+  it("checks each unchanged dense node's bounds only once before publishing visibility", () => {
+    const { state, add, walk } = setup();
+    const nodes = Array.from({ length: 25 }, (_, i) => add(`node${i}`, 10 + i * 20));
+    walk();
+    state.viewport = viewport(465);
+    walk();
+    walk();
+    const reads = { minX: 0 };
+    for (const node of nodes) {
+      const minX = node.boundsMinX;
+      Object.defineProperty(node, "boundsMinX", {
+        configurable: true,
+        get: () => {
+          reads.minX++;
+          return minX;
+        },
+      });
+    }
+
+    state.viewport = viewport(466);
+    const result = walk();
+    expect(result.drawn).toHaveLength(24);
+    // One exact bounds check reads minX for the unknown-bounds gate and the left edge.
+    expect(reads.minX).toBeLessThanOrEqual(nodes.length * 2);
+  });
+
+  it("does not rewrite unchanged active membership or recheck published eligibility during paint", () => {
+    const { root, state, add, walk } = setup();
+    const nodes = Array.from({ length: 25 }, (_, i) => add(`node${i}`, 10 + i * 20));
+    walk();
+    state.viewport = viewport(465);
+    walk();
+    walk();
+    const scope = root.scope;
+    if (!scope) throw new Error("Missing tree culling scope");
+    const active = scope["active"];
+    const work = { writes: 0, paintChecks: 0 };
+    const addActive = active.add.bind(active);
+    const deleteActive = active.delete.bind(active);
+    active.add = (node) => {
+      work.writes++;
+      return addActive(node);
+    };
+    active.delete = (node) => {
+      work.writes++;
+      return deleteActive(node);
+    };
+    for (const node of nodes) {
+      const isEligible = node.isEligible.bind(node);
+      node.isEligible = (currentScope) => {
+        if (currentScope.painting) work.paintChecks++;
+        return isEligible(currentScope);
+      };
+    }
+
+    const result = walk();
+    expect(result.drawn).toHaveLength(24);
+    expect(work).toEqual({ writes: 0, paintChecks: 0 });
+  });
+
   it.each(["before", "during"])(
     "does not enumerate unchanged hierarchy or ancestry when bounds move %s preparation",
     (timing) => {

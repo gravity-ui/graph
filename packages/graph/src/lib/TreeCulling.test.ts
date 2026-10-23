@@ -338,6 +338,8 @@ describe("Tree native spatial scope", () => {
       [rect(0, 0, 950), false],
     ] as const) {
       state.viewport = viewport;
+      // Warm the structural preparation order before counting per-frame selection work.
+      walk();
       query.mockClear();
       linearScan.mockClear();
       const visible = new Set(

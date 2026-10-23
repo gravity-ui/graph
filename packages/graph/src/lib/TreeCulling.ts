@@ -18,6 +18,7 @@ export type TTreeCullingOptions = {
 export class TreeCulling {
   // Moving between scopes must not repeat a node's lifecycle in the same traversal.
   private static walkStamp = 0;
+  private static selectionStamp = 0;
 
   public readonly index: TileIndex<Tree>;
 
@@ -42,7 +43,18 @@ export class TreeCulling {
 
   public fullVisibilityRevision = -1;
 
+  /** Ancestry revision used by the published visibility snapshot. */
+  public visibilityRevision = -1;
+
   public fullPreparation?: { revision: number; nodes: Tree[] };
+
+  private densePreparation?: { revision: number; nodes: Tree[]; parents: number[] };
+
+  private selectionStamp = 0;
+
+  private selectionRevision = -1;
+
+  private selectionViewport?: TTileRect;
 
   public fullPaint?: { revision: number; nodes: Tree[]; subtreeEnds: number[] };
 
@@ -63,6 +75,7 @@ export class TreeCulling {
     this.walking = true;
     this.painting = false;
     this.stamp = ++TreeCulling.walkStamp;
+    this.selectionRevision = -1;
     // An ancestor outside this scope can change its traversal permission independently.
     if (this.owner.parent) this.invalidateStructure();
     try {
@@ -84,7 +97,7 @@ export class TreeCulling {
       if (node !== this.owner) {
         const parent = node.parent;
         if (!parent || !parent.children.has(node)) return;
-        prepare(parent);
+        if (parent.preparedStamp !== this.stamp) prepare(parent);
         if (parent.preparedStamp !== this.stamp || !parent.childrenWalkAllowed || node.scope !== this) return;
       }
       prepareNode(node);
@@ -101,7 +114,12 @@ export class TreeCulling {
       revision = this.revision;
       if (!fullWalk) {
         const candidates = this.select(this.didCull ? viewport : undefined);
-        for (const node of candidates) prepare(node);
+        if (
+          candidates.length <= this.nodes.size * (this.options.fullWalkShare ?? 0.75) ||
+          !this.prepareDense(prepared)
+        ) {
+          for (const node of candidates) prepare(node);
+        }
       }
       for (const node of this.fresh) prepare(node);
       for (const node of this.pending) prepare(node);
@@ -117,6 +135,43 @@ export class TreeCulling {
     this.publishVisibility(prepared, viewport);
     this.painting = true;
     this.walkPrepared(iterator, prepared, fullWalk);
+  }
+
+  private prepareDense(prepared: Tree[]): boolean {
+    let ordered = this.densePreparation;
+    if (ordered?.revision !== this.structureRevision) {
+      // Preserve partial selection's registration order, including children attached later.
+      const nodes = [this.owner, ...this.nodes];
+      const positions = new Map(nodes.map((node, index) => [node, index]));
+      const parents = nodes.map((node) => (node.parent ? positions.get(node.parent) ?? -1 : -1));
+      this.densePreparation = ordered = { revision: this.structureRevision, nodes, parents };
+    }
+    const { nodes, parents } = ordered;
+    const branch: number[] = [];
+    for (let i = 1; i < nodes.length; i++) {
+      const node = nodes[i];
+      if (node.preparedStamp === this.stamp || node.selectedStamp !== this.selectionStamp) continue;
+      // Include an offscreen ancestor only when its selected descendant first needs it.
+      let index = i;
+      while (index > 0 && nodes[index].preparedStamp !== this.stamp) {
+        branch.push(index);
+        index = parents[index];
+      }
+      while (branch.length) {
+        const next = branch.pop();
+        if (next === undefined) break;
+        const parent = nodes[parents[next]];
+        if (!parent || parent.preparedStamp !== this.stamp || !parent.childrenWalkAllowed) {
+          branch.length = 0;
+          break;
+        }
+        prepared.push(nodes[next]);
+        this.prepareNode(nodes[next]);
+        // Custom preparation may reconcile, reparent or suppress a branch.
+        if (ordered.revision !== this.structureRevision) return false;
+      }
+    }
+    return true;
   }
 
   private prepareFull(prepared: Tree[]): Tree[] {
@@ -147,32 +202,57 @@ export class TreeCulling {
   }
 
   private publishVisibility(prepared: Tree[], viewport: TTileRect | undefined): void {
+    const visibilityRevision = this.structureRevision;
+    this.visibilityRevision = -1;
     // Publish hidden state for new descendants whose preparation an ancestor blocked.
     for (const node of this.fresh) node.setVisible(false);
     const fullyVisible = (!viewport || this.index.covers(viewport)) && this.owner.isTraversalAllowed();
     this.owner.setVisible(this.owner.isEligible(this) && this.intersects(this.owner, viewport));
     // Camera movement cannot change visibility while it still contains the unchanged tree.
     if (!fullyVisible || this.fullVisibilityRevision !== this.structureRevision) {
-      const visibilityRevision = this.structureRevision;
       this.fullVisibilityRevision = -1;
       const active = this.active;
       for (const node of active) {
         if (node.preparedStamp !== this.stamp) {
           active.delete(node);
+          node.activeInViewport = false;
           node.setVisible(false);
         }
       }
+      let reuseSelection = this.isSelectionCurrent(viewport);
       for (const node of prepared) {
-        const visible = node.isEligible(this) && this.intersects(node, viewport);
-        node.setVisible(visible);
-        if (visible) active.add(node);
-        else active.delete(node);
+        const visible =
+          node.isEligible(this) &&
+          (node !== this.owner && reuseSelection && this.selectionRevision === this.revision
+            ? node.selectedStamp === this.selectionStamp
+            : this.intersects(node, viewport));
+        if (node.setVisible(visible) && reuseSelection) reuseSelection = this.isSelectionCurrent(viewport);
+        if (node !== this.owner && node.scope === this && node.activeInViewport !== visible) {
+          node.activeInViewport = visible;
+          if (visible) active.add(node);
+          else active.delete(node);
+        }
       }
-      // The root is retained for clearing its canvas, not by the descendant visibility registry.
-      active.delete(this.owner);
       if (fullyVisible && this.structureRevision === visibilityRevision)
         this.fullVisibilityRevision = visibilityRevision;
     }
+    if (this.structureRevision === visibilityRevision) this.visibilityRevision = visibilityRevision;
+  }
+
+  private isSelectionCurrent(viewport: TTileRect | undefined): boolean {
+    const selectedViewport = this.selectionViewport;
+    return (
+      this.selectionRevision === this.revision &&
+      (!viewport
+        ? !selectedViewport
+        : Boolean(
+            selectedViewport &&
+              viewport.minX === selectedViewport.minX &&
+              viewport.minY === selectedViewport.minY &&
+              viewport.maxX === selectedViewport.maxX &&
+              viewport.maxY === selectedViewport.maxY
+          ))
+    );
   }
 
   private prepareNode(node: Tree): void {
@@ -206,6 +286,7 @@ export class TreeCulling {
     for (const node of prepared) {
       if (node.cullingStamp === this.stamp || !node.data.prepareUpdate || node.scope !== this) continue;
       this.active.delete(node);
+      node.activeInViewport = false;
       node.setVisible(false);
       node.cullingStamp = this.stamp;
       const allowed = iterator(node);
@@ -299,12 +380,14 @@ export class TreeCulling {
 
   public delete(node: Tree): void {
     this.fullPreparation = undefined;
+    this.densePreparation = undefined;
     this.fullPaint = undefined;
     this.index.delete(node);
     this.nodes.delete(node);
     this.pending.delete(node);
     this.fresh.delete(node);
     this.active.delete(node);
+    node.activeInViewport = false;
     this.invalidateStructure();
   }
 
@@ -329,6 +412,7 @@ export class TreeCulling {
 
   public select(viewport: TTileRect | undefined): Tree[] {
     const selected: Tree[] = [];
+    this.selectionStamp = ++TreeCulling.selectionStamp;
     const limit = this.nodes.size * (this.options.fullWalkShare ?? 0.75);
     if (!viewport || this.index.covers(viewport) || this.index.countCandidates(viewport, limit) > limit) {
       for (const node of this.nodes) {
@@ -337,6 +421,9 @@ export class TreeCulling {
     } else {
       this.index.query(viewport, (node) => selected.push(node));
     }
+    for (const node of selected) node.selectedStamp = this.selectionStamp;
+    this.selectionViewport = viewport && { ...viewport };
+    this.selectionRevision = this.revision;
     return selected;
   }
 }
