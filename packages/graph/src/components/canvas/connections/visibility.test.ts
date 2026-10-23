@@ -93,7 +93,7 @@ describe("connection batch viewport visibility", () => {
     expect(view("far").draws).toEqual([]);
   });
 
-  it("invalidates cached line and arrow chunks when the camera enters and leaves", () => {
+  it("reuses line and arrow geometry when the camera leaves and reenters", () => {
     mount([
       { id: "near", x: 100, y: 100 },
       { id: "far", x: 50_000, y: 50_000 },
@@ -110,8 +110,41 @@ describe("connection batch viewport visibility", () => {
     view("far").draws = [];
     graph.cameraService.set({ x: 0, y: 0 });
     frames(2);
-    expect(view("near").draws).toEqual(expect.arrayContaining(["path", "arrow", "afterRender"]));
+    expect(view("near").draws).toEqual(expect.arrayContaining(["style", "arrowStyle", "afterRender"]));
+    expect(view("near").draws).not.toContain("path");
+    expect(view("near").draws).not.toContain("arrow");
     expect(view("far").draws).toEqual([]);
+  });
+
+  it.each([true, false])("keeps custom line and arrow geometry cached across pan with Tree culling %s", (culling) => {
+    mount(Array.from({ length: 100 }, (_, index) => ({ id: String(index), x: 100 + index * 10, y: 100 })));
+    graph.updateSettings({ EXP_VISIBILITY_CULLING: culling });
+    frames(2);
+    for (let index = 0; index < 100; index++) view(String(index)).draws = [];
+
+    // One previously visible connection exits; all its visible neighbors share the draw chunk.
+    graph.cameraService.set({ x: -210 });
+    frames(2);
+    expect(view("0").draws).toEqual([]);
+    expect(view("20").draws).toContain("afterRender");
+    for (let index = 1; index < 80; index++) {
+      expect(view(String(index)).draws).not.toContain("path");
+      expect(view(String(index)).draws).not.toContain("arrow");
+    }
+
+    for (let index = 0; index < 100; index++) view(String(index)).draws = [];
+    graph.cameraService.set({ x: 0 });
+    frames(2);
+    expect(view("0").draws).toContain("afterRender");
+    expect(view("0").draws).not.toContain("path");
+    expect(view("0").draws).not.toContain("arrow");
+
+    connectionState("20").$targetPortState.value.updatePort({ x: 450, y: 150, lookup: false });
+    frames(2);
+    expect(view("20").draws).toContain("path");
+    expect(view("20").draws).toContain("arrow");
+    expect(view("21").draws).not.toContain("path");
+    expect(view("21").draws).not.toContain("arrow");
   });
 
   it("finds a label intersecting the viewport before its outside line ever draws", () => {

@@ -142,6 +142,10 @@ export class BlockConnection<T extends TConnection>
     this.context.batch.invalidateVisibility(this.arrowShape);
   }
 
+  public getPathBounds() {
+    return this.getBBox();
+  }
+
   public getPath(): Path2D {
     return this.generatePath();
   }
