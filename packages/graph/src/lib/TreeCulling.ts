@@ -24,11 +24,19 @@ export class TreeCulling {
 
   public readonly fresh = new Set<Tree>();
 
-  public active = new Set<Tree>();
+  public readonly active = new Set<Tree>();
 
   public revision = 0;
 
   public stamp = 0;
+
+  public walking = false;
+
+  public fullVisibilityRevision = -1;
+
+  public fullPreparation?: { revision: number; nodes: Tree[] };
+
+  public fullPaint?: { revision: number; nodes: Tree[] };
 
   public walkToken: unknown;
 
@@ -55,6 +63,8 @@ export class TreeCulling {
   }
 
   public delete(node: Tree): void {
+    this.fullPreparation = undefined;
+    this.fullPaint = undefined;
     this.index.delete(node);
     this.nodes.delete(node);
     this.pending.delete(node);

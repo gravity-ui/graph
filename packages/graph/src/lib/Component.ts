@@ -162,7 +162,7 @@ export class Component<
   }
 
   public iterate() {
-    this.prepareUpdate();
+    if (!this.updatePrepared) this.prepareUpdate();
     super.iterate();
 
     if (this.shouldRender && this.isInViewport()) {

@@ -209,7 +209,7 @@ export class CoreComponent<
   }
 
   public iterate(): boolean {
-    this.prepareUpdate();
+    if (!this.updatePrepared) this.prepareUpdate();
     this.updatePrepared = false;
     return true;
   }

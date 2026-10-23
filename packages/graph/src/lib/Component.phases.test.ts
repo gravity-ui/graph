@@ -76,6 +76,23 @@ test("prepares children and data before painting, without repeating preparation"
   CoreComponent.unmount(probe);
 });
 
+test("reuses explicit preparation and prepares a standalone iteration only once", () => {
+  const probe = new Probe();
+  const prepare = jest.spyOn(probe, "prepareUpdate");
+  probe.change(1);
+  probe.prepareUpdate();
+  probe.iterate();
+  expect(prepare).toHaveBeenCalledTimes(1);
+  expect(probe.state.value).toBe(1);
+
+  probe.change(2);
+  probe.iterate();
+  expect(prepare).toHaveBeenCalledTimes(2);
+  expect(probe.state.value).toBe(2);
+  expect(probe.events.filter((event) => event === "complete")).toHaveLength(2);
+  CoreComponent.unmount(probe);
+});
+
 test("completes prepared children when parent paint suppresses them, then consumes later props", () => {
   class Child extends Component<{ value: number }> {
     public painted: number[] = [];

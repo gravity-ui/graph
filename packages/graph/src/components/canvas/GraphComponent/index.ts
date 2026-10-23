@@ -364,7 +364,7 @@ export class GraphComponent<
   }
 
   public override iterate(): boolean {
-    this.prepareUpdate();
+    if (!this.updatePrepared) this.prepareUpdate();
     this.shouldRender = this.isVisible();
     return super.iterate();
   }
