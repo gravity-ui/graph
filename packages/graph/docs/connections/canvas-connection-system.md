@@ -431,6 +431,11 @@ The protected `labelGeometry` describes the combined bounds for culling and hit 
 
 Existing overrides that calculate decoration bounds only inside `renderLabelText()` can still draw their decoration, but cannot make an initially offscreen connection visible through that decoration alone: viewport selection has already happened. Move that calculation to `updateLabelGeometry()` as above; the hook also clears stale decoration geometry when labels are disabled or hidden by zoom.
 
+Apply custom visibility conditions in that hook as well. For a label shown only while the connection
+is selected, call `super.updateLabelGeometry(props)` and clear `this.labelGeometry` when
+`this.state.selected` is false. This keeps viewport selection and hit testing consistent with painting
+as selection changes, including when the line itself is outside the viewport.
+
 ### Custom Connection with Special Rendering
 
 Example of a connection with custom visual elements:

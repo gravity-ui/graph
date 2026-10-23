@@ -9,9 +9,10 @@ This document provides a detailed explanation of the rendering mechanism impleme
 The rendering mechanism is built upon a hierarchical tree structure with the following key components:
 
 1. **Tree** - The base hierarchical structure that manages parent-child relationships with z-index ordering
-2. **CoreComponent** - The fundamental component class that implements tree traversal and child management
-3. **Component** - Extends CoreComponent to add lifecycle hooks and state management
-4. **Scheduler** - Manages the timing of updates and traversal of the component tree
+2. **TreeCulling** - Coordinates preparation, viewport selection, and painting for a configured tree root
+3. **CoreComponent** - The fundamental component class that implements tree traversal and child management
+4. **Component** - Extends CoreComponent to add lifecycle hooks and state management
+5. **Scheduler** - Manages the timing of updates and traversal of the component tree
 
 ## Component Structure
 
@@ -21,7 +22,23 @@ The `Tree` class provides the foundational hierarchy structure with:
 - Parent-child relationship management
 - Z-index based ordering of children
 - Traversal methods for walking the tree
-- One shared tile index per layer tree for viewport selection
+- Own world-space bounds and per-node lifecycle state
+
+### TreeCulling Class
+
+Each configured tree root owns one `TreeCulling` coordinator with a shared tile index. It prepares
+visible, new, and dirty nodes, publishes their final visibility, and then runs painting in local
+z-index order. Components and batch paths use the same published selection. A dirty offscreen
+component still applies data, reconciles children, and reports geometry; its paint hooks are skipped.
+
+Geometry changes update the spatial index without invalidating cached hierarchy or paint order.
+Membership, sibling order, and traversal permissions invalidate those caches separately. When the
+viewport contains all indexed bounds, the coordinator reuses the full traversal order; otherwise it
+selects candidates from tiles or a linear bounds scan for dense views.
+
+This coordination does not own a drawing context: layers and component render methods retain their
+existing responsibilities. An explicit child-traversal veto still suppresses descendants, including
+when a parent sets it during painting; already prepared descendants then complete without painting.
 
 ### CoreComponent Class
 
@@ -54,7 +71,7 @@ The rendering process follows these steps:
 1. Component state/props update via `setState`/`setProps`
 2. `performRender()` schedules an update through the `Scheduler`
 3. On the next animation frame, `Scheduler` traverses the component tree
-4. Tree calls `prepareUpdate()` on visible, new, or dirty components and their ancestors
+4. The tree's culling coordinator calls `prepareUpdate()` on visible, new, or dirty components and their ancestors
 5. Components apply data and reconcile children before the tree resolves final viewport membership
 6. `iterate()` paints visible components and completes prepared updates; clean offscreen nodes are skipped
 7. The process repeats for each animation frame when changes occur

@@ -1,5 +1,5 @@
 import { TTileRect, TileIndex } from "./TileIndex";
-import type { Tree } from "./Tree";
+import type { TIterator, Tree } from "./Tree";
 
 export type TTreeCullingOptions = {
   /** Edge of a visibility tile in world units. */
@@ -14,19 +14,25 @@ export type TTreeCullingOptions = {
   fullWalkShare?: number;
 };
 
-/** One spatial index and update queue for every descendant of a configured Tree root. */
+/** Owns preparation, viewport selection and painting for one configured Tree root. */
 export class TreeCulling {
+  // Moving between scopes must not repeat a node's lifecycle in the same traversal.
+  private static walkStamp = 0;
+
   public readonly index: TileIndex<Tree>;
 
   public readonly nodes = new Set<Tree>();
 
-  public readonly pending = new Set<Tree>();
+  private readonly pending = new Set<Tree>();
 
-  public readonly fresh = new Set<Tree>();
+  private readonly fresh = new Set<Tree>();
 
-  public readonly active = new Set<Tree>();
+  private readonly active = new Set<Tree>();
 
-  public revision = 0;
+  private revision = 0;
+
+  /** Membership, local order and traversal permission; bounds do not change these. */
+  public structureRevision = 0;
 
   public stamp = 0;
 
@@ -40,9 +46,9 @@ export class TreeCulling {
 
   public fullPaint?: { revision: number; nodes: Tree[]; subtreeEnds: number[] };
 
-  public walkToken: unknown;
+  private walkToken: unknown;
 
-  public didCull = false;
+  private didCull = false;
 
   constructor(
     public readonly owner: Tree,
@@ -51,11 +57,238 @@ export class TreeCulling {
     this.index = new TileIndex({ tileSize: options.tileSize });
   }
 
+  public walk(iterator: TIterator): void {
+    const wasWalking = this.walking;
+    const wasPainting = this.painting;
+    this.walking = true;
+    this.painting = false;
+    this.stamp = ++TreeCulling.walkStamp;
+    // An ancestor outside this scope can change its traversal permission independently.
+    if (this.owner.parent) this.invalidateStructure();
+    try {
+      this.prepareAndWalk(iterator);
+    } finally {
+      this.walking = wasWalking;
+      this.painting = wasPainting;
+    }
+  }
+
+  private prepareAndWalk(iterator: TIterator): void {
+    let prepared: Tree[] = [];
+    const prepareNode = (node: Tree): void => {
+      prepared.push(node);
+      this.prepareNode(node);
+    };
+    const prepare = (node: Tree): void => {
+      if (node.preparedStamp === this.stamp || node.scope !== this) return;
+      if (node !== this.owner) {
+        const parent = node.parent;
+        if (!parent || !parent.children.has(node)) return;
+        prepare(parent);
+        if (parent.preparedStamp !== this.stamp || !parent.childrenWalkAllowed || node.scope !== this) return;
+      }
+      prepareNode(node);
+    };
+    prepare(this.owner);
+    const viewport = this.options.getViewport();
+    this.didCull = Boolean(viewport && (this.options.isEnabled?.() ?? true));
+    this.walkToken = this.options.getWalkToken?.();
+    const fullWalk = !this.didCull || !viewport || this.index.covers(viewport);
+    const preparationRevision = this.structureRevision;
+    if (fullWalk) prepared = this.prepareFull(prepared);
+    let revision: number;
+    do {
+      revision = this.revision;
+      if (!fullWalk) {
+        const candidates = this.select(this.didCull ? viewport : undefined);
+        for (const node of candidates) prepare(node);
+      }
+      for (const node of this.fresh) prepare(node);
+      for (const node of this.pending) prepare(node);
+      // Reconciliation and geometry updates can expose additional nodes in this same frame.
+    } while (revision !== this.revision);
+    if (fullWalk) {
+      this.fullPreparation =
+        preparationRevision === this.structureRevision
+          ? { revision: this.structureRevision, nodes: prepared }
+          : undefined;
+    }
+
+    this.publishVisibility(prepared, viewport);
+    this.painting = true;
+    this.walkPrepared(iterator, prepared, fullWalk);
+  }
+
+  private prepareFull(prepared: Tree[]): Tree[] {
+    const cached = this.fullPreparation;
+    if (cached?.revision === this.structureRevision) {
+      prepared = cached.nodes;
+      for (let i = 1; i < cached.nodes.length; i++) {
+        this.prepareNode(cached.nodes[i]);
+        if (cached.revision !== this.structureRevision) {
+          prepared = cached.nodes.slice(0, i + 1);
+          break;
+        }
+      }
+    }
+    const prepareBranch = (node: Tree): void => {
+      if (node.scope !== this) return;
+      if (node.preparedStamp !== this.stamp) {
+        prepared.push(node);
+        this.prepareNode(node);
+      }
+      if (!node.childrenWalkAllowed || !node.children.size) return;
+      for (const child of node.getChildrenArray()) {
+        if (child.parent === node) prepareBranch(child);
+      }
+    };
+    if (cached?.revision !== this.structureRevision) prepareBranch(this.owner);
+    return prepared;
+  }
+
+  private publishVisibility(prepared: Tree[], viewport: TTileRect | undefined): void {
+    // Publish hidden state for new descendants whose preparation an ancestor blocked.
+    for (const node of this.fresh) node.setVisible(false);
+    const fullyVisible = (!viewport || this.index.covers(viewport)) && this.owner.isTraversalAllowed();
+    this.owner.setVisible(this.owner.isEligible(this) && this.intersects(this.owner, viewport));
+    // Camera movement cannot change visibility while it still contains the unchanged tree.
+    if (!fullyVisible || this.fullVisibilityRevision !== this.structureRevision) {
+      const visibilityRevision = this.structureRevision;
+      this.fullVisibilityRevision = -1;
+      const active = this.active;
+      for (const node of active) {
+        if (node.preparedStamp !== this.stamp) {
+          active.delete(node);
+          node.setVisible(false);
+        }
+      }
+      for (const node of prepared) {
+        const visible = node.isEligible(this) && this.intersects(node, viewport);
+        node.setVisible(visible);
+        if (visible) active.add(node);
+        else active.delete(node);
+      }
+      // The root is retained for clearing its canvas, not by the descendant visibility registry.
+      active.delete(this.owner);
+      if (fullyVisible && this.structureRevision === visibilityRevision)
+        this.fullVisibilityRevision = visibilityRevision;
+    }
+  }
+
+  private prepareNode(node: Tree): void {
+    if (this.pending.size) this.pending.delete(node);
+    if (this.fresh.size) this.fresh.delete(node);
+    node.prepareData(this.stamp);
+  }
+
+  private walkPrepared(iterator: TIterator, prepared: Tree[], fullWalk: boolean): void {
+    let walked: number;
+    if (fullWalk || prepared.length > this.nodes.size * (this.options.fullWalkShare ?? 0.75)) {
+      walked = this.paintFull(iterator);
+    } else {
+      const children = new Map<Tree, Tree[]>();
+      for (const node of prepared) {
+        if (node === this.owner || !node.isEligible(this)) continue;
+        const parent = node.parent;
+        if (!parent) continue;
+        let selected = children.get(parent);
+        if (!selected) {
+          parent.getOrderedChildren();
+          children.set(parent, (selected = []));
+        }
+        selected.push(node);
+      }
+      for (const selected of children.values()) selected.sort((a, b) => a.renderOrder - b.renderOrder);
+      walked = this.paintPrepared(this.owner, iterator, children);
+    }
+    if (walked === prepared.length) return;
+    // A parent can suppress children while painting; finish their already prepared lifecycles.
+    for (const node of prepared) {
+      if (node.cullingStamp === this.stamp || !node.data.prepareUpdate || node.scope !== this) continue;
+      this.active.delete(node);
+      node.setVisible(false);
+      node.cullingStamp = this.stamp;
+      const allowed = iterator(node);
+      if (!allowed) node.setChildrenWalkAllowed(false);
+    }
+  }
+
+  private paintFull(iterator: TIterator): number {
+    let ordered = this.fullPaint;
+    if (ordered?.revision !== this.structureRevision) {
+      const nodes: Tree[] = [];
+      const subtreeEnds: number[] = [];
+      const collect = (node: Tree): void => {
+        if (node !== this.owner && !node.isEligible(this)) return;
+        const index = nodes.length;
+        nodes.push(node);
+        subtreeEnds.push(0);
+        if (node.childrenWalkAllowed && node.children.size) {
+          for (const child of node.getOrderedChildren()) {
+            if (child.parent === node) collect(child);
+          }
+        }
+        subtreeEnds[index] = nodes.length;
+      };
+      collect(this.owner);
+      this.fullPaint = ordered = { revision: this.structureRevision, nodes, subtreeEnds };
+    }
+    let walked = 0;
+    for (let i = 0; i < ordered.nodes.length; i++) {
+      const node = ordered.nodes[i];
+      if (
+        node.preparedStamp !== this.stamp ||
+        (this.structureRevision !== ordered.revision &&
+          node !== this.owner &&
+          (node.cullingStamp === this.stamp || !node.isEligible(this)))
+      ) {
+        i = ordered.subtreeEnds[i] - 1;
+        continue;
+      }
+      node.cullingStamp = this.stamp;
+      const allowed = iterator(node);
+      if (!allowed) {
+        node.setChildrenWalkAllowed(false);
+        i = ordered.subtreeEnds[i] - 1;
+      }
+      walked++;
+    }
+    return walked;
+  }
+
+  private paintPrepared(node: Tree, iterator: TIterator, children: Map<Tree, Tree[]>): number {
+    node.cullingStamp = this.stamp;
+    const allowed = iterator(node);
+    if (!allowed) node.setChildrenWalkAllowed(false);
+    let walked = 1;
+    if (node.childrenWalkAllowed && node.children.size) {
+      const selected = children.get(node) ?? [];
+      for (const child of selected) {
+        if (
+          child.preparedStamp === this.stamp &&
+          child.cullingStamp !== this.stamp &&
+          child.scope === this &&
+          child.parent === node &&
+          child.isTraversalAllowed()
+        ) {
+          walked += this.paintPrepared(child, iterator, children);
+        }
+      }
+    }
+    return walked;
+  }
+
   public add(node: Tree): void {
     if (node === this.owner || this.nodes.has(node)) return;
     this.nodes.add(node);
     this.fresh.add(node);
     this.update(node);
+    this.invalidateStructure();
+  }
+
+  public invalidateStructure(): void {
+    this.structureRevision++;
+    this.revision++;
   }
 
   public update(node: Tree): void {
@@ -72,7 +305,7 @@ export class TreeCulling {
     this.pending.delete(node);
     this.fresh.delete(node);
     this.active.delete(node);
-    this.revision++;
+    this.invalidateStructure();
   }
 
   public markPending(node: Tree): void {
