@@ -2,6 +2,7 @@ import { GraphClassConstructor } from "../utils/types/classes";
 
 import { Scheduler } from "./Scheduler";
 import { ITree, Tree } from "./Tree";
+import type { TTreeCullingOptions } from "./TreeCulling";
 
 export type ComponentOptions<Instance> = {
   readonly key?: string | number;
@@ -111,13 +112,37 @@ export class CoreComponent<
     this.props = props ?? ({} as Props);
   }
 
+  /**
+   * Whether this component took part in the latest traversal. A culled tree skips clean offscreen
+   * components on purpose, so there it means "attached to the tree in a branch that is not suppressed".
+   */
   public isIterated(): boolean {
+    const treeNode = this.__comp.treeNode;
+    if (treeNode.scope) return treeNode.isTraversalAllowed();
     return this.__comp.iterateId === this.__comp.context.globalIterateId;
+  }
+
+  /** Whether this node's own bounds intersect its tree's viewport. */
+  public isInViewport(): boolean {
+    return this.__comp.treeNode.isVisible();
   }
 
   public performRender = () => {
     this.__comp.context.scheduler.scheduleUpdate();
+    this.__comp.treeNode.requestWalk();
   };
+
+  /**
+   * Configures the viewport for this tree root and all its descendants.
+   */
+  protected setChildrenCulling(options: TTreeCullingOptions | undefined): void {
+    this.__comp.treeNode.setCulling(options);
+  }
+
+  /** Reports this component's own bounds to its tree's spatial index. */
+  protected setCullingBounds(minX: number, minY: number, maxX: number, maxY: number): void {
+    this.__comp.treeNode.setBounds(minX, minY, maxX, maxY);
+  }
 
   public getParent(): CoreComponent | undefined {
     return this.__comp.parent;
@@ -165,12 +190,19 @@ export class CoreComponent<
     this.performRender();
   }
 
-  public iterate(): boolean {
-    if (!this.__comp.parent) {
-      this.__comp.context.globalIterateId = Math.random();
-    }
+  /** Applies pending work without painting; the tree calls it ahead of painting for requested and new components. */
+  public prepareUpdate(): boolean {
+    if (!this.__comp.parent) this.__comp.context.globalIterateId++;
     this.__comp.iterateId = this.__comp.context.globalIterateId;
+    return true;
+  }
 
+  /**
+   * Runs this component's frame. `prepared` tells whether the tree already called prepareUpdate() in
+   * this traversal; `visible` is the tree's viewport decision.
+   */
+  public iterate(prepared = false, _visible = true): boolean {
+    if (!prepared) this.prepareUpdate();
     return true;
   }
 
@@ -193,6 +225,7 @@ export class CoreComponent<
     if (ref !== undefined && this.$[ref] === child) delete this.$[ref];
     child.__unmount();
     this.__comp.children.delete(key);
+    this.__comp.treeNode.remove(child.__comp.treeNode);
   }
 
   protected __updateChildren() {
@@ -202,7 +235,6 @@ export class CoreComponent<
     const nextKeys: string[] = [];
     const descriptorsToMount: Array<{ key: string; descriptor: ChildDescriptor }> = [];
     this.__comp.prevChildrenArr = next;
-    this.__comp.treeNode.clearChildren();
 
     next.forEach((descriptor, index) => {
       const key = String(descriptor.options.key ?? `${descriptor.klass.name}|${index}|defaultKey`);
@@ -225,18 +257,20 @@ export class CoreComponent<
     });
     descriptorsToMount.forEach(({ key, descriptor }) => this.mountChild(descriptor, key));
     this.__comp.childrenKeys = nextKeys;
+    const children: Tree[] = [];
     nextKeys.forEach((key) => {
       const child = this.__comp.children.get(key);
-      if (child) this.__comp.treeNode.append(child.__comp.treeNode);
+      if (child) children.push(child.__comp.treeNode);
     });
+    this.__comp.treeNode.setChildren(children);
   }
 
   private __unmountChildren() {
-    this.__comp.treeNode.clearChildren();
     this.__comp.childrenKeys.forEach((key) => {
       const child = this.__comp.children.get(key);
       if (child) this.removeChild(key, child);
     });
+    this.__comp.treeNode.clearChildren();
     this.__comp.childrenKeys = [];
     this.__comp.prevChildrenArr = [];
   }

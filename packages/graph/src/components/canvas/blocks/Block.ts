@@ -147,7 +147,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   public isRendered() {
-    return this.shouldRender;
+    return this.shouldRender && this.isVisible();
   }
 
   protected updateViewState(params: Partial<BlockViewState>) {
@@ -181,9 +181,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.connectedState.$geometry.value;
   }
 
-  protected override isVisible(): boolean {
+  protected override isRenderAllowed(): boolean {
     if (this.blockHidden) return false;
-    return super.isVisible();
+    return super.isRenderAllowed();
   }
 
   public getConfigFlag<K extends keyof TGraphSettingsConfig>(flagPath: K) {
@@ -269,7 +269,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected stateChanged(nextState: T): void {
-    if (!this.firstRender && nextState.selected !== this.state.selected) {
+    if (!this.firstIterate && nextState.selected !== this.state.selected) {
       this.raiseBlock();
     }
     return super.stateChanged(nextState);

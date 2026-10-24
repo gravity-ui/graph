@@ -161,11 +161,6 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     this.connectedState.block.getViewComponent()?.handleDragEnd(context);
   }
 
-  protected isVisible() {
-    const params = this.getHitBox();
-    return params ? this.context.camera.isRectVisible(...params) : true;
-  }
-
   protected unmount() {
     this.props.port.removeOwner();
     this.connectedState.unsetViewComponent();

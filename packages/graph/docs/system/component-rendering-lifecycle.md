@@ -26,27 +26,34 @@ The following sequence diagram shows how these systems interact during a typical
 sequenceDiagram
     participant Browser
     participant Scheduler
+    participant Tree
     participant Component
     participant Rendering
     
     Browser->>Scheduler: requestAnimationFrame
     Scheduler->>Scheduler: tick()
-    Scheduler->>Component: iterate()
+    Scheduler->>Tree: traverseDown()
+    Tree->>Component: prepareUpdate() for new or requested nodes
     Component->>Component: checkData()
     Component->>Component: willIterate()
-    
-    alt shouldRender is true
-        Component->>Component: willRender()
-        Component->>Rendering: render()
-        Component->>Component: didRender()
-    else shouldRender is false
-        Component->>Component: willNotRender()
-    end
     
     alt shouldUpdateChildren is true
         Component->>Component: willUpdateChildren()
         Component->>Component: updateChildren()
         Component->>Component: didUpdateChildren()
+    end
+
+    Tree->>Tree: Update visibility from viewport delta and changed bounds
+    Tree->>Component: iterate(prepared, visible) in local z-index order for visible or prepared nodes
+    opt not prepared yet in this frame
+        Component->>Component: prepareUpdate() inside iterate()
+    end
+    alt visible, shouldRender and not vetoed by isRenderAllowed()
+        Component->>Component: willRender()
+        Component->>Rendering: render()
+        Component->>Component: didRender()
+    else Offscreen or explicitly hidden
+        Component->>Component: willNotRender()
     end
     
     Component->>Component: didIterate()
@@ -63,30 +70,27 @@ When a component's state or props change:
 2. `performRender()` schedules an update with the `Scheduler`
 3. The `Scheduler` marks the component tree for update
 4. On the next animation frame, the `Scheduler` traverses the component tree
-5. Each component's `iterate()` method is called
-6. The component processes its lifecycle methods based on its current state
+5. The tree prepares the requested component, new components and their ancestors
+6. The tree publishes viewport visibility, then `iterate()` updates and paints visible components and completes prepared offscreen updates
 
 From `scheduler-system.md`:
 > Component calls `performRender()` to schedule an update. This method sets the `scheduled` flag in the component's `Scheduler` instance, indicating that the component tree needs to be updated.
 
-From `component-lifecycle.md`:
-> When state or props change, the system follows this sequence: User->Component: setState/setProps, Component->Buffer: Store in __data, Component->Scheduler: performRender(), Scheduler->Component: iterate() on next frame
+The pending node remains eligible for preparation even outside the viewport, so spatial culling does
+not discard state or props updates.
 
 ### 2. Component Lifecycle and Rendering
 
 The component lifecycle controls the rendering process through several key methods:
 
-1. `iterate()` - The main entry point called by the scheduler
+1. `prepareUpdate()` - Applies data and reconciles children; before painting for requested and new components, inside `iterate()` for clean visible ones
 2. `checkData()` - Processes any pending state/props changes
-3. `shouldRender` flag - Controls whether rendering occurs
-4. `render()` - Creates the visual output when needed
+3. The tree's `visible` argument, the `shouldRender` flag and `isRenderAllowed()` - Together control whether rendering occurs
+4. `iterate()` / `render()` - Complete the update and create eligible visual output
 5. `shouldUpdateChildren` flag - Controls whether children are updated
 
-From `rendering-mechanism.md`:
-> The rendering process follows these steps: Component state/props update via `setState`/`setProps`, `performRender()` schedules an update through the `Scheduler`, On the next animation frame, `Scheduler` traverses the component tree, Each component's `iterate()` method is called, Components process their data and execute their lifecycle methods, Child components are created, updated, or removed as needed
-
-From `component-lifecycle.md`:
-> The CoreComponent has three main methods: `iterate()` - Called on each frame, manages the update cycle, `updateChildren()` - Defines and updates child components, `render()` - Handles the visual rendering of the component
+See [Component Lifecycle](./component-lifecycle.md) for the hook order and the distinction between
+`firstIterate` and `firstRender`.
 
 ### 3. Tree Structure and Z-Index
 
@@ -94,6 +98,19 @@ All three systems interact with the Tree structure, which:
 - Maintains the parent-child relationships between components
 - Manages the z-index ordering for proper rendering
 - Provides traversal methods for the scheduler
+- Owns one `TileIndex` per layer root, shared by every descendant
+
+The layer supplies its camera's world-space viewport; Tree and Scheduler do not depend on Camera.
+Each component reports its own bounds. The tree keeps the published visible set between frames and
+rechecks only nodes that a camera move or a bounds change can affect. A visible child is reached through
+a clean offscreen parent without running the parent's hooks, so an offscreen parent does not hide a
+visible child. Unknown bounds remain eligible. New and requested offscreen nodes still update, but never
+enter the painting lifecycle. Setting
+`shouldRenderChildren` to false explicitly suppresses a branch, independently of spatial culling.
+
+Visibility is published before the layer paints. Connection batches do not track it per item: they
+skip whole chunks outside the viewport. Hit testing retains its separate spatial index and supports
+queries outside the viewport.
 
 From `scheduler-system.md`:
 > During an update, the Scheduler traverses the component tree in depth-first order: Tree._walkDown, Iterator returns true/false, Process/Skip children
@@ -115,24 +132,21 @@ Combining all three documents, we can map the complete lifecycle from state chan
    - GlobalScheduler manages animation frame timing
    - On the next frame, scheduler traverses the component tree
 
-3. **Component Processing**
-   - Component's `iterate()` method is called
-   - For first iteration only, `willMount()` is called
-   - `willIterate()` prepares for the update
+3. **Preparation**
+   - Component's `prepareUpdate()` method is called: before painting when the component is new or
+     requested an update, otherwise inside its own `iterate()` when it is visible
    - `checkData()` processes buffered state/props changes
    - `propsChanged()` or `stateChanged()` handle specific changes
+   - `willIterate()` runs, including `willMount()` on the first iteration
+   - If `shouldUpdateChildren` is true, children are reconciled
+   - For requested components, the tree publishes the resulting bounds before anything paints
 
 4. **Rendering Decision**
-   - Component evaluates `shouldRender` flag
+   - Component paints when the tree passes `visible`, `shouldRender` is set and `isRenderAllowed()` agrees
    - If true: `willRender()` → `render()` → `didRender()`
    - If false: `willNotRender()`
 
-5. **Children Management**
-   - Component evaluates `shouldUpdateChildren` flag
-   - If true: `willUpdateChildren()` → `updateChildren()` → `didUpdateChildren()`
-   - Child components are created, updated, or removed
-
-6. **Completion**
+5. **Completion**
    - `didIterate()` finalizes the component update
    - Scheduler moves to the next component or completes the frame
    - Browser renders the updated view

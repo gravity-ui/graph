@@ -1,3 +1,4 @@
+import type { TTileRect } from "../../../../lib/TileIndex";
 import { cache } from "../../../../lib/utils";
 
 export type Path2DRenderStyleResult =
@@ -5,13 +6,43 @@ export type Path2DRenderStyleResult =
   | { type: "fill"; fillRule?: CanvasFillRule }
   | { type: "both"; fillRule?: CanvasFillRule };
 
+/** World-space rectangle as `[minX, minY, maxX, maxY]`. */
+export type TPathBounds = readonly [number, number, number, number];
+
 export interface Path2DRenderInstance {
   getPath(): Path2D | undefined | null;
+  /** World-space bounds of the item's path; a chunk with an item without valid bounds is never culled. */
+  getPathBounds?(): TPathBounds | undefined;
   style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined;
+  /** Runs for every visible item of a drawn chunk; items that draw extra content cull it themselves. */
   afterRender?(ctx: CanvasRenderingContext2D): void;
+  /** Semantic visibility, such as hidden items or missing geometry. Viewport culling is the renderer's job. */
   isPathVisible?(): boolean;
 }
 
+function isValidBounds(bounds: TPathBounds | undefined): bounds is TPathBounds {
+  return Boolean(
+    bounds &&
+      Number.isFinite(bounds[0]) &&
+      Number.isFinite(bounds[1]) &&
+      Number.isFinite(bounds[2]) &&
+      Number.isFinite(bounds[3]) &&
+      bounds[0] <= bounds[2] &&
+      bounds[1] <= bounds[3]
+  );
+}
+
+function intersects(bounds: TPathBounds | undefined, viewport: TTileRect | undefined): boolean {
+  if (!viewport || !isValidBounds(bounds)) return true;
+  return (
+    bounds[0] <= viewport.maxX && bounds[2] >= viewport.minX && bounds[1] <= viewport.maxY && bounds[3] >= viewport.minY
+  );
+}
+
+/**
+ * Up to `chunkSize` items drawn with one fill or stroke. The combined path is rebuilt only when an
+ * item is added, removed or changed; a chunk entirely outside the viewport is skipped.
+ */
 class Path2DChunk {
   protected items: Set<Path2DRenderInstance> = new Set();
 
@@ -19,24 +50,32 @@ class Path2DChunk {
     return Array.from(this.items).filter((item) => item.isPathVisible?.() ?? true);
   });
 
+  /** Union of the visible items' bounds; undefined when any of them is unknown. */
+  protected bounds = cache((): TPathBounds | undefined => {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const item of this.visibleItems.get()) {
+      const bounds = item.getPathBounds?.();
+      if (!isValidBounds(bounds)) return undefined;
+      minX = Math.min(minX, bounds[0]);
+      minY = Math.min(minY, bounds[1]);
+      maxX = Math.max(maxX, bounds[2]);
+      maxY = Math.max(maxY, bounds[3]);
+    }
+    return [minX, minY, maxX, maxY];
+  });
+
   protected path = cache(() => {
     const path = new Path2D();
     path.moveTo(0, 0);
-    // Use already filtered visibleItems - no need for additional visibility checks
     for (const item of this.visibleItems.get()) {
       const subPath = item.getPath();
-      if (subPath) {
-        path.addPath(subPath);
-      }
+      if (subPath) path.addPath(subPath);
     }
     return path;
   });
-
-  protected applyStyles(ctx: CanvasRenderingContext2D) {
-    // Style comes from first visible item
-    const first = this.visibleItems.get()[0];
-    return first?.style(ctx);
-  }
 
   public add(item: Path2DRenderInstance) {
     this.items.add(item);
@@ -51,28 +90,28 @@ class Path2DChunk {
   public reset() {
     this.path.reset();
     this.visibleItems.reset();
+    this.bounds.reset();
   }
 
-  public render(ctx: CanvasRenderingContext2D) {
-    const vis = this.visibleItems.get();
-    if (!vis.length) return;
+  public resetBounds() {
+    this.bounds.reset();
+  }
+
+  public render(ctx: CanvasRenderingContext2D, viewport?: TTileRect) {
+    const visible = this.visibleItems.get();
+    if (!visible.length || !intersects(this.bounds.get(), viewport)) return;
 
     ctx.save();
-    const style = this.applyStyles(ctx);
+    // Style comes from the first visible item.
+    const style = visible[0].style(ctx);
     if (style) {
-      const p = this.path.get();
-      if (style.type === "fill" || style.type === "both") {
-        ctx.fill(p, style.fillRule);
-      }
-      if (style.type === "stroke" || style.type === "both") {
-        ctx.stroke(p);
-      }
+      const path = this.path.get();
+      if (style.type === "fill" || style.type === "both") ctx.fill(path, style.fillRule ?? "nonzero");
+      if (style.type === "stroke" || style.type === "both") ctx.stroke(path);
     }
     ctx.restore();
 
-    for (const item of vis) {
-      item.afterRender?.(ctx);
-    }
+    for (const item of visible) item.afterRender?.(ctx);
   }
 
   public get size() {
@@ -100,27 +139,25 @@ class Path2DGroup {
 
   public delete(item: Path2DRenderInstance) {
     const chunk = this.itemToChunk.get(item);
-    if (chunk) {
-      chunk.delete(item);
-      this.itemToChunk.delete(item);
-      if (chunk.size === 0 && this.chunks.length > 1) {
-        const index = this.chunks.indexOf(chunk);
-        if (index > -1) {
-          this.chunks.splice(index, 1);
-        }
-      }
+    if (!chunk) return;
+    chunk.delete(item);
+    this.itemToChunk.delete(item);
+    if (chunk.size === 0 && this.chunks.length > 1) {
+      const index = this.chunks.indexOf(chunk);
+      if (index > -1) this.chunks.splice(index, 1);
     }
   }
 
-  public resetItem(item: Path2DRenderInstance) {
-    const chunk = this.itemToChunk.get(item);
-    chunk?.reset();
+  public reset(item: Path2DRenderInstance) {
+    this.itemToChunk.get(item)?.reset();
   }
 
-  public render(ctx: CanvasRenderingContext2D) {
-    for (const chunk of this.chunks) {
-      chunk.render(ctx);
-    }
+  public resetBounds(item: Path2DRenderInstance) {
+    this.itemToChunk.get(item)?.resetBounds();
+  }
+
+  public render(ctx: CanvasRenderingContext2D, viewport?: TTileRect) {
+    for (const chunk of this.chunks) chunk.render(ctx, viewport);
   }
 }
 
@@ -159,6 +196,11 @@ export class BatchPath2DRenderer {
     return bucket;
   }
 
+  /** Draws every group in z-order; chunks entirely outside the world-space viewport are skipped. */
+  public render(ctx: CanvasRenderingContext2D, viewport?: TTileRect) {
+    for (const group of this.orderedPaths.get()) group.render(ctx, viewport);
+  }
+
   public add(item: Path2DRenderInstance, params: { zIndex: number; group: string }) {
     if (this.itemParams.has(item)) {
       this.update(item, params);
@@ -171,18 +213,10 @@ export class BatchPath2DRenderer {
     this.requestRender();
   }
 
+  /** A zIndex or group change moves the item; otherwise only its chunk is rebuilt. */
   public update(item: Path2DRenderInstance, params: { zIndex: number; group: string }) {
     const prev = this.itemParams.get(item);
     if (prev) {
-      /**
-       * Reasons to update path2d is different
-       * 1. zIndex changed
-       * 2. group changed
-       * 3. item changes geometry
-       *
-       * So is item change zIndex or group, we need recalculate groups
-       * But if item change geomertry we have ot only mark item as dirty to recalc groups path2d
-       * */
       if (prev.zIndex === params.zIndex && prev.group === params.group) {
         this.markDirty(item);
         return;
@@ -194,22 +228,25 @@ export class BatchPath2DRenderer {
 
   public delete(item: Path2DRenderInstance) {
     const params = this.itemParams.get(item);
-    if (!params) {
-      return;
-    }
-    const bucket = this.getGroup(params.zIndex, params.group);
-    bucket.delete(item);
+    if (!params) return;
+    this.getGroup(params.zIndex, params.group).delete(item);
     this.itemParams.delete(item);
     this.orderedPaths.reset();
     this.requestRender();
   }
 
+  /** The item's path, bounds or semantic visibility changed. */
   public markDirty(item: Path2DRenderInstance) {
     const params = this.itemParams.get(item);
-    if (params) {
-      const group = this.getGroup(params.zIndex, params.group);
-      group.resetItem(item);
-      this.requestRender();
-    }
+    if (!params) return;
+    this.getGroup(params.zIndex, params.group).reset(item);
+    this.requestRender();
+  }
+
+  /** Only the item's bounds changed, for example a label that grows with zoom; its path is kept. */
+  public markBoundsDirty(item: Path2DRenderInstance) {
+    const params = this.itemParams.get(item);
+    if (!params) return;
+    this.getGroup(params.zIndex, params.group).resetBounds(item);
   }
 }

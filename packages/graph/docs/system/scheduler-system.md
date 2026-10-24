@@ -104,6 +104,7 @@ sequenceDiagram
     participant GlobalScheduler
     participant Graph
     participant Scheduler
+    participant Tree
     participant Component
     
     Browser->>GlobalScheduler: requestAnimationFrame
@@ -113,7 +114,9 @@ sequenceDiagram
     Graph->>Scheduler: performUpdate() for each layer
     Scheduler->>Scheduler: update()
     Scheduler->>Tree: traverseDown(iterator)
-    Tree->>Component: iterate()
+    Tree->>Component: prepareUpdate() for new and requested components
+    Tree->>Tree: Update viewport visibility
+    Tree->>Component: iterate() for visible and prepared components
     Component->>Component: process lifecycle
     Browser->>GlobalScheduler: requestAnimationFrame (next frame)
 ```
@@ -198,7 +201,7 @@ The scheduling system coordinates when component updates happen:
 2. This sets a `scheduled` flag in the Scheduler
 3. On the next animation frame, the graph's frame task updates the trees of its layers that have the flag set
 4. The Scheduler traverses the component tree in a depth-first order
-5. Each component's `iterate()` method is called during traversal
+5. In layer trees, new and requested components prepare their data and children before visibility is published; `iterate()` then updates and paints visible nodes; clean offscreen nodes are skipped
 6. Components can control whether their children are processed by returning true/false from `iterate()`
 
 ## Priority Levels

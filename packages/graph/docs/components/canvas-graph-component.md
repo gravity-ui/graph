@@ -80,25 +80,51 @@ public setHitBox(minX: number, minY: number, maxX: number, maxY: number, force?:
 }
 ```
 
-### 2. Camera-based Culling with HitBox Visibility Checks
+### 2. Tree-based Viewport Culling
 
-GraphComponent only renders when its hitbox is within the camera's view area:
+Each layer owns one tile index for its entire component tree. `setHitBox()` updates both hit testing
+and the component's own bounds in that index. Custom components and containers participate
+automatically; they do not create or query tiles themselves.
 
 ```typescript
-protected willIterate(): void {
-  super.willIterate();
-  if (!this.firstIterate) {
-    // This optimization prevents drawing components that aren't visible
-    this.shouldRender = this.isVisible();
-  }
+// The tree decides spatial visibility and passes it to iterate(); a component only vetoes painting.
+protected isRenderAllowed(): boolean {
+  return !this.hidden;
 }
 ```
 
 **What's happening here:**
-- Before each render cycle, the component checks if it's within the camera's visible area
-- If not in view, the component skips rendering - saving precious CPU/GPU time
-- This is crucial for performance when handling graphs with hundreds or thousands of elements
-- The first iteration always renders (to establish initial state) but subsequent renders are optimized
+- The tree prepares new components and components that requested an update before publishing visibility; clean visible components update inside their own `iterate()`, right before painting.
+- `iterate()` runs only for visible components and for offscreen components whose update was prepared; the latter complete without paint hooks.
+- Offscreen components still mount and process changes, including ports, children, and geometry.
+- `willRender`, `render`, and `didRender` run only for eligible components, including on the first frame.
+- Clean offscreen components are skipped entirely. A visible child is still reached through its offscreen parent.
+- A camera move rechecks only components near the viewport edges; visibility is kept between frames.
+- Unknown bounds stay eligible. Set bounds during initialization or data updates, before rendering.
+- Connection batches skip whole chunks outside the viewport, and world-coordinate hit queries remain independent of the viewport.
+
+Override `isRenderAllowed()` for additional semantic conditions, such as hidden elements or missing
+connection endpoints; `isVisible()` combines it with `isInViewport()` for queries. Use `firstIterate`
+for initialization; `firstRender` stays true until the component is actually painted.
+`EXP_VISIBILITY_CULLING = false` enables a full traversal while retaining the same viewport paint gate.
+
+`isVisible()` reads the current viewport and bounds between frames and in update hooks that run before
+painting. A custom `willIterate()` can therefore refresh deferred external state on the first frame that
+returns to the viewport. During painting it returns the frame's decision. Change
+geometry through `setState()`, `setProps()` or `performRender()`: a change a clean component makes inside
+its own update takes effect for culling from the next frame.
+
+For a custom paint condition, assign `shouldRender` after `super.willIterate()`. This flag controls
+permission to paint; use `isVisible()` to query spatial visibility. The final paint gate also checks
+geometry that requested updates produced before painting. A `shouldRender = false` set during `willMount()`
+is preserved for the first frame.
+
+```typescript
+protected override willIterate(): void {
+  super.willIterate();
+  this.shouldRender = this.hasContentToDraw();
+}
+```
 
 **Visualization of the process:**
 ```
@@ -356,7 +382,7 @@ sequenceDiagram
     participant Graph as Graph System
     participant Comp as GraphComponent
     participant HitTest as Spatial Index
-    participant Camera as Camera System
+    participant Tree as Layer Tree
     
     App->>Graph: Create new component
     Graph->>Comp: Initialize component
@@ -365,9 +391,10 @@ sequenceDiagram
     Note over Comp,HitTest: Component now exists in spatial system
     
     loop Each Frame
-        Graph->>Comp: iterate()
-        Comp->>Camera: isVisible check
-        Camera-->>Comp: Visibility result
+        Graph->>Tree: Traverse layer
+        Tree->>Comp: prepareUpdate() when new or requested
+        Tree->>Tree: Update visibility from viewport delta and changed bounds
+        Tree->>Comp: iterate() to paint or complete pending work
         
         alt Component is visible
             Comp->>Comp: render()
@@ -912,9 +939,6 @@ When working with graph visualizations, especially those with hundreds or thousa
 
    ```typescript
    protected updateChildren() {
-     // Only create children if parent is visible
-     if (!this.isVisible()) return [];
-     
      // Use stable keys so React/GraphComponents don't recreate unnecessarily
      return [
        ChildComponent.create({...}, { key: 'stable-id-1' }),
