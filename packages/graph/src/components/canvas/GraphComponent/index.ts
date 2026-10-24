@@ -368,16 +368,13 @@ export class GraphComponent<
     if (!this.firstIterate) this.shouldRender = true;
   }
 
-  public override iterate(): boolean {
-    if (!this.updatePrepared) this.prepareUpdate();
-    // Preserve a subclass's paint veto; geometry may still change after its update hook.
-    this.shouldRender = this.shouldRender && this.isVisible();
-    return super.iterate();
+  protected override isRenderAllowed(): boolean {
+    return !this.hidden;
   }
 
+  /** Whether this component can paint now: not hidden and inside the viewport. */
   protected isVisible(): boolean {
-    if (this.hidden) return false;
-    return this.isInViewport();
+    return this.isRenderAllowed() && this.isInViewport();
   }
 
   protected getHitBoxRect(): TRect {

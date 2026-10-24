@@ -8,16 +8,12 @@ interface IProbe extends ITree {
 }
 
 interface IWork {
-  children: number;
   order: number;
   parent: number;
 }
 
 class CountingTree extends Tree<IProbe> {
-  constructor(
-    data: IProbe,
-    private readonly work: IWork
-  ) {
+  constructor(data: IProbe, work: IWork) {
     super(data);
     const getOrderedChildren = this.zIndexChildrenCache.get;
     this.zIndexChildrenCache.get = (): Tree[] => {
@@ -36,19 +32,25 @@ class CountingTree extends Tree<IProbe> {
       },
     });
   }
-
-  public override getChildrenArray(): Tree[] {
-    this.work.children++;
-    return super.getChildrenArray();
-  }
 }
 
 const viewport = (maxX: number): TTileRect => ({ minX: 0, minY: 0, maxX, maxY: maxX });
 
 function setup() {
-  const state = { viewport: viewport(1000), token: 0 };
+  const state = { viewport: viewport(1000) };
   const events: string[] = [];
-  const work: IWork = { children: 0, order: 0, parent: 0 };
+  const work: IWork = { order: 0, parent: 0 };
+  const nodes: CountingTree[] = [];
+  const published = new Map<CountingTree, boolean>();
+  // The root paints first: it records visibility transitions published for this frame.
+  const recordPublished = (): void => {
+    for (const node of nodes) {
+      const visible = node.isVisible();
+      const previous = published.get(node);
+      if (previous !== undefined && previous !== visible) events.push(`visible:${node.data.name}:${visible}`);
+      published.set(node, visible);
+    }
+  };
   const make = (name: string, x?: number): CountingTree => {
     const node = new CountingTree(
       {
@@ -57,25 +59,25 @@ function setup() {
           events.push(`prepare:${name}`);
           return node.data.prepare?.() ?? true;
         },
-        onViewportChange: (visible): void => {
-          events.push(`visible:${name}:${visible}`);
-        },
-        iterate: (): boolean => {
+        iterate: (prepared): boolean => {
+          // A node the tree did not prepare applies its own pending work first.
+          const allowed = prepared ? true : node.data.prepareUpdate?.() ?? true;
           events.push(`iterate:${name}`);
+          if (name === "root") recordPublished();
           if (node.isVisible()) events.push(`draw:${name}`);
-          return true;
+          return allowed;
         },
       },
       work
     );
     if (x !== undefined) node.setBounds(x, x, x + 10, x + 10);
+    if (name !== "root") nodes.push(node);
     return node;
   };
   const root = make("root");
   root.setCulling({
     tileSize: 64,
     getViewport: () => state.viewport,
-    getWalkToken: () => state.token,
   });
   const add = (name: string, x: number, parent = root): CountingTree => {
     const node = make(name, x);
@@ -84,9 +86,8 @@ function setup() {
   };
   const walk = () => {
     events.length = 0;
-    work.children = work.order = work.parent = 0;
-    state.token++;
-    root.traverseDown((node) => node.data.iterate());
+    work.order = work.parent = 0;
+    root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
     const names = (prefix: string): string[] =>
       events.filter((event) => event.startsWith(prefix)).map((event) => event.slice(prefix.length));
     return {
@@ -114,7 +115,7 @@ describe("Tree geometry and structure invalidation", () => {
     const result = walk();
     expect(result.prepared).toEqual(["root", ...names.slice(0, 23)]);
     expect(result.drawn).toEqual(result.prepared);
-    expect(result.work.children).toBe(0);
+    expect(result.work.order).toBe(0);
     expect(result.work.parent).toBeLessThanOrEqual(4);
   });
 
@@ -144,28 +145,24 @@ describe("Tree geometry and structure invalidation", () => {
     expect(reads.minX).toBeLessThanOrEqual(nodes.length * 2);
   });
 
-  it("does not rewrite unchanged active membership or recheck published eligibility during paint", () => {
-    const { root, state, add, walk } = setup();
+  it("does not rewrite unchanged visible membership or recheck published eligibility during paint", () => {
+    const { state, add, walk } = setup();
     const nodes = Array.from({ length: 25 }, (_, i) => add(`node${i}`, 10 + i * 20));
     walk();
     state.viewport = viewport(465);
     walk();
     walk();
-    const scope = root.scope;
-    if (!scope) throw new Error("Missing tree culling scope");
-    const active = scope["active"];
     const work = { writes: 0, paintChecks: 0 };
-    const addActive = active.add.bind(active);
-    const deleteActive = active.delete.bind(active);
-    active.add = (node) => {
-      work.writes++;
-      return addActive(node);
-    };
-    active.delete = (node) => {
-      work.writes++;
-      return deleteActive(node);
-    };
     for (const node of nodes) {
+      let published = node.published;
+      Object.defineProperty(node, "published", {
+        configurable: true,
+        get: (): boolean => published,
+        set: (value: boolean): void => {
+          work.writes++;
+          published = value;
+        },
+      });
       const isEligible = node.isEligible.bind(node);
       node.isEligible = (currentScope) => {
         if (currentScope.painting) work.paintChecks++;
@@ -191,11 +188,15 @@ describe("Tree geometry and structure invalidation", () => {
         work.eligibility++;
         return isEligible(scope);
       };
-      const setVisible = node.setVisible.bind(node);
-      node.setVisible = (visible) => {
-        work.publication++;
-        return setVisible(visible);
-      };
+      let visible = node.published;
+      Object.defineProperty(node, "published", {
+        configurable: true,
+        get: (): boolean => visible,
+        set: (value: boolean): void => {
+          work.publication++;
+          visible = value;
+        },
+      });
     }
 
     state.viewport = viewport(466);
@@ -220,7 +221,6 @@ describe("Tree geometry and structure invalidation", () => {
       expect(initial.work.order).toBeGreaterThan(0);
       walk();
       const stable = walk();
-      expect(stable.work.children).toBe(0);
       expect(stable.work.order).toBe(0);
 
       for (const [index, node] of nodes.entries()) {
@@ -254,7 +254,7 @@ describe("Tree geometry and structure invalidation", () => {
     expect(result.drawn).toEqual(["root", "resident"]);
     expect(result.events.indexOf("visible:moved:false")).toBeGreaterThanOrEqual(0);
     expect(result.events.indexOf("visible:moved:false")).toBeLessThan(result.events.indexOf("draw:root"));
-    expect(moved.isSkippedByCulling(state.token)).toBe(true);
+    expect(result.visited).not.toContain("moved");
 
     root.data.prepare = (): boolean => {
       moved.setBounds(40, 40, 50, 50);
@@ -265,7 +265,7 @@ describe("Tree geometry and structure invalidation", () => {
     expect(result.drawn).toEqual(["root", "resident", "moved"]);
     expect(result.events.indexOf("visible:moved:true")).toBeGreaterThanOrEqual(0);
     expect(result.events.indexOf("visible:moved:true")).toBeLessThan(result.events.indexOf("draw:root"));
-    expect(moved.isSkippedByCulling(state.token)).toBe(false);
+    expect(result.visited).toContain("moved");
 
     state.viewport = viewport(1000);
     expect(walk().drawn).toEqual(["root", "resident", "moved", "distant"]);

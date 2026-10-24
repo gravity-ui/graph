@@ -7,9 +7,14 @@ import { BlockConnection } from "./BlockConnection";
 class ObservedConnection extends BlockConnection<TConnection> {
   public draws: string[] = [];
 
-  public override getPath() {
+  protected override createPath() {
     this.draws.push("path");
-    return super.getPath();
+    return super.createPath();
+  }
+
+  protected override renderLabelText(ctx: CanvasRenderingContext2D) {
+    this.draws.push("label");
+    super.renderLabelText(ctx);
   }
 
   public override createArrowPath() {
@@ -83,14 +88,16 @@ describe("connection batch viewport visibility", () => {
 
   afterEach(() => graph?.unmount());
 
-  it("omits offscreen paths, arrows and after-render hooks from the first batch draw", () => {
+  it("builds geometry once and skips the label of an offscreen connection in a drawn chunk", () => {
     mount([
-      { id: "near", x: 100, y: 100 },
-      { id: "far", x: 50_000, y: 50_000 },
+      { id: "near", x: 100, y: 100, label: "near" },
+      { id: "far", x: 50_000, y: 50_000, label: "far" },
     ]);
 
-    expect(view("near").draws).toContain("path");
-    expect(view("far").draws).toEqual([]);
+    expect(view("near").draws.filter((draw) => draw === "path")).toEqual(["path"]);
+    expect(view("near").draws).toContain("label");
+    expect(view("far").draws.filter((draw) => draw === "path")).toEqual(["path"]);
+    expect(view("far").draws).not.toContain("label");
   });
 
   it("reuses line and arrow geometry when the camera leaves and reenters", () => {
@@ -103,17 +110,21 @@ describe("connection batch viewport visibility", () => {
 
     graph.cameraService.set({ x: -49_800, y: -49_800 });
     frames(2);
-    expect(view("near").draws).toEqual([]);
-    expect(view("far").draws).toEqual(expect.arrayContaining(["path", "arrow", "afterRender"]));
+    expect(view("far").draws).toContain("afterRender");
+    for (const id of ["near", "far"]) {
+      expect(view(id).draws).not.toContain("path");
+      expect(view(id).draws).not.toContain("arrow");
+    }
 
     view("near").draws = [];
     view("far").draws = [];
     graph.cameraService.set({ x: 0, y: 0 });
     frames(2);
     expect(view("near").draws).toEqual(expect.arrayContaining(["style", "arrowStyle", "afterRender"]));
-    expect(view("near").draws).not.toContain("path");
-    expect(view("near").draws).not.toContain("arrow");
-    expect(view("far").draws).toEqual([]);
+    for (const id of ["near", "far"]) {
+      expect(view(id).draws).not.toContain("path");
+      expect(view(id).draws).not.toContain("arrow");
+    }
   });
 
   it.each([true, false])("keeps custom line and arrow geometry cached across pan with Tree culling %s", (culling) => {
@@ -122,10 +133,11 @@ describe("connection batch viewport visibility", () => {
     frames(2);
     for (let index = 0; index < 100; index++) view(String(index)).draws = [];
 
-    // One previously visible connection exits; all its visible neighbors share the draw chunk.
+    // One previously visible connection exits; its chunk stays drawn for the visible neighbors.
     graph.cameraService.set({ x: -210 });
     frames(2);
-    expect(view("0").draws).toEqual([]);
+    expect(view("0").draws).not.toContain("path");
+    expect(view("0").draws).not.toContain("arrow");
     expect(view("20").draws).toContain("afterRender");
     for (let index = 1; index < 80; index++) {
       expect(view(String(index)).draws).not.toContain("path");
@@ -186,7 +198,9 @@ describe("connection batch viewport visibility", () => {
 
     expect(view("label").labelBounds()).toBeUndefined();
     expect(view("label").getHitBox()[0]).toBeGreaterThan(1000);
-    expect(view("label").draws).toEqual([]);
+    // The offscreen connection rebuilds geometry for the new props but does not draw.
+    expect(view("label").draws).not.toContain("afterRender");
+    expect(view("label").draws).not.toContain("label");
 
     graph.updateSettings({ showConnectionLabels: true });
     frames(3);
@@ -257,7 +271,9 @@ describe("connection batch viewport visibility", () => {
 
     view("connection").setRenderDelegated(false);
     frames(2);
-    expect(view("connection").draws).toEqual(expect.arrayContaining(["path", "arrow", "afterRender"]));
+    // It draws again with the geometry it already had.
+    expect(view("connection").draws).toEqual(expect.arrayContaining(["style", "arrowStyle", "afterRender"]));
+    expect(view("connection").draws).not.toContain("path");
   });
 
   it("keeps offscreen line geometry in world rectangle and point hit queries", () => {

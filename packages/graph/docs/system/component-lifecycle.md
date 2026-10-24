@@ -45,7 +45,7 @@ The CoreComponent provides the foundation with four main methods:
 | Method | Purpose | When Called |
 |--------|---------|-------------|
 | `prepareUpdate()` | Applies pending data and reconciles children | Before painting for new or requested components; inside `iterate()` for clean visible ones |
-| `iterate()` | Completes the update and paints eligible components | For visible components and prepared offscreen ones |
+| `iterate(prepared, visible)` | Updates unless `prepared`, then paints if `visible` and not vetoed | For visible components and prepared offscreen ones |
 | `updateChildren()` | Defines and updates child components | During children update |
 | `render()` | Handles visual rendering | During render phase |
 
@@ -76,9 +76,9 @@ Methods are called in this order:
        H -->|Yes| I[willUpdateChildren]
        I --> J[updateChildren]
        J --> K[didUpdateChildren]
-       H -->|No| V[Tree's published viewport visibility]
+       H -->|No| V[Tree's visible argument]
        K --> V
-       V --> C{shouldRender and in viewport?}
+       V --> C{visible, shouldRender and isRenderAllowed?}
        C -->|Yes| D[willRender]
        D --> E[render]
        E --> F[didRender]
@@ -106,7 +106,7 @@ When state or props change:
 | 3 | Update scheduled | `performRender()` |
 | 4 | Changes processed | `checkData()` |
 | 5 | Callbacks triggered | `propsChanged()` or `stateChanged()` |
-| 6 | Render evaluated | Based on `shouldRender` and the tree's published viewport visibility |
+| 6 | Render evaluated | Based on the tree's `visible` argument, `shouldRender` and `isRenderAllowed()` |
 
 ### 5. Control Flags
 

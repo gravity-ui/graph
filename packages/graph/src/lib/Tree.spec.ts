@@ -117,9 +117,56 @@ test("a scoped legacy iterator can resume child traversal after returning false"
       },
     })
   );
-  root.traverseDown((node) => node.data.iterate());
+  root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
   expect(calls).toBe(0);
   allow = true;
-  root.traverseDown((node) => node.data.iterate());
+  root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
   expect(calls).toBe(1);
+});
+
+describe("setChildren", () => {
+  const leaf = (zIndex = 1): Tree => {
+    const node = new Tree({ iterate: () => true });
+    node.zIndex = zIndex;
+    return node;
+  };
+  const order = (parent: Tree): Tree[] => parent.getOrderedChildren();
+
+  function scoped(): { root: Tree; revision: () => number } {
+    const root = new Tree({ iterate: () => true });
+    root.setCulling({ tileSize: 64, getViewport: () => ({ minX: 0, minY: 0, maxX: 100, maxY: 100 }) });
+    return { root, revision: () => root.scope?.structureRevision ?? -1 };
+  }
+
+  it("keeps the scope structure when a component reconciles the same children", () => {
+    const { root, revision } = scoped();
+    const children = [leaf(), leaf(2), leaf()];
+    root.setChildren(children);
+    const before = revision();
+    root.setChildren([...children]);
+    expect(revision()).toBe(before);
+    expect(order(root)).toEqual([children[0], children[2], children[1]]);
+  });
+
+  it("rebuilds the order when the same children arrive in another order", () => {
+    const { root, revision } = scoped();
+    const [a, b, c] = [leaf(), leaf(), leaf()];
+    root.setChildren([a, b, c]);
+    const before = revision();
+    root.setChildren([c, a, b]);
+    expect(revision()).toBeGreaterThan(before);
+    expect(order(root)).toEqual([c, a, b]);
+  });
+
+  it("restores the list order within a z-index after a child moved between z-indexes", () => {
+    const { root } = scoped();
+    const [a, b, c] = [leaf(), leaf(), leaf()];
+    root.setChildren([a, b, c]);
+    b.updateZIndex(2);
+    b.updateZIndex(1);
+    // The group now lists b last; reconciling the original list puts it back between a and c.
+    expect(order(root)).toEqual([a, c, b]);
+    root.setChildren([a, b, c]);
+    expect(order(root)).toEqual([a, b, c]);
+  });
 });

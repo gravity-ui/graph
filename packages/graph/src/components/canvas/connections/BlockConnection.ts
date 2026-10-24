@@ -9,7 +9,7 @@ import { TPoint } from "../../../utils/types/shapes";
 
 import { ConnectionArrow } from "./Arrow";
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "./BaseConnection";
-import { Path2DRenderInstance, Path2DRenderStyleResult } from "./BatchPath2D";
+import { Path2DRenderInstance, Path2DRenderStyleResult, TPathBounds } from "./BatchPath2D";
 import { BlockConnections, TGraphConnectionsContext } from "./BlockConnections";
 import {
   bezierCurveLine,
@@ -55,6 +55,10 @@ export class BlockConnection<T extends TConnection>
   private labelPaintGeometry: typeof this.labelGeometry;
 
   private labelFont = "";
+
+  private paintBounds: TPathBounds | undefined;
+
+  private arrowPath: Path2D | undefined;
 
   /** Context the current geometry was computed with; constants and label sizes live there. */
   private geometryContext?: TGraphConnectionsContext;
@@ -139,26 +143,23 @@ export class BlockConnection<T extends TConnection>
   }
 
   public isPathVisible(): boolean {
-    return (
-      this.isInViewport() &&
-      this.isEntityAvailable() &&
-      this.hasGeometry() &&
-      !this.hidden &&
-      !this.connectedState.$hidden.value
-    );
+    return this.isEntityAvailable() && this.hasGeometry() && !this.hidden && !this.connectedState.$hidden.value;
   }
 
-  public override onViewportChange(): void {
-    this.context.batch.invalidateVisibility(this);
-    this.context.batch.invalidateVisibility(this.arrowShape);
+  /** Bounds of the line, its arrow and its label, shared by tree culling and batch culling. */
+  public getPathBounds(): TPathBounds | undefined {
+    return this.paintBounds;
   }
 
-  public getPathBounds() {
-    return this.getBBox();
-  }
-
+  /** The line built by the last geometry change; batch rebuilds reuse it. */
   public getPath(): Path2D {
-    return this.generatePath();
+    return this.path2d;
+  }
+
+  /** The arrow for the current geometry, built on first use after a geometry change. */
+  public getArrowPath(): Path2D {
+    this.arrowPath ??= this.createArrowPath();
+    return this.arrowPath;
   }
 
   /**
@@ -204,6 +205,7 @@ export class BlockConnection<T extends TConnection>
   protected generatePath() {
     /* Setting this.path2D is important, as hotbox checking uses the isPointInStroke method. */
     this.path2d = this.createPath();
+    this.arrowPath = undefined;
     return this.path2d;
   }
 
@@ -262,7 +264,8 @@ export class BlockConnection<T extends TConnection>
     const cameraClose =
       this.context.camera.getCameraScale() >= this.context.constants.connection.MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL;
 
-    if (this.state.label && this.props.showConnectionLabels && cameraClose) {
+    // The batch draws whole chunks; a label outside the viewport is skipped by the tree's decision.
+    if (this.state.label && this.props.showConnectionLabels && cameraClose && this.isInViewport()) {
       this.renderLabelText(ctx);
     }
   }
@@ -373,8 +376,14 @@ export class BlockConnection<T extends TConnection>
           maxY = Math.max(maxY, point.y + arrowPadding);
         }
       }
+      this.paintBounds = [minX, minY, maxX, maxY];
       this.setCullingBounds(minX, minY, maxX, maxY);
+    } else {
+      this.paintBounds = undefined;
     }
+    // Chunks cache the union of their items' bounds.
+    this.context.batch.markBoundsDirty(this);
+    this.context.batch.markBoundsDirty(this.arrowShape);
   }
 
   protected override handleEvent(event: MouseEvent) {

@@ -4,13 +4,25 @@ import { ITree, Tree } from "./Tree";
 type Probe = ITree & {
   name: string;
   prepare?: () => boolean;
-  visibility?: (visible: boolean) => void;
 };
 
 function setup(fullWalkShare: number) {
-  const state = { viewport: { minX: 0, minY: 0, maxX: 100, maxY: 100 } as TTileRect, token: 0 };
+  const state = { viewport: { minX: 0, minY: 0, maxX: 100, maxY: 100 } as TTileRect };
   const events: string[] = [];
-  const batch = new Set<string>();
+  const nodes: Array<Tree<Probe>> = [];
+  const published = new Map<Tree<Probe>, boolean>();
+  // The root paints first: it records the visibility published for this frame, as a batch would see it.
+  const recordPublished = () => {
+    const batch: string[] = [];
+    for (const node of nodes) {
+      const visible = node.isVisible();
+      const previous = published.get(node);
+      if (previous !== undefined && previous !== visible) events.push(`visible:${node.data.name}:${visible}`);
+      published.set(node, visible);
+      if (visible) batch.push(node.data.name);
+    }
+    events.push(`batch:${batch.sort().join(",")}`);
+  };
   const make = (name: string, x?: number) => {
     const node: Tree<Probe> = new Tree<Probe>({
       name,
@@ -18,28 +30,23 @@ function setup(fullWalkShare: number) {
         events.push(`prepare:${name}`);
         return node.data.prepare?.() ?? true;
       },
-      onViewportChange: (visible) => {
-        events.push(`visible:${name}:${visible}`);
-        if (visible) batch.add(name);
-        else batch.delete(name);
-        node.data.visibility?.(visible);
-      },
-      iterate: () => {
+      iterate: (prepared) => {
+        // A node the tree did not prepare applies its own pending work first.
+        const allowed = prepared ? true : node.data.prepareUpdate?.() ?? true;
+        if (name === "root") recordPublished();
         events.push(`iterate:${name}`);
         if (node.isVisible()) events.push(`draw:${name}`);
-        if (name === "root") events.push(`batch:${Array.from(batch).sort().join(",")}`);
-        return true;
+        return allowed;
       },
     });
     if (x !== undefined) node.setBounds(x, x, x + 10, x + 10);
-    if (name !== "root") batch.add(name);
+    if (name !== "root") nodes.push(node);
     return node;
   };
   const root = make("root");
   root.setCulling({
     tileSize: 32,
     getViewport: () => state.viewport,
-    getWalkToken: () => state.token,
     fullWalkShare,
   });
   const add = (name: string, x?: number, parent = root) => {
@@ -54,8 +61,7 @@ function setup(fullWalkShare: number) {
   };
   const walk = () => {
     events.length = 0;
-    state.token++;
-    root.traverseDown((node) => node.data.iterate());
+    root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
     const names = (prefix: string) =>
       events.filter((event) => event.startsWith(prefix)).map((event) => event.slice(prefix.length));
     return { prepared: names("prepare:"), drawn: names("draw:"), visited: names("iterate:"), events: events.slice() };
@@ -77,7 +83,7 @@ describe.each([
   ["sparse", 1],
 ] as const)("Tree %s partial selection", (_strategy, fullWalkShare) => {
   it("reaches a visible child through a clean offscreen ancestor without admitting its clean offscreen children", () => {
-    const { state, add, fill, walk } = setup(fullWalkShare);
+    const { add, fill, walk } = setup(fullWalkShare);
     const parent = add("parent", 1000);
     const leaf = add("leaf", 30, parent);
     const hiddenSibling = add("hiddenSibling", 1100, parent);
@@ -91,9 +97,9 @@ describe.each([
     expect(result.drawn).toEqual(["root", "leaf", "unknown", ...residents]);
     expect(result.visited).toEqual(["root", "leaf", "unknown", ...residents]);
     expectPreparedBeforeOwnPaint(result);
-    expect(parent.isSkippedByCulling(state.token)).toBe(true);
-    expect(leaf.isSkippedByCulling(state.token)).toBe(false);
-    expect(hiddenSibling.isSkippedByCulling(state.token)).toBe(true);
+    // Skipped nodes stay attached and eligible for point queries.
+    expect([parent, leaf, hiddenSibling].every((node) => node.isTraversalAllowed())).toBe(true);
+    expect(hiddenSibling.isVisible()).toBe(false);
     expect(unknown.isVisible()).toBe(true);
   });
 
@@ -164,93 +170,28 @@ describe.each([
     });
   });
 
-  it("rechecks a later node when an earlier visibility callback changes its bounds", () => {
+  it("rechecks a selected node when a requested preparation changes the existing viewport object", () => {
     const { state, add, fill, walk } = setup(fullWalkShare);
-    const trigger = add("trigger", 120);
-    const changed = add("changed", 40);
+    const trigger = add("trigger", 10);
+    add("target", 40);
     const residents = fill();
     add("outside", 1000);
     walk();
     walk();
-    trigger.data.visibility = (visible) => {
-      if (visible) changed.setBounds(1000, 1000, 1010, 1010);
+    trigger.data.prepare = () => {
+      state.viewport.maxX = state.viewport.maxY = 35;
+      return true;
     };
-    state.viewport = { minX: 0, minY: 0, maxX: 150, maxY: 150 };
+    trigger.requestWalk();
 
+    // Publication reads the viewport after requested preparation.
     const result = walk();
-    expect(result.prepared).not.toContain("changed");
-    expect(result.drawn).toEqual(["root", "trigger", ...residents]);
-    expect(result.events).toContain(`batch:${["trigger", ...residents].sort().join(",")}`);
-    expect(result.events.indexOf("visible:changed:false")).toBeGreaterThan(
-      result.events.indexOf("visible:trigger:true")
-    );
-    expect(result.events.indexOf("visible:changed:false")).toBeLessThan(result.events.indexOf("draw:root"));
-  });
-
-  it.each(["preparation", "visibility callback"])(
-    "rechecks a selected node when %s changes the existing viewport object",
-    (phase) => {
-      const { state, add, fill, walk } = setup(fullWalkShare);
-      const trigger = add("trigger", phase === "preparation" ? 10 : 120);
-      add("target", 40);
-      const residents = fill();
-      add("outside", 1000);
-      walk();
-      walk();
-      const changeViewport = () => {
-        state.viewport.maxX = state.viewport.maxY = 35;
-      };
-      if (phase === "preparation") {
-        trigger.data.prepare = () => {
-          changeViewport();
-          return true;
-        };
-        trigger.requestWalk();
-      } else {
-        trigger.data.visibility = (visible) => {
-          if (visible) changeViewport();
-        };
-        state.viewport.maxX = state.viewport.maxY = 150;
-      }
-
-      // Publication repeats for the final viewport, so the trigger is drawn only if it still intersects it.
-      const result = walk();
-      const shown = phase === "preparation" ? ["trigger", ...residents] : residents;
-      expect(result.prepared).not.toContain("target");
-      expect(result.drawn).toEqual(["root", ...shown]);
-      expect(result.events).toContain(`batch:${shown.slice().sort().join(",")}`);
-      expect(result.events.indexOf("visible:target:false")).toBeGreaterThanOrEqual(0);
-      expect(result.events.indexOf("visible:target:false")).toBeLessThan(result.events.indexOf("draw:root"));
-    }
-  );
-
-  it("hides descendants when a visibility callback requests their ancestor to suppress them", () => {
-    const { state, add, fill, walk } = setup(fullWalkShare);
-    const trigger = add("trigger", 120);
-    const parent = add("parent", 30);
-    const child = add("child", 40, parent);
-    const residents = fill();
-    add("outside", 1000);
-    walk();
-    walk();
-    let suppressed = false;
-    parent.data.prepare = () => !suppressed;
-    trigger.data.visibility = (visible) => {
-      if (!visible) return;
-      suppressed = true;
-      parent.requestWalk();
-    };
-    state.viewport = { minX: 0, minY: 0, maxX: 150, maxY: 150 };
-
-    const result = walk();
-    expect(result.prepared).not.toContain("child");
-    expect(result.events.indexOf("prepare:parent")).toBeLessThan(result.events.indexOf("draw:root"));
-    expect(result.drawn).toEqual(["root", "trigger", "parent", ...residents]);
-    expect(result.visited).not.toContain("child");
-    expect(result.events).toContain(`batch:${["trigger", "parent", ...residents].sort().join(",")}`);
-    expect(result.events.indexOf("visible:child:false")).toBeGreaterThanOrEqual(0);
-    expect(result.events.indexOf("visible:child:false")).toBeLessThan(result.events.indexOf("draw:root"));
-    expect(child.isVisible()).toBe(false);
+    const shown = ["trigger", ...residents];
+    expect(result.prepared).not.toContain("target");
+    expect(result.drawn).toEqual(["root", ...shown]);
+    expect(result.events).toContain(`batch:${shown.slice().sort().join(",")}`);
+    expect(result.events.indexOf("visible:target:false")).toBeGreaterThanOrEqual(0);
+    expect(result.events.indexOf("visible:target:false")).toBeLessThan(result.events.indexOf("draw:root"));
   });
 
   it("publishes the exit of a node initially visible without a preceding visibility callback", () => {
@@ -268,7 +209,7 @@ describe.each([
     expect(result.events).toContain(`batch:${residents.slice().sort().join(",")}`);
     expect(result.events.indexOf("visible:exiting:false")).toBeGreaterThanOrEqual(0);
     expect(result.events.indexOf("visible:exiting:false")).toBeLessThan(result.events.indexOf("draw:root"));
-    expect(exiting.isSkippedByCulling(state.token)).toBe(true);
+    expect(exiting.isVisible()).toBe(false);
   });
 
   it("prepares a requested offscreen update and reveals its changed bounds before any paint", () => {

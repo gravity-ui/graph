@@ -87,28 +87,30 @@ and the component's own bounds in that index. Custom components and containers p
 automatically; they do not create or query tiles themselves.
 
 ```typescript
-protected isVisible(): boolean {
-  return !this.hidden && this.isInViewport();
+// The tree decides spatial visibility and passes it to iterate(); a component only vetoes painting.
+protected isRenderAllowed(): boolean {
+  return !this.hidden;
 }
 ```
 
 **What's happening here:**
 - The tree prepares new components and components that requested an update before publishing visibility; clean visible components update inside their own `iterate()`, right before painting.
+- `iterate()` runs only for visible components and for offscreen components whose update was prepared; the latter complete without paint hooks.
 - Offscreen components still mount and process changes, including ports, children, and geometry.
 - `willRender`, `render`, and `didRender` run only for eligible components, including on the first frame.
 - Clean offscreen components are skipped entirely. A visible child is still reached through its offscreen parent.
 - A camera move rechecks only components near the viewport edges; visibility is kept between frames.
 - Unknown bounds stay eligible. Set bounds during initialization or data updates, before rendering.
-- Connection batches use the same viewport decision, and world-coordinate hit queries remain independent of the viewport.
+- Connection batches skip whole chunks outside the viewport, and world-coordinate hit queries remain independent of the viewport.
 
-Keep `isVisible()` overrides for additional semantic conditions, such as hidden elements or missing
-connection endpoints. Use `firstIterate` for initialization; `firstRender` stays true until the
-component is actually painted. `EXP_VISIBILITY_CULLING = false` enables a full traversal while
-retaining the same viewport paint gate.
+Override `isRenderAllowed()` for additional semantic conditions, such as hidden elements or missing
+connection endpoints; `isVisible()` combines it with `isInViewport()` for queries. Use `firstIterate`
+for initialization; `firstRender` stays true until the component is actually painted.
+`EXP_VISIBILITY_CULLING = false` enables a full traversal while retaining the same viewport paint gate.
 
 `isVisible()` reads the current viewport and bounds between frames and in update hooks that run before
 painting. A custom `willIterate()` can therefore refresh deferred external state on the first frame that
-returns to the viewport. During painting, components and batches use the published Tree visibility. Change
+returns to the viewport. During painting it returns the frame's decision. Change
 geometry through `setState()`, `setProps()` or `performRender()`: a change a clean component makes inside
 its own update takes effect for culling from the next frame.
 

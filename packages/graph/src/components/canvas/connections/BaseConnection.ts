@@ -178,10 +178,10 @@ export class BaseConnection<
     return this.connectedState.$geometry.value !== undefined;
   }
 
-  protected override isVisible(): boolean {
+  protected override isRenderAllowed(): boolean {
     if (!this.isEntityAvailable() || !this.hasGeometry()) return false;
     if (this.connectedState.$hidden.value) return false;
-    return super.isVisible();
+    return super.isRenderAllowed();
   }
 
   protected override handleEvent(event: MouseEvent) {

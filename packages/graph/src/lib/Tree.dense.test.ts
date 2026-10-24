@@ -5,9 +5,22 @@ type Probe = ITree & { name: string; prepare?: () => boolean; paint?: () => bool
 const viewport = (maxX: number): TTileRect => ({ minX: 0, minY: 0, maxX, maxY: maxX });
 
 function setup() {
-  const state = { viewport: viewport(1000), enabled: true, token: 0 };
+  const state = { viewport: viewport(1000), enabled: true };
   const events: string[] = [];
-  const batch = new Set<string>();
+  const nodes: Array<Tree<Probe>> = [];
+  const published = new Map<Tree<Probe>, boolean>();
+  // The root paints first: it records the visibility published for this frame, as a batch would see it.
+  const recordPublished = () => {
+    const batch: string[] = [];
+    for (const node of nodes) {
+      const visible = node.isVisible();
+      const previous = published.get(node);
+      if (previous !== undefined && previous !== visible) events.push(`visible:${node.data.name}:${visible}`);
+      published.set(node, visible);
+      if (visible) batch.push(node.data.name);
+    }
+    events.push(`batch:${batch.sort().join(",")}`);
+  };
   const make = (name: string, x?: number) => {
     const node: Tree<Probe> = new Tree<Probe>({
       name,
@@ -15,20 +28,18 @@ function setup() {
         events.push(`prepare:${name}`);
         return node.data.prepare?.() ?? true;
       },
-      onViewportChange: (visible) => {
-        events.push(`visible:${name}:${visible}`);
-        if (visible) batch.add(name);
-        else batch.delete(name);
-      },
-      iterate: (): boolean => {
+      iterate: (prepared): boolean => {
+        // A node the tree did not prepare applies its own pending work first.
+        const allowed = prepared ? true : node.data.prepareUpdate?.() ?? true;
         events.push(`iterate:${name}`);
-        if (name === "root") events.push(`batch:${Array.from(batch).sort().join(",")}`);
+        if (name === "root") recordPublished();
         if (node.isVisible()) events.push(`draw:${name}`);
-        return node.data.paint?.() ?? true;
+        const painted = node.data.paint?.() ?? true;
+        return allowed && painted;
       },
     });
     if (x !== undefined) node.setBounds(x, x, x + 10, x + 10);
-    if (name !== "root") batch.add(name);
+    if (name !== "root") nodes.push(node);
     return node;
   };
   const root = make("root");
@@ -36,7 +47,6 @@ function setup() {
     tileSize: 64,
     getViewport: () => state.viewport,
     isEnabled: () => state.enabled,
-    getWalkToken: () => state.token,
   });
   const add = (name: string, x?: number, parent = root) => {
     const node = make(name, x);
@@ -45,8 +55,7 @@ function setup() {
   };
   const walk = () => {
     events.length = 0;
-    state.token++;
-    root.traverseDown((node) => node.data.iterate());
+    root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
     const names = (prefix: string) =>
       events.filter((event) => event.startsWith(prefix)).map((event) => event.slice(prefix.length));
     return { prepared: names("prepare:"), drawn: names("draw:"), visited: names("iterate:"), events: events.slice() };
@@ -104,14 +113,16 @@ describe("Tree full-viewport traversal", () => {
     expect(result.events).toContain("batch:left");
     expect(result.events.indexOf("visible:right:false")).toBeLessThan(result.events.indexOf("draw:root"));
     expect(result.events.indexOf("visible:leaf:false")).toBeLessThan(result.events.indexOf("draw:root"));
-    expect(leaf.isSkippedByCulling(state.token)).toBe(true);
+    // The skipped leaf stays attached and eligible for point queries.
+    expect(result.visited).not.toContain("leaf");
+    expect(leaf.isTraversalAllowed()).toBe(true);
 
     state.viewport = viewport(1000);
     result = walk();
     expect(result.drawn).toEqual(["root", "left", "right", "leaf"]);
     expect(result.events).toContain("batch:leaf,left,right");
     expect(result.events.indexOf("visible:leaf:true")).toBeLessThan(result.events.indexOf("draw:root"));
-    expect(leaf.isSkippedByCulling(state.token)).toBe(false);
+    expect(result.visited).toContain("leaf");
 
     state.viewport = viewport(100);
     state.enabled = false;
@@ -119,7 +130,7 @@ describe("Tree full-viewport traversal", () => {
     expect(result.prepared).toEqual(["root", "left", "right", "leaf"]);
     expect(result.drawn).toEqual(["root", "left"]);
     expect(result.events).toContain("batch:left");
-    expect(leaf.isSkippedByCulling(state.token)).toBe(false);
+    expect(result.visited).toEqual(["root", "left", "right", "leaf"]);
 
     state.enabled = true;
     expect(walk().visited).toEqual(["root", "left"]);
@@ -181,31 +192,6 @@ describe("Tree full-viewport traversal", () => {
     expect(result.drawn).toEqual(["root", "original", "trigger", ...fillers, "child", "grandchild"]);
     expect(result.visited).toEqual(["root", "original", "trigger", ...fillers, "far", "child", "grandchild"]);
     expectPreparedBeforeOwnPaint(result);
-  });
-
-  it("prepares and paints a node appended by a viewport callback in the same frame", () => {
-    const { root, state, add, make, walk } = setup();
-    add("resident", 10);
-    const trigger = add("trigger", 500);
-    walk();
-    state.viewport = viewport(100);
-    walk();
-    const created = make("created", 20);
-    const onViewportChange = trigger.data.onViewportChange;
-    trigger.data.onViewportChange = (visible) => {
-      onViewportChange?.(visible);
-      if (visible) root.append(created);
-    };
-
-    state.viewport = viewport(1000);
-    const result = walk();
-    expect(result.drawn).toEqual(["root", "resident", "trigger", "created"]);
-    expect(result.events.indexOf("prepare:created")).toBeLessThan(result.events.indexOf("draw:root"));
-    expectPreparedBeforeOwnPaint(result);
-    expect(walk()).toMatchObject({
-      prepared: ["root", "resident", "trigger", "created"],
-      drawn: ["root", "resident", "trigger", "created"],
-    });
   });
 
   it("uses final geometry and child order when a requested preparation changes a fully visible tree", () => {
@@ -354,7 +340,7 @@ describe("Tree full-viewport traversal", () => {
     expect(walk().drawn).toEqual(["root", "original", "mover", "destination", "child"]);
   });
 
-  it("keeps the selected paint order when an iterator reparents an unvisited child to a later prepared branch", () => {
+  it("paints a child that painting moves to a later branch from the next frame", () => {
     const { add, walk } = setup();
     const original = add("original", 10);
     const child = add("child", 20, original);
@@ -366,9 +352,10 @@ describe("Tree full-viewport traversal", () => {
       return true;
     };
 
+    // Moving registers the child again; nodes registered while painting wait for the next frame.
     expect(walk()).toMatchObject({
-      visited: ["root", "original", "child", "destination"],
-      drawn: ["root", "original", "child", "destination"],
+      visited: ["root", "original", "destination"],
+      drawn: ["root", "original", "destination"],
     });
     expect(walk().drawn).toEqual(["root", "original", "destination", "child"]);
   });
@@ -383,7 +370,7 @@ describe("Tree full-viewport traversal", () => {
 
     const scope = root["culling"];
     if (!scope) throw new Error("Missing scope");
-    expect(scope.nodes.size).toBe(0);
+    expect(scope.nodes).toHaveLength(0);
     expect(scope["paintOrder"]?.nodes.some((node) => node !== root) ?? false).toBe(false);
   });
 

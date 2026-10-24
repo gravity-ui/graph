@@ -44,12 +44,11 @@ sequenceDiagram
     end
 
     Tree->>Tree: Update visibility from viewport delta and changed bounds
-    Tree->>Component: onViewportChange() when membership changes
-    Tree->>Component: iterate() in local z-index order for visible or prepared nodes
-    opt clean visible component
+    Tree->>Component: iterate(prepared, visible) in local z-index order for visible or prepared nodes
+    opt not prepared yet in this frame
         Component->>Component: prepareUpdate() inside iterate()
     end
-    alt shouldRender and in viewport
+    alt visible, shouldRender and not vetoed by isRenderAllowed()
         Component->>Component: willRender()
         Component->>Rendering: render()
         Component->>Component: didRender()
@@ -86,7 +85,7 @@ The component lifecycle controls the rendering process through several key metho
 
 1. `prepareUpdate()` - Applies data and reconciles children; before painting for requested and new components, inside `iterate()` for clean visible ones
 2. `checkData()` - Processes any pending state/props changes
-3. `shouldRender` flag and `isInViewport()` - Together control whether rendering occurs
+3. The tree's `visible` argument, the `shouldRender` flag and `isRenderAllowed()` - Together control whether rendering occurs
 4. `iterate()` / `render()` - Complete the update and create eligible visual output
 5. `shouldUpdateChildren` flag - Controls whether children are updated
 
@@ -109,9 +108,9 @@ visible child. Unknown bounds remain eligible. New and requested offscreen nodes
 enter the painting lifecycle. Setting
 `shouldRenderChildren` to false explicitly suppresses a branch, independently of spatial culling.
 
-Visibility changes are published before the layer paints, allowing connection batches to invalidate
-affected chunks before drawing. Both the component lifecycle and batch renderer use the same published
-visibility. Hit testing retains its separate spatial index and supports queries outside the viewport.
+Visibility is published before the layer paints. Connection batches do not track it per item: they
+skip whole chunks outside the viewport. Hit testing retains its separate spatial index and supports
+queries outside the viewport.
 
 From `scheduler-system.md`:
 > During an update, the Scheduler traverses the component tree in depth-first order: Tree._walkDown, Iterator returns true/false, Process/Skip children
@@ -143,7 +142,7 @@ Combining all three documents, we can map the complete lifecycle from state chan
    - For requested components, the tree publishes the resulting bounds before anything paints
 
 4. **Rendering Decision**
-   - Component evaluates `shouldRender` and the tree's published viewport visibility
+   - Component paints when the tree passes `visible`, `shouldRender` is set and `isRenderAllowed()` agrees
    - If true: `willRender()` → `render()` → `didRender()`
    - If false: `willNotRender()`
 

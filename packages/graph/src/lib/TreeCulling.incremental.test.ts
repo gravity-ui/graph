@@ -2,32 +2,46 @@ import type { TTileRect } from "./TileIndex";
 import { ITree, Tree } from "./Tree";
 
 type Probe = ITree & { name: string; paint?: () => boolean };
+/** The private complete scan, spied on to tell it from tile queries. */
+type TScanProbe = { publishScan(viewport: TTileRect, keepBase: boolean): void };
 
 const rect = (minX: number, minY: number, maxX: number, maxY: number): TTileRect => ({ minX, minY, maxX, maxY });
 
-function setup(options: { selfPreparing?: boolean } = {}) {
-  const state = { viewport: rect(0, 0, 100, 100), token: 0 };
+function setup() {
+  const state = { viewport: rect(0, 0, 100, 100) };
   const events: string[] = [];
+  const nodes: Array<Tree<Probe>> = [];
+  const published = new Map<Tree<Probe>, boolean>();
   const make = (name: string, x?: number, y = x): Tree<Probe> => {
     const node: Tree<Probe> = new Tree<Probe>({
       name,
-      preparesOnIterate: options.selfPreparing,
       prepareUpdate: () => {
         events.push(`prepare:${name}`);
         return true;
       },
-      onViewportChange: (visible) => events.push(`visible:${name}:${visible}`),
-      iterate: () => {
+      iterate: (prepared) => {
+        // A node the tree did not prepare applies its own pending work first.
+        if (!prepared) node.data.prepareUpdate?.();
+        if (name === "root") {
+          // The root paints first: record visibility published for this frame before anything draws.
+          for (const other of nodes) {
+            const visible = other.isVisible();
+            const previous = published.get(other);
+            if (previous !== undefined && previous !== visible) events.push(`visible:${other.data.name}:${visible}`);
+            published.set(other, visible);
+          }
+        }
         events.push(`iterate:${name}`);
         if (node.isVisible()) events.push(`draw:${name}`);
         return node.data.paint?.() ?? true;
       },
     });
     if (x !== undefined && y !== undefined) node.setBounds(x, y, x + 10, y + 10);
+    if (name !== "root") nodes.push(node);
     return node;
   };
   const root = make("root");
-  root.setCulling({ tileSize: 32, getViewport: () => state.viewport, getWalkToken: () => state.token });
+  root.setCulling({ tileSize: 32, getViewport: () => state.viewport });
   const add = (name: string, x: number, y = x, parent: Tree = root): Tree<Probe> => {
     const node = make(name, x, y);
     parent.append(node);
@@ -35,8 +49,7 @@ function setup(options: { selfPreparing?: boolean } = {}) {
   };
   const walk = () => {
     events.length = 0;
-    state.token++;
-    root.traverseDown((node) => node.data.iterate());
+    root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
     const names = (prefix: string): string[] =>
       events.filter((event) => event.startsWith(prefix)).map((event) => event.slice(prefix.length));
     return { prepared: names("prepare:"), drawn: names("draw:"), visited: names("iterate:"), events: events.slice() };
@@ -102,7 +115,7 @@ describe("TreeCulling incremental visibility", () => {
           .sort()
       ).toEqual(expected());
     }
-    expect(root["culling"]?.nodes.size).toBe(400);
+    expect(root["culling"]?.nodes).toHaveLength(400);
   });
 
   it("rechecks only nodes near the viewport edges when the camera pans", () => {
@@ -116,7 +129,7 @@ describe("TreeCulling incremental visibility", () => {
     const scope = root["culling"];
     if (!scope) throw new Error("Missing scope");
     const query = jest.spyOn(scope.index, "query");
-    const linearScan = jest.spyOn(scope.nodes, Symbol.iterator);
+    const linearScan = jest.spyOn(scope as unknown as TScanProbe, "publishScan");
     const checked = new Set<Tree>();
     const intersects = jest.spyOn(scope, "intersects").mockImplementation(function (this: unknown, node, viewport) {
       checked.add(node);
@@ -144,20 +157,24 @@ describe("TreeCulling incremental visibility", () => {
     intersects.mockRestore();
   });
 
-  it("lets self-preparing nodes update inside iterate unless an update was requested", () => {
-    const { add, walk } = setup({ selfPreparing: true });
+  it("lets clean visible nodes prepare inside iterate and requested nodes before painting", () => {
+    const { root, add, walk } = setup();
     const first = add("first", 10);
     add("second", 30);
     add("outside", 1000);
     walk();
+    const prepare = jest.fn(root.data.prepareUpdate);
+    root.data.prepareUpdate = prepare;
     let result = walk();
-    expect(result.prepared).toEqual(["root"]);
-    expect(result.drawn).toEqual(["root", "first", "second"]);
+    expect(result.prepared).toEqual(["root", "first", "second"]);
+    expect(result.events.indexOf("prepare:first")).toBeGreaterThan(result.events.indexOf("draw:root"));
+    expect(prepare).toHaveBeenCalledTimes(1);
 
     first.requestWalk();
     result = walk();
-    expect(result.prepared).toEqual(["root", "first"]);
+    expect(result.prepared).toEqual(["root", "first", "second"]);
     expect(result.events.indexOf("prepare:first")).toBeLessThan(result.events.indexOf("draw:root"));
+    expect(result.events.filter((event) => event === "prepare:first")).toHaveLength(1);
   });
 
   it("paints children that a clean node adds while painting from the next frame", () => {

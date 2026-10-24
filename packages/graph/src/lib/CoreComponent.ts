@@ -82,8 +82,6 @@ export class CoreComponent<
 
   protected __comp: TPrivateComponentData;
 
-  protected updatePrepared = false;
-
   public get zIndex() {
     return this.__comp.treeNode.zIndex;
   }
@@ -91,11 +89,6 @@ export class CoreComponent<
   public set zIndex(index: number) {
     this.__comp.treeNode.updateZIndex(index);
     this.performRender();
-  }
-
-  /** {@link iterate} applies pending updates when the tree has not prepared this component. */
-  public get preparesOnIterate(): boolean {
-    return true;
   }
 
   public get renderOrder() {
@@ -119,24 +112,19 @@ export class CoreComponent<
     this.props = props ?? ({} as Props);
   }
 
+  /**
+   * Whether this component took part in the latest traversal. A culled tree skips clean offscreen
+   * components on purpose, so there it means "attached to the tree in a branch that is not suppressed".
+   */
   public isIterated(): boolean {
-    const iterateId = this.__comp.context.globalIterateId;
-    // A child skipped by an ancestor's visibility culling was out of view with nothing to process,
-    // so for this traversal it counts as iterated.
-    return (
-      this.__comp.treeNode.isTraversalAllowed() &&
-      (this.__comp.iterateId === iterateId || this.__comp.treeNode.isSkippedByCulling(iterateId))
-    );
+    const treeNode = this.__comp.treeNode;
+    if (treeNode.scope) return treeNode.isTraversalAllowed();
+    return this.__comp.iterateId === this.__comp.context.globalIterateId;
   }
 
   /** Whether this node's own bounds intersect its tree's viewport. */
   public isInViewport(): boolean {
     return this.__comp.treeNode.isVisible();
-  }
-
-  /** @internal Called before painting when the tree's viewport selection changes. */
-  public onViewportChange(_visible: boolean): void {
-    // noop
   }
 
   public performRender = () => {
@@ -147,8 +135,8 @@ export class CoreComponent<
   /**
    * Configures the viewport for this tree root and all its descendants.
    */
-  protected setChildrenCulling(options: Omit<TTreeCullingOptions, "getWalkToken"> | undefined): void {
-    this.__comp.treeNode.setCulling(options && { ...options, getWalkToken: () => this.__comp.context.globalIterateId });
+  protected setChildrenCulling(options: TTreeCullingOptions | undefined): void {
+    this.__comp.treeNode.setCulling(options);
   }
 
   /** Reports this component's own bounds to its tree's spatial index. */
@@ -202,20 +190,19 @@ export class CoreComponent<
     this.performRender();
   }
 
-  /** Applies pending work before the tree selects the elements to paint. */
+  /** Applies pending work without painting; the tree calls it ahead of painting for requested and new components. */
   public prepareUpdate(): boolean {
-    if (this.updatePrepared) return true;
-    if (!this.__comp.parent) {
-      this.__comp.context.globalIterateId = Math.random();
-    }
+    if (!this.__comp.parent) this.__comp.context.globalIterateId++;
     this.__comp.iterateId = this.__comp.context.globalIterateId;
-    this.updatePrepared = true;
     return true;
   }
 
-  public iterate(): boolean {
-    if (!this.updatePrepared) this.prepareUpdate();
-    this.updatePrepared = false;
+  /**
+   * Runs this component's frame. `prepared` tells whether the tree already called prepareUpdate() in
+   * this traversal; `visible` is the tree's viewport decision.
+   */
+  public iterate(prepared = false, _visible = true): boolean {
+    if (!prepared) this.prepareUpdate();
     return true;
   }
 

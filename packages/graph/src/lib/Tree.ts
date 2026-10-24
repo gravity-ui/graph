@@ -1,35 +1,39 @@
 import { TTreeCullingOptions, TreeCulling } from "./TreeCulling";
 import { cache } from "./utils";
 
-export type TIterator = (node: Tree) => boolean;
+/**
+ * Runs one node's frame. `prepared` tells whether the tree already called `prepareUpdate()` for this
+ * node in this traversal; `visible` is the tree's paint decision for the node's own bounds.
+ */
+export type TIterator = (node: Tree, prepared: boolean, visible: boolean) => boolean;
 
 export interface ITree {
-  iterate(): boolean;
-  /** Applies updates before any node paints; false suppresses this node's descendants. */
-  prepareUpdate?(): boolean;
-  /** Runs before painting when this node's own viewport visibility changes. */
-  onViewportChange?(visible: boolean): void;
   /**
-   * `iterate()` applies pending updates itself when `prepareUpdate()` has not run in this traversal.
-   * The tree then lets clean nodes update inside their own `iterate()`. Read once per node.
+   * Runs this node's frame. When `prepared` is false, `iterate()` applies its pending work itself first.
+   * `visible` is the tree's paint decision; the node may still veto painting. False suppresses children.
    */
-  readonly preparesOnIterate?: boolean;
+  iterate(prepared: boolean, visible: boolean): boolean;
+  /** Applies pending work without painting; false suppresses this node's descendants. */
+  prepareUpdate?(): boolean;
 }
 
 export class Tree<T extends ITree = ITree> {
   public data: T;
   public parent?: Tree;
   public children: Set<Tree> = new Set();
-  private childrenArray: Tree[] = [];
   /** @internal Parent traversal permission, independent of own viewport visibility. */
   public childrenWalkAllowed = true;
-  protected childrenDirty = false;
   protected zIndexGroups: Map<number, Set<Tree>> = new Map();
   protected zIndexChildrenCache = cache(() => {
-    const ordered = Array.from(this.zIndexGroups.keys())
-      .sort((a, b) => a - b)
-      .flatMap((index) => Array.from(this.zIndexGroups.get(index) || []));
-    for (let i = 0; i < ordered.length; i++) ordered[i].renderOrder = i;
+    const groups = this.zIndexGroups;
+    const ordered: Tree[] = [];
+    const indexes = groups.size > 1 ? Array.from(groups.keys()).sort((a, b) => a - b) : groups.keys();
+    for (const index of indexes) {
+      for (const node of groups.get(index) ?? []) {
+        node.renderOrder = ordered.length;
+        ordered.push(node);
+      }
+    }
     return ordered;
   });
   public renderOrder = 0;
@@ -40,35 +44,37 @@ export class Tree<T extends ITree = ITree> {
   public boundsMinY = NaN;
   public boundsMaxX = NaN;
   public boundsMaxY = NaN;
-  /** @internal Traversal stamp in the shared spatial scope. */
-  public cullingStamp = 0;
   protected culling?: TreeCulling;
   /** @internal Shared frame coordinator for this node. */
   public scope?: TreeCulling;
-  private visible = true;
+  /** @internal Viewport visibility published by the scope for the current frame. */
+  public published = false;
   /** @internal Last traversal that prepared this node. */
   public preparedStamp = 0;
+  /** @internal Last traversal that ran this node's iterate(). */
+  public paintedStamp = 0;
   /** @internal Exact selection for one spatial query. */
   public selectedStamp = 0;
-  /** @internal Membership in the scope's published visibility registry. */
-  public activeInViewport = false;
+  /** @internal Paint order that lists this node; it marks the node eligible while that order is current. */
+  public orderStamp = 0;
+  /** @internal Positions in the scope's node lists; -1 when absent. */
+  public scopeSlot = -1;
+  public visibleSlot = -1;
+  public freshSlot = -1;
+  public pendingSlot = -1;
+  public boundsSlot = -1;
   private eligibilityRevision = -1;
   private traversalAllowed = true;
-
-  /** @internal See {@link ITree.preparesOnIterate}. */
-  public readonly preparesOnIterate: boolean;
 
   constructor(data: T, parent?: Tree) {
     this.data = data;
     this.parent = parent;
-    this.preparesOnIterate = data.preparesOnIterate === true;
   }
 
   public append(node: Tree) {
     if (node.parent && node.parent !== this) node.parent.remove(node);
     node.parent = this;
     this.children.add(node);
-    this.childrenDirty = true;
     this.addInZIndex(node);
     node.setScope(node.culling ?? this.scope);
   }
@@ -98,25 +104,42 @@ export class Tree<T extends ITree = ITree> {
     }
     if (node.parent !== this) return;
     this.children.delete(node);
-    this.childrenArray = [];
-    this.childrenDirty = true;
     this.removeZIndex(node);
     node.setScope(undefined);
     node.parent = undefined;
   }
 
   public setChildren(nodes: Tree[]) {
+    // Components reconcile on every update; unchanged children must not invalidate the whole scope.
+    if (this.hasChildrenInOrder(nodes)) return;
     this.scope?.invalidateStructure();
-    const next = new Set(nodes);
-    for (const child of this.children) {
-      if (!next.has(child)) this.remove(child);
+    if (this.children.size) {
+      const next = new Set(nodes);
+      for (const child of this.children) {
+        if (!next.has(child)) this.remove(child);
+      }
     }
     this.children.clear();
-    this.childrenArray = [];
-    this.childrenDirty = true;
     this.zIndexGroups.clear();
     this.zIndexChildrenCache.clear();
     for (const node of nodes) this.append(node);
+  }
+
+  /** Whether the children are exactly `nodes`, in this order and in this order within each z-index. */
+  private hasChildrenInOrder(nodes: Tree[]): boolean {
+    if (nodes.length !== this.children.size) return false;
+    let i = 0;
+    for (const child of this.children) {
+      if (child !== nodes[i++]) return false;
+    }
+    for (const [zIndex, group] of this.zIndexGroups) {
+      let j = 0;
+      for (const node of group) {
+        while (j < nodes.length && nodes[j].zIndex !== zIndex) j++;
+        if (nodes[j++] !== node) return false;
+      }
+    }
+    return true;
   }
 
   /** Configures a shared spatial scope for this root and all its descendants. */
@@ -160,27 +183,22 @@ export class Tree<T extends ITree = ITree> {
     this.scope?.update(this);
   }
 
+  /** Asks the scope to prepare this node before the next frame publishes visibility and paints. */
   public requestWalk(): void {
     this.scope?.markPending(this);
   }
 
-  /** Own bounds intersect the current exact viewport and ancestors allow traversal. */
+  /**
+   * Own bounds intersect the viewport and ancestors allow traversal. While the scope paints this is the
+   * frame's published decision; otherwise it reads the current viewport and bounds.
+   */
   public isVisible(): boolean {
     const scope = this.scope;
     if (!scope) return true;
-    // Update hooks need current geometry; painting shares the finalized batch selection.
-    const visible =
-      scope.painting && scope.preparingNode !== this
-        ? this.visible
-        : scope.intersects(this, scope.options.getViewport());
+    const visible = scope.painting ? this.published : scope.intersects(this, scope.options.getViewport());
     return (
       visible && ((scope.painting && scope.visibilityRevision === scope.structureRevision) || this.isEligible(scope))
     );
-  }
-
-  public isSkippedByCulling(token: unknown): boolean {
-    const scope = this.scope;
-    return Boolean(scope && this.isEligible(scope) && scope.isSkipped(this, token));
   }
 
   /** Whether every ancestor still contains this branch and permits its traversal. */
@@ -189,7 +207,7 @@ export class Tree<T extends ITree = ITree> {
     if (scope?.walking) {
       if (
         scope.painting &&
-        this.visible &&
+        this.published &&
         this !== scope.owner &&
         scope.visibilityRevision === scope.structureRevision
       )
@@ -223,19 +241,6 @@ export class Tree<T extends ITree = ITree> {
     this.scope?.invalidateStructure();
   }
 
-  /** @internal Published viewport visibility; the paint walk visits published nodes. */
-  public get publishedVisible(): boolean {
-    return this.visible;
-  }
-
-  /** @internal */
-  public setVisible(visible: boolean): boolean {
-    if (this.visible === visible) return false;
-    this.visible = visible;
-    this.data.onViewportChange?.(visible);
-    return true;
-  }
-
   public updateZIndex(index: number) {
     if (this.zIndex === index) return;
     const parent = this.parent;
@@ -259,8 +264,6 @@ export class Tree<T extends ITree = ITree> {
   public clearChildren() {
     for (const child of this.children) child.setScope(undefined);
     this.children.clear();
-    this.childrenArray = [];
-    this.childrenDirty = true;
     this.zIndexGroups.clear();
     this.zIndexChildrenCache.clear();
   }
@@ -276,15 +279,6 @@ export class Tree<T extends ITree = ITree> {
     this.setChildrenWalkAllowed(this.data.prepareUpdate?.() ?? true);
   }
 
-  /** @internal Children in reconciliation order. */
-  public getChildrenArray() {
-    if (this.childrenDirty) {
-      this.childrenArray = Array.from(this.children);
-      this.childrenDirty = false;
-    }
-    return this.childrenArray;
-  }
-
   /** @internal Children in local paint order. */
   public getOrderedChildren(): Tree[] {
     return this.zIndexChildrenCache.get();
@@ -292,7 +286,7 @@ export class Tree<T extends ITree = ITree> {
 
   protected _walkDown(iterator: TIterator, order: number) {
     this.renderOrder = order;
-    this.setChildrenWalkAllowed(iterator(this));
+    this.setChildrenWalkAllowed(iterator(this, false, true));
     if (!this.childrenWalkAllowed) return;
     const children = this.zIndexChildrenCache.get();
     for (let i = 0; i < children.length; i++) {

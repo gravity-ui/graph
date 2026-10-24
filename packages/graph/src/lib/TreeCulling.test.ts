@@ -1,9 +1,9 @@
-import { BatchPath2DRenderer } from "../components/canvas/connections/BatchPath2D";
-
 import type { TTileRect } from "./TileIndex";
 import { ITree, Tree } from "./Tree";
 
 type TNodeData = ITree & { name: string };
+/** The private complete scan, spied on to tell it from tile queries. */
+type TScanProbe = { publishScan(viewport: TTileRect, keepBase: boolean): void };
 const rect = (x: number, y = x, size = 10): TTileRect => ({ minX: x, minY: y, maxX: x + size, maxY: y + size });
 
 function setup() {
@@ -11,33 +11,44 @@ function setup() {
   const drawn: string[] = [];
   const visited: string[] = [];
   const events: string[] = [];
-  const state: { viewport: TTileRect | undefined; token: number } = { viewport: rect(0, 0, 100), token: 0 };
+  const state: { viewport: TTileRect | undefined } = { viewport: rect(0, 0, 100) };
+  const nodes: Array<Tree<TNodeData>> = [];
+  const published = new Map<Tree<TNodeData>, boolean>();
+  const recordPublished = () => {
+    for (const node of nodes) {
+      const visible = node.isVisible();
+      const previous = published.get(node);
+      if (previous !== undefined && previous !== visible) events.push(`visible:${node.data.name}:${visible}`);
+      published.set(node, visible);
+    }
+  };
   const make = (name: string, x?: number) => {
-    const node = new Tree<TNodeData>({
+    const node: Tree<TNodeData> = new Tree<TNodeData>({
       name,
       prepareUpdate: () => {
         prepared.push(name);
         events.push(`prepare:${name}`);
         return true;
       },
-      onViewportChange: (visible) => {
-        events.push(`visible:${name}:${visible}`);
-      },
-      iterate: () => {
+      iterate: (isPrepared) => {
+        // A node the tree did not prepare applies its own pending work first.
+        const allowed = isPrepared ? true : node.data.prepareUpdate?.() ?? true;
+        // The root paints first: record visibility published for this frame before anything draws.
+        if (name === "root") recordPublished();
         visited.push(name);
         if (node.isVisible()) {
           drawn.push(name);
           events.push(`draw:${name}`);
         }
-        return true;
+        return allowed;
       },
     });
     if (x !== undefined) node.setBounds(x, x, x + 10, x + 10);
+    if (name !== "root") nodes.push(node);
     return node;
   };
   const root = make("root");
-  const configure = () =>
-    root.setCulling({ tileSize: 64, getViewport: () => state.viewport, getWalkToken: () => state.token });
+  const configure = () => root.setCulling({ tileSize: 64, getViewport: () => state.viewport });
   configure();
   const add = (name: string, x?: number, parent = root) => {
     const node = make(name, x);
@@ -46,8 +57,7 @@ function setup() {
   };
   const walk = () => {
     prepared.length = drawn.length = visited.length = events.length = 0;
-    state.token++;
-    root.traverseDown((node) => node.data.iterate());
+    root.traverseDown((node, isPrepared, visible) => node.data.iterate(isPrepared, visible));
     return { prepared: prepared.slice(), drawn: drawn.slice(), visited: visited.slice(), events: events.slice() };
   };
   return { root, state, add, make, walk, configure };
@@ -149,7 +159,7 @@ describe("Tree native spatial scope", () => {
     expect(walk().drawn).toEqual(["root", "out"]);
   });
 
-  it("reads live visibility in update hooks without publishing intermediate transitions", () => {
+  it("reads live visibility in hooks that run before painting without publishing intermediate transitions", () => {
     const { state, add, walk } = setup();
     const node = add("node", 300);
     walk();
@@ -161,6 +171,7 @@ describe("Tree native spatial scope", () => {
       node.setBounds(300, 300, 310, 310);
       return true;
     };
+    node.requestWalk();
     state.viewport = rect(250, 250, 100);
 
     const result = walk();
@@ -191,7 +202,6 @@ describe("Tree native spatial scope", () => {
     walk();
     state.viewport = undefined;
     expect(walk()).toMatchObject({ prepared: ["root", "parent", "child"], drawn: ["root", "parent", "child"] });
-    expect(parent.isSkippedByCulling(state.token)).toBe(false);
   });
 
   it("disables traversal filtering without allowing offscreen paint", () => {
@@ -243,35 +253,6 @@ describe("Tree native spatial scope", () => {
     expect(batchVisible).toEqual([false]);
   });
 
-  it("invalidates a batch cached before a suppressed child's first preparation when the branch resumes", () => {
-    const { root, add, walk } = setup();
-    const parent = add("parent", 10);
-    const child = add("child", 20, parent);
-    parent.data.prepareUpdate = () => false;
-    const batch = new BatchPath2DRenderer(() => {});
-    let draws = 0;
-    const shape = {
-      getPath: () => new Path2D(),
-      style: () => ({ type: "stroke" as const }),
-      isPathVisible: () => child.isVisible(),
-      afterRender: () => draws++,
-    };
-    batch.add(shape, { zIndex: 0, group: "custom" });
-    child.data.onViewportChange = () => batch.invalidateVisibility(shape);
-    const ctx = document.createElement("canvas").getContext("2d");
-    if (!ctx) throw new Error("Missing canvas context");
-    root.data.iterate = () => {
-      for (const group of batch.orderedPaths.get()) group.render(ctx);
-      return true;
-    };
-    walk();
-    expect(draws).toBe(0);
-
-    parent.data.prepareUpdate = () => true;
-    walk();
-    expect(draws).toBe(1);
-  });
-
   it("keeps a configured root when attached below an unscoped tree", () => {
     const { root, add, walk } = setup();
     add("out", 1000);
@@ -306,7 +287,7 @@ describe("Tree native spatial scope", () => {
     const scope = root["culling"];
     if (!scope) throw new Error("Missing root scope");
     const query = jest.spyOn(scope.index, "query");
-    const linearScan = jest.spyOn(scope.nodes, Symbol.iterator);
+    const linearScan = jest.spyOn(scope as unknown as TScanProbe, "publishScan");
 
     // An unchanged frame keeps the published selection without any selection work.
     expect(walk().drawn).toEqual(["root"]);
@@ -345,7 +326,7 @@ describe("Tree native spatial scope", () => {
     const scope = root["culling"];
     if (!scope) throw new Error("Missing root scope");
     let query = jest.spyOn(scope.index, "query");
-    let linearScan = jest.spyOn(scope.nodes, Symbol.iterator);
+    let linearScan = jest.spyOn(scope as unknown as TScanProbe, "publishScan");
 
     for (const [viewport, usesQuery] of [
       [rect(100, 100, 100), true],
@@ -358,7 +339,7 @@ describe("Tree native spatial scope", () => {
       query.mockRestore();
       linearScan.mockRestore();
       query = jest.spyOn(current.index, "query");
-      linearScan = jest.spyOn(current.nodes, Symbol.iterator);
+      linearScan = jest.spyOn(current as unknown as TScanProbe, "publishScan");
       const visible = new Set(
         Array.from(positions.entries())
           .filter(
@@ -415,9 +396,9 @@ describe("Tree native spatial scope", () => {
     const scope = root["culling"];
     if (!scope) throw new Error("Missing root scope");
     expect(scope.index.size).toBe(0);
-    expect(scope["pending"].size).toBe(0);
-    expect(scope["fresh"].size).toBe(0);
-    expect(scope["active"].size).toBe(0);
+    expect(scope["pending"].filter(Boolean)).toEqual([]);
+    expect(scope["fresh"].filter(Boolean)).toEqual([]);
+    expect(scope["visible"]).toEqual([]);
     expect(walk().visited).toEqual(["root"]);
     root.append(parent);
     expect(walk().visited).toEqual(["root", "parent", "child", "fresh"]);

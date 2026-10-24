@@ -36,22 +36,23 @@ three steps:
    Otherwise visibility is kept between frames: a camera move rechecks only nodes in the parts of the
    previous and current viewports outside each other, plus nodes whose bounds changed. After a
    structural change the coordinator runs one complete selection, through tiles or a linear bounds scan
-   for dense views. Visibility callbacks may move nodes, change the viewport, change the structure or
-   request updates; publication repeats until it is stable, so batches paint the final membership.
-3. **Painting.** One pass over the cached local paint order visits published-visible and already
-   prepared nodes. A clean visited component applies its own pending work inside `iterate()` right
-   before it paints (`ITree.preparesOnIterate`); other `ITree` nodes are prepared by the coordinator at
-   the same point. Clean offscreen nodes receive no hooks, and their visible descendants are still
-   reached through them.
+   for dense views. Bounds reach the tile index once per frame, right before publication.
+3. **Painting.** One pass over the cached local paint order calls `iterate(prepared, visible)` for
+   visible and already prepared nodes. `prepared` tells the node whether its update already ran in this
+   frame; a clean visible node applies its own pending work inside `iterate()` right before it paints.
+   `visible` is the tree's paint decision; a component may still veto painting. Clean offscreen nodes
+   receive no call, and their visible descendants are still reached through them.
 
-A frame therefore costs the visible nodes plus the work that changed. Components and batch paths use
-the same published visibility. Hooks of a node being prepared read live visibility from current bounds;
-nodes being painted read the published value.
+A frame therefore costs the visible nodes plus the work that changed. Hooks that run before painting
+read live visibility from current bounds; during painting `isVisible()` returns the frame's decision.
 
-Structure that a clean node changes while painting (for example children it adds from `render()`) is
-painted from the next frame. An explicit child-traversal veto from painting suppresses descendants in
-that frame; for a node that does not prepare itself, its next preparation decides again before the
-next publication. Prepared descendants of a vetoed branch complete without painting.
+Structure that a node changes while painting (for example children it adds or moves from `render()`) is
+painted from the next frame. A child-traversal veto returned from painting suppresses descendants in that
+frame and is decided again by the node's preparation before the next publication. Prepared descendants
+of a vetoed branch complete without painting.
+
+Connection batches do not depend on per-item visibility: each chunk is skipped when its items' bounds
+are outside the viewport, see [Batch Rendering](../connections/batch-rendering.md).
 
 This coordination does not own a drawing context: layers and component render methods retain their
 existing responsibilities.
@@ -172,9 +173,9 @@ The rendering mechanism integrates with the browser's animation frame:
 - `constructor(props, parent)` - Create a component instance
 - `performRender()` - Schedule a render update
 - `setContext(context)` - Update the context
-- `prepareUpdate()` - Apply pending data and reconcile children; runs before painting for requested and new components, and inside `iterate()` for clean visible ones
-- `iterate()` - Paint eligible components and complete the update
-- `isInViewport()` - Read the tree's current spatial visibility decision
+- `prepareUpdate()` - Apply pending data and reconcile children; the tree calls it before painting for requested and new components
+- `iterate(prepared, visible)` - Run the component's frame: update unless `prepared`, paint if `visible` and not vetoed
+- `isInViewport()` - Read the tree's spatial visibility: the frame's decision while painting, current bounds otherwise
 - `static create(props, options)` - Factory method
 - `static mount(Component, props)` - Mount a component as root
 - `static unmount(instance)` - Unmount a component

@@ -7,10 +7,7 @@ import type { ICamera } from "./camera/CameraService";
 /**
  * One viewport source for a layer tree. Disabling the index preserves the exact paint gate.
  */
-export function createViewportCulling(
-  graph: Graph,
-  getCamera: () => ICamera
-): Omit<TTreeCullingOptions, "getWalkToken"> {
+export function createViewportCulling(graph: Graph, getCamera: () => ICamera): TTreeCullingOptions {
   const viewport: TTileRect = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   return {
     tileSize: graph.graphConstants.system.VISIBILITY_TILE_SIZE,

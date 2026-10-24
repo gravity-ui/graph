@@ -102,9 +102,13 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
   }
 
   protected render(): void {
-    const paths = this.batch.orderedPaths.get();
-    for (const path of paths) {
-      path.render(this.context.ctx);
-    }
+    // Same world-space rect as the layer tree's viewport: the full camera viewport, insets ignored.
+    const { relativeX, relativeY, relativeWidth, relativeHeight } = this.context.camera.getCameraState();
+    this.batch.render(this.context.ctx, {
+      minX: -relativeX,
+      minY: -relativeY,
+      maxX: -relativeX + relativeWidth,
+      maxY: -relativeY + relativeHeight,
+    });
   }
 }
