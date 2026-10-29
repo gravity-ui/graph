@@ -9,9 +9,10 @@ This document provides a detailed explanation of the rendering mechanism impleme
 The rendering mechanism is built upon a hierarchical tree structure with the following key components:
 
 1. **Tree** - The base hierarchical structure that manages parent-child relationships with z-index ordering
-2. **CoreComponent** - The fundamental component class that implements tree traversal and child management
-3. **Component** - Extends CoreComponent to add lifecycle hooks and state management
-4. **Scheduler** - Manages the timing of updates and traversal of the component tree
+2. **TreeCulling** - Coordinates preparation, viewport selection, and painting for a configured tree root
+3. **CoreComponent** - The fundamental component class that implements tree traversal and child management
+4. **Component** - Extends CoreComponent to add lifecycle hooks and state management
+5. **Scheduler** - Manages the timing of updates and traversal of the component tree
 
 ## Component Structure
 
@@ -21,6 +22,49 @@ The `Tree` class provides the foundational hierarchy structure with:
 - Parent-child relationship management
 - Z-index based ordering of children
 - Traversal methods for walking the tree
+- Own world-space bounds and per-node lifecycle state
+
+### TreeCulling Class
+
+Each configured tree root owns one `TreeCulling` coordinator with a shared tile index. A frame has
+three steps:
+
+1. **Requested work.** The root, new nodes and nodes that requested an update through
+   `performRender()` prepare first, ancestors before descendants. Their data, children and geometry are
+   final before anything paints, including when they are offscreen.
+2. **Visibility.** When the viewport contains every indexed bound, every eligible node is visible.
+   Otherwise visibility is kept between frames: a camera move rechecks only nodes in the parts of the
+   previous and current viewports outside each other, plus nodes whose bounds changed. After a
+   structural change the coordinator runs one complete selection, through tiles or a linear bounds scan
+   for dense views. Bounds reach the tile index once per frame, right before publication.
+3. **Painting.** One pass over the cached local paint order calls `iterate(prepared, visible)` for
+   visible and already prepared nodes. `prepared` tells the node whether its update already ran in this
+   frame; a clean visible node applies its own pending work inside `iterate()` right before it paints.
+   `visible` is the tree's paint decision; a component may still veto painting. Clean offscreen nodes
+   receive no call, and their visible descendants are still reached through them.
+
+A camera frame therefore does work for the visible nodes plus what changed, and a cheap flag check for
+every node of the cached paint order; structural changes add one pass over the scope. Hooks that run
+before painting read live visibility from current bounds; during painting `isVisible()` returns the
+frame's decision.
+
+A clean node prepares only when the tree reaches it: offscreen it receives no call at all, and visible it
+prepares inside its own `iterate()`, after visibility was published and after its parent painted. Its
+`willIterate()` is therefore not a place to poll external state. A change from outside the store calls
+`performRender()` (connections: `updateGeometry()`), so the node prepares before publication. Bounds a node
+changes while it prepares late still count: they are published in the next frame.
+
+Structure that a node changes while painting (for example children it adds or moves from `render()`) is
+painted from the next frame. A child-traversal veto returned from painting suppresses descendants in that
+frame and is decided again by the node's preparation before the next publication. Prepared descendants
+of a vetoed branch complete without painting.
+
+Connection batches do not depend on per-item visibility or on child traversal: each chunk is skipped
+when its items' bounds are outside the viewport, and its items' `afterRender` hooks run only for items in
+the viewport, see [Batch Rendering](../connections/batch-rendering.md).
+
+This coordination does not own a drawing context: layers and component render methods retain their
+existing responsibilities.
 
 ### CoreComponent Class
 
@@ -53,9 +97,9 @@ The rendering process follows these steps:
 1. Component state/props update via `setState`/`setProps`
 2. `performRender()` schedules an update through the `Scheduler`
 3. On the next animation frame, `Scheduler` traverses the component tree
-4. Each component's `iterate()` method is called
-5. Components process their data and execute their lifecycle methods
-6. Child components are created, updated, or removed as needed
+4. The tree's culling coordinator prepares new and requested components and their ancestors
+5. The coordinator publishes viewport visibility, rechecking only what the camera move or changed bounds affect
+6. `iterate()` updates and paints visible components; prepared offscreen components complete their update; clean offscreen nodes are skipped
 7. The process repeats for each animation frame when changes occur
 
 ## Component Lifecycle
@@ -99,9 +143,11 @@ This value is set per component class in `graphConfig.ts` and changed via `updat
 
 ### Tier 2: renderOrder — Visual Stacking Within a Type
 
-`renderOrder` determines stacking *within the same zIndex tier*. It is assigned by the scheduler during `_walkDown` traversal: the later a component is visited in the tree, the higher its `renderOrder`.
+`renderOrder` determines stacking *within the same zIndex tier*. Tree assigns every child's order
+when rebuilding its parent's sorted child cache, including children outside the viewport.
 
-`Tree.updateChildZIndex()` is the key mechanism: every time a component's `zIndex` changes, the child is **re-inserted at the end** of the parent's `children` Set (`delete` + `add`). Because the `children` Set preserves insertion order, the most recently interacted component gets the highest `renderOrder` in its tier — it appears on top visually.
+`Tree.updateZIndex()` moves a child between its parent's z-index groups; `updateChildZIndex()`
+re-inserts it at the end of its current group. Group insertion order determines stacking within a tier.
 
 This means drag-and-drop and selection automatically bring the interacted block to the front of its z-group without any extra bookkeeping.
 
@@ -136,7 +182,9 @@ The rendering mechanism integrates with the browser's animation frame:
 - `constructor(props, parent)` - Create a component instance
 - `performRender()` - Schedule a render update
 - `setContext(context)` - Update the context
-- `iterate()` - Process component updates
+- `prepareUpdate()` - Apply pending data and reconcile children; the tree calls it before painting for requested and new components
+- `iterate(prepared, visible)` - Run the component's frame: update unless `prepared`, paint if `visible` and not vetoed
+- `isInViewport()` - Read the tree's spatial visibility: the frame's decision while painting, current bounds otherwise
 - `static create(props, options)` - Factory method
 - `static mount(Component, props)` - Mount a component as root
 - `static unmount(instance)` - Unmount a component

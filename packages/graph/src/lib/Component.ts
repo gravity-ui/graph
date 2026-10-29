@@ -148,21 +148,32 @@ export class Component<
     // noop
   }
 
-  public iterate() {
-    super.iterate();
+  /** Semantic paint veto checked after the tree's viewport decision, for example for hidden elements. */
+  protected isRenderAllowed(): boolean {
+    return true;
+  }
 
+  public override prepareUpdate(): boolean {
+    if (this.updatePrepared) return this.shouldRenderChildren;
+    super.prepareUpdate();
     this.checkData();
     this.willIterate();
-
-    if (this.shouldRender) {
-      this.renderLifeCycle();
-    } else {
-      this.willNotRender();
-    }
 
     if (this.shouldUpdateChildren) {
       this.shouldUpdateChildren = false;
       this.childrenLifeCycle();
+    }
+    return this.shouldRenderChildren;
+  }
+
+  public override iterate(prepared = false, visible = true): boolean {
+    if (!prepared) this.prepareUpdate();
+    this.updatePrepared = false;
+
+    if (visible && this.shouldRender && this.isRenderAllowed()) {
+      this.renderLifeCycle();
+    } else {
+      this.willNotRender();
     }
 
     this.didIterate();

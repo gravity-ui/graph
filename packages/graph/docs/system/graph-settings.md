@@ -72,6 +72,7 @@ These settings control the interactive behaviors and visual styles of the graph.
 | `useBezierConnections` | boolean | `true` | Use bezier curves for connections instead of straight lines |
 | `bezierConnectionDirection` | 'vertical' \| 'horizontal' | `'horizontal'` | Direction of bezier connections |
 | `EXP_USE_TIGHT_BEZIER_BOUNDS` | boolean | `true` | Experimental: use tight bounds of the rendered Bezier curve; set to `false` to use the legacy control-point bounds |
+| `EXP_VISIBILITY_CULLING` | boolean | `true` | Experimental: each layer tree keeps viewport visibility in one world-space tile index and walks only visible and changed components; set to `false` to walk every component. Both modes exclude offscreen components from painting |
 | `useBlocksAnchors` | boolean | `true` | Controls whether blocks should display anchors for connections |
 | `showConnectionLabels` | boolean | `false` | Controls visibility of connection labels |
 | `blockComponents` | Record<string, typeof Block> | `{}` | Registry of custom block components. The built-in renderer constructs them with `id`, `initialIndex` and `font` only: put custom data into the block's `meta`, or give extra props defaults in the constructor. |
@@ -143,6 +144,7 @@ Constants control the sizing, spacing, and other numerical values used throughou
 | `GRID_SIZE` | `16` | Base grid size for layout calculations |
 | `USABLE_RECT_GAP` | `400` | Gap around the usable rect area |
 | `CAMERA_VIEWPORT_TRESHOLD` | `0.5` | Threshold for camera viewport |
+| `VISIBILITY_TILE_SIZE` | `1024` | Edge of a visibility tile in world units (see `EXP_VISIBILITY_CULLING`); read when a layer is constructed |
 
 ### Camera Constants
 

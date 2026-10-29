@@ -43,6 +43,11 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    * the tight bounds of the rendered curve.
    */
   EXP_USE_TIGHT_BEZIER_BOUNDS: boolean;
+  /**
+   * Experimental: walk only blocks, connections and groups near the viewport on each frame,
+   * found through a world-space tile index. Set to false to walk every component as before.
+   */
+  EXP_VISIBILITY_CULLING: boolean;
   useBlocksAnchors: boolean;
   connectivityComponentOnClickRaise: boolean;
   showConnectionLabels: boolean;
@@ -94,6 +99,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   useBezierConnections: true,
   bezierConnectionDirection: "horizontal",
   EXP_USE_TIGHT_BEZIER_BOUNDS: true,
+  EXP_VISIBILITY_CULLING: true,
   useBlocksAnchors: true,
   connectivityComponentOnClickRaise: true,
   showConnectionLabels: false,

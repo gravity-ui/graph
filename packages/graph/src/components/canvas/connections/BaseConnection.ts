@@ -161,7 +161,7 @@ export class BaseConnection<
     });
 
     // When both endpoints are hidden (e.g. both blocks inside a collapsed group)
-    // schedule a re-render so willIterate() picks up the new isVisible() result.
+    // Schedule an update so component and batch visibility use the new hidden state.
     this.subscribeSignal(this.connectedState.$hidden, () => {
       this.performRender();
     });
@@ -178,10 +178,10 @@ export class BaseConnection<
     return this.connectedState.$geometry.value !== undefined;
   }
 
-  protected override isVisible(): boolean {
+  protected override isRenderAllowed(): boolean {
     if (!this.isEntityAvailable() || !this.hasGeometry()) return false;
     if (this.connectedState.$hidden.value) return false;
-    return super.isVisible();
+    return super.isRenderAllowed();
   }
 
   protected override handleEvent(event: MouseEvent) {
@@ -205,7 +205,11 @@ export class BaseConnection<
     this.setState({ hovered: hoverState });
   }
 
+  private unmounted = false;
+
   protected override unmount(): void {
+    // Late geometry refreshes must not register an unmounted connection with the batch again.
+    this.unmounted = true;
     // A pending hover update would keep the unmounted graph reachable from the global scheduler.
     this.debounceHover.cancel();
     super.unmount();
@@ -234,9 +238,26 @@ export class BaseConnection<
    *
    * @returns {void}
    */
+  /**
+   * Rebuilds this connection's geometry from its current state, props and endpoints and redraws it:
+   * line and arrow paths, bounds, hit box and culling bounds. State, props and endpoint changes do this
+   * automatically; call it when an override such as `createPath()`, `createArrowPath()` or
+   * `collectBBoxPoints()` reads data that changed elsewhere. `batch.markDirty()` alone only rebuilds the
+   * renderer's chunk from the connection's cached geometry.
+   */
+  public updateGeometry(): void {
+    if (this.unmounted) return;
+    this.updatePoints();
+    this.performRender();
+  }
+
   protected updatePoints(additionalPoints?: TPoint[], props: Props = this.props): void {
     const geometry = this.connectedState.$geometry.value;
     this.connectionPoints = geometry ? [{ ...geometry[0] }, { ...geometry[1] }] : undefined;
+    this.updateBounds(additionalPoints, props);
+  }
+
+  protected updateBounds(additionalPoints?: TPoint[], props: Props = this.props): void {
     if (!this.isEntityAvailable() || !this.hasGeometry()) {
       this.bBox = [0, 0, 0, 0];
       this.removeHitBox();
