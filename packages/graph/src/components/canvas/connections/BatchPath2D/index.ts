@@ -14,8 +14,13 @@ export interface Path2DRenderInstance {
   /** World-space bounds of the item's path; a chunk with an item without valid bounds is never culled. */
   getPathBounds?(): TPathBounds | undefined;
   style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined;
-  /** Runs for every visible item of a drawn chunk; items that draw extra content cull it themselves. */
+  /** Draws extra content, such as labels, after the item's chunk; runs only for items in the viewport. */
   afterRender?(ctx: CanvasRenderingContext2D): void;
+  /**
+   * Whether the item is in the viewport in this frame, which decides whether `afterRender` runs.
+   * Components report their tree's decision; without it the renderer checks `getPathBounds()`.
+   */
+  isInViewport?(): boolean;
   /** Semantic visibility, such as hidden items or missing geometry. Viewport culling is the renderer's job. */
   isPathVisible?(): boolean;
 }
@@ -111,7 +116,13 @@ class Path2DChunk {
     }
     ctx.restore();
 
-    for (const item of visible) item.afterRender?.(ctx);
+    // A drawn chunk can reach past the viewport: extra content runs only for items inside it.
+    for (const item of visible) {
+      if (!item.afterRender) continue;
+      if (item.isInViewport ? item.isInViewport() : intersects(item.getPathBounds?.(), viewport)) {
+        item.afterRender(ctx);
+      }
+    }
   }
 
   public get size() {

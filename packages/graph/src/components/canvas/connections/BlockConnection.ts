@@ -142,8 +142,12 @@ export class BlockConnection<T extends TConnection>
     this.applyShape();
   }
 
+  /**
+   * The batch draws the line and arrow when the connection may render, so one `isRenderAllowed()`
+   * override hides both. State and props changes re-evaluate it; other changes call `applyShape()`.
+   */
   public isPathVisible(): boolean {
-    return this.isEntityAvailable() && this.hasGeometry() && !this.hidden && !this.connectedState.$hidden.value;
+    return this.isRenderAllowed();
   }
 
   /** Bounds of the line, its arrow and its label, shared by tree culling and batch culling. */
@@ -264,8 +268,8 @@ export class BlockConnection<T extends TConnection>
     const cameraClose =
       this.context.camera.getCameraScale() >= this.context.constants.connection.MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL;
 
-    // The batch draws whole chunks; a label outside the viewport is skipped by the tree's decision.
-    if (this.state.label && this.props.showConnectionLabels && cameraClose && this.isInViewport()) {
+    // The batch calls this only while the connection is in the viewport.
+    if (this.state.label && this.props.showConnectionLabels && cameraClose) {
       this.renderLabelText(ctx);
     }
   }

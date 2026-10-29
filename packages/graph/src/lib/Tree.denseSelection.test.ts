@@ -103,6 +103,29 @@ describe.each([
     expect(unknown.isVisible()).toBe(true);
   });
 
+  it("prepares required offscreen ancestors without admitting their clean offscreen children", () => {
+    const { add, fill, walk } = setup(fullWalkShare);
+    const parent = add("parent", 1000);
+    const leaf = add("leaf", 30, parent);
+    const hiddenSibling = add("hiddenSibling", 1100, parent);
+    const unknown = add("unknown");
+    const residents = fill();
+    walk();
+    walk();
+    leaf.requestWalk();
+
+    // The requested leaf prepares after its offscreen parent, which completes its frame without painting.
+    const result = walk();
+    expect(result.prepared).toEqual(["root", "parent", "leaf", "unknown", ...residents]);
+    expect(result.drawn).toEqual(["root", "leaf", "unknown", ...residents]);
+    expect(result.visited).toEqual(["root", "parent", "leaf", "unknown", ...residents]);
+    expectPreparedBeforeOwnPaint(result);
+    expect([parent, leaf, hiddenSibling].every((node) => node.isTraversalAllowed())).toBe(true);
+    expect(hiddenSibling.isVisible()).toBe(false);
+    expect(unknown.isVisible()).toBe(true);
+    expect(walk().visited).toEqual(["root", "leaf", "unknown", ...residents]);
+  });
+
   it("prepares and paints in local z-order after a partial traversal warms", () => {
     const { add, fill, walk } = setup(fullWalkShare);
     const first = add("first", 10);
@@ -119,6 +142,33 @@ describe.each([
       drawn: ["root", "second", ...residents, "first", "child"],
     });
     first.updateZIndex(0);
+    expect(walk()).toMatchObject({
+      prepared: ["root", "first", "child", "second", ...residents],
+      drawn: ["root", "first", "child", "second", ...residents],
+    });
+  });
+
+  it("keeps requested preparation order separate from z-order after a partial traversal warms", () => {
+    const { add, fill, walk } = setup(fullWalkShare);
+    const first = add("first", 10);
+    const child = add("child", 20, first);
+    const second = add("second", 30);
+    const residents = fill();
+    add("outside", 1000);
+    first.updateZIndex(5);
+    walk();
+    walk();
+    child.requestWalk();
+    second.requestWalk();
+
+    // Requested nodes prepare in request order, ancestors first; painting follows the local z-order.
+    expect(walk()).toMatchObject({
+      prepared: ["root", "first", "child", "second", ...residents],
+      drawn: ["root", "second", ...residents, "first", "child"],
+    });
+    first.updateZIndex(0);
+    child.requestWalk();
+    second.requestWalk();
     expect(walk()).toMatchObject({
       prepared: ["root", "first", "child", "second", ...residents],
       drawn: ["root", "first", "child", "second", ...residents],
@@ -186,6 +236,33 @@ describe.each([
 
     // Publication reads the viewport after requested preparation.
     const result = walk();
+    const shown = ["trigger", ...residents];
+    expect(result.prepared).not.toContain("target");
+    expect(result.drawn).toEqual(["root", ...shown]);
+    expect(result.events).toContain(`batch:${shown.slice().sort().join(",")}`);
+    expect(result.events.indexOf("visible:target:false")).toBeGreaterThanOrEqual(0);
+    expect(result.events.indexOf("visible:target:false")).toBeLessThan(result.events.indexOf("draw:root"));
+  });
+
+  it("rechecks a selected node in the next frame when painting changes the existing viewport object", () => {
+    const { state, add, fill, walk } = setup(fullWalkShare);
+    const trigger = add("trigger", 10);
+    add("target", 40);
+    const residents = fill();
+    add("outside", 1000);
+    walk();
+    walk();
+    // The clean trigger applies its update inside iterate(), after this frame's publication.
+    trigger.data.prepare = () => {
+      state.viewport.maxX = state.viewport.maxY = 35;
+      trigger.data.prepare = undefined;
+      return true;
+    };
+
+    let result = walk();
+    expect(result.drawn).toEqual(["root", "trigger", "target", ...residents]);
+
+    result = walk();
     const shown = ["trigger", ...residents];
     expect(result.prepared).not.toContain("target");
     expect(result.drawn).toEqual(["root", ...shown]);

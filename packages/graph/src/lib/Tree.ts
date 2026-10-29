@@ -132,12 +132,22 @@ export class Tree<T extends ITree = ITree> {
     for (const child of this.children) {
       if (child !== nodes[i++]) return false;
     }
-    for (const [zIndex, group] of this.zIndexGroups) {
+    // Every z-index group must list its nodes in the order they appear in `nodes`: one cursor per group.
+    const groups = this.zIndexGroups;
+    if (groups.size === 1) {
       let j = 0;
-      for (const node of group) {
-        while (j < nodes.length && nodes[j].zIndex !== zIndex) j++;
-        if (nodes[j++] !== node) return false;
+      for (const group of groups.values()) {
+        for (const node of group) {
+          if (node !== nodes[j++]) return false;
+        }
       }
+      return true;
+    }
+    const cursors = new Map<number, Iterator<Tree>>();
+    for (const [zIndex, group] of groups) cursors.set(zIndex, group.values());
+    for (let j = 0; j < nodes.length; j++) {
+      const next = cursors.get(nodes[j].zIndex)?.next();
+      if (!next || next.done || next.value !== nodes[j]) return false;
     }
     return true;
   }

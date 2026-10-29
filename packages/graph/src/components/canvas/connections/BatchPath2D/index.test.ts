@@ -146,3 +146,24 @@ test("update moves an item between groups and z-levels, and deleting it removes 
   batch.add(a, { zIndex: 0, group: "connections" });
   expect(render()).toEqual([[20, 10]]);
 });
+
+test("afterRender runs only for items in the viewport, by their own report or by their bounds", () => {
+  const { batch, render } = createFixture();
+  const inside = { ...createItem(10, [0, 0, 10, 0]), afterRender: jest.fn() };
+  const outside = { ...createItem(20, [500, 0, 520, 0]), afterRender: jest.fn() };
+  const reportsOut = { ...createItem(30, [0, 0, 30, 0]), afterRender: jest.fn(), isInViewport: () => false };
+  const reportsIn = { ...createItem(40, [900, 0, 940, 0]), afterRender: jest.fn(), isInViewport: () => true };
+  const unknown = { ...createItem(50), afterRender: jest.fn() };
+  for (const item of [inside, outside, reportsOut, reportsIn, unknown]) {
+    batch.add(item, { zIndex: 0, group: "connections" });
+  }
+
+  // One chunk, drawn because some of its items are inside the viewport.
+  expect(render(viewport(0, 100))).toEqual([[10, 20, 30, 40, 50]]);
+  expect(inside.afterRender).toHaveBeenCalledTimes(1);
+  expect(outside.afterRender).not.toHaveBeenCalled();
+  expect(reportsOut.afterRender).not.toHaveBeenCalled();
+  expect(reportsIn.afterRender).toHaveBeenCalledTimes(1);
+  // Items without bounds are never culled.
+  expect(unknown.afterRender).toHaveBeenCalledTimes(1);
+});

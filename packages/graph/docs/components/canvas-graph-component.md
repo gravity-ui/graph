@@ -104,15 +104,17 @@ protected isRenderAllowed(): boolean {
 - Connection batches skip whole chunks outside the viewport, and world-coordinate hit queries remain independent of the viewport.
 
 Override `isRenderAllowed()` for additional semantic conditions, such as hidden elements or missing
-connection endpoints; `isVisible()` combines it with `isInViewport()` for queries. Use `firstIterate`
+connection endpoints; `isVisible()` combines it with `isInViewport()` for queries. For connections it also
+decides whether the batch draws the line and arrow. Use `firstIterate`
 for initialization; `firstRender` stays true until the component is actually painted.
 `EXP_VISIBILITY_CULLING = false` enables a full traversal while retaining the same viewport paint gate.
 
 `isVisible()` reads the current viewport and bounds between frames and in update hooks that run before
 painting. A custom `willIterate()` can therefore refresh deferred external state on the first frame that
-returns to the viewport. During painting it returns the frame's decision. Change
-geometry through `setState()`, `setProps()` or `performRender()`: a change a clean component makes inside
-its own update takes effect for culling from the next frame.
+returns to the viewport; it is not a place to poll external state, because a clean component outside
+the viewport receives no call. During painting it returns the frame's decision. Change geometry through
+`setState()`, `setProps()` or `performRender()` (connections: `updateGeometry()`): a change a clean
+component makes inside its own update takes effect for culling from the next frame.
 
 For a custom paint condition, assign `shouldRender` after `super.willIterate()`. This flag controls
 permission to paint; use `isVisible()` to query spatial visibility. The final paint gate also checks

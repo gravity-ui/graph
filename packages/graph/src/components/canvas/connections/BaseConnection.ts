@@ -205,7 +205,11 @@ export class BaseConnection<
     this.setState({ hovered: hoverState });
   }
 
+  private unmounted = false;
+
   protected override unmount(): void {
+    // Late geometry refreshes must not register an unmounted connection with the batch again.
+    this.unmounted = true;
     // A pending hover update would keep the unmounted graph reachable from the global scheduler.
     this.debounceHover.cancel();
     super.unmount();
@@ -234,6 +238,19 @@ export class BaseConnection<
    *
    * @returns {void}
    */
+  /**
+   * Rebuilds this connection's geometry from its current state, props and endpoints and redraws it:
+   * line and arrow paths, bounds, hit box and culling bounds. State, props and endpoint changes do this
+   * automatically; call it when an override such as `createPath()`, `createArrowPath()` or
+   * `collectBBoxPoints()` reads data that changed elsewhere. `batch.markDirty()` alone only rebuilds the
+   * renderer's chunk from the connection's cached geometry.
+   */
+  public updateGeometry(): void {
+    if (this.unmounted) return;
+    this.updatePoints();
+    this.performRender();
+  }
+
   protected updatePoints(additionalPoints?: TPoint[], props: Props = this.props): void {
     const geometry = this.connectedState.$geometry.value;
     this.connectionPoints = geometry ? [{ ...geometry[0] }, { ...geometry[1] }] : undefined;

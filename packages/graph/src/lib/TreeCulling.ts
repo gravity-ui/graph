@@ -34,7 +34,8 @@ function sameRect(a: TTileRect, b: TTileRect): boolean {
  *    clean visible node applies its own pending work there. Clean offscreen nodes get no call, and
  *    their visible descendants are still reached through them.
  *
- * A frame therefore costs the visible nodes plus the work that changed. Node sets are arrays indexed
+ * A camera frame therefore does work for the visible nodes plus what changed, and a flag check for every
+ * node of the cached paint order. Only publication writes `Tree.published`. Node sets are arrays indexed
  * by slots stored on the nodes, so registering, publishing and preparing a node costs no hashing.
  */
 export class TreeCulling {
@@ -143,13 +144,22 @@ export class TreeCulling {
     } finally {
       this.walking = wasWalking;
       this.painting = wasPainting;
+      // Frame lists must not keep removed nodes alive until the next traversal.
       this.prepared = [];
+      this.visitList.length = 0;
+      this.visitPositions.length = 0;
     }
   }
 
   /** Prepares a node after its ancestors, unless an ancestor forbids walking its branch. */
   private prepare(node: Tree): void {
-    if (node.preparedStamp === this.stamp || node.scope !== this) return;
+    if (node.scope !== this) return;
+    if (node.preparedStamp === this.stamp) {
+      // Registered again after its preparation in this frame, for example moved to another parent:
+      // its update already ran, so it is painted in this frame like any other prepared node.
+      this.takeFresh(node);
+      return;
+    }
     if (node !== this.owner) {
       const parent = node.parent;
       if (!parent || !parent.children.has(node)) return;
@@ -161,11 +171,14 @@ export class TreeCulling {
       this.pending[node.pendingSlot] = undefined;
       node.pendingSlot = -1;
     }
-    if (node.freshSlot >= 0) {
-      this.fresh[node.freshSlot] = undefined;
-      node.freshSlot = -1;
-    }
+    this.takeFresh(node);
     node.prepareData(this.stamp);
+  }
+
+  private takeFresh(node: Tree): void {
+    if (node.freshSlot < 0) return;
+    this.fresh[node.freshSlot] = undefined;
+    node.freshSlot = -1;
   }
 
   private compactFresh(): void {
@@ -383,8 +396,6 @@ export class TreeCulling {
   private paint(iterator: TIterator, { nodes, ends }: TPaintOrder): void {
     const list = this.visitList;
     const positions = this.visitPositions;
-    list.length = 0;
-    positions.length = 0;
     const stamp = this.stamp;
     const owner = this.owner;
     const visitAll = this.visitAll;
@@ -425,7 +436,6 @@ export class TreeCulling {
   private finishPrepared(iterator: TIterator): void {
     for (const node of this.prepared) {
       if (node.paintedStamp === this.stamp || !node.data.prepareUpdate || node.scope !== this) continue;
-      this.show(node, false);
       node.paintedStamp = this.stamp;
       if (!iterator(node, true, false)) node.setChildrenWalkAllowed(false);
     }

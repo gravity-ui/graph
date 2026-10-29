@@ -43,16 +43,25 @@ three steps:
    `visible` is the tree's paint decision; a component may still veto painting. Clean offscreen nodes
    receive no call, and their visible descendants are still reached through them.
 
-A frame therefore costs the visible nodes plus the work that changed. Hooks that run before painting
-read live visibility from current bounds; during painting `isVisible()` returns the frame's decision.
+A camera frame therefore does work for the visible nodes plus what changed, and a cheap flag check for
+every node of the cached paint order; structural changes add one pass over the scope. Hooks that run
+before painting read live visibility from current bounds; during painting `isVisible()` returns the
+frame's decision.
+
+A clean node prepares only when the tree reaches it: offscreen it receives no call at all, and visible it
+prepares inside its own `iterate()`, after visibility was published and after its parent painted. Its
+`willIterate()` is therefore not a place to poll external state. A change from outside the store calls
+`performRender()` (connections: `updateGeometry()`), so the node prepares before publication. Bounds a node
+changes while it prepares late still count: they are published in the next frame.
 
 Structure that a node changes while painting (for example children it adds or moves from `render()`) is
 painted from the next frame. A child-traversal veto returned from painting suppresses descendants in that
 frame and is decided again by the node's preparation before the next publication. Prepared descendants
 of a vetoed branch complete without painting.
 
-Connection batches do not depend on per-item visibility: each chunk is skipped when its items' bounds
-are outside the viewport, see [Batch Rendering](../connections/batch-rendering.md).
+Connection batches do not depend on per-item visibility or on child traversal: each chunk is skipped
+when its items' bounds are outside the viewport, and its items' `afterRender` hooks run only for items in
+the viewport, see [Batch Rendering](../connections/batch-rendering.md).
 
 This coordination does not own a drawing context: layers and component render methods retain their
 existing responsibilities.

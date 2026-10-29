@@ -298,6 +298,32 @@ describe("Tree geometry and structure invalidation", () => {
     expect(walk().prepared).toEqual(["root", "original", "destination", "child", "leaf"]);
   });
 
+  it("uses new ancestry after a prepared child moves between warmed branches", () => {
+    const { add, walk } = setup();
+    const original = add("original", 10);
+    const child = add("child", 20, original);
+    const leaf = add("leaf", 30, child);
+    const destination = add("destination", 40);
+    walk();
+    walk();
+    destination.data.prepare = (): boolean => {
+      destination.append(child);
+      child.setBounds(60, 60, 70, 70);
+      destination.data.prepare = undefined;
+      return true;
+    };
+    leaf.requestWalk();
+    destination.requestWalk();
+
+    // The moved subtree already prepared in this frame: it paints under its new parent without preparing again.
+    expect(walk()).toMatchObject({
+      prepared: ["root", "original", "child", "leaf", "destination"],
+      drawn: ["root", "original", "destination", "child", "leaf"],
+      visited: ["root", "original", "destination", "child", "leaf"],
+    });
+    expect(walk().prepared).toEqual(["root", "original", "destination", "child", "leaf"]);
+  });
+
   it("updates z-order alongside bounds from a requested preparation", () => {
     const { state, add, walk } = setup();
     const first = add("first", 10);
@@ -314,6 +340,33 @@ describe("Tree geometry and structure invalidation", () => {
 
     expect(walk()).toMatchObject({
       prepared: ["root", "second", "first", "child"],
+      drawn: ["root", "second", "first", "child"],
+    });
+    state.viewport = viewport(50);
+    expect(walk().drawn).toEqual(["root", "second", "child"]);
+    second.updateZIndex(10);
+    state.viewport = viewport(1000);
+    expect(walk().drawn).toEqual(["root", "first", "child", "second"]);
+  });
+
+  it("updates z-order alongside bounds without changing preparation order", () => {
+    const { state, add, walk } = setup();
+    const first = add("first", 10);
+    const child = add("child", 20, first);
+    const second = add("second", 30);
+    walk();
+    walk();
+    second.data.prepare = (): boolean => {
+      first.updateZIndex(5);
+      first.setBounds(60, 60, 70, 70);
+      return true;
+    };
+    child.requestWalk();
+    second.requestWalk();
+
+    // Nodes prepared before the z-index change keep their order; painting uses the new z-order.
+    expect(walk()).toMatchObject({
+      prepared: ["root", "first", "child", "second"],
       drawn: ["root", "second", "first", "child"],
     });
     state.viewport = viewport(50);

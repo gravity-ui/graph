@@ -181,6 +181,31 @@ describe("Tree native spatial scope", () => {
     expect(result.drawn).toEqual(["root", "node"]);
   });
 
+  it("reads published visibility in update hooks run while painting without publishing intermediate transitions", () => {
+    const { state, add, walk } = setup();
+    const node = add("node", 300);
+    walk();
+    const visibility: boolean[] = [];
+    node.data.prepareUpdate = () => {
+      visibility.push(node.isVisible());
+      node.setBounds(2000, 2000, 2010, 2010);
+      visibility.push(node.isVisible());
+      node.setBounds(300, 300, 310, 310);
+      node.data.prepareUpdate = undefined;
+      return true;
+    };
+    state.viewport = rect(250, 250, 100);
+
+    // A clean node applies its update inside iterate(): there it reads this frame's published decision.
+    let result = walk();
+    expect(visibility).toEqual([true, true]);
+    expect(result.events.filter((event) => event.startsWith("visible:node:"))).toEqual(["visible:node:true"]);
+    expect(result.drawn).toEqual(["root", "node"]);
+    result = walk();
+    expect(result.events.filter((event) => event.startsWith("visible:node:"))).toEqual([]);
+    expect(result.drawn).toEqual(["root", "node"]);
+  });
+
   it("resumes live visibility reads after a paint callback throws", () => {
     const { state, add, walk } = setup();
     const node = add("node", 10);

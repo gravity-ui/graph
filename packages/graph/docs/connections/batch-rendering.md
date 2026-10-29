@@ -29,8 +29,13 @@ Connections with identical group names are batched together - they share the sam
 Each group keeps up to 100 items per chunk in registration order and draws a chunk with one
 `fill`/`stroke`. The combined path is rebuilt only when an item is added, removed or marked dirty;
 camera moves never rebuild it. A chunk whose items' bounds are all outside the viewport is skipped
-entirely. `afterRender` hooks run for every visible item of a drawn chunk, in registration order;
-connections skip their labels themselves when the layer tree reports them offscreen.
+entirely. `afterRender` hooks of a drawn chunk run in registration order, only for items in the
+viewport: an item's `isInViewport()` decides (connections report the layer tree's decision), otherwise
+its bounds do. Items without bounds always run.
+
+The batch belongs to the component that renders it, usually `BlockConnections`. A child-traversal veto
+pauses the children's lifecycle but does not hide their batched paths; a parent that wants to hide them
+does not draw its batch, or its items hide themselves through `isRenderAllowed()`.
 
 ## Batch Management Methods
 
@@ -97,16 +102,23 @@ The batch rendering system provides significant performance improvements:
 
 When extending BlockConnection, the batch system works automatically. However, if you need to customize batching behavior:
 
-`getPath()` is called when a chunk is rebuilt and should return cached geometry: `BlockConnection`
-returns the path built by its last geometry change and builds its arrow once per change. Normal
-connection state, props and endpoint updates mark the item dirty through `applyShape()`. If a custom
-batch item changes geometry outside those updates, call `batch.markDirty(item)` or
-`batch.update(item, params)`; when only its bounds change, `batch.markBoundsDirty(item)`.
+`getPath()` is called when a chunk is rebuilt and returns cached geometry: `BlockConnection` returns
+the path built by its last geometry change and builds its arrow once per change. State, props and
+endpoint updates rebuild that geometry automatically. When an override such as `createPath()`,
+`createArrowPath()` or `collectBBoxPoints()` reads data that changed elsewhere, call
+`connection.updateGeometry()`: it rebuilds the line, the arrow, the bounds, the hit box and the culling
+bounds and redraws them. `batch.markDirty(item)` only rebuilds the chunk from the item's current
+`getPath()`, which is what custom non-component items need; `batch.markBoundsDirty(item)` refreshes a
+chunk's bounds only.
 
 Items should provide `getPathBounds(): readonly [left, top, right, bottom] | undefined` in world
-coordinates, covering everything they paint. A chunk with an item without valid bounds is never
-culled. `isPathVisible()` is semantic only (hidden items, missing geometry); viewport culling is the
-renderer's job.
+coordinates, covering everything they paint. For connections these bounds come from
+`collectBBoxPoints()` and `getArrowPoints()`; an override that draws elsewhere overrides them too. A
+chunk with an item without valid bounds is never culled.
+
+`isPathVisible()` is semantic only; viewport culling is the renderer's job. For connections it is
+`isRenderAllowed()`, so one override hides the component's hooks, its line and its arrow. State and props
+changes re-evaluate it; other changes call `applyShape()`.
 
 ### Custom Group Names
 

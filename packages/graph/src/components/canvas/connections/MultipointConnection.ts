@@ -68,7 +68,7 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
   }
 
   public afterRender?(ctx: CanvasRenderingContext2D): void {
-    if (this.isInViewport()) this.renderLabelsText(ctx);
+    this.renderLabelsText(ctx);
   }
 
   public updatePoints(additionalPoints?: TPoint[], props: TConnectionProps = this.props): void {
