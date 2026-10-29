@@ -154,6 +154,7 @@ export class Component<
   }
 
   public override prepareUpdate(): boolean {
+    if (this.updatePrepared) return this.shouldRenderChildren;
     super.prepareUpdate();
     this.checkData();
     this.willIterate();
@@ -167,6 +168,7 @@ export class Component<
 
   public override iterate(prepared = false, visible = true): boolean {
     if (!prepared) this.prepareUpdate();
+    this.updatePrepared = false;
 
     if (visible && this.shouldRender && this.isRenderAllowed()) {
       this.renderLifeCycle();

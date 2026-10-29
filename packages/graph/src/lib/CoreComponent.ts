@@ -82,6 +82,12 @@ export class CoreComponent<
 
   protected __comp: TPrivateComponentData;
 
+  /**
+   * Set by prepareUpdate() and consumed by iterate(): a repeated preparation before this component
+   * paints, for example an explicit call followed by the tree's own, does not run its update again.
+   */
+  protected updatePrepared = false;
+
   public get zIndex() {
     return this.__comp.treeNode.zIndex;
   }
@@ -192,8 +198,10 @@ export class CoreComponent<
 
   /** Applies pending work without painting; the tree calls it ahead of painting for requested and new components. */
   public prepareUpdate(): boolean {
+    if (this.updatePrepared) return true;
     if (!this.__comp.parent) this.__comp.context.globalIterateId++;
     this.__comp.iterateId = this.__comp.context.globalIterateId;
+    this.updatePrepared = true;
     return true;
   }
 
@@ -203,6 +211,7 @@ export class CoreComponent<
    */
   public iterate(prepared = false, _visible = true): boolean {
     if (!prepared) this.prepareUpdate();
+    this.updatePrepared = false;
     return true;
   }
 

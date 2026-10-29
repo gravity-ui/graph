@@ -68,6 +68,74 @@ test("prepares children and data before painting", () => {
   CoreComponent.unmount(probe);
 });
 
+test("does not repeat an update that is prepared again before painting", () => {
+  const probe = new Probe();
+  probe.change(4);
+  probe.prepareUpdate();
+  probe.prepareUpdate();
+  expect(probe.events).toEqual(["mount", "children"]);
+
+  // An iteration without the tree's preparation reuses the explicit one.
+  probe.iterate(false, true);
+  expect(probe.events).toEqual(["mount", "children", "willRender", "render:4", "didRender", "complete"]);
+
+  // Painting consumed it: the next preparation runs again.
+  probe.change(5);
+  probe.prepareUpdate();
+  expect(probe.state.value).toBe(5);
+  expect(probe.events.filter((event) => event === "mount")).toHaveLength(1);
+  CoreComponent.unmount(probe);
+});
+
+test("mounts once when a component is prepared explicitly before the tree prepares it", () => {
+  class Child extends Component<{ value: number }> {
+    public mounts = 0;
+    public painted: number[] = [];
+    protected willMount() {
+      this.mounts++;
+    }
+    protected render() {
+      this.painted.push(this.props.value);
+    }
+  }
+  class Parent extends Component {
+    public child?: Child;
+    constructor() {
+      super({});
+      this.setChildrenCulling({ tileSize: 64, getViewport: () => undefined });
+    }
+    protected updateChildren() {
+      return [
+        Child.create(
+          { value: 1 },
+          {
+            ref: (child) => {
+              this.child = child;
+            },
+          }
+        ),
+      ];
+    }
+  }
+  const parent = CoreComponent.mount(Parent);
+  // Reconciling creates the child; preparing it explicitly mounts it before the first frame.
+  parent.prepareUpdate();
+  const child = parent.child;
+  if (!child) throw new Error("Missing mounted child");
+  child.prepareUpdate();
+  expect(child.mounts).toBe(1);
+
+  CoreComponent.update(parent);
+  expect(child.mounts).toBe(1);
+  expect(child.painted).toEqual([1]);
+
+  child.setProps({ value: 2 });
+  CoreComponent.update(parent);
+  expect(child.painted).toEqual([1, 2]);
+  expect(child.mounts).toBe(1);
+  CoreComponent.unmount(parent);
+});
+
 test("prepares inside iterate only when the tree has not prepared the component", () => {
   const probe = new Probe();
   const prepare = jest.spyOn(probe, "prepareUpdate");
