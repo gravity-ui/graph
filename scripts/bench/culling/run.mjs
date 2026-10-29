@@ -47,7 +47,10 @@ const work = fs.mkdtempSync(path.join(os.tmpdir(), "graph-culling-bench-"));
 /** Builds one variant's bundle and page; `.` is the working tree, anything else a git ref. */
 async function build({ name, ref }) {
   let source = path.join(repo, "packages/graph/src");
-  if (ref !== ".") {
+  if (fs.existsSync(ref) && fs.statSync(ref).isDirectory() && ref !== ".") {
+    // A copy of packages/graph/src, for example with one change reverted.
+    source = path.resolve(ref);
+  } else if (ref !== ".") {
     const target = path.join(work, `src-${name}`);
     fs.mkdirSync(target, { recursive: true });
     const archive = execFileSync("git", ["archive", ref, "packages/graph/src"], { cwd: repo, maxBuffer: 1 << 30 });
@@ -60,7 +63,10 @@ async function build({ name, ref }) {
     outfile: path.join(work, `${name}.js`),
     format: "iife",
     platform: "browser",
-    target: ["es2022"],
+    // Compile every variant like the published package. Otherwise esbuild picks up whatever tsconfig it
+    // finds above each source copy, and class field semantics differ between variants.
+    target: ["es2020"],
+    tsconfig: path.join(repo, "packages/graph/tsconfig.json"),
     alias: { GRAPH: path.join(source, "index.ts") },
     nodePaths: [path.join(repo, "node_modules")],
     plugins: [

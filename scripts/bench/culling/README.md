@@ -7,9 +7,12 @@ for several versions of `packages/graph` side by side, and checks that they draw
   with arrows, no anchors); `playground` mirrors the Playground "10 000" preset (10,476 action blocks with
   two anchors each, straight connections). Both are generated with fixed seeds.
 - **Views:** `near` is 1600x1000 CSS px, `full` is 1600x1600; DPR 2.
-- **Variants:** `name=ref`, where `ref` is a git ref or `.` for the working tree. The first variant is the
-  pixel reference.
+- **Variants:** `name=ref`, where `ref` is a git ref, `.` for the working tree, or a directory with a copy
+  of `packages/graph/src` (for example with one change reverted). The first variant is the pixel reference.
 - Every variant runs the same zoom history before measuring: the hot path is sensitive to JIT feedback.
+- Every variant is compiled like the published package (`packages/graph/tsconfig.json`, target es2020).
+  Without that, a git-ref copy in a temporary directory gets native class fields while the working tree
+  gets constructor assignments, which alone moves dense frames by about a millisecond.
 
 ```bash
 node scripts/bench/culling/run.mjs --variants base=origin/v2,current=. --scales 0.01,0.02,0.05,0.1
