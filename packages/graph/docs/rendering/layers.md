@@ -275,6 +275,32 @@ The `Layer` class provides tools to handle rendering correctly with camera trans
 
 **In summary:** For most canvas layers, set `respectPixelRatio: true` and `transformByCameraPosition: true`, call `resetTransform()` at the start of `render`, and draw using world coordinates. Use `applyTransform` for specific relative positioning if needed.
 
+### Viewport culling of a layer's components
+
+Every layer culls the canvas components it renders (`updateChildren()`): a component whose bounds miss the
+culling rectangle is not painted, and a clean one receives no lifecycle calls at all. The rectangle is chosen
+by `LayerProps.culling`:
+
+| `culling` | Rectangle | For |
+|---|---|---|
+| `"world"` (default) | the camera viewport in world coordinates | layers that draw the graph in world coordinates |
+| `"screen"` | the layer's rectangle in screen pixels | overlays that draw at fixed screen positions |
+| `"none"` | none: every component paints | components without meaningful bounds |
+
+```typescript
+class HudLayer extends Layer {
+  constructor(props: LayerProps) {
+    super({ ...props, culling: "screen", canvas: { zIndex: 10, transformByCameraPosition: false } });
+  }
+}
+```
+
+Components report bounds in the same coordinates (`setCullingBounds()`, or the hit box of a
+`GraphComponent`); unknown bounds always paint. A layer that needs another rectangle calls
+`setChildrenCulling({ tileSize, getViewport })` in its constructor, and a component inside a layer may do
+the same for its own subtree. Turning off the `EXP_VISIBILITY_CULLING` setting does not change the
+rectangle: components outside it get their lifecycle calls again but still do not paint.
+
 ### Built-in CSS Classes
 
 The library provides several built-in CSS classes that can be used with layers:

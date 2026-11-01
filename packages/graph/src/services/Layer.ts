@@ -46,10 +46,22 @@ export type LayerProps = {
     willReadFrequently?: boolean;
   };
   html?: LayerPropsHtmlElementProps;
+  /**
+   * Which rectangle culls the layer's canvas components, by the bounds they report:
+   * - `"world"` (default): the camera viewport in world coordinates, for layers that draw the graph;
+   * - `"screen"`: the layer's own rectangle in screen pixels, for overlays that draw at fixed screen positions;
+   * - `"none"`: every component paints, for example when the components report no bounds or other coordinates.
+   *
+   * A layer that needs another rectangle calls `setChildrenCulling()` in its constructor. Turning off
+   * EXP_VISIBILITY_CULLING does not change this choice: it only stops skipping traversal.
+   */
+  culling?: TLayerCulling;
   root?: HTMLElement;
   camera: ICamera;
   graph: Graph;
 };
+
+export type TLayerCulling = "world" | "screen" | "none";
 
 export type LayerContext = {
   graph: Graph;
@@ -319,7 +331,10 @@ export class Layer<
       ctx: undefined,
     });
 
-    this.setChildrenCulling(createViewportCulling(this.props.graph, () => this.context.camera));
+    const culling = this.props.culling ?? "world";
+    this.setChildrenCulling(
+      culling === "none" ? undefined : createViewportCulling(this.props.graph, () => this.context.camera, culling)
+    );
     this.init();
   }
 

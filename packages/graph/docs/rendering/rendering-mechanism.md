@@ -59,6 +59,14 @@ painted from the next frame. A child-traversal veto returned from painting suppr
 frame and is decided again by the node's preparation before the next publication. Prepared descendants
 of a vetoed branch complete without painting.
 
+A component that must react to leaving the viewport, for example to hide an HTML overlay or release a
+resource, defines `viewportChanged(inViewport)`. It is called once per change, after publication and before
+painting, also when an ancestor stops walking its branch; it is not called on unmount. Only components that
+define it are tracked.
+
+A node with its own scope (`setChildrenCulling()` inside a culled layer) keeps its place in the outer paint
+order, and its scope walks its subtree there with its own viewport.
+
 Connection batches do not depend on per-item visibility or on child traversal: each chunk is skipped
 when its items' bounds are outside the viewport, and its items' `afterRender` hooks run only for items in
 the viewport, see [Batch Rendering](../connections/batch-rendering.md).

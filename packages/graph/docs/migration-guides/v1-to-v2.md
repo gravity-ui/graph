@@ -27,6 +27,7 @@ The temporary branch and release process is documented separately in
 - Drive roots you mount yourself with `Component.update(root)`; the graph updates only its own layers.
 - Replace `NewBlockLayer` with `DuplicateBlockLayer` from `@gravity-ui/graph-duplicate-block`, rename its events and remove the `canDuplicateBlocks` setting.
 - Import `MultipointConnection` from `@gravity-ui/graph`; `@gravity-ui/graph-react` no longer re-exports it or installs `elkjs`.
+- Canvas components are culled by the viewport: check custom components against [Viewport culling and the component lifecycle](#viewport-culling-and-the-component-lifecycle) — veto painting with `isRenderAllowed()`, forward `iterate(prepared, visible)`, request updates for external changes, report bounds before painting, react to leaving the viewport with `viewportChanged()`, and set `culling` on screen-space layers.
 
 ## React package boundary
 
@@ -920,3 +921,44 @@ In v2 the graph drives its layers:
 - In tests with Jest fake timers, let registered tasks finish (or remove them)
   before switching timer implementations: a frame requested with one
   implementation is not delivered by the other.
+
+## Viewport culling and the component lifecycle
+
+Every layer culls the canvas components it renders. A frame first prepares the components that are new or
+requested an update (data, children, geometry), then publishes which components are in the viewport, then
+paints them in z-order. Compared with v1:
+
+- A clean component outside the viewport receives no lifecycle calls at all: no `willIterate`, `didIterate`,
+  `willNotRender` or `render`. In v1 every component of a layer was iterated whenever anything in it updated.
+- A component that requested an update while outside the viewport is prepared and completes its frame without
+  painting (`willNotRender`, `didIterate`). A clean visible component prepares right before its own paint, after
+  visibility was published.
+- A component outside the viewport is no longer painted once when it mounts: setup done in `render()` or
+  `willRender()` happens when it first enters the viewport.
+- Children are reconciled before the component's own `render()`, and children added from `render()` are painted
+  from the next frame.
+
+| v1 pattern | v2 replacement |
+|---|---|
+| Override `isVisible()` to stop painting | Override `isRenderAllowed()`. `isVisible()` is only a query now; overriding it does not stop painting. For connections `isRenderAllowed()` also hides the line and arrow; state and props changes re-evaluate it, other changes call `applyShape()`. |
+| Override `iterate()` and call `super.iterate()` | Forward the tree's arguments: `iterate(prepared, visible) { ...; return super.iterate(prepared, visible); }`. Without them an offscreen component that has pending work paints. |
+| Read external state in `willIterate()` | Subscribe to the source and call `performRender()` (or `setState` / `setProps`); for connection geometry call `updateGeometry()`. Offscreen components are not iterated, so polling never sees the change. |
+| Hide an overlay or release a resource in `willNotRender()` | Define `viewportChanged(inViewport)`; release everything in `unmount()`. |
+| Compute badges, labels or decorations while painting | Compute their geometry when data changes and include it in the bounds (`setCullingBounds()`, the hit box, or for connections `collectBBoxPoints()`, `getArrowPoints()` and `updateLabelGeometry()`). A component is culled by the bounds it reports. |
+| `batch.markDirty(connection)` after changing data used by `createPath()` | `connection.updateGeometry()`: rebuilds paths, bounds and hit testing together. `markDirty()` only rebuilds the batch chunk from the item's cached path. |
+| `isIterated()` as "updated in the last frame" | In a culled layer it means the component is attached in a branch that is walked. |
+| `CanvasBlock.isRendered()` as `shouldRender` | `shouldRender && isVisible()`: false outside the viewport. |
+| A screen-space layer | Pass `culling: "screen"` (or `"none"`); the default culls by the world viewport. See [Layers](../rendering/layers.md). |
+
+Three operations stay separate: `isRenderAllowed()` stops a component's own painting; returning `false` from
+`iterate()` / `prepareUpdate()` (or `shouldRenderChildren = false`) stops walking its children; a batch is
+drawn by the component that owns it (`BlockConnections`), so a traversal veto does not hide batched lines.
+`afterRender` hooks of batch items run only for items in the viewport.
+
+The minimap draws block bodies without names: it calls `renderMinimalisticBlock(ctx, { text: false })`. A
+custom block that overrides `renderMinimalisticBlock` or `renderSchematicView` follows this rule only if its
+override accepts `options` and passes them on (or checks `options?.text` itself); an override that takes only
+`ctx` decides on its own what the minimap shows.
+
+`EXP_VISIBILITY_CULLING = false` makes the tree visit every component again, but painting still follows the
+viewport; it is a diagnostic switch, not a v1 compatibility mode.

@@ -85,6 +85,7 @@ export class CoreComponent<
   /**
    * Set by prepareUpdate() and consumed by iterate(): a repeated preparation before this component
    * paints, for example an explicit call followed by the tree's own, does not run its update again.
+   * A new update request clears it, so data queued after a preparation is applied by the next one.
    */
   protected updatePrepared = false;
 
@@ -128,12 +129,23 @@ export class CoreComponent<
     return this.__comp.iterateId === this.__comp.context.globalIterateId;
   }
 
+  /**
+   * Optional hook: define it to learn when this component enters or leaves the viewport of its culled layer, for
+   * example to hide an HTML overlay or release a resource while it is out of view. A component outside the
+   * viewport receives no other lifecycle calls while nothing changes. Called once per change, after the frame
+   * published visibility and before painting; it also reports leaving when an ancestor stops walking this
+   * branch. It is not called on unmount: release resources in `unmount()`. Updates requested from it apply in a
+   * later frame.
+   */
+  public viewportChanged?(inViewport: boolean): void;
+
   /** Whether this node's own bounds intersect its tree's viewport. */
   public isInViewport(): boolean {
     return this.__comp.treeNode.isVisible();
   }
 
   public performRender = () => {
+    this.updatePrepared = false;
     this.__comp.context.scheduler.scheduleUpdate();
     this.__comp.treeNode.requestWalk();
   };

@@ -15,6 +15,11 @@ export interface ITree {
   iterate(prepared: boolean, visible: boolean): boolean;
   /** Applies pending work without painting; false suppresses this node's descendants. */
   prepareUpdate?(): boolean;
+  /**
+   * Optional. Called once per change when the node enters or leaves its scope's published visibility, after
+   * publication and before painting. Only nodes that define it are tracked.
+   */
+  viewportChanged?(inViewport: boolean): void;
 }
 
 export class Tree<T extends ITree = ITree> {
@@ -44,7 +49,8 @@ export class Tree<T extends ITree = ITree> {
   public boundsMinY = NaN;
   public boundsMaxX = NaN;
   public boundsMaxY = NaN;
-  protected culling?: TreeCulling;
+  /** @internal This node's own scope, when it culls its subtree itself; see setCulling(). */
+  public culling?: TreeCulling;
   /** @internal Shared frame coordinator for this node. */
   public scope?: TreeCulling;
   /** @internal Viewport visibility published by the scope for the current frame. */
@@ -63,6 +69,10 @@ export class Tree<T extends ITree = ITree> {
   public freshSlot = -1;
   public pendingSlot = -1;
   public boundsSlot = -1;
+  /** @internal The data defines viewportChanged(); set when the node joins a scope. */
+  public observesViewport = false;
+  /** @internal The membership last delivered to viewportChanged(). */
+  public notifiedInViewport = false;
   private eligibilityRevision = -1;
   private traversalAllowed = true;
 
@@ -77,6 +87,8 @@ export class Tree<T extends ITree = ITree> {
     this.children.add(node);
     this.addInZIndex(node);
     node.setScope(node.culling ?? this.scope);
+    // A nested scope is not a member of this one: its place in this scope's paint order changed.
+    if (node.culling) this.scope?.invalidateStructure();
   }
 
   protected addInZIndex(node: Tree) {
@@ -107,6 +119,7 @@ export class Tree<T extends ITree = ITree> {
     this.removeZIndex(node);
     node.setScope(undefined);
     node.parent = undefined;
+    if (node.culling) this.scope?.invalidateStructure();
   }
 
   public setChildren(nodes: Tree[]) {
@@ -272,7 +285,10 @@ export class Tree<T extends ITree = ITree> {
   }
 
   public clearChildren() {
-    for (const child of this.children) child.setScope(undefined);
+    for (const child of this.children) {
+      child.setScope(undefined);
+      if (child.culling) this.scope?.invalidateStructure();
+    }
     this.children.clear();
     this.zIndexGroups.clear();
     this.zIndexChildrenCache.clear();

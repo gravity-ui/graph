@@ -140,6 +140,12 @@ describe("connection geometry and semantic visibility contract", () => {
     expect(connection.getPathBounds()?.[1]).toBeGreaterThan(300);
     expect(connection.isInViewport()).toBe(true);
 
+    // Hit testing finds it at its new place and no longer at the old one.
+    const near = (y: number) =>
+      graph.getElementsOverRect({ x: 140, y: y - 2, width: 20, height: 4 }).includes(connection);
+    expect(near(400)).toBe(true);
+    expect(near(100)).toBe(false);
+
     // Tree culling follows the new bounds as well.
     ExternalGeometryConnection.shift = { dy: 2000 };
     connection.updateGeometry();

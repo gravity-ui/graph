@@ -1,0 +1,111 @@
+import { Graph } from "../graph";
+import { Component } from "../lib/Component";
+import type { CoreComponent, CoreComponentProps } from "../lib/CoreComponent";
+import { globalScheduler } from "../lib/Scheduler";
+
+import { Layer } from "./Layer";
+import type { LayerProps, TLayerCulling } from "./Layer";
+
+let paints = 0;
+let iterations = 0;
+
+/** Draws at a fixed screen position and reports that position as its bounds. */
+class ScreenChild extends Component {
+  constructor(props: CoreComponentProps, parent: CoreComponent) {
+    super(props, parent);
+    this.setCullingBounds(10, 10, 20, 20);
+  }
+
+  protected render(): void {
+    paints++;
+  }
+
+  protected didIterate(): void {
+    iterations++;
+  }
+}
+
+class OverlayLayer extends Layer {
+  constructor(props: LayerProps) {
+    super({ ...props, canvas: { zIndex: 7, transformByCameraPosition: false } });
+  }
+
+  protected updateChildren() {
+    return [ScreenChild.create({})];
+  }
+
+  protected afterInit(): void {
+    this.onGraphEvent("camera-change", () => this.performRender());
+    super.afterInit();
+  }
+
+  /** A custom rectangle, as a layer would set it in its constructor. */
+  public useViewport(minX: number, minY: number, maxX: number, maxY: number): void {
+    this.setChildrenCulling({ tileSize: 64, getViewport: () => ({ minX, minY, maxX, maxY }) });
+    this.performRender();
+  }
+}
+
+function frames(): void {
+  for (let i = 0; i < 3; i++) globalScheduler.performUpdate();
+}
+
+function setup(culling?: TLayerCulling, cullingEnabled = true) {
+  const root = document.createElement("div");
+  Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
+  const graph = new Graph({ settings: { EXP_VISIBILITY_CULLING: cullingEnabled } }, root);
+  graph.cameraService.set({ width: 1000, height: 800, scale: 1, x: 0, y: 0 });
+  graph.start();
+  const layer = graph.addLayer(OverlayLayer, culling ? { culling } : {});
+  frames();
+  paints = 0;
+  /** Pans and zooms the camera far from the world origin and returns how often the child painted. */
+  const moveCamera = (): number => {
+    paints = iterations = 0;
+    graph.cameraService.set({ width: 1000, height: 800, scale: 0.3, x: -5000, y: -5000 });
+    frames();
+    return paints;
+  };
+  return { graph, layer, moveCamera };
+}
+
+describe("layer culling policy", () => {
+  it("keeps a screen-space child painted after pan and zoom with screen culling", () => {
+    const { graph, moveCamera } = setup("screen");
+    expect(moveCamera()).toBeGreaterThan(0);
+    graph.unmount();
+  });
+
+  it("culls by the world viewport by default, which hides a child drawn at a fixed screen position", () => {
+    const { graph, moveCamera } = setup();
+    expect(moveCamera()).toBe(0);
+    graph.unmount();
+  });
+
+  it("paints every child without culling", () => {
+    const { graph, moveCamera } = setup("none");
+    expect(moveCamera()).toBeGreaterThan(0);
+    graph.unmount();
+  });
+
+  it("uses a rectangle the layer sets itself", () => {
+    const { graph, layer, moveCamera } = setup();
+    layer.useViewport(0, 0, 1000, 800);
+    expect(moveCamera()).toBeGreaterThan(0);
+    layer.useViewport(500, 500, 600, 600);
+    expect(moveCamera()).toBe(0);
+    graph.unmount();
+  });
+
+  it("keeps the spatial paint gate when EXP_VISIBILITY_CULLING is off: traversal returns, painting does not", () => {
+    const off = setup(undefined, false);
+    expect(off.moveCamera()).toBe(0);
+    expect(iterations).toBeGreaterThan(0);
+    off.graph.unmount();
+
+    const on = setup();
+    expect(on.moveCamera()).toBe(0);
+    expect(iterations).toBe(0);
+    on.graph.unmount();
+  });
+});

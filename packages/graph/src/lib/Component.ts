@@ -11,6 +11,9 @@ export class Component<
   Context extends CoreComponentContext = CoreComponentContext,
 > extends CoreComponent<Props, Context> {
   protected firstIterate = true;
+
+  /** willMount() runs once, even when the first frame prepares this component more than once. */
+  private mountNotified = false;
   protected firstRender = true;
   protected firstUpdateChildren = true;
 
@@ -135,7 +138,8 @@ export class Component<
   }
 
   protected willIterate() {
-    if (this.firstIterate) {
+    if (this.firstIterate && !this.mountNotified) {
+      this.mountNotified = true;
       this.willMount();
     }
     // noop

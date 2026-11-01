@@ -136,6 +136,114 @@ test("mounts once when a component is prepared explicitly before the tree prepar
   CoreComponent.unmount(parent);
 });
 
+describe.each([
+  ["with culling", true],
+  ["without culling", false],
+])("data changed after an explicit preparation, %s", (_label, culled) => {
+  class Item extends Component<{ value: number }, { value: number }> {
+    public painted: string[] = [];
+    public mounts = 0;
+    constructor(props: { value: number }, parent: CoreComponent) {
+      super(props, parent);
+      this.state = { value: 0 };
+    }
+    public change(value: number): void {
+      this.setState({ value });
+    }
+    protected willMount(): void {
+      this.mounts++;
+    }
+    protected render(): void {
+      this.painted.push(`${this.props.value}/${this.state.value}`);
+    }
+  }
+  function mount(): { root: Component; item: Item } {
+    let item: Item | undefined;
+    class Root extends Component {
+      constructor() {
+        super({});
+        if (culled) this.setChildrenCulling({ tileSize: 64, getViewport: () => undefined });
+      }
+      protected updateChildren() {
+        return [
+          Item.create(
+            { value: 1 },
+            {
+              ref: (child) => {
+                item = child;
+              },
+            }
+          ),
+        ];
+      }
+    }
+    const root = CoreComponent.mount(Root);
+    // The scheduled path: a frame runs only when something requested it.
+    CoreComponent.update(root);
+    if (!item) throw new Error("Missing mounted item");
+    return { root, item };
+  }
+
+  it("applies props set between the preparation and the next frame, and later props too", () => {
+    const { root, item } = mount();
+    item.prepareUpdate();
+    item.setProps({ value: 2 });
+    CoreComponent.update(root);
+    expect(item.props.value).toBe(2);
+    item.setProps({ value: 3 });
+    CoreComponent.update(root);
+    expect(item.props.value).toBe(3);
+    expect(item.painted.slice(-2)).toEqual(["2/0", "3/0"]);
+    expect(item.mounts).toBe(1);
+    CoreComponent.unmount(root);
+  });
+
+  it("applies state set between the preparation and the next frame, and later state too", () => {
+    const { root, item } = mount();
+    item.prepareUpdate();
+    item.change(7);
+    CoreComponent.update(root);
+    expect(item.state.value).toBe(7);
+    item.change(8);
+    CoreComponent.update(root);
+    expect(item.state.value).toBe(8);
+    expect(item.painted.slice(-2)).toEqual(["1/7", "1/8"]);
+    expect(item.mounts).toBe(1);
+    CoreComponent.unmount(root);
+  });
+
+  it("mounts once when new data arrives between an explicit preparation and the first frame", () => {
+    let item: Item | undefined;
+    class Root extends Component {
+      constructor() {
+        super({});
+        if (culled) this.setChildrenCulling({ tileSize: 64, getViewport: () => undefined });
+      }
+      protected updateChildren() {
+        return [
+          Item.create(
+            { value: 1 },
+            {
+              ref: (child) => {
+                item = child;
+              },
+            }
+          ),
+        ];
+      }
+    }
+    const root = CoreComponent.mount(Root);
+    root.prepareUpdate();
+    if (!item) throw new Error("Missing mounted item");
+    item.prepareUpdate();
+    item.change(5);
+    CoreComponent.update(root);
+    expect(item.mounts).toBe(1);
+    expect(item.state.value).toBe(5);
+    CoreComponent.unmount(root);
+  });
+});
+
 test("prepares inside iterate only when the tree has not prepared the component", () => {
   const probe = new Probe();
   const prepare = jest.spyOn(probe, "prepareUpdate");
