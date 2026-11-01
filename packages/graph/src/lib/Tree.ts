@@ -299,6 +299,13 @@ export class Tree<T extends ITree = ITree> {
     else this._walkDown(iterator, 0);
   }
 
+  private suspendScopesBelow(): void {
+    for (const child of this.children) {
+      if (child.culling && child.scope === child.culling) child.culling.suspend();
+      else child.suspendScopesBelow();
+    }
+  }
+
   /** @internal */
   public prepareData(stamp: number): void {
     this.preparedStamp = stamp;
@@ -312,7 +319,10 @@ export class Tree<T extends ITree = ITree> {
 
   protected _walkDown(iterator: TIterator, order: number) {
     this.renderOrder = order;
-    this.setChildrenWalkAllowed(iterator(this, false, true));
+    const allowed = iterator(this, false, true);
+    // Nested scopes below a branch that stops being walked publish nothing more: tell their observers.
+    if (!allowed && this.childrenWalkAllowed) this.suspendScopesBelow();
+    this.setChildrenWalkAllowed(allowed);
     if (!this.childrenWalkAllowed) return;
     const children = this.zIndexChildrenCache.get();
     for (let i = 0; i < children.length; i++) {

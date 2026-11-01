@@ -67,6 +67,12 @@ export class TreeCulling {
   /** Observing nodes whose published visibility changed since the last notification. */
   private readonly viewportChanges: Tree[] = [];
 
+  /** Nested scopes that the current paint order reaches; one that is no longer reached is suspended. */
+  private reachedNested: TreeCulling[] = [];
+
+  /** Paint order whose nested scopes `reachedNested` lists. */
+  private reachedOrderStamp = 0;
+
   /** Any change that can affect this frame's preparation: membership, order, permission or bounds. */
   private revision = 0;
 
@@ -108,6 +114,8 @@ export class TreeCulling {
     public readonly options: TTreeCullingOptions
   ) {
     this.index = new TileIndex({ tileSize: options.tileSize });
+    // The owner is published apart from the index, but it observes its viewport like any node.
+    owner.observesViewport = typeof owner.data.viewportChanged === "function";
   }
 
   public walk(iterator: TIterator): void {
@@ -145,6 +153,7 @@ export class TreeCulling {
       const order = this.getPaintOrder();
       this.publish(order.stamp);
       if (this.viewportChanges.length) this.notifyViewportChanges();
+      if (order.stamp !== this.reachedOrderStamp) this.suspendUnreached(order);
       this.painting = true;
       this.paint(iterator, order);
       if (this.preparedPainted !== this.prepared.length) this.finishPrepared(iterator);
@@ -244,7 +253,12 @@ export class TreeCulling {
     }
     dirty.length = 0;
     // The owner is not indexed: its own bounds are always checked against the viewport.
-    this.owner.published = this.owner.isEligible(this) && this.intersects(this.owner, viewport);
+    const owner = this.owner;
+    const ownerVisible = owner.isEligible(this) && this.intersects(owner, viewport);
+    if (owner.published !== ownerVisible) {
+      owner.published = ownerVisible;
+      if (owner.observesViewport) this.viewportChanges.push(owner);
+    }
     this.visibilityRevision = this.structureRevision;
   }
 
@@ -258,6 +272,54 @@ export class TreeCulling {
       this.unlist(node);
     }
     if (node.observesViewport) this.viewportChanges.push(node);
+  }
+
+  /**
+   * A nested scope that the paint order no longer reaches, because an ancestor stopped walking its branch, publishes
+   * nothing more: it is suspended, so its observers learn that they left the viewport. Its subtree is still not
+   * prepared or painted; reaching it again publishes it afresh. A scope whose owner was removed is not notified,
+   * like an unmount.
+   */
+  private suspendUnreached({ stamp, nodes, nested }: TPaintOrder): void {
+    this.reachedOrderStamp = stamp;
+    const reached: TreeCulling[] = [];
+    for (let i = 0; i < nested.length; i++) {
+      const scope = nodes[nested[i]].culling;
+      if (scope) reached.push(scope);
+    }
+    for (const scope of this.reachedNested) {
+      if (!reached.includes(scope) && scope.isAttachedTo(this)) scope.suspend();
+    }
+    this.reachedNested = reached;
+  }
+
+  /** The owner still culls with this scope and is a child of a node of `outer`. */
+  private isAttachedTo(outer: TreeCulling): boolean {
+    const owner = this.owner;
+    const parent = owner.parent;
+    return owner.culling === this && parent !== undefined && parent.children.has(owner) && parent.scope === outer;
+  }
+
+  /**
+   * Clears the published visibility of a scope that is not walked, notifying its observers and its owner; nested
+   * scopes it reached are suspended too. Its next walk publishes from scratch.
+   */
+  public suspend(): void {
+    for (const scope of this.reachedNested) scope.suspend();
+    this.reachedNested = [];
+    this.reachedOrderStamp = 0;
+    // Hiding moves the last entry into the freed slot, so the list is read from the end.
+    const visible = this.visible;
+    for (let i = visible.length - 1; i >= 0; i--) this.show(visible[i], false);
+    const owner = this.owner;
+    if (owner.published) {
+      owner.published = false;
+      if (owner.observesViewport) this.viewportChanges.push(owner);
+    }
+    this.selectionBase = undefined;
+    this.allVisibleRevision = -1;
+    this.visibilityRevision = -1;
+    if (this.viewportChanges.length) this.notifyViewportChanges();
   }
 
   /** Clears a node's published visibility without notifying it, for example when it leaves the scope. */
@@ -497,7 +559,9 @@ export class TreeCulling {
     node.scopeSlot = this.nodes.length;
     this.nodes.push(node);
     node.observesViewport = typeof node.data.viewportChanged === "function";
-    node.notifiedInViewport = false;
+    // A node moved here from another scope keeps the membership it was last told; the next publication is
+    // compared with it, so a change is delivered once and an unchanged one not at all.
+    if (node.observesViewport) this.viewportChanges.push(node);
     node.freshSlot = this.fresh.length;
     this.fresh.push(node);
     this.update(node);
