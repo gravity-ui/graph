@@ -85,6 +85,15 @@ export type BlockViewState = {
   order: number;
 };
 
+/**
+ * Options of a block view drawn on behalf of another view, such as the minimap. Without them a view follows the
+ * main view's level of detail.
+ */
+export type TBlockViewOptions = {
+  /** Whether to draw the block's name. */
+  text?: boolean;
+};
+
 export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlockProps> extends GraphComponent<
   Props,
   T,
@@ -529,8 +538,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     renderText(text, ctx, rect, renderParams);
   }
 
-  public renderMinimalisticBlock(ctx: CanvasRenderingContext2D) {
-    this.renderSchematicView(ctx);
+  public renderMinimalisticBlock(ctx: CanvasRenderingContext2D, options?: TBlockViewOptions) {
+    this.renderSchematicView(ctx, options);
   }
 
   protected renderBody(ctx: CanvasRenderingContext2D) {
@@ -543,10 +552,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     );
   }
 
-  public renderSchematicView(ctx: CanvasRenderingContext2D) {
+  public renderSchematicView(ctx: CanvasRenderingContext2D, options?: TBlockViewOptions) {
     this.renderBody(ctx);
 
-    if (this.shouldRenderText) {
+    if (options?.text ?? this.shouldRenderText) {
       ctx.fillStyle = this.context.colors.block.text;
       ctx.textAlign = "center";
       this.renderText(this.state.name, ctx);
