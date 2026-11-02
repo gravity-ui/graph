@@ -192,7 +192,8 @@ export class ConnectionState<T extends TConnection = TConnection> {
   });
 
   public static getConnectionId(connection: TConnection) {
-    if (connection.id) return connection.id;
+    // 0 is a valid numeric id; only a missing or empty id falls back to the endpoint-derived id.
+    if (connection.id || connection.id === 0) return connection.id;
     if (connection.sourceAnchorId && connection.targetAnchorId) {
       return [connection.sourceAnchorId, connection.targetAnchorId].join(":");
     }

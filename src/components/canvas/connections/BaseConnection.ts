@@ -1,6 +1,7 @@
 import { Component, ESchedulerPriority } from "../../../lib";
 import { TComponentState } from "../../../lib/Component";
 import { ConnectionState, TConnection, TConnectionId } from "../../../store/connection/ConnectionState";
+import { PortState } from "../../../store/connection/port/Port";
 import { selectConnectionById } from "../../../store/connection/selectors";
 import { debounce } from "../../../utils/functions";
 import { TPoint, TRect } from "../../../utils/types/shapes";
@@ -126,6 +127,13 @@ export class BaseConnection<
    */
   protected bBox: [minX: number, minY: number, maxX: number, maxY: number];
 
+  /**
+   * Ports this view is registered on as an observer.
+   * Follows the connection's current ports, so a retargeted connection does not keep
+   * its previous ports alive (see PortState.canBeDeleted).
+   */
+  private observedPorts: { source?: PortState; target?: PortState } = {};
+
   constructor(props: Props, parent: Component) {
     super(props, parent);
 
@@ -133,9 +141,9 @@ export class BaseConnection<
     this.connectedState = selectConnectionById(this.context.graph, this.props.id) as ConnectionState<Connection>;
     this.connectedState.setViewComponent(this);
 
-    // Subscribe to port changes for automatic geometry updates
-    this.connectedState.$sourcePortState.value.addObserver(this);
-    this.connectedState.$targetPortState.value.addObserver(this);
+    // Observe the current ports; willMount() moves the observation when the connection is retargeted
+    this.observePort("source", this.connectedState.$sourcePortState.value);
+    this.observePort("target", this.connectedState.$targetPortState.value);
 
     // Initialize component state with connection data
     this.setState({ ...(this.connectedState.$state.value as TBaseConnectionState), hovered: false });
@@ -152,6 +160,15 @@ export class BaseConnection<
     });
     this.subscribeSignal(this.connectedState.$state, (state) => {
       this.setState({ ...state });
+    });
+
+    // Follow the ports when the connection is retargeted. subscribe() calls back with the current
+    // port right away, so a retarget between construction and mount is picked up here too.
+    this.subscribeSignal(this.connectedState.$sourcePortState, (port) => {
+      this.observePort("source", port);
+    });
+    this.subscribeSignal(this.connectedState.$targetPortState, (port) => {
+      this.observePort("target", port);
     });
 
     // Subscribe to geometry changes to update connection points
@@ -207,9 +224,38 @@ export class BaseConnection<
   );
 
   protected override unmount(): void {
-    this.connectedState.$sourcePortState.value.removeObserver(this);
-    this.connectedState.$targetPortState.value.removeObserver(this);
+    const { source, target } = this.observedPorts;
+    this.observedPorts = {};
+    if (source) this.releasePort(source);
+    if (target) this.releasePort(target);
     super.unmount();
+  }
+
+  /**
+   * Makes this view an observer of the given port for one end of the connection
+   * and releases the port that end used before.
+   */
+  private observePort(end: "source" | "target", port: PortState): void {
+    const prevPort = this.observedPorts[end];
+    if (prevPort === port) {
+      return;
+    }
+    this.observedPorts[end] = port;
+    port.addObserver(this);
+    if (prevPort) {
+      this.releasePort(prevPort);
+    }
+  }
+
+  /**
+   * Stops observing the port unless the other end of the connection still uses it.
+   * Goes through the store so that an ownerless port nobody observes anymore is deleted.
+   */
+  private releasePort(port: PortState): void {
+    if (port === this.observedPorts.source || port === this.observedPorts.target) {
+      return;
+    }
+    this.connectedState.store.unobservePort(port.id, this);
   }
 
   /**
