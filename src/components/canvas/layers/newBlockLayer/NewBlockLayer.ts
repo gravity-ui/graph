@@ -18,6 +18,13 @@ declare module "../../../../graphEvents" {
     "block-add-start-from-shadow": (event: CustomEvent<{ blocks: Block[] }>) => void;
 
     /**
+     * Fired instead of "block-added-from-shadow" when the duplication drag is cancelled before the mouse button
+     * is released: the window loses focus, the page becomes hidden, or a new press arrives after a lost mouseup.
+     * No blocks are added.
+     */
+    "block-add-cancel-from-shadow": (event: CustomEvent<{ blocks: Block[] }>) => void;
+
+    /**
      * Fired when block duplication completes
      */
     "block-added-from-shadow": (
@@ -118,6 +125,7 @@ export class NewBlockLayer extends Layer<
           onStart: (event) => this.onStartNewBlock(event, blockTarget),
           onUpdate: (event) => this.onMoveNewBlock(event),
           onEnd: (event, coords) => this.onEndNewBlock(event, { x: coords[0], y: coords[1] }),
+          onCancel: () => this.onCancelNewBlock(),
         },
         { cursor: "copy" }
       );
@@ -255,6 +263,23 @@ export class NewBlockLayer extends Layer<
     this.lastMouseY = mouseY;
 
     this.performRender();
+  }
+
+  private onCancelNewBlock(): void {
+    if (!this.copyBlocks.length) {
+      return;
+    }
+
+    const blocks = this.copyBlocks.map((blockState) => blockState.getViewComponent());
+
+    this.blockStates = [];
+    this.lastMouseX = undefined;
+    this.lastMouseY = undefined;
+    this.copyBlocks = [];
+    this.initialPoint = null;
+    this.performRender();
+
+    this.context.graph.executеDefaultEventAction("block-add-cancel-from-shadow", { blocks }, () => {});
   }
 
   private onEndNewBlock(event: MouseEvent, point: TPoint) {

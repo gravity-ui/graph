@@ -194,27 +194,39 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
       return;
     }
     finished = true;
-    if (started) {
-      emitter.emit(EVENTS.DRAG_CANCEL, lastMouseEvent);
-      cleanupDragState();
+    try {
+      if (started) {
+        emitter.emit(EVENTS.DRAG_CANCEL, lastMouseEvent);
+      }
+    } finally {
+      // A throwing listener must not leave the cursor, auto-panning or DOM listeners behind
+      if (started) {
+        cleanupDragState();
+      }
+      cleanup();
+      emitter.destroy();
     }
-    cleanup();
-    emitter.destroy();
+  };
+
+  /**
+   * Ends the drag session on mouseup (or mouseleave with stopOnMouseLeave). A started drag emits DRAG_END.
+   */
+  const finish = (event: MouseEvent): void => {
+    finished = true;
+    try {
+      if (started) {
+        mouseupBinded(event);
+      }
+    } finally {
+      if (started) {
+        cleanupDragState();
+      }
+      cleanup();
+    }
   };
 
   if (stopOnMouseLeave) {
-    document.addEventListener(
-      "mouseleave",
-      (event) => {
-        finished = true;
-        if (started) {
-          mouseupBinded(event);
-          cleanupDragState();
-        }
-        cleanup();
-      },
-      { once: true, capture: true, signal }
-    );
+    document.addEventListener("mouseleave", finish, { once: true, capture: true, signal });
   }
 
   // If threshold > 0, we need to accumulate movement before starting drag
@@ -234,18 +246,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     );
   }
 
-  document.addEventListener(
-    "mouseup",
-    (event) => {
-      finished = true;
-      if (started) {
-        mouseupBinded(event);
-        cleanupDragState();
-      }
-      cleanup();
-    },
-    { once: true, capture: true, signal }
-  );
+  document.addEventListener("mouseup", finish, { once: true, capture: true, signal });
 
   // A new press while this session is alive means its mouseup was lost (or another button was pressed)
   document.addEventListener("mousedown", cancel, { once: true, capture: true, signal });
@@ -280,6 +281,9 @@ function mousemove(emitter: Emitter, event: MouseEvent) {
 }
 
 function mouseup(emitter: Emitter, event: MouseEvent) {
-  emitter.emit(EVENTS.DRAG_END, event);
-  emitter.destroy();
+  try {
+    emitter.emit(EVENTS.DRAG_END, event);
+  } finally {
+    emitter.destroy();
+  }
 }

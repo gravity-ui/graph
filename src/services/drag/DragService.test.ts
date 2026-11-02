@@ -1,6 +1,8 @@
 import { GraphComponent } from "../../components/canvas/GraphComponent";
 import { Graph } from "../../graph";
 import { GraphMouseEvent } from "../../graphEvents";
+import { globalScheduler } from "../../lib/Scheduler";
+import { EAnchorType } from "../../store/anchor/Anchor";
 import { ECanDrag } from "../../store/settings";
 
 import type { DragContext } from "./types";
@@ -193,5 +195,100 @@ describe("DragService.startDrag cancellation", () => {
 
     expect(onEnd).toHaveBeenCalledTimes(1);
     expect(onEnd).toHaveBeenCalledWith(lastMove, world(graph, 20, 30));
+  });
+});
+
+describe("DragService error handling", () => {
+  let graph: Graph;
+
+  beforeEach(() => {
+    graph = createGraph();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    document.dispatchEvent(mouse("mouseup", 0, 0));
+    graph.detach();
+  });
+
+  it("resets the drag even if a participant's handleDragCancel throws", () => {
+    const component = new CancellableComponent({}, graph.getGraphLayer());
+    jest.spyOn(component, "handleDragCancel").mockImplementation(() => {
+      throw new Error("cancel failed");
+    });
+
+    press(graph, component, 0, 0);
+    move(10, 10);
+
+    expect(() => graph.dragService.cancel()).toThrow("cancel failed");
+    expect(graph.dragService.$state.value.isDragging).toBe(false);
+    expect(graph.getCursorLayer().isAuto()).toBe(true);
+    expect(graph.cameraService.getCameraState().autoPanningEnabled).toBe(false);
+  });
+
+  it("resets the drag even if a participant's handleDragEnd throws", () => {
+    const component = new DraggableComponent({}, graph.getGraphLayer());
+    jest.spyOn(component, "handleDragEnd").mockImplementation(() => {
+      throw new Error("end failed");
+    });
+    // An exception thrown by a DOM listener is reported to window "error" handlers, not to the dispatcher
+    const onError = jest.fn((event: ErrorEvent) => event.preventDefault());
+    window.addEventListener("error", onError);
+
+    press(graph, component, 0, 0);
+    move(10, 10);
+    document.dispatchEvent(mouse("mouseup", 10, 10));
+    window.removeEventListener("error", onError);
+
+    expect(onError).toHaveBeenCalledTimes(1);
+
+    expect(graph.dragService.$state.value.isDragging).toBe(false);
+    expect(graph.getCursorLayer().isAuto()).toBe(true);
+    expect(graph.cameraService.getCameraState().autoPanningEnabled).toBe(false);
+  });
+});
+
+describe("DragService cancellation through an anchor", () => {
+  it("routes the cancellation to the block's handleDragCancel", () => {
+    const graph = new Graph(
+      {
+        settings: { canDrag: ECanDrag.ALL, dragThreshold: 0 },
+        blocks: [
+          {
+            is: "Block",
+            id: "a",
+            name: "A",
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 50,
+            selected: false,
+            anchors: [{ id: "out", blockId: "a", type: EAnchorType.OUT }],
+          },
+        ],
+      },
+      document.createElement("div")
+    );
+    graph.start();
+    try {
+      globalScheduler.performUpdate();
+      const blockState = graph.blocks.getBlockState("a");
+      const block = blockState?.getViewComponent();
+      const anchor = blockState?.getAnchorById("out")?.getViewComponent();
+      if (!block || !anchor) throw new Error("Expected block and anchor views");
+      // A block that reverts on cancel instead of finishing the drag
+      const onCancel = jest.spyOn(block, "handleDragCancel").mockImplementation(() => undefined);
+      const onEnd = jest.spyOn(block, "handleDragEnd");
+
+      press(graph, anchor, 0, 0);
+      move(10, 10);
+      graph.dragService.cancel();
+
+      expect(onCancel).toHaveBeenCalledTimes(1);
+      expect(onEnd).not.toHaveBeenCalled();
+    } finally {
+      graph.stop();
+      graph.unmount();
+    }
   });
 });

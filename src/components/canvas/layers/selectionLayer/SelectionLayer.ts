@@ -108,6 +108,7 @@ export class SelectionLayer extends Layer<
         onStart: this.startSelectionRender,
         onUpdate: this.updateSelectionRender,
         onEnd: this.endSelectionRender,
+        onCancel: this.cancelSelectionRender,
       });
     }
   };
@@ -120,6 +121,15 @@ export class SelectionLayer extends Layer<
   private startSelectionRender = (_event: MouseEvent, [worldX, worldY]: [number, number]) => {
     this.selectionStartWorld = { x: worldX, y: worldY };
     this.selectionEndWorld = { x: worldX, y: worldY };
+  };
+
+  /**
+   * Removes the selection area without selecting anything when the drag is cancelled
+   */
+  private cancelSelectionRender = (): void => {
+    this.selectionStartWorld = null;
+    this.selectionEndWorld = null;
+    this.performRender();
   };
 
   private endSelectionRender = (event: MouseEvent) => {

@@ -90,6 +90,18 @@ declare module "../../../../graphEvents" {
         point: Point;
       }>
     ) => void;
+
+    /**
+     * Fired instead of "connection-create-drop" when the connection drag is cancelled before the mouse button
+     * is released: the window loses focus, the page becomes hidden, or a new press arrives after a lost mouseup.
+     * No connection is created.
+     */
+    "connection-create-cancel": (
+      event: CustomEvent<{
+        sourceBlockId: TBlockId;
+        sourceAnchorId: string | undefined;
+      }>
+    ) => void;
   }
 }
 
@@ -213,6 +225,7 @@ export class ConnectionLayer extends Layer<
           onStart: (_event, coords) => this.onStartConnection(target, new Point(coords[0], coords[1])),
           onUpdate: (event, coords) => this.onMoveNewConnection(event, new Point(coords[0], coords[1])),
           onEnd: (_event, coords) => this.onEndNewConnection(new Point(coords[0], coords[1])),
+          onCancel: () => this.onCancelNewConnection(),
         },
         { cursor: "crosshair" }
       );
@@ -379,6 +392,27 @@ export class ConnectionLayer extends Layer<
         }
       );
     }
+  }
+
+  private onCancelNewConnection(): void {
+    if (!this.sourceComponent || !this.startState) {
+      return;
+    }
+
+    this.target?.connectedState?.setSelection(false);
+    this.target = undefined;
+    this.startState = null;
+    this.endState = null;
+    this.performRender();
+
+    this.context.graph.executеDefaultEventAction(
+      "connection-create-cancel",
+      {
+        sourceBlockId: this.getBlockId(this.sourceComponent),
+        sourceAnchorId: this.getAnchorId(this.sourceComponent),
+      },
+      () => {}
+    );
   }
 
   private onEndNewConnection(point: Point) {

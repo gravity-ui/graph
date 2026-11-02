@@ -14,8 +14,16 @@ function mouse(type: string, x: number, y: number): MouseEvent {
   return new MouseEvent(type, { clientX: x, clientY: y, bubbles: true });
 }
 
-function setup() {
+type TSetup = {
+  onCancel: jest.Mock;
+  onDrop: jest.Mock;
+  startConnection: () => void;
+  dispose: () => void;
+};
+
+function setup(): TSetup {
   const graph = new Graph({ settings: { dragThreshold: 0 } }, document.createElement("div"));
+  const events = new AbortController();
   graph.start();
   const layer = graph.addLayer(PortConnectionLayer, {});
   layer.enable();
@@ -25,8 +33,8 @@ function setup() {
 
   const onCancel = jest.fn();
   const onDrop = jest.fn();
-  graph.on("port-connection-cancel", onCancel);
-  graph.on("port-connection-create-drop", onDrop);
+  graph.on("port-connection-cancel", onCancel, { signal: events.signal });
+  graph.on("port-connection-create-drop", onDrop, { signal: events.signal });
 
   const startConnection = (): void => {
     const sourceEvent = mouse("mousedown", 0, 0);
@@ -38,12 +46,17 @@ function setup() {
     document.dispatchEvent(mouse("mousemove", 200, 200));
   };
 
-  return { graph, onCancel, onDrop, startConnection };
+  const dispose = (): void => {
+    events.abort();
+    graph.detach();
+  };
+
+  return { onCancel, onDrop, startConnection, dispose };
 }
 
 describe("PortConnectionLayer cancellation", () => {
   it("cancels a new connection on Escape without dropping it", () => {
-    const { graph, onCancel, onDrop, startConnection } = setup();
+    const { onCancel, onDrop, startConnection, dispose } = setup();
 
     startConnection();
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape" }));
@@ -51,11 +64,11 @@ describe("PortConnectionLayer cancellation", () => {
 
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onDrop).not.toHaveBeenCalled();
-    graph.detach();
+    dispose();
   });
 
   it("cancels a new connection when the window loses focus", () => {
-    const { graph, onCancel, onDrop, startConnection } = setup();
+    const { onCancel, onDrop, startConnection, dispose } = setup();
 
     startConnection();
     window.dispatchEvent(new Event("blur"));
@@ -63,6 +76,6 @@ describe("PortConnectionLayer cancellation", () => {
 
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onDrop).not.toHaveBeenCalled();
-    graph.detach();
+    dispose();
   });
 });

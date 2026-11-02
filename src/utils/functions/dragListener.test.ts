@@ -1,4 +1,5 @@
 import { Graph } from "../../graph";
+import { Emitter } from "../Emitter";
 import { EVENTS } from "../types/events";
 
 import { dragListener, stopDragListening } from "./dragListener";
@@ -14,7 +15,7 @@ function mouse(type: string, x: number, y: number): MouseEvent {
   return new MouseEvent(type, { clientX: x, clientY: y, bubbles: true });
 }
 
-function listen(options?: Parameters<typeof dragListener>[1]) {
+function listen(options?: Parameters<typeof dragListener>[1]): { emitter: Emitter; listeners: TDragListeners } {
   const listeners: TDragListeners = {
     start: jest.fn(),
     update: jest.fn(),

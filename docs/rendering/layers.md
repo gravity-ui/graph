@@ -70,6 +70,7 @@ For complete React integration documentation, see [React Components API](../reac
 interface GraphEventsDefinitions {
   "block-add-start-from-shadow": (event: CustomEvent<{ block: Block }>) => void;
   "block-added-from-shadow": (event: CustomEvent<{ block: Block; coord: {x: number, y: number} }>) => void;
+  "block-add-cancel-from-shadow": (event: CustomEvent<{ blocks: Block[] }>) => void;
 }
 ```
 

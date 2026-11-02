@@ -540,7 +540,7 @@ type DragOperationCallbacks = {
   onEnd?: (event: MouseEvent, coords: [number, number]) => void;
   // Called instead of onEnd when the drag is cancelled (blur, hidden page, new press,
   // stopDragListening() on the returned emitter). Receives the last event and coordinates.
-  // Defaults to onEnd.
+  // Defaults to onEnd, so pass it for operations that must not commit on cancel.
   onCancel?: (event: MouseEvent, coords: [number, number]) => void;
 };
 

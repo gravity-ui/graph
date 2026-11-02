@@ -272,48 +272,61 @@ export class DragService {
    * Handle drag end from dragListener
    */
   private handleDragEnd = (event: MouseEvent): void => {
-    if (this.startCoords && this.prevCoords) {
-      const currentCoords = this.getWorldCoords(event);
+    try {
+      if (this.startCoords && this.prevCoords) {
+        const currentCoords = this.getWorldCoords(event);
 
-      const context: DragContext = {
-        sourceEvent: event,
-        startCoords: this.startCoords,
-        prevCoords: this.prevCoords,
-        currentCoords,
-        components: this.dragComponents,
-      };
+        const context: DragContext = {
+          sourceEvent: event,
+          startCoords: this.startCoords,
+          prevCoords: this.prevCoords,
+          currentCoords,
+          components: this.dragComponents,
+        };
 
-      // Notify all components about drag end
-      this.dragComponents.forEach((component) => {
-        component.handleDragEnd(context);
-      });
+        // Notify all components about drag end
+        this.dragComponents.forEach((component) => {
+          component.handleDragEnd(context);
+        });
+      }
+    } finally {
+      this.finishDrag();
     }
-
-    this.graph.rootStore.blocksList.flushBatchedBlocksGeometryEmit();
-    this.cleanup();
   };
 
   /**
    * Handle drag cancel from dragListener. The last coordinates that participants got stand in for the release point.
    */
   private handleDragCancel = (event: MouseEvent): void => {
-    if (this.startCoords && this.prevCoords) {
-      const context: DragContext = {
-        sourceEvent: event,
-        startCoords: this.startCoords,
-        prevCoords: this.prevCoords,
-        currentCoords: this.prevCoords,
-        components: this.dragComponents,
-      };
+    try {
+      if (this.startCoords && this.prevCoords) {
+        const context: DragContext = {
+          sourceEvent: event,
+          startCoords: this.startCoords,
+          prevCoords: this.prevCoords,
+          currentCoords: this.prevCoords,
+          components: this.dragComponents,
+        };
 
-      this.dragComponents.forEach((component) => {
-        component.handleDragCancel(context);
-      });
+        this.dragComponents.forEach((component) => {
+          component.handleDragCancel(context);
+        });
+      }
+    } finally {
+      this.finishDrag();
     }
-
-    this.graph.rootStore.blocksList.flushBatchedBlocksGeometryEmit();
-    this.cleanup();
   };
+
+  /**
+   * Emits the last batched block geometry and resets the service, even if a participant hook has thrown
+   */
+  private finishDrag(): void {
+    try {
+      this.graph.rootStore.blocksList.flushBatchedBlocksGeometryEmit();
+    } finally {
+      this.cleanup();
+    }
+  }
 
   /**
    * Convert screen coordinates to world coordinates
