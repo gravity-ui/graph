@@ -284,14 +284,17 @@ export class BaseConnection<
   }
 
   /**
-   * Updates the hit box for user interaction
-   * Adds threshold padding around the connection line to make it easier to click
+   * Updates the hit box for user interaction from getHitBoxRect().
+   * Adds threshold padding around the connection line to make it easier to click.
+   *
+   * Called by updatePoints(). Call it directly when an overridden getHitBoxRect() depends on something
+   * other than the points, e.g. a margin in screen pixels that changes with the camera scale.
    *
    * @returns {void}
    */
-  private updateHitBox = (): void => {
+  protected updateHitBox(): void {
     const { x, y, width, height } = this.getHitBoxRect();
     const threshold = this.context.constants.connection.THRESHOLD_LINE_HIT;
     this.setHitBox(x - threshold, y - threshold, x + width + threshold, y + height + threshold);
-  };
+  }
 }

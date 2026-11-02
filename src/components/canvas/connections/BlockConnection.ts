@@ -121,7 +121,7 @@ export class BlockConnection<T extends TConnection>
   }
 
   public styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
-    ctx.lineWidth = this.state.hovered || this.state.selected ? 4 : 2;
+    ctx.lineWidth = this.getStrokeWidth(this.state);
     const strokeColor = this.getStrokeColor(this.state);
     if (strokeColor) {
       ctx.strokeStyle = strokeColor;
@@ -172,8 +172,19 @@ export class BlockConnection<T extends TConnection>
     return { type: "stroke" };
   }
 
+  /**
+   * Returns the stroke width of the connection line and arrow, in world units.
+   * Override to change the width, or read it to size things around the stroke (pick tolerance, a background).
+   *
+   * @param state - The connection state to resolve the width for
+   * @returns 4 for a hovered or selected connection, 2 otherwise
+   */
+  public getStrokeWidth(state: TBaseConnectionState = this.state): number {
+    return state.hovered || state.selected ? 4 : 2;
+  }
+
   protected setRenderStyles(ctx: CanvasRenderingContext2D, state = this.state, withDashed = true) {
-    ctx.lineWidth = state.hovered || state.selected ? 4 : 2;
+    ctx.lineWidth = this.getStrokeWidth(state);
 
     const strokeColor = this.getStrokeColor(state);
 
@@ -312,6 +323,15 @@ export class BlockConnection<T extends TConnection>
     return false;
   }
 
+  /**
+   * Returns the segment the label is placed along, in world coordinates.
+   * Defaults to the straight line between the source and target ports.
+   * Override for a connection that draws its own route, to place the label on one of its segments.
+   */
+  protected getLabelSegment(): { x1: number; y1: number; x2: number; y2: number } {
+    return this.geometry;
+  }
+
   protected renderLabelText(ctx: CanvasRenderingContext2D) {
     if (!this.isVisible() || !this.state.label) {
       return;
@@ -330,11 +350,12 @@ export class BlockConnection<T extends TConnection>
       return;
     }
 
+    const segment = this.getLabelSegment();
     const { x, y } = getLabelCoords(
-      this.geometry.x1,
-      this.geometry.y1,
-      this.geometry.x2,
-      this.geometry.y2,
+      segment.x1,
+      segment.y1,
+      segment.x2,
+      segment.y2,
       measure.width + labelInnerLeftPadding + labelInnerRightPadding,
       measure.height + labelInnerTopPadding + labelInnerBottomPadding,
       this.context.constants.system.GRID_SIZE
