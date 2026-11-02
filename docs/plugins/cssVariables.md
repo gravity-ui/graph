@@ -124,6 +124,8 @@ graph.addLayer(CSSVariablesLayer, {
 
 Custom variables are included in initial reads and subsequent change notifications. They do not update graph colors or constants. Replacing `additionalCSSVariables` updates the observed names.
 
+When a supported variable stops being defined — for example, after `containerClass` switches to a theme that does not set it — the layer restores the graph value it had before the layer was attached, and `onChange` reports the variable with an empty `value`.
+
 ## Supported CSS Variables
 
 The layer supports the following CSS variables, automatically mapped to graph properties:

@@ -95,4 +95,86 @@ describe("CSSVariablesLayer additional variables", () => {
     layer.iterate();
     expect(MockStyleObserver.mock.calls[2][1].properties).toEqual([...SUPPORTED_CSS_VARIABLES]);
   });
+
+  it("keeps the observer when additionalCSSVariables is replaced with an equal array", () => {
+    layer.attachLayer(root);
+    layer.iterate();
+    onChange.mockClear();
+
+    layer.setProps({ additionalCSSVariables: ["--custom-highlight"] });
+    layer.iterate();
+
+    expect(MockStyleObserver).toHaveBeenCalledTimes(1);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("CSSVariablesLayer removed variables", () => {
+  let graph: Graph;
+  let layer: CSSVariablesLayer;
+  let root: HTMLDivElement;
+  let style: HTMLStyleElement;
+  let defaultBackground: string;
+  let defaultHeadHeight: number;
+  const onChange = jest.fn();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    graph = new Graph({});
+    defaultBackground = graph.graphColors.block.background;
+    defaultHeadHeight = graph.graphConstants.block.HEAD_HEIGHT;
+    root = document.createElement("div");
+    style = document.createElement("style");
+    style.textContent = `
+      .theme-a { --graph-block-background: red; --graph-block-head-height: 99; }
+      .theme-b { --graph-block-border: blue; }
+    `;
+    document.head.appendChild(style);
+    document.body.appendChild(root);
+    layer = new CSSVariablesLayer({ graph, camera: graph.cameraService, containerClass: "theme-a", onChange });
+    layer.attachLayer(root);
+    layer.iterate();
+  });
+
+  afterEach(() => {
+    Component.unmount(layer);
+    root.remove();
+    style.remove();
+  });
+
+  it("restores graph values for variables the new container class does not define", () => {
+    expect(graph.graphColors.block.background).toBe("red");
+    expect(graph.graphConstants.block.HEAD_HEIGHT).toBe(99);
+    onChange.mockClear();
+
+    layer.setProps({ containerClass: "theme-b" });
+    layer.iterate();
+
+    expect(graph.graphColors.block.background).toBe(defaultBackground);
+    expect(graph.graphColors.block.border).toBe("blue");
+    expect(graph.graphConstants.block.HEAD_HEIGHT).toBe(defaultHeadHeight);
+    expect(onChange).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { name: "--graph-block-background", value: "", oldValue: "red" },
+        { name: "--graph-block-head-height", value: "", oldValue: "99" },
+        { name: "--graph-block-border", value: "blue", oldValue: "" },
+      ])
+    );
+  });
+
+  it("restores graph values when an observed variable is removed", () => {
+    const notifyChanges = MockStyleObserver.mock.calls[0][0];
+    notifyChanges([
+      { property: "--graph-block-background", value: "", oldValue: "red" },
+      { property: "--graph-block-head-height", value: "", oldValue: "99" },
+    ] as Parameters<typeof notifyChanges>[0]);
+    // A second notification before the next frame must not re-apply the removed values
+    notifyChanges([{ property: "--graph-block-border", value: "blue", oldValue: "" }] as Parameters<
+      typeof notifyChanges
+    >[0]);
+
+    expect(graph.graphColors.block.background).toBe(defaultBackground);
+    expect(graph.graphColors.block.border).toBe("blue");
+    expect(graph.graphConstants.block.HEAD_HEIGHT).toBe(defaultHeadHeight);
+  });
 });

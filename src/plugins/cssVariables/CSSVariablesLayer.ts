@@ -1,12 +1,18 @@
 /* eslint-disable no-console */
+import cloneDeep from "lodash/cloneDeep";
+import get from "lodash/get";
 import isEqual from "lodash/isEqual";
 import merge from "lodash/merge";
+import set from "lodash/set";
 import StyleObserver from "style-observer";
 
+import type { TGraphColors, TGraphConstants } from "../../graphConfig";
 import { Layer, LayerContext } from "../../services/Layer";
+import type { RecursivePartial } from "../../utils/types/helpers";
 
-import { DEFAULT_CSS_VARIABLES_LAYER_PROPS, SUPPORTED_CSS_VARIABLES } from "./constants";
+import { CSS_VARIABLE_MAPPINGS, DEFAULT_CSS_VARIABLES_LAYER_PROPS, SUPPORTED_CSS_VARIABLES } from "./constants";
 import { mapCSSChangesToGraphColors, mapCSSChangesToGraphConstants } from "./mapping";
+import { CSSVariableType } from "./types";
 import type { CSSVariableChange, CSSVariablesLayerProps, CSSVariablesLayerState } from "./types";
 
 /**
@@ -26,6 +32,10 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
   private containerElement: HTMLDivElement | null = null;
   private styleObserver: StyleObserver | null = null;
   private observerNeedsRestart = false;
+  /** Last known value of each observed variable, used to detect variables that disappear */
+  private observedValues = new Map<string, string>();
+  /** Graph colors and constants before this layer applied CSS values, restored for removed variables */
+  private graphDefaults: { colors: TGraphColors; constants: TGraphConstants } | null = null;
 
   constructor(props: CSSVariablesLayerProps) {
     const finalProps = { ...DEFAULT_CSS_VARIABLES_LAYER_PROPS, ...props };
@@ -59,6 +69,12 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
   }
 
   protected afterInit(): void {
+    if (!this.graphDefaults) {
+      this.graphDefaults = {
+        colors: cloneDeep(this.props.graph.graphColors),
+        constants: cloneDeep(this.props.graph.graphConstants),
+      };
+    }
     this.createContainerElement();
     this.readInitialCSSVariables();
     this.startObserving();
@@ -154,17 +170,21 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
     try {
       const computedStyle = window.getComputedStyle(this.containerElement);
       const changes: CSSVariableChange[] = [];
+      const previousValues = this.observedValues;
+      this.observedValues = new Map();
 
-      // Read all observed CSS variables
+      // Read all observed CSS variables and report the ones that differ from the last known values,
+      // including variables a new container class no longer defines (reported with an empty value)
       for (const cssVariable of this.getObservedCSSVariables()) {
         const value = computedStyle.getPropertyValue(cssVariable).trim();
+        const oldValue = previousValues.get(cssVariable) ?? "";
 
-        // Only include variables that have non-empty values
-        if (value) {
+        this.observedValues.set(cssVariable, value);
+        if (value !== oldValue) {
           changes.push({
             name: cssVariable,
             value,
-            oldValue: "",
+            oldValue,
           });
         }
       }
@@ -242,6 +262,10 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
       return;
     }
 
+    for (const change of supportedChanges) {
+      this.observedValues.set(change.name, change.value.trim());
+    }
+
     if (this.props.debug) {
       console.log("CSSVariablesLayer: CSS variable changes detected:", supportedChanges);
     }
@@ -260,16 +284,22 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
    */
   private applyChangesToGraph(changes: CSSVariableChange[]): void {
     try {
+      const definedChanges = changes.filter((change) => change.value.trim() !== "");
+      const removedChanges = changes.filter((change) => change.value.trim() === "");
+      const defaults = this.getGraphDefaults(removedChanges);
+
       // Map changes to graph colors
-      const colorChanges = mapCSSChangesToGraphColors(changes);
-      const constantChanges = mapCSSChangesToGraphConstants(changes);
+      const colorChanges = merge(mapCSSChangesToGraphColors(definedChanges), defaults.colors);
+      const constantChanges = merge(mapCSSChangesToGraphConstants(definedChanges), defaults.constants);
 
       if (Object.keys(colorChanges).length === 0 && Object.keys(constantChanges).length === 0) {
         return;
       }
 
-      const colors = merge({}, this.state.colors, colorChanges);
-      const constants = merge({}, this.state.constants, constantChanges);
+      // getState() includes values applied earlier in this frame that are not committed yet
+      const state = this.getState();
+      const colors = merge({}, state.colors, colorChanges);
+      const constants = merge({}, state.constants, constantChanges);
 
       this.setState({ colors, constants });
 
@@ -285,5 +315,31 @@ export class CSSVariablesLayer extends Layer<CSSVariablesLayerProps, LayerContex
     } catch (error) {
       console.error("CSSVariablesLayer: Failed to apply changes to graph:", error);
     }
+  }
+
+  /**
+   * Picks the graph values that removed CSS variables had overridden
+   */
+  private getGraphDefaults(removedChanges: CSSVariableChange[]): {
+    colors: RecursivePartial<TGraphColors>;
+    constants: RecursivePartial<TGraphConstants>;
+  } {
+    const colors: RecursivePartial<TGraphColors> = {};
+    const constants: RecursivePartial<TGraphConstants> = {};
+
+    for (const change of removedChanges) {
+      const mapping = CSS_VARIABLE_MAPPINGS.find((m) => m.cssVariable === change.name);
+      if (!mapping || !this.graphDefaults) {
+        continue;
+      }
+
+      if (mapping.typeConverter === CSSVariableType.COLOR) {
+        set(colors, mapping.graphPath, get(this.graphDefaults.colors, mapping.graphPath));
+      } else {
+        set(constants, mapping.graphPath, get(this.graphDefaults.constants, mapping.graphPath));
+      }
+    }
+
+    return { colors, constants };
   }
 }
