@@ -1,7 +1,9 @@
 import { computed, signal } from "@preact/signals-core";
+import type { ReadonlySignal } from "@preact/signals-core";
 
 import { Component } from "../../../lib";
 import { TPoint } from "../../../utils/types/shapes";
+import type { ConnectionState } from "../ConnectionState";
 
 export const IS_PORT_TYPE = "Port" as const;
 
@@ -62,6 +64,34 @@ export class PortState<T = unknown> {
    * Stores actual object references to ensure accurate counting and prevent duplicates.
    */
   public observers = new Set<unknown>();
+
+  /**
+   * Connections of the port, mutated in place so that attaching and detaching cost O(1)
+   * even for a port with thousands of connections. Readers get a snapshot via `$connections`.
+   */
+  private readonly connections = new Set<ConnectionState>();
+
+  private readonly connectionsVersion = signal(0);
+
+  /**
+   * Connections whose source or target resolves to this port.
+   *
+   * Maintained by `ConnectionState`: updated when a connection is added, retargeted or deleted,
+   * including while the port has no owner yet. Every change publishes a new set; the snapshot is
+   * built when the signal is read, once per change.
+   * Unlike `observers`, it lists only connections and is not used for reference counting.
+   *
+   * @example
+   * ```ts
+   * const hasSelectedConnection = computed(() =>
+   *   [...port.$connections.value].some((connection) => connection.$selected.value)
+   * );
+   * ```
+   */
+  public readonly $connections: ReadonlySignal<ReadonlySet<ConnectionState>> = computed(() =>
+    // The set is mutated in place: depend on its version to build a new snapshot after each change.
+    this.snapshotConnections(this.connectionsVersion.value)
+  );
 
   /**
    * Get the port's unique identifier
@@ -167,6 +197,35 @@ export class PortState<T = unknown> {
    */
   public removeObserver(observer: unknown): void {
     this.observers.delete(observer);
+  }
+
+  /**
+   * Add a connection that ends on this port to {@link PortState.$connections}.
+   * Called by `ConnectionState`; application code should not call it.
+   * @param connection Connection whose source or target is this port
+   */
+  public attachConnection(connection: ConnectionState): void {
+    if (this.connections.has(connection)) {
+      return;
+    }
+    this.connections.add(connection);
+    this.connectionsVersion.value = this.connectionsVersion.peek() + 1;
+  }
+
+  /**
+   * Remove a connection from {@link PortState.$connections}.
+   * Called by `ConnectionState`; application code should not call it.
+   * @param connection Connection that no longer ends on this port
+   */
+  public detachConnection(connection: ConnectionState): void {
+    if (!this.connections.delete(connection)) {
+      return;
+    }
+    this.connectionsVersion.value = this.connectionsVersion.peek() + 1;
+  }
+
+  private snapshotConnections(_version: number): ReadonlySet<ConnectionState> {
+    return new Set(this.connections);
   }
 
   /**

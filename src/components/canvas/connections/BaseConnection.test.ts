@@ -75,10 +75,8 @@ describe("BaseConnection port observers", () => {
     const { store, state, view } = setup();
 
     state.updateConnection({ targetPortId: "t2" });
-    // The connection state's own observation of the old port is not the view's concern;
-    // release it so that only the view could still be holding the port.
-    store.unobservePort("t", state);
 
+    // The connection state releases the old port itself; the view must not keep it alive either.
     expect(store.hasPort("t")).toBe(false);
 
     Component.unmount(view);
@@ -98,8 +96,8 @@ describe("BaseConnection port observers", () => {
 
   it("releases the ports it observes on unmount and deletes the ownerless ones", () => {
     const { store, state, view } = setup();
-    state.updateConnection({ targetPortId: "t2" });
     const oldPort = getPort(store, "t");
+    state.updateConnection({ targetPortId: "t2" });
     const newPort = getPort(store, "t2");
 
     store.deleteConnections([state]);
@@ -107,6 +105,7 @@ describe("BaseConnection port observers", () => {
 
     expect(newPort.observers.has(view)).toBe(false);
     expect(oldPort.observers.has(view)).toBe(false);
+    expect(store.hasPort("t")).toBe(false);
     expect(store.hasPort("s")).toBe(false);
     expect(store.hasPort("t2")).toBe(false);
   });

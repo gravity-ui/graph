@@ -108,6 +108,35 @@ if (graph.rootStore.connectionsList.hasPort("block-1_output")) {
 
 **Ownership Model**: Components that own ports (blocks, anchors) are responsible for updating port coordinates. Components that observe ports (connections) read coordinates for rendering but don't control them. Ports are automatically cleaned up when they have no owner and no observers.
 
+### Connections of a Port
+
+`port.$connections` is a signal with the set of connections (`ConnectionState`) whose source or target is that port. Use it when a component on a port (an anchor, a block point, a custom port) needs to react to its connections, for example to highlight both endpoints of a selected connection:
+
+```typescript
+import { computed } from "@preact/signals-core";
+import { createAnchorPortId } from "@gravity-ui/graph";
+
+const port = graph.rootStore.connectionsList.getPort(createAnchorPortId("block-1", "out"));
+
+const hasSelectedConnection = computed(() =>
+  [...(port?.$connections.value ?? [])].some((connection) => connection.$selected.value)
+);
+```
+
+Inside an `Anchor` or `Block` subclass use the component's own port (`this.props.port`, `this.getInputPort()`, `this.getOutputPort()`). The check costs O(port degree), and the computed is notified only when this port's connections or their selection change.
+
+The set is kept up to date by the connection itself:
+
+- a connection resolves its source and target ports as soon as it is added, so the set is filled before anything is rendered; a port that has no owner yet (a lazily created port) lists its connections too, and keeps them when a block or anchor claims it;
+- when a connection is retargeted (its `sourcePortId`/`targetPortId`, block or anchor changes), it moves from the old port to the new one;
+- when a connection is deleted (`deleteConnections`, `deleteSelectedConnections`, or dropped by `setConnections`), it leaves both ports.
+
+Changes are applied right away, also inside `batch()`, and store operations such as `setConnections` notify each port once. Every change publishes a new set, so keep a read set as a snapshot. Removing a port by force with `connectionsList.deletePorts()` does not move its connections to a port created later with the same id: they keep the removed port until that endpoint is retargeted, so delete or retarget them first.
+
+`port.observers` is a different thing: it is reference counting that decides when a port can be deleted, and it may contain any objects. Use `$connections` to get the connections of a port.
+
+See the `Api/PortConnections` story for a complete canvas and React example.
+
 ### Port Delegation
 
 While delegated, a port mirrors another port’s position; `setPoint()` on the owner is stored and applied again on `undelegate()`. `CollapsibleGroup` uses this so connections attach to group edge ports when collapsed.

@@ -1,4 +1,4 @@
-import { computed, signal } from "@preact/signals-core";
+import { batch, computed, signal } from "@preact/signals-core";
 
 import { BaseConnection } from "../../components/canvas/connections";
 import { Graph } from "../../graph";
@@ -160,28 +160,52 @@ export class ConnectionsStore {
     }
   }
 
+  /**
+   * Remove ports from the store regardless of their owner and connections.
+   * Connections that still use a removed port keep that `PortState` and are not moved to a port
+   * created later with the same id. Delete or retarget such connections first.
+   * @param ports Port identifiers
+   */
   public deletePorts(ports: TPortId[]) {
     this.ports.deletePorts(ports);
   }
 
   public updateConnections(connections: TConnection[]): void {
     if (!connections.length) return;
-    // Mutate sequentially so getOrCreateConnection sees earlier entries of this batch (duplicate ids),
-    // then publish a new Map reference: reassigning the same Map would not notify subscribers.
-    connections.forEach((connection) => {
-      const c = this.getOrCreateConnection(connection);
-      this.$connectionsMap.value.set(c.id, c);
+    // Batched so port subscribers run once, after the new connections are in the map.
+    batch(() => {
+      // Mutate sequentially so getOrCreateConnection sees earlier entries of this batch (duplicate ids),
+      // then publish a new Map reference: reassigning the same Map would not notify subscribers.
+      connections.forEach((connection) => {
+        const c = this.getOrCreateConnection(connection);
+        this.$connectionsMap.value.set(c.id, c);
+      });
+      this.notifyConnectionMapChanged();
     });
-    this.notifyConnectionMapChanged();
   }
 
   public setConnections(connections: TConnection[]) {
-    this.$connectionsMap.value = new Map(
-      connections.map((connection) => {
+    // Batched so port subscribers run once and see the new map together with the new ports.
+    batch(() => {
+      const previous = this.$connectionsMap.value;
+      const next = new Map<TConnectionId, ConnectionState>();
+      connections.forEach((connection) => {
         const c = this.getOrCreateConnection(connection);
-        return [c.id, c];
-      })
-    );
+        // The same id twice in one list: the last entry wins, the replaced state must release its ports.
+        const duplicate = next.get(c.id);
+        if (duplicate && duplicate !== c) {
+          duplicate.destroy();
+        }
+        next.set(c.id, c);
+      });
+      // Connections that are not in the new list release their ports.
+      previous.forEach((c, id) => {
+        if (next.get(id) !== c) {
+          c.destroy();
+        }
+      });
+      this.$connectionsMap.value = next;
+    });
   }
 
   protected getOrCreateConnection(connections: TConnection) {
@@ -195,10 +219,20 @@ export class ConnectionsStore {
   }
 
   public addConnection(connection: TConnection): TConnectionId {
-    const newConnection = new ConnectionState(this, connection, this.connectionSelectionBucket);
-    this.$connectionsMap.value.set(newConnection.id, newConnection);
-    this.notifyConnectionMapChanged();
-    return newConnection.id;
+    // An existing id gets the new data in place: a second state would stay attached to the ports
+    // and the view of this id would keep the old one.
+    return batch(() => {
+      const existing = this.getConnectionState(ConnectionState.getConnectionId(connection));
+      if (existing) {
+        existing.replaceConnection(connection);
+        this.notifyConnectionMapChanged();
+        return existing.id;
+      }
+      const c = new ConnectionState(this, connection, this.connectionSelectionBucket);
+      this.$connectionsMap.value.set(c.id, c);
+      this.notifyConnectionMapChanged();
+      return c.id;
+    });
   }
 
   protected notifyConnectionMapChanged() {
@@ -206,21 +240,25 @@ export class ConnectionsStore {
   }
 
   public deleteConnections(connections: ConnectionState[]) {
-    connections.forEach((c) => {
-      c.destroy(); // Clean up port observers
-      this.$connectionsMap.value.delete(c.id);
+    batch(() => {
+      connections.forEach((c) => {
+        c.destroy(); // Detach from ports, stop observing them
+        this.$connectionsMap.value.delete(c.id);
+      });
+      this.notifyConnectionMapChanged();
     });
-    this.notifyConnectionMapChanged();
   }
 
   public deleteSelectedConnections() {
-    this.$connections.value.forEach((c) => {
-      if (c.$selected.value) {
-        c.destroy(); // Clean up port observers
-        this.$connectionsMap.value.delete(c.id);
-      }
+    batch(() => {
+      this.$connections.value.forEach((c) => {
+        if (c.$selected.value) {
+          c.destroy(); // Detach from ports, stop observing them
+          this.$connectionsMap.value.delete(c.id);
+        }
+      });
+      this.notifyConnectionMapChanged();
     });
-    this.notifyConnectionMapChanged();
   }
 
   /**
@@ -275,12 +313,10 @@ export class ConnectionsStore {
   }
 
   public reset() {
-    // Clean up all connections first
-    this.$connections.value.forEach((c) => {
-      c.destroy();
+    batch(() => {
+      // Destroys every connection, so they detach from their ports before the ports are cleared
+      this.setConnections([]);
+      this.ports.reset();
     });
-
-    this.setConnections([]);
-    this.ports.reset();
   }
 }
