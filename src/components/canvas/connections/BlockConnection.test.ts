@@ -223,6 +223,24 @@ describe("BlockConnection extension points", () => {
     expect(recordHitTestLineWidth(view, view.canvasContext)).toEqual([25]);
   });
 
+  it("pads the hit box by half of the default hit tolerance", () => {
+    const graph = createGraph();
+    const view = new ThickConnection(props, createParent(graph));
+    view.refresh();
+
+    // The ports span [0, 0]–[400, 200]; the 40px stroke width does not matter
+    const padding = graph.graphConstants.connection.THRESHOLD_LINE_HIT;
+    expect(view.getHitBox()).toEqual([-padding, -padding, 400 + padding * 2, 200 + padding * 2]);
+  });
+
+  it("pads the hit box by half of the tolerance returned by getHitTolerance", () => {
+    const view = new TolerantConnection(props, createParent(createGraph()));
+    view.refresh();
+
+    // getHitTolerance() is 25, so the hit box covers every point the stroke hit test can accept
+    expect(view.getHitBox()).toEqual([-12.5, -12.5, 425, 225]);
+  });
+
   it("hit-tests a multipoint connection with the tolerance returned by getHitTolerance", () => {
     const view = new TolerantMultipointConnection(props, createParent(createGraph()));
     view.updatePoints();

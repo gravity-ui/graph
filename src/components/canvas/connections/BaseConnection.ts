@@ -342,8 +342,26 @@ export class BaseConnection<
   }
 
   /**
+   * Returns the width of the band along the connection line that counts as a hit, in world units.
+   *
+   * The hit box extends getHitBoxRect() by half of it on each side, and BlockConnection hit-tests the stroke
+   * with it as the line width. Defaults to `THRESHOLD_LINE_HIT * 2` and does not depend on the stroke width
+   * or the hover state. Override for a stroke wider than that, e.g.
+   * `Math.max(super.getHitTolerance(), this.getStrokeWidth())`.
+   *
+   * @returns The hit band width in world units
+   */
+  protected getHitTolerance(): number {
+    return this.context.constants.connection.THRESHOLD_LINE_HIT * 2;
+  }
+
+  /**
    * Updates the hit box for user interaction from getHitBoxRect().
-   * Adds threshold padding around the connection line to make it easier to click.
+   *
+   * The hit box is the broad phase of hit testing: only components whose hit box contains the pointer reach
+   * onHitBox(). It is padded by half of getHitTolerance(), so it holds every point the stroke test accepts;
+   * without the padding a horizontal or vertical line (a box of zero height or width) could only be hit
+   * exactly on the line.
    *
    * Called by updatePoints(). Call it directly when an overridden getHitBoxRect() depends on something
    * other than the points, e.g. a margin in screen pixels that changes with the camera scale.
@@ -352,7 +370,7 @@ export class BaseConnection<
    */
   protected updateHitBox(): void {
     const { x, y, width, height } = this.getHitBoxRect();
-    const threshold = this.context.constants.connection.THRESHOLD_LINE_HIT;
-    this.setHitBox(x - threshold, y - threshold, x + width + threshold, y + height + threshold);
+    const padding = this.getHitTolerance() / 2;
+    this.setHitBox(x - padding, y - padding, x + width + padding, y + height + padding);
   }
 }
