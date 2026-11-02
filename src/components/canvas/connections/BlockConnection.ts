@@ -159,12 +159,16 @@ export class BlockConnection<T extends TConnection>
     return path2d;
   }
 
+  /**
+   * Returns the batch group key. Each batch chunk is styled by its first item,
+   * so the key holds everything style() depends on, including the stroke width.
+   */
   public getClassName(state = this.state) {
     const hovered = state.hovered ? "hovered" : "none";
     const selected = state.selected ? "selected" : "none";
     const stroke = this.getStrokeColor(state);
     const dash = state.dashed ? (state.styles?.dashes || [6, 4]).join(",") : "";
-    return `connection/${hovered}/${selected}/${stroke}/${dash}`;
+    return `connection/${hovered}/${selected}/${stroke}/${dash}/${this.getStrokeWidth(state)}`;
   }
 
   public style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
@@ -299,7 +303,9 @@ export class BlockConnection<T extends TConnection>
   public onHitBox(shape: HitBoxData): boolean {
     const THRESHOLD_LINE_HIT = this.context.constants.connection.THRESHOLD_LINE_HIT;
 
-    if (isPointInStroke(this.context.ctx, this.path2d, shape.x, shape.y, THRESHOLD_LINE_HIT * 2)) {
+    // A stroke wider than the default tolerance stays pickable across its whole width
+    const tolerance = Math.max(THRESHOLD_LINE_HIT * 2, this.getStrokeWidth());
+    if (isPointInStroke(this.context.ctx, this.path2d, shape.x, shape.y, tolerance)) {
       return true;
     }
 
@@ -378,12 +384,25 @@ export class BlockConnection<T extends TConnection>
     const rectWidth = measure.width + labelInnerLeftPadding + labelInnerRightPadding;
     const rectHeight = measure.height + labelInnerTopPadding + labelInnerBottomPadding;
 
+    const prevLabelGeometry = this.labelGeometry;
     this.labelGeometry = {
       x: rectX,
       y: rectY,
       width: rectWidth,
       height: rectHeight,
     };
+
+    // The label is part of the bounds (collectBBoxPoints), so it is only hoverable and clickable
+    // once the hit box covers its current rectangle
+    if (
+      !prevLabelGeometry ||
+      prevLabelGeometry.x !== rectX ||
+      prevLabelGeometry.y !== rectY ||
+      prevLabelGeometry.width !== rectWidth ||
+      prevLabelGeometry.height !== rectHeight
+    ) {
+      this.updateBounds();
+    }
 
     ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
 

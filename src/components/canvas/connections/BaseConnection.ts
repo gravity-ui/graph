@@ -286,6 +286,18 @@ export class BaseConnection<
       ];
     }
 
+    this.updateBounds(additionalPoints, props);
+  }
+
+  /**
+   * Recomputes the bounding box from collectBBoxPoints() and the additional points, then updates the hit box.
+   *
+   * Called by updatePoints(). Call it directly when something collectBBoxPoints() includes changes
+   * while the ports stay in place, e.g. the label rectangle.
+   *
+   * @returns {void}
+   */
+  protected updateBounds(additionalPoints?: TPoint[], props: Props = this.props): void {
     // Calculate bounding box from connection points, additional points, and subclass points
     const points = this.collectBBoxPoints(props);
 

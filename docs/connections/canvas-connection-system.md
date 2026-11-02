@@ -389,8 +389,9 @@ A connection that draws its own route (for example an orthogonal path through us
 | Hook | Default | Override or call it to |
 |------|---------|------------------------|
 | `getLabelSegment()` (protected) | `this.geometry`, the straight line between the ports | Place the label on a segment of your route |
-| `getStrokeWidth(state?)` | `4` when hovered or selected, `2` otherwise | Change the width of the line and arrow, or read it for a pick tolerance or a background under the stroke |
+| `getStrokeWidth(state?)` | `4` when hovered or selected, `2` otherwise | Change the width of the line and arrow, or read it for a pick tolerance or a background under the stroke. The width is part of the batch group key, and the stroke is hit-tested with at least this width |
 | `updateHitBox()` (protected) | Called by `updatePoints()` | Recompute the hit box when an overridden `getHitBoxRect()` depends on more than the points, e.g. a margin in screen pixels |
+| `updateBounds()` (protected) | Called by `updatePoints()` and when the label moves | Recompute the bounding box and hit box when something `collectBBoxPoints()` includes changes while the ports stay in place |
 
 In `onHitBox(shape)`, `shape.minX`..`shape.maxX` / `shape.minY`..`shape.maxY` are world coordinates, while `shape.x` / `shape.y` are canvas device pixels for `ctx.isPointInStroke()`. Compare geometry with the world box:
 

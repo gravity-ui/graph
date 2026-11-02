@@ -16,12 +16,15 @@ const props: TConnectionProps = {
 
 type TSegment = { x1: number; y1: number; x2: number; y2: number };
 
-function createGraph(): Graph {
-  const graph = new Graph({ connections: [{ id: "c", sourcePortId: "s", targetPortId: "t", label: "Label" }] });
+function createGraph(target: { x: number; y: number } = { x: 400, y: 200 }): Graph {
+  const graph = new Graph(
+    { connections: [{ id: "c", sourcePortId: "s", targetPortId: "t", label: "Label" }] },
+    document.createElement("div")
+  );
   const state = graph.connections.getConnectionState("c");
   if (!state) throw new Error("Expected connection");
   state.$sourcePortState.value.updatePort({ x: 0, y: 0, lookup: false });
-  state.$targetPortState.value.updatePort({ x: 400, y: 200, lookup: false });
+  state.$targetPortState.value.updatePort({ ...target, lookup: false });
   return graph;
 }
 
@@ -41,8 +44,24 @@ class WideConnection extends BlockConnection<TConnection> {
   }
 }
 
-class RoutedConnection extends BlockConnection<TConnection> {
-  public segment: TSegment = { x1: 1000, y1: 1000, x2: 1200, y2: 1100 };
+class ThickConnection extends BlockConnection<TConnection> {
+  public get canvasContext(): CanvasRenderingContext2D {
+    return this.context.ctx;
+  }
+
+  public refresh(): void {
+    this.updatePoints();
+  }
+
+  public override getStrokeWidth(): number {
+    return 40;
+  }
+}
+
+class LabelledConnection extends BlockConnection<TConnection> {
+  public refresh(): void {
+    this.updatePoints();
+  }
 
   public renderLabel(ctx: CanvasRenderingContext2D): void {
     // Apply the pending state (with the label) as the scheduler does before rendering
@@ -54,13 +73,40 @@ class RoutedConnection extends BlockConnection<TConnection> {
     return this.labelGeometry;
   }
 
-  protected override getLabelSegment(): TSegment {
-    return this.segment;
-  }
-
   protected override isVisible(): boolean {
     return true;
   }
+}
+
+class RoutedConnection extends LabelledConnection {
+  public segment: TSegment = { x1: 1000, y1: 1000, x2: 1200, y2: 1100 };
+
+  protected override getLabelSegment(): TSegment {
+    return this.segment;
+  }
+}
+
+function expectLabelInsideHitBox(view: LabelledConnection): void {
+  const label = view.label;
+  if (!label) throw new Error("Expected label geometry");
+  const [x, y, width, height] = view.getHitBox();
+  expect(label.x).toBeGreaterThanOrEqual(x);
+  expect(label.y).toBeGreaterThanOrEqual(y);
+  expect(label.x + label.width).toBeLessThanOrEqual(x + width);
+  expect(label.y + label.height).toBeLessThanOrEqual(y + height);
+}
+
+function recordHitTestLineWidth(
+  view: ThickConnection | BlockConnection<TConnection>,
+  ctx: CanvasRenderingContext2D
+): number[] {
+  const widths: number[] = [];
+  jest.spyOn(ctx, "isPointInStroke").mockImplementation(() => {
+    widths.push(ctx.lineWidth);
+    return false;
+  });
+  view.onHitBox({ minX: 0, minY: 0, maxX: 2, maxY: 2, x: 1, y: 1 });
+  return widths;
 }
 
 class PaddedConnection extends BlockConnection<TConnection> {
@@ -105,6 +151,50 @@ describe("BlockConnection extension points", () => {
     ctx.lineWidth = 1;
     view.styleArrow(ctx);
     expect(ctx.lineWidth).toBe(7);
+  });
+
+  it("puts connections with different stroke widths into different batch groups", () => {
+    const graph = createGraph();
+    const regular = new BlockConnection(props, createParent(graph));
+    const wide = new WideConnection(props, createParent(graph));
+
+    // Each batch chunk is styled by its first item, so the group key must include the width
+    expect(wide.getClassName()).not.toBe(regular.getClassName());
+  });
+
+  it("hit-tests the stroke with at least its width", () => {
+    const view = new ThickConnection(props, createParent(createGraph()));
+    view.refresh();
+
+    expect(recordHitTestLineWidth(view, view.canvasContext)).toEqual([40]);
+  });
+
+  it("keeps the default hit-test tolerance for thin strokes", () => {
+    const graph = createGraph();
+    const view = new ThickConnection(props, createParent(graph));
+    jest.spyOn(view, "getStrokeWidth").mockReturnValue(2);
+    view.refresh();
+
+    const tolerance = graph.graphConstants.connection.THRESHOLD_LINE_HIT * 2;
+    expect(recordHitTestLineWidth(view, view.canvasContext)).toEqual([tolerance]);
+  });
+
+  it("keeps the label of a horizontal connection inside the hit box", () => {
+    const view = new LabelledConnection(props, createParent(createGraph({ x: 400, y: 0 })));
+    view.refresh();
+
+    view.renderLabel(createContext());
+
+    expectLabelInsideHitBox(view);
+  });
+
+  it("keeps a label placed off the route by getLabelSegment inside the hit box", () => {
+    const view = new RoutedConnection(props, createParent(createGraph()));
+    view.refresh();
+
+    view.renderLabel(createContext());
+
+    expectLabelInsideHitBox(view);
   });
 
   it("places the label on the segment returned by getLabelSegment", () => {
