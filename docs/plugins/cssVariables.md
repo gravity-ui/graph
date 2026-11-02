@@ -106,10 +106,25 @@ The layer accepts the following options (extending base `LayerProps`), with defa
 | Prop                       | Type                                          | Default                        | Description                                                                 |
 | :------------------------- | :-------------------------------------------- | :----------------------------- | :-------------------------------------------------------------------------- |
 | `containerClass`           | `string`                                      | **(required)**                 | CSS class name applied to the invisible container div. Used to observe CSS variables. |
+| `additionalCSSVariables`   | `string[]`                                    | `undefined`                    | Additional CSS variable names reported through `onChange`, without graph mappings. |
 | `onChange`                 | `(changes: CSSVariableChange[]) => void`      | `undefined`                    | Optional callback invoked when CSS variables change. Receives array of changes. |
 | `debug`                    | `boolean`                                     | `false`                        | Enables debug logging to console for CSS variable changes and layer operations. |
 
 *Note: Base `LayerProps` like `graph`, `camera`, `root`, `emitter` are provided automatically when using `graph.addLayer` or `useLayer`.*
+
+To observe custom variables, pass their names directly:
+
+```typescript
+graph.addLayer(CSSVariablesLayer, {
+  containerClass: "graph-theme",
+  additionalCSSVariables: ["--custom-highlight"],
+  onChange: (changes) => console.log(changes),
+});
+```
+
+Custom variables are included in initial reads and subsequent change notifications. They do not update graph colors or constants. Replacing `additionalCSSVariables` updates the observed names.
+
+When a supported variable stops being defined — for example, after `containerClass` switches to a theme that does not set it — the layer restores the graph value it had before the layer was attached, and `onChange` reports the variable with an empty `value`.
 
 ## Supported CSS Variables
 
