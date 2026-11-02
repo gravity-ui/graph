@@ -137,7 +137,8 @@ jobs:
       always() &&
       ((needs.release-candidate.result == 'success' && needs.release-candidate.outputs.pr != '') ||
       (needs.recover-release.result == 'success' && needs.recover-release.outputs.pr != ''))
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is Ubuntu 26.04, which Playwright supports only from 1.61.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       RELEASE_PLAN: ${{ needs.release-candidate.outputs.release_plan || needs.recover-release.outputs.release_plan }}
@@ -719,7 +720,8 @@ jobs:
 
   stable-dry-run:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'stable-dry-run'
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is Ubuntu 26.04, which Playwright supports only from 1.61.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       RELEASE_VERSION: ${{ inputs.stable-version }}
