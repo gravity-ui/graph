@@ -231,17 +231,9 @@ export class PortConnectionLayer extends Layer<
 
     this.portsUnsubscribe = this.onSignal(this.context.graph.rootStore.connectionsList.ports.$ports, checkPortsChanged);
 
-    this.context.graph.keyboardService.onPress(
-      "Escape",
-      () => {
-        if (this.currentListener) {
-          this.cancelNewConnection();
-        }
-      },
-      {
-        signal: this.eventAbortController.signal,
-      }
-    );
+    this.context.graph.keyboardService.onPress("Escape", () => this.cancelNewConnection(), {
+      signal: this.eventAbortController.signal,
+    });
 
     super.afterInit();
   }
@@ -307,6 +299,7 @@ export class PortConnectionLayer extends Layer<
         },
         onUpdate: (event, coords) => this.onMoveNewConnection(event, new Point(coords[0], coords[1])),
         onEnd: (_event, coords) => this.onEndNewConnection(new Point(coords[0], coords[1])),
+        onCancel: () => this.onCancelNewConnection(),
       },
       { cursor: "crosshair", initialEvent: initEvent }
     );
@@ -475,10 +468,23 @@ export class PortConnectionLayer extends Layer<
     }
   }
 
+  /**
+   * Cancels the connection being created, e.g. on Escape.
+   * Stops its drag; the drag then reports the cancellation through onCancel (see onCancelNewConnection).
+   * A press that has not started dragging yet is dropped without an event; after the drag ends it does nothing.
+   */
   protected cancelNewConnection(): void {
     if (this.currentListener) {
       stopDragListening(this.currentListener);
     }
+  }
+
+  /**
+   * Drops the connection preview after its drag was cancelled: cancelNewConnection(), window blur,
+   * the page becoming hidden, or a new press after a lost mouseup.
+   */
+  private onCancelNewConnection(): void {
+    this.currentListener = null;
     this.startState = null;
     this.endState = null;
     this.performRender();

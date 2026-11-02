@@ -35,6 +35,7 @@ classDiagram
         +handleDragStart()
         +handleDrag()
         +handleDragEnd()
+        +handleDragCancel()
         +subscribeSignal()
     }
 ```
