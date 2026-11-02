@@ -300,12 +300,19 @@ export class BlockConnection<T extends TConnection>
     }
   }
 
+  /**
+   * Returns the line width used to hit-test the stroke, in world units.
+   * Defaults to `THRESHOLD_LINE_HIT * 2` and does not depend on the stroke width or the hover state.
+   * Override for a stroke wider than that, e.g. `Math.max(super.getHitTolerance(), this.getStrokeWidth())`.
+   */
+  protected getHitTolerance(): number {
+    return this.context.constants.connection.THRESHOLD_LINE_HIT * 2;
+  }
+
   public onHitBox(shape: HitBoxData): boolean {
     const THRESHOLD_LINE_HIT = this.context.constants.connection.THRESHOLD_LINE_HIT;
 
-    // A stroke wider than the default tolerance stays pickable across its whole width
-    const tolerance = Math.max(THRESHOLD_LINE_HIT * 2, this.getStrokeWidth());
-    if (isPointInStroke(this.context.ctx, this.path2d, shape.x, shape.y, tolerance)) {
+    if (isPointInStroke(this.context.ctx, this.path2d, shape.x, shape.y, this.getHitTolerance())) {
       return true;
     }
 

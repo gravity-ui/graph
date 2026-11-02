@@ -4,6 +4,7 @@ import { TRect } from "../../../utils/types/shapes";
 
 import { BlockConnection, TConnectionProps } from "./BlockConnection";
 import { BlockConnections } from "./BlockConnections";
+import { MultipointConnection } from "./MultipointConnection";
 import { getLabelCoords } from "./labelHelper";
 
 const props: TConnectionProps = {
@@ -58,6 +59,37 @@ class ThickConnection extends BlockConnection<TConnection> {
   }
 }
 
+class TolerantConnection extends ThickConnection {
+  protected override getHitTolerance(): number {
+    return 25;
+  }
+}
+
+class TolerantMultipointConnection extends MultipointConnection {
+  public get canvasContext(): CanvasRenderingContext2D {
+    return this.context.ctx;
+  }
+
+  protected override getHitTolerance(): number {
+    return 25;
+  }
+}
+
+class HoverableConnection extends BlockConnection<TConnection> {
+  public get canvasContext(): CanvasRenderingContext2D {
+    return this.context.ctx;
+  }
+
+  public refresh(): void {
+    this.updatePoints();
+  }
+
+  public hover(hovered: boolean): void {
+    this.setState({ hovered });
+    this.checkData();
+  }
+}
+
 class LabelledConnection extends BlockConnection<TConnection> {
   public refresh(): void {
     this.updatePoints();
@@ -96,16 +128,14 @@ function expectLabelInsideHitBox(view: LabelledConnection): void {
   expect(label.y + label.height).toBeLessThanOrEqual(y + height);
 }
 
-function recordHitTestLineWidth(
-  view: ThickConnection | BlockConnection<TConnection>,
-  ctx: CanvasRenderingContext2D
-): number[] {
+function recordHitTestLineWidth(view: BlockConnection<TConnection>, ctx: CanvasRenderingContext2D): number[] {
   const widths: number[] = [];
-  jest.spyOn(ctx, "isPointInStroke").mockImplementation(() => {
+  const spy = jest.spyOn(ctx, "isPointInStroke").mockImplementation(() => {
     widths.push(ctx.lineWidth);
     return false;
   });
   view.onHitBox({ minX: 0, minY: 0, maxX: 2, maxY: 2, x: 1, y: 1 });
+  spy.mockRestore();
   return widths;
 }
 
@@ -162,21 +192,42 @@ describe("BlockConnection extension points", () => {
     expect(wide.getClassName()).not.toBe(regular.getClassName());
   });
 
-  it("hit-tests the stroke with at least its width", () => {
-    const view = new ThickConnection(props, createParent(createGraph()));
-    view.refresh();
-
-    expect(recordHitTestLineWidth(view, view.canvasContext)).toEqual([40]);
-  });
-
-  it("keeps the default hit-test tolerance for thin strokes", () => {
+  it("hit-tests a stroke wider than the tolerance with the default tolerance", () => {
     const graph = createGraph();
     const view = new ThickConnection(props, createParent(graph));
-    jest.spyOn(view, "getStrokeWidth").mockReturnValue(2);
     view.refresh();
 
     const tolerance = graph.graphConstants.connection.THRESHOLD_LINE_HIT * 2;
     expect(recordHitTestLineWidth(view, view.canvasContext)).toEqual([tolerance]);
+  });
+
+  it("keeps the hit-test tolerance when the connection is hovered", () => {
+    const graph = createGraph();
+    // A tolerance below the hovered stroke width (4)
+    graph.setConstants({ connection: { THRESHOLD_LINE_HIT: 1 } });
+    const view = new HoverableConnection(props, createParent(graph));
+    view.refresh();
+
+    const idle = recordHitTestLineWidth(view, view.canvasContext);
+    view.hover(true);
+    const hovered = recordHitTestLineWidth(view, view.canvasContext);
+
+    expect(idle).toEqual([2]);
+    expect(hovered).toEqual([2]);
+  });
+
+  it("hit-tests with the tolerance returned by getHitTolerance", () => {
+    const view = new TolerantConnection(props, createParent(createGraph()));
+    view.refresh();
+
+    expect(recordHitTestLineWidth(view, view.canvasContext)).toEqual([25]);
+  });
+
+  it("hit-tests a multipoint connection with the tolerance returned by getHitTolerance", () => {
+    const view = new TolerantMultipointConnection(props, createParent(createGraph()));
+    view.updatePoints();
+
+    expect(recordHitTestLineWidth(view, view.canvasContext)).toEqual([25]);
   });
 
   it("keeps the label of a horizontal connection inside the hit box", () => {

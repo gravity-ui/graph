@@ -79,7 +79,7 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
   public onHitBox(shape: HitBoxData): boolean {
     const THRESHOLD_LINE_HIT = this.context.constants.connection.THRESHOLD_LINE_HIT;
 
-    if (isPointInStroke(this.context.ctx, this.path2d, shape.x, shape.y, THRESHOLD_LINE_HIT * 2)) {
+    if (isPointInStroke(this.context.ctx, this.path2d, shape.x, shape.y, this.getHitTolerance())) {
       return true;
     }
 
