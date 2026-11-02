@@ -110,6 +110,19 @@ describe("ConnectionsStore.updateConnections", () => {
     dispose();
   });
 
+  it("treats numeric id 0 as a real id for duplicates in one batch", () => {
+    const graph = new Graph({ blocks });
+    const store = graph.rootStore.connectionsList;
+
+    store.updateConnections([
+      { id: 0, sourceBlockId: "a", targetBlockId: "b", label: "first" },
+      { id: 0, sourceBlockId: "a", targetBlockId: "b", label: "second" },
+    ]);
+
+    expect(Array.from(store.$connectionsMap.value.keys())).toEqual([0]);
+    expect(store.toJSON()).toEqual([expect.objectContaining({ id: 0, label: "second" })]);
+  });
+
   it("does not notify for an empty update", () => {
     const graph = new Graph({ blocks });
     const store = graph.rootStore.connectionsList;
