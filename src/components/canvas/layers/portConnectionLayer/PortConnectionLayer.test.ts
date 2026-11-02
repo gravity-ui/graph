@@ -17,9 +17,18 @@ function mouse(type: string, x: number, y: number): MouseEvent {
 type TSetup = {
   onCancel: jest.Mock;
   onDrop: jest.Mock;
+  /** Presses on the port without moving: the drag has not started yet */
+  press: () => void;
+  /** Presses on the port and moves, which starts the new connection */
   startConnection: () => void;
+  /** Calls the layer's protected cancelNewConnection(), as a subclass would */
+  cancel: () => void;
   dispose: () => void;
 };
+
+function pressEscape(): void {
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape" }));
+}
 
 function setup(): TSetup {
   const graph = new Graph({ settings: { dragThreshold: 0 } }, document.createElement("div"));
@@ -36,14 +45,22 @@ function setup(): TSetup {
   graph.on("port-connection-cancel", onCancel, { signal: events.signal });
   graph.on("port-connection-create-drop", onDrop, { signal: events.signal });
 
-  const startConnection = (): void => {
+  const press = (): void => {
     const sourceEvent = mouse("mousedown", 0, 0);
     document.dispatchEvent(sourceEvent);
     layer["handleMouseDown"](
       new CustomEvent("mousedown", { detail: { target: owner, sourceEvent } }) as GraphMouseEvent
     );
+  };
+
+  const startConnection = (): void => {
+    press();
     document.dispatchEvent(mouse("mousemove", 100, 100));
     document.dispatchEvent(mouse("mousemove", 200, 200));
+  };
+
+  const cancel = (): void => {
+    layer["cancelNewConnection"]();
   };
 
   const dispose = (): void => {
@@ -51,7 +68,7 @@ function setup(): TSetup {
     graph.detach();
   };
 
-  return { onCancel, onDrop, startConnection, dispose };
+  return { onCancel, onDrop, press, startConnection, cancel, dispose };
 }
 
 describe("PortConnectionLayer cancellation", () => {
@@ -59,7 +76,7 @@ describe("PortConnectionLayer cancellation", () => {
     const { onCancel, onDrop, startConnection, dispose } = setup();
 
     startConnection();
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape" }));
+    pressEscape();
     document.dispatchEvent(mouse("mouseup", 200, 200));
 
     expect(onCancel).toHaveBeenCalledTimes(1);
@@ -76,6 +93,42 @@ describe("PortConnectionLayer cancellation", () => {
 
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onDrop).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it("stops the drag and reports one cancellation when cancelNewConnection() is called", () => {
+    const { onCancel, onDrop, startConnection, cancel, dispose } = setup();
+
+    startConnection();
+    cancel();
+    document.dispatchEvent(mouse("mouseup", 200, 200));
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onDrop).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it("does not report a cancellation on Escape before the drag starts", () => {
+    const { onCancel, onDrop, press, dispose } = setup();
+
+    press();
+    pressEscape();
+    document.dispatchEvent(mouse("mouseup", 0, 0));
+
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(onDrop).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it("does not report a cancellation on Escape after the connection is dropped", () => {
+    const { onCancel, onDrop, startConnection, dispose } = setup();
+
+    startConnection();
+    document.dispatchEvent(mouse("mouseup", 200, 200));
+    pressEscape();
+
+    expect(onDrop).toHaveBeenCalledTimes(1);
+    expect(onCancel).not.toHaveBeenCalled();
     dispose();
   });
 });
