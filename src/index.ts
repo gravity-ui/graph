@@ -3,7 +3,7 @@ export { Block as CanvasBlock, type TBlock } from "./components/canvas/blocks/Bl
 export { GraphComponent } from "./components/canvas/GraphComponent";
 export * from "./components/canvas/connections";
 export * from "./graph";
-export type { TGraphColors, TGraphConstants, TMouseWheelBehavior } from "./graphConfig";
+export type { TGraphColors, TGraphConstants, TGridLayer, TMouseWheelBehavior } from "./graphConfig";
 export type {
   TResolveWheelIntent,
   TResolveWheelIntentOptions,
