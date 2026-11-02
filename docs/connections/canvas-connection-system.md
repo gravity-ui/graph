@@ -131,7 +131,7 @@ The set is kept up to date by the connection itself:
 - when a connection is retargeted (its `sourcePortId`/`targetPortId`, block or anchor changes), it moves from the old port to the new one;
 - when a connection is deleted (`deleteConnections`, `deleteSelectedConnections`, or dropped by `setConnections`), it leaves both ports.
 
-Changes are applied right away, also inside `batch()`, and store operations such as `setConnections` notify each port once. Every change publishes a new set, so keep a read set as a snapshot. Removing a port by force with `connectionsList.deletePorts()` does not move its connections to a port created later with the same id: delete or retarget those connections first.
+Changes are applied right away, also inside `batch()`, and store operations such as `setConnections` notify each port once. Every change publishes a new set, so keep a read set as a snapshot. Removing a port by force with `connectionsList.deletePorts()` does not move its connections to a port created later with the same id: they keep the removed port until that endpoint is retargeted, so delete or retarget them first.
 
 `port.observers` is a different thing: it is reference counting that decides when a port can be deleted, and it may contain any objects. Use `$connections` to get the connections of a port.
 

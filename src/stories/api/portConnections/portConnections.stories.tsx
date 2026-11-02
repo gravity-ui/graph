@@ -1,4 +1,4 @@
-import React, { useLayoutEffect } from "react";
+import React, { useEffect } from "react";
 
 import { Text, ThemeProvider } from "@gravity-ui/uikit";
 import { computed } from "@preact/signals-core";
@@ -215,7 +215,7 @@ const config: TGraphConfig = {
 const PortConnectionsDemo = () => {
   const { graph, setEntities, start } = useGraph(config);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     setEntities({ blocks, connections });
   }, [setEntities]);
 

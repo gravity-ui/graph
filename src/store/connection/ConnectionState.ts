@@ -224,8 +224,8 @@ export class ConnectionState<T extends TConnection = TConnection> {
 
   private syncPorts(sourcePortId: TPortId, targetPortId: TPortId): void {
     batch(() => {
-      const sourcePort = this.store.observePort(sourcePortId, this);
-      const targetPort = this.store.observePort(targetPortId, this);
+      const sourcePort = this.resolvePort(this.sourcePort.peek(), sourcePortId);
+      const targetPort = this.resolvePort(this.targetPort.peek(), targetPortId);
       const nextPorts = new Set([sourcePort, targetPort]);
 
       this.attachedPorts.forEach((port) => {
@@ -241,9 +241,26 @@ export class ConnectionState<T extends TConnection = TConnection> {
     });
   }
 
+  /**
+   * An endpoint keeps its resolved port while its id stays the same,
+   * even if that port was removed from the store by force.
+   */
+  private resolvePort(current: PortState | undefined, portId: TPortId): PortState {
+    if (current && current.id === portId) {
+      return current;
+    }
+    return this.store.observePort(portId, this);
+  }
+
   private releasePort(port: PortState): void {
     port.detachConnection(this);
-    this.store.unobservePort(port.id, this);
+    if (this.store.getPort(port.id) === port) {
+      // Also deletes the port when nothing owns or observes it anymore
+      this.store.unobservePort(port.id, this);
+    } else {
+      // The port was removed from the store by force: leave a port registered under the same id alone
+      port.removeObserver(this);
+    }
   }
 
   /**

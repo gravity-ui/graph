@@ -78,6 +78,19 @@ describe("ConnectionsStore keeps PortState.$connections in sync", () => {
     expect(store.getPort("custom")).toBeUndefined();
     expect(store.getConnection("x").label).toBeUndefined();
   });
+
+  it("notifies connection list subscribers when addConnection replaces a connection", () => {
+    store.addConnection({ id: "x", sourceBlockId: "a", targetBlockId: "b" });
+    let runs = 0;
+    const dispose = effect(() => {
+      runs += store.$connectionsMap.value.size > 0 ? 1 : 0;
+    });
+
+    store.addConnection({ id: "x", sourceBlockId: "a", targetBlockId: "c" });
+
+    expect(runs).toBe(2);
+    dispose();
+  });
 });
 
 describe("ConnectionsStore notifies port subscribers once per operation", () => {
@@ -102,6 +115,19 @@ describe("ConnectionsStore notifies port subscribers once per operation", () => 
     });
     return { runs: () => runs, unresolved, dispose };
   }
+
+  it("updateConnections", () => {
+    const watcher = watchPort(createBlockPointPortId("a", false));
+
+    store.updateConnections([
+      { id: "c2", sourceBlockId: "a", targetBlockId: "c" },
+      { id: "c3", sourceBlockId: "a", targetBlockId: "d" },
+    ]);
+
+    expect(watcher.runs()).toBe(2);
+    expect(watcher.unresolved).toEqual([]);
+    watcher.dispose();
+  });
 
   it("setConnections", () => {
     const watcher = watchPort(createBlockPointPortId("a", false));

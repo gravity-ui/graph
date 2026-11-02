@@ -215,6 +215,25 @@ describe("ConnectionState port relation", () => {
     expect(sourcePortIdInBatch).toBe(createBlockPointPortId("c", false));
     expect(sourceConnectionsInBatch).toEqual(["c1"]);
   });
+
+  it("keeps a force-deleted port and leaves a replacement with the same id alone", () => {
+    store.setConnections([{ id: "c1", sourcePortId: "p1", targetPortId: "p2" }]);
+    const state = store.getConnectionState("c1");
+    const removedPort = store.getPort("p1");
+    store.deletePorts(["p1"]);
+    const replacement = store.claimPort("p1", new PortOwner());
+
+    state.updateConnection({ label: "updated" });
+
+    expect(state.$sourcePortState.value).toBe(removedPort);
+    expect(replacement.$connections.value.size).toBe(0);
+
+    state.updateConnection({ sourcePortId: "p3" });
+
+    expect(removedPort.observers.has(state)).toBe(false);
+    expect(removedPort.$connections.value.size).toBe(0);
+    expect(store.getPort("p1")).toBe(replacement);
+  });
 });
 
 describe("Graph operations keep PortState.$connections in sync", () => {

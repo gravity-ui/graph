@@ -171,11 +171,14 @@ export class ConnectionsStore {
   }
 
   public updateConnections(connections: TConnection[]) {
-    this.$connectionsMap.value = connections.reduce((acc, connection) => {
-      const c = this.getOrCreateConnection(connection);
-      acc.set(c.id, c);
-      return acc;
-    }, this.$connectionsMap.value);
+    // Batched so port subscribers run after the new connections are in the map.
+    batch(() => {
+      this.$connectionsMap.value = connections.reduce((acc, connection) => {
+        const c = this.getOrCreateConnection(connection);
+        acc.set(c.id, c);
+        return acc;
+      }, this.$connectionsMap.value);
+    });
   }
 
   public setConnections(connections: TConnection[]) {
@@ -219,6 +222,7 @@ export class ConnectionsStore {
       const existing = this.getConnectionState(ConnectionState.getConnectionId(connection));
       if (existing) {
         existing.replaceConnection(connection);
+        this.notifyConnectionMapChanged();
         return existing.id;
       }
       const c = new ConnectionState(this, connection, this.connectionSelectionBucket);
