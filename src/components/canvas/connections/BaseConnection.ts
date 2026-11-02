@@ -162,7 +162,8 @@ export class BaseConnection<
       this.setState({ ...state });
     });
 
-    // Follow the ports when the connection is retargeted
+    // Follow the ports when the connection is retargeted. subscribe() calls back with the current
+    // port right away, so a retarget between construction and mount is picked up here too.
     this.subscribeSignal(this.connectedState.$sourcePortState, (port) => {
       this.observePort("source", port);
     });

@@ -21,7 +21,7 @@ type TSetup = {
   view: BlockConnection<TConnection>;
 };
 
-function setup(): TSetup {
+function setup({ mount = true }: { mount?: boolean } = {}): TSetup {
   // Ports "s" and "t" have no owner: they exist only while someone observes them.
   const graph = new Graph({ connections: [{ id: "c", sourcePortId: "s", targetPortId: "t" }] });
   const store = graph.rootStore.connectionsList;
@@ -29,8 +29,10 @@ function setup(): TSetup {
   if (!state) throw new Error("Expected connection");
 
   const view = new BlockConnection<TConnection>(props, new BlockConnections({}, graph.getGraphLayer()));
-  // The first iteration runs willMount(), which subscribes the view to its ports.
-  view.iterate();
+  if (mount) {
+    // The first iteration runs willMount(), which subscribes the view to its ports.
+    view.iterate();
+  }
 
   return { store, state, view };
 }
@@ -52,6 +54,19 @@ describe("BaseConnection port observers", () => {
     expect(getPort(store, "t2").observers.has(view)).toBe(true);
     expect(oldPort.observers.has(view)).toBe(false);
     expect(getPort(store, "s").observers.has(view)).toBe(true);
+
+    Component.unmount(view);
+  });
+
+  it("picks up a retarget that happened before its first iteration", () => {
+    const { store, state, view } = setup({ mount: false });
+    const oldPort = getPort(store, "t");
+
+    state.updateConnection({ targetPortId: "t2" });
+    view.iterate();
+
+    expect(getPort(store, "t2").observers.has(view)).toBe(true);
+    expect(oldPort.observers.has(view)).toBe(false);
 
     Component.unmount(view);
   });
