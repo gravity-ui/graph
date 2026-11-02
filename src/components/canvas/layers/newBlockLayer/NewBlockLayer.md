@@ -90,6 +90,17 @@ graph.on("block-added-from-shadow", (event) => {
 })
 ```
 
+### block-add-cancel-from-shadow
+
+Fired instead of `block-added-from-shadow` when the duplication drag is cancelled before the mouse button is released: the window loses focus, the page becomes hidden, or a new press arrives after a lost mouseup. The ghosts are removed and no blocks are added.
+
+```typescript
+graph.on("block-add-cancel-from-shadow", (event) => {
+  // event.detail.blocks - the blocks whose duplication was cancelled
+  console.log('Duplication cancelled:', event.detail.blocks.length);
+})
+```
+
 ## How Block Duplication Works
 
 - Hold Alt and drag from an existing block to create a duplicate

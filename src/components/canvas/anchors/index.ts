@@ -164,6 +164,10 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
     this.connectedState.block.getViewComponent()?.handleDragEnd(context);
   }
 
+  public override handleDragCancel(context: DragContext): void {
+    this.connectedState.block.getViewComponent()?.handleDragCancel(context);
+  }
+
   protected isVisible() {
     const params = this.getHitBox();
     return params ? this.context.camera.isRectVisible(...params) : true;

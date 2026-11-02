@@ -132,6 +132,16 @@ graph.on("connection-create-drop", (event) => {
 })
 ```
 
+### connection-create-cancel
+
+Fired instead of `connection-create-drop` when the connection drag is cancelled before the mouse button is released: the window loses focus, the page becomes hidden, or a new press arrives after a lost mouseup. No connection is created.
+
+```typescript
+graph.on("connection-create-cancel", (event) => {
+  console.log('Connection from', event.detail.sourceBlockId, 'cancelled');
+})
+```
+
 ## How Connections Work
 
 - Hold Shift and drag from one block to another to create a block-to-block connection

@@ -165,6 +165,32 @@ class MyCustomComponent extends GraphComponent {
 }
 ```
 
+### Step 5: Handle Drag Cancel (optional)
+
+A drag can end without a mouseup. `DragService` cancels it when:
+
+- your code calls `graph.dragService.cancel()`, for example on Escape;
+- the window loses focus (`blur`) or the page becomes hidden (`visibilitychange`), because the mouseup can be lost there;
+- a new press arrives while the drag is still running, which means its mouseup was lost.
+
+Participants then get `handleDragCancel()` instead of `handleDragEnd()`. The context holds the last event and coordinates the drag reached. The cursor and autopanning are released, and `$state` returns to idle.
+
+The default `handleDragCancel()` calls `handleDragEnd()`, so a component that does not override it stays where the drag left it. Override it to revert the changes:
+
+```typescript
+class MyCustomComponent extends GraphComponent {
+  public override handleDragCancel(context: DragContext): void {
+    if (this.initialPosition) {
+      // Move back to where the drag started
+      this.updatePosition(this.initialPosition.x, this.initialPosition.y);
+    }
+    this.initialPosition = null;
+  }
+}
+
+graph.keyboardService.onPress("Escape", () => graph.dragService.cancel());
+```
+
 ## DragDiff Reference
 
 The `DragDiff` object provides coordinate information during drag:
@@ -333,7 +359,7 @@ Autopanning is automatically enabled during drag operations. When the cursor mov
 ```typescript
 // Autopanning is managed by DragService
 // - Enabled on drag start
-// - Disabled on drag end
+// - Disabled on drag end or cancel
 // - Camera changes trigger position recalculation for smooth movement
 ```
 
@@ -344,7 +370,7 @@ During drag operations, the cursor is locked to "grabbing":
 ```typescript
 // Cursor management is automatic
 // - Locks to "grabbing" on first move
-// - Unlocks when drag ends
+// - Unlocks when drag ends or is cancelled
 ```
 
 ## Complete Example: Custom Draggable Node
@@ -452,6 +478,7 @@ export class CustomNode extends GraphComponent<NodeProps, NodeState> {
 | Property/Method | Type | Description |
 |----------------|------|-------------|
 | `$state` | `Signal<DragState>` | Reactive signal with current drag state |
+| `cancel()` | `() => void` | Cancels the current component drag; participants get `handleDragCancel()` |
 | `destroy()` | `() => void` | Cleanup method (called automatically on graph unmount) |
 
 ### DragState
@@ -500,6 +527,7 @@ type DragDiff = {
 | `handleDragStart()` | `(context: DragContext) => void` | Called when drag starts |
 | `handleDrag()` | `(diff: DragDiff, context: DragContext) => void` | Called on each drag frame |
 | `handleDragEnd()` | `(context: DragContext) => void` | Called when drag ends |
+| `handleDragCancel()` | `(context: DragContext) => void` | Called instead of `handleDragEnd()` when the drag is cancelled (default: calls `handleDragEnd()`) |
 
 ### DragService.startDrag()
 
@@ -510,6 +538,10 @@ type DragOperationCallbacks = {
   onStart?: (event: MouseEvent, coords: [number, number]) => void;
   onUpdate?: (event: MouseEvent, coords: [number, number]) => void;
   onEnd?: (event: MouseEvent, coords: [number, number]) => void;
+  // Called instead of onEnd when the drag is cancelled (blur, hidden page, new press,
+  // stopDragListening() on the returned emitter). Receives the last event and coordinates.
+  // Defaults to onEnd, so pass it for operations that must not commit on cancel.
+  onCancel?: (event: MouseEvent, coords: [number, number]) => void;
 };
 
 type DragOperationOptions = {
