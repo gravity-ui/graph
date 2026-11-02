@@ -207,6 +207,10 @@ export class BlockConnection<T extends TConnection>
 
     if (this.state.label && this.props.showConnectionLabels && cameraClose) {
       this.renderLabelText(ctx);
+    } else if (this.labelGeometry) {
+      // A label that is not drawn must not catch the pointer or widen the bounds
+      this.labelGeometry = undefined;
+      this.updateBounds();
     }
   }
 

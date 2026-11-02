@@ -101,6 +101,12 @@ class LabelledConnection extends BlockConnection<TConnection> {
     this.renderLabelText(ctx);
   }
 
+  /** Runs the per-frame overlay pass that decides whether the label is drawn */
+  public renderOverlay(ctx: CanvasRenderingContext2D): void {
+    this.checkData();
+    this.afterRender?.(ctx);
+  }
+
   public get label(): BlockConnection<TConnection>["labelGeometry"] {
     return this.labelGeometry;
   }
@@ -255,6 +261,31 @@ describe("BlockConnection extension points", () => {
     view.renderLabel(createContext());
 
     expectLabelInsideHitBox(view);
+  });
+
+  it("stops catching the pointer on the label once the label is no longer drawn", () => {
+    const graph = createGraph({ x: 400, y: 0 });
+    const view = new LabelledConnection(props, createParent(graph));
+    view.refresh();
+    const ctx = createContext();
+
+    view.renderOverlay(ctx);
+    const label = view.label;
+    if (!label) throw new Error("Expected the label to be drawn");
+    const x = label.x + label.width / 2;
+    const y = label.y + label.height / 2;
+    const hitLabel = (): boolean => view.onHitBox({ minX: x - 1, minY: y - 1, maxX: x + 1, maxY: y + 1, x: -1, y: -1 });
+    expect(hitLabel()).toBe(true);
+
+    // Labels are not drawn below MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL
+    graph.cameraService.set({ scale: graph.graphConstants.connection.MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL / 2 });
+    view.renderOverlay(ctx);
+
+    expect(view.label).toBeUndefined();
+    expect(hitLabel()).toBe(false);
+    // The hit box shrinks back to the line: a horizontal line padded by half of the hit tolerance
+    const padding = graph.graphConstants.connection.THRESHOLD_LINE_HIT;
+    expect(view.getHitBox()).toEqual([-padding, -padding, 400 + padding * 2, padding * 2]);
   });
 
   it("keeps a label placed off the route by getLabelSegment inside the hit box", () => {
