@@ -1,0 +1,21 @@
+.port-connections-block {
+  border: 1px solid var(--graph-block-border);
+  border-radius: 3px;
+}
+
+.port-connections-block.selected {
+  box-shadow: inset 0 0 0 3px var(--graph-block-border-selected);
+}
+
+.port-connections-block .port-connections-block-name {
+  padding: 10px;
+}
+
+.port-connections-block.port-connections-endpoint {
+  outline: 3px solid var(--port-connections-highlight);
+  outline-offset: 3px;
+}
+
+.port-connections-anchor.port-connections-endpoint {
+  box-shadow: 0 0 0 4px var(--port-connections-highlight);
+}

@@ -1,4 +1,4 @@
-import { computed, signal } from "@preact/signals-core";
+import { batch, computed, effect, signal, untracked } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
 import { Anchor } from "../../components/canvas/anchors";
@@ -11,7 +11,7 @@ import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/t
 import { TBlockId } from "../block/Block";
 
 import { ConnectionsStore } from "./ConnectionList";
-import { TPortId } from "./port/Port";
+import type { PortState, TPortId } from "./port/Port";
 import { createAnchorPortId, createBlockPointPortId } from "./port/utils";
 
 export const IS_CONNECTION_TYPE = "Connection" as const;
@@ -83,47 +83,51 @@ export class ConnectionState<T extends TConnection = TConnection> {
     return this.$state.value.targetAnchorId;
   }
 
+  // Port ids are derived from the raw data: selection does not affect them.
   public $sourcePortId = computed(() => {
-    if (this.$state.value.sourcePortId) {
-      return this.$state.value.sourcePortId;
+    const state = this.$rawState.value;
+    if (state.sourcePortId) {
+      return state.sourcePortId;
     }
-    if (this.$state.value.sourceAnchorId) {
-      return createAnchorPortId(this.$state.value.sourceBlockId, this.$state.value.sourceAnchorId);
+    if (state.sourceAnchorId) {
+      return createAnchorPortId(state.sourceBlockId, state.sourceAnchorId);
     }
-    return createBlockPointPortId(this.$state.value.sourceBlockId, false);
+    return createBlockPointPortId(state.sourceBlockId, false);
   });
 
   public $targetPortId = computed(() => {
-    if (this.$state.value.targetPortId) {
-      return this.$state.value.targetPortId;
+    const state = this.$rawState.value;
+    if (state.targetPortId) {
+      return state.targetPortId;
     }
-    if (this.$state.value.targetAnchorId) {
-      return createAnchorPortId(this.$state.value.targetBlockId, this.$state.value.targetAnchorId);
+    if (state.targetAnchorId) {
+      return createAnchorPortId(state.targetBlockId, state.targetAnchorId);
     }
-    return createBlockPointPortId(this.$state.value.targetBlockId, true);
+    return createBlockPointPortId(state.targetBlockId, true);
   });
 
-  public readonly $sourcePortState = computed(() => {
-    const portId = this.$sourcePortId.value;
-    let port = this.store.getPort(portId);
-    if (!port) {
-      port = this.store.observePort(portId, this);
-    } else if (!port.observers.has(this)) {
-      port.addObserver(this);
-    }
-    return port;
-  });
+  private readonly sourcePort = signal<PortState | undefined>(undefined);
 
-  public readonly $targetPortState = computed(() => {
-    const portId = this.$targetPortId.value;
-    let port = this.store.getPort(portId);
-    if (!port) {
-      port = this.store.observePort(portId, this);
-    } else if (!port.observers.has(this)) {
-      port.addObserver(this);
-    }
-    return port;
-  });
+  private readonly targetPort = signal<PortState | undefined>(undefined);
+
+  /** Ports this connection observes and is listed in (`PortState.$connections`). */
+  private attachedPorts: ReadonlySet<PortState> = new Set();
+
+  private disposePortsSync: (() => void) | undefined;
+
+  /**
+   * Source port of the connection.
+   * Resolved when the connection is created and every time its source changes.
+   * After `destroy()` it keeps the last resolved port.
+   */
+  public readonly $sourcePortState = computed((): PortState => this.sourcePort.value);
+
+  /**
+   * Target port of the connection.
+   * Resolved when the connection is created and every time its target changes.
+   * After `destroy()` it keeps the last resolved port.
+   */
+  public readonly $targetPortState = computed((): PortState => this.targetPort.value);
 
   public readonly $sourcePort = computed(() => {
     return this.$sourcePortState.value.$state.value;
@@ -208,6 +212,38 @@ export class ConnectionState<T extends TConnection = TConnection> {
   ) {
     const id = ConnectionState.getConnectionId(connectionState);
     this.$rawState.value = { ...connectionState, id } as T;
+
+    // Resolve the ports right away and follow every retarget, so PortState.$connections
+    // is correct even when no view has read the ports yet.
+    this.disposePortsSync = effect(() => {
+      const sourcePortId = this.$sourcePortId.value;
+      const targetPortId = this.$targetPortId.value;
+      untracked(() => this.syncPorts(sourcePortId, targetPortId));
+    });
+  }
+
+  private syncPorts(sourcePortId: TPortId, targetPortId: TPortId): void {
+    batch(() => {
+      const sourcePort = this.store.observePort(sourcePortId, this);
+      const targetPort = this.store.observePort(targetPortId, this);
+      const nextPorts = new Set([sourcePort, targetPort]);
+
+      this.attachedPorts.forEach((port) => {
+        if (!nextPorts.has(port)) {
+          this.releasePort(port);
+        }
+      });
+      nextPorts.forEach((port) => port.attachConnection(this));
+
+      this.attachedPorts = nextPorts;
+      this.sourcePort.value = sourcePort;
+      this.targetPort.value = targetPort;
+    });
+  }
+
+  private releasePort(port: PortState): void {
+    port.detachConnection(this);
+    this.store.unobservePort(port.id, this);
   }
 
   /**
@@ -273,22 +309,45 @@ export class ConnectionState<T extends TConnection = TConnection> {
 
     const newStyles = Object.assign({}, this.$rawState.value.styles, styles);
 
-    this.$rawState.value = Object.assign({}, this.$rawState.value, newProps, { styles: newStyles });
+    this.setRawState(Object.assign({}, this.$rawState.value, newProps, { styles: newStyles }));
   }
 
   /**
-   * Clean up port observers when connection is destroyed
+   * Replaces the connection data entirely.
+   * Unlike {@link ConnectionState.updateConnection}, fields that are not passed are dropped.
+   * @param connection - New connection data; its id is ignored, the connection keeps its own id
+   * @returns {void}
+   */
+  public replaceConnection(connection: T): void {
+    this.setRawState({ ...connection, id: this.$rawState.peek().id });
+  }
+
+  private setRawState(state: T): void {
+    this.$rawState.value = state;
+    // Inside an outer batch the ports effect re-runs only when the batch ends.
+    // Resolve the ports now, so the ports and PortState.$connections are current right away.
+    if (!this.isDestroyed) {
+      untracked(() => this.syncPorts(this.$sourcePortId.value, this.$targetPortId.value));
+    }
+  }
+
+  /**
+   * Detach the connection from its ports and stop observing them.
+   * Safe to call more than once.
    * @returns {void}
    */
   public destroy(): void {
-    // Stop observing source port
-    if (this.$sourcePortId.value) {
-      this.store.unobservePort(this.$sourcePortId.value, this);
+    if (this.isDestroyed) {
+      return;
     }
+    this.isDestroyed = true;
 
-    // Stop observing target port
-    if (this.$targetPortId.value) {
-      this.store.unobservePort(this.$targetPortId.value, this);
-    }
+    this.disposePortsSync?.();
+    this.disposePortsSync = undefined;
+
+    batch(() => {
+      this.attachedPorts.forEach((port) => this.releasePort(port));
+    });
+    this.attachedPorts = new Set();
   }
 }
