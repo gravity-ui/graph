@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.13.0](https://github.com/gravity-ui/graph/compare/v1.12.2...v1.13.0) (2026-11-02)
+
+
+### Features
+
+* **connections:** add extension points for connections that draw their own route ([#439](https://github.com/gravity-ui/graph/issues/439)) ([5086946](https://github.com/gravity-ui/graph/commit/5086946f35b04d8c749d6910406b9bf55e451452))
+* **connections:** add reactive PortState.$connections ([#442](https://github.com/gravity-ui/graph/issues/442)) ([ded98a5](https://github.com/gravity-ui/graph/commit/ded98a524d0d73e658bb95abfc1b73e3e388f7c6)), closes [#433](https://github.com/gravity-ui/graph/issues/433)
+* **CSSVariablesLayer:** additional css variables ([#430](https://github.com/gravity-ui/graph/issues/430)) ([a8e7d91](https://github.com/gravity-ui/graph/commit/a8e7d911012ea9172d613d9b8e3782b9787a819b))
+
+
+### Bug Fixes
+
+* **connections:** keep connection view port observers in sync on retarget ([#441](https://github.com/gravity-ui/graph/issues/441)) ([25e505a](https://github.com/gravity-ui/graph/commit/25e505abc9c89c93d182545855dbb9cbc765f75b))
+* **connections:** notify subscribers when updateConnections adds connections ([#440](https://github.com/gravity-ui/graph/issues/440)) ([8295176](https://github.com/gravity-ui/graph/commit/82951768426141208f3ee8832fbf682e49d108a2))
+* **connections:** pass next props through bezier bounds updates ([#421](https://github.com/gravity-ui/graph/issues/421)) ([8fa15b9](https://github.com/gravity-ui/graph/commit/8fa15b9d58a7c0fb00aa3b7d0faabbf725baa7d9))
+* **drag:** make drags cancellable and stop them on blur or a lost mouseup ([#438](https://github.com/gravity-ui/graph/issues/438)) ([b7ca954](https://github.com/gravity-ui/graph/commit/b7ca954f28adb280e5573ac3b887eec507b36deb))
+* **GraphComponent:** read getHitBox() as [x, y, width, height] in getHitBoxRect ([#437](https://github.com/gravity-ui/graph/issues/437)) ([f5a4781](https://github.com/gravity-ui/graph/commit/f5a4781cb1d5858affd64c7981b8437521b3b61d)), closes [#434](https://github.com/gravity-ui/graph/issues/434)
+
 ## [1.12.2](https://github.com/gravity-ui/graph/compare/v1.12.1...v1.12.2) (2026-10-02)
 
 
