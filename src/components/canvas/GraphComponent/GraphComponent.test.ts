@@ -2,6 +2,7 @@ import { Graph } from "../../../graph";
 import { GraphEventsDefinitions } from "../../../graphEvents";
 import { Component } from "../../../lib/Component";
 import { HitBox } from "../../../services/HitTest";
+import { TRect } from "../../../utils/types/shapes";
 
 import { GraphComponent, GraphComponentContext } from "./index";
 
@@ -24,6 +25,14 @@ class TestGraphComponent extends GraphComponent {
     options?: AddEventListenerOptions | boolean
   ): () => void {
     return this.onRootEvent(eventName, handler, options);
+  }
+
+  public readHitBoxRect(): TRect {
+    return this.getHitBoxRect();
+  }
+
+  public toggleVisibility(visible: boolean): void {
+    this.setVisibility(visible, { removeHitbox: true });
   }
 }
 
@@ -125,5 +134,25 @@ describe("GraphComponent event helpers", () => {
     const [removedEventName, removeListener] = removeSpy.mock.calls[0];
     expect(removedEventName).toBe("click");
     expect(typeof removeListener).toBe("function");
+  });
+});
+
+describe("GraphComponent hit box rect", () => {
+  it("reads the hit box as [x, y, width, height] away from the origin", () => {
+    const { component } = createTestComponent();
+
+    component.setHitBox(200, 100, 300, 200);
+
+    expect(component.readHitBoxRect()).toEqual({ x: 200, y: 100, width: 100, height: 100 });
+  });
+
+  it("restores the same hit box after a hide/show round trip with removeHitbox", () => {
+    const { component } = createTestComponent();
+
+    component.setHitBox(200, 100, 300, 200);
+    component.toggleVisibility(false);
+    component.toggleVisibility(true);
+
+    expect(component.getHitBox()).toEqual([200, 100, 100, 100]);
   });
 });
