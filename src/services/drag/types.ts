@@ -41,6 +41,12 @@ export type DragOperationCallbacks = {
   onUpdate?: (event: MouseEvent, coords: [number, number]) => void;
   /** Called when drag ends (mouseup) */
   onEnd?: (event: MouseEvent, coords: [number, number]) => void;
+  /**
+   * Called instead of onEnd when the drag is cancelled: window blur, the page becoming hidden,
+   * a new press after a lost mouseup, or stopDragListening() on the returned emitter.
+   * Receives the last mouse event and coordinates of the drag. Defaults to onEnd.
+   */
+  onCancel?: (event: MouseEvent, coords: [number, number]) => void;
 };
 
 /**

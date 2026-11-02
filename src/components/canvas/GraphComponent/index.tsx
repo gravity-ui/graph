@@ -81,6 +81,20 @@ export class GraphComponent<
     // Default implementation does nothing
   }
 
+  /**
+   * Called instead of handleDragEnd when a drag is cancelled before the mouse button is released:
+   * DragService.cancel(), window blur, the page becoming hidden, or a new press after a lost mouseup.
+   * The context holds the last event and coordinates the drag reached.
+   *
+   * The default implementation calls handleDragEnd, so the component stays where the drag left it.
+   * Override to revert the changes made during the drag.
+   *
+   * @param context - The drag context with the last coordinates and participating components
+   */
+  public handleDragCancel(context: DragContext): void {
+    this.handleDragEnd(context);
+  }
+
   public get affectsUsableRect() {
     return this.props.affectsUsableRect ?? this.context.affectsUsableRect ?? true;
   }

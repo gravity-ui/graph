@@ -307,6 +307,12 @@ export class PortConnectionLayer extends Layer<
         },
         onUpdate: (event, coords) => this.onMoveNewConnection(event, new Point(coords[0], coords[1])),
         onEnd: (_event, coords) => this.onEndNewConnection(new Point(coords[0], coords[1])),
+        onCancel: () => {
+          // cancelNewConnection() clears currentListener before it stops the drag, so it is not run twice
+          if (this.currentListener) {
+            this.cancelNewConnection();
+          }
+        },
       },
       { cursor: "crosshair", initialEvent: initEvent }
     );
@@ -476,8 +482,10 @@ export class PortConnectionLayer extends Layer<
   }
 
   protected cancelNewConnection(): void {
-    if (this.currentListener) {
-      stopDragListening(this.currentListener);
+    const listener = this.currentListener;
+    this.currentListener = null;
+    if (listener) {
+      stopDragListening(listener);
     }
     this.startState = null;
     this.endState = null;

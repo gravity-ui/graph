@@ -4,6 +4,7 @@ export const EVENTS = {
   DRAG_START: "drag-start",
   DRAG_UPDATE: "drag-update",
   DRAG_END: "drag-end",
+  DRAG_CANCEL: "drag-cancel",
   RESIZE_START: "resize-start",
   RESIZE_UPDATE: "resize-update",
   RESIZE_END: "resize-end",

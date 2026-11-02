@@ -204,7 +204,8 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     dragListener(this.ownerDocument, { graph: this.context.graph, autopanning: false, dragCursor: "grabbing" })
       .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onDragStart(event))
       .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onDragUpdate(event))
-      .on(EVENTS.DRAG_END, () => this.onDragEnd());
+      .on(EVENTS.DRAG_END, () => this.onDragEnd())
+      .on(EVENTS.DRAG_CANCEL, () => this.onDragEnd());
   };
 
   /**

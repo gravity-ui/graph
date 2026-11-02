@@ -82,6 +82,9 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   let startY: number | null = null;
   let lastMouseEvent: MouseEvent | undefined;
   const emitter = new Emitter();
+  // Removes every DOM listener of this drag session at once
+  const listeners = new AbortController();
+  const { signal } = listeners;
   const mousemoveBinded = (event: MouseEvent) => {
     lastMouseEvent = event;
     mousemove(emitter, event);
@@ -123,6 +126,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   const startDrag = (event: MouseEvent): void => {
     started = true;
     thresholdExceeded = true;
+    lastMouseEvent = event;
     if (suppressTextSelection) {
       ensureTextSelectionSuppressed();
       event.preventDefault();
@@ -143,7 +147,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     }
 
     emitter.emit(EVENTS.DRAG_START, event);
-    document.addEventListener("mousemove", mousemoveBinded);
+    document.addEventListener("mousemove", mousemoveBinded, { signal });
   };
 
   /**
@@ -164,11 +168,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   const cleanup = (): void => {
     cleanupTextSelection();
     unsubscribeCamera?.();
-    document.removeEventListener("mousemove", mousemoveBinded);
-    // Also remove threshold listener if it was added
-    if (threshold > 0) {
-      document.removeEventListener("mousemove", handleThresholdMove, { capture: true });
-    }
+    listeners.abort();
   };
 
   const cleanupDragState = () => {
@@ -185,6 +185,23 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     }
   };
 
+  /**
+   * Ends the drag session without a mouseup. A started drag emits DRAG_CANCEL with the last mouse event
+   * it received; a drag that has not crossed the threshold yet stops silently.
+   */
+  const cancel = (): void => {
+    if (finished) {
+      return;
+    }
+    finished = true;
+    if (started) {
+      emitter.emit(EVENTS.DRAG_CANCEL, lastMouseEvent);
+      cleanupDragState();
+    }
+    cleanup();
+    emitter.destroy();
+  };
+
   if (stopOnMouseLeave) {
     document.addEventListener(
       "mouseleave",
@@ -196,13 +213,13 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
         }
         cleanup();
       },
-      { once: true, capture: true }
+      { once: true, capture: true, signal }
     );
   }
 
   // If threshold > 0, we need to accumulate movement before starting drag
   if (threshold > 0) {
-    document.addEventListener("mousemove", handleThresholdMove, { capture: true });
+    document.addEventListener("mousemove", handleThresholdMove, { capture: true, signal });
   } else {
     // No threshold - start drag on first mousemove (original behavior)
     document.addEventListener(
@@ -213,7 +230,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
         }
         startDrag(event as MouseEvent);
       },
-      { once: true, capture: true }
+      { once: true, capture: true, signal }
     );
   }
 
@@ -227,28 +244,33 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
       }
       cleanup();
     },
-    { once: true, capture: true }
+    { once: true, capture: true, signal }
   );
 
-  document.addEventListener(
-    "mousedown",
+  // A new press while this session is alive means its mouseup was lost (or another button was pressed)
+  document.addEventListener("mousedown", cancel, { once: true, capture: true, signal });
+
+  // The release can be lost while the page has no focus, so a drag must not outlive it
+  dragDocument.defaultView?.addEventListener("blur", cancel, { signal });
+  dragDocument.addEventListener(
+    "visibilitychange",
     () => {
-      cleanup();
+      if (dragDocument.visibilityState === "hidden") {
+        cancel();
+      }
     },
-    { once: true, capture: true }
+    { signal }
   );
 
-  emitter.on("cancel", () => {
-    finished = true;
-    if (started) {
-      cleanupDragState();
-    }
-    cleanup();
-  });
+  emitter.on("cancel", cancel);
 
   return emitter;
 }
 
+/**
+ * Cancels a drag session created by dragListener: a started drag emits DRAG_CANCEL instead of DRAG_END,
+ * and the session ignores the rest of the gesture.
+ */
 export function stopDragListening(emitter: Emitter) {
   emitter.emit("cancel");
 }

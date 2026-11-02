@@ -7,7 +7,7 @@ import type { GraphMouseEvent } from "../../graphEvents";
 import { ECanDrag } from "../../store/settings";
 import { Emitter } from "../../utils/Emitter";
 import { getXY } from "../../utils/functions";
-import { dragListener } from "../../utils/functions/dragListener";
+import { dragListener, stopDragListening } from "../../utils/functions/dragListener";
 import { EVENTS } from "../../utils/types/events";
 
 import type { DragContext, DragDiff, DragOperationCallbacks, DragOperationOptions, DragState } from "./types";
@@ -20,6 +20,9 @@ import type { DragContext, DragDiff, DragOperationCallbacks, DragOperationOption
  * 2. Manages the drag lifecycle (start, update, end) via dragListener
  * 3. Handles autopanning, cursor locking, and camera-change synchronization
  * 4. Delegates actual movement logic to components via handleDragStart/handleDrag/handleDragEnd
+ *
+ * A drag is cancelled instead of ended by cancel(), window blur, the page becoming hidden,
+ * or a new press after a lost mouseup. Participants then get handleDragCancel.
  */
 export class DragService {
   /** Components participating in the current drag operation */
@@ -141,8 +144,30 @@ export class DragService {
     })
       .on(EVENTS.DRAG_START, this.handleDragStart)
       .on(EVENTS.DRAG_UPDATE, this.handleDragUpdate)
-      .on(EVENTS.DRAG_END, this.handleDragEnd);
+      .on(EVENTS.DRAG_END, this.handleDragEnd)
+      .on(EVENTS.DRAG_CANCEL, this.handleDragCancel);
   };
+
+  /**
+   * Cancels the current component drag, e.g. on Escape.
+   *
+   * Participants get handleDragCancel with the last coordinates the drag reached instead of handleDragEnd.
+   * The cursor and auto-panning are released, $state returns to idle, and the rest of the gesture is ignored.
+   * Does nothing if no component drag is in progress.
+   *
+   * Operations started with startDrag() are cancelled through the emitter it returns.
+   */
+  public cancel(): void {
+    const emitter = this.currentDragEmitter;
+    if (!emitter) {
+      return;
+    }
+    stopDragListening(emitter);
+    // The press has not crossed the drag threshold yet: nobody was notified, just drop it
+    if (this.currentDragEmitter === emitter) {
+      this.cleanup();
+    }
+  }
 
   /**
    * Collect all components that should participate in drag operation.
@@ -269,6 +294,28 @@ export class DragService {
   };
 
   /**
+   * Handle drag cancel from dragListener. The last coordinates that participants got stand in for the release point.
+   */
+  private handleDragCancel = (event: MouseEvent): void => {
+    if (this.startCoords && this.prevCoords) {
+      const context: DragContext = {
+        sourceEvent: event,
+        startCoords: this.startCoords,
+        prevCoords: this.prevCoords,
+        currentCoords: this.prevCoords,
+        components: this.dragComponents,
+      };
+
+      this.dragComponents.forEach((component) => {
+        component.handleDragCancel(context);
+      });
+    }
+
+    this.graph.rootStore.blocksList.flushBatchedBlocksGeometryEmit();
+    this.cleanup();
+  };
+
+  /**
    * Convert screen coordinates to world coordinates
    */
   private getWorldCoords(event: MouseEvent): [number, number] {
@@ -299,7 +346,11 @@ export class DragService {
    * Start a custom drag operation for specialized use cases like creating connections or new blocks.
    * This provides a unified API for drag operations without exposing dragListener directly.
    *
-   * @param callbacks - Lifecycle callbacks (onStart, onUpdate, onEnd)
+   * The operation is cancelled by window blur, the page becoming hidden, a new press after a lost mouseup,
+   * or stopDragListening() on the returned emitter. It then calls onCancel, or onEnd if onCancel is not provided,
+   * with the last mouse event and coordinates of the drag.
+   *
+   * @param callbacks - Lifecycle callbacks (onStart, onUpdate, onEnd, onCancel)
    * @param options - Drag options (document, cursor, autopanning, etc.)
    *
    * @example
@@ -325,7 +376,7 @@ export class DragService {
       initialEvent,
       suppressTextSelection,
     } = options;
-    const { onStart, onUpdate, onEnd } = callbacks;
+    const { onStart, onUpdate, onEnd, onCancel = onEnd } = callbacks;
 
     const targetDocument = doc ?? this.graph.getGraphCanvas().ownerDocument;
 
@@ -347,6 +398,10 @@ export class DragService {
       .on(EVENTS.DRAG_END, (event: MouseEvent) => {
         const coords = this.getWorldCoords(event);
         onEnd?.(event, coords);
+      })
+      .on(EVENTS.DRAG_CANCEL, (event: MouseEvent) => {
+        const coords = this.getWorldCoords(event);
+        onCancel?.(event, coords);
       });
   }
 }
