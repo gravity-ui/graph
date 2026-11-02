@@ -121,7 +121,7 @@ export class BlockConnection<T extends TConnection>
   }
 
   public styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
-    ctx.lineWidth = this.state.hovered || this.state.selected ? 4 : 2;
+    ctx.lineWidth = this.getStrokeWidth(this.state);
     const strokeColor = this.getStrokeColor(this.state);
     if (strokeColor) {
       ctx.strokeStyle = strokeColor;
@@ -159,12 +159,16 @@ export class BlockConnection<T extends TConnection>
     return path2d;
   }
 
+  /**
+   * Returns the batch group key. Each batch chunk is styled by its first item,
+   * so the key holds everything style() depends on, including the stroke width.
+   */
   public getClassName(state = this.state) {
     const hovered = state.hovered ? "hovered" : "none";
     const selected = state.selected ? "selected" : "none";
     const stroke = this.getStrokeColor(state);
     const dash = state.dashed ? (state.styles?.dashes || [6, 4]).join(",") : "";
-    return `connection/${hovered}/${selected}/${stroke}/${dash}`;
+    return `connection/${hovered}/${selected}/${stroke}/${dash}/${this.getStrokeWidth(state)}`;
   }
 
   public style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
@@ -172,8 +176,19 @@ export class BlockConnection<T extends TConnection>
     return { type: "stroke" };
   }
 
+  /**
+   * Returns the stroke width of the connection line and arrow, in world units.
+   * Override to change the width, or read it to size things around the stroke (pick tolerance, a background).
+   *
+   * @param state - The connection state to resolve the width for
+   * @returns 4 for a hovered or selected connection, 2 otherwise
+   */
+  public getStrokeWidth(state: TBaseConnectionState = this.state): number {
+    return state.hovered || state.selected ? 4 : 2;
+  }
+
   protected setRenderStyles(ctx: CanvasRenderingContext2D, state = this.state, withDashed = true) {
-    ctx.lineWidth = state.hovered || state.selected ? 4 : 2;
+    ctx.lineWidth = this.getStrokeWidth(state);
 
     const strokeColor = this.getStrokeColor(state);
 
@@ -192,6 +207,10 @@ export class BlockConnection<T extends TConnection>
 
     if (this.state.label && this.props.showConnectionLabels && cameraClose) {
       this.renderLabelText(ctx);
+    } else if (this.labelGeometry) {
+      // A label that is not drawn must not catch the pointer or widen the bounds
+      this.labelGeometry = undefined;
+      this.updateBounds();
     }
   }
 
@@ -288,7 +307,7 @@ export class BlockConnection<T extends TConnection>
   public onHitBox(shape: HitBoxData): boolean {
     const THRESHOLD_LINE_HIT = this.context.constants.connection.THRESHOLD_LINE_HIT;
 
-    if (isPointInStroke(this.context.ctx, this.path2d, shape.x, shape.y, THRESHOLD_LINE_HIT * 2)) {
+    if (isPointInStroke(this.context.ctx, this.path2d, shape.x, shape.y, this.getHitTolerance())) {
       return true;
     }
 
@@ -312,6 +331,15 @@ export class BlockConnection<T extends TConnection>
     return false;
   }
 
+  /**
+   * Returns the segment the label is placed along, in world coordinates.
+   * Defaults to the straight line between the source and target ports.
+   * Override for a connection that draws its own route, to place the label on one of its segments.
+   */
+  protected getLabelSegment(): { x1: number; y1: number; x2: number; y2: number } {
+    return this.geometry;
+  }
+
   protected renderLabelText(ctx: CanvasRenderingContext2D) {
     if (!this.isVisible() || !this.state.label) {
       return;
@@ -330,11 +358,12 @@ export class BlockConnection<T extends TConnection>
       return;
     }
 
+    const segment = this.getLabelSegment();
     const { x, y } = getLabelCoords(
-      this.geometry.x1,
-      this.geometry.y1,
-      this.geometry.x2,
-      this.geometry.y2,
+      segment.x1,
+      segment.y1,
+      segment.x2,
+      segment.y2,
       measure.width + labelInnerLeftPadding + labelInnerRightPadding,
       measure.height + labelInnerTopPadding + labelInnerBottomPadding,
       this.context.constants.system.GRID_SIZE
@@ -357,12 +386,25 @@ export class BlockConnection<T extends TConnection>
     const rectWidth = measure.width + labelInnerLeftPadding + labelInnerRightPadding;
     const rectHeight = measure.height + labelInnerTopPadding + labelInnerBottomPadding;
 
+    const prevLabelGeometry = this.labelGeometry;
     this.labelGeometry = {
       x: rectX,
       y: rectY,
       width: rectWidth,
       height: rectHeight,
     };
+
+    // The label is part of the bounds (collectBBoxPoints), so it is only hoverable and clickable
+    // once the hit box covers its current rectangle
+    if (
+      !prevLabelGeometry ||
+      prevLabelGeometry.x !== rectX ||
+      prevLabelGeometry.y !== rectY ||
+      prevLabelGeometry.width !== rectWidth ||
+      prevLabelGeometry.height !== rectHeight
+    ) {
+      this.updateBounds();
+    }
 
     ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
 

@@ -375,9 +375,42 @@ class CustomPathConnection extends BlockConnection {
   // Override styling
   public style(ctx: CanvasRenderingContext2D) {
     this.context.ctx.strokeStyle = this.state.hovered ? "#ff6b6b" : "#4285f4";
-    this.context.ctx.lineWidth = this.state.selected ? 4 : 2;
+    this.context.ctx.lineWidth = this.getStrokeWidth();
     this.context.ctx.setLineDash(this.state.dashed ? [8, 4] : []);
     return { type: "stroke" };
+  }
+}
+```
+
+### Extension Points for Routed Connections
+
+A connection that draws its own route (for example an orthogonal path through user-defined points) usually overrides `createPath()`, `createArrowPath()` and `collectBBoxPoints()`. These hooks cover the rest:
+
+| Hook | Default | Override or call it to |
+|------|---------|------------------------|
+| `getLabelSegment()` (protected) | `this.geometry`, the straight line between the ports | Place the label on a segment of your route |
+| `getStrokeWidth(state?)` | `4` when hovered or selected, `2` otherwise | Change the width of the line and arrow, or read it for a pick tolerance or a background under the stroke. The width is part of the batch group key |
+| `getHitTolerance()` (protected) | `THRESHOLD_LINE_HIT * 2`, independent of the stroke width and hover state | Widen the hit band for a stroke wider than the default tolerance, e.g. `Math.max(super.getHitTolerance(), this.getStrokeWidth())`. The stroke is hit-tested with this width, and the hit box is padded by half of it |
+| `updateHitBox()` (protected) | Called by `updatePoints()` | Recompute the hit box when an overridden `getHitBoxRect()` depends on more than the points, e.g. a margin in screen pixels |
+| `updateBounds()` (protected) | Called by `updatePoints()` and when the label moves | Recompute the bounding box and hit box when something `collectBBoxPoints()` includes changes while the ports stay in place |
+
+In `onHitBox(shape)`, `shape.minX`..`shape.maxX` / `shape.minY`..`shape.maxY` are world coordinates, while `shape.x` / `shape.y` are canvas device pixels for `ctx.isPointInStroke()`. Compare geometry with the world box:
+
+```typescript
+class RoutedConnection extends BlockConnection<TConnection> {
+  protected getLabelSegment() {
+    const [a, b] = this.getLongestSegment(); // your route
+    return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+  }
+
+  public onHitBox(shape: HitBoxData): boolean {
+    const x = (shape.minX + shape.maxX) / 2; // pointer in world coordinates
+    const y = (shape.minY + shape.maxY) / 2;
+    const tolerance = 8 / this.context.camera.getCameraScale(); // 8 screen pixels
+    if (this.findBendHandle(x, y, tolerance)) {
+      return true;
+    }
+    return super.onHitBox(shape);
   }
 }
 ```

@@ -647,9 +647,10 @@ class BadgeComponent extends GraphComponent<BadgeComponentProps, BadgeComponentS
   public onHitBox(data: HitBoxData) {
     if (!super.onHitBox(data)) return false;
     
-    // Check if the point is actually within the circle
-    const dx = data.point.x - this.state.x;
-    const dy = data.point.y - this.state.y;
+    // Check if the point is actually within the circle.
+    // minX..maxX / minY..maxY are world coordinates; x / y are canvas device pixels
+    const dx = (data.minX + data.maxX) / 2 - this.state.x;
+    const dy = (data.minY + data.maxY) / 2 - this.state.y;
     const distSquared = dx*dx + dy*dy;
     
     return distSquared <= this.state.radius * this.state.radius;

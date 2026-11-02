@@ -19,12 +19,30 @@ export interface IWithHitTest {
   removeHitBox(): void;
 }
 
+/**
+ * Area tested against hit boxes and passed to `onHitBox()`.
+ *
+ * The two groups of fields use different coordinate spaces:
+ * - `minX`/`minY`/`maxX`/`maxY` are world coordinates. For a pointer test they are the pointer's world point
+ *   ±1, so the world point is `((minX + maxX) / 2, (minY + maxY) / 2)`. Use them to compare with geometry.
+ * - `x`/`y` are canvas device pixels: the pointer position relative to the canvas, multiplied by the device
+ *   pixel ratio. They do not depend on the camera and are meant for `ctx.isPointInStroke()` /
+ *   `ctx.isPointInPath()` on the graph canvas. They come from the screen position of the tested point
+ *   (`Point.origPoint`), as for pointer events. For a point built from world coordinates only,
+ *   they are the world point times the pixel ratio and should not be used.
+ */
 export type HitBoxData = {
+  /** Left edge of the tested area, in world coordinates */
   minX: number;
+  /** Top edge of the tested area, in world coordinates */
   minY: number;
+  /** Right edge of the tested area, in world coordinates */
   maxX: number;
+  /** Bottom edge of the tested area, in world coordinates */
   maxY: number;
+  /** Pointer X on the graph canvas in device pixels (screen X × devicePixelRatio), not a world coordinate */
   x: number;
+  /** Pointer Y on the graph canvas in device pixels (screen Y × devicePixelRatio), not a world coordinate */
   y: number;
 };
 
