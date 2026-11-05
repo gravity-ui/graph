@@ -480,8 +480,8 @@ export class PortConnectionLayer extends Layer<
   }
 
   /**
-   * Drops the connection preview after its drag was cancelled: cancelNewConnection(), window blur,
-   * the page becoming hidden, or a new press after a lost mouseup.
+   * Drops the connection preview after its drag was cancelled: cancelNewConnection(), DragService.cancel(),
+   * window blur, the page becoming hidden, or a new press after a lost mouseup.
    */
   private onCancelNewConnection(): void {
     this.currentListener = null;

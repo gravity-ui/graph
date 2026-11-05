@@ -134,7 +134,7 @@ graph.on("connection-create-drop", (event) => {
 
 ### connection-create-cancel
 
-Fired instead of `connection-create-drop` when the connection drag is cancelled before the mouse button is released: the window loses focus, the page becomes hidden, or a new press arrives after a lost mouseup. No connection is created.
+Fired instead of `connection-create-drop` when the connection drag is cancelled before the mouse button is released: `graph.dragService.cancel()` is called, the window loses focus, the page becomes hidden, or a new press arrives after a lost mouseup. No connection is created.
 
 ```typescript
 graph.on("connection-create-cancel", (event) => {

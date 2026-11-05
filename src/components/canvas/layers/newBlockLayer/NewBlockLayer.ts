@@ -19,8 +19,8 @@ declare module "../../../../graphEvents" {
 
     /**
      * Fired instead of "block-added-from-shadow" when the duplication drag is cancelled before the mouse button
-     * is released: the window loses focus, the page becomes hidden, or a new press arrives after a lost mouseup.
-     * No blocks are added.
+     * is released: DragService.cancel() is called, the window loses focus, the page becomes hidden, or a new press
+     * arrives after a lost mouseup. No blocks are added.
      */
     "block-add-cancel-from-shadow": (event: CustomEvent<{ blocks: Block[] }>) => void;
 

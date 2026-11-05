@@ -9,6 +9,11 @@ export type DragOperationOptions = {
   document?: Document;
   /** Cursor to show during drag */
   cursor?: CursorLayerCursorTypes;
+  /**
+   * Component that captures the graph's pointer events for the drag (GraphLayer.captureEvents): it stays the event
+   * target wherever the cursor goes, so hover does not move to other components and the mouseup is dispatched to it.
+   * Captured when the drag starts and released when it ends or is cancelled.
+   */
   component?: GraphComponent;
   /** Enable autopanning when dragging near edges */
   autopanning?: boolean;
@@ -42,8 +47,8 @@ export type DragOperationCallbacks = {
   /** Called when drag ends (mouseup) */
   onEnd?: (event: MouseEvent, coords: [number, number]) => void;
   /**
-   * Called instead of onEnd when the drag is cancelled: window blur, the page becoming hidden,
-   * a new press after a lost mouseup, or stopDragListening() on the returned emitter.
+   * Called instead of onEnd when the drag is cancelled: DragService.cancel(), window blur, the page becoming hidden,
+   * or a new press after a lost mouseup.
    * Receives the last mouse event and coordinates of the drag. Defaults to onEnd.
    */
   onCancel?: (event: MouseEvent, coords: [number, number]) => void;

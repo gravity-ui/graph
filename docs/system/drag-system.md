@@ -478,7 +478,7 @@ export class CustomNode extends GraphComponent<NodeProps, NodeState> {
 | Property/Method | Type | Description |
 |----------------|------|-------------|
 | `$state` | `Signal<DragState>` | Reactive signal with current drag state |
-| `cancel()` | `() => void` | Cancels the current component drag; participants get `handleDragCancel()` |
+| `cancel()` | `() => void` | Cancels the current drag: participants of a component drag get `handleDragCancel()`, an operation started with `startDrag()` gets `onCancel` |
 | `destroy()` | `() => void` | Cleanup method (called automatically on graph unmount) |
 
 ### DragState
@@ -538,8 +538,8 @@ type DragOperationCallbacks = {
   onStart?: (event: MouseEvent, coords: [number, number]) => void;
   onUpdate?: (event: MouseEvent, coords: [number, number]) => void;
   onEnd?: (event: MouseEvent, coords: [number, number]) => void;
-  // Called instead of onEnd when the drag is cancelled (blur, hidden page, new press,
-  // stopDragListening() on the returned emitter). Receives the last event and coordinates.
+  // Called instead of onEnd when the drag is cancelled (graph.dragService.cancel(), blur,
+  // hidden page, new press). Receives the last event and coordinates.
   // Defaults to onEnd, so pass it for operations that must not commit on cancel.
   onCancel?: (event: MouseEvent, coords: [number, number]) => void;
 };
@@ -547,10 +547,19 @@ type DragOperationCallbacks = {
 type DragOperationOptions = {
   document?: Document;               // Defaults to graph canvas document
   cursor?: CursorLayerCursorTypes;   // Cursor during drag
+  component?: GraphComponent;        // Captures the graph's pointer events during drag
   autopanning?: boolean;             // Enable edge autopanning (default: true)
   stopOnMouseLeave?: boolean;        // Stop drag on mouse leave
 };
 
 // Usage
 graph.dragService.startDrag(callbacks, options);
+```
+
+Pass `component` to keep that component the target of the graph's pointer events while the drag runs (`GraphLayer.captureEvents()`): hover does not move to other components, and the mouseup is dispatched to it. The capture is released when the drag ends or is cancelled. `GraphComponent.onDrag()` passes the component itself.
+
+`graph.dragService.cancel()` cancels the running operation as well as a component drag, so one Escape handler covers both. The operation gets `onCancel` (or `onEnd`), the cursor, autopanning and the captured component are released, and the rest of the gesture is ignored. A press that has not crossed the drag threshold yet is dropped without any callback.
+
+```typescript
+graph.keyboardService.onPress("Escape", () => graph.dragService.cancel());
 ```

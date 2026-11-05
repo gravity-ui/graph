@@ -93,8 +93,8 @@ declare module "../../../../graphEvents" {
 
     /**
      * Fired instead of "connection-create-drop" when the connection drag is cancelled before the mouse button
-     * is released: the window loses focus, the page becomes hidden, or a new press arrives after a lost mouseup.
-     * No connection is created.
+     * is released: DragService.cancel() is called, the window loses focus, the page becomes hidden, or a new press
+     * arrives after a lost mouseup. No connection is created.
      */
     "connection-create-cancel": (
       event: CustomEvent<{

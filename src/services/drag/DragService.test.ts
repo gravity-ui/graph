@@ -23,6 +23,16 @@ class CancellableComponent extends DraggableComponent {
   }
 }
 
+class OnDragComponent extends GraphComponent {
+  public getEntityId(): string {
+    return "on-drag";
+  }
+
+  public listenDrag(): void {
+    this.onDrag({ isDraggable: () => true });
+  }
+}
+
 function mouse(type: string, x: number, y: number): MouseEvent {
   return new MouseEvent(type, { clientX: x, clientY: y, bubbles: true });
 }
@@ -46,6 +56,14 @@ function world(graph: Graph, x: number, y: number): [number, number] {
 
 function move(x: number, y: number): void {
   document.dispatchEvent(mouse("mousemove", x, y));
+}
+
+function setVisibilityState(state: DocumentVisibilityState): void {
+  Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state });
+}
+
+function createOperationCallbacks() {
+  return { onStart: jest.fn(), onUpdate: jest.fn(), onEnd: jest.fn(), onCancel: jest.fn() };
 }
 
 describe("DragService cancellation", () => {
@@ -198,6 +216,185 @@ describe("DragService.startDrag cancellation", () => {
   });
 });
 
+describe("DragService.startDrag component capture", () => {
+  let graph: Graph;
+  let component: GraphComponent;
+  let captureEvents: jest.SpyInstance;
+  let releaseCapture: jest.SpyInstance;
+
+  beforeEach(() => {
+    graph = createGraph();
+    component = new DraggableComponent({}, graph.getGraphLayer());
+    captureEvents = jest.spyOn(graph.getGraphLayer(), "captureEvents");
+    releaseCapture = jest.spyOn(graph.getGraphLayer(), "releaseCapture");
+  });
+
+  afterEach(() => {
+    setVisibilityState("visible");
+    document.dispatchEvent(mouse("mouseup", 0, 0));
+    graph.detach();
+  });
+
+  it("captures the component once the drag starts and releases it on mouseup", () => {
+    graph.dragService.startDrag({}, { component, threshold: 10 });
+    move(0, 0);
+    move(2, 2);
+
+    expect(captureEvents).not.toHaveBeenCalled();
+
+    move(50, 50);
+
+    expect(captureEvents).toHaveBeenCalledTimes(1);
+    expect(captureEvents).toHaveBeenCalledWith(component);
+    expect(releaseCapture).not.toHaveBeenCalled();
+
+    document.dispatchEvent(mouse("mouseup", 50, 50));
+
+    expect(releaseCapture).toHaveBeenCalledTimes(1);
+  });
+
+  it.each<[string, () => void]>([
+    ["cancel() is called", () => graph.dragService.cancel()],
+    ["the window loses focus", () => window.dispatchEvent(new Event("blur"))],
+    [
+      "the page becomes hidden",
+      () => {
+        setVisibilityState("hidden");
+        document.dispatchEvent(new Event("visibilitychange"));
+      },
+    ],
+    ["a new press arrives", () => document.dispatchEvent(mouse("mousedown", 50, 50))],
+  ])("releases the captured component when %s", (_cause, cancelDrag) => {
+    const onCancel = jest.fn();
+
+    graph.dragService.startDrag({ onCancel }, { component });
+    move(10, 10);
+
+    expect(captureEvents).toHaveBeenCalledWith(component);
+
+    cancelDrag();
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(releaseCapture).toHaveBeenCalledTimes(1);
+  });
+
+  it("captures the component that drags itself with GraphComponent.onDrag", () => {
+    const onDragComponent = new OnDragComponent({}, graph.getGraphLayer());
+    onDragComponent.listenDrag();
+
+    onDragComponent.dispatchEvent(mouse("mousedown", 0, 0));
+    move(10, 10);
+
+    expect(captureEvents).toHaveBeenCalledWith(onDragComponent);
+
+    document.dispatchEvent(mouse("mouseup", 10, 10));
+
+    expect(releaseCapture).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("DragService.cancel() with a startDrag operation", () => {
+  let graph: Graph;
+
+  beforeEach(() => {
+    graph = createGraph();
+  });
+
+  afterEach(() => {
+    document.dispatchEvent(mouse("mouseup", 0, 0));
+    graph.detach();
+  });
+
+  it("calls onCancel once with the last event and coordinates and ignores the rest of the gesture", () => {
+    const callbacks = createOperationCallbacks();
+    const lastMove = mouse("mousemove", 20, 30);
+
+    graph.dragService.startDrag(callbacks, { cursor: "crosshair" });
+    move(10, 10);
+    document.dispatchEvent(lastMove);
+    graph.dragService.cancel();
+
+    expect(callbacks.onCancel).toHaveBeenCalledTimes(1);
+    expect(callbacks.onCancel).toHaveBeenCalledWith(lastMove, world(graph, 20, 30));
+    expect(graph.getCursorLayer().isAuto()).toBe(true);
+    expect(graph.cameraService.getCameraState().autoPanningEnabled).toBe(false);
+
+    const updatesBeforeCancel = callbacks.onUpdate.mock.calls.length;
+    move(40, 40);
+    document.dispatchEvent(mouse("mouseup", 40, 40));
+
+    expect(callbacks.onUpdate).toHaveBeenCalledTimes(updatesBeforeCancel);
+    expect(callbacks.onEnd).not.toHaveBeenCalled();
+    expect(callbacks.onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onEnd once with the last event and coordinates when onCancel is not provided", () => {
+    const onEnd = jest.fn();
+    const lastMove = mouse("mousemove", 20, 30);
+
+    graph.dragService.startDrag({ onEnd });
+    move(10, 10);
+    document.dispatchEvent(lastMove);
+    graph.dragService.cancel();
+    document.dispatchEvent(mouse("mouseup", 40, 40));
+
+    expect(onEnd).toHaveBeenCalledTimes(1);
+    expect(onEnd).toHaveBeenCalledWith(lastMove, world(graph, 20, 30));
+  });
+
+  it("drops an operation that has not crossed the drag threshold without calling back", () => {
+    const callbacks = createOperationCallbacks();
+
+    graph.dragService.startDrag(callbacks, { threshold: 10 });
+    move(0, 0);
+    move(2, 2);
+    graph.dragService.cancel();
+    move(50, 50);
+    move(60, 60);
+    document.dispatchEvent(mouse("mouseup", 60, 60));
+
+    expect(callbacks.onStart).not.toHaveBeenCalled();
+    expect(callbacks.onUpdate).not.toHaveBeenCalled();
+    expect(callbacks.onEnd).not.toHaveBeenCalled();
+    expect(callbacks.onCancel).not.toHaveBeenCalled();
+  });
+
+  it("does nothing once the operation is cancelled or has ended", () => {
+    const cancelled = createOperationCallbacks();
+    graph.dragService.startDrag(cancelled);
+    move(10, 10);
+    graph.dragService.cancel();
+    graph.dragService.cancel();
+
+    expect(cancelled.onCancel).toHaveBeenCalledTimes(1);
+
+    const ended = createOperationCallbacks();
+    graph.dragService.startDrag(ended);
+    move(10, 10);
+    document.dispatchEvent(mouse("mouseup", 10, 10));
+    graph.dragService.cancel();
+
+    expect(ended.onEnd).toHaveBeenCalledTimes(1);
+    expect(ended.onCancel).not.toHaveBeenCalled();
+    expect(cancelled.onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels a component drag and an operation that run at the same time", () => {
+    const component = new CancellableComponent({}, graph.getGraphLayer());
+    const onDragCancel = jest.spyOn(component, "handleDragCancel");
+    const callbacks = createOperationCallbacks();
+
+    press(graph, component, 0, 0);
+    graph.dragService.startDrag(callbacks);
+    move(10, 10);
+    graph.dragService.cancel();
+
+    expect(onDragCancel).toHaveBeenCalledTimes(1);
+    expect(callbacks.onCancel).toHaveBeenCalledTimes(1);
+    expect(graph.dragService.$state.value.isDragging).toBe(false);
+  });
+});
+
 describe("DragService error handling", () => {
   let graph: Graph;
 
@@ -224,6 +421,21 @@ describe("DragService error handling", () => {
     expect(graph.dragService.$state.value.isDragging).toBe(false);
     expect(graph.getCursorLayer().isAuto()).toBe(true);
     expect(graph.cameraService.getCameraState().autoPanningEnabled).toBe(false);
+  });
+
+  it("cancels a running operation even if a component drag participant's handleDragCancel throws", () => {
+    const component = new CancellableComponent({}, graph.getGraphLayer());
+    jest.spyOn(component, "handleDragCancel").mockImplementation(() => {
+      throw new Error("cancel failed");
+    });
+    const onCancel = jest.fn();
+
+    press(graph, component, 0, 0);
+    graph.dragService.startDrag({ onCancel });
+    move(10, 10);
+
+    expect(() => graph.dragService.cancel()).toThrow("cancel failed");
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
   it("resets the drag even if a participant's handleDragEnd throws", () => {
