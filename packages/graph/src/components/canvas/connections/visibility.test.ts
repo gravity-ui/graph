@@ -127,37 +127,54 @@ describe("connection batch viewport visibility", () => {
     }
   });
 
-  it.each([true, false])("keeps custom line and arrow geometry cached across pan with Tree culling %s", (culling) => {
-    mount(Array.from({ length: 100 }, (_, index) => ({ id: String(index), x: 100 + index * 10, y: 100 })));
-    graph.updateSettings({ EXP_VISIBILITY_CULLING: culling });
+  it.each([
+    [true, false],
+    [false, true],
+  ])("strokes a chunk outside the viewport only without culling (viewportCulling %s)", (culling, stroked) => {
+    // 150 connections make two chunks; the second lies far to the right of the viewport.
+    mount(Array.from({ length: 150 }, (_, index) => ({ id: String(index), x: 100 + index * 1000, y: 100 })));
+    graph.updateSettings({ viewportCulling: culling });
     frames(2);
-    for (let index = 0; index < 100; index++) view(String(index)).draws = [];
-
-    // One previously visible connection exits; its chunk stays drawn for the visible neighbors.
-    graph.cameraService.set({ x: -210 });
+    view("100").draws = [];
+    graph.getGraphLayer().performRender();
     frames(2);
-    expect(view("0").draws).not.toContain("path");
-    expect(view("0").draws).not.toContain("arrow");
-    expect(view("20").draws).toContain("afterRender");
-    for (let index = 1; index < 80; index++) {
-      expect(view(String(index)).draws).not.toContain("path");
-      expect(view(String(index)).draws).not.toContain("arrow");
-    }
-
-    for (let index = 0; index < 100; index++) view(String(index)).draws = [];
-    graph.cameraService.set({ x: 0 });
-    frames(2);
-    expect(view("0").draws).toContain("afterRender");
-    expect(view("0").draws).not.toContain("path");
-    expect(view("0").draws).not.toContain("arrow");
-
-    connectionState("20").$targetPortState.value.updatePort({ x: 450, y: 150, lookup: false });
-    frames(2);
-    expect(view("20").draws).toContain("path");
-    expect(view("20").draws).toContain("arrow");
-    expect(view("21").draws).not.toContain("path");
-    expect(view("21").draws).not.toContain("arrow");
+    expect(view("100").draws.includes("style")).toBe(stroked);
   });
+
+  it.each([true, false])(
+    "keeps custom line and arrow geometry cached across pan with viewport culling %s",
+    (culling) => {
+      mount(Array.from({ length: 100 }, (_, index) => ({ id: String(index), x: 100 + index * 10, y: 100 })));
+      graph.updateSettings({ viewportCulling: culling });
+      frames(2);
+      for (let index = 0; index < 100; index++) view(String(index)).draws = [];
+
+      // One previously visible connection exits; its chunk stays drawn for the visible neighbors.
+      graph.cameraService.set({ x: -210 });
+      frames(2);
+      expect(view("0").draws).not.toContain("path");
+      expect(view("0").draws).not.toContain("arrow");
+      expect(view("20").draws).toContain("afterRender");
+      for (let index = 1; index < 80; index++) {
+        expect(view(String(index)).draws).not.toContain("path");
+        expect(view(String(index)).draws).not.toContain("arrow");
+      }
+
+      for (let index = 0; index < 100; index++) view(String(index)).draws = [];
+      graph.cameraService.set({ x: 0 });
+      frames(2);
+      expect(view("0").draws).toContain("afterRender");
+      expect(view("0").draws).not.toContain("path");
+      expect(view("0").draws).not.toContain("arrow");
+
+      connectionState("20").$targetPortState.value.updatePort({ x: 450, y: 150, lookup: false });
+      frames(2);
+      expect(view("20").draws).toContain("path");
+      expect(view("20").draws).toContain("arrow");
+      expect(view("21").draws).not.toContain("path");
+      expect(view("21").draws).not.toContain("arrow");
+    }
+  );
 
   it("finds a label intersecting the viewport before its outside line ever draws", () => {
     mount([{ id: "label", x: 1010, y: 100, label: "a".repeat(200) }]);

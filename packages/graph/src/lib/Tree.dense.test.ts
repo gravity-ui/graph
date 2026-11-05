@@ -5,7 +5,7 @@ type Probe = ITree & { name: string; prepare?: () => boolean; paint?: () => bool
 const viewport = (maxX: number): TTileRect => ({ minX: 0, minY: 0, maxX, maxY: maxX });
 
 function setup() {
-  const state = { viewport: viewport(1000), enabled: true };
+  const state = { viewport: viewport(1000) };
   const events: string[] = [];
   const nodes: Array<Tree<Probe>> = [];
   const published = new Map<Tree<Probe>, boolean>();
@@ -46,7 +46,6 @@ function setup() {
   root.setCulling({
     tileSize: 64,
     getViewport: () => state.viewport,
-    isEnabled: () => state.enabled,
   });
   const add = (name: string, x?: number, parent = root) => {
     const node = make(name, x);
@@ -98,7 +97,7 @@ describe("Tree full-viewport traversal", () => {
     expect(reads.parent).toBeLessThanOrEqual(nodes.length * 12);
   });
 
-  it("updates the shared batch visibility before painting across full, sparse and disabled culling", () => {
+  it("updates the shared batch visibility before painting across full and sparse culling", () => {
     const { root, state, add, walk } = setup();
     add("left", 10);
     const right = add("right", 300);
@@ -124,16 +123,6 @@ describe("Tree full-viewport traversal", () => {
     expect(result.events.indexOf("visible:leaf:true")).toBeLessThan(result.events.indexOf("draw:root"));
     expect(result.visited).toContain("leaf");
 
-    state.viewport = viewport(100);
-    state.enabled = false;
-    result = walk();
-    expect(result.prepared).toEqual(["root", "left", "right", "leaf"]);
-    expect(result.drawn).toEqual(["root", "left"]);
-    expect(result.events).toContain("batch:left");
-    expect(result.visited).toEqual(["root", "left", "right", "leaf"]);
-
-    state.enabled = true;
-    expect(walk().visited).toEqual(["root", "left"]);
     expect(root["culling"]).toBe(scope);
     expect(scope?.index.size).toBe(3);
   });

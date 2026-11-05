@@ -3,7 +3,7 @@ import { ITree, Tree } from "./Tree";
 
 type Probe = ITree & { name: string; paint?: () => boolean };
 /** The private complete scan, spied on to tell it from tile queries. */
-type TScanProbe = { publishScan(viewport: TTileRect, keepBase: boolean): void };
+type TScanProbe = { publishScan(viewport: TTileRect, eligible: number): void };
 
 const rect = (minX: number, minY: number, maxX: number, maxY: number): TTileRect => ({ minX, minY, maxX, maxY });
 

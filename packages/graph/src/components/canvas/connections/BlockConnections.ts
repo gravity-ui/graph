@@ -102,13 +102,7 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
   }
 
   protected render(): void {
-    // Same world-space rect as the layer tree's viewport: the full camera viewport, insets ignored.
-    const { relativeX, relativeY, relativeWidth, relativeHeight } = this.context.camera.getCameraState();
-    this.batch.render(this.context.ctx, {
-      minX: -relativeX,
-      minY: -relativeY,
-      maxX: -relativeX + relativeWidth,
-      maxY: -relativeY + relativeHeight,
-    });
+    // The layer's culling viewport; without culling the batch draws every chunk.
+    this.batch.render(this.context.ctx, this.getCullingViewport());
   }
 }

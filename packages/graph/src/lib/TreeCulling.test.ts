@@ -3,7 +3,7 @@ import { ITree, Tree } from "./Tree";
 
 type TNodeData = ITree & { name: string };
 /** The private complete scan, spied on to tell it from tile queries. */
-type TScanProbe = { publishScan(viewport: TTileRect, keepBase: boolean): void };
+type TScanProbe = { publishScan(viewport: TTileRect, eligible: number): void };
 const rect = (x: number, y = x, size = 10): TTileRect => ({ minX: x, minY: y, maxX: x + size, maxY: y + size });
 
 function setup() {
@@ -227,15 +227,6 @@ describe("Tree native spatial scope", () => {
     walk();
     state.viewport = undefined;
     expect(walk()).toMatchObject({ prepared: ["root", "parent", "child"], drawn: ["root", "parent", "child"] });
-  });
-
-  it("disables traversal filtering without allowing offscreen paint", () => {
-    const { root, add, walk } = setup();
-    const out = add("out", 1000);
-    root.setCulling({ tileSize: 64, getViewport: () => rect(0, 0, 100), isEnabled: () => false });
-    walk();
-    expect(walk()).toMatchObject({ prepared: ["root", "out"], visited: ["root", "out"], drawn: ["root"] });
-    expect(out.isVisible()).toBe(false);
   });
 
   it("never prepares descendants behind a suppressed ancestor", () => {

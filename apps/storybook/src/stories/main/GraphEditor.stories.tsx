@@ -70,9 +70,9 @@ const meta: Meta<typeof GraphApp> = {
       control: "boolean",
       description: "Render connection's label",
     },
-    EXP_VISIBILITY_CULLING: {
+    viewportCulling: {
       control: "boolean",
-      description: "Walk only blocks, connections and groups near the viewport (tile index)",
+      description: "Cull canvas components by the viewport; off walks and paints every component as v2",
     },
   },
   args: {
@@ -83,7 +83,7 @@ const meta: Meta<typeof GraphApp> = {
     canDrag: ECanDrag.ALL,
     scaleFontSize: 1,
     showConnectionArrows: true,
-    EXP_VISIBILITY_CULLING: true,
+    viewportCulling: true,
   },
 };
 

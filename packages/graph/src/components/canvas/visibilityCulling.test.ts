@@ -66,13 +66,18 @@ describe("Visibility culling of graph components", () => {
     expect(view("far").isRendered()).toBe(false);
   });
 
-  it("walks every component when the setting is off", () => {
-    graph.updateSettings({ EXP_VISIBILITY_CULLING: false });
+  it("walks every component and paints only what the camera sees when viewportCulling is off", () => {
+    graph.updateSettings({ viewportCulling: false });
+    frames(2);
     const far = jest.spyOn(view("far"), "iterate");
+    const farRender = jest.spyOn(view("far") as unknown as { render(): void }, "render");
     graph.getGraphLayer().performRender();
     frames(2);
 
     expect(far).toHaveBeenCalled();
+    expect(farRender).not.toHaveBeenCalled();
+    expect(view("near").isRendered()).toBe(true);
+    expect(view("far").isRendered()).toBe(false);
   });
 
   it("renders a component once the camera reaches it and stops when it leaves", () => {

@@ -1,6 +1,7 @@
 import { GraphClassConstructor } from "../utils/types/classes";
 
 import { Scheduler } from "./Scheduler";
+import type { TTileRect } from "./TileIndex";
 import { ITree, Tree } from "./Tree";
 import type { TTreeCullingOptions } from "./TreeCulling";
 
@@ -142,6 +143,11 @@ export class CoreComponent<
   /** Whether this node's own bounds intersect its tree's viewport. */
   public isInViewport(): boolean {
     return this.__comp.treeNode.isVisible();
+  }
+
+  /** World rectangle this component's tree culled by in its latest frame; undefined when the tree does not cull. */
+  protected getCullingViewport(): TTileRect | undefined {
+    return this.__comp.treeNode.scope?.frameViewport;
   }
 
   public performRender = () => {

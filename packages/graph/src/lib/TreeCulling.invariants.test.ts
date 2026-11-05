@@ -32,10 +32,7 @@ function intersects(node: Tree, viewport: TTileRect | undefined): boolean {
 }
 
 function setup() {
-  const state: { viewport: TTileRect | undefined; enabled: boolean } = {
-    viewport: rect(0, 0, 100, 100),
-    enabled: true,
-  };
+  const state: { viewport: TTileRect | undefined } = { viewport: rect(0, 0, 100, 100) };
   const newFrame = (): TFrame => ({ prepared: [], painted: new Map(), errors: [] });
   let frame = newFrame();
   const hooks: { atPublication?: () => void } = {};
@@ -63,13 +60,14 @@ function setup() {
     return node;
   };
   const root = make("root");
-  root.setCulling({ tileSize: 64, getViewport: () => state.viewport, isEnabled: () => state.enabled });
+  const configure = (): void => root.setCulling({ tileSize: 64, getViewport: () => state.viewport });
+  configure();
   const walk = (): TFrame => {
     frame = newFrame();
     root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
     return frame;
   };
-  return { root, state, make, walk, hooks, current: () => frame };
+  return { root, state, make, walk, hooks, configure, current: () => frame };
 }
 
 describe("TreeCulling publication invariants", () => {
@@ -176,7 +174,7 @@ describe("TreeCulling publication invariants", () => {
       return value / 2147483647;
     };
     const pick = <T>(items: T[]): T | undefined => items[Math.floor(random() * items.length)];
-    const { root, state, make, walk, hooks, current } = setup();
+    const { root, state, make, walk, hooks, configure, current } = setup();
     const created: TProbeTree[] = [];
     let step = 0;
 
@@ -290,7 +288,8 @@ describe("TreeCulling publication invariants", () => {
         viewport.maxX += dx;
       },
       () => {
-        if (random() < 0.2) state.enabled = !state.enabled;
+        // Replacing the culling options moves every node to a new scope, as switching viewportCulling does.
+        if (random() < 0.2) configure();
       },
       () => {
         // A preparation that changes structure or geometry in the same frame.

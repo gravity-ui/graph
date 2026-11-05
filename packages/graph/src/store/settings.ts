@@ -44,10 +44,10 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    */
   EXP_USE_TIGHT_BEZIER_BOUNDS: boolean;
   /**
-   * Experimental: walk only blocks, connections and groups near the viewport on each frame,
-   * found through a world-space tile index. Set to false to walk every component as before.
+   * Cull canvas components by the viewport: layers walk and paint only the components near it. Set to false to walk
+   * and paint every component as v2 did, for example to rule culling out while investigating a rendering problem.
    */
-  EXP_VISIBILITY_CULLING: boolean;
+  viewportCulling: boolean;
   useBlocksAnchors: boolean;
   connectivityComponentOnClickRaise: boolean;
   showConnectionLabels: boolean;
@@ -99,7 +99,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   useBezierConnections: true,
   bezierConnectionDirection: "horizontal",
   EXP_USE_TIGHT_BEZIER_BOUNDS: true,
-  EXP_VISIBILITY_CULLING: true,
+  viewportCulling: true,
   useBlocksAnchors: true,
   connectivityComponentOnClickRaise: true,
   showConnectionLabels: false,

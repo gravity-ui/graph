@@ -126,7 +126,12 @@ describe("DevTools visual props", () => {
 
   it("keeps constructor-only DOM resource configuration on descriptor reuse", () => {
     class Parent extends Component {
-      public input: TDevToolsLayerInput = { graph, camera: graph.cameraService, canvas: { zIndex: 200 } };
+      public input: TDevToolsLayerInput = {
+        graph,
+        camera: graph.cameraService,
+        culling: "none",
+        canvas: { zIndex: 200 },
+      };
       public child: TestDevToolsLayer | undefined;
       protected updateChildren() {
         return [TestDevToolsLayer.create(this.input, { key: "devtools", ref: (child) => (this.child = child) })];
@@ -140,7 +145,7 @@ describe("DevTools visual props", () => {
     const child = parent.child;
     expect(child).toBeDefined();
     const canvas = child?.getCanvas();
-    parent.input = { graph, camera: graph.cameraService, canvas: { zIndex: 201 } };
+    parent.input = { graph, camera: graph.cameraService, culling: "none", canvas: { zIndex: 201 } };
     parent.syncChildren();
     child?.flush();
     expect(parent.child).toBe(child);

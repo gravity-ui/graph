@@ -29,7 +29,7 @@ Connections with identical group names are batched together - they share the sam
 Each group keeps up to 100 items per chunk in registration order and draws a chunk with one
 `fill`/`stroke`. The combined path is rebuilt only when an item is added, removed or marked dirty;
 camera moves never rebuild it. A chunk whose items' bounds are all outside the viewport is skipped
-entirely. `afterRender` hooks of a drawn chunk run in registration order, only for items in the
+entirely. The viewport is the owner layer's culling viewport; without culling every chunk is drawn. `afterRender` hooks of a drawn chunk run in registration order, only for items in the
 viewport: an item's `isInViewport()` decides (connections report the layer tree's decision), otherwise
 its bounds do. Items without bounds always run.
 

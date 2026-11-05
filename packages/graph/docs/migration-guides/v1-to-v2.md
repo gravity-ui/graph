@@ -949,7 +949,8 @@ paints them in z-order. Compared with v1:
 | `isIterated()` as "updated in the last frame" | In a culled layer it means the component is attached in a branch that is walked. |
 | `CanvasBlock.isRendered()` as `shouldRender` | `shouldRender && isVisible()`: false outside the viewport. |
 | Return `false` from `iterate()`, or set `shouldRenderChildren = false` in `render()`, to hide children in the same frame | In a culled layer only the component's preparation decides: set `shouldRenderChildren` (or return `false` from `prepareUpdate()`). A value changed while painting applies from the next frame, which the component requests itself; the value `iterate()` returns is ignored. |
-| A screen-space layer | Pass `culling: "screen"` (or `"none"`); the default culls by the world viewport. See [Layers](../rendering/layers.md). |
+| A screen-space layer | Pass `culling: "screen"`; `"none"` walks and paints as v2. See [Layers](../rendering/layers.md). |
+| Mount a `Layer` as a child component | Layers are tree roots: add them with `graph.addLayer()`. A component that culls cannot become a child; a child layer must pass `culling: "none"`. |
 
 Three operations stay separate: `isRenderAllowed()` stops a component's own painting; `shouldRenderChildren = false`
 (or `false` from `prepareUpdate()`) stops walking its children; in a culled layer the value `iterate()` returns does not; a batch is
@@ -961,5 +962,4 @@ custom block that overrides `renderMinimalisticBlock` or `renderSchematicView` f
 override accepts `options` and passes them on (or checks `options?.text` itself); an override that takes only
 `ctx` decides on its own what the minimap shows.
 
-`EXP_VISIBILITY_CULLING = false` makes the tree visit every component again, but painting still follows the
-viewport; it is a diagnostic switch, not a v1 compatibility mode.
+`viewportCulling: false` walks and paints every layer as v2 did: a diagnostic switch for ruling culling out.

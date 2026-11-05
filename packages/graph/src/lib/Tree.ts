@@ -166,6 +166,8 @@ export class Tree<T extends ITree = ITree> {
 
   /** Configures a shared spatial scope for this root and all its descendants. Only a root can cull. */
   public setCulling(options: TTreeCullingOptions | undefined): void {
+    // Removing culling from a node that has none changes nothing, also below a parent.
+    if (!options && !this.culling) return;
     if (this.parent) throw new Error("Only a tree root can cull its descendants");
     this.setScope(undefined);
     this.culling = options ? new TreeCulling(this, options) : undefined;

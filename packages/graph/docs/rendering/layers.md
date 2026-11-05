@@ -285,7 +285,7 @@ by `LayerProps.culling`:
 |---|---|---|
 | `"world"` (default) | the camera viewport in world coordinates | layers that draw the graph in world coordinates |
 | `"screen"` | the layer's rectangle in screen pixels | overlays that draw at fixed screen positions |
-| `"none"` | none: every component paints | components without meaningful bounds |
+| `"none"` | none: the layer walks and paints as in v2 | components without meaningful bounds |
 
 ```typescript
 class HudLayer extends Layer {
@@ -296,9 +296,11 @@ class HudLayer extends Layer {
 ```
 
 Components report bounds in the same coordinates (`setCullingBounds()`, or the hit box of a
-`GraphComponent`); unknown bounds always paint. A layer that needs another rectangle calls
-`setChildrenCulling({ tileSize, getViewport })` in its constructor. Turning off the `EXP_VISIBILITY_CULLING` setting does not change the
-rectangle: components outside it get their lifecycle calls again but still do not paint.
+`GraphComponent`); unknown bounds always paint. A layer that needs another rectangle overrides `getCullingOptions()` and
+returns `{ tileSize, getViewport }`; the Layer constructor calls it, so read the layer's own fields inside
+`getViewport`, and call `updateCulling()` after changing what it returns. Without culling (`"none"`, or the
+`viewportCulling` setting turned off) a layer walks every component, and a `GraphComponent` checks its hit box against
+the camera, as in v2.
 
 ### Built-in CSS Classes
 

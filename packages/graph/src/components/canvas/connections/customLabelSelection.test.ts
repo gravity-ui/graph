@@ -33,7 +33,7 @@ describe.each([true, false])("selected-only custom labels with traversal culling
           useBezierConnections: false,
           showConnectionArrows: false,
           showConnectionLabels: true,
-          EXP_VISIBILITY_CULLING: enabled,
+          viewportCulling: enabled,
         },
       },
       root
@@ -54,6 +54,15 @@ describe.each([true, false])("selected-only custom labels with traversal culling
 
   afterEach(() => graph?.unmount());
 
+  /** Culling prepares every connection before the layer paints; without it a parent paints before its children update. */
+  function settle(text: jest.Mock): void {
+    frame();
+    if (enabled) return;
+    // The first frame paints the previous label; the second one shows the update.
+    text.mockClear();
+    frame();
+  }
+
   it("prepares selected-only bounds before the first paint and updates them while the line stays offscreen", () => {
     const { view, text } = mount("label");
     expect(view.isInViewport()).toBe(false);
@@ -61,7 +70,7 @@ describe.each([true, false])("selected-only custom labels with traversal culling
     expect(graph.getElementOverPoint({ x: 180, y: 790 }, [BlockConnection])).toBeUndefined();
 
     graph.api.selectConnections(["connection"], true);
-    frame();
+    settle(text);
 
     expect(view.isInViewport()).toBe(true);
     expect(text).toHaveBeenLastCalledWith("label", 178, 786);
@@ -69,7 +78,7 @@ describe.each([true, false])("selected-only custom labels with traversal culling
     text.mockClear();
 
     graph.api.selectConnections(["connection"], false);
-    frame();
+    settle(text);
 
     expect(view.isInViewport()).toBe(false);
     expect(text).not.toHaveBeenCalled();
@@ -84,7 +93,7 @@ describe.each([true, false])("selected-only custom labels with traversal culling
     expect(text).not.toHaveBeenCalled();
 
     graph.api.updateConnection("connection", { label: "longerlabel" });
-    frame();
+    settle(text);
 
     expect(view.isInViewport()).toBe(true);
     expect(text).toHaveBeenLastCalledWith("longerlabel", 172, 786);
@@ -92,7 +101,7 @@ describe.each([true, false])("selected-only custom labels with traversal culling
     text.mockClear();
 
     graph.api.updateConnection("connection", { label: undefined });
-    frame();
+    settle(text);
 
     expect(view.isInViewport()).toBe(false);
     expect(text).not.toHaveBeenCalled();

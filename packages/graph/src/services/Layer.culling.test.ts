@@ -2,6 +2,8 @@ import { Graph } from "../graph";
 import { Component } from "../lib/Component";
 import type { CoreComponent, CoreComponentProps } from "../lib/CoreComponent";
 import { globalScheduler } from "../lib/Scheduler";
+import type { TTileRect } from "../lib/TileIndex";
+import type { TTreeCullingOptions } from "../lib/TreeCulling";
 
 import { Layer } from "./Layer";
 import type { LayerProps, TLayerCulling } from "./Layer";
@@ -38,10 +40,18 @@ class OverlayLayer extends Layer {
     this.onGraphEvent("camera-change", () => this.performRender());
     super.afterInit();
   }
+}
 
-  /** A custom rectangle, as a layer would set it in its constructor. */
+/** A layer with its own rectangle. The Layer constructor asks for the options, so the rectangle is read lazily. */
+class RectLayer extends OverlayLayer {
+  public viewport: TTileRect = { minX: 0, minY: 0, maxX: 1000, maxY: 800 };
+
+  protected getCullingOptions(): TTreeCullingOptions | undefined {
+    return { tileSize: 64, getViewport: () => this.viewport };
+  }
+
   public useViewport(minX: number, minY: number, maxX: number, maxY: number): void {
-    this.setChildrenCulling({ tileSize: 64, getViewport: () => ({ minX, minY, maxX, maxY }) });
+    this.viewport = { minX, minY, maxX, maxY };
     this.performRender();
   }
 }
@@ -50,13 +60,13 @@ function frames(): void {
   for (let i = 0; i < 3; i++) globalScheduler.performUpdate();
 }
 
-function setup(culling?: TLayerCulling, cullingEnabled = true) {
+function setup(culling?: TLayerCulling, viewportCulling = true, LayerClass: typeof OverlayLayer = OverlayLayer) {
   const root = document.createElement("div");
   Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
-  const graph = new Graph({ settings: { EXP_VISIBILITY_CULLING: cullingEnabled } }, root);
+  const graph = new Graph({ settings: { viewportCulling } }, root);
   graph.cameraService.set({ width: 1000, height: 800, scale: 1, x: 0, y: 0 });
   graph.start();
-  const layer = graph.addLayer(OverlayLayer, culling ? { culling } : {});
+  const layer = graph.addLayer(LayerClass, culling ? { culling } : {});
   frames();
   paints = 0;
   /** Pans and zooms the camera far from the world origin and returns how often the child painted. */
@@ -82,30 +92,56 @@ describe("layer culling policy", () => {
     graph.unmount();
   });
 
-  it("paints every child without culling", () => {
+  it("walks and paints every child as in v2 without culling", () => {
     const { graph, moveCamera } = setup("none");
     expect(moveCamera()).toBeGreaterThan(0);
     graph.unmount();
   });
 
-  it("uses a rectangle the layer sets itself", () => {
-    const { graph, layer, moveCamera } = setup();
-    layer.useViewport(0, 0, 1000, 800);
+  it("uses a rectangle the layer returns from getCullingOptions()", () => {
+    const { graph, layer, moveCamera } = setup(undefined, true, RectLayer);
     expect(moveCamera()).toBeGreaterThan(0);
-    layer.useViewport(500, 500, 600, 600);
+    (layer as RectLayer).useViewport(500, 500, 600, 600);
     expect(moveCamera()).toBe(0);
     graph.unmount();
   });
 
-  it("keeps the spatial paint gate when EXP_VISIBILITY_CULLING is off: traversal returns, painting does not", () => {
-    const off = setup(undefined, false);
-    expect(off.moveCamera()).toBe(0);
+  it("walks and paints every child when viewportCulling is off and culls again when it is back on", () => {
+    const { graph, moveCamera } = setup(undefined, false);
+    expect(moveCamera()).toBeGreaterThan(0);
     expect(iterations).toBeGreaterThan(0);
-    off.graph.unmount();
+    graph.updateSettings({ viewportCulling: true });
+    expect(moveCamera()).toBe(0);
+    graph.updateSettings({ viewportCulling: false });
+    expect(moveCamera()).toBeGreaterThan(0);
+    graph.unmount();
+  });
 
-    const on = setup();
-    expect(on.moveCamera()).toBe(0);
-    expect(iterations).toBe(0);
-    on.graph.unmount();
+  it("keeps a child layer without culling working when viewportCulling is toggled", () => {
+    const { graph } = setup();
+    class Parent extends Component {
+      public child: OverlayLayer | undefined;
+      protected updateChildren() {
+        return [
+          OverlayLayer.create(
+            { graph, camera: graph.cameraService, culling: "none" },
+            { key: "overlay", ref: (child) => (this.child = child) }
+          ),
+        ];
+      }
+      public syncChildren(): void {
+        this.__updateChildren();
+      }
+    }
+    const parent = new Parent({});
+    parent.syncChildren();
+    const child = parent.child;
+    if (!child) throw new Error("Expected a child layer");
+    child.attachLayer(document.createElement("div"));
+    expect(() => graph.updateSettings({ viewportCulling: false })).not.toThrow();
+    expect(() => graph.updateSettings({ viewportCulling: true })).not.toThrow();
+    child.detachLayer();
+    Component.unmount(parent);
+    graph.unmount();
   });
 });

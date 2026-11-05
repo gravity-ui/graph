@@ -88,3 +88,5 @@ export type {
   ComponentDescriptor,
   ChildDescriptor,
 } from "./lib/CoreComponent";
+export type { TTreeCullingOptions } from "./lib/TreeCulling";
+export type { TTileRect } from "./lib/TileIndex";

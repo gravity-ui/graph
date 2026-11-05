@@ -6,7 +6,7 @@ import type { ICamera } from "./camera/CameraService";
 
 /**
  * One viewport source for a layer tree: the camera viewport in world coordinates, or the layer's rectangle in
- * screen pixels. Disabling the index preserves the exact paint gate.
+ * screen pixels.
  */
 export function createViewportCulling(
   graph: Graph,
@@ -16,7 +16,6 @@ export function createViewportCulling(
   const viewport: TTileRect = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
   return {
     tileSize: graph.graphConstants.system.VISIBILITY_TILE_SIZE,
-    isEnabled: () => graph.rootStore.settings.getConfigFlag("EXP_VISIBILITY_CULLING"),
     getViewport: () => {
       if (space === "screen") {
         const { width, height } = getCamera().getCameraState();

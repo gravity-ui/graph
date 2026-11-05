@@ -7,6 +7,7 @@ import { GraphEventsDefinitions, UnwrapGraphEvents } from "../graphEvents";
 import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
 import { ESchedulerPriority } from "../lib/Scheduler";
+import type { TTreeCullingOptions } from "../lib/TreeCulling";
 import { TypedEventListener, addTypedEventListener } from "../utils/eventListener";
 import type { GraphClassConstructor } from "../utils/types/classes";
 import { debounce } from "../utils/utils/schedule";
@@ -50,10 +51,11 @@ export type LayerProps = {
    * Which rectangle culls the layer's canvas components, by the bounds they report:
    * - `"world"` (default): the camera viewport in world coordinates, for layers that draw the graph;
    * - `"screen"`: the layer's own rectangle in screen pixels, for overlays that draw at fixed screen positions;
-   * - `"none"`: every component paints, for example when the components report no bounds or other coordinates.
+   * - `"none"`: no culling: the layer walks and paints as in v2, and graph components check their hit box against the
+   *   camera;
    *
-   * A layer that needs another rectangle calls `setChildrenCulling()` in its constructor. Turning off
-   * EXP_VISIBILITY_CULLING does not change this choice: it only stops skipping traversal.
+   * A layer that needs another rectangle overrides getCullingOptions(). Turning off the viewportCulling setting walks
+   * and paints every layer as in v2.
    */
   culling?: TLayerCulling;
   root?: HTMLElement;
@@ -331,11 +333,34 @@ export class Layer<
       ctx: undefined,
     });
 
-    const culling = this.props.culling ?? "world";
-    this.setChildrenCulling(
-      culling === "none" ? undefined : createViewportCulling(this.props.graph, () => this.context.camera, culling)
-    );
+    this.applyCulling();
     this.init();
+  }
+
+  private cullingEnabled?: boolean;
+
+  /**
+   * The rectangle that culls this layer's canvas components, or undefined to walk and paint them all as in v2. The
+   * Layer constructor calls it: read subclass fields inside `getViewport`, which runs every frame, not here.
+   */
+  protected getCullingOptions(): TTreeCullingOptions | undefined {
+    const culling = this.props.culling ?? "world";
+    if (culling === "none") return undefined;
+    return createViewportCulling(this.props.graph, () => this.context.camera, culling);
+  }
+
+  /** Applies getCullingOptions() again, for example after a subclass changed the rectangle it returns. */
+  protected updateCulling(): void {
+    this.cullingEnabled = undefined;
+    this.applyCulling();
+  }
+
+  private applyCulling(): void {
+    const enabled = this.props.graph.rootStore.settings.getConfigFlag("viewportCulling");
+    if (enabled === this.cullingEnabled) return;
+    this.cullingEnabled = enabled;
+    this.setChildrenCulling(enabled ? this.getCullingOptions() : undefined);
+    this.performRender();
   }
 
   protected sizeTouched = false;
@@ -376,6 +401,8 @@ export class Layer<
     });
     this.onSignal(this.props.graph.$camera, (camera) => this.handleCommittedCameraChange(camera));
     this.onSignal(this.props.graph.layers.rootSize, this.updateSize);
+    // Built-in layers exist before the graph applies its settings: follow the setting, not its value at construction.
+    this.onSignal(this.props.graph.rootStore.settings.$settings, () => this.applyCulling());
 
     this.shouldRenderChildren = true;
     this.shouldUpdateChildren = true;

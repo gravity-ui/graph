@@ -12,6 +12,15 @@ describe("culling roots", () => {
     expect(() => parent.setCulling(options)).not.toThrow();
   });
 
+  it("removes nothing from a child without culling", () => {
+    const root = node();
+    const child = node();
+    root.setCulling(options);
+    root.append(child);
+    expect(() => child.setCulling(undefined)).not.toThrow();
+    expect(child.scope).toBe(root.culling);
+  });
+
   it("does not append a root that culls its descendants", () => {
     const root = node();
     const culled = node();

@@ -6,8 +6,6 @@ export type TTreeCullingOptions = {
   tileSize: number;
   /** Exact world-space viewport; undefined makes every node visible. */
   getViewport: () => TTileRect | undefined;
-  /** Disables traversal filtering while retaining the exact viewport paint gate. */
-  isEnabled?: () => boolean;
   /** Candidate share above which a complete selection scans nodes instead of querying tiles. @default 0.75 */
   fullWalkShare?: number;
 };
@@ -86,8 +84,8 @@ export class TreeCulling {
   /** Structure revision of the last publication that made every eligible node visible. */
   private allVisibleRevision = -1;
 
-  /** Culling is disabled: every eligible node runs iterate() while the paint gate stays exact. */
-  private visitAll = false;
+  /** Viewport of the latest publication, a stable copy; undefined when every node is visible. */
+  public frameViewport?: TTileRect;
 
   /** Nodes prepared ahead of painting in the current frame. */
   private prepared: Tree[] = [];
@@ -215,8 +213,8 @@ export class TreeCulling {
     // Viewport sources may reuse one object; publication works on a stable copy.
     const source = this.options.getViewport();
     const viewport = source && { ...source };
+    this.frameViewport = viewport;
     this.visibilityRevision = -1;
-    this.visitAll = false;
     // New descendants whose preparation an ancestor blocked stay hidden.
     const fresh = this.fresh;
     for (let i = 0; i < fresh.length; i++) {
@@ -225,9 +223,6 @@ export class TreeCulling {
     }
     if (!viewport || this.index.covers(viewport)) {
       this.publishAll(eligible);
-    } else if (!(this.options.isEnabled?.() ?? true)) {
-      this.visitAll = true;
-      this.publishScan(viewport, eligible, false);
     } else if (!this.publishDelta(viewport, eligible)) {
       this.publishSelection(viewport, eligible);
     }
@@ -300,22 +295,22 @@ export class TreeCulling {
     this.allVisibleRevision = this.structureRevision;
   }
 
-  /** Publishes a complete selection by checking every node: for dense views and disabled culling. */
-  private publishScan(viewport: TTileRect, eligible: number, keepBase: boolean): void {
+  /** Publishes a complete selection by checking every node: for dense views. */
+  private publishScan(viewport: TTileRect, eligible: number): void {
     this.allVisibleRevision = -1;
     const nodes = this.nodes;
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
       this.show(node, node.orderStamp === eligible && this.intersects(node, viewport));
     }
-    this.selectionBase = keepBase ? { ...viewport, structure: this.structureRevision } : undefined;
+    this.selectionBase = { ...viewport, structure: this.structureRevision };
   }
 
   /** Publishes a complete selection through the tiles, or by a scan when most nodes are candidates. */
   private publishSelection(viewport: TTileRect, eligible: number): void {
     const limit = this.nodes.length * (this.options.fullWalkShare ?? 0.75);
     if (this.index.countCandidates(viewport, limit) > limit) {
-      this.publishScan(viewport, eligible, true);
+      this.publishScan(viewport, eligible);
       return;
     }
     this.allVisibleRevision = -1;
@@ -410,19 +405,17 @@ export class TreeCulling {
   }
 
   /**
-   * Paints in local z-order. The first loop picks visible and prepared nodes (or every eligible node while culling is
-   * disabled); clean offscreen nodes are skipped and their visible descendants are still picked. The second loop runs
-   * iterate() only for picked nodes. Painting does not change which branches are walked and ignores what iterate()
-   * returns: only preparation decides.
+   * Paints in local z-order. The first loop picks visible and prepared nodes; clean offscreen nodes are skipped and
+   * their visible descendants are still picked. The second loop runs iterate() only for picked nodes. Painting does not
+   * change which branches are walked and ignores what iterate() returns: only preparation decides.
    */
   private paint(iterator: TIterator, nodes: Tree[]): void {
     const list = this.visitList;
     const stamp = this.stamp;
     const owner = this.owner;
-    const visitAll = this.visitAll;
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
-      if (node === owner || visitAll || node.published || node.preparedStamp === stamp) list.push(node);
+      if (node === owner || node.published || node.preparedStamp === stamp) list.push(node);
     }
     for (let k = 0; k < list.length; k++) {
       const node = list[k];

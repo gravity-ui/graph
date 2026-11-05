@@ -176,8 +176,10 @@ export class Component<
   public override iterate(prepared = false, visible = true): boolean {
     if (!prepared) this.prepareUpdate();
     this.updatePrepared = false;
+    // Without culling the tree paints every component: it decides itself, with the geometry it just prepared.
+    const inViewport = this.__comp.treeNode.scope ? visible : visible && this.isInViewport();
 
-    if (visible && this.shouldRender && this.isRenderAllowed()) {
+    if (inViewport && this.shouldRender && this.isRenderAllowed()) {
       this.renderLifeCycle();
     } else {
       this.willNotRender();

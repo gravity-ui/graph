@@ -34,7 +34,7 @@ class InitiallySuppressedBlock extends CustomBlock {
   }
 }
 
-describe.each([true, false])("custom lifecycle with traversal culling %s", (enabled) => {
+describe.each([true, false])("custom lifecycle with viewport culling %s", (enabled) => {
   let graph: Graph;
   let block: CustomBlock;
 
@@ -46,7 +46,7 @@ describe.each([true, false])("custom lifecycle with traversal culling %s", (enab
       {
         settings: {
           blockComponents: { custom: CustomBlock, suppressed: InitiallySuppressedBlock },
-          EXP_VISIBILITY_CULLING: enabled,
+          viewportCulling: enabled,
         },
       },
       document.createElement("div")

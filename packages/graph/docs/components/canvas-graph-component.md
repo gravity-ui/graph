@@ -107,7 +107,7 @@ Override `isRenderAllowed()` for additional semantic conditions, such as hidden 
 connection endpoints; `isVisible()` combines it with `isInViewport()` for queries. For connections it also
 decides whether the batch draws the line and arrow. Use `firstIterate`
 for initialization; `firstRender` stays true until the component is actually painted.
-`EXP_VISIBILITY_CULLING = false` enables a full traversal while retaining the same viewport paint gate.
+With `viewportCulling` off, every component is walked and a graph component checks its hit box against the camera itself.
 
 `isVisible()` reads the current viewport and bounds between frames and in update hooks that run before
 painting. A custom `willIterate()` can therefore refresh deferred external state on the first frame that
