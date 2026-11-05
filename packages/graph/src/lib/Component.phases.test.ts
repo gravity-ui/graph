@@ -411,6 +411,72 @@ describe("children veto and frame requests in a culled tree", () => {
     CoreComponent.unmount(root);
   });
 
+  it("applies a veto that a non-owner sets while painting on the frame it requests, and resumes", () => {
+    // Only the owner is prepared on every walk: a gate below it reaches its preparation through its own request.
+    class Gate extends Component {
+      public item?: Item;
+      public suppress = false;
+      protected render() {
+        this.shouldRenderChildren = !this.suppress;
+      }
+      protected updateChildren() {
+        return [item(this)];
+      }
+    }
+    class Root extends Component {
+      public gate?: Gate;
+      constructor() {
+        super({});
+        this.setChildrenCulling({ tileSize: 64, getViewport: viewport });
+      }
+      protected updateChildren() {
+        return [
+          Gate.create(
+            {},
+            {
+              ref: (gate) => {
+                this.gate = gate;
+              },
+            }
+          ),
+        ];
+      }
+    }
+    const root = mountRoot(Root);
+    const gate = root.gate;
+    const child = gate?.item;
+    if (!gate || !child) throw new Error("Missing mounted components");
+    const painted = child.painted;
+    const render = jest.spyOn(gate as unknown as { performRender(): void }, "performRender");
+
+    gate.suppress = true;
+    requestFrame(root);
+    CoreComponent.update(root);
+    // The veto is set while painting: this frame still paints the item, and the gate requests one frame.
+    expect(child.painted).toBe(painted + 1);
+    expect(render).toHaveBeenCalledTimes(1);
+    CoreComponent.update(root);
+    // The requested frame prepares the gate, and its preparation applies the veto.
+    expect(child.painted).toBe(painted + 1);
+    expect(child.isIterated()).toBe(false);
+    requestFrame(root);
+    CoreComponent.update(root);
+    expect(child.painted).toBe(painted + 1);
+    expect(render).toHaveBeenCalledTimes(1);
+
+    gate.suppress = false;
+    gate.performRender();
+    CoreComponent.update(root);
+    // Resuming takes two frames: the requested frame prepares the gate first, and its preparation still returns the
+    // veto set while painting; painting the gate lifts it and requests the frame that walks the item again.
+    expect(child.painted).toBe(painted + 1);
+    expect(render).toHaveBeenCalledTimes(3);
+    CoreComponent.update(root);
+    expect(child.painted).toBe(painted + 2);
+    expect(child.isIterated()).toBe(true);
+    CoreComponent.unmount(root);
+  });
+
   it("requests one frame when painting changes shouldRenderChildren, and applies it there", () => {
     class Root extends Component {
       public item?: Item;

@@ -271,7 +271,8 @@ describe("TreeCulling publication invariants", () => {
         const node = pick(attached());
         if (!node) return;
         node.data.allowChildren = !node.data.allowChildren;
-        // Without a request, painting reports the change and the next frame prepares it.
+        // Without a request the change waits: painting's result is ignored, and a plain `ITree` keeps its permission
+        // until its next preparation.
         if (random() < 0.5) node.requestWalk();
       },
       () => pick(attached())?.updateZIndex(1 + Math.floor(random() * 3)),

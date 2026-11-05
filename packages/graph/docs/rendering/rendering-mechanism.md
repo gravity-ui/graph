@@ -60,10 +60,16 @@ changes while painting (for example children it adds or moves from `render()`) i
 component that changes `shouldRenderChildren` while painting requests one more frame, whose preparation applies it.
 
 A component that must react to leaving the viewport, for example to hide an HTML overlay or release a
-resource, defines `viewportChanged(inViewport)`. It is called once per change, after publication and before
-painting, also when an ancestor stops walking its branch; it is not called on unmount. When its layer stops
-culling, a component told it left is told it is back right away. Only components that
-define it are tracked.
+resource, defines `viewportChanged(inViewport)`. Only components that define it are tracked. It is called
+once per change, after publication and before painting, also when an ancestor stops walking its branch;
+it is not called on unmount. It is not called at mount for a component outside the viewport, and never in
+a layer without culling: show the overlay from `render()` and hide or release it on
+`viewportChanged(false)`.
+
+A layer without culling counts every component as in the viewport: turning culling off tells components
+it last told they left that they are back, turning it on tells offscreen ones that they left. Turning it
+off also tells an offscreen component that was never notified, for example one mounted outside the
+viewport, that it is in the viewport.
 
 Connection batches do not depend on per-item visibility or on child traversal: each chunk is skipped
 when its items' bounds are outside the viewport, and its items' `afterRender` hooks run only for items in

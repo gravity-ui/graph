@@ -27,13 +27,15 @@ type TWorkList = Array<Tree | undefined>;
  *    clean visible node applies its own pending work there; clean offscreen nodes get no call.
  *
  * Invariants, checked after every walk in the package tests (cullingInvariants.ts):
- * 1. Only publication writes `Tree.published`; unregistering a node clears it.
- * 2. After publication a node is published exactly when it is registered, listed in the current paint order and its
- *    bounds intersect the viewport (unknown bounds intersect everything).
- * 3. The visible list holds exactly the published nodes, each at its `visibleSlot`.
+ * 1. Only publication writes `Tree.published` of the registered nodes and the owner; unregistering a node clears it.
+ * 2. After publication the owner and each registered node are published exactly when they are listed in the current
+ *    paint order and their bounds intersect the viewport (unknown bounds intersect everything). The owner is published
+ *    but not registered: it is not in `nodes`, the index or the visible list.
+ * 3. The visible list holds exactly the published registered nodes, each at its `visibleSlot`.
  * 4. Only preparation changes `childrenWalkAllowed`; painting ignores what `iterate()` returns (a component that
  *    changes `shouldRenderChildren` while painting requests the next frame itself).
- * 5. A node is iterated at most once per walk; a node prepared in a walk is iterated in it unless it left the scope.
+ * 5. A node is iterated at most once per walk; a node with `prepareUpdate()` prepared in a walk is iterated in it
+ *    unless it left the scope (finishPrepared() skips nodes without it).
  * 6. A node that requested an update is prepared in the next walk unless an ancestor forbids walking its branch.
  *
  * Node sets are arrays indexed by slots stored on the nodes, so registering, publishing and preparing a node costs no
@@ -69,8 +71,6 @@ export class TreeCulling {
 
   public stamp = 0;
 
-  public walking = false;
-
   public painting = false;
 
   /** Nodes prepared ahead of painting in the current frame. */
@@ -100,7 +100,6 @@ export class TreeCulling {
   }
 
   public walk(iterator: TIterator): void {
-    this.walking = true;
     this.painting = false;
     this.stamp = ++TreeCulling.walkStamp;
     try {
@@ -137,7 +136,6 @@ export class TreeCulling {
       this.paint(iterator, order.nodes);
       if (this.preparedPainted !== this.prepared.length) this.finishPrepared(iterator);
     } finally {
-      this.walking = false;
       this.painting = false;
       // Frame lists must not keep removed nodes alive until the next traversal.
       this.prepared = [];

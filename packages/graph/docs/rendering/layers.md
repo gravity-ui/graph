@@ -285,7 +285,7 @@ by `LayerProps.culling`:
 |---|---|---|
 | `"world"` (default) | the camera viewport in world coordinates | layers that draw the graph in world coordinates |
 | `"screen"` | the layer's rectangle in screen pixels | overlays that draw at fixed screen positions |
-| `"none"` | none: the layer walks and paints as in v2 | components without meaningful bounds |
+| `"none"` | none: the layer walks every component, and a `GraphComponent` paints when the camera sees its hit box | plain components, or components that decide their own visibility |
 
 ```typescript
 class HudLayer extends Layer {
@@ -296,11 +296,18 @@ class HudLayer extends Layer {
 ```
 
 Components report bounds in the same coordinates (`setCullingBounds()`, or the hit box of a
-`GraphComponent`); unknown bounds always paint. A layer that needs another rectangle overrides `getCullingOptions()` and
-returns `{ tileSize, getViewport }`; the Layer constructor calls it, so read the layer's own fields inside
-`getViewport`, and call `updateCulling()` after changing what it returns. Without culling (`"none"`, or the
-`viewportCulling` setting turned off) a layer walks every component, and a `GraphComponent` checks its hit box against
-the camera, as in v2.
+`GraphComponent`); unknown bounds always paint. A layer that needs another rectangle overrides
+`getCullingOptions()` and returns `{ tileSize, getViewport }`; the Layer constructor calls it, so read the
+layer's own fields inside `getViewport`, and call `updateCulling()` after changing what it returns.
+
+Without culling (`"none"`, or the `viewportCulling` setting turned off) there is no viewport culling: a
+layer walks every component, a `GraphComponent` paints when the camera sees its hit box, and connection
+batches draw every chunk. The lifecycle rules shared with culled layers still apply: an offscreen component
+is not painted on mount, and visibility is decided after preparation.
+
+Only a tree root culls, so a layer mounted as a child component passes `culling: "none"`. Such a child layer
+joins its parent's culling: appended under a culled tree, its components are culled by the parent's
+viewport.
 
 ### Built-in CSS Classes
 

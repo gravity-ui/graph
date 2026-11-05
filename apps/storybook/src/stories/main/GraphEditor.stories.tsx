@@ -72,7 +72,7 @@ const meta: Meta<typeof GraphApp> = {
     },
     viewportCulling: {
       control: "boolean",
-      description: "Cull canvas components by the viewport; off walks and paints every component as v2",
+      description: "Cull canvas components by the viewport; off walks every component without viewport culling",
     },
   },
   args: {

@@ -7,14 +7,17 @@ const rect = (x: number): TTileRect => ({ minX: x, minY: x, maxX: x + 100, maxY:
 
 type TLog = string[];
 
+type TOverlayProps = { log: TLog; name: string; at?: number };
+
 /** Shows an overlay while painted and releases it when it leaves the viewport. */
-class Overlay extends Component<{ log: TLog; name: string }> {
+class Overlay extends Component<TOverlayProps> {
   public overlay = false;
   public releases = 0;
 
-  constructor(props: { log: TLog; name: string }, parent: CoreComponent) {
+  constructor(props: TOverlayProps, parent: CoreComponent) {
     super(props, parent);
-    this.setCullingBounds(10, 10, 20, 20);
+    const at = props.at ?? 10;
+    this.setCullingBounds(at, at, at + 10, at + 10);
   }
 
   public override viewportChanged(inViewport: boolean): void {
@@ -203,4 +206,90 @@ describe("viewportChanged when the culling rectangle is replaced", () => {
     CoreComponent.unmount(root);
     expect(notifications()).toEqual(["overlay:in"]);
   });
+});
+
+describe("viewportChanged when culling is turned on", () => {
+  function setup(at: number, culled: boolean) {
+    const log: TLog = [];
+    const refs: { overlay?: Overlay } = {};
+    class Root extends Component {
+      private viewportX = 0;
+      constructor() {
+        super({});
+        if (culled) this.useCulling();
+      }
+      public useCulling(): void {
+        this.setChildrenCulling({ tileSize: 64, getViewport: () => rect(this.viewportX) });
+        this.performRender();
+      }
+      public useNoCulling(): void {
+        this.setChildrenCulling(undefined);
+        this.performRender();
+      }
+      public pan(x: number): void {
+        this.viewportX = x;
+        this.performRender();
+      }
+      protected updateChildren() {
+        return [
+          Overlay.create(
+            { log, name: "overlay", at },
+            {
+              ref: (overlay) => {
+                refs.overlay = overlay;
+              },
+            }
+          ),
+        ];
+      }
+    }
+    const root = CoreComponent.mount(Root);
+    CoreComponent.update(root);
+    if (!refs.overlay) throw new Error("Missing overlay");
+    const notifications = () => log.filter((entry) => entry.endsWith(":in") || entry.endsWith(":out"));
+    return { root, overlay: refs.overlay, notifications };
+  }
+
+  it("tells a component mounted without culling that it left when culling is turned on", () => {
+    const { root, overlay, notifications } = setup(2000, false);
+    // Without culling the component paints, and its overlay is shown.
+    expect(overlay.overlay).toBe(true);
+    expect(notifications()).toEqual([]);
+
+    root.useCulling();
+    CoreComponent.update(root);
+    expect(notifications()).toEqual(["overlay:out"]);
+    expect(overlay.overlay).toBe(false);
+    expect(overlay.releases).toBe(1);
+
+    root.performRender();
+    CoreComponent.update(root);
+    expect(notifications()).toEqual(["overlay:out"]);
+    CoreComponent.unmount(root);
+  });
+
+  it.each([
+    ["mounted with culling", true, ["overlay:in"]],
+    ["mounted without culling", false, []],
+  ])(
+    "does not tell a component in view that it entered again when culling returns, then reports leaving (%s)",
+    (_, culled, initial) => {
+      const { root, overlay, notifications } = setup(10, culled);
+      expect(notifications()).toEqual(initial);
+      if (culled) {
+        root.useNoCulling();
+        CoreComponent.update(root);
+      }
+      root.useCulling();
+      CoreComponent.update(root);
+      expect(notifications()).toEqual(initial);
+      expect(overlay.overlay).toBe(true);
+
+      root.pan(2000);
+      CoreComponent.update(root);
+      expect(notifications()).toEqual([...initial, "overlay:out"]);
+      expect(overlay.overlay).toBe(false);
+      CoreComponent.unmount(root);
+    }
+  );
 });

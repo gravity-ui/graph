@@ -19,7 +19,7 @@ function frame() {
   globalScheduler.performUpdate();
 }
 
-describe.each([true, false])("selected-only custom labels with traversal culling %s", (enabled) => {
+describe.each([true, false])("selected-only custom labels with viewport culling %s", (enabled) => {
   let graph: Graph;
 
   function mount(label: string | undefined) {

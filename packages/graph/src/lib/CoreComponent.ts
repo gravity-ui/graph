@@ -132,11 +132,15 @@ export class CoreComponent<
 
   /**
    * Optional hook: define it to learn when this component enters or leaves the viewport of its culled layer, for
-   * example to hide an HTML overlay or release a resource while it is out of view. A component outside the
-   * viewport receives no other lifecycle calls while nothing changes. Called once per change, after the frame
-   * published visibility and before painting; it also reports leaving when an ancestor stops walking this
-   * branch. When its layer stops culling, a component told it left is told it is back right away. It is not called on unmount: release resources in `unmount()`. Updates requested from it apply in a
-   * later frame.
+   * example to hide an HTML overlay or release a resource while it is out of view. A component outside the viewport
+   * receives no other lifecycle calls while nothing changes. Called once per change, after the frame published
+   * visibility and before painting; it also reports leaving when an ancestor stops walking this branch.
+   *
+   * It is not called at mount for a component outside the viewport, and never in a layer without culling: show the
+   * overlay from `render()` and hide or release it on `viewportChanged(false)`. A layer without culling counts every
+   * component as in the viewport: turning culling off tells components it last told they left that they are back
+   * (offscreen components it never told anything included), turning it on tells offscreen ones that they left. It is
+   * not called on unmount: release resources in `unmount()`. Updates requested from it apply in a later frame.
    */
   public viewportChanged?(inViewport: boolean): void;
 

@@ -176,6 +176,10 @@ export class Tree<T extends ITree = ITree> {
     this.setScope(undefined);
     this.culling = options ? new TreeCulling(this, options) : undefined;
     this.setScope(this.culling);
+    // Without culling every component counted as in the viewport: the first publication tells offscreen ones they left.
+    if (options && !previous && this.culling) {
+      for (const node of this.culling.nodes) if (node.observesViewport) node.notifiedInViewport = true;
+    }
     // Without culling every component paints again: observers that were told they left learn they are back.
     for (const node of returning) {
       node.notifiedInViewport = true;

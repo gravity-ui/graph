@@ -56,6 +56,27 @@ class RectLayer extends OverlayLayer {
   }
 }
 
+type TSwitchMode = "far" | "near" | "none";
+
+/** A layer that changes what getCullingOptions() returns and applies it with updateCulling(). */
+class SwitchingLayer extends OverlayLayer {
+  /** Unset while the Layer constructor asks for the options: the layer starts culled by a far rectangle. */
+  public mode?: TSwitchMode;
+
+  protected getCullingOptions(): TTreeCullingOptions | undefined {
+    const mode = this.mode ?? "far";
+    if (mode === "none") return undefined;
+    const at = mode === "far" ? 5000 : 0;
+    const viewport: TTileRect = { minX: at, minY: at, maxX: at + 100, maxY: at + 100 };
+    return { tileSize: mode === "far" ? 64 : 256, getViewport: () => viewport };
+  }
+
+  public switchCulling(mode: TSwitchMode): void {
+    this.mode = mode;
+    this.updateCulling();
+  }
+}
+
 function frames(): void {
   for (let i = 0; i < 3; i++) globalScheduler.performUpdate();
 }
@@ -92,7 +113,7 @@ describe("layer culling policy", () => {
     graph.unmount();
   });
 
-  it("walks and paints every child as in v2 without culling", () => {
+  it("walks and paints every child without culling", () => {
     const { graph, moveCamera } = setup("none");
     expect(moveCamera()).toBeGreaterThan(0);
     graph.unmount();
@@ -103,6 +124,23 @@ describe("layer culling policy", () => {
     expect(moveCamera()).toBeGreaterThan(0);
     (layer as RectLayer).useViewport(500, 500, 600, 600);
     expect(moveCamera()).toBe(0);
+    graph.unmount();
+  });
+
+  it("applies the options getCullingOptions() returns again after updateCulling()", () => {
+    const { graph, layer, moveCamera } = setup(undefined, true, SwitchingLayer);
+    const switching = layer as SwitchingLayer;
+    // The child reports (10, 10)-(20, 20): outside the far rectangle, inside the near one.
+    expect(moveCamera()).toBe(0);
+    switching.switchCulling("near");
+    expect(moveCamera()).toBeGreaterThan(0);
+    switching.switchCulling("none");
+    expect(moveCamera()).toBeGreaterThan(0);
+    expect(iterations).toBeGreaterThan(0);
+    switching.switchCulling("far");
+    expect(moveCamera()).toBe(0);
+    switching.switchCulling("near");
+    expect(moveCamera()).toBeGreaterThan(0);
     graph.unmount();
   });
 

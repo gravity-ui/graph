@@ -51,11 +51,12 @@ export type LayerProps = {
    * Which rectangle culls the layer's canvas components, by the bounds they report:
    * - `"world"` (default): the camera viewport in world coordinates, for layers that draw the graph;
    * - `"screen"`: the layer's own rectangle in screen pixels, for overlays that draw at fixed screen positions;
-   * - `"none"`: no culling: the layer walks and paints as in v2, and graph components check their hit box against the
-   *   camera;
+   * - `"none"`: no viewport culling: the layer walks every component, and a graph component paints when the camera
+   *   sees its hit box;
    *
-   * A layer that needs another rectangle overrides getCullingOptions(). Turning off the viewportCulling setting walks
-   * and paints every layer as in v2.
+   * A layer that needs another rectangle overrides getCullingOptions(). Turning off the viewportCulling setting removes
+   * viewport culling from every layer. Without it the lifecycle rules shared with culled layers still apply: an
+   * offscreen component is not painted on mount, and visibility is decided after preparation.
    */
   culling?: TLayerCulling;
   root?: HTMLElement;
@@ -340,8 +341,9 @@ export class Layer<
   private cullingEnabled?: boolean;
 
   /**
-   * The rectangle that culls this layer's canvas components, or undefined to walk and paint them all as in v2. The
-   * Layer constructor calls it: read subclass fields inside `getViewport`, which runs every frame, not here.
+   * The rectangle that culls this layer's canvas components, or undefined for no viewport culling: every component is
+   * walked, and a graph component paints when the camera sees its hit box. The Layer constructor calls it: read
+   * subclass fields inside `getViewport`, which runs every frame, not here.
    */
   protected getCullingOptions(): TTreeCullingOptions | undefined {
     const culling = this.props.culling ?? "world";

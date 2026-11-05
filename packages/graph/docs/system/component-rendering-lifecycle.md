@@ -112,8 +112,9 @@ Visibility is published before the layer paints. Connection batches do not track
 skip whole chunks outside the viewport. Hit testing retains its separate spatial index and supports
 queries outside the viewport.
 
-From `scheduler-system.md`:
-> During an update, the Scheduler traverses the component tree in depth-first order: Tree._walkDown, a tree without culling processes or skips children by the iterator result, a culled tree by `prepareUpdate()`
+During an update the Scheduler traverses the component tree depth-first (see
+[Scheduler System](./scheduler-system.md)): a tree without culling processes or skips children by what
+`iterate()` returns, a culled tree by `prepareUpdate()`.
 
 From `rendering-mechanism.md`:
 > The rendering mechanism is built upon a hierarchical tree structure with the following key components: Tree - The base hierarchical structure that manages parent-child relationships with z-index ordering
