@@ -74,9 +74,6 @@ export class Tree<T extends ITree = ITree> {
   public observesViewport = false;
   /** @internal The membership last delivered to viewportChanged(). */
   public notifiedInViewport = false;
-  private eligibilityRevision = -1;
-  private traversalAllowed = true;
-
   constructor(data: T, parent?: Tree) {
     this.data = data;
     this.parent = parent;
@@ -178,7 +175,6 @@ export class Tree<T extends ITree = ITree> {
     if (this.scope === scope) return;
     this.scope?.delete(this);
     this.scope = scope;
-    this.eligibilityRevision = -1;
     scope?.add(this);
     for (const child of this.children) child.setScope(scope);
   }
@@ -226,25 +222,8 @@ export class Tree<T extends ITree = ITree> {
     );
   }
 
-  /** Whether every ancestor still contains this branch and permits its traversal. */
+  /** Whether every ancestor still contains this branch and permits its traversal; trees here are a few levels deep. */
   public isTraversalAllowed(): boolean {
-    const scope = this.scope;
-    if (scope?.walking) {
-      if (
-        scope.painting &&
-        this.published &&
-        this !== scope.owner &&
-        scope.visibilityRevision === scope.structureRevision
-      )
-        return true;
-      if (this.eligibilityRevision !== scope.structureRevision) {
-        const parent = this.parent;
-        this.traversalAllowed =
-          !parent || (parent.children.has(this) && parent.childrenWalkAllowed && parent.isTraversalAllowed());
-        this.eligibilityRevision = scope.structureRevision;
-      }
-      return this.traversalAllowed;
-    }
     let node: Tree = this;
     while (node.parent) {
       const parent = node.parent;
