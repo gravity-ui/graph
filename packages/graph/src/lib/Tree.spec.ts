@@ -116,7 +116,7 @@ test("a culled tree ignores the result of iterate() and leaves the node unreques
       },
     })
   );
-  const walk = (): void => root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
+  const walk = (): void => root.traverseDown((node) => node.data.iterate());
   walk();
   walk();
   expect(calls).toBe(2);
@@ -139,7 +139,7 @@ test("a culled tree takes the children veto from prepareUpdate() on request", ()
       },
     })
   );
-  const walk = (): void => root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
+  const walk = (): void => root.traverseDown((node) => node.data.iterate());
   walk();
   expect(calls).toBe(0);
   allow = true;

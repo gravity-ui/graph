@@ -21,12 +21,12 @@ export type TSchedulerPriority = 0 | 1 | 2 | 3 | 4;
 
 type TSchedulerTreeNode = {
   data: {
-    iterate: (prepared: boolean, visible: boolean) => boolean;
+    iterate: () => boolean;
   };
 };
 
 type TSchedulerTree = {
-  traverseDown: (iterator: (node: TSchedulerTreeNode, prepared: boolean, visible: boolean) => boolean) => void;
+  traverseDown: (iterator: (node: TSchedulerTreeNode) => boolean) => void;
 };
 
 const MEDIUM_PRIORITY: TSchedulerPriority = 2;
@@ -187,8 +187,8 @@ export class Scheduler {
     this.root?.traverseDown(this.iterator);
   }
 
-  public iterator(node: TSchedulerTreeNode, prepared: boolean, visible: boolean) {
-    return node.data.iterate(prepared, visible);
+  public iterator(node: TSchedulerTreeNode): boolean {
+    return node.data.iterate();
   }
 
   public scheduleUpdate() {

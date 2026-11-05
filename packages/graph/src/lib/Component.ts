@@ -173,11 +173,16 @@ export class Component<
     return this.shouldRenderChildren;
   }
 
-  public override iterate(prepared = false, visible = true): boolean {
+  public override iterate(): boolean {
+    const node = this.__comp.treeNode;
+    const prepared = node.framePrepared;
+    const visible = node.frameVisible;
+    node.framePrepared = false;
+    node.frameVisible = true;
     if (!prepared) this.prepareUpdate();
     this.updatePrepared = false;
     // Without culling the tree paints every component: it decides itself, with the geometry it just prepared.
-    const inViewport = this.__comp.treeNode.scope ? visible : visible && this.isInViewport();
+    const inViewport = node.scope ? visible : visible && this.isInViewport();
 
     if (inViewport && this.shouldRender && this.isRenderAllowed()) {
       this.renderLifeCycle();
@@ -193,8 +198,7 @@ export class Component<
     // whose preparation applies it.
     if (this.shouldRenderChildren !== this.iteratedRenderChildren) {
       this.iteratedRenderChildren = this.shouldRenderChildren;
-      const treeNode = this.__comp.treeNode;
-      if (treeNode.scope && this.shouldRenderChildren !== treeNode.childrenWalkAllowed) this.performRender();
+      if (node.scope && this.shouldRenderChildren !== node.childrenWalkAllowed) this.performRender();
     }
 
     return this.shouldRenderChildren;

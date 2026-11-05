@@ -31,7 +31,8 @@ type TWorkList = Array<Tree | undefined>;
  * 2. After publication a node is published exactly when it is registered, listed in the current paint order and its
  *    bounds intersect the viewport (unknown bounds intersect everything).
  * 3. The visible list holds exactly the published nodes, each at its `visibleSlot`.
- * 4. Only preparation changes `childrenWalkAllowed`; a node whose iterate() disagrees is prepared in the next frame.
+ * 4. Only preparation changes `childrenWalkAllowed`; painting ignores what `iterate()` returns (a component that
+ *    changes `shouldRenderChildren` while painting requests the next frame itself).
  * 5. A node is iterated at most once per walk; a node prepared in a walk is iterated in it unless it left the scope.
  * 6. A node that requested an update is prepared in the next walk unless an ancestor forbids walking its branch.
  *
@@ -227,7 +228,9 @@ export class TreeCulling {
       if (prepared) this.preparedPainted++;
       node.preparedStamp = stamp;
       node.paintedStamp = stamp;
-      iterator(node, prepared, node.published);
+      node.framePrepared = prepared;
+      node.frameVisible = node.published;
+      iterator(node);
     }
   }
 
@@ -239,7 +242,9 @@ export class TreeCulling {
     for (const node of this.prepared) {
       if (node.paintedStamp === this.stamp || !node.data.prepareUpdate || node.scope !== this) continue;
       node.paintedStamp = this.stamp;
-      iterator(node, true, false);
+      node.framePrepared = true;
+      node.frameVisible = false;
+      iterator(node);
     }
   }
 

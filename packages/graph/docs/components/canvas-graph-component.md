@@ -87,7 +87,7 @@ and the component's own bounds in that index. Custom components and containers p
 automatically; they do not create or query tiles themselves.
 
 ```typescript
-// The tree decides spatial visibility and passes it to iterate(); a component only vetoes painting.
+// The tree decides spatial visibility and sets it on the node before iterate(); a component only vetoes painting.
 protected isRenderAllowed(): boolean {
   return !this.hidden;
 }

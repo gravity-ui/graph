@@ -202,7 +202,7 @@ The scheduling system coordinates when component updates happen:
 3. On the next animation frame, the graph's frame task updates the trees of its layers that have the flag set
 4. The Scheduler traverses the component tree in a depth-first order
 5. In layer trees, new and requested components prepare their data and children before visibility is published; `iterate()` then updates and paints visible nodes; clean offscreen nodes are skipped
-6. Components can control whether their children are processed by returning true/false from `iterate()`
+6. In a tree without culling, components control whether their children are processed by returning true/false from `iterate()`; a culled tree takes that decision from `prepareUpdate()` (for components, `shouldRenderChildren`) and ignores the result
 
 ## Priority Levels
 
@@ -447,7 +447,7 @@ The traversal process follows these rules:
 
 - Components are visited in depth-first order
 - Children are ordered by z-index for proper rendering layering
-- Component's `iterate()` return value controls whether children are processed
+- In a tree without culling, the component's `iterate()` return value controls whether children are processed; a culled tree decides from `prepareUpdate()` and ignores it
 - This allows for efficient partial updates of the tree
 
 For detailed flow diagrams showing these processes, see [Component Rendering and Lifecycle Integration](./component-rendering-lifecycle.md).
@@ -532,7 +532,7 @@ The scheduling system is designed for optimal performance:
 1. Updates are batched per animation frame
 2. Multiple state/props changes trigger only one render per frame
 3. Z-index ordering allows for efficient rendering of visual components
-4. The system only traverses branches that need updating (when components return `false` from `iterate()`)
+4. The system only traverses branches that need updating (in a tree without culling, when components return `false` from `iterate()`; a culled tree decides from `prepareUpdate()`)
 5. Multiple schedulers can be used for different update frequencies
 
 ## Handling Browser Environment Differences

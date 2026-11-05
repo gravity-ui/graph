@@ -30,7 +30,8 @@ function setup(fullWalkShare: number) {
         events.push(`prepare:${name}`);
         return node.data.prepare?.() ?? true;
       },
-      iterate: (prepared) => {
+      iterate: () => {
+        const prepared = node.framePrepared;
         // A node the tree did not prepare applies its own pending work first.
         const allowed = prepared ? true : node.data.prepareUpdate?.() ?? true;
         if (name === "root") recordPublished();
@@ -61,7 +62,7 @@ function setup(fullWalkShare: number) {
   };
   const walk = () => {
     events.length = 0;
-    root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
+    root.traverseDown((node) => node.data.iterate());
     const names = (prefix: string) =>
       events.filter((event) => event.startsWith(prefix)).map((event) => event.slice(prefix.length));
     return { prepared: names("prepare:"), drawn: names("draw:"), visited: names("iterate:"), events: events.slice() };

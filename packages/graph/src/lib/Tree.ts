@@ -2,19 +2,18 @@ import { TTreeCullingOptions, TreeCulling } from "./culling/TreeCulling";
 import { intersects } from "./culling/VisibilityPublication";
 import { cache } from "./utils";
 
-/**
- * Runs one node's frame. `prepared` tells whether the tree already called `prepareUpdate()` for this
- * node in this traversal; `visible` is the tree's paint decision for the node's own bounds.
- */
-export type TIterator = (node: Tree, prepared: boolean, visible: boolean) => boolean;
+/** Runs one node's frame; the tree's decision for the node is on it: `framePrepared` and `frameVisible`. */
+export type TIterator = (node: Tree) => boolean;
 
 export interface ITree {
   /**
-   * Runs this node's frame. When `prepared` is false, `iterate()` applies its pending work itself first.
-   * `visible` is the tree's paint decision; the node may still veto painting. False suppresses children in a tree without culling;
-   * a culled tree takes that decision from prepareUpdate() and ignores the result.
+   * Runs this node's frame. The tree passes its decision through the tree node: `framePrepared` tells whether it
+   * already called `prepareUpdate()` in this traversal (otherwise `iterate()` applies pending work itself first),
+   * `frameVisible` is its paint decision; the node may still veto painting.
+   * False suppresses children in a tree without culling; a culled tree takes that decision from prepareUpdate()
+   * and ignores the result.
    */
-  iterate(prepared: boolean, visible: boolean): boolean;
+  iterate(): boolean;
   /** Applies pending work without painting; false suppresses this node's descendants. */
   prepareUpdate?(): boolean;
   /**
@@ -59,6 +58,10 @@ export class Tree<T extends ITree = ITree> {
   public published = false;
   /** @internal Last traversal that prepared this node. */
   public preparedStamp = 0;
+  /** @internal Set right before `data.iterate()`: the tree already prepared this node in this traversal. */
+  public framePrepared = false;
+  /** @internal Set right before `data.iterate()`: the tree's paint decision for this node's own bounds. */
+  public frameVisible = true;
   /** @internal Last traversal that ran this node's iterate(). */
   public paintedStamp = 0;
   /** @internal Exact selection for one spatial query. */
@@ -299,7 +302,9 @@ export class Tree<T extends ITree = ITree> {
 
   protected _walkDown(iterator: TIterator, order: number) {
     this.renderOrder = order;
-    this.setChildrenWalkAllowed(iterator(this, false, true));
+    this.framePrepared = false;
+    this.frameVisible = true;
+    this.setChildrenWalkAllowed(iterator(this));
     if (!this.childrenWalkAllowed) return;
     const children = this.zIndexChildrenCache.get();
     for (let i = 0; i < children.length; i++) children[i]._walkDown(iterator, i);

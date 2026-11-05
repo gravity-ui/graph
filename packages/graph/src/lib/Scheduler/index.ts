@@ -45,7 +45,7 @@ export const scheduler: GlobalScheduler = runtimeScheduler;
 export interface Scheduler {
   setRoot(root: Tree | undefined): void;
   update(): void;
-  iterator(node: Tree, prepared: boolean, visible: boolean): boolean;
+  iterator(node: Tree): boolean;
   scheduleUpdate(): void;
   performUpdate(): void;
 }

@@ -1,5 +1,14 @@
 import { Component } from "./Component";
 import { CoreComponent } from "./CoreComponent";
+import type { Tree } from "./Tree";
+
+// Sets the decision the tree would put on the node right before iterating it.
+function iterateAs(component: Component, prepared: boolean, visible: boolean): boolean {
+  const node = (component as unknown as { __comp: { treeNode: Tree } }).__comp.treeNode;
+  node.framePrepared = prepared;
+  node.frameVisible = visible;
+  return component.iterate();
+}
 
 class Probe extends Component<{ value: number }, { value: number }> {
   public events: string[] = [];
@@ -42,16 +51,16 @@ class Probe extends Component<{ value: number }, { value: number }> {
 test("mounts and commits state outside the viewport without running render hooks", () => {
   const probe = new Probe();
   probe.change(1);
-  probe.iterate(false, false);
+  iterateAs(probe, false, false);
   expect(probe.state.value).toBe(1);
   expect(probe.events).toEqual(["mount", "children", "complete"]);
 
   probe.change(2);
-  probe.iterate(false, false);
+  iterateAs(probe, false, false);
   expect(probe.state.value).toBe(2);
   expect(probe.events).toEqual(["mount", "children", "complete", "complete"]);
 
-  probe.iterate(false, true);
+  iterateAs(probe, false, true);
   expect(probe.events.slice(-4)).toEqual(["willRender", "render:2", "didRender", "complete"]);
   CoreComponent.unmount(probe);
 });
@@ -63,7 +72,7 @@ test("prepares children and data before painting", () => {
   expect(probe.state.value).toBe(4);
   expect(probe.events).toEqual(["mount", "children"]);
 
-  probe.iterate(true, true);
+  iterateAs(probe, true, true);
   expect(probe.events).toEqual(["mount", "children", "willRender", "render:4", "didRender", "complete"]);
   CoreComponent.unmount(probe);
 });
@@ -76,7 +85,7 @@ test("does not repeat an update that is prepared again before painting", () => {
   expect(probe.events).toEqual(["mount", "children"]);
 
   // An iteration without the tree's preparation reuses the explicit one.
-  probe.iterate(false, true);
+  iterateAs(probe, false, true);
   expect(probe.events).toEqual(["mount", "children", "willRender", "render:4", "didRender", "complete"]);
 
   // Painting consumed it: the next preparation runs again.
@@ -244,18 +253,16 @@ describe.each([
   });
 });
 
-test("prepares inside iterate only when the tree has not prepared the component", () => {
+test("does not repeat an explicit preparation when iterated directly", () => {
   const probe = new Probe();
-  const prepare = jest.spyOn(probe, "prepareUpdate");
   probe.change(1);
   probe.prepareUpdate();
-  probe.iterate(true, true);
-  expect(prepare).toHaveBeenCalledTimes(1);
+  probe.iterate();
   expect(probe.state.value).toBe(1);
+  expect(probe.events.filter((event) => event === "children")).toHaveLength(1);
 
   probe.change(2);
-  probe.iterate(false, true);
-  expect(prepare).toHaveBeenCalledTimes(2);
+  probe.iterate();
   expect(probe.state.value).toBe(2);
   expect(probe.events.filter((event) => event === "complete")).toHaveLength(2);
   CoreComponent.unmount(probe);

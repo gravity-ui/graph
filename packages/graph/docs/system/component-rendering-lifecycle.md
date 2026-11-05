@@ -44,7 +44,7 @@ sequenceDiagram
     end
 
     Tree->>Tree: Update visibility from viewport delta and changed bounds
-    Tree->>Component: iterate(prepared, visible) in local z-index order for visible or prepared nodes
+    Tree->>Component: iterate() in local z-index order for visible or prepared nodes
     opt not prepared yet in this frame
         Component->>Component: prepareUpdate() inside iterate()
     end
@@ -85,7 +85,7 @@ The component lifecycle controls the rendering process through several key metho
 
 1. `prepareUpdate()` - Applies data and reconciles children; before painting for requested and new components, inside `iterate()` for clean visible ones
 2. `checkData()` - Processes any pending state/props changes
-3. The tree's `visible` argument, the `shouldRender` flag and `isRenderAllowed()` - Together control whether rendering occurs
+3. The tree's paint decision, set on the node right before `iterate()`, the `shouldRender` flag and `isRenderAllowed()` - Together control whether rendering occurs
 4. `iterate()` / `render()` - Complete the update and create eligible visual output
 5. `shouldUpdateChildren` flag - Controls whether children are updated
 
@@ -113,7 +113,7 @@ skip whole chunks outside the viewport. Hit testing retains its separate spatial
 queries outside the viewport.
 
 From `scheduler-system.md`:
-> During an update, the Scheduler traverses the component tree in depth-first order: Tree._walkDown, Iterator returns true/false, Process/Skip children
+> During an update, the Scheduler traverses the component tree in depth-first order: Tree._walkDown, a tree without culling processes or skips children by the iterator result, a culled tree by `prepareUpdate()`
 
 From `rendering-mechanism.md`:
 > The rendering mechanism is built upon a hierarchical tree structure with the following key components: Tree - The base hierarchical structure that manages parent-child relationships with z-index ordering

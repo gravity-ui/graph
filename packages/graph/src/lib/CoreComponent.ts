@@ -225,10 +225,14 @@ export class CoreComponent<
   }
 
   /**
-   * Runs this component's frame. `prepared` tells whether the tree already called prepareUpdate() in
-   * this traversal; `visible` is the tree's viewport decision.
+   * Runs this component's frame. The tree tells it through its tree node whether it already prepared it in this
+   * traversal; overrides call `super.iterate()` without arguments. A direct call outside a traversal prepares first.
    */
-  public iterate(prepared = false, _visible = true): boolean {
+  public iterate(): boolean {
+    const node = this.__comp.treeNode;
+    const prepared = node.framePrepared;
+    node.framePrepared = false;
+    node.frameVisible = true;
     if (!prepared) this.prepareUpdate();
     this.updatePrepared = false;
     return true;

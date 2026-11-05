@@ -32,7 +32,8 @@ function setup() {
         events.push(`prepare:${name}`);
         return true;
       },
-      iterate: (isPrepared) => {
+      iterate: () => {
+        const isPrepared = node.framePrepared;
         // A node the tree did not prepare applies its own pending work first.
         const allowed = isPrepared ? true : node.data.prepareUpdate?.() ?? true;
         // The root paints first: record visibility published for this frame before anything draws.
@@ -59,7 +60,7 @@ function setup() {
   };
   const walk = () => {
     prepared.length = drawn.length = visited.length = events.length = 0;
-    root.traverseDown((node, isPrepared, visible) => node.data.iterate(isPrepared, visible));
+    root.traverseDown((node) => node.data.iterate());
     return { prepared: prepared.slice(), drawn: drawn.slice(), visited: visited.slice(), events: events.slice() };
   };
   return { root, state, add, make, walk, configure };

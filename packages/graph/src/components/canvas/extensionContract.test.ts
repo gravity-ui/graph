@@ -55,13 +55,13 @@ describe("extension contract for custom components", () => {
     graph.unmount();
   });
 
-  it("keeps culling for an iterate() override that forwards the tree's arguments", () => {
+  it("keeps culling for an iterate() override that calls super.iterate() without arguments", () => {
     class Logged extends Block {
       public iterations = 0;
       public paints = 0;
-      public override iterate(prepared?: boolean, visible?: boolean): boolean {
+      public override iterate(): boolean {
         this.iterations++;
-        return super.iterate(prepared, visible);
+        return super.iterate();
       }
       protected override renderBody(ctx: CanvasRenderingContext2D): void {
         this.paints++;

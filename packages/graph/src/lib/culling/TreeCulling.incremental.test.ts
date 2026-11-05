@@ -22,7 +22,8 @@ function setup() {
         events.push(`prepare:${name}`);
         return true;
       },
-      iterate: (prepared) => {
+      iterate: () => {
+        const prepared = node.framePrepared;
         // A node the tree did not prepare applies its own pending work first.
         if (!prepared) node.data.prepareUpdate?.();
         if (name === "root") {
@@ -52,7 +53,7 @@ function setup() {
   };
   const walk = () => {
     events.length = 0;
-    root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
+    root.traverseDown((node) => node.data.iterate());
     const names = (prefix: string): string[] =>
       events.filter((event) => event.startsWith(prefix)).map((event) => event.slice(prefix.length));
     return { prepared: names("prepare:"), drawn: names("draw:"), visited: names("iterate:"), events: events.slice() };

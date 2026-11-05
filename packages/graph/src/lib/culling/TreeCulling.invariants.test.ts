@@ -49,7 +49,9 @@ function setup() {
         work?.();
         return node.data.allowChildren;
       },
-      iterate: (prepared, visible) => {
+      iterate: () => {
+        const prepared = node.framePrepared;
+        const visible = node.frameVisible;
         // The owner paints first: publication is complete and nothing has painted yet.
         if (name === "root") hooks.atPublication?.();
         const allowed = prepared ? node.data.allowChildren : node.data.prepareUpdate?.() ?? true;
@@ -65,7 +67,7 @@ function setup() {
   configure();
   const walk = (): TFrame => {
     frame = newFrame();
-    root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
+    root.traverseDown((node) => node.data.iterate());
     return frame;
   };
   return { root, state, make, walk, hooks, configure, current: () => frame };

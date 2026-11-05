@@ -180,7 +180,7 @@ describe("Scheduler root readiness", () => {
     const iterate = jest.fn(() => true);
     scheduler.setRoot({
       traverseDown: (iterator) => {
-        iterator({ data: { iterate } }, false, true);
+        iterator({ data: { iterate } });
       },
     });
     scheduler.performUpdate();

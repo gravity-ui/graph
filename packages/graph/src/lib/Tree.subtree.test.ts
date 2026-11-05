@@ -10,7 +10,7 @@ function setup() {
     const node: Tree<ITree> = new Tree<ITree>({
       prepareUpdate: () => true,
       // A node the tree did not prepare applies its own pending work first.
-      iterate: (prepared) => (prepared ? true : node.data.prepareUpdate?.() ?? true),
+      iterate: () => (node.framePrepared ? true : node.data.prepareUpdate?.() ?? true),
     });
     if (x !== undefined) node.setBounds(x, x, x + 10, x + 10);
     parent.append(node);
@@ -18,9 +18,9 @@ function setup() {
   };
   const walk = () => {
     const visited: Tree[] = [];
-    root.traverseDown((node, prepared, visible) => {
+    root.traverseDown((node) => {
       if (node !== root) visited.push(node);
-      return node.data.iterate(prepared, visible);
+      return node.data.iterate();
     });
     return visited;
   };

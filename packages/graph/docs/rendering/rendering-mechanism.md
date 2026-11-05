@@ -37,11 +37,11 @@ three steps:
    previous and current viewports outside each other, plus nodes whose bounds changed. After a
    structural change the coordinator runs one complete selection, through tiles or a linear bounds scan
    for dense views. Bounds reach the tile index once per frame, right before publication.
-3. **Painting.** One pass over the cached local paint order calls `iterate(prepared, visible)` for
-   visible and already prepared nodes. `prepared` tells the node whether its update already ran in this
-   frame; a clean visible node applies its own pending work inside `iterate()` right before it paints.
-   `visible` is the tree's paint decision; a component may still veto painting. Clean offscreen nodes
-   receive no call, and their visible descendants are still reached through them.
+3. **Painting.** One pass over the cached local paint order calls `iterate()` for visible and already
+   prepared nodes. The tree's decision is set on the node right before the call: whether its update
+   already ran in this frame and whether to paint. A clean visible node applies its own pending work
+   inside `iterate()` right before it paints, and a component may still veto painting. Clean offscreen
+   nodes receive no call, and their visible descendants are still reached through them.
 
 A camera frame therefore does work for the visible nodes plus what changed, and a cheap flag check for
 every node of the cached paint order; structural changes add one pass over the scope. Hooks that run
@@ -189,7 +189,7 @@ The rendering mechanism integrates with the browser's animation frame:
 - `performRender()` - Schedule a render update
 - `setContext(context)` - Update the context
 - `prepareUpdate()` - Apply pending data and reconcile children; the tree calls it before painting for requested and new components
-- `iterate(prepared, visible)` - Run the component's frame: update unless `prepared`, paint if `visible` and not vetoed
+- `iterate()` - Run the component's frame: update unless the tree already prepared it, paint if the tree decided so and not vetoed
 - `isInViewport()` - Read the tree's spatial visibility: the frame's decision while painting, current bounds otherwise
 - `static create(props, options)` - Factory method
 - `static mount(Component, props)` - Mount a component as root
