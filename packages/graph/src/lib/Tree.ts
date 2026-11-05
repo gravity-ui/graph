@@ -166,9 +166,17 @@ export class Tree<T extends ITree = ITree> {
     // Removing culling from a node that has none changes nothing, also below a parent.
     if (!options && !this.culling) return;
     if (this.parent) throw new Error("Only a tree root can cull its descendants");
+    const previous = this.culling;
+    const returning =
+      !options && previous ? previous.nodes.filter((node) => node.observesViewport && !node.notifiedInViewport) : [];
     this.setScope(undefined);
     this.culling = options ? new TreeCulling(this, options) : undefined;
     this.setScope(this.culling);
+    // Without culling every component paints again: observers that were told they left learn they are back.
+    for (const node of returning) {
+      node.notifiedInViewport = true;
+      node.data.viewportChanged?.(true);
+    }
   }
 
   private setScope(scope: TreeCulling | undefined): void {

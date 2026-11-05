@@ -61,7 +61,8 @@ component that changes `shouldRenderChildren` while painting requests one more f
 
 A component that must react to leaving the viewport, for example to hide an HTML overlay or release a
 resource, defines `viewportChanged(inViewport)`. It is called once per change, after publication and before
-painting, also when an ancestor stops walking its branch; it is not called on unmount. Only components that
+painting, also when an ancestor stops walking its branch; it is not called on unmount. When its layer stops
+culling, a component told it left is told it is back right away. Only components that
 define it are tracked.
 
 Connection batches do not depend on per-item visibility or on child traversal: each chunk is skipped

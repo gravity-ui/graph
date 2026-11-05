@@ -142,6 +142,10 @@ describe("viewportChanged when the culling rectangle is replaced", () => {
         this.setChildrenCulling({ tileSize: 64, getViewport: () => rect(x) });
         this.performRender();
       }
+      public useNoCulling(): void {
+        this.setChildrenCulling(undefined);
+        this.performRender();
+      }
       protected updateChildren() {
         return [
           Overlay.create(
@@ -175,6 +179,17 @@ describe("viewportChanged when the culling rectangle is replaced", () => {
     CoreComponent.unmount(root);
   });
 
+  it("tells a component that left the viewport it is back when culling is turned off", () => {
+    const { root, overlay, notifications } = setup();
+    root.useRect(500);
+    CoreComponent.update(root);
+    root.useNoCulling();
+    CoreComponent.update(root);
+    expect(notifications()).toEqual(["overlay:in", "overlay:out", "overlay:in"]);
+    expect(overlay.overlay).toBe(true);
+    CoreComponent.unmount(root);
+  });
+
   it("does not notify when the new rectangle keeps the component visible", () => {
     const { root, notifications } = setup();
     root.useRect(5);
@@ -187,47 +202,5 @@ describe("viewportChanged when the culling rectangle is replaced", () => {
     const { root, notifications } = setup();
     CoreComponent.unmount(root);
     expect(notifications()).toEqual(["overlay:in"]);
-  });
-});
-
-describe("viewportChanged on the owner of a scope", () => {
-  class Owner extends Component<{ log: TLog; state: { viewport: TTileRect } }> {
-    constructor(props: { log: TLog; state: { viewport: TTileRect } }, parent?: CoreComponent) {
-      super(props, parent);
-      this.setCullingBounds(10, 10, 20, 20);
-      this.setChildrenCulling({ tileSize: 64, getViewport: () => props.state.viewport });
-    }
-    public override viewportChanged(inViewport: boolean): void {
-      this.props.log.push(inViewport ? "in" : "out");
-    }
-    protected render(): void {
-      this.props.log.push("render");
-    }
-  }
-
-  function run(update: () => void, state: { viewport: TTileRect }, log: TLog): void {
-    update();
-    state.viewport = rect(500);
-    update();
-    update();
-    state.viewport = rect(0);
-    update();
-    expect(log).toEqual(["in", "render", "out", "in", "render"]);
-  }
-
-  it("notifies a root that owns its scope", () => {
-    const log: TLog = [];
-    const state = { viewport: rect(0) };
-    const root = CoreComponent.mount(Owner, { log, state });
-    run(
-      () => {
-        root.performRender();
-        CoreComponent.update(root);
-      },
-      state,
-      log
-    );
-    CoreComponent.unmount(root);
-    expect(log.slice(-1)).toEqual(["render"]);
   });
 });

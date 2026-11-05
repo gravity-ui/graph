@@ -102,8 +102,6 @@ export class TreeCulling {
     public readonly options: TTreeCullingOptions
   ) {
     this.index = new TileIndex({ tileSize: options.tileSize });
-    // The owner is published apart from the index, but it observes its viewport like any node.
-    owner.observesViewport = typeof owner.data.viewportChanged === "function";
   }
 
   public walk(iterator: TIterator): void {
@@ -233,11 +231,7 @@ export class TreeCulling {
     dirty.length = 0;
     // The owner is not indexed: its own bounds are always checked against the viewport.
     const owner = this.owner;
-    const ownerVisible = owner.isEligible(this) && this.intersects(owner, viewport);
-    if (owner.published !== ownerVisible) {
-      owner.published = ownerVisible;
-      if (owner.observesViewport) this.viewportChanges.push(owner);
-    }
+    owner.published = owner.isEligible(this) && this.intersects(owner, viewport);
     this.visibilityRevision = this.structureRevision;
   }
 

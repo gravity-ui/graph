@@ -135,7 +135,7 @@ export class CoreComponent<
    * example to hide an HTML overlay or release a resource while it is out of view. A component outside the
    * viewport receives no other lifecycle calls while nothing changes. Called once per change, after the frame
    * published visibility and before painting; it also reports leaving when an ancestor stops walking this
-   * branch. It is not called on unmount: release resources in `unmount()`. Updates requested from it apply in a
+   * branch. When its layer stops culling, a component told it left is told it is back right away. It is not called on unmount: release resources in `unmount()`. Updates requested from it apply in a
    * later frame.
    */
   public viewportChanged?(inViewport: boolean): void;
