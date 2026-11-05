@@ -1,5 +1,7 @@
-import { TBlock } from "./components/canvas/blocks/Block";
+import { Block, TBlock } from "./components/canvas/blocks/Block";
 import { Graph } from "./graph";
+import { GraphMouseEvent, isGraphEvent } from "./graphEvents";
+import { globalScheduler } from "./lib/Scheduler";
 import { GRAPH_INSTANCE_SYMBOL_KEY, LEGACY_GRAPH_INSTANCE_SYMBOL_KEY } from "./utils/graphInstance";
 
 describe("Graph DOM instance bridge", () => {
@@ -127,4 +129,72 @@ describe("setEntities + waitUsableRectUpdate (pendingEntitiesUpdate fix)", () =>
       });
     });
   }, 5000);
+});
+
+describe("camera pan on the graph mousedown", () => {
+  let graph: Graph;
+  let block: Block;
+
+  beforeEach(() => {
+    // The default canDrag is NONE, so the block is not draggable and pressing it pans the camera.
+    graph = new Graph(
+      {
+        blocks: [{ id: "block", is: "Block", name: "Block", x: 0, y: 0, width: 100, height: 100, anchors: [] }],
+        settings: { dragThreshold: 0 },
+      },
+      document.createElement("div")
+    );
+    graph.start();
+    // Creates the Camera, which handles the default action of the graph mousedown.
+    globalScheduler.performUpdate();
+    const view = graph.blocks.getBlockState("block")?.getViewComponent();
+    if (!view) throw new Error("Expected block view");
+    block = view;
+  });
+
+  afterEach(() => {
+    graph.stop();
+    graph.unmount();
+  });
+
+  function press(): GraphMouseEvent {
+    const event = graph.emit("mousedown", { target: block, sourceEvent: new MouseEvent("mousedown") });
+    document.dispatchEvent(new MouseEvent("mousemove", { clientX: 0, clientY: 0 }));
+    document.dispatchEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 30 }));
+    document.dispatchEvent(new MouseEvent("mouseup", { clientX: 50, clientY: 30 }));
+    return event;
+  }
+
+  it("pans the camera when no listener prevents the press", () => {
+    const before = { ...graph.cameraService.getCameraState() };
+
+    const event = press();
+
+    expect(graph.cameraService.getCameraState()).toMatchObject({ x: before.x + 50, y: before.y + 30 });
+    // GraphLayer keeps the press from the target component when the camera takes it.
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  // https://github.com/gravity-ui/graph/issues/405: layers subscribe after the camera is created.
+  // A non-capture listener: jsdom runs capture listeners first, so only a plain one reproduces the old order.
+  it.each(["preventDefault", "preventGraphEventDefault"] as const)(
+    "lets a listener added after the camera prevent the pan with %s",
+    (method) => {
+      const before = { ...graph.cameraService.getCameraState() };
+      const preventedBefore: boolean[] = [];
+      const listener = jest.fn((event: GraphMouseEvent) => {
+        preventedBefore.push(event.defaultPrevented);
+        if (isGraphEvent(event)) {
+          event[method]();
+        }
+      });
+      graph.on("mousedown", listener);
+
+      press();
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(preventedBefore).toEqual([false]);
+      expect(graph.cameraService.getCameraState()).toMatchObject({ x: before.x, y: before.y });
+    }
+  );
 });

@@ -360,6 +360,10 @@ export class Graph {
      *
      * In example - NewBlockLayer prevent default drag action to allow duplicate blocks with Alt key.
      *
+     * Preventing a graph "mousedown" also stops dispatching it to the target component and the camera drag,
+     * so a layer can take over the gesture and start its own operation with `dragService.startDrag`.
+     * The camera drag and DragService run here, after every listener, so the order of subscription does not matter.
+     *
      * @example
      * ```typescript
      * graph.on("mousedown", (event) => {
@@ -368,7 +372,11 @@ export class Graph {
      * ```
      * */
     if (eventName === "mousedown" && isGraphEvent(event) && !event.isDefaultPrevented()) {
-      this.dragService.handleMouseDown(event);
+      // The camera goes first: it prevents the event when it takes the press (e.g. middle-button pan).
+      this.graphLayer.$.camera?.handleGraphMouseDown(event);
+      if (!event.isDefaultPrevented()) {
+        this.dragService.handleMouseDown(event);
+      }
     }
     return event;
   }
