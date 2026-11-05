@@ -49,7 +49,7 @@ export class Tree<T extends ITree = ITree> {
   public boundsMinY = NaN;
   public boundsMaxX = NaN;
   public boundsMaxY = NaN;
-  /** @internal This node's own scope, when it culls its subtree itself; see setCulling(). */
+  /** @internal This root's scope; see setCulling(). Only a root culls. */
   public culling?: TreeCulling;
   /** @internal Shared frame coordinator for this node. */
   public scope?: TreeCulling;
@@ -82,13 +82,12 @@ export class Tree<T extends ITree = ITree> {
   }
 
   public append(node: Tree) {
+    if (node.culling) throw new Error("A tree root that culls its descendants cannot become a child");
     if (node.parent && node.parent !== this) node.parent.remove(node);
     node.parent = this;
     this.children.add(node);
     this.addInZIndex(node);
-    node.setScope(node.culling ?? this.scope);
-    // A nested scope is not a member of this one: its place in this scope's paint order changed.
-    if (node.culling) this.scope?.invalidateStructure();
+    node.setScope(this.scope);
   }
 
   protected addInZIndex(node: Tree) {
@@ -119,7 +118,6 @@ export class Tree<T extends ITree = ITree> {
     this.removeZIndex(node);
     node.setScope(undefined);
     node.parent = undefined;
-    if (node.culling) this.scope?.invalidateStructure();
   }
 
   public setChildren(nodes: Tree[]) {
@@ -165,11 +163,12 @@ export class Tree<T extends ITree = ITree> {
     return true;
   }
 
-  /** Configures a shared spatial scope for this root and all its descendants. */
+  /** Configures a shared spatial scope for this root and all its descendants. Only a root can cull. */
   public setCulling(options: TTreeCullingOptions | undefined): void {
+    if (this.parent) throw new Error("Only a tree root can cull its descendants");
     this.setScope(undefined);
     this.culling = options ? new TreeCulling(this, options) : undefined;
-    this.setScope(this.culling ?? this.parent?.scope);
+    this.setScope(this.culling);
   }
 
   private setScope(scope: TreeCulling | undefined): void {
@@ -285,10 +284,7 @@ export class Tree<T extends ITree = ITree> {
   }
 
   public clearChildren() {
-    for (const child of this.children) {
-      child.setScope(undefined);
-      if (child.culling) this.scope?.invalidateStructure();
-    }
+    for (const child of this.children) child.setScope(undefined);
     this.children.clear();
     this.zIndexGroups.clear();
     this.zIndexChildrenCache.clear();
@@ -297,13 +293,6 @@ export class Tree<T extends ITree = ITree> {
   public traverseDown(iterator: TIterator) {
     if (this.culling) this.culling.walk(iterator);
     else this._walkDown(iterator, 0);
-  }
-
-  private suspendScopesBelow(): void {
-    for (const child of this.children) {
-      if (child.culling && child.scope === child.culling) child.culling.suspend();
-      else child.suspendScopesBelow();
-    }
   }
 
   /** @internal */
@@ -319,16 +308,9 @@ export class Tree<T extends ITree = ITree> {
 
   protected _walkDown(iterator: TIterator, order: number) {
     this.renderOrder = order;
-    const allowed = iterator(this, false, true);
-    // Nested scopes below a branch that stops being walked publish nothing more: tell their observers.
-    if (!allowed && this.childrenWalkAllowed) this.suspendScopesBelow();
-    this.setChildrenWalkAllowed(allowed);
+    this.setChildrenWalkAllowed(iterator(this, false, true));
     if (!this.childrenWalkAllowed) return;
     const children = this.zIndexChildrenCache.get();
-    for (let i = 0; i < children.length; i++) {
-      const child = children[i];
-      if (child.culling) child.culling.walk(iterator);
-      else child._walkDown(iterator, i);
-    }
+    for (let i = 0; i < children.length; i++) children[i]._walkDown(iterator, i);
   }
 }

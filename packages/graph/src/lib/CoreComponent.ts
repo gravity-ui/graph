@@ -151,7 +151,8 @@ export class CoreComponent<
   };
 
   /**
-   * Configures the viewport for this tree root and all its descendants.
+   * Culls this root component's tree by a viewport, as layers do. Only a root can cull, and a component that culls
+   * cannot become a child.
    */
   protected setChildrenCulling(options: TTreeCullingOptions | undefined): void {
     this.__comp.treeNode.setCulling(options);

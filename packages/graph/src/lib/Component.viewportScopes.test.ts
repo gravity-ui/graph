@@ -36,19 +36,12 @@ class Overlay extends Component<{ log: TLog; name: string }> {
   }
 }
 
-describe.each([
-  ["without a nested scope", false],
-  ["with a nested scope", true],
-])("viewportChanged when an ancestor suppresses its branch, %s", (_label, nested) => {
+describe("viewportChanged when an ancestor suppresses its branch", () => {
   function setup() {
     const log: TLog = [];
-    const state = { allowed: true, inner: rect(0) };
+    const state = { allowed: true };
     const refs: { overlay?: Overlay; gate?: Component } = {};
     class Inner extends Component {
-      constructor(props: CoreComponentProps, parent: CoreComponent) {
-        super(props, parent);
-        if (nested) this.setChildrenCulling({ tileSize: 64, getViewport: () => state.inner });
-      }
       protected updateChildren() {
         return [
           Overlay.create(
@@ -132,86 +125,6 @@ describe.each([
     expect(log.indexOf("overlay:render")).toBeLessThan(log.indexOf("after:render"));
     expect(overlay.overlay).toBe(true);
     expect(overlay.releases).toBe(1);
-    CoreComponent.unmount(root);
-  });
-
-  if (nested) {
-    it("keeps the nested scope's own viewport after resuming", () => {
-      const { root, overlay, log, state, toggle, frame } = setup();
-      toggle(false);
-      state.inner = rect(500);
-      log.length = 0;
-      toggle(true);
-      // Resumed outside its own viewport: it stays out and is not painted.
-      expect(log.filter((entry) => entry.startsWith("overlay:") && entry !== "overlay:prepare")).toEqual([]);
-      expect(overlay.isInViewport()).toBe(false);
-      state.inner = rect(0);
-      log.length = 0;
-      frame();
-      expect(log.filter((entry) => entry.startsWith("overlay:") && entry !== "overlay:prepare")).toEqual([
-        "overlay:in",
-        "overlay:render",
-      ]);
-      CoreComponent.unmount(root);
-    });
-  }
-});
-
-describe("viewportChanged in a nested scope under a parent without culling", () => {
-  it("delivers leaving once when the parent stops walking its children, and entering when it resumes", () => {
-    const log: TLog = [];
-    const state = { allowed: true };
-    const refs: { overlay?: Overlay; gate?: Component } = {};
-    class Inner extends Component {
-      constructor(props: CoreComponentProps, parent: CoreComponent) {
-        super(props, parent);
-        this.setChildrenCulling({ tileSize: 64, getViewport: () => rect(0) });
-      }
-      protected updateChildren() {
-        return [
-          Overlay.create(
-            { log, name: "overlay" },
-            {
-              ref: (overlay) => {
-                refs.overlay = overlay;
-              },
-            }
-          ),
-        ];
-      }
-    }
-    // A root without culling, like a layer with `culling: "none"`.
-    class Root extends Component {
-      constructor() {
-        super({});
-        refs.gate = this;
-      }
-      protected willIterate(): void {
-        super.willIterate();
-        this.shouldRenderChildren = state.allowed;
-      }
-      protected updateChildren() {
-        return [Inner.create({})];
-      }
-    }
-    const root = CoreComponent.mount(Root);
-    CoreComponent.update(root);
-    const overlay = refs.overlay;
-    if (!overlay) throw new Error("Missing overlay");
-    const frame = (): void => {
-      root.performRender();
-      CoreComponent.update(root);
-    };
-    const notifications = () => log.filter((entry) => entry.endsWith(":in") || entry.endsWith(":out"));
-    state.allowed = false;
-    frame();
-    frame();
-    expect(notifications()).toEqual(["overlay:in", "overlay:out"]);
-    expect(overlay.overlay).toBe(false);
-    state.allowed = true;
-    frame();
-    expect(notifications()).toEqual(["overlay:in", "overlay:out", "overlay:in"]);
-    expect(overlay.overlay).toBe(true);
     CoreComponent.unmount(root);
   });
 });
@@ -306,31 +219,6 @@ describe("viewportChanged on the owner of a scope", () => {
     const log: TLog = [];
     const state = { viewport: rect(0) };
     const root = CoreComponent.mount(Owner, { log, state });
-    run(
-      () => {
-        root.performRender();
-        CoreComponent.update(root);
-      },
-      state,
-      log
-    );
-    CoreComponent.unmount(root);
-    expect(log.slice(-1)).toEqual(["render"]);
-  });
-
-  it("notifies the owner of a nested scope", () => {
-    const log: TLog = [];
-    const state = { viewport: rect(0) };
-    class Root extends Component {
-      constructor() {
-        super({});
-        this.setChildrenCulling({ tileSize: 64, getViewport: () => undefined });
-      }
-      protected updateChildren() {
-        return [Owner.create({ log, state })];
-      }
-    }
-    const root = CoreComponent.mount(Root);
     run(
       () => {
         root.performRender();

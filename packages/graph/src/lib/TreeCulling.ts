@@ -12,11 +12,8 @@ export type TTreeCullingOptions = {
   fullWalkShare?: number;
 };
 
-/**
- * Eligible nodes in local paint order; `ends[i]` is the end of node i's subtree. `nested` lists the
- * positions of children that cull their own subtree: they are walked in place by their own scope.
- */
-type TPaintOrder = { revision: number; stamp: number; nodes: Tree[]; ends: number[]; nested: number[] };
+/** Eligible nodes in local paint order; `ends[i]` is the end of node i's subtree. */
+type TPaintOrder = { revision: number; stamp: number; nodes: Tree[]; ends: number[] };
 
 /** A work list in insertion order; nodes that leave it leave a hole until the list is compacted. */
 type TWorkList = Array<Tree | undefined>;
@@ -42,7 +39,7 @@ function sameRect(a: TTileRect, b: TTileRect): boolean {
  * by slots stored on the nodes, so registering, publishing and preparing a node costs no hashing.
  */
 export class TreeCulling {
-  // Moving between scopes must not repeat a node's lifecycle in the same traversal.
+  // Stamps are global: a node that moves to another scope must not match stamps of the new one.
   private static walkStamp = 0;
   private static selectionStamp = 0;
   private static orderStamp = 0;
@@ -66,12 +63,6 @@ export class TreeCulling {
 
   /** Observing nodes whose published visibility changed since the last notification. */
   private readonly viewportChanges: Tree[] = [];
-
-  /** Nested scopes that the current paint order reaches; one that is no longer reached is suspended. */
-  private reachedNested: TreeCulling[] = [];
-
-  /** Paint order whose nested scopes `reachedNested` lists. */
-  private reachedOrderStamp = 0;
 
   /** Any change that can affect this frame's preparation: membership, order, permission or bounds. */
   private revision = 0;
@@ -119,13 +110,9 @@ export class TreeCulling {
   }
 
   public walk(iterator: TIterator): void {
-    const wasWalking = this.walking;
-    const wasPainting = this.painting;
     this.walking = true;
     this.painting = false;
     this.stamp = ++TreeCulling.walkStamp;
-    // An ancestor outside this scope can change its traversal permission independently.
-    if (this.owner.parent) this.invalidateStructure();
     try {
       this.prepared = [];
       this.preparedPainted = 0;
@@ -153,13 +140,12 @@ export class TreeCulling {
       const order = this.getPaintOrder();
       this.publish(order.stamp);
       if (this.viewportChanges.length) this.notifyViewportChanges();
-      if (order.stamp !== this.reachedOrderStamp) this.suspendUnreached(order);
       this.painting = true;
       this.paint(iterator, order);
       if (this.preparedPainted !== this.prepared.length) this.finishPrepared(iterator);
     } finally {
-      this.walking = wasWalking;
-      this.painting = wasPainting;
+      this.walking = false;
+      this.painting = false;
       // Frame lists must not keep removed nodes alive until the next traversal.
       this.prepared = [];
       this.visitList.length = 0;
@@ -272,54 +258,6 @@ export class TreeCulling {
       this.unlist(node);
     }
     if (node.observesViewport) this.viewportChanges.push(node);
-  }
-
-  /**
-   * A nested scope that the paint order no longer reaches, because an ancestor stopped walking its branch, publishes
-   * nothing more: it is suspended, so its observers learn that they left the viewport. Its subtree is still not
-   * prepared or painted; reaching it again publishes it afresh. A scope whose owner was removed is not notified,
-   * like an unmount.
-   */
-  private suspendUnreached({ stamp, nodes, nested }: TPaintOrder): void {
-    this.reachedOrderStamp = stamp;
-    const reached: TreeCulling[] = [];
-    for (let i = 0; i < nested.length; i++) {
-      const scope = nodes[nested[i]].culling;
-      if (scope) reached.push(scope);
-    }
-    for (const scope of this.reachedNested) {
-      if (!reached.includes(scope) && scope.isAttachedTo(this)) scope.suspend();
-    }
-    this.reachedNested = reached;
-  }
-
-  /** The owner still culls with this scope and is a child of a node of `outer`. */
-  private isAttachedTo(outer: TreeCulling): boolean {
-    const owner = this.owner;
-    const parent = owner.parent;
-    return owner.culling === this && parent !== undefined && parent.children.has(owner) && parent.scope === outer;
-  }
-
-  /**
-   * Clears the published visibility of a scope that is not walked, notifying its observers and its owner; nested
-   * scopes it reached are suspended too. Its next walk publishes from scratch.
-   */
-  public suspend(): void {
-    for (const scope of this.reachedNested) scope.suspend();
-    this.reachedNested = [];
-    this.reachedOrderStamp = 0;
-    // Hiding moves the last entry into the freed slot, so the list is read from the end.
-    const visible = this.visible;
-    for (let i = visible.length - 1; i >= 0; i--) this.show(visible[i], false);
-    const owner = this.owner;
-    if (owner.published) {
-      owner.published = false;
-      if (owner.observesViewport) this.viewportChanges.push(owner);
-    }
-    this.selectionBase = undefined;
-    this.allVisibleRevision = -1;
-    this.visibilityRevision = -1;
-    if (this.viewportChanges.length) this.notifyViewportChanges();
   }
 
   /** Clears a node's published visibility without notifying it, for example when it leaves the scope. */
@@ -443,8 +381,7 @@ export class TreeCulling {
 
   /**
    * Local paint order of eligible nodes with the end of each subtree; rebuilt after structural changes.
-   * A child reached from a node that allows walking its children is eligible if it is in this scope;
-   * listed nodes carry the order's stamp.
+   * Listed nodes carry the order's stamp.
    */
   private getPaintOrder(): TPaintOrder {
     let order = this.paintOrder;
@@ -452,7 +389,6 @@ export class TreeCulling {
       const stamp = ++TreeCulling.orderStamp;
       const nodes: Tree[] = [];
       const ends: number[] = [];
-      const nested: number[] = [];
       const collect = (node: Tree): void => {
         const index = nodes.length;
         node.orderStamp = stamp;
@@ -462,16 +398,7 @@ export class TreeCulling {
           const children = node.getOrderedChildren();
           for (let i = 0; i < children.length; i++) {
             const child = children[i];
-            if (child.parent !== node) continue;
-            if (child.scope !== this) {
-              // A child with its own scope keeps its place here; its scope walks its subtree.
-              if (child.culling && child.scope === child.culling) {
-                nested.push(nodes.length);
-                nodes.push(child);
-                ends.push(nodes.length);
-              }
-              continue;
-            }
+            if (child.parent !== node || child.scope !== this) continue;
             if (child.childrenWalkAllowed && child.children.size) {
               collect(child);
             } else {
@@ -485,7 +412,7 @@ export class TreeCulling {
         ends[index] = nodes.length;
       };
       collect(this.owner);
-      this.paintOrder = order = { revision: this.structureRevision, stamp, nodes, ends, nested };
+      this.paintOrder = order = { revision: this.structureRevision, stamp, nodes, ends };
     }
     return order;
   }
@@ -495,14 +422,12 @@ export class TreeCulling {
    * while culling is disabled); clean offscreen nodes pass through to their descendants. The second
    * loop runs iterate() only for picked nodes, so the per-node path never sees a culled node.
    */
-  private paint(iterator: TIterator, { nodes, ends, nested }: TPaintOrder): void {
+  private paint(iterator: TIterator, { nodes, ends }: TPaintOrder): void {
     const list = this.visitList;
     const positions = this.visitPositions;
     const stamp = this.stamp;
     const owner = this.owner;
     const visitAll = this.visitAll;
-    // Nested scopes decide their own visibility: they are always visited where their branch is walked.
-    for (let i = 0; i < nested.length; i++) nodes[nested[i]].preparedStamp = stamp;
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
       if (node !== owner && !visitAll && !node.published && node.preparedStamp !== stamp) {
@@ -515,10 +440,7 @@ export class TreeCulling {
     for (let k = 0; k < list.length; k++) {
       const node = list[k];
       // Painting can remove or re-register a node; nodes it adds or moves are painted from the next frame.
-      if (node !== owner && (node.scope !== this || node.freshSlot >= 0)) {
-        this.walkNested(node, iterator);
-        continue;
-      }
+      if (node !== owner && (node.scope !== this || node.freshSlot >= 0)) continue;
       const prepared = node.preparedStamp === stamp;
       if (prepared) this.preparedPainted++;
       node.preparedStamp = stamp;
@@ -537,12 +459,6 @@ export class TreeCulling {
         while (k + 1 < list.length && positions[k + 1] < end) k++;
       }
     }
-  }
-
-  /** A child with its own scope paints its subtree in place, with its own viewport. */
-  private walkNested(node: Tree, iterator: TIterator): void {
-    const scope = node.culling;
-    if (scope && node.scope === scope) scope.walk(iterator);
   }
 
   /** A parent can suppress children while painting; finish their already prepared lifecycles. */

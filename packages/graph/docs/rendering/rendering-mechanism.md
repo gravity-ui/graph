@@ -64,9 +64,6 @@ resource, defines `viewportChanged(inViewport)`. It is called once per change, a
 painting, also when an ancestor stops walking its branch; it is not called on unmount. Only components that
 define it are tracked.
 
-A node with its own scope (`setChildrenCulling()` inside a culled layer) keeps its place in the outer paint
-order, and its scope walks its subtree there with its own viewport.
-
 Connection batches do not depend on per-item visibility or on child traversal: each chunk is skipped
 when its items' bounds are outside the viewport, and its items' `afterRender` hooks run only for items in
 the viewport, see [Batch Rendering](../connections/batch-rendering.md).

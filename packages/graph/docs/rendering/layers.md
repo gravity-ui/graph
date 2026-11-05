@@ -297,8 +297,7 @@ class HudLayer extends Layer {
 
 Components report bounds in the same coordinates (`setCullingBounds()`, or the hit box of a
 `GraphComponent`); unknown bounds always paint. A layer that needs another rectangle calls
-`setChildrenCulling({ tileSize, getViewport })` in its constructor, and a component inside a layer may do
-the same for its own subtree. Turning off the `EXP_VISIBILITY_CULLING` setting does not change the
+`setChildrenCulling({ tileSize, getViewport })` in its constructor. Turning off the `EXP_VISIBILITY_CULLING` setting does not change the
 rectangle: components outside it get their lifecycle calls again but still do not paint.
 
 ### Built-in CSS Classes

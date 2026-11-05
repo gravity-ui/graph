@@ -278,14 +278,6 @@ describe("Tree native spatial scope", () => {
     expect(batchVisible).toEqual([false]);
   });
 
-  it("keeps a configured root when attached below an unscoped tree", () => {
-    const { root, add, walk } = setup();
-    add("out", 1000);
-    const outer = new Tree({ iterate: () => true });
-    outer.append(root);
-    expect(walk()).toMatchObject({ prepared: ["root", "out"], visited: ["root", "out"], drawn: ["root"] });
-  });
-
   it("keeps local z-index ordering after updates without scanning clean siblings each frame", () => {
     const { root, add, walk } = setup();
     const a = add("a", 10);
