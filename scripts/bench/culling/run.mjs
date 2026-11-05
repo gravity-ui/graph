@@ -36,6 +36,7 @@ const modes = list(option("modes", "pan,zoom"));
 const repeats = Number(option("repeats", 3));
 const steps = Number(option("steps", 40));
 const noopCanvas = Boolean(option("noop", false));
+const shuffle = Boolean(option("shuffle", false));
 const firstOnly = Boolean(option("first", false));
 const headed = Boolean(option("headed", false));
 const shotsDir = option("shots", undefined);
@@ -179,6 +180,7 @@ for (const scene of scenes) {
             scene,
             scale,
             noopCanvas,
+            shuffle,
           });
           results[name].info = info;
           results[name].first.push(info.first[0] + (info.first[1] ?? 0));

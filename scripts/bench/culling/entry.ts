@@ -195,6 +195,7 @@ async function setup(options: {
   height: number;
   scale: number;
   noopCanvas?: boolean;
+  shuffle?: boolean;
 }) {
   if (options.noopCanvas) {
     const proto = CanvasRenderingContext2D.prototype as unknown as Record<string, unknown>;
@@ -206,6 +207,15 @@ async function setup(options: {
   root.style.width = `${options.width}px`;
   root.style.height = `${options.height}px`;
   const scene = options.scene === "nirvana" ? nirvana() : playground();
+  if (options.shuffle) {
+    // Registration order unrelated to position, as in graphs loaded from a store.
+    const random = mulberry32(1);
+    const list = scene.connections;
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = (random() * (i + 1)) | 0;
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+  }
   const settings =
     options.scene === "nirvana"
       ? { useBezierConnections: true, showConnectionArrows: true, useBlocksAnchors: true }
