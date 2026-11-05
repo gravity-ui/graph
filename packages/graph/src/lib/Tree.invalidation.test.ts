@@ -1,6 +1,7 @@
-import type { TTileRect } from "./TileIndex";
 import { Tree } from "./Tree";
 import type { ITree } from "./Tree";
+import type { TTileRect } from "./culling/TileIndex";
+import { isVerifyingCulling } from "./culling/cullingInvariants";
 
 interface IProbe extends ITree {
   name: string;
@@ -12,19 +13,20 @@ interface IWork {
   parent: number;
 }
 
+/** Counts the culling's own work; the invariant check that runs after every walk in tests is not counted. */
 class CountingTree extends Tree<IProbe> {
   constructor(data: IProbe, work: IWork) {
     super(data);
     const getOrderedChildren = this.zIndexChildrenCache.get;
     this.zIndexChildrenCache.get = (): Tree[] => {
-      work.order++;
+      if (!isVerifyingCulling()) work.order++;
       return getOrderedChildren();
     };
     let parent: Tree | undefined;
     Object.defineProperty(this, "parent", {
       configurable: true,
       get: (): Tree | undefined => {
-        work.parent++;
+        if (!isVerifyingCulling()) work.parent++;
         return parent;
       },
       set: (value: Tree | undefined): void => {
@@ -132,7 +134,7 @@ describe("Tree geometry and structure invalidation", () => {
       Object.defineProperty(node, "boundsMinX", {
         configurable: true,
         get: () => {
-          reads.minX++;
+          if (!isVerifyingCulling()) reads.minX++;
           return minX;
         },
       });
@@ -165,7 +167,7 @@ describe("Tree geometry and structure invalidation", () => {
       });
       const isEligible = node.isEligible.bind(node);
       node.isEligible = (currentScope) => {
-        if (currentScope.painting) work.paintChecks++;
+        if (currentScope.painting && !isVerifyingCulling()) work.paintChecks++;
         return isEligible(currentScope);
       };
     }
@@ -185,7 +187,7 @@ describe("Tree geometry and structure invalidation", () => {
     for (const node of nodes) {
       const isEligible = node.isEligible.bind(node);
       node.isEligible = (scope) => {
-        work.eligibility++;
+        if (!isVerifyingCulling()) work.eligibility++;
         return isEligible(scope);
       };
       let visible = node.published;

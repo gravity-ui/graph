@@ -7,7 +7,7 @@ import { GraphEventsDefinitions, UnwrapGraphEvents } from "../graphEvents";
 import { CoreComponent } from "../lib";
 import { Component, TComponentState } from "../lib/Component";
 import { ESchedulerPriority } from "../lib/Scheduler";
-import type { TTreeCullingOptions } from "../lib/TreeCulling";
+import type { TTreeCullingOptions } from "../lib/culling/TreeCulling";
 import { TypedEventListener, addTypedEventListener } from "../utils/eventListener";
 import type { GraphClassConstructor } from "../utils/types/classes";
 import { debounce } from "../utils/utils/schedule";

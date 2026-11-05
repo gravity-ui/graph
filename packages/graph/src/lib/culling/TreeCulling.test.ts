@@ -1,5 +1,7 @@
+import { ITree, Tree } from "../Tree";
+
 import type { TTileRect } from "./TileIndex";
-import { ITree, Tree } from "./Tree";
+import { isVerifyingCulling } from "./cullingInvariants";
 
 type TNodeData = ITree & { name: string };
 /** The private complete scan, spied on to tell it from tile queries. */
@@ -279,7 +281,13 @@ describe("Tree native spatial scope", () => {
     b.updateZIndex(10);
     expect(walk().drawn).toEqual(["root", "c", "a"]);
     expect([c.renderOrder, a.renderOrder, b.renderOrder]).toEqual([0, 1, 2]);
-    const siblings = jest.spyOn(root.children, Symbol.iterator);
+    const siblings = jest.fn();
+    const iterateChildren = root.children[Symbol.iterator];
+    // The invariant check that runs after every walk in tests is not the culling's work.
+    jest.spyOn(root.children, Symbol.iterator).mockImplementation(function (this: Set<Tree>) {
+      if (!isVerifyingCulling()) siblings();
+      return iterateChildren.call(this);
+    });
     expect(walk().drawn).toEqual(["root", "c", "a"]);
     expect(siblings).not.toHaveBeenCalled();
   });
@@ -295,7 +303,7 @@ describe("Tree native spatial scope", () => {
     const scope = root["culling"];
     if (!scope) throw new Error("Missing root scope");
     const query = jest.spyOn(scope.index, "query");
-    const linearScan = jest.spyOn(scope as unknown as TScanProbe, "publishScan");
+    const linearScan = jest.spyOn(scope.publication as unknown as TScanProbe, "publishScan");
 
     // An unchanged frame keeps the published selection without any selection work.
     expect(walk().drawn).toEqual(["root"]);
@@ -334,7 +342,7 @@ describe("Tree native spatial scope", () => {
     const scope = root["culling"];
     if (!scope) throw new Error("Missing root scope");
     let query = jest.spyOn(scope.index, "query");
-    let linearScan = jest.spyOn(scope as unknown as TScanProbe, "publishScan");
+    let linearScan = jest.spyOn(scope.publication as unknown as TScanProbe, "publishScan");
 
     for (const [viewport, usesQuery] of [
       [rect(100, 100, 100), true],
@@ -347,7 +355,7 @@ describe("Tree native spatial scope", () => {
       query.mockRestore();
       linearScan.mockRestore();
       query = jest.spyOn(current.index, "query");
-      linearScan = jest.spyOn(current as unknown as TScanProbe, "publishScan");
+      linearScan = jest.spyOn(current.publication as unknown as TScanProbe, "publishScan");
       const visible = new Set(
         Array.from(positions.entries())
           .filter(
@@ -406,7 +414,7 @@ describe("Tree native spatial scope", () => {
     expect(scope.index.size).toBe(0);
     expect(scope["pending"].filter(Boolean)).toEqual([]);
     expect(scope["fresh"].filter(Boolean)).toEqual([]);
-    expect(scope["visible"]).toEqual([]);
+    expect(scope.publication.visibleNodes).toEqual([]);
     expect(walk().visited).toEqual(["root"]);
     root.append(parent);
     expect(walk().visited).toEqual(["root", "parent", "child", "fresh"]);

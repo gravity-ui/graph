@@ -1,5 +1,6 @@
-import type { TTileRect } from "./TileIndex";
 import { ITree, Tree } from "./Tree";
+import type { TTileRect } from "./culling/TileIndex";
+import { isVerifyingCulling } from "./culling/cullingInvariants";
 
 type Probe = ITree & { name: string; prepare?: () => boolean; paint?: () => boolean };
 const viewport = (maxX: number): TTileRect => ({ minX: 0, minY: 0, maxX, maxY: maxX });
@@ -83,7 +84,8 @@ describe("Tree full-viewport traversal", () => {
       Object.defineProperty(node, "parent", {
         configurable: true,
         get: () => {
-          reads.parent++;
+          // The invariant check that runs after every walk in tests is not the culling's work.
+          if (!isVerifyingCulling()) reads.parent++;
           return parent;
         },
         set: (value: Tree | undefined) => {

@@ -1,9 +1,9 @@
 import { GraphClassConstructor } from "../utils/types/classes";
 
 import { Scheduler } from "./Scheduler";
-import type { TTileRect } from "./TileIndex";
 import { ITree, Tree } from "./Tree";
-import type { TTreeCullingOptions } from "./TreeCulling";
+import type { TTileRect } from "./culling/TileIndex";
+import type { TTreeCullingOptions } from "./culling/TreeCulling";
 
 export type ComponentOptions<Instance> = {
   readonly key?: string | number;

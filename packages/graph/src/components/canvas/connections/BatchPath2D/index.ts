@@ -1,4 +1,4 @@
-import type { TTileRect } from "../../../../lib/TileIndex";
+import type { TTileRect } from "../../../../lib/culling/TileIndex";
 import { cache } from "../../../../lib/utils";
 
 export type Path2DRenderStyleResult =

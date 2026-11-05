@@ -1,4 +1,4 @@
-import type { TTileRect } from "../../../../lib/TileIndex";
+import type { TTileRect } from "../../../../lib/culling/TileIndex";
 
 import { BatchPath2DRenderer, TPathBounds } from "./index";
 

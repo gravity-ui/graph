@@ -1,7 +1,7 @@
 import { Component } from "./Component";
 import { CoreComponent } from "./CoreComponent";
 import type { CoreComponentProps } from "./CoreComponent";
-import type { TTileRect } from "./TileIndex";
+import type { TTileRect } from "./culling/TileIndex";
 
 const rect = (x: number): TTileRect => ({ minX: x, minY: x, maxX: x + 100, maxY: x + 100 });
 

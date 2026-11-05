@@ -2,8 +2,8 @@ import { Graph } from "../graph";
 import { Component } from "../lib/Component";
 import type { CoreComponent, CoreComponentProps } from "../lib/CoreComponent";
 import { globalScheduler } from "../lib/Scheduler";
-import type { TTileRect } from "../lib/TileIndex";
-import type { TTreeCullingOptions } from "../lib/TreeCulling";
+import type { TTileRect } from "../lib/culling/TileIndex";
+import type { TTreeCullingOptions } from "../lib/culling/TreeCulling";
 
 import { Layer } from "./Layer";
 import type { LayerProps, TLayerCulling } from "./Layer";

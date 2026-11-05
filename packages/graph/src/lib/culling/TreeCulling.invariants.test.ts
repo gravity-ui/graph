@@ -1,5 +1,6 @@
+import { ITree, Tree } from "../Tree";
+
 import type { TTileRect } from "./TileIndex";
-import { ITree, Tree } from "./Tree";
 
 type TProbe = ITree & {
   name: string;
@@ -136,7 +137,7 @@ describe("TreeCulling publication invariants", () => {
     root.remove(parent);
     const scope = root.scope;
     if (!scope) throw new Error("Missing scope");
-    for (const list of [scope["visitList"], scope["prepared"], scope["visible"], scope.nodes]) {
+    for (const list of [scope["visitList"], scope["prepared"], scope.publication.visibleNodes, scope.nodes]) {
       expect(list.includes(parent) || list.includes(child)).toBe(false);
     }
   });
@@ -243,7 +244,7 @@ describe("TreeCulling publication invariants", () => {
           errors.push(`${node.data.name} published ${node.published}, expected ${visible}`);
         if (node.isVisible() !== visible) errors.push(`${node.data.name} isVisible ${node.isVisible()}`);
       }
-      const visibleList: Tree[] = scope["visible"];
+      const visibleList: Tree[] = scope.publication.visibleNodes;
       if (visibleList.length !== expected.size) errors.push(`visible list ${visibleList.length} != ${expected.size}`);
       visibleList.forEach((node, slot) => {
         if (node.visibleSlot !== slot || !node.published) errors.push(`visible list slot ${slot}`);

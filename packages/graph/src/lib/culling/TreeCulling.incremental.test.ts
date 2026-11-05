@@ -1,9 +1,12 @@
+import { ITree, Tree } from "../Tree";
+
 import type { TTileRect } from "./TileIndex";
-import { ITree, Tree } from "./Tree";
 
 type Probe = ITree & { name: string; paint?: () => boolean };
 /** The private complete scan, spied on to tell it from tile queries. */
 type TScanProbe = { publishScan(viewport: TTileRect, eligible: number): void };
+/** The private visibility update, spied on to count the nodes a publication rechecks. */
+type TShowProbe = { show(node: Tree, visible: boolean): void };
 
 const rect = (minX: number, minY: number, maxX: number, maxY: number): TTileRect => ({ minX, minY, maxX, maxY });
 
@@ -129,32 +132,22 @@ describe("TreeCulling incremental visibility", () => {
     const scope = root["culling"];
     if (!scope) throw new Error("Missing scope");
     const query = jest.spyOn(scope.index, "query");
-    const linearScan = jest.spyOn(scope as unknown as TScanProbe, "publishScan");
-    const checked = new Set<Tree>();
-    const intersects = jest.spyOn(scope, "intersects").mockImplementation(function (this: unknown, node, viewport) {
-      checked.add(node);
-      return (
-        !viewport ||
-        Number.isNaN(node.boundsMinX) ||
-        (node.boundsMinX <= viewport.maxX &&
-          node.boundsMaxX >= viewport.minX &&
-          node.boundsMinY <= viewport.maxY &&
-          node.boundsMaxY >= viewport.minY)
-      );
-    });
+    const linearScan = jest.spyOn(scope.publication as unknown as TScanProbe, "publishScan");
+    const show = jest.spyOn(scope.publication as unknown as TShowProbe, "show");
 
     state.viewport = rect(20, 0, 420, 400);
     const result = walk();
     expect(linearScan).not.toHaveBeenCalled();
     for (const [strip] of query.mock.calls) expect(strip.maxX - strip.minX).toBeLessThanOrEqual(20);
     // Only the columns crossing the left and right edges are rechecked, not the 81 visible nodes.
+    const checked = new Set(show.mock.calls.map(([node]) => node));
     expect(checked.size).toBeLessThanOrEqual(2 * 10 + 1);
     // Edges are inclusive: the column at x = 400 was already visible, only the first column leaves.
     expect(result.events.filter((event) => event.startsWith("visible:")).sort()).toEqual(
       Array.from({ length: 9 }, (_, y) => `visible:n0_${y}:false`).sort()
     );
     expect(result.drawn).toHaveLength(1 + 8 * 9);
-    intersects.mockRestore();
+    show.mockRestore();
   });
 
   it("lets clean visible nodes prepare inside iterate and requested nodes before painting", () => {

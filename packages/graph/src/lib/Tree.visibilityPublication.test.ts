@@ -1,5 +1,5 @@
-import type { TTileRect } from "./TileIndex";
 import { ITree, Tree } from "./Tree";
+import type { TTileRect } from "./culling/TileIndex";
 
 type Probe = ITree & {
   name: string;

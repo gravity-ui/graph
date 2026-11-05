@@ -1,4 +1,5 @@
-import { TTreeCullingOptions, TreeCulling } from "./TreeCulling";
+import { TTreeCullingOptions, TreeCulling } from "./culling/TreeCulling";
+import { intersects } from "./culling/VisibilityPublication";
 import { cache } from "./utils";
 
 /**
@@ -224,7 +225,7 @@ export class Tree<T extends ITree = ITree> {
   public isVisible(): boolean {
     const scope = this.scope;
     if (!scope) return true;
-    const visible = scope.painting ? this.published : scope.intersects(this, scope.options.getViewport());
+    const visible = scope.painting ? this.published : intersects(this, scope.options.getViewport());
     return (
       visible && ((scope.painting && scope.visibilityRevision === scope.structureRevision) || this.isEligible(scope))
     );

@@ -1,6 +1,6 @@
 import type { Graph } from "../graph";
-import type { TTileRect } from "../lib/TileIndex";
-import type { TTreeCullingOptions } from "../lib/TreeCulling";
+import type { TTileRect } from "../lib/culling/TileIndex";
+import type { TTreeCullingOptions } from "../lib/culling/TreeCulling";
 
 import type { ICamera } from "./camera/CameraService";
 
