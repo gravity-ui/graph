@@ -12,8 +12,8 @@ export type TTreeCullingOptions = {
   fullWalkShare?: number;
 };
 
-/** Eligible nodes in local paint order; `ends[i]` is the end of node i's subtree. */
-type TPaintOrder = { revision: number; stamp: number; nodes: Tree[]; ends: number[] };
+/** Eligible nodes in local paint order. */
+type TPaintOrder = { revision: number; stamp: number; nodes: Tree[] };
 
 /** A work list in insertion order; nodes that leave it leave a hole until the list is compacted. */
 type TWorkList = Array<Tree | undefined>;
@@ -32,7 +32,8 @@ function sameRect(a: TTileRect, b: TTileRect): boolean {
  *    change runs one complete selection.
  * 3. One pass over the cached local paint order runs `iterate()` for visible and prepared nodes. A
  *    clean visible node applies its own pending work there. Clean offscreen nodes get no call, and
- *    their visible descendants are still reached through them.
+ *    their visible descendants are still reached through them. Painting does not change which
+ *    branches are walked and ignores what `iterate()` returns: only preparation decides.
  *
  * A camera frame therefore does work for the visible nodes plus what changed, and a flag check for every
  * node of the cached paint order. Only publication writes `Tree.published`. Node sets are arrays indexed
@@ -98,8 +99,6 @@ export class TreeCulling {
 
   private readonly visitList: Tree[] = [];
 
-  private readonly visitPositions: number[] = [];
-
   constructor(
     public readonly owner: Tree,
     public readonly options: TTreeCullingOptions
@@ -141,7 +140,7 @@ export class TreeCulling {
       this.publish(order.stamp);
       if (this.viewportChanges.length) this.notifyViewportChanges();
       this.painting = true;
-      this.paint(iterator, order);
+      this.paint(iterator, order.nodes);
       if (this.preparedPainted !== this.prepared.length) this.finishPrepared(iterator);
     } finally {
       this.walking = false;
@@ -149,7 +148,6 @@ export class TreeCulling {
       // Frame lists must not keep removed nodes alive until the next traversal.
       this.prepared = [];
       this.visitList.length = 0;
-      this.visitPositions.length = 0;
     }
   }
 
@@ -380,62 +378,51 @@ export class TreeCulling {
   }
 
   /**
-   * Local paint order of eligible nodes with the end of each subtree; rebuilt after structural changes.
-   * Listed nodes carry the order's stamp.
+   * Local paint order of eligible nodes; rebuilt after structural changes. A child reached from a node that walks its
+   * children is eligible if it is in this scope; listed nodes carry the order's stamp.
    */
   private getPaintOrder(): TPaintOrder {
     let order = this.paintOrder;
     if (order?.revision !== this.structureRevision) {
       const stamp = ++TreeCulling.orderStamp;
       const nodes: Tree[] = [];
-      const ends: number[] = [];
       const collect = (node: Tree): void => {
-        const index = nodes.length;
         node.orderStamp = stamp;
         nodes.push(node);
-        ends.push(0);
-        if (node.childrenWalkAllowed && node.children.size) {
-          const children = node.getOrderedChildren();
-          for (let i = 0; i < children.length; i++) {
-            const child = children[i];
-            if (child.parent !== node || child.scope !== this) continue;
-            if (child.childrenWalkAllowed && child.children.size) {
-              collect(child);
-            } else {
-              // Most nodes are leaves: list them without another call.
-              child.orderStamp = stamp;
-              nodes.push(child);
-              ends.push(nodes.length);
-            }
+        if (!node.childrenWalkAllowed || !node.children.size) return;
+        const children = node.getOrderedChildren();
+        for (let i = 0; i < children.length; i++) {
+          const child = children[i];
+          if (child.parent !== node || child.scope !== this) continue;
+          if (child.childrenWalkAllowed && child.children.size) {
+            collect(child);
+          } else {
+            // Most nodes are leaves: list them without another call.
+            child.orderStamp = stamp;
+            nodes.push(child);
           }
         }
-        ends[index] = nodes.length;
       };
       collect(this.owner);
-      this.paintOrder = order = { revision: this.structureRevision, stamp, nodes, ends };
+      this.paintOrder = order = { revision: this.structureRevision, stamp, nodes };
     }
     return order;
   }
 
   /**
-   * Paints in local z-order. The first loop picks visible and prepared nodes (or every eligible node
-   * while culling is disabled); clean offscreen nodes pass through to their descendants. The second
-   * loop runs iterate() only for picked nodes, so the per-node path never sees a culled node.
+   * Paints in local z-order. The first loop picks visible and prepared nodes (or every eligible node while culling is
+   * disabled); clean offscreen nodes are skipped and their visible descendants are still picked. The second loop runs
+   * iterate() only for picked nodes. Painting does not change which branches are walked and ignores what iterate()
+   * returns: only preparation decides.
    */
-  private paint(iterator: TIterator, { nodes, ends }: TPaintOrder): void {
+  private paint(iterator: TIterator, nodes: Tree[]): void {
     const list = this.visitList;
-    const positions = this.visitPositions;
     const stamp = this.stamp;
     const owner = this.owner;
     const visitAll = this.visitAll;
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
-      if (node !== owner && !visitAll && !node.published && node.preparedStamp !== stamp) {
-        if (!node.childrenWalkAllowed) i = ends[i] - 1;
-        continue;
-      }
-      list.push(node);
-      positions.push(i);
+      if (node === owner || visitAll || node.published || node.preparedStamp === stamp) list.push(node);
     }
     for (let k = 0; k < list.length; k++) {
       const node = list[k];
@@ -445,28 +432,19 @@ export class TreeCulling {
       if (prepared) this.preparedPainted++;
       node.preparedStamp = stamp;
       node.paintedStamp = stamp;
-      let allowed = iterator(node, prepared, node.published);
-      if (allowed && !node.childrenWalkAllowed) {
-        // A node's own update can resume its children; a preparation that suppressed them still applies.
-        if (prepared) allowed = false;
-        else node.setChildrenWalkAllowed(true);
-      }
-      if (!allowed) {
-        // A veto from painting is decided again by the node's next preparation, before that publication.
-        if (node.childrenWalkAllowed) this.markPending(node);
-        node.setChildrenWalkAllowed(false);
-        const end = ends[positions[k]];
-        while (k + 1 < list.length && positions[k + 1] < end) k++;
-      }
+      iterator(node, prepared, node.published);
     }
   }
 
-  /** A parent can suppress children while painting; finish their already prepared lifecycles. */
+  /**
+   * A prepared node moved under a parent that does not walk its children completes its frame without painting; like
+   * painting, it ignores what iterate() returns.
+   */
   private finishPrepared(iterator: TIterator): void {
     for (const node of this.prepared) {
       if (node.paintedStamp === this.stamp || !node.data.prepareUpdate || node.scope !== this) continue;
       node.paintedStamp = this.stamp;
-      if (!iterator(node, true, false)) node.setChildrenWalkAllowed(false);
+      iterator(node, true, false);
     }
   }
 

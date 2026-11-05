@@ -948,10 +948,11 @@ paints them in z-order. Compared with v1:
 | `batch.markDirty(connection)` after changing data used by `createPath()` | `connection.updateGeometry()`: rebuilds paths, bounds and hit testing together. `markDirty()` only rebuilds the batch chunk from the item's cached path. |
 | `isIterated()` as "updated in the last frame" | In a culled layer it means the component is attached in a branch that is walked. |
 | `CanvasBlock.isRendered()` as `shouldRender` | `shouldRender && isVisible()`: false outside the viewport. |
+| Return `false` from `iterate()`, or set `shouldRenderChildren = false` in `render()`, to hide children in the same frame | In a culled layer only the component's preparation decides: set `shouldRenderChildren` (or return `false` from `prepareUpdate()`). A value changed while painting applies from the next frame, which the component requests itself; the value `iterate()` returns is ignored. |
 | A screen-space layer | Pass `culling: "screen"` (or `"none"`); the default culls by the world viewport. See [Layers](../rendering/layers.md). |
 
-Three operations stay separate: `isRenderAllowed()` stops a component's own painting; returning `false` from
-`iterate()` / `prepareUpdate()` (or `shouldRenderChildren = false`) stops walking its children; a batch is
+Three operations stay separate: `isRenderAllowed()` stops a component's own painting; `shouldRenderChildren = false`
+(or `false` from `prepareUpdate()`) stops walking its children; in a culled layer the value `iterate()` returns does not; a batch is
 drawn by the component that owns it (`BlockConnections`), so a traversal veto does not hide batched lines.
 `afterRender` hooks of batch items run only for items in the viewport.
 

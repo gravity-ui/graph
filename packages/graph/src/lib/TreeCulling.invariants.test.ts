@@ -15,8 +15,6 @@ type TFrame = {
   prepared: TProbeTree[];
   /** `visible` passed to each iterated node. */
   painted: Map<TProbeTree, boolean>;
-  /** Nodes whose iterate() returned false while painting. */
-  vetoed: Set<TProbeTree>;
   errors: string[];
 };
 
@@ -38,7 +36,7 @@ function setup() {
     viewport: rect(0, 0, 100, 100),
     enabled: true,
   };
-  const newFrame = (): TFrame => ({ prepared: [], painted: new Map(), vetoed: new Set(), errors: [] });
+  const newFrame = (): TFrame => ({ prepared: [], painted: new Map(), errors: [] });
   let frame = newFrame();
   const hooks: { atPublication?: () => void } = {};
   const make = (name: string): TProbeTree => {
@@ -59,7 +57,6 @@ function setup() {
         const allowed = prepared ? node.data.allowChildren : node.data.prepareUpdate?.() ?? true;
         if (frame.painted.has(node)) frame.errors.push(`${name} iterated twice`);
         frame.painted.set(node, visible);
-        if (!allowed) frame.vetoed.add(node);
         return allowed;
       },
     });
@@ -233,19 +230,17 @@ describe("TreeCulling publication invariants", () => {
 
     // Expected publication, captured when the owner paints first.
     let expected = new Set<TProbeTree>();
-    let ancestry = new Map<TProbeTree, Tree[]>();
+    let permissions = new Map<TProbeTree, boolean>();
     hooks.atPublication = () => {
       const errors = current().errors;
       expected = new Set();
-      ancestry = new Map();
+      permissions = new Map();
       const scope = root.scope;
       if (!scope) throw new Error("Missing scope");
       for (const node of attached()) {
         const visible = eligible(node) && intersects(node, state.viewport);
         if (visible) expected.add(node);
-        const chain: Tree[] = [];
-        for (let parent = node.parent; parent && parent !== root; parent = parent.parent) chain.push(parent);
-        ancestry.set(node, chain);
+        permissions.set(node, node.childrenWalkAllowed);
         if (node.published !== visible)
           errors.push(`${node.data.name} published ${node.published}, expected ${visible}`);
         if (node.isVisible() !== visible) errors.push(`${node.data.name} isVisible ${node.isVisible()}`);
@@ -275,7 +270,7 @@ describe("TreeCulling publication invariants", () => {
         const node = pick(attached());
         if (!node) return;
         node.data.allowChildren = !node.data.allowChildren;
-        // Without a request the change applies when the node paints, as a paint-time veto.
+        // Without a request, painting reports the change and the next frame prepares it.
         if (random() < 0.5) node.requestWalk();
       },
       () => pick(attached())?.updateZIndex(1 + Math.floor(random() * 3)),
@@ -323,13 +318,21 @@ describe("TreeCulling publication invariants", () => {
       const count = 1 + Math.floor(random() * 3);
       for (let i = 0; i < count; i++) pick(operations)?.();
       const frame = walk();
-      // Every node visible at publication is painted unless an ancestor suppressed it while painting.
+      // Painting never suppresses a branch: every node visible at publication is painted.
       for (const node of expected) {
-        const suppressed = ancestry.get(node)?.some((ancestor) => frame.vetoed.has(ancestor as TProbeTree));
-        if (!suppressed && frame.painted.get(node) !== true) frame.errors.push(`${node.data.name} not painted`);
+        if (frame.painted.get(node) !== true) frame.errors.push(`${node.data.name} not painted`);
       }
       for (const [node, visible] of frame.painted) {
         if (visible && node !== root && !expected.has(node)) frame.errors.push(`${node.data.name} painted offscreen`);
+      }
+      for (const [node, allowed] of permissions) {
+        if (node.scope === root.scope && node.childrenWalkAllowed !== allowed) {
+          frame.errors.push(`${node.data.name} walk permission changed while painting`);
+        }
+      }
+      // A node prepared in a frame completes it there unless it left the scope.
+      for (const node of frame.prepared) {
+        if (node.scope === root.scope && !frame.painted.has(node)) frame.errors.push(`${node.data.name} not completed`);
       }
       if (frame.errors.length) throw new Error(`seed ${seed}, step ${step}: ${frame.errors.join("; ")}`);
     }

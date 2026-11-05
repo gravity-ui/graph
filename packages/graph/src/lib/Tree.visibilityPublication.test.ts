@@ -84,54 +84,31 @@ describe("Tree visibility publication", () => {
     expect(walk().prepared).not.toContain("new");
   });
 
-  it("restores visibility before the next batch paint after painting suppressed a branch", () => {
-    const { state, add, fill, walk } = setup();
+  it("publishes a children veto that a preparation returns before the batch paint", () => {
+    const { add, fill, walk } = setup();
     const parent = add("parent", 30);
     const child = add("child", 40, parent);
     const residents = fill();
     walk();
     walk();
+    // Painting ignores a veto it returns; nothing changes until the parent prepares.
     parent.data.paint = () => false;
-
     let result = walk();
+    expect(result.drawn).toEqual(["root", "parent", "child", ...residents]);
+
+    parent.data.prepare = () => false;
+    parent.requestWalk();
+    result = walk();
+    expect(result.events.indexOf("prepare:parent")).toBeLessThan(result.events.indexOf("draw:root"));
+    expect(result.events).toContain(`batch:${["parent", ...residents].sort().join(",")}`);
     expect(result.drawn).toEqual(["root", "parent", ...residents]);
-    expect(result.events).not.toContain("iterate:child");
     expect(child.isVisible()).toBe(false);
 
-    parent.data.paint = undefined;
-    state.viewport.maxX = state.viewport.maxY = 99;
+    parent.data.paint = parent.data.prepare = undefined;
+    parent.requestWalk();
     result = walk();
-    expect(result.drawn).toEqual(["root", "parent", "child", ...residents]);
-    // The veto only lived inside one paint: the parent prepares before the next publication.
     expect(result.events).toContain(`batch:${["parent", "child", ...residents].sort().join(",")}`);
-    expect(result.events).not.toContain("visible:child:false");
-    expect(result.events.indexOf("prepare:parent")).toBeLessThan(result.events.indexOf("draw:root"));
-    expect(child.isVisible()).toBe(true);
-  });
-
-  it("restores visibility before the next batch paint after painting suppressed a prepared branch", () => {
-    const { state, add, fill, walk } = setup();
-    const parent = add("parent", 30);
-    const child = add("child", 40, parent);
-    const residents = fill();
-    walk();
-    walk();
-    parent.data.paint = () => false;
-    child.requestWalk();
-
-    let result = walk();
-    expect(result.drawn).toEqual(["root", "parent", ...residents]);
-    // The prepared child completes its frame once, without painting.
-    expect(result.events.filter((event) => event === "iterate:child")).toEqual(["iterate:child"]);
-    expect(child.isVisible()).toBe(false);
-
-    parent.data.paint = undefined;
-    state.viewport.maxX = state.viewport.maxY = 99;
-    result = walk();
     expect(result.drawn).toEqual(["root", "parent", "child", ...residents]);
-    expect(result.events).toContain(`batch:${["parent", "child", ...residents].sort().join(",")}`);
-    expect(result.events).not.toContain("visible:child:false");
-    expect(result.events.indexOf("prepare:parent")).toBeLessThan(result.events.indexOf("draw:root"));
     expect(child.isVisible()).toBe(true);
   });
 });

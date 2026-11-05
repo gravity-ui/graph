@@ -54,10 +54,10 @@ prepares inside its own `iterate()`, after visibility was published and after it
 `performRender()` (connections: `updateGeometry()`), so the node prepares before publication. Bounds a node
 changes while it prepares late still count: they are published in the next frame.
 
-Structure that a node changes while painting (for example children it adds or moves from `render()`) is
-painted from the next frame. A child-traversal veto returned from painting suppresses descendants in that
-frame and is decided again by the node's preparation before the next publication. Prepared descendants
-of a vetoed branch complete without painting.
+Painting does not change which branches are walked: a culled tree takes that decision from the node's preparation
+(`prepareUpdate()`; for components, `shouldRenderChildren`) and ignores what `iterate()` returns. Structure that a node
+changes while painting (for example children it adds or moves from `render()`) is painted from the next frame. A
+component that changes `shouldRenderChildren` while painting requests one more frame, whose preparation applies it.
 
 A component that must react to leaving the viewport, for example to hide an HTML overlay or release a
 resource, defines `viewportChanged(inViewport)`. It is called once per change, after publication and before

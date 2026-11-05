@@ -21,6 +21,9 @@ export class Component<
   protected shouldUpdateChildren = true;
   protected shouldRenderChildren = true;
 
+  /** `shouldRenderChildren` when the previous iterate() ended. */
+  private iteratedRenderChildren = true;
+
   public state: State;
 
   protected __data: { nextProps: Props | undefined; nextState: State | undefined } = {
@@ -183,6 +186,14 @@ export class Component<
     this.didIterate();
 
     this.firstIterate = false;
+
+    // A culled tree walks children by the component's preparation: a change made while painting requests one frame,
+    // whose preparation applies it.
+    if (this.shouldRenderChildren !== this.iteratedRenderChildren) {
+      this.iteratedRenderChildren = this.shouldRenderChildren;
+      const treeNode = this.__comp.treeNode;
+      if (treeNode.scope && this.shouldRenderChildren !== treeNode.childrenWalkAllowed) this.performRender();
+    }
 
     return this.shouldRenderChildren;
   }

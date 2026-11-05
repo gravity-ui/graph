@@ -586,29 +586,33 @@ describe("Tree full-viewport traversal", () => {
     expect(walk().drawn).toEqual(["root", "left", "moved"]);
   });
 
-  it("skips clean descendants when an ancestor suppresses them during paint", () => {
+  it("ignores a children veto returned while painting; preparation applies it", () => {
     const { add, walk } = setup();
     const parent = add("parent", 10);
     const child = add("child", 20, parent);
     const leaf = add("leaf", 30, child);
     walk();
     parent.data.paint = () => false;
-    let result = walk();
+    // Painting does not change which branches are walked, and nothing requests the parent's preparation.
+    for (let i = 0; i < 2; i++) {
+      const result = walk();
+      expect(result.drawn).toEqual(["root", "parent", "child", "leaf"]);
+      expect(parent.pendingSlot).toBe(-1);
+    }
+    // A veto reaches the tree through preparation, on the node's own request.
+    parent.data.prepare = () => false;
+    parent.requestWalk();
+    const result = walk();
     expect(result.prepared).toEqual(["root", "parent"]);
     expect(result.visited).toEqual(["root", "parent"]);
-    expect(result.drawn).toEqual(["root", "parent"]);
     expect([child.isVisible(), leaf.isVisible()]).toEqual([false, false]);
 
-    parent.data.prepare = () => false;
-    result = walk();
-    expect(result.prepared).toEqual(["root", "parent"]);
-    expect(result.visited).toEqual(["root", "parent"]);
     parent.data.prepare = parent.data.paint = () => true;
     parent.requestWalk();
     expect(walk().drawn).toEqual(["root", "parent", "child", "leaf"]);
   });
 
-  it("finishes prepared descendants without paint when an ancestor suppresses them during paint", () => {
+  it("paints prepared descendants in the frame a veto is returned while painting", () => {
     const { add, walk } = setup();
     const parent = add("parent", 10);
     const child = add("child", 20, parent);
@@ -616,22 +620,13 @@ describe("Tree full-viewport traversal", () => {
     walk();
     parent.data.paint = () => false;
     leaf.requestWalk();
-    let result = walk();
+    const result = walk();
     expect(result.prepared).toEqual(["root", "parent", "child", "leaf"]);
-    expect(result.visited).toEqual(["root", "parent", "child", "leaf"]);
-    expect(result.drawn).toEqual(["root", "parent"]);
-    expect([child.isVisible(), leaf.isVisible()]).toEqual([false, false]);
-
-    parent.data.prepare = () => false;
-    result = walk();
-    expect(result.prepared).toEqual(["root", "parent"]);
-    expect(result.visited).toEqual(["root", "parent"]);
-    parent.data.prepare = parent.data.paint = () => true;
-    parent.requestWalk();
-    expect(walk().drawn).toEqual(["root", "parent", "child", "leaf"]);
+    expect(result.drawn).toEqual(["root", "parent", "child", "leaf"]);
+    expectPreparedBeforeOwnPaint(result);
   });
 
-  it("invalidates an ancestry check when painting suppresses a previously allowed branch", () => {
+  it("keeps ancestry unchanged while painting and updates it from the next preparation", () => {
     const { root, add, walk } = setup();
     const parent = add("parent", 10);
     const child = add("child", 20, parent);
@@ -646,10 +641,13 @@ describe("Tree full-viewport traversal", () => {
       allowed.push(leaf.isTraversalAllowed());
       return true;
     };
+    expect(walk().drawn).toEqual(["root", "parent", "child", "leaf"]);
+    expect(allowed).toEqual([true, true]);
+    expect(leaf.isTraversalAllowed()).toBe(true);
 
-    expect(walk().drawn).toEqual(["root", "parent"]);
-    // The clean child is not reached once its ancestor suppresses the branch.
-    expect(allowed).toEqual([true]);
+    parent.data.prepare = () => false;
+    parent.requestWalk();
+    walk();
     expect(leaf.isTraversalAllowed()).toBe(false);
     root.append(child);
     expect(leaf.isTraversalAllowed()).toBe(true);

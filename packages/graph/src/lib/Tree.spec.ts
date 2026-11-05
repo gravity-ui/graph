@@ -104,10 +104,9 @@ describe("Tree", () => {
   });
 });
 
-test("a scoped legacy iterator can resume child traversal after returning false", () => {
-  let allow = false;
+test("a culled tree ignores the result of iterate() and leaves the node unrequested", () => {
   let calls = 0;
-  const root = new Tree({ iterate: () => allow });
+  const root = new Tree({ iterate: () => false });
   root.setCulling({ tileSize: 64, getViewport: () => ({ minX: 0, minY: 0, maxX: 100, maxY: 100 }) });
   root.append(
     new Tree({
@@ -117,10 +116,35 @@ test("a scoped legacy iterator can resume child traversal after returning false"
       },
     })
   );
-  root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
+  const walk = (): void => root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
+  walk();
+  walk();
+  expect(calls).toBe(2);
+  expect(root.pendingSlot).toBe(-1);
+});
+
+test("a culled tree takes the children veto from prepareUpdate() on request", () => {
+  let allow = false;
+  let calls = 0;
+  const root = new Tree<{ iterate: () => boolean; prepareUpdate: () => boolean }>({
+    iterate: () => true,
+    prepareUpdate: () => allow,
+  });
+  root.setCulling({ tileSize: 64, getViewport: () => ({ minX: 0, minY: 0, maxX: 100, maxY: 100 }) });
+  root.append(
+    new Tree({
+      iterate: () => {
+        calls++;
+        return true;
+      },
+    })
+  );
+  const walk = (): void => root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
+  walk();
   expect(calls).toBe(0);
   allow = true;
-  root.traverseDown((node, prepared, visible) => node.data.iterate(prepared, visible));
+  root.requestWalk();
+  walk();
   expect(calls).toBe(1);
 });
 

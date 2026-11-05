@@ -10,7 +10,8 @@ export type TIterator = (node: Tree, prepared: boolean, visible: boolean) => boo
 export interface ITree {
   /**
    * Runs this node's frame. When `prepared` is false, `iterate()` applies its pending work itself first.
-   * `visible` is the tree's paint decision; the node may still veto painting. False suppresses children.
+   * `visible` is the tree's paint decision; the node may still veto painting. False suppresses children in a tree without culling;
+   * a culled tree takes that decision from prepareUpdate() and ignores the result.
    */
   iterate(prepared: boolean, visible: boolean): boolean;
   /** Applies pending work without painting; false suppresses this node's descendants. */

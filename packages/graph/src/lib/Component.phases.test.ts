@@ -261,7 +261,7 @@ test("prepares inside iterate only when the tree has not prepared the component"
   CoreComponent.unmount(probe);
 });
 
-test("completes prepared children when parent paint suppresses them, then consumes later props", () => {
+test("applies a children veto set while painting from the next frame, then consumes later props", () => {
   class Child extends Component<{ value: number }> {
     public painted: number[] = [];
     public mounts = 0;
@@ -308,16 +308,127 @@ test("completes prepared children when parent paint suppresses them, then consum
   CoreComponent.update(parent);
   const child = parent.child;
   if (!child) throw new Error("Missing mounted child");
-  expect(child.painted).toEqual([]);
-  expect(child.completions).toBe(1);
+  // The veto is set while painting: this frame still paints the child.
+  expect(child.painted).toEqual([0]);
+  CoreComponent.update(parent);
+  // The next frame prepares the parent again, and its preparation keeps the veto.
+  expect(child.painted).toEqual([0]);
   expect(child.isIterated()).toBe(false);
   child.setProps({ value: 1 });
   parent.resume();
   CoreComponent.update(parent);
-  CoreComponent.update(parent);
   expect(child.props.value).toBe(1);
   expect(child.isIterated()).toBe(true);
-  expect(child.painted).toEqual([1]);
+  expect(child.painted).toEqual([0, 1]);
   expect(child.mounts).toBe(1);
   CoreComponent.unmount(parent);
+});
+
+describe("children veto and frame requests in a culled tree", () => {
+  class Item extends Component {
+    public painted = 0;
+    protected render() {
+      this.painted++;
+    }
+  }
+  const viewport = () => ({ minX: 0, minY: 0, maxX: 100, maxY: 100 });
+  const mountRoot = <T extends Component & { item?: Item }>(Root: new () => T) => {
+    const root = CoreComponent.mount(Root);
+    CoreComponent.update(root);
+    return root;
+  };
+  const requestFrame = (root: Component): void =>
+    (
+      root as unknown as { __comp: { context: { scheduler: { scheduleUpdate(): void } } } }
+    ).__comp.context.scheduler.scheduleUpdate();
+  const item = (owner: { item?: Item }) =>
+    Item.create(
+      {},
+      {
+        ref: (child) => {
+          owner.item = child;
+        },
+      }
+    );
+
+  it("does not request frames when a prepareUpdate() override suppresses children", () => {
+    class Root extends Component {
+      public item?: Item;
+      constructor() {
+        super({});
+        this.setChildrenCulling({ tileSize: 64, getViewport: viewport });
+      }
+      public override prepareUpdate(): boolean {
+        return super.prepareUpdate() && false;
+      }
+      protected updateChildren() {
+        return [item(this)];
+      }
+    }
+    const root = mountRoot(Root);
+    const render = jest.spyOn(root as unknown as { performRender(): void }, "performRender");
+    for (let i = 0; i < 10; i++) {
+      requestFrame(root);
+      CoreComponent.update(root);
+    }
+    expect(render).toHaveBeenCalledTimes(0);
+    expect(root.item?.painted).toBe(0);
+    CoreComponent.unmount(root);
+  });
+
+  it("requests at most one frame when preparation and painting disagree every frame", () => {
+    class Root extends Component {
+      public item?: Item;
+      constructor() {
+        super({});
+        this.setChildrenCulling({ tileSize: 64, getViewport: viewport });
+      }
+      protected willIterate() {
+        super.willIterate();
+        this.shouldRenderChildren = true;
+      }
+      protected render() {
+        this.shouldRenderChildren = false;
+      }
+      protected updateChildren() {
+        return [item(this)];
+      }
+    }
+    const root = mountRoot(Root);
+    const render = jest.spyOn(root as unknown as { performRender(): void }, "performRender");
+    for (let i = 0; i < 10; i++) {
+      requestFrame(root);
+      CoreComponent.update(root);
+    }
+    expect(render.mock.calls.length).toBeLessThanOrEqual(1);
+    CoreComponent.unmount(root);
+  });
+
+  it("requests one frame when painting changes shouldRenderChildren, and applies it there", () => {
+    class Root extends Component {
+      public item?: Item;
+      public suppress = false;
+      constructor() {
+        super({});
+        this.setChildrenCulling({ tileSize: 64, getViewport: viewport });
+      }
+      protected render() {
+        if (this.suppress) this.shouldRenderChildren = false;
+      }
+      protected updateChildren() {
+        return [item(this)];
+      }
+    }
+    const root = mountRoot(Root);
+    const painted = root.item?.painted ?? 0;
+    root.suppress = true;
+    const render = jest.spyOn(root as unknown as { performRender(): void }, "performRender");
+    requestFrame(root);
+    CoreComponent.update(root);
+    expect(root.item?.painted).toBe(painted + 1);
+    CoreComponent.update(root);
+    expect(root.item?.painted).toBe(painted + 1);
+    expect(render).toHaveBeenCalledTimes(1);
+    CoreComponent.unmount(root);
+  });
 });
