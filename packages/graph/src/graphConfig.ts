@@ -294,6 +294,11 @@ export type TGraphConstants = {
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: number;
     /** Size of Path2D chunks for batch rendering */
     PATH2D_CHUNK_SIZE: number;
+    /**
+     * Edge of a connection batch's chunk cell, in visibility tiles (`system.VISIBILITY_TILE_SIZE`).
+     * Read when the connections component is constructed.
+     */
+    PATH2D_CHUNK_TILES: number;
     LABEL: {
       INNER_PADDINGS: [number, number, number, number];
     };
@@ -349,6 +354,7 @@ export const initGraphConstants: TGraphConstants = {
     THRESHOLD_LINE_HIT: 8,
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: 0.25,
     PATH2D_CHUNK_SIZE: 100,
+    PATH2D_CHUNK_TILES: 8,
     LABEL: {
       INNER_PADDINGS: [0, 0, 0, 0],
     },

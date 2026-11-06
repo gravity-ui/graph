@@ -105,6 +105,11 @@ describe("connection batch viewport visibility", () => {
       { id: "near", x: 100, y: 100 },
       { id: "far", x: 50_000, y: 50_000 },
     ]);
+    // Each connection has its own cell chunk: visit "far" once so both chunks are built before the check.
+    graph.cameraService.set({ x: -49_800, y: -49_800 });
+    frames(2);
+    graph.cameraService.set({ x: 0, y: 0 });
+    frames(2);
     view("near").draws = [];
     view("far").draws = [];
 
@@ -131,14 +136,15 @@ describe("connection batch viewport visibility", () => {
     [true, false],
     [false, true],
   ])("strokes a chunk outside the viewport only without culling (viewportCulling %s)", (culling, stroked) => {
-    // 150 connections make two chunks; the second lies far to the right of the viewport.
+    // Connections 9 and up lie in grid cells far to the right of the viewport; "9" opens the cell's chunk and so
+    // supplies its style.
     mount(Array.from({ length: 150 }, (_, index) => ({ id: String(index), x: 100 + index * 1000, y: 100 })));
     graph.updateSettings({ viewportCulling: culling });
     frames(2);
-    view("100").draws = [];
+    view("9").draws = [];
     graph.getGraphLayer().performRender();
     frames(2);
-    expect(view("100").draws.includes("style")).toBe(stroked);
+    expect(view("9").draws.includes("style")).toBe(stroked);
   });
 
   it.each([true, false])(

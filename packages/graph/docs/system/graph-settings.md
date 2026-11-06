@@ -172,6 +172,8 @@ Constants control the sizing, spacing, and other numerical values used throughou
 | `DEFAULT_Z_INDEX` | `0` | Default z-index for connections |
 | `THRESHOLD_LINE_HIT` | `8` | Hit detection threshold for connections |
 | `MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL` | `0.25` | Minimum zoom level to display arrows and labels |
+| `PATH2D_CHUNK_SIZE` | `100` | Most connections in one batch chunk (one `stroke()`) |
+| `PATH2D_CHUNK_TILES` | `8` | Edge of a batch chunk's grid cell in visibility tiles (`VISIBILITY_TILE_SIZE`); read when the connections component is constructed |
 | `LABEL.INNER_PADDINGS` | `[0, 0, 0, 0]` | Inner padding for connection labels |
 
 ### Text Constants

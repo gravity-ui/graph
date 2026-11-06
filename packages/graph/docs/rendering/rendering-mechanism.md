@@ -71,7 +71,7 @@ it last told they left that they are back, turning it on tells offscreen ones th
 off also tells an offscreen component that was never notified, for example one mounted outside the
 viewport, that it is in the viewport.
 
-Connection batches do not depend on per-item visibility or on child traversal: each chunk is skipped
+Connection batches do not depend on per-item visibility or on child traversal: connections are chunked by grid cell and each chunk is skipped
 when its items' bounds are outside the viewport, and its items' `afterRender` hooks run only for items in
 the viewport, see [Batch Rendering](../connections/batch-rendering.md).
 
