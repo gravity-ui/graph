@@ -25,8 +25,10 @@ export type DragOperationOptions = {
    */
   threshold?: number;
   /**
-   * Initial event to use for threshold calculation.
-   * If not set, uses the first mousemove event.
+   * The press that starts the operation, usually its mousedown.
+   * The threshold is measured from it, and onStart receives its coordinates.
+   * If not set, the threshold is measured from the first mousemove, and onStart receives the coordinates
+   * of the event that started the drag.
    */
   initialEvent?: MouseEvent;
   /**
@@ -40,7 +42,7 @@ export type DragOperationOptions = {
  * Callbacks for custom drag operation lifecycle
  */
 export type DragOperationCallbacks = {
-  /** Called when drag starts (first mousemove after mousedown) */
+  /** Called when drag starts (first mousemove past the threshold) */
   onStart?: (event: MouseEvent, coords: [number, number]) => void;
   /** Called on each mousemove during drag */
   onUpdate?: (event: MouseEvent, coords: [number, number]) => void;
@@ -72,7 +74,7 @@ export type DragState = {
   isMultiple: boolean;
   /** Whether all dragged components are of the same type */
   isHomogeneous: boolean;
-  /** Starting coordinates in world space when drag began */
+  /** World coordinates of the press that started the drag */
   startCoords: [number, number] | null;
   /** Current coordinates in world space */
   currentCoords: [number, number] | null;
@@ -84,7 +86,7 @@ export type DragState = {
 export type DragContext = {
   /** The native mouse event */
   sourceEvent: MouseEvent;
-  /** Starting coordinates in world space when drag began */
+  /** World coordinates of the press that started the drag */
   startCoords: [number, number];
   /** Previous coordinates in world space from last frame */
   prevCoords: [number, number];
@@ -98,7 +100,7 @@ export type DragContext = {
  * Diff values passed to handleDrag method
  */
 export type DragDiff = {
-  /** Starting coordinates in world space when drag began */
+  /** World coordinates of the press that started the drag */
   startCoords: [number, number];
   /** Previous coordinates in world space from last frame */
   prevCoords: [number, number];

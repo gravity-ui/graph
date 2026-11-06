@@ -58,4 +58,22 @@ describe("ConnectionLayer cancellation", () => {
     expect(onCreated).not.toHaveBeenCalled();
     expect(graph.rootStore.connectionsList.$connections.value).toHaveLength(0);
   });
+
+  it("starts the new connection from a block at the press", () => {
+    const layer = graph.addLayer(ConnectionLayer, {});
+    layer.enable();
+    const source = graph.blocks.getBlockState("a")?.getViewComponent();
+    if (!source) throw new Error("Expected block view");
+
+    const sourceEvent = mouse("mousedown", 10, 10, { shiftKey: true });
+    document.dispatchEvent(sourceEvent);
+    layer["handleMouseDown"](
+      new CustomEvent("mousedown", { detail: { target: source, sourceEvent } }) as GraphMouseEvent
+    );
+    document.dispatchEvent(mouse("mousemove", 100, 10));
+
+    const [x, y] = graph.cameraService.applyToPoint(10, 10);
+    expect(layer["startState"]).toMatchObject({ x, y });
+    document.dispatchEvent(mouse("mouseup", 100, 10));
+  });
 });
