@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.1](https://github.com/gravity-ui/graph/compare/v1.13.0...v1.13.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* **drag:** pass the component to startDrag and let cancel() stop its operation ([#447](https://github.com/gravity-ui/graph/issues/447)) ([af923e5](https://github.com/gravity-ui/graph/commit/af923e53a2f7af8fc83207a25f4cfd8f52ad8d22))
+* **graph:** let layers prevent the graph mousedown before the camera pans ([#405](https://github.com/gravity-ui/graph/issues/405)) ([#445](https://github.com/gravity-ui/graph/issues/445)) ([ab1560f](https://github.com/gravity-ui/graph/commit/ab1560f673abdf3b394ec3e43b0a41d6a3d6abca))
+
 ## [1.13.0](https://github.com/gravity-ui/graph/compare/v1.12.2...v1.13.0) (2026-11-02)
 
 
