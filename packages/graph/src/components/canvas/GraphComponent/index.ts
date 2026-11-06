@@ -374,8 +374,8 @@ export class GraphComponent<
   }
 
   protected getHitBoxRect(): TRect {
-    const [x, y, maxX, maxY] = this.getHitBox();
-    return { x, y, width: maxX - x, height: maxY - y };
+    const [x, y, width, height] = this.getHitBox();
+    return { x, y, width, height };
   }
 
   protected setVisibility(visible: boolean, { removeHitbox }: { removeHitbox: boolean }): void {

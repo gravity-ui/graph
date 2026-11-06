@@ -2,7 +2,7 @@ import { Graph } from "../../../graph";
 import { GraphEventsDefinitions, UnwrapGraphEvents } from "../../../graphEvents";
 import { Component } from "../../../lib/Component";
 import { globalScheduler } from "../../../lib/Scheduler";
-import { HitBox } from "../../../services/HitTest";
+import { HitBox, HitBoxData } from "../../../services/HitTest";
 import { EAnchorType } from "../../../store/anchor/Anchor";
 import { EventedComponent } from "../EventedComponent/EventedComponent";
 import { Anchor } from "../anchors";
@@ -30,6 +30,10 @@ class TestGraphComponent extends GraphComponent {
   ): () => void {
     return this.onRootEvent(eventName, handler, options);
   }
+
+  public changeVisibility(visible: boolean, options: { removeHitbox: boolean }): void {
+    this.setVisibility(visible, options);
+  }
 }
 
 type TestSetup = {
@@ -38,6 +42,7 @@ type TestSetup = {
   graphOff: jest.Mock<void, []>;
   rootEl: HTMLDivElement;
   hitTestRemove: jest.Mock<void, [HitBox]>;
+  hitTestUpdate: jest.Mock<void, [HitBox, HitBoxData, boolean | undefined]>;
 };
 
 function createTestComponent(root?: HTMLDivElement): TestSetup {
@@ -45,11 +50,12 @@ function createTestComponent(root?: HTMLDivElement): TestSetup {
   const graphOn = jest.fn<() => void, Parameters<Graph["on"]>>().mockReturnValue(graphOff);
 
   const hitTestRemove = jest.fn();
+  const hitTestUpdate = jest.fn<void, [HitBox, HitBoxData, boolean | undefined]>();
   const fakeGraph = {
     on: graphOn,
     hitTest: {
       remove: hitTestRemove,
-      update: jest.fn(),
+      update: hitTestUpdate,
     },
     // The rest of Graph API is not needed for these tests
   };
@@ -82,8 +88,30 @@ function createTestComponent(root?: HTMLDivElement): TestSetup {
     graphOff,
     rootEl,
     hitTestRemove,
+    hitTestUpdate,
   };
 }
+
+describe("GraphComponent.setVisibility", () => {
+  it("restores the same hit box when re-shown with removeHitbox", () => {
+    const { component, hitTestRemove, hitTestUpdate } = createTestComponent();
+    component.setHitBox(10, 20, 110, 70);
+
+    component.changeVisibility(false, { removeHitbox: true });
+    expect(hitTestRemove).toHaveBeenCalledWith(component.hitBox);
+
+    hitTestUpdate.mockClear();
+    component.changeVisibility(true, { removeHitbox: true });
+
+    expect(component.getHitBox()).toEqual([10, 20, 100, 50]);
+    expect(hitTestUpdate).toHaveBeenCalledTimes(1);
+    expect(hitTestUpdate).toHaveBeenCalledWith(
+      component.hitBox,
+      expect.objectContaining({ minX: 10, minY: 20, maxX: 110, maxY: 70 }),
+      true
+    );
+  });
+});
 
 describe("GraphComponent event helpers", () => {
   it("subscribes to graph events via onGraphEvent and cleans up on unmount", () => {
