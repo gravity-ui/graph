@@ -74,6 +74,7 @@ These settings control the interactive behaviors and visual styles of the graph.
 | `EXP_USE_TIGHT_BEZIER_BOUNDS` | boolean | `true` | Experimental: use tight bounds of the rendered Bezier curve; set to `false` to use the legacy control-point bounds |
 | `useBlocksAnchors` | boolean | `true` | Controls whether blocks should display anchors for connections |
 | `showConnectionLabels` | boolean | `false` | Controls visibility of connection labels |
+| `useCanvasConnections` | boolean | `true` | When `false`, built-in canvas connection components are not created; connection data stays in the store for an external renderer such as `@gravity-ui/graph-webgl-connections` |
 | `blockComponents` | Record<string, typeof Block> | `{}` | Registry of custom block components. The built-in renderer constructs them with `id`, `initialIndex` and `font` only: put custom data into the block's `meta`, or give extra props defaults in the constructor. |
 | `connection` | typeof BlockConnection | `undefined` | Custom connection component |
 | `background` | typeof Component | `undefined` | Custom background component |

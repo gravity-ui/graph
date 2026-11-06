@@ -27,7 +27,8 @@
     "web-worker": "^1.3.0",
     "@gravity-ui/graph-minimap": "workspace:*",
     "@gravity-ui/graph-css-variables": "workspace:*",
-    "@gravity-ui/graph-connection-editing": "workspace:*"
+    "@gravity-ui/graph-connection-editing": "workspace:*",
+    "@gravity-ui/graph-webgl-connections": "workspace:*"
   },
   "devDependencies": {
     "@gravity-ui/eslint-config": "^4.3.2",

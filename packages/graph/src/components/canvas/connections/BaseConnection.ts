@@ -208,6 +208,7 @@ export class BaseConnection<
   protected override unmount(): void {
     // A pending hover update would keep the unmounted graph reachable from the global scheduler.
     this.debounceHover.cancel();
+    this.connectedState.unsetViewComponent(this);
     super.unmount();
   }
 

@@ -14,6 +14,7 @@ This repository contains the Gravity UI Graph packages and their development too
 - [`@gravity-ui/graph-elk`](packages/graph-elk) — optional ELK auto-layout converter and React hook; `elkjs` is a peer.
 - [`@gravity-ui/graph-css-variables`](packages/graph-css-variables) — optional layer that applies CSS variables to graph colors and constants, depending on the core public API.
 - [`@gravity-ui/graph-connection-editing`](packages/graph-connection-editing) — optional layer for creating connections by drag, depending on the core public API.
+- [`@gravity-ui/graph-webgl-connections`](packages/graph-webgl-connections) — experimental WebGL2 layer that draws and hit-tests all connections instead of canvas connection components; not released yet.
 
 Shared build tooling lives in `scripts/`. Each public package keeps its packed-package contract in `packages/<name>/contract`; `scripts/package-contract` installs the tarballs into an isolated consumer per package.
 
