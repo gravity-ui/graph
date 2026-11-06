@@ -146,6 +146,22 @@ describe("connection batch viewport visibility", () => {
     expect(view("9").draws.includes("style")).toBe(stroked);
   });
 
+  it("draws labels only for connections the camera sees without viewport culling", () => {
+    mount([
+      { id: "near", x: 100, y: 100, label: "near" },
+      { id: "far", x: 50_000, y: 50_000, label: "far" },
+    ]);
+    graph.updateSettings({ viewportCulling: false });
+    frames(2);
+    view("near").draws = [];
+    view("far").draws = [];
+    graph.getGraphLayer().performRender();
+    frames(2);
+
+    expect(view("near").draws).toContain("label");
+    expect(view("far").draws).not.toContain("label");
+  });
+
   it.each([true, false])(
     "keeps custom line and arrow geometry cached across pan with viewport culling %s",
     (culling) => {
@@ -219,6 +235,7 @@ describe("connection batch viewport visibility", () => {
     frames(3);
 
     expect(view("label").labelBounds()).toBeUndefined();
+    expect(view("label").draws).not.toContain("afterRender");
     expect(view("label").getHitBox()[0]).toBeGreaterThan(1000);
     // The offscreen connection rebuilds geometry for the new props but does not draw.
     expect(view("label").draws).not.toContain("label");

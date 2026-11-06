@@ -136,7 +136,7 @@ coordinates, covering everything they paint. For connections these bounds come f
 chunk with an item without valid bounds is never culled.
 
 `isPathVisible()` is semantic only; viewport culling is the renderer's job. For connections it is
-`isRenderAllowed()`, so one override hides the component's hooks, its line and its arrow. State and props
+`isRenderAllowed()`, so one override hides the component's hooks, its line, its arrow and its label. State and props
 changes re-evaluate it; other changes call `applyShape()`.
 
 ### Custom Group Names

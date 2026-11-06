@@ -967,16 +967,22 @@ chunk.
 
 Connection batches group items by grid cell instead of registration order (`connection.PATH2D_CHUNK_TILES`). Where
 two connections of one style overlap, the overlap may be composited twice instead of once, which changes those pixels
-for translucent colors and at anti-aliased crossings. `BatchPath2DRenderer.orderedPaths` is removed; use `has()` to
-check registration.
+for translucent colors and at anti-aliased crossings. `connection.PATH2D_CHUNK_SIZE` now defaults to 200 (it was 100).
+`BatchPath2DRenderer` is a `BatchScene`: its protected internals (`indexes`, `itemParams`, `getGroup`,
+`requestRender` and the `orderedPaths` cache) are removed; use `has()` to check registration.
+
+`TGraphConnectionsContext.labels` is required: a custom parent that hosts `BlockConnection` must provide a
+`ConnectionLabelRenderer`, as `BlockConnections` does. A subclass that declared `override afterRender` and called
+`super.afterRender?.()` must drop both, because the base method no longer exists (TS4113/TS2339).
 
 The minimap draws block bodies without names: it calls `renderMinimalisticBlock(ctx, { text: false })`. A
 custom block that overrides `renderMinimalisticBlock` or `renderSchematicView` follows this rule only if its
 override accepts `options` and passes them on (or checks `options?.text` itself); an override that takes only
 `ctx` decides on its own what the minimap shows.
 
-`viewportCulling: false` turns viewport culling off: every component is walked (detached components are never walked), a graph component paints when
-the camera sees its hit box, and connection batches draw every chunk. The lifecycle rules shared with culling
+`viewportCulling: false` turns viewport culling off: every component is walked (detached components are never walked), a
+graph component paints when the camera sees its hit box, connection batches draw every chunk and connection labels are
+drawn when the camera sees their rectangle. The lifecycle rules shared with culling
 still apply (an offscreen component is not painted on mount; visibility is decided after preparation), so the
 switch rules out spatial culling only.
 

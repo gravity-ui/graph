@@ -107,6 +107,20 @@ describe("connection label pass", () => {
     expect(view("reaching").labels).toBeGreaterThan(0);
   });
 
+  it("culls a label outside the viewport inside a drawn cell", () => {
+    // Same grid cell as the visible one, but 2000 px right of the 1000 px wide viewport.
+    mount([
+      { id: "near", x: 100, y: 100, label: "near" },
+      { id: "sameCell", x: 3000, y: 100, label: "sameCell" },
+    ]);
+    for (const id of ["near", "sameCell"]) view(id).labels = 0;
+    graph.cameraService.set({ x: 1 });
+    frames();
+
+    expect(view("near").labels).toBeGreaterThan(0);
+    expect(view("sameCell").labels).toBe(0);
+  });
+
   it("draws no label below the zoom threshold, while hidden or with labels off", () => {
     mount([{ id: "label", x: 100, y: 100, label: "label" }], 0.2);
     const connection = view("label");
