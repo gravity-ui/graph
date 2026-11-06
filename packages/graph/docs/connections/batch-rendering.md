@@ -49,6 +49,9 @@ decides (a detached connection compares its bounds with the layer's culling view
 its children; without culling, its hit box against the camera), otherwise its bounds do. Items without bounds always
 run.
 
+Connection labels are not batch items: `BlockConnections` draws them in a label pass right after the batch, and
+none while it does not walk its children.
+
 The batch belongs to the component that renders it, usually `BlockConnections`. A child-traversal veto
 pauses the children's lifecycle but does not hide their batched paths; a parent that wants to hide them
 does not draw its batch, or its items hide themselves through `isRenderAllowed()`.

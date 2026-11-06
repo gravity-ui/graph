@@ -322,10 +322,11 @@ function updateConnectionStatus(connectionId: string, status: "active" | "idle" 
 
 You can create custom connection implementations by extending the base connection classes to add specific rendering logic or behavior.
 
-`BlockConnection` and its subclasses are *detached*: the frame does not walk them, and the batch draws their lines,
-arrows and labels. They update when their data changes (`propsChanged`, `stateChanged`, `willIterate`, geometry
-hooks) and never receive `render()` or other per-frame hooks. Draw extra content in `afterRender()`; a subclass that
-must draw every frame declares `static detached = false`. `BaseConnection` subclasses are walked and draw in
+`BlockConnection` and its subclasses are *detached*: the frame does not walk them; the batch draws their lines and
+arrows and the label pass their labels. They update when their data changes (`propsChanged`, `stateChanged`,
+`willIterate`, geometry hooks) and never receive `render()` or other per-frame hooks. Draw labels in
+`renderLabelText()` and other extra content in `afterRender()`; a subclass that must draw every frame declares
+`static detached = false`. `BaseConnection` subclasses are walked and draw in
 `render()`. See [Detached components](../migration-guides/v1-to-v2.md#detached-components-connections-outside-the-frame-walk).
 
 ### Extending BaseConnection
@@ -389,6 +390,11 @@ class CustomPathConnection extends BlockConnection {
 ```
 
 ### Custom Labels and Badges
+
+Labels are drawn by the layer's label pass, after every connection line and arrow and before blocks, by z-level
+(labels of selected and hovered connections on top). Each label is culled by its own rectangle (`labelGeometry`), so a
+label can be drawn while its line is outside the viewport. `BlockConnection` does not draw its label in `afterRender`
+anymore: to replace the standard label, override `renderLabelText()`.
 
 Prepare custom label bounds in `updateLabelGeometry()`, then draw in `renderLabelText()`. Call `super.updateLabelGeometry(props)` first to obtain the standard label's current position and size, including zoom and label visibility. This example adds a square status badge before the text:
 
