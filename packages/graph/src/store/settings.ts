@@ -3,6 +3,7 @@ import cloneDeep from "lodash/cloneDeep";
 
 import type { Block, TBlock } from "../components/canvas/blocks/Block";
 import { BlockConnection } from "../components/canvas/connections/BlockConnection";
+import type { TConnectionEffect } from "../components/canvas/connections/webgl/effects";
 import { Component } from "../lib";
 import { defaultGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
 import type { TGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
@@ -22,6 +23,8 @@ export enum ECanDrag {
   /** Drag is disabled for all components (except manual drag via startDrag) */
   NONE = "none",
 }
+
+export type TConnectionsRenderer = "canvas" | "webgl";
 
 export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection extends TConnection = TConnection> = {
   canDragCamera: boolean;
@@ -51,6 +54,16 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    * example while investigating a rendering problem.
    */
   viewportCulling: boolean;
+  /**
+   * Experimental: `"webgl"` draws connection lines and arrows of the whole graph with WebGL2 on a canvas below the graph
+   * layer when the browser supports it. Connections that draw their own paths are not drawn in this mode.
+   */
+  connectionsRenderer: TConnectionsRenderer;
+  /**
+   * Experimental, WebGL renderer only: effects that connections pick by name in `getStroke().effect`. Each effect is a
+   * GLSL function that recolors the connection's line; see `TConnectionEffect`.
+   */
+  connectionEffects: TConnectionEffect[];
   useBlocksAnchors: boolean;
   connectivityComponentOnClickRaise: boolean;
   showConnectionLabels: boolean;
@@ -103,6 +116,8 @@ export const DefaultSettings: TGraphSettingsConfig = {
   bezierConnectionDirection: "horizontal",
   EXP_USE_TIGHT_BEZIER_BOUNDS: true,
   viewportCulling: true,
+  connectionsRenderer: "canvas",
+  connectionEffects: [],
   useBlocksAnchors: true,
   connectivityComponentOnClickRaise: true,
   showConnectionLabels: false,
