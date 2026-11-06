@@ -20,14 +20,30 @@ node scripts/bench/culling/run.mjs --scenes nirvana --views near,full --scales 0
 node scripts/bench/culling/run.mjs --first --repeats 4
 ```
 
-Options: `--scenes`, `--scales`, `--views`, `--modes pan,zoom`, `--repeats`, `--steps`, `--noop` (replace
+Options: `--scenes`, `--scales`, `--views`, `--modes pan,zoom,idle,drag`, `--repeats`, `--steps`, `--noop` (replace
 fill/stroke calls with no-ops to isolate JavaScript cost), `--first` (only the first two frames after
 mounting), `--shuffle` (register connections in a seeded random order), `--shots <dir>` (keep the compared
 screenshots), `--headed`, `--chunk-size N` and `--cell-tiles N` (set `connection.PATH2D_CHUNK_SIZE` and
 `connection.PATH2D_CHUNK_TILES` for every variant; `--chunk-size 1` strokes every connection alone, which compares
 culling without the blending of overlaps inside a chunk), `--labels` (draw connection labels; Nirvana connections
-have labels). Each result line ends with the Path2D strokes and fills of one frame at the measured view,
-counted after the timed frames.
+have labels). Each canvas result line ends with the Path2D strokes and fills of one frame at the measured view,
+counted after the timed frames; WebGL columns do not print them, because they count Path2D calls only.
+
+`--renderers canvas,webgl` (default `canvas`) sets the `connectionsRenderer` setting; every variant x renderer is a
+column named `variant/renderer`, and the first column is the pixel reference. `--effect none|dash|static-dash|style` installs a
+connection class that overrides `getStroke()` (`dash`: animated dash pattern; `static-dash`: the same pattern, still;
+`style`: color and width from the connection id); variants without `getStroke()` draw those connections as usual. `--modes` also accepts `idle` (no
+camera change, one frame per step) and `drag` (moves the block with the most connections by 3 world units back and
+forth). Each mode prints `<mode> <mean update ms> ms frames <p50>/<p95>`: the frames are the
+intervals between measured steps. In `pan`, `zoom` and `drag` each step waits for a graph-layer update, so the frames are
+update-gated and include GPU-bound frames the update time does not see; in `idle` they are pure `requestAnimationFrame`
+intervals. `timeouts N` appears when N measured steps waited 20 frames without an update, which inflates the p95. In `idle`
+the update time is 0 when no GraphLayer update ran. WebGL columns add `gl <ms> ms <calls> calls <instances> inst <items> items`:
+the main-thread time of WebGL draws per measured frame, and the instanced draw calls, instances (cubic pieces) and
+connection items with an appearance per WebGL draw (items compare with the visible connections despite curve
+subdivision). `gl` ms includes WebGL draws inside graph-layer updates, which `update` already counts, so `gl` is reported
+next to `update` and never added to it; it also covers draws in WebGL's own animation loop. With
+`--shots`, a column name's `/` becomes `-` in the file name.
 
 Both scenes register connections layer by layer along X, so registration order is already spatial. `--shuffle`
 measures the order of graphs loaded from a store. Variants that chunk connection batches by registration order
