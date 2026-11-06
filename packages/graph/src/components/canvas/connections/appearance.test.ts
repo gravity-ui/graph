@@ -121,4 +121,19 @@ describe("connection appearance", () => {
     expect(mounted.view.getClassName()).toContain("/30");
     now.mockRestore();
   });
+
+  it("redraws the layer every frame only while an animated Path2D chunk is in the viewport", () => {
+    const mounted = mount({ connection: RunningDashConnection });
+    graph = mounted.graph;
+    const parent = mounted.view.getParent() as unknown as { performRender(): void };
+    const performRender = jest.spyOn(parent, "performRender");
+    frames(1);
+    expect(performRender).toHaveBeenCalled();
+
+    graph.cameraService.set({ x: -50_000, y: -50_000 });
+    frames(3);
+    performRender.mockClear();
+    frames(2);
+    expect(performRender).not.toHaveBeenCalled();
+  });
 });
