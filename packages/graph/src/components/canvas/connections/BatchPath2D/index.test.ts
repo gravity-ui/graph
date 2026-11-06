@@ -1,6 +1,7 @@
+import { initGraphConstants } from "../../../../graphConfig";
 import type { TTileRect } from "../../../../lib/culling/TileIndex";
 
-import { BatchPath2DRenderer, TPathBounds } from "./index";
+import { BatchPath2DRenderer, DEFAULT_BATCH_CELL_SIZE, TPathBounds } from "./index";
 
 function createPath(end: number) {
   const path = new Path2D();
@@ -203,4 +204,20 @@ test("moves an item between cells when its bounds change and rebuilds both chunk
   expect(render()).toEqual([[20], [2010, 2030]]);
   expect(render(viewport(0, 100))).toEqual([[20]]);
   expect([moving, near, far].map((item) => item.getPath.mock.calls.length)).toEqual([2, 2, 2]);
+});
+
+test("constructor defaults match the default graph constants", () => {
+  const { system, connection } = initGraphConstants;
+  expect(DEFAULT_BATCH_CELL_SIZE).toBe(system.VISIBILITY_TILE_SIZE * connection.PATH2D_CHUNK_TILES);
+
+  const { ctx } = createFixture();
+  const stroke = jest.spyOn(ctx, "stroke");
+  const count = connection.PATH2D_CHUNK_SIZE;
+  for (const total of [count, count + 1]) {
+    const batch = new BatchPath2DRenderer(jest.fn());
+    for (let i = 0; i < total; i++) batch.add(createItem(10, [0, 0, 10, 0]), { zIndex: 0, group: "connections" });
+    stroke.mockClear();
+    batch.render(ctx, viewport(0, 100));
+    expect(stroke).toHaveBeenCalledTimes(total === count ? 1 : 2);
+  }
 });

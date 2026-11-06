@@ -1008,7 +1008,7 @@ class EnhancedConnection extends BaseConnection {
     
     return [
       // Add a label in the middle with absolute positioning
-      ConnectionLabel.create({
+      EdgeCaption.create({
         x: midX,
         y: midY,
         text: this.props.label,
