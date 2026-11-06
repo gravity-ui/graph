@@ -439,7 +439,7 @@ graph.updateSettings({ showConnectionLabels: false });
 graph.updateSettings({ showConnectionLabels: true });
 ```
 
-The protected `labelGeometry` describes the combined bounds for culling and hit testing. The base class keeps its own cached paint rectangle, so `super.renderLabelText()` draws only the standard label and does not paint over the badge. Preparing the combined bounds before painting makes them available in the same frame, including when only the badge intersects the viewport.
+The protected `labelGeometry` describes the combined bounds for culling and hit testing. Connection batches do not include it: the line's chunk is culled by the line and the arrow, the label pass by `labelGeometry`. The base class keeps its own cached paint rectangle, so `super.renderLabelText()` draws only the standard label and does not paint over the badge. Preparing the combined bounds before painting makes them available in the same frame, including when only the badge intersects the viewport.
 
 Existing overrides that calculate decoration bounds only inside `renderLabelText()` can still draw their decoration, but cannot make an initially offscreen connection visible through that decoration alone: viewport selection has already happened. Move that calculation to `updateLabelGeometry()` as above; the hook also clears stale decoration geometry when labels are disabled or hidden by zoom.
 

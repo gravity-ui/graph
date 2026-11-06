@@ -162,4 +162,37 @@ describe("connection label pass", () => {
     frames();
     expect(labels.has(connection.labelItem)).toBe(false);
   });
+
+  it("keeps the standard label out of the line's batch bounds but in its hit box and tree bounds", () => {
+    mount([{ id: "reaching", x: 1010, y: 100, label: "a".repeat(200) }]);
+    const connection = view("reaching");
+    const bounds = connection.getPathBounds();
+    if (!bounds) throw new Error("Expected bounds");
+    expect(bounds[0]).toBeGreaterThan(1000);
+    expect(connection.getHitBox()[0]).toBeLessThan(1000);
+    expect(connection.isInViewport()).toBe(true);
+  });
+
+  it("draws the label of an offscreen line without stroking the line", () => {
+    mount([{ id: "reaching", x: 1010, y: 100, label: "a".repeat(200) }]);
+    const connection = view("reaching");
+    const style = jest.spyOn(connection, "style");
+    connection.labels = 0;
+    graph.cameraService.set({ x: 1 });
+    frames();
+    expect(connection.labels).toBeGreaterThan(0);
+    expect(style).not.toHaveBeenCalled();
+  });
+
+  it("does not rebuild line chunks when zoom resizes labels", () => {
+    mount([{ id: "label", x: 100, y: 100, label: "label" }]);
+    const connection = view("label");
+    const getPath = jest.spyOn(connection, "getPath");
+    graph.cameraService.set({ scale: 2 });
+    frames();
+    graph.cameraService.set({ scale: 1.5 });
+    frames();
+    expect(getPath).not.toHaveBeenCalled();
+    expect(connection.labels).toBeGreaterThan(0);
+  });
 });
