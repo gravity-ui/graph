@@ -2,7 +2,7 @@ import type { GraphComponent } from "../../components/canvas/GraphComponent";
 import type { CursorLayerCursorTypes } from "../../components/canvas/layers/cursorLayer/CursorLayer";
 
 /**
- * Options for creating a custom drag operation via DragService.startOperation()
+ * Options for creating a custom drag operation via DragService.startDrag()
  */
 export type DragOperationOptions = {
   /** Document to attach listeners to. Defaults to graph canvas document if not provided */

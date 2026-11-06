@@ -395,11 +395,12 @@ export class DragService {
    *
    * @param callbacks - Lifecycle callbacks (onStart, onUpdate, onEnd, onCancel)
    * @param options - Drag options (document, cursor, component, autopanning, etc.)
+   * @returns The drag listener emitter of the operation
    *
    * @example
    * ```typescript
    * // In ConnectionLayer
-   * graph.dragService.startOperation(
+   * graph.dragService.startDrag(
    *   {
    *     onStart: (event, coords) => this.onStartConnection(event, coords),
    *     onUpdate: (event, coords) => this.onMoveConnection(event, coords),
@@ -409,7 +410,7 @@ export class DragService {
    * );
    * ```
    */
-  public startDrag(callbacks: DragOperationCallbacks, options: DragOperationOptions = {}) {
+  public startDrag(callbacks: DragOperationCallbacks, options: DragOperationOptions = {}): Emitter {
     const {
       document: doc,
       cursor,

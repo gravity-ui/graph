@@ -531,7 +531,7 @@ type DragDiff = {
 
 ### DragService.startDrag()
 
-For custom drag operations (like creating connections or duplicating blocks), use `startOperation`:
+For custom drag operations (like creating connections or duplicating blocks), use `startDrag()`:
 
 ```typescript
 type DragOperationCallbacks = {
