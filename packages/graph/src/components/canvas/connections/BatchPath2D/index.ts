@@ -68,7 +68,7 @@ const path2DBackend: IBatchBackend<Path2DRenderInstance, TPath2DChunk, CanvasRen
  * viewport are skipped.
  */
 export class BatchPath2DRenderer extends BatchScene<Path2DRenderInstance, TPath2DChunk, CanvasRenderingContext2D> {
-  constructor(onChange: () => void, chunkSize = 100, cellSize = DEFAULT_BATCH_CELL_SIZE) {
+  constructor(onChange: () => void, chunkSize = 200, cellSize = DEFAULT_BATCH_CELL_SIZE) {
     super(path2DBackend, { onChange, chunkSize, cellSize });
   }
 }

@@ -353,7 +353,7 @@ export const initGraphConstants: TGraphConstants = {
     DEFAULT_Z_INDEX: 0,
     THRESHOLD_LINE_HIT: 8,
     MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL: 0.25,
-    PATH2D_CHUNK_SIZE: 100,
+    PATH2D_CHUNK_SIZE: 200,
     PATH2D_CHUNK_TILES: 8,
     LABEL: {
       INNER_PADDINGS: [0, 0, 0, 0],
