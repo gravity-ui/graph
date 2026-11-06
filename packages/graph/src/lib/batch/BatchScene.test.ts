@@ -216,3 +216,18 @@ test("rejects cell and chunk sizes it cannot work with", () => {
   }
   expect(() => createScene({ chunkSize: Infinity })).not.toThrow();
 });
+
+test("visits every registered item with its params", () => {
+  const { scene } = createScene();
+  const a = item("a", [1, 1, 2, 2]);
+  const b = item("b");
+  scene.add(a, { zIndex: 1, group: "x" });
+  scene.add(b, params);
+  scene.delete(item("missing"));
+  const seen: Array<[string, number, string]> = [];
+  scene.forEachItem((entry, entryParams) => seen.push([entry.name, entryParams.zIndex, entryParams.group]));
+  expect(seen.sort()).toEqual([
+    ["a", 1, "x"],
+    ["b", 0, "g"],
+  ]);
+});
