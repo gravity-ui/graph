@@ -12,6 +12,7 @@ import type { GraphClassConstructor } from "../utils/types/classes";
 import { debounce } from "../utils/utils/schedule";
 
 import { ICamera, TCameraState } from "./camera/CameraService";
+import { createViewportCulling } from "./visibilityCulling";
 
 import "./Layer.css";
 
@@ -318,6 +319,7 @@ export class Layer<
       ctx: undefined,
     });
 
+    this.setChildrenCulling(createViewportCulling(this.props.graph, () => this.context.camera));
     this.init();
   }
 

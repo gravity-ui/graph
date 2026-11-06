@@ -2,7 +2,7 @@ import intersects from "intersects";
 
 import { HitBoxData } from "../../../services/HitTest";
 import { curvePolyline } from "../../../utils/shapes/curvePolyline";
-import { trangleArrowForVector } from "../../../utils/shapes/triangle";
+import { getTriangleArrowPoints } from "../../../utils/shapes/triangle";
 import { TPoint, TRect } from "../../../utils/types/shapes";
 
 import { Path2DRenderStyleResult } from "./BatchPath2D";
@@ -13,7 +13,7 @@ import type { TMultipointConnection } from "./types";
 const DEFAULT_FONT_SIZE = 14;
 
 export class MultipointConnection extends BlockConnection<TMultipointConnection> {
-  private labelsGeometry: { x: number; y: number; width: number; height: number }[] = [];
+  private labelsGeometry: { x: number; y: number; width: number; height: number; text: string }[] = [];
 
   protected override hasGeometry(): boolean {
     const count = this.getPoints().length;
@@ -21,7 +21,15 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
   }
 
   protected override collectBBoxPoints(props: TConnectionProps = this.props) {
-    return [...this.getPoints(), ...super.collectBBoxPoints(props)];
+    const points = [...this.getPoints(), ...super.collectBBoxPoints(props)];
+    const [top, right, bottom, left] = this.context.constants.connection.LABEL.INNER_PADDINGS;
+    for (const label of this.labelsGeometry) {
+      points.push(
+        { x: label.x - left, y: label.y - top },
+        { x: label.x + label.width + right, y: label.y + label.height + bottom }
+      );
+    }
+    return points;
   }
 
   public createPath() {
@@ -32,12 +40,18 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
   }
 
   public createArrowPath(): Path2D {
+    const path = super.createArrowPath();
+    if (this.getPoints().length >= 2) path.closePath();
+    return path;
+  }
+
+  protected override getArrowPoints(props: TConnectionProps = this.props): TPoint[] {
     const points = this.getPoints();
-    if (points.length === 0) return super.createArrowPath();
-    if (points.length === 1) return new Path2D();
+    if (points.length === 0) return super.getArrowPoints(props);
+    if (points.length === 1) return [];
 
     const [start, end] = points.slice(points.length - 2);
-    return trangleArrowForVector(start, end, 16, 10);
+    return getTriangleArrowPoints(start, end, 16, 10);
   }
 
   public styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult {
@@ -63,19 +77,7 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
   }
 
   public getBBox() {
-    const points = this.getPoints();
-    if (!points.length) {
-      return super.getBBox();
-    }
-
-    const x: number[] = [];
-    const y: number[] = [];
-    points.forEach((point) => {
-      x.push(point.x);
-      y.push(point.y);
-    });
-
-    return [Math.min(...x), Math.min(...y), Math.max(...x), Math.max(...y)] as const;
+    return super.getBBox();
   }
 
   protected override getHitBoxRect(): TRect {
@@ -115,24 +117,7 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
     const [labelInnerTopPadding, labelInnerRightPadding, labelInnerBottomPadding, labelInnerLeftPadding] =
       this.context.constants.connection.LABEL.INNER_PADDINGS;
 
-    const { labels } = this.connectedState.$state.value;
-    if (!labels || !labels.length) {
-      return;
-    }
-
-    this.labelsGeometry = [];
-    labels.forEach(({ x, y, text, height, width }) => {
-      if (x === undefined || y === undefined || text === undefined || width === undefined || height === undefined) {
-        return;
-      }
-
-      this.labelsGeometry.push({
-        x,
-        y,
-        width,
-        height,
-      });
-
+    this.labelsGeometry.forEach(({ x, y, text, height, width }) => {
       ctx.fillStyle = this.context.colors.connectionLabel.text;
 
       if (this.state.hovered) ctx.fillStyle = this.context.colors.connectionLabel.hoverText;
@@ -156,5 +141,13 @@ export class MultipointConnection extends BlockConnection<TMultipointConnection>
     });
 
     return;
+  }
+
+  protected override updateLabelGeometry(): void {
+    this.labelsGeometry = (this.connectedState.$state.value.labels ?? []).flatMap(({ x, y, text, width, height }) =>
+      x === undefined || y === undefined || text === undefined || width === undefined || height === undefined
+        ? []
+        : [{ x, y, text, width, height }]
+    );
   }
 }

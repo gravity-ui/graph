@@ -192,6 +192,11 @@ export type TGraphConstants = {
     USABLE_RECT_GAP: number;
     /** For preload blocks on the html layer (camera dimensions * (1 + this value)) */
     CAMERA_VIEWPORT_TRESHOLD: number;
+    /**
+     * Edge of a visibility tile in world units. Each layer tree indexes its descendants.
+     * Read when the layer is constructed.
+     */
+    VISIBILITY_TILE_SIZE: number;
   };
 
   camera: {
@@ -312,6 +317,7 @@ export const initGraphConstants: TGraphConstants = {
     PIXEL_RATIO: typeof globalThis !== "undefined" ? globalThis.devicePixelRatio || 1 : 1,
     USABLE_RECT_GAP: 400,
     CAMERA_VIEWPORT_TRESHOLD: 0.5,
+    VISIBILITY_TILE_SIZE: 1024,
   },
   camera: {
     SPEED: 1,

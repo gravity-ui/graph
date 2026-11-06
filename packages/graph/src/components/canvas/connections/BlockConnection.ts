@@ -4,7 +4,6 @@ import { HitBoxData } from "../../../services/HitTest";
 import { ESelectionStrategy } from "../../../services/selection/types";
 import { TConnection } from "../../../store/connection/ConnectionState";
 import { isMetaKeyEvent } from "../../../utils/functions";
-import { getFontSize } from "../../../utils/functions/text";
 import { cachedMeasureText } from "../../../utils/renderers/text";
 import { TPoint } from "../../../utils/types/shapes";
 
@@ -44,6 +43,12 @@ export class BlockConnection<T extends TConnection>
   protected path2d: Path2D = new Path2D();
 
   protected labelGeometry: { x: number; y: number; width: number; height: number } | undefined = undefined;
+
+  private labelPaintGeometry: typeof this.labelGeometry;
+
+  private labelFont = "";
+
+  private unsubscribeLabelFontSize?: () => void;
 
   protected geometry: { x1: number; x2: number; y1: number; y2: number } = { x1: 0, x2: 0, y1: 0, y2: 0 };
 
@@ -97,6 +102,24 @@ export class BlockConnection<T extends TConnection>
   protected override willMount(): void {
     super.willMount();
     this.subscribeSignal(this.connectedState.$hidden, () => this.applyShape());
+    this.syncLabelSubscription();
+  }
+
+  private syncLabelSubscription(): void {
+    if (!this.state.label || !this.props.showConnectionLabels) {
+      this.unsubscribeLabelFontSize?.();
+      this.unsubscribeLabelFontSize = undefined;
+    } else if (!this.unsubscribeLabelFontSize) {
+      const fontSize = this.context.connectionLabelFontSize;
+      let previous = fontSize.peek();
+      this.unsubscribeLabelFontSize = fontSize.subscribe((next) => {
+        if (previous === next) return;
+        previous = next;
+        // Offscreen labels can grow into the viewport; keep their bounds current without rebuilding paths.
+        this.updateBounds();
+        this.updateCullingBounds();
+      });
+    }
   }
 
   protected override setVisibility(visible: boolean, options: { removeHitbox: boolean }): void {
@@ -105,7 +128,22 @@ export class BlockConnection<T extends TConnection>
   }
 
   public isPathVisible(): boolean {
-    return this.isEntityAvailable() && this.hasGeometry() && !this.hidden && !this.connectedState.$hidden.value;
+    return (
+      this.isInViewport() &&
+      this.isEntityAvailable() &&
+      this.hasGeometry() &&
+      !this.hidden &&
+      !this.connectedState.$hidden.value
+    );
+  }
+
+  public override onViewportChange(): void {
+    this.context.batch.invalidateVisibility(this);
+    this.context.batch.invalidateVisibility(this.arrowShape);
+  }
+
+  public getPathBounds() {
+    return this.getBBox();
   }
 
   public getPath(): Path2D {
@@ -119,19 +157,28 @@ export class BlockConnection<T extends TConnection>
    * @returns A Path2D object representing the arrow shape
    */
   public createArrowPath() {
+    const path = new Path2D();
+    const [first, ...points] = this.getArrowPoints();
+    if (!first) return path;
+    path.moveTo(first.x, first.y);
+    for (const point of points) path.lineTo(point.x, point.y);
+    return path;
+  }
+
+  protected getArrowPoints(props: TConnectionProps = this.props): TPoint[] {
     const coords = getArrowCoords(
-      this.props.useBezier,
+      props.useBezier,
       this.geometry.x1,
       this.geometry.y1,
       this.geometry.x2,
       this.geometry.y2,
-      this.props.bezierDirection
+      props.bezierDirection
     );
-    const path = new Path2D();
-    path.moveTo(coords[0], coords[1]);
-    path.lineTo(coords[2], coords[3]);
-    path.lineTo(coords[4], coords[5]);
-    return path;
+    return [
+      { x: coords[0], y: coords[1] },
+      { x: coords[2], y: coords[3] },
+      { x: coords[4], y: coords[5] },
+    ];
   }
 
   public styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
@@ -225,12 +272,22 @@ export class BlockConnection<T extends TConnection>
     this.applyShape(nextState);
   }
 
+  protected override checkData(): boolean {
+    const changed = super.checkData();
+    if (changed) {
+      this.updatePoints();
+      this.syncLabelSubscription();
+    }
+    return changed;
+  }
+
   public get zIndex() {
     return this.context.constants.connection.DEFAULT_Z_INDEX;
   }
 
   protected override collectBBoxPoints(props: TConnectionProps = this.props) {
     const points = super.collectBBoxPoints(props);
+    this.updateLabelGeometry(props);
 
     if (this.labelGeometry) {
       points.push(
@@ -269,18 +326,38 @@ export class BlockConnection<T extends TConnection>
   protected override updatePoints(additionalPoints?: TPoint[], props: TConnectionProps = this.props) {
     super.updatePoints(additionalPoints, props);
 
-    if (!this.connectionPoints) {
-      this.applyShape(this.state, props);
-      return;
+    if (this.connectionPoints) {
+      this.geometry.x1 = this.connectionPoints[0].x;
+      this.geometry.y1 = this.connectionPoints[0].y;
+      this.geometry.x2 = this.connectionPoints[1].x;
+      this.geometry.y2 = this.connectionPoints[1].y;
     }
 
-    this.geometry.x1 = this.connectionPoints[0].x;
-    this.geometry.y1 = this.connectionPoints[0].y;
-    this.geometry.x2 = this.connectionPoints[1].x;
-    this.geometry.y2 = this.connectionPoints[1].y;
-
     this.generatePath();
+    this.updateCullingBounds(props);
     this.applyShape(this.state, props);
+  }
+
+  private updateCullingBounds(props: TConnectionProps = this.props): void {
+    if (this.hasGeometry()) {
+      const padding = this.state.hovered || this.state.selected ? 2 : 1;
+      const [left, top, right, bottom] = this.getBBox();
+      let minX = left - padding;
+      let minY = top - padding;
+      let maxX = right + padding;
+      let maxY = bottom + padding;
+      if (props.showConnectionArrows) {
+        // A sharp arrow join can extend past its vertices by the canvas miter limit.
+        const arrowPadding = padding * this.context.ctx.miterLimit;
+        for (const point of this.getArrowPoints(props)) {
+          minX = Math.min(minX, point.x - arrowPadding);
+          minY = Math.min(minY, point.y - arrowPadding);
+          maxX = Math.max(maxX, point.x + arrowPadding);
+          maxY = Math.max(maxY, point.y + arrowPadding);
+        }
+      }
+      this.setCullingBounds(minX, minY, maxX, maxY);
+    }
   }
 
   protected override handleEvent(event: MouseEvent) {
@@ -328,32 +405,12 @@ export class BlockConnection<T extends TConnection>
   }
 
   protected renderLabelText(ctx: CanvasRenderingContext2D) {
-    if (!this.isVisible() || !this.state.label) {
+    if (!this.state.label || !this.labelPaintGeometry) {
       return;
     }
 
-    const [labelInnerTopPadding, labelInnerRightPadding, labelInnerBottomPadding, labelInnerLeftPadding] =
-      this.context.constants.connection.LABEL.INNER_PADDINGS;
-    const fontSize = Math.max(14, getFontSize(9, this.context.camera.getCameraScale()));
-    const font = `${fontSize}px sans-serif`;
-
-    const measure = cachedMeasureText(this.state.label, {
-      font,
-    });
-
-    if (!measure) {
-      return;
-    }
-
-    const { x, y } = getLabelCoords(
-      this.geometry.x1,
-      this.geometry.y1,
-      this.geometry.x2,
-      this.geometry.y2,
-      measure.width + labelInnerLeftPadding + labelInnerRightPadding,
-      measure.height + labelInnerTopPadding + labelInnerBottomPadding,
-      this.context.constants.system.GRID_SIZE
-    );
+    const [labelInnerTopPadding, , , labelInnerLeftPadding] = this.context.constants.connection.LABEL.INNER_PADDINGS;
+    const { x: rectX, y: rectY, width: rectWidth, height: rectHeight } = this.labelPaintGeometry;
 
     if (this.context.colors.connectionLabel?.background) {
       ctx.fillStyle = this.context.colors.connectionLabel.background;
@@ -366,18 +423,6 @@ export class BlockConnection<T extends TConnection>
     if (this.state.selected && this.context.colors.connectionLabel?.selectedBackground) {
       ctx.fillStyle = this.context.colors.connectionLabel.selectedBackground;
     }
-
-    const rectX = x;
-    const rectY = y;
-    const rectWidth = measure.width + labelInnerLeftPadding + labelInnerRightPadding;
-    const rectHeight = measure.height + labelInnerTopPadding + labelInnerBottomPadding;
-
-    this.labelGeometry = {
-      x: rectX,
-      y: rectY,
-      width: rectWidth,
-      height: rectHeight,
-    };
 
     ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
 
@@ -394,9 +439,36 @@ export class BlockConnection<T extends TConnection>
     }
 
     ctx.textBaseline = "top";
-    ctx.font = font;
+    ctx.font = this.labelFont;
     ctx.textAlign = "left";
     ctx.fillText(this.state.label, rectX + labelInnerLeftPadding, rectY + labelInnerTopPadding);
+  }
+
+  protected updateLabelGeometry(props: TConnectionProps): void {
+    this.labelGeometry = undefined;
+    this.labelPaintGeometry = undefined;
+    const fontSize = this.context.connectionLabelFontSize.peek();
+    if (!this.state.label || !props.showConnectionLabels || !this.connectionPoints || !fontSize) {
+      return;
+    }
+    const [top, right, bottom, left] = this.context.constants.connection.LABEL.INNER_PADDINGS;
+    this.labelFont = `${fontSize}px sans-serif`;
+    const measure = cachedMeasureText(this.state.label, { font: this.labelFont });
+    const width = measure.width + left + right;
+    const height = measure.height + top + bottom;
+    const [source, target] = this.connectionPoints;
+    const { x, y } = getLabelCoords(
+      source.x,
+      source.y,
+      target.x,
+      target.y,
+      width,
+      height,
+      this.context.constants.system.GRID_SIZE
+    );
+    this.labelPaintGeometry = { x, y, width, height };
+    // Subclasses may extend labelGeometry for their own decoration without resizing the standard label.
+    this.labelGeometry = { ...this.labelPaintGeometry };
   }
 
   public getStrokeColor(state: TConnection) {
@@ -406,6 +478,8 @@ export class BlockConnection<T extends TConnection>
   }
 
   protected unmount(): void {
+    this.unsubscribeLabelFontSize?.();
+    this.unsubscribeLabelFontSize = undefined;
     super.unmount();
     this.context.batch.delete(this);
     this.context.batch.delete(this.arrowShape);

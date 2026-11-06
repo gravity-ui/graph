@@ -147,7 +147,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   public isRendered() {
-    return this.shouldRender;
+    return this.shouldRender && this.isInViewport();
   }
 
   protected updateViewState(params: Partial<BlockViewState>) {
@@ -269,7 +269,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected stateChanged(nextState: T): void {
-    if (!this.firstRender && nextState.selected !== this.state.selected) {
+    if (!this.firstIterate && nextState.selected !== this.state.selected) {
       this.raiseBlock();
     }
     return super.stateChanged(nextState);

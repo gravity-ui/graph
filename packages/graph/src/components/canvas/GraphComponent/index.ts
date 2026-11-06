@@ -154,7 +154,7 @@ export class GraphComponent<
   protected contextChanged(_nextContext: Context): void {
     // If affectsUsableRect changed in context and there's no explicit prop override
     if (
-      this.firstRender ||
+      this.firstIterate ||
       (this.context.affectsUsableRect !== _nextContext.affectsUsableRect && this.props.affectsUsableRect === undefined)
     ) {
       this.hitBox.setAffectsUsableRect(this.props.affectsUsableRect ?? _nextContext.affectsUsableRect ?? true);
@@ -359,18 +359,25 @@ export class GraphComponent<
 
   public setHitBox(minX: number, minY: number, maxX: number, maxY: number, force?: boolean) {
     this.hitBox.update(minX, minY, maxX, maxY, force);
+    // Every component reports its own bounds to the layer's shared index.
+    if (!this.hitBox.destroyed) this.setCullingBounds(minX, minY, maxX, maxY);
   }
 
-  protected willIterate(): void {
+  protected override willIterate(): void {
     super.willIterate();
-    if (!this.firstIterate) {
-      this.shouldRender = this.isVisible();
-    }
+    if (!this.firstIterate) this.shouldRender = true;
+  }
+
+  public override iterate(): boolean {
+    if (!this.updatePrepared) this.prepareUpdate();
+    // Preserve a subclass's paint veto; geometry may still change after its update hook.
+    this.shouldRender = this.shouldRender && this.isVisible();
+    return super.iterate();
   }
 
   protected isVisible(): boolean {
     if (this.hidden) return false;
-    return this.context.camera.isRectVisible(...this.getHitBox());
+    return this.isInViewport();
   }
 
   protected getHitBoxRect(): TRect {
