@@ -28,6 +28,8 @@ The temporary branch and release process is documented separately in
 - Replace `NewBlockLayer` with `DuplicateBlockLayer` from `@gravity-ui/graph-duplicate-block`, rename its events and remove the `canDuplicateBlocks` setting.
 - Drop `position: relative` workarounds on vanilla graph roots if you added them only for the graph: `attach()` now makes a static root the containing block of its layers.
 - Import `MultipointConnection` from `@gravity-ui/graph`; `@gravity-ui/graph-react` no longer re-exports it or installs `elkjs`.
+- Canvas components are culled by the viewport: check custom components against [Viewport culling and the component lifecycle](#viewport-culling-and-the-component-lifecycle) — veto painting with `isRenderAllowed()`, request updates for external changes, report bounds before painting, react to leaving the viewport with `viewportChanged()`, and set `culling` on screen-space layers.
+- `BlockConnection` subclasses: per-frame hooks no longer run (see [Detached components](#detached-components-connections-outside-the-frame-walk)).
 
 ## React package boundary
 
@@ -945,3 +947,77 @@ In v2 the graph drives its layers:
 - In tests with Jest fake timers, let registered tasks finish (or remove them)
   before switching timer implementations: a frame requested with one
   implementation is not delivered by the other.
+
+## Viewport culling and the component lifecycle
+
+Every layer culls the canvas components it renders. A frame first prepares the components that are new or
+requested an update (data, children, geometry), then publishes which components are in the viewport, then
+paints them in z-order. Compared with v1:
+
+- A clean component outside the viewport receives no lifecycle calls at all: no `willIterate`, `didIterate`,
+  `willNotRender` or `render`. In v1 every component of a layer was iterated whenever anything in it updated.
+- A component that requested an update while outside the viewport is prepared and completes its frame without
+  painting (`willNotRender`, `didIterate`). A clean visible component prepares right before its own paint, after
+  visibility was published.
+- A component outside the viewport is no longer painted once when it mounts: setup done in `render()` or
+  `willRender()` happens when it first enters the viewport.
+- Children are reconciled before the component's own `render()`, and children added from `render()` are painted
+  from the next frame.
+
+| v1 pattern | v2 replacement |
+|---|---|
+| Override `isVisible()` to stop painting | Override `isRenderAllowed()`. `isVisible()` is only a query now; overriding it does not stop painting. For connections `isRenderAllowed()` also hides the line and arrow; state and props changes re-evaluate it, other changes call `applyShape()`. |
+| Read external state in `willIterate()` | Subscribe to the source and call `performRender()` (or `setState` / `setProps`); for connection geometry call `updateGeometry()`. Offscreen components are not iterated, so polling never sees the change. |
+| Hide an overlay or release a resource in `willNotRender()` | Define `viewportChanged(inViewport)`; release everything in `unmount()`. |
+| Compute badges, labels or decorations while painting | Compute their geometry when data changes and include it in the bounds (`setCullingBounds()`, the hit box, or for connections `collectBBoxPoints()`, `getArrowPoints()` and `updateLabelGeometry()`). A component is culled by the bounds it reports. |
+| `batch.markDirty(connection)` after changing data used by `createPath()` | `connection.updateGeometry()`: rebuilds paths, bounds and hit testing together. `markDirty()` only rebuilds the batch chunk from the item's cached path. |
+| `isIterated()` as "updated in the last frame" | In a culled layer it means the component is attached in a branch that is walked. |
+| `CanvasBlock.isRendered()` as `shouldRender` | `shouldRender && isVisible()`: false outside the viewport. |
+| Return `false` from `iterate()`, or set `shouldRenderChildren = false` in `render()`, to hide children in the same frame | In a culled layer only the component's preparation decides: set `shouldRenderChildren` (or return `false` from `prepareUpdate()`). A value changed while painting applies from the next frame, which the component requests itself; the value `iterate()` returns is ignored. |
+| A screen-space layer | Pass `culling: "screen"`; `"none"` walks every component without viewport culling. See [Layers](../rendering/layers.md). |
+| Mount a `Layer` as a child component | Layers are tree roots: add them with `graph.addLayer()`. A component that culls cannot become a child; a child layer must pass `culling: "none"`. Appended under a culled tree, it joins its parent's culling: the parent's viewport culls its components. |
+
+Three operations stay separate: `isRenderAllowed()` stops a component's own painting; `shouldRenderChildren = false`
+(or `false` from `prepareUpdate()`) stops walking its children; in a culled layer the value `iterate()` returns does not; a batch is
+drawn by the component that owns it (`BlockConnections`), so a traversal veto does not hide batched lines.
+`afterRender` hooks of batch items run only for items whose bounds meet the owner's rectangle (the layer's culling viewport, or the camera's without culling).
+
+The minimap draws block bodies without names: it calls `renderMinimalisticBlock(ctx, { text: false })`. A
+custom block that overrides `renderMinimalisticBlock` or `renderSchematicView` follows this rule only if its
+override accepts `options` and passes them on (or checks `options?.text` itself); an override that takes only
+`ctx` decides on its own what the minimap shows.
+
+`viewportCulling: false` turns viewport culling off: every component is walked (detached components are never walked), a graph component paints when
+the camera sees its hit box, and connection batches draw every chunk. The lifecycle rules shared with culling
+still apply (an offscreen component is not painted on mount; visibility is decided after preparation), so the
+switch rules out spatial culling only.
+
+## Detached components: connections outside the frame walk
+
+A component class can declare `static detached = true`. A detached component is still a child of its parent: the
+parent creates, updates and unmounts it, and it receives context. The frame does not walk it: it has no place in the
+layer's paint order or culling index and never receives `iterate()`, `render()`, `willRender()`, `didRender()`,
+`willNotRender()`, `didIterate()` or `viewportChanged()`. When its data changes (`setState()`, `setProps()`, context,
+`performRender()`), it is queued, and its layer applies the update once per frame before painting: `checkData()`
+(`propsChanged()`, `stateChanged()`), `willIterate()` (`willMount()` on the first update) and its children, which must
+be detached too. A layer with viewport culling applies these updates after preparing its other components; a layer
+without culling applies them before the walk and right after their parent reconciles them.
+
+`BlockConnection` and its subclasses are detached: the `BlockConnections` batch draws their lines, arrows and labels,
+so unchanged connections cost a frame nothing. `BaseConnection` stays in the walk.
+
+| Pattern in a `BlockConnection` subclass | v2 replacement |
+|---|---|
+| Draw in `render()`, `willRender()` or `didRender()`, or animate every frame | Declare `static detached = false`: the class is walked and culled again, and only it pays for that. Or extend `BaseConnection`. |
+| Draw extra content | `afterRender(ctx)`, which the batch runs for connections in the viewport. An overridden `afterRender` runs for every such connection; override `needsAfterRender()` when it draws only sometimes. |
+| Read external state in `willIterate()` every frame | Subscribe to it and call `setState()`, or `updateGeometry()` for geometry inputs. |
+| Hide an overlay in `viewportChanged()` | Not called for detached components: check `isInViewport()` where you draw, or declare `static detached = false`. |
+| Read `connectionPoints`, `getBBox()` or `getPath()` right after moving a block or port | Endpoint moves are applied once per frame, before painting: read after the next frame, or call `updateGeometry()` first. The connection's hit box follows its geometry from the next frame too. |
+
+`needsAfterRender()` is a contract: the batch calls `afterRender` for an item only while it returns true, and reads it when
+the item is marked dirty. An item whose answer changes must call `markDirty` on the batch (which also requests a render;
+`markBoundsDirty` does not request one). A detached component cannot cull: `setChildrenCulling` throws.
+
+In development builds (`process.env.NODE_ENV !== "production"`) a detached class that defines one of these per-frame
+hooks logs one warning. A detached connection keeps its store order for hit testing, `isIterated()` is true while
+`BlockConnections` walks its children, and `isInViewport()` compares its paint bounds with the layer's viewport.

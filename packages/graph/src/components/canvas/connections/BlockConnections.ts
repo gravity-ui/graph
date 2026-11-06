@@ -1,7 +1,11 @@
+import { ReadonlySignal, computed, signal } from "@preact/signals-core";
+
 import { Component, TComponentState } from "../../../lib/Component";
 import { CoreComponentProps } from "../../../lib/CoreComponent";
 import { ESchedulerPriority } from "../../../lib/Scheduler";
+import type { TTileRect } from "../../../lib/culling/TileIndex";
 import { ConnectionState } from "../../../store/connection/ConnectionState";
+import { getFontSize } from "../../../utils/functions/text";
 import { debounce } from "../../../utils/utils/schedule";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
@@ -10,6 +14,7 @@ import { BlockConnection, TConnectionProps } from "./BlockConnection";
 
 export type TGraphConnectionsContext = TGraphLayerContext & {
   batch: BatchPath2DRenderer;
+  connectionLabelFontSize: ReadonlySignal<number>;
 };
 
 export class BlockConnections extends Component<CoreComponentProps, TComponentState, TGraphConnectionsContext> {
@@ -20,6 +25,11 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
   protected readonly unsubscribe: (() => void)[];
 
   protected batch: BatchPath2DRenderer;
+
+  /** Reused every frame by `getCameraRect()`. */
+  private readonly cameraRect: TTileRect = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+
+  private readonly connectionLabelFontSize = signal(0);
 
   /**
    * Debounced update to batch multiple changes into a single render cycle.
@@ -45,11 +55,20 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
     this.unsubscribe = this.subscribe();
     this.setContext({
       batch: this.batch,
+      connectionLabelFontSize: this.connectionLabelFontSize,
     });
   }
 
   protected subscribe() {
     return [
+      computed(() => {
+        const scale = this.context.graph.$camera.value.scale;
+        const threshold = this.context.graph.$graphConstants.value.connection.MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL;
+        return scale < threshold ? 0 : Math.max(14, getFontSize(9, scale));
+      }).subscribe((fontSize) => {
+        // An eager signal stops unchanged camera updates before they reach individual connections.
+        this.connectionLabelFontSize.value = fontSize;
+      }),
       this.context.graph.rootStore.settings.$connectionsSettings.subscribe(() => {
         this.scheduleUpdate();
       }),
@@ -87,9 +106,21 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
   }
 
   protected render(): void {
-    const paths = this.batch.orderedPaths.get();
-    for (const path of paths) {
-      path.render(this.context.ctx);
-    }
+    // Lines: the layer's culling viewport (undefined without culling: every chunk is drawn). After-render content such
+    // as labels: the same rectangle, or the camera's without culling, and none while connections are not walked.
+    const viewport = this.getCullingViewport();
+    const content = this.shouldRenderChildren ? viewport ?? this.getCameraRect() : null;
+    this.batch.render(this.context.ctx, viewport, content);
+  }
+
+  /** The camera's world rectangle (the full viewport, insets ignored, like CameraService.isRectVisible). */
+  private getCameraRect(): TTileRect {
+    const { relativeX, relativeY, relativeWidth, relativeHeight } = this.context.camera.getCameraState();
+    const rect = this.cameraRect;
+    rect.minX = -relativeX;
+    rect.minY = -relativeY;
+    rect.maxX = -relativeX + relativeWidth;
+    rect.maxY = -relativeY + relativeHeight;
+    return rect;
   }
 }

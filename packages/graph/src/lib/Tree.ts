@@ -1,44 +1,103 @@
+import type { DetachedUpdates } from "./DetachedUpdates";
+import { TTreeCullingOptions, TreeCulling } from "./culling/TreeCulling";
+import { intersects } from "./culling/VisibilityPublication";
 import { cache } from "./utils";
 
-type TIterator = (node: Tree) => boolean;
+/** Runs one node's frame; the tree's decision for the node is on it: `framePrepared` and `frameVisible`. */
+export type TIterator = (node: Tree) => boolean;
 
 export interface ITree {
+  /**
+   * Runs this node's frame. The tree passes its decision through the tree node: `framePrepared` tells whether it
+   * already called `prepareUpdate()` in this traversal (otherwise `iterate()` applies pending work itself first),
+   * `frameVisible` is its paint decision; the node may still veto painting.
+   * False suppresses children in a tree without culling; a culled tree takes that decision from prepareUpdate()
+   * and ignores the result.
+   */
   iterate(): boolean;
+  /** Applies pending work without painting; false suppresses this node's descendants. */
+  prepareUpdate?(): boolean;
+  /**
+   * Optional. Called once per change when the node enters or leaves its scope's published visibility, after
+   * publication and before painting. Only nodes that define it are tracked.
+   */
+  viewportChanged?(inViewport: boolean): void;
 }
 
 export class Tree<T extends ITree = ITree> {
   public data: T;
   public parent?: Tree;
-
   public children: Set<Tree> = new Set();
-
-  private childrenArray: Tree[] = [];
-
-  protected childrenDirty = false;
-
+  /** @internal Parent traversal permission, independent of own viewport visibility. */
+  public childrenWalkAllowed = true;
   protected zIndexGroups: Map<number, Set<Tree>> = new Map();
-
   protected zIndexChildrenCache = cache(() => {
-    return Array.from(this.zIndexGroups.keys())
-      .sort((a, b) => a - b)
-      .map((index) => Array.from(this.zIndexGroups.get(index) || []))
-      .flat(2) as Tree[];
+    const groups = this.zIndexGroups;
+    const ordered: Tree[] = [];
+    const indexes = groups.size > 1 ? Array.from(groups.keys()).sort((a, b) => a - b) : groups.keys();
+    for (const index of indexes) {
+      for (const node of groups.get(index) ?? []) {
+        node.renderOrder = ordered.length;
+        ordered.push(node);
+      }
+    }
+    return ordered;
   });
-
   public renderOrder = 0;
-
   public zIndex = 1;
 
+  /** This node's own world-space bounds; NaN when unknown. */
+  public boundsMinX = NaN;
+  public boundsMinY = NaN;
+  public boundsMaxX = NaN;
+  public boundsMaxY = NaN;
+  /** @internal This root's scope; see setCulling(). Only a root culls. */
+  public culling?: TreeCulling;
+  /** @internal Shared frame coordinator for this node. */
+  public scope?: TreeCulling;
+  /** @internal Viewport visibility published by the scope for the current frame. */
+  public published = false;
+  /** @internal Last traversal that prepared this node. */
+  public preparedStamp = 0;
+  /** @internal Set right before `data.iterate()`: the tree already prepared this node in this traversal. */
+  public framePrepared = false;
+  /** @internal Set right before `data.iterate()`: the tree's paint decision for this node's own bounds. */
+  public frameVisible = true;
+  /** @internal Last traversal that ran this node's iterate(). */
+  public paintedStamp = 0;
+  /** @internal Exact selection for one spatial query. */
+  public selectedStamp = 0;
+  /** @internal Paint order that lists this node; it marks the node eligible while that order is current. */
+  public orderStamp = 0;
+  /** @internal Positions in the scope's node lists; -1 when absent. */
+  public scopeSlot = -1;
+  public visibleSlot = -1;
+  public freshSlot = -1;
+  public pendingSlot = -1;
+  public boundsSlot = -1;
+  /** @internal The data defines viewportChanged(); set when the node joins a scope. */
+  public observesViewport = false;
+  /** @internal The membership last delivered to viewportChanged(). */
+  public notifiedInViewport = false;
+  /** @internal Updates of the detached components of this root's tree; set on roots only. */
+  public detachedUpdates?: DetachedUpdates;
+  /**
+   * @internal For a detached component's node: the tree node of its nearest walked ancestor. The node is never
+   * appended to a parent; the host's scope is the viewport it is judged by.
+   */
+  public host?: Tree;
   constructor(data: T, parent?: Tree) {
     this.data = data;
     this.parent = parent;
   }
 
   public append(node: Tree) {
+    if (node.culling) throw new Error("A tree root that culls its descendants cannot become a child");
+    if (node.parent && node.parent !== this) node.parent.remove(node);
     node.parent = this;
     this.children.add(node);
-    this.childrenDirty = true;
     this.addInZIndex(node);
+    node.setScope(this.scope);
   }
 
   protected addInZIndex(node: Tree) {
@@ -52,78 +111,249 @@ export class Tree<T extends ITree = ITree> {
   }
 
   protected removeZIndex(node: Tree) {
-    const zIndex = node.zIndex;
     const set = this.zIndexGroups.get(node.zIndex);
     if (!set) return;
     set.delete(node);
-    if (!set.size) {
-      this.zIndexGroups.delete(zIndex);
-      this.zIndexChildrenCache.reset();
-    }
+    if (!set.size) this.zIndexGroups.delete(node.zIndex);
+    this.zIndexChildrenCache.clear();
   }
 
   public remove(node: Tree = this) {
-    if (node.parent === null) return;
+    if (node === this) {
+      this.parent?.remove(this);
+      return;
+    }
+    if (node.parent !== this) return;
     this.children.delete(node);
-    this.childrenDirty = true;
     this.removeZIndex(node);
+    node.setScope(undefined);
+    node.parent = undefined;
   }
 
   public setChildren(nodes: Tree[]) {
-    this.children = new Set(nodes);
-    this.childrenDirty = true;
+    // Components reconcile on every update; unchanged children must not invalidate the whole scope.
+    if (this.hasChildrenInOrder(nodes)) return;
+    this.scope?.invalidateStructure();
+    if (this.children.size) {
+      const next = new Set(nodes);
+      for (const child of this.children) {
+        if (!next.has(child)) this.remove(child);
+      }
+    }
+    this.children.clear();
+    this.zIndexGroups.clear();
+    this.zIndexChildrenCache.clear();
+    for (const node of nodes) this.append(node);
+  }
 
-    nodes.forEach((item) => {
-      this.addInZIndex(item);
-    });
+  /** Whether the children are exactly `nodes`, in this order and in this order within each z-index. */
+  private hasChildrenInOrder(nodes: Tree[]): boolean {
+    if (nodes.length !== this.children.size) return false;
+    let i = 0;
+    for (const child of this.children) {
+      if (child !== nodes[i++]) return false;
+    }
+    // Every z-index group must list its nodes in the order they appear in `nodes`: one cursor per group.
+    const groups = this.zIndexGroups;
+    if (groups.size === 1) {
+      let j = 0;
+      for (const group of groups.values()) {
+        for (const node of group) {
+          if (node !== nodes[j++]) return false;
+        }
+      }
+      return true;
+    }
+    const cursors = new Map<number, Iterator<Tree>>();
+    for (const [zIndex, group] of groups) cursors.set(zIndex, group.values());
+    for (let j = 0; j < nodes.length; j++) {
+      const next = cursors.get(nodes[j].zIndex)?.next();
+      if (!next || next.done || next.value !== nodes[j]) return false;
+    }
+    return true;
+  }
+
+  /** Configures a shared spatial scope for this root and all its descendants. Only a root can cull. */
+  public setCulling(options: TTreeCullingOptions | undefined): void {
+    // Removing culling from a node that has none changes nothing, also below a parent.
+    if (!options && !this.culling) return;
+    if (this.parent) throw new Error("Only a tree root can cull its descendants");
+    const previous = this.culling;
+    const returning =
+      !options && previous ? previous.nodes.filter((node) => node.observesViewport && !node.notifiedInViewport) : [];
+    this.setScope(undefined);
+    this.culling = options ? new TreeCulling(this, options) : undefined;
+    this.setScope(this.culling);
+    // Without culling every component counted as in the viewport: the first publication tells offscreen ones they left.
+    if (options && !previous && this.culling) {
+      for (const node of this.culling.nodes) if (node.observesViewport) node.notifiedInViewport = true;
+    }
+    // Without culling every component paints again: observers that were told they left learn they are back.
+    for (const node of returning) {
+      node.notifiedInViewport = true;
+      node.data.viewportChanged?.(true);
+    }
+  }
+
+  private setScope(scope: TreeCulling | undefined): void {
+    if (this.scope === scope) return;
+    this.scope?.delete(this);
+    this.scope = scope;
+    scope?.add(this);
+    for (const child of this.children) child.setScope(scope);
+  }
+
+  /** Reports this node's own bounds without including descendants. */
+  public setBounds(minX: number, minY: number, maxX: number, maxY: number): void {
+    if (
+      !Number.isFinite(minX) ||
+      !Number.isFinite(minY) ||
+      !Number.isFinite(maxX) ||
+      !Number.isFinite(maxY) ||
+      minX > maxX ||
+      minY > maxY
+    )
+      minX = minY = maxX = maxY = NaN;
+    if (
+      Object.is(this.boundsMinX, minX) &&
+      Object.is(this.boundsMinY, minY) &&
+      Object.is(this.boundsMaxX, maxX) &&
+      Object.is(this.boundsMaxY, maxY)
+    )
+      return;
+    this.boundsMinX = minX;
+    this.boundsMinY = minY;
+    this.boundsMaxX = maxX;
+    this.boundsMaxY = maxY;
+    this.scope?.update(this);
+  }
+
+  /** Asks the scope to prepare this node before the next frame publishes visibility and paints. */
+  public requestWalk(): void {
+    this.scope?.markPending(this);
+  }
+
+  /**
+   * Own bounds intersect the viewport and ancestors allow traversal. While the scope paints this is the
+   * frame's published decision; otherwise it reads the current viewport and bounds.
+   */
+  public isVisible(): boolean {
+    const host = this.host;
+    if (host) return this.isVisibleIn(host.scope);
+    const scope = this.scope;
+    if (!scope) return true;
+    const visible = scope.painting ? this.published : intersects(this, scope.options.getViewport());
+    return (
+      visible && ((scope.painting && scope.visibilityRevision === scope.structureRevision) || this.isEligible(scope))
+    );
+  }
+
+  /** A detached node is never published: its own bounds meet the viewport its host's scope culls by. */
+  private isVisibleIn(scope: TreeCulling | undefined): boolean {
+    if (!scope) return true;
+    return intersects(this, scope.painting ? scope.frameViewport : scope.options.getViewport());
+  }
+
+  /** @internal Walk stamp and result of the cached walksDetachedChildren() answer. */
+  private detachedWalkStamp = 0;
+  private detachedWalk = false;
+
+  /**
+   * @internal Whether detached components hosted by this node count as walked: this node is reachable through
+   * ancestors that walk their children and walks its own. While the scope paints the answer is cached for the walk:
+   * painting does not change which branches are walked, and a batch owner asks once per drawn item.
+   */
+  public walksDetachedChildren(): boolean {
+    const scope = this.scope;
+    if (!scope?.painting) return this.childrenWalkAllowed && this.isTraversalAllowed();
+    if (this.detachedWalkStamp !== scope.stamp) {
+      this.detachedWalkStamp = scope.stamp;
+      this.detachedWalk = this.childrenWalkAllowed && this.isTraversalAllowed();
+    }
+    return this.detachedWalk;
+  }
+
+  /** Whether every ancestor still contains this branch and permits its traversal; trees here are a few levels deep. */
+  public isTraversalAllowed(): boolean {
+    let node: Tree = this;
+    while (node.parent) {
+      const parent = node.parent;
+      if (!parent.children.has(node) || !parent.childrenWalkAllowed) return false;
+      node = parent;
+    }
+    return true;
+  }
+
+  /** @internal */
+  public isEligible(scope: TreeCulling): boolean {
+    return this.scope === scope && this.isTraversalAllowed();
+  }
+
+  /** @internal */
+  public setChildrenWalkAllowed(allowed: boolean): void {
+    if (this.childrenWalkAllowed === allowed) return;
+    this.childrenWalkAllowed = allowed;
+    this.scope?.invalidateStructure();
   }
 
   public updateZIndex(index: number) {
-    if (this.zIndex === index) {
+    if (this.zIndex === index) return;
+    const parent = this.parent;
+    if (!parent?.children.has(this)) {
+      this.zIndex = index;
       return;
     }
+    parent.removeZIndex(this);
     this.zIndex = index;
-    this.parent?.updateChildZIndex(this);
+    parent.addInZIndex(this);
+    this.scope?.invalidateStructure();
   }
 
   public updateChildZIndex(child: Tree) {
-    if (!this.children.has(child)) {
-      return;
-    }
+    if (!this.children.has(child)) return;
     this.removeZIndex(child);
     this.addInZIndex(child);
+    this.scope?.invalidateStructure();
   }
 
   public clearChildren() {
+    for (const child of this.children) child.setScope(undefined);
     this.children.clear();
-    this.childrenDirty = true;
-
     this.zIndexGroups.clear();
     this.zIndexChildrenCache.clear();
   }
 
   public traverseDown(iterator: TIterator) {
+    const detached = this.detachedUpdates;
+    detached?.beginFrame();
+    if (this.culling) {
+      this.culling.walk(iterator, detached);
+      return;
+    }
+    // Without culling there is no separate preparation: detached components apply before the walk, and the ones a
+    // parent reconciles apply right after that reconciliation (CoreComponent.__updateChildren).
+    detached?.flush();
     this._walkDown(iterator, 0);
   }
 
-  protected getChildrenArray() {
-    if (this.childrenDirty) {
-      this.childrenArray = Array.from(this.children);
-      this.childrenDirty = false;
-    }
-    return this.childrenArray;
+  /** @internal */
+  public prepareData(stamp: number): void {
+    this.preparedStamp = stamp;
+    this.setChildrenWalkAllowed(this.data.prepareUpdate?.() ?? true);
+  }
+
+  /** @internal Children in local paint order. */
+  public getOrderedChildren(): Tree[] {
+    return this.zIndexChildrenCache.get();
   }
 
   protected _walkDown(iterator: TIterator, order: number) {
     this.renderOrder = order;
-    if (iterator(this)) {
-      if (!this.children.size) {
-        return;
-      }
-      const children = this.zIndexChildrenCache.get();
-      for (let i = 0; i < children.length; i++) {
-        children[i]._walkDown(iterator, i);
-      }
-    }
+    this.framePrepared = false;
+    this.frameVisible = true;
+    this.setChildrenWalkAllowed(iterator(this));
+    if (!this.childrenWalkAllowed) return;
+    const children = this.zIndexChildrenCache.get();
+    for (let i = 0; i < children.length; i++) children[i]._walkDown(iterator, i);
   }
 }

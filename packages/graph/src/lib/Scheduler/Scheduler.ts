@@ -187,7 +187,7 @@ export class Scheduler {
     this.root?.traverseDown(this.iterator);
   }
 
-  public iterator(node: TSchedulerTreeNode) {
+  public iterator(node: TSchedulerTreeNode): boolean {
     return node.data.iterate();
   }
 

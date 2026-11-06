@@ -275,6 +275,40 @@ The `Layer` class provides tools to handle rendering correctly with camera trans
 
 **In summary:** For most canvas layers, set `respectPixelRatio: true` and `transformByCameraPosition: true`, call `resetTransform()` at the start of `render`, and draw using world coordinates. Use `applyTransform` for specific relative positioning if needed.
 
+### Viewport culling of a layer's components
+
+Every layer culls the canvas components it renders (`updateChildren()`): a component whose bounds miss the
+culling rectangle is not painted, and a clean one receives no lifecycle calls at all. The rectangle is chosen
+by `LayerProps.culling`:
+
+| `culling` | Rectangle | For |
+|---|---|---|
+| `"world"` (default) | the camera viewport in world coordinates | layers that draw the graph in world coordinates |
+| `"screen"` | the layer's rectangle in screen pixels | overlays that draw at fixed screen positions |
+| `"none"` | none: the layer walks every component, and a `GraphComponent` paints when the camera sees its hit box | plain components, or components that decide their own visibility |
+
+```typescript
+class HudLayer extends Layer {
+  constructor(props: LayerProps) {
+    super({ ...props, culling: "screen", canvas: { zIndex: 10, transformByCameraPosition: false } });
+  }
+}
+```
+
+Components report bounds in the same coordinates (`setCullingBounds()`, or the hit box of a
+`GraphComponent`); unknown bounds always paint. A layer that needs another rectangle overrides
+`getCullingOptions()` and returns `{ tileSize, getViewport }`; the Layer constructor calls it, so read the
+layer's own fields inside `getViewport`, and call `updateCulling()` after changing what it returns.
+
+Without culling (`"none"`, or the `viewportCulling` setting turned off) there is no viewport culling: a
+layer walks every component (except detached ones, which no walk reaches), a `GraphComponent` paints when the camera sees its hit box, and connection
+batches draw every chunk. The lifecycle rules shared with culled layers still apply: an offscreen component
+is not painted on mount, and visibility is decided after preparation.
+
+Only a tree root culls, so a layer mounted as a child component passes `culling: "none"`. Such a child layer
+joins its parent's culling: appended under a culled tree, its components are culled by the parent's
+viewport.
+
 ### Built-in CSS Classes
 
 The library provides several built-in CSS classes that can be used with layers:
