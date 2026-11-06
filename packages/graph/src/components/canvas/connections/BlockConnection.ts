@@ -18,6 +18,7 @@ import {
   getBezierCurveBounds,
   isPointInStroke,
 } from "./bezierHelpers";
+import { hasChangedValue } from "./hasChangedValue";
 import { getLabelCoords } from "./labelHelper";
 
 export type TConnectionProps = TBaseConnectionProps & {
@@ -34,18 +35,16 @@ export type TBlockConnection = {
   removeFromRenderOrder(cmp: Path2DRenderInstance): void;
 };
 
-function hasChangedValue<V extends object>(next: V | undefined, current: V): boolean {
-  if (!next) return false;
-  for (const key of Object.keys(next) as Array<keyof V>) {
-    if (!Object.is(next[key], current[key])) return true;
-  }
-  return false;
-}
-
 export class BlockConnection<T extends TConnection>
   extends BaseConnection<TConnectionProps, TBaseConnectionState, TGraphConnectionsContext, T>
   implements Path2DRenderInstance
 {
+  /**
+   * Connections are detached: the batch draws their lines, arrows and labels, so the frame does not walk them. A
+   * subclass that draws in `render()` or relies on other per-frame hooks declares `static detached = false`.
+   */
+  public static override readonly detached: boolean = true;
+
   public readonly cursor = "pointer";
 
   protected path2d: Path2D = new Path2D();
@@ -274,15 +273,19 @@ export class BlockConnection<T extends TConnection>
     }
   }
 
-  protected override propsChanged(nextProps: TConnectionProps) {
-    const shouldUpdatePoints = this.props.useTightBezierBounds !== nextProps.useTightBezierBounds;
+  /**
+   * The batch calls `afterRender` only while this returns true: always for a subclass that overrides `afterRender`,
+   * otherwise while the standard label is shown (a label, labels enabled, zoom at or above the label threshold). Label
+   * and setting changes reach the batch through `applyShape()`, zoom changes through `markBoundsDirty()`.
+   */
+  public needsAfterRender(): boolean {
+    if (this.afterRender !== BlockConnection.prototype.afterRender) return true;
+    return Boolean(this.state.label && this.props.showConnectionLabels && this.context.connectionLabelFontSize.peek());
+  }
 
+  protected override propsChanged(nextProps: TConnectionProps) {
     super.propsChanged(nextProps);
     this.applyShape(this.state, nextProps);
-
-    if (shouldUpdatePoints) {
-      this.updatePoints(undefined, nextProps);
-    }
   }
 
   protected override stateChanged(nextState: TBaseConnectionState) {
@@ -291,15 +294,18 @@ export class BlockConnection<T extends TConnection>
   }
 
   protected override checkData(): boolean {
-    // Mounting computes geometry from the $geometry subscription; later, only changed inputs recompute it.
+    // Mounting computes the first geometry from the $geometry subscription; afterwards changed inputs recompute it
+    // once, after every pending change is applied (BaseConnection.checkData).
     const { nextProps, nextState } = this.__data;
-    const geometryInputsChanged =
-      !this.firstIterate &&
+    if (
+      this.geometryContext !== undefined &&
       (this.context !== this.geometryContext ||
         hasChangedValue(nextProps, this.props) ||
-        hasChangedValue(nextState, this.state));
+        hasChangedValue(nextState, this.state))
+    ) {
+      this.geometryDirty = true;
+    }
     const changed = super.checkData();
-    if (geometryInputsChanged) this.updatePoints();
     if (changed) this.syncLabelSubscription();
     return changed;
   }

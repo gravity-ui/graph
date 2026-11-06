@@ -33,9 +33,10 @@ function createFixture(chunkSize = 100) {
     batch,
     schedule,
     /** Returns the line ends drawn by each stroke call. */
-    render(rect?: TTileRect) {
+    render(rect?: TTileRect, content?: TTileRect | null) {
       stroke.mockClear();
-      batch.render(ctx, rect);
+      if (content === undefined) batch.render(ctx, rect);
+      else batch.render(ctx, rect, content);
       return stroke.mock.calls.map(([path]) => {
         const events = (path as Path2D & { _path: { type: string; props: { x: number } }[] })._path;
         return events.filter((event) => event.type === "lineTo").map((event) => event.props.x);
@@ -147,12 +148,12 @@ test("update moves an item between groups and z-levels, and deleting it removes 
   expect(render()).toEqual([[20, 10]]);
 });
 
-test("afterRender runs only for items in the viewport, by their own report or by their bounds", () => {
+test("afterRender runs only for items in the viewport, by their bounds or, without bounds, by their own report", () => {
   const { batch, render } = createFixture();
   const inside = { ...createItem(10, [0, 0, 10, 0]), afterRender: jest.fn() };
   const outside = { ...createItem(20, [500, 0, 520, 0]), afterRender: jest.fn() };
-  const reportsOut = { ...createItem(30, [0, 0, 30, 0]), afterRender: jest.fn(), isInViewport: () => false };
-  const reportsIn = { ...createItem(40, [900, 0, 940, 0]), afterRender: jest.fn(), isInViewport: () => true };
+  const reportsOut = { ...createItem(30), afterRender: jest.fn(), isInViewport: () => false };
+  const reportsIn = { ...createItem(40), afterRender: jest.fn(), isInViewport: () => true };
   const unknown = { ...createItem(50), afterRender: jest.fn() };
   for (const item of [inside, outside, reportsOut, reportsIn, unknown]) {
     batch.add(item, { zIndex: 0, group: "connections" });
@@ -166,4 +167,81 @@ test("afterRender runs only for items in the viewport, by their own report or by
   expect(reportsIn.afterRender).toHaveBeenCalledTimes(1);
   // Items without bounds are never culled.
   expect(unknown.afterRender).toHaveBeenCalledTimes(1);
+});
+
+test("afterRender runs only for items that report content, cached until the item is marked dirty", () => {
+  const { batch, ctx } = createFixture();
+  const shown = { ...createItem(10, [0, 0, 10, 0]), afterRender: jest.fn(), needsAfterRender: jest.fn(() => true) };
+  const hidden = { ...createItem(20, [0, 0, 20, 0]), afterRender: jest.fn(), needsAfterRender: jest.fn(() => false) };
+  const plain = { ...createItem(30, [0, 0, 30, 0]), afterRender: jest.fn() };
+  for (const item of [shown, hidden, plain]) batch.add(item, { zIndex: 0, group: "connections" });
+
+  batch.render(ctx, viewport(0, 100));
+  batch.render(ctx, viewport(0, 100));
+  expect(shown.afterRender).toHaveBeenCalledTimes(2);
+  expect(hidden.afterRender).not.toHaveBeenCalled();
+  expect(plain.afterRender).toHaveBeenCalledTimes(2);
+  expect(hidden.needsAfterRender).toHaveBeenCalledTimes(1);
+
+  hidden.needsAfterRender.mockReturnValue(true);
+  batch.markBoundsDirty(hidden);
+  batch.render(ctx, viewport(0, 100));
+  expect(hidden.afterRender).toHaveBeenCalledTimes(1);
+  expect(shown.afterRender).toHaveBeenCalledTimes(3);
+
+  shown.needsAfterRender.mockReturnValue(false);
+  batch.markDirty(shown);
+  batch.render(ctx, viewport(0, 100));
+  expect(shown.afterRender).toHaveBeenCalledTimes(3);
+});
+
+describe("after-render rectangle", () => {
+  const lineViewport = viewport(0, 1000);
+
+  test("culls items with valid bounds by their bounds, without asking isInViewport", () => {
+    const { batch, render } = createFixture();
+    const isInViewport = jest.fn(() => false);
+    const inside = { ...createItem(10, [0, 0, 10, 0]), afterRender: jest.fn(), isInViewport };
+    const outside = { ...createItem(20, [500, 0, 520, 0]), afterRender: jest.fn(), isInViewport: jest.fn(() => true) };
+    for (const item of [inside, outside]) batch.add(item, { zIndex: 0, group: "connections" });
+
+    render(lineViewport, viewport(0, 100));
+    expect(inside.afterRender).toHaveBeenCalledTimes(1);
+    expect(outside.afterRender).not.toHaveBeenCalled();
+    expect(isInViewport).not.toHaveBeenCalled();
+    expect(outside.isInViewport).not.toHaveBeenCalled();
+  });
+
+  test("null skips after-render content while lines are still stroked", () => {
+    const { batch, render } = createFixture();
+    const item = { ...createItem(10, [0, 0, 10, 0]), afterRender: jest.fn() };
+    batch.add(item, { zIndex: 0, group: "connections" });
+
+    expect(render(lineViewport, null)).toEqual([[10]]);
+    expect(item.afterRender).not.toHaveBeenCalled();
+  });
+
+  test("without a rectangle isInViewport decides", () => {
+    const { batch, render } = createFixture();
+    const reportsOut = { ...createItem(10, [0, 0, 10, 0]), afterRender: jest.fn(), isInViewport: () => false };
+    const reportsIn = { ...createItem(20, [900, 0, 920, 0]), afterRender: jest.fn(), isInViewport: () => true };
+    for (const item of [reportsOut, reportsIn]) batch.add(item, { zIndex: 0, group: "connections" });
+
+    render();
+    expect(reportsOut.afterRender).not.toHaveBeenCalled();
+    expect(reportsIn.afterRender).toHaveBeenCalledTimes(1);
+  });
+
+  test("an item without valid bounds uses isInViewport even with a rectangle", () => {
+    const { batch, render } = createFixture();
+    const reportsOut = { ...createItem(10), afterRender: jest.fn(), isInViewport: () => false };
+    const reportsIn = { ...createItem(20), afterRender: jest.fn(), isInViewport: () => true };
+    const plain = { ...createItem(30), afterRender: jest.fn() };
+    for (const item of [reportsOut, reportsIn, plain]) batch.add(item, { zIndex: 0, group: "connections" });
+
+    render(lineViewport, viewport(0, 100));
+    expect(reportsOut.afterRender).not.toHaveBeenCalled();
+    expect(reportsIn.afterRender).toHaveBeenCalledTimes(1);
+    expect(plain.afterRender).toHaveBeenCalledTimes(1);
+  });
 });

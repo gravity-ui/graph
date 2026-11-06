@@ -14,11 +14,20 @@ export interface Path2DRenderInstance {
   /** World-space bounds of the item's path; a chunk with an item without valid bounds is never culled. */
   getPathBounds?(): TPathBounds | undefined;
   style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined;
-  /** Draws extra content, such as labels, after the item's chunk; runs only for items in the viewport. */
+  /**
+   * Draws extra content, such as labels, after the item's chunk; runs for items whose bounds meet the renderer's
+   * after-render rectangle.
+   */
   afterRender?(ctx: CanvasRenderingContext2D): void;
   /**
-   * Whether the item is in the viewport in this frame, which decides whether `afterRender` runs.
-   * Components report their tree's decision; without it the renderer checks `getPathBounds()`.
+   * Whether `afterRender` has anything to draw now, for example whether a label is shown. The renderer skips items
+   * that return false and caches the answer until the item is added again or marked dirty (`markDirty`,
+   * `markBoundsDirty`): an item whose answer changes marks itself. Items without it always run.
+   */
+  needsAfterRender?(): boolean;
+  /**
+   * Whether the item is in the viewport in this frame. The fallback that decides whether `afterRender` runs for an
+   * item without valid `getPathBounds()`, or when the renderer has no after-render rectangle.
    */
   isInViewport?(): boolean;
   /** Semantic visibility, such as hidden items or missing geometry. Viewport culling is the renderer's job. */
@@ -53,6 +62,13 @@ class Path2DChunk {
 
   protected visibleItems = cache(() => {
     return Array.from(this.items).filter((item) => item.isPathVisible?.() ?? true);
+  });
+
+  /** Visible items with after-render content: the per-frame `afterRender` loop runs over these only. */
+  protected decoratedItems = cache(() => {
+    return this.visibleItems
+      .get()
+      .filter((item) => item.afterRender !== undefined && item.needsAfterRender?.() !== false);
   });
 
   /** Union of the visible items' bounds; undefined when any of them is unknown. */
@@ -95,14 +111,20 @@ class Path2DChunk {
   public reset() {
     this.path.reset();
     this.visibleItems.reset();
+    this.decoratedItems.reset();
     this.bounds.reset();
   }
 
   public resetBounds() {
     this.bounds.reset();
+    this.decoratedItems.reset();
   }
 
-  public render(ctx: CanvasRenderingContext2D, viewport?: TTileRect) {
+  public render(
+    ctx: CanvasRenderingContext2D,
+    viewport?: TTileRect,
+    afterRenderViewport: TTileRect | null | undefined = viewport
+  ) {
     const visible = this.visibleItems.get();
     if (!visible.length || !intersects(this.bounds.get(), viewport)) return;
 
@@ -116,12 +138,17 @@ class Path2DChunk {
     }
     ctx.restore();
 
-    // A drawn chunk can reach past the viewport: extra content runs only for items inside it.
-    for (const item of visible) {
-      if (!item.afterRender) continue;
-      if (item.isInViewport ? item.isInViewport() : intersects(item.getPathBounds?.(), viewport)) {
-        item.afterRender(ctx);
+    if (afterRenderViewport === null) return;
+    // A drawn chunk can reach past the viewport: extra content runs only for items inside the after-render rectangle.
+    // Comparing the item's bounds is cheaper than asking its component for the tree's decision.
+    for (const item of this.decoratedItems.get()) {
+      const bounds = afterRenderViewport ? item.getPathBounds?.() : undefined;
+      if (isValidBounds(bounds) && afterRenderViewport) {
+        if (!intersects(bounds, afterRenderViewport)) continue;
+      } else if (item.isInViewport && !item.isInViewport()) {
+        continue;
       }
+      item.afterRender?.(ctx);
     }
   }
 
@@ -167,8 +194,12 @@ class Path2DGroup {
     this.itemToChunk.get(item)?.resetBounds();
   }
 
-  public render(ctx: CanvasRenderingContext2D, viewport?: TTileRect) {
-    for (const chunk of this.chunks) chunk.render(ctx, viewport);
+  public render(
+    ctx: CanvasRenderingContext2D,
+    viewport?: TTileRect,
+    afterRenderViewport: TTileRect | null | undefined = viewport
+  ) {
+    for (const chunk of this.chunks) chunk.render(ctx, viewport, afterRenderViewport);
   }
 }
 
@@ -207,9 +238,18 @@ export class BatchPath2DRenderer {
     return bucket;
   }
 
-  /** Draws every group in z-order; chunks entirely outside the world-space viewport are skipped. */
-  public render(ctx: CanvasRenderingContext2D, viewport?: TTileRect) {
-    for (const group of this.orderedPaths.get()) group.render(ctx, viewport);
+  /**
+   * Draws every group in z-order. Chunks entirely outside the world-space `viewport` are skipped (undefined draws
+   * every chunk). `afterRenderViewport` is the world-space rectangle that culls `afterRender` content by item
+   * bounds; it defaults to `viewport`, `null` skips after-render content, and undefined leaves the decision to the
+   * items' `isInViewport()`.
+   */
+  public render(
+    ctx: CanvasRenderingContext2D,
+    viewport?: TTileRect,
+    afterRenderViewport: TTileRect | null | undefined = viewport
+  ) {
+    for (const group of this.orderedPaths.get()) group.render(ctx, viewport, afterRenderViewport);
   }
 
   public add(item: Path2DRenderInstance, params: { zIndex: number; group: string }) {

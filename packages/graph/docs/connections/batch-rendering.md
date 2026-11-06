@@ -30,9 +30,12 @@ Each group keeps up to 100 items per chunk in registration order and draws a chu
 `fill`/`stroke`. The combined path is rebuilt only when an item is added, removed or marked dirty;
 camera moves never rebuild it. A chunk whose items' bounds are all outside the viewport is skipped
 entirely. The viewport is the owner layer's culling viewport; without culling every chunk is drawn.
-`afterRender` hooks of a drawn chunk run in registration order, only for items in the viewport: an
-item's `isInViewport()` decides (connections report the layer tree's decision; without culling, their
-hit box against the camera), otherwise its bounds do. Items without bounds always run.
+`afterRender` hooks of a drawn chunk run in registration order, only for items whose `needsAfterRender()` does not
+return `false` and whose bounds meet the owner's rectangle: the layer's culling viewport, or the camera rectangle
+without culling. `isInViewport()` is asked only for items without valid bounds; an item with neither always runs.
+`BlockConnections` skips after-render content while it does not walk its children (`render(ctx, viewport, null)`). The renderer caches `needsAfterRender()` until the item is marked dirty
+(`markDirty`, `markBoundsDirty`); `BlockConnection` answers `true` while its label is shown, or always when a subclass
+overrides `afterRender`.
 
 The batch belongs to the component that renders it, usually `BlockConnections`. A child-traversal veto
 pauses the children's lifecycle but does not hide their batched paths; a parent that wants to hide them

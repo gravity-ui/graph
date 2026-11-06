@@ -1,9 +1,12 @@
 import { GraphClassConstructor } from "../utils/types/classes";
 
+import { DetachedUpdates } from "./DetachedUpdates";
+import type { TDetachedEntry } from "./DetachedUpdates";
 import { Scheduler } from "./Scheduler";
 import { ITree, Tree } from "./Tree";
 import type { TTileRect } from "./culling/TileIndex";
 import type { TTreeCullingOptions } from "./culling/TreeCulling";
+import { isDevelopmentBuild, warnDetachedFrameHooks } from "./detachedWarning";
 
 export type ComponentOptions<Instance> = {
   readonly key?: string | number;
@@ -51,6 +54,8 @@ type TPrivateComponentData = {
   context: {
     scheduler: Scheduler;
     globalIterateId: number;
+    /** Queue of the detached components of this tree. */
+    detachedUpdates: DetachedUpdates;
   };
   children: Map<string, CoreComponent>;
   childrenKeys: string[];
@@ -58,6 +63,9 @@ type TPrivateComponentData = {
   stringRef: string | undefined;
   updated: boolean;
   iterateId: number;
+  /** The component's queue entry when its class is detached. */
+  detached: TDetachedEntry | undefined;
+  unmounted: boolean;
 };
 
 export type CoreComponentProps = Record<string, unknown>;
@@ -67,7 +75,13 @@ function createDefaultPrivateContext(): TPrivateComponentData["context"] {
   return {
     scheduler: new Scheduler(),
     globalIterateId: 0,
+    detachedUpdates: new DetachedUpdates(),
   };
+}
+
+/** Whether a component class declares itself detached (see CoreComponent.detached). */
+function isDetachedClass(klass: unknown): boolean {
+  return (klass as { detached?: unknown }).detached === true;
 }
 
 export class CoreComponent<
@@ -75,6 +89,16 @@ export class CoreComponent<
   Context extends CoreComponentContext = CoreComponentContext,
 > implements ITree
 {
+  /**
+   * Detached components stay children of their parent: it creates, updates and unmounts them, and they receive its
+   * context. The frame does not walk them: they never receive `iterate()`, `render()`, `willRender()`, `didRender()`,
+   * `willNotRender()`, `didIterate()` or `viewportChanged()`. A change queues the component, and its tree applies the
+   * update (`checkData()`, `willIterate()`, children) once per frame before painting, so unchanged detached
+   * components cost a frame nothing. Their children must be detached too, and a root cannot be detached.
+   * Subclasses inherit the flag; `static detached = false` puts a subclass back into the walk.
+   */
+  public static readonly detached: boolean = false;
+
   public $: Record<string, CoreComponent | undefined> = Object.create(null);
 
   public context: Context = {} as Context;
@@ -105,6 +129,13 @@ export class CoreComponent<
 
   constructor(props: Props, parent?: CoreComponent) {
     this.context = (parent?.context as Context) || ({} as Context);
+    const detached = isDetachedClass(this.constructor);
+    if (detached && !parent) {
+      throw new Error(`${this.constructor.name} is detached: mount it as a child of a component in a tree`);
+    }
+    // Development builds only: bundlers replace the NODE_ENV expression inside isDevelopmentBuild and drop the check
+    // from production builds; where `process` does not exist the check counts as production and is skipped.
+    if (detached && isDevelopmentBuild()) warnDetachedFrameHooks(this.constructor);
 
     this.__comp = {
       parent,
@@ -116,7 +147,24 @@ export class CoreComponent<
       stringRef: undefined,
       updated: false,
       iterateId: 0,
+      detached: detached
+        ? {
+            slot: -1,
+            appliedFrame: -1,
+            apply: (): void => {
+              // A flush can hold a deferred entry that delete() could not drop (it is not in the queue then) and
+              // re-enqueue it after the component unmounted: never run an update on an unmounted component.
+              if (!this.__comp.unmounted) this.applyDetachedUpdate();
+            },
+          }
+        : undefined,
+      unmounted: false,
     };
+    if (!parent) this.__comp.treeNode.detachedUpdates = this.__comp.context.detachedUpdates;
+    else if (detached) {
+      const parentNode = parent.__comp.treeNode;
+      this.__comp.treeNode.host = parent.__comp.detached ? parentNode.host : parentNode;
+    }
     this.props = props ?? ({} as Props);
   }
 
@@ -125,9 +173,16 @@ export class CoreComponent<
    * components on purpose, so there it means "attached to the tree in a branch that is not suppressed".
    */
   public isIterated(): boolean {
-    const treeNode = this.__comp.treeNode;
+    const comp = this.__comp;
+    if (comp.detached) {
+      const parent = comp.parent;
+      if (comp.unmounted || !parent || !parent.isIterated()) return false;
+      // An attached parent walks its children only while its traversal permission allows it.
+      return parent.__comp.detached !== undefined || parent.__comp.treeNode.childrenWalkAllowed;
+    }
+    const treeNode = comp.treeNode;
     if (treeNode.scope) return treeNode.isTraversalAllowed();
-    return this.__comp.iterateId === this.__comp.context.globalIterateId;
+    return comp.iterateId === comp.context.globalIterateId;
   }
 
   /**
@@ -146,18 +201,40 @@ export class CoreComponent<
 
   /** Whether this node's own bounds intersect its tree's viewport. */
   public isInViewport(): boolean {
-    return this.__comp.treeNode.isVisible();
+    const comp = this.__comp;
+    if (comp.detached) {
+      // Like a published tree node, a detached component counts only while it is mounted and its host walks it; the
+      // host's answer is cached per painted frame, so a batch asking for every drawn item stays O(1) per item.
+      const host = comp.treeNode.host;
+      if (comp.unmounted || !host || !host.walksDetachedChildren()) return false;
+    }
+    return comp.treeNode.isVisible();
+  }
+
+  /** Whether a viewport culls this component: its tree's, or for a detached component its nearest walked ancestor's. */
+  protected isCulledByViewport(): boolean {
+    const node = this.__comp.treeNode;
+    return (node.host ?? node).scope !== undefined;
   }
 
   /** World rectangle this component's tree culled by in its latest frame; undefined when the tree does not cull. */
   protected getCullingViewport(): TTileRect | undefined {
-    return this.__comp.treeNode.scope?.frameViewport;
+    const node = this.__comp.treeNode;
+    return (node.host ?? node).scope?.frameViewport;
   }
 
   public performRender = () => {
     this.updatePrepared = false;
-    this.__comp.context.scheduler.scheduleUpdate();
-    this.__comp.treeNode.requestWalk();
+    const comp = this.__comp;
+    if (comp.detached) {
+      // Detached components are not walked: their tree applies the queued update in its next frame.
+      if (comp.unmounted) return;
+      comp.context.detachedUpdates.enqueue(comp.detached);
+      comp.context.scheduler.scheduleUpdate();
+      return;
+    }
+    comp.context.scheduler.scheduleUpdate();
+    comp.treeNode.requestWalk();
   };
 
   /**
@@ -165,6 +242,9 @@ export class CoreComponent<
    * cannot become a child.
    */
   protected setChildrenCulling(options: TTreeCullingOptions | undefined): void {
+    if (options && this.__comp.detached) {
+      throw new Error(`${this.constructor.name} is detached and cannot cull: the frame does not walk it`);
+    }
     this.__comp.treeNode.setCulling(options);
   }
 
@@ -209,11 +289,15 @@ export class CoreComponent<
   }
 
   private __unmount() {
+    const comp = this.__comp;
+    comp.unmounted = true;
+    if (comp.detached) comp.context.detachedUpdates.delete(comp.detached);
     this.__unmountChildren();
     this.unmount();
-    if (!this.__comp.parent) {
+    if (!comp.parent) {
       // An unmounted root has no parent to re-render, and its tree is never traversed again.
-      this.__comp.context.scheduler.setRoot(undefined);
+      comp.context.scheduler.setRoot(undefined);
+      comp.context.detachedUpdates.clear();
       return;
     }
     this.performRender();
@@ -242,7 +326,19 @@ export class CoreComponent<
     return true;
   }
 
+  /** Applies a detached component's pending work: the preparation part of its lifecycle, outside the frame walk. */
+  protected applyDetachedUpdate(): void {
+    this.prepareUpdate();
+    this.updatePrepared = false;
+  }
+
   private mountChild(descriptor: ChildDescriptor, key: string): CoreComponent {
+    if (this.__comp.detached && !isDetachedClass(descriptor.klass)) {
+      throw new Error(
+        `${descriptor.klass.name} cannot be a child of detached ${this.constructor.name}: ` +
+          "children of a detached component must be detached"
+      );
+    }
     // The descriptor factory checked the props against the concrete class. Construction and
     // ref invocation erase that relationship only at this heterogeneous runtime boundary.
     const child = Reflect.construct(descriptor.klass, [descriptor.props, this]) as CoreComponent;
@@ -253,6 +349,8 @@ export class CoreComponent<
       child.__comp.stringRef = ref;
       this.$[ref] = child;
     }
+    // A new detached child applies its first update, mount included, from the queue.
+    if (child.__comp.detached) child.performRender();
     return child;
   }
 
@@ -294,11 +392,18 @@ export class CoreComponent<
     descriptorsToMount.forEach(({ key, descriptor }) => this.mountChild(descriptor, key));
     this.__comp.childrenKeys = nextKeys;
     const children: Tree[] = [];
+    let detachedOrder = 0;
     nextKeys.forEach((key) => {
       const child = this.__comp.children.get(key);
-      if (child) children.push(child.__comp.treeNode);
+      if (!child) return;
+      // Detached children are not walked; they keep their reconcile order for hit testing.
+      if (child.__comp.detached) child.__comp.treeNode.renderOrder = detachedOrder++;
+      else children.push(child.__comp.treeNode);
     });
     this.__comp.treeNode.setChildren(children);
+    // Without culling the walk paints this component right after this reconciliation: its detached children apply
+    // first. A culled tree applies them after its preparation, and a running flush reaches them itself.
+    if (detachedOrder > 0 && !this.__comp.treeNode.scope) this.__comp.context.detachedUpdates.flush();
   }
 
   private __unmountChildren() {

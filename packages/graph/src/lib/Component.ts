@@ -173,6 +173,11 @@ export class Component<
     return this.shouldRenderChildren;
   }
 
+  protected override applyDetachedUpdate(): void {
+    super.applyDetachedUpdate();
+    this.firstIterate = false;
+  }
+
   public override iterate(): boolean {
     const node = this.__comp.treeNode;
     const prepared = node.framePrepared;

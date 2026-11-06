@@ -121,6 +121,16 @@ Components use several boolean flags to control their behavior:
 | `shouldUpdateChildren` | Controls children updates | `true` |
 | `shouldRenderChildren` | Explicitly allows or suppresses traversal of descendants | `true` |
 
+### 6. Detached Components
+
+A class that declares `static detached = true` is not walked by the frame. It is created, updated and unmounted by
+its parent and receives context, but never `iterate()`, `render()`, `willRender()`, `didRender()`, `willNotRender()`,
+`didIterate()` or `viewportChanged()`. `performRender()` (and so `setState()` / `setProps()`) queues it; the tree
+applies the queue once per frame before painting, running `checkData()`, `willIterate()` (`willMount()` first) and
+the children lifecycle. A component applies at most once per frame: what it requests during its own update applies
+in the next frame. Children of a detached component must be detached; a root cannot be. In development builds a
+detached class with per-frame hooks logs a warning. Connection components (`BlockConnection`) are detached. `EventedComponent` evented areas are registered while painting, so a detached component should not use them: they would never be cleared.
+
 ## Examples
 
 ### Basic Component

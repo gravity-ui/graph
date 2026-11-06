@@ -374,7 +374,7 @@ export class GraphComponent<
 
   /** Without viewport culling, a graph component paints when the camera sees its hit box. */
   public override isInViewport(): boolean {
-    if (this.__comp.treeNode.scope) return super.isInViewport();
+    if (this.isCulledByViewport()) return super.isInViewport();
     return this.context.camera.isRectVisible(...this.getHitBox());
   }
 

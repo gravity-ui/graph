@@ -301,7 +301,7 @@ Components report bounds in the same coordinates (`setCullingBounds()`, or the h
 layer's own fields inside `getViewport`, and call `updateCulling()` after changing what it returns.
 
 Without culling (`"none"`, or the `viewportCulling` setting turned off) there is no viewport culling: a
-layer walks every component, a `GraphComponent` paints when the camera sees its hit box, and connection
+layer walks every component (except detached ones, which no walk reaches), a `GraphComponent` paints when the camera sees its hit box, and connection
 batches draw every chunk. The lifecycle rules shared with culled layers still apply: an offscreen component
 is not painted on mount, and visibility is decided after preparation.
 

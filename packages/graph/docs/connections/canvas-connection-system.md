@@ -322,6 +322,12 @@ function updateConnectionStatus(connectionId: string, status: "active" | "idle" 
 
 You can create custom connection implementations by extending the base connection classes to add specific rendering logic or behavior.
 
+`BlockConnection` and its subclasses are *detached*: the frame does not walk them, and the batch draws their lines,
+arrows and labels. They update when their data changes (`propsChanged`, `stateChanged`, `willIterate`, geometry
+hooks) and never receive `render()` or other per-frame hooks. Draw extra content in `afterRender()`; a subclass that
+must draw every frame declares `static detached = false`. `BaseConnection` subclasses are walked and draw in
+`render()`. See [Detached components](../migration-guides/v1-to-v2.md#detached-components-connections-outside-the-frame-walk).
+
 ### Extending BaseConnection
 
 For custom connections with basic functionality:
@@ -442,6 +448,9 @@ Example of a connection with custom visual elements:
 
 ```typescript
 class AnimatedConnection extends BlockConnection {
+  // Drawn in render() every frame: keep this subclass in the frame walk.
+  public static override readonly detached = false;
+
   private animationPhase = 0;
   protected render() {
     const [source, target] = this.connectionPoints;

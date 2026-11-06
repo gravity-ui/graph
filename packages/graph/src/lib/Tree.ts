@@ -1,3 +1,4 @@
+import type { DetachedUpdates } from "./DetachedUpdates";
 import { TTreeCullingOptions, TreeCulling } from "./culling/TreeCulling";
 import { intersects } from "./culling/VisibilityPublication";
 import { cache } from "./utils";
@@ -78,6 +79,13 @@ export class Tree<T extends ITree = ITree> {
   public observesViewport = false;
   /** @internal The membership last delivered to viewportChanged(). */
   public notifiedInViewport = false;
+  /** @internal Updates of the detached components of this root's tree; set on roots only. */
+  public detachedUpdates?: DetachedUpdates;
+  /**
+   * @internal For a detached component's node: the tree node of its nearest walked ancestor. The node is never
+   * appended to a parent; the host's scope is the viewport it is judged by.
+   */
+  public host?: Tree;
   constructor(data: T, parent?: Tree) {
     this.data = data;
     this.parent = parent;
@@ -230,12 +238,39 @@ export class Tree<T extends ITree = ITree> {
    * frame's published decision; otherwise it reads the current viewport and bounds.
    */
   public isVisible(): boolean {
+    const host = this.host;
+    if (host) return this.isVisibleIn(host.scope);
     const scope = this.scope;
     if (!scope) return true;
     const visible = scope.painting ? this.published : intersects(this, scope.options.getViewport());
     return (
       visible && ((scope.painting && scope.visibilityRevision === scope.structureRevision) || this.isEligible(scope))
     );
+  }
+
+  /** A detached node is never published: its own bounds meet the viewport its host's scope culls by. */
+  private isVisibleIn(scope: TreeCulling | undefined): boolean {
+    if (!scope) return true;
+    return intersects(this, scope.painting ? scope.frameViewport : scope.options.getViewport());
+  }
+
+  /** @internal Walk stamp and result of the cached walksDetachedChildren() answer. */
+  private detachedWalkStamp = 0;
+  private detachedWalk = false;
+
+  /**
+   * @internal Whether detached components hosted by this node count as walked: this node is reachable through
+   * ancestors that walk their children and walks its own. While the scope paints the answer is cached for the walk:
+   * painting does not change which branches are walked, and a batch owner asks once per drawn item.
+   */
+  public walksDetachedChildren(): boolean {
+    const scope = this.scope;
+    if (!scope?.painting) return this.childrenWalkAllowed && this.isTraversalAllowed();
+    if (this.detachedWalkStamp !== scope.stamp) {
+      this.detachedWalkStamp = scope.stamp;
+      this.detachedWalk = this.childrenWalkAllowed && this.isTraversalAllowed();
+    }
+    return this.detachedWalk;
   }
 
   /** Whether every ancestor still contains this branch and permits its traversal; trees here are a few levels deep. */
@@ -289,8 +324,16 @@ export class Tree<T extends ITree = ITree> {
   }
 
   public traverseDown(iterator: TIterator) {
-    if (this.culling) this.culling.walk(iterator);
-    else this._walkDown(iterator, 0);
+    const detached = this.detachedUpdates;
+    detached?.beginFrame();
+    if (this.culling) {
+      this.culling.walk(iterator, detached);
+      return;
+    }
+    // Without culling there is no separate preparation: detached components apply before the walk, and the ones a
+    // parent reconciles apply right after that reconciliation (CoreComponent.__updateChildren).
+    detached?.flush();
+    this._walkDown(iterator, 0);
   }
 
   /** @internal */

@@ -1,3 +1,4 @@
+import type { DetachedUpdates } from "../DetachedUpdates";
 import type { TIterator, Tree } from "../Tree";
 
 import type { TTileRect, TileIndex } from "./TileIndex";
@@ -21,7 +22,8 @@ type TWorkList = Array<Tree | undefined>;
  *
  * A frame has three steps:
  * 1. Prepare. The owner, new nodes and nodes that requested an update prepare, ancestors first. Preparation is the
- *    only step that changes which branches are walked.
+ *    only step that changes which branches are walked. Detached components of the tree apply their queued updates at
+ *    the end of preparation; nodes their updates request are prepared in the same frame.
  * 2. Publish (VisibilityPublication). Visibility is kept between frames and rechecked incrementally.
  * 3. Paint. One pass over the cached paint order (paintOrder.ts) runs `iterate()` for visible and prepared nodes. A
  *    clean visible node applies its own pending work there; clean offscreen nodes get no call.
@@ -99,7 +101,7 @@ export class TreeCulling {
     return this.publication.frameViewport;
   }
 
-  public walk(iterator: TIterator): void {
+  public walk(iterator: TIterator, detached?: DetachedUpdates): void {
     this.painting = false;
     this.stamp = ++TreeCulling.walkStamp;
     try {
@@ -107,6 +109,7 @@ export class TreeCulling {
       this.preparedPainted = 0;
       this.prepare(this.owner);
       let revision: number;
+      let applied: boolean;
       do {
         revision = this.revision;
         // Reconciliation and geometry updates can register or request more nodes in this same frame;
@@ -121,7 +124,10 @@ export class TreeCulling {
           const node = pending[i];
           if (node) this.prepare(node);
         }
-      } while (revision !== this.revision);
+        // Detached components apply once every tree node is prepared, so they see the components mounted in this
+        // frame; the nodes their updates request (a batch owner) are prepared in another pass.
+        applied = detached?.flush() ?? false;
+      } while (applied || revision !== this.revision);
       // Only nodes whose preparation an ancestor blocked are left.
       this.compactFresh();
       this.compactPending();

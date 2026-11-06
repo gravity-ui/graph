@@ -258,10 +258,13 @@ describe("connection batch viewport visibility", () => {
     const connection = connectionState("connection");
     connection.$sourcePortState.value.setOwner(sourceView);
     connection.$targetPortState.value.setOwner(targetView);
+    view("connection").draws = [];
     source.requestHidden(true);
     target.requestHidden(true);
-    view("connection").draws = [];
+    // Port owner changes recompute the geometry in the next frame, not synchronously.
     frames(2);
+    expect(view("connection").draws).toEqual(["path"]);
+    view("connection").draws = [];
     graph.cameraService.set({ x: 10 });
     frames(2);
     expect(view("connection").draws).toEqual([]);
