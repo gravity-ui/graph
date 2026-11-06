@@ -23,11 +23,16 @@ node scripts/bench/culling/run.mjs --first --repeats 4
 Options: `--scenes`, `--scales`, `--views`, `--modes pan,zoom`, `--repeats`, `--steps`, `--noop` (replace
 fill/stroke calls with no-ops to isolate JavaScript cost), `--first` (only the first two frames after
 mounting), `--shuffle` (register connections in a seeded random order), `--shots <dir>` (keep the compared
-screenshots), `--headed`.
+screenshots), `--headed`, `--chunk-size N` and `--cell-tiles N` (set `connection.PATH2D_CHUNK_SIZE` and
+`connection.PATH2D_CHUNK_TILES` for every variant; `--chunk-size 1` strokes every connection alone, which compares
+culling without the blending of overlaps inside a chunk), `--labels` (draw connection labels; Nirvana connections
+have labels). Each result line ends with the Path2D strokes and fills of one frame at the measured view,
+counted after the timed frames.
 
 Both scenes register connections layer by layer along X, so registration order is already spatial. `--shuffle`
-measures the order of graphs loaded from a store: connection batches group items by registration order, and their
-chunk culling depends on it.
+measures the order of graphs loaded from a store. Variants that chunk connection batches by registration order
+(for example `e3a62d8c`) cull worse with it; variants that chunk by grid cell (`connection.PATH2D_CHUNK_TILES`)
+should not depend on it.
 
 The screenshot is taken after the measured camera moves, once the camera is back at the measured view.
 In the densest views (scale 0.01) GPU rasterization is not bit-exact between page loads: the same version
