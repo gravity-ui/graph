@@ -22,21 +22,20 @@ function createItem(end: number, bounds?: TPathBounds) {
 
 const viewport = (minX: number, maxX: number): TTileRect => ({ minX, minY: -10, maxX, maxY: 10 });
 
-function createFixture(chunkSize = 100) {
+function createFixture(chunkSize = 100, cellSize?: number) {
   const ctx = document.createElement("canvas").getContext("2d");
   if (!ctx) throw new Error("Expected canvas context");
   const stroke = jest.spyOn(ctx, "stroke");
   const schedule = jest.fn();
-  const batch = new BatchPath2DRenderer(schedule, chunkSize);
+  const batch = new BatchPath2DRenderer(schedule, chunkSize, cellSize);
   return {
     ctx,
     batch,
     schedule,
     /** Returns the line ends drawn by each stroke call. */
-    render(rect?: TTileRect, content?: TTileRect | null) {
+    render(rect?: TTileRect) {
       stroke.mockClear();
-      if (content === undefined) batch.render(ctx, rect);
-      else batch.render(ctx, rect, content);
+      batch.render(ctx, rect);
       return stroke.mock.calls.map(([path]) => {
         const events = (path as Path2D & { _path: { type: string; props: { x: number } }[] })._path;
         return events.filter((event) => event.type === "lineTo").map((event) => event.props.x);
@@ -82,14 +81,15 @@ test("skips a chunk entirely outside the viewport without rebuilding it when it 
   expect([...near, ...far].map((item) => item.getPath.mock.calls.length)).toEqual([1, 1, 1, 1]);
 });
 
-test("never culls a chunk with an item whose bounds are missing or invalid", () => {
+test("never culls items whose bounds are missing or invalid", () => {
   const { batch, render } = createFixture(2);
   const known = createItem(1010, [1000, 0, 1010, 0]);
   for (const bounds of [undefined, [NaN, 0, 1, 1] as const, [10, 0, 0, 0] as const]) {
     const fixture = createFixture(2);
     fixture.batch.add(createItem(1020, [1000, 0, 1020, 0]), { zIndex: 0, group: "connections" });
     fixture.batch.add(createItem(1030, bounds), { zIndex: 0, group: "connections" });
-    expect(fixture.render(viewport(0, 100))).toEqual([[1020, 1030]]);
+    // The bounded item is culled with its cell; the unbounded one is always drawn.
+    expect(fixture.render(viewport(0, 100))).toEqual([[1030]]);
   }
   batch.add(known, { zIndex: 0, group: "connections" });
   expect(render(viewport(0, 100))).toEqual([]);
@@ -148,19 +148,19 @@ test("update moves an item between groups and z-levels, and deleting it removes 
   expect(render()).toEqual([[20, 10]]);
 });
 
-test("afterRender runs only for items in the viewport, by their bounds or, without bounds, by their own report", () => {
+test("afterRender runs only for items in the viewport, by their own report or by their bounds", () => {
   const { batch, render } = createFixture();
   const inside = { ...createItem(10, [0, 0, 10, 0]), afterRender: jest.fn() };
   const outside = { ...createItem(20, [500, 0, 520, 0]), afterRender: jest.fn() };
-  const reportsOut = { ...createItem(30), afterRender: jest.fn(), isInViewport: () => false };
-  const reportsIn = { ...createItem(40), afterRender: jest.fn(), isInViewport: () => true };
+  const reportsOut = { ...createItem(30, [0, 0, 30, 0]), afterRender: jest.fn(), isInViewport: () => false };
+  const reportsIn = { ...createItem(40, [900, 0, 940, 0]), afterRender: jest.fn(), isInViewport: () => true };
   const unknown = { ...createItem(50), afterRender: jest.fn() };
   for (const item of [inside, outside, reportsOut, reportsIn, unknown]) {
     batch.add(item, { zIndex: 0, group: "connections" });
   }
 
-  // One chunk, drawn because some of its items are inside the viewport.
-  expect(render(viewport(0, 100))).toEqual([[10, 20, 30, 40, 50]]);
+  // Items without bounds are drawn first in their own chunk; the others share one cell's chunk.
+  expect(render(viewport(0, 100))).toEqual([[50], [10, 20, 30, 40]]);
   expect(inside.afterRender).toHaveBeenCalledTimes(1);
   expect(outside.afterRender).not.toHaveBeenCalled();
   expect(reportsOut.afterRender).not.toHaveBeenCalled();
@@ -169,79 +169,38 @@ test("afterRender runs only for items in the viewport, by their bounds or, witho
   expect(unknown.afterRender).toHaveBeenCalledTimes(1);
 });
 
-test("afterRender runs only for items that report content, cached until the item is marked dirty", () => {
-  const { batch, ctx } = createFixture();
-  const shown = { ...createItem(10, [0, 0, 10, 0]), afterRender: jest.fn(), needsAfterRender: jest.fn(() => true) };
-  const hidden = { ...createItem(20, [0, 0, 20, 0]), afterRender: jest.fn(), needsAfterRender: jest.fn(() => false) };
-  const plain = { ...createItem(30, [0, 0, 30, 0]), afterRender: jest.fn() };
-  for (const item of [shown, hidden, plain]) batch.add(item, { zIndex: 0, group: "connections" });
+test("splits a group by cell and draws only cells whose chunks reach the viewport", () => {
+  const { batch, render } = createFixture(100, 1000);
+  for (const end of [10, 20]) batch.add(createItem(end, [0, 0, end, 0]), { zIndex: 0, group: "connections" });
+  for (const end of [2010, 2020]) {
+    batch.add(createItem(end, [2000, 0, end, 0]), { zIndex: 0, group: "connections" });
+  }
+  // A long line starting in the first cell reaches the third.
+  batch.add(createItem(2500, [5, 0, 2500, 0]), { zIndex: 0, group: "connections" });
 
-  batch.render(ctx, viewport(0, 100));
-  batch.render(ctx, viewport(0, 100));
-  expect(shown.afterRender).toHaveBeenCalledTimes(2);
-  expect(hidden.afterRender).not.toHaveBeenCalled();
-  expect(plain.afterRender).toHaveBeenCalledTimes(2);
-  expect(hidden.needsAfterRender).toHaveBeenCalledTimes(1);
-
-  hidden.needsAfterRender.mockReturnValue(true);
-  batch.markBoundsDirty(hidden);
-  batch.render(ctx, viewport(0, 100));
-  expect(hidden.afterRender).toHaveBeenCalledTimes(1);
-  expect(shown.afterRender).toHaveBeenCalledTimes(3);
-
-  shown.needsAfterRender.mockReturnValue(false);
-  batch.markDirty(shown);
-  batch.render(ctx, viewport(0, 100));
-  expect(shown.afterRender).toHaveBeenCalledTimes(3);
+  expect(render()).toEqual([
+    [10, 20, 2500],
+    [2010, 2020],
+  ]);
+  expect(render(viewport(2400, 2600))).toEqual([[10, 20, 2500]]);
+  expect(render(viewport(2005, 2015))).toEqual([
+    [10, 20, 2500],
+    [2010, 2020],
+  ]);
 });
 
-describe("after-render rectangle", () => {
-  const lineViewport = viewport(0, 1000);
+test("moves an item between cells when its bounds change and rebuilds both chunks", () => {
+  const { batch, render } = createFixture(100, 1000);
+  const moving = createItem(10, [0, 0, 10, 0]);
+  const near = createItem(20, [0, 0, 20, 0]);
+  const far = createItem(2010, [2000, 0, 2010, 0]);
+  for (const item of [moving, near, far]) batch.add(item, { zIndex: 0, group: "connections" });
+  render();
 
-  test("culls items with valid bounds by their bounds, without asking isInViewport", () => {
-    const { batch, render } = createFixture();
-    const isInViewport = jest.fn(() => false);
-    const inside = { ...createItem(10, [0, 0, 10, 0]), afterRender: jest.fn(), isInViewport };
-    const outside = { ...createItem(20, [500, 0, 520, 0]), afterRender: jest.fn(), isInViewport: jest.fn(() => true) };
-    for (const item of [inside, outside]) batch.add(item, { zIndex: 0, group: "connections" });
-
-    render(lineViewport, viewport(0, 100));
-    expect(inside.afterRender).toHaveBeenCalledTimes(1);
-    expect(outside.afterRender).not.toHaveBeenCalled();
-    expect(isInViewport).not.toHaveBeenCalled();
-    expect(outside.isInViewport).not.toHaveBeenCalled();
-  });
-
-  test("null skips after-render content while lines are still stroked", () => {
-    const { batch, render } = createFixture();
-    const item = { ...createItem(10, [0, 0, 10, 0]), afterRender: jest.fn() };
-    batch.add(item, { zIndex: 0, group: "connections" });
-
-    expect(render(lineViewport, null)).toEqual([[10]]);
-    expect(item.afterRender).not.toHaveBeenCalled();
-  });
-
-  test("without a rectangle isInViewport decides", () => {
-    const { batch, render } = createFixture();
-    const reportsOut = { ...createItem(10, [0, 0, 10, 0]), afterRender: jest.fn(), isInViewport: () => false };
-    const reportsIn = { ...createItem(20, [900, 0, 920, 0]), afterRender: jest.fn(), isInViewport: () => true };
-    for (const item of [reportsOut, reportsIn]) batch.add(item, { zIndex: 0, group: "connections" });
-
-    render();
-    expect(reportsOut.afterRender).not.toHaveBeenCalled();
-    expect(reportsIn.afterRender).toHaveBeenCalledTimes(1);
-  });
-
-  test("an item without valid bounds uses isInViewport even with a rectangle", () => {
-    const { batch, render } = createFixture();
-    const reportsOut = { ...createItem(10), afterRender: jest.fn(), isInViewport: () => false };
-    const reportsIn = { ...createItem(20), afterRender: jest.fn(), isInViewport: () => true };
-    const plain = { ...createItem(30), afterRender: jest.fn() };
-    for (const item of [reportsOut, reportsIn, plain]) batch.add(item, { zIndex: 0, group: "connections" });
-
-    render(lineViewport, viewport(0, 100));
-    expect(reportsOut.afterRender).not.toHaveBeenCalled();
-    expect(reportsIn.afterRender).toHaveBeenCalledTimes(1);
-    expect(plain.afterRender).toHaveBeenCalledTimes(1);
-  });
+  moving.state.end = 2030;
+  moving.state.bounds = [2000, 0, 2030, 0];
+  batch.markDirty(moving);
+  expect(render()).toEqual([[20], [2010, 2030]]);
+  expect(render(viewport(0, 100))).toEqual([[20]]);
+  expect([moving, near, far].map((item) => item.getPath.mock.calls.length)).toEqual([2, 2, 2]);
 });

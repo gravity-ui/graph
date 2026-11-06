@@ -273,16 +273,6 @@ export class BlockConnection<T extends TConnection>
     }
   }
 
-  /**
-   * The batch calls `afterRender` only while this returns true: always for a subclass that overrides `afterRender`,
-   * otherwise while the standard label is shown (a label, labels enabled, zoom at or above the label threshold). Label
-   * and setting changes reach the batch through `applyShape()`, zoom changes through `markBoundsDirty()`.
-   */
-  public needsAfterRender(): boolean {
-    if (this.afterRender !== BlockConnection.prototype.afterRender) return true;
-    return Boolean(this.state.label && this.props.showConnectionLabels && this.context.connectionLabelFontSize.peek());
-  }
-
   protected override propsChanged(nextProps: TConnectionProps) {
     super.propsChanged(nextProps);
     this.applyShape(this.state, nextProps);
