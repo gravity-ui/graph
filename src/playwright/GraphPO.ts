@@ -213,24 +213,28 @@ export class GraphPO {
         throw new Error("Graph root is not visible.");
       }
 
+      // hover() takes the position relative to the padding box, as the graph lays out its canvas,
+      // while boundingBox() includes the border of the root
+      const border = await root.evaluate((element) => ({ left: element.clientLeft, top: element.clientTop }));
+      const origin = { x: bounds.x + border.left, y: bounds.y + border.top };
+
       await this.page.mouse.down({ button });
       pointerDown = true;
 
       const fromViewport = {
-        x: bounds.x + fromPosition.x,
-        y: bounds.y + fromPosition.y,
+        x: origin.x + fromPosition.x,
+        y: origin.y + fromPosition.y,
       };
       if (dragThreshold > 0) {
+        // Cross the drag threshold first, so a drag shorter than the threshold is not a click
         const activationDistance = dragThreshold + 1;
         const activationDirection = fromPosition.x + activationDistance <= bounds.width ? 1 : -1;
         await this.page.mouse.move(fromViewport.x + activationDirection * activationDistance, fromViewport.y);
       }
-      // The graph starts a drag on a mousemove rather than on mousedown. Move
-      // back to the source point so the drag origin matches `from` even when a
-      // non-zero drag threshold is configured.
+      // The drag is measured from the press, so `from` follows the cursor back to the source point
       await this.page.mouse.move(fromViewport.x, fromViewport.y);
       await this.waitForFrames(1);
-      await this.page.mouse.move(bounds.x + toPosition.x, bounds.y + toPosition.y, {
+      await this.page.mouse.move(origin.x + toPosition.x, origin.y + toPosition.y, {
         steps,
       });
       await this.waitForFrames(1);

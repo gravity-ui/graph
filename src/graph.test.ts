@@ -175,6 +175,17 @@ describe("camera pan on the graph mousedown", () => {
     expect(event.defaultPrevented).toBe(true);
   });
 
+  it("measures the pan threshold from the press and pans from there", () => {
+    graph.updateSettings({ dragThreshold: 5 });
+    const before = { ...graph.cameraService.getCameraState() };
+
+    graph.emit("mousedown", { target: block, sourceEvent: new MouseEvent("mousedown", { clientX: 0, clientY: 0 }) });
+    document.dispatchEvent(new MouseEvent("mousemove", { clientX: 5, clientY: 0 }));
+    document.dispatchEvent(new MouseEvent("mouseup", { clientX: 5, clientY: 0 }));
+
+    expect(graph.cameraService.getCameraState()).toMatchObject({ x: before.x + 5, y: before.y });
+  });
+
   // https://github.com/gravity-ui/graph/issues/405: layers subscribe after the camera is created.
   // A non-capture listener: jsdom runs capture listeners first, so only a plain one reproduces the old order.
   it.each(["preventDefault", "preventGraphEventDefault"] as const)(

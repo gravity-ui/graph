@@ -104,12 +104,15 @@ export class SelectionLayer extends Layer<
       if (isGraphEvent(nativeEvent)) {
         nativeEvent.stopGraphEventPropagation();
       }
-      this.context.graph.dragService.startDrag({
-        onStart: this.startSelectionRender,
-        onUpdate: this.updateSelectionRender,
-        onEnd: this.endSelectionRender,
-        onCancel: this.cancelSelectionRender,
-      });
+      this.context.graph.dragService.startDrag(
+        {
+          onStart: this.startSelectionRender,
+          onUpdate: this.updateSelectionRender,
+          onEnd: this.endSelectionRender,
+          onCancel: this.cancelSelectionRender,
+        },
+        { initialEvent: event }
+      );
     }
   };
 

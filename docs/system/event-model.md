@@ -113,7 +113,7 @@ Areas are cleared and rebuilt on every render cycle (`willRender`), so they alwa
 
 ### How a click on an element works (step by step)
 
-Scenario for a typical left‑click where press and release occur nearly at the same spot:
+Scenario for a typical left‑click where press and release occur nearly at the same spot (closer than `dragThreshold`):
 
 1. `mousedown` (capturing):
    - `GraphLayer` sets `pointerPressed = true`.
@@ -123,8 +123,9 @@ Scenario for a typical left‑click where press and release occur nearly at the 
 2. `mouseup` (capturing):
    - `GraphLayer` sets `pointerPressed = false`.
    - Verifies that:
-     - Current target equals the start target OR both are `BlockConnection` (connections can be very close), and
-     - Pointer delta `getEventDelta(pointerStartEvent, mouseup) < 3`.
+     - Current target equals the start target OR both are `BlockConnection` (connections can be very close),
+     - The press has not started a drag (see [Click or drag](#click-or-drag)), and
+     - The pointer is closer to the press than `dragThreshold`, in a straight line.
    - If satisfied, marks `canEmulateClick = true`.
    - Proxies `mouseup` to the target.
 3. `click` (bubbling):
@@ -141,8 +142,19 @@ Down (capture)    Up (capture)            Click (bubble)
    v                 v                        v
   mark start ----> mark canEmulateClick? --> deliver synthetic click
       \________ same target OR both BlockConnection _______/
-                 AND getEventDelta(start, up) < 3
+                 AND no drag started AND distance(start, up) < dragThreshold
 ```
+
+#### Click or drag
+
+A press is either a click or a drag, with one threshold: the `dragThreshold` setting (default: 5 px), measured in a straight line from the press.
+
+- A drag starts once the pointer is `dragThreshold` pixels or more away from the press. Component drags, the camera pan, `GraphComponent.onDrag()` and the operations of `ConnectionLayer`, `PortConnectionLayer`, `NewBlockLayer` and `SelectionLayer` measure the threshold from their `mousedown` (`initialEvent` of `dragListener` and `dragService.startDrag`).
+- When a `dragListener` created with the `graph` option starts a drag, it tells `GraphLayer` (`handlePointerDragStart`), and that press is not a click, even if the pointer comes back to where it was pressed. Every built-in drag does so.
+- A press that has not started a drag and is released closer than `dragThreshold` to where it was pressed is a click.
+- With `dragThreshold: 0`, any movement starts a drag and only a press released where it was pressed is a click. A `mousemove` that does not move the pointer does not start a drag.
+
+`dragListener` and `GraphLayer` decide with the same function, `isDragThresholdExceeded`. A press can still be neither a click nor a drag when a drag uses its own `threshold` larger than `dragThreshold`, when it is started without `initialEvent` (the threshold is then measured from the first `mousemove`), or when the pointer moves onto another component before reaching the threshold.
 
 ### Impact of layers with `pointer-events` ≠ `none`
 
@@ -185,7 +197,7 @@ Before delegating a DOM event into components, `GraphLayer` emits a graph event 
 ### TL;DR
 
 - Capture only `mousedown/touchstart` and `mouseup/touchend` to ensure gesture boundaries and consistent state.
-- Click is emulated and delivered to the start target (`pointerStartTarget`) if pointer drift is small.
+- Click is emulated and delivered to the start target (`pointerStartTarget`) if the press has not started a drag and the pointer stayed closer than `dragThreshold` to the press.
 - `Graph.emit` can prevent further delegation into components via `preventDefault()`.
 - Top layers with `pointer-events: auto` can swallow `click/dblclick/contextmenu`; avoid unconditional `stopPropagation` or allow events to reach the graph `root`.
 

@@ -109,7 +109,7 @@ describe("DragService cancellation", () => {
 
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onCancel.mock.calls[0][0]).toMatchObject({
-      startCoords: world(graph, 10, 10),
+      startCoords: world(graph, 0, 0),
       currentCoords: world(graph, 20, 30),
       components: [component],
     });
@@ -653,5 +653,39 @@ describe("DragService cancellation through an anchor", () => {
       graph.stop();
       graph.unmount();
     }
+  });
+});
+
+describe("DragService drag threshold", () => {
+  let graph: Graph;
+
+  beforeEach(() => {
+    graph = new Graph({ settings: { canDrag: ECanDrag.ALL, dragThreshold: 5 } }, document.createElement("div"));
+  });
+
+  afterEach(() => {
+    document.dispatchEvent(mouse("mouseup", 0, 0));
+    graph.detach();
+  });
+
+  it("measures the threshold of a component drag from the press and starts the drag there", () => {
+    const component = new DraggableComponent({}, graph.getGraphLayer());
+    const onStart = jest.spyOn(component, "handleDragStart");
+
+    press(graph, component, 0, 0);
+    move(5, 0);
+
+    expect(onStart).toHaveBeenCalledTimes(1);
+    expect(onStart.mock.calls[0][0].startCoords).toEqual(world(graph, 0, 0));
+  });
+
+  it("measures the threshold of startDrag from initialEvent and starts the operation there", () => {
+    const onStart = jest.fn();
+    graph.dragService.startDrag({ onStart }, { initialEvent: mouse("mousedown", 0, 0) });
+
+    move(5, 0);
+
+    expect(onStart).toHaveBeenCalledTimes(1);
+    expect(onStart.mock.calls[0][1]).toEqual(world(graph, 0, 0));
   });
 });

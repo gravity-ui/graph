@@ -36,6 +36,24 @@ export function getEventDelta(e1: TouchEvent | MouseEvent, e2: TouchEvent | Mous
   return Math.abs(getCoord(e1, "x") - getCoord(e2, "x")) + Math.abs(getCoord(e1, "y") - getCoord(e2, "y"));
 }
 
+/**
+ * Whether the pointer has moved far enough from the press to start a drag: by `threshold` pixels or more
+ * in a straight line, and at all when the threshold is 0.
+ * dragListener starts a drag by this rule and GraphLayer emulates a click only when it does not hold,
+ * so a press is either a drag or a click.
+ */
+export function isDragThresholdExceeded(
+  start: TouchEvent | MouseEvent,
+  current: TouchEvent | MouseEvent,
+  threshold: number
+): boolean {
+  const distance = Math.hypot(
+    getCoord(current, "x") - getCoord(start, "x"),
+    getCoord(current, "y") - getCoord(start, "y")
+  );
+  return distance > 0 && distance >= threshold;
+}
+
 export function isMetaKeyEvent(event: MouseEvent | KeyboardEvent): boolean {
   return event.metaKey || event.ctrlKey;
 }

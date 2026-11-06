@@ -277,7 +277,7 @@ class MyDraggableComponent extends GraphComponent {
 | Property | Type | Description |
 |----------|------|-------------|
 | `sourceEvent` | `MouseEvent` | The native mouse event |
-| `startCoords` | `[number, number]` | World coordinates when drag started |
+| `startCoords` | `[number, number]` | World coordinates of the press that started the drag |
 | `prevCoords` | `[number, number]` | World coordinates from previous frame |
 | `currentCoords` | `[number, number]` | Current world coordinates |
 | `components` | `GraphComponent[]` | All components participating in this drag |

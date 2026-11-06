@@ -273,6 +273,7 @@ export class GraphComponent<
           component: this,
           autopanning: autopanning ?? true,
           cursor: dragCursor ?? "grabbing",
+          initialEvent: event,
         }
       );
     });

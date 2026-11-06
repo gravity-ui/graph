@@ -197,7 +197,7 @@ The `DragDiff` object provides coordinate information during drag:
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `startCoords` | `[number, number]` | World coordinates when drag started |
+| `startCoords` | `[number, number]` | World coordinates of the press that started the drag |
 | `prevCoords` | `[number, number]` | World coordinates from previous frame |
 | `currentCoords` | `[number, number]` | Current world coordinates |
 | `diffX` | `number` | Absolute X displacement from start (`currentCoords[0] - startCoords[0]`) |
@@ -228,7 +228,7 @@ The `DragContext` object provides additional information about the drag operatio
 | Property | Type | Description |
 |----------|------|-------------|
 | `sourceEvent` | `MouseEvent` | The native mouse event |
-| `startCoords` | `[number, number]` | World coordinates when drag started |
+| `startCoords` | `[number, number]` | World coordinates of the press that started the drag |
 | `prevCoords` | `[number, number]` | World coordinates from previous frame |
 | `currentCoords` | `[number, number]` | Current world coordinates |
 | `components` | `GraphComponent[]` | All components participating in this drag |
@@ -351,6 +351,14 @@ The DragService integrates with the SelectionService:
 // - Click and drag block A → A, B, C all move
 // - Click and drag block D (not selected) → Only D moves
 ```
+
+### Drag Threshold
+
+A drag starts once the pointer is `dragThreshold` pixels (a graph setting, default: 5) away from the press, in a straight line. Component drags, the camera pan, `GraphComponent.onDrag()` and the operations of `ConnectionLayer`, `PortConnectionLayer`, `NewBlockLayer` and `SelectionLayer` all measure it from the `mousedown`.
+
+A press is either a drag or a click. A press released closer than `dragThreshold` to where it started is a click, and a press that has started a drag is not a click, even if the pointer comes back. With `dragThreshold: 0`, any movement starts a drag and only a press released where it started is a click. See [Event Model — Click or drag](./event-model.md#click-or-drag).
+
+The drag is measured from the press as well: `startCoords` is the point pressed, so a dragged component keeps that point under the cursor. When the drag starts, the first `handleDrag()` call already moves the component by the distance the pointer has covered.
 
 ### Autopanning
 
@@ -550,11 +558,15 @@ type DragOperationOptions = {
   component?: GraphComponent;        // Captures the graph's pointer events during drag
   autopanning?: boolean;             // Enable edge autopanning (default: true)
   stopOnMouseLeave?: boolean;        // Stop drag on mouse leave
+  threshold?: number;                // Distance to move before the drag starts (default: dragThreshold)
+  initialEvent?: MouseEvent;         // The press: the threshold and the onStart coordinates are measured from it
 };
 
 // Usage
 graph.dragService.startDrag(callbacks, options);
 ```
+
+Pass the `mousedown` that starts the operation as `initialEvent`, as the built-in layers do: the threshold is then measured from the press, and `onStart` receives the coordinates of the press. Without it the threshold is measured from the first `mousemove`, so a press released just past `dragThreshold` can end up neither a drag nor a click (see [Drag Threshold](#drag-threshold)).
 
 Pass `component` to keep that component the target of the graph's pointer events while the drag runs (`GraphLayer.captureEvents()`): the hover moves to it when the drag starts (the component hovered before gets `mouseleave`) and stays on it, so no other component gets `mouseenter` until the drag ends, and the mouseup is dispatched to it. The capture is released when the drag ends or is cancelled. `GraphComponent.onDrag()` passes the component itself; its `onDragCancel` option is called on cancellation and defaults to `onDrop`.
 
