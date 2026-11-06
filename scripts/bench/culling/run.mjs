@@ -37,6 +37,9 @@ const repeats = Number(option("repeats", 3));
 const steps = Number(option("steps", 40));
 const noopCanvas = Boolean(option("noop", false));
 const shuffle = Boolean(option("shuffle", false));
+const chunkSize = option("chunk-size", undefined);
+const cellTiles = option("cell-tiles", undefined);
+const labels = Boolean(option("labels", false));
 const firstOnly = Boolean(option("first", false));
 const headed = Boolean(option("headed", false));
 const shotsDir = option("shots", undefined);
@@ -161,7 +164,9 @@ const browser = await chromium.launch({
   ignoreDefaultArgs: ["--enable-unsafe-swiftshader"],
 });
 
-console.log(`repeats=${repeats} steps=${steps}${noopCanvas ? " noop-canvas" : ""}`);
+console.log(
+  `repeats=${repeats} steps=${steps}${noopCanvas ? " noop-canvas" : ""}${shuffle ? " shuffle" : ""}${labels ? " labels" : ""}${chunkSize ? ` chunk-size=${chunkSize}` : ""}${cellTiles ? ` cell-tiles=${cellTiles}` : ""}`
+);
 for (const scene of scenes) {
   for (const scale of firstOnly ? [0.01] : scales) {
     for (const view of views) {
@@ -181,6 +186,9 @@ for (const scene of scenes) {
             scale,
             noopCanvas,
             shuffle,
+            chunkSize: chunkSize && Number(chunkSize),
+            cellTiles: cellTiles && Number(cellTiles),
+            labels,
           });
           results[name].info = info;
           results[name].first.push(info.first[0] + (info.first[1] ?? 0));
@@ -201,6 +209,7 @@ for (const scene of scenes) {
                 fs.mkdirSync(shotsDir, { recursive: true });
                 fs.writeFileSync(path.join(shotsDir, `${scene}-${scale}-${view}-${name}.png`), shots[name]);
               }
+              results[name].draws = await page.evaluate((o) => window.bench.count(o), { scale });
             }
           }
           await context.close();
@@ -210,6 +219,7 @@ for (const scene of scenes) {
         const result = results[name];
         const columns = [`first two frames ${median(result.first).toFixed(0)} ms`];
         if (!firstOnly) for (const mode of modes) columns.push(`${mode} ${median(result[mode]).toFixed(2)} ms`);
+        if (result.draws) columns.push(`strokes ${result.draws.strokes} fills ${result.draws.fills}`);
         console.log(
           `${scene.padEnd(10)} scale=${String(scale).padEnd(5)} ${view.padEnd(4)} ${name.padEnd(10)}`,
           columns.join(" | ")
