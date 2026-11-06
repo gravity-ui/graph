@@ -955,7 +955,13 @@ paints them in z-order. Compared with v1:
 Three operations stay separate: `isRenderAllowed()` stops a component's own painting; `shouldRenderChildren = false`
 (or `false` from `prepareUpdate()`) stops walking its children; in a culled layer the value `iterate()` returns does not; a batch is
 drawn by the component that owns it (`BlockConnections`), so a traversal veto does not hide batched lines.
-`afterRender` hooks of batch items run only for items in the viewport.
+`afterRender` hooks of batch items run only for items in the viewport, and the label pass draws no labels while
+`BlockConnections` does not walk its children.
+
+`BlockConnection` labels are drawn in a separate pass after every connection line and arrow, so a label is never covered
+by another connection's line. `BlockConnection.afterRender` is removed: a subclass that replaced the label by overriding
+`afterRender` should override `renderLabelText()` instead; subclasses with their own `afterRender` still run after their
+chunk.
 
 Connection batches group items by grid cell instead of registration order (`connection.PATH2D_CHUNK_TILES`). Where
 two connections of one style overlap, the overlap may be composited twice instead of once, which changes those pixels
@@ -983,13 +989,15 @@ layer's paint order or culling index and never receives `iterate()`, `render()`,
 be detached too. A layer with viewport culling applies these updates after preparing its other components; a layer
 without culling applies them before the walk and right after their parent reconciles them.
 
-`BlockConnection` and its subclasses are detached: the `BlockConnections` batch draws their lines, arrows and labels,
-so unchanged connections cost a frame nothing. `BaseConnection` stays in the walk.
+`BlockConnection` and its subclasses are detached: the `BlockConnections` batch draws their lines and arrows and its
+label pass their labels, so unchanged connections cost a frame nothing. A connection keeps its label item current from
+its own updates (state, props, geometry and the label font size), never from per-frame hooks. `BaseConnection` stays
+in the walk.
 
 | Pattern in a `BlockConnection` subclass | v2 replacement |
 |---|---|
 | Draw in `render()`, `willRender()` or `didRender()`, or animate every frame | Declare `static detached = false`: the class is walked and culled again, and only it pays for that. Or extend `BaseConnection`. |
-| Draw extra content | `afterRender(ctx)`, which the batch runs after the connection's chunk for connections in the viewport. |
+| Draw extra content | Labels and badges: prepare their bounds in `updateLabelGeometry()` and draw in `renderLabelText()`, which the label pass calls for labels in the viewport. Other content: `afterRender(ctx)`, which the batch runs after the connection's chunk for connections in the viewport. |
 | Read external state in `willIterate()` every frame | Subscribe to it and call `setState()`, or `updateGeometry()` for geometry inputs. |
 | Hide an overlay in `viewportChanged()` | Not called for detached components: check `isInViewport()` where you draw, or declare `static detached = false`. |
 | Read `connectionPoints`, `getBBox()` or `getPath()` right after moving a block or port | Endpoint moves are applied once per frame, before painting: read after the next frame, or call `updateGeometry()` first. The connection's hit box follows its geometry from the next frame too. |

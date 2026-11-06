@@ -53,9 +53,8 @@ class ExternalGeometryConnection extends BlockConnection<TConnection> {
     this.applyShape();
   }
 
-  public override afterRender(ctx: CanvasRenderingContext2D): void {
+  public afterRender(_ctx: CanvasRenderingContext2D): void {
     this.afterRenders++;
-    super.afterRender?.(ctx);
   }
 }
 

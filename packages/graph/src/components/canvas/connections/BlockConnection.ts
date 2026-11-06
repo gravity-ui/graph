@@ -11,6 +11,8 @@ import { ConnectionArrow } from "./Arrow";
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "./BaseConnection";
 import { Path2DRenderInstance, Path2DRenderStyleResult, TPathBounds } from "./BatchPath2D";
 import { BlockConnections, TGraphConnectionsContext } from "./BlockConnections";
+import { ConnectionLabel } from "./Label";
+import type { IConnectionLabelOwner } from "./Label";
 import {
   bezierCurveLine,
   generateBezierParams,
@@ -37,11 +39,12 @@ export type TBlockConnection = {
 
 export class BlockConnection<T extends TConnection>
   extends BaseConnection<TConnectionProps, TBaseConnectionState, TGraphConnectionsContext, T>
-  implements Path2DRenderInstance
+  implements Path2DRenderInstance, IConnectionLabelOwner
 {
   /**
-   * Connections are detached: the batch draws their lines, arrows and labels, so the frame does not walk them. A
-   * subclass that draws in `render()` or relies on other per-frame hooks declares `static detached = false`.
+   * Connections are detached: the batch draws their lines and arrows and the label pass their labels, so the frame
+   * does not walk them. A subclass that draws in `render()` or relies on other per-frame hooks declares
+   * `static detached = false`.
    */
   public static override readonly detached: boolean = true;
 
@@ -72,6 +75,12 @@ export class BlockConnection<T extends TConnection>
    */
   protected arrowShape = new ConnectionArrow(this);
 
+  /** The standard label as an item of the layer's label pass. */
+  protected labelShape = new ConnectionLabel(this);
+
+  /** World rectangle of `labelGeometry` from the last bounds update. */
+  private labelWorldBounds: TPathBounds | undefined;
+
   /**
    * Creates a new BlockConnection instance.
    *
@@ -101,7 +110,7 @@ export class BlockConnection<T extends TConnection>
    * @param props - The connection properties, used to check showConnectionArrows setting
    */
   protected applyShape(state: TBaseConnectionState = this.state, props: TConnectionProps = this.props) {
-    const zIndex = state.selected || state.hovered ? this.zIndex + 10 : this.zIndex;
+    const zIndex = this.getBatchZIndex(state);
     const group = this.getClassName(state);
 
     this.context.batch.update(this, { zIndex, group });
@@ -111,6 +120,28 @@ export class BlockConnection<T extends TConnection>
     } else {
       this.context.batch.delete(this.arrowShape);
     }
+    this.syncLabel(zIndex);
+  }
+
+  /** Batch z-level: selected and hovered connections are drawn above the others. */
+  private getBatchZIndex(state: TBaseConnectionState = this.state): number {
+    return state.selected || state.hovered ? this.zIndex + 10 : this.zIndex;
+  }
+
+  /** Keeps the label pass in step with the label's bounds, visibility and z-level. */
+  private syncLabel(zIndex: number = this.getBatchZIndex()): void {
+    if (this.labelWorldBounds) this.context.labels.update(this.labelShape, zIndex);
+    else this.context.labels.delete(this.labelShape);
+  }
+
+  /** World rectangle of the label, including decorations prepared in `updateLabelGeometry()`. */
+  public getLabelBounds(): TPathBounds | undefined {
+    return this.labelWorldBounds;
+  }
+
+  /** Called by the label pass for a label in the viewport. */
+  public renderLabel(ctx: CanvasRenderingContext2D): void {
+    this.renderLabelText(ctx);
   }
 
   protected override willMount(): void {
@@ -263,16 +294,6 @@ export class BlockConnection<T extends TConnection>
     }
   }
 
-  public afterRender?(ctx: CanvasRenderingContext2D): void {
-    const cameraClose =
-      this.context.camera.getCameraScale() >= this.context.constants.connection.MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL;
-
-    // The batch calls this only while the connection is in the viewport.
-    if (this.state.label && this.props.showConnectionLabels && cameraClose) {
-      this.renderLabelText(ctx);
-    }
-  }
-
   protected override propsChanged(nextProps: TConnectionProps) {
     super.propsChanged(nextProps);
     this.applyShape(this.state, nextProps);
@@ -378,12 +399,16 @@ export class BlockConnection<T extends TConnection>
       }
       this.paintBounds = [minX, minY, maxX, maxY];
       this.setCullingBounds(minX, minY, maxX, maxY);
+      const label = this.labelGeometry;
+      this.labelWorldBounds = label ? [label.x, label.y, label.x + label.width, label.y + label.height] : undefined;
     } else {
       this.paintBounds = undefined;
+      this.labelWorldBounds = undefined;
     }
     // Chunks cache the union of their items' bounds.
     this.context.batch.markBoundsDirty(this);
     this.context.batch.markBoundsDirty(this.arrowShape);
+    this.syncLabel();
   }
 
   protected override handleEvent(event: MouseEvent) {
@@ -509,5 +534,6 @@ export class BlockConnection<T extends TConnection>
     super.unmount();
     this.context.batch.delete(this);
     this.context.batch.delete(this.arrowShape);
+    this.context.labels.delete(this.labelShape);
   }
 }

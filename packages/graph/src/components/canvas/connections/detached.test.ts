@@ -234,9 +234,8 @@ describe("detached connection components", () => {
     class Observed extends CountingConnection {
       public calls = 0;
 
-      public override afterRender(ctx: CanvasRenderingContext2D): void {
+      public afterRender(_ctx: CanvasRenderingContext2D): void {
         this.calls++;
-        super.afterRender?.(ctx);
       }
     }
     mountPorts(Observed, [{ id: "plain" }]);
