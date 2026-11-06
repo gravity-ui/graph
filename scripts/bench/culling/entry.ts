@@ -1,9 +1,26 @@
 // Browser side of the culling benchmark. Bundled once per variant with `GRAPH` aliased to that
 // variant's packages/graph/src/index.ts, so every variant runs the same scenes and measurement.
-import { CanvasBlock, ECanDrag, EAnchorType, Graph } from "GRAPH";
+import * as GRAPH from "GRAPH";
+import { BlockConnection, CanvasBlock, ECanDrag, EAnchorType, Graph } from "GRAPH";
 
 type TBlockData = Record<string, unknown> & { x: number; y: number; width: number; height: number };
 type TScene = { blocks: TBlockData[]; connections: Array<Record<string, unknown>> };
+
+/** Main-thread work of WebGL connection drawing, accumulated since the last reset. */
+type TGLStats = {
+  drawMs: number;
+  draws: number;
+  drawCalls: number;
+  instances: number;
+  vertices: number;
+  items?: number;
+};
+
+/** WebGL connections stats; older variants do not export them. */
+const glStats = GRAPH as unknown as {
+  getWebGLConnectionsStats?: () => TGLStats;
+  resetWebGLConnectionsStats?: () => void;
+};
 
 /** Internals the benchmark reads; they are not part of the public API. */
 type TLayerInternals = {
@@ -166,9 +183,51 @@ function nirvana(): TScene {
   return { blocks, connections };
 }
 
+type TStroke = { color: string; width: number; dash?: { pattern: readonly number[]; speed?: number } };
+interface IConnectionBase {
+  props: { id: string };
+  getStroke(state?: unknown): TStroke;
+}
+const ConnectionBase = BlockConnection as unknown as new (...args: unknown[]) => IConnectionBase;
+
+const PALETTE = ["#e15759", "#4e79a7", "#59a14f", "#f28e2b", "#b07aa1", "#76b7b2"];
+
+function hash(text: string): number {
+  let value = 0;
+  for (let i = 0; i < text.length; i++) value = (value * 31 + text.charCodeAt(i)) | 0;
+  return Math.abs(value);
+}
+
+/** Connection classes for `--effect`; variants without getStroke() draw them like default connections. */
+function effectConnection(effect: "none" | "dash" | "static-dash" | "style" | undefined): unknown {
+  if (effect === "dash" || effect === "static-dash") {
+    // The same pattern; `dash` runs it at 40 world units per second, `static-dash` keeps it still.
+    const dash = effect === "dash" ? { pattern: [12, 8], speed: 40 } : { pattern: [12, 8] };
+    return class extends ConnectionBase {
+      public getStroke(state?: unknown): TStroke {
+        return { ...super.getStroke(state), dash };
+      }
+    };
+  }
+  if (effect === "style") {
+    return class extends ConnectionBase {
+      public getStroke(state?: unknown): TStroke {
+        const key = hash(String(this.props.id));
+        return { ...super.getStroke(state), color: PALETTE[key % PALETTE.length], width: 1 + (key % 4) };
+      }
+    };
+  }
+  return undefined;
+}
+
 const raf = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
 
-const state: { graph?: Graph; samples: number[]; center: { x: number; y: number } } = {
+const state: {
+  graph?: Graph;
+  samples: number[];
+  center: { x: number; y: number };
+  dragBlock?: { id: string; x: number; y: number };
+} = {
   samples: [],
   center: { x: 0, y: 0 },
 };
@@ -184,8 +243,10 @@ function centerAt(scale: number): void {
   });
 }
 
-async function waitForUpdate(previous: number): Promise<void> {
+/** Waits up to 20 frames for a graph-layer update; returns false when none arrived. */
+async function waitForUpdate(previous: number): Promise<boolean> {
   for (let i = 0; i < 20 && state.samples.length === previous; i++) await raf();
+  return state.samples.length !== previous;
 }
 
 /** Mounts a scene in a `width`x`height` viewport and returns the duration of its first GraphLayer updates. */
@@ -199,6 +260,8 @@ async function setup(options: {
   chunkSize?: number;
   cellTiles?: number;
   labels?: boolean;
+  renderer?: "canvas" | "webgl";
+  effect?: "none" | "dash" | "static-dash" | "style";
 }) {
   if (options.noopCanvas) {
     const proto = CanvasRenderingContext2D.prototype as unknown as Record<string, unknown>;
@@ -223,9 +286,12 @@ async function setup(options: {
     options.scene === "nirvana"
       ? { useBezierConnections: true, showConnectionArrows: true, useBlocksAnchors: true }
       : { useBezierConnections: false, showConnectionArrows: false, useBlocksAnchors: true };
+  const connection = effectConnection(options.effect);
   const graph = new Graph(
     {
       settings: {
+        connectionsRenderer: options.renderer ?? "canvas",
+        ...(connection ? { connection } : {}),
         canDragCamera: true,
         canZoomCamera: true,
         canDrag: ECanDrag.ALL,
@@ -258,6 +324,25 @@ async function setup(options: {
   }
   state.center = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
 
+  // The block with the most connections is the one the drag mode moves.
+  const degree = new Map<string, number>();
+  for (const item of scene.connections) {
+    for (const key of ["sourceBlockId", "targetBlockId"]) {
+      const blockId = String(item[key]);
+      degree.set(blockId, (degree.get(blockId) ?? 0) + 1);
+    }
+  }
+  let dragBlock: TBlockData | undefined;
+  let best = -1;
+  for (const block of scene.blocks) {
+    const value = degree.get(String(block.id)) ?? 0;
+    if (value > best) {
+      best = value;
+      dragBlock = block;
+    }
+  }
+  state.dragBlock = dragBlock && { id: String(dragBlock.id), x: dragBlock.x, y: dragBlock.y };
+
   const layer = graph.getGraphLayer() as unknown as TLayerInternals;
   const scheduler = layer.__comp.context.scheduler;
   const update = scheduler.update.bind(scheduler);
@@ -276,8 +361,17 @@ async function setup(options: {
   return { blocks: scene.blocks.length, connections: scene.connections.length, first };
 }
 
-/** Pans or zooms for `warmup + steps` frames and returns the GraphLayer update durations of the last `steps`. */
-async function run(options: { mode: "pan" | "zoom"; warmup: number; steps: number; scale: number }) {
+/**
+ * Runs `warmup + steps` frames and returns the GraphLayer update durations, the intervals between the frames of the
+ * last `steps` and, when the variant has them, the WebGL draw stats of those frames: WebGL also draws in its own
+ * animation loop, which the update durations do not include.
+ */
+async function run(options: {
+  mode: "pan" | "zoom" | "idle" | "drag";
+  warmup: number;
+  steps: number;
+  scale: number;
+}): Promise<{ samples: number[]; frames: number[]; gl?: TGLStats; timeouts: number }> {
   const graph = state.graph;
   if (!graph) throw new Error("setup() first");
   const camera = graph.cameraService;
@@ -295,21 +389,44 @@ async function run(options: { mode: "pan" | "zoom"; warmup: number; steps: numbe
   await raf();
   await raf();
   state.samples = [];
+  glStats.resetWebGLConnectionsStats?.();
   const base = camera.getCameraState().scale;
+  const stamps: number[] = [];
+  // Measured steps that waited the full 20 frames without a graph-layer update.
+  let timeouts = 0;
   for (let i = 0; i < options.warmup + options.steps; i++) {
     const previous = state.samples.length;
     if (options.mode === "pan") {
       const direction = Math.floor(i / 15) % 2 === 0 ? 1 : -1;
       camera.move(2 * direction, direction);
-    } else {
+    } else if (options.mode === "drag") {
+      if (state.dragBlock) {
+        const { id, x } = state.dragBlock;
+        graph.api.updateBlock({ id, x: x + (i % 2 ? 0 : 3) });
+      }
+    } else if (options.mode === "zoom") {
       const phase = i % 30;
       const { width, height } = camera.getCameraState();
       camera.zoom(width / 2, height / 2, base * (1 + 0.003 * (phase < 15 ? phase : 30 - phase)));
     }
-    await waitForUpdate(previous);
-    if (i === options.warmup - 1) state.samples = [];
+    if (options.mode === "idle") await raf();
+    else if (!(await waitForUpdate(previous)) && i >= options.warmup) timeouts++;
+    if (i === options.warmup - 1) {
+      state.samples = [];
+      glStats.resetWebGLConnectionsStats?.();
+    }
+    if (i >= options.warmup) stamps.push(performance.now());
   }
-  return state.samples.slice();
+  const samples = state.samples.slice();
+  const gl = glStats.getWebGLConnectionsStats?.();
+  if (options.mode === "drag" && state.dragBlock) {
+    // Put the block back so the next mode and the screenshot see the original scene.
+    const previous = state.samples.length;
+    graph.api.updateBlock({ id: state.dragBlock.id, x: state.dragBlock.x });
+    await waitForUpdate(previous);
+  }
+  const frames = stamps.slice(1).map((stamp, index) => stamp - stamps[index]);
+  return { samples, frames, gl, timeouts };
 }
 
 /** Moves back to the measured view and waits until it is painted, for screenshot comparison. */
