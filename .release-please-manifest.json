@@ -8,5 +8,6 @@
   "packages/graph-layered": "0.0.0",
   "packages/graph-playwright": "0.0.0",
   "packages/graph-css-variables": "0.0.0",
-  "packages/graph-connection-editing": "0.0.0"
+  "packages/graph-connection-editing": "0.0.0",
+  "packages/graph-uikit": "0.0.0"
 }

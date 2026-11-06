@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Graph uikit E2E Test</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+      #root {
+        width: 100vw;
+        height: 100vh;
+      }
+      /* A scoped ThemeProvider wraps the graph in a .g-root div that has no size of its own. */
+      #root .graph-wrapper,
+      #root > .g-root {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="/e2e/dist/graph-uikit.bundle.js"></script>
+    <script>
+      // One bundle holds core, React, uikit and the kit; shared helpers read core exports from GraphModule.
+      window.GraphModule = window.UikitModule;
+      window.graphLibraryLoaded = true;
+    </script>
+  </body>
+</html>

@@ -1,0 +1,44 @@
+.graph-uikit-toolbar {
+  display: inline-flex;
+  gap: var(--g-spacing-2);
+}
+
+.graph-uikit-toolbar_layout_vertical {
+  flex-direction: column;
+}
+
+.graph-uikit-toolbar_layout_horizontal {
+  flex-direction: row;
+}
+
+.graph-uikit-toolbar__group {
+  display: flex;
+  overflow: hidden;
+  border-radius: var(--g-border-radius-l);
+  background: var(--g-color-base-float);
+  box-shadow: 0 1px 5px var(--g-color-sfx-shadow);
+}
+
+.graph-uikit-toolbar_layout_vertical .graph-uikit-toolbar__group {
+  flex-direction: column;
+}
+
+.graph-uikit-toolbar_layout_vertical .graph-uikit-toolbar__group > * + * {
+  border-top: 1px solid var(--g-color-line-generic);
+}
+
+.graph-uikit-toolbar_layout_horizontal .graph-uikit-toolbar__group > * + * {
+  border-left: 1px solid var(--g-color-line-generic);
+}
+
+.graph-uikit-toolbar__button {
+  --g-button-border-radius: 0;
+
+  /*
+   * The group clips its children (overflow: hidden gives the card its rounded corners), and uikit draws the focus
+   * ring outside the button box (offset 0, or 1px for the action view), so it would be cut off. Draw it inside.
+   * The color is explicit because the action view defaults to the brand color, which is invisible on its own fill.
+   */
+  --g-button-focus-outline-offset: -2px;
+  --g-button-focus-outline-color: var(--g-color-line-focus);
+}

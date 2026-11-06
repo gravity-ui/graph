@@ -59,6 +59,27 @@ const reactBundle = esbuild
     process.exit(1);
   });
 
+const uikitBundle = esbuild
+  .build({
+    entryPoints: [path.join(__dirname, "uikit-entry.ts")],
+    bundle: true,
+    outfile: path.join(__dirname, "dist/graph-uikit.bundle.js"),
+    format: "iife",
+    globalName: "UikitModule",
+    platform: "browser",
+    target: ["es2020"],
+    sourcemap: true,
+    plugins: [cssPlugin],
+    jsx: "automatic",
+  })
+  .then(() => {
+    console.log("E2E uikit bundle created successfully with CSS");
+  })
+  .catch((err) => {
+    console.error("E2E uikit bundle failed:", err);
+    process.exit(1);
+  });
+
 const elkBundle = esbuild
   .build({
     entryPoints: [path.join(__dirname, "elk-entry.ts")],
@@ -80,4 +101,4 @@ const elkBundle = esbuild
     process.exit(1);
   });
 
-Promise.all([baseBundle, reactBundle, elkBundle]).catch(() => process.exit(1));
+Promise.all([baseBundle, reactBundle, uikitBundle, elkBundle]).catch(() => process.exit(1));
