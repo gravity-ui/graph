@@ -955,15 +955,34 @@ paints them in z-order. Compared with v1:
 Three operations stay separate: `isRenderAllowed()` stops a component's own painting; `shouldRenderChildren = false`
 (or `false` from `prepareUpdate()`) stops walking its children; in a culled layer the value `iterate()` returns does not; a batch is
 drawn by the component that owns it (`BlockConnections`), so a traversal veto does not hide batched lines.
-`afterRender` hooks of batch items run only for items whose bounds meet the owner's rectangle (the layer's culling viewport, or the camera's without culling).
+`afterRender` hooks of batch items run only for items in the viewport, and the label pass draws no labels while
+`BlockConnections` does not walk its children.
+
+`BlockConnection` labels are drawn in a separate pass after every connection line and arrow, so a label is never covered
+by another connection's line. `BlockConnection.afterRender` is removed: a subclass that replaced the label by overriding
+`afterRender` should override `renderLabelText()` instead; subclasses with their own `afterRender` still run after their
+chunk.
+
+`BaseConnection.bBox` of a `BlockConnection` no longer includes the standard label; `getBBox()` still does.
+
+Connection batches group items by grid cell instead of registration order (`connection.PATH2D_CHUNK_TILES`). Where
+two connections of one style overlap, the overlap may be composited twice instead of once, which changes those pixels
+for translucent colors and at anti-aliased crossings. `connection.PATH2D_CHUNK_SIZE` now defaults to 200 (it was 100).
+`BatchPath2DRenderer` is a `BatchScene`: its protected internals (`indexes`, `itemParams`, `getGroup`,
+`requestRender` and the `orderedPaths` cache) are removed; use `has()` to check registration.
+
+`TGraphConnectionsContext.labels` is required: a custom parent that hosts `BlockConnection` must provide a
+`ConnectionLabelRenderer`, as `BlockConnections` does. A subclass that declared `override afterRender` and called
+`super.afterRender?.()` must drop both, because the base method no longer exists (TS4113/TS2339).
 
 The minimap draws block bodies without names: it calls `renderMinimalisticBlock(ctx, { text: false })`. A
 custom block that overrides `renderMinimalisticBlock` or `renderSchematicView` follows this rule only if its
 override accepts `options` and passes them on (or checks `options?.text` itself); an override that takes only
 `ctx` decides on its own what the minimap shows.
 
-`viewportCulling: false` turns viewport culling off: every component is walked (detached components are never walked), a graph component paints when
-the camera sees its hit box, and connection batches draw every chunk. The lifecycle rules shared with culling
+`viewportCulling: false` turns viewport culling off: every component is walked (detached components are never walked), a
+graph component paints when the camera sees its hit box, connection batches draw every chunk and connection labels are
+drawn when the camera sees their rectangle. The lifecycle rules shared with culling
 still apply (an offscreen component is not painted on mount; visibility is decided after preparation), so the
 switch rules out spatial culling only.
 
@@ -978,20 +997,20 @@ layer's paint order or culling index and never receives `iterate()`, `render()`,
 be detached too. A layer with viewport culling applies these updates after preparing its other components; a layer
 without culling applies them before the walk and right after their parent reconciles them.
 
-`BlockConnection` and its subclasses are detached: the `BlockConnections` batch draws their lines, arrows and labels,
-so unchanged connections cost a frame nothing. `BaseConnection` stays in the walk.
+`BlockConnection` and its subclasses are detached: the `BlockConnections` batch draws their lines and arrows and its
+label pass their labels, so unchanged connections cost a frame nothing. A connection keeps its label item current from
+its own updates (state, props, geometry and the label font size), never from per-frame hooks. `BaseConnection` stays
+in the walk.
 
 | Pattern in a `BlockConnection` subclass | v2 replacement |
 |---|---|
 | Draw in `render()`, `willRender()` or `didRender()`, or animate every frame | Declare `static detached = false`: the class is walked and culled again, and only it pays for that. Or extend `BaseConnection`. |
-| Draw extra content | `afterRender(ctx)`, which the batch runs for connections in the viewport. An overridden `afterRender` runs for every such connection; override `needsAfterRender()` when it draws only sometimes. |
+| Draw extra content | Labels and badges: prepare their bounds in `updateLabelGeometry()` and draw in `renderLabelText()`, which the label pass calls for labels in the viewport. Other content: `afterRender(ctx)`, which the batch runs after the connection's chunk for connections in the viewport. |
 | Read external state in `willIterate()` every frame | Subscribe to it and call `setState()`, or `updateGeometry()` for geometry inputs. |
 | Hide an overlay in `viewportChanged()` | Not called for detached components: check `isInViewport()` where you draw, or declare `static detached = false`. |
 | Read `connectionPoints`, `getBBox()` or `getPath()` right after moving a block or port | Endpoint moves are applied once per frame, before painting: read after the next frame, or call `updateGeometry()` first. The connection's hit box follows its geometry from the next frame too. |
 
-`needsAfterRender()` is a contract: the batch calls `afterRender` for an item only while it returns true, and reads it when
-the item is marked dirty. An item whose answer changes must call `markDirty` on the batch (which also requests a render;
-`markBoundsDirty` does not request one). A detached component cannot cull: `setChildrenCulling` throws.
+A detached component cannot cull: `setChildrenCulling` throws.
 
 In development builds (`process.env.NODE_ENV !== "production"`) a detached class that defines one of these per-frame
 hooks logs one warning. A detached connection keeps its store order for hit testing, `isIterated()` is true while

@@ -32,9 +32,8 @@ class ObservedConnection extends BlockConnection<TConnection> {
     return super.styleArrow(ctx);
   }
 
-  public override afterRender(ctx: CanvasRenderingContext2D) {
+  public afterRender(_ctx: CanvasRenderingContext2D): void {
     this.draws.push("afterRender");
-    super.afterRender?.(ctx);
   }
 
   public labelBounds() {
@@ -88,7 +87,7 @@ describe("connection batch viewport visibility", () => {
 
   afterEach(() => graph?.unmount());
 
-  it("builds geometry once and skips the label of an offscreen connection in a drawn chunk", () => {
+  it("builds geometry once and skips the label of an offscreen connection", () => {
     mount([
       { id: "near", x: 100, y: 100, label: "near" },
       { id: "far", x: 50_000, y: 50_000, label: "far" },
@@ -105,6 +104,11 @@ describe("connection batch viewport visibility", () => {
       { id: "near", x: 100, y: 100 },
       { id: "far", x: 50_000, y: 50_000 },
     ]);
+    // Each connection has its own cell chunk: visit "far" once so both chunks are built before the check.
+    graph.cameraService.set({ x: -49_800, y: -49_800 });
+    frames(2);
+    graph.cameraService.set({ x: 0, y: 0 });
+    frames(2);
     view("near").draws = [];
     view("far").draws = [];
 
@@ -131,14 +135,31 @@ describe("connection batch viewport visibility", () => {
     [true, false],
     [false, true],
   ])("strokes a chunk outside the viewport only without culling (viewportCulling %s)", (culling, stroked) => {
-    // 150 connections make two chunks; the second lies far to the right of the viewport.
+    // Connections 9 and up lie in grid cells far to the right of the viewport; "9" opens the cell's chunk and so
+    // supplies its style.
     mount(Array.from({ length: 150 }, (_, index) => ({ id: String(index), x: 100 + index * 1000, y: 100 })));
     graph.updateSettings({ viewportCulling: culling });
     frames(2);
-    view("100").draws = [];
+    view("9").draws = [];
     graph.getGraphLayer().performRender();
     frames(2);
-    expect(view("100").draws.includes("style")).toBe(stroked);
+    expect(view("9").draws.includes("style")).toBe(stroked);
+  });
+
+  it("draws labels only for connections the camera sees without viewport culling", () => {
+    mount([
+      { id: "near", x: 100, y: 100, label: "near" },
+      { id: "far", x: 50_000, y: 50_000, label: "far" },
+    ]);
+    graph.updateSettings({ viewportCulling: false });
+    frames(2);
+    view("near").draws = [];
+    view("far").draws = [];
+    graph.getGraphLayer().performRender();
+    frames(2);
+
+    expect(view("near").draws).toContain("label");
+    expect(view("far").draws).not.toContain("label");
   });
 
   it.each([true, false])(
@@ -179,7 +200,7 @@ describe("connection batch viewport visibility", () => {
   it("finds a label intersecting the viewport before its outside line ever draws", () => {
     mount([{ id: "label", x: 1010, y: 100, label: "a".repeat(200) }]);
 
-    expect(view("label").draws).toContain("afterRender");
+    expect(view("label").draws).toContain("label");
     expect(view("label").getHitBox()[0]).toBeLessThan(1000);
     expect(view("label").labelBounds()?.x).toBeLessThan(1000);
   });
@@ -191,7 +212,7 @@ describe("connection batch viewport visibility", () => {
     graph.api.updateConnection("label", { label: "b".repeat(200) });
     frames(2);
 
-    expect(view("label").draws).toContain("afterRender");
+    expect(view("label").draws).toContain("label");
     expect(view("label").getHitBox()[0]).toBeLessThan(1000);
   });
 
@@ -204,7 +225,7 @@ describe("connection batch viewport visibility", () => {
     frames(2);
 
     expect(view("label").labelBounds()?.y).toBeLessThan(800);
-    expect(view("label").draws).toContain("afterRender");
+    expect(view("label").draws).toContain("label");
   });
 
   it("removes stale label bounds before the batch when labels are disabled", () => {
@@ -214,14 +235,14 @@ describe("connection batch viewport visibility", () => {
     frames(3);
 
     expect(view("label").labelBounds()).toBeUndefined();
+    expect(view("label").draws).not.toContain("afterRender");
     expect(view("label").getHitBox()[0]).toBeGreaterThan(1000);
     // The offscreen connection rebuilds geometry for the new props but does not draw.
-    expect(view("label").draws).not.toContain("afterRender");
     expect(view("label").draws).not.toContain("label");
 
     graph.updateSettings({ showConnectionLabels: true });
     frames(3);
-    expect(view("label").draws).toContain("afterRender");
+    expect(view("label").draws).toContain("label");
   });
 
   it("refreshes an offscreen label when its padding constants change", () => {
@@ -232,7 +253,7 @@ describe("connection batch viewport visibility", () => {
     frames(2);
 
     expect(view("label").getHitBox()[0]).toBeLessThan(1000);
-    expect(view("label").draws).toContain("afterRender");
+    expect(view("label").draws).toContain("label");
   });
 
   it("keeps a connection hidden while both endpoint owners are hidden", () => {
