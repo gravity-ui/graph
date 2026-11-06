@@ -159,6 +159,11 @@ export class BatchScene<TItem extends IBatchItem, TResource, TTarget> {
     this.onChange = options.onChange;
   }
 
+  /** Visits every registered item with its z-level and group, in no particular order. */
+  public forEachItem(visit: (item: TItem, params: TBatchParams) => void): void {
+    for (const [item, record] of this.records) visit(item, record.params);
+  }
+
   public has(item: TItem): boolean {
     return this.records.has(item);
   }

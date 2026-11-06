@@ -221,3 +221,13 @@ test("constructor defaults match the default graph constants", () => {
     expect(stroke).toHaveBeenCalledTimes(total === count ? 1 : 2);
   }
 });
+
+test("reports whether the last frame drew a chunk with an animated item", () => {
+  const { batch, render } = createFixture(100, 1000);
+  batch.add({ ...createItem(10, [0, 0, 10, 0]), isAnimated: () => true }, { zIndex: 0, group: "running" });
+  batch.add(createItem(2010, [2000, 0, 2010, 0]), { zIndex: 0, group: "static" });
+  render(viewport(0, 100));
+  expect(batch.drewAnimated).toBe(true);
+  render(viewport(1990, 2100));
+  expect(batch.drewAnimated).toBe(false);
+});

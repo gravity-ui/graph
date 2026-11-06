@@ -13,6 +13,7 @@ import { Path2DRenderInstance, Path2DRenderStyleResult, TPathBounds } from "./Ba
 import { BlockConnections, TGraphConnectionsContext } from "./BlockConnections";
 import { ConnectionLabel } from "./Label";
 import type { IConnectionLabelOwner } from "./Label";
+import { TAppearanceStroke, TConnectionAppearance, bezierSegment, lineSegment } from "./appearance";
 import {
   bezierCurveLine,
   generateBezierParams,
@@ -228,11 +229,9 @@ export class BlockConnection<T extends TConnection>
   }
 
   public styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
-    ctx.lineWidth = this.state.hovered || this.state.selected ? 4 : 2;
-    const strokeColor = this.getStrokeColor(this.state);
-    if (strokeColor) {
-      ctx.strokeStyle = strokeColor;
-    }
+    const { color, width } = this.getStroke();
+    ctx.lineWidth = width;
+    ctx.strokeStyle = color;
     return { type: "stroke" };
   }
 
@@ -270,9 +269,10 @@ export class BlockConnection<T extends TConnection>
   public getClassName(state = this.state) {
     const hovered = state.hovered ? "hovered" : "none";
     const selected = state.selected ? "selected" : "none";
-    const stroke = this.getStrokeColor(state);
-    const dash = state.dashed ? (state.styles?.dashes || [6, 4]).join(",") : "";
-    return `connection/${hovered}/${selected}/${stroke}/${dash}`;
+    const { color, width, dash } = this.getStroke(state);
+    const pattern = dash ? dash.pattern.join(",") : "";
+    const speed = dash?.speed ? `/${dash.speed}` : "";
+    return `connection/${hovered}/${selected}/${color}/${width}/${pattern}${speed}`;
   }
 
   public style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
@@ -281,16 +281,13 @@ export class BlockConnection<T extends TConnection>
   }
 
   protected setRenderStyles(ctx: CanvasRenderingContext2D, state = this.state, withDashed = true) {
-    ctx.lineWidth = state.hovered || state.selected ? 4 : 2;
-
-    const strokeColor = this.getStrokeColor(state);
-
-    if (strokeColor) {
-      ctx.strokeStyle = strokeColor;
-    }
-
-    if (withDashed && state.dashed) {
-      ctx.setLineDash(state.styles?.dashes || [6, 4]);
+    const { color, width, dash } = this.getStroke(state);
+    ctx.lineWidth = width;
+    ctx.strokeStyle = color;
+    if (withDashed && dash) {
+      ctx.setLineDash(dash.pattern as number[]);
+      // A running dash moves forward: the offset decreases with time.
+      if (dash.speed) ctx.lineDashOffset = -(dash.speed * performance.now()) / 1000;
     }
   }
 
@@ -532,6 +529,46 @@ export class BlockConnection<T extends TConnection>
     if (state.selected) return state.styles?.selectedBackground || this.context.colors.connection?.selectedBackground;
 
     return state.styles?.background || this.context.colors.connection?.background;
+  }
+
+  /**
+   * The stroke of the line: color, width (world units) and dash. Override it to style connections from their data;
+   * both Path2D and WebGL draw it. A dash with `speed` runs from source to target.
+   */
+  public getStroke(state: TBaseConnectionState = this.state): TAppearanceStroke {
+    const color = this.getStrokeColor(state) ?? this.context.colors.connection.background;
+    const width = state.hovered || state.selected ? 4 : 2;
+    const dash = state.dashed ? { pattern: state.styles?.dashes || [6, 4] } : undefined;
+    return { color, width, dash };
+  }
+
+  /** The line as cubic segments with its stroke; undefined when a subclass draws its own `createPath()`. */
+  public getAppearance(state: TBaseConnectionState = this.state): TConnectionAppearance | undefined {
+    if (this.createPath !== BlockConnection.prototype.createPath || !this.connectionPoints) return undefined;
+    const { x1, y1, x2, y2 } = this.geometry;
+    const segments = this.props.useBezier
+      ? bezierSegment(generateBezierParams({ x: x1, y: y1 }, { x: x2, y: y2 }, this.props.bezierDirection))
+      : lineSegment(x1, y1, x2, y2);
+    return { kind: "curve", segments: new Float32Array(segments), stroke: this.getStroke(state) };
+  }
+
+  /** The arrow chevron as two straight segments; undefined when a subclass draws its own `createArrowPath()`. */
+  public getArrowAppearance(state: TBaseConnectionState = this.state): TConnectionAppearance | undefined {
+    if (this.createArrowPath !== BlockConnection.prototype.createArrowPath || !this.connectionPoints) return undefined;
+    const [a, b, c] = this.getArrowPoints();
+    if (!a || !b || !c) return undefined;
+    const stroke = this.getStroke(state);
+    return {
+      kind: "curve",
+      segments: new Float32Array([...lineSegment(a.x, a.y, b.x, b.y), ...lineSegment(b.x, b.y, c.x, c.y)]),
+      stroke: { color: stroke.color, width: stroke.width },
+    };
+  }
+
+  /** Whether the stroke changes with time: a running dash or a pulse. */
+  public isAnimated(): boolean {
+    const { dash, pulse } = this.getStroke();
+    return Boolean(dash?.speed || pulse?.period);
   }
 
   protected unmount(): void {
