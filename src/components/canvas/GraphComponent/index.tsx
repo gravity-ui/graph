@@ -194,6 +194,7 @@ export class GraphComponent<
     onDragStart,
     onDragUpdate,
     onDrop,
+    onDragCancel = onDrop,
     isDraggable,
     autopanning,
     dragCursor,
@@ -212,6 +213,13 @@ export class GraphComponent<
       _event: MouseEvent
     ) => void;
     onDrop?: (_event: MouseEvent) => void;
+    /**
+     * Called instead of onDrop when the drag is cancelled before the mouse button is released:
+     * DragService.cancel(), window blur, the page becoming hidden, or a new press after a lost mouseup.
+     * Receives the last mouse event of the drag. Defaults to onDrop, so pass it to revert the drag instead of
+     * committing it.
+     */
+    onDragCancel?: (_event: MouseEvent) => void;
     isDraggable?: (event: MouseEvent) => boolean;
     autopanning?: boolean;
     dragCursor?: CursorLayerCursorTypes;
@@ -254,6 +262,11 @@ export class GraphComponent<
             startCoords = undefined;
             prevCoords = undefined;
             onDrop?.(event);
+          },
+          onCancel: (event: MouseEvent) => {
+            startCoords = undefined;
+            prevCoords = undefined;
+            onDragCancel?.(event);
           },
         },
         {

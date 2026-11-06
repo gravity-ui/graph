@@ -1,3 +1,4 @@
+import type { EventedComponent } from "../../components/canvas/EventedComponent/EventedComponent";
 import { GraphComponent } from "../../components/canvas/GraphComponent";
 import { Graph } from "../../graph";
 import { GraphMouseEvent } from "../../graphEvents";
@@ -28,8 +29,10 @@ class OnDragComponent extends GraphComponent {
     return "on-drag";
   }
 
-  public listenDrag(): void {
-    this.onDrag({ isDraggable: () => true });
+  public listenDrag(
+    callbacks: { onDrop?: (event: MouseEvent) => void; onDragCancel?: (event: MouseEvent) => void } = {}
+  ): void {
+    this.onDrag({ isDraggable: () => true, ...callbacks });
   }
 }
 
@@ -56,6 +59,21 @@ function world(graph: Graph, x: number, y: number): [number, number] {
 
 function move(x: number, y: number): void {
   document.dispatchEvent(mouse("mousemove", x, y));
+}
+
+/** Delivers a pointer event the way a real one arrives: drag listeners on the document first, then the graph layer */
+function pointer(graph: Graph, type: string, x: number, y: number): void {
+  const event = mouse(type, x, y);
+  document.dispatchEvent(event);
+  graph.getGraphLayer().handleEvent(event);
+}
+
+function listenHover(graph: Graph, type: "mouseenter" | "mouseleave"): EventedComponent[] {
+  const targets: EventedComponent[] = [];
+  graph.on(type, (event) => {
+    targets.push(event.detail.target);
+  });
+  return targets;
 }
 
 function setVisibilityState(state: DocumentVisibilityState): void {
@@ -291,6 +309,40 @@ describe("DragService.startDrag component capture", () => {
 
     expect(releaseCapture).toHaveBeenCalledTimes(1);
   });
+
+  it("moves the hover to a captured parent once when the press landed on its child", () => {
+    const child = new DraggableComponent({}, component);
+    jest.spyOn(graph, "getElementOverPoint").mockReturnValue(child);
+    pointer(graph, "mousemove", 0, 0);
+    const entered = listenHover(graph, "mouseenter");
+    const left = listenHover(graph, "mouseleave");
+
+    graph.dragService.startDrag({}, { component });
+    pointer(graph, "mousemove", 10, 10);
+    pointer(graph, "mousemove", 20, 20);
+    pointer(graph, "mousemove", 30, 30);
+
+    expect(entered).toEqual([component]);
+    expect(left).toEqual([child]);
+  });
+
+  it("sends mouseleave to the component the cursor reached before the drag started", () => {
+    const other = new DraggableComponent({}, graph.getGraphLayer());
+    const elementOverPoint = jest.spyOn(graph, "getElementOverPoint").mockReturnValue(component);
+    pointer(graph, "mousemove", 0, 0);
+
+    graph.dragService.startDrag({}, { component, threshold: 30 });
+    // Within the threshold the hover follows the cursor onto another component
+    elementOverPoint.mockReturnValue(other);
+    pointer(graph, "mousemove", 10, 10);
+    const entered = listenHover(graph, "mouseenter");
+    const left = listenHover(graph, "mouseleave");
+    pointer(graph, "mousemove", 40, 40);
+    pointer(graph, "mousemove", 60, 60);
+
+    expect(left).toEqual([other]);
+    expect(entered).toEqual([component]);
+  });
 });
 
 describe("DragService.cancel() with a startDrag operation", () => {
@@ -379,6 +431,39 @@ describe("DragService.cancel() with a startDrag operation", () => {
     expect(cancelled.onCancel).toHaveBeenCalledTimes(1);
   });
 
+  it("cancels every running operation, not only the last one started", () => {
+    const first = createOperationCallbacks();
+    const second = createOperationCallbacks();
+
+    graph.dragService.startDrag(first);
+    graph.dragService.startDrag(second);
+    move(10, 10);
+    graph.dragService.cancel();
+    document.dispatchEvent(mouse("mouseup", 10, 10));
+
+    expect(first.onCancel).toHaveBeenCalledTimes(1);
+    expect(second.onCancel).toHaveBeenCalledTimes(1);
+    expect(first.onEnd).not.toHaveBeenCalled();
+    expect(second.onEnd).not.toHaveBeenCalled();
+  });
+
+  it("keeps an operation that a participant starts while the drag is being cancelled", () => {
+    const component = new CancellableComponent({}, graph.getGraphLayer());
+    const followUp = createOperationCallbacks();
+    jest.spyOn(component, "handleDragCancel").mockImplementation(() => {
+      graph.dragService.startDrag(followUp);
+    });
+
+    press(graph, component, 0, 0);
+    move(10, 10);
+    graph.dragService.cancel();
+    move(20, 20);
+    document.dispatchEvent(mouse("mouseup", 20, 20));
+
+    expect(followUp.onCancel).not.toHaveBeenCalled();
+    expect(followUp.onEnd).toHaveBeenCalledTimes(1);
+  });
+
   it("cancels a component drag and an operation that run at the same time", () => {
     const component = new CancellableComponent({}, graph.getGraphLayer());
     const onDragCancel = jest.spyOn(component, "handleDragCancel");
@@ -392,6 +477,49 @@ describe("DragService.cancel() with a startDrag operation", () => {
     expect(onDragCancel).toHaveBeenCalledTimes(1);
     expect(callbacks.onCancel).toHaveBeenCalledTimes(1);
     expect(graph.dragService.$state.value.isDragging).toBe(false);
+  });
+});
+
+describe("GraphComponent.onDrag cancellation", () => {
+  let graph: Graph;
+  let component: OnDragComponent;
+
+  beforeEach(() => {
+    graph = createGraph();
+    component = new OnDragComponent({}, graph.getGraphLayer());
+  });
+
+  afterEach(() => {
+    document.dispatchEvent(mouse("mouseup", 0, 0));
+    graph.detach();
+  });
+
+  it("calls onDragCancel with the last event instead of onDrop", () => {
+    const onDrop = jest.fn();
+    const onDragCancel = jest.fn();
+    const lastMove = mouse("mousemove", 20, 20);
+    component.listenDrag({ onDrop, onDragCancel });
+
+    component.dispatchEvent(mouse("mousedown", 0, 0));
+    move(10, 10);
+    document.dispatchEvent(lastMove);
+    graph.dragService.cancel();
+    document.dispatchEvent(mouse("mouseup", 20, 20));
+
+    expect(onDragCancel).toHaveBeenCalledTimes(1);
+    expect(onDragCancel).toHaveBeenCalledWith(lastMove);
+    expect(onDrop).not.toHaveBeenCalled();
+  });
+
+  it("calls onDrop on cancellation when onDragCancel is not provided", () => {
+    const onDrop = jest.fn();
+    component.listenDrag({ onDrop });
+
+    component.dispatchEvent(mouse("mousedown", 0, 0));
+    move(10, 10);
+    graph.dragService.cancel();
+
+    expect(onDrop).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -436,6 +564,29 @@ describe("DragService error handling", () => {
 
     expect(() => graph.dragService.cancel()).toThrow("cancel failed");
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels every drag even if several of them throw, and rethrows the first error", () => {
+    const component = new CancellableComponent({}, graph.getGraphLayer());
+    jest.spyOn(component, "handleDragCancel").mockImplementation(() => {
+      throw new Error("participant failed");
+    });
+    const failing = {
+      onCancel: jest.fn(() => {
+        throw new Error("operation failed");
+      }),
+    };
+    const onCancel = jest.fn();
+
+    press(graph, component, 0, 0);
+    graph.dragService.startDrag(failing);
+    graph.dragService.startDrag({ onCancel });
+    move(10, 10);
+
+    expect(() => graph.dragService.cancel()).toThrow("participant failed");
+    expect(failing.onCancel).toHaveBeenCalledTimes(1);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(graph.dragService.$state.value.isDragging).toBe(false);
   });
 
   it("resets the drag even if a participant's handleDragEnd throws", () => {

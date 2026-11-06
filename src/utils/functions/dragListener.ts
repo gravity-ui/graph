@@ -21,6 +21,11 @@ export type DragListenerOptions = {
    * @default true
    */
   suppressTextSelection?: boolean;
+  /**
+   * Called once when the drag session ends in any way: release, mouse leave with stopOnMouseLeave, or cancellation,
+   * also when the drag has not crossed the threshold. Runs after the DRAG_END / DRAG_CANCEL listeners.
+   */
+  onSessionEnd?: () => void;
 };
 
 function getDragListenerDocument(node: Document | HTMLDivElement | HTMLCanvasElement): Document {
@@ -169,6 +174,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     cleanupTextSelection();
     unsubscribeCamera?.();
     listeners.abort();
+    options?.onSessionEnd?.();
   };
 
   const cleanupDragState = () => {

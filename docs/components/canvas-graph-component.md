@@ -157,6 +157,12 @@ this.onDrag({
   onDrop: () => {
     this.setState({ dragging: false });
     this.context.graph.emit('element-drag-end', { element: this });
+  },
+  // Called instead of onDrop when the drag is cancelled (graph.dragService.cancel(), window blur,
+  // hidden page, new press). Defaults to onDrop, so pass it to revert instead of committing.
+  onDragCancel: () => {
+    this.updatePosition(this.initialX, this.initialY);
+    this.setState({ dragging: false });
   }
 });
 ```

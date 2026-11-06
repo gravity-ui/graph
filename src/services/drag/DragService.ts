@@ -13,6 +13,23 @@ import { EVENTS } from "../../utils/types/events";
 import type { DragContext, DragDiff, DragOperationCallbacks, DragOperationOptions, DragState } from "./types";
 
 /**
+ * Runs every step even if some of them throw, then rethrows the first error
+ */
+function runEach(steps: Array<() => void>): void {
+  let failure: { error: unknown } | undefined;
+  for (const step of steps) {
+    try {
+      step();
+    } catch (error) {
+      failure ??= { error };
+    }
+  }
+  if (failure) {
+    throw failure.error;
+  }
+}
+
+/**
  * DragService manages drag operations for all draggable GraphComponents.
  *
  * When a user starts dragging a component:
@@ -38,8 +55,8 @@ export class DragService {
   /** Current drag listener emitter (null when not dragging) */
   private currentDragEmitter: Emitter | null = null;
 
-  /** Drag listener emitter of the operation started with startDrag(), so that cancel() can stop it */
-  private currentOperationEmitter: Emitter | null = null;
+  /** Drag listener emitters of the running operations started with startDrag(), so that cancel() can stop them */
+  private readonly operationEmitters = new Set<Emitter>();
 
   /** Unsubscribe function for graph mousedown event */
   private unsubscribeMouseDown: (() => void) | null = null;
@@ -153,23 +170,21 @@ export class DragService {
   };
 
   /**
-   * Cancels the current drag, e.g. on Escape: the component drag and the operation started with startDrag(),
-   * whichever is running.
+   * Cancels the current drag, e.g. on Escape: the component drag and every operation started with startDrag()
+   * that is still running.
    *
    * Participants of a component drag get handleDragCancel with the last coordinates the drag reached instead of
    * handleDragEnd, and $state returns to idle. An operation gets onCancel, or onEnd if onCancel is not provided,
    * with the last mouse event and coordinates of the drag. The cursor, auto-panning and the component captured
    * by the operation are released, and the rest of the gesture is ignored.
    * A press that has not crossed the drag threshold yet is dropped without notifying anyone.
+   * Operations started while the drag is being cancelled keep running.
    * Does nothing if no drag is in progress.
    */
   public cancel(): void {
-    // A throwing participant or callback must not leave the other drag running
-    try {
-      this.cancelComponentDrag();
-    } finally {
-      this.cancelOperation();
-    }
+    const operations = Array.from(this.operationEmitters);
+    // A throwing participant or callback must not leave the other drags running
+    runEach([() => this.cancelComponentDrag(), ...operations.map((emitter) => () => stopDragListening(emitter))]);
   }
 
   private cancelComponentDrag(): void {
@@ -182,15 +197,6 @@ export class DragService {
     if (this.currentDragEmitter === emitter) {
       this.cleanup();
     }
-  }
-
-  private cancelOperation(): void {
-    const emitter = this.currentOperationEmitter;
-    if (!emitter) {
-      return;
-    }
-    this.currentOperationEmitter = null;
-    stopDragListening(emitter);
   }
 
   /**
@@ -426,14 +432,12 @@ export class DragService {
       stopOnMouseLeave,
       threshold,
       suppressTextSelection,
+      onSessionEnd: () => {
+        this.operationEmitters.delete(emitter);
+      },
     });
-    const forgetOperation = (): void => {
-      if (this.currentOperationEmitter === emitter) {
-        this.currentOperationEmitter = null;
-      }
-    };
 
-    this.currentOperationEmitter = emitter;
+    this.operationEmitters.add(emitter);
     return emitter
       .on(EVENTS.DRAG_START, (event: MouseEvent) => {
         onStart?.(event, initialEvent ? this.getWorldCoords(initialEvent) : this.getWorldCoords(event));
@@ -443,12 +447,10 @@ export class DragService {
         onUpdate?.(event, coords);
       })
       .on(EVENTS.DRAG_END, (event: MouseEvent) => {
-        forgetOperation();
         const coords = this.getWorldCoords(event);
         onEnd?.(event, coords);
       })
       .on(EVENTS.DRAG_CANCEL, (event: MouseEvent) => {
-        forgetOperation();
         const coords = this.getWorldCoords(event);
         onCancel?.(event, coords);
       });
