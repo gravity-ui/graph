@@ -54,7 +54,7 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
   constructor(props: {}, parent: Component) {
     super(props, parent);
     const { PATH2D_CHUNK_SIZE, PATH2D_CHUNK_TILES } = this.context.constants.connection;
-    const chunkSize = PATH2D_CHUNK_SIZE || 100;
+    const chunkSize = PATH2D_CHUNK_SIZE || 200;
     const cellSize = this.context.constants.system.VISIBILITY_TILE_SIZE * PATH2D_CHUNK_TILES;
     this.batch = new BatchPath2DRenderer(() => this.performRender(), chunkSize, cellSize);
     this.labels = new ConnectionLabelRenderer(() => this.performRender(), chunkSize, cellSize);
