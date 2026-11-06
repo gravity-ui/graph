@@ -133,3 +133,52 @@ describe("dragListener cancellation", () => {
     graph.detach();
   });
 });
+
+describe("dragListener onSessionEnd", () => {
+  afterEach(() => {
+    setVisibilityState("visible");
+  });
+
+  it.each<[string, (emitter: Emitter) => void]>([
+    ["released before the drag started", () => document.dispatchEvent(mouse("mouseup", 0, 0))],
+    [
+      "released after the drag started",
+      () => {
+        document.dispatchEvent(mouse("mousemove", 10, 10));
+        document.dispatchEvent(mouse("mouseup", 10, 10));
+      },
+    ],
+    ["cancelled before the drag started", (emitter) => stopDragListening(emitter)],
+    [
+      "cancelled after the drag started",
+      (emitter) => {
+        document.dispatchEvent(mouse("mousemove", 10, 10));
+        stopDragListening(emitter);
+      },
+    ],
+    [
+      "left by the mouse with stopOnMouseLeave",
+      () => {
+        document.dispatchEvent(mouse("mousemove", 10, 10));
+        document.dispatchEvent(new MouseEvent("mouseleave"));
+      },
+    ],
+  ])("is called once when the session is %s", (_cause, endSession) => {
+    const onSessionEnd = jest.fn();
+    const { emitter, listeners } = listen({ stopOnMouseLeave: true, onSessionEnd });
+
+    expect(onSessionEnd).not.toHaveBeenCalled();
+
+    endSession(emitter);
+    document.dispatchEvent(mouse("mousemove", 20, 20));
+    document.dispatchEvent(mouse("mouseup", 20, 20));
+    window.dispatchEvent(new Event("blur"));
+
+    expect(onSessionEnd).toHaveBeenCalledTimes(1);
+    // Runs after the session's own end and cancel listeners
+    const [sessionEndCall] = onSessionEnd.mock.invocationCallOrder;
+    [...listeners.end.mock.invocationCallOrder, ...listeners.cancel.mock.invocationCallOrder].forEach((call) => {
+      expect(sessionEndCall).toBeGreaterThan(call);
+    });
+  });
+});

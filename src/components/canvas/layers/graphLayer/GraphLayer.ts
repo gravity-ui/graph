@@ -220,12 +220,13 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
     this.eventByTargetComponent = event;
 
+    // Also while a component is captured: the hover moves to it once and then stays put
+    this.prevTargetComponent = this.targetComponent;
+
     if (this.capturedTargetComponent) {
       this.targetComponent = this.capturedTargetComponent;
       return;
     }
-
-    this.prevTargetComponent = this.targetComponent;
 
     const point = this.context.graph.getPointInCameraSpace(event);
 
