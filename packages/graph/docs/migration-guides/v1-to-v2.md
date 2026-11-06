@@ -963,6 +963,8 @@ by another connection's line. `BlockConnection.afterRender` is removed: a subcla
 `afterRender` should override `renderLabelText()` instead; subclasses with their own `afterRender` still run after their
 chunk.
 
+`BaseConnection.bBox` of a `BlockConnection` no longer includes the standard label; `getBBox()` still does.
+
 Connection batches group items by grid cell instead of registration order (`connection.PATH2D_CHUNK_TILES`). Where
 two connections of one style overlap, the overlap may be composited twice instead of once, which changes those pixels
 for translucent colors and at anti-aliased crossings. `BatchPath2DRenderer.orderedPaths` is removed; use `has()` to

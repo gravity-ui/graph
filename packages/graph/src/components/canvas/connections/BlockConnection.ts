@@ -58,7 +58,7 @@ export class BlockConnection<T extends TConnection>
 
   private labelFont = "";
 
-  private paintBounds: TPathBounds | undefined;
+  private pathBounds: TPathBounds | undefined;
 
   private arrowPath: Path2D | undefined;
 
@@ -180,9 +180,9 @@ export class BlockConnection<T extends TConnection>
     return this.isRenderAllowed();
   }
 
-  /** Bounds of the line, its arrow and its label, shared by tree culling and batch culling. */
+  /** Bounds of the line and its arrow; tree culling and the hit box also cover the label. */
   public getPathBounds(): TPathBounds | undefined {
-    return this.paintBounds;
+    return this.pathBounds;
   }
 
   /** The line built by the last geometry change; batch rebuilds reuse it. */
@@ -329,16 +329,6 @@ export class BlockConnection<T extends TConnection>
     const points = super.collectBBoxPoints(props);
     this.updateLabelGeometry(props);
 
-    if (this.labelGeometry) {
-      points.push(
-        { x: this.labelGeometry.x, y: this.labelGeometry.y },
-        {
-          x: this.labelGeometry.x + this.labelGeometry.width,
-          y: this.labelGeometry.y + this.labelGeometry.height,
-        }
-      );
-    }
-
     if (props.useBezier && this.connectionPoints) {
       if (props.useTightBezierBounds !== false) {
         const bezierBounds = getBezierCurveBounds(
@@ -363,6 +353,19 @@ export class BlockConnection<T extends TConnection>
     return points;
   }
 
+  /** The line's bounds joined with the standard label's: the hit box and tree culling cover the label. */
+  protected override getBBox(): Readonly<[minX: number, minY: number, maxX: number, maxY: number]> {
+    const bBox = super.getBBox();
+    const label = this.labelGeometry;
+    if (!label || !this.hasGeometry()) return bBox;
+    return [
+      Math.min(bBox[0], label.x),
+      Math.min(bBox[1], label.y),
+      Math.max(bBox[2], label.x + label.width),
+      Math.max(bBox[3], label.y + label.height),
+    ];
+  }
+
   protected override updatePoints(additionalPoints?: TPoint[], props: TConnectionProps = this.props) {
     this.geometryContext = this.context;
     super.updatePoints(additionalPoints, props);
@@ -382,27 +385,30 @@ export class BlockConnection<T extends TConnection>
   private updateCullingBounds(props: TConnectionProps = this.props): void {
     if (this.hasGeometry()) {
       const padding = this.state.hovered || this.state.selected ? 2 : 1;
-      const [left, top, right, bottom] = this.getBBox();
-      let minX = left - padding;
-      let minY = top - padding;
-      let maxX = right + padding;
-      let maxY = bottom + padding;
-      if (props.showConnectionArrows) {
-        // A sharp arrow join can extend past its vertices by the canvas miter limit.
-        const arrowPadding = padding * this.context.ctx.miterLimit;
-        for (const point of this.getArrowPoints(props)) {
+      // A sharp arrow join can extend past its vertices by the canvas miter limit.
+      const arrowPoints = props.showConnectionArrows ? this.getArrowPoints(props) : [];
+      const arrowPadding = padding * this.context.ctx.miterLimit;
+      const extend = ([left, top, right, bottom]: Readonly<[number, number, number, number]>): TPathBounds => {
+        let minX = left - padding;
+        let minY = top - padding;
+        let maxX = right + padding;
+        let maxY = bottom + padding;
+        for (const point of arrowPoints) {
           minX = Math.min(minX, point.x - arrowPadding);
           minY = Math.min(minY, point.y - arrowPadding);
           maxX = Math.max(maxX, point.x + arrowPadding);
           maxY = Math.max(maxY, point.y + arrowPadding);
         }
-      }
-      this.paintBounds = [minX, minY, maxX, maxY];
+        return [minX, minY, maxX, maxY];
+      };
+      // The batch draws the line and arrow; the tree also covers the label, which the label pass draws.
+      this.pathBounds = extend(this.bBox);
+      const [minX, minY, maxX, maxY] = extend(this.getBBox());
       this.setCullingBounds(minX, minY, maxX, maxY);
       const label = this.labelGeometry;
       this.labelWorldBounds = label ? [label.x, label.y, label.x + label.width, label.y + label.height] : undefined;
     } else {
-      this.paintBounds = undefined;
+      this.pathBounds = undefined;
       this.labelWorldBounds = undefined;
     }
     // Chunks cache the union of their items' bounds.
