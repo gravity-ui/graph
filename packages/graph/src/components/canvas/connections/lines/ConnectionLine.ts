@@ -37,6 +37,7 @@ class LineArrowItem implements IConnectionBatchItem {
     return this.line.styleArrow(ctx);
   }
 
+  /** @internal */
   public getWebGLShape(): TWebGLShape | undefined {
     return this.line.getArrowWebGLShape();
   }
@@ -112,8 +113,8 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
   }
 
   /**
-   * The first half of `update()`: reads getStroke() (and getArrowStroke() while arrows are shown) for the state and
-   * keeps them, without telling the batch. The component reads the widths for its bounds in between.
+   * @internal The first half of `update()`: reads getStroke() (and getArrowStroke() while arrows are shown) for the
+   * state and keeps them, without telling the batch. The component reads the widths for its bounds in between.
    */
   public readStrokes(
     state: TBaseConnectionState = this.connection.state,
@@ -133,7 +134,10 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
     }
   }
 
-  /** The second half of `update()`: moves the line and arrow items to the group and z-level of the strokes read last. */
+  /**
+   * @internal The second half of `update()`: moves the line and arrow items to the group and z-level of the strokes
+   * read last.
+   */
   public updateItems(
     state: TBaseConnectionState = this.connection.state,
     props: TConnectionProps = this.connection.props
@@ -149,12 +153,15 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
     }
   }
 
-  /** Half the width of the stroke read last, in world units: how far the drawn line reaches past its geometry. */
+  /**
+   * @internal Half the width of the stroke read last, in world units: how far the drawn line reaches past its
+   * geometry.
+   */
   public getLineHalfWidth(): number {
     return halfWidth(this.getCurrentStroke());
   }
 
-  /** Half the width of the arrow stroke read last, in world units; undefined while arrows are not shown. */
+  /** @internal Half the width of the arrow stroke read last, in world units; undefined while arrows are not shown. */
   public getArrowHalfWidth(): number | undefined {
     return this.arrowStroke ? halfWidth(this.arrowStroke) : undefined;
   }
@@ -203,17 +210,17 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
     return this.connection.isInViewport();
   }
 
-  /** What the WebGL batch draws for the line; lines without WebGL shapes return `undefined`. */
+  /** @internal What the WebGL batch draws for the line; lines without WebGL shapes return `undefined`. */
   public getWebGLShape(): TWebGLShape | undefined {
     return undefined;
   }
 
-  /** What the WebGL batch draws for the arrow. */
+  /** @internal What the WebGL batch draws for the arrow. */
   public getArrowWebGLShape(): TWebGLShape | undefined {
     return undefined;
   }
 
-  /** The effect of the line's WebGL shape, from the stroke read last; lines without WebGL shapes have none. */
+  /** @internal The effect of the line's WebGL shape, from the stroke read last; lines without WebGL shapes have none. */
   public getWebGLEffect(): TWebGLShape["effect"] {
     return undefined;
   }

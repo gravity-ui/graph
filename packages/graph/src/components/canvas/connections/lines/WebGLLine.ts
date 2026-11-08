@@ -67,6 +67,7 @@ export class WebGLLine<
     return distanceToArrow(arrow, x, y) <= this.getArrowStroke(state).width / 2 + threshold;
   }
 
+  /** @internal */
   public override getWebGLShape(): TWebGLShape | undefined {
     const geometry = this.connection.getGeometry();
     if (!geometry) return undefined;
@@ -83,12 +84,14 @@ export class WebGLLine<
     return shape;
   }
 
+  /** @internal */
   public override getWebGLEffect(): TWebGLShape["effect"] {
     const effect = (this.getCurrentStroke() as TWebGLStroke).effect?.effect;
     // Another object throws when the line's chunk is built (see getWebGLShape()).
     return effect instanceof ConnectionEffect ? effect : undefined;
   }
 
+  /** @internal */
   public override getArrowWebGLShape(): TWebGLShape | undefined {
     const geometry = this.connection.getGeometry();
     const arrow = geometry?.arrow;
