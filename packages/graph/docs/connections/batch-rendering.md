@@ -109,8 +109,9 @@ non-component items need; `batch.markBoundsDirty(item)` refreshes a chunk's boun
 
 Items should provide `getPathBounds(): readonly [left, top, right, bottom] | undefined` in world
 coordinates, covering everything they paint. For connections these bounds come from the line's
-`getBounds(geometry)` (the geometry's segments by default), the arrow points and `getAfterRenderBounds()`; a line
-whose `createPath()` draws outside the segments overrides `getBounds()`. A chunk with an item without valid bounds is
+`getBounds(geometry)` (the geometry's segments by default), the arrow points and `getAfterRenderBounds()`, padded by
+half the stroke width (the arrow points by half the arrow's width times the canvas miter limit); a line whose
+`createPath()` draws outside the segments overrides `getBounds()`. A chunk with an item without valid bounds is
 never culled.
 
 `isPathVisible()` is semantic only; viewport culling is the renderer's job. For connections it is

@@ -74,7 +74,7 @@ parameter (`class MyLine extends Path2DLine<MyConnection>`), so a line can call 
 |---|---|
 | `getStroke(state)` | Connection colors by state (`styles.background` / `styles.selectedBackground` first), width 2 (4 hovered or selected), dash from `dashed` and `styles.dashes` (`[6, 4]` without them) |
 | `getArrowStroke(state)` | The line's color and width without the dash; a closed arrow is filled with the color |
-| `getBounds(geometry)` | Bounds of the geometry's segments (the control-point hull with `EXP_USE_TIGHT_BEZIER_BOUNDS = false`); the component adds the arrow, the label and `getAfterRenderBounds()` |
+| `getBounds(geometry)` | Bounds of the geometry's segments (the control-point hull with `EXP_USE_TIGHT_BEZIER_BOUNDS = false`); the component adds the arrow, the label and `getAfterRenderBounds()`, and pads them by half the stroke width for culling (the arrow by half its width times the canvas miter limit) |
 | `hitTest(x, y, threshold)` | See [Hit testing](#hit-testing) |
 
 **Update protocol.** The component calls `line.update()` when its state, props or geometry change: the line reads
@@ -110,7 +110,8 @@ graph.api.updateConnection("connection-1", patch);
 
 A look that depends on data outside the connection's store (an external signal or map) calls
 `connection.invalidateLine()` when that data changes. It reads the strokes again and re-evaluates an
-`isRenderAllowed()` override, for the line, its arrow and the label:
+`isRenderAllowed()` override, for the line, its arrow and the label; when a stroke width changes, the bounds and the
+hit box follow:
 
 ```typescript
 import { BlockConnection, Path2DLine } from "@gravity-ui/graph";
@@ -718,8 +719,10 @@ of the hit area while arrows are shown, with its own stroke width; a point insid
 - `WebGLLine` measures the distance to the geometry's segments, with curves flattened to half a CSS pixel.
 - `extraWidth` is not part of the hit area: a glow is decoration.
 - Labels keep their own rule: a square of `THRESHOLD_LINE_HIT` screen pixels around the point meets the label.
-- The broad phase uses the connection's hit box: its bounds (line, arrow and label) padded by `THRESHOLD_LINE_HIT`
-  world units.
+- The broad phase uses the connection's hit box: the bounds of the line, the arrow (while shown) and the label,
+  padded by `THRESHOLD_LINE_HIT` plus half the wider of the line and arrow strokes, so it never cuts the rule off.
+  The culling bounds pad the line by half its stroke width as well, so wide strokes are not clipped at the viewport's
+  edge.
 
 A line class can override `hitTest(x, y, threshold)`: the point is in world coordinates and `threshold` in world
 units. A filled custom path, for example, adds `isPointInPath`.
@@ -750,7 +753,7 @@ internal.
   class they are drawn only in the fallback. The same holds for any `afterRender()`.
 - Effects never apply to arrows: an arrow is drawn with `getArrowStroke()`.
 - Custom closed arrows must be convex.
-- WebGL dash patterns use their first 4 numbers.
+- WebGL dash patterns use their first 4 numbers; a longer pattern reports one warning in development builds only.
 - Effect parameters are 8 numbers per connection; uniforms are `float` and `vec2`–`vec4`.
 - Every graph with WebGL lines has its own WebGL context. Browsers keep a limited number of live contexts (about
   16), so a page with many WebGL graphs can run out; a graph whose context the browser drops falls back to Path2D.

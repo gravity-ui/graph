@@ -1065,11 +1065,6 @@ The line class also picks the renderer of the whole graph: `Path2DLine` (the def
 | `this.geometry` (`{ x1, y1, x2, y2 }`) | `this.connectionPoints` (the endpoints) or `this.getGeometry()` |
 | `this.arrowShape`, `this.path2d` | The line's items (`this.line`, `this.line.arrow`); the component holds no `Path2D` |
 
-The renderer and effects are not settings: there is no `connectionsRenderer` setting (the line class decides) and no
-`connectionEffects` registry (effects are objects from `defineConnectionEffect()`, referred to from `getStroke()` with
-`effect.use(params)`). Strokes have no `dash.speed`, `fade` or `pulse` fields: a running dash, a comet and a pulse are
-the library effects `dashFlow` and `pulse` of a `WebGLLine`. `Path2DLine` draws a still dash and never animates.
-
 ### Custom shapes
 
 A shape written as a geometry works with both line kinds, and its bounds, arrow and hit test follow it:
@@ -1193,7 +1188,9 @@ behavior differs from v1 in three ways:
 ### Bounds and hit testing
 
 Bounds come from the geometry: the tight bounds of every cubic (the control-point hull with
-`EXP_USE_TIGHT_BEZIER_BOUNDS = false`), joined with the arrow, the label and `getAfterRenderBounds()`.
+`EXP_USE_TIGHT_BEZIER_BOUNDS = false`), joined with the arrow, the label and `getAfterRenderBounds()`. Culling pads
+them by half the stroke width (1 for the default width, 2 hovered or selected) and the arrow points by half the arrow's
+width times the canvas miter limit, so wider strokes are culled by their real extent.
 `collectBBoxPoints()` still exists on `BaseConnection`, which keeps calling it, so an override compiles, but
 `BlockConnection` does not call it. Content drawn in `afterRender()` reports its bounds from `getAfterRenderBounds()`:
 
@@ -1221,13 +1218,16 @@ class FlagConnection extends BlockConnection {
 Hit testing has one rule for both line kinds: a point hits within `stroke.width / 2 + THRESHOLD_LINE_HIT` world units
 of the drawn line (9 for a 2-unit line with the default `THRESHOLD_LINE_HIT = 8`, 10 hovered or selected). In v1 it
 was 8 world units from the center, whatever the width. The arrow is part of the hit area while it is shown; label hits
-are unchanged.
+are unchanged. The hit box follows the rule: it covers the line, the arrow and the label, padded by
+`THRESHOLD_LINE_HIT` plus half the wider of the line and arrow strokes (in v1, by `THRESHOLD_LINE_HIT` around the line
+and the label).
 
 ### Detection of removed methods
 
 A `BlockConnection` subclass that still overrides a removed method — `createPath`, `createArrowPath`, `getPath`,
 `getArrowPath`, `generatePath`, `getArrowPoints`, `style`, `styleArrow`, `setRenderStyles`, `getClassName`,
-`getStrokeColor`, `getStroke`, `getAppearance`, `getArrowAppearance`, `isAnimated` or `collectBBoxPoints` — reports
+`getStrokeColor`, `getStroke` (on the component; it belongs to the line class), `getAppearance`,
+`getArrowAppearance`, `isAnimated` or `collectBBoxPoints` — reports
 one development-build warning per class, and the method is not called. For example (one line in the console):
 
 ```text

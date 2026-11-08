@@ -150,7 +150,7 @@ const styledConnection = {
 };
 ```
 
-Labels and arrows automatically respect zoom levels - they appear only when zoomed in enough for comfortable viewing. The system optimizes performance by grouping connections with similar visual properties for batch rendering.
+Labels automatically respect zoom levels - they appear only when zoomed in enough for comfortable viewing. The system optimizes performance by grouping connections with similar visual properties for batch rendering.
 
 These fields feed the default stroke of the connection's line class: `styles.background` / `styles.selectedBackground`
 for the color, width 2 (4 hovered or selected), and `dashed` with `styles.dashes` for the dash. A line class that
@@ -246,7 +246,7 @@ The connection system is optimized for handling large numbers of connections eff
 - **Two Renderers**: Canvas2D `Path2D` by default; WebGL2 for a connection class whose line is a `WebGLLine`, which
   pays off for dashes, effects and per-connection styles on large graphs (see
   [Connection Lines, Geometry and WebGL](webgl-connections.md))
-- **Zoom-Aware Rendering**: Complex visual elements (labels, arrows) appear only when zoomed in
+- **Zoom-Aware Rendering**: Labels appear only when zoomed in
 - **Lazy Updates**: Connection geometry is calculated only when source or target positions change
 - **Efficient Hit Detection**: Smart collision detection for user interactions
 
