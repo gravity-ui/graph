@@ -22,12 +22,13 @@ export function setEtlEffect(effect: TEtlEffect): void {
 function runningLook(effect: TEtlEffect, volume: number): TLook {
   switch (effect) {
     case "comets": {
-      const pattern = [80, 180];
+      // Short flows (200–450 units): a dense train of comets keeps every flow readable.
+      const pattern = [40, 50];
       return {
         color: flowColor,
         width: 3 + volume * 0.5,
         pattern,
-        effect: dashFlow.use({ pattern, speed: 50 + volume * 30, fade: true }),
+        effect: dashFlow.use({ pattern, speed: 40 + volume * 20, fade: true }),
       };
     }
     case "dash": {

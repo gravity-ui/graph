@@ -222,7 +222,7 @@ class FlowLine extends WebGLLine {
     if (status === "idle") return this.withInteraction({ color: "#888888", width: 1 }, state);
     const width = 2 + volume * 0.4;
     if (flowEffect === "comets") {
-      const effect = dashFlow.use({ pattern: [80, 180], speed: 50 + volume * 30, fade: true });
+      const effect = dashFlow.use({ pattern: [40, 50], speed: 40 + volume * 20, fade: true });
       return this.withInteraction({ color: "#2f7cf6", width, effect }, state);
     }
     if (flowEffect === "pulse") {
