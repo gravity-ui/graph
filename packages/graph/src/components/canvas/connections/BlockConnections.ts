@@ -14,7 +14,7 @@ import { BlockConnection, TConnectionProps } from "./BlockConnection";
 import { ConnectionLabelRenderer } from "./Label";
 import type { IConnectionBatch } from "./batch";
 import type { TConnectionsRenderer, TConnectionsRendererState } from "./lines";
-import { WebGLConnections } from "./webgl/WebGLConnections";
+import { LostWebGLContext, WebGLConnections } from "./webgl/WebGLConnections";
 import { WebGLProgramError } from "./webgl/programs";
 
 export type TGraphConnectionsContext = TGraphLayerContext & {
@@ -59,8 +59,11 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
   /** Draws the batch on its own canvas; created on the first frame with the layer's canvas in the document. */
   private webgl: WebGLConnections | undefined;
 
-  /** A renderer whose context is lost; disposed when the browser restores the context or the request changes. */
-  private lostWebGL: WebGLConnections | undefined;
+  /**
+   * A renderer whose context is lost, or a context lost while a renderer was set up; disposed when the browser
+   * restores the context or the request changes.
+   */
+  private lostWebGL: WebGLConnections | LostWebGLContext | undefined;
 
   /** Set when WebGL2 cannot be created for the current request; cleared when the connection class changes. */
   private webglUnavailable = false;
@@ -133,12 +136,13 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
   /**
    * Creates the WebGL batch on the first frame that wants it: the renderer subscription fires in the constructor,
    * before the graph layer's canvas is in the document. Without WebGL2, or when its setup fails, Path2D draws until
-   * the connection class changes; after a lost context, until the browser restores it.
+   * the connection class changes; after a lost context (one lost during the setup included), until the browser
+   * restores it.
    */
   private ensureWebGL(): void {
     if (this.renderer !== "webgl" || this.webgl || this.lostWebGL || this.webglUnavailable) return;
     if (!this.context.canvas.isConnected) return;
-    let webgl: WebGLConnections | undefined;
+    let webgl: WebGLConnections | LostWebGLContext | undefined;
     try {
       webgl = WebGLConnections.create(this.context.canvas, {
         ...this.getChunking(),
@@ -161,6 +165,11 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
       this.fallBack("no WebGL2");
       return;
     }
+    if (webgl instanceof LostWebGLContext) {
+      this.lostWebGL = webgl;
+      this.fallBack("context lost");
+      return;
+    }
     this.switchBatch(webgl);
     this.webgl = webgl;
     this.path2d = undefined;
@@ -178,14 +187,14 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
   }
 
   /** Path2D draws while the context is lost; the lost renderer stays to hear the restore. */
-  private handleWebGLLost(webgl: WebGLConnections | undefined): void {
+  private handleWebGLLost(webgl: WebGLConnections | LostWebGLContext | undefined): void {
     if (!webgl || webgl !== this.webgl) return;
     this.lostWebGL = this.detachWebGL();
     this.fallBack("context lost");
   }
 
   /** The restored context has none of the renderer's objects: a fresh renderer is created on the next frame. */
-  private handleWebGLRestored(webgl: WebGLConnections | undefined): void {
+  private handleWebGLRestored(webgl: WebGLConnections | LostWebGLContext | undefined): void {
     if (!webgl || webgl !== this.lostWebGL) return;
     this.disposeLostWebGL();
     this.performRender();

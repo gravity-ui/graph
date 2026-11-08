@@ -4,7 +4,7 @@ import type { ConnectionEffect } from "../effects/ConnectionEffect";
 import type { TConnectionEffectDefinition, TUniformTypes } from "../effects/types";
 import type { TWebGLShape } from "../lines/types";
 
-import { WebGLConnections } from "./WebGLConnections";
+import { LostWebGLContext, WebGLConnections } from "./WebGLConnections";
 import type { TWebGLConnectionsOptions } from "./WebGLConnections";
 import { createFakeGL, installFakeWebGL2 } from "./fakeGL";
 import type { TFakeGL, TFakeWebGL2 } from "./fakeGL";
@@ -102,7 +102,7 @@ function mockFrames(): { request: jest.SpyInstance; pending: () => number; run: 
 function create(fake: TFakeGL, overrides: Partial<TWebGLConnectionsOptions> = {}): WebGLConnections {
   mockWebGL2(fake);
   const connections = WebGLConnections.create(graphCanvas(), { ...options, ...overrides });
-  if (!connections) throw new Error("Expected WebGL connections");
+  if (!(connections instanceof WebGLConnections)) throw new Error("Expected WebGL connections");
   return connections;
 }
 
@@ -140,12 +140,40 @@ describe("WebGLConnections", () => {
     expect(fake.gl.isContextLost()).toBe(true);
   });
 
+  it("waits for the restore of a context lost while it is set up, instead of failing", () => {
+    const fake = createFakeGL();
+    fake.loseContext();
+    mockWebGL2(fake);
+    const onRestored = jest.fn();
+    const graph = graphCanvas();
+    const lost = WebGLConnections.create(graph, { ...options, onRestored });
+    expect(lost).toBeInstanceOf(LostWebGLContext);
+    if (!fake.canvas) throw new Error("Expected the WebGL canvas");
+    const canvas = fake.canvas;
+    // Its canvas does not join the document; it listens for the loss and the restore.
+    expect(graph.previousSibling).toBeNull();
+    const lostEvent = new Event("webglcontextlost", { cancelable: true });
+    canvas.dispatchEvent(lostEvent);
+    expect(lostEvent.defaultPrevented).toBe(true);
+
+    fake.restoreContext();
+    canvas.dispatchEvent(new Event("webglcontextrestored"));
+    expect(onRestored).toHaveBeenCalledTimes(1);
+
+    // Dispose frees the restored context and stops listening.
+    lost?.dispose();
+    expect(fake.gl.isContextLost()).toBe(true);
+    fake.restoreContext();
+    canvas.dispatchEvent(new Event("webglcontextrestored"));
+    expect(onRestored).toHaveBeenCalledTimes(1);
+  });
+
   it("draws the items' shapes in the graph layer's frame and frees everything on dispose", () => {
     const fake = createFakeGL();
     mockWebGL2(fake);
     const graph = graphCanvas();
     const connections = WebGLConnections.create(graph, options);
-    if (!connections) throw new Error("Expected WebGL connections");
+    if (!(connections instanceof WebGLConnections)) throw new Error("Expected WebGL connections");
     const line = item({ segments: new Float32Array([0, 0, 10, 0, 20, 0, 30, 0]), stroke: { color: "#000", width: 2 } });
     const arrow = item({
       segments: new Float32Array([0, 0, 1, 1, 2, 2, 3, 3]),
@@ -171,7 +199,7 @@ describe("WebGLConnections", () => {
     const onLost = jest.fn();
     const onRestored = jest.fn();
     const connections = WebGLConnections.create(graphCanvas(), { ...options, onLost, onRestored });
-    if (!connections || !fake.canvas) throw new Error("Expected WebGL connections");
+    if (!(connections instanceof WebGLConnections) || !fake.canvas) throw new Error("Expected WebGL connections");
     connections.add(
       item({ segments: new Float32Array([0, 0, 10, 0, 20, 0, 30, 0]), stroke: { color: "#000", width: 2 } }),
       { zIndex: 1, group: "line" }
@@ -197,7 +225,7 @@ describe("WebGLConnections", () => {
     const onRestored = jest.fn();
     const graph = graphCanvas();
     const connections = WebGLConnections.create(graph, { ...options, onLost, onRestored });
-    if (!connections || !fake.canvas) throw new Error("Expected WebGL connections");
+    if (!(connections instanceof WebGLConnections) || !fake.canvas) throw new Error("Expected WebGL connections");
     const canvas = fake.canvas;
     fake.loseContext();
     canvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true }));
@@ -488,7 +516,7 @@ describe("WebGLConnections", () => {
       const graph = graphCanvas();
       mockWebGL2(fake);
       const connections = WebGLConnections.create(graph, options);
-      if (!connections || !fake.canvas) throw new Error("Expected WebGL connections");
+      if (!(connections instanceof WebGLConnections) || !fake.canvas) throw new Error("Expected WebGL connections");
       const canvas = fake.canvas;
       connections.add(effectLine(glow), { zIndex: 1, group: "line" });
       connections.render();

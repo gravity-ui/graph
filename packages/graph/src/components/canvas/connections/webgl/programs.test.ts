@@ -422,6 +422,53 @@ describe("ConnectionPrograms with effects", () => {
     expect(fake.live("shader")).toBe(1);
   });
 
+  it("reports and caches nothing for an effect drawn while the context is lost", () => {
+    const fragment = "vec4 effect(ConnectionFragment f, vec4 color) { return color.gbra; } // drawn while lost";
+    const fake = createFakeGL();
+    const programs = new ConnectionPrograms(fake.gl);
+    const [plain] = fake.programs;
+    const effect = define({ fragment });
+
+    // A lost context answers the compile status with null: nothing failed to compile.
+    fake.loseContext();
+    programs.beginFrame(frame);
+    programs.use(effect);
+    expect(error).not.toHaveBeenCalled();
+    expect(fake.used.slice(-1)).toEqual([plain]);
+
+    // Not cached as broken: the next use compiles it.
+    fake.restoreContext();
+    programs.beginFrame(frame);
+    programs.use(effect);
+    expect(fake.used.slice(-1)[0]?.fragment).toContain(fragment);
+
+    // Not marked as reported either: a real failure of the source is reported.
+    const broken = createFakeGL({
+      compileError: (source) => (source.includes(fragment) ? "ERROR: 0:1: real" : undefined),
+    });
+    const brokenPrograms = new ConnectionPrograms(broken.gl);
+    brokenPrograms.beginFrame(frame);
+    brokenPrograms.use(define({ fragment }));
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(String(error.mock.calls[0][0])).toContain("ERROR: 0:1: real");
+  });
+
+  it("throws a context loss, not a program error, when the context is lost while it compiles", () => {
+    const fake = createFakeGL();
+    fake.loseContext();
+    let thrown: unknown;
+    let programs: ConnectionPrograms | undefined;
+    try {
+      programs = new ConnectionPrograms(fake.gl);
+    } catch (caught) {
+      thrown = caught;
+    }
+    expect(programs).toBeUndefined();
+    expect(thrown).toBeInstanceOf(Error);
+    expect(thrown).not.toBeInstanceOf(WebGLProgramError);
+    expect(String(thrown)).toContain("context is lost");
+  });
+
   it("frees effect programs on dispose", () => {
     const fake = createFakeGL();
     const programs = new ConnectionPrograms(fake.gl);

@@ -116,15 +116,20 @@ function setUniform(
   }
 }
 
+/** A lost context compiles and links nothing and answers every status query with null: nothing is broken. */
+function contextLost(): Error {
+  return new Error("The WebGL context is lost");
+}
+
 function compile(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
   const shader = gl.createShader(type);
-  if (!shader) throw new Error("Cannot create a WebGL shader");
+  if (!shader) throw gl.isContextLost() ? contextLost() : new Error("Cannot create a WebGL shader");
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
     const log = gl.getShaderInfoLog(shader) || "shader";
     gl.deleteShader(shader);
-    throw new WebGLProgramError(log);
+    throw gl.isContextLost() ? contextLost() : new WebGLProgramError(log);
   }
   return shader;
 }
@@ -152,8 +157,8 @@ export class ConnectionPrograms implements IConnectionPrograms {
   private current: TProgram | undefined;
 
   /**
-   * Throws a `WebGLProgramError` with the compiler or linker log when a program fails; nothing it created stays alive
-   * then.
+   * Throws a `WebGLProgramError` with the compiler or linker log when a program fails, and another error when the
+   * context is lost meanwhile; nothing it created stays alive then.
    */
   constructor(private readonly gl: WebGL2RenderingContext) {
     this.vertex = compile(gl, gl.VERTEX_SHADER, VERTEX);
@@ -203,7 +208,10 @@ export class ConnectionPrograms implements IConnectionPrograms {
     this.gl.deleteShader(this.vertex);
   }
 
-  /** The effect's program, compiled on its first use; the plain program when its source is broken. */
+  /**
+   * The effect's program, compiled on its first use; the plain program when its source is broken. While the context
+   * is lost nothing compiles: the effect is neither reported nor cached, so its first use after a restore compiles it.
+   */
   private programOf(effect: TShapeEffect): TProgram {
     let program = this.effects.get(effect.programKey);
     if (program === undefined) {
@@ -211,6 +219,7 @@ export class ConnectionPrograms implements IConnectionPrograms {
         const source = createFragmentShader(effect.fragment, effect.uniformDeclarations);
         program = this.link(this.vertex, source, Object.keys(effect.uniformTypes));
       } catch (error) {
+        if (this.gl.isContextLost()) return this.plain;
         reportBrokenEffect(effect.programKey, error);
         program = null;
       }
@@ -261,7 +270,7 @@ export class ConnectionPrograms implements IConnectionPrograms {
     const program = gl.createProgram();
     if (!program) {
       gl.deleteShader(fragment);
-      throw new Error("Cannot create a WebGL program");
+      throw gl.isContextLost() ? contextLost() : new Error("Cannot create a WebGL program");
     }
     gl.attachShader(program, vertex);
     gl.attachShader(program, fragment);
@@ -272,7 +281,7 @@ export class ConnectionPrograms implements IConnectionPrograms {
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
       const log = gl.getProgramInfoLog(program) || "link";
       gl.deleteProgram(program);
-      throw new WebGLProgramError(log);
+      throw gl.isContextLost() ? contextLost() : new WebGLProgramError(log);
     }
     return {
       program,

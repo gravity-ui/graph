@@ -104,7 +104,7 @@ export type TFakeGL = {
   calls: string[];
   /** Live (not deleted) objects of a kind. */
   live(kind: "buffer" | "vertexArray" | "program" | "shader"): number;
-  /** Makes `isContextLost()` return true, like a lost context. */
+  /** Makes `isContextLost()` return true and status queries return null, like a lost context. */
   loseContext(): void;
   /** Makes `isContextLost()` return false again, like a restored context; objects created before stay as they are. */
   restoreContext(): void;
@@ -236,8 +236,11 @@ export function createFakeGL(options: TFakeGLOptions = {}): TFakeGL {
       if (log === undefined) shaderLogs.delete(shader);
       else shaderLogs.set(shader, log);
     },
-    getShaderParameter: (shader: TFakeShader, parameter: number): boolean =>
-      parameter === CONSTANTS.COMPILE_STATUS ? !shaderLogs.has(shader) : true,
+    // A lost context answers every query with null.
+    getShaderParameter: (shader: TFakeShader, parameter: number): boolean | null => {
+      if (lost) return null;
+      return parameter === CONSTANTS.COMPILE_STATUS ? !shaderLogs.has(shader) : true;
+    },
     getShaderInfoLog: (shader: TFakeShader): string => shaderLogs.get(shader) ?? "",
     deleteShader: (shader: TFakeShader | null): void => {
       if (shader) shader.deleted = true;
@@ -268,8 +271,10 @@ export function createFakeGL(options: TFakeGLOptions = {}): TFakeGL {
       if (log === undefined) programLogs.delete(target);
       else programLogs.set(target, log);
     },
-    getProgramParameter: (target: TFakeProgram, parameter: number): boolean =>
-      parameter === CONSTANTS.LINK_STATUS ? target.linked : true,
+    getProgramParameter: (target: TFakeProgram, parameter: number): boolean | null => {
+      if (lost) return null;
+      return parameter === CONSTANTS.LINK_STATUS ? target.linked : true;
+    },
     getProgramInfoLog: (target: TFakeProgram): string => programLogs.get(target) ?? "",
     deleteProgram: (target: TFakeProgram | null): void => {
       if (target) target.deleted = true;

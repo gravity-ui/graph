@@ -36,6 +36,41 @@ function readValues(signals: ReadonlyArray<ReadonlySignal<unknown>>): unknown[] 
 }
 
 /**
+ * A context lost while the renderer was set up: a browser can hand out a context that is lost already, or lose it
+ * meanwhile. Its canvas never joins the document; it keeps listening to it, so the browser may restore the context,
+ * and reports the restore like a lost renderer does.
+ */
+export class LostWebGLContext {
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    private readonly gl: WebGL2RenderingContext,
+    private readonly onRestored: () => void
+  ) {
+    canvas.addEventListener("webglcontextlost", this.handleLost);
+    canvas.addEventListener("webglcontextrestored", this.handleRestored);
+  }
+
+  /** Nothing to suspend: its canvas is not in the document. */
+  public suspend(): void {}
+
+  /** Stops listening and frees a restored context. */
+  public dispose(): void {
+    this.canvas.removeEventListener("webglcontextlost", this.handleLost);
+    this.canvas.removeEventListener("webglcontextrestored", this.handleRestored);
+    if (!this.gl.isContextLost()) this.gl.getExtension("WEBGL_lose_context")?.loseContext();
+  }
+
+  private handleLost = (event: Event): void => {
+    // Without preventDefault() the browser never restores the context.
+    event.preventDefault();
+  };
+
+  private handleRestored = (): void => {
+    this.onRestored();
+  };
+}
+
+/**
  * Lines and arrows drawn with WebGL2 on a canvas stacked right below the graph layer's canvas. Draws in the graph
  * layer's frame; it also redraws itself in an animation frame of its own, without the graph layer, every frame while it
  * draws an animated chunk or a chunk still tessellated for another zoom bucket, and once after a uniform of an effect
@@ -44,13 +79,14 @@ function readValues(signals: ReadonlyArray<ReadonlySignal<unknown>>): unknown[] 
  */
 export class WebGLConnections implements IConnectionBatch {
   /**
-   * Returns undefined when WebGL2 is unavailable; throws the log when the line or fill program fails to compile or
-   * link, after freeing the context.
+   * Returns undefined when WebGL2 is unavailable, and a `LostWebGLContext` that reports the restore (`onRestored`)
+   * when the context is lost while the renderer is set up; throws the log when the line or fill program fails to
+   * compile or link, after freeing the context.
    */
   public static create(
     graphCanvas: HTMLCanvasElement,
     options: TWebGLConnectionsOptions
-  ): WebGLConnections | undefined {
+  ): WebGLConnections | LostWebGLContext | undefined {
     const canvas = graphCanvas.ownerDocument.createElement("canvas");
     const gl = canvas.getContext("webgl2", { antialias: false, premultipliedAlpha: true, alpha: true });
     if (!gl) return undefined;
@@ -58,6 +94,8 @@ export class WebGLConnections implements IConnectionBatch {
     try {
       connections = new WebGLConnections(canvas, gl, graphCanvas, options);
     } catch (error) {
+      // A lost context fails every step of the setup: the setup is not broken, the context may come back.
+      if (gl.isContextLost()) return new LostWebGLContext(canvas, gl, options.onRestored);
       // Browsers limit live WebGL contexts; this one is not used.
       gl.getExtension("WEBGL_lose_context")?.loseContext();
       throw error;

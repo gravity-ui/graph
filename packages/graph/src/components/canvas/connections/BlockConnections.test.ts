@@ -467,6 +467,50 @@ describe("BlockConnections renderer from the line class", () => {
     expect(fallbackWarnings(warn)).toHaveLength(1);
   });
 
+  it("treats a context lost while the renderer is set up as a lost context, with the restore path", () => {
+    const error = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    let first = true;
+    installed = installFakeWebGL2(() => {
+      const fake = createFakeGL();
+      if (first) fake.loseContext();
+      first = false;
+      return fake;
+    });
+    const root = attachedRoot();
+    graph = mount({ connection: GLConnection }, root);
+    const [lost] = installed.contexts;
+    const lostCanvas = webglCanvas(lost);
+
+    expect(internals(graph).batch).toBeInstanceOf(BatchPath2DRenderer);
+    expectCurrentItems(graph, WebGLLine);
+    expect(rendererOf(graph)).toBe("webgl-fallback");
+    expect(fallbackWarnings(warn)).toEqual([
+      "[@gravity-ui/graph] WebGL2 is unavailable (context lost); connections are drawn with Path2D using each " +
+        "effect's fallback stroke.",
+    ]);
+    expect(error).not.toHaveBeenCalled();
+    // It waits for the restore: the browser's loss event is prevented, and no other context is created meanwhile.
+    const lostEvent = new Event("webglcontextlost", { cancelable: true });
+    lostCanvas.dispatchEvent(lostEvent);
+    expect(lostEvent.defaultPrevented).toBe(true);
+    frames();
+    expect(installed.contexts).toHaveLength(1);
+
+    lost.restoreContext();
+    lostCanvas.dispatchEvent(new Event("webglcontextrestored"));
+    frames(1);
+
+    expect(internals(graph).batch).toBeInstanceOf(WebGLConnections);
+    expectCurrentItems(graph, WebGLLine);
+    expect(rendererOf(graph)).toBe("webgl");
+    expect(installed.contexts).toHaveLength(2);
+    expect(lost.gl.isContextLost()).toBe(true);
+    expect(graphLevelCanvases(graph, root)).toEqual([
+      webglCanvas(installed.contexts[1]),
+      graph.getGraphLayer().getCanvas(),
+    ]);
+  });
+
   it("falls back again when the renderer created after a restore fails", () => {
     let available = true;
     installed = installFakeWebGL2(() => (available ? createFakeGL() : null));
