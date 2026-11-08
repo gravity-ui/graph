@@ -7,7 +7,7 @@ export * from "./BatchPath2D";
 export * from "./batch";
 export * from "./geometry";
 export * from "./lines";
-export { defineConnectionEffect } from "./effects";
+export { defineConnectionEffect, dashFlow, pulse } from "./effects";
 export type {
   TConnectionEffect,
   TConnectionEffectDefinition,

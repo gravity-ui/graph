@@ -7,3 +7,4 @@ export type {
   TUniformTypes,
   TUniformValue,
 } from "./types";
+export { dashFlow, pulse } from "./library";

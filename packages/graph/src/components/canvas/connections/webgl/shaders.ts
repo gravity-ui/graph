@@ -117,6 +117,21 @@ struct ConnectionFragment {
   vec4 params0;      // params[0..3]
   vec4 params1;      // params[4..7]
 };
+
+// Helpers for effects; part of the shader contract, versioned with ConnectionFragment.
+// Position in a repeating on/off pattern, 0..on+off, shifted by offset.
+float graph_dashPhase(float along, float on, float off, float offset) { return mod(along - offset, on + off); }
+// Comet brightness for a position inside the dash (phase < on): the head leads in the direction of speed.
+float graph_comet(float phase, float on, float speed) {
+  float head = speed >= 0.0 ? phase / on : 1.0 - phase / on;
+  return head * head;
+}
+// Traveling crest, 0.15..1; wavelength 0 pulses the whole line in place.
+float graph_wave(vec2 world, float time, float period, float wavelength) {
+  float wave = wavelength > 0.0 ? world.x / wavelength : 0.0;
+  float pulse = 0.5 + 0.5 * cos(6.2831853 * (time / period - wave));
+  return mix(0.15, 1.0, pow(pulse, 4.0));
+}
 `;
 
 /** The effect of the plain stroke. */
