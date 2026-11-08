@@ -45,7 +45,7 @@ for (const deviceScaleFactor of [1, 2]) {
         const hits = await graph.evaluate((instance) => {
           const point = { x: 350, y: 150 };
           const cameraPoint = instance.cameraService.createCameraPoint(point);
-          const [canvasX, canvasY] = instance.cameraService.getAbsoluteXY(350, 161);
+          const [canvasX, canvasY] = instance.cameraService.getAbsoluteXY(280, 161);
           const rect = instance.getGraphCanvas().getBoundingClientRect();
           const mousePoint = instance.getPointInCameraSpace(
             new MouseEvent("mousemove", { clientX: rect.left + canvasX, clientY: rect.top + canvasY })
@@ -57,6 +57,7 @@ for (const deviceScaleFactor of [1, 2]) {
             miss: instance.getElementOverPoint({ x: 350, y: 200 })?.getEntityId() ?? null,
             // Rounding the mouse's world coordinates can turn this near-edge miss into a hit. The hit distance is
             // stroke.width / 2 + 8 = 9 world units from the line at y = 150, so y = 161 stays outside.
+            // x = 280 is away from the middle (x = 350): the arrow there is part of the hit area.
             mouseMiss: instance.getElementOverPoint(mousePoint)?.getEntityId() ?? null,
             worldMiss: instance.getElementOverPoint(mousePoint.world)?.getEntityId() ?? null,
           };
