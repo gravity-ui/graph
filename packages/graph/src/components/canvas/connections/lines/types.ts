@@ -13,3 +13,11 @@ export type TLineStroke = { color: string; width: number; dash?: { pattern: read
 export type TConnectionLineClass = (new (connection: never) => ConnectionLine) & {
   readonly renderer: TConnectionsRenderer;
 };
+
+/** What the WebGL batch draws for one item (internal). */
+export type TWebGLShape = {
+  segments: Float32Array;
+  stroke: TLineStroke;
+  /** Polygon (x, y pairs) filled with the stroke color: a closed arrow. */
+  fill?: Float32Array;
+};

@@ -6,7 +6,7 @@ import type { IConnectionBatchItem } from "../batch";
 import { getSegmentsBounds } from "../geometry";
 import type { TConnectionGeometry } from "../geometry";
 
-import type { TConnectionsRenderer, TLineStroke } from "./types";
+import type { TConnectionsRenderer, TLineStroke, TWebGLShape } from "./types";
 
 /** The arrow item of a line: the line's bounds and visibility, the arrow's path and style. */
 class LineArrowItem implements IConnectionBatchItem {
@@ -30,6 +30,10 @@ class LineArrowItem implements IConnectionBatchItem {
 
   public style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
     return this.line.styleArrow(ctx);
+  }
+
+  public getWebGLShape(): TWebGLShape | undefined {
+    return this.line.getArrowWebGLShape();
   }
 }
 
@@ -157,6 +161,16 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
 
   public isInViewport(): boolean {
     return this.connection.isInViewport();
+  }
+
+  /** What the WebGL batch draws for the line; lines without WebGL shapes return `undefined`. */
+  public getWebGLShape(): TWebGLShape | undefined {
+    return undefined;
+  }
+
+  /** What the WebGL batch draws for the arrow. */
+  public getArrowWebGLShape(): TWebGLShape | undefined {
+    return undefined;
   }
 
   public abstract getPath(): Path2D | undefined;

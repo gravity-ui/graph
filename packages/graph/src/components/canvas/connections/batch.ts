@@ -1,9 +1,13 @@
 import type { TBatchParams } from "../../../lib/batch/types";
 
 import type { Path2DRenderInstance } from "./BatchPath2D";
+import type { TWebGLShape } from "./lines/types";
 
 /** A batched connection item: a line or an arrow. */
-export interface IConnectionBatchItem extends Path2DRenderInstance {}
+export interface IConnectionBatchItem extends Path2DRenderInstance {
+  /** What the WebGL batch draws; items without it are not drawn by WebGL. */
+  getWebGLShape?(): TWebGLShape | undefined;
+}
 
 /** The batch connections register with; one renderer draws every connection of the graph. */
 export interface IConnectionBatch {
