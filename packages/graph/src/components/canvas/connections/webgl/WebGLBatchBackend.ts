@@ -2,7 +2,7 @@ import type { IBatchBackend } from "../../../../lib/batch/types";
 import type { IConnectionBatchItem } from "../batch";
 import type { TWebGLShape } from "../lines/types";
 
-import { INSTANCE_FLOATS, countPieces, encodeShapes } from "./encode";
+import { INSTANCE_ATTRIBUTES, INSTANCE_FLOATS, countPieces, encodeShapes } from "./encode";
 import { ArrowFills } from "./fill";
 import type { TGLFill } from "./fill";
 import type { IConnectionPrograms } from "./programs";
@@ -30,16 +30,6 @@ export type TGLChunk = {
 };
 
 const STRIDE = INSTANCE_FLOATS * 4;
-// location, components, float offset (see INSTANCE_FLOATS)
-const INSTANCE_ATTRIBUTES: ReadonlyArray<[number, number, number]> = [
-  [1, 4, 0],
-  [2, 4, 4],
-  [3, 4, 8],
-  [4, 4, 12],
-  [5, 2, 16],
-  [6, 4, 18],
-  [7, 4, 22],
-];
 
 /**
  * Encodes the WebGL shapes of a chunk's items into one instance buffer and draws it in one instanced call with the

@@ -1,3 +1,4 @@
+import { isDevelopmentBuild } from "../../../../lib/detachedWarning";
 import { parseColor } from "../../../../utils/functions/color";
 import type { TLineStroke, TWebGLShape } from "../lines/types";
 
@@ -5,16 +6,35 @@ import { CURVE_SEGMENTS } from "./shaders";
 
 /**
  * Floats per instance (one cubic piece):
- * 0-3 p0, c1 | 4-7 c2, p3 | 8-11 straight rgba 0..1 | 12-15 width, dash on, dash off, connection length |
- * 16-17 distance at the piece start, piece length | 18-25 effect params.
+ * 0-3 p0, c1 | 4-7 c2, p3 | 8-11 straight rgba 0..1 |
+ * 12-15 width, connection length, distance at the piece start, piece length | 16-19 dash: on, off, on, off |
+ * 20-27 effect params.
  * Lengths and distances in world units.
  */
-export const INSTANCE_FLOATS = 26;
+export const INSTANCE_FLOATS = 28;
+
+/** Instance attributes of the line program: location, components, float offset (see `INSTANCE_FLOATS`). */
+export const INSTANCE_ATTRIBUTES: ReadonlyArray<readonly [number, number, number]> = [
+  [1, 4, 0],
+  [2, 4, 4],
+  [3, 4, 8],
+  [4, 4, 12],
+  [5, 4, 16],
+  [6, 4, 20],
+  [7, 4, 24],
+];
+
+/** Numbers of a dash pattern the instance holds: two on/off pairs. */
+export const DASH_FLOATS = 4;
 
 /** Numbers an effect reads per connection, `f.params0` and `f.params1` in the shader. */
 export const EFFECT_PARAMS = 8;
 
-const PARAMS_OFFSET = 18;
+const DASH_OFFSET = 16;
+
+const PARAMS_OFFSET = 20;
+
+const NO_DASH: readonly number[] = [0, 0, 0, 0];
 
 /** World units: the chords that draw a piece stay this close to its cubic. */
 const MAX_CHORD_DEVIATION = 0.25;
@@ -89,12 +109,32 @@ export function colorFloats(css: string): [number, number, number, number] {
   return [color.r / 255, color.g / 255, color.b / 255, color.a];
 }
 
-/** Floats 8-14 of every instance of a shape: rgba, width, dash on, dash off. */
-function strokeFloats({ color, width, dash }: TLineStroke): number[] {
-  const on = dash?.pattern[0] ?? 0;
-  // A one-number pattern repeats itself, like canvas setLineDash: equal dashes and gaps.
-  const off = dash?.pattern[1] ?? on;
-  return [...colorFloats(color), width, on, off];
+/** Pattern texts already reported as too long, so each is reported once. */
+const reportedPatterns = new Set<string>();
+
+function reportLongPattern(pattern: readonly number[], normalized: readonly number[]): void {
+  const text = pattern.join(", ");
+  if (!isDevelopmentBuild() || reportedPatterns.has(text)) return;
+  reportedPatterns.add(text);
+  console.warn(
+    `[@gravity-ui/graph] WebGL connections draw dash patterns of up to ${DASH_FLOATS} numbers. ` +
+      `[${text}] has ${normalized.length}${pattern.length % 2 ? " once repeated to an even length" : ""}, ` +
+      `so WebGL draws [${normalized.slice(0, DASH_FLOATS).join(", ")}] while Path2D draws all of it.`
+  );
+}
+
+/**
+ * The dash of an instance, like canvas `setLineDash`: an odd-length pattern is repeated to an even length, then its
+ * first two on/off pairs are kept (a longer pattern reports one development warning); a 2-number pattern leaves the
+ * second pair at zero. No dash, an empty pattern, or one with a negative or non-finite number is solid: all zeros.
+ */
+function dashFloats(dash: TLineStroke["dash"]): readonly number[] {
+  const pattern = dash?.pattern;
+  if (!pattern?.length) return NO_DASH;
+  for (const value of pattern) if (!Number.isFinite(value) || value < 0) return NO_DASH;
+  const normalized = pattern.length % 2 ? [...pattern, ...pattern] : pattern;
+  if (normalized.length > DASH_FLOATS) reportLongPattern(pattern, normalized);
+  return [normalized[0], normalized[1], normalized[2] ?? 0, normalized[3] ?? 0];
 }
 
 /**
@@ -105,7 +145,8 @@ function strokeFloats({ color, width, dash }: TLineStroke): number[] {
 export function encodeShapes(shapes: readonly TWebGLShape[], out: Float32Array): number {
   let index = 0;
   for (const { segments, stroke } of shapes) {
-    const floats = strokeFloats(stroke);
+    const color = colorFloats(stroke.color);
+    const dash = dashFloats(stroke.dash);
     const first = index;
     let distance = 0;
     for (let o = 0; o + 8 <= segments.length; o += 8) {
@@ -117,17 +158,19 @@ export function encodeShapes(shapes: readonly TWebGLShape[], out: Float32Array):
         } else {
           writePiece(segments, o, k / pieces, (k + 1) / pieces, out, base);
         }
-        out.set(floats, base + 8);
+        out.set(color, base + 8);
         const length = cubicLength(out, base);
-        out[base + 16] = distance;
-        out[base + 17] = length;
+        out[base + 12] = stroke.width;
+        out[base + 14] = distance;
+        out[base + 15] = length;
+        out.set(dash, base + DASH_OFFSET);
         out.fill(0, base + PARAMS_OFFSET, base + PARAMS_OFFSET + EFFECT_PARAMS);
         distance += length;
         index++;
       }
     }
     // The whole length is known once every piece of the shape is written.
-    for (let i = first; i < index; i++) out[i * INSTANCE_FLOATS + 15] = distance;
+    for (let i = first; i < index; i++) out[i * INSTANCE_FLOATS + 13] = distance;
   }
   return index;
 }

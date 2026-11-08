@@ -77,6 +77,11 @@ export type TFakeGLOptions = {
   compileError?: (source: string, type: number) => string | undefined;
   /** A linker log makes the program fail to link. */
   linkError?: (vertex: string, fragment: string) => string | undefined;
+  /**
+   * Uniforms the "compiler" drops as unused: `getUniformLocation` returns null for them, as a real context does for an
+   * inactive uniform. Every other declared uniform is active.
+   */
+  inactiveUniforms?: readonly string[];
 };
 
 export type TFakeGL = {
@@ -136,8 +141,9 @@ function declaresUniform(program: TFakeProgram, name: string): boolean {
 
 /**
  * A fake WebGL2 context. Shaders compile and programs link unless the options return a log; `getUniformLocation`
- * returns a location only for uniforms the program's sources declare, like a real context. Misuse a real context
- * reports as an error throws: a uniform for a program not in use, a deleted program, vertex array or buffer in a draw.
+ * returns a location only for uniforms the program's sources declare (minus `inactiveUniforms`). Misuse a real context
+ * reports as an error throws: a uniform for a program not in use, a deleted program or vertex array in a draw, a draw
+ * reading past the end of a bound buffer or from an attribute without one, a deleted buffer bound or written.
  */
 export function createFakeGL(options: TFakeGLOptions = {}): TFakeGL {
   let ids = 0;
@@ -172,11 +178,24 @@ export function createFakeGL(options: TFakeGLOptions = {}): TFakeGL {
   };
 
   /** Draws read the program in use and the bound vertex array: neither, nor a buffer they read, may be deleted. */
-  const checkDraw = (): void => {
+  const checkDraw = (first: number, count: number, instances: number): void => {
     if (!program || program.deleted) throw new Error("fakeGL: draw without a live program");
     if (vertexArray?.deleted) throw new Error("fakeGL: draw with a deleted vertex array");
-    for (const state of (vertexArray ?? defaultVertexArray).attributes.values()) {
-      if (state.enabled && state.buffer?.deleted) throw new Error("fakeGL: draw reads a deleted buffer");
+    if (count <= 0 || instances <= 0) return;
+    for (const [location, state] of (vertexArray ?? defaultVertexArray).attributes) {
+      if (!state.enabled) continue;
+      if (!state.buffer || state.buffer.deleted)
+        throw new Error(`fakeGL: draw reads attribute ${location} without a buffer`);
+      // The last element the draw reads, like the INVALID_OPERATION bounds check of a real context.
+      const last = state.divisor ? Math.ceil(instances / state.divisor) - 1 : first + count - 1;
+      const stride = state.stride || state.size * 4;
+      const end = last * stride + state.offset + state.size * 4;
+      const bytes = state.buffer.data.length * 4;
+      if (end > bytes) {
+        throw new Error(
+          `fakeGL: INVALID_OPERATION, attribute ${location} reads ${end} bytes of a ${bytes}-byte buffer`
+        );
+      }
     }
   };
 
@@ -261,7 +280,8 @@ export function createFakeGL(options: TFakeGLOptions = {}): TFakeGL {
     },
     getUniformLocation: (target: TFakeProgram, name: string): TFakeUniformLocation | null => {
       uniformLookups.push(name);
-      return declaresUniform(target, name) ? { kind: "uniform", program: target, name } : null;
+      if (options.inactiveUniforms?.includes(name) || !declaresUniform(target, name)) return null;
+      return { kind: "uniform", program: target, name };
     },
     uniform1f: uniform("uniform1f"),
     uniform2f: uniform("uniform2f"),
@@ -278,6 +298,7 @@ export function createFakeGL(options: TFakeGLOptions = {}): TFakeGL {
       return buffer;
     },
     bindBuffer: (_target: number, buffer: TFakeBuffer | null): void => {
+      if (buffer?.deleted) throw new Error("fakeGL: bindBuffer of a deleted buffer");
       arrayBuffer = buffer ?? undefined;
     },
     bufferData: (_target: number, data: unknown): void => {
@@ -296,7 +317,13 @@ export function createFakeGL(options: TFakeGLOptions = {}): TFakeGL {
       uploads.push({ kind: "bufferSubData", buffer: arrayBuffer, offset, length: floats.length });
     },
     deleteBuffer: (buffer: TFakeBuffer | null): void => {
-      if (buffer) buffer.deleted = true;
+      if (!buffer) return;
+      buffer.deleted = true;
+      // A real context unbinds a deleted buffer and detaches it from the bound vertex array.
+      if (arrayBuffer === buffer) arrayBuffer = undefined;
+      for (const state of (vertexArray ?? defaultVertexArray).attributes.values()) {
+        if (state.buffer === buffer) state.buffer = undefined;
+      }
     },
 
     createVertexArray: (): TFakeVertexArray => {
@@ -308,7 +335,10 @@ export function createFakeGL(options: TFakeGLOptions = {}): TFakeGL {
       vertexArray = target ?? undefined;
     },
     deleteVertexArray: (target: TFakeVertexArray | null): void => {
-      if (target) target.deleted = true;
+      if (!target) return;
+      target.deleted = true;
+      // Deleting the bound vertex array binds the default one.
+      if (vertexArray === target) vertexArray = undefined;
     },
     enableVertexAttribArray: (location: number): void => {
       attribute(location).enabled = true;
@@ -328,11 +358,11 @@ export function createFakeGL(options: TFakeGLOptions = {}): TFakeGL {
     },
 
     drawArrays: (mode: number, first: number, count: number): void => {
-      checkDraw();
+      checkDraw(first, count, 1);
       draws.push({ kind: "drawArrays", mode, first, count, instances: 1, program, vertexArray });
     },
     drawArraysInstanced: (mode: number, first: number, count: number, instances: number): void => {
-      checkDraw();
+      checkDraw(first, count, instances);
       draws.push({ kind: "drawArraysInstanced", mode, first, count, instances, program, vertexArray });
     },
 

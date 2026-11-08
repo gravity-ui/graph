@@ -1,6 +1,7 @@
 import type { TWebGLShape } from "../lines/types";
 
-import { FILL_VERTEX_FLOATS, countFillVertices, encodeFills } from "./fill";
+import { createFakeGL } from "./fakeGL";
+import { ArrowFills, FILL_VERTEX_FLOATS, countFillVertices, encodeFills } from "./fill";
 
 const arrow = (points: number[] | undefined, color = "rgba(255, 0, 0, 0.5)"): TWebGLShape => ({
   segments: new Float32Array(0),
@@ -54,4 +55,13 @@ test("open arrows and degenerate polygons add nothing", () => {
   const out = new Float32Array(3 * FILL_VERTEX_FLOATS);
   expect(encodeFills(shapes, out)).toBe(3);
   expect(vertices(out, 1)[0]).toEqual([0, 0, 0, 1, 0, 1]);
+});
+
+test("frees the buffer when the vertex array cannot be created", () => {
+  const fake = createFakeGL();
+  // A lost context returns null for new objects.
+  (fake.gl as unknown as { createVertexArray(): null }).createVertexArray = (): null => null;
+  expect(() => new ArrowFills(fake.gl).build([arrow([0, 0, 10, 0, 5, 8])], undefined)).toThrow("Cannot allocate");
+  expect(fake.buffers).toHaveLength(1);
+  expect(fake.live("buffer")).toBe(0);
 });

@@ -13,8 +13,8 @@ layout(location = 0) in vec2 graph_template;  // t along the piece, side -1 or +
 layout(location = 1) in vec4 graph_p0c1;      // p0, c1
 layout(location = 2) in vec4 graph_c2p3;      // c2, p3
 layout(location = 3) in vec4 graph_rgba;      // straight rgba, 0..1
-layout(location = 4) in vec4 graph_stroke;    // width (world), dash on, dash off, connection length
-layout(location = 5) in vec2 graph_distance;  // distance at the piece start, piece length
+layout(location = 4) in vec4 graph_stroke;    // width, connection length, distance at the piece start, piece length
+layout(location = 5) in vec4 graph_dash;      // on, off, on, off; zeros: solid
 layout(location = 6) in vec4 graph_params0;   // effect params 0..3
 layout(location = 7) in vec4 graph_params1;   // effect params 4..7
 
@@ -29,7 +29,7 @@ out float graph_vHalfWidth;
 out float graph_vHairline;
 out float graph_vAlong;
 out vec2 graph_vWorld;
-flat out vec2 graph_vDash;
+flat out vec4 graph_vDash;
 flat out float graph_vLength;
 flat out vec4 graph_vParams0;
 flat out vec4 graph_vParams1;
@@ -60,18 +60,21 @@ void main() {
   // One device pixel more than the stroke and its extra width: room for the anti-aliased edge.
   float extent = halfPx + graph_extraWidth + 1.0 / graph_dpr;
   vec2 normal = vec2(-dir.y, dir.x);
-  vec2 world = graph_bezier(p0, c1, c2, p3, t);
-  vec2 screen = world * graph_camera.z + graph_camera.xy + normal * graph_template.y * extent;
+  vec2 center = graph_bezier(p0, c1, c2, p3, t);
+  // CSS pixels from the center line.
+  vec2 offset = normal * graph_template.y * extent;
+  vec2 screen = center * graph_camera.z + graph_camera.xy + offset;
   vec2 clip = screen / graph_viewport * 2.0 - 1.0;
   gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
   graph_vAcross = graph_template.y * extent;
   graph_vHalfWidth = halfPx;
   graph_vHairline = min(deviceWidth, 1.0);
   graph_vColor = graph_rgba;
-  graph_vAlong = graph_distance.x + t * graph_distance.y;
-  graph_vWorld = world;
-  graph_vDash = graph_stroke.yz;
-  graph_vLength = graph_stroke.w;
+  graph_vAlong = graph_stroke.z + t * graph_stroke.w;
+  // The vertex's world position, off the center line: each fragment interpolates its own.
+  graph_vWorld = center + offset / graph_camera.z;
+  graph_vDash = graph_dash;
+  graph_vLength = graph_stroke.y;
   graph_vParams0 = graph_params0;
   graph_vParams1 = graph_params1;
 }
@@ -88,7 +91,7 @@ in float graph_vHalfWidth;
 in float graph_vHairline;
 in float graph_vAlong;
 in vec2 graph_vWorld;
-flat in vec2 graph_vDash;
+flat in vec4 graph_vDash;
 flat in float graph_vLength;
 flat in vec4 graph_vParams0;
 flat in vec4 graph_vParams1;
@@ -109,7 +112,7 @@ struct ConnectionFragment {
   float extraWidth;  // the effect's extraWidth, CSS pixels (0 without)
   float coverage;    // 0..1: how much of the pixel the stroke itself covers, anti-aliased
   float scale;       // CSS pixels per world unit
-  vec2 world;        // world position
+  vec2 world;        // the fragment's world position
   float time;        // seconds since the renderer started
   vec4 params0;      // params[0..3]
   vec4 params1;      // params[4..7]
@@ -121,8 +124,13 @@ const IDENTITY_EFFECT = /* glsl */ `vec4 effect(ConnectionFragment f, vec4 color
 
 const FRAGMENT_MAIN = /* glsl */ `
 void main() {
-  // The still dash: an effect never draws in its gaps.
-  if (graph_vDash.x > 0.0 && mod(graph_vAlong, graph_vDash.x + graph_vDash.y) > graph_vDash.x) discard;
+  // The still dash, two on/off pairs like canvas setLineDash: an effect never draws in its gaps.
+  float dashLength = graph_vDash.x + graph_vDash.y + graph_vDash.z + graph_vDash.w;
+  if (dashLength > 0.0) {
+    float phase = mod(graph_vAlong, dashLength);
+    float secondDash = graph_vDash.x + graph_vDash.y;
+    if ((phase > graph_vDash.x && phase <= secondDash) || phase > secondDash + graph_vDash.z) discard;
+  }
   float across = abs(graph_vAcross);
   float coverage = clamp((graph_vHalfWidth - across) * graph_dpr + 0.5, 0.0, 1.0);
   // The outer edge of the drawn quad: the stroke's own edge without an extra width.

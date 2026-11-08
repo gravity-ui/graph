@@ -7,10 +7,11 @@ import { createFakeGL } from "./fakeGL";
 import type { TFakeGL } from "./fakeGL";
 import { FILL_VERTEX_FLOATS } from "./fill";
 import { ConnectionPrograms } from "./programs";
-import { FILL_VERTEX } from "./shaders";
+import { FILL_VERTEX, createCurveTemplate } from "./shaders";
 import { getWebGLConnectionsStats, resetWebGLConnectionsStats } from "./stats";
 
-const TEMPLATE_VERTICES = 66;
+const TEMPLATE = createCurveTemplate();
+const TEMPLATE_VERTICES = TEMPLATE.length / 2;
 
 function item(shape?: TWebGLShape | "none"): IConnectionBatchItem {
   const base: IConnectionBatchItem = {
@@ -56,6 +57,9 @@ function setup(): { fake: TFakeGL; backend: WebGLBatchBackend } {
   programs.beginFrame({ width: 100, height: 100, x: 0, y: 0, scale: 1, dpr: 1, time: 0 });
   const template = fake.gl.createBuffer();
   if (!template) throw new Error("Expected a template buffer");
+  // The fake checks that draws stay within the bound buffers, the template included.
+  fake.gl.bindBuffer(fake.gl.ARRAY_BUFFER, template);
+  fake.gl.bufferData(fake.gl.ARRAY_BUFFER, TEMPLATE, fake.gl.STATIC_DRAW);
   const backend = new WebGLBatchBackend(fake.gl, template, TEMPLATE_VERTICES, programs);
   return { fake, backend };
 }
@@ -69,7 +73,8 @@ describe("WebGLBatchBackend", () => {
     expect(chunk.items).toBe(1);
     expect(chunk.count).toBe(1);
     expect(chunk.fill).toBeUndefined();
-    expect(fake.uploads.map(({ kind, length }) => [kind, length])).toEqual([["bufferData", INSTANCE_FLOATS]]);
+    // After the template's upload: one instance.
+    expect(fake.uploads.slice(1).map(({ kind, length }) => [kind, length])).toEqual([["bufferData", INSTANCE_FLOATS]]);
 
     backend.draw(undefined, chunk);
     expect(fake.draws).toHaveLength(1);
@@ -81,7 +86,7 @@ describe("WebGLBatchBackend", () => {
     });
   });
 
-  it("lays the instance attributes out over the 26 floats", () => {
+  it("lays the instance attributes out over the 28 floats", () => {
     const { fake, backend } = setup();
     backend.draw(undefined, backend.build([item(line())], undefined));
     const vertexArray = fake.draws[0].vertexArray;
@@ -96,9 +101,9 @@ describe("WebGLBatchBackend", () => {
       [2, 4, stride, 16, 1],
       [3, 4, stride, 32, 1],
       [4, 4, stride, 48, 1],
-      [5, 2, stride, 64, 1],
-      [6, 4, stride, 72, 1],
-      [7, 4, stride, 88, 1],
+      [5, 4, stride, 64, 1],
+      [6, 4, stride, 80, 1],
+      [7, 4, stride, 96, 1],
     ]);
   });
 

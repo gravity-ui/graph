@@ -11,11 +11,11 @@ function instance(out: Float32Array, index: number): number[] {
   return Array.from(out.subarray(index * INSTANCE_FLOATS, (index + 1) * INSTANCE_FLOATS));
 }
 
-test("an instance is 26 floats", () => {
-  expect(INSTANCE_FLOATS).toBe(26);
+test("an instance is 28 floats", () => {
+  expect(INSTANCE_FLOATS).toBe(28);
 });
 
-test("writes one instance per cubic with the stroke: color, width, dash on and off, connection length", () => {
+test("writes one instance per cubic with the stroke: color, width, connection length, distances, dash", () => {
   const shapes = [
     shape([0, 0, 10, 0, 20, 0, 30, 0]),
     shape([0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60], {
@@ -31,38 +31,84 @@ test("writes one instance per cubic with the stroke: color, width, dash on and o
   expect(first.slice(0, 8)).toEqual([0, 0, 10, 0, 20, 0, 30, 0]);
   // Straight rgba in 0..1.
   expect(first.slice(8, 12).map((value) => Math.round(value * 255))).toEqual([255, 128, 0, 255]);
-  // Width, no dash, the connection is 30 long.
-  expect(first.slice(12, 16)).toEqual([3, 0, 0, 30]);
-  expect(first.slice(16, 18)).toEqual([0, 30]);
+  // Width, a 30-long connection, the piece starts at 0 and is 30 long; no dash.
+  expect(first.slice(12, 16)).toEqual([3, 30, 0, 30]);
+  expect(first.slice(16, 20)).toEqual([0, 0, 0, 0]);
 
   const second = instance(out, 1);
   expect(second.slice(8, 12)).toEqual([0, 0, 1, 0.5]);
   // Two 30-unit segments: one connection of 60, repeated in both instances.
-  expect(second.slice(12, 16)).toEqual([3, 6, 4, 60]);
-  expect(instance(out, 2).slice(12, 16)).toEqual([3, 6, 4, 60]);
+  expect(second.slice(12, 16)).toEqual([3, 60, 0, 30]);
+  // A 2-number pattern leaves the second on/off pair at zero.
+  expect(second.slice(16, 20)).toEqual([6, 4, 0, 0]);
+  expect(instance(out, 2).slice(12, 20)).toEqual([3, 60, 30, 30, 6, 4, 0, 0]);
 });
 
-test("a one-number dash pattern draws equal dashes and gaps", () => {
-  const out = new Float32Array(INSTANCE_FLOATS);
-  encodeShapes([shape([0, 0, 10, 0, 20, 0, 30, 0], { dash: { pattern: [5] } })], out);
-  expect(Array.from(out.subarray(13, 15))).toEqual([5, 5]);
+describe("dash patterns, normalized like canvas setLineDash", () => {
+  const env = process.env.NODE_ENV;
+  let warn: jest.SpyInstance;
+
+  beforeEach(() => {
+    warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    warn.mockRestore();
+    if (env === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = env;
+  });
+
+  const dashOf = (pattern: readonly number[]): number[] => {
+    const out = new Float32Array(INSTANCE_FLOATS);
+    encodeShapes([shape([0, 0, 10, 0, 20, 0, 30, 0], { dash: { pattern } })], out);
+    return Array.from(out.subarray(16, 20));
+  };
+
+  it("draws up to two on/off pairs and repeats an odd-length pattern", () => {
+    expect(dashOf([5, 3, 1, 3])).toEqual([5, 3, 1, 3]);
+    expect(dashOf([5])).toEqual([5, 5, 0, 0]);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("draws the first four numbers of a longer pattern and warns once per pattern", () => {
+    // [4, 2, 1] repeats to [4, 2, 1, 4, 2, 1].
+    expect(dashOf([4, 2, 1])).toEqual([4, 2, 1, 4]);
+    expect(dashOf([4, 2, 1])).toEqual([4, 2, 1, 4]);
+    expect(dashOf([1, 2, 3, 4, 5, 6])).toEqual([1, 2, 3, 4]);
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(warn.mock.calls[0][0]).toMatch(/^\[@gravity-ui\/graph\] /);
+    expect(warn.mock.calls[0][0]).toContain("[4, 2, 1]");
+    expect(warn.mock.calls[0][0]).toContain("[4, 2, 1, 4]");
+  });
+
+  it("does not warn in a production build", () => {
+    process.env.NODE_ENV = "production";
+    expect(dashOf([7, 1, 7, 1, 7, 1])).toEqual([7, 1, 7, 1]);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("draws an empty pattern or one with a negative or non-finite number solid", () => {
+    expect(dashOf([])).toEqual([0, 0, 0, 0]);
+    expect(dashOf([6, -4])).toEqual([0, 0, 0, 0]);
+    expect(dashOf([6, Number.NaN])).toEqual([0, 0, 0, 0]);
+  });
 });
 
 test("distances run on across the segments of one shape and start again with the next shape", () => {
   const shapes = [shape([0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60]), shape([0, 0, 10, 0, 20, 0, 30, 0])];
   const out = new Float32Array(3 * INSTANCE_FLOATS);
   encodeShapes(shapes, out);
-  expect(instance(out, 0).slice(16, 18)).toEqual([0, 30]);
+  expect(instance(out, 0).slice(14, 16)).toEqual([0, 30]);
   // The second segment starts where the first ended.
-  expect(instance(out, 1).slice(16, 18)).toEqual([30, 30]);
-  expect(instance(out, 2).slice(16, 18)).toEqual([0, 30]);
+  expect(instance(out, 1).slice(14, 16)).toEqual([30, 30]);
+  expect(instance(out, 2).slice(14, 16)).toEqual([0, 30]);
 });
 
 test("leaves the effect params at zero", () => {
   const out = new Float32Array(2 * INSTANCE_FLOATS).fill(9);
   encodeShapes([shape([0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60])], out);
-  expect(instance(out, 0).slice(18, 26)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
-  expect(instance(out, 1).slice(18, 26)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+  expect(instance(out, 0).slice(20, 28)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+  expect(instance(out, 1).slice(20, 28)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
 });
 
 test("a shape without segments writes nothing", () => {
@@ -103,10 +149,10 @@ test("splits a strongly curved cubic into continuous pieces that follow it, with
     }
     if (k > 0) {
       const previous = (k - 1) * INSTANCE_FLOATS;
-      expect(out[base + 16]).toBeCloseTo(out[previous + 16] + out[previous + 17], 2);
+      expect(out[base + 14]).toBeCloseTo(out[previous + 14] + out[previous + 15], 2);
     }
-    total += out[base + 17];
+    total += out[base + 15];
   }
   // Every piece carries the whole connection's length: the sum of the piece lengths.
-  for (let k = 0; k < count; k++) expect(out[k * INSTANCE_FLOATS + 15]).toBeCloseTo(total, 1);
+  for (let k = 0; k < count; k++) expect(out[k * INSTANCE_FLOATS + 13]).toBeCloseTo(total, 1);
 });

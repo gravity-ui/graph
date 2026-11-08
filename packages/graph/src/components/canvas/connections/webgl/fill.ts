@@ -7,6 +7,12 @@ export const FILL_VERTEX_FLOATS = 6;
 
 const FILL_STRIDE = FILL_VERTEX_FLOATS * 4;
 
+/** Vertex attributes of the fill program: location, components, float offset. */
+export const FILL_ATTRIBUTES: ReadonlyArray<readonly [number, number, number]> = [
+  [0, 2, 0],
+  [1, 4, 2],
+];
+
 /** Vertices of a polygon of `points` corners drawn as a triangle fan of separate triangles. */
 function polygonVertices(points: number): number {
   return points >= 3 ? 3 * (points - 2) : 0;
@@ -82,14 +88,18 @@ export class ArrowFills {
     if (previous) this.release(previous);
     const buffer = gl.createBuffer();
     const vao = gl.createVertexArray();
-    if (!buffer || !vao) throw new Error("Cannot allocate WebGL buffers");
+    if (!buffer || !vao) {
+      if (buffer) gl.deleteBuffer(buffer);
+      if (vao) gl.deleteVertexArray(vao);
+      throw new Error("Cannot allocate WebGL buffers");
+    }
     gl.bindVertexArray(vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, FILL_STRIDE, 0);
-    gl.enableVertexAttribArray(1);
-    gl.vertexAttribPointer(1, 4, gl.FLOAT, false, FILL_STRIDE, 8);
+    for (const [location, size, offset] of FILL_ATTRIBUTES) {
+      gl.enableVertexAttribArray(location);
+      gl.vertexAttribPointer(location, size, gl.FLOAT, false, FILL_STRIDE, offset * 4);
+    }
     gl.bindVertexArray(null);
     return { buffer, vao, vertices, capacity: vertices };
   }
