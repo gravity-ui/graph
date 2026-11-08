@@ -1,0 +1,201 @@
+import type { TBatchParams } from "../../../../lib/batch/types";
+import type { TConnection } from "../../../../store/connection/ConnectionState";
+import type { BlockConnection } from "../BlockConnection";
+import type { IConnectionBatch, IConnectionBatchItem } from "../batch";
+import { blockGeometry, multipointGeometry } from "../geometry";
+import type { TConnectionGeometry } from "../geometry";
+
+import { Path2DLine } from "./Path2DLine";
+
+class RecordingBatch implements IConnectionBatch {
+  public readonly items = new Map<IConnectionBatchItem, TBatchParams>();
+  public readonly dirty: IConnectionBatchItem[] = [];
+  public add(item: IConnectionBatchItem, params: TBatchParams): void {
+    this.update(item, params);
+  }
+  public update(item: IConnectionBatchItem, params: TBatchParams): void {
+    const previous = this.items.get(item);
+    if (previous && previous.zIndex === params.zIndex && previous.group === params.group) this.dirty.push(item);
+    this.items.set(item, { ...params });
+  }
+  public delete(item: IConnectionBatchItem): void {
+    this.items.delete(item);
+  }
+  public has(item: IConnectionBatchItem): boolean {
+    return this.items.has(item);
+  }
+  public markDirty(item: IConnectionBatchItem): void {
+    this.dirty.push(item);
+  }
+  public markBoundsDirty(): void {}
+  public forEachItem(visit: (item: IConnectionBatchItem, params: TBatchParams) => void): void {
+    for (const [item, params] of this.items) visit(item, params);
+  }
+}
+
+type TStubState = Partial<TConnection & { hovered: boolean }>;
+
+/** The members of BlockConnection a line reads. */
+function stubConnection(
+  geometry: TConnectionGeometry | undefined,
+  state: TStubState = {},
+  props: { showConnectionArrows: boolean; useTightBezierBounds?: boolean } = {
+    showConnectionArrows: true,
+    useTightBezierBounds: true,
+  }
+) {
+  const batch = new RecordingBatch();
+  const ctx = document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D;
+  const connection = {
+    context: {
+      batch,
+      ctx,
+      colors: { connection: { background: "#aaa", selectedBackground: "#fc0" } },
+      camera: { getCameraScale: () => 1 },
+    },
+    state: { id: "c", ...state },
+    props,
+    getGeometry: () => geometry,
+    getBatchZIndex: () => 0,
+    isPathVisible: () => true,
+    getPathBounds: () => undefined,
+    isInViewport: () => true,
+  };
+  return { connection: connection as unknown as BlockConnection<TConnection>, batch, ctx };
+}
+
+const straight = blockGeometry({
+  source: { x: 0, y: 0 },
+  target: { x: 100, y: 0 },
+  points: [],
+  useBezier: false,
+  bezierDirection: "horizontal",
+  connection: { id: "c" } as TConnection,
+}) as TConnectionGeometry;
+
+const closedArrowGeometry = multipointGeometry({
+  source: { x: 0, y: 0 },
+  target: { x: 100, y: 100 },
+  points: [
+    { x: 0, y: 0 },
+    { x: 50, y: 0 },
+    { x: 100, y: 100 },
+  ],
+  useBezier: false,
+  bezierDirection: "horizontal",
+  connection: { id: "c" } as TConnection,
+}) as TConnectionGeometry;
+
+describe("Path2DLine", () => {
+  it("registers the line and the arrow one level below with Path2D style groups", () => {
+    const { connection, batch } = stubConnection(straight);
+    const line = new Path2DLine(connection);
+    line.update();
+    expect(batch.items.get(line)).toEqual({ zIndex: 0, group: "line/#aaa/2/" });
+    expect(batch.items.get(line.arrow)).toEqual({ zIndex: -1, group: "arrow/open/#aaa/2//line/#aaa/2/" });
+
+    const hovered = stubConnection(straight, { hovered: true });
+    const hoveredLine = new Path2DLine(hovered.connection);
+    hoveredLine.update();
+    expect(hovered.batch.items.get(hoveredLine)?.group).toBe("line/#aaa/4/");
+    expect(hovered.batch.items.get(hoveredLine.arrow)?.group).toBe("arrow/open/#aaa/4//line/#aaa/4/");
+  });
+
+  it("deletes the arrow item when arrows are off", () => {
+    const { connection, batch } = stubConnection(straight, {}, { showConnectionArrows: false });
+    const line = new Path2DLine(connection);
+    line.update();
+    expect(batch.has(line)).toBe(true);
+    expect(batch.has(line.arrow)).toBe(false);
+  });
+
+  it("puts closed and open arrows in different groups", () => {
+    const open = stubConnection(straight);
+    const openLine = new Path2DLine(open.connection);
+    openLine.update();
+    const closed = stubConnection(closedArrowGeometry);
+    const closedLine = new Path2DLine(closed.connection);
+    closedLine.update();
+    expect(closed.batch.items.get(closedLine.arrow)?.group).toContain("arrow/closed/");
+    expect(closed.batch.items.get(closedLine.arrow)?.group).not.toBe(open.batch.items.get(openLine.arrow)?.group);
+  });
+
+  it("invalidate() with an unchanged stroke marks the line dirty", () => {
+    const { connection, batch } = stubConnection(straight);
+    const line = new Path2DLine(connection);
+    line.update();
+    batch.dirty.length = 0;
+    line.invalidate();
+    expect(batch.dirty).toContain(line);
+  });
+
+  it("applies the stroke in style() and styleArrow()", () => {
+    const { connection, ctx } = stubConnection(straight, { dashed: true, styles: { dashes: [3, 2] } });
+    const line = new Path2DLine(connection);
+    line.update();
+    const setLineDash = jest.spyOn(ctx, "setLineDash");
+    expect(line.style(ctx)).toEqual({ type: "stroke" });
+    expect(ctx.lineWidth).toBe(2);
+    expect(ctx.strokeStyle).toBe("#aaaaaa");
+    expect(setLineDash).toHaveBeenCalledWith([3, 2]);
+    expect(line.styleArrow(ctx)).toEqual({ type: "stroke" });
+
+    const closed = stubConnection(closedArrowGeometry);
+    const closedLine = new Path2DLine(closed.connection);
+    closedLine.update();
+    expect(closedLine.styleArrow(closed.ctx)).toEqual({ type: "both" });
+    expect(closed.ctx.fillStyle).toBe("#aaaaaa");
+  });
+
+  it("builds the path once per geometry object", () => {
+    let created = 0;
+    class CountingLine extends Path2DLine {
+      protected override createPath(geometry: TConnectionGeometry): Path2D {
+        created++;
+        return super.createPath(geometry);
+      }
+    }
+    const { connection } = stubConnection(straight);
+    const line = new CountingLine(connection);
+    expect(line.getPath()).toBeDefined();
+    line.getPath();
+    expect(created).toBe(1);
+
+    const none = new Path2DLine(stubConnection(undefined).connection);
+    expect(none.getPath()).toBeUndefined();
+    expect(none.getArrowPath()).toBeUndefined();
+  });
+
+  it("hit-tests with width + 2 * threshold, identity transform and round caps, then restores", () => {
+    const { connection, ctx } = stubConnection({ segments: straight.segments });
+    const line = new Path2DLine(connection);
+    const seen: { lineWidth: number; lineCap: CanvasLineCap; lineJoin: CanvasLineJoin; dash: number[] }[] = [];
+    jest.spyOn(ctx, "isPointInStroke").mockImplementation(() => {
+      seen.push({
+        lineWidth: ctx.lineWidth,
+        lineCap: ctx.lineCap,
+        lineJoin: ctx.lineJoin,
+        dash: ctx.getLineDash(),
+      });
+      return false;
+    });
+    const before = ctx.lineWidth;
+    expect(line.hitTest(10, 0, 8)).toBe(false);
+    expect(seen).toEqual([{ lineWidth: 2 + 16, lineCap: "round", lineJoin: "round", dash: [] }]);
+    expect(ctx.lineWidth).toBe(before);
+    expect(ctx.lineCap).toBe("butt");
+  });
+
+  it("uses tight bounds unless useTightBezierBounds is false", () => {
+    const bezier = {
+      segments: new Float32Array([0, 0, 0, 100, 100, 100, 100, 0]),
+    };
+    const tight = new Path2DLine(stubConnection(bezier).connection).getBounds(bezier);
+    const loose = new Path2DLine(
+      stubConnection(bezier, {}, { showConnectionArrows: true, useTightBezierBounds: false }).connection
+    ).getBounds(bezier);
+    expect(tight).toBeDefined();
+    expect(loose).toBeDefined();
+    expect(tight?.[3]).toBeLessThan(loose?.[3] as number);
+  });
+});

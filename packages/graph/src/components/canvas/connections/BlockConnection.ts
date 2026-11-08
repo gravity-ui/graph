@@ -21,6 +21,8 @@ import {
   getBezierCurveBounds,
   isPointInStroke,
 } from "./bezierHelpers";
+import { blockGeometry } from "./geometry";
+import type { TConnectionGeometry } from "./geometry";
 import { hasChangedValue } from "./hasChangedValue";
 import { getLabelCoords } from "./labelHelper";
 
@@ -65,6 +67,8 @@ export class BlockConnection<T extends TConnection>
 
   /** Context the current geometry was computed with; constants and label sizes live there. */
   private geometryContext?: TGraphConnectionsContext;
+
+  private geometryResult: TConnectionGeometry | undefined;
 
   private unsubscribeLabelFontSize?: () => void;
 
@@ -125,7 +129,7 @@ export class BlockConnection<T extends TConnection>
   }
 
   /** Batch z-level: selected and hovered connections are drawn above the others. */
-  private getBatchZIndex(state: TBaseConnectionState = this.state): number {
+  public getBatchZIndex(state: TBaseConnectionState = this.state): number {
     return state.selected || state.hovered ? this.zIndex + 10 : this.zIndex;
   }
 
@@ -180,6 +184,14 @@ export class BlockConnection<T extends TConnection>
   public isPathVisible(): boolean {
     return this.isRenderAllowed();
   }
+
+  /** The pure shape of the connection from the last geometry update; undefined without geometry. */
+  public getGeometry(): TConnectionGeometry | undefined {
+    return this.geometryResult;
+  }
+
+  /** Draws extra content after the connection's chunk; subclasses implement it. */
+  public afterRender?(ctx: CanvasRenderingContext2D): void;
 
   /** Bounds of the line and its arrow; tree culling and the hit box also cover the label. */
   public getPathBounds(): TPathBounds | undefined {
@@ -366,6 +378,16 @@ export class BlockConnection<T extends TConnection>
   protected override updatePoints(additionalPoints?: TPoint[], props: TConnectionProps = this.props) {
     this.geometryContext = this.context;
     super.updatePoints(additionalPoints, props);
+    this.geometryResult = this.connectionPoints
+      ? blockGeometry({
+          source: this.connectionPoints[0],
+          target: this.connectionPoints[1],
+          points: [],
+          useBezier: props.useBezier,
+          bezierDirection: props.bezierDirection,
+          connection: this.connectedState.$state.value,
+        })
+      : undefined;
 
     if (this.connectionPoints) {
       this.geometry.x1 = this.connectionPoints[0].x;
