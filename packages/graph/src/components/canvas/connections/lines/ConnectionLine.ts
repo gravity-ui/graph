@@ -210,6 +210,11 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
     return undefined;
   }
 
+  /** The effect of the line's WebGL shape, from the stroke read last; lines without WebGL shapes have none. */
+  public getWebGLEffect(): TWebGLShape["effect"] {
+    return undefined;
+  }
+
   public abstract getPath(): Path2D | undefined;
 
   public abstract style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined;

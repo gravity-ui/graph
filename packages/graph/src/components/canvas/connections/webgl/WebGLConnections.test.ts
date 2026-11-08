@@ -51,8 +51,8 @@ function graphCanvas(): HTMLCanvasElement {
   return canvas;
 }
 
-const item = (shape: TWebGLShape): IConnectionBatchItem => ({
-  getPathBounds: () => [0, 0, 30, 10],
+const item = (shape: TWebGLShape, bounds: [number, number, number, number] = [0, 0, 30, 10]): IConnectionBatchItem => ({
+  getPathBounds: () => bounds,
   getPath: () => undefined,
   style: () => undefined,
   getWebGLShape: () => shape,
@@ -64,13 +64,18 @@ function define<U extends TUniformTypes>(
   return toConnectionEffect(defineConnectionEffect(definition));
 }
 
-/** A straight line along y = `y` from x = 0 to 30, with the effect when given. */
-const effectLine = (effect?: ConnectionEffect<TUniformTypes, never>, y = 5): IConnectionBatchItem =>
-  item({
-    segments: new Float32Array([0, y, 10, y, 20, y, 30, y]),
-    stroke: { color: "#000", width: 2 },
-    ...(effect ? { effect, params: [] } : {}),
-  });
+/** A straight line along y = `y` from x = `x` to `x + 30`, with the effect when given; it reports its effect. */
+const effectLine = (effect?: ConnectionEffect<TUniformTypes, never>, y = 5, x = 0): IConnectionBatchItem => ({
+  ...item(
+    {
+      segments: new Float32Array([x, y, x + 10, y, x + 20, y, x + 30, y]),
+      stroke: { color: "#000", width: 2 },
+      ...(effect ? { effect, params: [] } : {}),
+    },
+    [x, 0, x + 30, 10]
+  ),
+  getWebGLEffect: () => effect,
+});
 
 /** `requestAnimationFrame` under the test's control: callbacks wait until `run()`. */
 function mockFrames(): { request: jest.SpyInstance; pending: () => number; run: () => void } {
@@ -310,28 +315,89 @@ describe("WebGLConnections", () => {
       });
       const camera = { ...options.getCamera(), scale: 0.5 };
       const connections = create(fake, { getCamera: () => camera });
-      // Its chunk spans x 0..30; at scale 0.5 the glow reaches 20 world units beyond.
+      // Its chunk spans x 0..30; at scale 0.5 the glow reaches 20 world units beyond. The first frame culls with that
+      // margin already: no chunk holding the glow has been built before it.
       connections.add(effectLine(glow), { zIndex: 1, group: "line" });
-      connections.render();
+      connections.render({ minX: 45, minY: 0, maxX: 100, maxY: 10 });
       expect(fake.draws).toHaveLength(1);
       expect(
         fake.uniforms.filter(({ name }) => name === "graph_extraWidth").map(({ values }) => values)
       ).toContainEqual([10]);
 
-      connections.render({ minX: 45, minY: 0, maxX: 100, maxY: 10 });
-      expect(fake.draws).toHaveLength(2);
       connections.render({ minX: 55, minY: 0, maxX: 100, maxY: 10 });
-      expect(fake.draws).toHaveLength(2);
+      expect(fake.draws).toHaveLength(1);
       connections.dispose();
 
       // Without an effect the viewport is not widened.
       const plain = createFakeGL();
       const plainConnections = create(plain, { getCamera: () => camera });
       plainConnections.add(effectLine(), { zIndex: 1, group: "line" });
-      plainConnections.render();
       plainConnections.render({ minX: 45, minY: 0, maxX: 100, maxY: 10 });
-      expect(plain.draws).toHaveLength(1);
+      expect(plain.draws).toHaveLength(0);
       plainConnections.dispose();
+    });
+
+    it("culls with the glows of every item, also when no chunk holding a glow is in the viewport", () => {
+      const fake = createFakeGL();
+      const glow = define({
+        fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; } // glow outside the viewport",
+        extraWidth: 10,
+      });
+      const camera = { ...options.getCamera(), scale: 0.5 };
+      const connections = create(fake, { chunkSize: 1, getCamera: () => camera });
+      const viewport = { minX: 0, minY: 0, maxX: 40, maxY: 10 };
+      // A plain line inside the viewport; a glow 5 world units right of it, within the 20-unit margin.
+      connections.add(effectLine(undefined, 5, 0), { zIndex: 1, group: "line" });
+      let outside = effectLine(glow, 5, 45);
+      connections.add(outside, { zIndex: 1, group: "line" });
+      connections.render(viewport);
+      expect(fake.draws).toHaveLength(2);
+
+      // Without the glow the line outside is culled; the glow is back after an update of the item.
+      connections.delete(outside);
+      outside = effectLine(undefined, 5, 45);
+      connections.add(outside, { zIndex: 1, group: "line" });
+      connections.render(viewport);
+      expect(fake.draws).toHaveLength(3);
+      const glowing = effectLine(glow, 5, 45);
+      (outside as { getWebGLEffect?: () => unknown }).getWebGLEffect = glowing.getWebGLEffect;
+      outside.getWebGLShape = glowing.getWebGLShape;
+      connections.update(outside, { zIndex: 1, group: "line" });
+      connections.render(viewport);
+      expect(fake.draws).toHaveLength(5);
+      connections.dispose();
+    });
+
+    it("draws once more in its own frame when a chunk built in a frame brings a wider glow", () => {
+      const frames = mockFrames();
+      const fake = createFakeGL();
+      const glow = define({
+        fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; } // glow seen when built",
+        extraWidth: 10,
+      });
+      const camera = { ...options.getCamera(), scale: 0.5 };
+      const connections = create(fake, { chunkSize: 1, getCamera: () => camera });
+      // Items that do not report their effect: the renderer sees the glow only when it builds their chunks.
+      const shapeOnly = (x: number): IConnectionBatchItem =>
+        item(
+          { segments: new Float32Array([x, 5, x + 10, 5, x + 20, 5, x + 30, 5]), stroke: { color: "#000", width: 2 } },
+          [x, 0, x + 30, 10]
+        );
+      const inside = shapeOnly(0);
+      const outside = shapeOnly(45);
+      for (const line of [inside, outside]) {
+        const shape = line.getWebGLShape?.();
+        if (shape) Object.assign(shape, { effect: glow, params: [] });
+        connections.add(line, { zIndex: 1, group: "line" });
+      }
+      connections.render({ minX: 0, minY: 0, maxX: 40, maxY: 10 });
+      expect(fake.draws).toHaveLength(1);
+      expect(frames.pending()).toBe(1);
+
+      frames.run();
+      expect(fake.draws).toHaveLength(3);
+      expect(frames.pending()).toBe(0);
+      connections.dispose();
     });
 
     it("unsubscribes from an effect's uniforms when the last chunk with it is released", () => {

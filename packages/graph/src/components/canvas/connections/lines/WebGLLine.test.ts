@@ -257,6 +257,15 @@ describe("WebGLLine", () => {
       expect(line.arrow.getWebGLShape?.()?.effect).toBeUndefined();
     });
 
+    it("reports the effect of its stroke without geometry; the arrow reports none", () => {
+      const line = new EffectLine(stubConnection(undefined).connection);
+      line.update();
+      expect(line.getWebGLShape()).toBeUndefined();
+      expect(line.getWebGLEffect()).toBe(toConnectionEffect(pulse as never));
+      expect(line.arrow.getWebGLEffect?.()).toBeUndefined();
+      expect(new WebGLLine(stubConnection(straight).connection).getWebGLEffect()).toBeUndefined();
+    });
+
     it("draws and groups the Path2D fallback with the fallback stroke", () => {
       const { connection, batch, ctx } = stubConnection(straight, {}, noArrows);
       const line = new EffectLine(connection);

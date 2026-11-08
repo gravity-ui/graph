@@ -90,6 +90,18 @@ export class WebGLConnections implements IConnectionBatch {
   /** Effects of the built chunks, with the subscriptions to their uniforms. */
   private readonly effects = new Map<TShapeEffect, TEffectEntry>();
 
+  /** The effect each item reported when it was added or updated last; items without one are not kept. */
+  private readonly itemEffects = new Map<IConnectionBatchItem, TShapeEffect>();
+
+  /** How many items of `itemEffects` hold each effect. */
+  private readonly effectItems = new Map<TShapeEffect, number>();
+
+  /** The widest `extraWidth` of the items' and the built chunks' effects; undefined until it is computed again. */
+  private extraWidth: number | undefined = 0;
+
+  /** The `extraWidth` the current frame culls with; Infinity when the frame culls nothing. */
+  private frameExtraWidth = Infinity;
+
   private readonly effectRefs: IEffectRefs = {
     retain: (effect) => this.retainEffect(effect),
     release: (effect) => this.releaseEffect(effect),
@@ -116,14 +128,17 @@ export class WebGLConnections implements IConnectionBatch {
   }
 
   public add(item: IConnectionBatchItem, params: TBatchParams): void {
+    this.trackEffect(item, item.getWebGLEffect?.());
     this.batch.add(item, params);
   }
 
   public update(item: IConnectionBatchItem, params: TBatchParams): void {
+    this.trackEffect(item, item.getWebGLEffect?.());
     this.batch.update(item, params);
   }
 
   public delete(item: IConnectionBatchItem): void {
+    this.trackEffect(item, undefined);
     this.batch.delete(item);
   }
 
@@ -132,6 +147,7 @@ export class WebGLConnections implements IConnectionBatch {
   }
 
   public markDirty(item: IConnectionBatchItem): void {
+    this.trackEffect(item, item.getWebGLEffect?.());
     this.batch.markDirty(item);
   }
 
@@ -185,13 +201,63 @@ export class WebGLConnections implements IConnectionBatch {
     this.frame = undefined;
   }
 
-  /** A chunk was built with the effect: the first one subscribes to the effect's uniforms. */
+  /**
+   * Keeps the item's effect counted, so the culling margin covers it before a chunk holding it is built: an item
+   * outside the viewport may glow into it.
+   */
+  private trackEffect(item: IConnectionBatchItem, effect: TShapeEffect | undefined): void {
+    const previous = this.itemEffects.get(item);
+    if (previous === effect) return;
+    if (previous) {
+      this.itemEffects.delete(item);
+      const count = (this.effectItems.get(previous) ?? 1) - 1;
+      if (count > 0) {
+        this.effectItems.set(previous, count);
+      } else {
+        this.effectItems.delete(previous);
+        this.forgetExtraWidth(previous);
+      }
+    }
+    if (effect) {
+      this.itemEffects.set(item, effect);
+      this.effectItems.set(effect, (this.effectItems.get(effect) ?? 0) + 1);
+      this.widenExtraWidth(effect);
+    }
+  }
+
+  /** An effect joined the items or the built chunks: the margin is at least its extra width. */
+  private widenExtraWidth(effect: TShapeEffect): void {
+    if (this.extraWidth !== undefined) this.extraWidth = Math.max(this.extraWidth, effect.extraWidth);
+  }
+
+  /** An effect left the items or the built chunks: the margin is computed again when it was the widest. */
+  private forgetExtraWidth(effect: TShapeEffect): void {
+    if (effect.extraWidth > 0 && effect.extraWidth === this.extraWidth) this.extraWidth = undefined;
+  }
+
+  /** The widest `extraWidth` of the items' and the built chunks' effects; distinct effects are few. */
+  private getExtraWidth(): number {
+    if (this.extraWidth === undefined) {
+      let extraWidth = 0;
+      for (const effect of this.effectItems.keys()) extraWidth = Math.max(extraWidth, effect.extraWidth);
+      for (const effect of this.effects.keys()) extraWidth = Math.max(extraWidth, effect.extraWidth);
+      this.extraWidth = extraWidth;
+    }
+    return this.extraWidth;
+  }
+
+  /**
+   * A chunk was built with the effect: the first one subscribes to the effect's uniforms. An effect wider than the
+   * margin this frame culls with (one its item did not report) asks for another frame with the wider margin.
+   */
   private retainEffect(effect: TShapeEffect): void {
     const entry = this.effects.get(effect);
     if (entry) {
       entry.chunks++;
       return;
     }
+    this.widenExtraWidth(effect);
+    if (effect.extraWidth > this.frameExtraWidth) this.requestFrame();
     const uniforms = Object.values(effect.uniforms);
     let subscribed = false;
     // The draw reads the values with peek(); only this effect reads `.value`, which subscribes it to each uniform.
@@ -211,22 +277,25 @@ export class WebGLConnections implements IConnectionBatch {
     if (!entry || --entry.chunks > 0) return;
     entry.dispose();
     this.effects.delete(effect);
+    this.forgetExtraWidth(effect);
   }
 
   private disposeEffects(): void {
     for (const entry of this.effects.values()) entry.dispose();
     this.effects.clear();
+    this.extraWidth = undefined;
   }
 
   /**
-   * The culling viewport widened on each side by the widest `extraWidth` of the effects in the chunks, in world
-   * units: a glow reaches beyond its connection's bounds.
+   * The culling viewport widened on each side by the widest `extraWidth` of the items' effects (and of the built
+   * chunks' effects), in world units: a glow reaches beyond its connection's bounds.
    */
   private cullingViewport(scale: number): TTileRect | undefined {
     const viewport = this.viewport;
+    // Without a viewport every chunk is drawn; at a scale that is not positive there is no margin to widen by.
+    this.frameExtraWidth = viewport && scale > 0 ? this.getExtraWidth() : Infinity;
     if (!viewport || !(scale > 0)) return viewport;
-    let extraWidth = 0;
-    for (const effect of this.effects.keys()) extraWidth = Math.max(extraWidth, effect.extraWidth);
+    const extraWidth = this.frameExtraWidth;
     if (!extraWidth) return viewport;
     const margin = extraWidth / scale;
     return {
