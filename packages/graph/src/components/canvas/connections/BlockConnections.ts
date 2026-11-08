@@ -3,6 +3,7 @@ import { ReadonlySignal, Signal, computed, signal } from "@preact/signals-core";
 import { Component, TComponentState } from "../../../lib/Component";
 import { CoreComponentProps } from "../../../lib/CoreComponent";
 import { ESchedulerPriority } from "../../../lib/Scheduler";
+import type { TBatchParams } from "../../../lib/batch/types";
 import type { TTileRect } from "../../../lib/culling/TileIndex";
 import { ConnectionState } from "../../../store/connection/ConnectionState";
 import { getFontSize } from "../../../utils/functions/text";
@@ -12,7 +13,7 @@ import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 import { BatchPath2DRenderer } from "./BatchPath2D";
 import { BlockConnection, TConnectionProps } from "./BlockConnection";
 import { ConnectionLabelRenderer } from "./Label";
-import type { IConnectionBatch } from "./batch";
+import type { IConnectionBatch, IConnectionBatchItem } from "./batch";
 import type { TConnectionsRenderer, TConnectionsRendererState } from "./lines";
 import { LostWebGLContext, WebGLConnections } from "./webgl/WebGLConnections";
 import { WebGLProgramError } from "./webgl/programs";
@@ -37,6 +38,49 @@ type TWebGLFallbackReason =
   | `WebGL setup failed: ${string}`;
 
 /**
+ * The batch every connection holds for the life of BlockConnections: it forwards to the batch of the current renderer,
+ * so a renderer switch moves the items behind it without a new context for any connection, and no connection
+ * recomputes its geometry.
+ */
+class ConnectionBatchSwitch implements IConnectionBatch {
+  constructor(public target: IConnectionBatch) {}
+
+  public add(item: IConnectionBatchItem, params: TBatchParams): void {
+    this.target.add(item, params);
+  }
+
+  public update(item: IConnectionBatchItem, params: TBatchParams): void {
+    this.target.update(item, params);
+  }
+
+  public delete(item: IConnectionBatchItem): void {
+    this.target.delete(item);
+  }
+
+  public has(item: IConnectionBatchItem): boolean {
+    return this.target.has(item);
+  }
+
+  public markDirty(item: IConnectionBatchItem): void {
+    this.target.markDirty(item);
+  }
+
+  public markBoundsDirty(item: IConnectionBatchItem): void {
+    this.target.markBoundsDirty(item);
+  }
+
+  public forEachItem(visit: (item: IConnectionBatchItem, params: TBatchParams) => void): void {
+    this.target.forEachItem(visit);
+  }
+
+  /** Moves every item into `next`, with its own params, and forwards to it from now on. */
+  public switchTo(next: IConnectionBatch): void {
+    this.target.forEachItem((item, params) => next.add(item, params));
+    this.target = next;
+  }
+}
+
+/**
  * The graph's connections and the batch that draws their lines: Path2D on the layer's canvas, or WebGL2 on a canvas
  * below it when the connection class's line is a WebGL line (`static line`). The line class is the only source of the
  * renderer; without WebGL2 a WebGL line class falls back to Path2D.
@@ -48,7 +92,13 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
 
   protected readonly unsubscribe: (() => void)[];
 
-  protected batch: IConnectionBatch;
+  /** What every connection registers with (`context.batch`): forwards to `batch`. */
+  private readonly connectionBatch: ConnectionBatchSwitch;
+
+  /** The batch of the current renderer. */
+  protected get batch(): IConnectionBatch {
+    return this.connectionBatch.target;
+  }
 
   /** Draws the batch on the layer's canvas; undefined while WebGL draws. */
   private path2d: BatchPath2DRenderer | undefined;
@@ -98,11 +148,11 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
     this.rendererState = this.props.rendererState ?? signal<TConnectionsRendererState>("canvas");
     const { chunkSize, cellSize } = this.getChunking();
     this.path2d = this.createPath2D();
-    this.batch = this.path2d;
+    this.connectionBatch = new ConnectionBatchSwitch(this.path2d);
     this.labels = new ConnectionLabelRenderer(() => this.performRender(), chunkSize, cellSize);
     this.unsubscribe = this.subscribe();
     this.setContext({
-      batch: this.batch,
+      batch: this.connectionBatch,
       labels: this.labels,
       connectionLabelFontSize: this.connectionLabelFontSize,
     });
@@ -216,11 +266,12 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
     this.lostWebGL = undefined;
   }
 
-  /** Moves every registered item into `next`, which becomes the batch of every connection. */
+  /**
+   * Moves every registered item into `next`, which every connection's batch forwards to from now on. No connection is
+   * touched: their context, and with it their geometry, stays as it is.
+   */
   protected switchBatch(next: IConnectionBatch): void {
-    this.batch.forEachItem((item, params) => next.add(item, params));
-    this.batch = next;
-    this.setContext({ batch: next });
+    this.connectionBatch.switchTo(next);
   }
 
   protected subscribe() {

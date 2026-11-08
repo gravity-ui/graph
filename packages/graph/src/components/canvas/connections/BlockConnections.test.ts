@@ -10,6 +10,8 @@ import { BlockConnection } from "./BlockConnection";
 import type { BlockConnections } from "./BlockConnections";
 import type { IConnectionBatch, IConnectionBatchItem } from "./batch";
 import { dashFlow } from "./effects";
+import { blockGeometry } from "./geometry";
+import type { TConnectionGeometryFn } from "./geometry";
 import { Path2DLine, WebGLLine } from "./lines";
 import type { ConnectionLine, TConnectionLineClass, TWebGLStroke } from "./lines";
 import { WebGLConnections } from "./webgl/WebGLConnections";
@@ -168,7 +170,10 @@ function expectCurrentItems(graph: Graph, LineClass: typeof Path2DLine | typeof 
   const lines = [lineOf(view(graph, "a")), lineOf(view(graph, "b"))];
   expect(lines.every((line) => line instanceof LineClass)).toBe(true);
   expect(new Set(items)).toEqual(new Set(lines.flatMap((line) => [line, line.arrow])));
-  expect(view(graph, "a").context.batch).toBe(batch);
+  // Every connection holds the component's batch for its lifetime; it forwards to the current one.
+  const held = view(graph, "a").context.batch;
+  expect(view(graph, "b").context.batch === held).toBe(true);
+  expect(lines.every((line) => held.has(line) && held.has(line.arrow))).toBe(true);
 }
 
 function fallbackWarnings(warn: jest.SpyInstance): string[] {
@@ -194,7 +199,7 @@ describe("BlockConnections batch switching", () => {
     document.body.innerHTML = "";
   });
 
-  it("moves every line and arrow into the next batch, which every connection then uses", () => {
+  it("moves every line and arrow into the next batch, which every connection's batch then forwards to", () => {
     graph = mount();
     const connections = internals(graph);
     const registered = new Map<IConnectionBatchItem, TBatchParams>();
@@ -202,13 +207,20 @@ describe("BlockConnections batch switching", () => {
     // A line and an arrow per connection.
     expect(registered.size).toBe(4);
 
+    const held = view(graph, "a").context.batch;
     const fake = new FakeBatch();
     connections.switchBatch(fake);
 
     expect(fake.items).toEqual(registered);
     expect(connections.batch).toBe(fake);
-    expect(view(graph, "a").context.batch).toBe(fake);
-    expect(view(graph, "b").context.batch).toBe(fake);
+    // The connections keep the batch they hold, which now forwards to the next one.
+    expect(view(graph, "a").context.batch === held).toBe(true);
+    expect(view(graph, "b").context.batch === held).toBe(true);
+    const line = lineOf(view(graph, "a"));
+    const update = jest.spyOn(fake, "update");
+    held.update(line, { zIndex: 1, group: "moved" });
+    expect(update.mock.calls.some(([item, params]) => item === line && params.group === "moved")).toBe(true);
+    update.mockRestore();
 
     // Later changes reach the new batch: hiding arrows deletes them from it.
     graph.updateSettings({ showConnectionArrows: false });
@@ -369,6 +381,38 @@ describe("BlockConnections renderer from the line class", () => {
     // The disposed renderer no longer listens to its canvas.
     lostCanvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true }));
     expect(rendererOf(graph)).toBe("webgl");
+  });
+
+  it("switches the renderer on a loss and a restore without computing any connection's geometry", () => {
+    installed = installFakeWebGL2();
+    const geometry = jest.fn(blockGeometry);
+    class CountingConnection extends BlockConnection<TConnection> {
+      public static override line: TConnectionLineClass = WebGLLine;
+      public static override geometry: TConnectionGeometryFn = geometry;
+    }
+    const updatePoints = jest.spyOn(BlockConnection.prototype as unknown as { updatePoints(): void }, "updatePoints");
+    graph = mount({ connection: CountingConnection }, attachedRoot());
+    const held = view(graph, "a").context.batch;
+    const computed = geometry.mock.calls.length;
+    const updated = updatePoints.mock.calls.length;
+    expect(computed).toBeGreaterThan(0);
+    const [lost] = installed.contexts;
+    const lostCanvas = webglCanvas(lost);
+
+    lost.loseContext();
+    lostCanvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true }));
+    frames();
+    expect(rendererOf(graph)).toBe("webgl-fallback");
+    lost.restoreContext();
+    lostCanvas.dispatchEvent(new Event("webglcontextrestored"));
+    frames();
+    expect(rendererOf(graph)).toBe("webgl");
+
+    expect(geometry.mock.calls.length).toBe(computed);
+    expect(updatePoints.mock.calls.length).toBe(updated);
+    // Every connection keeps the batch it holds; the items moved behind it.
+    expect(view(graph, "a").context.batch === held).toBe(true);
+    expectCurrentItems(graph, WebGLLine);
   });
 
   it("frees a lost renderer when the connection class switches to Path2D", () => {
