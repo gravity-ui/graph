@@ -26,6 +26,7 @@ The temporary branch and release process is documented separately in
 - Remove calls to `graph.scheduler.start()` / `stop()`: the frame loop runs while work is registered, and `graph.start()` / `graph.stop()` affect only that graph.
 - Drive roots you mount yourself with `Component.update(root)`; the graph updates only its own layers.
 - Replace `NewBlockLayer` with `DuplicateBlockLayer` from `@gravity-ui/graph-duplicate-block`, rename its events and remove the `canDuplicateBlocks` setting.
+- Drop `position: relative` workarounds on vanilla graph roots if you added them only for the graph: `attach()` now makes a static root the containing block of its layers.
 - Import `MultipointConnection` from `@gravity-ui/graph`; `@gravity-ui/graph-react` no longer re-exports it or installs `elkjs`.
 - Canvas components are culled by the viewport: check custom components against [Viewport culling and the component lifecycle](#viewport-culling-and-the-component-lifecycle) — veto painting with `isRenderAllowed()`, request updates for external changes, report bounds before painting, react to leaving the viewport with `viewportChanged()`, and set `culling` on screen-space layers.
 - `BlockConnection` subclasses: per-frame hooks no longer run (see [Detached components](#detached-components-connections-outside-the-frame-walk)).
@@ -126,8 +127,8 @@ The default action of `blocks-duplicate` changed in three ways:
   of a duplicated block; v1 skipped them. Connections whose end uses a custom port are not copied. v1 copied them when
   they also had block IDs and re-attached the copy to the block.
 
-Like `NewBlockLayer`, the layer duplicates correctly only when blocks are draggable (`canDrag: ECanDrag.ALL`): otherwise
-the camera pans with the cursor during the gesture ([#405](https://github.com/gravity-ui/graph/issues/405)).
+Unlike `NewBlockLayer`, the layer also works when blocks are not draggable (`canDrag: ECanDrag.NONE`, the default): the
+camera no longer pans with the cursor during the gesture ([#405](https://github.com/gravity-ui/graph/issues/405)).
 
 The deprecated `canDuplicateBlocks` setting is removed; it had no effect. Add the layer to enable duplication, and
 call `disable()` or detach the layer to turn it off.
@@ -332,6 +333,30 @@ declare module "*.css";
 This declaration describes CSS imports to TypeScript. Your bundler validates
 that the imported files exist. Published declaration locations and NodeNext/CJS
 consumers remain supported.
+
+## Graph root positioning
+
+Core layers are absolutely positioned. In v1 only the React `GraphCanvas` wrapper positioned its
+root, so a vanilla graph attached to a `static` root laid its layers out against an outer positioned
+ancestor or the viewport, and pointer coordinates were offset from the root.
+
+`graph.attach(root)` (and `new Graph(config, root)`) now adds the `graph-root` class
+(`GRAPH_ROOT_CLASS_NAME`) to the root. A full detach (`graph.detach()`, `graph.unmount()` or moving the
+graph to another root) removes it. `@gravity-ui/graph/styles.css` declares:
+
+```css
+@layer gravity-graph {
+  :where(.graph-root) {
+    position: relative;
+  }
+}
+```
+
+The rule sits in a cascade layer and has zero specificity, so a position set by the application
+(`absolute`, `fixed`, `sticky` or an explicit `relative`) in unlayered CSS, inline styles or a cascade
+layer declared after `gravity-graph` still applies; only a root that would otherwise be `static`
+changes. If your stylesheets declare their layer order before the graph styles load, list
+`gravity-graph` first (for example `@layer gravity-graph, base, components, utilities;`).
 
 ## Structural geometry
 

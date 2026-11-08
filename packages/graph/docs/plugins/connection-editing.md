@@ -119,7 +119,3 @@ graph.on("connection-create-drop", ({ detail }) => {
   }
 });
 ```
-
-## Known limitation
-
-The camera subscribes to the graph `mousedown` event before any layer, so it decides on panning first. A drag that starts on a component that cannot be dragged pans the camera while the connection is created: for example, Shift + drag from a block when `canDrag` is `none` (or `onlySelected` and the block is not selected), or a drag from a connection port on a non-draggable group or custom component. Anchors are not affected.

@@ -31,7 +31,7 @@ duplicateLayer.disable();
 In React, attach it with `useLayer` from `@gravity-ui/graph-react` instead of calling `graph.addLayer`:
 
 ```tsx
-const { graph } = useGraph({ settings: { canDrag: ECanDrag.ALL } });
+const { graph } = useGraph({});
 const duplicateLayer = useLayer(graph, DuplicateBlockLayer, {});
 ```
 
@@ -87,7 +87,6 @@ graph.on("blocks-duplicate", (event) => {
 ## How Block Duplication Works
 
 - Hold Alt and drag a block. The block itself does not move.
-- Known limitation: when blocks are not draggable (`canDrag: ECanDrag.NONE`, the default), the camera pans together with the cursor during duplication, so the copies land on top of their sources. Use `canDrag: ECanDrag.ALL` until this is fixed in core ([#405](https://github.com/gravity-ui/graph/issues/405)).
 - A preview of the blocks follows the cursor.
 - On release, the copies are added:
   - each copy keeps all fields of its source, including its type (`is`), and gets a new `id` and position;

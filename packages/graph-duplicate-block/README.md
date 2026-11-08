@@ -5,11 +5,10 @@ Alt+drag block duplication for `@gravity-ui/graph`. Hold Alt and drag a block to
 This package is being developed on the unpublished v2 branch. Use it with the matching v2 core build.
 
 ```ts
-import { ECanDrag, Graph } from "@gravity-ui/graph";
+import { Graph } from "@gravity-ui/graph";
 import { DuplicateBlockLayer } from "@gravity-ui/graph-duplicate-block";
 
-// Blocks must be draggable until https://github.com/gravity-ui/graph/issues/405 is fixed.
-const graph = new Graph({ settings: { canDrag: ECanDrag.ALL } }, document.getElementById("graph")!);
+const graph = new Graph({}, document.getElementById("graph")!);
 graph.addLayer(DuplicateBlockLayer, {
   isDuplicateAllowed: (block) => block.connectedState.$state.value.is !== "restricted-block",
 });
@@ -22,7 +21,7 @@ graph.start();
 In React, attach the layer with `useLayer` from `@gravity-ui/graph-react`:
 
 ```tsx
-const { graph } = useGraph({ settings: { canDrag: ECanDrag.ALL } });
+const { graph } = useGraph({});
 const duplicateLayer = useLayer(graph, DuplicateBlockLayer, { ghostBackground: "rgba(0, 0, 255, 0.3)" });
 // duplicateLayer?.disable();
 

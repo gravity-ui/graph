@@ -78,8 +78,7 @@ export class DuplicateBlockLayer extends Layer<
   }
 
   protected afterInit(): void {
-    // Preventing the graph mousedown stops the block drag and DragService. Graph listeners run in registration
-    // order, so a camera pan that has already started is not stopped (https://github.com/gravity-ui/graph/issues/405).
+    // Preventing the graph mousedown stops the block drag, DragService and the camera pan.
     this.onGraphEvent("mousedown", this.handleMouseDown, {
       capture: true,
     });
