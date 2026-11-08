@@ -4,12 +4,14 @@ import { globalScheduler } from "../../../lib/Scheduler";
 import type { TBatchParams } from "../../../lib/batch/types";
 import type { TConnection } from "../../../store/connection/ConnectionState";
 
+import type { TBaseConnectionState } from "./BaseConnection";
 import { BatchPath2DRenderer } from "./BatchPath2D";
 import { BlockConnection } from "./BlockConnection";
 import type { BlockConnections } from "./BlockConnections";
 import type { IConnectionBatch, IConnectionBatchItem } from "./batch";
+import { dashFlow } from "./effects";
 import { Path2DLine, WebGLLine } from "./lines";
-import type { ConnectionLine, TConnectionLineClass } from "./lines";
+import type { ConnectionLine, TConnectionLineClass, TWebGLStroke } from "./lines";
 import { WebGLConnections } from "./webgl/WebGLConnections";
 import { createFakeGL, installFakeWebGL2 } from "./webgl/fakeGL";
 import type { TFakeGL, TFakeWebGL2 } from "./webgl/fakeGL";
@@ -53,10 +55,49 @@ class OtherGLConnection extends BlockConnection<TConnection> {
   public static override line: TConnectionLineClass = WebGLLine;
 }
 
+/** A running dash: the WebGL renderer keeps a frame of its own pending while it draws one. */
+class DashFlowLine extends WebGLLine {
+  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+    return { ...super.getStroke(state), effect: dashFlow.use({ pattern: [10, 10], speed: 50 }) };
+  }
+}
+
+class DashFlowConnection extends BlockConnection<TConnection> {
+  public static override line: TConnectionLineClass = DashFlowLine;
+}
+
 type TBlockConnectionsInternals = {
   batch: IConnectionBatch;
   switchBatch(next: IConnectionBatch): void;
 };
+
+/** `requestAnimationFrame` under the test's control: callbacks wait until `run()`, the scheduler's included. */
+function mockFrames(): { pending: () => FrameRequestCallback[]; run: () => void } {
+  const callbacks = new Map<number, FrameRequestCallback>();
+  let next = 1;
+  jest.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+    callbacks.set(next, callback);
+    return next++;
+  });
+  jest.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => {
+    callbacks.delete(id);
+  });
+  return {
+    pending: () => [...callbacks.values()],
+    run: (): void => {
+      const due = [...callbacks.values()];
+      callbacks.clear();
+      for (const onFrame of due) onFrame(performance.now());
+    },
+  };
+}
+
+/** The frame callback of the current WebGL renderer, to find it among the pending animation frames. */
+function webglFrameCallback(graph: Graph): FrameRequestCallback {
+  const webgl = (internals(graph) as unknown as { webgl?: { handleFrame: FrameRequestCallback } }).webgl;
+  if (!webgl) throw new Error("Expected the WebGL renderer");
+  return webgl.handleFrame;
+}
 
 const FALLBACK_WARNING = "[@gravity-ui/graph] WebGL2 is unavailable";
 
@@ -551,6 +592,101 @@ describe("BlockConnections renderer from the line class", () => {
     expect(rendererOf(graph)).toBe("webgl");
     expect(graphLevelCanvases(graph, container)).toEqual([
       webglCanvas(installed.contexts[0]),
+      graph.getGraphLayer().getCanvas(),
+    ]);
+  });
+});
+
+describe("BlockConnections while the graph layer is detached", () => {
+  let graph: Graph | undefined;
+  let installed: TFakeWebGL2 | undefined;
+
+  beforeEach(() => {
+    jest.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    graph?.unmount();
+    graph = undefined;
+    installed?.restore();
+    installed = undefined;
+    document.body.innerHTML = "";
+    jest.restoreAllMocks();
+  });
+
+  it.each([
+    ["stop()", (target: Graph): void => target.stop(), (target: Graph): void => target.start()],
+    [
+      "detach(), as GraphCanvas does on unmount",
+      (target: Graph): void => target.detach(),
+      (target: Graph, root: HTMLDivElement): void => {
+        target.attach(root);
+        target.start();
+      },
+    ],
+  ])("after %s: no WebGL canvas in the root, no frames of its own; it draws again once back", (_name, leave, back) => {
+    const animationFrames = mockFrames();
+    installed = installFakeWebGL2();
+    const root = attachedRoot();
+    graph = mount({ connection: DashFlowConnection }, root);
+    const [context] = installed.contexts;
+    const canvas = webglCanvas(context);
+    const handleFrame = webglFrameCallback(graph);
+    expect(rendererOf(graph)).toBe("webgl");
+    // The running dash keeps a frame of its own pending.
+    expect(animationFrames.pending()).toContain(handleFrame);
+
+    leave(graph);
+
+    expect(canvas.isConnected).toBe(false);
+    expect(root.contains(canvas)).toBe(false);
+    expect(animationFrames.pending()).not.toContain(handleFrame);
+    const draws = context.draws.length;
+    for (let i = 0; i < 3; i++) {
+      animationFrames.run();
+      frames(1);
+    }
+    expect(context.draws).toHaveLength(draws);
+    expect(animationFrames.pending()).not.toContain(handleFrame);
+
+    back(graph, root);
+    frames();
+
+    // The same renderer and context: the canvas is back right below the graph layer's and draws.
+    expect(installed.contexts).toHaveLength(1);
+    expect(rendererOf(graph)).toBe("webgl");
+    expect(graphLevelCanvases(graph, root)).toEqual([canvas, graph.getGraphLayer().getCanvas()]);
+    expect(context.draws.length).toBeGreaterThan(draws);
+    expect(animationFrames.pending()).toContain(handleFrame);
+  });
+
+  it("keeps a lost renderer's restore listener while stopped and creates a fresh renderer on start", () => {
+    installed = installFakeWebGL2();
+    const root = attachedRoot();
+    graph = mount({ connection: GLConnection }, root);
+    const [lost] = installed.contexts;
+    const lostCanvas = webglCanvas(lost);
+    lost.loseContext();
+    lostCanvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true }));
+    expect(rendererOf(graph)).toBe("webgl-fallback");
+
+    graph.stop();
+    expect(lostCanvas.isConnected).toBe(false);
+
+    lost.restoreContext();
+    lostCanvas.dispatchEvent(new Event("webglcontextrestored"));
+    // The lost renderer is disposed at once; nothing else is created while the graph is stopped.
+    expect(lost.gl.isContextLost()).toBe(true);
+    frames();
+    expect(installed.contexts).toHaveLength(1);
+
+    graph.start();
+    frames();
+
+    expect(internals(graph).batch).toBeInstanceOf(WebGLConnections);
+    expect(rendererOf(graph)).toBe("webgl");
+    expect(graphLevelCanvases(graph, root)).toEqual([
+      webglCanvas(installed.contexts[1]),
       graph.getGraphLayer().getCanvas(),
     ]);
   });

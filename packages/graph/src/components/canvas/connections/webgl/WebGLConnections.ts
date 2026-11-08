@@ -39,7 +39,8 @@ function readValues(signals: ReadonlyArray<ReadonlySignal<unknown>>): unknown[] 
  * Lines and arrows drawn with WebGL2 on a canvas stacked right below the graph layer's canvas. Draws in the graph
  * layer's frame; it also redraws itself in an animation frame of its own, without the graph layer, every frame while it
  * draws an animated chunk or a chunk still tessellated for another zoom bucket, and once after a uniform of an effect
- * in its chunks changes. After its context is lost it draws nothing; its canvas stays and reports the restore.
+ * in its chunks changes. Suspended while the graph layer is detached. After its context is lost it draws nothing; its
+ * canvas reports the restore.
  */
 export class WebGLConnections implements IConnectionBatch {
   /**
@@ -82,6 +83,9 @@ export class WebGLConnections implements IConnectionBatch {
 
   /** Set by `webglcontextlost`; the GL objects of this instance are gone for good then, a restore included. */
   private lost = false;
+
+  /** Set by `suspend()` until the next `render()`: no frames of its own, no canvas in the document. */
+  private suspended = false;
 
   /** Effects of the built chunks, with the subscriptions to their uniforms. */
   private readonly effects = new Map<TShapeEffect, TEffectEntry>();
@@ -142,12 +146,24 @@ export class WebGLConnections implements IConnectionBatch {
 
   /** Draws the frame of the graph layer with its culling viewport; nothing after the context is lost. */
   public render(viewport?: TTileRect): void {
+    this.suspended = false;
     if (this.lost) return;
     this.viewport = viewport && { ...viewport };
     // The graph layer's frame replaces a pending loop frame, so a frame is drawn once.
     this.stopLoop();
     this.draw();
     this.loop();
+  }
+
+  /**
+   * Stops drawing while the graph layer is detached: cancels its own frame, ignores uniform changes and takes its
+   * canvas out of the document. The GL objects, the items and the context listeners stay, so the next `render()` puts
+   * the canvas back and draws, and a lost context still reports its restore.
+   */
+  public suspend(): void {
+    this.suspended = true;
+    this.stopLoop();
+    this.canvas.remove();
   }
 
   /** Stops the animation loop and the uniform subscriptions, removes the canvas and its listeners, frees its context. */
@@ -268,14 +284,19 @@ export class WebGLConnections implements IConnectionBatch {
     if (this.backend.drewAnimated || this.backend.drewStale) this.requestFrame();
   }
 
-  /** One frame of its own in the next animation frame, unless one is pending; nothing after the context is lost. */
+  /**
+   * One frame of its own in the next animation frame, unless one is pending; nothing while suspended or after the
+   * context is lost.
+   */
   private requestFrame(): void {
-    if (this.frame !== undefined || this.lost) return;
+    if (this.frame !== undefined || this.lost || this.suspended) return;
     this.frame = requestAnimationFrame(this.handleFrame);
   }
 
   private handleFrame = (): void => {
     this.frame = undefined;
+    // The graph layer's canvas left the document: nothing is drawn until the graph layer's next frame.
+    if (!this.graphCanvas.isConnected) return;
     this.draw();
     this.loop();
   };

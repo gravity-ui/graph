@@ -240,7 +240,22 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
         this.webglUnavailable = false;
         this.scheduleUpdate();
       }),
+      this.context.layer.$attached.subscribe((attached) => this.handleLayerAttached(attached)),
     ];
+  }
+
+  /**
+   * Nothing draws while the graph layer is detached (`graph.stop()`, `graph.detach()`): the WebGL renderer stops its
+   * frames and its canvas leaves the root, keeping its GL objects; the next frame after the attach puts it back.
+   */
+  private handleLayerAttached(attached: boolean): void {
+    if (attached) {
+      this.performRender();
+      return;
+    }
+    this.webgl?.suspend();
+    // A lost renderer keeps listening for the restore outside the document.
+    this.lostWebGL?.suspend();
   }
 
   protected unmount() {

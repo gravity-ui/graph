@@ -384,6 +384,66 @@ describe("WebGLConnections", () => {
       expect(frames.request).not.toHaveBeenCalled();
     });
 
+    it("stops its frames once the graph layer's canvas leaves the document, until the next render()", () => {
+      const frames = mockFrames();
+      const fake = createFakeGL();
+      const moving = define({
+        fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color * fract(f.time); } // detached root",
+        animated: true,
+      });
+      const connections = create(fake);
+      connections.add(effectLine(moving), { zIndex: 1, group: "line" });
+      connections.render();
+      expect(frames.pending()).toBe(1);
+      const root = fake.canvas?.parentElement;
+      if (!root) throw new Error("Expected the root");
+
+      // The root leaves the document without a detach of the graph layer.
+      root.remove();
+      frames.run();
+      expect(fake.draws).toHaveLength(1);
+      expect(frames.pending()).toBe(0);
+
+      document.body.appendChild(root);
+      connections.render();
+      expect(fake.draws).toHaveLength(2);
+      expect(frames.pending()).toBe(1);
+      connections.dispose();
+    });
+
+    it("suspend() cancels its frame, ignores uniform changes and removes its canvas until the next render()", () => {
+      const frames = mockFrames();
+      const fake = createFakeGL();
+      const glow = define({
+        fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color * u_k; } // suspended",
+        uniforms: { k: { type: "float", value: 1 } },
+        animated: true,
+      });
+      const graph = graphCanvas();
+      mockWebGL2(fake);
+      const connections = WebGLConnections.create(graph, options);
+      if (!connections || !fake.canvas) throw new Error("Expected WebGL connections");
+      const canvas = fake.canvas;
+      connections.add(effectLine(glow), { zIndex: 1, group: "line" });
+      connections.render();
+      expect(frames.pending()).toBe(1);
+
+      connections.suspend();
+      expect(canvas.isConnected).toBe(false);
+      expect(frames.pending()).toBe(0);
+      glow.uniforms.k.value = 2;
+      expect(frames.pending()).toBe(0);
+      const draws = fake.draws.length;
+
+      connections.render();
+      expect(graph.previousSibling).toBe(canvas);
+      expect(fake.draws).toHaveLength(draws + 1);
+      expect(frames.pending()).toBe(1);
+      // The GL objects stayed: the same programs draw.
+      expect(fake.live("program")).toBe(3);
+      connections.dispose();
+    });
+
     it("keeps redrawing every frame while an animated effect is drawn", () => {
       const frames = mockFrames();
       const fake = createFakeGL();
