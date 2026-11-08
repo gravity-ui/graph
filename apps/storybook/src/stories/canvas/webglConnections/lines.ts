@@ -83,8 +83,8 @@ export const particles = defineConnectionEffect({
     vec4 effect(ConnectionFragment f, vec4 color) {
       float spacing = f.params0.x;
       float offset = mod(f.along - f.time * f.params0.y * u_speed, spacing) - spacing * 0.5;
-      float distance = length(vec2(offset * f.scale, f.across));
-      float particle = 1.0 - smoothstep(f.halfWidth - 1.0, f.halfWidth, distance);
+      float dist = length(vec2(offset * f.scale, f.across));
+      float particle = 1.0 - smoothstep(f.halfWidth - 1.0, f.halfWidth, dist);
       return vec4(color.rgb, color.a * max(particle, 0.12));
     }`,
   encode: ({ spacing, speed }: { spacing: number; speed: number }) => [spacing, speed],

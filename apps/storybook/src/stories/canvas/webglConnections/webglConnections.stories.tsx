@@ -10,6 +10,18 @@ import type { TGeneratedGraphConfig } from "../../configurations/generatePretty"
 import { BlockStory } from "../../main/Block";
 
 import {
+  cometsCode,
+  glowCode,
+  gradientCode,
+  particlesCode,
+  perConnectionCode,
+  pipelineCode,
+  runningDashCode,
+  signalWaveCode,
+  stillDashCode,
+  stressCode,
+} from "./codeSamples";
+import {
   comets,
   dataStyled,
   glow,
@@ -54,51 +66,6 @@ const particlesSlider: TSlider = {
   max: 3,
   step: 0.1,
 };
-
-const particlesCode = `const particles = defineConnectionEffect({
-  animated: true,
-  uniforms: { speed: { type: "float", value: 1 } },
-  fragment: \`vec4 effect(ConnectionFragment f, vec4 color) {
-    float offset = mod(f.along - f.time * f.params0.y * u_speed, f.params0.x) - f.params0.x * 0.5;
-    float particle = 1.0 - smoothstep(f.halfWidth - 1.0, f.halfWidth, length(vec2(offset * f.scale, f.across)));
-    return vec4(color.rgb, color.a * max(particle, 0.12));
-  }\`,
-  encode: ({ spacing, speed }: { spacing: number; speed: number }) => [spacing, speed],
-});
-
-class ParticlesLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
-    return { color: "#2f7cf6", width: 14, effect: particles.use({ spacing: 120, speed: 100 }) };
-  }
-}
-class ParticlesConnection extends BlockConnection {
-  public static override line = ParticlesLine;
-}
-// particles.uniforms.speed.value = 2; // all connections at once`;
-
-const gradientCode = `const gradient = defineConnectionEffect({
-  animated: true,
-  fragment: \`vec4 effect(ConnectionFragment f, vec4 color) {
-    vec3 rgb = mix(f.params0.rgb, f.params1.rgb, f.t);
-    float band = smoothstep(0.8, 1.0, fract(f.t - f.time * f.params0.w));
-    return vec4(rgb, color.a * mix(0.35, 1.0, band));
-  }\`,
-  encode: ({ from, to, laps }) => [...from, laps, ...to, 0],
-  fallback: (stroke) => stroke, // Path2D draws the plain stroke while WebGL is unavailable
-});
-// getStroke(): { color: "#7a8aa6", width: 6, effect: gradient.use({ from: [0.18, 0.49, 0.96], to: [...], laps: 0.3 }) }`;
-
-const glowCode = `const glow = defineConnectionEffect({
-  extraWidth: 6, // CSS pixels drawn outside each side of the stroke
-  uniforms: { intensity: { type: "float", value: 0.6 } },
-  fragment: \`vec4 effect(ConnectionFragment f, vec4 color) {
-    float outside = max(abs(f.across) - f.halfWidth, 0.0) / f.extraWidth;
-    float glowAlpha = u_intensity * pow(1.0 - clamp(outside, 0.0, 1.0), 2.0);
-    return mix(vec4(color.rgb, color.a * glowAlpha), color, f.coverage);
-  }\`,
-});
-// getStroke(): { color: "#2f7cf6", width: 3, effect: glow.use([]) }
-// glow.uniforms.intensity.value = 1; // the slider does this`;
 
 type TGraphViewProps = {
   config: TGeneratedGraphConfig;
@@ -234,49 +201,6 @@ const GraphApp = ({
   );
 };
 
-const runningDashCode = `class RunningDashLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
-    // dashFlow draws the dash itself: the base stroke has no \`dash\`
-    return { color: "#4e79a7", width: 2, effect: dashFlow.use({ pattern: [12, 8], speed: 40 }) };
-  }
-}
-class RunningDashConnection extends BlockConnection {
-  public static override line = RunningDashLine;
-}
-// Canvas twin: class RunningDashPath2DLine extends Path2DLine, getStroke() returns the still dash
-// { color: "#4e79a7", width: 2, dash: { pattern: [12, 8] } }
-// settings: { connection: RunningDashConnection }`;
-
-const perConnectionCode = `class DataStyledLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
-    const stroke = super.getStroke(state);
-    if (state.hovered || state.selected) return stroke;
-    const hash = hashId(this.connection.props.id);
-    return { ...stroke, color: palette[hash % palette.length], width: 1 + (hash % 4) };
-  }
-}
-class DataStyledConnection extends BlockConnection {
-  public static override line = DataStyledLine;
-}
-// settings: { connection: DataStyledConnection }`;
-
-const stressCode = `// GraphEditor/GraphStressTest: generatePrettyBlocks({ layersCount: 110, connectionsPerLayer: 1000 }), straight lines
-// settings: { connection: Plain | RunningDash | DataStyled } with static line = a WebGLLine or Path2DLine subclass
-// the renderer switch picks the WebGL or the Path2D twin of the same look`;
-
-const pipelineCode = `class PipelineLine extends WebGLLine {
-  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
-    // forward comets, return comets, a signal wave or a waiting dashed line, from a hash of the id
-    const speed = 120 + (hash % 160);
-    return { color, width: 6, effect: dashFlow.use({ pattern: [90, 160], speed, fade: true }) };
-    return { color: "#2bb24c", width: 5, effect: pulse.use({ period: 3, wavelength: 24000 }) };
-  }
-}
-class PipelineConnection extends BlockConnection {
-  public static override line = PipelineLine;
-}
-// Effects are WebGL only: the Path2D twin draws the still dashes and steady lines.`;
-
 const meta: Meta = {
   title: "Canvas/WebGLConnections",
   component: GraphApp,
@@ -328,7 +252,7 @@ PerConnectionStyle.parameters = {
 export const GraphStress: StoryFn = () => (
   <GraphApp
     title="Graph stress test"
-    description="The GraphEditor GraphStressTest graph with straight connections. Switch the renderer and the connection style; a running dash on canvas redraws every connection's dashes every frame."
+    description="The GraphEditor GraphStressTest graph with straight connections. Switch the renderer and the connection style; canvas draws the same dash still, WebGL runs it with dashFlow; a still dash on canvas is slow on large graphs."
     code={stressCode}
     effects={[
       { value: "plain", content: "Plain", connections: plain },
@@ -354,12 +278,12 @@ const nirvanaMiddle: TRect = { x: 31000, y: -1500, width: 5000, height: 3000 };
 export const NirvanaEffects: StoryFn = () => (
   <GraphApp
     title="Nirvana max graph with animated connections"
-    description="The GraphEditor NirvanaMaxGraphTest graph with WebGL effects: comets that fade towards the tail and run at their own speed in either direction, and a signal wave that crosses the graph. Particles, Gradient and Glow are custom shader effects defined in the story with defineConnectionEffect; the sliders write their uniforms. Canvas draws the stroke without the effects (still dashes for the comets), and is slow with dashes on this graph."
+    description="The GraphEditor NirvanaMaxGraphTest graph with WebGL effects: comets that fade towards the tail and run at their own speed in either direction, and a signal wave that crosses the graph. Particles, Gradient and Glow are custom shader effects defined in the story with defineConnectionEffect; the sliders write their uniforms (the particles jump while the speed slider moves: the phase is time times speed). Canvas draws the stroke without the effects (still dashes for the comets), and is slow with dashes on this graph."
     code={pipelineCode}
     effects={[
       { value: "pipeline", content: "Pipeline", connections: pipeline },
-      { value: "comets", content: "Comets", connections: comets },
-      { value: "wave", content: "Signal wave", connections: signalWave },
+      { value: "comets", content: "Comets", connections: comets, code: cometsCode },
+      { value: "wave", content: "Signal wave", connections: signalWave, code: signalWaveCode },
       {
         value: "particles",
         content: "Particles (shader)",
@@ -369,7 +293,7 @@ export const NirvanaEffects: StoryFn = () => (
       },
       { value: "gradient", content: "Gradient (shader)", connections: gradientLines, code: gradientCode },
       { value: "glow", content: "Glow (shader)", connections: glowLines, code: glowCode, slider: glowSlider },
-      { value: "still", content: "Still dash", connections: stillDash },
+      { value: "still", content: "Still dash", connections: stillDash, code: stillDashCode },
     ]}
     layersCount={55}
     sizes={[{ value: "400", content: "400 per layer" }]}
