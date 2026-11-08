@@ -2,12 +2,14 @@ import type { TBatchParams } from "../../../../lib/batch/types";
 import type { TConnection } from "../../../../store/connection/ConnectionState";
 import type { BlockConnection } from "../BlockConnection";
 import type { IConnectionBatch, IConnectionBatchItem } from "../batch";
-import { defineConnectionEffect, toConnectionEffect } from "../effects";
+import { dashFlow, defineConnectionEffect, toConnectionEffect } from "../effects";
 import { bezierSegment, blockGeometry, lineSegment, multipointGeometry } from "../geometry";
 import type { TConnectionGeometry } from "../geometry";
+import { createEncodedChunk, encodeShapes } from "../webgl/encode";
 
 import { WebGLLine } from "./WebGLLine";
 import type { TWebGLStroke } from "./WebGLLine";
+import type { TWebGLShape } from "./types";
 
 class RecordingBatch implements IConnectionBatch {
   public readonly items = new Map<IConnectionBatchItem, TBatchParams>();
@@ -266,7 +268,7 @@ describe("WebGLLine", () => {
       expect(new WebGLLine(stubConnection(straight).connection).getWebGLEffect()).toBeUndefined();
     });
 
-    it("keeps the effect on hover and selection: only the color and the width change", () => {
+    it("keeps the effect and its color on hover and selection: only the width changes", () => {
       class SelectedEffectLine extends WebGLLine {
         public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
           return this.withInteraction({ color: "#2f7cf6", width: 6, effect: pulse.use(3) }, state);
@@ -274,7 +276,7 @@ describe("WebGLLine", () => {
       }
       const selected = new SelectedEffectLine(stubConnection(straight, { selected: true }).connection);
       const stroke = selected.getStroke({ id: "c", selected: true });
-      expect(stroke).toMatchObject({ color: "#fc0", width: 8, effect: { params: [3] } });
+      expect(stroke).toMatchObject({ color: "#2f7cf6", width: 8, effect: { params: [3] } });
       selected.update();
       expect(selected.getWebGLShape()?.effect).toBe(toConnectionEffect(pulse as never));
     });
@@ -306,6 +308,191 @@ describe("WebGLLine", () => {
       const line = new BareLine(connection);
       line.update();
       expect(batch.items.get(line)?.group).toBe("line/#aaa/2/");
+    });
+  });
+
+  describe("hover and selection", () => {
+    const flow = defineConnectionEffect({
+      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+    });
+    const widen = defineConnectionEffect<Record<never, never>, number>({
+      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+      encode: (extra) => [extra],
+      fallback: (stroke, params) => ({ ...stroke, width: stroke.width + params[0] }),
+    });
+
+    /** A custom look built with withInteraction(): blue, 6 wide, with the effect when one is given. */
+    function lookLine(effect?: typeof flow): new (connection: BlockConnection<TConnection>) => WebGLLine {
+      return class LookLine extends WebGLLine {
+        public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+          const look = { color: "#2f7cf6", width: 6 };
+          return this.withInteraction(effect ? { ...look, effect: effect.use([]) } : look, state);
+        }
+      };
+    }
+
+    /** The default stroke with an effect added afterwards. */
+    class AddedEffectLine extends WebGLLine {
+      public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+        return { ...super.getStroke(state), effect: dashFlow.use({ pattern: [40, 30], speed: 120 }) };
+      }
+    }
+
+    const EffectLook = lookLine(flow);
+    const PlainLook = lookLine();
+
+    /** The straight rgba of the shape's first encoded instance, in 0..255. */
+    function encodedColor(shape: TWebGLShape | undefined): number[] {
+      if (!shape) throw new Error("shape expected");
+      const out = createEncodedChunk();
+      encodeShapes([shape], 0, out);
+      return Array.from(out.lines.data.subarray(8, 12)).map((value, i) => (i < 3 ? Math.round(value * 255) : value));
+    }
+
+    it("withInteraction() widens the stroke on hover and selection and keeps its color, with or without an effect", () => {
+      const effectLine = new EffectLook(stubConnection(straight).connection);
+      const plainLine = new PlainLook(stubConnection(straight).connection);
+      const look = (stroke: TWebGLStroke): [string, number, boolean] => [
+        stroke.color,
+        stroke.width,
+        Boolean(stroke.effect),
+      ];
+
+      expect(look(effectLine.getStroke({ id: "c" }))).toEqual(["#2f7cf6", 6, true]);
+      expect(look(effectLine.getStroke({ id: "c", hovered: true }))).toEqual(["#2f7cf6", 8, true]);
+      expect(look(effectLine.getStroke({ id: "c", selected: true }))).toEqual(["#2f7cf6", 8, true]);
+      expect(look(effectLine.getStroke({ id: "c", hovered: true, selected: true }))).toEqual(["#2f7cf6", 8, true]);
+
+      expect(look(plainLine.getStroke({ id: "c", hovered: true }))).toEqual(["#2f7cf6", 8, false]);
+      expect(look(plainLine.getStroke({ id: "c", selected: true }))).toEqual(["#2f7cf6", 8, false]);
+      // The default stroke too: the selection color is applied when the line is drawn.
+      const line = new WebGLLine(stubConnection(straight).connection);
+      expect(look(line.getStroke({ id: "c", selected: true }))).toEqual(["#aaa", 4, false]);
+    });
+
+    it("draws a selected line without an effect in the selection color", () => {
+      const selected = stubConnection(straight, { selected: true });
+      const line = new WebGLLine(selected.connection);
+      line.update();
+      expect(line.getWebGLShape()?.stroke).toEqual({ color: "#fc0", width: 4, dash: undefined });
+      expect(encodedColor(line.getWebGLShape())).toEqual([255, 204, 0, 1]);
+
+      const styles = { selectedBackground: "rgba(255, 0, 0, 0.5)" };
+      const styled = new PlainLook(stubConnection(straight, { selected: true, styles, dashed: true }).connection);
+      styled.update();
+      expect(styled.getWebGLShape()?.stroke.color).toBe("rgba(255, 0, 0, 0.5)");
+      expect(encodedColor(styled.getWebGLShape())).toEqual([255, 0, 0, 0.5]);
+
+      const hovered = new WebGLLine(stubConnection(straight, { hovered: true }).connection);
+      hovered.update();
+      expect(hovered.getWebGLShape()?.stroke).toEqual({ color: "#aaa", width: 4, dash: undefined });
+    });
+
+    it("keeps the base color of { ...super.getStroke(state), effect } while selected and passes the interaction", () => {
+      const { connection } = stubConnection(straight, { selected: true }, noArrows);
+      const line = new AddedEffectLine(connection);
+      line.update();
+      const shape = line.getWebGLShape();
+      expect(shape?.stroke).toEqual({ color: "#aaa", width: 4, dash: undefined });
+      expect(encodedColor(shape)).toEqual([170, 170, 170, 1]);
+      expect(shape?.effect).toBe(toConnectionEffect(dashFlow));
+      expect(shape?.interaction).toEqual({ hovered: false, selected: true, selectionColor: "#fc0" });
+    });
+
+    it("passes the interaction of the state update() reads into the line shape, not the arrow shape", () => {
+      const { connection } = stubConnection(closedArrowGeometry);
+      const line = new EffectLook(connection);
+      line.update();
+      expect(line.getWebGLShape()?.interaction).toEqual({ hovered: false, selected: false, selectionColor: "#fc0" });
+      expect(line.arrow.getWebGLShape?.()?.interaction).toBeUndefined();
+
+      // The state passed to update(), not the connection's.
+      const selectedBackground = "rgba(255, 0, 0, 0.5)";
+      line.update({ id: "c", hovered: true, selected: true, styles: { selectedBackground } }, connection.props);
+      expect(line.getWebGLShape()?.interaction).toEqual({
+        hovered: true,
+        selected: true,
+        selectionColor: selectedBackground,
+      });
+      expect(line.getWebGLShape()?.stroke.color).toBe("#2f7cf6");
+
+      // A line without an effect carries it too: the selection color is there whatever the state.
+      const plain = new WebGLLine(stubConnection(straight, { hovered: true }).connection);
+      plain.update();
+      expect(plain.getWebGLShape()?.interaction).toEqual({ hovered: true, selected: false, selectionColor: "#fc0" });
+    });
+
+    it("rebuilds the shape when only the interaction changes", () => {
+      const stroke: TWebGLStroke = { color: "#2f7cf6", width: 6 };
+      class FixedLine extends WebGLLine {
+        public override getStroke(): TWebGLStroke {
+          return stroke;
+        }
+      }
+      const { connection } = stubConnection(straight, {}, noArrows);
+      const line = new FixedLine(connection);
+      line.update();
+      const before = line.getWebGLShape();
+      expect(line.getWebGLShape()).toBe(before);
+      expect(before?.stroke.color).toBe("#2f7cf6");
+      line.update({ id: "c", selected: true }, connection.props);
+      const after = line.getWebGLShape();
+      expect(after).not.toBe(before);
+      expect(after?.interaction?.selected).toBe(true);
+      expect(after?.stroke.color).toBe("#fc0");
+    });
+
+    it.each([
+      ["with an effect", EffectLook, "#2f7cf6"],
+      ["without an effect", PlainLook, "#2f7cf6"],
+      ["of the default stroke", WebGLLine, "#aaa"],
+    ])("the arrow of a selected line %s takes the selection color; hovered, the line's", (_name, Line, color) => {
+      const selected = stubConnection(closedArrowGeometry, { selected: true });
+      const line = new Line(selected.connection);
+      line.update();
+      expect(line.arrow.getWebGLShape?.()?.stroke.color).toBe("#fc0");
+      line.styleArrow(selected.ctx);
+      expect(selected.ctx.fillStyle).toBe("#ffcc00");
+      expect(selected.batch.items.get(line.arrow)?.group).toMatch(/^arrow\/closed\/#fc0\//);
+
+      const hovered = new Line(stubConnection(closedArrowGeometry, { hovered: true }).connection);
+      hovered.update();
+      expect(hovered.arrow.getWebGLShape?.()?.stroke.color).toBe(color);
+
+      const styles = { selectedBackground: "#e63946" };
+      const styled = new Line(stubConnection(closedArrowGeometry, { selected: true, styles }).connection);
+      styled.update();
+      expect(styled.arrow.getWebGLShape?.()?.stroke.color).toBe("#e63946");
+    });
+
+    it("the Path2D fallback of a selected line takes the selection color, with an effect the fallback's width", () => {
+      class WidenLine extends WebGLLine {
+        public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+          return this.withInteraction({ color: "#2f7cf6", width: 6, effect: widen.use(3) }, state);
+        }
+      }
+      const selected = stubConnection(straight, { selected: true }, noArrows);
+      const line = new WidenLine(selected.connection);
+      line.update();
+      // WebGL draws the stroke's own color; the effect shows the selection.
+      expect(line.getWebGLShape()?.stroke.color).toBe("#2f7cf6");
+      expect(selected.batch.items.get(line)?.group).toBe("line/#fc0/11/");
+      line.style(selected.ctx);
+      expect(selected.ctx.strokeStyle).toBe("#ffcc00");
+      expect(selected.ctx.lineWidth).toBe(11);
+
+      const hovered = stubConnection(straight, { hovered: true }, noArrows);
+      const hoveredLine = new WidenLine(hovered.connection);
+      hoveredLine.update();
+      expect(hovered.batch.items.get(hoveredLine)?.group).toBe("line/#2f7cf6/11/");
+
+      // Without an effect: the selection color and the stroke's width, as before.
+      const plain = stubConnection(straight, { selected: true, dashed: true }, noArrows);
+      const plainLine = new WebGLLine(plain.connection);
+      plainLine.update();
+      expect(plain.batch.items.get(plainLine)?.group).toBe("line/#fc0/4/6,4");
+      plainLine.style(plain.ctx);
+      expect(plain.ctx.strokeStyle).toBe("#ffcc00");
     });
   });
 });

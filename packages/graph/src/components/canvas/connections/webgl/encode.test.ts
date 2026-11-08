@@ -1,6 +1,6 @@
-import type { TLineStroke, TWebGLShape } from "../lines/types";
+import type { TLineInteraction, TLineStroke, TWebGLShape } from "../lines/types";
 
-import { INSTANCE_FLOATS, createEncodedChunk, encodeShapes, piecesAt } from "./encode";
+import { INSTANCE_ATTRIBUTES, INSTANCE_FLOATS, createEncodedChunk, encodeShapes, piecesAt } from "./encode";
 import type { TInstances } from "./encode";
 
 const shape = (segments: number[], stroke: Partial<TLineStroke> = {}): TWebGLShape => ({
@@ -19,8 +19,9 @@ function filledChunk(instances: number, fill: number): ReturnType<typeof createE
   return out;
 }
 
-test("an instance is 28 floats", () => {
-  expect(INSTANCE_FLOATS).toBe(28);
+test("an instance is 32 floats, the interaction last at location 8", () => {
+  expect(INSTANCE_FLOATS).toBe(32);
+  expect(INSTANCE_ATTRIBUTES[INSTANCE_ATTRIBUTES.length - 1]).toEqual([8, 4, 28]);
 });
 
 test("writes one instance per cubic with the stroke: color, width, connection length, distances, dash", () => {
@@ -134,6 +135,51 @@ test("writes a shape's params into every instance, missing ones as zero and at m
   expect(instance(out.lines, 2).slice(20, 28)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   // The params stay inside their floats: the next instance starts with its own p0.
   expect(instance(out.lines, 2).slice(0, 2)).toEqual([0, 0]);
+});
+
+describe("the interaction floats: selection rgb, then hovered + 2 selected + 4 round(selection alpha * 255)", () => {
+  const segments = [0, 0, 10, 0, 20, 0, 30, 0];
+
+  /** The interaction floats of the shape's first line instance; the rgb in 0..255. */
+  const interactionOf = (interaction: TLineInteraction | undefined): number[] => {
+    const out = filledChunk(1, 9);
+    encodeShapes([{ ...shape(segments), interaction }], 0, out);
+    const floats = instance(out.lines, 0).slice(28, 32);
+    return [...floats.slice(0, 3).map((value) => Math.round(value * 255)), floats[3]];
+  };
+
+  it("packs the flags over the selection alpha, whatever the state", () => {
+    const selectionColor = "#ffcc00";
+    expect(interactionOf({ hovered: false, selected: false, selectionColor })).toEqual([255, 204, 0, 1020]);
+    expect(interactionOf({ hovered: true, selected: false, selectionColor })).toEqual([255, 204, 0, 1021]);
+    expect(interactionOf({ hovered: false, selected: true, selectionColor })).toEqual([255, 204, 0, 1022]);
+    expect(interactionOf({ hovered: true, selected: true, selectionColor })).toEqual([255, 204, 0, 1023]);
+  });
+
+  it("keeps a translucent selection color's alpha in 1/255 steps", () => {
+    const selectionColor = "rgba(0, 0, 255, 0.5)";
+    // round(0.5 * 255) = 128.
+    expect(interactionOf({ hovered: false, selected: true, selectionColor })).toEqual([0, 0, 255, 2 + 4 * 128]);
+    expect(interactionOf({ hovered: false, selected: false, selectionColor: "rgba(0, 0, 0, 0)" })).toEqual([
+      0, 0, 0, 0,
+    ]);
+  });
+
+  it("writes zeros for a shape without an interaction (an arrow)", () => {
+    expect(interactionOf(undefined)).toEqual([0, 0, 0, 0]);
+  });
+
+  it("writes the interaction into every instance of the shape, curve pieces included", () => {
+    const curve = [0, 0, 0, 3000, 100, -3000, 100, 0];
+    const out = createEncodedChunk();
+    const interaction = { hovered: true, selected: true, selectionColor: "#ffcc00" };
+    encodeShapes([{ ...shape([...segments, ...curve]), interaction }, shape(segments)], 0, out);
+    expect(out.curves.count).toBeGreaterThan(1);
+    for (let i = 0; i < out.curves.count; i++) expect(instance(out.curves, i)[31]).toBe(1023);
+    expect(instance(out.lines, 0)[31]).toBe(1023);
+    // The next shape has none; the floats before stay the params.
+    expect(instance(out.lines, 1).slice(20, 32)).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  });
 });
 
 test("a shape without segments writes nothing", () => {

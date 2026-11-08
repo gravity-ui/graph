@@ -119,7 +119,7 @@ describe("WebGLBatchBackend", () => {
     });
   });
 
-  it("lays the instance attributes out over the 28 floats", () => {
+  it("lays the instance attributes out over the 32 floats", () => {
     const { fake, backend } = setup();
     drawLevel(backend, backend.build([item(line())], undefined));
     const vertexArray = fake.draws[0].vertexArray;
@@ -137,6 +137,7 @@ describe("WebGLBatchBackend", () => {
       [5, 4, stride, 64, 1],
       [6, 4, stride, 80, 1],
       [7, 4, stride, 96, 1],
+      [8, 4, stride, 112, 1],
     ]);
   });
 

@@ -12,14 +12,15 @@ import { CURVE_CHORDS } from "./encode";
 export const VERTEX = /* glsl */ `#version 300 es
 precision highp float;
 
-layout(location = 0) in vec2 graph_template;  // t along the piece, side -1 or +1
-layout(location = 1) in vec4 graph_p0c1;      // p0, c1
-layout(location = 2) in vec4 graph_c2p3;      // c2, p3
-layout(location = 3) in vec4 graph_rgba;      // straight rgba, 0..1
-layout(location = 4) in vec4 graph_stroke;    // width, connection length, distance at the piece start, piece length
-layout(location = 5) in vec4 graph_dash;      // on, off, on, off; zeros: solid
-layout(location = 6) in vec4 graph_params0;   // effect params 0..3
-layout(location = 7) in vec4 graph_params1;   // effect params 4..7
+layout(location = 0) in vec2 graph_template;     // t along the piece, side -1 or +1
+layout(location = 1) in vec4 graph_p0c1;         // p0, c1
+layout(location = 2) in vec4 graph_c2p3;         // c2, p3
+layout(location = 3) in vec4 graph_rgba;         // straight rgba, 0..1
+layout(location = 4) in vec4 graph_stroke;       // width, connection length, distance at the piece start, piece length
+layout(location = 5) in vec4 graph_dash;         // on, off, on, off; zeros: solid
+layout(location = 6) in vec4 graph_params0;      // effect params 0..3
+layout(location = 7) in vec4 graph_params1;      // effect params 4..7
+layout(location = 8) in vec4 graph_interaction;  // selection rgb; hovered + 2 selected + 4 round(alpha * 255)
 
 uniform vec2 graph_viewport;     // CSS pixels
 uniform vec3 graph_camera;       // x, y, scale
@@ -36,6 +37,8 @@ flat out vec4 graph_vDash;
 flat out float graph_vLength;
 flat out vec4 graph_vParams0;
 flat out vec4 graph_vParams1;
+flat out vec2 graph_vInteraction;     // hovered, selected: 0.0 or 1.0
+flat out vec4 graph_vSelectionColor;  // straight rgba
 
 vec2 graph_bezier(vec2 a, vec2 b, vec2 c, vec2 d, float t) {
   float u = 1.0 - t;
@@ -80,6 +83,9 @@ void main() {
   graph_vLength = graph_stroke.y;
   graph_vParams0 = graph_params0;
   graph_vParams1 = graph_params1;
+  int interaction = int(graph_interaction.w + 0.5);
+  graph_vInteraction = vec2(float(interaction & 1), float((interaction >> 1) & 1));
+  graph_vSelectionColor = vec4(graph_interaction.xyz, float(interaction >> 2) / 255.0);
 }
 `;
 
@@ -98,6 +104,8 @@ flat in vec4 graph_vDash;
 flat in float graph_vLength;
 flat in vec4 graph_vParams0;
 flat in vec4 graph_vParams1;
+flat in vec2 graph_vInteraction;
+flat in vec4 graph_vSelectionColor;
 
 uniform vec3 graph_camera;
 uniform float graph_dpr;
@@ -107,18 +115,21 @@ uniform float graph_extraWidth;
 out vec4 graph_fragColor;
 
 struct ConnectionFragment {
-  float along;       // world units from the source, continuous across segments
-  float length;      // the whole connection's length, world units
-  float t;           // along / length: 0 at the source, 1 at the target
-  float across;      // CSS pixels from the center line, signed
-  float halfWidth;   // half the drawn stroke width, CSS pixels
-  float extraWidth;  // the effect's extraWidth, CSS pixels (0 without)
-  float coverage;    // 0..1: how much of the pixel the stroke itself covers, anti-aliased
-  float scale;       // CSS pixels per world unit
-  vec2 world;        // the fragment's world position
-  float time;        // seconds since the renderer started
-  vec4 params0;      // params[0..3]
-  vec4 params1;      // params[4..7]
+  float along;          // world units from the source, continuous across segments
+  float length;         // the whole connection's length, world units
+  float t;              // along / length: 0 at the source, 1 at the target
+  float across;         // CSS pixels from the center line, signed
+  float halfWidth;      // half the drawn stroke width, CSS pixels
+  float extraWidth;     // the effect's extraWidth, CSS pixels (0 without)
+  float coverage;       // 0..1: how much of the pixel the stroke itself covers, anti-aliased
+  float scale;          // CSS pixels per world unit
+  vec2 world;           // the fragment's world position
+  float time;           // seconds since the renderer started
+  vec4 params0;         // params[0..3]
+  vec4 params1;         // params[4..7]
+  float hovered;        // 1.0 while the connection is hovered, else 0.0
+  float selected;       // 1.0 while the connection is selected, else 0.0
+  vec4 selectionColor;  // the connection's selection color, straight RGBA, whatever the state
 };
 
 // Helpers for effects; part of the shader contract, versioned with ConnectionFragment.
@@ -166,7 +177,10 @@ void main() {
     graph_vWorld,
     graph_time,
     graph_vParams0,
-    graph_vParams1
+    graph_vParams1,
+    graph_vInteraction.x,
+    graph_vInteraction.y,
+    graph_vSelectionColor
   );
   vec4 color = effect(f, graph_vColor);
   float alpha = clamp(color.a, 0.0, 1.0) * edge * graph_vHairline;

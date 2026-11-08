@@ -27,6 +27,12 @@ export type TConnectionLineClass = (new (connection: never) => ConnectionLine) &
   readonly renderer: TConnectionsRenderer;
 };
 
+/**
+ * Hover and selection of the connection a line draws (internal): what an effect reads as `f.hovered`, `f.selected` and
+ * `f.selectionColor`. The selection color is there whatever the state.
+ */
+export type TLineInteraction = { hovered: boolean; selected: boolean; selectionColor: string };
+
 /** What the WebGL batch draws for one item (internal). */
 export type TWebGLShape = {
   segments: Float32Array;
@@ -36,4 +42,6 @@ export type TWebGLShape = {
   /** The effect recoloring the stroke (the line only), with the connection's parameters. */
   effect?: ConnectionEffect<TUniformTypes, never>;
   params?: readonly number[];
+  /** The line's hover and selection; an arrow has none (encoded as zeros). */
+  interaction?: TLineInteraction;
 };

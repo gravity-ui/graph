@@ -1,22 +1,30 @@
 import type { TConnection } from "../../../../store/connection/ConnectionState";
 import type { TBaseConnectionState } from "../BaseConnection";
 import type { Path2DRenderStyleResult } from "../BatchPath2D";
-import type { BlockConnection } from "../BlockConnection";
+import type { BlockConnection, TConnectionProps } from "../BlockConnection";
 import { ConnectionEffect, toConnectionEffect } from "../effects/ConnectionEffect";
 import type { TConnectionEffectUse } from "../effects/types";
 import { createArrowPath, createSegmentsPath, lineSegment } from "../geometry";
 import type { TConnectionArrow, TConnectionGeometry } from "../geometry";
 import { distanceToArrow, distanceToSegments } from "../geometry/distance";
 
-import { ConnectionLine } from "./ConnectionLine";
+import { ConnectionLine, getSelectionColor } from "./ConnectionLine";
 import { GeometryCache, applyArrowStyle, applyLineStyle, getArrowGroup, strokeKey } from "./fallbackPath";
-import type { TLineStroke, TWebGLShape } from "./types";
+import type { TLineInteraction, TLineStroke, TWebGLShape } from "./types";
 
 /** Stroke of a WebGL line: the shared stroke and an optional effect that recolors it. */
 export type TWebGLStroke = TLineStroke & { effect?: TConnectionEffectUse };
 
 /** Hit tolerance of the flattening: half a CSS pixel. */
 const FLATNESS_CSS_PX = 0.5;
+
+function readInteraction(connection: BlockConnection<TConnection>, state: TBaseConnectionState): TLineInteraction {
+  return {
+    hovered: Boolean(state.hovered),
+    selected: Boolean(state.selected),
+    selectionColor: getSelectionColor(connection, state),
+  };
+}
 
 /** The arrow's outline as straight cubics; a closed arrow adds the closing side. */
 function arrowSegments(arrow: TConnectionArrow): Float32Array {
@@ -34,17 +42,27 @@ function arrowSegments(arrow: TConnectionArrow): Float32Array {
 /**
  * Draws a connection with WebGL2 from its geometry only: no custom shapes, no Path2D per connection.
  * Hit tests are analytic; a Path2D batch holding the line (the fallback) builds Path2D from the geometry.
+ * The selection color is applied when the line is drawn, not in the stroke: a selected line without an effect is
+ * drawn in it, a line with an effect keeps its color and the effect shows the selection.
  */
 export class WebGLLine<
   C extends BlockConnection<TConnection> = BlockConnection<TConnection>,
 > extends ConnectionLine<C> {
   public static override readonly renderer = "webgl";
 
-  private lineShape?: { geometry: TConnectionGeometry; stroke: TLineStroke; shape: TWebGLShape };
+  private lineShape?: {
+    geometry: TConnectionGeometry;
+    stroke: TLineStroke;
+    interaction: TLineInteraction;
+    shape: TWebGLShape;
+  };
 
   private arrowShape?: { geometry: TConnectionGeometry; stroke: TLineStroke; shape: TWebGLShape };
 
-  private fallback?: { stroke: TLineStroke; fallbackStroke: TLineStroke };
+  private fallback?: { stroke: TLineStroke; interaction: TLineInteraction; fallbackStroke: TLineStroke };
+
+  /** Hover and selection of the state the strokes were read for last, for the line shape and the fallback. */
+  private interaction?: TLineInteraction;
 
   private readonly pathCache = new GeometryCache<Path2D>();
 
@@ -52,6 +70,35 @@ export class WebGLLine<
 
   public override getStroke(state: TBaseConnectionState): TWebGLStroke {
     return super.getStroke(state);
+  }
+
+  /**
+   * @internal Records the hover and selection of the state with its strokes: the line shape draws by them and passes
+   * them to the effect, and the fallback recolors by them.
+   */
+  public override readStrokes(
+    state: TBaseConnectionState = this.connection.state,
+    props: TConnectionProps = this.connection.props
+  ): void {
+    this.interaction = readInteraction(this.connection, state);
+    super.readStrokes(state, props);
+  }
+
+  /**
+   * Hover and selection on top of a stroke: 2 units wider while hovered or selected; the color stays the stroke's own,
+   * so `{ ...super.getStroke(state), effect }` keeps the connection's color. The line is drawn in the selection color
+   * when it is selected and has no effect; an effect shows hover and selection through `f.hovered`, `f.selected` and
+   * `f.selectionColor`.
+   */
+  protected override withInteraction<S extends TLineStroke>(stroke: S, state: TBaseConnectionState): S {
+    if (!state.hovered && !state.selected) return stroke;
+    return { ...stroke, width: stroke.width + 2 };
+  }
+
+  /** @internal The line's color and width; the selection color while the line is selected. */
+  protected override getArrowStrokeOf(stroke: TLineStroke, state: TBaseConnectionState): TLineStroke {
+    const arrow = super.getArrowStrokeOf(stroke, state);
+    return state.selected ? { ...arrow, color: getSelectionColor(this.connection, state) } : arrow;
   }
 
   public hitTest(x: number, y: number, threshold: number): boolean {
@@ -72,15 +119,20 @@ export class WebGLLine<
     const geometry = this.connection.getGeometry();
     if (!geometry) return undefined;
     const stroke = this.getCurrentStroke();
+    const interaction = this.getInteraction();
     const cached = this.lineShape;
-    if (cached && cached.geometry === geometry && cached.stroke === stroke) return cached.shape;
+    if (cached && cached.geometry === geometry && cached.stroke === stroke && cached.interaction === interaction) {
+      return cached.shape;
+    }
     const { effect, ...plain } = stroke as TWebGLStroke;
-    const shape: TWebGLShape = { segments: geometry.segments, stroke: effect ? plain : stroke };
+    // Without an effect a selected line is drawn in the selection color; an effect shows the selection itself.
+    const drawn = effect || !interaction.selected ? plain : { ...plain, color: interaction.selectionColor };
+    const shape: TWebGLShape = { segments: geometry.segments, stroke: drawn, interaction };
     if (effect) {
       shape.effect = toConnectionEffect(effect.effect);
       shape.params = effect.params ?? [];
     }
-    this.lineShape = { geometry, stroke, shape };
+    this.lineShape = { geometry, stroke, interaction, shape };
     return shape;
   }
 
@@ -129,16 +181,28 @@ export class WebGLLine<
     return `line/${strokeKey(this.getFallbackStroke())}`;
   }
 
-  /** The stroke Path2D draws: the effect's fallback stroke, or the stroke without the effect. */
+  /**
+   * The stroke Path2D draws: the stroke without its effect, or the effect's fallback stroke; in the selection color
+   * while selected, as Path2D has no effect to show the selection.
+   */
   private getFallbackStroke(): TLineStroke {
     const stroke = this.getCurrentStroke();
-    if (this.fallback?.stroke === stroke) return this.fallback.fallbackStroke;
+    const interaction = this.getInteraction();
+    const cached = this.fallback;
+    if (cached && cached.stroke === stroke && cached.interaction === interaction) return cached.fallbackStroke;
     const { effect, ...plain } = stroke as TWebGLStroke;
-    const fallbackStroke = effect
+    let fallbackStroke: TLineStroke = effect
       ? toConnectionEffect(effect.effect).getFallbackStroke(plain, effect.params ?? [])
-      : stroke;
-    this.fallback = { stroke, fallbackStroke };
+      : plain;
+    if (interaction.selected) fallbackStroke = { ...fallbackStroke, color: interaction.selectionColor };
+    this.fallback = { stroke, interaction, fallbackStroke };
     return fallbackStroke;
+  }
+
+  /** The interaction the strokes were read for last; the connection's state before the first read. */
+  private getInteraction(): TLineInteraction {
+    this.interaction ??= readInteraction(this.connection, this.connection.state);
+    return this.interaction;
   }
 
   protected getArrowBatchGroup(lineGroup: string): string {

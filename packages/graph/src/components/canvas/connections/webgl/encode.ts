@@ -1,16 +1,18 @@
 import { isDevelopmentBuild } from "../../../../lib/detachedWarning";
 import { parseColor } from "../../../../utils/functions/color";
 import { isLineSegment } from "../geometry/segments";
-import type { TLineStroke, TWebGLShape } from "../lines/types";
+import type { TLineInteraction, TLineStroke, TWebGLShape } from "../lines/types";
 
 /**
  * Floats per instance (one cubic piece):
  * 0-3 p0, c1 | 4-7 c2, p3 | 8-11 straight rgba 0..1 |
  * 12-15 width, connection length, distance at the piece start, piece length | 16-19 dash: on, off, on, off |
- * 20-27 effect params (the shape's `params`, zeros after them).
+ * 20-27 effect params (the shape's `params`, zeros after them) |
+ * 28-31 interaction: the selection color's straight rgb 0..1, then hovered + 2 selected + 4 round(selection alpha *
+ * 255), an exact integer (zeros without an interaction).
  * Lengths and distances in world units.
  */
-export const INSTANCE_FLOATS = 28;
+export const INSTANCE_FLOATS = 32;
 
 /** Instance attributes of the line program: location, components, float offset (see `INSTANCE_FLOATS`). */
 export const INSTANCE_ATTRIBUTES: ReadonlyArray<readonly [number, number, number]> = [
@@ -21,6 +23,7 @@ export const INSTANCE_ATTRIBUTES: ReadonlyArray<readonly [number, number, number
   [5, 4, 16],
   [6, 4, 20],
   [7, 4, 24],
+  [8, 4, 28],
 ];
 
 /** Numbers of a dash pattern the instance holds: two on/off pairs. */
@@ -32,6 +35,10 @@ export const EFFECT_PARAMS = 8;
 const DASH_OFFSET = 16;
 
 const PARAMS_OFFSET = 20;
+
+const INTERACTION_OFFSET = 28;
+
+const NO_INTERACTION: readonly number[] = [0, 0, 0, 0];
 
 const NO_DASH: readonly number[] = [0, 0, 0, 0];
 
@@ -200,12 +207,37 @@ function writeParams(params: readonly number[] | undefined, out: Float32Array, o
   out.fill(0, offset + i, offset + EFFECT_PARAMS);
 }
 
-/** The stroke floats of one instance: color, width, distance at the piece start and piece length, dash, params. */
+/** The selection color turned into floats last: shapes mostly share one, the theme's. */
+let lastSelectionColor: string | undefined;
+
+let lastSelectionFloats: [number, number, number, number] = [0, 0, 0, 0];
+
+/**
+ * The interaction floats of an instance: the selection color's straight rgb, then hovered + 2 selected + 4 round(alpha
+ * * 255), an integer below 1024 that a float holds exactly. Zeros without an interaction.
+ */
+function interactionFloats(interaction: TLineInteraction | undefined): readonly number[] {
+  if (!interaction) return NO_INTERACTION;
+  const { hovered, selected, selectionColor } = interaction;
+  if (selectionColor !== lastSelectionColor) {
+    lastSelectionFloats = colorFloats(selectionColor);
+    lastSelectionColor = selectionColor;
+  }
+  const [r, g, b, a] = lastSelectionFloats;
+  const alpha = Math.round(Math.min(1, Math.max(0, a)) * 255) || 0;
+  return [r, g, b, (hovered ? 1 : 0) + (selected ? 2 : 0) + 4 * alpha];
+}
+
+/**
+ * The stroke floats of one instance: color, width, distance at the piece start and piece length, dash, params,
+ * interaction.
+ */
 type TInstanceStroke = {
   color: readonly number[];
   width: number;
   dash: readonly number[];
   params: readonly number[] | undefined;
+  interaction: readonly number[];
 };
 
 function writeStroke(out: Float32Array, base: number, stroke: TInstanceStroke, start: number, length: number): void {
@@ -215,6 +247,7 @@ function writeStroke(out: Float32Array, base: number, stroke: TInstanceStroke, s
   out[base + 15] = length;
   out.set(stroke.dash, base + DASH_OFFSET);
   writeParams(stroke.params, out, base + PARAMS_OFFSET);
+  out.set(stroke.interaction, base + INTERACTION_OFFSET);
 }
 
 /** Writes the connection length into the instances from `first` on. */
@@ -231,12 +264,13 @@ function writeTotal(instances: TInstances, first: number, total: number): void {
  */
 export function encodeShapes(shapes: readonly TWebGLShape[], bucket: number, out: TEncodedChunk): void {
   const { lines, curves } = out;
-  for (const { segments, stroke, params } of shapes) {
+  for (const { segments, stroke, params, interaction } of shapes) {
     const instanceStroke: TInstanceStroke = {
       color: colorFloats(stroke.color),
       width: stroke.width,
       dash: dashFloats(stroke.dash),
       params,
+      interaction: interactionFloats(interaction),
     };
     const firstLine = lines.count;
     const firstCurve = curves.count;

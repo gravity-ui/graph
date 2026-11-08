@@ -60,6 +60,12 @@ describe("GLSL helpers", () => {
     expect(fragment).not.toMatch(/\b[uvi]_\w+/);
   });
 
+  it.each(["dashFlow", "pulse"])("%s shows the selection with f.selected and f.selectionColor", (name) => {
+    const fragment = name === "dashFlow" ? toConnectionEffect(dashFlow).fragment : toConnectionEffect(pulse).fragment;
+    expect(fragment).toMatch(/\bf\.selected\b/);
+    expect(fragment).toMatch(/\bf\.selectionColor\b/);
+  });
+
   it("dashFlow calls the helpers", () => {
     const { fragment } = toConnectionEffect(dashFlow);
     expect(fragment).toContain("graph_dashPhase(");

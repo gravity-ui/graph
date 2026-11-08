@@ -75,6 +75,34 @@ describe("connection shaders", () => {
     expect(shader).toContain("float coverage;");
   });
 
+  it("gives effects the connection's hover, selection and selection color", () => {
+    const shader = createFragmentShader();
+    const struct = shader.slice(shader.indexOf("struct ConnectionFragment"), shader.indexOf("};"));
+    expect(struct).toMatch(/\bfloat hovered;/);
+    expect(struct).toMatch(/\bfloat selected;/);
+    expect(struct).toMatch(/\bvec4 selectionColor;/);
+    // Decoded once per instance in the vertex shader, flat across the piece.
+    expect(VERTEX).toMatch(/layout\(location = 8\) in vec4 graph_interaction;/);
+    expect(declaredNames(VERTEX)).toEqual(expect.arrayContaining(["graph_vInteraction", "graph_vSelectionColor"]));
+    expect(VERTEX).toMatch(/flat out \w+ graph_vInteraction;/);
+    expect(VERTEX).toMatch(/flat out vec4 graph_vSelectionColor;/);
+  });
+
+  it("main() builds ConnectionFragment with one value per field, in field order", () => {
+    const shader = createFragmentShader();
+    const body = shader.slice(shader.indexOf("struct ConnectionFragment {"), shader.indexOf("};"));
+    const fields = [...body.matchAll(/^\s*(?:float|vec[234])\s+(\w+);/gm)].map((match) => match[1]);
+    expect(fields.slice(-3)).toEqual(["hovered", "selected", "selectionColor"]);
+    const call = shader.slice(shader.indexOf("ConnectionFragment f = ConnectionFragment("));
+    const args = call.slice(call.indexOf("(") + 1, call.indexOf(");")).split(",");
+    expect(args).toHaveLength(fields.length);
+    expect(args.slice(-3).map((arg) => arg.trim())).toEqual([
+      "graph_vInteraction.x",
+      "graph_vInteraction.y",
+      "graph_vSelectionColor",
+    ]);
+  });
+
   it("uses the identity effect without an effect and inserts an effect before main()", () => {
     expect(createFragmentShader()).toContain(IDENTITY);
     const source = "vec4 effect(ConnectionFragment f, vec4 color) { return color * f.t; }";

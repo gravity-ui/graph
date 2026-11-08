@@ -77,15 +77,22 @@ parameter (`class MyLine extends Path2DLine<MyConnection>`), so a line can call 
 | Method | Default |
 |---|---|
 | `getStroke(state)` | The connection color (`styles.background` first), width 2, dash from `dashed` and `styles.dashes` (`[6, 4]` without them), with hover and selection applied by `withInteraction()` |
-| `withInteraction(stroke, state)` | Protected helper: a selected line takes the selected color (`styles.selectedBackground` first), a hovered or selected one is 2 units wider; the dash and the effect stay |
-| `getArrowStroke(state)` | The line's color and width without the dash; a closed arrow is filled with the color |
+| `withInteraction(stroke, state)` | Protected helper: a hovered or selected line is 2 units wider and a selected one takes the selection color (`styles.selectedBackground` first); the dash and the effect stay. On a `WebGLLine` only the width changes: the selection color is applied when the line is drawn |
+| `getArrowStroke(state)` | The line's color and width without the dash; a closed arrow is filled with the color. On a `WebGLLine`, the arrow of a selected line takes the selection color |
 | `getBounds(geometry)` | Bounds of the geometry's segments (the control-point hull with `EXP_USE_TIGHT_BEZIER_BOUNDS = false`); the component adds the arrow, the label and `getAfterRenderBounds()`, and pads them by half the stroke width for culling (the arrow by half its width times the canvas miter limit) |
 | `hitTest(x, y, threshold)` | See [Hit testing](#hit-testing) |
 
-**Hover and selection** change the color and the width of a line, never its style: a dashed line stays dashed, a
-line with an effect keeps its effect. Build a custom look with `withInteraction()` and it follows the same rule as
-the default stroke — `return this.withInteraction({ color: "#2f7cf6", width: 6, effect: flow.use(input) }, state)`.
-Returning `super.getStroke(state)` for hovered or selected connections would replace the look with the default line.
+**Hover and selection** never change the style of a line: a dashed line stays dashed, a line with an effect keeps
+its effect, and a hovered or selected line is 2 units wider. A selected `Path2DLine` takes the selection color in its
+stroke. A `WebGLLine` applies it when it draws the line: `withInteraction()` changes only the width, a selected line
+without an effect is drawn in the selection color, and a line with an effect keeps its colors while the effect shows
+hover and selection through `f.hovered`, `f.selected` and `f.selectionColor` (see
+[Hover and selection in effects](#hover-and-selection-in-effects)); an effect that ignores them shows the selection
+by the width only. So `{ ...super.getStroke(state), effect }` keeps the connection's color on a `WebGLLine`, and a
+custom selection color goes in `styles.selectedBackground`. Build a custom look with `withInteraction()` and it
+follows the same rule as the default stroke —
+`return this.withInteraction({ color: "#2f7cf6", width: 6, effect: flow.use(input) }, state)`. Returning
+`super.getStroke(state)` for hovered or selected connections would replace the look with the default line.
 
 **Update protocol.** The component calls `line.update()` when its state, props or geometry change: the line reads
 `getStroke()` (and `getArrowStroke()` while arrows are shown) again and tells the batch, which moves the line to its
@@ -247,7 +254,8 @@ The same look in WebGL is an effect with the colors in its parameters (the `Grad
 type TWebGLStroke = TLineStroke & { effect?: TConnectionEffectUse };
 ```
 
-- The arrow is drawn with `getArrowStroke()`, never with the effect.
+- The arrow is drawn with `getArrowStroke()`, never with the effect: the line's color and width, and the selection
+  color while the line is selected.
 - Dash patterns of up to 4 numbers are drawn as canvas `setLineDash` draws them; an odd-length list is repeated, so
   `[a, b, c]` counts as 6 numbers. A longer pattern draws its first 4 numbers in WebGL, with one development-build
   warning; Path2D, the fallback included, draws all of it.
@@ -539,11 +547,60 @@ class GlowConnection extends BlockConnection {
 - It costs fragments: at DPR 2, a line 2 CSS pixels wide with `extraWidth: 6` shades a band 15 CSS pixels wide
   instead of 3.
 
+### Hover and selection in effects
+
+`ConnectionFragment` carries the connection's interaction: `f.hovered` and `f.selected` are 1.0 or 0.0 (usable as
+`mix()` weights), and `f.selectionColor` is the straight RGBA of its selection color (`styles.selectedBackground` or
+the theme's `colors.connection.selectedBackground`), whatever the state. A selected line with an effect comes in with
+its own stroke color, so the effect decides how the selection looks: the library's `dashFlow` fills its gaps with the
+selection color and `pulse` dims to it. Here the faint trace of particles turns into the selection color and the
+particles keep theirs:
+
+```typescript
+import { BlockConnection, WebGLLine, defineConnectionEffect } from "@gravity-ui/graph";
+import type { TBaseConnectionState, TWebGLStroke } from "@gravity-ui/graph";
+
+const particles = defineConnectionEffect({
+  animated: true,
+  fragment: /* glsl */ `
+    vec4 effect(ConnectionFragment f, vec4 color) {
+      float offset = mod(f.along - f.time * f.params0.y, f.params0.x) - f.params0.x * 0.5;
+      float dist = length(vec2(offset * f.scale, f.across));
+      float particle = 1.0 - smoothstep(f.halfWidth - 1.0, f.halfWidth, dist);
+      // The trace: faint in the line's color; selected, the selection color.
+      vec4 trace = f.selected > 0.5
+        ? vec4(f.selectionColor.rgb, f.selectionColor.a * 0.6)
+        : vec4(color.rgb, color.a * 0.12);
+      // The particles over the trace, in the line's color.
+      return mix(trace, vec4(color.rgb, 1.0), color.a * particle);
+    }`,
+  encode: ({ spacing, speed }: { spacing: number; speed: number }) => [spacing, speed],
+});
+
+class ParticlesLine extends WebGLLine {
+  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+    const effect = particles.use({ spacing: 120, speed: 100 });
+    // Selected, the stroke keeps its color and is 2 units wider: the effect draws the selection.
+    return this.withInteraction({ color: "#2f7cf6", width: 14, effect }, state);
+  }
+}
+
+class ParticlesConnection extends BlockConnection {
+  public static override line = ParticlesLine;
+}
+```
+
+- The arrow has no effect: the arrow of a selected line takes the selection color.
+- The Path2D fallback has no effect either: a selected line takes the selection color there (see
+  [Fallback strokes](#fallback-strokes)).
+
 ### Fallback strokes
 
 While WebGL is unavailable (see [Fallback](#fallback-and-connectionsrenderer)) Path2D draws each WebGL line with its
-effect's `fallback(stroke, params)`, or the stroke without the effect. Nothing animates there. Give an effect a
-fallback when its stroke alone looks wrong, such as round particles on a 14 px stroke, which would become a solid band:
+effect's `fallback(stroke, params)`, or the stroke without the effect. Nothing animates there. A selected line is drawn
+there in the selection color, with the fallback stroke's width, as Path2D has no effect to show the selection. Give an
+effect a fallback when its stroke alone looks wrong, such as round particles on a 14 px stroke, which would become a
+solid band:
 
 ```typescript
 import { defineConnectionEffect } from "@gravity-ui/graph";
@@ -588,20 +645,27 @@ helpers of [Library effects and helpers](#library-effects-and-helpers):
 ```glsl
 #define GRAPH_CONNECTION_FRAGMENT 1
 struct ConnectionFragment {
-  float along;       // world units from the source, continuous across segments
-  float length;      // the whole connection's length, world units
-  float t;           // along / length: 0 at the source, 1 at the target
-  float across;      // CSS pixels from the center line, signed
-  float halfWidth;   // half the drawn stroke width, CSS pixels
-  float extraWidth;  // the effect's extraWidth, CSS pixels (0 without)
-  float coverage;    // 0..1: how much of the pixel the stroke itself covers, anti-aliased
-  float scale;       // CSS pixels per world unit
-  vec2 world;        // the fragment's world position
-  float time;        // seconds since the renderer started
-  vec4 params0;      // params[0..3]
-  vec4 params1;      // params[4..7]
+  float along;          // world units from the source, continuous across segments
+  float length;         // the whole connection's length, world units
+  float t;              // along / length: 0 at the source, 1 at the target
+  float across;         // CSS pixels from the center line, signed
+  float halfWidth;      // half the drawn stroke width, CSS pixels
+  float extraWidth;     // the effect's extraWidth, CSS pixels (0 without)
+  float coverage;       // 0..1: how much of the pixel the stroke itself covers, anti-aliased
+  float scale;          // CSS pixels per world unit
+  vec2 world;           // the fragment's world position
+  float time;           // seconds since the renderer started
+  vec4 params0;         // params[0..3]
+  vec4 params1;         // params[4..7]
+  float hovered;        // 1.0 while the connection is hovered, else 0.0
+  float selected;       // 1.0 while the connection is selected, else 0.0
+  vec4 selectionColor;  // the connection's selection color, straight RGBA, whatever the state
 };
 ```
+
+`hovered`, `selected` and `selectionColor` are the same for every fragment of a connection (see
+[Hover and selection in effects](#hover-and-selection-in-effects)); the selection color's alpha is kept in 1/255
+steps.
 
 `along` is monotonic and continuous, not the exact arc length: within a curve piece it is linear in the curve
 parameter, so dash steps can vary slightly on long bends.
@@ -645,7 +709,7 @@ class PipelineLine extends WebGLLine {
   public override getStroke(state: TBaseConnectionState): TWebGLStroke {
     const { flow } = state as Partial<TFlowConnection>;
     if (!flow) return super.getStroke(state);
-    // Hover and selection change the color and the width; the comets and the wave keep running.
+    // Hover and selection widen the line; selected, the comets run over the selection color and the wave dims to it.
     if (flow === "data") {
       // Comets from the source to the target; a negative speed runs them back.
       const effect = dashFlow.use({ pattern: [90, 160], speed: 120, fade: true });
@@ -664,10 +728,11 @@ class PipelineConnection extends BlockConnection<TFlowConnection> {
 - `dashFlow.use({ pattern, speed, fade? })`: a running dash. `pattern` holds the on and off lengths in world units
   (off defaults to on), `speed` is world units per second, negative from the target to the source, and `fade` makes
   each dash a comet with a transparent tail. The effect draws the dash itself, so the base stroke has no `dash`.
-  Fallback: the still dash with the same pattern.
+  Selected, the gaps take the selection color and the dashes keep the line's; a comet's tail fades into the selection
+  color. Fallback: the still dash with the same pattern.
 - `pulse.use({ period, wavelength? })`: the line dims to 15% and a crest passes every `period` seconds; with a
-  `wavelength` (world units) the crest travels along the x axis, without it the whole line pulses in place. Fallback:
-  the plain stroke.
+  `wavelength` (world units) the crest travels along the x axis, without it the whole line pulses in place. Selected,
+  the dim part takes the selection color and the crest keeps the line's. Fallback: the plain stroke.
 
 GLSL helpers available in every effect program, versioned like `ConnectionFragment`:
 
@@ -702,12 +767,12 @@ export const pulsingComets = defineConnectionEffect({
 ## Fallback and `$connectionsRenderer`
 
 A graph of `WebGLLine` connections without WebGL draws its lines with Path2D built from the same geometry, using each
-effect's fallback stroke, with no animation. This happens when WebGL2 is missing, when its setup fails (the library's
-shaders do not compile or link, for example) and when the context is lost, also while the renderer is set up; each
-episode logs one console warning, in every build, that names the reason. Without WebGL2 or after a failed setup, the
-graph stays on Path2D until the connection class changes: any change of the class tries WebGL again. A lost context
-waits for `webglcontextrestored`, then the renderer creates WebGL again; a change to another `WebGLLine` class does not
-retry meanwhile, a change to a `Path2DLine` class frees the lost context.
+effect's fallback stroke (in the selection color while selected), with no animation. This happens when WebGL2 is
+missing, when its setup fails (the library's shaders do not compile or link, for example) and when the context is lost,
+also while the renderer is set up; each episode logs one console warning, in every build, that names the reason. Without
+WebGL2 or after a failed setup, the graph stays on Path2D until the connection class changes: any change of the class
+tries WebGL again. A lost context waits for `webglcontextrestored`, then the renderer creates WebGL again; a change to
+another `WebGLLine` class does not retry meanwhile, a change to a `Path2DLine` class frees the lost context.
 
 `graph.getGraphLayer().$connectionsRenderer` is a read-only signal of what draws the lines now:
 
