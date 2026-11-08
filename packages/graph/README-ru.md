@@ -243,6 +243,7 @@ graph.zoomTo("center", { padding: 100 });
 | Canvas Graph | Основа для визуальных элементов с системой обнаружения | [Подробнее](docs/components/canvas-graph-component.md) |
 | Block Component | Базовые блоки для узлов графа | [Подробнее](docs/components/block-component.md) |
 | Connections | Создание и стилизация связей | [Подробнее](docs/connections/canvas-connection-system.md) |
+| Линии связей и WebGL | Линии, геометрия, рендерер WebGL и эффекты | [Подробнее](docs/connections/webgl-connections.md) |
 
 ### Дополнительные возможности
 

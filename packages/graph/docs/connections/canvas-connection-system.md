@@ -5,9 +5,10 @@ The Connection System allows you to create visual links between blocks in your g
 ## Key Features
 
 - **Flexible Connection Types**: Straight lines, bezier curves, and multi-point connections
-- **Visual Customization**: Colors, dash patterns, line thickness, and arrows
+- **Visual Customization**: Colors, dash patterns, line thickness, and arrows, from data or from a line class
 - **Interactive Elements**: Hover effects, selection states, and clickable labels
-- **Performance Optimized**: Efficient rendering of thousands of connections
+- **Performance Optimized**: Efficient rendering of thousands of connections, with Canvas2D or WebGL2
+- **WebGL Effects**: Animated dashes, comets, pulses and custom shader effects on WebGL lines
 - **Anchor Support**: Connect to specific points on blocks or use default connection points
 
 ## Creating Connections
@@ -120,7 +121,7 @@ blockPort.undelegate(); // restores saved position
 
 ## Styling and Visual Customization
 
-Global settings control the visual appearance the default [BlockConnection](../../src/components/canvas/connections/BlockConnection.md) and behavior of all connections in your graph:
+Global settings control the visual appearance of the default [BlockConnection](../../src/components/canvas/connections/BlockConnection.ts) and the behavior of all connections in your graph:
 
 ```typescript
 graph.updateSettings({
@@ -150,6 +151,11 @@ const styledConnection = {
 ```
 
 Labels and arrows automatically respect zoom levels - they appear only when zoomed in enough for comfortable viewing. The system optimizes performance by grouping connections with similar visual properties for batch rendering.
+
+These fields feed the default stroke of the connection's line class: `styles.background` / `styles.selectedBackground`
+for the color, width 2 (4 hovered or selected), and `dashed` with `styles.dashes` for the dash. A line class that
+overrides `getStroke(state)` decides the color, width and dash from any connection data; see
+[Custom Connection Types](#custom-connection-types).
 
 ## Advanced Connection Features
 
@@ -237,6 +243,9 @@ const connection = {
 The connection system is optimized for handling large numbers of connections efficiently:
 
 - **Automatic Batching**: Connections with similar visual properties are grouped together for optimal rendering
+- **Two Renderers**: Canvas2D `Path2D` by default; WebGL2 for a connection class whose line is a `WebGLLine`, which
+  pays off for dashes, effects and per-connection styles on large graphs (see
+  [Connection Lines, Geometry and WebGL](webgl-connections.md))
 - **Zoom-Aware Rendering**: Complex visual elements (labels, arrows) appear only when zoomed in
 - **Lazy Updates**: Connection geometry is calculated only when source or target positions change
 - **Efficient Hit Detection**: Smart collision detection for user interactions
@@ -322,12 +331,23 @@ function updateConnectionStatus(connectionId: string, status: "active" | "idle" 
 
 You can create custom connection implementations by extending the base connection classes to add specific rendering logic or behavior.
 
+A `BlockConnection` has two pluggable parts, set as statics of its class:
+
+- `static geometry`: the shape, a pure function from the endpoints, `points` and the connection's data to cubic Bézier
+  segments and an arrow. Bounds and hit testing follow it.
+- `static line`: how lines are drawn. `Path2DLine` (the default) draws with Canvas2D and may draw any shape;
+  `WebGLLine` draws the geometry with WebGL2 and may carry effects. The line class picks the renderer of the whole
+  graph.
+
+The look (`getStroke()`, `style()`) lives in the line class; the component keeps data, state, interaction, the z-level
+and the label. See [Connection Lines, Geometry and WebGL](webgl-connections.md) for the whole API.
+
 `BlockConnection` and its subclasses are *detached*: the frame does not walk them; the batch draws their lines and
 arrows and the label pass their labels. They update when their data changes (`propsChanged`, `stateChanged`,
 `willIterate`, geometry hooks) and never receive `render()` or other per-frame hooks. Draw labels in
-`renderLabelText()` and other extra content in `afterRender()`; a subclass that must draw every frame declares
-`static detached = false`. `BaseConnection` subclasses are walked and draw in
-`render()`. See [Detached components](../migration-guides/v1-to-v2.md#detached-components-connections-outside-the-frame-walk).
+`renderLabelText()` and other extra content in `afterRender()`, which the Path2D batch runs (WebGL does not); a
+subclass that must draw every frame declares `static detached = false`. `BaseConnection` subclasses are walked and
+draw in `render()`. See [Detached components](../migration-guides/v1-to-v2.md#detached-components-connections-outside-the-frame-walk).
 
 ### Extending BaseConnection
 
@@ -358,36 +378,40 @@ class SimpleLineConnection extends BaseConnection {
 
 For optimized connections with advanced features. BlockConnection automatically handles performance optimization through batch rendering - see [Batch Rendering System](batch-rendering.md) for technical details on how this works internally.
 
-```typescript
-import { BlockConnection } from "@gravity-ui/graph";
+A custom shape is a geometry; a custom look is a line class whose `getStroke(state)` returns the color, width and
+dash:
 
-class CustomPathConnection extends BlockConnection {
-  // Override path creation for custom geometry
-  public createPath(): Path2D {
-    const path = new Path2D();
-    const { x1, y1, x2, y2 } = this.geometry;
-    
-    // Create zigzag path
-    const midX = (x1 + x2) / 2;
-    const offset = 20;
-    
-    path.moveTo(x1, y1);
-    path.lineTo(midX - offset, y1);
-    path.lineTo(midX + offset, y2);
-    path.lineTo(x2, y2);
-    
-    return path;
-  }
-  
-  // Override styling
-  public style(ctx: CanvasRenderingContext2D) {
-    this.context.ctx.strokeStyle = this.state.hovered ? "#ff6b6b" : "#4285f4";
-    this.context.ctx.lineWidth = this.state.selected ? 4 : 2;
-    this.context.ctx.setLineDash(this.state.dashed ? [8, 4] : []);
-    return { type: "stroke" };
+```typescript
+import { BlockConnection, Path2DLine, lineSegment } from "@gravity-ui/graph";
+import type { TBaseConnectionState, TConnectionGeometryFn, TLineStroke } from "@gravity-ui/graph";
+
+// A zigzag through the middle; both renderers draw, bound and hit-test it.
+const zigzagGeometry: TConnectionGeometryFn = ({ source, target }) => {
+  const midX = (source.x + target.x) / 2;
+  const a = { x: midX - 20, y: source.y };
+  const b = { x: midX + 20, y: target.y };
+  return { segments: new Float32Array([...lineSegment(source, a), ...lineSegment(a, b), ...lineSegment(b, target)]) };
+};
+
+class ZigzagLine extends Path2DLine {
+  public override getStroke(state: TBaseConnectionState): TLineStroke {
+    return {
+      color: state.hovered ? "#ff6b6b" : "#4285f4",
+      width: state.selected ? 4 : 2,
+      dash: state.dashed ? { pattern: [8, 4] } : undefined,
+    };
   }
 }
+
+class CustomPathConnection extends BlockConnection {
+  public static override geometry = zigzagGeometry;
+  public static override line = ZigzagLine;
+}
 ```
+
+Connections with one stroke share a style group and are drawn together; the group follows `getStroke()`. A
+`Path2DLine` subclass can also override `createPath(geometry)` for any Canvas2D shape and `style(ctx)` for gradients,
+shadows or fills; a `WebGLLine` subclass returns the same strokes, plus effects, from `getStroke()`.
 
 ### Custom Labels and Badges
 
@@ -439,7 +463,7 @@ graph.updateSettings({ showConnectionLabels: false });
 graph.updateSettings({ showConnectionLabels: true });
 ```
 
-The protected `labelGeometry` describes the combined bounds for culling and hit testing. Connection batches do not include it: a connection's batch bounds come from `collectBBoxPoints()` / `bBox` plus the arrow points, not from `getBBox()`, so a subclass that paints extra content in its own `afterRender` must include it via `collectBBoxPoints()`. The line's chunk is culled by the line and the arrow, the label pass by `labelGeometry`. The base class keeps its own cached paint rectangle, so `super.renderLabelText()` draws only the standard label and does not paint over the badge. Preparing the combined bounds before painting makes them available in the same frame, including when only the badge intersects the viewport.
+The protected `labelGeometry` describes the combined bounds for culling and hit testing. Connection batches do not include it: a connection's batch bounds come from its geometry (the line's `getBounds()`) plus the arrow points, not from `getBBox()`, so a subclass that paints extra content in its own `afterRender` must report it from `getAfterRenderBounds()`. The line's chunk is culled by the line and the arrow, the label pass by `labelGeometry`. The base class keeps its own cached paint rectangle, so `super.renderLabelText()` draws only the standard label and does not paint over the badge. Preparing the combined bounds before painting makes them available in the same frame, including when only the badge intersects the viewport.
 
 Existing overrides that calculate decoration bounds only inside `renderLabelText()` can still draw their decoration, but cannot make an initially offscreen connection visible through that decoration alone: viewport selection has already happened. Move that calculation to `updateLabelGeometry()` as above; the hook also clears stale decoration geometry when labels are disabled or hidden by zoom.
 
@@ -450,31 +474,63 @@ as selection changes, including when the line itself is outside the viewport.
 
 ### Custom Connection with Special Rendering
 
-Example of a connection with custom visual elements:
+Animation belongs to WebGL lines: `Path2DLine` never animates, while a `WebGLLine` stroke can carry a library effect
+(`dashFlow` for running dashes and comets, `pulse` for a brightness wave) or a shader effect of your own from
+`defineConnectionEffect()`, drawn for every connection in the batch:
 
 ```typescript
+import { BlockConnection, WebGLLine, dashFlow } from "@gravity-ui/graph";
+import type { TBaseConnectionState, TWebGLStroke } from "@gravity-ui/graph";
+
+class CometLine extends WebGLLine {
+  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+    const stroke = super.getStroke(state);
+    // dashFlow draws the dash itself: the base stroke has no `dash`.
+    return { ...stroke, dash: undefined, effect: dashFlow.use({ pattern: [80, 180], speed: 120, fade: true }) };
+  }
+}
+
+class CometConnection extends BlockConnection {
+  public static override line = CometLine;
+}
+```
+
+While WebGL is unavailable, Path2D draws the same lines with each effect's fallback stroke (a still dash for
+`dashFlow`), with no animation. See [Effects](webgl-connections.md#effects) for custom shaders, uniforms and
+per-connection parameters.
+
+Extra Canvas2D content on top of the line goes into `afterRender(ctx)`, with its bounds from
+`getAfterRenderBounds()`; only the Path2D batch calls it. A subclass that draws every frame in `render()` stays
+possible: it declares `static detached = false` and is walked again:
+
+```typescript
+import { BlockConnection } from "@gravity-ui/graph";
+
 class AnimatedConnection extends BlockConnection {
   // Drawn in render() every frame: keep this subclass in the frame walk.
   public static override readonly detached = false;
 
   private animationPhase = 0;
-  protected render() {
+
+  protected override render(): void {
+    if (!this.connectionPoints) return;
     const [source, target] = this.connectionPoints;
-    
-    // Calculate particle positions based on animation phase
+    const ctx = this.context.ctx;
+
+    // Particle positions from the animation phase
     for (let i = 0; i < 3; i++) {
       const progress = (this.animationPhase + i * 0.3) % 1;
       const x = source.x + (target.x - source.x) * progress;
       const y = source.y + (target.y - source.y) * progress;
-      
-      this.context.ctx.fillStyle = "#ffeb3b";
-      this.context.ctx.beginPath();
-      this.context.ctx.arc(x, y, 4, 0, Math.PI * 2);
-      this.context.ctx.fill();
+      ctx.fillStyle = "#ffeb3b";
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, 2 * Math.PI);
+      ctx.fill();
     }
-    
-    this.animationPhase += 0.02;
-    if (this.animationPhase > 1) this.animationPhase = 0;
+
+    this.animationPhase = (this.animationPhase + 0.02) % 1;
+    // Request the next frame.
+    this.performRender();
   }
 }
 ```
@@ -498,8 +554,10 @@ const graph = new Graph(container, {
 ### When to Use Custom Connections
 
 - **BaseConnection**: When you need simple custom rendering without performance optimization
-- **BlockConnection**: When you need optimized rendering with batching, arrows, and labels
-- **Custom Logic**: When you need special interaction handling or animation
+- **BlockConnection**: When you need optimized rendering with batching, arrows, and labels; set `static geometry` for
+  the shape and `static line` for the look
+- **WebGLLine**: When you need animation, effects, dashes or per-connection styles on large graphs
+- **Custom Logic**: When you need special interaction handling
 - **Domain-Specific**: For connections that represent specific concepts in your application
 
 ## Best Practices

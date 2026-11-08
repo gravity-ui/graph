@@ -76,7 +76,7 @@ These settings control the interactive behaviors and visual styles of the graph.
 | `useBlocksAnchors` | boolean | `true` | Controls whether blocks should display anchors for connections |
 | `showConnectionLabels` | boolean | `false` | Controls visibility of connection labels |
 | `blockComponents` | Record<string, typeof Block> | `{}` | Registry of custom block components. The built-in renderer constructs them with `id`, `initialIndex` and `font` only: put custom data into the block's `meta`, or give extra props defaults in the constructor. |
-| `connection` | typeof BlockConnection | `undefined` | Custom connection component |
+| `connection` | typeof BlockConnection | `undefined` | Custom connection component; its `static line` picks the renderer of connection lines (Path2D or WebGL), see [Connection Lines, Geometry and WebGL](../connections/webgl-connections.md) |
 | `background` | typeof Component | `undefined` | Custom background component |
 
 ## Graph Colors
@@ -170,7 +170,7 @@ Constants control the sizing, spacing, and other numerical values used throughou
 | Constant | Default | Description |
 |----------|---------|-------------|
 | `DEFAULT_Z_INDEX` | `0` | Default z-index for connections |
-| `THRESHOLD_LINE_HIT` | `8` | Hit detection threshold for connections |
+| `THRESHOLD_LINE_HIT` | `8` | Hit detection threshold for connections: a point hits within half the stroke width plus this many world units of the line |
 | `MIN_ZOOM_FOR_CONNECTION_ARROW_AND_LABEL` | `0.25` | Minimum zoom level to display arrows and labels |
 | `PATH2D_CHUNK_SIZE` | `200` | Most connections in one batch chunk (one `stroke()`) |
 | `PATH2D_CHUNK_TILES` | `8` | Edge of a batch chunk's grid cell in visibility tiles (`VISIBILITY_TILE_SIZE`); read when the connections component is constructed |

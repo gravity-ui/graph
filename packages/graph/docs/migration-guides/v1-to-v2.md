@@ -30,6 +30,7 @@ The temporary branch and release process is documented separately in
 - Import `MultipointConnection` from `@gravity-ui/graph`; `@gravity-ui/graph-react` no longer re-exports it or installs `elkjs`.
 - Canvas components are culled by the viewport: check custom components against [Viewport culling and the component lifecycle](#viewport-culling-and-the-component-lifecycle) — veto painting with `isRenderAllowed()`, request updates for external changes, report bounds before painting, react to leaving the viewport with `viewportChanged()`, and set `culling` on screen-space layers.
 - `BlockConnection` subclasses: per-frame hooks no longer run (see [Detached components](#detached-components-connections-outside-the-frame-walk)).
+- `BlockConnection` subclasses: move paths and shapes to `static geometry` or a `Path2DLine` subclass, styles and batch groups to the line class (`static line`), and expect connection hits within half the stroke width plus `THRESHOLD_LINE_HIT` (see [Connection lines and geometry](#connection-lines-and-geometry)).
 
 ## React package boundary
 
@@ -966,11 +967,11 @@ paints them in z-order. Compared with v1:
 
 | v1 pattern | v2 replacement |
 |---|---|
-| Override `isVisible()` to stop painting | Override `isRenderAllowed()`. `isVisible()` is only a query now; overriding it does not stop painting. For connections `isRenderAllowed()` also hides the line and arrow; state and props changes re-evaluate it, other changes call `applyShape()`. |
+| Override `isVisible()` to stop painting | Override `isRenderAllowed()`. `isVisible()` is only a query now; overriding it does not stop painting. For connections `isRenderAllowed()` also hides the line and arrow; state and props changes re-evaluate it, other changes call `invalidateLine()`. |
 | Read external state in `willIterate()` | Subscribe to the source and call `performRender()` (or `setState` / `setProps`); for connection geometry call `updateGeometry()`. Offscreen components are not iterated, so polling never sees the change. |
 | Hide an overlay or release a resource in `willNotRender()` | Define `viewportChanged(inViewport)`; release everything in `unmount()`. |
-| Compute badges, labels or decorations while painting | Compute their geometry when data changes and include it in the bounds (`setCullingBounds()`, the hit box, or for connections `collectBBoxPoints()`, `getArrowPoints()` and `updateLabelGeometry()`). A component is culled by the bounds it reports. |
-| `batch.markDirty(connection)` after changing data used by `createPath()` | `connection.updateGeometry()`: rebuilds paths, bounds and hit testing together. `markDirty()` only rebuilds the batch chunk from the item's cached path. |
+| Compute badges, labels or decorations while painting | Compute their geometry when data changes and include it in the bounds (`setCullingBounds()`, the hit box, or for connections `static geometry`, the line's `getBounds()`, `getAfterRenderBounds()` and `updateLabelGeometry()`). A component is culled by the bounds it reports. |
+| `batch.markDirty(connection)` after changing data used by `createPath()` | `connection.updateGeometry()` when the geometry or the line's `createPath()` reads that data: rebuilds the geometry, paths, bounds and hit testing together; `connection.invalidateLine()` when only the look reads it. `markDirty()` only rebuilds the batch chunk from the item's cached path. |
 | `isIterated()` as "updated in the last frame" | In a culled layer it means the component is attached in a branch that is walked. |
 | `CanvasBlock.isRendered()` as `shouldRender` | `shouldRender && isVisible()`: false outside the viewport. |
 | Return `false` from `iterate()`, or set `shouldRenderChildren = false` in `render()`, to hide children in the same frame | In a culled layer only the component's preparation decides: set `shouldRenderChildren` (or return `false` from `prepareUpdate()`). A value changed while painting applies from the next frame, which the component requests itself; the value `iterate()` returns is ignored. |
@@ -986,7 +987,7 @@ drawn by the component that owns it (`BlockConnections`), so a traversal veto do
 `BlockConnection` labels are drawn in a separate pass after every connection line and arrow, so a label is never covered
 by another connection's line. `BlockConnection.afterRender` is removed: a subclass that replaced the label by overriding
 `afterRender` should override `renderLabelText()` instead; subclasses with their own `afterRender` still run after their
-chunk.
+chunk when Path2D draws the lines.
 
 `BaseConnection.bBox` of a `BlockConnection` no longer includes the standard label; `getBBox()` still does.
 
@@ -1032,13 +1033,212 @@ in the walk.
 | Pattern in a `BlockConnection` subclass | v2 replacement |
 |---|---|
 | Draw in `render()`, `willRender()` or `didRender()`, or animate every frame | Declare `static detached = false`: the class is walked and culled again, and only it pays for that. Or extend `BaseConnection`. |
-| Draw extra content | Labels and badges: prepare their bounds in `updateLabelGeometry()` and draw in `renderLabelText()`, which the label pass calls for labels in the viewport. Other content: `afterRender(ctx)`, which the batch runs after the connection's chunk for connections in the viewport. |
+| Draw extra content | Labels and badges: prepare their bounds in `updateLabelGeometry()` and draw in `renderLabelText()`, which the label pass calls for labels in the viewport. Other content: `afterRender(ctx)`, which the Path2D batch runs after the connection's chunk for connections in the viewport, with its bounds from `getAfterRenderBounds()`. |
 | Read external state in `willIterate()` every frame | Subscribe to it and call `setState()`, or `updateGeometry()` for geometry inputs. |
 | Hide an overlay in `viewportChanged()` | Not called for detached components: check `isInViewport()` where you draw, or declare `static detached = false`. |
-| Read `connectionPoints`, `getBBox()` or `getPath()` right after moving a block or port | Endpoint moves are applied once per frame, before painting: read after the next frame, or call `updateGeometry()` first. The connection's hit box follows its geometry from the next frame too. |
+| Read `connectionPoints`, `getBBox()` or `getGeometry()` right after moving a block or port | Endpoint moves are applied once per frame, before painting: read after the next frame, or call `updateGeometry()` first. The connection's hit box follows its geometry from the next frame too. |
 
 A detached component cannot cull: `setChildrenCulling` throws.
 
 In development builds (`process.env.NODE_ENV !== "production"`) a detached class that defines one of these per-frame
 hooks logs one warning. A detached connection keeps its store order for hit testing, `isIterated()` is true while
 `BlockConnections` walks its children, and `isInViewport()` compares its paint bounds with the layer's viewport.
+
+## Connection lines and geometry
+
+`BlockConnection` has no renderer methods. The look of a connection moves to a line class (`static line`), its shape
+to a geometry function (`static geometry`); the component keeps data, state, interaction, the z-level and the label.
+The line class also picks the renderer of the whole graph: `Path2DLine` (the default) draws with Canvas2D,
+`WebGLLine` with WebGL2. See [Connection Lines, Geometry and WebGL](../connections/webgl-connections.md) for the API.
+
+| Before | After |
+|---|---|
+| `createPath()` / `createArrowPath()` on the component | A custom `static geometry`, which both line kinds draw, bound and hit-test; or `createPath(geometry)` / `createArrowPath(geometry)` of a `Path2DLine` subclass with `static line = MyLine` |
+| `getPath()`, `getArrowPath()`, `generatePath()`, `getArrowPoints()` | `getGeometry()`: the segments and the arrow; the line builds and caches its paths |
+| `style(ctx)`, `styleArrow(ctx)`, `setRenderStyles(ctx)` | `style(ctx)` / `styleArrow(ctx)` of a `Path2DLine` subclass |
+| `getStrokeColor(state)` | `getStroke(state)` of the line class: color, width and dash |
+| `getClassName(state)` | `getGroup()` of a `Path2DLine` subclass; the default group follows `getStroke()` |
+| `MultipointConnection` / `BezierMultipointConnection` path overrides | `static geometry = multipointGeometry` / `bezierMultipointGeometry`; the ready classes are `BlockConnection` subclasses with these statics |
+| `collectBBoxPoints()` | Bounds come from the geometry; `getBounds(geometry)` of the line for custom paths; `getAfterRenderBounds()` for what `afterRender()` draws |
+| `onHitBox()` overridden for the line | `hitTest(x, y, threshold)` of the line class; the label hit stays on the component (`hitTestLabel()`) |
+| `applyShape()` | `invalidateLine()` for looks that read data outside the store; `updateGeometry()` for shapes that do |
+| `this.geometry` (`{ x1, y1, x2, y2 }`) | `this.connectionPoints` (the endpoints) or `this.getGeometry()` |
+| `this.arrowShape`, `this.path2d` | The line's items (`this.line`, `this.line.arrow`); the component holds no `Path2D` |
+
+The renderer and effects are not settings: there is no `connectionsRenderer` setting (the line class decides) and no
+`connectionEffects` registry (effects are objects from `defineConnectionEffect()`, referred to from `getStroke()` with
+`effect.use(params)`). Strokes have no `dash.speed`, `fade` or `pulse` fields: a running dash, a comet and a pulse are
+the library effects `dashFlow` and `pulse` of a `WebGLLine`. `Path2DLine` draws a still dash and never animates.
+
+### Custom shapes
+
+A shape written as a geometry works with both line kinds, and its bounds, arrow and hit test follow it:
+
+```typescript
+// v1
+class ZigzagConnection extends BlockConnection {
+  protected createPath(): Path2D {
+    const { x1, y1, x2, y2 } = this.geometry;
+    const midX = (x1 + x2) / 2;
+    const path = new Path2D();
+    path.moveTo(x1, y1);
+    path.lineTo(midX - 20, y1);
+    path.lineTo(midX + 20, y2);
+    path.lineTo(x2, y2);
+    return path;
+  }
+}
+```
+
+```typescript
+import { BlockConnection, lineSegment } from "@gravity-ui/graph";
+import type { TConnectionGeometryFn } from "@gravity-ui/graph";
+
+const zigzagGeometry: TConnectionGeometryFn = ({ source, target }) => {
+  const midX = (source.x + target.x) / 2;
+  const a = { x: midX - 20, y: source.y };
+  const b = { x: midX + 20, y: target.y };
+  // No `arrow`: none is drawn. Return { points, closed } to draw one.
+  return { segments: new Float32Array([...lineSegment(source, a), ...lineSegment(a, b), ...lineSegment(b, target)]) };
+};
+
+class ZigzagConnection extends BlockConnection {
+  public static override geometry = zigzagGeometry;
+}
+```
+
+A `Path2DLine` subclass draws any Canvas2D shape instead. It keeps the geometry for everything else: the arrow and the
+bounds come from `static geometry` (override `getBounds()` when the path reaches outside it), and hit testing runs on
+your path.
+
+```typescript
+import { BlockConnection, Path2DLine } from "@gravity-ui/graph";
+import type { TConnectionGeometry } from "@gravity-ui/graph";
+
+class ZigzagLine extends Path2DLine {
+  protected override createPath(geometry: TConnectionGeometry): Path2D {
+    const { segments } = geometry;
+    const x1 = segments[0];
+    const y1 = segments[1];
+    const x2 = segments[segments.length - 2];
+    const y2 = segments[segments.length - 1];
+    const midX = (x1 + x2) / 2;
+    const path = new Path2D();
+    path.moveTo(x1, y1);
+    path.lineTo(midX - 20, y1);
+    path.lineTo(midX + 20, y2);
+    path.lineTo(x2, y2);
+    return path;
+  }
+}
+
+class ZigzagConnection extends BlockConnection {
+  public static override line = ZigzagLine;
+}
+```
+
+### Styles from data
+
+The stroke is data the line returns, and its default batch group follows it, so no group override is needed:
+
+```typescript
+// v1
+class StatusConnection extends BlockConnection {
+  public style(ctx: CanvasRenderingContext2D) {
+    ctx.strokeStyle = this.state.status === "failed" ? "#e5484d" : "#4285f4";
+    ctx.lineWidth = this.state.selected ? 4 : 2;
+    return { type: "stroke" };
+  }
+
+  public getClassName(state = this.state) {
+    return `${super.getClassName(state)}/${state.status}`;
+  }
+}
+```
+
+```typescript
+import { BlockConnection, Path2DLine } from "@gravity-ui/graph";
+import type { TBaseConnectionState, TConnection, TLineStroke } from "@gravity-ui/graph";
+
+type TStatusConnection = TConnection & { status?: "ok" | "failed" };
+
+class StatusLine extends Path2DLine {
+  public override getStroke(state: TBaseConnectionState): TLineStroke {
+    const stroke = super.getStroke(state);
+    const { status } = state as Partial<TStatusConnection>;
+    return { ...stroke, color: status === "failed" ? "#e5484d" : "#4285f4" };
+  }
+}
+
+class StatusConnection extends BlockConnection<TStatusConnection> {
+  public static override line = StatusLine;
+}
+```
+
+The same `getStroke()` on a `WebGLLine` subclass draws the look with WebGL. `style()` stays for what a stroke cannot
+say (gradients, shadows, fills); a `style()` that reads more than `getStroke()` overrides `getGroup()` as well.
+
+### Multipoint connections
+
+`MultipointConnection` and `BezierMultipointConnection` are `BlockConnection` subclasses with
+`static geometry = multipointGeometry` and `bezierMultipointGeometry`; a custom class sets the same static. Their
+behavior differs from v1 in three ways:
+
+- A multipoint connection whose ports are not resolved has no geometry: it is neither drawn nor hit. In v1 it was
+  drawn from `points` alone.
+- The default `Path2DLine` strokes the closed triangle at the end with the line's width (v1 used width 1).
+- Their `labels` are still drawn by `afterRender()`, which only the Path2D batch calls: with a WebGL line class they
+  are not drawn (the WebGL fallback draws them).
+
+### Bounds and hit testing
+
+Bounds come from the geometry: the tight bounds of every cubic (the control-point hull with
+`EXP_USE_TIGHT_BEZIER_BOUNDS = false`), joined with the arrow, the label and `getAfterRenderBounds()`.
+`collectBBoxPoints()` still exists on `BaseConnection`, which keeps calling it, so an override compiles, but
+`BlockConnection` does not call it. Content drawn in `afterRender()` reports its bounds from `getAfterRenderBounds()`:
+
+```typescript
+import { BlockConnection } from "@gravity-ui/graph";
+import type { TPathBounds } from "@gravity-ui/graph";
+
+/** A flag at the source, drawn after the connection's chunk (Path2D only). */
+class FlagConnection extends BlockConnection {
+  public override afterRender(ctx: CanvasRenderingContext2D): void {
+    const source = this.connectionPoints?.[0];
+    if (!source) return;
+    ctx.fillStyle = "#e5484d";
+    ctx.fillRect(source.x, source.y - 12, 10, 8);
+  }
+
+  /** Joined into the connection's bounds, so culling keeps the flag drawn. */
+  protected override getAfterRenderBounds(): TPathBounds | undefined {
+    const source = this.connectionPoints?.[0];
+    return source ? [source.x, source.y - 12, source.x + 10, source.y - 4] : undefined;
+  }
+}
+```
+
+Hit testing has one rule for both line kinds: a point hits within `stroke.width / 2 + THRESHOLD_LINE_HIT` world units
+of the drawn line (9 for a 2-unit line with the default `THRESHOLD_LINE_HIT = 8`, 10 hovered or selected). In v1 it
+was 8 world units from the center, whatever the width. The arrow is part of the hit area while it is shown; label hits
+are unchanged.
+
+### Detection of removed methods
+
+A `BlockConnection` subclass that still overrides a removed method — `createPath`, `createArrowPath`, `getPath`,
+`getArrowPath`, `generatePath`, `getArrowPoints`, `style`, `styleArrow`, `setRenderStyles`, `getClassName`,
+`getStrokeColor`, `getStroke`, `getAppearance`, `getArrowAppearance`, `isAnimated` or `collectBBoxPoints` — reports
+one development-build warning per class, and the method is not called. For example (one line in the console):
+
+```text
+[@gravity-ui/graph] StatusConnection overrides style, getClassName, which BlockConnection no longer calls.
+Move them: style → style() / styleArrow() of a Path2DLine subclass; getClassName → getGroup() of a Path2DLine
+subclass. See the v2 migration guide, "Connection lines and geometry".
+```
+
+TypeScript also rejects `override` on a method the base class no longer has (TS4113, or TS4117 with a suggested
+name). The protected `geometry` field (`{ x1, y1, x2, y2 }`) is gone, and `this.geometry` does not compile (TS2576:
+`geometry` is the static geometry function now): read `this.connectionPoints` or `this.getGeometry()`.
+
+`static detached = false` with a custom `render()` stays possible: the class is walked again and draws on the graph
+layer's canvas every frame it is rendered, above the lines of either renderer.
