@@ -33,6 +33,11 @@ export interface IConnectionPrograms {
   useFill(): void;
 }
 
+/** A shader that does not compile or a program that does not link; the message is the compiler or linker log. */
+export class WebGLProgramError extends Error {
+  public override readonly name = "WebGLProgramError";
+}
+
 function compile(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader {
   const shader = gl.createShader(type);
   if (!shader) throw new Error("Cannot create a WebGL shader");
@@ -41,7 +46,7 @@ function compile(gl: WebGL2RenderingContext, type: number, source: string): WebG
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
     const log = gl.getShaderInfoLog(shader) || "shader";
     gl.deleteShader(shader);
-    throw new Error(log);
+    throw new WebGLProgramError(log);
   }
   return shader;
 }
@@ -64,7 +69,10 @@ export class ConnectionPrograms implements IConnectionPrograms {
 
   private current: TProgram | undefined;
 
-  /** Throws the compiler or linker log when a program fails; nothing it created stays alive then. */
+  /**
+   * Throws a `WebGLProgramError` with the compiler or linker log when a program fails; nothing it created stays alive
+   * then.
+   */
   constructor(private readonly gl: WebGL2RenderingContext) {
     this.vertex = compile(gl, gl.VERTEX_SHADER, VERTEX);
     try {
@@ -143,7 +151,7 @@ export class ConnectionPrograms implements IConnectionPrograms {
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
       const log = gl.getProgramInfoLog(program) || "link";
       gl.deleteProgram(program);
-      throw new Error(log);
+      throw new WebGLProgramError(log);
     }
     return {
       program,

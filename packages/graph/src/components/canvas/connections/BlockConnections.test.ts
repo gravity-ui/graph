@@ -48,6 +48,11 @@ class GLConnection extends BlockConnection<TConnection> {
   public static override line: TConnectionLineClass = WebGLLine;
 }
 
+/** Another connection class with a WebGL line: a class change that keeps the requested renderer. */
+class OtherGLConnection extends BlockConnection<TConnection> {
+  public static override line: TConnectionLineClass = WebGLLine;
+}
+
 type TBlockConnectionsInternals = {
   batch: IConnectionBatch;
   switchBatch(next: IConnectionBatch): void;
@@ -60,7 +65,10 @@ function frames(count = 3): void {
 }
 
 function mount(settings: Record<string, unknown> = {}, root = document.createElement("div")): Graph {
-  Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
+  // A root with its own size getters keeps them.
+  if (!Object.getOwnPropertyDescriptor(root, "clientWidth")) {
+    Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
+  }
   const graph = new Graph(
     {
       connections: [
@@ -383,15 +391,167 @@ describe("BlockConnections renderer from the line class", () => {
     expect(fallbackWarnings(warn)).toHaveLength(1);
   });
 
-  it("frees the WebGL renderer when the graph unmounts", () => {
+  it("frees the WebGL renderer when the graph unmounts and reports canvas", () => {
     installed = installFakeWebGL2();
-    graph = mount({ connection: GLConnection }, attachedRoot());
+    const mounted = mount({ connection: GLConnection }, attachedRoot());
+    graph = mounted;
     const [context] = installed.contexts;
 
-    graph.unmount();
+    mounted.unmount();
     graph = undefined;
 
     expect(webglCanvas(context).isConnected).toBe(false);
     expect(context.gl.isContextLost()).toBe(true);
+    expect(rendererOf(mounted)).toBe("canvas");
+  });
+
+  it("frees a lost renderer when the graph unmounts; a later restore changes nothing", () => {
+    installed = installFakeWebGL2();
+    const mounted = mount({ connection: GLConnection }, attachedRoot());
+    graph = mounted;
+    const [lost] = installed.contexts;
+    const lostCanvas = webglCanvas(lost);
+    lost.loseContext();
+    lostCanvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true }));
+
+    mounted.unmount();
+    graph = undefined;
+
+    expect(lostCanvas.isConnected).toBe(false);
+    expect(rendererOf(mounted)).toBe("canvas");
+    lost.restoreContext();
+    lostCanvas.dispatchEvent(new Event("webglcontextrestored"));
+    frames();
+    expect(installed.contexts).toHaveLength(1);
+    expect(fallbackWarnings(warn)).toHaveLength(1);
+  });
+
+  it("falls back again when the renderer created after a restore fails", () => {
+    let available = true;
+    installed = installFakeWebGL2(() => (available ? createFakeGL() : null));
+    graph = mount({ connection: GLConnection }, attachedRoot());
+    const [lost] = installed.contexts;
+    const lostCanvas = webglCanvas(lost);
+    lost.loseContext();
+    lostCanvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true }));
+
+    available = false;
+    lost.restoreContext();
+    lostCanvas.dispatchEvent(new Event("webglcontextrestored"));
+    frames();
+
+    expect(lostCanvas.isConnected).toBe(false);
+    expect(internals(graph).batch).toBeInstanceOf(BatchPath2DRenderer);
+    expectCurrentItems(graph, WebGLLine);
+    expect(rendererOf(graph)).toBe("webgl-fallback");
+    expect(fallbackWarnings(warn)).toEqual([
+      "[@gravity-ui/graph] WebGL2 is unavailable (context lost); connections are drawn with Path2D using each " +
+        "effect's fallback stroke.",
+      "[@gravity-ui/graph] WebGL2 is unavailable (no WebGL2); connections are drawn with Path2D using each effect's " +
+        "fallback stroke.",
+    ]);
+  });
+
+  it("tries WebGL again on any connection class change, a WebGL to WebGL one included", () => {
+    let available = false;
+    const create = jest.fn((): TFakeGL | null => (available ? createFakeGL() : null));
+    installed = installFakeWebGL2(create);
+    graph = mount({ connection: GLConnection }, attachedRoot());
+    expect(fallbackWarnings(warn)).toHaveLength(1);
+
+    // Still no WebGL2: one more attempt, one more warning.
+    graph.updateSettings({ connection: OtherGLConnection });
+    frames();
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(rendererOf(graph)).toBe("webgl-fallback");
+    expect(fallbackWarnings(warn)).toHaveLength(2);
+
+    available = true;
+    graph.updateSettings({ connection: GLConnection });
+    frames();
+    expect(create).toHaveBeenCalledTimes(3);
+    expect(internals(graph).batch).toBeInstanceOf(WebGLConnections);
+    expectCurrentItems(graph, WebGLLine);
+    expect(rendererOf(graph)).toBe("webgl");
+    expect(fallbackWarnings(warn)).toHaveLength(2);
+  });
+
+  it("keeps a working WebGL renderer when the class changes to another WebGL class", () => {
+    installed = installFakeWebGL2();
+    graph = mount({ connection: GLConnection }, attachedRoot());
+    const batch = internals(graph).batch;
+    const [context] = installed.contexts;
+
+    graph.updateSettings({ connection: OtherGLConnection });
+    frames();
+
+    expect(view(graph, "a")).toBeInstanceOf(OtherGLConnection);
+    expect(internals(graph).batch).toBe(batch);
+    expectCurrentItems(graph, WebGLLine);
+    expect(installed.contexts).toHaveLength(1);
+    expect(webglCanvas(context).isConnected).toBe(true);
+    expect(rendererOf(graph)).toBe("webgl");
+  });
+
+  it("names a setup failure other than the programs in the warning", () => {
+    const create = jest.fn((): TFakeGL => {
+      const fake = createFakeGL();
+      // The template buffer cannot be allocated.
+      (fake.gl as unknown as { createBuffer(): null }).createBuffer = (): null => null;
+      return fake;
+    });
+    installed = installFakeWebGL2(create);
+    graph = mount({ connection: GLConnection }, attachedRoot());
+    frames();
+
+    expect(rendererOf(graph)).toBe("webgl-fallback");
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(fallbackWarnings(warn)).toEqual([
+      "[@gravity-ui/graph] WebGL2 is unavailable (WebGL setup failed: Cannot allocate a WebGL buffer); connections " +
+        "are drawn with Path2D using each effect's fallback stroke.",
+    ]);
+  });
+
+  it("creates the WebGL renderer once a root that joins the document later gets its size", () => {
+    installed = installFakeWebGL2();
+    const root = document.createElement("div");
+    // Like a browser: a root outside the document has no layout size.
+    Object.defineProperties(root, {
+      clientWidth: { get: (): number => (root.isConnected ? 1000 : 0) },
+      clientHeight: { get: (): number => (root.isConnected ? 800 : 0) },
+    });
+    graph = mount({ connection: GLConnection }, root);
+    expect(rendererOf(graph)).toBe("canvas");
+    expect(installed.contexts).toHaveLength(0);
+
+    document.body.appendChild(root);
+    // What the layers' ResizeObserver on the root calls once the root is laid out (jsdom's observer is a stub).
+    graph.updateSize();
+    frames();
+
+    expect(internals(graph).batch).toBeInstanceOf(WebGLConnections);
+    expect(rendererOf(graph)).toBe("webgl");
+  });
+
+  it("creates the WebGL renderer when a started graph is moved into the document like GraphCanvas does", () => {
+    installed = installFakeWebGL2();
+    const detached = document.createElement("div");
+    graph = mount({ connection: GLConnection }, detached);
+    expect(rendererOf(graph)).toBe("canvas");
+
+    // GraphCanvas: detach on unmount, attach to its container (in the document) on mount; the owner starts it.
+    graph.detach();
+    const container = attachedRoot();
+    Object.defineProperties(container, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
+    graph.attach(container);
+    graph.start();
+    frames();
+
+    expect(internals(graph).batch).toBeInstanceOf(WebGLConnections);
+    expect(rendererOf(graph)).toBe("webgl");
+    expect(graphLevelCanvases(graph, container)).toEqual([
+      webglCanvas(installed.contexts[0]),
+      graph.getGraphLayer().getCanvas(),
+    ]);
   });
 });

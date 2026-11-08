@@ -15,6 +15,7 @@ import { ConnectionLabelRenderer } from "./Label";
 import type { IConnectionBatch } from "./batch";
 import type { TConnectionsRenderer, TConnectionsRendererState } from "./lines";
 import { WebGLConnections } from "./webgl/WebGLConnections";
+import { WebGLProgramError } from "./webgl/programs";
 
 export type TGraphConnectionsContext = TGraphLayerContext & {
   batch: IConnectionBatch;
@@ -29,7 +30,11 @@ export type TBlockConnectionsProps = CoreComponentProps & {
 };
 
 /** The reasons a WebGL line class is drawn with Path2D, as the fallback warning names them. */
-type TWebGLFallbackReason = "no WebGL2" | "context lost" | `shaders failed: ${string}`;
+type TWebGLFallbackReason =
+  | "no WebGL2"
+  | "context lost"
+  | `shaders failed: ${string}`
+  | `WebGL setup failed: ${string}`;
 
 /**
  * The graph's connections and the batch that draws their lines: Path2D on the layer's canvas, or WebGL2 on a canvas
@@ -57,7 +62,7 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
   /** A renderer whose context is lost; disposed when the browser restores the context or the request changes. */
   private lostWebGL: WebGLConnections | undefined;
 
-  /** Set when WebGL2 cannot be created for the current request; cleared when the requested renderer changes. */
+  /** Set when WebGL2 cannot be created for the current request; cleared when the connection class changes. */
   private webglUnavailable = false;
 
   /** What draws the lines now. */
@@ -88,9 +93,7 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
   constructor(props: TBlockConnectionsProps, parent: Component) {
     super(props, parent);
     this.rendererState = this.props.rendererState ?? signal<TConnectionsRendererState>("canvas");
-    const { PATH2D_CHUNK_SIZE, PATH2D_CHUNK_TILES } = this.context.constants.connection;
-    const chunkSize = PATH2D_CHUNK_SIZE || 200;
-    const cellSize = this.context.constants.system.VISIBILITY_TILE_SIZE * PATH2D_CHUNK_TILES;
+    const { chunkSize, cellSize } = this.getChunking();
     this.path2d = this.createPath2D();
     this.batch = this.path2d;
     this.labels = new ConnectionLabelRenderer(() => this.performRender(), chunkSize, cellSize);
@@ -102,10 +105,18 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
     });
   }
 
-  private createPath2D(): BatchPath2DRenderer {
+  /** Items per chunk and the world size of a grid cell, shared by the batches and the label pass. */
+  private getChunking(): { chunkSize: number; cellSize: number } {
     const { PATH2D_CHUNK_SIZE, PATH2D_CHUNK_TILES } = this.context.constants.connection;
-    const cellSize = this.context.constants.system.VISIBILITY_TILE_SIZE * PATH2D_CHUNK_TILES;
-    return new BatchPath2DRenderer(() => this.performRender(), PATH2D_CHUNK_SIZE || 200, cellSize);
+    return {
+      chunkSize: PATH2D_CHUNK_SIZE || 200,
+      cellSize: this.context.constants.system.VISIBILITY_TILE_SIZE * PATH2D_CHUNK_TILES,
+    };
+  }
+
+  private createPath2D(): BatchPath2DRenderer {
+    const { chunkSize, cellSize } = this.getChunking();
+    return new BatchPath2DRenderer(() => this.performRender(), chunkSize, cellSize);
   }
 
   /** Requests a renderer for the whole graph; the WebGL renderer is created on the next frame. */
@@ -121,18 +132,16 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
 
   /**
    * Creates the WebGL batch on the first frame that wants it: the renderer subscription fires in the constructor,
-   * before the graph layer's canvas is in the document. Without WebGL2, or when its programs fail, Path2D draws until
-   * the requested renderer changes; after a lost context, until the browser restores it.
+   * before the graph layer's canvas is in the document. Without WebGL2, or when its setup fails, Path2D draws until
+   * the connection class changes; after a lost context, until the browser restores it.
    */
   private ensureWebGL(): void {
     if (this.renderer !== "webgl" || this.webgl || this.lostWebGL || this.webglUnavailable) return;
     if (!this.context.canvas.isConnected) return;
-    const { PATH2D_CHUNK_SIZE, PATH2D_CHUNK_TILES } = this.context.constants.connection;
     let webgl: WebGLConnections | undefined;
     try {
       webgl = WebGLConnections.create(this.context.canvas, {
-        chunkSize: PATH2D_CHUNK_SIZE || 200,
-        cellSize: this.context.constants.system.VISIBILITY_TILE_SIZE * PATH2D_CHUNK_TILES,
+        ...this.getChunking(),
         getCamera: () => this.context.camera.getCameraState(),
         onChange: () => this.performRender(),
         onLost: () => this.handleWebGLLost(webgl),
@@ -140,7 +149,11 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
       });
     } catch (error) {
       this.webglUnavailable = true;
-      this.fallBack(`shaders failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.fallBack(
+        error instanceof WebGLProgramError
+          ? `shaders failed: ${error.message}`
+          : `WebGL setup failed: ${error instanceof Error ? error.message : String(error)}`
+      );
       return;
     }
     if (!webgl) {
@@ -222,6 +235,9 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
         this.scheduleUpdate();
       }),
       this.context.graph.rootStore.settings.$connection.subscribe(() => {
+        // A new class tries WebGL again after a failed creation, before its connections mount; a working renderer
+        // stays as it is.
+        this.webglUnavailable = false;
         this.scheduleUpdate();
       }),
     ];
@@ -235,6 +251,8 @@ export class BlockConnections extends Component<TBlockConnectionsProps, TCompone
     this.webgl?.dispose();
     this.webgl = undefined;
     this.disposeLostWebGL();
+    // Nothing draws the lines any more.
+    this.rendererState.value = "canvas";
   }
 
   /** Parents prepare before their children: the batch is chosen before any connection computes geometry for it. */

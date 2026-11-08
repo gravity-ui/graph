@@ -2,7 +2,7 @@ import { INSTANCE_ATTRIBUTES, INSTANCE_FLOATS } from "./encode";
 import { createFakeGL } from "./fakeGL";
 import type { TFakeGL, TFakeProgram } from "./fakeGL";
 import { FILL_ATTRIBUTES, FILL_VERTEX_FLOATS } from "./fill";
-import { ConnectionPrograms } from "./programs";
+import { ConnectionPrograms, WebGLProgramError } from "./programs";
 import { FILL_FRAGMENT, FILL_VERTEX, VERTEX, createFragmentShader } from "./shaders";
 
 const frame = { width: 100, height: 50, x: 3, y: 4, scale: 0.5, dpr: 2, time: 1.5 };
@@ -152,9 +152,11 @@ describe("ConnectionPrograms", () => {
       compileError: (source) => (source.includes("struct ConnectionFragment") ? "ERROR: 0:1: line" : undefined),
     });
     expect(() => new ConnectionPrograms(failing.gl)).toThrow("ERROR: 0:1: line");
+    expect(() => new ConnectionPrograms(failing.gl)).toThrow(WebGLProgramError);
 
     const fill = createFakeGL({ linkError: (vertex) => (vertex === FILL_VERTEX ? "fill link" : undefined) });
     expect(() => new ConnectionPrograms(fill.gl)).toThrow("fill link");
+    expect(() => new ConnectionPrograms(fill.gl)).toThrow(WebGLProgramError);
     // Nothing of a failed constructor stays alive.
     expect(fill.live("program")).toBe(0);
     expect(fill.live("shader")).toBe(0);

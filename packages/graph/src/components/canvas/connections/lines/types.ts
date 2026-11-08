@@ -5,7 +5,7 @@ export type TConnectionsRenderer = "canvas" | "webgl";
 /**
  * What draws the connection lines of a graph (`graph.getGraphLayer().$connectionsRenderer`):
  * - `"canvas"`: Path2D, for a Path2D line class; also for a WebGL line class until the graph's canvas is in the
- *   document, when its WebGL renderer is created;
+ *   document, when its WebGL renderer is created, and after the connections unmount;
  * - `"webgl"`: WebGL2;
  * - `"webgl-fallback"`: Path2D using each effect's fallback stroke, for a WebGL line class whose WebGL2 renderer
  *   could not be created or lost its context.
