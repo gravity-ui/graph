@@ -1,5 +1,4 @@
-import type { TConnectionAppearance } from "../appearance";
-
+import type { TConnectionAppearance } from "./encode";
 import { INSTANCE_FLOATS, countSegments, encodeAppearances } from "./encode";
 
 const curve = (segments: number[], dash?: { pattern: number[]; speed?: number }): TConnectionAppearance => ({

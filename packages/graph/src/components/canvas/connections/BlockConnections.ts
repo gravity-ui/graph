@@ -5,7 +5,6 @@ import { CoreComponentProps } from "../../../lib/CoreComponent";
 import { ESchedulerPriority } from "../../../lib/Scheduler";
 import type { TTileRect } from "../../../lib/culling/TileIndex";
 import { ConnectionState } from "../../../store/connection/ConnectionState";
-import type { TConnectionsRenderer } from "../../../store/settings";
 import { getFontSize } from "../../../utils/functions/text";
 import { debounce } from "../../../utils/utils/schedule";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
@@ -14,7 +13,6 @@ import { BatchPath2DRenderer } from "./BatchPath2D";
 import { BlockConnection, TConnectionProps } from "./BlockConnection";
 import { ConnectionLabelRenderer } from "./Label";
 import type { IConnectionBatch } from "./batch";
-import { WebGLConnections } from "./webgl/WebGLConnections";
 
 export type TGraphConnectionsContext = TGraphLayerContext & {
   batch: IConnectionBatch;
@@ -32,14 +30,8 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
 
   protected batch: IConnectionBatch;
 
+  /** Draws the batch on the layer's canvas. */
   private path2d: BatchPath2DRenderer | undefined;
-
-  protected renderer: TConnectionsRenderer = "canvas";
-
-  private webgl: WebGLConnections | undefined;
-
-  /** Set when WebGL2 is unavailable for the current `"webgl"` request; cleared when the setting changes. */
-  private webglUnavailable = false;
 
   protected labels: ConnectionLabelRenderer;
 
@@ -85,53 +77,6 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
     return new BatchPath2DRenderer(() => this.performRender(), PATH2D_CHUNK_SIZE || 200, cellSize);
   }
 
-  /** Requests a renderer for the whole graph; the WebGL renderer is created on the next frame. */
-  protected setRenderer(renderer: TConnectionsRenderer): void {
-    this.renderer = renderer;
-    this.webglUnavailable = false;
-    if (renderer === "canvas" && this.webgl) this.detachWebGL();
-    this.performRender();
-  }
-
-  /**
-   * Creates the WebGL batch on the first frame that wants it: the renderer subscription fires in the constructor,
-   * before the graph layer's canvas is in the document.
-   */
-  private ensureWebGL(): void {
-    if (this.renderer !== "webgl" || this.webgl || this.webglUnavailable || !this.context.canvas.isConnected) return;
-    const { PATH2D_CHUNK_SIZE, PATH2D_CHUNK_TILES } = this.context.constants.connection;
-    // Without WebGL2, or when the shaders fail and creation throws, canvas stays until the setting changes.
-    this.webglUnavailable = true;
-    const webgl = WebGLConnections.create(this.context.canvas, {
-      chunkSize: PATH2D_CHUNK_SIZE || 200,
-      cellSize: this.context.constants.system.VISIBILITY_TILE_SIZE * PATH2D_CHUNK_TILES,
-      getCamera: () => this.context.camera.getCameraState(),
-      onChange: () => this.performRender(),
-      // A lost context falls back to canvas until the setting changes again.
-      onLost: () => {
-        this.detachWebGL();
-        this.webglUnavailable = true;
-        this.performRender();
-      },
-    });
-    if (!webgl) return;
-    this.webglUnavailable = false;
-    webgl.setEffects(this.context.graph.rootStore.settings.$settings.value.connectionEffects);
-    this.switchBatch(webgl);
-    this.webgl = webgl;
-    this.path2d = undefined;
-  }
-
-  /** Moves every connection back to a fresh Path2D batch. */
-  private detachWebGL(): void {
-    if (!this.webgl) return;
-    const path2d = this.createPath2D();
-    this.switchBatch(path2d);
-    this.path2d = path2d;
-    this.webgl.dispose();
-    this.webgl = undefined;
-  }
-
   /** Moves every registered item into `next`, which becomes the batch of every connection. */
   protected switchBatch(next: IConnectionBatch): void {
     this.batch.forEachItem((item, params) => next.add(item, params));
@@ -149,13 +94,6 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
         // An eager signal stops unchanged camera updates before they reach individual connections.
         this.connectionLabelFontSize.value = fontSize;
       }),
-      computed(() => this.context.graph.rootStore.settings.$settings.value.connectionsRenderer).subscribe((renderer) =>
-        this.setRenderer(renderer)
-      ),
-      // Settings are copied on every update; the renderer compares effects by content.
-      computed(() => this.context.graph.rootStore.settings.$settings.value.connectionEffects).subscribe((effects) =>
-        this.webgl?.setEffects(effects)
-      ),
       this.context.graph.rootStore.settings.$connectionsSettings.subscribe(() => {
         this.scheduleUpdate();
       }),
@@ -173,14 +111,6 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
 
     this.scheduleUpdate.cancel();
     this.unsubscribe.forEach((reactionDisposer) => reactionDisposer());
-    this.webgl?.dispose();
-    this.webgl = undefined;
-  }
-
-  /** Parents prepare before their children: the batch is chosen before any connection computes geometry for it. */
-  protected willIterate(): void {
-    super.willIterate();
-    this.ensureWebGL();
   }
 
   protected updateChildren() {
@@ -201,18 +131,12 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
   }
 
   protected render(): void {
-    // Fallback for a canvas that was not connected yet during the prepare phase.
-    this.ensureWebGL();
     // Lines: the layer's culling viewport (undefined without culling: every chunk is drawn). Labels: the same
     // rectangle, or the camera's without culling, and none while connections are not walked.
     const viewport = this.getCullingViewport();
-    // One of them exists: Path2D draws on the layer's canvas, WebGL on its own canvas below it.
     this.path2d?.render(this.context.ctx, viewport);
-    this.webgl?.render(viewport);
     // Labels follow every line and arrow and precede blocks, which the next layer child draws.
     if (this.shouldRenderChildren) this.labels.render(this.context.ctx, viewport ?? this.getCameraRect());
-    // Path2D animates only by redrawing the whole layer, and only while an animated chunk is visible.
-    if (this.path2d?.drewAnimated) this.performRender();
   }
 
   /** The camera's world rectangle (the full viewport, insets ignored, like CameraService.isRectVisible). */

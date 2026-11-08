@@ -1,10 +1,17 @@
 import type { IBatchBackend } from "../../../../lib/batch/types";
-import type { TConnectionAppearance } from "../appearance";
 import type { IConnectionBatchItem } from "../batch";
 
 import { INSTANCE_FLOATS, countSegments, encodeAppearances, groupByEffect } from "./encode";
+import type { TConnectionAppearance } from "./encode";
 import type { IEffectPrograms } from "./programs";
 import { webglConnectionsStats } from "./stats";
+
+/** A batched item that WebGL draws from its appearance; items without one are not drawn. */
+interface IWebGLAppearanceItem extends IConnectionBatchItem {
+  getAppearance?(): TConnectionAppearance | undefined;
+  /** Whether the item's look changes with time, such as a running dash. */
+  isAnimated?(): boolean;
+}
 
 /** Instances of one effect inside a chunk's buffer, with a vertex array that starts at them. */
 type TGLRange = {
@@ -41,7 +48,7 @@ const INSTANCE_ATTRIBUTES: ReadonlyArray<[number, number, number]> = [
  * Encodes a chunk's appearances into one instance buffer, grouped by effect, and draws each group with its effect's
  * program in one instanced call: a chunk without effects is one call, as before.
  */
-export class WebGLBatchBackend implements IBatchBackend<IConnectionBatchItem, TGLChunk, void> {
+export class WebGLBatchBackend implements IBatchBackend<IWebGLAppearanceItem, TGLChunk, void> {
   /** Whether a chunk with an animated item was drawn since the owner last reset it. */
   public drewAnimated = false;
 
@@ -54,11 +61,10 @@ export class WebGLBatchBackend implements IBatchBackend<IConnectionBatchItem, TG
     private readonly programs: IEffectPrograms
   ) {}
 
-  public build(items: readonly IConnectionBatchItem[], previous: TGLChunk | undefined): TGLChunk {
+  public build(items: readonly IWebGLAppearanceItem[], previous: TGLChunk | undefined): TGLChunk {
     const appearances: TConnectionAppearance[] = [];
     let animated = false;
     for (const item of items) {
-      // Items without an appearance (classes with their own createPath()) are not drawn by WebGL.
       const appearance = item.getAppearance?.();
       if (appearance) appearances.push(appearance);
       if (item.isAnimated?.()) animated = true;

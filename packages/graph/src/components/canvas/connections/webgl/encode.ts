@@ -1,8 +1,43 @@
 import { parseColor } from "../../../../utils/functions/color";
-import type { TConnectionAppearance } from "../appearance";
 
 import { CONNECTION_EFFECT_PARAMS } from "./effects";
 import { CURVE_SEGMENTS } from "./shaders";
+
+/**
+ * Dash pattern in world units; `speed` (world units per second) moves the pattern from source to target, a negative
+ * speed from target to source. WebGL only: `fade` draws each dash as a comet, transparent at the tail and opaque at the
+ * head; Path2D draws plain dashes.
+ */
+export type TAppearanceDash = { pattern: readonly number[]; speed?: number; fade?: boolean };
+
+/**
+ * WebGL only (Path2D draws the stroke steady): the brightness of the stroke rises and falls every `period` seconds.
+ * With `wavelength` (world units) the pulse also runs along x across the graph, one wave every `wavelength` units.
+ */
+export type TAppearancePulse = { period: number; wavelength?: number };
+
+/**
+ * Experimental, WebGL only: the connection effect, by name, that recolors the line, and up to 8 numbers it reads as
+ * `f.params0` and `f.params1`. Arrows draw the stroke without it.
+ */
+export type TAppearanceEffect = { name: string; params?: readonly number[] };
+
+/** Stroke of a connection appearance; lengths in world units. */
+export type TAppearanceStroke = {
+  color: string;
+  width: number;
+  dash?: TAppearanceDash;
+  pulse?: TAppearancePulse;
+  effect?: TAppearanceEffect;
+};
+
+/** Declarative look of a batched connection item that the WebGL backend draws. */
+export type TConnectionAppearance = {
+  kind: "curve";
+  /** Cubic Bézier segments in world coordinates, 8 numbers each: p0, c1, c2, p3. */
+  segments: Float32Array;
+  stroke: TAppearanceStroke;
+};
 
 /**
  * Floats per instance (one cubic piece):

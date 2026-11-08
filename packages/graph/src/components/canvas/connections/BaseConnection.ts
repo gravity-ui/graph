@@ -249,10 +249,9 @@ export class BaseConnection<
 
   /**
    * Rebuilds this connection's geometry from its current state, props and endpoints and redraws it:
-   * line and arrow paths, bounds, hit box and culling bounds. State, props and endpoint changes do this
-   * automatically, once per frame; call it when an override such as `createPath()`, `createArrowPath()` or
-   * `collectBBoxPoints()` reads data that changed elsewhere. `batch.markDirty()` alone only rebuilds the
-   * renderer's chunk from the connection's cached geometry.
+   * the shape, bounds, hit box and culling bounds. State, props and endpoint changes do this
+   * automatically, once per frame; call it when the geometry or the bounds read data that changed elsewhere.
+   * `batch.markDirty()` alone only rebuilds the renderer's chunk from the connection's cached geometry.
    */
   public updateGeometry(): void {
     if (this.unmounted) return;
@@ -265,10 +264,15 @@ export class BaseConnection<
    * Runs in the next update after an endpoint moves; `updateGeometry()` runs it synchronously.
    */
   protected updatePoints(additionalPoints?: TPoint[], props: Props = this.props): void {
+    this.readConnectionPoints();
+    this.updateBounds(additionalPoints, props);
+  }
+
+  /** Copies the current port positions into `connectionPoints` and clears the pending geometry update. */
+  protected readConnectionPoints(): void {
     this.geometryDirty = false;
     const geometry = this.connectedState.$geometry.value;
     this.connectionPoints = geometry ? [{ ...geometry[0] }, { ...geometry[1] }] : undefined;
-    this.updateBounds(additionalPoints, props);
   }
 
   protected updateBounds(additionalPoints?: TPoint[], props: Props = this.props): void {

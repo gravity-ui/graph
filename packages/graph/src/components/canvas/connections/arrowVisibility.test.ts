@@ -4,7 +4,14 @@ import { TConnection } from "../../../store/connection/ConnectionState";
 
 import { BlockConnection } from "./BlockConnection";
 import { MultipointConnection } from "./MultipointConnection";
+import type { TConnectionGeometry } from "./geometry";
+import { Path2DLine } from "./lines";
 import { TMultipointConnection } from "./types";
+
+/** The arrow builder of the default line, which is protected. */
+type TPath2DLineBuilders = {
+  createArrowPath(geometry: TConnectionGeometry): Path2D;
+};
 
 describe("connection paint bounds at the viewport edge", () => {
   let graph: Graph;
@@ -44,13 +51,18 @@ describe("connection paint bounds at the viewport edge", () => {
   it("draws a short multipoint arrow entering the viewport while its hitbox stays outside", () => {
     const connection: TMultipointConnection = {
       id: "c",
+      sourcePortId: "s",
+      targetPortId: "t",
       points: [
         { x: 1010, y: 100 },
         { x: 1011, y: 100 },
       ],
     };
-    start(connection, MultipointConnection, 8);
-    const arrow = jest.spyOn(MultipointConnection.prototype, "createArrowPath");
+    const state = start(connection, MultipointConnection, 8);
+    if (!state) throw new Error("Expected connection");
+    state.$sourcePortState.value.updatePort({ x: 1010, y: 100, lookup: false });
+    state.$targetPortState.value.updatePort({ x: 1011, y: 100, lookup: false });
+    const arrow = jest.spyOn(Path2DLine.prototype as unknown as TPath2DLineBuilders, "createArrowPath");
     const view = draw();
     expect(view?.getHitBox()[0]).toBe(1002);
     expect(view?.isInViewport()).toBe(true);
@@ -66,7 +78,7 @@ describe("connection paint bounds at the viewport edge", () => {
       state.$sourcePortState.value.updatePort({ x, y: 100, lookup: false });
       state.$targetPortState.value.updatePort({ x: x + 1, y: 100, lookup: false });
       graph.api.selectConnections(["c"], true);
-      const arrow = jest.spyOn(BlockConnection.prototype, "createArrowPath");
+      const arrow = jest.spyOn(Path2DLine.prototype as unknown as TPath2DLineBuilders, "createArrowPath");
       const view = draw();
       expect(view?.getHitBox()[0]).toBe(x);
       expect(view?.isInViewport()).toBe(true);
@@ -80,7 +92,7 @@ describe("connection paint bounds at the viewport edge", () => {
     state.$sourcePortState.value.updatePort({ x: 1001.5, y: 100, lookup: false });
     state.$targetPortState.value.updatePort({ x: 1001.5, y: 200, lookup: false });
     graph.api.selectConnections(["c"], true);
-    const path = jest.spyOn(BlockConnection.prototype, "getPath");
+    const path = jest.spyOn(Path2DLine.prototype, "getPath");
     const view = draw();
     expect(view?.getHitBox()[0]).toBe(1001.5);
     expect(view?.isInViewport()).toBe(true);

@@ -1,56 +1,46 @@
 import { Graph } from "../../../graph";
 import { globalScheduler } from "../../../lib/Scheduler";
 import { TConnection } from "../../../store/connection/ConnectionState";
-import type { TPoint } from "../../../utils/types/shapes";
 
 import { BlockConnection } from "./BlockConnection";
-import type { TConnectionProps } from "./BlockConnection";
+import { lineSegment } from "./geometry";
+import type { TConnectionGeometryFn } from "./geometry";
+import type { ConnectionLine } from "./lines";
 
 type TRecordedPath = Path2D & { _path: Array<{ type: string; props: { x: number; y: number } }> };
 
+/** Data the connection does not own: a vertical shift of its line and arrow. */
+const shift = { dy: 0 };
+
+/** A straight line and a short arrow at the target; the bounds and the arrow's culling points follow the shift. */
+const externalGeometry: TConnectionGeometryFn = ({ source, target }) => {
+  const { dy } = shift;
+  return {
+    segments: new Float32Array(lineSegment({ x: source.x, y: source.y + dy }, { x: target.x, y: target.y + dy })),
+    arrow: { points: new Float32Array([target.x, target.y + dy, target.x - 5, target.y + dy - 5]), closed: false },
+  };
+};
+
 /** Draws its line, arrow and bounds shifted by data the connection does not own. */
 class ExternalGeometryConnection extends BlockConnection<TConnection> {
-  public static shift = { dy: 0 };
+  public static override geometry: TConnectionGeometryFn = externalGeometry;
 
   public allowed = true;
 
   public afterRenders = 0;
 
-  protected override createPath(): Path2D {
-    const path = new Path2D();
-    const { dy } = ExternalGeometryConnection.shift;
-    path.moveTo(this.geometry.x1, this.geometry.y1 + dy);
-    path.lineTo(this.geometry.x2, this.geometry.y2 + dy);
-    return path;
-  }
-
-  public override createArrowPath(): Path2D {
-    const path = new Path2D();
-    const { dy } = ExternalGeometryConnection.shift;
-    path.moveTo(this.geometry.x2, this.geometry.y2 + dy);
-    path.lineTo(this.geometry.x2 - 5, this.geometry.y2 + dy - 5);
-    return path;
-  }
-
-  // Culling bounds come from the box points and the arrow points: shift them like the paths.
-  protected override collectBBoxPoints(props: TConnectionProps = this.props): TPoint[] {
-    const { dy } = ExternalGeometryConnection.shift;
-    return super.collectBBoxPoints(props).map((point) => ({ x: point.x, y: point.y + dy }));
-  }
-
-  protected override getArrowPoints(props: TConnectionProps = this.props): TPoint[] {
-    const { dy } = ExternalGeometryConnection.shift;
-    return super.getArrowPoints(props).map((point) => ({ x: point.x, y: point.y + dy }));
+  public get lineItem(): ConnectionLine {
+    return this.line;
   }
 
   protected override isRenderAllowed(): boolean {
     return this.allowed && super.isRenderAllowed();
   }
 
-  /** An external switch for the semantic veto; the batch re-evaluates it through applyShape(). */
+  /** An external switch for the semantic veto; the batch re-evaluates it through invalidateLine(). */
   public setAllowed(allowed: boolean): void {
     this.allowed = allowed;
-    this.applyShape();
+    this.invalidateLine();
   }
 
   public afterRender(_ctx: CanvasRenderingContext2D): void {
@@ -112,7 +102,7 @@ describe("connection geometry and semantic visibility contract", () => {
   }
 
   beforeEach(() => {
-    ExternalGeometryConnection.shift = { dy: 0 };
+    shift.dy = 0;
     stroke = jest.spyOn(CanvasRenderingContext2D.prototype, "stroke");
   });
 
@@ -124,10 +114,10 @@ describe("connection geometry and semantic visibility contract", () => {
   it("updateGeometry() rebuilds the line, arrow, bounds and hit path from external data", () => {
     mount([{ id: "a", x: 100, y: 100 }]);
     const connection = view("a");
-    const before = connection.getPath();
+    const before = connection.lineItem.getPath();
     expect(connection.getPathBounds()?.[1]).toBeLessThan(100);
 
-    ExternalGeometryConnection.shift = { dy: 300 };
+    shift.dy = 300;
     connection.updateGeometry();
     frames();
     // The line ends at y 400 and the arrow's second point at 395, both in the next batch build.
@@ -135,7 +125,7 @@ describe("connection geometry and semantic visibility contract", () => {
     expect(ys).toContain(400);
     expect(ys).toContain(395);
     // Hit testing reads the same rebuilt path.
-    expect(connection.getPath()).not.toBe(before);
+    expect(connection.lineItem.getPath()).not.toBe(before);
     expect(connection.getPathBounds()?.[1]).toBeGreaterThan(300);
     expect(connection.isInViewport()).toBe(true);
 
@@ -146,7 +136,7 @@ describe("connection geometry and semantic visibility contract", () => {
     expect(near(100)).toBe(false);
 
     // Tree culling follows the new bounds as well.
-    ExternalGeometryConnection.shift = { dy: 2000 };
+    shift.dy = 2000;
     connection.updateGeometry();
     frames();
     expect(connection.isInViewport()).toBe(false);
@@ -182,16 +172,21 @@ describe("connection geometry and semantic visibility contract", () => {
     expect(offscreen.afterRenders).toBe(0);
   });
 
-  it("ignores updateGeometry() after the connection unmounts", () => {
+  it("ignores updateGeometry() and invalidateLine() after the connection unmounts", () => {
     mount([{ id: "a", x: 100, y: 100 }]);
     const connection = view("a");
     const batch = connection["context"].batch;
     const state = graph.connections.getConnectionState("a");
     if (!state) throw new Error("Expected connection a");
+    const line = connection.lineItem;
+    expect(batch.has(line)).toBe(true);
     graph.rootStore.connectionsList.deleteConnections([state]);
     frames();
-    expect(batch.has(connection)).toBe(false);
+    expect(batch.has(line)).toBe(false);
+    expect(batch.has(line.arrow)).toBe(false);
     connection.updateGeometry();
-    expect(batch.has(connection)).toBe(false);
+    connection.invalidateLine();
+    expect(batch.has(line)).toBe(false);
+    expect(batch.has(line.arrow)).toBe(false);
   });
 });

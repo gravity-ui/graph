@@ -3,11 +3,10 @@ import { globalScheduler } from "../../../lib/Scheduler";
 import type { TBatchParams } from "../../../lib/batch/types";
 import type { TConnection } from "../../../store/connection/ConnectionState";
 
-import { BatchPath2DRenderer } from "./BatchPath2D";
 import { BlockConnection } from "./BlockConnection";
 import type { BlockConnections } from "./BlockConnections";
 import type { IConnectionBatch, IConnectionBatchItem } from "./batch";
-import { WebGLConnections } from "./webgl/WebGLConnections";
+import type { ConnectionLine } from "./lines";
 
 /** Records registrations, like a WebGL batch would, without a graphics API. */
 class FakeBatch implements IConnectionBatch {
@@ -40,7 +39,6 @@ class FakeBatch implements IConnectionBatch {
 
 type TBlockConnectionsInternals = {
   batch: IConnectionBatch;
-  path2d: BatchPath2DRenderer | undefined;
   switchBatch(next: IConnectionBatch): void;
 };
 
@@ -81,43 +79,13 @@ function view(graph: Graph, id: string): BlockConnection<TConnection> {
   return component;
 }
 
+function lineOf(connection: BlockConnection<TConnection>): ConnectionLine {
+  return (connection as unknown as { line: ConnectionLine }).line;
+}
+
 function internals(graph: Graph): TBlockConnectionsInternals {
   return view(graph, "a").getParent() as unknown as BlockConnections & TBlockConnectionsInternals;
 }
-
-describe("BlockConnections WebGL batch choice", () => {
-  let graph: Graph | undefined;
-  afterEach(() => {
-    graph?.unmount();
-    graph = undefined;
-    document.body.innerHTML = "";
-    jest.restoreAllMocks();
-  });
-
-  it("chooses the WebGL batch before children compute geometry, so mounting builds each connection once", () => {
-    class FakeWebGL extends FakeBatch {
-      public render(): void {}
-
-      public setEffects(): void {}
-
-      public dispose(): void {}
-    }
-    jest.spyOn(WebGLConnections, "create").mockImplementation(() => new FakeWebGL() as unknown as WebGLConnections);
-    const updatePoints = jest.spyOn(BlockConnection.prototype as unknown as { updatePoints(): void }, "updatePoints");
-    const root = document.createElement("div");
-    document.body.appendChild(root);
-    graph = mount({ connectionsRenderer: "webgl" }, root);
-    const counts: number[] = [updatePoints.mock.calls.length];
-    for (let i = 0; i < 3; i++) {
-      frames(1);
-      counts.push(updatePoints.mock.calls.length);
-    }
-
-    expect(internals(graph).batch).toBeInstanceOf(FakeWebGL);
-    // Two connections: both build once at mount and nothing rebuilds on the next frames.
-    expect(counts).toEqual([2, 2, 2, 2]);
-  });
-});
 
 describe("BlockConnections batch switching", () => {
   let graph: Graph | undefined;
@@ -147,25 +115,7 @@ describe("BlockConnections batch switching", () => {
     graph.updateSettings({ showConnectionArrows: false });
     frames();
     expect(fake.items.size).toBe(2);
-    expect(fake.has(view(graph, "a"))).toBe(true);
-    expect(fake.has(view(graph, "b"))).toBe(true);
-  });
-
-  it("keeps the Path2D batch when WebGL2 is unavailable", () => {
-    const getContext = jest.spyOn(HTMLCanvasElement.prototype, "getContext");
-    const root = document.createElement("div");
-    document.body.appendChild(root);
-    graph = mount({ connectionsRenderer: "webgl" }, root);
-    const connections = internals(graph);
-    const canvases = root.querySelectorAll("canvas").length;
-    frames();
-
-    // jsdom has no WebGL2: the attempt is made once and the graph stays on canvas.
-    expect(getContext.mock.calls.filter(([type]) => type === "webgl2")).toHaveLength(1);
-    getContext.mockRestore();
-    expect(connections.batch).toBeInstanceOf(BatchPath2DRenderer);
-    expect(connections.path2d).toBe(connections.batch);
-    expect(view(graph, "a").context.batch).toBe(connections.batch);
-    expect(root.querySelectorAll("canvas").length).toBe(canvases);
+    expect(fake.has(lineOf(view(graph, "a")))).toBe(true);
+    expect(fake.has(lineOf(view(graph, "b")))).toBe(true);
   });
 });

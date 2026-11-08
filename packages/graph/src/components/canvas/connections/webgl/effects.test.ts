@@ -1,5 +1,4 @@
-import type { TConnectionAppearance } from "../appearance";
-
+import type { TConnectionAppearance } from "./encode";
 import { INSTANCE_FLOATS, encodeAppearances, groupByEffect } from "./encode";
 import { createFragmentShader } from "./shaders";
 
