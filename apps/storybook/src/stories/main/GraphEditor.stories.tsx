@@ -70,6 +70,10 @@ const meta: Meta<typeof GraphApp> = {
       control: "boolean",
       description: "Render connection's label",
     },
+    viewportCulling: {
+      control: "boolean",
+      description: "Cull canvas components by the viewport; off walks every component without viewport culling",
+    },
   },
   args: {
     useBezierConnections: true,
@@ -79,6 +83,7 @@ const meta: Meta<typeof GraphApp> = {
     canDrag: ECanDrag.ALL,
     scaleFontSize: 1,
     showConnectionArrows: true,
+    viewportCulling: true,
   },
 };
 

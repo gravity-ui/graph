@@ -1,14 +1,6 @@
 import React, { useEffect, useState } from "react";
 
-import {
-  BlockConnection,
-  Graph,
-  TBlock,
-  TConnection,
-  cachedMeasureText,
-  getFontSize,
-  getLabelCoords,
-} from "@gravity-ui/graph";
+import { BlockConnection, Graph, TBlock, TConnection, TConnectionProps, getFontSize } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph } from "@gravity-ui/graph-react";
 import { Flex, Switch, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
@@ -24,39 +16,16 @@ storyConfig.connections?.forEach((connection) => {
   connection.label = "Custom Label";
 });
 
-function getRenderLabelText(this: BlockConnection<TConnection>, showLabelOnlyOnSelected: boolean) {
-  return (ctx: CanvasRenderingContext2D) => {
-    if (!this.isVisible() || !this.state.label) {
+export class CustomConnection extends BlockConnection<TConnection> {
+  protected override renderLabelText(ctx: CanvasRenderingContext2D) {
+    if (!this.isVisible() || !this.state.label || !this.labelGeometry) {
       return;
     }
 
-    const [labelInnerTopPadding, labelInnerRightPadding, labelInnerBottomPadding, labelInnerLeftPadding] =
-      this.context.constants.connection.LABEL.INNER_PADDINGS;
+    const [labelInnerTopPadding, , , labelInnerLeftPadding] = this.context.constants.connection.LABEL.INNER_PADDINGS;
     const fontSize = Math.max(14, getFontSize(9, this.context.camera.getCameraScale()));
     const font = `${fontSize}px sans-serif`;
-
-    const measure = cachedMeasureText(this.state.label, {
-      font,
-    });
-
-    if (!measure) {
-      return;
-    }
-
-    const { x, y } = getLabelCoords(
-      this.geometry.x1,
-      this.geometry.y1,
-      this.geometry.x2,
-      this.geometry.y2,
-      measure.width + labelInnerLeftPadding + labelInnerRightPadding,
-      measure.height + labelInnerTopPadding + labelInnerBottomPadding,
-      this.context.constants.system.GRID_SIZE
-    );
-
-    if (showLabelOnlyOnSelected && !this.state.selected) {
-      this.labelGeometry = undefined;
-      return;
-    }
+    const { x: rectX, y: rectY, width: rectWidth, height: rectHeight } = this.labelGeometry;
 
     if (this.context.colors.connectionLabel?.background) {
       ctx.fillStyle = this.context.colors.connectionLabel.background;
@@ -69,18 +38,6 @@ function getRenderLabelText(this: BlockConnection<TConnection>, showLabelOnlyOnS
     if (this.state.selected && this.context.colors.connectionLabel?.selectedBackground) {
       ctx.fillStyle = this.context.colors.connectionLabel.selectedBackground;
     }
-
-    const rectX = x;
-    const rectY = y;
-    const rectWidth = measure.width + labelInnerLeftPadding + labelInnerRightPadding;
-    const rectHeight = measure.height + labelInnerTopPadding + labelInnerBottomPadding;
-
-    this.labelGeometry = {
-      x: rectX,
-      y: rectY,
-      width: rectWidth,
-      height: rectHeight,
-    };
 
     ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
 
@@ -105,18 +62,13 @@ function getRenderLabelText(this: BlockConnection<TConnection>, showLabelOnlyOnS
     ctx.font = font;
     ctx.textAlign = "left";
     ctx.fillText(this.state.label, rectX + labelInnerLeftPadding, rectY + labelInnerTopPadding);
-  };
-}
-
-export class CustomConnection extends BlockConnection<TConnection> {
-  protected renderLabelText(ctx: CanvasRenderingContext2D) {
-    getRenderLabelText.call(this, false)(ctx);
   }
 }
 
-export class CustomConnectionOnSelected extends BlockConnection<TConnection> {
-  protected renderLabelText(ctx: CanvasRenderingContext2D) {
-    getRenderLabelText.call(this, true)(ctx);
+export class CustomConnectionOnSelected extends CustomConnection {
+  protected override updateLabelGeometry(props: TConnectionProps): void {
+    super.updateLabelGeometry(props);
+    if (!this.state.selected) this.labelGeometry = undefined;
   }
 }
 

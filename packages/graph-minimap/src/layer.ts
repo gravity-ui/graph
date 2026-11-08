@@ -228,7 +228,9 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     blocks.forEach((block) => {
       const viewComponent = block.getViewComponent();
 
-      viewComponent?.renderMinimalisticBlock(this.context.ctx);
+      // The minimap's own rule: names are unreadable at its scale, and the main view's level of detail,
+      // which depends on where its camera has been, must not decide what the minimap shows.
+      viewComponent?.renderMinimalisticBlock(this.context.ctx, { text: false });
     });
   }
 

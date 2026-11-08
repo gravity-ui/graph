@@ -43,6 +43,14 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    * the tight bounds of the rendered curve.
    */
   EXP_USE_TIGHT_BEZIER_BOUNDS: boolean;
+  /**
+   * Cull canvas components by the viewport: layers walk and paint only the components near it. Set to false for no
+   * viewport culling: every component is walked, a graph component paints when the camera sees its hit box and
+   * connection batches draw every chunk. The lifecycle rules shared with culling still apply (an offscreen component is
+   * not painted on mount; visibility is decided after preparation), so the switch rules out spatial culling only, for
+   * example while investigating a rendering problem.
+   */
+  viewportCulling: boolean;
   useBlocksAnchors: boolean;
   connectivityComponentOnClickRaise: boolean;
   showConnectionLabels: boolean;
@@ -94,6 +102,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   useBezierConnections: true,
   bezierConnectionDirection: "horizontal",
   EXP_USE_TIGHT_BEZIER_BOUNDS: true,
+  viewportCulling: true,
   useBlocksAnchors: true,
   connectivityComponentOnClickRaise: true,
   showConnectionLabels: false,

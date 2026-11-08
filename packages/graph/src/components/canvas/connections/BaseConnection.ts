@@ -7,6 +7,8 @@ import { GraphComponent, GraphComponentContext } from "../GraphComponent";
 import { TAnchor } from "../anchors";
 import { Block } from "../blocks/Block";
 
+import { hasChangedValue } from "./hasChangedValue";
+
 /**
  * Properties for BaseConnection component
  */
@@ -41,8 +43,9 @@ export type TBaseConnectionState = TComponentState &
  * order problem where connections can be created before blocks/anchors are ready.
  *
  * ### Reactive Updates
- * Automatically subscribes to port changes and updates connection geometry when
- * source or target positions change.
+ * Subscribes to port changes. When a source or target position changes, the geometry is recomputed in the
+ * connection's next update, once per frame however many endpoints moved. Call `updateGeometry()` for the
+ * synchronous path.
  *
  * ### Event Handling
  * Provides hover state management and can be extended for custom interaction handling.
@@ -111,7 +114,7 @@ export class BaseConnection<
 
   /**
    * Calculated connection endpoints based on port positions
-   * Updated automatically when source or target ports change position
+   * Endpoint moves are applied in the next update (once per frame); `updateGeometry()` applies them synchronously
    */
   public connectionPoints: [TPoint, TPoint] | undefined;
 
@@ -126,6 +129,9 @@ export class BaseConnection<
    * Used for hit detection and rendering optimizations
    */
   protected bBox: [minX: number, minY: number, maxX: number, maxY: number] = [0, 0, 0, 0];
+
+  /** An endpoint moved: the next update recomputes the geometry once, with every pending change applied. */
+  protected geometryDirty = false;
 
   private hitBoxNeedsRestore = true;
 
@@ -147,27 +153,42 @@ export class BaseConnection<
   }
 
   protected willMount(): void {
-    // Subscribe to connection state changes for automatic updates
+    // Subscriptions fire once while mounting, with the values this component already applied: they request an update
+    // only for changes. Otherwise every connection would run an empty update in its second frame.
+    let mounting = true;
     this.subscribeSignal(this.connectedState.$selected, (selected) => {
-      this.setState({ selected });
+      if (selected !== this.getState().selected) this.setState({ selected });
     });
     this.subscribeSignal(this.connectedState.$state, (state) => {
-      this.setState({ ...state });
+      if (hasChangedValue<TConnection>(state, this.getState())) this.setState({ ...state });
     });
 
-    // Subscribe to geometry changes to update connection points
+    // Endpoints: the first value is applied now; later moves recompute once in the next update, so moving both
+    // endpoints in one frame costs one recomputation.
     this.subscribeSignal(this.connectedState.$geometry, () => {
-      this.updatePoints();
-    });
-
-    // When both endpoints are hidden (e.g. both blocks inside a collapsed group)
-    // schedule a re-render so willIterate() picks up the new isVisible() result.
-    this.subscribeSignal(this.connectedState.$hidden, () => {
+      if (mounting) {
+        this.updatePoints();
+        return;
+      }
+      this.geometryDirty = true;
       this.performRender();
     });
 
+    // When both endpoints are hidden (e.g. both blocks inside a collapsed group)
+    // Schedule an update so component and batch visibility use the new hidden state.
+    this.subscribeSignal(this.connectedState.$hidden, () => {
+      if (!mounting) this.performRender();
+    });
+    mounting = false;
+
     // Enable hover interaction
     this.listenEvents(["mouseenter", "mouseleave"]);
+  }
+
+  protected override checkData(): boolean {
+    const changed = super.checkData();
+    if (this.geometryDirty) this.updatePoints();
+    return changed;
   }
 
   public override isEntityAvailable(): boolean {
@@ -178,10 +199,10 @@ export class BaseConnection<
     return this.connectedState.$geometry.value !== undefined;
   }
 
-  protected override isVisible(): boolean {
+  protected override isRenderAllowed(): boolean {
     if (!this.isEntityAvailable() || !this.hasGeometry()) return false;
     if (this.connectedState.$hidden.value) return false;
-    return super.isVisible();
+    return super.isRenderAllowed();
   }
 
   protected override handleEvent(event: MouseEvent) {
@@ -205,7 +226,11 @@ export class BaseConnection<
     this.setState({ hovered: hoverState });
   }
 
+  private unmounted = false;
+
   protected override unmount(): void {
+    // Late geometry refreshes must not register an unmounted connection with the batch again.
+    this.unmounted = true;
     // A pending hover update would keep the unmounted graph reachable from the global scheduler.
     this.debounceHover.cancel();
     super.unmount();
@@ -223,20 +248,30 @@ export class BaseConnection<
   );
 
   /**
-   * Updates connection points based on current port positions
-   * Called automatically when port geometry changes
-   *
-   * This method:
-   * 1. Retrieves current port positions from the Port System
-   * 2. Updates connectionPoints for rendering
-   * 3. Recalculates bounding box for optimization
-   * 4. Updates hit box for interaction
-   *
-   * @returns {void}
+   * Rebuilds this connection's geometry from its current state, props and endpoints and redraws it:
+   * line and arrow paths, bounds, hit box and culling bounds. State, props and endpoint changes do this
+   * automatically, once per frame; call it when an override such as `createPath()`, `createArrowPath()` or
+   * `collectBBoxPoints()` reads data that changed elsewhere. `batch.markDirty()` alone only rebuilds the
+   * renderer's chunk from the connection's cached geometry.
+   */
+  public updateGeometry(): void {
+    if (this.unmounted) return;
+    this.updatePoints();
+    this.performRender();
+  }
+
+  /**
+   * Reads the current port positions into `connectionPoints`, then recalculates the bounding box and hit box.
+   * Runs in the next update after an endpoint moves; `updateGeometry()` runs it synchronously.
    */
   protected updatePoints(additionalPoints?: TPoint[], props: Props = this.props): void {
+    this.geometryDirty = false;
     const geometry = this.connectedState.$geometry.value;
     this.connectionPoints = geometry ? [{ ...geometry[0] }, { ...geometry[1] }] : undefined;
+    this.updateBounds(additionalPoints, props);
+  }
+
+  protected updateBounds(additionalPoints?: TPoint[], props: Props = this.props): void {
     if (!this.isEntityAvailable() || !this.hasGeometry()) {
       this.bBox = [0, 0, 0, 0];
       this.removeHitBox();

@@ -85,6 +85,15 @@ export type BlockViewState = {
   order: number;
 };
 
+/**
+ * Options of a block view drawn on behalf of another view, such as the minimap. Without them a view follows the
+ * main view's level of detail.
+ */
+export type TBlockViewOptions = {
+  /** Whether to draw the block's name. */
+  text?: boolean;
+};
+
 export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlockProps> extends GraphComponent<
   Props,
   T,
@@ -147,7 +156,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   public isRendered() {
-    return this.shouldRender;
+    return this.shouldRender && this.isVisible();
   }
 
   protected updateViewState(params: Partial<BlockViewState>) {
@@ -181,9 +190,9 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return this.connectedState.$geometry.value;
   }
 
-  protected override isVisible(): boolean {
+  protected override isRenderAllowed(): boolean {
     if (this.blockHidden) return false;
-    return super.isVisible();
+    return super.isRenderAllowed();
   }
 
   public getConfigFlag<K extends keyof TGraphSettingsConfig>(flagPath: K) {
@@ -269,7 +278,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected stateChanged(nextState: T): void {
-    if (!this.firstRender && nextState.selected !== this.state.selected) {
+    if (!this.firstIterate && nextState.selected !== this.state.selected) {
       this.raiseBlock();
     }
     return super.stateChanged(nextState);
@@ -529,8 +538,8 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     renderText(text, ctx, rect, renderParams);
   }
 
-  public renderMinimalisticBlock(ctx: CanvasRenderingContext2D) {
-    this.renderSchematicView(ctx);
+  public renderMinimalisticBlock(ctx: CanvasRenderingContext2D, options?: TBlockViewOptions) {
+    this.renderSchematicView(ctx, options);
   }
 
   protected renderBody(ctx: CanvasRenderingContext2D) {
@@ -543,10 +552,10 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     );
   }
 
-  public renderSchematicView(ctx: CanvasRenderingContext2D) {
+  public renderSchematicView(ctx: CanvasRenderingContext2D, options?: TBlockViewOptions) {
     this.renderBody(ctx);
 
-    if (this.shouldRenderText) {
+    if (options?.text ?? this.shouldRenderText) {
       ctx.fillStyle = this.context.colors.block.text;
       ctx.textAlign = "center";
       this.renderText(this.state.name, ctx);

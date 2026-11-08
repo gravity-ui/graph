@@ -11,12 +11,18 @@ export class Component<
   Context extends CoreComponentContext = CoreComponentContext,
 > extends CoreComponent<Props, Context> {
   protected firstIterate = true;
+
+  /** willMount() runs once, even when the first frame prepares this component more than once. */
+  private mountNotified = false;
   protected firstRender = true;
   protected firstUpdateChildren = true;
 
   protected shouldRender = true;
   protected shouldUpdateChildren = true;
   protected shouldRenderChildren = true;
+
+  /** `shouldRenderChildren` when the previous iterate() ended. */
+  private iteratedRenderChildren = true;
 
   public state: State;
 
@@ -135,7 +141,8 @@ export class Component<
   }
 
   protected willIterate() {
-    if (this.firstIterate) {
+    if (this.firstIterate && !this.mountNotified) {
+      this.mountNotified = true;
       this.willMount();
     }
     // noop
@@ -148,26 +155,59 @@ export class Component<
     // noop
   }
 
-  public iterate() {
-    super.iterate();
+  /** Semantic paint veto checked after the tree's viewport decision, for example for hidden elements. */
+  protected isRenderAllowed(): boolean {
+    return true;
+  }
 
+  public override prepareUpdate(): boolean {
+    if (this.updatePrepared) return this.shouldRenderChildren;
+    super.prepareUpdate();
     this.checkData();
     this.willIterate();
-
-    if (this.shouldRender) {
-      this.renderLifeCycle();
-    } else {
-      this.willNotRender();
-    }
 
     if (this.shouldUpdateChildren) {
       this.shouldUpdateChildren = false;
       this.childrenLifeCycle();
     }
+    return this.shouldRenderChildren;
+  }
+
+  protected override applyDetachedUpdate(): void {
+    super.applyDetachedUpdate();
+    this.firstIterate = false;
+  }
+
+  public override iterate(): boolean {
+    const node = this.__comp.treeNode;
+    const prepared = node.framePrepared;
+    const visible = node.frameVisible;
+    node.framePrepared = false;
+    node.frameVisible = true;
+    if (!prepared) this.prepareUpdate();
+    this.updatePrepared = false;
+    // Without culling the walk records the children decision only after iterate() returns: record the prepared one now,
+    // so detached children asked while this component paints answer for this frame, as with culling.
+    if (!node.scope) node.setChildrenWalkAllowed(this.shouldRenderChildren);
+    // Without culling the tree paints every component: it decides itself, with the geometry it just prepared.
+    const inViewport = node.scope ? visible : visible && this.isInViewport();
+
+    if (inViewport && this.shouldRender && this.isRenderAllowed()) {
+      this.renderLifeCycle();
+    } else {
+      this.willNotRender();
+    }
 
     this.didIterate();
 
     this.firstIterate = false;
+
+    // A culled tree walks children by the component's preparation: a change made while painting requests one frame,
+    // whose preparation applies it.
+    if (this.shouldRenderChildren !== this.iteratedRenderChildren) {
+      this.iteratedRenderChildren = this.shouldRenderChildren;
+      if (node.scope && this.shouldRenderChildren !== node.childrenWalkAllowed) this.performRender();
+    }
 
     return this.shouldRenderChildren;
   }
