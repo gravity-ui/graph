@@ -106,6 +106,8 @@ export type TFakeGL = {
   live(kind: "buffer" | "vertexArray" | "program" | "shader"): number;
   /** Makes `isContextLost()` return true, like a lost context. */
   loseContext(): void;
+  /** Makes `isContextLost()` return false again, like a restored context; objects created before stay as they are. */
+  restoreContext(): void;
 };
 
 // WebGL2 enum values.
@@ -406,6 +408,9 @@ export function createFakeGL(options: TFakeGLOptions = {}): TFakeGL {
     live: (kind): number => all[kind].filter((item) => !item.deleted).length,
     loseContext: (): void => {
       lost = true;
+    },
+    restoreContext: (): void => {
+      lost = false;
     },
   };
 }

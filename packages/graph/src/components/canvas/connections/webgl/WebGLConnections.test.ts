@@ -34,6 +34,7 @@ const options: TWebGLConnectionsOptions = {
   }),
   onChange: () => undefined,
   onLost: () => undefined,
+  onRestored: () => undefined,
 };
 
 function graphCanvas(): HTMLCanvasElement {
@@ -110,5 +111,58 @@ describe("WebGLConnections", () => {
     expect(graph.previousSibling).toBeNull();
     expect(fake.gl.isContextLost()).toBe(true);
     expect(fake.live("program")).toBe(0);
+  });
+
+  it("stops drawing when its context is lost and reports the loss and the restore", () => {
+    const fake = createFakeGL();
+    mockWebGL2(fake);
+    const onLost = jest.fn();
+    const onRestored = jest.fn();
+    const connections = WebGLConnections.create(graphCanvas(), { ...options, onLost, onRestored });
+    if (!connections || !fake.canvas) throw new Error("Expected WebGL connections");
+    connections.add(
+      item({ segments: new Float32Array([0, 0, 10, 0, 20, 0, 30, 0]), stroke: { color: "#000", width: 2 } }),
+      { zIndex: 1, group: "line" }
+    );
+
+    fake.loseContext();
+    const lost = new Event("webglcontextlost", { cancelable: true });
+    fake.canvas.dispatchEvent(lost);
+    expect(lost.defaultPrevented).toBe(true);
+    expect(onLost).toHaveBeenCalledTimes(1);
+    connections.render();
+    expect(fake.draws).toHaveLength(0);
+
+    fake.restoreContext();
+    fake.canvas.dispatchEvent(new Event("webglcontextrestored"));
+    expect(onRestored).toHaveBeenCalledTimes(1);
+  });
+
+  it("after a restore, dispose frees the restored context without touching objects of the lost one", () => {
+    const fake = createFakeGL();
+    mockWebGL2(fake);
+    const onLost = jest.fn();
+    const onRestored = jest.fn();
+    const graph = graphCanvas();
+    const connections = WebGLConnections.create(graph, { ...options, onLost, onRestored });
+    if (!connections || !fake.canvas) throw new Error("Expected WebGL connections");
+    const canvas = fake.canvas;
+    fake.loseContext();
+    canvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true }));
+    fake.restoreContext();
+    canvas.dispatchEvent(new Event("webglcontextrestored"));
+    const calls = fake.calls.length;
+
+    connections.dispose();
+
+    expect(graph.previousSibling).toBeNull();
+    expect(fake.gl.isContextLost()).toBe(true);
+    // Programs of the lost context are gone with it: dispose deletes nothing.
+    expect(fake.calls.slice(calls).filter((name) => name.startsWith("delete"))).toEqual([]);
+    // No listener is left on the canvas.
+    canvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true }));
+    canvas.dispatchEvent(new Event("webglcontextrestored"));
+    expect(onLost).toHaveBeenCalledTimes(1);
+    expect(onRestored).toHaveBeenCalledTimes(1);
   });
 });

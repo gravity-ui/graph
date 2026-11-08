@@ -17,13 +17,16 @@ export type TWebGLConnectionsOptions = {
   getCamera: () => TCameraState;
   /** Called after a change that can alter the picture, like the Path2D batch's `onChange`. */
   onChange: () => void;
+  /** The context is lost: nothing is drawn until the owner disposes this instance. */
   onLost: () => void;
+  /** The lost context is restored; its objects are gone, so the owner disposes this instance and creates another. */
+  onRestored: () => void;
 };
 
 /**
  * Lines and arrows drawn with WebGL2 on a canvas stacked right below the graph layer's canvas. Draws in the graph
  * layer's frame; while it draws an animated chunk, it also redraws itself every animation frame without the graph
- * layer.
+ * layer. After its context is lost it draws nothing; its canvas stays and reports the restore.
  */
 export class WebGLConnections implements IConnectionBatch {
   /**
@@ -64,6 +67,9 @@ export class WebGLConnections implements IConnectionBatch {
 
   private frame: number | undefined;
 
+  /** Set by `webglcontextlost`; the GL objects of this instance are gone for good then, a restore included. */
+  private lost = false;
+
   /** Compiles the line and fill programs; throws their log when one fails. */
   private constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -86,6 +92,7 @@ export class WebGLConnections implements IConnectionBatch {
       })
     );
     canvas.addEventListener("webglcontextlost", this.handleLost);
+    canvas.addEventListener("webglcontextrestored", this.handleRestored);
   }
 
   public add(item: IConnectionBatchItem, params: TBatchParams): void {
@@ -117,27 +124,32 @@ export class WebGLConnections implements IConnectionBatch {
     this.batch.forEachItem(visit);
   }
 
-  /** Draws the frame of the graph layer with its culling viewport. */
+  /** Draws the frame of the graph layer with its culling viewport; nothing after the context is lost. */
   public render(viewport?: TTileRect): void {
+    if (this.lost) return;
     this.viewport = viewport && { ...viewport };
     // The graph layer's frame replaces a pending loop frame, so a frame is drawn once.
-    if (this.frame !== undefined) cancelAnimationFrame(this.frame);
-    this.frame = undefined;
+    this.stopLoop();
     this.draw();
     this.loop();
   }
 
-  /** Stops the animation loop, removes the canvas and frees its context. */
+  /** Stops the animation loop, removes the canvas and its listeners and frees its context. */
   public dispose(): void {
+    this.stopLoop();
+    this.canvas.removeEventListener("webglcontextlost", this.handleLost);
+    this.canvas.removeEventListener("webglcontextrestored", this.handleRestored);
+    this.canvas.remove();
+    if (this.gl.isContextLost()) return;
+    // A restored context has none of this instance's objects.
+    if (!this.lost) this.programs.dispose();
+    // Browsers limit live WebGL contexts; free this one now instead of at garbage collection.
+    this.gl.getExtension("WEBGL_lose_context")?.loseContext();
+  }
+
+  private stopLoop(): void {
     if (this.frame !== undefined) cancelAnimationFrame(this.frame);
     this.frame = undefined;
-    this.canvas.removeEventListener("webglcontextlost", this.handleLost);
-    this.canvas.remove();
-    // Browsers limit live WebGL contexts; free this one now instead of at garbage collection.
-    if (!this.gl.isContextLost()) {
-      this.programs.dispose();
-      this.gl.getExtension("WEBGL_lose_context")?.loseContext();
-    }
   }
 
   /** Same z-index, right before it in the document: below the graph layer's canvas, above the layers under it. */
@@ -189,7 +201,14 @@ export class WebGLConnections implements IConnectionBatch {
   }
 
   private handleLost = (event: Event): void => {
+    // Without preventDefault() the browser never restores the context.
     event.preventDefault();
+    this.lost = true;
+    this.stopLoop();
     this.options.onLost();
+  };
+
+  private handleRestored = (): void => {
+    this.options.onRestored();
   };
 }
