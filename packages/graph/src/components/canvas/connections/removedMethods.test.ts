@@ -19,6 +19,13 @@ class Legacy extends BlockConnection<TConnection> {
   }
 }
 
+class Boxed extends BlockConnection<TConnection> {
+  protected collectBBoxPoints(): { x: number; y: number }[] {
+    calls.push("collectBBoxPoints");
+    return [{ x: -9999, y: -9999 }];
+  }
+}
+
 class LegacyChild extends Legacy {
   protected createPath(): void {
     calls.push("createPath");
@@ -28,6 +35,8 @@ class LegacyChild extends Legacy {
     return false;
   }
 }
+
+const graphs: Graph[] = [];
 
 function mount(Connection: typeof BlockConnection, ids: string[]): Graph {
   const root = document.createElement("div");
@@ -46,6 +55,7 @@ function mount(Connection: typeof BlockConnection, ids: string[]): Graph {
   }
   graph.cameraService.set({ width: 1000, height: 800, x: 0, y: 0, scale: 1 });
   graph.start();
+  graphs.push(graph);
   for (let i = 0; i < 3; i++) globalScheduler.performUpdate();
   return graph;
 }
@@ -60,7 +70,9 @@ describe("warnRemovedConnectionMethods", () => {
   });
 
   afterEach(() => {
-    process.env.NODE_ENV = env;
+    graphs.splice(0).forEach((graph) => graph.unmount());
+    if (env === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = env;
     warn.mockRestore();
   });
 
@@ -97,5 +109,19 @@ describe("warnRemovedConnectionMethods", () => {
     class Quiet extends Legacy {}
     mount(Quiet as never, ["a"]);
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("warns about collectBBoxPoints, never calls it and keeps the bounds from the geometry", () => {
+    const graph = mount(Boxed as never, ["a"]);
+    expect(String(warn.mock.calls[0][0])).toContain("overrides collectBBoxPoints");
+    const state = graph.connections.getConnectionState("a");
+    state?.$targetPortState.value.updatePort({ x: 400, y: 200, lookup: false });
+    for (let i = 0; i < 3; i++) globalScheduler.performUpdate();
+    expect(calls).toEqual([]);
+    const view = graph.connections.getConnectionState("a")?.getViewComponent() as unknown as {
+      getPathBounds(): number[] | undefined;
+    };
+    const bounds = view.getPathBounds();
+    expect(bounds && bounds[0]).toBeGreaterThan(-1000);
   });
 });

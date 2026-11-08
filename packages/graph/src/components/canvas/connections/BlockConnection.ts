@@ -246,7 +246,7 @@ export class BlockConnection<T extends TConnection = TConnection>
    * The corners of the line's bounds (`line.getBounds()`) and of `getAfterRenderBounds()`. Updates the label first:
    * `getBBox()` joins it for the hit box and tree culling.
    */
-  protected override collectBBoxPoints(props: TConnectionProps = this.props): TPoint[] {
+  protected override collectBoundsPoints(props: TConnectionProps = this.props): TPoint[] {
     this.updateLabelGeometry(props);
     const points: TPoint[] = [];
     const addCorners = (bounds: TPathBounds | undefined): void => {

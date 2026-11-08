@@ -285,7 +285,7 @@ export class BaseConnection<
     }
 
     // Calculate bounding box from connection points, additional points, and subclass points
-    const points = this.collectBBoxPoints(props);
+    const points = this.collectBoundsPoints(props);
 
     if (additionalPoints) {
       points.push(...additionalPoints);
@@ -298,6 +298,11 @@ export class BaseConnection<
 
     // Update interaction area
     this.updateHitBox();
+  }
+
+  /** The points `updateBounds` boxes; `collectBBoxPoints` by default. */
+  protected collectBoundsPoints(props: Props = this.props): TPoint[] {
+    return this.collectBBoxPoints(props);
   }
 
   /**
