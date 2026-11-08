@@ -78,7 +78,7 @@ parameter (`class MyLine extends Path2DLine<MyConnection>`), so a line can call 
 |---|---|
 | `getStroke(state)` | The connection color (`styles.background` first), width 2, dash from `dashed` and `styles.dashes` (`[6, 4]` without them), with hover and selection applied by `withInteraction()` |
 | `withInteraction(stroke, state)` | Protected helper: a hovered or selected line is 2 units wider and a selected one takes the selection color (`styles.selectedBackground` first); the dash and the effect stay. On a `WebGLLine` only the width changes: the selection color is applied when the line is drawn |
-| `getArrowStroke(state)` | The line's color and width without the dash; a closed arrow is filled with the color. On a `WebGLLine`, the arrow of a selected line takes the selection color |
+| `getArrowStroke(state)` | The line's color and width without the dash; a closed arrow is filled with the color. On a `WebGLLine`, the arrow of a selected line built with `withInteraction()` takes the selection color |
 | `getBounds(geometry)` | Bounds of the geometry's segments (the control-point hull with `EXP_USE_TIGHT_BEZIER_BOUNDS = false`); the component adds the arrow, the label and `getAfterRenderBounds()`, and pads them by half the stroke width for culling (the arrow by half its width times the canvas miter limit) |
 | `hitTest(x, y, threshold)` | See [Hit testing](#hit-testing) |
 
@@ -88,9 +88,10 @@ stroke. A `WebGLLine` applies it when it draws the line: `withInteraction()` cha
 without an effect is drawn in the selection color, and a line with an effect keeps its colors while the effect shows
 hover and selection through `f.hovered`, `f.selected` and `f.selectionColor` (see
 [Hover and selection in effects](#hover-and-selection-in-effects)); an effect that ignores them shows the selection
-by the width only. So `{ ...super.getStroke(state), effect }` keeps the connection's color on a `WebGLLine`, and a
-custom selection color goes in `styles.selectedBackground`. Build a custom look with `withInteraction()` and it
-follows the same rule as the default stroke —
+by the width only. So `{ ...super.getStroke(state), effect }` keeps the connection's color on a `WebGLLine`. Strokes
+built with `withInteraction()`, the default stroke included, get this treatment from the library; a stroke you return
+without it is drawn as it is, and its effect still reads the interaction. Build a custom look with
+`withInteraction()` and it follows the same rule as the default stroke —
 `return this.withInteraction({ color: "#2f7cf6", width: 6, effect: flow.use(input) }, state)`. Returning
 `super.getStroke(state)` for hovered or selected connections would replace the look with the default line.
 
@@ -255,7 +256,7 @@ type TWebGLStroke = TLineStroke & { effect?: TConnectionEffectUse };
 ```
 
 - The arrow is drawn with `getArrowStroke()`, never with the effect: the line's color and width, and the selection
-  color while the line is selected.
+  color while a line built with `withInteraction()` is selected.
 - Dash patterns of up to 4 numbers are drawn as canvas `setLineDash` draws them; an odd-length list is repeated, so
   `[a, b, c]` counts as 6 numbers. A longer pattern draws its first 4 numbers in WebGL, with one development-build
   warning; Path2D, the fallback included, draws all of it.
@@ -597,8 +598,9 @@ class ParticlesConnection extends BlockConnection {
 ### Fallback strokes
 
 While WebGL is unavailable (see [Fallback](#fallback-and-connectionsrenderer)) Path2D draws each WebGL line with its
-effect's `fallback(stroke, params)`, or the stroke without the effect. Nothing animates there. A selected line is drawn
-there in the selection color, with the fallback stroke's width, as Path2D has no effect to show the selection. Give an
+effect's `fallback(stroke, params)`, or the stroke without the effect. Nothing animates there. A selected line built
+with `withInteraction()` is drawn there in the selection color, with the fallback stroke's width, as Path2D has no
+effect to show the selection. Give an
 effect a fallback when its stroke alone looks wrong, such as round particles on a 14 px stroke, which would become a
 solid band:
 

@@ -376,6 +376,9 @@ describe("WebGLLine", () => {
       line.update();
       expect(line.getWebGLShape()?.stroke).toEqual({ color: "#fc0", width: 4, dash: undefined });
       expect(encodedColor(line.getWebGLShape())).toEqual([255, 204, 0, 1]);
+      // The mark of withInteraction() stays on the stroke it returns, not on what the batches draw.
+      expect(Object.getOwnPropertySymbols(line.getStroke({ id: "c", selected: true }))).toHaveLength(1);
+      expect(Object.getOwnPropertySymbols(line.getWebGLShape()?.stroke ?? {})).toEqual([]);
 
       const styles = { selectedBackground: "rgba(255, 0, 0, 0.5)" };
       const styled = new PlainLook(stubConnection(straight, { selected: true, styles, dashed: true }).connection);
@@ -397,6 +400,59 @@ describe("WebGLLine", () => {
       expect(encodedColor(shape)).toEqual([170, 170, 170, 1]);
       expect(shape?.effect).toBe(toConnectionEffect(dashFlow));
       expect(shape?.interaction).toEqual({ hovered: false, selected: true, selectionColor: "#fc0" });
+    });
+
+    /** Handles hover and selection itself: red while selected, blue otherwise; no withInteraction(). */
+    function ownLook(effect?: typeof flow): new (connection: BlockConnection<TConnection>) => WebGLLine {
+      return class OwnLookLine extends WebGLLine {
+        public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+          const look = { color: state.selected ? "#f00" : "#00f", width: 2 };
+          return effect ? { ...look, effect: effect.use([]) } : look;
+        }
+      };
+    }
+
+    it("draws a stroke returned without withInteraction() as it is: line, arrow and fallback", () => {
+      const selected = stubConnection(closedArrowGeometry, { selected: true });
+      const line = new (ownLook())(selected.connection);
+      line.update();
+      expect(line.getWebGLShape()?.stroke).toEqual({ color: "#f00", width: 2 });
+      expect(encodedColor(line.getWebGLShape())).toEqual([255, 0, 0, 1]);
+      expect(line.arrow.getWebGLShape?.()?.stroke).toEqual({ color: "#f00", width: 2 });
+      expect(selected.batch.items.get(line)?.group).toBe("line/#f00/2/");
+      line.style(selected.ctx);
+      expect(selected.ctx.strokeStyle).toBe("#ff0000");
+      line.styleArrow(selected.ctx);
+      expect(selected.ctx.fillStyle).toBe("#ff0000");
+
+      const hovered = new (ownLook())(stubConnection(closedArrowGeometry, { hovered: true }).connection);
+      hovered.update();
+      expect(hovered.getWebGLShape()?.stroke).toEqual({ color: "#00f", width: 2 });
+    });
+
+    it("passes the interaction to the effect of a stroke returned without withInteraction()", () => {
+      const selected = stubConnection(closedArrowGeometry, { selected: true });
+      const line = new (ownLook(widen as unknown as typeof flow))(selected.connection);
+      line.update();
+      const shape = line.getWebGLShape();
+      expect(shape?.stroke).toEqual({ color: "#f00", width: 2 });
+      expect(shape?.interaction).toEqual({ hovered: false, selected: true, selectionColor: "#fc0" });
+      expect(line.arrow.getWebGLShape?.()?.stroke.color).toBe("#f00");
+      // The effect's fallback, as returned: no selection color.
+      line.style(selected.ctx);
+      expect(selected.ctx.strokeStyle).toBe("#ff0000");
+    });
+
+    it("keeps the library's treatment for { ...super.getStroke(state), effect }: arrow and fallback recolor", () => {
+      const selected = stubConnection(closedArrowGeometry, { selected: true });
+      const line = new AddedEffectLine(selected.connection);
+      line.update();
+      // The spread keeps the mark of withInteraction().
+      expect(Object.getOwnPropertySymbols(line.getStroke({ id: "c", selected: true }))).toHaveLength(1);
+      expect(line.getWebGLShape()?.stroke.color).toBe("#aaa");
+      expect(line.arrow.getWebGLShape?.()?.stroke.color).toBe("#fc0");
+      line.style(selected.ctx);
+      expect(selected.ctx.strokeStyle).toBe("#ffcc00");
     });
 
     it("passes the interaction of the state update() reads into the line shape, not the arrow shape", () => {
@@ -423,10 +479,13 @@ describe("WebGLLine", () => {
     });
 
     it("rebuilds the shape when only the interaction changes", () => {
-      const stroke: TWebGLStroke = { color: "#2f7cf6", width: 6 };
+      // One stroke object of withInteraction() for every state: only the interaction tells the states apart.
       class FixedLine extends WebGLLine {
+        private fixed?: TWebGLStroke;
+
         public override getStroke(): TWebGLStroke {
-          return stroke;
+          this.fixed ??= this.withInteraction({ color: "#2f7cf6", width: 6 }, { id: "c" });
+          return this.fixed;
         }
       }
       const { connection } = stubConnection(straight, {}, noArrows);
