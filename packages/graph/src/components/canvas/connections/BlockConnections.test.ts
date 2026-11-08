@@ -415,6 +415,28 @@ describe("BlockConnections renderer from the line class", () => {
     expectCurrentItems(graph, WebGLLine);
   });
 
+  it("waits for the restore of a lost context through a change to another WebGL class", () => {
+    installed = installFakeWebGL2();
+    graph = mount({ connection: GLConnection }, attachedRoot());
+    const [lost] = installed.contexts;
+    const lostCanvas = webglCanvas(lost);
+    lost.loseContext();
+    lostCanvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true }));
+
+    graph.updateSettings({ connection: OtherGLConnection });
+    frames();
+    expect(view(graph, "a")).toBeInstanceOf(OtherGLConnection);
+    expect(rendererOf(graph)).toBe("webgl-fallback");
+    expect(installed.contexts).toHaveLength(1);
+    expect(lostCanvas.isConnected).toBe(true);
+
+    lost.restoreContext();
+    lostCanvas.dispatchEvent(new Event("webglcontextrestored"));
+    frames();
+    expect(rendererOf(graph)).toBe("webgl");
+    expect(installed.contexts).toHaveLength(2);
+  });
+
   it("frees a lost renderer when the connection class switches to Path2D", () => {
     installed = installFakeWebGL2();
     graph = mount({ connection: GLConnection }, attachedRoot());

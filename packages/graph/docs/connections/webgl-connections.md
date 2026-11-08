@@ -47,6 +47,10 @@ class (the `connection` setting), so `graph.updateSettings({ connection })` with
 connection and switches the renderer when the new line's kind differs. Labels are drawn with Canvas2D above every line
 with either renderer.
 
+While the graph is stopped or detached (`graph.stop()`, `graph.detach()`, an unmounted `GraphCanvas`), the WebGL
+canvas leaves the root and nothing animates; the renderer keeps its GL objects and draws on the first frame after the
+graph starts again.
+
 ### When WebGL pays off
 
 Choose `WebGLLine` for effects, dashes and per-connection styles on large graphs, not for plain lines. Measured on
@@ -523,7 +527,7 @@ class GlowConnection extends BlockConnection {
 
 - `extraWidth` is a constant of the effect; a glow size per connection goes through `params`, within `extraWidth`.
 - It changes neither hit testing nor the geometry's bounds: the renderer widens its culling rectangle by the widest
-  `extraWidth` of the effects it draws, so zooming rebuilds no bounds.
+  `extraWidth` of the effects its connections use, so zooming rebuilds no bounds.
 - It costs fragments: at DPR 2, a line 2 CSS pixels wide with `extraWidth: 6` shades a band 15 CSS pixels wide
   instead of 3.
 
@@ -690,9 +694,11 @@ export const pulsingComets = defineConnectionEffect({
 
 A graph of `WebGLLine` connections without WebGL draws its lines with Path2D built from the same geometry, using each
 effect's fallback stroke, with no animation. This happens when WebGL2 is missing, when its setup fails (the library's
-shaders do not compile or link, for example) and when the context is lost; each episode logs one console warning, in
-every build, that names the reason. After `webglcontextrestored` the renderer creates WebGL again; without WebGL2 the
-graph stays on Path2D until the connection class changes. Any change of the connection class tries WebGL again.
+shaders do not compile or link, for example) and when the context is lost, also while the renderer is set up; each
+episode logs one console warning, in every build, that names the reason. Without WebGL2 or after a failed setup, the
+graph stays on Path2D until the connection class changes: any change of the class tries WebGL again. A lost context
+waits for `webglcontextrestored`, then the renderer creates WebGL again; a change to another `WebGLLine` class does not
+retry meanwhile, a change to a `Path2DLine` class frees the lost context.
 
 `graph.getGraphLayer().$connectionsRenderer` is a read-only signal of what draws the lines now:
 
