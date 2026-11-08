@@ -249,6 +249,20 @@ describe("detached connection components", () => {
     expect(far.labelDraws).toBe(0);
   });
 
+  it("are out of the viewport without viewport culling while BlockConnections does not walk them", () => {
+    mountPorts(CountingConnection, [{ id: "edge" }]);
+    graph.updateSettings({ viewportCulling: false });
+    frames(2);
+    const edge = view("edge");
+    expect(edge.isInViewport()).toBe(true);
+    const connections = edge.getParent();
+    if (!connections) throw new Error("Expected BlockConnections");
+    (connections as unknown as { shouldRenderChildren: boolean }).shouldRenderChildren = false;
+    connections.performRender();
+    frames(1);
+    expect(edge.isInViewport()).toBe(false);
+  });
+
   it("call an overridden afterRender for every connection in the viewport", () => {
     class Observed extends CountingConnection {
       public calls = 0;

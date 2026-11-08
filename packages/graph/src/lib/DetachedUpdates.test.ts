@@ -85,6 +85,43 @@ describe("DetachedUpdates", () => {
     expect(log).toEqual(["b"]);
   });
 
+  it("applies a failed entry again when it asks again, like a tree node whose preparation threw", () => {
+    const log: string[] = [];
+    const queue = new DetachedUpdates();
+    let fail = true;
+    const a = entry(() => {
+      if (fail) throw new Error("boom");
+      log.push("a");
+    });
+    queue.enqueue(a);
+    expect(() => queue.flush()).toThrow("boom");
+    // Not retried on its own: a broken update would otherwise throw in every frame.
+    expect(queue.flush()).toBe(false);
+    fail = false;
+    queue.beginFrame();
+    queue.enqueue(a);
+    expect(queue.flush()).toBe(true);
+    expect(log).toEqual(["a"]);
+  });
+
+  it("keeps the order and slots of the entries behind a failed update", () => {
+    const log: string[] = [];
+    const queue = new DetachedUpdates();
+    const a = entry(() => {
+      throw new Error("boom");
+    });
+    const b = entry(() => log.push("b"));
+    const c = entry(() => log.push("c"));
+    const d = entry(() => log.push("d"));
+    for (const item of [a, b, c, d]) queue.enqueue(item);
+    queue.delete(c);
+    expect(() => queue.flush()).toThrow("boom");
+    expect([b.slot, c.slot, d.slot]).toEqual([0, -1, 1]);
+    queue.delete(b);
+    expect(queue.flush()).toBe(true);
+    expect(log).toEqual(["d"]);
+  });
+
   it("clear drops every entry", () => {
     const log: string[] = [];
     const queue = new DetachedUpdates();

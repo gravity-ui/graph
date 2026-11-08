@@ -98,24 +98,24 @@ class Path2DChunk {
     return path;
   });
 
-  public add(item: Path2DRenderInstance) {
+  public add(item: Path2DRenderInstance): void {
     this.items.add(item);
     this.reset();
   }
 
-  public delete(item: Path2DRenderInstance) {
+  public delete(item: Path2DRenderInstance): void {
     this.items.delete(item);
     this.reset();
   }
 
-  public reset() {
+  public reset(): void {
     this.path.reset();
     this.visibleItems.reset();
     this.decoratedItems.reset();
     this.bounds.reset();
   }
 
-  public resetBounds() {
+  public resetBounds(): void {
     this.bounds.reset();
     this.decoratedItems.reset();
   }
@@ -124,7 +124,7 @@ class Path2DChunk {
     ctx: CanvasRenderingContext2D,
     viewport?: TTileRect,
     afterRenderViewport: TTileRect | null | undefined = viewport
-  ) {
+  ): void {
     const visible = this.visibleItems.get();
     if (!visible.length || !intersects(this.bounds.get(), viewport)) return;
 
@@ -152,7 +152,7 @@ class Path2DChunk {
     }
   }
 
-  public get size() {
+  public get size(): number {
     return this.items.size;
   }
 }
@@ -165,7 +165,7 @@ class Path2DGroup {
     this.chunks.push(new Path2DChunk());
   }
 
-  public add(item: Path2DRenderInstance) {
+  public add(item: Path2DRenderInstance): void {
     let lastChunk = this.chunks[this.chunks.length - 1];
     if (lastChunk.size >= this.chunkSize) {
       lastChunk = new Path2DChunk();
@@ -175,7 +175,7 @@ class Path2DGroup {
     this.itemToChunk.set(item, lastChunk);
   }
 
-  public delete(item: Path2DRenderInstance) {
+  public delete(item: Path2DRenderInstance): void {
     const chunk = this.itemToChunk.get(item);
     if (!chunk) return;
     chunk.delete(item);
@@ -186,11 +186,11 @@ class Path2DGroup {
     }
   }
 
-  public reset(item: Path2DRenderInstance) {
+  public reset(item: Path2DRenderInstance): void {
     this.itemToChunk.get(item)?.reset();
   }
 
-  public resetBounds(item: Path2DRenderInstance) {
+  public resetBounds(item: Path2DRenderInstance): void {
     this.itemToChunk.get(item)?.resetBounds();
   }
 
@@ -198,7 +198,7 @@ class Path2DGroup {
     ctx: CanvasRenderingContext2D,
     viewport?: TTileRect,
     afterRenderViewport: TTileRect | null | undefined = viewport
-  ) {
+  ): void {
     for (const chunk of this.chunks) chunk.render(ctx, viewport, afterRenderViewport);
   }
 }
@@ -222,9 +222,9 @@ export class BatchPath2DRenderer {
       }, []);
   });
 
-  protected requestRender = () => this.onChange?.();
+  protected requestRender = (): void => this.onChange?.();
 
-  protected getGroup(zIndex: number, group: string) {
+  protected getGroup(zIndex: number, group: string): Path2DGroup {
     let index = this.indexes.get(zIndex);
     if (!index) {
       index = new Map();
@@ -248,11 +248,11 @@ export class BatchPath2DRenderer {
     ctx: CanvasRenderingContext2D,
     viewport?: TTileRect,
     afterRenderViewport: TTileRect | null | undefined = viewport
-  ) {
+  ): void {
     for (const group of this.orderedPaths.get()) group.render(ctx, viewport, afterRenderViewport);
   }
 
-  public add(item: Path2DRenderInstance, params: { zIndex: number; group: string }) {
+  public add(item: Path2DRenderInstance, params: { zIndex: number; group: string }): void {
     if (this.itemParams.has(item)) {
       this.update(item, params);
       return;
@@ -265,7 +265,7 @@ export class BatchPath2DRenderer {
   }
 
   /** A zIndex or group change moves the item; otherwise only its chunk is rebuilt. */
-  public update(item: Path2DRenderInstance, params: { zIndex: number; group: string }) {
+  public update(item: Path2DRenderInstance, params: { zIndex: number; group: string }): void {
     const prev = this.itemParams.get(item);
     if (prev) {
       if (prev.zIndex === params.zIndex && prev.group === params.group) {
@@ -277,7 +277,7 @@ export class BatchPath2DRenderer {
     this.add(item, params);
   }
 
-  public delete(item: Path2DRenderInstance) {
+  public delete(item: Path2DRenderInstance): void {
     const params = this.itemParams.get(item);
     if (!params) return;
     this.getGroup(params.zIndex, params.group).delete(item);
@@ -287,7 +287,7 @@ export class BatchPath2DRenderer {
   }
 
   /** The item's path, bounds or semantic visibility changed. */
-  public markDirty(item: Path2DRenderInstance) {
+  public markDirty(item: Path2DRenderInstance): void {
     const params = this.itemParams.get(item);
     if (!params) return;
     this.getGroup(params.zIndex, params.group).reset(item);
@@ -295,7 +295,7 @@ export class BatchPath2DRenderer {
   }
 
   /** Only the item's bounds changed, for example a label that grows with zoom; its path is kept. */
-  public markBoundsDirty(item: Path2DRenderInstance) {
+  public markBoundsDirty(item: Path2DRenderInstance): void {
     const params = this.itemParams.get(item);
     if (!params) return;
     this.getGroup(params.zIndex, params.group).resetBounds(item);

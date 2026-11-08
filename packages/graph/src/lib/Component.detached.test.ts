@@ -69,6 +69,19 @@ class Group extends Item {
   }
 }
 
+/** A detached item that passes its value prop to its detached child. */
+class Relay extends Item {
+  protected override propsChanged(next: TItemProps): void {
+    super.propsChanged(next);
+    this.shouldUpdateChildren = true;
+  }
+
+  protected override updateChildren() {
+    const { log, name, value } = this.props;
+    return [Item.create({ log, name: `${name}.1`, value }, { key: "1", ref: "child" })];
+  }
+}
+
 /** Re-requests itself during its own update, then makes its detached parent drop it in the same flush. */
 class Leaf extends Item {
   protected override willIterate(): void {
@@ -102,7 +115,7 @@ class BadGroup extends Item {
   }
 }
 
-type TOwnerProps = { log: TLog; names: string[]; walkChildren?: boolean; Child?: typeof Item };
+type TOwnerProps = { log: TLog; names: string[]; walkChildren?: boolean; Child?: typeof Item; value?: number };
 
 class Owner extends Component<TOwnerProps> {
   public item(name: string): Item {
@@ -123,7 +136,8 @@ class Owner extends Component<TOwnerProps> {
 
   protected override updateChildren() {
     const Child = this.props.Child ?? Item;
-    return this.props.names.map((name) => Child.create({ log: this.props.log, name }, { key: name, ref: name }));
+    const value = this.props.value;
+    return this.props.names.map((name) => Child.create({ log: this.props.log, name, value }, { key: name, ref: name }));
   }
 
   protected override render(): void {
@@ -247,6 +261,49 @@ describe("detached components", () => {
     expect(a.state.value).toBe(2);
     frame();
     expect(a.state.value).toBe(3);
+    frame();
+    expect(a.state.value).toBe(3);
+  });
+
+  it.each([
+    [true, ["owner:prepare", "a:props:2", "a:state:1", "owner:render"]],
+    [false, ["a:state:1", "owner:prepare", "a:props:2", "owner:render"]],
+  ])("apply a reconcile that follows their own change in the same frame (culling: %s)", (culling, expected) => {
+    const { owner, log, frame } = mount({ culling, names: ["a"] });
+    const a = owner.item("a");
+    log.length = 0;
+    // Queued before the frame; the owner reconciles it with new props in the same frame.
+    a.change(1);
+    owner.setProps({ value: 2 });
+    frame();
+    expect(log.filter((entry) => /^(a|owner):/.test(entry))).toEqual(expected);
+    expect(a.props.value).toBe(2);
+  });
+
+  it.each([true, false])(
+    "apply a reconcile by a detached parent that follows their own change in the same frame (culling: %s)",
+    (culling) => {
+      const { owner, log, frame } = mount({ culling, Child: Relay, names: ["r"] });
+      const relay = owner.item("r");
+      const child = relay.$.child;
+      if (!(child instanceof Item)) throw new Error("Expected relay child");
+      log.length = 0;
+      child.change(1);
+      relay.setProps({ value: 2 });
+      frame();
+      expect(log.filter((entry) => entry.startsWith("r.1:"))).toEqual(["r.1:state:1", "r.1:props:2"]);
+      expect(child.props.value).toBe(2);
+    }
+  );
+
+  it("apply their own request again when their parent reconciles them in the same frame without culling", () => {
+    const { owner, frame } = mount({ Child: Echo, names: ["a"], culling: false });
+    const a = owner.item("a");
+    a.change(1);
+    frame();
+    expect(a.state.value).toBe(1);
+    // A reconciliation in the same frame applies the item again, which runs its own request too.
+    owner.setProps({ value: 5 });
     frame();
     expect(a.state.value).toBe(3);
   });
@@ -379,6 +436,16 @@ describe("detached components in the viewport", () => {
     owner.setProps({ walkChildren: false });
     frame();
     expect(log.filter((entry) => /^[ab]:(true|false)$/.test(entry))).toEqual(["a:false", "b:false"]);
+  });
+
+  it("answer from the host's prepared decision while it paints without culling", () => {
+    const { owner, log, frame } = mount({ Owner: Asker, names: ["a"], culling: false });
+    log.length = 0;
+    owner.setProps({ walkChildren: false });
+    frame();
+    owner.setProps({ walkChildren: true });
+    frame();
+    expect(log.filter((entry) => /^a:(true|false)$/.test(entry))).toEqual(["a:false", "a:true"]);
   });
 
   it("check the host's walk once per painted frame", () => {

@@ -41,6 +41,9 @@ export class DetachedUpdates {
    * Applies queued entries in order, including entries queued while it runs. An entry that already applied in this
    * frame stays queued for the next one, like a tree node that asks for an update during its own preparation. A call
    * made while it runs does nothing: the running call reaches new entries. Returns whether any entry applied.
+   *
+   * An entry whose update throws leaves the queue, like a tree node whose preparation threw: it applies again when it
+   * asks again, so a broken update does not throw in every frame. The entries behind it stay queued in order.
    */
   public flush(): boolean {
     if (this.flushing || !this.queue.length) return false;
@@ -64,15 +67,16 @@ export class DetachedUpdates {
         entry.apply();
       }
     } finally {
-      // After a failed update the entries behind it stay queued.
-      const rest = queue.slice(index + 1);
-      queue.length = 0;
-      this.flushing = false;
-      for (const entry of rest) {
+      // After a full pass nothing is behind `index`; after a failed update the entries behind it move to the front.
+      let length = 0;
+      for (let rest = index + 1; rest < queue.length; rest++) {
+        const entry = queue[rest];
         if (!entry) continue;
-        entry.slot = -1;
-        this.enqueue(entry);
+        entry.slot = length;
+        queue[length++] = entry;
       }
+      queue.length = length;
+      this.flushing = false;
       if (deferred) for (const entry of deferred) this.enqueue(entry);
     }
     return applied;

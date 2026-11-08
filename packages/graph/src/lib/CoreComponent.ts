@@ -378,6 +378,9 @@ export class CoreComponent<
         // Each descriptor came from its concrete factory; this is the shared runtime update boundary.
         Reflect.apply(child.setProps, child, [descriptor.props]);
         child.__comp.updated = true;
+        // A reconciliation is new data for this frame: a detached child that already applied in it applies again.
+        // Each reconciliation allows one more application, and a parent reconciles at most once per own preparation.
+        if (child.__comp.detached) child.__comp.detached.appliedFrame = -1;
       } else {
         descriptorsToMount.push({ key, descriptor });
       }

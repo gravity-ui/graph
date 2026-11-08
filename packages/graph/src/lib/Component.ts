@@ -186,6 +186,9 @@ export class Component<
     node.frameVisible = true;
     if (!prepared) this.prepareUpdate();
     this.updatePrepared = false;
+    // Without culling the walk records the children decision only after iterate() returns: record the prepared one now,
+    // so detached children asked while this component paints answer for this frame, as with culling.
+    if (!node.scope) node.setChildrenWalkAllowed(this.shouldRenderChildren);
     // Without culling the tree paints every component: it decides itself, with the geometry it just prepared.
     const inViewport = node.scope ? visible : visible && this.isInViewport();
 

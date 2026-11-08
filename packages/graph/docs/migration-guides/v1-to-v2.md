@@ -998,10 +998,12 @@ A component class can declare `static detached = true`. A detached component is 
 parent creates, updates and unmounts it, and it receives context. The frame does not walk it: it has no place in the
 layer's paint order or culling index and never receives `iterate()`, `render()`, `willRender()`, `didRender()`,
 `willNotRender()`, `didIterate()` or `viewportChanged()`. When its data changes (`setState()`, `setProps()`, context,
-`performRender()`), it is queued, and its layer applies the update once per frame before painting: `checkData()`
+`performRender()`), it is queued, and its layer applies the update before painting: `checkData()`
 (`propsChanged()`, `stateChanged()`), `willIterate()` (`willMount()` on the first update) and its children, which must
 be detached too. A layer with viewport culling applies these updates after preparing its other components; a layer
-without culling applies them before the walk and right after their parent reconciles them.
+without culling applies them before the walk and again right after a parent reconciles detached children. A component
+applies once per frame, and once more after each reconciliation by its parent in that frame; what it requests during
+its own update applies in the next frame.
 
 `BlockConnection` and its subclasses are detached: the `BlockConnections` batch draws their lines, arrows and labels,
 so unchanged connections cost a frame nothing. `BaseConnection` stays in the walk.

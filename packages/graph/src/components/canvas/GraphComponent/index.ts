@@ -372,10 +372,13 @@ export class GraphComponent<
     return !this.hidden;
   }
 
-  /** Without viewport culling, a graph component paints when the camera sees its hit box. */
+  /**
+   * Without viewport culling, a graph component paints when the camera sees its hit box. A detached component also
+   * needs its host to walk its children, as with culling.
+   */
   public override isInViewport(): boolean {
     if (this.isCulledByViewport()) return super.isInViewport();
-    return this.context.camera.isRectVisible(...this.getHitBox());
+    return super.isInViewport() && this.context.camera.isRectVisible(...this.getHitBox());
   }
 
   /** Whether this component can paint now: not hidden and inside the viewport. */

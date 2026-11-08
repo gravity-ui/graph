@@ -449,8 +449,8 @@ The traversal process follows these rules:
 - Children are ordered by z-index for proper rendering layering
 - In a tree without culling, the component's `iterate()` return value controls whether children are processed; a culled tree decides from `prepareUpdate()` and ignores it
 - This allows for efficient partial updates of the tree
-- Detached components (`static detached = true`) are not visited: their queued updates are applied once per frame,
-  after preparation in a culled tree, and before the walk and right after their parent's reconciliation otherwise
+- Detached components (`static detached = true`) are not visited: their queued updates are applied after preparation
+  in a culled tree, and otherwise before the walk and again right after a parent's reconciliation
 
 For detailed flow diagrams showing these processes, see [Component Rendering and Lifecycle Integration](./component-rendering-lifecycle.md).
 

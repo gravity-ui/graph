@@ -126,10 +126,12 @@ Components use several boolean flags to control their behavior:
 A class that declares `static detached = true` is not walked by the frame. It is created, updated and unmounted by
 its parent and receives context, but never `iterate()`, `render()`, `willRender()`, `didRender()`, `willNotRender()`,
 `didIterate()` or `viewportChanged()`. `performRender()` (and so `setState()` / `setProps()`) queues it; the tree
-applies the queue once per frame before painting, running `checkData()`, `willIterate()` (`willMount()` first) and
-the children lifecycle. A component applies at most once per frame: what it requests during its own update applies
-in the next frame. Children of a detached component must be detached; a root cannot be. In development builds a
-detached class with per-frame hooks logs a warning. Connection components (`BlockConnection`) are detached. `EventedComponent` evented areas are registered while painting, so a detached component should not use them: they would never be cleared.
+applies the queue before painting, running `checkData()`, `willIterate()` (`willMount()` first) and the children
+lifecycle: a culled tree after preparing its walked components, a tree without culling before the walk and again
+right after a parent reconciles detached children. A component applies once per frame, and once more after each
+reconciliation by its parent in that frame, so props from a reconciliation are not a frame late; what it requests
+during its own update applies in the next frame. Children of a detached component must be detached; a root cannot
+be. In development builds a detached class with per-frame hooks logs a warning. Connection components (`BlockConnection`) are detached. `EventedComponent` evented areas are registered while painting, so a detached component should not use them: they would never be cleared.
 
 ## Examples
 
