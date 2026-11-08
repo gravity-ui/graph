@@ -1,6 +1,6 @@
 {
   "name": "@gravity-ui/graph",
-  "version": "1.11.3",
+  "version": "2.0.0-next.0",
   "type": "module",
   "packageManager": "pnpm@10.34.5",
   "description": "Modern graph editor component",
