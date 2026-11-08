@@ -53,9 +53,8 @@ class ExternalGeometryConnection extends BlockConnection<TConnection> {
     this.applyShape();
   }
 
-  public override afterRender(ctx: CanvasRenderingContext2D): void {
+  public afterRender(_ctx: CanvasRenderingContext2D): void {
     this.afterRenders++;
-    super.afterRender?.(ctx);
   }
 }
 
@@ -171,14 +170,14 @@ describe("connection geometry and semantic visibility contract", () => {
   it("runs afterRender only for connections in the viewport, even in a drawn chunk", () => {
     mount([
       { id: "a", x: 100, y: 100 },
-      { id: "b", x: 100, y: 5000 },
+      { id: "b", x: 100, y: 900 },
     ]);
     const visible = view("a");
     const offscreen = view("b");
     visible.afterRenders = 0;
     offscreen.afterRenders = 0;
-    // Both share one chunk, which is drawn because "a" is inside the viewport.
-    expect(drawnYs()).toEqual(expect.arrayContaining([100, 5000]));
+    // Both share one cell's chunk, which is drawn because "a" is inside the viewport.
+    expect(drawnYs()).toEqual(expect.arrayContaining([100, 900]));
     expect(visible.afterRenders).toBeGreaterThan(0);
     expect(offscreen.afterRenders).toBe(0);
   });
@@ -186,13 +185,13 @@ describe("connection geometry and semantic visibility contract", () => {
   it("ignores updateGeometry() after the connection unmounts", () => {
     mount([{ id: "a", x: 100, y: 100 }]);
     const connection = view("a");
-    const batch = connection["context"].batch as unknown as { itemParams: Map<unknown, unknown> };
+    const batch = connection["context"].batch;
     const state = graph.connections.getConnectionState("a");
     if (!state) throw new Error("Expected connection a");
     graph.rootStore.connectionsList.deleteConnections([state]);
     frames();
-    expect(batch.itemParams.has(connection)).toBe(false);
+    expect(batch.has(connection)).toBe(false);
     connection.updateGeometry();
-    expect(batch.itemParams.has(connection)).toBe(false);
+    expect(batch.has(connection)).toBe(false);
   });
 });

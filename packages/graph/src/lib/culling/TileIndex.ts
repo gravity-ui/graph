@@ -1,3 +1,5 @@
+import { cellKey, cellX, cellY, toTile } from "./grid";
+
 /** World-space axis-aligned rectangle given by its edges (inclusive). */
 export type TTileRect = {
   minX: number;
@@ -44,25 +46,6 @@ type TRecord<T> = TTileRect & {
 };
 
 type TBuckets<T> = Map<number, TRecord<T>[]>;
-
-/**
- * Tile coordinates are clamped to [-TILE_OFFSET, TILE_OFFSET) so cell keys stay small integers
- * (fast Map keys). Items beyond that range share the border tiles, which stays correct.
- */
-const TILE_OFFSET = 2 ** 14;
-const TILE_STRIDE = 2 ** 15;
-
-function cellKey(tx: number, ty: number): number {
-  return (tx + TILE_OFFSET) * TILE_STRIDE + (ty + TILE_OFFSET);
-}
-
-function cellX(key: number): number {
-  return Math.floor(key / TILE_STRIDE) - TILE_OFFSET;
-}
-
-function cellY(key: number): number {
-  return (key % TILE_STRIDE) - TILE_OFFSET;
-}
 
 function intersects(record: TTileRect, rect: TTileRect): boolean {
   return record.minX <= rect.maxX && record.maxX >= rect.minX && record.minY <= rect.maxY && record.maxY >= rect.minY;
@@ -290,8 +273,7 @@ export class TileIndex<T> {
   }
 
   private toTile(value: number): number {
-    const tile = Math.floor(value / this.tileSize);
-    return Math.max(-TILE_OFFSET, Math.min(TILE_OFFSET - 1, tile));
+    return toTile(value, this.tileSize);
   }
 
   private growExtent(record: TTileRect): void {

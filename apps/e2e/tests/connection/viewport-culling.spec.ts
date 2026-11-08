@@ -12,9 +12,8 @@ for (const kind of ["bezier", "multipoint"] as const) {
       const { Graph, BlockConnection, MultipointConnection } = window.GraphModule;
       class ObservedConnection extends BlockConnection<TConnection> {
         public draws = 0;
-        public override afterRender(ctx: CanvasRenderingContext2D) {
+        public afterRender(_ctx: CanvasRenderingContext2D) {
           this.draws++;
-          super.afterRender?.(ctx);
         }
       }
       class ObservedMultipoint extends MultipointConnection {

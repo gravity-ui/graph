@@ -196,6 +196,9 @@ async function setup(options: {
   scale: number;
   noopCanvas?: boolean;
   shuffle?: boolean;
+  chunkSize?: number;
+  cellTiles?: number;
+  labels?: boolean;
 }) {
   if (options.noopCanvas) {
     const proto = CanvasRenderingContext2D.prototype as unknown as Record<string, unknown>;
@@ -226,7 +229,7 @@ async function setup(options: {
         canDragCamera: true,
         canZoomCamera: true,
         canDrag: ECanDrag.ALL,
-        showConnectionLabels: false,
+        showConnectionLabels: Boolean(options.labels),
         blockComponents: { "block-action": ActionBlock },
         ...settings,
       },
@@ -234,6 +237,15 @@ async function setup(options: {
     root
   );
   state.graph = graph;
+  // Older variants ignore constants they do not know; constants must be set before the first frame builds layers.
+  const connectionConstants: Record<string, number> = {};
+  if (options.chunkSize) connectionConstants.PATH2D_CHUNK_SIZE = options.chunkSize;
+  if (options.cellTiles) connectionConstants.PATH2D_CHUNK_TILES = options.cellTiles;
+  if (Object.keys(connectionConstants).length) {
+    (graph as unknown as { setConstants(patch: { connection: Record<string, number> }): void }).setConstants({
+      connection: connectionConstants,
+    });
+  }
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -307,4 +319,31 @@ async function settle(options: { scale: number }) {
   return state.graph?.cameraService.getCameraState();
 }
 
-(window as unknown as { bench: unknown }).bench = { setup, run, settle };
+/** Counts Path2D fills and strokes (batch chunks) in one frame at the measured view, outside the timed frames. */
+async function count(options: { scale: number }): Promise<{ strokes: number; fills: number }> {
+  const graph = state.graph;
+  if (!graph) throw new Error("setup() first");
+  const proto = CanvasRenderingContext2D.prototype;
+  const { stroke, fill } = proto;
+  const counts = { strokes: 0, fills: 0 };
+  proto.stroke = function (this: CanvasRenderingContext2D, ...args: unknown[]): void {
+    if (args[0] instanceof Path2D) counts.strokes++;
+    Reflect.apply(stroke, this, args);
+  } as unknown as typeof proto.stroke;
+  proto.fill = function (this: CanvasRenderingContext2D, ...args: unknown[]): void {
+    if (args[0] instanceof Path2D) counts.fills++;
+    Reflect.apply(fill, this, args);
+  } as unknown as typeof proto.fill;
+  try {
+    centerAt(options.scale);
+    const previous = state.samples.length;
+    graph.cameraService.move(1, 0);
+    await waitForUpdate(previous);
+  } finally {
+    proto.stroke = stroke;
+    proto.fill = fill;
+  }
+  return counts;
+}
+
+(window as unknown as { bench: unknown }).bench = { setup, run, settle, count };

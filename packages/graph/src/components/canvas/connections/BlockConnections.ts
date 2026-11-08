@@ -11,9 +11,12 @@ import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
 import { BatchPath2DRenderer } from "./BatchPath2D";
 import { BlockConnection, TConnectionProps } from "./BlockConnection";
+import { ConnectionLabelRenderer } from "./Label";
 
 export type TGraphConnectionsContext = TGraphLayerContext & {
   batch: BatchPath2DRenderer;
+  /** Draws connection labels after the batch. */
+  labels: ConnectionLabelRenderer;
   connectionLabelFontSize: ReadonlySignal<number>;
 };
 
@@ -25,6 +28,8 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
   protected readonly unsubscribe: (() => void)[];
 
   protected batch: BatchPath2DRenderer;
+
+  protected labels: ConnectionLabelRenderer;
 
   /** Reused every frame by `getCameraRect()`. */
   private readonly cameraRect: TTileRect = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
@@ -48,13 +53,15 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
 
   constructor(props: {}, parent: Component) {
     super(props, parent);
-    this.batch = new BatchPath2DRenderer(
-      () => this.performRender(),
-      this.context.constants.connection.PATH2D_CHUNK_SIZE || 100
-    );
+    const { PATH2D_CHUNK_SIZE, PATH2D_CHUNK_TILES } = this.context.constants.connection;
+    const chunkSize = PATH2D_CHUNK_SIZE || 200;
+    const cellSize = this.context.constants.system.VISIBILITY_TILE_SIZE * PATH2D_CHUNK_TILES;
+    this.batch = new BatchPath2DRenderer(() => this.performRender(), chunkSize, cellSize);
+    this.labels = new ConnectionLabelRenderer(() => this.performRender(), chunkSize, cellSize);
     this.unsubscribe = this.subscribe();
     this.setContext({
       batch: this.batch,
+      labels: this.labels,
       connectionLabelFontSize: this.connectionLabelFontSize,
     });
   }
@@ -106,11 +113,12 @@ export class BlockConnections extends Component<CoreComponentProps, TComponentSt
   }
 
   protected render(): void {
-    // Lines: the layer's culling viewport (undefined without culling: every chunk is drawn). After-render content such
-    // as labels: the same rectangle, or the camera's without culling, and none while connections are not walked.
+    // Lines: the layer's culling viewport (undefined without culling: every chunk is drawn). Labels: the same
+    // rectangle, or the camera's without culling, and none while connections are not walked.
     const viewport = this.getCullingViewport();
-    const content = this.shouldRenderChildren ? viewport ?? this.getCameraRect() : null;
-    this.batch.render(this.context.ctx, viewport, content);
+    this.batch.render(this.context.ctx, viewport);
+    // Labels follow every line and arrow and precede blocks, which the next layer child draws.
+    if (this.shouldRenderChildren) this.labels.render(this.context.ctx, viewport ?? this.getCameraRect());
   }
 
   /** The camera's world rectangle (the full viewport, insets ignored, like CameraService.isRectVisible). */

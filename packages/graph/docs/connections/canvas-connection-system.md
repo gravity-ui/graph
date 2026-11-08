@@ -322,10 +322,11 @@ function updateConnectionStatus(connectionId: string, status: "active" | "idle" 
 
 You can create custom connection implementations by extending the base connection classes to add specific rendering logic or behavior.
 
-`BlockConnection` and its subclasses are *detached*: the frame does not walk them, and the batch draws their lines,
-arrows and labels. They update when their data changes (`propsChanged`, `stateChanged`, `willIterate`, geometry
-hooks) and never receive `render()` or other per-frame hooks. Draw extra content in `afterRender()`; a subclass that
-must draw every frame declares `static detached = false`. `BaseConnection` subclasses are walked and draw in
+`BlockConnection` and its subclasses are *detached*: the frame does not walk them; the batch draws their lines and
+arrows and the label pass their labels. They update when their data changes (`propsChanged`, `stateChanged`,
+`willIterate`, geometry hooks) and never receive `render()` or other per-frame hooks. Draw labels in
+`renderLabelText()` and other extra content in `afterRender()`; a subclass that must draw every frame declares
+`static detached = false`. `BaseConnection` subclasses are walked and draw in
 `render()`. See [Detached components](../migration-guides/v1-to-v2.md#detached-components-connections-outside-the-frame-walk).
 
 ### Extending BaseConnection
@@ -390,6 +391,11 @@ class CustomPathConnection extends BlockConnection {
 
 ### Custom Labels and Badges
 
+Labels are drawn by the layer's label pass, after every connection line and arrow and before blocks, by z-level
+(labels of selected and hovered connections on top). Each label is culled by its own rectangle (`labelGeometry`), so a
+label can be drawn while its line is outside the viewport. `BlockConnection` does not draw its label in `afterRender`
+anymore: to replace the standard label, override `renderLabelText()`.
+
 Prepare custom label bounds in `updateLabelGeometry()`, then draw in `renderLabelText()`. Call `super.updateLabelGeometry(props)` first to obtain the standard label's current position and size, including zoom and label visibility. This example adds a square status badge before the text:
 
 ```typescript
@@ -433,7 +439,7 @@ graph.updateSettings({ showConnectionLabels: false });
 graph.updateSettings({ showConnectionLabels: true });
 ```
 
-The protected `labelGeometry` describes the combined bounds for culling and hit testing. The base class keeps its own cached paint rectangle, so `super.renderLabelText()` draws only the standard label and does not paint over the badge. Preparing the combined bounds before painting makes them available in the same frame, including when only the badge intersects the viewport.
+The protected `labelGeometry` describes the combined bounds for culling and hit testing. Connection batches do not include it: a connection's batch bounds come from `collectBBoxPoints()` / `bBox` plus the arrow points, not from `getBBox()`, so a subclass that paints extra content in its own `afterRender` must include it via `collectBBoxPoints()`. The line's chunk is culled by the line and the arrow, the label pass by `labelGeometry`. The base class keeps its own cached paint rectangle, so `super.renderLabelText()` draws only the standard label and does not paint over the badge. Preparing the combined bounds before painting makes them available in the same frame, including when only the badge intersects the viewport.
 
 Existing overrides that calculate decoration bounds only inside `renderLabelText()` can still draw their decoration, but cannot make an initially offscreen connection visible through that decoration alone: viewport selection has already happened. Move that calculation to `updateLabelGeometry()` as above; the hook also clears stale decoration geometry when labels are disabled or hidden by zoom.
 

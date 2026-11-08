@@ -157,25 +157,6 @@ describe("detached connection components", () => {
     expect(view("ab").pointUpdates).toBe(1);
   });
 
-  it("call afterRender only while their label is shown", () => {
-    const afterRender = jest.spyOn(
-      BlockConnection.prototype as unknown as { afterRender(ctx: CanvasRenderingContext2D): void },
-      "afterRender"
-    );
-    mountPorts(CountingConnection, [{ id: "labelled", label: "L" }, { id: "plain" }], { showConnectionLabels: true });
-    afterRender.mockClear();
-    graph.getGraphLayer().performRender();
-    frames(1);
-    expect(afterRender.mock.contexts).toEqual([view("labelled")]);
-
-    graph.cameraService.set({ scale: 0.1 });
-    frames(2);
-    afterRender.mockClear();
-    graph.getGraphLayer().performRender();
-    frames(1);
-    expect(afterRender).not.toHaveBeenCalled();
-  });
-
   it("draw the standard label exactly while it is shown", () => {
     class Labelled extends CountingConnection {
       public labelDraws = 0;
@@ -267,9 +248,8 @@ describe("detached connection components", () => {
     class Observed extends CountingConnection {
       public calls = 0;
 
-      public override afterRender(ctx: CanvasRenderingContext2D): void {
+      public afterRender(_ctx: CanvasRenderingContext2D): void {
         this.calls++;
-        super.afterRender?.(ctx);
       }
     }
     mountPorts(Observed, [{ id: "plain" }]);
