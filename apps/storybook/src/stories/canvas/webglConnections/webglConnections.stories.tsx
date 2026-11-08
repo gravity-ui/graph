@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { BlockConnection } from "@gravity-ui/graph";
-import type { Graph, TBlock, TRect } from "@gravity-ui/graph";
+import { BlockConnection, ECanDrag } from "@gravity-ui/graph";
+import type { Graph, TBlock, TConnection, TGraphColorsPatch, TRect } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph, useSignal } from "@gravity-ui/graph-react";
 import { Flex, SegmentedRadioGroup, Slider, Text, ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
@@ -10,6 +10,7 @@ import { generatePrettyBlocks } from "../../configurations/generatePretty";
 import type { TGeneratedGraphConfig } from "../../configurations/generatePretty";
 import { BlockStory } from "../../main/Block";
 
+import { EtlBlockView } from "./EtlBlockView";
 import {
   cometsCode,
   etlCode,
@@ -23,8 +24,9 @@ import {
   stillDashCode,
   stressCode,
 } from "./codeSamples";
-import { etlBlocks, etlConnections, etlFlows, setEtlEffect } from "./etl";
+import { ETL_BLOCK_IS, etlBlocks, etlConnections, etlFlows, isEtlBlock, setEtlEffect } from "./etl";
 import type { TEtlEffect } from "./etl";
+import { EtlBlock } from "./etlBlock";
 import {
   comets,
   dataStyled,
@@ -323,16 +325,37 @@ const etlEffects: (TOption & { value: TEtlEffect; slider?: TSlider })[] = [
   { value: "plain", content: "Plain" },
 ];
 
-type TEtlGraphViewProps = { renderer: TRenderer; effect: TEtlEffect };
+type TEtlEntities = { blocks: TBlock[]; connections: TConnection[] };
+
+/** White stage cards; the selection keeps the theme color. */
+const etlViewConfiguration: { colors: TGraphColorsPatch } = {
+  colors: { block: { background: "#ffffff", border: "#d9dce1", text: "#1f2329" } },
+};
+
+type TEtlGraphViewProps = {
+  renderer: TRenderer;
+  effect: TEtlEffect;
+  entities: TEtlEntities;
+  graphRef: React.MutableRefObject<Graph | null>;
+};
 
 /** One graph per renderer; the effect changes at runtime: the lines read it again with invalidateLine(). */
-const EtlGraphView = ({ renderer, effect }: TEtlGraphViewProps): React.JSX.Element => {
-  const { graph, setEntities, setSettings, start, zoomTo } = useGraph({});
+const EtlGraphView = ({ renderer, effect, entities, graphRef }: TEtlGraphViewProps): React.JSX.Element => {
+  const { graph, setEntities, setSettings, start, zoomTo } = useGraph({ viewConfiguration: etlViewConfiguration });
   const actual = useSignal(graph.getGraphLayer().$connectionsRenderer);
 
   useEffect(() => {
+    graphRef.current = graph;
+  }, [graph, graphRef]);
+
+  // Settings go first so the stages and the flows are created with the custom classes.
+  useEffect(() => {
     setSettings({
       connection: renderer === "webgl" ? etlConnections.webgl : etlConnections.canvas,
+      blockComponents: { [ETL_BLOCK_IS]: EtlBlock },
+      canDrag: ECanDrag.ALL,
+      canDragCamera: true,
+      canZoomCamera: true,
       showConnectionLabels: false,
       useBezierConnections: true,
       showConnectionArrows: true,
@@ -340,10 +363,10 @@ const EtlGraphView = ({ renderer, effect }: TEtlGraphViewProps): React.JSX.Eleme
   }, [setSettings, renderer]);
 
   useEffect(() => {
-    setEntities({ blocks: etlBlocks, connections: etlFlows });
+    setEntities(entities);
     start();
     zoomTo("center", { padding: 100 });
-  }, [setEntities, start, zoomTo]);
+  }, [setEntities, start, zoomTo, entities]);
 
   // The camera and the selection stay: only the lines are read again.
   useEffect(() => {
@@ -353,9 +376,12 @@ const EtlGraphView = ({ renderer, effect }: TEtlGraphViewProps): React.JSX.Eleme
     }
   }, [graph, effect]);
 
-  const renderBlock = (graphInstance: Graph, block: TBlock): React.JSX.Element => (
-    <BlockStory graph={graphInstance} block={block} />
-  );
+  const renderBlock = (graphInstance: Graph, block: TBlock): React.JSX.Element =>
+    isEtlBlock(block) ? (
+      <EtlBlockView graph={graphInstance} block={block} />
+    ) : (
+      <BlockStory graph={graphInstance} block={block} />
+    );
 
   return (
     <>
@@ -370,7 +396,21 @@ const EtlGraphView = ({ renderer, effect }: TEtlGraphViewProps): React.JSX.Eleme
 const EtlApp = (): React.JSX.Element => {
   const [effect, setEffect] = useState<TEtlEffect>("comets");
   const [renderer, setRenderer] = useState<TRenderer>("webgl");
+  const [entities, setEntities] = useState<TEtlEntities>({ blocks: etlBlocks, connections: etlFlows });
+  const graphRef = useRef<Graph | null>(null);
   const selected = etlEffects.find((option) => option.value === effect) ?? etlEffects[0];
+
+  // The other renderer opens a new graph: it takes the moved stages and their statuses from the current one.
+  const switchRenderer = (next: TRenderer): void => {
+    const graph = graphRef.current;
+    if (graph) {
+      setEntities({
+        blocks: graph.rootStore.blocksList.toJSON(),
+        connections: graph.rootStore.connectionsList.toJSON(),
+      });
+    }
+    setRenderer(next);
+  };
 
   return (
     <ThemeProvider theme="light">
@@ -379,14 +419,16 @@ const EtlApp = (): React.JSX.Element => {
           <Text variant="header-1">ETL pipeline</Text>
           <Text variant="body-1">
             A typical ETL process: data moves from sources through extract, validation and cleaning, transforms and
-            loads to the consumers. The selector swaps the effect of every running flow at runtime through
-            invalidateLine(); the graph, the camera and the selection stay. Failed (red dash) and idle (thin grey) flows
-            keep their own look. Speed, spacing and width follow the volume of the flow. Click a connection to see the
-            selection look of the effect.
+            loads to the consumers. Each stage has a status; a flow takes its status from its stages: into a failed
+            stage it is a red dash, out of a failed, paused or idle stage a thin grey line, otherwise it runs with the
+            selected effect. Zoom in for the stage cards: Run, Pause and Retry change the status of the stage and the
+            flows follow. Drag the stages to move them. The selector swaps the effect of every running flow at runtime
+            through invalidateLine(); the graph, the camera and the selection stay. Speed, spacing and width follow the
+            volume of the flow. Click a connection to see the selection look of the effect.
           </Text>
           <pre style={{ margin: 0, fontSize: 12, maxHeight: 180, overflow: "auto" }}>{etlCode}</pre>
           <Flex alignItems="center" gap={4} wrap>
-            <SegmentedRadioGroup options={renderers} value={renderer} onUpdate={setRenderer} />
+            <SegmentedRadioGroup options={renderers} value={renderer} onUpdate={switchRenderer} />
             <SegmentedRadioGroup
               options={etlEffects}
               value={effect}
@@ -402,7 +444,7 @@ const EtlApp = (): React.JSX.Element => {
           {selected.slider && <UniformSlider key={selected.value} {...selected.slider} />}
         </Flex>
         <div style={{ flex: 1, minHeight: 400, position: "relative" }}>
-          <EtlGraphView key={renderer} renderer={renderer} effect={effect} />
+          <EtlGraphView key={renderer} renderer={renderer} effect={effect} entities={entities} graphRef={graphRef} />
         </div>
       </Flex>
     </ThemeProvider>
@@ -415,7 +457,7 @@ EtlPipeline.parameters = {
   docs: {
     description: {
       story:
-        "A line reads the selected effect from a module variable in `getStroke()`; on change the story calls `invalidateLine()` on every connection view. Failed and idle flows ignore the effect.",
+        "A line reads the selected effect from a module variable in `getStroke()`; on change the story calls `invalidateLine()` on every connection view. A flow takes its `status` from its stages; the stage actions update the block with `graph.api.updateBlock()` and the touching flows with `graph.api.updateConnection()`, and the lines follow the connection state. Failed and idle flows ignore the effect. The stages are an `EtlBlock` canvas block for every zoom level and an `EtlBlockView` React card when zoomed in; `canDrag: ECanDrag.ALL` makes them draggable.",
     },
   },
 };

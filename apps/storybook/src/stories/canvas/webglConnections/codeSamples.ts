@@ -204,10 +204,12 @@ class GlowConnection extends BlockConnection {
 }
 // glow.uniforms.intensity.value = 1; // the slider does this`;
 
-export const etlCode = `import { BlockConnection, WebGLLine, dashFlow, pulse } from "@gravity-ui/graph";
-import type { Graph, TBaseConnectionState, TWebGLStroke } from "@gravity-ui/graph";
+export const etlCode = `import { BlockConnection, ECanDrag, WebGLLine, dashFlow, pulse } from "@gravity-ui/graph";
+import type { Graph, TBaseConnectionState, TBlock, TBlockId, TConnection, TWebGLStroke } from "@gravity-ui/graph";
 
-type TFlow = { volume: number; status: "running" | "idle" | "failed" };
+type TStageStatus = "running" | "succeeded" | "idle" | "paused" | "failed";
+type TStage = TBlock & { status: TStageStatus };
+type TFlow = TConnection & { volume: number; status: "running" | "idle" | "failed" };
 
 // The look depends on data outside the connection's store: the selected effect
 let flowEffect: "comets" | "pulse" | "plain" = "comets";
@@ -236,12 +238,39 @@ class FlowConnection extends BlockConnection {
   public static override line = FlowLine;
 }
 
-// graph.setSettings({ connection: FlowConnection });
+function setupGraph(graph: Graph): void {
+  // the stages can be dragged; the flows follow them
+  graph.updateSettings({ connection: FlowConnection, canDrag: ECanDrag.ALL });
+}
+
 // On change, every connection reads its line again:
 function setFlowEffect(graph: Graph, next: typeof flowEffect): void {
   flowEffect = next;
   for (const state of graph.rootStore.connectionsList.$connections.value) {
     const view = state.getViewComponent();
     if (view instanceof BlockConnection) view.invalidateLine();
+  }
+}
+
+// A flow takes its status from its stages
+function flowStatus(source: TStageStatus, target: TStageStatus): TFlow["status"] {
+  if (target === "failed") return "failed";
+  if (source === "failed" || source === "paused" || source === "idle") return "idle";
+  return "running";
+}
+
+function stageStatus(graph: Graph, id: TBlockId | undefined): TStageStatus {
+  const stage = id === undefined ? undefined : (graph.api.getBlockById(id) as TStage | undefined);
+  return stage?.status ?? "idle";
+}
+
+// Run, Pause, Retry: the stage and the flows touching it; the lines follow the connection state
+function setStageStatus(graph: Graph, id: TBlockId, status: TStageStatus): void {
+  const stage: Pick<TStage, "id" | "status"> = { id, status };
+  graph.api.updateBlock(stage);
+  for (const flow of graph.rootStore.blocksList.getBlockConnections(id)) {
+    const source = stageStatus(graph, flow.sourceBlockId);
+    const update: Partial<TFlow> = { status: flowStatus(source, stageStatus(graph, flow.targetBlockId)) };
+    graph.api.updateConnection(flow.id, update);
   }
 }`;
