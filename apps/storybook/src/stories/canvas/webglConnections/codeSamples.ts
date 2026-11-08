@@ -13,7 +13,7 @@ const hashHelper = `function hashId(id: string | number | undefined): number {
 export const runningDashCode = `${imports("BlockConnection, WebGLLine, dashFlow")}
 class RunningDashLine extends WebGLLine {
   public override getStroke(state: TBaseConnectionState): TWebGLStroke {
-    // dashFlow draws the dash itself, so the stroke has no \`dash\`; hover and selection change only color and width
+    // dashFlow draws the dash itself, so the stroke has no \`dash\`; selected, it fills the gaps with the selection color
     const effect = dashFlow.use({ pattern: [12, 8], speed: 40 });
     return this.withInteraction({ color: "#4e79a7", width: 2, effect }, state);
   }
@@ -31,7 +31,7 @@ ${hashHelper}
 class DataStyledLine extends WebGLLine {
   public override getStroke(state: TBaseConnectionState): TWebGLStroke {
     const hash = hashId(this.connection.props.id);
-    // the selected color and 2 units more width on hover and selection, as for the default stroke
+    // without an effect: the selection color and 2 units more width on hover and selection, as for the default stroke
     return this.withInteraction({ color: palette[hash % palette.length], width: 1 + (hash % 4) }, state);
   }
 }
@@ -58,7 +58,7 @@ export const pipelineCode = `${imports("BlockConnection, WebGLLine, dashFlow, pu
 ${hashHelper}
 class PipelineLine extends WebGLLine {
   public override getStroke(state: TBaseConnectionState): TWebGLStroke {
-    // hover and selection change only the color and the width: the comets, the wave and the dash stay
+    // the comets, the wave and the dash stay on hover and selection; dashFlow and pulse show the selection color
     return this.withInteraction(this.look(), state);
   }
 
@@ -126,7 +126,12 @@ const particles = defineConnectionEffect({
     float offset = mod(f.along - f.time * f.params0.y * u_speed, f.params0.x) - f.params0.x * 0.5;
     float dist = length(vec2(offset * f.scale, f.across));
     float particle = 1.0 - smoothstep(f.halfWidth - 1.0, f.halfWidth, dist);
-    return vec4(color.rgb, color.a * max(particle, 0.12));
+    // the trace: faint in the line's color; selected, the selection color
+    vec4 trace = f.selected > 0.5
+      ? vec4(f.selectionColor.rgb, f.selectionColor.a * 0.6)
+      : vec4(color.rgb, color.a * 0.12);
+    vec3 dotColor = mix(color.rgb, vec3(1.0), 0.2 * f.selected); // a little brighter while selected
+    return mix(trace, vec4(dotColor, 1.0), color.a * particle);
   }\`,
   encode: ({ spacing, speed }: { spacing: number; speed: number }) => [spacing, speed],
 });
@@ -146,28 +151,21 @@ export const gradientCode = `${imports("BlockConnection, WebGLLine, defineConnec
 const gradient = defineConnectionEffect({
   animated: true,
   fragment: \`vec4 effect(ConnectionFragment f, vec4 color) {
-    // params1.w mixes in the stroke color: 1 while selected, so the selection color shows
-    vec3 rgb = mix(mix(f.params0.rgb, f.params1.rgb, f.t), color.rgb, f.params1.w);
+    vec3 rgb = mix(f.params0.rgb, f.params1.rgb, f.t);
     float band = smoothstep(0.8, 1.0, fract(f.t - f.time * f.params0.w));
-    return vec4(rgb, color.a * mix(0.35, 1.0, band));
+    vec4 inside = vec4(rgb, color.a * mix(0.35, 1.0, band));
+    // selected: a border in the selection color, the outer 1.5 CSS pixels of each side
+    float edge = f.halfWidth - min(1.5, f.halfWidth * 0.5);
+    float border = f.selected * smoothstep(edge - 0.5, edge, abs(f.across));
+    return mix(inside, f.selectionColor, border);
   }\`,
-  encode: ({ from, to, laps, tint = false }: { from: readonly number[]; to: readonly number[]; laps: number; tint?: boolean }) => [
-    ...from,
-    laps,
-    ...to,
-    tint ? 1 : 0,
-  ],
-  fallback: (stroke) => stroke, // Path2D draws the plain stroke while WebGL is unavailable
+  encode: ({ from, to, laps }: { from: readonly number[]; to: readonly number[]; laps: number }) => [...from, laps, ...to],
+  fallback: (stroke) => stroke, // Path2D draws the plain stroke while WebGL is unavailable, in the selection color when selected
 });
 
 class GradientLine extends WebGLLine {
   public override getStroke(state: TBaseConnectionState): TWebGLStroke {
-    const effect = gradient.use({
-      from: [0.18, 0.49, 0.96],
-      to: [0.95, 0.56, 0.17],
-      laps: 0.3,
-      tint: Boolean(state.selected),
-    });
+    const effect = gradient.use({ from: [0.18, 0.49, 0.96], to: [0.95, 0.56, 0.17], laps: 0.3 });
     return this.withInteraction({ color: "#7a8aa6", width: 6, effect }, state);
   }
 }
@@ -181,8 +179,12 @@ const glow = defineConnectionEffect({
   uniforms: { intensity: { type: "float", value: 0.6 } },
   fragment: \`vec4 effect(ConnectionFragment f, vec4 color) {
     float outside = max(abs(f.across) - f.halfWidth, 0.0) / f.extraWidth;
-    float glowAlpha = u_intensity * pow(1.0 - clamp(outside, 0.0, 1.0), 2.0);
-    return mix(vec4(color.rgb, color.a * glowAlpha), color, f.coverage);
+    float falloff = pow(1.0 - clamp(outside, 0.0, 1.0), 2.0);
+    // selected: the halo takes the selection color, stronger; the line keeps its color
+    vec4 halo = f.selected > 0.5
+      ? vec4(f.selectionColor.rgb, f.selectionColor.a * min(u_intensity + 0.4, 1.0) * falloff)
+      : vec4(color.rgb, color.a * u_intensity * falloff);
+    return mix(halo, color, f.coverage);
   }\`,
   fallback: (stroke) => stroke,
 });
