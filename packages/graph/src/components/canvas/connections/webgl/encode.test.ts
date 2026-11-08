@@ -1,49 +1,74 @@
-import type { TConnectionAppearance } from "./encode";
-import { INSTANCE_FLOATS, countSegments, encodeAppearances } from "./encode";
+import type { TLineStroke, TWebGLShape } from "../lines/types";
 
-const curve = (segments: number[], dash?: { pattern: number[]; speed?: number }): TConnectionAppearance => ({
-  kind: "curve",
+import { INSTANCE_FLOATS, countPieces, encodeShapes } from "./encode";
+
+const shape = (segments: number[], stroke: Partial<TLineStroke> = {}): TWebGLShape => ({
   segments: new Float32Array(segments),
-  stroke: { color: "#ff8000", width: 3, dash },
+  stroke: { color: "#ff8000", width: 3, ...stroke },
 });
 
-test("writes one instance per cubic segment with color, stroke and running distance", () => {
-  const appearances = [
-    curve([0, 0, 10, 0, 20, 0, 30, 0]),
-    curve([0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60], { pattern: [6, 4], speed: 20 }),
-  ];
-  expect(countSegments(appearances)).toBe(3);
-  const out = new Float32Array(3 * INSTANCE_FLOATS);
-  expect(encodeAppearances(appearances, out)).toBe(3);
+function instance(out: Float32Array, index: number): number[] {
+  return Array.from(out.subarray(index * INSTANCE_FLOATS, (index + 1) * INSTANCE_FLOATS));
+}
 
-  const first = Array.from(out.subarray(0, INSTANCE_FLOATS));
+test("an instance is 26 floats", () => {
+  expect(INSTANCE_FLOATS).toBe(26);
+});
+
+test("writes one instance per cubic with the stroke: color, width, dash on and off, connection length", () => {
+  const shapes = [
+    shape([0, 0, 10, 0, 20, 0, 30, 0]),
+    shape([0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60], {
+      color: "rgba(0, 0, 255, 0.5)",
+      dash: { pattern: [6, 4] },
+    }),
+  ];
+  expect(countPieces(shapes)).toBe(3);
+  const out = new Float32Array(3 * INSTANCE_FLOATS);
+  expect(encodeShapes(shapes, out)).toBe(3);
+
+  const first = instance(out, 0);
   expect(first.slice(0, 8)).toEqual([0, 0, 10, 0, 20, 0, 30, 0]);
+  // Straight rgba in 0..1.
   expect(first.slice(8, 12).map((value) => Math.round(value * 255))).toEqual([255, 128, 0, 255]);
-  expect(first.slice(12, 16)).toEqual([3, 0, 0, 0]);
+  // Width, no dash, the connection is 30 long.
+  expect(first.slice(12, 16)).toEqual([3, 0, 0, 30]);
   expect(first.slice(16, 18)).toEqual([0, 30]);
 
-  const third = Array.from(out.subarray(2 * INSTANCE_FLOATS, 3 * INSTANCE_FLOATS));
-  expect(third.slice(12, 16)).toEqual([3, 6, 4, 20]);
-  // The dash continues across segments of one connection: the second segment starts where the first ended.
-  expect(third.slice(16, 18)).toEqual([30, 30]);
-  // No fading dash; the connection is 30 long; no pulse.
-  expect(first.slice(18, 24)).toEqual([0, 30, 0, 0, 0, 0]);
+  const second = instance(out, 1);
+  expect(second.slice(8, 12)).toEqual([0, 0, 1, 0.5]);
+  // Two 30-unit segments: one connection of 60, repeated in both instances.
+  expect(second.slice(12, 16)).toEqual([3, 6, 4, 60]);
+  expect(instance(out, 2).slice(12, 16)).toEqual([3, 6, 4, 60]);
 });
 
-test("writes the dash fade and the pulse after the distance", () => {
-  const appearance: TConnectionAppearance = {
-    kind: "curve",
-    segments: new Float32Array([0, 0, 10, 0, 20, 0, 30, 0]),
-    stroke: {
-      color: "#ff8000",
-      width: 3,
-      dash: { pattern: [40, 120], speed: -90, fade: true },
-      pulse: { period: 2, wavelength: 3000 },
-    },
-  };
+test("a one-number dash pattern draws equal dashes and gaps", () => {
   const out = new Float32Array(INSTANCE_FLOATS);
-  expect(encodeAppearances([appearance], out)).toBe(1);
-  expect(Array.from(out.subarray(12, 24))).toEqual([3, 40, 120, -90, 0, 30, 1, 30, 2, 3000, 0, 0]);
+  encodeShapes([shape([0, 0, 10, 0, 20, 0, 30, 0], { dash: { pattern: [5] } })], out);
+  expect(Array.from(out.subarray(13, 15))).toEqual([5, 5]);
+});
+
+test("distances run on across the segments of one shape and start again with the next shape", () => {
+  const shapes = [shape([0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60]), shape([0, 0, 10, 0, 20, 0, 30, 0])];
+  const out = new Float32Array(3 * INSTANCE_FLOATS);
+  encodeShapes(shapes, out);
+  expect(instance(out, 0).slice(16, 18)).toEqual([0, 30]);
+  // The second segment starts where the first ended.
+  expect(instance(out, 1).slice(16, 18)).toEqual([30, 30]);
+  expect(instance(out, 2).slice(16, 18)).toEqual([0, 30]);
+});
+
+test("leaves the effect params at zero", () => {
+  const out = new Float32Array(2 * INSTANCE_FLOATS).fill(9);
+  encodeShapes([shape([0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60])], out);
+  expect(instance(out, 0).slice(18, 26)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+  expect(instance(out, 1).slice(18, 26)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+});
+
+test("a shape without segments writes nothing", () => {
+  const shapes = [shape([])];
+  expect(countPieces(shapes)).toBe(0);
+  expect(encodeShapes(shapes, new Float32Array(0))).toBe(0);
 });
 
 function cubicAt(s: ArrayLike<number>, o: number, t: number): [number, number] {
@@ -58,14 +83,15 @@ function cubicAt(s: ArrayLike<number>, o: number, t: number): [number, number] {
   ];
 }
 
-test("splits a strongly curved cubic into continuous pieces that follow it", () => {
+test("splits a strongly curved cubic into continuous pieces that follow it, with one connection length", () => {
   const segments = [0, 0, 0, 3000, 100, -3000, 100, 0];
-  const appearances = [curve(segments)];
-  const count = countSegments(appearances);
+  const shapes = [shape(segments)];
+  const count = countPieces(shapes);
   expect(count).toBeGreaterThan(1);
   const out = new Float32Array(count * INSTANCE_FLOATS);
-  expect(encodeAppearances(appearances, out)).toBe(count);
+  expect(encodeShapes(shapes, out)).toBe(count);
 
+  let total = 0;
   for (let k = 0; k < count; k++) {
     const base = k * INSTANCE_FLOATS;
     // Each piece is the original cubic over [k / count, (k + 1) / count].
@@ -79,5 +105,8 @@ test("splits a strongly curved cubic into continuous pieces that follow it", () 
       const previous = (k - 1) * INSTANCE_FLOATS;
       expect(out[base + 16]).toBeCloseTo(out[previous + 16] + out[previous + 17], 2);
     }
+    total += out[base + 17];
   }
+  // Every piece carries the whole connection's length: the sum of the piece lengths.
+  for (let k = 0; k < count; k++) expect(out[k * INSTANCE_FLOATS + 15]).toBeCloseTo(total, 1);
 });

@@ -1,106 +1,125 @@
+import { createFakeGL } from "./fakeGL";
+import type { TFakeProgram } from "./fakeGL";
 import { ConnectionPrograms } from "./programs";
+import { FILL_FRAGMENT, FILL_VERTEX, VERTEX, createFragmentShader } from "./shaders";
 
-type TFakeProgram = { id: number; fragment?: string };
+const frame = { width: 100, height: 50, x: 3, y: 4, scale: 0.5, dpr: 2, time: 1.5 };
+const IDENTITY = "vec4 effect(ConnectionFragment f, vec4 color) { return color; }";
 
-/** The calls ConnectionPrograms makes; a fragment containing BROKEN fails to compile. */
-function createFakeGL() {
-  let ids = 0;
-  const used: TFakeProgram[] = [];
-  const uniforms: Array<[TFakeProgram | undefined, string]> = [];
-  let current: TFakeProgram | undefined;
-  const gl = {
-    VERTEX_SHADER: 1,
-    FRAGMENT_SHADER: 2,
-    COMPILE_STATUS: 3,
-    LINK_STATUS: 4,
-    createShader: (type: number) => ({ type, source: "" }),
-    shaderSource: (shader: { source: string }, source: string) => {
-      shader.source = source;
-    },
-    compileShader: () => undefined,
-    getShaderParameter: (shader: { source: string }) => !shader.source.includes("BROKEN"),
-    getShaderInfoLog: () => "ERROR: 0:1: 'BROKEN' : syntax error",
-    deleteShader: () => undefined,
-    createProgram: (): TFakeProgram => ({ id: ++ids }),
-    attachShader: (program: TFakeProgram, shader: { type: number; source: string }) => {
-      if (shader.type === 2) program.fragment = shader.source;
-    },
-    detachShader: () => undefined,
-    linkProgram: () => undefined,
-    getProgramParameter: () => true,
-    getUniformLocation: (_program: TFakeProgram, name: string) => name,
-    useProgram: (program: TFakeProgram) => {
-      current = program;
-      used.push(program);
-    },
-    uniform2f: (location: string) => uniforms.push([current, location]),
-    uniform3f: (location: string) => uniforms.push([current, location]),
-    uniform1f: (location: string) => uniforms.push([current, location]),
-    deleteProgram: () => undefined,
-  };
-  return { gl: gl as unknown as WebGL2RenderingContext, used, uniforms };
+/** Names of the attributes, varyings, outputs and uniforms a shader declares. */
+function declaredNames(source: string): string[] {
+  const names: string[] = [];
+  const pattern = /^\s*(?:layout\s*\([^)]*\)\s*)?(?:flat\s+)?(?:in|out|uniform)\s+(?:\w+\s+)?\w+\s+(\w+)\s*;/gm;
+  for (const match of source.matchAll(pattern)) names.push(match[1]);
+  return names;
 }
 
-const frame = { width: 100, height: 100, x: 0, y: 0, scale: 1, dpr: 2, time: 0 };
-const glow = { name: "glow", fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }" };
+describe("connection shaders", () => {
+  const sources = {
+    vertex: VERTEX,
+    fragment: createFragmentShader(),
+    fillVertex: FILL_VERTEX,
+    fillFragment: FILL_FRAGMENT,
+  };
+
+  it("versions the fragment contract and defines ConnectionFragment with extraWidth and coverage", () => {
+    const shader = createFragmentShader();
+    expect(shader.startsWith("#version 300 es\n")).toBe(true);
+    expect(shader).toContain("#define GRAPH_CONNECTION_FRAGMENT 1");
+    expect(shader).toContain("struct ConnectionFragment");
+    expect(shader).toContain("float extraWidth;");
+    expect(shader).toContain("float coverage;");
+  });
+
+  it("uses the identity effect without an effect and inserts an effect before main()", () => {
+    expect(createFragmentShader()).toContain(IDENTITY);
+    const source = "vec4 effect(ConnectionFragment f, vec4 color) { return color * f.t; }";
+    const shader = createFragmentShader(source);
+    expect(shader.startsWith("#version 300 es\n")).toBe(true);
+    expect(shader).not.toContain(IDENTITY);
+    expect(shader).toContain(source);
+    // After the struct it reads, before main(), which calls it.
+    expect(shader.indexOf("struct ConnectionFragment")).toBeLessThan(shader.indexOf(source));
+    expect(shader.indexOf(source)).toBeLessThan(shader.indexOf("void main()"));
+  });
+
+  it.each(Object.entries(sources))("%s: internal names take the graph_ prefix", (_name, source) => {
+    expect(source).not.toMatch(/\b[aiuv]_[a-zA-Z]/);
+    const names = declaredNames(source);
+    expect(names.length).toBeGreaterThan(0);
+    for (const name of names) expect(name).toMatch(/^graph_/);
+  });
+
+  it("the line shaders read the frame uniforms and the extra width", () => {
+    expect(declaredNames(VERTEX)).toEqual(
+      expect.arrayContaining(["graph_viewport", "graph_camera", "graph_dpr", "graph_extraWidth"])
+    );
+    expect(declaredNames(createFragmentShader())).toEqual(
+      expect.arrayContaining(["graph_camera", "graph_dpr", "graph_time", "graph_extraWidth"])
+    );
+  });
+});
 
 describe("ConnectionPrograms", () => {
-  let error: jest.SpyInstance;
-
-  beforeEach(() => {
-    error = jest.spyOn(console, "error").mockImplementation(() => undefined);
+  it("compiles the line and fill programs and looks uniforms up by their graph_ names", () => {
+    const fake = createFakeGL();
+    expect(new ConnectionPrograms(fake.gl)).toBeInstanceOf(ConnectionPrograms);
+    expect(fake.programs).toHaveLength(2);
+    expect(fake.programs.every((program) => program.linked)).toBe(true);
+    expect(fake.uniformLookups).toEqual(
+      expect.arrayContaining(["graph_viewport", "graph_camera", "graph_dpr", "graph_time", "graph_extraWidth"])
+    );
+    for (const name of fake.uniformLookups) expect(name).toMatch(/^graph_/);
   });
 
-  afterEach(() => {
-    error.mockRestore();
-  });
-
-  it("compiles an effect on first use and sets each program's frame uniforms once per frame", () => {
-    const { gl, used, uniforms } = createFakeGL();
-    const programs = new ConnectionPrograms(gl);
-    programs.setEffects([glow]);
+  it("sets each program's frame uniforms once per frame, the extra width at zero", () => {
+    const fake = createFakeGL();
+    const programs = new ConnectionPrograms(fake.gl);
     programs.beginFrame(frame);
-    programs.use(undefined);
-    programs.use("glow");
-    programs.use("glow");
-    programs.use(undefined);
-    expect(used.map((program) => program.fragment?.includes("#define CONNECTION_EFFECT"))).toEqual([
-      false,
-      true,
-      false,
-    ]);
-    // Four uniforms for each of the two programs, not again on reuse within the frame.
-    expect(uniforms).toHaveLength(8);
-    programs.beginFrame(frame);
-    programs.use("glow");
-    expect(uniforms).toHaveLength(12);
+    programs.use();
+    programs.use();
+    programs.useFill();
+    programs.use();
+
+    const [line, fill] = fake.programs;
+    // A program is bound only when another one is.
+    expect(fake.used).toEqual([line, fill, line]);
+    const of = (program: TFakeProgram): Record<string, number[]> =>
+      Object.fromEntries(fake.uniforms.filter((u) => u.program === program).map((u) => [u.name, u.values]));
+    expect(of(line)).toEqual({
+      graph_viewport: [100, 50],
+      graph_camera: [3, 4, 0.5],
+      graph_dpr: [2],
+      graph_time: [1.5],
+      graph_extraWidth: [0],
+    });
+    expect(of(fill)).toEqual({ graph_viewport: [100, 50], graph_camera: [3, 4, 0.5] });
+    expect(fake.uniforms).toHaveLength(7);
+
+    programs.beginFrame({ ...frame, time: 2 });
+    programs.use();
+    expect(fake.uniforms).toHaveLength(12);
+    // A new frame binds again: another context user may have changed the program.
+    expect(fake.used).toEqual([line, fill, line, line]);
   });
 
-  it("draws a broken or unknown effect as the plain stroke and reports it once", () => {
-    const { gl, used } = createFakeGL();
-    const programs = new ConnectionPrograms(gl);
-    programs.setEffects([{ name: "broken", fragment: "BROKEN" }]);
-    programs.beginFrame(frame);
-    programs.use("broken");
-    programs.use("broken");
-    programs.use("missing");
-    programs.use("missing");
-    expect(used).toHaveLength(1);
-    expect(used[0].fragment).not.toContain("BROKEN");
-    expect(error).toHaveBeenCalledTimes(2);
-    expect(error.mock.calls[0][0]).toContain('Connection effect "broken" failed to compile');
-    expect(error.mock.calls[1][0]).toContain('Connection effect "missing" is not registered');
+  it("throws the compiler log when the line program fails, and when the fill program fails", () => {
+    const failing = createFakeGL({
+      compileError: (source) => (source.includes("struct ConnectionFragment") ? "ERROR: 0:1: line" : undefined),
+    });
+    expect(() => new ConnectionPrograms(failing.gl)).toThrow("ERROR: 0:1: line");
+
+    const fill = createFakeGL({ linkError: (vertex) => (vertex === FILL_VERTEX ? "fill link" : undefined) });
+    expect(() => new ConnectionPrograms(fill.gl)).toThrow("fill link");
+    // Nothing of a failed constructor stays alive.
+    expect(fill.live("program")).toBe(0);
+    expect(fill.live("shader")).toBe(0);
   });
 
-  it("compares effects by content: a copy is no change, another source or animation is", () => {
-    const { gl } = createFakeGL();
-    const programs = new ConnectionPrograms(gl);
-    expect(programs.setEffects([glow])).toBe(true);
-    expect(programs.setEffects([{ ...glow }])).toBe(false);
-    expect(programs.isAnimated("glow")).toBe(false);
-    expect(programs.setEffects([{ ...glow, animated: true }])).toBe(true);
-    expect(programs.isAnimated("glow")).toBe(true);
-    expect(programs.setEffects([])).toBe(true);
-    expect(programs.isAnimated("glow")).toBe(false);
+  it("frees its programs and shaders on dispose", () => {
+    const fake = createFakeGL();
+    new ConnectionPrograms(fake.gl).dispose();
+    expect(fake.live("program")).toBe(0);
+    expect(fake.live("shader")).toBe(0);
   });
 });

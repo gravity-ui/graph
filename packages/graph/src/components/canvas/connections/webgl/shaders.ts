@@ -1,157 +1,197 @@
+/**
+ * GLSL ES 3.00 sources of the connection programs. Attributes, varyings, outputs, uniforms and helper functions are
+ * internal and carry the `graph_` prefix, which leaves every other name to effects.
+ */
+
 export const CURVE_SEGMENTS = 32;
 
+/** The line program's vertex shader: one instance per cubic piece, a triangle strip along it. */
 export const VERTEX = /* glsl */ `#version 300 es
 precision highp float;
 
-layout(location = 0) in vec2 a_tpl;     // t along the segment, side -1 or +1
-layout(location = 1) in vec4 i_a;       // p0, c1
-layout(location = 2) in vec4 i_b;       // c2, p3
-layout(location = 3) in vec4 i_color;   // rgba
-layout(location = 4) in vec4 i_stroke;  // width (world), dash on, dash off, dash speed
-layout(location = 5) in vec4 i_dist;    // distance at the segment start, segment length, dash fade, connection length
-layout(location = 6) in vec4 i_pulse;   // pulse period (s), pulse wavelength (world), unused, unused
-layout(location = 7) in vec4 i_params0; // effect params 0..3
-layout(location = 8) in vec4 i_params1; // effect params 4..7
+layout(location = 0) in vec2 graph_template;  // t along the piece, side -1 or +1
+layout(location = 1) in vec4 graph_p0c1;      // p0, c1
+layout(location = 2) in vec4 graph_c2p3;      // c2, p3
+layout(location = 3) in vec4 graph_rgba;      // straight rgba, 0..1
+layout(location = 4) in vec4 graph_stroke;    // width (world), dash on, dash off, connection length
+layout(location = 5) in vec2 graph_distance;  // distance at the piece start, piece length
+layout(location = 6) in vec4 graph_params0;   // effect params 0..3
+layout(location = 7) in vec4 graph_params1;   // effect params 4..7
 
-uniform vec2 u_viewport;  // CSS pixels
-uniform vec3 u_camera;    // x, y, scale
-uniform float u_dpr;
+uniform vec2 graph_viewport;     // CSS pixels
+uniform vec3 graph_camera;       // x, y, scale
+uniform float graph_dpr;
+uniform float graph_extraWidth;  // CSS pixels drawn outside each side of the stroke
 
-out vec4 v_color;
-out float v_across;
-out float v_halfWidth;
-out float v_alpha;
-out float v_along;
-out vec2 v_world;
-flat out vec3 v_dash;
-flat out vec3 v_effect;
-flat out float v_length;
-flat out vec4 v_params0;
-flat out vec4 v_params1;
+out vec4 graph_vColor;
+out float graph_vAcross;
+out float graph_vHalfWidth;
+out float graph_vHairline;
+out float graph_vAlong;
+out vec2 graph_vWorld;
+flat out vec2 graph_vDash;
+flat out float graph_vLength;
+flat out vec4 graph_vParams0;
+flat out vec4 graph_vParams1;
 
-vec2 bez(vec2 a, vec2 b, vec2 c, vec2 d, float t) {
+vec2 graph_bezier(vec2 a, vec2 b, vec2 c, vec2 d, float t) {
   float u = 1.0 - t;
   return u * u * u * a + 3.0 * u * u * t * b + 3.0 * u * t * t * c + t * t * t * d;
 }
 
-vec2 bezD(vec2 a, vec2 b, vec2 c, vec2 d, float t) {
+vec2 graph_bezierSlope(vec2 a, vec2 b, vec2 c, vec2 d, float t) {
   float u = 1.0 - t;
   return 3.0 * u * u * (b - a) + 6.0 * u * t * (c - b) + 3.0 * t * t * (d - c);
 }
 
 void main() {
-  float t = a_tpl.x;
-  vec2 p0 = i_a.xy;
-  vec2 c1 = i_a.zw;
-  vec2 c2 = i_b.xy;
-  vec2 p3 = i_b.zw;
-  vec2 d = bezD(p0, c1, c2, p3, t);
+  float t = graph_template.x;
+  vec2 p0 = graph_p0c1.xy;
+  vec2 c1 = graph_p0c1.zw;
+  vec2 c2 = graph_c2p3.xy;
+  vec2 p3 = graph_c2p3.zw;
+  vec2 d = graph_bezierSlope(p0, c1, c2, p3, t);
   if (dot(d, d) < 1e-12) d = p3 - p0;
   if (dot(d, d) < 1e-12) d = vec2(1.0, 0.0);
   vec2 dir = normalize(d);
   // Widths below one device pixel are drawn one pixel wide with reduced alpha, like canvas hairlines.
-  float deviceWidth = i_stroke.x * u_camera.z * u_dpr;
-  float halfPx = max(deviceWidth, 1.0) * 0.5 / u_dpr;
-  float extent = halfPx + 1.0 / u_dpr;
+  float deviceWidth = graph_stroke.x * graph_camera.z * graph_dpr;
+  float halfPx = max(deviceWidth, 1.0) * 0.5 / graph_dpr;
+  // One device pixel more than the stroke and its extra width: room for the anti-aliased edge.
+  float extent = halfPx + graph_extraWidth + 1.0 / graph_dpr;
   vec2 normal = vec2(-dir.y, dir.x);
-  vec2 world = bez(p0, c1, c2, p3, t);
-  vec2 screen = world * u_camera.z + u_camera.xy + normal * a_tpl.y * extent;
-  vec2 clip = screen / u_viewport * 2.0 - 1.0;
+  vec2 world = graph_bezier(p0, c1, c2, p3, t);
+  vec2 screen = world * graph_camera.z + graph_camera.xy + normal * graph_template.y * extent;
+  vec2 clip = screen / graph_viewport * 2.0 - 1.0;
   gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
-  v_across = a_tpl.y * extent;
-  v_halfWidth = halfPx;
-  v_alpha = min(deviceWidth, 1.0);
-  v_color = i_color;
-  v_along = i_dist.x + t * i_dist.y;
-  v_world = world;
-  v_dash = i_stroke.yzw;
-  v_effect = vec3(i_dist.z, i_pulse.xy);
-  v_length = i_dist.w;
-  v_params0 = i_params0;
-  v_params1 = i_params1;
+  graph_vAcross = graph_template.y * extent;
+  graph_vHalfWidth = halfPx;
+  graph_vHairline = min(deviceWidth, 1.0);
+  graph_vColor = graph_rgba;
+  graph_vAlong = graph_distance.x + t * graph_distance.y;
+  graph_vWorld = world;
+  graph_vDash = graph_stroke.yz;
+  graph_vLength = graph_stroke.w;
+  graph_vParams0 = graph_params0;
+  graph_vParams1 = graph_params1;
 }
 `;
 
-const FRAGMENT_HEADER = /* glsl */ `#version 300 es
+/** Everything an effect can read, before the effect's source. */
+const FRAGMENT_PRELUDE = /* glsl */ `#version 300 es
 precision highp float;
-`;
+#define GRAPH_CONNECTION_FRAGMENT 1
 
-const FRAGMENT_INPUTS = /* glsl */ `
-in vec4 v_color;
-in float v_across;
-in float v_halfWidth;
-in float v_alpha;
-in float v_along;
-in vec2 v_world;
-flat in vec3 v_dash;
-flat in vec3 v_effect;  // dash fade, pulse period, pulse wavelength
-flat in float v_length;
-flat in vec4 v_params0;
-flat in vec4 v_params1;
+in vec4 graph_vColor;
+in float graph_vAcross;
+in float graph_vHalfWidth;
+in float graph_vHairline;
+in float graph_vAlong;
+in vec2 graph_vWorld;
+flat in vec2 graph_vDash;
+flat in float graph_vLength;
+flat in vec4 graph_vParams0;
+flat in vec4 graph_vParams1;
 
-uniform vec3 u_camera;
-uniform float u_dpr;
-uniform float u_time;
+uniform vec3 graph_camera;
+uniform float graph_dpr;
+uniform float graph_time;
+uniform float graph_extraWidth;
 
-out vec4 outColor;
+out vec4 graph_fragColor;
 
 struct ConnectionFragment {
-  float along;
-  float length;
-  float t;
-  float across;
-  float halfWidth;
-  float scale;
-  vec2 world;
-  float time;
-  vec4 params0;
-  vec4 params1;
+  float along;       // world units from the source, continuous across segments
+  float length;      // the whole connection's length, world units
+  float t;           // along / length: 0 at the source, 1 at the target
+  float across;      // CSS pixels from the center line, signed
+  float halfWidth;   // half the drawn stroke width, CSS pixels
+  float extraWidth;  // the effect's extraWidth, CSS pixels (0 without)
+  float coverage;    // 0..1: how much of the pixel the stroke itself covers, anti-aliased
+  float scale;       // CSS pixels per world unit
+  vec2 world;        // world position
+  float time;        // seconds since the renderer started
+  vec4 params0;      // params[0..3]
+  vec4 params1;      // params[4..7]
 };
 `;
 
+/** The effect of the plain stroke. */
+const IDENTITY_EFFECT = /* glsl */ `vec4 effect(ConnectionFragment f, vec4 color) { return color; }`;
+
 const FRAGMENT_MAIN = /* glsl */ `
 void main() {
-  float shade = 1.0;
-  if (v_dash.x > 0.0) {
-    // A running dash moves from source to target, like a decreasing canvas lineDashOffset.
-    float phase = mod(v_along - u_time * v_dash.z, v_dash.x + v_dash.y);
-    if (phase > v_dash.x) discard;
-    if (v_effect.x > 0.0) {
-      // A comet: the head leads in the direction of motion, the tail fades out behind it.
-      float head = v_dash.z >= 0.0 ? phase / v_dash.x : 1.0 - phase / v_dash.x;
-      shade *= head * head;
-    }
-  }
-  if (v_effect.y > 0.0) {
-    float wave = v_effect.z > 0.0 ? v_world.x / v_effect.z : 0.0;
-    float pulse = 0.5 + 0.5 * cos(6.2831853 * (u_time / v_effect.y - wave));
-    // A narrow crest over a dim line reads as a signal passing by.
-    shade *= mix(0.15, 1.0, pow(pulse, 4.0));
-  }
-  vec4 color = vec4(v_color.rgb, v_color.a * shade);
-#ifdef CONNECTION_EFFECT
-  float t = v_length > 0.0 ? clamp(v_along / v_length, 0.0, 1.0) : 0.0;
+  // The still dash: an effect never draws in its gaps.
+  if (graph_vDash.x > 0.0 && mod(graph_vAlong, graph_vDash.x + graph_vDash.y) > graph_vDash.x) discard;
+  float across = abs(graph_vAcross);
+  float coverage = clamp((graph_vHalfWidth - across) * graph_dpr + 0.5, 0.0, 1.0);
+  // The outer edge of the drawn quad: the stroke's own edge without an extra width.
+  float edge = clamp((graph_vHalfWidth + graph_extraWidth - across) * graph_dpr + 0.5, 0.0, 1.0);
+  float t = graph_vLength > 0.0 ? clamp(graph_vAlong / graph_vLength, 0.0, 1.0) : 0.0;
   ConnectionFragment f = ConnectionFragment(
-    v_along, v_length, t, v_across, v_halfWidth, u_camera.z, v_world, u_time, v_params0, v_params1
+    graph_vAlong,
+    graph_vLength,
+    t,
+    graph_vAcross,
+    graph_vHalfWidth,
+    graph_extraWidth,
+    coverage,
+    graph_camera.z,
+    graph_vWorld,
+    graph_time,
+    graph_vParams0,
+    graph_vParams1
   );
-  color = effect(f, color);
-#endif
-  float coverage = clamp((v_halfWidth - abs(v_across)) * u_dpr + 0.5, 0.0, 1.0);
-  float alpha = clamp(color.a, 0.0, 1.0) * coverage * v_alpha;
-  outColor = vec4(color.rgb * alpha, alpha);
+  vec4 color = effect(f, graph_vColor);
+  float alpha = clamp(color.a, 0.0, 1.0) * edge * graph_vHairline;
+  graph_fragColor = vec4(color.rgb * alpha, alpha);
 }
 `;
 
 /**
- * The fragment shader of connection lines; with `effect` (GLSL defining `vec4 effect(ConnectionFragment f, vec4
- * color)`, see `TConnectionEffect`), every fragment's color goes through it.
+ * The line program's fragment shader. `effect` is GLSL ES 3.00 defining `vec4 effect(ConnectionFragment f, vec4
+ * color)` that recolors every fragment the stroke draws (straight RGBA in and out); without it the stroke keeps its
+ * color. The library anti-aliases, fades hairlines and premultiplies afterwards.
  */
-export function createFragmentShader(effect?: string): string {
-  if (effect === undefined) return FRAGMENT_HEADER + FRAGMENT_INPUTS + FRAGMENT_MAIN;
-  return `${FRAGMENT_HEADER}#define CONNECTION_EFFECT\n${FRAGMENT_INPUTS}\n${effect}\n${FRAGMENT_MAIN}`;
+export function createFragmentShader(effect: string = IDENTITY_EFFECT): string {
+  return `${FRAGMENT_PRELUDE}\n${effect}\n${FRAGMENT_MAIN}`;
 }
 
-/** Triangle strip along one segment: (t, side) pairs. */
+/** The fill program's vertex shader: closed arrows as triangles in world coordinates. */
+export const FILL_VERTEX = /* glsl */ `#version 300 es
+precision highp float;
+
+layout(location = 0) in vec2 graph_position;  // world
+layout(location = 1) in vec4 graph_rgba;      // straight rgba, 0..1
+
+uniform vec2 graph_viewport;  // CSS pixels
+uniform vec3 graph_camera;    // x, y, scale
+
+out vec4 graph_vColor;
+
+void main() {
+  vec2 screen = graph_position * graph_camera.z + graph_camera.xy;
+  vec2 clip = screen / graph_viewport * 2.0 - 1.0;
+  gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
+  graph_vColor = graph_rgba;
+}
+`;
+
+/** The fill program's fragment shader: the color premultiplied. The arrow's stroke anti-aliases its edge. */
+export const FILL_FRAGMENT = /* glsl */ `#version 300 es
+precision highp float;
+
+in vec4 graph_vColor;
+
+out vec4 graph_fragColor;
+
+void main() {
+  float alpha = clamp(graph_vColor.a, 0.0, 1.0);
+  graph_fragColor = vec4(graph_vColor.rgb * alpha, alpha);
+}
+`;
+
+/** Triangle strip along one piece: (t, side) pairs. */
 export function createCurveTemplate(segments = CURVE_SEGMENTS): Float32Array {
   const vertices: number[] = [];
   for (let i = 0; i <= segments; i++) {

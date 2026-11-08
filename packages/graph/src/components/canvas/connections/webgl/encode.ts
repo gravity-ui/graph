@@ -1,57 +1,27 @@
 import { parseColor } from "../../../../utils/functions/color";
+import type { TLineStroke, TWebGLShape } from "../lines/types";
 
-import { CONNECTION_EFFECT_PARAMS } from "./effects";
 import { CURVE_SEGMENTS } from "./shaders";
 
 /**
- * Dash pattern in world units; `speed` (world units per second) moves the pattern from source to target, a negative
- * speed from target to source. WebGL only: `fade` draws each dash as a comet, transparent at the tail and opaque at the
- * head; Path2D draws plain dashes.
- */
-export type TAppearanceDash = { pattern: readonly number[]; speed?: number; fade?: boolean };
-
-/**
- * WebGL only (Path2D draws the stroke steady): the brightness of the stroke rises and falls every `period` seconds.
- * With `wavelength` (world units) the pulse also runs along x across the graph, one wave every `wavelength` units.
- */
-export type TAppearancePulse = { period: number; wavelength?: number };
-
-/**
- * Experimental, WebGL only: the connection effect, by name, that recolors the line, and up to 8 numbers it reads as
- * `f.params0` and `f.params1`. Arrows draw the stroke without it.
- */
-export type TAppearanceEffect = { name: string; params?: readonly number[] };
-
-/** Stroke of a connection appearance; lengths in world units. */
-export type TAppearanceStroke = {
-  color: string;
-  width: number;
-  dash?: TAppearanceDash;
-  pulse?: TAppearancePulse;
-  effect?: TAppearanceEffect;
-};
-
-/** Declarative look of a batched connection item that the WebGL backend draws. */
-export type TConnectionAppearance = {
-  kind: "curve";
-  /** Cubic Bézier segments in world coordinates, 8 numbers each: p0, c1, c2, p3. */
-  segments: Float32Array;
-  stroke: TAppearanceStroke;
-};
-
-/**
  * Floats per instance (one cubic piece):
- * 0-3 p0, c1 | 4-7 c2, p3 | 8-11 rgba 0..1 | 12-15 width, dash on, dash off, dash speed |
- * 16-19 distance at the piece start, piece length, dash fade (0 or 1), connection length |
- * 20-23 pulse period (seconds, 0 without a pulse), pulse wavelength (world units, 0: in place), unused, unused |
- * 24-31 effect params.
+ * 0-3 p0, c1 | 4-7 c2, p3 | 8-11 straight rgba 0..1 | 12-15 width, dash on, dash off, connection length |
+ * 16-17 distance at the piece start, piece length | 18-25 effect params.
+ * Lengths and distances in world units.
  */
-export const INSTANCE_FLOATS = 32;
+export const INSTANCE_FLOATS = 26;
+
+/** Numbers an effect reads per connection, `f.params0` and `f.params1` in the shader. */
+export const EFFECT_PARAMS = 8;
+
+const PARAMS_OFFSET = 18;
 
 /** World units: the chords that draw a piece stay this close to its cubic. */
 const MAX_CHORD_DEVIATION = 0.25;
 
 const MAX_PIECES = 64;
+
+const BLACK = { r: 0, g: 0, b: 0, a: 1 };
 
 /**
  * Pieces a cubic is drawn in, so that `CURVE_SEGMENTS` uniform chords per piece stay within `MAX_CHORD_DEVIATION`:
@@ -66,9 +36,10 @@ function pieceCount(s: ArrayLike<number>, o: number): number {
   return Math.min(MAX_PIECES, Math.max(1, Math.ceil(chords / CURVE_SEGMENTS)));
 }
 
-export function countSegments(appearances: readonly TConnectionAppearance[]): number {
+/** Instances `encodeShapes` writes for the shapes. */
+export function countPieces(shapes: readonly TWebGLShape[]): number {
   let count = 0;
-  for (const { segments } of appearances) {
+  for (const { segments } of shapes) {
     for (let o = 0; o + 8 <= segments.length; o += 8) count += pieceCount(segments, o);
   }
   return count;
@@ -111,39 +82,29 @@ function cubicLength(s: ArrayLike<number>, o: number): number {
   return (chord + polygon) / 2;
 }
 
-/** Floats of an appearance that every instance repeats, in instance order from float 8 on (see `INSTANCE_FLOATS`). */
-type TStrokeFloats = {
-  /** Floats 8-15: rgba, width, dash on, dash off, dash speed. */
-  look: number[];
-  /** Floats 18, 20-23: dash fade; pulse period, pulse wavelength, unused, unused. */
-  fade: number;
-  pulse: number[];
-  /** Floats 24-31. */
-  params: number[];
-};
-
-function strokeFloats({ color: css, width, dash, pulse, effect }: TConnectionAppearance["stroke"]): TStrokeFloats {
+/** Straight rgba in 0..1 of a CSS color; black when the color does not parse. */
+export function colorFloats(css: string): [number, number, number, number] {
   // parseColor gives r, g, b in 0..255 and a in 0..1.
-  const color = parseColor(css) ?? { r: 0, g: 0, b: 0, a: 1 };
+  const color = parseColor(css) ?? BLACK;
+  return [color.r / 255, color.g / 255, color.b / 255, color.a];
+}
+
+/** Floats 8-14 of every instance of a shape: rgba, width, dash on, dash off. */
+function strokeFloats({ color, width, dash }: TLineStroke): number[] {
   const on = dash?.pattern[0] ?? 0;
+  // A one-number pattern repeats itself, like canvas setLineDash: equal dashes and gaps.
   const off = dash?.pattern[1] ?? on;
-  const params: number[] = [];
-  for (let p = 0; p < CONNECTION_EFFECT_PARAMS; p++) params.push(effect?.params?.[p] ?? 0);
-  return {
-    look: [color.r / 255, color.g / 255, color.b / 255, color.a, width, on, off, dash?.speed ?? 0],
-    fade: dash?.fade ? 1 : 0,
-    pulse: [pulse?.period ?? 0, pulse?.wavelength ?? 0, 0, 0],
-    params,
-  };
+  return [...colorFloats(color), width, on, off];
 }
 
 /**
- * Writes every cubic of the appearances into `out`, split into pieces where it bends (see `pieceCount`); returns the
- * number of instances written, which `countSegments` gives in advance.
+ * Writes every cubic of the shapes into `out`, split into pieces where it bends (see `pieceCount`); returns the
+ * number of instances written, which `countPieces` gives in advance. The distance runs on across the pieces and
+ * segments of one shape, and every instance of a shape carries the shape's whole length.
  */
-export function encodeAppearances(appearances: readonly TConnectionAppearance[], out: Float32Array): number {
+export function encodeShapes(shapes: readonly TWebGLShape[], out: Float32Array): number {
   let index = 0;
-  for (const { segments, stroke } of appearances) {
+  for (const { segments, stroke } of shapes) {
     const floats = strokeFloats(stroke);
     const first = index;
     let distance = 0;
@@ -156,46 +117,17 @@ export function encodeAppearances(appearances: readonly TConnectionAppearance[],
         } else {
           writePiece(segments, o, k / pieces, (k + 1) / pieces, out, base);
         }
-        out.set(floats.look, base + 8);
-        // The dash continues across the pieces and segments of one appearance.
+        out.set(floats, base + 8);
         const length = cubicLength(out, base);
         out[base + 16] = distance;
         out[base + 17] = length;
-        out[base + 18] = floats.fade;
-        out.set(floats.pulse, base + 20);
-        out.set(floats.params, base + 24);
+        out.fill(0, base + PARAMS_OFFSET, base + PARAMS_OFFSET + EFFECT_PARAMS);
         distance += length;
         index++;
       }
     }
-    // Effects read the whole connection's length, known once every piece is written.
-    for (let i = first; i < index; i++) out[i * INSTANCE_FLOATS + 19] = distance;
+    // The whole length is known once every piece of the shape is written.
+    for (let i = first; i < index; i++) out[i * INSTANCE_FLOATS + 15] = distance;
   }
   return index;
-}
-
-/** Appearances of one effect; `effect` is undefined for the stroke without an effect. */
-export type TEffectGroup = { effect: string | undefined; appearances: TConnectionAppearance[] };
-
-/**
- * Splits appearances by effect, since every effect is a program of its own: appearances without an effect first, then
- * one group per effect name in order of first use.
- */
-export function groupByEffect(appearances: readonly TConnectionAppearance[]): TEffectGroup[] {
-  const plain: TEffectGroup = { effect: undefined, appearances: [] };
-  const groups = new Map<string, TEffectGroup>();
-  for (const appearance of appearances) {
-    const name = appearance.stroke.effect?.name;
-    if (name === undefined) {
-      plain.appearances.push(appearance);
-      continue;
-    }
-    let group = groups.get(name);
-    if (!group) {
-      group = { effect: name, appearances: [] };
-      groups.set(name, group);
-    }
-    group.appearances.push(appearance);
-  }
-  return [plain, ...groups.values()].filter((group) => group.appearances.length > 0);
 }

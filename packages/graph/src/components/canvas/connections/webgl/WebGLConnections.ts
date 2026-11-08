@@ -7,7 +7,6 @@ import type { IConnectionBatch, IConnectionBatchItem } from "../batch";
 import type { TGLChunk } from "./WebGLBatchBackend";
 import { WebGLBatchBackend } from "./WebGLBatchBackend";
 import { ZLevelBatch } from "./ZLevelBatch";
-import type { TConnectionEffect } from "./effects";
 import { ConnectionPrograms } from "./programs";
 import { createCurveTemplate } from "./shaders";
 import { webglConnectionsStats } from "./stats";
@@ -23,10 +22,14 @@ export type TWebGLConnectionsOptions = {
 
 /**
  * Lines and arrows drawn with WebGL2 on a canvas stacked right below the graph layer's canvas. Draws in the graph
- * layer's frame; while animated items exist, it also redraws itself every animation frame without the graph layer.
+ * layer's frame; while it draws an animated chunk, it also redraws itself every animation frame without the graph
+ * layer.
  */
 export class WebGLConnections implements IConnectionBatch {
-  /** Returns undefined when WebGL2 is unavailable; throws when the shaders fail to compile or link. */
+  /**
+   * Returns undefined when WebGL2 is unavailable; throws the log when the line or fill program fails to compile or
+   * link, after freeing the context.
+   */
   public static create(
     graphCanvas: HTMLCanvasElement,
     options: TWebGLConnectionsOptions
@@ -34,7 +37,14 @@ export class WebGLConnections implements IConnectionBatch {
     const canvas = graphCanvas.ownerDocument.createElement("canvas");
     const gl = canvas.getContext("webgl2", { antialias: false, premultipliedAlpha: true, alpha: true });
     if (!gl) return undefined;
-    const connections = new WebGLConnections(canvas, gl, graphCanvas, options);
+    let connections: WebGLConnections;
+    try {
+      connections = new WebGLConnections(canvas, gl, graphCanvas, options);
+    } catch (error) {
+      // Browsers limit live WebGL contexts; this one is not used.
+      gl.getExtension("WEBGL_lose_context")?.loseContext();
+      throw error;
+    }
     canvas.classList.add("layer", "layer-canvas", "no-pointer-events");
     canvas.style.zIndex = graphCanvas.style.zIndex;
     connections.stackBelowGraphCanvas();
@@ -54,6 +64,7 @@ export class WebGLConnections implements IConnectionBatch {
 
   private frame: number | undefined;
 
+  /** Compiles the line and fill programs; throws their log when one fails. */
   private constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly gl: WebGL2RenderingContext,
@@ -104,16 +115,6 @@ export class WebGLConnections implements IConnectionBatch {
   /** Visits every item with its own params, style group included, so switching back to Path2D restores them. */
   public forEachItem(visit: (item: IConnectionBatchItem, params: TBatchParams) => void): void {
     this.batch.forEachItem(visit);
-  }
-
-  /**
-   * Registers the connection effects (the `connectionEffects` setting). A change rebuilds every chunk, since chunks
-   * group their instances by effect and animate when an effect does.
-   */
-  public setEffects(effects: readonly TConnectionEffect[] | undefined): void {
-    if (!this.programs.setEffects(effects)) return;
-    this.batch.forEachItem((item) => this.batch.markDirty(item));
-    this.options.onChange();
   }
 
   /** Draws the frame of the graph layer with its culling viewport. */

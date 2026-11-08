@@ -4,13 +4,13 @@ export type TWebGLConnectionsStats = {
   drawMs: number;
   /** Frame draws, in the graph layer's frame or the animation loop. */
   draws: number;
-  /** Instanced draw calls, one per drawn chunk. */
+  /** Draw calls: per drawn chunk, one instanced call for its strokes and one for its closed-arrow fills. */
   drawCalls: number;
   /** Instances (cubic pieces) drawn. */
   instances: number;
-  /** Connection items with an appearance in drawn chunks, summed per draw. */
+  /** Connection items with a WebGL shape in drawn chunks, summed per draw. */
   items: number;
-  /** Vertices drawn: instances times the strip template's vertices. */
+  /** Vertices drawn: instances times the strip template's vertices, plus closed-arrow fill vertices. */
   vertices: number;
 };
 

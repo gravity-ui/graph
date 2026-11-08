@@ -1,85 +1,77 @@
 import type { IBatchBackend } from "../../../../lib/batch/types";
 import type { IConnectionBatchItem } from "../batch";
+import type { TWebGLShape } from "../lines/types";
 
-import { INSTANCE_FLOATS, countSegments, encodeAppearances, groupByEffect } from "./encode";
-import type { TConnectionAppearance } from "./encode";
-import type { IEffectPrograms } from "./programs";
+import { INSTANCE_FLOATS, countPieces, encodeShapes } from "./encode";
+import { ArrowFills } from "./fill";
+import type { TGLFill } from "./fill";
+import type { IConnectionPrograms } from "./programs";
 import { webglConnectionsStats } from "./stats";
 
-/** A batched item that WebGL draws from its appearance; items without one are not drawn. */
-interface IWebGLAppearanceItem extends IConnectionBatchItem {
-  getAppearance?(): TConnectionAppearance | undefined;
-  /** Whether the item's look changes with time, such as a running dash. */
-  isAnimated?(): boolean;
-}
-
-/** Instances of one effect inside a chunk's buffer, with a vertex array that starts at them. */
+/** Instances inside a chunk's buffer drawn with one program, with a vertex array that starts at them. */
 type TGLRange = {
-  effect: string | undefined;
   vao: WebGLVertexArrayObject;
   count: number;
 };
 
-/** GPU drawable of one chunk: an instance buffer drawn with one instanced call per effect. */
+/** GPU drawable of one chunk: an instance buffer of stroke pieces and, with closed arrows, their fills. */
 export type TGLChunk = {
   buffer: WebGLBuffer;
+  /** Instances the buffer holds. */
   capacity: number;
   count: number;
   ranges: TGLRange[];
-  /** Connection items with an appearance: what the chunk draws, whatever the curve subdivision. */
+  /** Connection items with a WebGL shape: what the chunk draws, whatever the curve subdivision. */
   items: number;
+  /** Whether the chunk's look changes with time, so it needs a redraw every frame; plain strokes and fills do not. */
   animated: boolean;
+  /** Closed-arrow fills, drawn before the strokes. */
+  fill?: TGLFill;
 };
 
 const STRIDE = INSTANCE_FLOATS * 4;
-// location, components, float offset
+// location, components, float offset (see INSTANCE_FLOATS)
 const INSTANCE_ATTRIBUTES: ReadonlyArray<[number, number, number]> = [
   [1, 4, 0],
   [2, 4, 4],
   [3, 4, 8],
   [4, 4, 12],
-  [5, 4, 16],
-  [6, 4, 20],
-  [7, 4, 24],
-  [8, 4, 28],
+  [5, 2, 16],
+  [6, 4, 18],
+  [7, 4, 22],
 ];
 
 /**
- * Encodes a chunk's appearances into one instance buffer, grouped by effect, and draws each group with its effect's
- * program in one instanced call: a chunk without effects is one call, as before.
+ * Encodes the WebGL shapes of a chunk's items into one instance buffer and draws it in one instanced call with the
+ * line program; a chunk with closed arrows first fills them in one call with the fill program. Items without a WebGL
+ * shape are not drawn.
  */
-export class WebGLBatchBackend implements IBatchBackend<IWebGLAppearanceItem, TGLChunk, void> {
+export class WebGLBatchBackend implements IBatchBackend<IConnectionBatchItem, TGLChunk, void> {
   /** Whether a chunk with an animated item was drawn since the owner last reset it. */
   public drewAnimated = false;
 
   private scratch = new Float32Array(0);
 
+  private readonly fills: ArrowFills;
+
   constructor(
     private readonly gl: WebGL2RenderingContext,
     private readonly template: WebGLBuffer,
     private readonly templateVertices: number,
-    private readonly programs: IEffectPrograms
-  ) {}
+    private readonly programs: IConnectionPrograms
+  ) {
+    this.fills = new ArrowFills(gl);
+  }
 
-  public build(items: readonly IWebGLAppearanceItem[], previous: TGLChunk | undefined): TGLChunk {
-    const appearances: TConnectionAppearance[] = [];
-    let animated = false;
+  public build(items: readonly IConnectionBatchItem[], previous: TGLChunk | undefined): TGLChunk {
+    const shapes: TWebGLShape[] = [];
     for (const item of items) {
-      const appearance = item.getAppearance?.();
-      if (appearance) appearances.push(appearance);
-      if (item.isAnimated?.()) animated = true;
+      const shape = item.getWebGLShape?.();
+      if (shape) shapes.push(shape);
     }
-    const groups = groupByEffect(appearances);
-    const count = countSegments(appearances);
+    const count = countPieces(shapes);
     if (this.scratch.length < count * INSTANCE_FLOATS) this.scratch = new Float32Array(count * INSTANCE_FLOATS * 2);
-    const layout: Array<{ effect: string | undefined; first: number; count: number }> = [];
-    let written = 0;
-    for (const group of groups) {
-      const groupCount = encodeAppearances(group.appearances, this.scratch.subarray(written * INSTANCE_FLOATS));
-      layout.push({ effect: group.effect, first: written, count: groupCount });
-      written += groupCount;
-      if (this.programs.isAnimated(group.effect)) animated = true;
-    }
+    encodeShapes(shapes, this.scratch);
     const data = this.scratch.subarray(0, count * INSTANCE_FLOATS);
     const gl = this.gl;
     let buffer: WebGLBuffer;
@@ -91,7 +83,10 @@ export class WebGLBatchBackend implements IBatchBackend<IWebGLAppearanceItem, TG
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, data);
     } else {
-      if (previous) this.release(previous);
+      if (previous) {
+        this.releaseRanges(previous);
+        gl.deleteBuffer(previous.buffer);
+      }
       const created = gl.createBuffer();
       if (!created) throw new Error("Cannot allocate WebGL buffers");
       buffer = created;
@@ -99,32 +94,38 @@ export class WebGLBatchBackend implements IBatchBackend<IWebGLAppearanceItem, TG
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
       gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
     }
-    const ranges = layout.map((range) => ({
-      effect: range.effect,
-      count: range.count,
-      vao: this.createRange(buffer, range.first),
-    }));
-    return { buffer, capacity, count, ranges, items: appearances.length, animated };
+    const ranges = count ? [{ vao: this.createRange(buffer, 0), count }] : [];
+    const fill = this.fills.build(shapes, previous?.fill);
+    return { buffer, capacity, count, ranges, items: shapes.length, animated: false, fill };
   }
 
   public draw(_target: void, chunk: TGLChunk): void {
     if (chunk.animated) this.drewAnimated = true;
     const gl = this.gl;
+    let vertices = chunk.count * this.templateVertices;
+    if (chunk.fill) {
+      // Under the arrows' outlines, which anti-alias their edges.
+      this.programs.useFill();
+      this.fills.draw(chunk.fill);
+      webglConnectionsStats.drawCalls++;
+      vertices += chunk.fill.vertices;
+    }
     for (const range of chunk.ranges) {
       if (!range.count) continue;
-      this.programs.use(range.effect);
+      this.programs.use();
       gl.bindVertexArray(range.vao);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, this.templateVertices, range.count);
       webglConnectionsStats.drawCalls++;
     }
     webglConnectionsStats.instances += chunk.count;
     webglConnectionsStats.items += chunk.items;
-    webglConnectionsStats.vertices += chunk.count * this.templateVertices;
+    webglConnectionsStats.vertices += vertices;
   }
 
   public release(chunk: TGLChunk): void {
     this.releaseRanges(chunk);
     this.gl.deleteBuffer(chunk.buffer);
+    if (chunk.fill) this.fills.release(chunk.fill);
   }
 
   private releaseRanges(chunk: TGLChunk): void {
