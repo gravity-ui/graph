@@ -7,9 +7,9 @@ import type { TConnectionGeometry } from "./geometry";
 import { Path2DLine } from "./lines";
 
 /** Counts the line paths it builds. */
-class CountingLine extends Path2DLine {
+class CountingLine extends Path2DLine<ObservedConnection> {
   protected override createPath(geometry: TConnectionGeometry): Path2D {
-    (this.connection as ObservedConnection).pathUpdates++;
+    this.connection.pathUpdates++;
     return super.createPath(geometry);
   }
 }

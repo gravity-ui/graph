@@ -1,4 +1,11 @@
-import { bezierSegment, isLineSegment, lineSegment, roundedPolyline } from "./segments";
+import {
+  bezierSegment,
+  isLineSegment,
+  lineSegment,
+  roundedPolyline,
+  writeBezierSegment,
+  writeLineSegment,
+} from "./segments";
 
 describe("segment builders", () => {
   it("builds a straight line as a cubic with control points at the thirds", () => {
@@ -9,6 +16,18 @@ describe("segment builders", () => {
     expect(bezierSegment({ x: 0, y: 0 }, { x: 1, y: 2 }, { x: 3, y: 4 }, { x: 5, y: 6 })).toEqual([
       0, 0, 1, 2, 3, 4, 5, 6,
     ]);
+  });
+
+  it("writes the same cubics into a Float32Array at an offset", () => {
+    const from = { x: 31234.567, y: -1789.123 };
+    const to = { x: 39876.5, y: 2345.25 };
+    const out = new Float32Array(17);
+    writeLineSegment(out, 1, from, to);
+    writeBezierSegment(out, 9, { x: 0.1, y: 0.2 }, { x: 1.3, y: 2.4 }, { x: 3.5, y: 4.6 }, { x: 5.7, y: 6.8 });
+    expect(Array.from(out.subarray(1, 9))).toEqual(Array.from(new Float32Array(lineSegment(from, to))));
+    const bezier = bezierSegment({ x: 0.1, y: 0.2 }, { x: 1.3, y: 2.4 }, { x: 3.5, y: 4.6 }, { x: 5.7, y: 6.8 });
+    expect(Array.from(out.subarray(9))).toEqual(Array.from(new Float32Array(bezier)));
+    expect(out[0]).toBe(0);
   });
 
   it("tells lines from curves, also after float32 rounding of large coordinates", () => {

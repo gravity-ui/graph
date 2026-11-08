@@ -109,6 +109,28 @@ describe("Path2DLine", () => {
     expect(batch.has(line.arrow)).toBe(false);
   });
 
+  it("reads the stroke once per update and the arrow stroke only while arrows are shown", () => {
+    const { connection } = stubConnection(straight);
+    const line = new Path2DLine(connection);
+    const stroke = jest.spyOn(line, "getStroke");
+    const arrowStroke = jest.spyOn(line, "getArrowStroke");
+    line.update();
+    expect(stroke).toHaveBeenCalledTimes(1);
+    expect(arrowStroke).toHaveBeenCalledTimes(1);
+    expect(arrowStroke.mock.results[0].value).toEqual({ color: "#aaa", width: 2 });
+    // Outside update() the arrow stroke reads getStroke() itself.
+    line.getArrowStroke(connection.state);
+    expect(stroke).toHaveBeenCalledTimes(2);
+
+    const hidden = stubConnection(straight, {}, { showConnectionArrows: false });
+    const hiddenLine = new Path2DLine(hidden.connection);
+    const hiddenStroke = jest.spyOn(hiddenLine, "getStroke");
+    const hiddenArrowStroke = jest.spyOn(hiddenLine, "getArrowStroke");
+    hiddenLine.update();
+    expect(hiddenStroke).toHaveBeenCalledTimes(1);
+    expect(hiddenArrowStroke).not.toHaveBeenCalled();
+  });
+
   it("puts closed and open arrows in different groups", () => {
     const open = stubConnection(straight);
     const openLine = new Path2DLine(open.connection);

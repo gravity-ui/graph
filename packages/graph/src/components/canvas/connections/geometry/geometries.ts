@@ -2,7 +2,14 @@ import { getTriangleArrowPoints } from "../../../../utils/shapes/triangle";
 import type { TPoint } from "../../../../utils/types/shapes";
 import { generateBezierParams, getArrowCoords } from "../bezierHelpers";
 
-import { bezierSegment, lineSegment, roundedPolyline } from "./segments";
+import {
+  SEGMENT_FLOATS,
+  bezierSegment,
+  lineSegment,
+  roundedPolyline,
+  writeBezierSegment,
+  writeLineSegment,
+} from "./segments";
 import type { TConnectionGeometry, TConnectionGeometryFn, TConnectionGeometryInput } from "./types";
 
 const POLYLINE_RADIUS = 10;
@@ -24,21 +31,30 @@ function triangleArrow(points: readonly TPoint[]): TConnectionGeometry["arrow"] 
   return { points: new Float32Array([tip.x, tip.y, left.x, left.y, right.x, right.y]), closed: true };
 }
 
-export const straightGeometry: TConnectionGeometryFn = ({ source, target }) => ({
-  segments: new Float32Array(lineSegment(source, target)),
-  arrow: {
-    points: new Float32Array(getArrowCoords(false, source.x, source.y, target.x, target.y)),
-    closed: false,
-  },
-});
+export const straightGeometry: TConnectionGeometryFn = ({ source, target }) => {
+  const segments = new Float32Array(SEGMENT_FLOATS);
+  writeLineSegment(segments, 0, source, target);
+  return {
+    segments,
+    arrow: {
+      points: new Float32Array(getArrowCoords(false, source.x, source.y, target.x, target.y)),
+      closed: false,
+    },
+  };
+};
 
-export const bezierGeometry: TConnectionGeometryFn = ({ source, target, bezierDirection }) => ({
-  segments: new Float32Array(bezierPiece(source, target, bezierDirection)),
-  arrow: {
-    points: new Float32Array(getArrowCoords(true, source.x, source.y, target.x, target.y, bezierDirection)),
-    closed: false,
-  },
-});
+export const bezierGeometry: TConnectionGeometryFn = ({ source, target, bezierDirection }) => {
+  const [p0, c1, c2, p3] = generateBezierParams(source, target, bezierDirection);
+  const segments = new Float32Array(SEGMENT_FLOATS);
+  writeBezierSegment(segments, 0, p0, c1, c2, p3);
+  return {
+    segments,
+    arrow: {
+      points: new Float32Array(getArrowCoords(true, source.x, source.y, target.x, target.y, bezierDirection)),
+      closed: false,
+    },
+  };
+};
 
 export const blockGeometry: TConnectionGeometryFn = (input: TConnectionGeometryInput) =>
   input.useBezier ? bezierGeometry(input) : straightGeometry(input);

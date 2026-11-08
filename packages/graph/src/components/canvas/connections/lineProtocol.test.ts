@@ -1,6 +1,7 @@
 import { Graph } from "../../../graph";
 import { globalScheduler } from "../../../lib/Scheduler";
 import type { TBatchParams } from "../../../lib/batch/types";
+import type { HitBoxData } from "../../../services/HitTest";
 import type { TConnection } from "../../../store/connection/ConnectionState";
 
 import type { TBaseConnectionState } from "./BaseConnection";
@@ -96,6 +97,22 @@ class MappedLine extends Path2DLine {
 
 class MappedConnection extends BlockConnection<TConnection> {
   public static override line = MappedLine;
+}
+
+/** A line typed for its connection class: it reads the connection's own member without a cast. */
+class TaggedLine extends Path2DLine<TaggedConnection> {
+  public override getStroke(state: TBaseConnectionState): TLineStroke {
+    return { ...super.getStroke(state), color: this.connection.getTagColor() };
+  }
+}
+
+/** Assigns a line typed for this subclass as `static line`: this must compile without a cast. */
+class TaggedConnection extends BlockConnection<TConnection> {
+  public static override line = TaggedLine;
+
+  public getTagColor(): string {
+    return "#333";
+  }
 }
 
 describe("BlockConnection line protocol", () => {
@@ -213,14 +230,30 @@ describe("BlockConnection line protocol", () => {
     expect(registered(graph).get(lineOf(a))?.group).toBe("line/#222/2/");
   });
 
+  it("accepts a line class typed for a connection subclass as static line", () => {
+    graph = mount({ connection: TaggedConnection });
+    const line = lineOf(view(graph, "a"));
+    expect(line).toBeInstanceOf(TaggedLine);
+    expect(registered(graph).get(line)?.group).toBe("line/#333/2/");
+  });
+
   it("hit-tests the line at the world center of the hit box with the threshold in world units", () => {
     graph = mount();
     const a = view(graph, "a");
-    const hitTest = jest.spyOn(Path2DLine.prototype, "hitTest");
+    const box: HitBoxData = { minX: 249, maxX: 251, minY: 99, maxY: 101, x: 0, y: 0 };
+    const hitTest = jest.spyOn(Path2DLine.prototype, "hitTest").mockReturnValue(true);
+    const hitTestLabel = jest.spyOn(a as unknown as { hitTestLabel(shape: HitBoxData): boolean }, "hitTestLabel");
 
-    a.onHitBox({ minX: 249, maxX: 251, minY: 99, maxY: 101, x: 0, y: 0 });
-
+    expect(a.onHitBox(box)).toBe(true);
     expect(a.context.constants.connection.THRESHOLD_LINE_HIT).toBe(8);
     expect(hitTest).toHaveBeenCalledWith(250, 100, 8);
+    expect(hitTestLabel).not.toHaveBeenCalled();
+
+    // A line miss falls through to the label: none here, then a label hit.
+    hitTest.mockReturnValue(false);
+    expect(a.onHitBox(box)).toBe(false);
+    expect(hitTestLabel).toHaveBeenCalledWith(box);
+    hitTestLabel.mockReturnValue(true);
+    expect(a.onHitBox(box)).toBe(true);
   });
 });

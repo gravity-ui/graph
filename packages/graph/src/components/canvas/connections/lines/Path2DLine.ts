@@ -84,9 +84,9 @@ export class Path2DLine<
     return this.getGroup();
   }
 
-  protected getArrowBatchGroup(): string {
+  protected getArrowBatchGroup(lineGroup: string): string {
     const closed = this.connection.getGeometry()?.arrow?.closed ? "closed" : "open";
-    return `arrow/${closed}/${strokeKey(this.getCurrentArrowStroke())}/${this.getGroup()}`;
+    return `arrow/${closed}/${strokeKey(this.getCurrentArrowStroke())}/${lineGroup}`;
   }
 
   public hitTest(x: number, y: number, threshold: number): boolean {

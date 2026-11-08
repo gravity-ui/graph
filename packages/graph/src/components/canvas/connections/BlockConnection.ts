@@ -91,9 +91,11 @@ export class BlockConnection<T extends TConnection = TConnection>
     super(props, parent);
     this.addEventListener("click", this);
 
-    // Created here rather than in a field initializer, so that the line sees prototype methods such as afterRender().
+    // ConnectionLine records at construction whether the connection has afterRender(); a prototype method is visible
+    // here, a field initializer of a subclass is not yet.
     const LineClass = (this.constructor as typeof BlockConnection).line;
-    this.line = new LineClass(this);
+    // The line class checks the connection type on its side (see TConnectionLineClass); the connection is this one.
+    this.line = new LineClass(this as never);
     // Registers the line and its arrow with the batch.
     this.updateLine(this.state, props);
   }
@@ -142,7 +144,12 @@ export class BlockConnection<T extends TConnection = TConnection>
 
   protected override willMount(): void {
     super.willMount();
-    this.subscribeSignal(this.connectedState.$hidden, () => this.updateLine());
+    // The first value needs no update: mounting has just registered the line (BaseConnection.willMount).
+    let mounting = true;
+    this.subscribeSignal(this.connectedState.$hidden, () => {
+      if (!mounting) this.updateLine();
+    });
+    mounting = false;
     this.syncLabelSubscription();
   }
 

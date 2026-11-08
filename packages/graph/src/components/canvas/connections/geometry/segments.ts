@@ -21,6 +21,39 @@ export function bezierSegment(p0: TPoint, c1: TPoint, c2: TPoint, p3: TPoint): n
   return [p0.x, p0.y, c1.x, c1.y, c2.x, c2.y, p3.x, p3.y];
 }
 
+/** `lineSegment(from, to)` written into `out` at `offset`, without an intermediate array. */
+export function writeLineSegment(out: Float32Array, offset: number, from: TPoint, to: TPoint): void {
+  const dx = (to.x - from.x) / 3;
+  const dy = (to.y - from.y) / 3;
+  out[offset] = from.x;
+  out[offset + 1] = from.y;
+  out[offset + 2] = from.x + dx;
+  out[offset + 3] = from.y + dy;
+  out[offset + 4] = from.x + 2 * dx;
+  out[offset + 5] = from.y + 2 * dy;
+  out[offset + 6] = to.x;
+  out[offset + 7] = to.y;
+}
+
+/** `bezierSegment(p0, c1, c2, p3)` written into `out` at `offset`, without an intermediate array. */
+export function writeBezierSegment(
+  out: Float32Array,
+  offset: number,
+  p0: TPoint,
+  c1: TPoint,
+  c2: TPoint,
+  p3: TPoint
+): void {
+  out[offset] = p0.x;
+  out[offset + 1] = p0.y;
+  out[offset + 2] = c1.x;
+  out[offset + 3] = c1.y;
+  out[offset + 4] = c2.x;
+  out[offset + 5] = c2.y;
+  out[offset + 6] = p3.x;
+  out[offset + 7] = p3.y;
+}
+
 /** Whether the cubic at `offset` is a straight line built like `lineSegment`: control points at the chord's thirds. */
 export function isLineSegment(segments: ArrayLike<number>, offset: number): boolean {
   const x0 = segments[offset];

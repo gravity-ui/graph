@@ -10,9 +10,9 @@ import type { TConnectionGeometry } from "./geometry";
 import { Path2DLine } from "./lines";
 
 /** Records the paths it builds and the styles it applies on its connection. */
-class ObservedLine extends Path2DLine {
+class ObservedLine extends Path2DLine<ObservedConnection> {
   private get draws(): string[] {
-    return (this.connection as ObservedConnection).draws;
+    return this.connection.draws;
   }
 
   protected override createPath(geometry: TConnectionGeometry): Path2D {
