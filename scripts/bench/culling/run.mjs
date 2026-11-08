@@ -72,7 +72,9 @@ async function build({ name, ref }) {
     target: ["es2020"],
     tsconfig: path.join(repo, "packages/graph/tsconfig.json"),
     alias: { GRAPH: path.join(source, "index.ts") },
-    nodePaths: [path.join(repo, "node_modules")],
+    // A git-ref copy lives outside the repository: resolve the graph package's own dependencies (pnpm does not hoist
+    // them to the root) and the root ones.
+    nodePaths: [path.join(repo, "packages/graph/node_modules"), path.join(repo, "node_modules")],
     plugins: [
       {
         // Layer styles position the canvases; inject them like the library's consumers do.
