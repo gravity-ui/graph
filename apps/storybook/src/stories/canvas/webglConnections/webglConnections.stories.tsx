@@ -175,7 +175,7 @@ const GraphApp = ({
         <Flex direction="column" gap={2} style={{ padding: 16 }}>
           <Text variant="header-1">{title}</Text>
           <Text variant="body-1">{description}</Text>
-          <pre style={{ margin: 0, fontSize: 12 }}>{selected.code ?? code}</pre>
+          <pre style={{ margin: 0, fontSize: 12, maxHeight: 180, overflow: "auto" }}>{selected.code ?? code}</pre>
           <Flex alignItems="center" gap={4} wrap>
             <SegmentedRadioGroup options={renderers} value={renderer} onUpdate={setRenderer} />
             {sizeOptions.length > 1 && <SegmentedRadioGroup options={sizeOptions} value={size} onUpdate={setSize} />}
@@ -186,7 +186,7 @@ const GraphApp = ({
           </Flex>
           {selected.slider && <UniformSlider key={selected.value} {...selected.slider} />}
         </Flex>
-        <div style={{ flex: 1, position: "relative" }}>
+        <div style={{ flex: 1, minHeight: 400, position: "relative" }}>
           <GraphView
             key={`${effect}/${size}/${renderer}`}
             config={config}
