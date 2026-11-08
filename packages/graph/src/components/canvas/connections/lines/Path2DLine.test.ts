@@ -43,7 +43,7 @@ function stubConnection(
     showConnectionArrows: true,
     useTightBezierBounds: true,
   }
-) {
+): { connection: BlockConnection<TConnection>; batch: RecordingBatch; ctx: CanvasRenderingContext2D } {
   const batch = new RecordingBatch();
   const ctx = document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D;
   const connection = {
@@ -156,34 +156,112 @@ describe("Path2DLine", () => {
       }
     }
     const { connection } = stubConnection(straight);
+    const geometry = { current: straight as TConnectionGeometry };
+    (connection as unknown as { getGeometry: () => TConnectionGeometry }).getGeometry = () => geometry.current;
     const line = new CountingLine(connection);
     expect(line.getPath()).toBeDefined();
     line.getPath();
     expect(created).toBe(1);
+
+    const next = { segments: new Float32Array(straight.segments) };
+    geometry.current = next;
+    line.getPath();
+    line.getPath();
+    expect(created).toBe(2);
 
     const none = new Path2DLine(stubConnection(undefined).connection);
     expect(none.getPath()).toBeUndefined();
     expect(none.getArrowPath()).toBeUndefined();
   });
 
-  it("hit-tests with width + 2 * threshold, identity transform and round caps, then restores", () => {
-    const { connection, ctx } = stubConnection({ segments: straight.segments });
-    const line = new Path2DLine(connection);
-    const seen: { lineWidth: number; lineCap: CanvasLineCap; lineJoin: CanvasLineJoin; dash: number[] }[] = [];
-    jest.spyOn(ctx, "isPointInStroke").mockImplementation(() => {
-      seen.push({
-        lineWidth: ctx.lineWidth,
-        lineCap: ctx.lineCap,
-        lineJoin: ctx.lineJoin,
-        dash: ctx.getLineDash(),
+  describe("hitTest", () => {
+    type TSeen = {
+      lineWidth: number;
+      lineCap: CanvasLineCap;
+      lineJoin: CanvasLineJoin;
+      dash: number[];
+      transform: [number, number, number, number, number, number];
+    };
+
+    function spyStroke(ctx: CanvasRenderingContext2D, seen: TSeen[], result = false): jest.SpyInstance {
+      return jest.spyOn(ctx, "isPointInStroke").mockImplementation(() => {
+        const m = ctx.getTransform();
+        seen.push({
+          lineWidth: ctx.lineWidth,
+          lineCap: ctx.lineCap,
+          lineJoin: ctx.lineJoin,
+          dash: ctx.getLineDash(),
+          transform: [m.a, m.b, m.c, m.d, m.e, m.f],
+        });
+        return result;
       });
-      return false;
+    }
+
+    function dirtyContext(ctx: CanvasRenderingContext2D): void {
+      ctx.setTransform(3, 0, 0, 3, 20, 30);
+      ctx.setLineDash([5, 5]);
+    }
+
+    function expectRestored(ctx: CanvasRenderingContext2D): void {
+      const m = ctx.getTransform();
+      expect([m.a, m.b, m.c, m.d, m.e, m.f]).toEqual([3, 0, 0, 3, 20, 30]);
+      expect(ctx.getLineDash()).toEqual([5, 5]);
+      expect(ctx.lineCap).toBe("butt");
+      expect(ctx.lineJoin).toBe("miter");
+    }
+
+    it("strokes the line with width + 2 * threshold, identity transform, no dash and round caps and joins", () => {
+      const { connection, ctx } = stubConnection({ segments: straight.segments });
+      const line = new Path2DLine(connection);
+      const seen: TSeen[] = [];
+      spyStroke(ctx, seen);
+      dirtyContext(ctx);
+      expect(line.hitTest(10, 0, 8)).toBe(false);
+      expect(seen).toEqual([
+        { lineWidth: 18, lineCap: "round", lineJoin: "round", dash: [], transform: [1, 0, 0, 1, 0, 0] },
+      ]);
+      expectRestored(ctx);
     });
-    const before = ctx.lineWidth;
-    expect(line.hitTest(10, 0, 8)).toBe(false);
-    expect(seen).toEqual([{ lineWidth: 2 + 16, lineCap: "round", lineJoin: "round", dash: [] }]);
-    expect(ctx.lineWidth).toBe(before);
-    expect(ctx.lineCap).toBe("butt");
+
+    it("strokes the arrow with the arrow width + 2 * threshold on the arrow path", () => {
+      const { connection, ctx } = stubConnection(straight, { hovered: true });
+      const line = new Path2DLine(connection);
+      const seen: TSeen[] = [];
+      const spy = spyStroke(ctx, seen);
+      dirtyContext(ctx);
+      expect(line.hitTest(10, 0, 8)).toBe(false);
+      expect(seen.map((entry) => entry.lineWidth)).toEqual([20, 20]);
+      expect(seen[1]).toMatchObject({ lineCap: "round", lineJoin: "round", dash: [], transform: [1, 0, 0, 1, 0, 0] });
+      expect(spy.mock.calls[0][0]).toBe(line.getPath());
+      expect(spy.mock.calls[1][0]).toBe(line.getArrowPath());
+      expectRestored(ctx);
+    });
+
+    it("hits a closed arrow by its fill", () => {
+      const { connection, ctx } = stubConnection(closedArrowGeometry);
+      const line = new Path2DLine(connection);
+      jest.spyOn(ctx, "isPointInStroke").mockReturnValue(false);
+      const inPath = jest.spyOn(ctx, "isPointInPath").mockReturnValue(true);
+      expect(line.hitTest(5, 6, 8)).toBe(true);
+      expect(inPath).toHaveBeenCalledWith(line.getArrowPath(), 5, 6);
+
+      const open = stubConnection(straight);
+      jest.spyOn(open.ctx, "isPointInStroke").mockReturnValue(false);
+      const openInPath = jest.spyOn(open.ctx, "isPointInPath").mockReturnValue(true);
+      expect(new Path2DLine(open.connection).hitTest(5, 6, 8)).toBe(false);
+      expect(openInPath).not.toHaveBeenCalled();
+    });
+
+    it("skips the arrow when arrows are off", () => {
+      const { connection, ctx } = stubConnection(closedArrowGeometry, {}, { showConnectionArrows: false });
+      const line = new Path2DLine(connection);
+      const seen: TSeen[] = [];
+      spyStroke(ctx, seen);
+      const inPath = jest.spyOn(ctx, "isPointInPath").mockReturnValue(true);
+      expect(line.hitTest(5, 6, 8)).toBe(false);
+      expect(seen).toHaveLength(1);
+      expect(inPath).not.toHaveBeenCalled();
+    });
   });
 
   it("uses tight bounds unless useTightBezierBounds is false", () => {
