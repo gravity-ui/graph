@@ -159,9 +159,12 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
     return this.arrowStroke ? halfWidth(this.arrowStroke) : undefined;
   }
 
-  /** For looks that depend on outside data: the same as update(). */
+  /**
+   * For looks that depend on outside data: the connection's `invalidateLine()`, which reads the strokes again (see
+   * update()) and keeps the bounds, the hit box and the label in step with them.
+   */
   public invalidate(): void {
-    this.update();
+    this.connection.invalidateLine();
   }
 
   /** Removes the line and arrow items from the batch. */

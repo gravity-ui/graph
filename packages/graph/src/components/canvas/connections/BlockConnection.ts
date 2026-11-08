@@ -127,7 +127,8 @@ export class BlockConnection<T extends TConnection = TConnection>
     if (!this.isEntityAvailable()) return;
     const lineHalfWidth = this.line.getLineHalfWidth();
     const arrowHalfWidth = this.line.getArrowHalfWidth();
-    this.line.invalidate();
+    // update(), not invalidate(): the line's invalidate() calls this method.
+    this.line.update();
     if (lineHalfWidth !== this.line.getLineHalfWidth() || arrowHalfWidth !== this.line.getArrowHalfWidth()) {
       // Bounds and the hit box pad by half the stroke widths.
       this.updateBounds();

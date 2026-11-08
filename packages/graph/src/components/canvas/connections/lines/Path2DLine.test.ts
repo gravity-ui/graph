@@ -142,12 +142,22 @@ describe("Path2DLine", () => {
     expect(closed.batch.items.get(closedLine.arrow)?.group).not.toBe(open.batch.items.get(openLine.arrow)?.group);
   });
 
-  it("invalidate() with an unchanged stroke marks the line dirty", () => {
+  it("invalidate() runs the connection's invalidateLine(), which also keeps bounds and the label in step", () => {
+    const { connection } = stubConnection(straight);
+    const invalidateLine = jest.fn();
+    Object.assign(connection, { invalidateLine });
+    const line = new Path2DLine(connection);
+    line.update();
+    line.invalidate();
+    expect(invalidateLine).toHaveBeenCalledTimes(1);
+  });
+
+  it("update() with an unchanged stroke marks the line dirty", () => {
     const { connection, batch } = stubConnection(straight);
     const line = new Path2DLine(connection);
     line.update();
     batch.dirty.length = 0;
-    line.invalidate();
+    line.update();
     expect(batch.dirty).toContain(line);
   });
 

@@ -30,6 +30,28 @@ class WidePath2DConnection extends BlockConnection<TConnection> {
   public static override line = WidePath2DLine;
 }
 
+/** A line that owns its width and redraws itself through `invalidate()` when it changes. */
+class SelfWideningLine extends WebGLLine {
+  private width = 2;
+
+  public setWidth(width: number): void {
+    this.width = width;
+    this.invalidate();
+  }
+
+  public override getStroke(state: TBaseConnectionState): TLineStroke {
+    return { ...super.getStroke(state), width: this.width };
+  }
+}
+
+class SelfWideningConnection extends BlockConnection<TConnection> {
+  public static override line = SelfWideningLine;
+
+  public getLine(): SelfWideningLine {
+    return this.line as SelfWideningLine;
+  }
+}
+
 class WideWebGLLine extends WebGLLine {
   public override getStroke(state: TBaseConnectionState): TLineStroke {
     const stroke = super.getStroke(state);
@@ -162,6 +184,20 @@ describe("connection bounds and hit box follow the stroke width", () => {
 
     widths.set("c", 10);
     view.invalidateLine();
+    frames();
+    expect(view.getPathBounds()).toEqual([95, 95, 405, 105]);
+    expect(cullingBounds(view)).toEqual([95, 95, 405, 105]);
+    expect(view.getHitBox()).toEqual([87, 87, 326, 26]);
+    expect(hits(TARGET.x + 12, TARGET.y)).toBe(true);
+  });
+
+  it("follows a width the line changes itself through invalidate(), like invalidateLine()", () => {
+    const view = mount(SelfWideningConnection as typeof BlockConnection<TConnection>);
+    if (!(view instanceof SelfWideningConnection)) throw new Error("Expected a self-widening connection");
+    expect(view.getPathBounds()).toEqual([99, 99, 401, 101]);
+    expect(hits(TARGET.x + 12, TARGET.y)).toBe(false);
+
+    view.getLine().setWidth(10);
     frames();
     expect(view.getPathBounds()).toEqual([95, 95, 405, 105]);
     expect(cullingBounds(view)).toEqual([95, 95, 405, 105]);
