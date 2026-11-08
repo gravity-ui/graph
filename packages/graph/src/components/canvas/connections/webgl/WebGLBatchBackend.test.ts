@@ -1,7 +1,11 @@
 import type { IConnectionBatchItem } from "../batch";
+import { defineConnectionEffect, toConnectionEffect } from "../effects/ConnectionEffect";
+import type { ConnectionEffect } from "../effects/ConnectionEffect";
+import type { TConnectionEffectDefinition, TUniformTypes } from "../effects/types";
 import type { TWebGLShape } from "../lines/types";
 
 import { WebGLBatchBackend } from "./WebGLBatchBackend";
+import type { TGLChunk } from "./WebGLBatchBackend";
 import { INSTANCE_FLOATS } from "./encode";
 import { createFakeGL } from "./fakeGL";
 import type { TFakeGL } from "./fakeGL";
@@ -51,6 +55,39 @@ const arrow = (closed: boolean): TWebGLShape => {
   return shape;
 };
 
+/** Queues the chunks of one z-level and ends it, as `BatchScene.render` does. */
+function drawLevel(backend: WebGLBatchBackend, ...chunks: TGLChunk[]): void {
+  for (const chunk of chunks) backend.draw(undefined, chunk);
+  backend.endGroup();
+}
+
+function define<U extends TUniformTypes>(
+  definition: TConnectionEffectDefinition<U, readonly number[]>
+): ConnectionEffect<U, readonly number[]> {
+  return toConnectionEffect(defineConnectionEffect(definition));
+}
+
+const effectA = define({ fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color.bgra; } // A" });
+const effectB = define({ fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color.gbra; } // B" });
+const animatedEffect = define({
+  fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color * sin(f.time); }",
+  animated: true,
+});
+
+const withEffect = (shape: TWebGLShape, effect: ConnectionEffect<TUniformTypes, never>): TWebGLShape => ({
+  ...shape,
+  effect,
+  params: [],
+});
+
+/** The p0.y of every instance in a buffer, which tells the lines in these tests apart. */
+const instanceRows = (fake: TFakeGL, buffer: WebGLBuffer): number[] => {
+  const data = fake.buffers.find((candidate) => candidate === (buffer as unknown))?.data ?? new Float32Array(0);
+  const rows: number[] = [];
+  for (let o = 0; o + INSTANCE_FLOATS <= data.length; o += INSTANCE_FLOATS) rows.push(data[o + 1]);
+  return rows;
+};
+
 function setup(): { fake: TFakeGL; backend: WebGLBatchBackend } {
   const fake = createFakeGL();
   const programs = new ConnectionPrograms(fake.gl);
@@ -76,7 +113,7 @@ describe("WebGLBatchBackend", () => {
     // After the template's upload: one instance.
     expect(fake.uploads.slice(1).map(({ kind, length }) => [kind, length])).toEqual([["bufferData", INSTANCE_FLOATS]]);
 
-    backend.draw(undefined, chunk);
+    drawLevel(backend, chunk);
     expect(fake.draws).toHaveLength(1);
     expect(fake.draws[0]).toMatchObject({
       kind: "drawArraysInstanced",
@@ -88,7 +125,7 @@ describe("WebGLBatchBackend", () => {
 
   it("lays the instance attributes out over the 28 floats", () => {
     const { fake, backend } = setup();
-    backend.draw(undefined, backend.build([item(line())], undefined));
+    drawLevel(backend, backend.build([item(line())], undefined));
     const vertexArray = fake.draws[0].vertexArray;
     if (!vertexArray) throw new Error("Expected a vertex array");
     const layout = [...vertexArray.attributes.entries()]
@@ -111,7 +148,7 @@ describe("WebGLBatchBackend", () => {
     const { fake, backend } = setup();
     const chunk = backend.build([item(arrow(true)), item(arrow(false))], undefined);
     expect(chunk.fill?.vertices).toBe(3);
-    backend.draw(undefined, chunk);
+    drawLevel(backend, chunk);
 
     expect(fake.draws.map(({ kind, mode }) => [kind, mode])).toEqual([
       ["drawArrays", fake.gl.TRIANGLES],
@@ -136,7 +173,7 @@ describe("WebGLBatchBackend", () => {
     const { fake, backend } = setup();
     const chunk = backend.build([item(arrow(false)), item(line())], undefined);
     expect(chunk.fill).toBeUndefined();
-    backend.draw(undefined, chunk);
+    drawLevel(backend, chunk);
     expect(fake.draws.map(({ kind }) => kind)).toEqual(["drawArraysInstanced"]);
   });
 
@@ -156,7 +193,7 @@ describe("WebGLBatchBackend", () => {
     expect(smaller.count).toBe(4);
     expect(smaller.fill?.vertices).toBe(3);
     // The rebuilt chunk draws from live objects only (the fake throws otherwise).
-    backend.draw(undefined, smaller);
+    drawLevel(backend, smaller);
     expect(fake.draws.map(({ kind, count, instances }) => [kind, count, instances])).toEqual([
       ["drawArrays", 3, 1],
       ["drawArraysInstanced", TEMPLATE_VERTICES, 4],
@@ -180,12 +217,123 @@ describe("WebGLBatchBackend", () => {
 
   it("counts draw calls, instances, items and vertices in the stats", () => {
     const { backend } = setup();
-    backend.draw(undefined, backend.build([item(line()), item(arrow(true))], undefined));
+    drawLevel(backend, backend.build([item(line()), item(arrow(true))], undefined));
     expect(getWebGLConnectionsStats()).toMatchObject({
       drawCalls: 2,
       instances: 4,
       items: 2,
       vertices: 4 * TEMPLATE_VERTICES + 3,
     });
+  });
+  it("queues chunks and draws nothing before the z-level ends", () => {
+    const { fake, backend } = setup();
+    backend.draw(undefined, backend.build([item(line()), item(arrow(true))], undefined));
+    expect(fake.draws).toHaveLength(0);
+    backend.endGroup();
+    expect(fake.draws).toHaveLength(2);
+    // The queue is empty after the level.
+    backend.endGroup();
+    expect(fake.draws).toHaveLength(2);
+  });
+
+  it("groups a chunk's instances by effect object: the plain stroke first, then effects by first appearance", () => {
+    const { fake, backend } = setup();
+    const chunk = backend.build(
+      [
+        item(withEffect(line(1), effectB)),
+        item(line(2)),
+        item(withEffect(line(3), effectA)),
+        item(withEffect(line(4), effectB)),
+        item(line(5)),
+      ],
+      undefined
+    );
+    expect(chunk.effects).toEqual([effectB, effectA]);
+    expect(chunk.ranges.map(({ effect, count }) => [effect, count])).toEqual([
+      [undefined, 2],
+      [effectB, 2],
+      [effectA, 1],
+    ]);
+    expect(instanceRows(fake, chunk.buffer)).toEqual([2, 5, 1, 4, 3]);
+    expect(chunk.animated).toBe(false);
+
+    drawLevel(backend, chunk);
+    const [plain] = fake.programs;
+    expect(fake.draws.map(({ instances }) => instances)).toEqual([2, 2, 1]);
+    expect(fake.draws[0].program).toBe(plain);
+    expect(fake.draws[1].program?.fragment).toContain("// B");
+    expect(fake.draws[2].program?.fragment).toContain("// A");
+    // Each range's vertex array starts at its first instance.
+    const offsets = fake.draws.map(({ vertexArray }) => vertexArray?.attributes.get(1)?.offset);
+    expect(offsets).toEqual([0, 2 * INSTANCE_FLOATS * 4, 4 * INSTANCE_FLOATS * 4]);
+  });
+
+  it("draws a z-level's fills first, then each effect once over every queued chunk", () => {
+    const { fake, backend } = setup();
+    const first = backend.build([item(withEffect(line(1), effectA)), item(arrow(true))], undefined);
+    const second = backend.build([item(withEffect(line(2), effectB)), item(withEffect(line(3), effectA))], undefined);
+    const third = backend.build([item(line(4)), item(withEffect(line(5), effectB)), item(arrow(true))], undefined);
+    const bound = fake.used.length;
+    drawLevel(backend, first, second, third);
+
+    const name = (program: TFakeGL["programs"][number] | undefined): string => {
+      if (program === fake.programs[0]) return "plain";
+      if (program === fake.programs[1]) return "fill";
+      return program?.fragment?.includes("// A") ? "A" : "B";
+    };
+    expect(fake.draws.map(({ program }) => name(program))).toEqual([
+      "fill",
+      "fill",
+      "plain",
+      "plain",
+      "A",
+      "A",
+      "B",
+      "B",
+    ]);
+    // One bind per program in the level.
+    expect(fake.used.slice(bound).map(name)).toEqual(["fill", "plain", "A", "B"]);
+  });
+
+  it("marks a chunk animated when one of its effects is", () => {
+    const { backend } = setup();
+    const still = backend.build([item(withEffect(line(), effectA))], undefined);
+    const moving = backend.build([item(line()), item(withEffect(line(1), animatedEffect))], undefined);
+    expect(still.animated).toBe(false);
+    expect(moving.animated).toBe(true);
+    drawLevel(backend, still);
+    expect(backend.drewAnimated).toBe(false);
+    drawLevel(backend, moving);
+    expect(backend.drewAnimated).toBe(true);
+  });
+
+  it("tells its owner which effects its chunks hold as they are built, rebuilt and released", () => {
+    const fake = createFakeGL();
+    const programs = new ConnectionPrograms(fake.gl);
+    const template = fake.gl.createBuffer();
+    if (!template) throw new Error("Expected a template buffer");
+    const held = new Map<ConnectionEffect<TUniformTypes, never>, number>();
+    const backend = new WebGLBatchBackend(fake.gl, template, TEMPLATE_VERTICES, programs, {
+      retain: (effect) => held.set(effect, (held.get(effect) ?? 0) + 1),
+      release: (effect) => held.set(effect, (held.get(effect) ?? 0) - 1),
+    });
+    const a = backend.build([item(withEffect(line(), effectA)), item(withEffect(line(1), effectA))], undefined);
+    const b = backend.build([item(withEffect(line(), effectA)), item(withEffect(line(1), effectB))], undefined);
+    // Once per chunk, whatever the number of its connections with the effect.
+    expect([...held]).toEqual([
+      [effectA, 2],
+      [effectB, 1],
+    ]);
+
+    backend.build([item(line())], b);
+    expect([...held]).toEqual([
+      [effectA, 1],
+      [effectB, 0],
+    ]);
+    backend.release(a);
+    expect([...held]).toEqual([
+      [effectA, 0],
+      [effectB, 0],
+    ]);
   });
 });

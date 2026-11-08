@@ -159,10 +159,11 @@ void main() {
 /**
  * The line program's fragment shader. `effect` is GLSL ES 3.00 defining `vec4 effect(ConnectionFragment f, vec4
  * color)` that recolors every fragment the stroke draws (straight RGBA in and out); without it the stroke keeps its
- * color. The library anti-aliases, fades hairlines and premultiplies afterwards.
+ * color. The library anti-aliases, fades hairlines and premultiplies afterwards. `uniforms` declares the effect's
+ * `u_<name>` uniforms. Compiler logs count lines from the effect's first line.
  */
-export function createFragmentShader(effect: string = IDENTITY_EFFECT): string {
-  return `${FRAGMENT_PRELUDE}\n${effect}\n${FRAGMENT_MAIN}`;
+export function createFragmentShader(effect: string = IDENTITY_EFFECT, uniforms = ""): string {
+  return `${FRAGMENT_PRELUDE}\n${uniforms}#line 1\n${effect}\n${FRAGMENT_MAIN}`;
 }
 
 /** The fill program's vertex shader: closed arrows as triangles in world coordinates. */

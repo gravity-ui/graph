@@ -104,11 +104,26 @@ test("distances run on across the segments of one shape and start again with the
   expect(instance(out, 2).slice(14, 16)).toEqual([0, 30]);
 });
 
-test("leaves the effect params at zero", () => {
+test("leaves the effect params at zero without params", () => {
   const out = new Float32Array(2 * INSTANCE_FLOATS).fill(9);
   encodeShapes([shape([0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60])], out);
   expect(instance(out, 0).slice(20, 28)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
   expect(instance(out, 1).slice(20, 28)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+});
+
+test("writes a shape's params into every instance, missing ones as zero and at most eight", () => {
+  const segments = [0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60];
+  const shapes: TWebGLShape[] = [
+    { ...shape(segments), params: [1, 2.5, -3] },
+    { ...shape([0, 0, 10, 0, 20, 0, 30, 0]), params: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+  ];
+  const out = new Float32Array(3 * INSTANCE_FLOATS).fill(9);
+  expect(encodeShapes(shapes, out)).toBe(3);
+  expect(instance(out, 0).slice(20, 28)).toEqual([1, 2.5, -3, 0, 0, 0, 0, 0]);
+  expect(instance(out, 1).slice(20, 28)).toEqual([1, 2.5, -3, 0, 0, 0, 0, 0]);
+  expect(instance(out, 2).slice(20, 28)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  // The params stay inside their floats: the next instance starts with its own p0.
+  expect(instance(out, 2).slice(0, 2)).toEqual([0, 0]);
 });
 
 test("a shape without segments writes nothing", () => {

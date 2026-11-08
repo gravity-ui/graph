@@ -50,6 +50,9 @@ export class ConnectionEffect<U extends TUniformTypes = TUniformTypes, P = reado
 
   public readonly uniformTypes: Readonly<Record<string, TUniformType>>;
 
+  /** The GLSL declarations of the uniforms: a `uniform <type> u_<name>;` line per uniform, sorted by name. */
+  public readonly uniformDeclarations: string;
+
   /** Programs are cached by this key: the uniform declarations plus the fragment. Clones share it. */
   public readonly programKey: string;
 
@@ -81,11 +84,11 @@ export class ConnectionEffect<U extends TUniformTypes = TUniformTypes, P = reado
     }
     this.uniformTypes = types;
     this.uniforms = signals as unknown as { [K in keyof U]: Signal<TUniformValue<U[K]>> };
-    this.programKey =
-      Object.keys(types)
-        .sort()
-        .map((name) => `uniform ${types[name]} u_${name};\n`)
-        .join("") + fragment;
+    this.uniformDeclarations = Object.keys(types)
+      .sort()
+      .map((name) => `uniform ${types[name]} u_${name};\n`)
+      .join("");
+    this.programKey = this.uniformDeclarations + fragment;
     countObject(fragment);
   }
 
@@ -120,10 +123,12 @@ export function defineConnectionEffect<U extends TUniformTypes = Record<never, T
   return new ConnectionEffect(definition);
 }
 
-/** Internal: the class instance behind a public effect object. */
-export function toConnectionEffect(effect: TConnectionEffectUse["effect"]): ConnectionEffect<TUniformTypes, never> {
+/** Internal: the class instance behind a public effect object, with the object's own types. */
+export function toConnectionEffect<U extends TUniformTypes, P>(
+  effect: TConnectionEffect<U, P>
+): ConnectionEffect<U, P> {
   if (!(effect instanceof ConnectionEffect)) {
     throw new Error("[@gravity-ui/graph] Not a connection effect: create it with defineConnectionEffect().");
   }
-  return effect as ConnectionEffect<TUniformTypes, never>;
+  return effect as ConnectionEffect<U, P>;
 }

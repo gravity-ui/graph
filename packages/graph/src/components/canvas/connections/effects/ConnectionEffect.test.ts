@@ -58,14 +58,14 @@ describe("defineConnectionEffect", () => {
     copy.uniforms.intensity.value = 2;
     expect(effect.uniforms.intensity.value).toBe(5);
     expect(copy).not.toBe(effect);
-    expect(toConnectionEffect(copy as never).programKey).toBe(toConnectionEffect(effect as never).programKey);
+    expect(toConnectionEffect(copy).programKey).toBe(toConnectionEffect(effect).programKey);
   });
 
   it("gives different fragments and uniform sets different program keys", () => {
-    const a = toConnectionEffect(defineConnectionEffect({ fragment: FRAGMENT }) as never);
-    const b = toConnectionEffect(defineConnectionEffect({ fragment: `${FRAGMENT} ` }) as never);
+    const a = toConnectionEffect(defineConnectionEffect({ fragment: FRAGMENT }));
+    const b = toConnectionEffect(defineConnectionEffect({ fragment: `${FRAGMENT} ` }));
     const c = toConnectionEffect(
-      defineConnectionEffect({ fragment: FRAGMENT, uniforms: { k: { type: "float", value: 1 } } }) as never
+      defineConnectionEffect({ fragment: FRAGMENT, uniforms: { k: { type: "float", value: 1 } } })
     );
     expect(new Set([a.programKey, b.programKey, c.programKey]).size).toBe(3);
     expect(c.programKey).toContain("uniform float u_k;");
@@ -77,7 +77,7 @@ describe("defineConnectionEffect", () => {
     ).toThrow(/uniform name/);
     expect(() => defineConnectionEffect({ fragment: FRAGMENT, extraWidth: -1 })).toThrow(/extraWidth/);
     expect(() => defineConnectionEffect({ fragment: FRAGMENT, extraWidth: Infinity })).toThrow(/extraWidth/);
-    expect(toConnectionEffect(defineConnectionEffect({ fragment: FRAGMENT }) as never).extraWidth).toBe(0);
+    expect(toConnectionEffect(defineConnectionEffect({ fragment: FRAGMENT })).extraWidth).toBe(0);
   });
 
   it("warns once past 64 objects with one fragment", () => {
@@ -89,16 +89,16 @@ describe("defineConnectionEffect", () => {
 
   it("returns the class instance from toConnectionEffect and rejects other objects", () => {
     const effect = defineConnectionEffect({ fragment: FRAGMENT });
-    expect(toConnectionEffect(effect as never)).toBeInstanceOf(ConnectionEffect);
+    expect(toConnectionEffect(effect)).toBeInstanceOf(ConnectionEffect);
     expect(() => toConnectionEffect({} as never)).toThrow();
   });
 
   it("uses the fallback and defaults to the stroke itself", () => {
     const stroke: TLineStroke = { color: "#fff", width: 2 };
-    const plain = toConnectionEffect(defineConnectionEffect({ fragment: FRAGMENT }) as never);
+    const plain = toConnectionEffect(defineConnectionEffect({ fragment: FRAGMENT }));
     expect(plain.getFallbackStroke(stroke, [])).toBe(stroke);
     const custom = toConnectionEffect(
-      defineConnectionEffect({ fragment: FRAGMENT, fallback: (s, p) => ({ ...s, width: p[0] }) }) as never
+      defineConnectionEffect({ fragment: FRAGMENT, fallback: (s, p) => ({ ...s, width: p[0] }) })
     );
     expect(custom.getFallbackStroke(stroke, [7])).toEqual({ color: "#fff", width: 7 });
   });

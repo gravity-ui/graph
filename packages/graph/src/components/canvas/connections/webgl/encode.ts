@@ -8,7 +8,7 @@ import { CURVE_SEGMENTS } from "./shaders";
  * Floats per instance (one cubic piece):
  * 0-3 p0, c1 | 4-7 c2, p3 | 8-11 straight rgba 0..1 |
  * 12-15 width, connection length, distance at the piece start, piece length | 16-19 dash: on, off, on, off |
- * 20-27 effect params.
+ * 20-27 effect params (the shape's `params`, zeros after them).
  * Lengths and distances in world units.
  */
 export const INSTANCE_FLOATS = 28;
@@ -137,6 +137,13 @@ function dashFloats(dash: TLineStroke["dash"]): readonly number[] {
   return [normalized[0], normalized[1], normalized[2] ?? 0, normalized[3] ?? 0];
 }
 
+/** Writes the effect params of an instance: missing ones as zero, at most `EFFECT_PARAMS`. */
+function writeParams(params: readonly number[] | undefined, out: Float32Array, offset: number): void {
+  let i = 0;
+  if (params) for (; i < params.length && i < EFFECT_PARAMS; i++) out[offset + i] = params[i];
+  out.fill(0, offset + i, offset + EFFECT_PARAMS);
+}
+
 /**
  * Writes every cubic of the shapes into `out`, split into pieces where it bends (see `pieceCount`); returns the
  * number of instances written, which `countPieces` gives in advance. The distance runs on across the pieces and
@@ -144,7 +151,7 @@ function dashFloats(dash: TLineStroke["dash"]): readonly number[] {
  */
 export function encodeShapes(shapes: readonly TWebGLShape[], out: Float32Array): number {
   let index = 0;
-  for (const { segments, stroke } of shapes) {
+  for (const { segments, stroke, params } of shapes) {
     const color = colorFloats(stroke.color);
     const dash = dashFloats(stroke.dash);
     const first = index;
@@ -164,7 +171,7 @@ export function encodeShapes(shapes: readonly TWebGLShape[], out: Float32Array):
         out[base + 14] = distance;
         out[base + 15] = length;
         out.set(dash, base + DASH_OFFSET);
-        out.fill(0, base + PARAMS_OFFSET, base + PARAMS_OFFSET + EFFECT_PARAMS);
+        writeParams(params, out, base + PARAMS_OFFSET);
         distance += length;
         index++;
       }

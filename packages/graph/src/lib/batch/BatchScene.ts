@@ -213,11 +213,15 @@ export class BatchScene<TItem extends IBatchItem, TResource, TTarget> {
     if (!this.relocate(item, record)) record.chunk.bounds.reset();
   }
 
-  /** Draws every chunk with visible items that intersects the viewport, building stale drawables first. */
+  /**
+   * Draws every chunk with visible items that intersects the viewport, building stale drawables first; ends each group
+   * that drew a chunk.
+   */
   public render(target: TTarget, viewport?: TTileRect): void {
     const groups = this.orderedGroups.get();
     for (let g = 0; g < groups.length; g++) {
       const chunks = groups[g].chunks;
+      let drew = false;
       for (let c = 0; c < chunks.length; c++) {
         const chunk = chunks[c];
         const items = chunk.visible.get();
@@ -231,7 +235,9 @@ export class BatchScene<TItem extends IBatchItem, TResource, TTarget> {
           resource = chunk.resource;
         }
         this.backend.draw(target, resource, items, viewport);
+        drew = true;
       }
+      if (drew) this.backend.endGroup?.(target);
     }
   }
 

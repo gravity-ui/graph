@@ -1,13 +1,17 @@
+import { effect as watch } from "@preact/signals-core";
+import type { ReadonlySignal } from "@preact/signals-core";
+
 import { BatchScene } from "../../../../lib/batch/BatchScene";
 import type { TBatchParams } from "../../../../lib/batch/types";
 import type { TTileRect } from "../../../../lib/culling/TileIndex";
 import type { TCameraState } from "../../../../services/camera/CameraService";
 import type { IConnectionBatch, IConnectionBatchItem } from "../batch";
 
-import type { TGLChunk } from "./WebGLBatchBackend";
+import type { IEffectRefs, TGLChunk } from "./WebGLBatchBackend";
 import { WebGLBatchBackend } from "./WebGLBatchBackend";
 import { ZLevelBatch } from "./ZLevelBatch";
 import { ConnectionPrograms } from "./programs";
+import type { TShapeEffect } from "./programs";
 import { createCurveTemplate } from "./shaders";
 import { webglConnectionsStats } from "./stats";
 
@@ -23,10 +27,19 @@ export type TWebGLConnectionsOptions = {
   onRestored: () => void;
 };
 
+/** An effect present in built chunks: how many hold it, and the subscription to its uniforms. */
+type TEffectEntry = { chunks: number; dispose: () => void };
+
+/** The signals' values; reading them inside an effect subscribes the effect to each. */
+function readValues(signals: ReadonlyArray<ReadonlySignal<unknown>>): unknown[] {
+  return signals.map((source) => source.value);
+}
+
 /**
  * Lines and arrows drawn with WebGL2 on a canvas stacked right below the graph layer's canvas. Draws in the graph
- * layer's frame; while it draws an animated chunk, it also redraws itself every animation frame without the graph
- * layer. After its context is lost it draws nothing; its canvas stays and reports the restore.
+ * layer's frame; it also redraws itself in an animation frame of its own, without the graph layer, every frame while it
+ * draws an animated chunk, and once after a uniform of an effect in its chunks changes. After its context is lost it
+ * draws nothing; its canvas stays and reports the restore.
  */
 export class WebGLConnections implements IConnectionBatch {
   /**
@@ -70,6 +83,14 @@ export class WebGLConnections implements IConnectionBatch {
   /** Set by `webglcontextlost`; the GL objects of this instance are gone for good then, a restore included. */
   private lost = false;
 
+  /** Effects of the built chunks, with the subscriptions to their uniforms. */
+  private readonly effects = new Map<TShapeEffect, TEffectEntry>();
+
+  private readonly effectRefs: IEffectRefs = {
+    retain: (effect) => this.retainEffect(effect),
+    release: (effect) => this.releaseEffect(effect),
+  };
+
   /** Compiles the line and fill programs; throws their log when one fails. */
   private constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -83,7 +104,7 @@ export class WebGLConnections implements IConnectionBatch {
     if (!template) throw new Error("Cannot allocate a WebGL buffer");
     gl.bindBuffer(gl.ARRAY_BUFFER, template);
     gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-    this.backend = new WebGLBatchBackend(gl, template, vertices.length / 2, this.programs);
+    this.backend = new WebGLBatchBackend(gl, template, vertices.length / 2, this.programs, this.effectRefs);
     this.batch = new ZLevelBatch(
       new BatchScene(this.backend, {
         chunkSize: options.chunkSize,
@@ -134,9 +155,10 @@ export class WebGLConnections implements IConnectionBatch {
     this.loop();
   }
 
-  /** Stops the animation loop, removes the canvas and its listeners and frees its context. */
+  /** Stops the animation loop and the uniform subscriptions, removes the canvas and its listeners, frees its context. */
   public dispose(): void {
     this.stopLoop();
+    this.disposeEffects();
     this.canvas.removeEventListener("webglcontextlost", this.handleLost);
     this.canvas.removeEventListener("webglcontextrestored", this.handleRestored);
     this.canvas.remove();
@@ -150,6 +172,58 @@ export class WebGLConnections implements IConnectionBatch {
   private stopLoop(): void {
     if (this.frame !== undefined) cancelAnimationFrame(this.frame);
     this.frame = undefined;
+  }
+
+  /** A chunk was built with the effect: the first one subscribes to the effect's uniforms. */
+  private retainEffect(effect: TShapeEffect): void {
+    const entry = this.effects.get(effect);
+    if (entry) {
+      entry.chunks++;
+      return;
+    }
+    const uniforms = Object.values(effect.uniforms);
+    let subscribed = false;
+    // The draw reads the values with peek(); only this effect reads `.value`, which subscribes it to each uniform.
+    const dispose = uniforms.length
+      ? watch(() => {
+          readValues(uniforms);
+          if (subscribed) this.requestFrame();
+          subscribed = true;
+        })
+      : (): void => undefined;
+    this.effects.set(effect, { chunks: 1, dispose });
+  }
+
+  /** A chunk with the effect was rebuilt without it or released: the last one unsubscribes. */
+  private releaseEffect(effect: TShapeEffect): void {
+    const entry = this.effects.get(effect);
+    if (!entry || --entry.chunks > 0) return;
+    entry.dispose();
+    this.effects.delete(effect);
+  }
+
+  private disposeEffects(): void {
+    for (const entry of this.effects.values()) entry.dispose();
+    this.effects.clear();
+  }
+
+  /**
+   * The culling viewport widened on each side by the widest `extraWidth` of the effects in the chunks, in world
+   * units: a glow reaches beyond its connection's bounds.
+   */
+  private cullingViewport(scale: number): TTileRect | undefined {
+    const viewport = this.viewport;
+    if (!viewport || !(scale > 0)) return viewport;
+    let extraWidth = 0;
+    for (const effect of this.effects.keys()) extraWidth = Math.max(extraWidth, effect.extraWidth);
+    if (!extraWidth) return viewport;
+    const margin = extraWidth / scale;
+    return {
+      minX: viewport.minX - margin,
+      minY: viewport.minY - margin,
+      maxX: viewport.maxX + margin,
+      maxY: viewport.maxY + margin,
+    };
   }
 
   /** Same z-index, right before it in the document: below the graph layer's canvas, above the layers under it. */
@@ -183,8 +257,8 @@ export class WebGLConnections implements IConnectionBatch {
       dpr: camera.width ? canvas.width / camera.width : 1,
       time: (performance.now() - this.start) / 1000,
     });
-    this.backend.drewAnimated = false;
-    this.batch.render(undefined, this.viewport);
+    this.backend.beginFrame();
+    this.batch.render(undefined, this.cullingViewport(camera.scale));
     gl.bindVertexArray(null);
     webglConnectionsStats.draws++;
     webglConnectionsStats.drawMs += performance.now() - began;
@@ -192,19 +266,28 @@ export class WebGLConnections implements IConnectionBatch {
 
   /** Redraws every animation frame while an animated chunk is visible; the graph layer is not involved. */
   private loop(): void {
-    if (this.frame !== undefined || !this.backend.drewAnimated) return;
-    this.frame = requestAnimationFrame(() => {
-      this.frame = undefined;
-      this.draw();
-      this.loop();
-    });
+    if (this.backend.drewAnimated) this.requestFrame();
   }
+
+  /** One frame of its own in the next animation frame, unless one is pending; nothing after the context is lost. */
+  private requestFrame(): void {
+    if (this.frame !== undefined || this.lost) return;
+    this.frame = requestAnimationFrame(this.handleFrame);
+  }
+
+  private handleFrame = (): void => {
+    this.frame = undefined;
+    this.draw();
+    this.loop();
+  };
 
   private handleLost = (event: Event): void => {
     // Without preventDefault() the browser never restores the context.
     event.preventDefault();
     this.lost = true;
     this.stopLoop();
+    // Nothing is drawn again, so uniform changes have nothing to redraw.
+    this.disposeEffects();
     this.options.onLost();
   };
 

@@ -20,6 +20,11 @@ export interface IBatchBackend<TItem, TResource, TTarget> {
   build(items: readonly TItem[], previous: TResource | undefined): TResource;
   /** Draws a built chunk that intersects the viewport; without a viewport every chunk is drawn. */
   draw(target: TTarget, resource: TResource, items: readonly TItem[], viewport: TTileRect | undefined): void;
+  /**
+   * Called after the chunks of a `(zIndex, group)` pair when at least one of them was drawn, so a backend can draw
+   * the group's chunks together.
+   */
+  endGroup?(target: TTarget): void;
   /** Frees the drawable of a removed chunk. */
   release?(resource: TResource): void;
 }
