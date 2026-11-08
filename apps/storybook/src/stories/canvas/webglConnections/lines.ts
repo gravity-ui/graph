@@ -19,7 +19,8 @@ export type TLook = {
   effect?: TConnectionEffectUse;
 };
 
-export type TDescribe = (id: string | number | undefined, base: TLineStroke, state: TBaseConnectionState) => TLook;
+/** The resting look of a connection; hover and selection are applied on top by `withInteraction()`. */
+export type TDescribe = (id: string | number | undefined, state: TBaseConnectionState) => TLook;
 
 /** The two connection classes of one option: the same look, drawn by WebGL and by Path2D. */
 export type TConnectionPair = { webgl: TConnectionClass; canvas: TConnectionClass };
@@ -44,17 +45,11 @@ function toCanvasStroke({ color, width, pattern }: TLook): TLineStroke {
   return pattern ? { color, width, dash: { pattern } } : { color, width };
 }
 
-/** Hovered and selected connections keep the default stroke; the others take the described look. */
-function resolve(describe: TDescribe, base: TLineStroke, state: TBaseConnectionState, id: string | number | undefined) {
-  return state.hovered || state.selected ? undefined : describe(id, base, state);
-}
-
 export function createConnections(describe: TDescribe): TConnectionPair {
+  // Hover and selection change only the color and the width: the dash and the effect stay.
   class GLLine extends WebGLLine {
     public override getStroke(state: TBaseConnectionState): TWebGLStroke {
-      const base = super.getStroke(state);
-      const look = resolve(describe, base, state, this.connection.props.id);
-      return look ? toWebGLStroke(look) : base;
+      return this.withInteraction(toWebGLStroke(describe(this.connection.props.id, state)), state);
     }
   }
   class GLConnection extends BlockConnection<TConnection> {
@@ -62,9 +57,7 @@ export function createConnections(describe: TDescribe): TConnectionPair {
   }
   class CanvasLine extends Path2DLine {
     public override getStroke(state: TBaseConnectionState): TLineStroke {
-      const base = super.getStroke(state);
-      const look = resolve(describe, base, state, this.connection.props.id);
-      return look ? toCanvasStroke(look) : base;
+      return this.withInteraction(toCanvasStroke(describe(this.connection.props.id, state)), state);
     }
   }
   class CanvasConnection extends BlockConnection<TConnection> {
@@ -90,21 +83,29 @@ export const particles = defineConnectionEffect({
   encode: ({ spacing, speed }: { spacing: number; speed: number }) => [spacing, speed],
 });
 
-/** Source color to target color, and a band running along. params: source rgb, laps per second, target rgb. */
+/**
+ * Source color to target color, and a band running along. params: source rgb, laps per second, target rgb, and how much
+ * of the stroke color to mix in (1 while selected, so the selection color shows).
+ */
 export const gradient = defineConnectionEffect({
   animated: true,
   fragment: /* glsl */ `
     vec4 effect(ConnectionFragment f, vec4 color) {
-      vec3 rgb = mix(f.params0.rgb, f.params1.rgb, f.t);
+      vec3 rgb = mix(mix(f.params0.rgb, f.params1.rgb, f.t), color.rgb, f.params1.w);
       float band = smoothstep(0.8, 1.0, fract(f.t - f.time * f.params0.w));
       return vec4(rgb, color.a * mix(0.35, 1.0, band));
     }`,
-  encode: ({ from, to, laps }: { from: readonly number[]; to: readonly number[]; laps: number }) => [
-    ...from,
+  encode: ({
+    from,
+    to,
     laps,
-    ...to,
-    0,
-  ],
+    tint = false,
+  }: {
+    from: readonly number[];
+    to: readonly number[];
+    laps: number;
+    tint?: boolean;
+  }) => [...from, laps, ...to, tint ? 1 : 0],
   fallback: (stroke) => stroke,
 });
 
@@ -121,7 +122,12 @@ export const glow = defineConnectionEffect({
   fallback: (stroke) => stroke,
 });
 
-export const plain = createConnections((_id, base) => ({ ...base, pattern: base.dash?.pattern }));
+/** The default lines of each renderer: the connection's colors, its `dashed` data, hover and selection. */
+class PlainWebGLConnection extends BlockConnection<TConnection> {
+  public static override line = WebGLLine;
+}
+
+export const plain: TConnectionPair = { webgl: PlainWebGLConnection, canvas: BlockConnection };
 
 export const stillDash = createConnections(() => ({ color: "#4e79a7", width: 2, pattern: [12, 8] }));
 
@@ -196,12 +202,12 @@ export const particleLines = createConnections((id) => {
 });
 
 /** Blue at the source, orange at the target, and a band that runs along at its own pace. */
-export const gradientLines = createConnections((id) => {
+export const gradientLines = createConnections((id, state) => {
   const laps = 0.2 + (hashId(id) % 5) * 0.1;
   return {
     color: "#7a8aa6",
     width: 6,
-    effect: gradient.use({ from: [0.18, 0.49, 0.96], to: [0.95, 0.56, 0.17], laps }),
+    effect: gradient.use({ from: [0.18, 0.49, 0.96], to: [0.95, 0.56, 0.17], laps, tint: Boolean(state.selected) }),
   };
 });
 

@@ -395,11 +395,8 @@ const zigzagGeometry: TConnectionGeometryFn = ({ source, target }) => {
 
 class ZigzagLine extends Path2DLine {
   public override getStroke(state: TBaseConnectionState): TLineStroke {
-    return {
-      color: state.hovered ? "#ff6b6b" : "#4285f4",
-      width: state.selected ? 4 : 2,
-      dash: state.dashed ? { pattern: [8, 4] } : undefined,
-    };
+    // Hover and selection change the color and the width, as for the default stroke; the dash stays.
+    return this.withInteraction({ color: "#4285f4", width: 2, dash: state.dashed ? { pattern: [8, 4] } : undefined }, state);
   }
 }
 

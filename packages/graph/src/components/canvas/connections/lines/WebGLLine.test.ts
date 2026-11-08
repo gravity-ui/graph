@@ -266,6 +266,19 @@ describe("WebGLLine", () => {
       expect(new WebGLLine(stubConnection(straight).connection).getWebGLEffect()).toBeUndefined();
     });
 
+    it("keeps the effect on hover and selection: only the color and the width change", () => {
+      class SelectedEffectLine extends WebGLLine {
+        public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+          return this.withInteraction({ color: "#2f7cf6", width: 6, effect: pulse.use(3) }, state);
+        }
+      }
+      const selected = new SelectedEffectLine(stubConnection(straight, { selected: true }).connection);
+      const stroke = selected.getStroke({ id: "c", selected: true });
+      expect(stroke).toMatchObject({ color: "#fc0", width: 8, effect: { params: [3] } });
+      selected.update();
+      expect(selected.getWebGLShape()?.effect).toBe(toConnectionEffect(pulse as never));
+    });
+
     it("draws and groups the Path2D fallback with the fallback stroke", () => {
       const { connection, batch, ctx } = stubConnection(straight, {}, noArrows);
       const line = new EffectLine(connection);

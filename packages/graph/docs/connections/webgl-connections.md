@@ -76,10 +76,16 @@ parameter (`class MyLine extends Path2DLine<MyConnection>`), so a line can call 
 
 | Method | Default |
 |---|---|
-| `getStroke(state)` | Connection colors by state (`styles.background` / `styles.selectedBackground` first), width 2 (4 hovered or selected), dash from `dashed` and `styles.dashes` (`[6, 4]` without them) |
+| `getStroke(state)` | The connection color (`styles.background` first), width 2, dash from `dashed` and `styles.dashes` (`[6, 4]` without them), with hover and selection applied by `withInteraction()` |
+| `withInteraction(stroke, state)` | Protected helper: a selected line takes the selected color (`styles.selectedBackground` first), a hovered or selected one is 2 units wider; the dash and the effect stay |
 | `getArrowStroke(state)` | The line's color and width without the dash; a closed arrow is filled with the color |
 | `getBounds(geometry)` | Bounds of the geometry's segments (the control-point hull with `EXP_USE_TIGHT_BEZIER_BOUNDS = false`); the component adds the arrow, the label and `getAfterRenderBounds()`, and pads them by half the stroke width for culling (the arrow by half its width times the canvas miter limit) |
 | `hitTest(x, y, threshold)` | See [Hit testing](#hit-testing) |
+
+**Hover and selection** change the color and the width of a line, never its style: a dashed line stays dashed, a
+line with an effect keeps its effect. Build a custom look with `withInteraction()` and it follows the same rule as
+the default stroke — `return this.withInteraction({ color: "#2f7cf6", width: 6, effect: flow.use(input) }, state)`.
+Returning `super.getStroke(state)` for hovered or selected connections would replace the look with the default line.
 
 **Update protocol.** The component calls `line.update()` when its state, props or geometry change: the line reads
 `getStroke()` (and `getArrowStroke()` while arrows are shown) again and tells the batch, which moves the line to its
@@ -94,10 +100,10 @@ type TStatusConnection = TConnection & { status?: "ok" | "failed" };
 
 class StatusLine extends Path2DLine {
   public override getStroke(state: TBaseConnectionState): TLineStroke {
-    const stroke = super.getStroke(state);
-    if (state.hovered || state.selected) return stroke;
     const { status } = state as Partial<TStatusConnection>;
-    return status === "failed" ? { ...stroke, color: "#e5484d", dash: { pattern: [6, 4] } } : stroke;
+    if (status !== "failed") return super.getStroke(state);
+    // The status sets the style; hover and selection still change only the color and the width.
+    return this.withInteraction({ color: "#e5484d", width: 2, dash: { pattern: [6, 4] } }, state);
   }
 }
 
@@ -126,8 +132,10 @@ const highlights = new Map<string, string>();
 
 class HighlightLine extends Path2DLine {
   public override getStroke(state: TBaseConnectionState): TLineStroke {
-    const stroke = super.getStroke(state);
-    return { ...stroke, color: highlights.get(String(state.id)) ?? stroke.color };
+    const highlight = highlights.get(String(state.id));
+    if (!highlight) return super.getStroke(state);
+    const { dash } = super.getStroke(state);
+    return this.withInteraction({ color: highlight, width: 2, dash }, state);
   }
 }
 
@@ -516,7 +524,7 @@ const glow = defineConnectionEffect({
 
 class GlowLine extends WebGLLine {
   public override getStroke(state: TBaseConnectionState): TWebGLStroke {
-    return { ...super.getStroke(state), color: "#2f7cf6", width: 3, effect: glow.use([]) };
+    return this.withInteraction({ color: "#2f7cf6", width: 3, effect: glow.use([]) }, state);
   }
 }
 
@@ -635,15 +643,16 @@ type TFlowConnection = TConnection & { flow?: "data" | "signal" };
 
 class PipelineLine extends WebGLLine {
   public override getStroke(state: TBaseConnectionState): TWebGLStroke {
-    const stroke = super.getStroke(state);
     const { flow } = state as Partial<TFlowConnection>;
-    if (state.hovered || state.selected || !flow) return stroke;
+    if (!flow) return super.getStroke(state);
+    // Hover and selection change the color and the width; the comets and the wave keep running.
     if (flow === "data") {
       // Comets from the source to the target; a negative speed runs them back.
-      return { color: "#2f7cf6", width: 6, effect: dashFlow.use({ pattern: [90, 160], speed: 120, fade: true }) };
+      const effect = dashFlow.use({ pattern: [90, 160], speed: 120, fade: true });
+      return this.withInteraction({ color: "#2f7cf6", width: 6, effect }, state);
     }
     // A brightness wave travelling along x: neighbouring connections pulse in step.
-    return { color: "#2bb24c", width: 5, effect: pulse.use({ period: 3, wavelength: 24000 }) };
+    return this.withInteraction({ color: "#2bb24c", width: 5, effect: pulse.use({ period: 3, wavelength: 24000 }) }, state);
   }
 }
 

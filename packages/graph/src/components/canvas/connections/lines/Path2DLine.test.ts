@@ -6,6 +6,7 @@ import { blockGeometry, multipointGeometry } from "../geometry";
 import type { TConnectionGeometry } from "../geometry";
 
 import { Path2DLine } from "./Path2DLine";
+import type { TLineStroke } from "./types";
 
 class RecordingBatch implements IConnectionBatch {
   public readonly items = new Map<IConnectionBatchItem, TBatchParams>();
@@ -307,5 +308,47 @@ describe("Path2DLine", () => {
     expect(tight).toBeDefined();
     expect(loose).toBeDefined();
     expect(tight?.[3]).toBeLessThan(loose?.[3] as number);
+  });
+});
+
+describe("ConnectionLine.withInteraction()", () => {
+  /** A custom look through withInteraction(): a 6-unit dashed line. */
+  class StyledLine extends Path2DLine {
+    public override getStroke(state: Parameters<Path2DLine["getStroke"]>[0]): TLineStroke {
+      return this.withInteraction({ color: "#123456", width: 6, dash: { pattern: [3, 2] } }, state);
+    }
+  }
+
+  it("keeps the dash and changes only the color and the width on hover and selection", () => {
+    const stroke = (state: TStubState): TLineStroke =>
+      new StyledLine(stubConnection(straight, state).connection).getStroke({ id: "c", ...state });
+    expect(stroke({})).toEqual({ color: "#123456", width: 6, dash: { pattern: [3, 2] } });
+    expect(stroke({ hovered: true })).toEqual({ color: "#123456", width: 8, dash: { pattern: [3, 2] } });
+    expect(stroke({ selected: true })).toEqual({ color: "#fc0", width: 8, dash: { pattern: [3, 2] } });
+    expect(stroke({ selected: true, styles: { selectedBackground: "#0f0" } })).toEqual({
+      color: "#0f0",
+      width: 8,
+      dash: { pattern: [3, 2] },
+    });
+  });
+
+  it("returns the stroke itself when the line is neither hovered nor selected", () => {
+    class Probe extends Path2DLine {
+      public probe(stroke: TLineStroke, state: TStubState): TLineStroke {
+        return this.withInteraction(stroke, { id: "c", ...state });
+      }
+    }
+    const probe = new Probe(stubConnection(straight).connection);
+    const stroke = { color: "#123456", width: 6 };
+    expect(probe.probe(stroke, {})).toBe(stroke);
+    expect(probe.probe(stroke, { hovered: true })).not.toBe(stroke);
+  });
+
+  it("is what the default stroke is built on: the theme color, width 2, selected 4 in the selected color", () => {
+    const stroke = (state: TStubState): TLineStroke =>
+      new Path2DLine(stubConnection(straight, state).connection).getStroke({ id: "c", ...state });
+    expect(stroke({ dashed: true })).toEqual({ color: "#aaa", width: 2, dash: { pattern: [6, 4] } });
+    expect(stroke({ dashed: true, selected: true })).toEqual({ color: "#fc0", width: 4, dash: { pattern: [6, 4] } });
+    expect(stroke({ hovered: true })).toEqual({ color: "#aaa", width: 4, dash: undefined });
   });
 });

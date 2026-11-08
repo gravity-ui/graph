@@ -1159,9 +1159,9 @@ type TStatusConnection = TConnection & { status?: "ok" | "failed" };
 
 class StatusLine extends Path2DLine {
   public override getStroke(state: TBaseConnectionState): TLineStroke {
-    const stroke = super.getStroke(state);
     const { status } = state as Partial<TStatusConnection>;
-    return { ...stroke, color: status === "failed" ? "#e5484d" : "#4285f4" };
+    // withInteraction() applies hover and selection: the selected color, 2 units wider; the dash stays.
+    return this.withInteraction({ color: status === "failed" ? "#e5484d" : "#4285f4", width: 2 }, state);
   }
 }
 
@@ -1170,7 +1170,8 @@ class StatusConnection extends BlockConnection<TStatusConnection> {
 }
 ```
 
-The same `getStroke()` on a `WebGLLine` subclass draws the look with WebGL. `style()` stays for what a stroke cannot
+`withInteraction()` keeps hover and selection as they were: the selected color and 2 more units of width on top of
+your look, which keeps its dash or effect. The same `getStroke()` on a `WebGLLine` subclass draws the look with WebGL. `style()` stays for what a stroke cannot
 say (gradients, shadows, fills); a `style()` that reads more than `getStroke()` overrides `getGroup()` as well.
 
 ### Multipoint connections

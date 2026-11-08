@@ -72,15 +72,28 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
     this.arrow = new LineArrowItem(this);
   }
 
-  /** Default: connection colors by state, width 2 (4 hovered or selected), dash from `dashed` / `styles.dashes`. */
+  /**
+   * Default: the connection color, width 2 and the dash from `dashed` / `styles.dashes`, with hover and selection applied
+   * by `withInteraction()` (the selected color, width 4).
+   */
   public getStroke(state: TBaseConnectionState): TLineStroke {
     const colors = this.connection.context.colors.connection;
-    const color = state.selected
-      ? state.styles?.selectedBackground || colors.selectedBackground
-      : state.styles?.background || colors.background;
-    const width = state.hovered || state.selected ? 4 : 2;
+    const color = state.styles?.background || colors.background;
     const dash = state.dashed ? { pattern: state.styles?.dashes || [6, 4] } : undefined;
-    return { color, width, dash };
+    return this.withInteraction({ color, width: 2, dash }, state);
+  }
+
+  /**
+   * Hover and selection on top of a stroke: a selected line takes the selected color (`styles.selectedBackground` or
+   * the theme's), a hovered or selected one is 2 units wider. The rest of the stroke — dash, effect — stays, so a
+   * custom look keeps its style while selected: `return this.withInteraction({ color, width: 6, effect }, state)`.
+   */
+  protected withInteraction<S extends TLineStroke>(stroke: S, state: TBaseConnectionState): S {
+    if (!state.hovered && !state.selected) return stroke;
+    const color = state.selected
+      ? state.styles?.selectedBackground || this.connection.context.colors.connection.selectedBackground
+      : stroke.color;
+    return { ...stroke, color, width: stroke.width + 2 };
   }
 
   /** Default: the line's color and width without the dash; a closed arrow is filled with the color. */
