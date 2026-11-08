@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 
+import { BlockConnection } from "@gravity-ui/graph";
 import type { Graph, TBlock, TRect } from "@gravity-ui/graph";
 import { GraphCanvas, useGraph, useSignal } from "@gravity-ui/graph-react";
 import { Flex, SegmentedRadioGroup, Slider, Text, ThemeProvider } from "@gravity-ui/uikit";
@@ -11,6 +12,7 @@ import { BlockStory } from "../../main/Block";
 
 import {
   cometsCode,
+  etlCode,
   glowCode,
   gradientCode,
   particlesCode,
@@ -21,6 +23,8 @@ import {
   stillDashCode,
   stressCode,
 } from "./codeSamples";
+import { etlBlocks, etlConnections, etlFlows, setEtlEffect } from "./etl";
+import type { TEtlEffect } from "./etl";
 import {
   comets,
   dataStyled,
@@ -305,6 +309,113 @@ NirvanaEffects.parameters = {
     description: {
       story:
         "`generatePrettyBlocks({ layersCount: 55, connectionsPerLayer: 400 })` with bezier connections and effects in `getStroke()`: `dashFlow` with `fade` and negative `speed`, `pulse`, and custom `defineConnectionEffect` shaders.",
+    },
+  },
+};
+
+const etlEffects: (TOption & { value: TEtlEffect; slider?: TSlider })[] = [
+  { value: "comets", content: "Comets" },
+  { value: "dash", content: "Running dash" },
+  { value: "pulse", content: "Pulse" },
+  { value: "particles", content: "Particles", slider: particlesSlider },
+  { value: "gradient", content: "Gradient" },
+  { value: "glow", content: "Glow", slider: glowSlider },
+  { value: "plain", content: "Plain" },
+];
+
+type TEtlGraphViewProps = { renderer: TRenderer; effect: TEtlEffect };
+
+/** One graph per renderer; the effect changes at runtime: the lines read it again with invalidateLine(). */
+const EtlGraphView = ({ renderer, effect }: TEtlGraphViewProps): React.JSX.Element => {
+  const { graph, setEntities, setSettings, start, zoomTo } = useGraph({});
+  const actual = useSignal(graph.getGraphLayer().$connectionsRenderer);
+
+  useEffect(() => {
+    setSettings({
+      connection: renderer === "webgl" ? etlConnections.webgl : etlConnections.canvas,
+      showConnectionLabels: false,
+      useBezierConnections: true,
+      showConnectionArrows: true,
+    });
+  }, [setSettings, renderer]);
+
+  useEffect(() => {
+    setEntities({ blocks: etlBlocks, connections: etlFlows });
+    start();
+    zoomTo("center", { padding: 100 });
+  }, [setEntities, start, zoomTo]);
+
+  // The camera and the selection stay: only the lines are read again.
+  useEffect(() => {
+    for (const state of graph.rootStore.connectionsList.$connections.value) {
+      const view = state.getViewComponent();
+      if (view instanceof BlockConnection) view.invalidateLine();
+    }
+  }, [graph, effect]);
+
+  const renderBlock = (graphInstance: Graph, block: TBlock): React.JSX.Element => (
+    <BlockStory graph={graphInstance} block={block} />
+  );
+
+  return (
+    <>
+      <GraphCanvas graph={graph} className="graph-canvas" renderBlock={renderBlock} />
+      <Text variant="body-1" color="secondary" style={{ position: "absolute", right: 16, bottom: 8, zIndex: 10 }}>
+        Actual renderer: {actual}
+      </Text>
+    </>
+  );
+};
+
+const EtlApp = (): React.JSX.Element => {
+  const [effect, setEffect] = useState<TEtlEffect>("comets");
+  const [renderer, setRenderer] = useState<TRenderer>("webgl");
+  const selected = etlEffects.find((option) => option.value === effect) ?? etlEffects[0];
+
+  return (
+    <ThemeProvider theme="light">
+      <Flex direction="column" style={{ height: "100vh" }}>
+        <Flex direction="column" gap={2} style={{ padding: 16 }}>
+          <Text variant="header-1">ETL pipeline</Text>
+          <Text variant="body-1">
+            A typical ETL process: data moves from sources through extract, validation and cleaning, transforms and
+            loads to the consumers. The selector swaps the effect of every running flow at runtime through
+            invalidateLine(); the graph, the camera and the selection stay. Failed (red dash) and idle (thin grey) flows
+            keep their own look. Speed, spacing and width follow the volume of the flow. Click a connection to see the
+            selection look of the effect.
+          </Text>
+          <pre style={{ margin: 0, fontSize: 12, maxHeight: 180, overflow: "auto" }}>{etlCode}</pre>
+          <Flex alignItems="center" gap={4} wrap>
+            <SegmentedRadioGroup options={renderers} value={renderer} onUpdate={setRenderer} />
+            <SegmentedRadioGroup
+              options={etlEffects}
+              value={effect}
+              onUpdate={(next) => {
+                setEtlEffect(next);
+                setEffect(next);
+              }}
+            />
+            <Text variant="body-1" color="secondary">
+              {etlBlocks.length} blocks, {etlFlows.length} connections
+            </Text>
+          </Flex>
+          {selected.slider && <UniformSlider key={selected.value} {...selected.slider} />}
+        </Flex>
+        <div style={{ flex: 1, minHeight: 400, position: "relative" }}>
+          <EtlGraphView key={renderer} renderer={renderer} effect={effect} />
+        </div>
+      </Flex>
+    </ThemeProvider>
+  );
+};
+
+export const EtlPipeline: StoryFn = () => <EtlApp />;
+EtlPipeline.storyName = "ETL pipeline";
+EtlPipeline.parameters = {
+  docs: {
+    description: {
+      story:
+        "A line reads the selected effect from a module variable in `getStroke()`; on change the story calls `invalidateLine()` on every connection view. Failed and idle flows ignore the effect.",
     },
   },
 };

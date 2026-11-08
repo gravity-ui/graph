@@ -203,3 +203,45 @@ class GlowConnection extends BlockConnection {
   public static override line = GlowLine;
 }
 // glow.uniforms.intensity.value = 1; // the slider does this`;
+
+export const etlCode = `import { BlockConnection, WebGLLine, dashFlow, pulse } from "@gravity-ui/graph";
+import type { Graph, TBaseConnectionState, TWebGLStroke } from "@gravity-ui/graph";
+
+type TFlow = { volume: number; status: "running" | "idle" | "failed" };
+
+// The look depends on data outside the connection's store: the selected effect
+let flowEffect: "comets" | "pulse" | "plain" = "comets";
+
+class FlowLine extends WebGLLine {
+  public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+    const { status, volume = 1 } = state as TBaseConnectionState & Partial<TFlow>;
+    // failed and idle flows keep their own look, whatever the effect
+    if (status === "failed") {
+      return this.withInteraction({ color: "#e5484d", width: 3, dash: { pattern: [10, 8] } }, state);
+    }
+    if (status === "idle") return this.withInteraction({ color: "#888888", width: 1 }, state);
+    const width = 2 + volume * 0.4;
+    if (flowEffect === "comets") {
+      const effect = dashFlow.use({ pattern: [80, 180], speed: 50 + volume * 30, fade: true });
+      return this.withInteraction({ color: "#2f7cf6", width, effect }, state);
+    }
+    if (flowEffect === "pulse") {
+      const effect = pulse.use({ period: 4.5 - volume * 0.3, wavelength: 3000 });
+      return this.withInteraction({ color: "#2f7cf6", width, effect }, state);
+    }
+    return this.withInteraction({ color: "#2f7cf6", width }, state);
+  }
+}
+class FlowConnection extends BlockConnection {
+  public static override line = FlowLine;
+}
+
+// graph.setSettings({ connection: FlowConnection });
+// On change, every connection reads its line again:
+function setFlowEffect(graph: Graph, next: typeof flowEffect): void {
+  flowEffect = next;
+  for (const state of graph.rootStore.connectionsList.$connections.value) {
+    const view = state.getViewComponent();
+    if (view instanceof BlockConnection) view.invalidateLine();
+  }
+}`;
