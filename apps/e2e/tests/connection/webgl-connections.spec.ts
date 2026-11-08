@@ -53,7 +53,7 @@ async function hasWebGL2(page: Page): Promise<boolean> {
   return page.evaluate(() => Boolean(document.createElement("canvas").getContext("webgl2")));
 }
 
-/** Counts non-transparent pixels of the graph canvases within `radius` device pixels of a world point. */
+/** Counts non-transparent pixels of the graph layer canvas (where fallback connections draw) within `radius` device pixels of a world point. */
 async function countPixelsAround(page: Page, point: { x: number; y: number }, radius = 3): Promise<number> {
   return page.evaluate(
     ({ point: p, radius: r }) => {
@@ -61,10 +61,11 @@ async function countPixelsAround(page: Page, point: { x: number; y: number }, ra
       const sx = p.x * scale + x;
       const sy = p.y * scale + y;
       let count = 0;
-      for (const canvas of Array.from(document.querySelectorAll<HTMLCanvasElement>("#root canvas"))) {
+      const canvas = window.graph.getGraphCanvas();
+      if (canvas) {
         const ratio = canvas.width / canvas.getBoundingClientRect().width;
         const ctx = canvas.getContext("2d");
-        if (!ctx) continue;
+        if (!ctx) return 0;
         const cx = Math.round(sx * ratio);
         const cy = Math.round(sy * ratio);
         const size = Math.round(r * 2 * ratio) + 1;
@@ -202,7 +203,10 @@ test.describe("WebGL connections", () => {
 
     const conn = graphPO.connection("c1");
     const midpoint = await conn.getPointOnCurve(0.5);
-    expect(await countPixelsAround(page, midpoint)).toBeGreaterThan(0);
+    // A point 60 world units above the midpoint is far from the line: it is the baseline of the canvas.
+    const baseline = await countPixelsAround(page, { x: midpoint.x, y: midpoint.y - 60 });
+    expect(baseline).toBe(0);
+    expect(await countPixelsAround(page, midpoint)).toBeGreaterThan(baseline);
 
     await conn.click({ curveTime: 0.5 });
     expect(await conn.isSelected()).toBe(true);
@@ -217,7 +221,6 @@ test.describe("WebGL connections", () => {
         await graphPO.initialize(config(bezier));
         const result = await measureParity(page, "c1", scale);
         const summary = `${bezier ? "bezier" : "straight"} scale ${scale}: checked ${result.checked}, hits ${result.hits}, mismatches ${result.mismatches}, outside the ${result.band} band ${result.boundaryMismatches}, max deviation ${result.maxDeviation.toFixed(2)}`;
-        console.log(`[parity] ${summary}`);
         testInfo.annotations.push({ type: "parity", description: summary });
         expect(result.hits).toBeGreaterThan(0);
         expect(result.boundaryMismatches).toBe(0);
@@ -229,7 +232,15 @@ test.describe("WebGL connections", () => {
     test(`${kind} renders in WebGL without console errors`, async ({ page }) => {
       const errors: string[] = [];
       page.on("console", (message) => {
-        if (message.type() === "error") errors.push(message.text());
+        const text = message.text();
+        // Chrome reports shader and driver problems as warnings. "GL Driver Message (..., Performance, ...)" hints
+        // (a GPU stall from the browser's own readback in headless mode) are not problems.
+        if (
+          message.type() === "error" ||
+          (message.type() === "warning" && /GL|WebGL|shader/i.test(text) && !/Performance/.test(text))
+        ) {
+          errors.push(text);
+        }
       });
       page.on("pageerror", (error) => errors.push(error.message));
 
