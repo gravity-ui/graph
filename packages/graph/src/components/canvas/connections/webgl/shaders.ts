@@ -3,9 +3,12 @@
  * internal and carry the `graph_` prefix, which leaves every other name to effects.
  */
 
-export const CURVE_SEGMENTS = 32;
+import { CURVE_CHORDS } from "./encode";
 
-/** The line program's vertex shader: one instance per cubic piece, a triangle strip along it. */
+/**
+ * The line program's vertex shader: one instance per cubic piece, a triangle strip along it. The template sets how many
+ * chords the strip has: one for a straight segment (`createLineTemplate`), `CURVE_CHORDS` for a curve piece.
+ */
 export const VERTEX = /* glsl */ `#version 300 es
 precision highp float;
 
@@ -215,12 +218,17 @@ void main() {
 }
 `;
 
-/** Triangle strip along one piece: (t, side) pairs. */
-export function createCurveTemplate(segments = CURVE_SEGMENTS): Float32Array {
+/** Triangle strip of uniform chords along one piece: (t, side) pairs. */
+export function createCurveTemplate(chords = CURVE_CHORDS): Float32Array {
   const vertices: number[] = [];
-  for (let i = 0; i <= segments; i++) {
-    const t = i / segments;
+  for (let i = 0; i <= chords; i++) {
+    const t = i / chords;
     vertices.push(t, -1, t, 1);
   }
   return new Float32Array(vertices);
+}
+
+/** The strip of a straight segment: one quad, (0, -1) (0, 1) (1, -1) (1, 1). */
+export function createLineTemplate(): Float32Array {
+  return createCurveTemplate(1);
 }

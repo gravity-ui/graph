@@ -212,6 +212,40 @@ describe("WebGLConnections", () => {
     expect(onLost).toHaveBeenCalledTimes(1);
     expect(onRestored).toHaveBeenCalledTimes(1);
   });
+  it("re-encodes chunks for another zoom bucket over frames of its own while stale ones remain", () => {
+    const frames = mockFrames();
+    const fake = createFakeGL();
+    const onChange = jest.fn();
+    const camera = { ...options.getCamera() };
+    const connections = create(fake, { chunkSize: 1, getCamera: () => camera, onChange });
+    // A long bezier: 5 pieces at scale 1, one at scale 0.01.
+    const bezier = new Float32Array([0, 0, 1500, 0, 1500, 800, 3000, 800]);
+    for (let i = 0; i < 3; i++) {
+      connections.add(item({ segments: bezier, stroke: { color: "#000", width: 2 } }), { zIndex: 1, group: "line" });
+    }
+    connections.render();
+    expect(fake.draws.map(({ instances }) => instances)).toEqual([5, 5, 5]);
+    expect(frames.pending()).toBe(0);
+    onChange.mockClear();
+
+    // Every re-encode takes longer than a frame's budget: one chunk a frame, the others drawn as they are.
+    let now = 0;
+    jest.spyOn(performance, "now").mockImplementation(() => (now += 5));
+    camera.scale = 0.01;
+    connections.render();
+    expect(fake.draws.slice(3).map(({ instances }) => instances)).toEqual([1, 5, 5]);
+    expect(frames.pending()).toBe(1);
+    frames.run();
+    expect(fake.draws.slice(6).map(({ instances }) => instances)).toEqual([1, 1, 5]);
+    expect(frames.pending()).toBe(1);
+    frames.run();
+    expect(fake.draws.slice(9).map(({ instances }) => instances)).toEqual([1, 1, 1]);
+    expect(frames.pending()).toBe(0);
+    // The graph layer is not asked for a frame.
+    expect(onChange).not.toHaveBeenCalled();
+    connections.dispose();
+  });
+
   describe("effects", () => {
     it("redraws once in its own frame after a uniform change, without touching buffers or the graph layer", () => {
       const frames = mockFrames();

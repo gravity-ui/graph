@@ -11,11 +11,11 @@ import { createFakeGL } from "./fakeGL";
 import type { TFakeGL } from "./fakeGL";
 import { FILL_VERTEX_FLOATS } from "./fill";
 import { ConnectionPrograms } from "./programs";
-import { FILL_VERTEX, createCurveTemplate } from "./shaders";
+import { FILL_VERTEX } from "./shaders";
 import { getWebGLConnectionsStats, resetWebGLConnectionsStats } from "./stats";
 
-const TEMPLATE = createCurveTemplate();
-const TEMPLATE_VERTICES = TEMPLATE.length / 2;
+/** Vertices of the line template: the straight segments of these tests are one quad each. */
+const LINE_VERTICES = 4;
 
 function item(shape?: TWebGLShape | "none"): IConnectionBatchItem {
   const base: IConnectionBatchItem = {
@@ -92,12 +92,8 @@ function setup(): { fake: TFakeGL; backend: WebGLBatchBackend } {
   const fake = createFakeGL();
   const programs = new ConnectionPrograms(fake.gl);
   programs.beginFrame({ width: 100, height: 100, x: 0, y: 0, scale: 1, dpr: 1, time: 0 });
-  const template = fake.gl.createBuffer();
-  if (!template) throw new Error("Expected a template buffer");
-  // The fake checks that draws stay within the bound buffers, the template included.
-  fake.gl.bindBuffer(fake.gl.ARRAY_BUFFER, template);
-  fake.gl.bufferData(fake.gl.ARRAY_BUFFER, TEMPLATE, fake.gl.STATIC_DRAW);
-  const backend = new WebGLBatchBackend(fake.gl, template, TEMPLATE_VERTICES, programs);
+  // The fake checks that draws stay within the bound buffers, the templates included.
+  const backend = new WebGLBatchBackend(fake.gl, programs);
   return { fake, backend };
 }
 
@@ -110,15 +106,15 @@ describe("WebGLBatchBackend", () => {
     expect(chunk.items).toBe(1);
     expect(chunk.count).toBe(1);
     expect(chunk.fill).toBeUndefined();
-    // After the template's upload: one instance.
-    expect(fake.uploads.slice(1).map(({ kind, length }) => [kind, length])).toEqual([["bufferData", INSTANCE_FLOATS]]);
+    // After the uploads of the two templates: one instance.
+    expect(fake.uploads.slice(2).map(({ kind, length }) => [kind, length])).toEqual([["bufferData", INSTANCE_FLOATS]]);
 
     drawLevel(backend, chunk);
     expect(fake.draws).toHaveLength(1);
     expect(fake.draws[0]).toMatchObject({
       kind: "drawArraysInstanced",
       mode: fake.gl.TRIANGLE_STRIP,
-      count: TEMPLATE_VERTICES,
+      count: LINE_VERTICES,
       instances: 1,
     });
   });
@@ -196,7 +192,7 @@ describe("WebGLBatchBackend", () => {
     drawLevel(backend, smaller);
     expect(fake.draws.map(({ kind, count, instances }) => [kind, count, instances])).toEqual([
       ["drawArrays", 3, 1],
-      ["drawArraysInstanced", TEMPLATE_VERTICES, 4],
+      ["drawArraysInstanced", LINE_VERTICES, 4],
     ]);
 
     // More instances: a new buffer; no closed arrow: the fill is freed.
@@ -210,8 +206,8 @@ describe("WebGLBatchBackend", () => {
     expect(fake.buffers.find((buffer) => buffer === (first.fill?.buffer as unknown))?.deleted).toBe(true);
 
     backend.release(larger);
-    // Only the template buffer stays; every vertex array is freed.
-    expect(fake.live("buffer")).toBe(1);
+    // Only the two template buffers stay; every vertex array is freed.
+    expect(fake.live("buffer")).toBe(2);
     expect(fake.live("vertexArray")).toBe(0);
   });
 
@@ -222,7 +218,7 @@ describe("WebGLBatchBackend", () => {
       drawCalls: 2,
       instances: 4,
       items: 2,
-      vertices: 4 * TEMPLATE_VERTICES + 3,
+      vertices: 4 * LINE_VERTICES + 3,
     });
   });
   it("queues chunks and draws nothing before the z-level ends", () => {
@@ -310,10 +306,8 @@ describe("WebGLBatchBackend", () => {
   it("tells its owner which effects its chunks hold as they are built, rebuilt and released", () => {
     const fake = createFakeGL();
     const programs = new ConnectionPrograms(fake.gl);
-    const template = fake.gl.createBuffer();
-    if (!template) throw new Error("Expected a template buffer");
     const held = new Map<ConnectionEffect<TUniformTypes, never>, number>();
-    const backend = new WebGLBatchBackend(fake.gl, template, TEMPLATE_VERTICES, programs, {
+    const backend = new WebGLBatchBackend(fake.gl, programs, {
       retain: (effect) => held.set(effect, (held.get(effect) ?? 0) + 1),
       release: (effect) => held.set(effect, (held.get(effect) ?? 0) - 1),
     });

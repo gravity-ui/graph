@@ -4,13 +4,20 @@ export type TWebGLConnectionsStats = {
   drawMs: number;
   /** Frame draws, in the graph layer's frame or the animation loop. */
   draws: number;
-  /** Draw calls: per drawn chunk, one instanced call for its strokes and one for its closed-arrow fills. */
+  /**
+   * Draw calls: per drawn chunk and effect group, one instanced call for its straight segments and one for its curve
+   * pieces; one per chunk for its closed-arrow fills.
+   */
   drawCalls: number;
-  /** Instances (cubic pieces) drawn. */
+  /** Instances (cubic pieces) drawn: `lineInstances` plus `curveInstances`. */
   instances: number;
+  /** Instances of straight segments, drawn with the 4-vertex line template. */
+  lineInstances: number;
+  /** Instances of curve pieces, drawn with the curve template. */
+  curveInstances: number;
   /** Connection items with a WebGL shape in drawn chunks, summed per draw. */
   items: number;
-  /** Vertices drawn: instances times the strip template's vertices, plus closed-arrow fill vertices. */
+  /** Vertices drawn: instances times their template's vertices, plus closed-arrow fill vertices. */
   vertices: number;
 };
 
@@ -20,6 +27,8 @@ export const webglConnectionsStats: TWebGLConnectionsStats = {
   draws: 0,
   drawCalls: 0,
   instances: 0,
+  lineInstances: 0,
+  curveInstances: 0,
   items: 0,
   vertices: 0,
 };
@@ -35,6 +44,8 @@ export function resetWebGLConnectionsStats(): void {
   webglConnectionsStats.draws = 0;
   webglConnectionsStats.drawCalls = 0;
   webglConnectionsStats.instances = 0;
+  webglConnectionsStats.lineInstances = 0;
+  webglConnectionsStats.curveInstances = 0;
   webglConnectionsStats.items = 0;
   webglConnectionsStats.vertices = 0;
 }

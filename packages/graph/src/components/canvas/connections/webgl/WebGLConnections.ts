@@ -10,9 +10,9 @@ import type { IConnectionBatch, IConnectionBatchItem } from "../batch";
 import type { IEffectRefs, TGLChunk } from "./WebGLBatchBackend";
 import { WebGLBatchBackend } from "./WebGLBatchBackend";
 import { ZLevelBatch } from "./ZLevelBatch";
+import { scaleBucket } from "./encode";
 import { ConnectionPrograms } from "./programs";
 import type { TShapeEffect } from "./programs";
-import { createCurveTemplate } from "./shaders";
 import { webglConnectionsStats } from "./stats";
 
 export type TWebGLConnectionsOptions = {
@@ -38,8 +38,8 @@ function readValues(signals: ReadonlyArray<ReadonlySignal<unknown>>): unknown[] 
 /**
  * Lines and arrows drawn with WebGL2 on a canvas stacked right below the graph layer's canvas. Draws in the graph
  * layer's frame; it also redraws itself in an animation frame of its own, without the graph layer, every frame while it
- * draws an animated chunk, and once after a uniform of an effect in its chunks changes. After its context is lost it
- * draws nothing; its canvas stays and reports the restore.
+ * draws an animated chunk or a chunk still tessellated for another zoom bucket, and once after a uniform of an effect
+ * in its chunks changes. After its context is lost it draws nothing; its canvas stays and reports the restore.
  */
 export class WebGLConnections implements IConnectionBatch {
   /**
@@ -99,12 +99,7 @@ export class WebGLConnections implements IConnectionBatch {
     private readonly options: TWebGLConnectionsOptions
   ) {
     this.programs = new ConnectionPrograms(gl);
-    const vertices = createCurveTemplate();
-    const template = gl.createBuffer();
-    if (!template) throw new Error("Cannot allocate a WebGL buffer");
-    gl.bindBuffer(gl.ARRAY_BUFFER, template);
-    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-    this.backend = new WebGLBatchBackend(gl, template, vertices.length / 2, this.programs, this.effectRefs);
+    this.backend = new WebGLBatchBackend(gl, this.programs, this.effectRefs);
     this.batch = new ZLevelBatch(
       new BatchScene(this.backend, {
         chunkSize: options.chunkSize,
@@ -257,16 +252,20 @@ export class WebGLConnections implements IConnectionBatch {
       dpr: camera.width ? canvas.width / camera.width : 1,
       time: (performance.now() - this.start) / 1000,
     });
-    this.backend.beginFrame();
+    // Curves are tessellated for the camera's zoom bucket; chunks of another one are re-encoded over a few frames.
+    this.backend.beginFrame(scaleBucket(camera.scale));
     this.batch.render(undefined, this.cullingViewport(camera.scale));
     gl.bindVertexArray(null);
     webglConnectionsStats.draws++;
     webglConnectionsStats.drawMs += performance.now() - began;
   }
 
-  /** Redraws every animation frame while an animated chunk is visible; the graph layer is not involved. */
+  /**
+   * Redraws every animation frame while an animated chunk is visible or a drawn chunk waits for its re-encoding; the
+   * graph layer is not involved.
+   */
   private loop(): void {
-    if (this.backend.drewAnimated) this.requestFrame();
+    if (this.backend.drewAnimated || this.backend.drewStale) this.requestFrame();
   }
 
   /** One frame of its own in the next animation frame, unless one is pending; nothing after the context is lost. */

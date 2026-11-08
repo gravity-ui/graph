@@ -1,14 +1,22 @@
 import type { TLineStroke, TWebGLShape } from "../lines/types";
 
-import { INSTANCE_FLOATS, countPieces, encodeShapes } from "./encode";
+import { INSTANCE_FLOATS, createEncodedChunk, encodeShapes, piecesAt } from "./encode";
+import type { TInstances } from "./encode";
 
 const shape = (segments: number[], stroke: Partial<TLineStroke> = {}): TWebGLShape => ({
   segments: new Float32Array(segments),
   stroke: { color: "#ff8000", width: 3, ...stroke },
 });
 
-function instance(out: Float32Array, index: number): number[] {
-  return Array.from(out.subarray(index * INSTANCE_FLOATS, (index + 1) * INSTANCE_FLOATS));
+function instance(instances: TInstances, index: number): number[] {
+  return Array.from(instances.data.subarray(index * INSTANCE_FLOATS, (index + 1) * INSTANCE_FLOATS));
+}
+
+/** Encoded line instances whose floats start as `fill`, so tests see which ones the encoder writes. */
+function filledChunk(instances: number, fill: number): ReturnType<typeof createEncodedChunk> {
+  const out = createEncodedChunk();
+  out.lines.data = new Float32Array(instances * INSTANCE_FLOATS).fill(fill);
+  return out;
 }
 
 test("an instance is 28 floats", () => {
@@ -23,11 +31,12 @@ test("writes one instance per cubic with the stroke: color, width, connection le
       dash: { pattern: [6, 4] },
     }),
   ];
-  expect(countPieces(shapes)).toBe(3);
-  const out = new Float32Array(3 * INSTANCE_FLOATS);
-  expect(encodeShapes(shapes, out)).toBe(3);
+  const out = createEncodedChunk();
+  encodeShapes(shapes, 0, out);
+  // Straight segments: line instances only.
+  expect([out.lines.count, out.curves.count]).toEqual([3, 0]);
 
-  const first = instance(out, 0);
+  const first = instance(out.lines, 0);
   expect(first.slice(0, 8)).toEqual([0, 0, 10, 0, 20, 0, 30, 0]);
   // Straight rgba in 0..1.
   expect(first.slice(8, 12).map((value) => Math.round(value * 255))).toEqual([255, 128, 0, 255]);
@@ -35,13 +44,13 @@ test("writes one instance per cubic with the stroke: color, width, connection le
   expect(first.slice(12, 16)).toEqual([3, 30, 0, 30]);
   expect(first.slice(16, 20)).toEqual([0, 0, 0, 0]);
 
-  const second = instance(out, 1);
+  const second = instance(out.lines, 1);
   expect(second.slice(8, 12)).toEqual([0, 0, 1, 0.5]);
   // Two 30-unit segments: one connection of 60, repeated in both instances.
   expect(second.slice(12, 16)).toEqual([3, 60, 0, 30]);
   // A 2-number pattern leaves the second on/off pair at zero.
   expect(second.slice(16, 20)).toEqual([6, 4, 0, 0]);
-  expect(instance(out, 2).slice(12, 20)).toEqual([3, 60, 30, 30, 6, 4, 0, 0]);
+  expect(instance(out.lines, 2).slice(12, 20)).toEqual([3, 60, 30, 30, 6, 4, 0, 0]);
 });
 
 describe("dash patterns, normalized like canvas setLineDash", () => {
@@ -59,9 +68,9 @@ describe("dash patterns, normalized like canvas setLineDash", () => {
   });
 
   const dashOf = (pattern: readonly number[]): number[] => {
-    const out = new Float32Array(INSTANCE_FLOATS);
-    encodeShapes([shape([0, 0, 10, 0, 20, 0, 30, 0], { dash: { pattern } })], out);
-    return Array.from(out.subarray(16, 20));
+    const out = createEncodedChunk();
+    encodeShapes([shape([0, 0, 10, 0, 20, 0, 30, 0], { dash: { pattern } })], 0, out);
+    return instance(out.lines, 0).slice(16, 20);
   };
 
   it("draws up to two on/off pairs and repeats an odd-length pattern", () => {
@@ -96,19 +105,19 @@ describe("dash patterns, normalized like canvas setLineDash", () => {
 
 test("distances run on across the segments of one shape and start again with the next shape", () => {
   const shapes = [shape([0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60]), shape([0, 0, 10, 0, 20, 0, 30, 0])];
-  const out = new Float32Array(3 * INSTANCE_FLOATS);
-  encodeShapes(shapes, out);
-  expect(instance(out, 0).slice(14, 16)).toEqual([0, 30]);
+  const out = createEncodedChunk();
+  encodeShapes(shapes, 0, out);
+  expect(instance(out.lines, 0).slice(14, 16)).toEqual([0, 30]);
   // The second segment starts where the first ended.
-  expect(instance(out, 1).slice(14, 16)).toEqual([30, 30]);
-  expect(instance(out, 2).slice(14, 16)).toEqual([0, 30]);
+  expect(instance(out.lines, 1).slice(14, 16)).toEqual([30, 30]);
+  expect(instance(out.lines, 2).slice(14, 16)).toEqual([0, 30]);
 });
 
 test("leaves the effect params at zero without params", () => {
-  const out = new Float32Array(2 * INSTANCE_FLOATS).fill(9);
-  encodeShapes([shape([0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60])], out);
-  expect(instance(out, 0).slice(20, 28)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
-  expect(instance(out, 1).slice(20, 28)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+  const out = filledChunk(2, 9);
+  encodeShapes([shape([0, 0, 0, 10, 0, 20, 0, 30, 0, 30, 0, 40, 0, 50, 0, 60])], 0, out);
+  expect(instance(out.lines, 0).slice(20, 28)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+  expect(instance(out.lines, 1).slice(20, 28)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
 });
 
 test("writes a shape's params into every instance, missing ones as zero and at most eight", () => {
@@ -117,19 +126,20 @@ test("writes a shape's params into every instance, missing ones as zero and at m
     { ...shape(segments), params: [1, 2.5, -3] },
     { ...shape([0, 0, 10, 0, 20, 0, 30, 0]), params: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
   ];
-  const out = new Float32Array(3 * INSTANCE_FLOATS).fill(9);
-  expect(encodeShapes(shapes, out)).toBe(3);
-  expect(instance(out, 0).slice(20, 28)).toEqual([1, 2.5, -3, 0, 0, 0, 0, 0]);
-  expect(instance(out, 1).slice(20, 28)).toEqual([1, 2.5, -3, 0, 0, 0, 0, 0]);
-  expect(instance(out, 2).slice(20, 28)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  const out = filledChunk(3, 9);
+  encodeShapes(shapes, 0, out);
+  expect(out.lines.count).toBe(3);
+  expect(instance(out.lines, 0).slice(20, 28)).toEqual([1, 2.5, -3, 0, 0, 0, 0, 0]);
+  expect(instance(out.lines, 1).slice(20, 28)).toEqual([1, 2.5, -3, 0, 0, 0, 0, 0]);
+  expect(instance(out.lines, 2).slice(20, 28)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   // The params stay inside their floats: the next instance starts with its own p0.
-  expect(instance(out, 2).slice(0, 2)).toEqual([0, 0]);
+  expect(instance(out.lines, 2).slice(0, 2)).toEqual([0, 0]);
 });
 
 test("a shape without segments writes nothing", () => {
-  const shapes = [shape([])];
-  expect(countPieces(shapes)).toBe(0);
-  expect(encodeShapes(shapes, new Float32Array(0))).toBe(0);
+  const out = createEncodedChunk();
+  encodeShapes([shape([])], 0, out);
+  expect([out.lines.count, out.curves.count]).toEqual([0, 0]);
 });
 
 function cubicAt(s: ArrayLike<number>, o: number, t: number): [number, number] {
@@ -146,11 +156,12 @@ function cubicAt(s: ArrayLike<number>, o: number, t: number): [number, number] {
 
 test("splits a strongly curved cubic into continuous pieces that follow it, with one connection length", () => {
   const segments = [0, 0, 0, 3000, 100, -3000, 100, 0];
-  const shapes = [shape(segments)];
-  const count = countPieces(shapes);
+  const count = piecesAt(segments, 0, 0);
   expect(count).toBeGreaterThan(1);
-  const out = new Float32Array(count * INSTANCE_FLOATS);
-  expect(encodeShapes(shapes, out)).toBe(count);
+  const encoded = createEncodedChunk();
+  encodeShapes([shape(segments)], 0, encoded);
+  expect([encoded.lines.count, encoded.curves.count]).toEqual([0, count]);
+  const out = encoded.curves.data;
 
   let total = 0;
   for (let k = 0; k < count; k++) {
