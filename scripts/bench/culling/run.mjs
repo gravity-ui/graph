@@ -172,6 +172,29 @@ const browser = await chromium.launch({
   ignoreDefaultArgs: ["--enable-unsafe-swiftshader"],
 });
 
+// The API of every variant, from its bundle's exports: "new" (line classes), "prototype" (connectionsRenderer
+// setting) or "none" (canvas only).
+const apis = {};
+{
+  const context = await browser.newContext();
+  for (const variant of variants) {
+    const page = await context.newPage();
+    await page.goto(`file://${pages[variant.name]}`);
+    apis[variant.name] = await page.evaluate(() => window.bench.detectApi());
+    await page.close();
+  }
+  await context.close();
+}
+for (const variant of variants) {
+  const api = apis[variant.name];
+  if (api === "none" && renderers.includes("webgl")) {
+    console.log(`note: ${variant.name} has no WebGL connections: its WebGL column is skipped`);
+  }
+  if (api !== "new" && effect.startsWith("effects-")) {
+    console.log(`note: ${variant.name} has no effect objects: ${effect} draws plain connections`);
+  }
+}
+
 console.log(
   `repeats=${repeats} steps=${steps}${noopCanvas ? " noop-canvas" : ""}${shuffle ? " shuffle" : ""}${labels ? " labels" : ""}${chunkSize ? ` chunk-size=${chunkSize}` : ""}${cellTiles ? ` cell-tiles=${cellTiles}` : ""}${renderers.join() !== "canvas" ? ` renderers=${renderers.join()}` : ""}${effect !== "none" ? ` effect=${effect}` : ""}`
 );
@@ -180,11 +203,13 @@ for (const scene of scenes) {
     for (const view of views) {
       // Every variant x renderer is a column; the first column is the pixel reference.
       const columns = variants.flatMap((variant) =>
-        renderers.map((renderer) => ({
-          variant,
-          renderer,
-          name: `${variant.name}${renderers.length > 1 ? `/${renderer}` : ""}`,
-        }))
+        renderers
+          .filter((renderer) => renderer !== "webgl" || apis[variant.name] !== "none")
+          .map((renderer) => ({
+            variant,
+            renderer,
+            name: `${variant.name}${renderers.length > 1 ? `/${renderer}` : ""}`,
+          }))
       );
       const results = Object.fromEntries(
         columns.map(({ name }) => [
@@ -237,6 +262,8 @@ for (const scene of scenes) {
                   calls: gl.drawCalls / gl.draws,
                   instances: gl.instances / gl.draws,
                   items: (gl.items ?? 0) / gl.draws,
+                  lineInstances: gl.lineInstances === undefined ? undefined : gl.lineInstances / gl.draws,
+                  curveInstances: gl.curveInstances === undefined ? undefined : gl.curveInstances / gl.draws,
                 });
               }
             }
@@ -258,6 +285,8 @@ for (const scene of scenes) {
       for (const { name } of columns) {
         const result = results[name];
         const isWebGL = columns.find((column) => column.name === name)?.renderer === "webgl";
+        // The renderer the graph really used: "webgl-fallback" means WebGL was requested but is unavailable.
+        const renderer = result.info?.renderer;
         const cells = [`first two frames ${median(result.first).toFixed(0)} ms`];
         if (!firstOnly) {
           for (const mode of modes) {
@@ -268,7 +297,13 @@ for (const scene of scenes) {
               const calls = median(gl.map((value) => value.calls)).toFixed(0);
               const instances = median(gl.map((value) => value.instances)).toFixed(0);
               const items = median(gl.map((value) => value.items)).toFixed(0);
-              cell += ` gl ${ms} ms ${calls} calls ${instances} inst ${items} items`;
+              cell += ` gl ${ms} ms ${calls} calls ${instances} inst`;
+              if (gl.every((value) => value.lineInstances !== undefined)) {
+                const lines = median(gl.map((value) => value.lineInstances)).toFixed(0);
+                const curves = median(gl.map((value) => value.curveInstances)).toFixed(0);
+                cell += ` (${lines} line + ${curves} curve)`;
+              }
+              cell += ` ${items} items`;
             }
             if (timeouts) cell += ` timeouts ${timeouts}`;
             cells.push(cell);
@@ -277,7 +312,7 @@ for (const scene of scenes) {
         // strokes and fills count Path2D calls only: WebGL draws none of them.
         if (result.draws && !isWebGL) cells.push(`strokes ${result.draws.strokes} fills ${result.draws.fills}`);
         console.log(
-          `${scene.padEnd(10)} scale=${String(scale).padEnd(5)} ${view.padEnd(4)} ${name.padEnd(10)}`,
+          `${scene.padEnd(10)} scale=${String(scale).padEnd(5)} ${view.padEnd(4)} ${name.padEnd(10)}${renderer ? ` [${renderer}]` : ""}`,
           cells.join(" | ")
         );
       }

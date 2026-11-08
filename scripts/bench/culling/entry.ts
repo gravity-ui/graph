@@ -14,6 +14,8 @@ type TGLStats = {
   instances: number;
   vertices: number;
   items?: number;
+  lineInstances?: number;
+  curveInstances?: number;
 };
 
 /** WebGL connections stats; older variants do not export them. */
@@ -21,6 +23,14 @@ const glStats = GRAPH as unknown as {
   getWebGLConnectionsStats?: () => TGLStats;
   resetWebGLConnectionsStats?: () => void;
 };
+
+/**
+ * The connection API of this variant, detected from the bundle's exports: `new` has line classes (`WebGLLine`),
+ * `prototype` has WebGL stats and the `connectionsRenderer` setting, `none` can only draw with Canvas.
+ */
+type TApi = "new" | "prototype" | "none";
+const exportsOf = GRAPH as unknown as Record<string, unknown>;
+const api: TApi = exportsOf.WebGLLine ? "new" : exportsOf.getWebGLConnectionsStats ? "prototype" : "none";
 
 /** Internals the benchmark reads; they are not part of the public API. */
 type TLayerInternals = {
@@ -183,7 +193,7 @@ function nirvana(): TScene {
   return { blocks, connections };
 }
 
-type TStroke = { color: string; width: number; dash?: { pattern: readonly number[]; speed?: number } };
+type TStroke = { color: string; width: number; dash?: { pattern: readonly number[]; speed?: number }; effect?: unknown };
 interface IConnectionBase {
   props: { id: string };
   getStroke(state?: unknown): TStroke;
@@ -198,8 +208,10 @@ function hash(text: string): number {
   return Math.abs(value);
 }
 
-/** Connection classes for `--effect`; variants without getStroke() draw them like default connections. */
-function effectConnection(effect: "none" | "dash" | "static-dash" | "style" | undefined): unknown {
+type TEffect = "none" | "dash" | "static-dash" | "style" | `effects-${number}`;
+
+/** Connection classes for `--effect` on the prototype; variants without getStroke() draw them like default connections. */
+function prototypeConnection(effect: TEffect | undefined): unknown {
   if (effect === "dash" || effect === "static-dash") {
     // The same pattern; `dash` runs it at 40 world units per second, `static-dash` keeps it still.
     const dash = effect === "dash" ? { pattern: [12, 8], speed: 40 } : { pattern: [12, 8] };
@@ -218,6 +230,85 @@ function effectConnection(effect: "none" | "dash" | "static-dash" | "style" | un
     };
   }
   return undefined;
+}
+
+type TLineBase = new (connection: unknown) => { connection: { props: { id: string } }; getStroke(state: unknown): TStroke };
+type TEffectObject = { use(params: unknown): unknown };
+type TEffectsApi = {
+  dashFlow: TEffectObject;
+  defineConnectionEffect(definition: { fragment: string; animated?: boolean }): TEffectObject;
+};
+
+/** Effect objects of `effects-N`, defined once per page: N distinct sources give N programs. */
+function tintEffects(count: number): TEffectObject[] {
+  const { defineConnectionEffect } = exportsOf as unknown as TEffectsApi;
+  const effects: TEffectObject[] = [];
+  for (let i = 0; i < count; i++) {
+    const tint = (0.4 + (0.6 * i) / Math.max(1, count - 1)).toFixed(3);
+    effects.push(
+      defineConnectionEffect({
+        animated: false,
+        fragment: `vec4 effect(ConnectionFragment f, vec4 color) { return vec4(color.rgb * ${tint}, color.a); }`,
+      })
+    );
+  }
+  return effects;
+}
+
+/**
+ * The new API: the renderer comes from the connection class's `static line`. A WebGL column uses `WebGLLine`
+ * (effects as objects), a canvas column `Path2DLine` (the still dash; Path2D cannot animate and has no effects).
+ */
+function lineConnection(effect: TEffect | undefined, renderer: "canvas" | "webgl"): unknown {
+  const webgl = renderer === "webgl";
+  const Base = (webgl ? exportsOf.WebGLLine : exportsOf.Path2DLine) as TLineBase;
+  const { dashFlow } = exportsOf as unknown as TEffectsApi;
+  const effectsCount = effect?.startsWith("effects-") ? Number(effect.slice("effects-".length)) : 0;
+  const effects = webgl && effectsCount ? tintEffects(effectsCount) : [];
+  let Line: TLineBase | undefined;
+  if (effect === "dash") {
+    Line = class extends Base {
+      public getStroke(state: unknown): TStroke {
+        const stroke = super.getStroke(state);
+        return webgl
+          ? { ...stroke, effect: dashFlow.use({ pattern: [12, 8], speed: 40 }) }
+          : { ...stroke, dash: { pattern: [12, 8] } };
+      }
+    };
+  } else if (effect === "static-dash") {
+    Line = class extends Base {
+      public getStroke(state: unknown): TStroke {
+        return { ...super.getStroke(state), dash: { pattern: [12, 8] } };
+      }
+    };
+  } else if (effect === "style") {
+    Line = class extends Base {
+      public getStroke(state: unknown): TStroke {
+        const key = hash(String(this.connection.props.id));
+        return { ...super.getStroke(state), color: PALETTE[key % PALETTE.length], width: 1 + (key % 4) };
+      }
+    };
+  } else if (effects.length) {
+    Line = class extends Base {
+      public getStroke(state: unknown): TStroke {
+        const effectObject = effects[hash(String(this.connection.props.id)) % effects.length];
+        return { ...super.getStroke(state), effect: effectObject.use([]) };
+      }
+    };
+  }
+  const line = Line ?? Base;
+  return class extends (BlockConnection as unknown as new (...args: unknown[]) => object) {
+    public static line = line;
+  };
+}
+
+/** What `--effect` and `--renderers` mean for this variant; `note` explains what is not applicable. */
+function connectionFor(effect: TEffect | undefined, renderer: "canvas" | "webgl"): { connection: unknown; note?: string } {
+  const effectsCount = effect?.startsWith("effects-");
+  if (api === "new") return { connection: lineConnection(effect, renderer) };
+  if (effectsCount) return { connection: undefined, note: "effects-N needs effect objects: this variant draws plain connections" };
+  const connection = prototypeConnection(effect);
+  return { connection, note: connection || effect === "none" || !effect ? undefined : "no effect" };
 }
 
 const raf = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
@@ -261,7 +352,7 @@ async function setup(options: {
   cellTiles?: number;
   labels?: boolean;
   renderer?: "canvas" | "webgl";
-  effect?: "none" | "dash" | "static-dash" | "style";
+  effect?: TEffect;
 }) {
   if (options.noopCanvas) {
     const proto = CanvasRenderingContext2D.prototype as unknown as Record<string, unknown>;
@@ -286,11 +377,13 @@ async function setup(options: {
     options.scene === "nirvana"
       ? { useBezierConnections: true, showConnectionArrows: true, useBlocksAnchors: true }
       : { useBezierConnections: false, showConnectionArrows: false, useBlocksAnchors: true };
-  const connection = effectConnection(options.effect);
+  const { connection, note } = connectionFor(options.effect, options.renderer ?? "canvas");
+  // The prototype picks the renderer by a setting; the new API takes it from the connection class above.
+  const rendererSettings = api === "prototype" ? { connectionsRenderer: options.renderer ?? "canvas" } : {};
   const graph = new Graph(
     {
       settings: {
-        connectionsRenderer: options.renderer ?? "canvas",
+        ...rendererSettings,
         ...(connection ? { connection } : {}),
         canDragCamera: true,
         canZoomCamera: true,
@@ -358,7 +451,16 @@ async function setup(options: {
   for (let i = 0; i < 10; i++) await raf();
   const first = state.samples.slice(0, 2);
   state.samples = [];
-  return { blocks: scene.blocks.length, connections: scene.connections.length, first };
+  const connectionsLayer = graph.getGraphLayer() as unknown as { $connectionsRenderer?: { value: string } };
+  return {
+    blocks: scene.blocks.length,
+    connections: scene.connections.length,
+    first,
+    api,
+    // What the graph really draws with: "webgl-fallback" when WebGL was requested but is unavailable.
+    renderer: connectionsLayer.$connectionsRenderer?.value,
+    note,
+  };
 }
 
 /**
@@ -463,4 +565,9 @@ async function count(options: { scale: number }): Promise<{ strokes: number; fil
   return counts;
 }
 
-(window as unknown as { bench: unknown }).bench = { setup, run, settle, count };
+/** The API this variant exports, for the runner to decide which columns exist. */
+function detectApi(): TApi {
+  return api;
+}
+
+(window as unknown as { bench: unknown }).bench = { setup, run, settle, count, detectApi };

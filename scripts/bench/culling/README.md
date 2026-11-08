@@ -29,10 +29,23 @@ culling without the blending of overlaps inside a chunk), `--labels` (draw conne
 have labels). Each canvas result line ends with the Path2D strokes and fills of one frame at the measured view,
 counted after the timed frames; WebGL columns do not print them, because they count Path2D calls only.
 
-`--renderers canvas,webgl` (default `canvas`) sets the `connectionsRenderer` setting; every variant x renderer is a
-column named `variant/renderer`, and the first column is the pixel reference. `--effect none|dash|static-dash|style` installs a
-connection class that overrides `getStroke()` (`dash`: animated dash pattern; `static-dash`: the same pattern, still;
-`style`: color and width from the connection id); variants without `getStroke()` draw those connections as usual. `--modes` also accepts `idle` (no
+`--renderers canvas,webgl` (default `canvas`): every variant x renderer is a column named `variant/renderer`, and
+the first column is the pixel reference. The API is detected per variant from the bundle's exports:
+
+- **New API** (`WebGLLine` is exported): the renderer comes from the connection class. The WebGL column uses
+  `class extends BlockConnection { static line = WebGLLine }` (or a `WebGLLine` subclass for `--effect`), the canvas
+  column `Path2DLine`. Each column prints `[canvas]`, `[webgl]` or `[webgl-fallback]`, read from
+  `graph.getGraphLayer().$connectionsRenderer`.
+- **Prototype** (`getWebGLConnectionsStats` is exported, no `WebGLLine`, for example `04f1f313`): the
+  `connectionsRenderer` setting, and `--effect` overrides `getStroke()` of the connection component.
+- **Neither** (for example `origin/v2`): canvas only; a note is printed and the variant's WebGL column is skipped.
+
+`--effect none|dash|static-dash|style|effects-1|effects-4|effects-16`: `static-dash` is a still dash pattern and
+`style` takes color and width from the connection id, on every renderer. `dash` is `dashFlow` on WebGL (a running dash)
+and the still dash on canvas: **Path2D cannot animate**, so canvas has no running dash and the pixel comparison prints
+`n/a` for `dash`. `effects-N` (new API, WebGL only; other variants draw plain connections and print a note) defines N
+effect objects with distinct GLSL sources (each darkens the color by a factor from its index, `animated: false`), so N
+programs exist, and spreads connections over them by a hash of the id; canvas columns draw plain connections. `--modes` also accepts `idle` (no
 camera change, one frame per step) and `drag` (moves the block with the most connections by 3 world units back and
 forth). Each mode prints `<mode> <mean update ms> ms frames <p50>/<p95>`: the frames are the
 intervals between measured steps. In `pan`, `zoom` and `drag` each step waits for a graph-layer update, so the frames are
@@ -40,7 +53,7 @@ update-gated and include GPU-bound frames the update time does not see; in `idle
 intervals. `timeouts N` appears when N measured steps waited 20 frames without an update, which inflates the p95. In `idle`
 the update time is 0 when no GraphLayer update ran. WebGL columns add `gl <ms> ms <calls> calls <instances> inst <items> items`:
 the main-thread time of WebGL draws per measured frame, and the instanced draw calls, instances (cubic pieces) and
-connection items with an appearance per WebGL draw (items compare with the visible connections despite curve
+connection items with an appearance per WebGL draw; stats that have them add `(<line> line + <curve> curve)` instances (items compare with the visible connections despite curve
 subdivision). `gl` ms includes WebGL draws inside graph-layer updates, which `update` already counts, so `gl` is reported
 next to `update` and never added to it; it also covers draws in WebGL's own animation loop. With
 `--shots`, a column name's `/` becomes `-` in the file name.
