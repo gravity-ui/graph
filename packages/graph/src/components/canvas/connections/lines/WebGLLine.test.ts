@@ -2,10 +2,12 @@ import type { TBatchParams } from "../../../../lib/batch/types";
 import type { TConnection } from "../../../../store/connection/ConnectionState";
 import type { BlockConnection } from "../BlockConnection";
 import type { IConnectionBatch, IConnectionBatchItem } from "../batch";
+import { defineConnectionEffect, toConnectionEffect } from "../effects";
 import { bezierSegment, blockGeometry, lineSegment, multipointGeometry } from "../geometry";
 import type { TConnectionGeometry } from "../geometry";
 
 import { WebGLLine } from "./WebGLLine";
+import type { TWebGLStroke } from "./WebGLLine";
 
 class RecordingBatch implements IConnectionBatch {
   public readonly items = new Map<IConnectionBatchItem, TBatchParams>();
@@ -230,6 +232,58 @@ describe("WebGLLine", () => {
       expect(closed.ctx.strokeStyle).toBe("#aaaaaa");
       expect(line.styleArrow(closed.ctx)).toEqual({ type: "both" });
       expect(closed.ctx.fillStyle).toBe("#aaaaaa");
+    });
+  });
+
+  describe("effects", () => {
+    const pulse = defineConnectionEffect<Record<never, never>, number>({
+      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+      encode: (level) => [level],
+      fallback: (stroke, params) => ({ ...stroke, width: stroke.width + params[0] }),
+    });
+
+    class EffectLine extends WebGLLine {
+      public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+        return { ...super.getStroke(state), effect: pulse.use(3) };
+      }
+    }
+
+    it("passes the effect and params into the line shape, not the arrow shape", () => {
+      const line = new EffectLine(stubConnection(closedArrowGeometry).connection);
+      line.update();
+      const shape = line.getWebGLShape();
+      expect(shape?.effect).toBe(toConnectionEffect(pulse as never));
+      expect(shape?.params).toEqual([3]);
+      expect(line.arrow.getWebGLShape?.()?.effect).toBeUndefined();
+    });
+
+    it("draws and groups the Path2D fallback with the fallback stroke", () => {
+      const { connection, batch, ctx } = stubConnection(straight, {}, noArrows);
+      const line = new EffectLine(connection);
+      line.update();
+      expect(batch.items.get(line)?.group).toBe("line/#aaa/5/");
+      line.style(ctx);
+      expect(ctx.lineWidth).toBe(5);
+
+      const plain = stubConnection(straight, {}, noArrows);
+      const other = new WebGLLine(plain.connection);
+      other.update();
+      expect(plain.batch.items.get(other)?.group).not.toBe(batch.items.get(line)?.group);
+    });
+
+    it("falls back to the stroke without the effect by default", () => {
+      const bare = defineConnectionEffect({
+        fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+      });
+      class BareLine extends WebGLLine {
+        public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+          return { ...super.getStroke(state), effect: bare.use([]) };
+        }
+      }
+      const { connection, batch } = stubConnection(straight, {}, noArrows);
+      const line = new BareLine(connection);
+      line.update();
+      expect(batch.items.get(line)?.group).toBe("line/#aaa/2/");
     });
   });
 });

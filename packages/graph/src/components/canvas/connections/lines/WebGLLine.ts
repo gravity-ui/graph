@@ -2,6 +2,8 @@ import type { TConnection } from "../../../../store/connection/ConnectionState";
 import type { TBaseConnectionState } from "../BaseConnection";
 import type { Path2DRenderStyleResult } from "../BatchPath2D";
 import type { BlockConnection } from "../BlockConnection";
+import { toConnectionEffect } from "../effects/ConnectionEffect";
+import type { TConnectionEffectUse } from "../effects/types";
 import { createArrowPath, createSegmentsPath, lineSegment } from "../geometry";
 import type { TConnectionArrow, TConnectionGeometry } from "../geometry";
 import { distanceToArrow, distanceToSegments } from "../geometry/distance";
@@ -10,8 +12,8 @@ import { ConnectionLine } from "./ConnectionLine";
 import { GeometryCache, applyArrowStyle, applyLineStyle, getArrowGroup, strokeKey } from "./fallbackPath";
 import type { TLineStroke, TWebGLShape } from "./types";
 
-/** Stroke of a WebGL line: the shared stroke. */
-export type TWebGLStroke = TLineStroke;
+/** Stroke of a WebGL line: the shared stroke and an optional effect that recolors it. */
+export type TWebGLStroke = TLineStroke & { effect?: TConnectionEffectUse };
 
 /** Hit tolerance of the flattening: half a CSS pixel. */
 const FLATNESS_CSS_PX = 0.5;
@@ -42,6 +44,8 @@ export class WebGLLine<
 
   private arrowShape?: { geometry: TConnectionGeometry; stroke: TLineStroke; shape: TWebGLShape };
 
+  private fallback?: { stroke: TLineStroke; fallbackStroke: TLineStroke };
+
   private readonly pathCache = new GeometryCache<Path2D>();
 
   private readonly arrowPathCache = new GeometryCache<Path2D>();
@@ -69,7 +73,12 @@ export class WebGLLine<
     const stroke = this.getCurrentStroke();
     const cached = this.lineShape;
     if (cached && cached.geometry === geometry && cached.stroke === stroke) return cached.shape;
-    const shape: TWebGLShape = { segments: geometry.segments, stroke };
+    const { effect, ...plain } = stroke as TWebGLStroke;
+    const shape: TWebGLShape = { segments: geometry.segments, stroke: effect ? plain : stroke };
+    if (effect) {
+      shape.effect = toConnectionEffect(effect.effect);
+      shape.params = effect.params ?? [];
+    }
     this.lineShape = { geometry, stroke, shape };
     return shape;
   }
@@ -100,7 +109,7 @@ export class WebGLLine<
   }
 
   public style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult {
-    return applyLineStyle(ctx, this.getCurrentStroke());
+    return applyLineStyle(ctx, this.getFallbackStroke());
   }
 
   public styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult {
@@ -108,7 +117,19 @@ export class WebGLLine<
   }
 
   protected getBatchGroup(): string {
-    return `line/${strokeKey(this.getCurrentStroke())}`;
+    return `line/${strokeKey(this.getFallbackStroke())}`;
+  }
+
+  /** The stroke Path2D draws: the effect's fallback stroke, or the stroke without the effect. */
+  private getFallbackStroke(): TLineStroke {
+    const stroke = this.getCurrentStroke();
+    if (this.fallback?.stroke === stroke) return this.fallback.fallbackStroke;
+    const { effect, ...plain } = stroke as TWebGLStroke;
+    const fallbackStroke = effect
+      ? toConnectionEffect(effect.effect).getFallbackStroke(plain, effect.params ?? [])
+      : stroke;
+    this.fallback = { stroke, fallbackStroke };
+    return fallbackStroke;
   }
 
   protected getArrowBatchGroup(lineGroup: string): string {

@@ -1,3 +1,6 @@
+import type { ConnectionEffect } from "../effects/ConnectionEffect";
+import type { TUniformTypes } from "../effects/types";
+
 import type { ConnectionLine } from "./ConnectionLine";
 
 export type TConnectionsRenderer = "canvas" | "webgl";
@@ -30,4 +33,7 @@ export type TWebGLShape = {
   stroke: TLineStroke;
   /** Polygon (x, y pairs) filled with the stroke color: a closed arrow. */
   fill?: Float32Array;
+  /** The effect recoloring the stroke (the line only), with the connection's parameters. */
+  effect?: ConnectionEffect<TUniformTypes, never>;
+  params?: readonly number[];
 };

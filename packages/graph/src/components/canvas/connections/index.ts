@@ -7,6 +7,15 @@ export * from "./BatchPath2D";
 export * from "./batch";
 export * from "./geometry";
 export * from "./lines";
+export { defineConnectionEffect } from "./effects";
+export type {
+  TConnectionEffect,
+  TConnectionEffectDefinition,
+  TConnectionEffectUse,
+  TUniformType,
+  TUniformTypes,
+  TUniformValue,
+} from "./effects";
 export * from "./labelHelper";
 export * from "./Label";
 // Experimental: main-thread cost of the WebGL connections renderer, for benchmarks.
