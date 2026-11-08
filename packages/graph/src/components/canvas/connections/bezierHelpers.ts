@@ -1,4 +1,4 @@
-import type { TRect } from "../../../utils/types/shapes";
+import type { TPoint, TRect } from "../../../utils/types/shapes";
 
 export function generateBezierParams(
   startPos: { x: number; y: number },
@@ -100,12 +100,12 @@ export function getBezierCurveBounds(
   mode: "vertical" | "horizontal" = "horizontal"
 ): TRect {
   const [start, firstPoint, secondPoint, end] = generateBezierParams(startPos, endPos, mode);
-  const times = [
-    0,
-    1,
-    ...getCubicExtrema(start.x, firstPoint.x, secondPoint.x, end.x),
-    ...getCubicExtrema(start.y, firstPoint.y, secondPoint.y, end.y),
-  ];
+  return getCubicBounds(start, firstPoint, secondPoint, end);
+}
+
+/** The tight axis-aligned bounds of a cubic Bezier curve given by its four points. */
+export function getCubicBounds(p0: TPoint, c1: TPoint, c2: TPoint, p3: TPoint): TRect {
+  const times = [0, 1, ...getCubicExtrema(p0.x, c1.x, c2.x, p3.x), ...getCubicExtrema(p0.y, c1.y, c2.y, p3.y)];
 
   let minX = Infinity;
   let minY = Infinity;
@@ -113,7 +113,7 @@ export function getBezierCurveBounds(
   let maxY = -Infinity;
 
   times.forEach((time) => {
-    const point = getPointAtBezierCurve(start, firstPoint, secondPoint, end, time);
+    const point = getPointAtBezierCurve(p0, c1, c2, p3, time);
     minX = Math.min(minX, point.x);
     minY = Math.min(minY, point.y);
     maxX = Math.max(maxX, point.x);
