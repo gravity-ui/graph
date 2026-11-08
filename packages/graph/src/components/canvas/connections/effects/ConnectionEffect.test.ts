@@ -87,6 +87,25 @@ describe("defineConnectionEffect", () => {
     expect(warn.mock.calls[0][0]).toContain("defineConnectionEffect() or clone() is called per connection");
   });
 
+  it("still counts and warns where FinalizationRegistry is missing", () => {
+    const scope = globalThis as { FinalizationRegistry?: unknown };
+    const Registry = scope.FinalizationRegistry;
+    delete scope.FinalizationRegistry;
+    try {
+      expect(scope.FinalizationRegistry).toBeUndefined();
+      jest.isolateModules(() => {
+        const isolated = jest.requireActual<{ defineConnectionEffect: typeof defineConnectionEffect }>(
+          "./ConnectionEffect"
+        );
+        const effect = isolated.defineConnectionEffect({ fragment: `${FRAGMENT} // no registry` });
+        for (let i = 0; i < 70; i++) effect.clone();
+      });
+    } finally {
+      scope.FinalizationRegistry = Registry;
+    }
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
   it("returns the class instance from toConnectionEffect and rejects other objects", () => {
     const effect = defineConnectionEffect({ fragment: FRAGMENT });
     expect(toConnectionEffect(effect)).toBeInstanceOf(ConnectionEffect);

@@ -455,7 +455,7 @@ and sets their values on the program right before it draws the effect's group.
 
 **`clone()`** gives the same source its own uniform values: one program, separate values, for another graph. Every
 effect object is a group of its own, with a draw call in every chunk it is in, so do not define effects or call
-`clone()` inside `getStroke()`; past 64 effect objects with one source, a development build warns.
+`clone()` inside `getStroke()`; past 64 effect objects with one source alive at once, a development build warns.
 
 ```typescript
 import { BlockConnection, WebGLLine, defineConnectionEffect } from "@gravity-ui/graph";
@@ -560,8 +560,9 @@ export const particles = defineConnectionEffect({
   plain stroke in WebGL; the graph stays on WebGL.
 - A uniform value of the wrong type or length reports one development-build error and is not applied.
 - More than 8 `params` are dropped with one development-build warning.
-- More than 64 effect objects with one source text report one development-build warning: `defineConnectionEffect()`
-  or `clone()` is called per connection.
+- More than 64 effect objects with one source text alive at once report one development-build warning:
+  `defineConnectionEffect()` or `clone()` is called per connection. Objects of unmounted graphs stop counting once
+  they are garbage-collected.
 - `defineConnectionEffect()` throws for a uniform name other than letters, digits and underscores (starting with a
   letter) and for an `extraWidth` that is negative or not finite. `stroke.effect` must come from `use()` of an object
   created by `defineConnectionEffect()`.

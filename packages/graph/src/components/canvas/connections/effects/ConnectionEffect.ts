@@ -16,23 +16,49 @@ import type {
 /** Numbers of parameters per connection that reach the shader. */
 export const MAX_EFFECT_PARAMS = 8;
 
-/** Effect objects with one fragment text past which a warning is reported. */
+/** Effect objects with one fragment text alive at once past which a warning is reported. */
 const MAX_OBJECTS_PER_FRAGMENT = 64;
 
 const UNIFORM_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
 
+/** The part of `FinalizationRegistry` used here: an ES2021 global, past the package's ES2020 lib. */
+interface IFinalizationRegistry<T> {
+  register(target: object, held: T): void;
+}
+
+type TFinalizationRegistryConstructor = new <T>(cleanup: (held: T) => void) => IFinalizationRegistry<T>;
+
+/** Effect objects alive per fragment text. */
 const objectsPerFragment = new Map<string, number>();
 
 const warnedFragments = new Set<string>();
 
-function countObject(fragment: string): void {
+/** An object leaves the count of its fragment when it is collected. */
+function releaseObject(fragment: string): void {
+  const count = (objectsPerFragment.get(fragment) ?? 0) - 1;
+  if (count > 0) objectsPerFragment.set(fragment, count);
+  else objectsPerFragment.delete(fragment);
+}
+
+/** Without FinalizationRegistry, objects are never counted down. */
+const collectedObjects = ((): IFinalizationRegistry<string> | undefined => {
+  const Registry = (globalThis as { FinalizationRegistry?: TFinalizationRegistryConstructor }).FinalizationRegistry;
+  return typeof Registry === "function" ? new Registry<string>(releaseObject) : undefined;
+})();
+
+/**
+ * Counts the effect objects of a fragment alive at once, so an app that remounts graphs and clones an effect per
+ * graph is not reported: many alive at once mean effects created per connection.
+ */
+function countObject(effect: object, fragment: string): void {
+  collectedObjects?.register(effect, fragment);
   const count = (objectsPerFragment.get(fragment) ?? 0) + 1;
   objectsPerFragment.set(fragment, count);
   if (count > MAX_OBJECTS_PER_FRAGMENT && !warnedFragments.has(fragment) && isDevelopmentBuild()) {
     warnedFragments.add(fragment);
     console.warn(
-      `[@gravity-ui/graph] More than ${MAX_OBJECTS_PER_FRAGMENT} connection effect objects share one fragment. ` +
-        "defineConnectionEffect() or clone() is called per connection (inside getStroke()?): " +
+      `[@gravity-ui/graph] More than ${MAX_OBJECTS_PER_FRAGMENT} connection effect objects with one fragment are ` +
+        "alive. defineConnectionEffect() or clone() is called per connection (inside getStroke()?): " +
         "define the effect once and pass per-connection values through use(params)."
     );
   }
@@ -89,7 +115,7 @@ export class ConnectionEffect<U extends TUniformTypes = TUniformTypes, P = reado
       .map((name) => `uniform ${types[name]} u_${name};\n`)
       .join("");
     this.programKey = this.uniformDeclarations + fragment;
-    countObject(fragment);
+    countObject(this, fragment);
   }
 
   public use(input: P): TConnectionEffectUse {
