@@ -6,7 +6,7 @@ import { ESelectionStrategy } from "../../../services/selection/types";
 import { TConnection } from "../../../store/connection/ConnectionState";
 import { isMetaKeyEvent } from "../../../utils/functions";
 import { cachedMeasureText } from "../../../utils/renderers/text";
-import { TPoint } from "../../../utils/types/shapes";
+import { TPoint, TRect } from "../../../utils/types/shapes";
 
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "./BaseConnection";
 import { Path2DRenderInstance, TPathBounds } from "./BatchPath2D";
@@ -125,7 +125,14 @@ export class BlockConnection<T extends TConnection = TConnection>
   public invalidateLine(): void {
     // An unmounted connection has left the batch and the label pass.
     if (!this.isEntityAvailable()) return;
+    const lineHalfWidth = this.line.getLineHalfWidth();
+    const arrowHalfWidth = this.line.getArrowHalfWidth();
     this.line.invalidate();
+    if (lineHalfWidth !== this.line.getLineHalfWidth() || arrowHalfWidth !== this.line.getArrowHalfWidth()) {
+      // Bounds and the hit box pad by half the stroke widths.
+      this.updateBounds();
+      this.updateCullingBounds();
+    }
     this.syncLabel();
   }
 
@@ -257,6 +264,32 @@ export class BlockConnection<T extends TConnection = TConnection>
     return points;
   }
 
+  /**
+   * The hit test reaches half the stroke width past the line and the arrow (the wider of them while arrows are shown),
+   * plus `THRESHOLD_LINE_HIT`: the hit box pads by as much, so the broad phase never cuts the hit test off.
+   */
+  protected override getHitBoxPadding(): number {
+    return super.getHitBoxPadding() + Math.max(this.line.getLineHalfWidth(), this.line.getArrowHalfWidth() ?? 0);
+  }
+
+  /** The bounds and the label, joined with the arrow's points while arrows are shown: the hit test covers the arrow. */
+  protected override getHitBoxRect(): TRect {
+    const rect = super.getHitBoxRect();
+    const arrow = this.line.getArrowHalfWidth() === undefined ? undefined : this.shape?.arrow?.points;
+    if (!arrow || arrow.length < 2) return rect;
+    let minX = rect.x;
+    let minY = rect.y;
+    let maxX = rect.x + rect.width;
+    let maxY = rect.y + rect.height;
+    for (let i = 0; i + 1 < arrow.length; i += 2) {
+      minX = Math.min(minX, arrow[i]);
+      minY = Math.min(minY, arrow[i + 1]);
+      maxX = Math.max(maxX, arrow[i]);
+      maxY = Math.max(maxY, arrow[i + 1]);
+    }
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }
+
   /** The line's bounds joined with the standard label's: the hit box and tree culling cover the label. */
   protected override getBBox(): Readonly<[minX: number, minY: number, maxX: number, maxY: number]> {
     const bBox = super.getBBox();
@@ -270,14 +303,19 @@ export class BlockConnection<T extends TConnection = TConnection>
     ];
   }
 
-  /** Reads the endpoints, runs the class's geometry, then updates bounds, culling bounds and the batch items. */
+  /**
+   * Reads the endpoints, runs the class's geometry, then updates bounds, culling bounds and the batch items. The strokes
+   * are read before the bounds, which pad by half their widths, and the batch is told after.
+   */
   protected override updatePoints(additionalPoints?: TPoint[], props: TConnectionProps = this.props): void {
     this.geometryContext = this.context;
     this.readConnectionPoints();
     this.shape = this.computeGeometry(props);
+    this.line.readStrokes(this.state, props);
     this.updateBounds(additionalPoints, props);
     this.updateCullingBounds(props);
-    this.updateLine(this.state, props);
+    this.line.updateItems(this.state, props);
+    this.syncLabel(this.getBatchZIndex(this.state));
   }
 
   /** Runs `static geometry` on the endpoints, props and data of the connection; undefined without endpoints. */
@@ -297,10 +335,11 @@ export class BlockConnection<T extends TConnection = TConnection>
   private updateCullingBounds(props: TConnectionProps = this.props): void {
     const shape = this.shape;
     if (shape && this.hasGeometry()) {
-      const padding = this.state.hovered || this.state.selected ? 2 : 1;
+      // Strokes reach half their width past the geometry: 1 for the default width, 2 hovered or selected.
+      const padding = this.line.getLineHalfWidth();
       // A sharp arrow join can extend past its vertices by the canvas miter limit.
       const arrowPoints = props.showConnectionArrows ? shape.arrow?.points : undefined;
-      const arrowPadding = padding * this.context.ctx.miterLimit;
+      const arrowPadding = (this.line.getArrowHalfWidth() ?? padding) * this.context.ctx.miterLimit;
       const extend = ([left, top, right, bottom]: Readonly<[number, number, number, number]>): TPathBounds => {
         let minX = left - padding;
         let minY = top - padding;

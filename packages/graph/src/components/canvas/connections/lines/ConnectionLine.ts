@@ -8,6 +8,11 @@ import type { TConnectionGeometry } from "../geometry";
 
 import type { TConnectionsRenderer, TLineStroke, TWebGLShape } from "./types";
 
+/** Half a stroke's width; 0 for a width that is not a positive number. */
+function halfWidth(stroke: TLineStroke): number {
+  return stroke.width > 0 && Number.isFinite(stroke.width) ? stroke.width / 2 : 0;
+}
+
 /** The arrow item of a line: the line's bounds and visibility, the arrow's path and style. */
 class LineArrowItem implements IConnectionBatchItem {
   constructor(private readonly line: ConnectionLine) {}
@@ -102,11 +107,19 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
     state: TBaseConnectionState = this.connection.state,
     props: TConnectionProps = this.connection.props
   ): void {
-    const batch = this.connection.context.batch;
+    this.readStrokes(state, props);
+    this.updateItems(state, props);
+  }
+
+  /**
+   * The first half of `update()`: reads getStroke() (and getArrowStroke() while arrows are shown) for the state and
+   * keeps them, without telling the batch. The component reads the widths for its bounds in between.
+   */
+  public readStrokes(
+    state: TBaseConnectionState = this.connection.state,
+    props: TConnectionProps = this.connection.props
+  ): void {
     this.stroke = this.getStroke(state);
-    const zIndex = this.connection.getBatchZIndex(state);
-    const group = this.getBatchGroup();
-    batch.update(this, { zIndex, group });
     if (props.showConnectionArrows) {
       this.updatingState = state;
       try {
@@ -114,12 +127,36 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
       } finally {
         this.updatingState = undefined;
       }
-      batch.update(this.arrow, { zIndex: zIndex - 1, group: this.getArrowBatchGroup(group) });
     } else {
       // Read again when arrows are shown.
       this.arrowStroke = undefined;
+    }
+  }
+
+  /** The second half of `update()`: moves the line and arrow items to the group and z-level of the strokes read last. */
+  public updateItems(
+    state: TBaseConnectionState = this.connection.state,
+    props: TConnectionProps = this.connection.props
+  ): void {
+    const batch = this.connection.context.batch;
+    const zIndex = this.connection.getBatchZIndex(state);
+    const group = this.getBatchGroup();
+    batch.update(this, { zIndex, group });
+    if (props.showConnectionArrows) {
+      batch.update(this.arrow, { zIndex: zIndex - 1, group: this.getArrowBatchGroup(group) });
+    } else {
       batch.delete(this.arrow);
     }
+  }
+
+  /** Half the width of the stroke read last, in world units: how far the drawn line reaches past its geometry. */
+  public getLineHalfWidth(): number {
+    return halfWidth(this.getCurrentStroke());
+  }
+
+  /** Half the width of the arrow stroke read last, in world units; undefined while arrows are not shown. */
+  public getArrowHalfWidth(): number | undefined {
+    return this.arrowStroke ? halfWidth(this.arrowStroke) : undefined;
   }
 
   /** For looks that depend on outside data: the same as update(). */

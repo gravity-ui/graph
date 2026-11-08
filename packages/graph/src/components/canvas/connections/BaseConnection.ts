@@ -333,6 +333,14 @@ export class BaseConnection<
   }
 
   /**
+   * World units the hit box extends past `getHitBoxRect()` on each side: `THRESHOLD_LINE_HIT`. A subclass whose hit test
+   * reaches further (half a stroke width) adds that, so the broad phase never cuts its hit test off.
+   */
+  protected getHitBoxPadding(): number {
+    return this.context.constants.connection.THRESHOLD_LINE_HIT;
+  }
+
+  /**
    * Updates the hit box for user interaction
    * Adds threshold padding around the connection line to make it easier to click
    *
@@ -340,14 +348,8 @@ export class BaseConnection<
    */
   private updateHitBox = (): void => {
     const { x, y, width, height } = this.getHitBoxRect();
-    const threshold = this.context.constants.connection.THRESHOLD_LINE_HIT;
-    this.setHitBox(
-      x - threshold,
-      y - threshold,
-      x + width + threshold,
-      y + height + threshold,
-      this.hitBoxNeedsRestore
-    );
+    const padding = this.getHitBoxPadding();
+    this.setHitBox(x - padding, y - padding, x + width + padding, y + height + padding, this.hitBoxNeedsRestore);
     this.hitBoxNeedsRestore = false;
   };
 }

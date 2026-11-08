@@ -48,7 +48,7 @@ describe("connection paint bounds at the viewport edge", () => {
     return graph.connections.getConnectionState("c")?.getViewComponent();
   }
 
-  it("draws a short multipoint arrow entering the viewport while its hitbox stays outside", () => {
+  it("draws a short multipoint arrow entering the viewport; the hit box covers the arrow", () => {
     const connection: TMultipointConnection = {
       id: "c",
       sourcePortId: "s",
@@ -64,14 +64,15 @@ describe("connection paint bounds at the viewport edge", () => {
     state.$targetPortState.value.updatePort({ x: 1011, y: 100, lookup: false });
     const arrow = jest.spyOn(Path2DLine.prototype as unknown as TPath2DLineBuilders, "createArrowPath");
     const view = draw();
-    expect(view?.getHitBox()[0]).toBe(1002);
+    // The triangle's base at x 995, padded by THRESHOLD_LINE_HIT 8 and half the width 2.
+    expect(view?.getHitBox()[0]).toBe(986);
     expect(view?.isInViewport()).toBe(true);
     expect(arrow).toHaveBeenCalled();
     expect(arrow.mock.results[0].value.lineTo).toHaveBeenCalledWith(995, 105);
   });
 
   it.each([1005, 1008])(
-    "draws a regular arrow or its stroke entering the viewport from x=%s with no hit padding",
+    "draws a regular arrow or its stroke entering the viewport from x=%s with no hit threshold",
     (x) => {
       const state = start({ id: "c", sourcePortId: "s", targetPortId: "t", selected: true });
       if (!state) throw new Error("Expected connection");
@@ -80,13 +81,14 @@ describe("connection paint bounds at the viewport edge", () => {
       graph.api.selectConnections(["c"], true);
       const arrow = jest.spyOn(Path2DLine.prototype as unknown as TPath2DLineBuilders, "createArrowPath");
       const view = draw();
-      expect(view?.getHitBox()[0]).toBe(x);
+      // The chevron's wings 7.5 before the line, padded by half the selected width 4.
+      expect(view?.getHitBox()[0]).toBe(x - 9.5);
       expect(view?.isInViewport()).toBe(true);
       expect(arrow).toHaveBeenCalled();
     }
   );
 
-  it("draws the selected line stroke entering the viewport with no arrows or hit padding", () => {
+  it("draws the selected line stroke entering the viewport with no arrows or hit threshold", () => {
     const state = start({ id: "c", sourcePortId: "s", targetPortId: "t" }, BlockConnection, 0, false);
     if (!state) throw new Error("Expected connection");
     state.$sourcePortState.value.updatePort({ x: 1001.5, y: 100, lookup: false });
@@ -94,7 +96,8 @@ describe("connection paint bounds at the viewport edge", () => {
     graph.api.selectConnections(["c"], true);
     const path = jest.spyOn(Path2DLine.prototype, "getPath");
     const view = draw();
-    expect(view?.getHitBox()[0]).toBe(1001.5);
+    // Half the selected width 4 past the line.
+    expect(view?.getHitBox()[0]).toBe(999.5);
     expect(view?.isInViewport()).toBe(true);
     expect(path).toHaveBeenCalled();
   });
