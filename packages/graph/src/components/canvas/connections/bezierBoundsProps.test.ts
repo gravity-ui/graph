@@ -5,6 +5,7 @@ import { TConnection } from "../../../store/connection/ConnectionState";
 import { BlockConnection, TConnectionProps } from "./BlockConnection";
 import { BlockConnections } from "./BlockConnections";
 import { MultipointConnection } from "./MultipointConnection";
+import type { IConnectionBatchItem } from "./batch";
 
 const baseProps: TConnectionProps = {
   id: "c",
@@ -39,8 +40,8 @@ class TestConnection extends BlockConnection<TConnection> implements ITestView {
     this.checkData();
   }
 
-  public get arrow(): BlockConnection<TConnection>["arrowShape"] {
-    return this.arrowShape;
+  public get arrow(): IConnectionBatchItem {
+    return this.line.arrow;
   }
 }
 

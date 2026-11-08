@@ -810,39 +810,35 @@ class AnnotatedConnection extends BaseConnection<AnnotatedConnectionProps> {
     ];
   }
   
-  // Override the path creation to customize the line style
-  protected createPath() {
-    if (!this.connectionPoints || this.connectionPoints.length < 2) return null;
-    
+  // BaseConnection draws nothing itself: render() draws the line
+  protected render() {
+    if (!this.connectionPoints) return;
+
     const [sourcePoint, targetPoint] = this.connectionPoints;
+    const ctx = this.context.ctx;
     const path = new Path2D();
-    
-    // Simple straight line
     path.moveTo(sourcePoint.x, sourcePoint.y);
     path.lineTo(targetPoint.x, targetPoint.y);
-    
-    return path;
-  }
-  
-  // Override the render method to customize the visual appearance
-  protected render() {
-    super.render(); // This draws the base connection line
-    
-    // Add custom highlights when hovered
-    if (this.state.hovered && this.path) {
-      const ctx = this.context.ctx;
-      
-      // Draw glow effect
-      ctx.save();
-      ctx.strokeStyle = this.context.colors.highlightColor;
-      ctx.lineWidth = this.context.lineWidth + 4;
+
+    ctx.save();
+    // Add a glow when hovered
+    if (this.state.hovered) {
+      ctx.strokeStyle = this.context.colors.connection.selectedBackground;
+      ctx.lineWidth = 6;
       ctx.globalAlpha = 0.4;
-      ctx.stroke(this.path);
-      ctx.restore();
+      ctx.stroke(path);
+      ctx.globalAlpha = 1;
     }
+    ctx.strokeStyle = this.context.colors.connection.background;
+    ctx.lineWidth = 2;
+    ctx.stroke(path);
+    ctx.restore();
   }
 }
 ```
+
+Connections drawn by the batch (`BlockConnection`) do not paint in `render()`: their shape is a `static geometry` and
+their look a line class (`static line`), see [Connection Lines, Geometry and WebGL](../connections/webgl-connections.md).
 
 ## Performance Tips for GraphComponent
 

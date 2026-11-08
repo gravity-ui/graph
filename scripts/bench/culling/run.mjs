@@ -39,6 +39,8 @@ const noopCanvas = Boolean(option("noop", false));
 const shuffle = Boolean(option("shuffle", false));
 const chunkSize = option("chunk-size", undefined);
 const cellTiles = option("cell-tiles", undefined);
+const renderers = list(option("renderers", "canvas"));
+const effect = option("effect", "none");
 const labels = Boolean(option("labels", false));
 const firstOnly = Boolean(option("first", false));
 const headed = Boolean(option("headed", false));
@@ -105,6 +107,10 @@ const median = (values) => {
   const middle = sorted.length >> 1;
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 };
+const percentile = (values, q) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
+};
 const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
 
 async function countDifferentPixels(browser, a, b) {
@@ -166,22 +172,63 @@ const browser = await chromium.launch({
   ignoreDefaultArgs: ["--enable-unsafe-swiftshader"],
 });
 
+// The API of every variant, from its bundle's exports: "new" (line classes), "prototype" (connectionsRenderer
+// setting) or "none" (canvas only).
+const apis = {};
+{
+  const context = await browser.newContext();
+  for (const variant of variants) {
+    const page = await context.newPage();
+    await page.goto(`file://${pages[variant.name]}`);
+    apis[variant.name] = await page.evaluate(() => window.bench.detectApi());
+    await page.close();
+  }
+  await context.close();
+}
+for (const variant of variants) {
+  const api = apis[variant.name];
+  if (api === "none" && renderers.includes("webgl")) {
+    console.log(`note: ${variant.name} has no WebGL connections: its WebGL column is skipped`);
+  }
+  if (api !== "new" && effect.startsWith("effects-")) {
+    console.log(`note: ${variant.name} has no effect objects: ${effect} draws plain connections`);
+  }
+}
+
 console.log(
-  `repeats=${repeats} steps=${steps}${noopCanvas ? " noop-canvas" : ""}${shuffle ? " shuffle" : ""}${labels ? " labels" : ""}${chunkSize ? ` chunk-size=${chunkSize}` : ""}${cellTiles ? ` cell-tiles=${cellTiles}` : ""}`
+  `repeats=${repeats} steps=${steps}${noopCanvas ? " noop-canvas" : ""}${shuffle ? " shuffle" : ""}${labels ? " labels" : ""}${chunkSize ? ` chunk-size=${chunkSize}` : ""}${cellTiles ? ` cell-tiles=${cellTiles}` : ""}${renderers.join() !== "canvas" ? ` renderers=${renderers.join()}` : ""}${effect !== "none" ? ` effect=${effect}` : ""}`
 );
 for (const scene of scenes) {
   for (const scale of firstOnly ? [0.01] : scales) {
     for (const view of views) {
-      const results = Object.fromEntries(variants.map(({ name }) => [name, { first: [], pan: [], zoom: [] }]));
+      // Every variant x renderer is a column; the first column is the pixel reference.
+      const columns = variants.flatMap((variant) =>
+        renderers
+          .filter((renderer) => renderer !== "webgl" || apis[variant.name] !== "none")
+          .map((renderer) => ({
+            variant,
+            renderer,
+            name: `${variant.name}${renderers.length > 1 ? `/${renderer}` : ""}`,
+          }))
+      );
+      const results = Object.fromEntries(
+        columns.map(({ name }) => [
+          name,
+          {
+            first: [],
+            ...Object.fromEntries(modes.map((mode) => [mode, { update: [], p50: [], p95: [], gl: [], timeouts: 0 }])),
+          },
+        ])
+      );
       const shots = {};
       for (let repeat = 0; repeat < repeats; repeat++) {
         // Rotate the order so no variant always runs first.
-        const order = variants.map((_, i) => variants[(i + repeat) % variants.length]);
-        for (const { name } of order) {
+        const order = columns.map((_, i) => columns[(i + repeat) % columns.length]);
+        for (const { name, variant, renderer } of order) {
           const context = await browser.newContext({ viewport: { width: 1700, height: 1700 }, deviceScaleFactor: 2 });
           const page = await context.newPage();
           page.on("pageerror", (error) => console.error(name, error.message));
-          await page.goto(`file://${pages[name]}`);
+          await page.goto(`file://${pages[variant.name]}`);
           const info = await page.evaluate((o) => window.bench.setup(o), {
             ...VIEWS[view],
             scene,
@@ -191,25 +238,43 @@ for (const scene of scenes) {
             chunkSize: chunkSize && Number(chunkSize),
             cellTiles: cellTiles && Number(cellTiles),
             labels,
+            renderer,
+            effect,
           });
           results[name].info = info;
           results[name].first.push(info.first[0] + (info.first[1] ?? 0));
           if (!firstOnly) {
             for (const mode of modes) {
-              const samples = await page.evaluate((o) => window.bench.run(o), {
+              const { samples, frames, gl, timeouts } = await page.evaluate((o) => window.bench.run(o), {
                 mode,
                 warmup: Math.floor(steps / 2),
                 steps,
                 scale,
               });
-              results[name][mode].push(mean(samples));
+              results[name][mode].update.push(mean(samples) || 0);
+              results[name][mode].timeouts += timeouts;
+              results[name][mode].p50.push(median(frames));
+              results[name][mode].p95.push(percentile(frames, 0.95));
+              // WebGL draws per measured frame, in graph-layer frames and in its own loop.
+              if (gl?.draws) {
+                results[name][mode].gl.push({
+                  ms: gl.drawMs / steps,
+                  calls: gl.drawCalls / gl.draws,
+                  instances: gl.instances / gl.draws,
+                  items: (gl.items ?? 0) / gl.draws,
+                  lineInstances: gl.lineInstances === undefined ? undefined : gl.lineInstances / gl.draws,
+                  curveInstances: gl.curveInstances === undefined ? undefined : gl.curveInstances / gl.draws,
+                });
+              }
             }
             if (repeat === 0) {
               await page.evaluate((o) => window.bench.settle(o), { scale });
               shots[name] = await page.screenshot();
               if (shotsDir) {
                 fs.mkdirSync(shotsDir, { recursive: true });
-                fs.writeFileSync(path.join(shotsDir, `${scene}-${scale}-${view}-${name}.png`), shots[name]);
+                // Column names contain "/" with several renderers; keep one flat directory.
+                const file = `${scene}-${scale}-${view}-${name.replaceAll("/", "-")}.png`;
+                fs.writeFileSync(path.join(shotsDir, file), shots[name]);
               }
               results[name].draws = await page.evaluate((o) => window.bench.count(o), { scale });
             }
@@ -217,21 +282,51 @@ for (const scene of scenes) {
           await context.close();
         }
       }
-      for (const { name } of variants) {
+      for (const { name } of columns) {
         const result = results[name];
-        const columns = [`first two frames ${median(result.first).toFixed(0)} ms`];
-        if (!firstOnly) for (const mode of modes) columns.push(`${mode} ${median(result[mode]).toFixed(2)} ms`);
-        if (result.draws) columns.push(`strokes ${result.draws.strokes} fills ${result.draws.fills}`);
+        const isWebGL = columns.find((column) => column.name === name)?.renderer === "webgl";
+        // The renderer the graph really used: "webgl-fallback" means WebGL was requested but is unavailable.
+        const renderer = result.info?.renderer;
+        const cells = [`first two frames ${median(result.first).toFixed(0)} ms`];
+        if (!firstOnly) {
+          for (const mode of modes) {
+            const { update, p50, p95, gl, timeouts } = result[mode];
+            let cell = `${mode} ${median(update).toFixed(2)} ms frames ${median(p50).toFixed(1)}/${median(p95).toFixed(1)}`;
+            if (gl.length) {
+              const ms = median(gl.map((value) => value.ms)).toFixed(2);
+              const calls = median(gl.map((value) => value.calls)).toFixed(0);
+              const instances = median(gl.map((value) => value.instances)).toFixed(0);
+              const items = median(gl.map((value) => value.items)).toFixed(0);
+              cell += ` gl ${ms} ms ${calls} calls ${instances} inst`;
+              if (gl.every((value) => value.lineInstances !== undefined)) {
+                const lines = median(gl.map((value) => value.lineInstances)).toFixed(0);
+                const curves = median(gl.map((value) => value.curveInstances)).toFixed(0);
+                cell += ` (${lines} line + ${curves} curve)`;
+              }
+              cell += ` ${items} items`;
+            }
+            if (timeouts) cell += ` timeouts ${timeouts}`;
+            cells.push(cell);
+          }
+        }
+        // strokes and fills count Path2D calls only: WebGL draws none of them.
+        if (result.draws && !isWebGL) cells.push(`strokes ${result.draws.strokes} fills ${result.draws.fills}`);
         console.log(
-          `${scene.padEnd(10)} scale=${String(scale).padEnd(5)} ${view.padEnd(4)} ${name.padEnd(10)}`,
-          columns.join(" | ")
+          `${scene.padEnd(10)} scale=${String(scale).padEnd(5)} ${view.padEnd(4)} ${name.padEnd(10)}${renderer ? ` [${renderer}]` : ""}`,
+          cells.join(" | ")
         );
       }
       if (!firstOnly) {
-        const reference = variants[0].name;
-        for (const { name } of variants.slice(1)) {
+        const reference = columns[0].name;
+        for (const { name } of columns.slice(1)) {
           const same = Buffer.compare(shots[reference], shots[name]) === 0;
-          const detail = same ? "identical" : await countDifferentPixels(browser, shots[reference], shots[name]);
+          // The dash phase depends on time, so screenshots of different columns cannot match.
+          const detail =
+            effect === "dash"
+              ? "n/a (time-dependent effect)"
+              : same
+                ? "identical"
+                : await countDifferentPixels(browser, shots[reference], shots[name]);
           console.log(`${" ".repeat(10)} pixels ${name} vs ${reference}: ${detail}`);
         }
       }

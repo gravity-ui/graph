@@ -1,3 +1,6 @@
+import { signal } from "@preact/signals-core";
+import type { ReadonlySignal } from "@preact/signals-core";
+
 import { Graph } from "../../../../graph";
 import { GraphMouseEventNames, isGraphEvent, isNativeGraphEventName } from "../../../../graphEvents";
 import { Component } from "../../../../lib/Component";
@@ -10,6 +13,7 @@ import { EventedComponent } from "../../EventedComponent/EventedComponent";
 import { Blocks } from "../../blocks/Blocks";
 import { BlockConnection } from "../../connections/BlockConnection";
 import { BlockConnections } from "../../connections/BlockConnections";
+import type { TConnectionsRendererState } from "../../connections/lines";
 
 export type TGraphLayerProps = LayerProps & {
   camera: ICamera;
@@ -66,6 +70,11 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   private lastMouseCanvasX?: number;
 
   private lastMouseCanvasY?: number;
+
+  private readonly connectionsRendererState = signal<TConnectionsRendererState>("canvas");
+
+  /** What draws the connection lines now; written by the connections component only. */
+  public readonly $connectionsRenderer: ReadonlySignal<TConnectionsRendererState> = this.connectionsRendererState;
 
   constructor(props: TGraphLayerProps) {
     super({
@@ -354,7 +363,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   public updateChildren() {
     const cameraProps: TCameraProps = {
-      children: [BlockConnections.create(), Blocks.create()],
+      children: [BlockConnections.create({ rendererState: this.connectionsRendererState }), Blocks.create()],
       root: this.root,
     };
 

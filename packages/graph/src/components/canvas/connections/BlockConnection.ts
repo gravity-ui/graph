@@ -1,27 +1,26 @@
 import intersects from "intersects";
 
+import { isDevelopmentBuild } from "../../../lib/detachedWarning";
 import { HitBoxData } from "../../../services/HitTest";
 import { ESelectionStrategy } from "../../../services/selection/types";
 import { TConnection } from "../../../store/connection/ConnectionState";
 import { isMetaKeyEvent } from "../../../utils/functions";
 import { cachedMeasureText } from "../../../utils/renderers/text";
-import { TPoint } from "../../../utils/types/shapes";
+import { TPoint, TRect } from "../../../utils/types/shapes";
 
-import { ConnectionArrow } from "./Arrow";
 import { BaseConnection, TBaseConnectionProps, TBaseConnectionState } from "./BaseConnection";
-import { Path2DRenderInstance, Path2DRenderStyleResult, TPathBounds } from "./BatchPath2D";
+import { Path2DRenderInstance, TPathBounds } from "./BatchPath2D";
 import { BlockConnections, TGraphConnectionsContext } from "./BlockConnections";
 import { ConnectionLabel } from "./Label";
 import type { IConnectionLabelOwner } from "./Label";
-import {
-  bezierCurveLine,
-  generateBezierParams,
-  getArrowCoords,
-  getBezierCurveBounds,
-  isPointInStroke,
-} from "./bezierHelpers";
+import { blockGeometry } from "./geometry";
+import type { TConnectionGeometry, TConnectionGeometryFn } from "./geometry";
 import { hasChangedValue } from "./hasChangedValue";
 import { getLabelCoords } from "./labelHelper";
+import { Path2DLine } from "./lines";
+import type { ConnectionLine, TConnectionLineClass } from "./lines";
+import { warnRemovedConnectionMethods } from "./removedMethods";
+import type { TMultipointConnection } from "./types";
 
 export type TConnectionProps = TBaseConnectionProps & {
   useBezier: boolean;
@@ -37,9 +36,12 @@ export type TBlockConnection = {
   removeFromRenderOrder(cmp: Path2DRenderInstance): void;
 };
 
-export class BlockConnection<T extends TConnection>
+/** The geometry input of connections without `points`. */
+const NO_POINTS: readonly TPoint[] = Object.freeze([]);
+
+export class BlockConnection<T extends TConnection = TConnection>
   extends BaseConnection<TConnectionProps, TBaseConnectionState, TGraphConnectionsContext, T>
-  implements Path2DRenderInstance, IConnectionLabelOwner
+  implements IConnectionLabelOwner
 {
   /**
    * Connections are detached: the batch draws their lines and arrows and the label pass their labels, so the frame
@@ -48,9 +50,16 @@ export class BlockConnection<T extends TConnection>
    */
   public static override readonly detached: boolean = true;
 
+  /** How lines are drawn; its kind picks the renderer of the whole graph. */
+  public static line: TConnectionLineClass = Path2DLine;
+
+  /** Pure shape: cubic segments and the arrow, in world coordinates. */
+  public static geometry: TConnectionGeometryFn = blockGeometry;
+
   public readonly cursor = "pointer";
 
-  protected path2d: Path2D = new Path2D();
+  /** Created in the constructor: `new (this.constructor.line)(this)`. Owns the look and the line and arrow items. */
+  protected readonly line: ConnectionLine;
 
   protected labelGeometry: { x: number; y: number; width: number; height: number } | undefined = undefined;
 
@@ -60,20 +69,13 @@ export class BlockConnection<T extends TConnection>
 
   private pathBounds: TPathBounds | undefined;
 
-  private arrowPath: Path2D | undefined;
-
   /** Context the current geometry was computed with; constants and label sizes live there. */
   private geometryContext?: TGraphConnectionsContext;
 
+  /** The result of `static geometry` from the last recomputation. */
+  private shape: TConnectionGeometry | undefined;
+
   private unsubscribeLabelFontSize?: () => void;
-
-  protected geometry: { x1: number; x2: number; y1: number; y2: number } = { x1: 0, x2: 0, y1: 0, y2: 0 };
-
-  /**
-   * The arrow shape component that renders the arrow in the middle of the connection.
-   * This is conditionally added to the batch renderer based on the showConnectionArrows setting.
-   */
-  protected arrowShape = new ConnectionArrow(this);
 
   /** The standard label as an item of the layer's label pass. */
   protected labelShape = new ConnectionLabel(this);
@@ -90,42 +92,49 @@ export class BlockConnection<T extends TConnection>
   constructor(props: TConnectionProps, parent: BlockConnections) {
     super(props, parent);
     this.addEventListener("click", this);
+    if (isDevelopmentBuild()) warnRemovedConnectionMethods(this.constructor, BlockConnection);
 
-    // Add the connection line to the batch renderer
-    this.context.batch.add(this, { zIndex: this.zIndex, group: this.getClassName() });
-
-    // We'll handle arrow addition in applyShape based on showConnectionArrows setting
-    this.applyShape(this.state, props);
+    // ConnectionLine records at construction whether the connection has afterRender(); a prototype method is visible
+    // here, a field initializer of a subclass is not yet.
+    const LineClass = (this.constructor as typeof BlockConnection).line;
+    // The line class checks the connection type on its side (see TConnectionLineClass); the connection is this one.
+    this.line = new LineClass(this as never);
+    // Registers the line and its arrow with the batch.
+    this.updateLine(this.state, props);
   }
 
   /**
-   * Updates the visual appearance of the connection and manages arrow visibility.
-   * This method centralizes all arrow rendering logic to ensure consistency.
+   * Moves the line and arrow items to the group and z-level of the state and keeps the label pass in step.
    *
-   * IMPORTANT: We must use the props parameter instead of this.props because this.props
-   * may contain outdated values during re-renders, which was the source of the original bug.
-   * Always pass the most current props to this method when calling it from propsChanged.
-   *
-   * @param state - The current state of the connection (selected, hovered, etc.)
-   * @param props - The connection properties, used to check showConnectionArrows setting
+   * Takes the props explicitly: during `propsChanged()` `this.props` still holds the previous values.
    */
-  protected applyShape(state: TBaseConnectionState = this.state, props: TConnectionProps = this.props) {
-    const zIndex = this.getBatchZIndex(state);
-    const group = this.getClassName(state);
-
-    this.context.batch.update(this, { zIndex, group });
-
-    if (props.showConnectionArrows) {
-      this.context.batch.update(this.arrowShape, { zIndex: zIndex - 1, group: `arrow/${group}` });
-    } else {
-      this.context.batch.delete(this.arrowShape);
-    }
-    this.syncLabel(zIndex);
+  private updateLine(state: TBaseConnectionState = this.state, props: TConnectionProps = this.props): void {
+    this.line.update(state, props);
+    this.syncLabel(this.getBatchZIndex(state));
   }
 
   /** Batch z-level: selected and hovered connections are drawn above the others. */
-  private getBatchZIndex(state: TBaseConnectionState = this.state): number {
+  public getBatchZIndex(state: TBaseConnectionState = this.state): number {
     return state.selected || state.hovered ? this.zIndex + 10 : this.zIndex;
+  }
+
+  /**
+   * Re-reads the line's look: for looks that depend on data outside the connection's store. It also re-evaluates
+   * an `isRenderAllowed()` override that reads such data, for the line, its arrow and the label.
+   */
+  public invalidateLine(): void {
+    // An unmounted connection has left the batch and the label pass.
+    if (!this.isEntityAvailable()) return;
+    const lineHalfWidth = this.line.getLineHalfWidth();
+    const arrowHalfWidth = this.line.getArrowHalfWidth();
+    // update(), not invalidate(): the line's invalidate() calls this method.
+    this.line.update();
+    if (lineHalfWidth !== this.line.getLineHalfWidth() || arrowHalfWidth !== this.line.getArrowHalfWidth()) {
+      // Bounds and the hit box pad by half the stroke widths.
+      this.updateBounds();
+      this.updateCullingBounds();
+    }
+    this.syncLabel();
   }
 
   /** Keeps the label pass in step with the label's bounds, visibility and z-level. */
@@ -146,7 +155,12 @@ export class BlockConnection<T extends TConnection>
 
   protected override willMount(): void {
     super.willMount();
-    this.subscribeSignal(this.connectedState.$hidden, () => this.applyShape());
+    // The first value needs no update: mounting has just registered the line (BaseConnection.willMount).
+    let mounting = true;
+    this.subscribeSignal(this.connectedState.$hidden, () => {
+      if (!mounting) this.updateLine();
+    });
+    mounting = false;
     this.syncLabelSubscription();
   }
 
@@ -160,7 +174,7 @@ export class BlockConnection<T extends TConnection>
       this.unsubscribeLabelFontSize = fontSize.subscribe((next) => {
         if (previous === next) return;
         previous = next;
-        // Offscreen labels can grow into the viewport; keep their bounds current without rebuilding paths.
+        // Offscreen labels can grow into the viewport; keep their bounds current without recomputing the geometry.
         this.updateBounds();
         this.updateCullingBounds();
       });
@@ -169,15 +183,30 @@ export class BlockConnection<T extends TConnection>
 
   protected override setVisibility(visible: boolean, options: { removeHitbox: boolean }): void {
     super.setVisibility(visible, options);
-    this.applyShape();
+    this.updateLine();
   }
 
   /**
    * The batch draws the line and arrow when the connection may render, so one `isRenderAllowed()`
-   * override hides both. State and props changes re-evaluate it; other changes call `applyShape()`.
+   * override hides both. State and props changes re-evaluate it; other changes call `invalidateLine()`.
    */
   public isPathVisible(): boolean {
     return this.isRenderAllowed();
+  }
+
+  /**
+   * The geometry of the last recomputation; undefined without endpoints or when the geometry function returns none.
+   */
+  public getGeometry(): TConnectionGeometry | undefined {
+    return this.shape;
+  }
+
+  /** Draws after the connection's chunk in the Path2D batch; WebGL never calls it. */
+  public afterRender?(ctx: CanvasRenderingContext2D): void;
+
+  /** World bounds of what `afterRender()` draws, joined into the batch bounds. Default: none. */
+  protected getAfterRenderBounds(): TPathBounds | undefined {
+    return undefined;
   }
 
   /** Bounds of the line and its arrow; tree culling and the hit box also cover the label. */
@@ -185,123 +214,14 @@ export class BlockConnection<T extends TConnection>
     return this.pathBounds;
   }
 
-  /** The line built by the last geometry change; batch rebuilds reuse it. */
-  public getPath(): Path2D {
-    return this.path2d;
-  }
-
-  /** The arrow for the current geometry, built on first use after a geometry change. */
-  public getArrowPath(): Path2D {
-    this.arrowPath ??= this.createArrowPath();
-    return this.arrowPath;
-  }
-
-  /**
-   * Creates the Path2D object for the arrow in the middle of the connection.
-   * This is used by the ConnectionArrow component to render the arrow.
-   *
-   * @returns A Path2D object representing the arrow shape
-   */
-  public createArrowPath() {
-    const path = new Path2D();
-    const [first, ...points] = this.getArrowPoints();
-    if (!first) return path;
-    path.moveTo(first.x, first.y);
-    for (const point of points) path.lineTo(point.x, point.y);
-    return path;
-  }
-
-  protected getArrowPoints(props: TConnectionProps = this.props): TPoint[] {
-    const coords = getArrowCoords(
-      props.useBezier,
-      this.geometry.x1,
-      this.geometry.y1,
-      this.geometry.x2,
-      this.geometry.y2,
-      props.bezierDirection
-    );
-    return [
-      { x: coords[0], y: coords[1] },
-      { x: coords[2], y: coords[3] },
-      { x: coords[4], y: coords[5] },
-    ];
-  }
-
-  public styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
-    ctx.lineWidth = this.state.hovered || this.state.selected ? 4 : 2;
-    const strokeColor = this.getStrokeColor(this.state);
-    if (strokeColor) {
-      ctx.strokeStyle = strokeColor;
-    }
-    return { type: "stroke" };
-  }
-
-  protected generatePath() {
-    /* Setting this.path2D is important, as hotbox checking uses the isPointInStroke method. */
-    this.path2d = this.createPath();
-    this.arrowPath = undefined;
-    return this.path2d;
-  }
-
-  protected createPath(): Path2D {
-    if (!this.geometry) {
-      return new Path2D();
-    }
-    if (this.props.useBezier) {
-      return bezierCurveLine(
-        {
-          x: this.geometry.x1,
-          y: this.geometry.y1,
-        },
-        {
-          x: this.geometry.x2,
-          y: this.geometry.y2,
-        },
-        this.props.bezierDirection
-      );
-    }
-    const path2d = new Path2D();
-    path2d.moveTo(this.geometry.x1, this.geometry.y1);
-    path2d.lineTo(this.geometry.x2, this.geometry.y2);
-
-    return path2d;
-  }
-
-  public getClassName(state = this.state) {
-    const hovered = state.hovered ? "hovered" : "none";
-    const selected = state.selected ? "selected" : "none";
-    const stroke = this.getStrokeColor(state);
-    const dash = state.dashed ? (state.styles?.dashes || [6, 4]).join(",") : "";
-    return `connection/${hovered}/${selected}/${stroke}/${dash}`;
-  }
-
-  public style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult | undefined {
-    this.setRenderStyles(ctx, this.state);
-    return { type: "stroke" };
-  }
-
-  protected setRenderStyles(ctx: CanvasRenderingContext2D, state = this.state, withDashed = true) {
-    ctx.lineWidth = state.hovered || state.selected ? 4 : 2;
-
-    const strokeColor = this.getStrokeColor(state);
-
-    if (strokeColor) {
-      ctx.strokeStyle = strokeColor;
-    }
-
-    if (withDashed && state.dashed) {
-      ctx.setLineDash(state.styles?.dashes || [6, 4]);
-    }
-  }
-
   protected override propsChanged(nextProps: TConnectionProps) {
     super.propsChanged(nextProps);
-    this.applyShape(this.state, nextProps);
+    this.updateLine(this.state, nextProps);
   }
 
   protected override stateChanged(nextState: TBaseConnectionState) {
     super.stateChanged(nextState);
-    this.applyShape(nextState);
+    this.updateLine(nextState);
   }
 
   protected override checkData(): boolean {
@@ -325,32 +245,50 @@ export class BlockConnection<T extends TConnection>
     return this.context.constants.connection.DEFAULT_Z_INDEX;
   }
 
-  protected override collectBBoxPoints(props: TConnectionProps = this.props) {
-    const points = super.collectBBoxPoints(props);
+  /** A connection is drawn and hit only with endpoints and a shape from its geometry function. */
+  protected override hasGeometry(): boolean {
+    return super.hasGeometry() && this.shape !== undefined;
+  }
+
+  /**
+   * The corners of the line's bounds (`line.getBounds()`) and of `getAfterRenderBounds()`. Updates the label first:
+   * `getBBox()` joins it for the hit box and tree culling.
+   */
+  protected override collectBoundsPoints(props: TConnectionProps = this.props): TPoint[] {
     this.updateLabelGeometry(props);
-
-    if (props.useBezier && this.connectionPoints) {
-      if (props.useTightBezierBounds !== false) {
-        const bezierBounds = getBezierCurveBounds(
-          this.connectionPoints[0],
-          this.connectionPoints[1],
-          props.bezierDirection
-        );
-        points.push(
-          { x: bezierBounds.x, y: bezierBounds.y },
-          { x: bezierBounds.x + bezierBounds.width, y: bezierBounds.y + bezierBounds.height }
-        );
-      } else {
-        const bezierParams = generateBezierParams(
-          this.connectionPoints[0],
-          this.connectionPoints[1],
-          props.bezierDirection
-        );
-        points.push(bezierParams[1], bezierParams[2]);
-      }
-    }
-
+    const points: TPoint[] = [];
+    const addCorners = (bounds: TPathBounds | undefined): void => {
+      if (bounds) points.push({ x: bounds[0], y: bounds[1] }, { x: bounds[2], y: bounds[3] });
+    };
+    if (this.shape) addCorners(this.line.getBounds(this.shape));
+    addCorners(this.getAfterRenderBounds());
     return points;
+  }
+
+  /**
+   * The hit test reaches half the stroke width past the line and the arrow (the wider of them while arrows are shown),
+   * plus `THRESHOLD_LINE_HIT`: the hit box pads by as much, so the broad phase never cuts the hit test off.
+   */
+  protected override getHitBoxPadding(): number {
+    return super.getHitBoxPadding() + Math.max(this.line.getLineHalfWidth(), this.line.getArrowHalfWidth() ?? 0);
+  }
+
+  /** The bounds and the label, joined with the arrow's points while arrows are shown: the hit test covers the arrow. */
+  protected override getHitBoxRect(): TRect {
+    const rect = super.getHitBoxRect();
+    const arrow = this.line.getArrowHalfWidth() === undefined ? undefined : this.shape?.arrow?.points;
+    if (!arrow || arrow.length < 2) return rect;
+    let minX = rect.x;
+    let minY = rect.y;
+    let maxX = rect.x + rect.width;
+    let maxY = rect.y + rect.height;
+    for (let i = 0; i + 1 < arrow.length; i += 2) {
+      minX = Math.min(minX, arrow[i]);
+      minY = Math.min(minY, arrow[i + 1]);
+      maxX = Math.max(maxX, arrow[i]);
+      maxY = Math.max(maxY, arrow[i + 1]);
+    }
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   }
 
   /** The line's bounds joined with the standard label's: the hit box and tree culling cover the label. */
@@ -366,38 +304,55 @@ export class BlockConnection<T extends TConnection>
     ];
   }
 
-  protected override updatePoints(additionalPoints?: TPoint[], props: TConnectionProps = this.props) {
+  /**
+   * Reads the endpoints, runs the class's geometry, then updates bounds, culling bounds and the batch items. The strokes
+   * are read before the bounds, which pad by half their widths, and the batch is told after.
+   */
+  protected override updatePoints(additionalPoints?: TPoint[], props: TConnectionProps = this.props): void {
     this.geometryContext = this.context;
-    super.updatePoints(additionalPoints, props);
-
-    if (this.connectionPoints) {
-      this.geometry.x1 = this.connectionPoints[0].x;
-      this.geometry.y1 = this.connectionPoints[0].y;
-      this.geometry.x2 = this.connectionPoints[1].x;
-      this.geometry.y2 = this.connectionPoints[1].y;
-    }
-
-    this.generatePath();
+    this.readConnectionPoints();
+    this.shape = this.computeGeometry(props);
+    this.line.readStrokes(this.state, props);
+    this.updateBounds(additionalPoints, props);
     this.updateCullingBounds(props);
-    this.applyShape(this.state, props);
+    this.line.updateItems(this.state, props);
+    this.syncLabel(this.getBatchZIndex(this.state));
+  }
+
+  /** Runs `static geometry` on the endpoints, props and data of the connection; undefined without endpoints. */
+  private computeGeometry(props: TConnectionProps): TConnectionGeometry | undefined {
+    if (!this.connectionPoints) return undefined;
+    const connection = this.connectedState.$state.value;
+    return (this.constructor as typeof BlockConnection).geometry({
+      source: this.connectionPoints[0],
+      target: this.connectionPoints[1],
+      points: (connection as Partial<TMultipointConnection>).points ?? NO_POINTS,
+      useBezier: props.useBezier,
+      bezierDirection: props.bezierDirection,
+      connection,
+    });
   }
 
   private updateCullingBounds(props: TConnectionProps = this.props): void {
-    if (this.hasGeometry()) {
-      const padding = this.state.hovered || this.state.selected ? 2 : 1;
+    const shape = this.shape;
+    if (shape && this.hasGeometry()) {
+      // Strokes reach half their width past the geometry: 1 for the default width, 2 hovered or selected.
+      const padding = this.line.getLineHalfWidth();
       // A sharp arrow join can extend past its vertices by the canvas miter limit.
-      const arrowPoints = props.showConnectionArrows ? this.getArrowPoints(props) : [];
-      const arrowPadding = padding * this.context.ctx.miterLimit;
+      const arrowPoints = props.showConnectionArrows ? shape.arrow?.points : undefined;
+      const arrowPadding = (this.line.getArrowHalfWidth() ?? padding) * this.context.ctx.miterLimit;
       const extend = ([left, top, right, bottom]: Readonly<[number, number, number, number]>): TPathBounds => {
         let minX = left - padding;
         let minY = top - padding;
         let maxX = right + padding;
         let maxY = bottom + padding;
-        for (const point of arrowPoints) {
-          minX = Math.min(minX, point.x - arrowPadding);
-          minY = Math.min(minY, point.y - arrowPadding);
-          maxX = Math.max(maxX, point.x + arrowPadding);
-          maxY = Math.max(maxY, point.y + arrowPadding);
+        if (arrowPoints) {
+          for (let i = 0; i + 1 < arrowPoints.length; i += 2) {
+            minX = Math.min(minX, arrowPoints[i] - arrowPadding);
+            minY = Math.min(minY, arrowPoints[i + 1] - arrowPadding);
+            maxX = Math.max(maxX, arrowPoints[i] + arrowPadding);
+            maxY = Math.max(maxY, arrowPoints[i + 1] + arrowPadding);
+          }
         }
         return [minX, minY, maxX, maxY];
       };
@@ -412,8 +367,8 @@ export class BlockConnection<T extends TConnection>
       this.labelWorldBounds = undefined;
     }
     // Chunks cache the union of their items' bounds.
-    this.context.batch.markBoundsDirty(this);
-    this.context.batch.markBoundsDirty(this.arrowShape);
+    this.context.batch.markBoundsDirty(this.line);
+    this.context.batch.markBoundsDirty(this.line.arrow);
     this.syncLabel();
   }
 
@@ -434,31 +389,32 @@ export class BlockConnection<T extends TConnection>
     }
   }
 
+  /** The line's hit test at the world center of the hit box (`THRESHOLD_LINE_HIT` in world units), then the label. */
   public onHitBox(shape: HitBoxData): boolean {
-    const THRESHOLD_LINE_HIT = this.context.constants.connection.THRESHOLD_LINE_HIT;
+    const x = (shape.minX + shape.maxX) / 2;
+    const y = (shape.minY + shape.maxY) / 2;
+    const threshold = this.context.constants.connection.THRESHOLD_LINE_HIT;
+    return this.line.hitTest(x, y, threshold) || this.hitTestLabel(shape);
+  }
 
-    if (isPointInStroke(this.context.ctx, this.path2d, shape.x, shape.y, THRESHOLD_LINE_HIT * 2)) {
-      return true;
-    }
+  /** Whether the point hits the label: a square of `THRESHOLD_LINE_HIT` screen pixels around it meets the label. */
+  protected hitTestLabel(shape: HitBoxData): boolean {
+    if (this.labelGeometry === undefined) return false;
+    const x = (shape.minX + shape.maxX) / 2;
+    const y = (shape.minY + shape.maxY) / 2;
+    const relativeThreshold =
+      this.context.constants.connection.THRESHOLD_LINE_HIT / this.context.camera.getCameraScale();
 
-    // Or if pointer over label
-    if (this.labelGeometry !== undefined) {
-      const x = (shape.minX + shape.maxX) / 2;
-      const y = (shape.minY + shape.maxY) / 2;
-      const relativeTreshold = THRESHOLD_LINE_HIT / this.context.camera.getCameraScale();
-
-      return intersects.boxBox(
-        x - relativeTreshold / 2,
-        y - relativeTreshold / 2,
-        relativeTreshold,
-        relativeTreshold,
-        this.labelGeometry.x,
-        this.labelGeometry.y,
-        this.labelGeometry.width,
-        this.labelGeometry.height
-      );
-    }
-    return false;
+    return intersects.boxBox(
+      x - relativeThreshold / 2,
+      y - relativeThreshold / 2,
+      relativeThreshold,
+      relativeThreshold,
+      this.labelGeometry.x,
+      this.labelGeometry.y,
+      this.labelGeometry.width,
+      this.labelGeometry.height
+    );
   }
 
   protected renderLabelText(ctx: CanvasRenderingContext2D) {
@@ -528,18 +484,11 @@ export class BlockConnection<T extends TConnection>
     this.labelGeometry = { ...this.labelPaintGeometry };
   }
 
-  public getStrokeColor(state: TConnection) {
-    if (state.selected) return state.styles?.selectedBackground || this.context.colors.connection?.selectedBackground;
-
-    return state.styles?.background || this.context.colors.connection?.background;
-  }
-
   protected unmount(): void {
     this.unsubscribeLabelFontSize?.();
     this.unsubscribeLabelFontSize = undefined;
     super.unmount();
-    this.context.batch.delete(this);
-    this.context.batch.delete(this.arrowShape);
+    this.line.dispose();
     this.context.labels.delete(this.labelShape);
   }
 }

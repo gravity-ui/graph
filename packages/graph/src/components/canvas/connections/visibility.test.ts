@@ -1,35 +1,54 @@
 import { Graph } from "../../../graph";
 import { globalScheduler } from "../../../lib/Scheduler";
 import { TConnection } from "../../../store/connection/ConnectionState";
+import type { TPoint } from "../../../utils/types/shapes";
 
+import type { Path2DRenderStyleResult } from "./BatchPath2D";
 import { BlockConnection } from "./BlockConnection";
+import type { TConnectionProps } from "./BlockConnection";
+import type { TConnectionGeometry } from "./geometry";
+import { Path2DLine } from "./lines";
+
+/** Records the paths it builds and the styles it applies on its connection. */
+class ObservedLine extends Path2DLine<ObservedConnection> {
+  private get draws(): string[] {
+    return this.connection.draws;
+  }
+
+  protected override createPath(geometry: TConnectionGeometry): Path2D {
+    this.draws.push("path");
+    return super.createPath(geometry);
+  }
+
+  protected override createArrowPath(geometry: TConnectionGeometry): Path2D {
+    this.draws.push("arrow");
+    return super.createArrowPath(geometry);
+  }
+
+  public override style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult {
+    this.draws.push("style");
+    return super.style(ctx);
+  }
+
+  public override styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult {
+    this.draws.push("arrowStyle");
+    return super.styleArrow(ctx);
+  }
+}
 
 class ObservedConnection extends BlockConnection<TConnection> {
+  public static override line = ObservedLine;
+
   public draws: string[] = [];
 
-  protected override createPath() {
-    this.draws.push("path");
-    return super.createPath();
+  protected override updatePoints(additionalPoints?: TPoint[], props?: TConnectionProps): void {
+    this.draws.push("geometry");
+    super.updatePoints(additionalPoints, props);
   }
 
   protected override renderLabelText(ctx: CanvasRenderingContext2D) {
     this.draws.push("label");
     super.renderLabelText(ctx);
-  }
-
-  public override createArrowPath() {
-    this.draws.push("arrow");
-    return super.createArrowPath();
-  }
-
-  public override style(ctx: CanvasRenderingContext2D) {
-    this.draws.push("style");
-    return super.style(ctx);
-  }
-
-  public override styleArrow(ctx: CanvasRenderingContext2D) {
-    this.draws.push("arrowStyle");
-    return super.styleArrow(ctx);
   }
 
   public afterRender(_ctx: CanvasRenderingContext2D): void {
@@ -87,15 +106,18 @@ describe("connection batch viewport visibility", () => {
 
   afterEach(() => graph?.unmount());
 
-  it("builds geometry once and skips the label of an offscreen connection", () => {
+  it("builds geometry once, the path only for a drawn line, and skips the label of an offscreen connection", () => {
     mount([
       { id: "near", x: 100, y: 100, label: "near" },
       { id: "far", x: 50_000, y: 50_000, label: "far" },
     ]);
+    const count = (id: string, draw: string): number => view(id).draws.filter((entry) => entry === draw).length;
 
-    expect(view("near").draws.filter((draw) => draw === "path")).toEqual(["path"]);
+    expect(count("near", "geometry")).toBe(1);
+    expect(count("near", "path")).toBe(1);
     expect(view("near").draws).toContain("label");
-    expect(view("far").draws.filter((draw) => draw === "path")).toEqual(["path"]);
+    expect(count("far", "geometry")).toBe(1);
+    expect(count("far", "path")).toBe(0);
     expect(view("far").draws).not.toContain("label");
   });
 
@@ -284,7 +306,7 @@ describe("connection batch viewport visibility", () => {
     target.requestHidden(true);
     // Port owner changes recompute the geometry in the next frame, not synchronously.
     frames(2);
-    expect(view("connection").draws).toEqual(["path"]);
+    expect(view("connection").draws).toEqual(["geometry"]);
     view("connection").draws = [];
     graph.cameraService.set({ x: 10 });
     frames(2);

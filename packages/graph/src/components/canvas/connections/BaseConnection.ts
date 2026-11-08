@@ -249,10 +249,9 @@ export class BaseConnection<
 
   /**
    * Rebuilds this connection's geometry from its current state, props and endpoints and redraws it:
-   * line and arrow paths, bounds, hit box and culling bounds. State, props and endpoint changes do this
-   * automatically, once per frame; call it when an override such as `createPath()`, `createArrowPath()` or
-   * `collectBBoxPoints()` reads data that changed elsewhere. `batch.markDirty()` alone only rebuilds the
-   * renderer's chunk from the connection's cached geometry.
+   * the shape, bounds, hit box and culling bounds. State, props and endpoint changes do this
+   * automatically, once per frame; call it when the geometry or the bounds read data that changed elsewhere.
+   * `batch.markDirty()` alone only rebuilds the renderer's chunk from the connection's cached geometry.
    */
   public updateGeometry(): void {
     if (this.unmounted) return;
@@ -265,10 +264,15 @@ export class BaseConnection<
    * Runs in the next update after an endpoint moves; `updateGeometry()` runs it synchronously.
    */
   protected updatePoints(additionalPoints?: TPoint[], props: Props = this.props): void {
+    this.readConnectionPoints();
+    this.updateBounds(additionalPoints, props);
+  }
+
+  /** Copies the current port positions into `connectionPoints` and clears the pending geometry update. */
+  protected readConnectionPoints(): void {
     this.geometryDirty = false;
     const geometry = this.connectedState.$geometry.value;
     this.connectionPoints = geometry ? [{ ...geometry[0] }, { ...geometry[1] }] : undefined;
-    this.updateBounds(additionalPoints, props);
   }
 
   protected updateBounds(additionalPoints?: TPoint[], props: Props = this.props): void {
@@ -281,7 +285,7 @@ export class BaseConnection<
     }
 
     // Calculate bounding box from connection points, additional points, and subclass points
-    const points = this.collectBBoxPoints(props);
+    const points = this.collectBoundsPoints(props);
 
     if (additionalPoints) {
       points.push(...additionalPoints);
@@ -294,6 +298,11 @@ export class BaseConnection<
 
     // Update interaction area
     this.updateHitBox();
+  }
+
+  /** The points `updateBounds` boxes; `collectBBoxPoints` by default. */
+  protected collectBoundsPoints(props: Props = this.props): TPoint[] {
+    return this.collectBBoxPoints(props);
   }
 
   /**
@@ -324,6 +333,14 @@ export class BaseConnection<
   }
 
   /**
+   * World units the hit box extends past `getHitBoxRect()` on each side: `THRESHOLD_LINE_HIT`. A subclass whose hit test
+   * reaches further (half a stroke width) adds that, so the broad phase never cuts its hit test off.
+   */
+  protected getHitBoxPadding(): number {
+    return this.context.constants.connection.THRESHOLD_LINE_HIT;
+  }
+
+  /**
    * Updates the hit box for user interaction
    * Adds threshold padding around the connection line to make it easier to click
    *
@@ -331,14 +348,8 @@ export class BaseConnection<
    */
   private updateHitBox = (): void => {
     const { x, y, width, height } = this.getHitBoxRect();
-    const threshold = this.context.constants.connection.THRESHOLD_LINE_HIT;
-    this.setHitBox(
-      x - threshold,
-      y - threshold,
-      x + width + threshold,
-      y + height + threshold,
-      this.hitBoxNeedsRestore
-    );
+    const padding = this.getHitBoxPadding();
+    this.setHitBox(x - padding, y - padding, x + width + padding, y + height + padding, this.hitBoxNeedsRestore);
     this.hitBoxNeedsRestore = false;
   };
 }

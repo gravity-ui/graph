@@ -216,3 +216,43 @@ test("rejects cell and chunk sizes it cannot work with", () => {
   }
   expect(() => createScene({ chunkSize: Infinity })).not.toThrow();
 });
+
+test("visits every registered item with its params", () => {
+  const { scene } = createScene();
+  const a = item("a", [1, 1, 2, 2]);
+  const b = item("b");
+  scene.add(a, { zIndex: 1, group: "x" });
+  scene.add(b, params);
+  scene.delete(item("missing"));
+  const seen: Array<[string, number, string]> = [];
+  scene.forEachItem((entry, entryParams) => seen.push([entry.name, entryParams.zIndex, entryParams.group]));
+  expect(seen.sort()).toEqual([
+    ["a", 1, "x"],
+    ["b", 0, "g"],
+  ]);
+});
+
+test("ends each group that drew a chunk once, after its chunks", () => {
+  const events: string[] = [];
+  const backend: IBatchBackend<TItem, string[], null> = {
+    build: (items) => items.map((entry) => entry.name),
+    draw: (_target, resource) => {
+      events.push(`draw ${resource.join(",")}`);
+    },
+    endGroup: () => {
+      events.push("end");
+    },
+  };
+  const scene = new BatchScene(backend, { cellSize: 100, chunkSize: 1 });
+  scene.add(item("a", [1, 1, 2, 2]), { zIndex: 0, group: "x" });
+  scene.add(item("b", [150, 1, 160, 2]), { zIndex: 0, group: "x" });
+  scene.add(item("c", [1, 1, 2, 2]), { zIndex: 1, group: "x" });
+  // Culled: its group draws no chunk and is not ended.
+  scene.add(item("far", [900, 900, 910, 910]), { zIndex: 2, group: "x" });
+  const hidden = item("hidden", [1, 1, 2, 2]);
+  hidden.visible = false;
+  scene.add(hidden, { zIndex: 3, group: "x" });
+
+  scene.render(null, rect(0, 0, 200, 200));
+  expect(events).toEqual(["draw a", "draw b", "end", "draw c", "end"]);
+});

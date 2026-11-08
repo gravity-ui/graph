@@ -3,8 +3,20 @@ import { globalScheduler } from "../../../lib/Scheduler";
 import { TConnection } from "../../../store/connection/ConnectionState";
 
 import { BlockConnection, TConnectionProps } from "./BlockConnection";
+import type { TConnectionGeometry } from "./geometry";
+import { Path2DLine } from "./lines";
+
+/** Counts the line paths it builds. */
+class CountingLine extends Path2DLine<ObservedConnection> {
+  protected override createPath(geometry: TConnectionGeometry): Path2D {
+    this.connection.pathUpdates++;
+    return super.createPath(geometry);
+  }
+}
 
 class ObservedConnection extends BlockConnection<TConnection> {
+  public static override line = CountingLine;
+
   public labelUpdates = 0;
   public boundsUpdates = 0;
   public pathUpdates = 0;
@@ -14,8 +26,8 @@ class ObservedConnection extends BlockConnection<TConnection> {
     return this.labelGeometry;
   }
 
-  public linePath() {
-    return this.path2d;
+  public linePath(): Path2D | undefined {
+    return this.line.getPath();
   }
 
   public resetCounts() {
@@ -30,11 +42,6 @@ class ObservedConnection extends BlockConnection<TConnection> {
   protected override setCullingBounds(minX: number, minY: number, maxX: number, maxY: number) {
     this.boundsUpdates++;
     super.setCullingBounds(minX, minY, maxX, maxY);
-  }
-
-  protected override createPath() {
-    this.pathUpdates++;
-    return super.createPath();
   }
 
   protected override renderLabelText(ctx: CanvasRenderingContext2D) {
@@ -156,6 +163,12 @@ describe("connection label scale updates", () => {
     expect(view.pathUpdates).toBe(0);
     expect(view.linePath()).toBe(path);
     expect(view.labelDraws).toBeGreaterThan(0);
+
+    // A geometry change rebuilds it once.
+    view.updateGeometry();
+    frames();
+    expect(view.pathUpdates).toBe(1);
+    expect(view.linePath()).not.toBe(path);
   });
 
   it.each([

@@ -4,6 +4,7 @@ import { TConnection } from "../../../store/connection/ConnectionState";
 
 import { BlockConnection } from "./BlockConnection";
 import type { ConnectionLabel } from "./Label";
+import type { ConnectionLine } from "./lines";
 
 class LabeledConnection extends BlockConnection<TConnection> {
   public labels = 0;
@@ -21,11 +22,15 @@ class LabeledConnection extends BlockConnection<TConnection> {
 
   public setAllowed(allowed: boolean): void {
     this.allowed = allowed;
-    this.applyShape();
+    this.invalidateLine();
   }
 
   public get labelItem(): ConnectionLabel {
     return this.labelShape;
+  }
+
+  public get lineItem(): ConnectionLine {
+    return this.line;
   }
 }
 
@@ -152,7 +157,7 @@ describe("connection label pass", () => {
     mount([{ id: "label", x: 100, y: 100, label: "label" }]);
     const connection = view("label");
     const parent = connection.getParent() as unknown as { shouldRenderChildren: boolean };
-    const style = jest.spyOn(connection, "style");
+    const style = jest.spyOn(connection.lineItem, "style");
     parent.shouldRenderChildren = false;
     connection.labels = 0;
     graph.cameraService.set({ x: 1 });
@@ -190,7 +195,7 @@ describe("connection label pass", () => {
   it("draws the label of an offscreen line without stroking the line", () => {
     mount([{ id: "reaching", x: 1010, y: 100, label: "a".repeat(200) }]);
     const connection = view("reaching");
-    const style = jest.spyOn(connection, "style");
+    const style = jest.spyOn(connection.lineItem, "style");
     connection.labels = 0;
     graph.cameraService.set({ x: 1 });
     frames();
@@ -201,7 +206,7 @@ describe("connection label pass", () => {
   it("does not rebuild line chunks when zoom resizes labels", () => {
     mount([{ id: "label", x: 100, y: 100, label: "label" }]);
     const connection = view("label");
-    const getPath = jest.spyOn(connection, "getPath");
+    const getPath = jest.spyOn(connection.lineItem, "getPath");
     graph.cameraService.set({ scale: 2 });
     frames();
     graph.cameraService.set({ scale: 1.5 });

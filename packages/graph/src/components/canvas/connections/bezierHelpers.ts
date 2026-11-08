@@ -1,4 +1,4 @@
-import type { TRect } from "../../../utils/types/shapes";
+import type { TPoint, TRect } from "../../../utils/types/shapes";
 
 export function generateBezierParams(
   startPos: { x: number; y: number },
@@ -37,55 +37,88 @@ export function bezierCurveLine(
 
 const BEZIER_EPSILON = 1e-8;
 
-function getCubicExtrema(start: number, firstPoint: number, secondPoint: number, end: number): number[] {
-  // The derivative of a cubic Bezier coordinate is a quadratic polynomial:
-  // a*t^2 + b*t + c = 0.
+/**
+ * Writes the parameters in (0, 1) where one coordinate of a cubic Bezier has an extremum into `times` from `count`;
+ * returns the new count. The derivative of a cubic Bezier coordinate is a quadratic polynomial: a*t^2 + b*t + c = 0.
+ */
+function writeCubicExtrema(
+  start: number,
+  firstPoint: number,
+  secondPoint: number,
+  end: number,
+  times: Float64Array,
+  count: number
+): number {
   const a = -start + 3 * firstPoint - 3 * secondPoint + end;
   const b = 2 * (start - 2 * firstPoint + secondPoint);
   const c = firstPoint - start;
 
   if (Math.abs(a) < BEZIER_EPSILON) {
     if (Math.abs(b) < BEZIER_EPSILON) {
-      return [];
+      return count;
     }
 
     const t = -c / b;
-    return t > 0 && t < 1 ? [t] : [];
+    if (t > 0 && t < 1) times[count++] = t;
+    return count;
   }
 
   const discriminant = b * b - 4 * a * c;
   if (discriminant < -BEZIER_EPSILON) {
-    return [];
+    return count;
   }
 
   const sqrtDiscriminant = Math.sqrt(Math.max(0, discriminant));
   const denominator = 2 * a;
-  const roots = [(-b - sqrtDiscriminant) / denominator, (-b + sqrtDiscriminant) / denominator];
-
-  return roots.filter((t) => t > 0 && t < 1);
+  const first = (-b - sqrtDiscriminant) / denominator;
+  const second = (-b + sqrtDiscriminant) / denominator;
+  if (first > 0 && first < 1) times[count++] = first;
+  if (second > 0 && second < 1) times[count++] = second;
+  return count;
 }
 
-function getPointAtBezierCurve(
-  startPos: { x: number; y: number },
-  firstPoint: { x: number; y: number },
-  secondPoint: { x: number; y: number },
-  endPos: { x: number; y: number },
-  time: number
-) {
+/** One coordinate of a cubic Bezier at `time`. */
+function getCubicCoordinate(start: number, firstPoint: number, secondPoint: number, end: number, time: number): number {
   const inverseTime = 1 - time;
+  return (
+    inverseTime ** 3 * start +
+    3 * inverseTime ** 2 * time * firstPoint +
+    3 * inverseTime * time ** 2 * secondPoint +
+    time ** 3 * end
+  );
+}
 
-  return {
-    x:
-      inverseTime ** 3 * startPos.x +
-      3 * inverseTime ** 2 * time * firstPoint.x +
-      3 * inverseTime * time ** 2 * secondPoint.x +
-      time ** 3 * endPos.x,
-    y:
-      inverseTime ** 3 * startPos.y +
-      3 * inverseTime ** 2 * time * firstPoint.y +
-      3 * inverseTime * time ** 2 * secondPoint.y +
-      time ** 3 * endPos.y,
-  };
+/** The ends and at most two extrema per coordinate. */
+const cubicTimes = new Float64Array(6);
+
+/**
+ * Joins the tight axis-aligned bounds of the cubic Bezier (x0, y0) (x1, y1) (x2, y2) (x3, y3) into `bounds`
+ * ([minX, minY, maxX, maxY]) without allocating.
+ */
+export function joinCubicBounds(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  x3: number,
+  y3: number,
+  bounds: [number, number, number, number]
+): void {
+  const times = cubicTimes;
+  times[0] = 0;
+  times[1] = 1;
+  let count = writeCubicExtrema(x0, x1, x2, x3, times, 2);
+  count = writeCubicExtrema(y0, y1, y2, y3, times, count);
+  for (let i = 0; i < count; i++) {
+    const x = getCubicCoordinate(x0, x1, x2, x3, times[i]);
+    const y = getCubicCoordinate(y0, y1, y2, y3, times[i]);
+    if (x < bounds[0]) bounds[0] = x;
+    if (y < bounds[1]) bounds[1] = y;
+    if (x > bounds[2]) bounds[2] = x;
+    if (y > bounds[3]) bounds[3] = y;
+  }
 }
 
 /**
@@ -100,26 +133,14 @@ export function getBezierCurveBounds(
   mode: "vertical" | "horizontal" = "horizontal"
 ): TRect {
   const [start, firstPoint, secondPoint, end] = generateBezierParams(startPos, endPos, mode);
-  const times = [
-    0,
-    1,
-    ...getCubicExtrema(start.x, firstPoint.x, secondPoint.x, end.x),
-    ...getCubicExtrema(start.y, firstPoint.y, secondPoint.y, end.y),
-  ];
+  return getCubicBounds(start, firstPoint, secondPoint, end);
+}
 
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-
-  times.forEach((time) => {
-    const point = getPointAtBezierCurve(start, firstPoint, secondPoint, end, time);
-    minX = Math.min(minX, point.x);
-    minY = Math.min(minY, point.y);
-    maxX = Math.max(maxX, point.x);
-    maxY = Math.max(maxY, point.y);
-  });
-
+/** The tight axis-aligned bounds of a cubic Bezier curve given by its four points. */
+export function getCubicBounds(p0: TPoint, c1: TPoint, c2: TPoint, p3: TPoint): TRect {
+  const bounds: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity];
+  joinCubicBounds(p0.x, p0.y, c1.x, c1.y, c2.x, c2.y, p3.x, p3.y, bounds);
+  const [minX, minY, maxX, maxY] = bounds;
   return {
     x: minX,
     y: minY,

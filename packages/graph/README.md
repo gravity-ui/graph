@@ -275,6 +275,8 @@ graph.zoomTo("center", { padding: 100 });
 4. Blocks and Connections
    - [Block Groups](docs/blocks/groups.md)
    - [Canvas Connection System](docs/connections/canvas-connection-system.md)
+   - [Connection Lines, Geometry and WebGL](docs/connections/webgl-connections.md)
+   - [Batch Rendering](docs/connections/batch-rendering.md)
 
 5. Testing
    - [Playwright page objects](https://github.com/gravity-ui/graph/blob/v2/packages/graph-playwright/README.md)

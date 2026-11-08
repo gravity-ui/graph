@@ -35,7 +35,7 @@ function getColorNormContext(): CanvasRenderingContext2D | null {
  * @param color - Color in any valid CSS format
  * @returns RGBA components or null if parsing fails
  */
-function parseColor(color: string): { r: number; g: number; b: number; a: number } | null {
+export function parseColor(color: string): { r: number; g: number; b: number; a: number } | null {
   const cached = parseColorCache.get(color);
   if (cached) {
     return cached;
