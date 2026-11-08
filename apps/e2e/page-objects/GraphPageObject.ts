@@ -106,6 +106,11 @@ export class GraphPageObject extends GraphPO {
     }, count);
   }
 
+  /** The renderer the graph layer actually uses for connections: "canvas", "webgl" or "webgl-fallback". */
+  public async getConnectionsRenderer(): Promise<string> {
+    return this.evaluate((graph) => graph.getGraphLayer().$connectionsRenderer.value);
+  }
+
   public async setEntities(config: GraphConfig): Promise<void> {
     await this.evaluate((graph, cfg) => {
       graph.setEntities({
