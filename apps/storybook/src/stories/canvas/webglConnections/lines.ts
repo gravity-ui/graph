@@ -20,8 +20,8 @@ export type TLook = {
 };
 
 /**
- * The resting look of a connection; `withInteraction()` makes a hovered or selected line 2 units wider. Selected, a line
- * without an effect is drawn in the selection color; a line with one keeps its color and the effect shows the selection.
+ * The resting look of a connection; `withInteraction()` makes a hovered or selected line 2 units wider and a selected
+ * one the selection color. A WebGL line with an effect gets its own color back and the effect shows the selection.
  */
 export type TDescribe = (id: string | number | undefined, state: TBaseConnectionState) => TLook;
 

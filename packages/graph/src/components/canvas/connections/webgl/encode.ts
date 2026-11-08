@@ -9,7 +9,8 @@ import type { TLineInteraction, TLineStroke, TWebGLShape } from "../lines/types"
  * 12-15 width, connection length, distance at the piece start, piece length | 16-19 dash: on, off, on, off |
  * 20-27 effect params (the shape's `params`, zeros after them) |
  * 28-31 interaction: the selection color's straight rgb 0..1, then hovered + 2 selected + 4 round(selection alpha *
- * 255), an exact integer (zeros without an interaction).
+ * 255) + 1024 when the effect shows the selection (`effectShowsSelection`), an exact integer (zeros without an
+ * interaction).
  * Lengths and distances in world units.
  */
 export const INSTANCE_FLOATS = 32;
@@ -214,9 +215,13 @@ let lastSelectionFloats: [number, number, number, number] = [0, 0, 0, 0];
 
 /**
  * The interaction floats of an instance: the selection color's straight rgb, then hovered + 2 selected + 4 round(alpha
- * * 255), an integer below 1024 that a float holds exactly. Zeros without an interaction.
+ * * 255) + 1024 when the effect shows the selection, an integer below 2048 that a float holds exactly. Zeros without
+ * an interaction.
  */
-function interactionFloats(interaction: TLineInteraction | undefined): readonly number[] {
+function interactionFloats(
+  interaction: TLineInteraction | undefined,
+  effectShowsSelection: boolean
+): readonly number[] {
   if (!interaction) return NO_INTERACTION;
   const { hovered, selected, selectionColor } = interaction;
   if (selectionColor !== lastSelectionColor) {
@@ -225,7 +230,7 @@ function interactionFloats(interaction: TLineInteraction | undefined): readonly 
   }
   const [r, g, b, a] = lastSelectionFloats;
   const alpha = Math.round(Math.min(1, Math.max(0, a)) * 255) || 0;
-  return [r, g, b, (hovered ? 1 : 0) + (selected ? 2 : 0) + 4 * alpha];
+  return [r, g, b, (hovered ? 1 : 0) + (selected ? 2 : 0) + 4 * alpha + (effectShowsSelection ? 1024 : 0)];
 }
 
 /**
@@ -264,13 +269,13 @@ function writeTotal(instances: TInstances, first: number, total: number): void {
  */
 export function encodeShapes(shapes: readonly TWebGLShape[], bucket: number, out: TEncodedChunk): void {
   const { lines, curves } = out;
-  for (const { segments, stroke, params, interaction } of shapes) {
+  for (const { segments, stroke, params, interaction, effectShowsSelection = false } of shapes) {
     const instanceStroke: TInstanceStroke = {
       color: colorFloats(stroke.color),
       width: stroke.width,
       dash: dashFloats(stroke.dash),
       params,
-      interaction: interactionFloats(interaction),
+      interaction: interactionFloats(interaction, effectShowsSelection),
     };
     const firstLine = lines.count;
     const firstCurve = curves.count;

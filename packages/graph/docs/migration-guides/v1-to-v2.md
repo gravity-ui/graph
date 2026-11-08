@@ -1171,9 +1171,9 @@ class StatusConnection extends BlockConnection<TStatusConnection> {
 ```
 
 `withInteraction()` keeps hover and selection as they were: the selected color and 2 more units of width on top of
-your look, which keeps its dash. The same `getStroke()` on a `WebGLLine` subclass draws the look with WebGL, which
-applies the selection color when it draws the line: a line with an effect keeps its color and the effect shows the
-selection (see [Hover and selection in effects](../connections/webgl-connections.md#hover-and-selection-in-effects)).
+your look, which keeps its dash. The same `getStroke()` on a `WebGLLine` subclass draws the same look with WebGL; a
+line with an effect gets its own color back there and the effect shows the selection (see
+[Hover and selection in effects](../connections/webgl-connections.md#hover-and-selection-in-effects)).
 `style()` stays for what a stroke cannot say (gradients, shadows, fills); a `style()` that reads more than
 `getStroke()` overrides `getGroup()` as well.
 

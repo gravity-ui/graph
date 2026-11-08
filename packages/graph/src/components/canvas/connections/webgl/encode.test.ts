@@ -137,7 +137,7 @@ test("writes a shape's params into every instance, missing ones as zero and at m
   expect(instance(out.lines, 2).slice(0, 2)).toEqual([0, 0]);
 });
 
-describe("the interaction floats: selection rgb, then hovered + 2 selected + 4 round(selection alpha * 255)", () => {
+describe("the interaction floats: selection rgb, then hovered + 2 selected + 4 round(alpha * 255) + 1024 shown", () => {
   const segments = [0, 0, 10, 0, 20, 0, 30, 0];
 
   /** The interaction floats of the shape's first line instance; the rgb in 0..255. */
@@ -163,6 +163,13 @@ describe("the interaction floats: selection rgb, then hovered + 2 selected + 4 r
     expect(interactionOf({ hovered: false, selected: false, selectionColor: "rgba(0, 0, 0, 0)" })).toEqual([
       0, 0, 0, 0,
     ]);
+  });
+
+  it("sets bit 10 when the effect shows the selection in place of the selection color", () => {
+    const out = filledChunk(1, 9);
+    const interaction = { hovered: false, selected: true, selectionColor: "#ffcc00" };
+    encodeShapes([{ ...shape(segments), interaction, effectShowsSelection: true }], 0, out);
+    expect(instance(out.lines, 0)[31]).toBe(1024 + 2 + 4 * 255);
   });
 
   it("writes zeros for a shape without an interaction (an arrow)", () => {

@@ -12,7 +12,9 @@ import { ConnectionPrograms, WebGLProgramError } from "./programs";
 import { FILL_FRAGMENT, FILL_VERTEX, VERTEX, createFragmentShader } from "./shaders";
 
 const frame = { width: 100, height: 50, x: 3, y: 4, scale: 0.5, dpr: 2, time: 1.5 };
-const IDENTITY = "vec4 effect(ConnectionFragment f, vec4 color) { return color; }";
+const IDENTITY = `vec4 effect(ConnectionFragment f, vec4 color) {
+  return graph_vInteraction.z * f.selected > 0.5 ? f.selectionColor : color;
+}`;
 
 /** Names of the attributes, varyings, outputs and uniforms a shader declares. */
 function declaredNames(source: string): string[] {
@@ -101,6 +103,12 @@ describe("connection shaders", () => {
       "graph_vInteraction.y",
       "graph_vSelectionColor",
     ]);
+  });
+
+  it("draws a selected line in the selection color with the plain program when its effect was to show it", () => {
+    // Bit 10 of the packed interaction, decoded in the vertex shader: plain lines leave it unset.
+    expect(VERTEX).toMatch(/\(interaction >> 10\) & 1/);
+    expect(createFragmentShader()).toContain(IDENTITY);
   });
 
   it("uses the identity effect without an effect and inserts an effect before main()", () => {

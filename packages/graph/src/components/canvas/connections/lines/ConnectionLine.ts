@@ -92,7 +92,7 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
    * Hover and selection on top of a stroke: a selected line takes the selected color (`styles.selectedBackground` or
    * the theme's), a hovered or selected one is 2 units wider. The rest of the stroke — dash, effect — stays, so a
    * custom look keeps its style while selected: `return this.withInteraction({ color, width: 6, effect }, state)`.
-   * `WebGLLine` changes only the width and applies the selection color when it draws the line.
+   * A `WebGLLine` gives an effect the line's own color back: the effect shows the selection.
    */
   protected withInteraction<S extends TLineStroke>(stroke: S, state: TBaseConnectionState): S {
     if (!state.hovered && !state.selected) return stroke;
@@ -103,11 +103,6 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
   /** Default: the line's color and width without the dash; a closed arrow is filled with the color. */
   public getArrowStroke(state: TBaseConnectionState): TLineStroke {
     const stroke = state === this.updatingState && this.stroke ? this.stroke : this.getStroke(state);
-    return this.getArrowStrokeOf(stroke, state);
-  }
-
-  /** @internal The default arrow stroke of the line stroke `getStroke(state)` returned: its color and width. */
-  protected getArrowStrokeOf(stroke: TLineStroke, _state: TBaseConnectionState): TLineStroke {
     return { color: stroke.color, width: stroke.width };
   }
 

@@ -13,7 +13,8 @@ const hashHelper = `function hashId(id: string | number | undefined): number {
 export const runningDashCode = `${imports("BlockConnection, WebGLLine, dashFlow")}
 class RunningDashLine extends WebGLLine {
   public override getStroke(state: TBaseConnectionState): TWebGLStroke {
-    // dashFlow draws the dash itself, so the stroke has no \`dash\`; selected, it fills the gaps with the selection color
+    // dashFlow draws the dash itself, so the stroke has no \`dash\`;
+    // selected, it fills the gaps with the selection color
     const effect = dashFlow.use({ pattern: [12, 8], speed: 40 });
     return this.withInteraction({ color: "#4e79a7", width: 2, effect }, state);
   }
@@ -159,8 +160,12 @@ const gradient = defineConnectionEffect({
     float border = f.selected * smoothstep(edge - 0.5, edge, abs(f.across));
     return mix(inside, f.selectionColor, border);
   }\`,
-  encode: ({ from, to, laps }: { from: readonly number[]; to: readonly number[]; laps: number }) => [...from, laps, ...to],
-  fallback: (stroke) => stroke, // Path2D draws the plain stroke while WebGL is unavailable, in the selection color when selected
+  encode: ({ from, to, laps }: { from: readonly number[]; to: readonly number[]; laps: number }) => [
+    ...from,
+    laps,
+    ...to,
+  ],
+  fallback: (stroke) => stroke, // Path2D draws the plain stroke while WebGL is unavailable
 });
 
 class GradientLine extends WebGLLine {

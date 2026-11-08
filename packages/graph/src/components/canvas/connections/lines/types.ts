@@ -44,4 +44,9 @@ export type TWebGLShape = {
   params?: readonly number[];
   /** The line's hover and selection; an arrow has none (encoded as zeros). */
   interaction?: TLineInteraction;
+  /**
+   * The stroke color is the line's own in place of the selection color `withInteraction()` applied: the effect shows
+   * the selection, and the plain program (an effect that does not compile) draws the selection color.
+   */
+  effectShowsSelection?: boolean;
 };

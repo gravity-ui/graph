@@ -20,7 +20,8 @@ layout(location = 4) in vec4 graph_stroke;       // width, connection length, di
 layout(location = 5) in vec4 graph_dash;         // on, off, on, off; zeros: solid
 layout(location = 6) in vec4 graph_params0;      // effect params 0..3
 layout(location = 7) in vec4 graph_params1;      // effect params 4..7
-layout(location = 8) in vec4 graph_interaction;  // selection rgb; hovered + 2 selected + 4 round(alpha * 255)
+// Selection rgb; hovered + 2 selected + 4 round(alpha * 255) + 1024 when the effect shows the selection.
+layout(location = 8) in vec4 graph_interaction;
 
 uniform vec2 graph_viewport;     // CSS pixels
 uniform vec3 graph_camera;       // x, y, scale
@@ -37,7 +38,7 @@ flat out vec4 graph_vDash;
 flat out float graph_vLength;
 flat out vec4 graph_vParams0;
 flat out vec4 graph_vParams1;
-flat out vec2 graph_vInteraction;     // hovered, selected: 0.0 or 1.0
+flat out vec3 graph_vInteraction;     // hovered, selected, the effect shows the selection: 0.0 or 1.0
 flat out vec4 graph_vSelectionColor;  // straight rgba
 
 vec2 graph_bezier(vec2 a, vec2 b, vec2 c, vec2 d, float t) {
@@ -84,8 +85,8 @@ void main() {
   graph_vParams0 = graph_params0;
   graph_vParams1 = graph_params1;
   int interaction = int(graph_interaction.w + 0.5);
-  graph_vInteraction = vec2(float(interaction & 1), float((interaction >> 1) & 1));
-  graph_vSelectionColor = vec4(graph_interaction.xyz, float(interaction >> 2) / 255.0);
+  graph_vInteraction = vec3(float(interaction & 1), float((interaction >> 1) & 1), float((interaction >> 10) & 1));
+  graph_vSelectionColor = vec4(graph_interaction.xyz, float((interaction >> 2) & 255) / 255.0);
 }
 `;
 
@@ -104,7 +105,7 @@ flat in vec4 graph_vDash;
 flat in float graph_vLength;
 flat in vec4 graph_vParams0;
 flat in vec4 graph_vParams1;
-flat in vec2 graph_vInteraction;
+flat in vec3 graph_vInteraction;
 flat in vec4 graph_vSelectionColor;
 
 uniform vec3 graph_camera;
@@ -148,8 +149,13 @@ float graph_wave(vec2 world, float time, float period, float wavelength) {
 }
 `;
 
-/** The effect of the plain stroke. */
-const IDENTITY_EFFECT = /* glsl */ `vec4 effect(ConnectionFragment f, vec4 color) { return color; }`;
+/**
+ * The effect of the plain stroke. The plain program also draws the groups of effects that do not compile: a selected
+ * line whose effect was to show the selection takes the selection color there.
+ */
+const IDENTITY_EFFECT = /* glsl */ `vec4 effect(ConnectionFragment f, vec4 color) {
+  return graph_vInteraction.z * f.selected > 0.5 ? f.selectionColor : color;
+}`;
 
 const FRAGMENT_MAIN = /* glsl */ `
 void main() {

@@ -19,7 +19,7 @@ function config(useBezierConnections: boolean): GraphConfig {
   };
 }
 
-type TLineKind = "webgl" | "dashFlow" | "pulse";
+type TLineKind = "webgl" | "dashFlow" | "pulse" | "stillDashFlow";
 
 /** Switches the graph to a connection class whose line is a WebGLLine, optionally with a library effect. */
 async function useWebGLConnection(page: Page, kind: TLineKind): Promise<void> {
@@ -38,6 +38,11 @@ async function useWebGLConnection(page: Page, kind: TLineKind): Promise<void> {
         }
         if (lineKind === "pulse") {
           return { ...base, color: "#fb4", width: 3, effect: pulse.use({ period: 3, wavelength: 400 }) };
+        }
+        if (lineKind === "stillDashFlow") {
+          // A dash that stands still: a screenshot finds its dashes and gaps.
+          const effect = dashFlow.use({ pattern: [40, 30], speed: 0 });
+          return this.withInteraction({ color: "#2f7cf6", width: 6, effect }, state);
         }
         return base;
       }
@@ -75,6 +80,57 @@ async function countPixelsAround(page: Page, point: { x: number; y: number }, ra
       return count;
     },
     { point, radius }
+  );
+}
+
+/** Counts the pixels of a screenshot of the middle of the connection close to each of the given colors. */
+async function countColorsOnScreen(
+  page: Page,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  colors: Record<string, [number, number, number]>
+): Promise<Record<string, number>> {
+  const clip = await page.evaluate(
+    ({ a, b }) => {
+      const { scale, x, y } = window.graph.cameraService.getCameraState();
+      const rect = window.graph.getGraphCanvas()?.getBoundingClientRect() ?? { left: 0, top: 0 };
+      const ax = rect.left + a.x * scale + x;
+      const ay = rect.top + a.y * scale + y;
+      const bx = rect.left + b.x * scale + x;
+      const by = rect.top + b.y * scale + y;
+      return {
+        x: Math.min(ax, bx) - 6,
+        y: Math.min(ay, by) - 6,
+        width: Math.abs(bx - ax) + 12,
+        height: Math.abs(by - ay) + 12,
+      };
+    },
+    { a: from, b: to }
+  );
+  const png = await page.screenshot({ clip, scale: "css" });
+  return page.evaluate(
+    async ({ base64, targets }) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${base64}`;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return {};
+      ctx.drawImage(image, 0, 0);
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      const counts: Record<string, number> = {};
+      for (const [name, rgb] of Object.entries(targets)) {
+        let count = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          if (rgb.every((value, k) => Math.abs(value - data[i + k]) <= 24)) count++;
+        }
+        counts[name] = count;
+      }
+      return counts;
+    },
+    { base64: png.toString("base64"), targets: colors }
   );
 }
 
@@ -177,6 +233,35 @@ test.describe("WebGL connections", () => {
     expect(await conn.isSelected()).toBe(false);
     await conn.click({ curveTime: 0.5 });
     expect(await conn.isSelected()).toBe(true);
+  });
+
+  test("a selected dashFlow line shows the selection color in its gaps and its own color in its dashes", async ({
+    page,
+  }) => {
+    const graphPO = new GraphPageObject(page);
+    const styles = { selectedBackground: "#ff00ff" };
+    await graphPO.initialize({ ...config(false), connections: [{ ...CONNECTIONS[0], styles }] });
+    test.skip(!(await hasWebGL2(page)), "Headless Chromium has no WebGL2");
+
+    await useWebGLConnection(page, "stillDashFlow");
+    await graphPO.waitForFrames(3);
+    expect(await graphPO.getConnectionsRenderer()).toBe("webgl");
+
+    const conn = graphPO.connection("c1");
+    const from = await conn.getPointOnCurve(0.25);
+    const to = await conn.getPointOnCurve(0.75);
+    const colors: Record<string, [number, number, number]> = { selection: [255, 0, 255], line: [47, 124, 246] };
+    const idle = await countColorsOnScreen(page, from, to, colors);
+    expect(idle.selection).toBe(0);
+    expect(idle.line).toBeGreaterThan(20);
+
+    await conn.click({ curveTime: 0.5 });
+    expect(await conn.isSelected()).toBe(true);
+    await graphPO.waitForFrames(3);
+    const selected = await countColorsOnScreen(page, from, to, colors);
+    // The gaps take the selection color, the dashes keep the line's.
+    expect(selected.selection).toBeGreaterThan(20);
+    expect(selected.line).toBeGreaterThan(20);
   });
 
   test("falls back to Path2D when WebGL2 is unavailable", async ({ page }) => {
