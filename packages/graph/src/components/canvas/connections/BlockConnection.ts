@@ -1,5 +1,6 @@
 import intersects from "intersects";
 
+import { isDevelopmentBuild } from "../../../lib/detachedWarning";
 import { HitBoxData } from "../../../services/HitTest";
 import { ESelectionStrategy } from "../../../services/selection/types";
 import { TConnection } from "../../../store/connection/ConnectionState";
@@ -18,6 +19,7 @@ import { hasChangedValue } from "./hasChangedValue";
 import { getLabelCoords } from "./labelHelper";
 import { Path2DLine } from "./lines";
 import type { ConnectionLine, TConnectionLineClass } from "./lines";
+import { warnRemovedConnectionMethods } from "./removedMethods";
 import type { TMultipointConnection } from "./types";
 
 export type TConnectionProps = TBaseConnectionProps & {
@@ -90,6 +92,7 @@ export class BlockConnection<T extends TConnection = TConnection>
   constructor(props: TConnectionProps, parent: BlockConnections) {
     super(props, parent);
     this.addEventListener("click", this);
+    if (isDevelopmentBuild()) warnRemovedConnectionMethods(this.constructor, BlockConnection);
 
     // ConnectionLine records at construction whether the connection has afterRender(); a prototype method is visible
     // here, a field initializer of a subclass is not yet.
