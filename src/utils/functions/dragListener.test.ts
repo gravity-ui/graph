@@ -182,3 +182,30 @@ describe("dragListener onSessionEnd", () => {
     });
   });
 });
+
+describe("dragListener threshold", () => {
+  afterEach(() => {
+    document.dispatchEvent(mouse("mouseup", 0, 0));
+  });
+
+  it("measures the threshold from initialEvent, even when the first mousemove arrives already moved", () => {
+    const { listeners } = listen({ threshold: 5, initialEvent: mouse("mousedown", 0, 0) });
+    const firstMove = mouse("mousemove", 5, 0);
+
+    document.dispatchEvent(firstMove);
+
+    expect(listeners.start).toHaveBeenCalledTimes(1);
+    expect(listeners.start).toHaveBeenCalledWith(firstMove);
+  });
+
+  it("with a zero threshold starts the drag on the first mousemove that moves away from initialEvent", () => {
+    const { listeners } = listen({ threshold: 0, initialEvent: mouse("mousedown", 10, 10) });
+    const move = mouse("mousemove", 11, 10);
+
+    document.dispatchEvent(mouse("mousemove", 10, 10));
+    expect(listeners.start).not.toHaveBeenCalled();
+
+    document.dispatchEvent(move);
+    expect(listeners.start).toHaveBeenCalledWith(move);
+  });
+});

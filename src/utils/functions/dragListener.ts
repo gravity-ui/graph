@@ -4,6 +4,8 @@ import { Graph } from "../../graph";
 import { Emitter } from "../Emitter";
 import { EVENTS } from "../types/events";
 
+import { isDragThresholdExceeded } from "./index";
+
 export type DragListenerOptions = {
   stopOnMouseLeave?: boolean;
   graph?: Graph;
@@ -16,6 +18,12 @@ export type DragListenerOptions = {
    * Default: 0 (drag starts immediately on first mousemove)
    */
   threshold?: number;
+  /**
+   * The press that begins the gesture, usually its mousedown. The threshold is measured from it, and with
+   * a threshold of 0 the drag starts on the first mousemove that moves away from it.
+   * If not set, the threshold is measured from the first mousemove.
+   */
+  initialEvent?: MouseEvent;
   /**
    * Blocks browser text selection for the drag session (selectstart + temporary user-select).
    * @default true
@@ -64,6 +72,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   const suppressTextSelection = options?.suppressTextSelection ?? true;
   // Use provided threshold, or get from graph settings, or default to 0
   const threshold = options?.threshold ?? graph?.rootStore.settings.$dragThreshold.value ?? 0;
+  const initialEvent = options?.initialEvent;
 
   const dragDocument = getDragListenerDocument(document);
   let releaseTextSelection: (() => void) | null = null;
@@ -83,8 +92,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   let started = false;
   let finished = false;
   let thresholdExceeded = false;
-  let startX: number | null = null;
-  let startY: number | null = null;
+  let thresholdOrigin = initialEvent;
   let lastMouseEvent: MouseEvent | undefined;
   const emitter = new Emitter();
   // Removes every DOM listener of this drag session at once
@@ -106,23 +114,11 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
   const unsubscribeCamera = graph && autopanning ? graph.$camera.subscribe(handleCameraChange) : undefined;
 
   /**
-   * Check if the mouse has moved beyond the threshold distance
+   * Check if the mouse has moved beyond the threshold distance from the press, or from the first mousemove
    */
   const checkThreshold = (event: MouseEvent): boolean => {
-    if (startX === null || startY === null) {
-      startX = event.clientX;
-      startY = event.clientY;
-    }
-
-    if (threshold <= 0) {
-      return true;
-    }
-
-    const dx = event.clientX - startX;
-    const dy = event.clientY - startY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    return distance >= threshold;
+    thresholdOrigin ??= event;
+    return isDragThresholdExceeded(thresholdOrigin, event, threshold);
   };
 
   /**
@@ -140,6 +136,7 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
 
     // Setup drag state
     if (graph) {
+      graph.getGraphLayer().handlePointerDragStart();
       if (autopanning) {
         graph.cameraService.enableAutoPanning();
       }
@@ -235,8 +232,8 @@ export function dragListener(document: Document | HTMLDivElement | HTMLCanvasEle
     document.addEventListener("mouseleave", finish, { once: true, capture: true, signal });
   }
 
-  // If threshold > 0, we need to accumulate movement before starting drag
-  if (threshold > 0) {
+  // With a threshold or a press to measure from, we need to accumulate movement before starting drag
+  if (threshold > 0 || initialEvent) {
     document.addEventListener("mousemove", handleThresholdMove, { capture: true, signal });
   } else {
     // No threshold - start drag on first mousemove (original behavior)

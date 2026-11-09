@@ -127,7 +127,7 @@ export class NewBlockLayer extends Layer<
           onEnd: (event, coords) => this.onEndNewBlock(event, { x: coords[0], y: coords[1] }),
           onCancel: () => this.onCancelNewBlock(),
         },
-        { cursor: "copy" }
+        { cursor: "copy", initialEvent: event }
       );
     }
   };

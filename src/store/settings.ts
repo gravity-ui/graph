@@ -39,8 +39,9 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
   /** Controls which components can be dragged */
   canDrag?: ECanDrag;
   /**
-   * Minimum distance in pixels the mouse must move before a drag operation starts.
-   * Helps prevent accidental drags during clicks. Default: 3
+   * Minimum distance in pixels the mouse must move from the press before a drag operation starts.
+   * A press released closer than that without starting a drag is a click, so a press is either a click or a drag.
+   * With 0, any movement starts a drag and only a press released where it started is a click. Default: 5
    */
   dragThreshold?: number;
   /**

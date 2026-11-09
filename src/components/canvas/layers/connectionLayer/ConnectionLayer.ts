@@ -227,7 +227,7 @@ export class ConnectionLayer extends Layer<
           onEnd: (_event, coords) => this.onEndNewConnection(new Point(coords[0], coords[1])),
           onCancel: () => this.onCancelNewConnection(),
         },
-        { cursor: "crosshair" }
+        { cursor: "crosshair", initialEvent: initEvent }
       );
     }
   };

@@ -206,8 +206,14 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
     event.preventDefault();
 
     // Camera drag doesn't need graph sync since it IS the camera
-    dragListener(this.ownerDocument, { graph: this.context.graph, autopanning: false, dragCursor: "grabbing" })
-      .on(EVENTS.DRAG_START, (event: MouseEvent) => this.onDragStart(event))
+    dragListener(this.ownerDocument, {
+      graph: this.context.graph,
+      autopanning: false,
+      dragCursor: "grabbing",
+      initialEvent: nativeEvent,
+    })
+      // The pan is measured from the press, like the threshold, so the point pressed stays under the cursor
+      .on(EVENTS.DRAG_START, () => this.onDragStart(nativeEvent))
       .on(EVENTS.DRAG_UPDATE, (event: MouseEvent) => this.onDragUpdate(event))
       .on(EVENTS.DRAG_END, () => this.onDragEnd())
       .on(EVENTS.DRAG_CANCEL, () => this.onDragEnd());

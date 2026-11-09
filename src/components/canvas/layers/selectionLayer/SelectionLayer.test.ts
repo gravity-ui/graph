@@ -53,4 +53,14 @@ describe("SelectionLayer cancellation", () => {
     expect(graph.rootStore.blocksList.$selectedBlocks.value).toHaveLength(0);
     expect(graph["selectionLayer"]["selectionStartWorld"]).toBeNull();
   });
+
+  it("starts the selection area at the press", () => {
+    const [x0, y0] = graph.cameraService.getAbsoluteXY(-50, -50);
+    const [x1, y1] = graph.cameraService.getAbsoluteXY(150, 100);
+    select(graph, [x0, y0], [x1, y1]);
+
+    const [x, y] = graph.cameraService.applyToPoint(x0, y0);
+    expect(graph["selectionLayer"]["selectionStartWorld"]).toEqual({ x, y });
+    document.dispatchEvent(mouse("mouseup", x1, y1, { ctrlKey: true }));
+  });
 });

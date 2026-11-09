@@ -66,6 +66,7 @@ These settings control the interactive behaviors and visual styles of the graph.
 | `canDragCamera` | boolean | `true` | Controls whether the camera can be dragged (panned) |
 | `canZoomCamera` | boolean | `true` | Controls whether the camera can be zoomed in/out |
 | `canChangeBlockGeometry` | ECanChangeBlockGeometry | `'none'` | Determines which blocks can be resized or moved. Options: `'all'`, `'onlySelected'`, `'none'` |
+| `dragThreshold` | number | `5` | Distance in pixels from the press at which a drag starts. A press released closer, without starting a drag, is a click. With `0`, any movement starts a drag. See [Drag Threshold](./drag-system.md#drag-threshold) |
 | `canCreateNewConnections` | boolean | `false` | Controls whether users can create new connections |
 | `scaleFontSize` | number | `1` | Scale factor for font sizes throughout the graph |
 | `showConnectionArrows` | boolean | `true` | Controls visibility of arrows at the end of connections |

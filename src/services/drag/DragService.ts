@@ -2,7 +2,7 @@ import { signal } from "@preact/signals-core";
 
 import type { GraphComponent } from "../../components/canvas/GraphComponent";
 import type { Graph } from "../../graph";
-import { isGraphEvent } from "../../graphEvents";
+import { extractNativeGraphMouseEvent, isGraphEvent } from "../../graphEvents";
 import type { GraphMouseEvent } from "../../graphEvents";
 import { ECanDrag } from "../../store/settings";
 import { Emitter } from "../../utils/Emitter";
@@ -158,12 +158,14 @@ export class DragService {
 
     // Use dragListener for consistent drag behavior
     const doc = this.graph.getGraphCanvas().ownerDocument;
+    const initialEvent = extractNativeGraphMouseEvent(event) ?? undefined;
     this.currentDragEmitter = dragListener(doc, {
       graph: this.graph,
       dragCursor: "grabbing",
       autopanning: true,
+      initialEvent,
     })
-      .on(EVENTS.DRAG_START, this.handleDragStart)
+      .on(EVENTS.DRAG_START, (dragEvent: MouseEvent) => this.handleDragStart(dragEvent, initialEvent))
       .on(EVENTS.DRAG_UPDATE, this.handleDragUpdate)
       .on(EVENTS.DRAG_END, this.handleDragEnd)
       .on(EVENTS.DRAG_CANCEL, this.handleDragCancel);
@@ -230,11 +232,12 @@ export class DragService {
   }
 
   /**
-   * Handle drag start from dragListener
+   * Handle drag start from dragListener. The drag is measured from the press, like the threshold,
+   * so a dragged component keeps the pressed point under the cursor.
    */
-  private handleDragStart = (event: MouseEvent): void => {
+  private handleDragStart = (event: MouseEvent, initialEvent: MouseEvent = event): void => {
     // Calculate starting coordinates in world space
-    const coords = this.getWorldCoords(event);
+    const coords = this.getWorldCoords(initialEvent);
     this.startCoords = coords;
     this.prevCoords = coords;
 
@@ -432,6 +435,7 @@ export class DragService {
       autopanning,
       stopOnMouseLeave,
       threshold,
+      initialEvent,
       suppressTextSelection,
       onSessionEnd: () => {
         this.operationEmitters.delete(emitter);

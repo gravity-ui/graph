@@ -4,7 +4,7 @@ import { Component } from "../../../../lib/Component";
 import { Layer, LayerContext, LayerProps } from "../../../../services/Layer";
 import { Camera, TCameraProps } from "../../../../services/camera/Camera";
 import { ICamera, TCameraState } from "../../../../services/camera/CameraService";
-import { getEventDelta } from "../../../../utils/functions";
+import { getEventDelta, isDragThresholdExceeded } from "../../../../utils/functions";
 import { Point } from "../../../../utils/types/shapes";
 import { EventedComponent } from "../../EventedComponent/EventedComponent";
 import { Blocks } from "../../blocks/Blocks";
@@ -57,6 +57,8 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   private pointerStartEvent?: MouseEvent;
 
   private pointerPressed = false;
+
+  private pointerDragged = false;
 
   private eventByTargetComponent?: MouseEvent;
 
@@ -148,6 +150,17 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   public releaseCapture() {
     this.capturedTargetComponent = undefined;
+  }
+
+  /**
+   * Marks the current press as a drag, so releasing it does not emulate a click,
+   * even if the pointer has come back close to where it was pressed.
+   * dragListener calls it when a drag of this graph crosses its threshold.
+   *
+   * @internal
+   */
+  public handlePointerDragStart(): void {
+    this.pointerDragged = true;
   }
 
   public handleEvent(e: Event): void {
@@ -349,6 +362,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   private tryEmulateClick(event: MouseEvent, target = this.targetComponent) {
     if ((event.type === "mousedown" || event.type === "touchstart") && target !== undefined) {
       this.canEmulateClick = false;
+      this.pointerDragged = false;
       this.pointerStartTarget = target;
       this.pointerStartEvent = event;
     }
@@ -360,7 +374,9 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
         (this.pointerStartTarget instanceof BlockConnection && target instanceof BlockConnection)) &&
       // pointerStartEvent can be undefined if mousedown/touchstart event happened over dialog backdrop
       this.pointerStartEvent &&
-      getEventDelta(this.pointerStartEvent, event) < 3
+      // A press is a click only if it has not become a drag: the same threshold, measured from the press
+      !this.pointerDragged &&
+      !isDragThresholdExceeded(this.pointerStartEvent, event, this.props.graph.rootStore.settings.$dragThreshold.value)
     ) {
       this.canEmulateClick = true;
     }
