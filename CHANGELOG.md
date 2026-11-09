@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.2](https://github.com/gravity-ui/graph/compare/v1.13.1...v1.13.2) (2026-11-09)
+
+
+### Bug Fixes
+
+* **graph:** cancel port connection drags when the layer is removed ([#452](https://github.com/gravity-ui/graph/issues/452)) ([d0f6062](https://github.com/gravity-ui/graph/commit/d0f6062557d7d2c9cbe6d1528b4cc98adb0adc05))
+
 ## [1.13.1](https://github.com/gravity-ui/graph/compare/v1.13.0...v1.13.1) (2026-11-06)
 
 
