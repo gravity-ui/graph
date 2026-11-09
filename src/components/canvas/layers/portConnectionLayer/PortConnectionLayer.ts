@@ -7,6 +7,7 @@ import { ESelectionStrategy } from "../../../../services/selection";
 import { EAnchorType } from "../../../../store/anchor/Anchor";
 import { TBlockId } from "../../../../store/block/Block";
 import { PortState } from "../../../../store/connection/port/Port";
+import type { TGraphSettingsConfig } from "../../../../store/settings";
 import type { Emitter } from "../../../../utils/Emitter";
 import { getXY, vectorDistance } from "../../../../utils/functions";
 import { stopDragListening } from "../../../../utils/functions/dragListener";
@@ -192,6 +193,8 @@ export class PortConnectionLayer extends Layer<
   private portsUnsubscribe?: () => void;
 
   protected enabled: boolean;
+  private lastSettings: TGraphSettingsConfig;
+  private disposed = false;
 
   constructor(props: PortConnectionLayerProps) {
     super({
@@ -214,14 +217,24 @@ export class PortConnectionLayer extends Layer<
       graph: this.props.graph,
     });
 
-    this.enabled = Boolean(this.props.graph.rootStore.settings.getConfigFlag("canCreateNewConnections"));
-
-    this.onSignal(this.props.graph.rootStore.settings.$settings, (value) => {
-      this.enabled = Boolean(value.canCreateNewConnections);
-    });
+    this.lastSettings = this.props.graph.rootStore.settings.$settings.value;
+    this.enabled = Boolean(this.lastSettings.canCreateNewConnections);
   }
 
   protected afterInit(): void {
+    this.onSignal(this.props.graph.rootStore.settings.$settings, (value) => {
+      // Subscribing again must preserve explicit enable/disable calls until the settings change.
+      if (value === this.lastSettings) {
+        return;
+      }
+      this.lastSettings = value;
+      if (value.canCreateNewConnections) {
+        this.enable();
+      } else {
+        this.disable();
+      }
+    });
+
     this.onGraphEvent("mousedown", this.handleMouseDown, { capture: true });
 
     // Subscribe to ports changes
@@ -248,6 +261,7 @@ export class PortConnectionLayer extends Layer<
 
   public disable = (): void => {
     this.enabled = false;
+    this.cancelNewConnection();
   };
 
   protected currentListener: Emitter | null = null;
@@ -298,7 +312,10 @@ export class PortConnectionLayer extends Layer<
           this.onStartConnection(port, new Point(coords[0], coords[1]));
         },
         onUpdate: (event, coords) => this.onMoveNewConnection(event, new Point(coords[0], coords[1])),
-        onEnd: (_event, coords) => this.onEndNewConnection(new Point(coords[0], coords[1])),
+        onEnd: (_event, coords) => {
+          this.currentListener = null;
+          this.onEndNewConnection(new Point(coords[0], coords[1]));
+        },
         onCancel: () => this.onCancelNewConnection(),
       },
       { cursor: "crosshair", initialEvent: initEvent }
@@ -474,8 +491,10 @@ export class PortConnectionLayer extends Layer<
    * A press that has not started dragging yet is dropped without an event; after the drag ends it does nothing.
    */
   protected cancelNewConnection(): void {
-    if (this.currentListener) {
-      stopDragListening(this.currentListener);
+    const listener = this.currentListener;
+    this.currentListener = null;
+    if (listener) {
+      stopDragListening(listener);
     }
   }
 
@@ -778,7 +797,17 @@ export class PortConnectionLayer extends Layer<
     return {};
   }
 
+  public override iterate(): boolean {
+    return this.disposed ? false : super.iterate();
+  }
+
+  protected override unmountLayer(): void {
+    this.cancelNewConnection();
+    super.unmountLayer();
+  }
+
   public override unmount(): void {
+    this.disposed = true;
     if (this.portsUnsubscribe) {
       this.portsUnsubscribe();
       this.portsUnsubscribe = undefined;

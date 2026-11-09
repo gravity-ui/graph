@@ -1,5 +1,6 @@
 import { Graph } from "../../../../graph";
 import { GraphMouseEvent } from "../../../../graphEvents";
+import { Component } from "../../../../lib/Component";
 import { GraphComponent } from "../../GraphComponent";
 
 import { PortConnectionLayer } from "./PortConnectionLayer";
@@ -15,6 +16,9 @@ function mouse(type: string, x: number, y: number): MouseEvent {
 }
 
 type TSetup = {
+  graph: Graph;
+  layer: PortConnectionLayer;
+  onStart: jest.Mock;
   onCancel: jest.Mock;
   onDrop: jest.Mock;
   /** Presses on the port without moving: the drag has not started yet */
@@ -42,6 +46,8 @@ function setup(): TSetup {
 
   const onCancel = jest.fn();
   const onDrop = jest.fn();
+  const onStart = jest.fn();
+  graph.on("port-connection-create-start", onStart, { signal: events.signal });
   graph.on("port-connection-cancel", onCancel, { signal: events.signal });
   graph.on("port-connection-create-drop", onDrop, { signal: events.signal });
 
@@ -68,10 +74,77 @@ function setup(): TSetup {
     graph.detach();
   };
 
-  return { onCancel, onDrop, press, startConnection, cancel, dispose };
+  return { graph, layer, onStart, onCancel, onDrop, press, startConnection, cancel, dispose };
 }
 
 describe("PortConnectionLayer cancellation", () => {
+  it.each([
+    ["disabled", ({ layer }: TSetup) => layer.disable()],
+    ["detached", ({ graph, layer }: TSetup) => graph.detachLayer(layer)],
+    ["unmounted", ({ layer }: TSetup) => Component.unmount(layer)],
+  ] as const)("stops a pending press when the layer is %s", (_reason, stop) => {
+    const fixture = setup();
+    const { press, onStart, onCancel, onDrop, dispose } = fixture;
+
+    press();
+    stop(fixture);
+    document.dispatchEvent(mouse("mousemove", 100, 100));
+    document.dispatchEvent(mouse("mouseup", 100, 100));
+
+    expect(onStart).not.toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(onDrop).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it("cancels an active drag on detach and observes settings after reattachment", () => {
+    const { graph, onStart, onCancel, onDrop, startConnection, dispose } = setup();
+    const settings = graph.rootStore.settings;
+    settings.setupSettings({ canCreateNewConnections: true });
+
+    startConnection();
+    graph.stop();
+    document.dispatchEvent(mouse("mouseup", 200, 200));
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onDrop).not.toHaveBeenCalled();
+
+    graph.start();
+    startConnection();
+    settings.setupSettings({ canCreateNewConnections: false });
+    document.dispatchEvent(mouse("mouseup", 200, 200));
+    startConnection();
+    document.dispatchEvent(mouse("mouseup", 200, 200));
+
+    expect(onStart).toHaveBeenCalledTimes(2);
+    expect(onCancel).toHaveBeenCalledTimes(2);
+    expect(onDrop).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it("skips queued iterations after final unmount", () => {
+    const { graph, layer, dispose } = setup();
+
+    graph.detachLayer(layer);
+    Component.unmount(layer);
+
+    expect(layer.iterate()).toBe(false);
+    dispose();
+  });
+
+  it("preserves explicit enablement on reattachment with unchanged settings", () => {
+    const { graph, onStart, onDrop, startConnection, dispose } = setup();
+
+    graph.stop();
+    graph.start();
+    startConnection();
+    document.dispatchEvent(mouse("mouseup", 200, 200));
+
+    expect(onStart).toHaveBeenCalledTimes(1);
+    expect(onDrop).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
   it("cancels a new connection on Escape without dropping it", () => {
     const { onCancel, onDrop, startConnection, dispose } = setup();
 
