@@ -6,6 +6,7 @@ import type { Graph } from "GRAPH";
 import { buildScene } from "./scenes";
 import type { TBenchScene, TSceneKind } from "./scenes";
 import { setupInterpreter } from "./interpreter";
+import { setupWebGL, webglStats } from "./webgl";
 import { resetWalkCounters, setupWalk } from "./walk";
 import type { TColumn, TQueryTiming } from "./walk";
 
@@ -63,7 +64,7 @@ function instrument(target: Graph): void {
 
 async function setup(options: {
   scene: TSceneKind;
-  renderer: "walk" | "interpreter" | "cached";
+  renderer: "walk" | "interpreter" | "cached" | "webgl";
   width: number;
   height: number;
   scale: number;
@@ -87,6 +88,7 @@ async function setup(options: {
   }
   state.center = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
   if (options.renderer === "walk") state.column = setupWalk(root, scene);
+  else if (options.renderer === "webgl") state.column = await setupWebGL(root, scene);
   else if (options.renderer === "cached") state.column = setupInterpreter(root, scene, { batchConnections: true });
   else state.column = setupInterpreter(root, scene, { maxRun: options.maxRun });
   instrument(state.column.graph);
@@ -207,4 +209,4 @@ async function queryTiming(options: { scale: number; rounds: number }): Promise<
   return column.timeQuery(options.rounds);
 }
 
-(window as unknown as { bench: unknown }).bench = { setup, run, settle, visible, queryTiming };
+(window as unknown as { bench: unknown }).bench = { setup, run, settle, visible, queryTiming, webglStats };

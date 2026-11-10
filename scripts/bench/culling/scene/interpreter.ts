@@ -15,7 +15,7 @@ import type { TColumn, TQueryTiming } from "./walk";
 
 type TGeometry = { segments: Float32Array; arrow?: { points: Float32Array; closed: boolean } };
 
-function connectionGeometry(points: Array<{ x: number; y: number }>, connection: TBenchConnection): TGeometry {
+export function connectionGeometry(points: Array<{ x: number; y: number }>, connection: TBenchConnection): TGeometry {
   const input = {
     source: points[0],
     target: points[points.length - 1],
@@ -27,7 +27,7 @@ function connectionGeometry(points: Array<{ x: number; y: number }>, connection:
   return (multipointGeometry as unknown as (value: typeof input) => TGeometry)(input);
 }
 
-function connectionElement(geometry: TGeometry): { bounds: TTileRect; primitives: TScenePrimitive[] } {
+export function connectionElement(geometry: TGeometry): { bounds: TTileRect; primitives: TScenePrimitive[] } {
   // getSegmentsBounds(segments, tight): tight = exact cubic extrema, as with EXP_USE_TIGHT_BEZIER_BOUNDS.
   const box = getSegmentsBounds(geometry.segments, true) ?? [0, 0, 0, 0];
   let [minX, minY, maxX, maxY] = box;

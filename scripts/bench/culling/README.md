@@ -158,3 +158,36 @@ compare drag columns on ticks plus `action`, not on ticks alone.
 
 `--query-timing [rounds]` (default 40): after the screenshot, each interpreter column times the tile-index query, the
 sort of its result, `SceneStore.query()` and one `drawScene()` apart at the measured view, and prints the medians.
+
+`webgl` (`--renderers walk,interpreter,cached,webgl`, needs `--gpu`) draws the same store with a `SceneRendererLayer`
+and the lazily loaded WebGL backend. Its store uses the default z buckets (groups 50, connections 100, blocks and
+anchors 200) instead of the 0/1/2 of the other columns; `setup()` waits for the `webgl` state and a
+`webgl-fallback` is a hard error. Its `elements` count is `store.query()` over the view; a `webgl:` line adds
+`deviceMs`, `lastReplayMs` (initial replay), the last frame's `instances` and `drawCalls`, and the SKIPPED counts of
+polygons and icons: the slice has no support for them, so the webgl column draws fewer primitives than the others
+(the bench scene has one arrow polygon per connection). **The webgl tick is CPU
+only** (layer render and the submission of `backend.draw`); GPU execution is not in it, so compare `frames` p50/p95 with
+the other columns, not the tick.
+
+`node scripts/bench/culling/scene-size.mjs` (M1, no browser) bundles `WebGLSceneBackend.ts` with esbuild (minified ESM)
+and prints raw and gzip bytes, the bytes by package (`@luma.gl/*`, `@mapbox/tiny-sdf`, `@math.gl/*`, `@probe.gl/*`,
+our code) and the top 10 inputs; then bundles `SceneRendererLayer.ts` with splitting, prints every chunk, and fails if
+the main chunk ("layer plus core") contains any `@luma.gl` input.
+
+## WebGL scene slice harness (`scene-slice.mjs`)
+
+`node scripts/bench/culling/scene-slice.mjs` (outside the sandbox: it needs the GPU and Playwright) bundles
+`scene/slice.ts` the way `scene-run.mjs` bundles `scene/entry.ts`, opens it in Chromium with the real GPU (ANGLE Metal on
+macOS) at 800x600, DPR 2, and runs the checks of the WebGL vertical slice: C1 draw order and text, C2 z raise, C3
+translucent blend, C4 overlap by order, C5 animated dash and idle frames, C6 camera-aware border width at three scales,
+C7 HTML over the canvas (a `page.screenshot` decoded in the page), C8 range upload after a primitive change, C9 context
+loss and restore with a moving block, C10 style change without re-encode, C11 growth with 3000 elements, C12 `visible: false` hides the whole primitive. It also prints a HEADER line with the
+context's `DEPTH_BITS` and `SAMPLES` (a SETUP FAIL if the depth buffer is under 24 bits), and prints
+M2 (device and first-frame time, time to the `webgl` state), M3 (replay time) and M4 (when luma is loaded).
+
+Each line is `<id> PASS|FAIL <details>` with the numbers read (INFO for measurements); the exit code is 1 if any check
+fails. A FAIL is a finding: the thresholds are not tuned to pass. Pixels are read with `gl.readPixels` in the same task
+as a synchronous `graph.scheduler.performUpdate()` (the drawing buffer is not preserved) and are premultiplied; every
+sampled point lies over an opaque pixel or on a transparent one, so no un-premultiplication is needed. Points are given
+in world units; the camera puts world (0, 0) at CSS (100, 100) so that negative world x is on screen. B's title sits at
+the bottom of B so that C4 can look for white pixels in A's title box.

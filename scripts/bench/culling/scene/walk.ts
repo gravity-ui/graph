@@ -54,7 +54,8 @@ class NirvanaLikeBlock extends BlockBase {
       this.element = {
         id,
         zIndex: 2,
-        sequence: 0,
+        order: 0,
+        styleId: 0,
         x,
         y,
         bounds: blockBounds(height),

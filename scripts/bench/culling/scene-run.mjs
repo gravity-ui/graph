@@ -26,8 +26,8 @@ const scales = list(option("scales", "0.05,0.15,0.3,0.6")).map(Number);
 const modes = list(option("modes", "pan,zoom,drag"));
 const renderers = list(option("renderers", "walk,interpreter"));
 for (const renderer of renderers) {
-  if (!["walk", "interpreter", "cached"].includes(renderer)) {
-    console.error(`scene-run: --renderers: "${renderer}" is not one of walk, interpreter, cached`);
+  if (!["walk", "interpreter", "cached", "webgl"].includes(renderer)) {
+    console.error(`scene-run: --renderers: "${renderer}" is not one of walk, interpreter, cached, webgl`);
     process.exit(1);
   }
 }
@@ -207,6 +207,7 @@ for (const scene of scenes) {
       let sizes;
       let counts;
       let timing;
+      let webgl;
       for (let repeat = 0; repeat < repeats; repeat++) {
         const context = await browser.newContext({ viewport: VIEW, deviceScaleFactor: 2 });
         const page = await context.newPage();
@@ -255,6 +256,7 @@ for (const scene of scenes) {
             fs.mkdirSync(shotsDir, { recursive: true });
             fs.writeFileSync(path.join(shotsDir, `${scene}-${scale}-${name}.png`), shots[name]);
           }
+          if (renderer === "webgl") webgl = await page.evaluate(() => window.bench.webglStats());
           // After the screenshot: drawScene() below draws over the picture.
           if (queryRounds) {
             timing = await page.evaluate((options) => window.bench.queryTiming(options), {
@@ -281,6 +283,18 @@ for (const scene of scenes) {
           `elements ${counts.elements}` +
           (counts.batched === undefined ? "" : ` batched ${counts.batched} chunks ${counts.chunks}`)
       );
+      if (renderer === "webgl" && webgl) {
+        console.log(
+          `          webgl: state ${webgl.state} | deviceMs ${webgl.deviceMs.toFixed(1)} | ` +
+            `lastReplayMs ${webgl.lastReplayMs.toFixed(1)} | last frame instances ${webgl.instances} ` +
+            `drawCalls ${webgl.drawCalls} | uploads ${webgl.uploads} lastUpload ${webgl.lastUploadKind} | ` +
+            `SKIPPED (not drawn: no support in the slice) polygons ${webgl.skipped.polygon} icons ${webgl.skipped.icon}`
+        );
+        console.log(
+          "          webgl note: the tick is CPU only (layer render + backend.draw submission); GPU execution is " +
+            "not in it, so compare frames p50/p95 with the other columns"
+        );
+      }
       if (timing && renderer === "cached") {
         console.log("          query timing cached: connections are not in the store; they live in the ScenePathBatch");
       }

@@ -44,7 +44,7 @@ class PathBatchItem implements IBatchItem {
     this.kind = source.kind;
     this.stroke = stroke;
     this.fill = fill;
-    this.group = `${source.kind}|${strokeKey(stroke)}|${fill ?? ""}`;
+    this.group = `${source.kind}|${strokeKey(stroke, 1)}|${fill ?? ""}`;
     this.bounds = [
       input.bounds.minX + input.x,
       input.bounds.minY + input.y,
@@ -104,7 +104,7 @@ export class ScenePathBatch {
           }
         }
         if (first.stroke) {
-          applyStroke(ctx, first.stroke);
+          applyStroke(ctx, first.stroke, 1);
           ctx.stroke(path);
         }
         ctx.restore();

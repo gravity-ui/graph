@@ -1,6 +1,7 @@
 import { renderText } from "../../utils/renderers/text";
 
-import type { TSceneElement, TScenePrimitive, TSceneStroke, TSceneTextSize } from "./types";
+import { resolveSceneSize } from "./size";
+import type { TSceneElement, TScenePrimitive, TSceneStroke, TSceneStyle } from "./types";
 
 export function isPrimitiveVisible(primitive: TScenePrimitive, scale: number): boolean {
   if (primitive.minScale !== undefined && scale < primitive.minScale) return false;
@@ -8,15 +9,11 @@ export function isPrimitiveVisible(primitive: TScenePrimitive, scale: number): b
   return true;
 }
 
-export function textWorldSize(size: TSceneTextSize, scale: number): number {
-  if (typeof size === "number") return size;
-  return Math.min(Math.max(size.px / scale, size.minWorld ?? 0), size.maxWorld ?? Infinity);
-}
-
 /** How far a stroke's centre line moves inwards from the shape's edge. */
-function strokeInset(stroke: TSceneStroke): number {
-  if (stroke.align === "inside") return stroke.width / 2;
-  if (stroke.align === "outside") return -stroke.width / 2;
+function strokeInset(stroke: TSceneStroke, scale: number): number {
+  const width = resolveSceneSize(stroke.width, scale);
+  if (stroke.align === "inside") return width / 2;
+  if (stroke.align === "outside") return -width / 2;
   return 0;
 }
 
@@ -26,14 +23,14 @@ function insetRadius(radius: number | readonly number[] | undefined, inset: numb
   return radius.map((value) => Math.max(0, value - inset));
 }
 
-export function applyStroke(ctx: CanvasRenderingContext2D, stroke: TSceneStroke): void {
+export function applyStroke(ctx: CanvasRenderingContext2D, stroke: TSceneStroke, scale: number): void {
   ctx.strokeStyle = stroke.color;
-  ctx.lineWidth = stroke.width;
+  ctx.lineWidth = resolveSceneSize(stroke.width, scale);
   ctx.setLineDash(stroke.dash ? [...stroke.dash] : []);
 }
 
-export function strokeKey(stroke: TSceneStroke | undefined): string {
-  return stroke ? `${stroke.color}|${stroke.width}|${stroke.dash?.join(",") ?? ""}` : "none";
+export function strokeKey(stroke: TSceneStroke | undefined, scale: number): string {
+  return stroke ? `${stroke.color}|${resolveSceneSize(stroke.width, scale)}|${stroke.dash?.join(",") ?? ""}` : "none";
 }
 
 /** Draws a rect, circle, text or icon whose coordinates are relative to (ox, oy). */
@@ -55,8 +52,8 @@ function drawShape(
         ctx.fill();
       }
       if (primitive.border) {
-        const inset = strokeInset(primitive.border);
-        applyStroke(ctx, primitive.border);
+        const inset = strokeInset(primitive.border, scale);
+        applyStroke(ctx, primitive.border, scale);
         ctx.beginPath();
         ctx.roundRect(
           x + inset,
@@ -77,13 +74,13 @@ function drawShape(
         ctx.fill();
       }
       if (primitive.border) {
-        applyStroke(ctx, primitive.border);
+        applyStroke(ctx, primitive.border, scale);
         ctx.stroke();
       }
       return;
     }
     case "text": {
-      const size = textWorldSize(primitive.size, scale);
+      const size = resolveSceneSize(primitive.size, scale);
       ctx.fillStyle = primitive.color;
       ctx.textAlign = primitive.align ?? "left";
       renderText(
@@ -127,7 +124,34 @@ export type TDrawElementsOptions = {
    * built so far, so one run of thousands of polygons costs quadratic time.
    */
   maxRun?: number;
+  /** Style overrides by `element.styleId`; see `TSceneStyle`. */
+  styles?: readonly TSceneStyle[];
 };
+
+/** The primitive with the style's override of its part applied; undefined when the part is hidden. */
+function applyStyle(primitive: TScenePrimitive, style: TSceneStyle | undefined): TScenePrimitive | undefined {
+  const override = primitive.part !== undefined ? style?.[primitive.part] : undefined;
+  if (!override) return primitive;
+  if (override.visible === false) return undefined;
+  const color = override.color;
+  if (color === undefined) return primitive;
+  if (primitive.part === "border" && (primitive.kind === "rect" || primitive.kind === "circle")) {
+    return primitive.border ? { ...primitive, border: { ...primitive.border, color } } : primitive;
+  }
+  switch (primitive.kind) {
+    case "rect":
+    case "circle":
+    case "polygon":
+      return { ...primitive, fill: color };
+    case "text":
+    case "icon":
+      return { ...primitive, color };
+    case "path":
+      return { ...primitive, stroke: { ...primitive.stroke, color } };
+    default:
+      return primitive;
+  }
+}
 
 function resolveMaxRun(maxRun: number | undefined): number {
   if (maxRun === undefined || maxRun === Infinity) return Infinity;
@@ -188,7 +212,7 @@ export function drawElements(
       ctx.fill(run.fillPath);
     }
     if (run.stroke) {
-      applyStroke(ctx, run.stroke);
+      applyStroke(ctx, run.stroke, scale);
       ctx.stroke(run.strokePath);
     }
     run = undefined;
@@ -196,14 +220,16 @@ export function drawElements(
   for (let e = 0; e < elements.length; e++) {
     const element = elements[e];
     if (element.hidden) continue;
+    const style = options.styles?.[element.styleId];
     for (let p = 0; p < element.primitives.length; p++) {
-      const primitive = element.primitives[p];
-      if (!isPrimitiveVisible(primitive, scale)) continue;
+      if (!isPrimitiveVisible(element.primitives[p], scale)) continue;
+      const primitive = applyStyle(element.primitives[p], style);
+      if (!primitive) continue;
       drawn++;
       if (primitive.kind === "path" || primitive.kind === "polygon") {
         const stroke = primitive.stroke;
         const fill = primitive.kind === "polygon" ? primitive.fill : undefined;
-        const key = strokeKey(stroke);
+        const key = strokeKey(stroke, scale);
         if (
           run &&
           (run.key !== key || run.size >= maxRun || (fill !== undefined && run.fill !== undefined && run.fill !== fill))

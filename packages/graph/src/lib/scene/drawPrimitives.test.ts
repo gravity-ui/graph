@@ -1,4 +1,4 @@
-import { drawElements, isPrimitiveVisible, textWorldSize } from "./drawPrimitives";
+import { drawElements, isPrimitiveVisible } from "./drawPrimitives";
 import type { TSceneElement } from "./types";
 
 beforeAll(() => {
@@ -12,15 +12,22 @@ beforeAll(() => {
   }
 });
 
-function createContext(): CanvasRenderingContext2D {
-  return document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D;
+/** The inspection methods jest-canvas-mock adds to a context. */
+type TMockContext = CanvasRenderingContext2D & {
+  __getEvents(): { type: string; props: { value?: unknown } }[];
+  __getDrawCalls(): { type: string }[];
+};
+
+function createContext(): TMockContext {
+  return document.createElement("canvas").getContext("2d") as TMockContext;
 }
 
 function element(patch: Partial<TSceneElement>): TSceneElement {
   return {
     id: "element",
     zIndex: 0,
-    sequence: 1,
+    order: 1,
+    styleId: 0,
     x: 0,
     y: 0,
     bounds: { minX: 0, minY: 0, maxX: 10, maxY: 10 },
@@ -45,11 +52,35 @@ describe("scene primitives", () => {
     expect(isPrimitiveVisible(circle, 0.1)).toBe(false);
   });
 
-  it("holds a screen size within world limits", () => {
-    expect(textWorldSize(12, 0.5)).toBe(12);
-    expect(textWorldSize({ px: 9, minWorld: 14 }, 0.25)).toBe(36);
-    expect(textWorldSize({ px: 9, minWorld: 14 }, 1)).toBe(14);
-    expect(textWorldSize({ px: 14, maxWorld: 28 }, 0.25)).toBe(28);
+  it("recolours the part a style names", () => {
+    const ctx = createContext();
+    const rect = {
+      kind: "rect" as const,
+      part: "border",
+      x: 0,
+      y: 0,
+      width: 40,
+      height: 20,
+      border: { color: "#000", width: 2 },
+    };
+    drawElements(ctx, [element({ styleId: 1, primitives: [rect] })], 1, {
+      styles: [{}, { border: { color: "#ffcc00" } }],
+    });
+    const colors = ctx
+      .__getEvents()
+      .filter((event) => event.type === "strokeStyle")
+      .map((event) => event.props.value);
+    expect(colors).toEqual(["#ffcc00"]);
+  });
+
+  it("skips a part a style hides and keeps the primitive without a style", () => {
+    const ctx = createContext();
+    const rect = { kind: "rect" as const, part: "glow", x: 0, y: 0, width: 4, height: 4, fill: "#f00" };
+    const hidden = element({ styleId: 1, primitives: [rect] });
+    expect(drawElements(ctx, [hidden], 1, { styles: [{}, { glow: { visible: false } }] })).toBe(0);
+    expect(ctx.__getDrawCalls().filter((call) => call.type === "fill")).toHaveLength(0);
+    drawElements(ctx, [element({ primitives: [rect] })], 1, { styles: [{}, { glow: { visible: false } }] });
+    expect(ctx.__getDrawCalls().filter((call) => call.type === "fill")).toHaveLength(1);
   });
 
   it("insets an inside border and outsets an outside one by half its width", () => {

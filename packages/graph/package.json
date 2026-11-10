@@ -50,6 +50,11 @@
     "test:package-contract": "node ../../scripts/package-contract/run.mjs"
   },
   "dependencies": {
+    "@luma.gl/core": "~9.4.2",
+    "@luma.gl/engine": "~9.4.2",
+    "@luma.gl/shadertools": "~9.4.2",
+    "@luma.gl/webgl": "~9.4.2",
+    "@mapbox/tiny-sdf": "2.3.0",
     "@preact/signals-core": "^1.12.2",
     "intersects": "^2.7.2",
     "lodash": "^4.17.21",

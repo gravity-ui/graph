@@ -91,7 +91,7 @@ void main() {
 `;
 
 /** Everything an effect can read, before the effect's source. */
-const FRAGMENT_PRELUDE = /* glsl */ `#version 300 es
+export const FRAGMENT_PRELUDE = /* glsl */ `#version 300 es
 precision highp float;
 #define GRAPH_CONNECTION_FRAGMENT 1
 
@@ -153,11 +153,11 @@ float graph_wave(vec2 world, float time, float period, float wavelength) {
  * The effect of the plain stroke. The plain program also draws the groups of effects that do not compile: a selected
  * line whose effect was to show the selection takes the selection color there.
  */
-const IDENTITY_EFFECT = /* glsl */ `vec4 effect(ConnectionFragment f, vec4 color) {
+export const IDENTITY_EFFECT = /* glsl */ `vec4 effect(ConnectionFragment f, vec4 color) {
   return graph_vInteraction.z * f.selected > 0.5 ? f.selectionColor : color;
 }`;
 
-const FRAGMENT_MAIN = /* glsl */ `
+export const FRAGMENT_MAIN = /* glsl */ `
 void main() {
   // The still dash, two on/off pairs like canvas setLineDash: an effect never draws in its gaps.
   float dashLength = graph_vDash.x + graph_vDash.y + graph_vDash.z + graph_vDash.w;
