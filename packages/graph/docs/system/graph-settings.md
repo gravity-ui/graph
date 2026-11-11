@@ -78,6 +78,8 @@ These settings control the interactive behaviors and visual styles of the graph.
 | `blockComponents` | Record<string, typeof Block> | `{}` | Registry of custom block components. The built-in renderer constructs them with `id`, `initialIndex` and `font` only: put custom data into the block's `meta`, or give extra props defaults in the constructor. |
 | `connection` | typeof BlockConnection | `undefined` | Custom connection component; its `static line` picks the renderer of connection lines (Path2D or WebGL), see [Connection Lines, Geometry and WebGL](../connections/webgl-connections.md) |
 | `background` | typeof Component | `undefined` | Custom background component |
+| `renderer` | 'canvas' \| 'webgl' | `'canvas'` | Scene renderer: `'canvas'` draws the scene with the Canvas 2D interpreter, `'webgl'` with the lazily loaded WebGL backend, see [Scene](./scene.md) |
+| `webglBackend` | () => Promise<ISceneBackendModule> | built-in dynamic import | Loader of the WebGL backend module, used when `renderer` is `'webgl'` |
 
 ## Graph Colors
 

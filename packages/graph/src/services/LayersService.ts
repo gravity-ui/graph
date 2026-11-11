@@ -24,6 +24,9 @@ export class Layers extends Emitter<LayersEvents> {
   /** Layers created here that have not been unmounted yet, including detached ones. */
   private removableLayers = new WeakSet<Layer>();
 
+  /** Layers whose owner updates them itself; update() skips them. */
+  private selfUpdatedLayers = new WeakSet<Layer>();
+
   private unwatchDPR?: () => void;
 
   constructor(public $root?: HTMLDivElement) {
@@ -34,9 +37,16 @@ export class Layers extends Emitter<LayersEvents> {
     return globalThis.devicePixelRatio || 1;
   }
 
+  /**
+   * Creates, registers and (when the service is attached) attaches a layer.
+   *
+   * @param options.selfUpdated The layer's owner updates it itself, so `update()` skips it. Used by the scene
+   * renderer layer, which the graph updates after all other layers within the same frame task.
+   */
   public createLayer<T extends GraphClassConstructor<Layer> = GraphClassConstructor<Layer>>(
     layerCtor: T,
-    props: LayerPublicProps<T> & Pick<LayerProps, "graph" | "camera">
+    props: LayerPublicProps<T> & Pick<LayerProps, "graph" | "camera">,
+    options: { selfUpdated?: boolean } = {}
   ): InstanceType<T> {
     // Public props retain the concrete class fields; mounting adapts their shared Layer contract.
     const layer = Component.mount(layerCtor as unknown as new (props: LayerProps) => Layer, {
@@ -45,6 +55,7 @@ export class Layers extends Emitter<LayersEvents> {
     }) as InstanceType<T>;
     this.layers.add(layer);
     this.removableLayers.add(layer);
+    if (options.selfUpdated) this.selfUpdatedLayers.add(layer);
     if (this.attached && this.$root) {
       layer.attachLayer(this.$root);
     }
@@ -95,10 +106,12 @@ export class Layers extends Emitter<LayersEvents> {
   /**
    * Runs the pending update of every layer of the graph, in the order they were added or returned.
    * The graph calls it on each frame while it is started; a detached or removed layer is not
-   * part of it.
+   * part of it. Layers created with selfUpdated are left to their owner.
    */
   public update(): void {
-    this.layers.forEach((layer) => Component.update(layer));
+    this.layers.forEach((layer) => {
+      if (!this.selfUpdatedLayers.has(layer)) Component.update(layer);
+    });
   }
 
   public attach(root: HTMLDivElement | undefined = this.$root) {

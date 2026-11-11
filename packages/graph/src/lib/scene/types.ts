@@ -1,6 +1,12 @@
 import type { TConnectionEffectUse } from "../../components/canvas/connections/effects";
 import type { TTileRect } from "../culling/TileIndex";
 
+/** Which renderer draws the scene: the Canvas2D interpreter or the lazily loaded WebGL backend. */
+export type TSceneRenderer = "canvas" | "webgl";
+
+/** State of the scene renderer; `"canvas"` and `"webgl"` are the settled states, the rest are transitions. */
+export type TSceneRendererState = "canvas" | "loading" | "webgl" | "lost" | "restoring" | "webgl-fallback";
+
 /** Stroke of a scene primitive; lengths in world units. */
 export type TSceneStroke = {
   color: string;

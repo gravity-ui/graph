@@ -54,6 +54,9 @@ export type TCameraState = {
 
 ### Custom block scale level resolver
 
+> Consumers that need the current zoom tier should read `graph.scene.$level` (see [Scene](./scene.md)): it is the
+> single level source, derived from `getCameraBlockScaleLevel`, the camera scale and the graph constants.
+
 `getCameraBlockScaleLevel(graph, scale)` is useful when zoom tiers should depend on product logic, not only on zoom thresholds.
 
 Example: force `Detailed` mode for very small graphs (where schematic/minimalistic rendering has little value), and keep the default behavior otherwise.

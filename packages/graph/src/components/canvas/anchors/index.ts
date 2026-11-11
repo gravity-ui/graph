@@ -1,5 +1,4 @@
 import { Component } from "../../../lib/Component";
-import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
@@ -68,7 +67,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   }
 
   public getHoverFactor() {
-    if (this.context.camera.getCameraBlockScaleLevel() === ECameraScaleLevel.Detailed) {
+    if (this.context.graph.scene.$level.value === "detailed") {
       return Anchor.DETAILED_HOVER_FACTOR;
     }
     return Anchor.CANVAS_HOVER_FACTOR;
@@ -196,7 +195,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponen
   }
 
   protected render() {
-    if (this.context.camera.getCameraBlockScaleLevel() === ECameraScaleLevel.Detailed) {
+    if (this.context.graph.scene.$level.value === "detailed") {
       return;
     }
     const { x, y } = this.getPosition();

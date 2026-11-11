@@ -3,7 +3,6 @@ import cloneDeep from "lodash/cloneDeep";
 import isObject from "lodash/isObject";
 
 import { Component } from "../../../lib/Component";
-import { ECameraScaleLevel } from "../../../services/camera/CameraService";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { ESelectionStrategy } from "../../../services/selection";
 import { TGraphSettingsConfig } from "../../../store";
@@ -585,18 +584,16 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
   }
 
   protected render() {
-    const scaleLevel = this.context.graph.cameraService.getCameraBlockScaleLevel();
-
-    switch (scaleLevel) {
-      case ECameraScaleLevel.Minimalistic: {
+    switch (this.context.graph.scene.$level.value) {
+      case "minimalistic": {
         this.renderMinimalisticBlock(this.context.ctx);
         break;
       }
-      case ECameraScaleLevel.Schematic: {
+      case "schematic": {
         this.renderSchematicView(this.context.ctx);
         break;
       }
-      case ECameraScaleLevel.Detailed: {
+      case "detailed": {
         this.renderDetailedView(this.context.ctx);
         break;
       }

@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useState } from "react";
 
-import { BlockState, CanvasBlock, ECameraScaleLevel, Graph, GraphState, TBlock } from "@gravity-ui/graph";
+import { BlockState, CanvasBlock, Graph, GraphState, TBlock } from "@gravity-ui/graph";
 
 import { useSignal } from "./hooks";
 import { useSceneChange } from "./hooks/useSceneChange";
@@ -46,9 +46,8 @@ export const BlocksList = memo(function BlocksList({ renderBlock, graphObject }:
   const [graphState, setGraphState] = useCompareState(graphObject.state);
 
   useSceneChange(graphObject, () => {
-    const cameraLevel = graphObject.cameraService.getCameraBlockScaleLevel();
-    if (cameraLevel !== ECameraScaleLevel.Detailed) {
-      setBlockStates([]);
+    if (graphObject.scene.$level.value !== "detailed") {
+      setBlockStates((prevStates) => (prevStates.length ? [] : prevStates));
       return;
     }
 

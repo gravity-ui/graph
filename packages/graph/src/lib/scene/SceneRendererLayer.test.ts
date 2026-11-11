@@ -1,10 +1,9 @@
 import { Graph } from "../../graph";
 
 import { SceneRendererLayer } from "./SceneRendererLayer";
-import type { TSceneRenderer } from "./SceneRendererLayer";
 import { SceneStore } from "./SceneStore";
 import type { TSceneElementInput } from "./SceneStore";
-import type { TSceneChange, TSceneStyle } from "./types";
+import type { TSceneChange, TSceneRenderer, TSceneStyle } from "./types";
 import type { ISceneBackend, ISceneBackendModule, TSceneBackendEvents, TSceneFrame } from "./webgl/backendTypes";
 
 beforeAll(() => {
@@ -31,6 +30,8 @@ type TFake = {
   animated: boolean;
   throwIn?: "apply" | "draw" | "setStyles";
   backend?: ISceneBackend;
+  /** When set, creation waits for it, so a test can act on the events of an in-flight creation. */
+  gate?: Promise<void>;
 };
 
 const flushPromises = async (): Promise<void> => {
@@ -57,7 +58,12 @@ describe("SceneRendererLayer", () => {
 
   afterEach(() => graph.unmount());
 
-  function setup(options: { renderer: TSceneRenderer; fail?: boolean }) {
+  function setup(options: {
+    renderer: TSceneRenderer;
+    fail?: boolean;
+    clock?: { now(): number };
+    gate?: Promise<void>;
+  }) {
     const store = new SceneStore(100);
     graph.attach(document.createElement("div"));
     graph.start();
@@ -70,11 +76,22 @@ describe("SceneRendererLayer", () => {
       created: 0,
       disposed: 0,
       animated: false,
+      gate: options.gate,
     } as unknown as TFake;
     const module: ISceneBackendModule = {
       createSceneBackend: async (_sibling, events) => {
         fake.created++;
-        fake.events = events;
+        let gone = false;
+        // Like the real backend: after dispose() its listeners are aborted, so no event can be delivered.
+        fake.events = {
+          onLost: () => {
+            if (!gone) events.onLost();
+          },
+          onRestored: () => {
+            if (!gone) events.onRestored();
+          },
+        };
+        if (fake.gate) await fake.gate;
         const backend = {
           canvas: document.createElement("canvas"),
           stats: {},
@@ -94,6 +111,7 @@ describe("SceneRendererLayer", () => {
             return fake.animated;
           },
           dispose: () => {
+            gone = true;
             fake.disposed++;
           },
         } as unknown as ISceneBackend;
@@ -102,12 +120,24 @@ describe("SceneRendererLayer", () => {
       },
     };
     const loadBackend = options.fail ? () => Promise.reject(new Error("no webgl")) : () => Promise.resolve(module);
-    const layer = graph.addLayer(SceneRendererLayer, { store, renderer: options.renderer, loadBackend });
+    const layer = graph.addLayer(SceneRendererLayer, {
+      store,
+      renderer: options.renderer,
+      loadBackend,
+      clock: options.clock,
+    });
     const frame = (): void => {
       graph.scheduler.performUpdate();
     };
     return { layer, store, fake, frame };
   }
+
+  it("creates a canvas that lets pointer events and selection through to the layers below", () => {
+    const { layer } = setup({ renderer: "canvas" });
+    const canvas = layer.getCanvas();
+    expect(canvas?.classList.contains("no-pointer-events")).toBe(true);
+    expect(canvas?.classList.contains("no-user-select")).toBe(true);
+  });
 
   it("goes canvas → loading → webgl and replays the store", async () => {
     const { layer, store, fake } = setup({ renderer: "canvas" });
@@ -268,5 +298,111 @@ describe("SceneRendererLayer", () => {
     expect(fake.disposed).toBe(1);
     expect(layer.getBackend()).not.toBe(first);
     expect(fake.replayed.sort()).toEqual(["a", "b"]);
+  });
+
+  it("uses the given clock for frame.time", async () => {
+    const { fake, frame } = setup({ renderer: "webgl", clock: { now: () => 7 } });
+    await flushPromises();
+    frame();
+    expect(fake.frames[fake.frames.length - 1].time).toBe(7);
+  });
+
+  it("goes to lost when the context is lost during load, and restores on onRestored", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { layer, store, fake } = setup({ renderer: "webgl", gate });
+    store.add(element("a", 200));
+    await flushPromises();
+    expect(layer.$state.value).toBe("loading");
+    const lostEvents = fake.events;
+    lostEvents.onLost();
+    fake.gate = undefined;
+    release();
+    await flushPromises();
+    expect(layer.$state.value).toBe("lost");
+    expect(fake.disposed).toBe(0);
+    expect(fake.replayed).toEqual([]);
+    fake.replayed.length = 0;
+    lostEvents.onRestored();
+    expect(layer.$state.value).toBe("restoring");
+    await flushPromises();
+    expect(layer.$state.value).toBe("webgl");
+    expect(fake.created).toBe(2);
+    expect(fake.disposed).toBe(1);
+    expect(fake.replayed).toEqual(["a"]);
+  });
+
+  it("disposes a backend set aside as lost when the layer unmounts", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { layer, fake } = setup({ renderer: "webgl", gate });
+    await flushPromises();
+    fake.events.onLost();
+    release();
+    await flushPromises();
+    expect(layer.$state.value).toBe("lost");
+    graph.unmount();
+    expect(fake.disposed).toBe(1);
+  });
+
+  describe("late fonts", () => {
+    const original = Object.getOwnPropertyDescriptor(document, "fonts");
+
+    afterEach(() => {
+      if (original) Object.defineProperty(document, "fonts", original);
+      else delete (document as unknown as { fonts?: unknown }).fonts;
+    });
+
+    it("recreates the backend on loadingdone while in webgl", async () => {
+      const fonts = new EventTarget();
+      Object.defineProperty(document, "fonts", { value: fonts, configurable: true });
+      const { layer, store, fake } = setup({ renderer: "webgl" });
+      store.add(element("a", 200));
+      await flushPromises();
+      expect(fake.created).toBe(1);
+      fake.replayed.length = 0;
+      const first = fake.backend;
+      fonts.dispatchEvent(new Event("loadingdone"));
+      expect(layer.$state.value).toBe("restoring");
+      await flushPromises();
+      expect(layer.$state.value).toBe("webgl");
+      expect(fake.created).toBe(2);
+      expect(fake.disposed).toBe(1);
+      expect(fake.replayed).toEqual(["a"]);
+      expect(layer.getBackend()).not.toBe(first);
+    });
+
+    it("removes the fonts listener on unmount", async () => {
+      const fonts = new EventTarget();
+      Object.defineProperty(document, "fonts", { value: fonts, configurable: true });
+      const addSpy = jest.spyOn(fonts, "addEventListener");
+      const { fake } = setup({ renderer: "webgl" });
+      await flushPromises();
+      const signals = (): (AbortSignal | undefined)[] =>
+        addSpy.mock.calls.map((call) => (call[2] as AddEventListenerOptions | undefined)?.signal);
+      expect(signals().length).toBeGreaterThan(0);
+      for (const signal of signals()) {
+        expect(signal).toBeDefined();
+        expect(signal?.aborted).toBe(false);
+      }
+      graph.unmount();
+      for (const signal of signals()) expect(signal?.aborted).toBe(true);
+      fonts.dispatchEvent(new Event("loadingdone"));
+      await flushPromises();
+      expect(fake.created).toBe(1);
+    });
+
+    it("ignores loadingdone outside webgl", async () => {
+      const fonts = new EventTarget();
+      Object.defineProperty(document, "fonts", { value: fonts, configurable: true });
+      const { fake } = setup({ renderer: "canvas" });
+      fonts.dispatchEvent(new Event("loadingdone"));
+      await flushPromises();
+      expect(fake.created).toBe(0);
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { Graph } from "@gravity-ui/graph";
+import { ECameraScaleLevel, Graph } from "@gravity-ui/graph";
 
 import { ReactLayer } from "./ReactLayer";
 
@@ -400,6 +400,38 @@ describe("ReactLayer", () => {
       expect(htmlElement.classList.contains("layer-hidden")).toBe(true);
 
       camera.set({ scale: aboveScale });
+      expect(layer.isHtmlActive()).toBe(true);
+      expect(htmlElement.classList.contains("layer-hidden")).toBe(false);
+    });
+  });
+
+  describe("scene level (G7)", () => {
+    const detailedFrom = (threshold: number) => (_graph: Graph, scale: number) =>
+      scale >= threshold ? ECameraScaleLevel.Detailed : ECameraScaleLevel.Schematic;
+
+    it("follows graph.scene.$level, not SCALES[2]", () => {
+      graph.updateSettings({ getCameraBlockScaleLevel: detailedFrom(0.5) });
+      expect(graph.graphConstants.block.SCALES[2]).toBe(0.7);
+      const layer = createLayer();
+      getHTMLElement(layer);
+
+      camera.set({ scale: 0.55 });
+
+      expect(graph.scene.$level.value).toBe("detailed");
+      expect(layer.isHtmlActive()).toBe(true);
+
+      camera.set({ scale: 0.45 });
+      expect(layer.isHtmlActive()).toBe(false);
+    });
+
+    it("reacts to a strategy change without a camera change", () => {
+      const layer = createLayer();
+      const htmlElement = getHTMLElement(layer);
+      camera.set({ scale: 0.55 });
+      expect(layer.isHtmlActive()).toBe(false);
+
+      graph.updateSettings({ getCameraBlockScaleLevel: detailedFrom(0.5) });
+
       expect(layer.isHtmlActive()).toBe(true);
       expect(htmlElement.classList.contains("layer-hidden")).toBe(false);
     });

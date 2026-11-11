@@ -40,6 +40,14 @@ function ExternalGraphApp({ graph }: { graph: Graph }): React.ReactElement {
   return <GraphCanvas graph={result.graph} renderBlock={() => <div />} />;
 }
 
+/**
+ * Layers every Graph owns without GraphCanvas: the four classic core layers plus the scene's own layer
+ * (`graph.scene.layer`). GraphCanvas adds one more, the ReactLayer, which has no canvas.
+ */
+const CORE_LAYER_COUNT = 5;
+/** Canvases of the core layers: the classic ones plus the scene canvas. */
+const CORE_CANVAS_COUNT = 4;
+
 afterEach(async () => {
   jest.restoreAllMocks();
   await flushDeferredDisposal();
@@ -90,8 +98,8 @@ test("an owned graph survives StrictMode effect replay", async () => {
   await flushDeferredDisposal();
 
   expect(graph).toBeInstanceOf(Graph);
-  expect(graph?.layers.getLayers()).toHaveLength(5);
-  expect(container.querySelectorAll("canvas")).toHaveLength(3);
+  expect(graph?.layers.getLayers()).toHaveLength(CORE_LAYER_COUNT + 1);
+  expect(container.querySelectorAll("canvas")).toHaveLength(CORE_CANVAS_COUNT);
   unmount();
   await flushDeferredDisposal();
 });
@@ -129,8 +137,8 @@ test("an owned graph survives a Suspense boundary hiding and revealing its conte
   await flushDeferredDisposal();
 
   expect(graph).toBe(committed);
-  expect(graph?.layers.getLayers()).toHaveLength(5);
-  expect(container.querySelectorAll("canvas")).toHaveLength(3);
+  expect(graph?.layers.getLayers()).toHaveLength(CORE_LAYER_COUNT + 1);
+  expect(container.querySelectorAll("canvas")).toHaveLength(CORE_CANVAS_COUNT);
   unmount();
   await flushDeferredDisposal();
 });
@@ -141,7 +149,7 @@ test("unmounting the component disposes the owned graph", async () => {
   if (!graph) {
     throw new Error("useGraph did not return a graph");
   }
-  expect(graph.layers.getLayers()).toHaveLength(5);
+  expect(graph.layers.getLayers()).toHaveLength(CORE_LAYER_COUNT + 1);
   await flushDeferredDisposal();
   const unmountSpy = jest.spyOn(graph, "unmount");
 
@@ -215,7 +223,7 @@ test("remounting with a new key disposes the old owned graph and keeps the new o
   await flushDeferredDisposal();
 
   expect(graphs.get("a")?.layers.getLayers()).toHaveLength(0);
-  expect(graphs.get("b")?.layers.getLayers()).toHaveLength(5);
+  expect(graphs.get("b")?.layers.getLayers()).toHaveLength(CORE_LAYER_COUNT + 1);
   unmount();
   await flushDeferredDisposal();
 });
@@ -438,7 +446,7 @@ test.each([
   rerender(wrap(<PassBackApp passBack />));
   await flushDeferredDisposal();
   expect(unmountSpy).not.toHaveBeenCalled();
-  expect(graph.layers.getLayers()).toHaveLength(5);
+  expect(graph.layers.getLayers()).toHaveLength(CORE_LAYER_COUNT + 1);
 
   unmount();
   await flushDeferredDisposal();
@@ -497,7 +505,7 @@ test("switching from an owned graph to an external graph disposes only the owned
   await flushDeferredDisposal();
 
   expect(owned?.layers.getLayers()).toHaveLength(0);
-  expect(external.layers.getLayers()).toHaveLength(5);
+  expect(external.layers.getLayers()).toHaveLength(CORE_LAYER_COUNT + 1);
   unmount();
   await flushDeferredDisposal();
   external.unmount();
@@ -512,13 +520,13 @@ test.each([
   const app = <ExternalGraphApp graph={graph} />;
   const { container, unmount } = render(strict ? <StrictMode>{app}</StrictMode> : app);
   await flushDeferredDisposal();
-  expect(container.querySelectorAll("canvas")).toHaveLength(3);
+  expect(container.querySelectorAll("canvas")).toHaveLength(CORE_CANVAS_COUNT);
 
   unmount();
   await flushDeferredDisposal();
 
   expect(unmountSpy).not.toHaveBeenCalled();
   // GraphCanvas removes its own ReactLayer; the graph's core layers stay alive.
-  expect(graph.layers.getLayers()).toHaveLength(4);
+  expect(graph.layers.getLayers()).toHaveLength(CORE_LAYER_COUNT);
   graph.unmount();
 });

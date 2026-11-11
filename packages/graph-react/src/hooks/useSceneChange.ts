@@ -21,12 +21,17 @@ export function useSceneChange(graph: Graph, fn: () => void) {
   useLayoutEffect(() => {
     handleSceneChange();
 
-    const unsubscribe = graph.$camera.subscribe(() => {
+    const unsubscribeCamera = graph.$camera.subscribe(() => {
+      handleSceneChange();
+    });
+    // A level change without a camera change (strategy or constants) also changes the scene.
+    const unsubscribeLevel = graph.scene.$level.subscribe(() => {
       handleSceneChange();
     });
 
     return () => {
-      unsubscribe();
+      unsubscribeCamera();
+      unsubscribeLevel();
     };
   }, [graph, handleSceneChange]);
 

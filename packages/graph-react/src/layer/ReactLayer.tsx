@@ -26,27 +26,17 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
         zIndex: DEFAULT_REACT_LAYER_Z_INDEX,
         classNames: ["no-user-select", "no-pointer-events"],
         transformByCameraPosition: true,
-        activationScale: props.graph.graphConstants.block.SCALES[2],
       },
       ...props,
     });
   }
 
   protected afterInit(): void {
+    // Settle the activity before the first camera transform, so a hidden layer is not left in the "moving" state.
+    this.setHtmlActive(this.props.graph.scene.$level.value === "detailed");
     super.afterInit();
-    this.onSignal(this.props.graph.$graphConstants, (settings) => {
-      const scales = settings.block.SCALES;
-      if (scales.length > 0) {
-        this.setProps({
-          ...this.props,
-          html: {
-            zIndex: DEFAULT_REACT_LAYER_Z_INDEX,
-            ...this.props.html,
-            activationScale: scales[2],
-          },
-        });
-      }
-    });
+    // The HTML layer is active exactly at the "detailed" scene level, whatever strategy produces it.
+    this.onSignal(this.props.graph.scene.$level, (level) => this.setHtmlActive(level === "detailed"));
     this.applyBlockListClassName(undefined, this.props.blockListClassName);
   }
 

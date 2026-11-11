@@ -25,6 +25,7 @@ import type { CameraPoint } from "./services/camera/CameraPoint";
 import { CameraService, getInitCameraState } from "./services/camera/CameraService";
 import type { TCameraState } from "./services/camera/CameraService";
 import { DragService } from "./services/drag";
+import { GraphScene } from "./services/scene/GraphScene";
 import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
@@ -124,7 +125,15 @@ export class Graph {
   protected startRequested = false;
 
   /** Updates this graph's layers on each frame while the graph is started. */
-  private readonly frameTask = { performUpdate: (): void => this.layers.update() };
+  private readonly frameTask = {
+    performUpdate: (): void => {
+      this.layers.update();
+      this.scene.update();
+    },
+  };
+
+  /** Scene runtime: element store, renderer (Canvas2D or WebGL), level and clock. */
+  public readonly scene: GraphScene;
 
   private removeFrameTask: (() => void) | undefined;
 
@@ -148,6 +157,8 @@ export class Graph {
   ) {
     this.belowLayer = this.addLayer(BelowLayer, {});
     this.graphLayer = this.addLayer(GraphLayer, {});
+    // Right after GraphLayer: the scene canvas follows the GraphLayer canvas in the DOM.
+    this.scene = new GraphScene(this);
     this.selectionLayer = this.addLayer(SelectionLayer, {});
     this.cursorLayer = this.addLayer(CursorLayer, {});
 
@@ -499,6 +510,7 @@ export class Graph {
     this.cameraService.set({ width: rootWidth, height: rootHeight });
 
     this.setGraphState(GraphState.ATTACHED);
+    this.scene.followVisibility();
 
     if (this.startRequested) {
       this.startRequested = false;
@@ -522,6 +534,7 @@ export class Graph {
     this.layers.start();
     // One frame task per started graph, however start() is reached.
     this.removeFrameTask ??= this.scheduler.addScheduler(this.frameTask);
+    this.scene.start();
 
     this.setGraphState(GraphState.READY);
     this.runAfterGraphReady(() => {
@@ -553,6 +566,7 @@ export class Graph {
     this.startRequested = false;
     this.removeFrameTask?.();
     this.removeFrameTask = undefined;
+    this.scene.stop();
     this.setGraphState(this.layers.$root ? GraphState.ATTACHED : GraphState.INIT);
   }
 
@@ -580,6 +594,7 @@ export class Graph {
     // Before the layers are unmounted: pending ready waiters must not fire on a graph that is
     // being torn down, and removing the layers' hit boxes must not queue hit-test work.
     this.hitTest.destroy();
+    this.scene.dispose();
     this.layers.unmount();
     clearTextCache();
     clearColorCache();

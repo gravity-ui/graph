@@ -191,3 +191,8 @@ as a synchronous `graph.scheduler.performUpdate()` (the drawing buffer is not pr
 sampled point lies over an opaque pixel or on a transparent one, so no un-premultiplication is needed. Points are given
 in world units; the camera puts world (0, 0) at CSS (100, 100) so that negative world x is on screen. B's title sits at
 the bottom of B so that C4 can look for white pixels in A's title box.
+
+Both the harness and the webgl column of `scene-run.mjs` run on `graph.scene`: elements are written to
+`graph.scene.store` (`@internal`), the renderer is switched with `graph.updateSettings({ renderer: "webgl" })`, the
+state is read from `graph.scene.$renderer` and the backend from `graph.scene.layer.getBackend()` (also `@internal`,
+for the benches only). They no longer add a standalone `SceneRendererLayer`.

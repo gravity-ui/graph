@@ -488,6 +488,21 @@ export class Layer<
   }
 
   /**
+   * Switches the HTML layer on or off from outside the camera scale check (for example by a scene level).
+   * Use it in layers that do not set `html.activationScale`, so the two mechanisms do not fight.
+   *
+   * @param active - Whether the HTML layer should be active
+   */
+  protected setHtmlActive(active: boolean): void {
+    if (!this.html || active === this.htmlActive) return;
+    this.htmlActive = active;
+    this.onHtmlActiveChange(active);
+    if (active && this.props.html?.transformByCameraPosition) {
+      this.scheduleCameraChange(this.context.camera.getCameraState());
+    }
+  }
+
+  /**
    * Returns whether the HTML layer is currently active.
    * The layer is inactive when camera scale is below the activationScale threshold.
    */

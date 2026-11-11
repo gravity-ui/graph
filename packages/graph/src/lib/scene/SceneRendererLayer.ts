@@ -7,17 +7,16 @@ import type { TTileRect } from "../culling/TileIndex";
 
 import type { SceneStore } from "./SceneStore";
 import { drawElements } from "./drawPrimitives";
-import type { TSceneChange, TSceneStyle } from "./types";
+import type { TSceneChange, TSceneRenderer, TSceneRendererState, TSceneStyle } from "./types";
 import type { ISceneBackend, ISceneBackendModule, TSceneBackendEvents } from "./webgl/backendTypes";
-
-export type TSceneRenderer = "canvas" | "webgl";
-export type TSceneRendererState = "canvas" | "loading" | "webgl" | "lost" | "restoring" | "webgl-fallback";
 
 export type TSceneRendererLayerProps = LayerProps & {
   store: SceneStore;
   renderer?: TSceneRenderer;
   /** Lazy backend import; tests inject a fake. */
   loadBackend?: () => Promise<ISceneBackendModule>;
+  /** Source of `frame.time` in seconds (the graph clock). Without it the layer uses its own clock. */
+  clock?: { now(): number };
 };
 
 const defaultLoadBackend = (): Promise<ISceneBackendModule> => import("./webgl/WebGLSceneBackend");
@@ -35,12 +34,20 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
   private lastStyles?: readonly TSceneStyle[];
   /** Bumped by every load and every leave of webgl: a load that finds another token is stale. */
   private loadToken = 0;
+  /** A context loss that arrived while the backend of the current load was being created. */
+  private pendingLoss = false;
   private readonly start = performance.now();
 
   constructor(props: TSceneRendererLayerProps) {
     super({
       ...props,
-      canvas: { zIndex: 2, respectPixelRatio: true, transformByCameraPosition: true, ...props.canvas },
+      canvas: {
+        zIndex: 2,
+        respectPixelRatio: true,
+        transformByCameraPosition: true,
+        classNames: ["no-user-select", "no-pointer-events"],
+        ...props.canvas,
+      },
     });
     this.$state = this.rendererState;
     this.requested = props.renderer ?? "canvas";
@@ -82,6 +89,10 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
         this.performRender();
       }
     );
+    const fonts = typeof document === "undefined" ? undefined : document.fonts;
+    if (fonts) {
+      fonts.addEventListener("loadingdone", this.handleFontsLoaded, { signal: this.eventAbortController.signal });
+    }
     super.afterInit();
     if (this.requested === "webgl") this.setRenderer("webgl");
   }
@@ -89,6 +100,7 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
   /** Runs on unmount, detach and re-attach: the backend and its canvas belong to one attachment. */
   protected unmountLayer(): void {
     this.loadToken++;
+    this.pendingLoss = false;
     this.disposeBackend();
     this.rendererState.value = "canvas";
     super.unmountLayer();
@@ -108,6 +120,15 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
     }
   }
 
+  /** Late web fonts: the glyph atlas is stale, so the backend is recreated and replays the store. */
+  private readonly handleFontsLoaded = (): void => {
+    if (this.rendererState.value !== "webgl") return;
+    this.disposeBackend();
+    this.rendererState.value = "restoring";
+    this.performRender();
+    this.loadBackend().catch(() => undefined);
+  };
+
   private drawWebGL(backend: ISceneBackend): void {
     const store = this.props.store;
     const styles = store.getStyles();
@@ -116,7 +137,7 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
       backend.setStyles(styles);
     }
     const { width, height, x, y, scale } = this.props.graph.cameraService.getCameraState();
-    const time = (performance.now() - this.start) / 1000;
+    const time = this.props.clock ? this.props.clock.now() : (performance.now() - this.start) / 1000;
     if (backend.draw({ width, height, x, y, scale, dpr: this.getDRP(), time })) this.performRender();
   }
 
@@ -149,7 +170,13 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
 
   private readonly createEvents = (token: number): TSceneBackendEvents => ({
     onLost: () => {
-      if (token !== this.loadToken || this.rendererState.value !== "webgl") return;
+      if (token !== this.loadToken) return;
+      const state = this.rendererState.value;
+      if (state === "loading" || state === "restoring") {
+        this.pendingLoss = true;
+        return;
+      }
+      if (state !== "webgl") return;
       this.rendererState.value = "lost";
       this.performRender();
     },
@@ -164,12 +191,22 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
 
   private async loadBackend(): Promise<void> {
     const token = ++this.loadToken;
+    this.pendingLoss = false;
     let created: ISceneBackend | undefined;
     try {
       const module = await (this.props.loadBackend ?? defaultLoadBackend)();
       created = await module.createSceneBackend(this.requireCanvas(), this.createEvents(token));
       if (token !== this.loadToken) {
         created.dispose();
+        return;
+      }
+      if (this.pendingLoss) {
+        // Lost while being created: keep it aside and never draw with it. A disposed backend can no longer
+        // deliver onRestored, so its own onRestored takes the normal lost -> restoring path and disposes it then.
+        this.pendingLoss = false;
+        this.backend = created;
+        this.rendererState.value = "lost";
+        this.performRender();
         return;
       }
       created.replay(this.props.store);

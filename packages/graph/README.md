@@ -262,6 +262,7 @@ graph.zoomTo("center", { padding: 100 });
    - [Graph Settings](docs/system/graph-settings.md)
    - [Public API](docs/system/public_api.md)
    - [Scheduler System](docs/system/scheduler-system.md)
+   - [Scene](docs/system/scene.md)
 
 2. Components
    - [Canvas Graph Component](docs/components/canvas-graph-component.md)

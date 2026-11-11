@@ -180,10 +180,16 @@ function fallbackWarnings(warn: jest.SpyInstance): string[] {
   return warn.mock.calls.map(([message]) => String(message)).filter((message) => message.startsWith(FALLBACK_WARNING));
 }
 
-/** Canvases at the graph layer's z-index: the layer's own and, while WebGL draws or waits for a restore, WebGL's. */
+/**
+ * Canvases at the graph layer's z-index: the layer's own and, while WebGL draws or waits for a restore, WebGL's.
+ * The scene layer's canvas shares the z-index and is not a connection canvas.
+ */
 function graphLevelCanvases(graph: Graph, root: HTMLElement): HTMLCanvasElement[] {
   const zIndex = graph.getGraphLayer().getCanvas().style.zIndex;
-  return Array.from(root.querySelectorAll("canvas")).filter((canvas) => canvas.style.zIndex === zIndex);
+  const sceneCanvas = graph.scene.layer.getCanvas();
+  return Array.from(root.querySelectorAll("canvas")).filter(
+    (canvas) => canvas.style.zIndex === zIndex && canvas !== sceneCanvas
+  );
 }
 
 function webglCanvas(fake: TFakeGL): HTMLCanvasElement {

@@ -147,3 +147,23 @@ describe("Settings store", () => {
     expect(DefaultSettings.dragThreshold).toBe(5);
   });
 });
+
+describe("renderer settings", () => {
+  it("defaults to canvas and has no backend loader", () => {
+    const graph = new Graph({});
+    expect(graph.rootStore.settings.$renderer.value).toBe("canvas");
+    expect(graph.rootStore.settings.$webglBackend.value).toBeUndefined();
+    graph.unmount();
+  });
+
+  it("updates through updateSettings and resets to defaults", () => {
+    const graph = new Graph({});
+    const loader = (): Promise<never> => Promise.reject(new Error("unused"));
+    graph.updateSettings({ renderer: "webgl", webglBackend: loader });
+    expect(graph.rootStore.settings.$renderer.value).toBe("webgl");
+    expect(graph.rootStore.settings.$webglBackend.value).toBe(loader);
+    graph.resetSettings(["renderer"]);
+    expect(graph.rootStore.settings.$renderer.value).toBe("canvas");
+    graph.unmount();
+  });
+});

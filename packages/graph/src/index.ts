@@ -66,6 +66,15 @@ export * from "./utils/renderers/text";
 export { EVENTS } from "./utils/types/events";
 export { Point, Rect, type TPoint, type TRect } from "./utils/types/shapes";
 export { ESelectionStrategy } from "./services/selection/types";
+export type {
+  IGraphScene,
+  TSceneElementView,
+  TSceneLevel,
+  TSceneRenderer,
+  TSceneRendererState,
+} from "./services/scene/types";
+export type { TScenePrimitive, TSceneSize, TSceneStroke, TSceneStyle, TSceneElement } from "./lib/scene/types";
+export type { ISceneBackendModule, TSceneBackendStats } from "./lib/scene/webgl/backendTypes";
 export * from "./utils/shapes";
 export { applyAlpha, clearColorCache } from "./utils/functions/color";
 

@@ -73,7 +73,10 @@ classDiagram
   loop. Nothing else starts or stops it.
 - **A graph drives its layers.** `graph.start()` registers one frame task, and
   `graph.stop()`, `graph.detach()` and `graph.unmount()` remove it. On each frame
-  the task updates the graph's layers in the order they were added or returned.
+  the task updates the graph's layers in the order they were added or returned
+  (`layers.update()`), then the scene renderer (`scene.update()`), so an element
+  a layer writes to `graph.scene` during the frame is drawn in the same frame.
+  See [Scene](./scene.md).
   Components rendered by a layer (`Component.create(...)` in `updateChildren`)
   belong to the layer's tree and are updated with it. Components and layers never
   touch the scheduler: they call `performRender()`, and the graph updates them on
@@ -111,7 +114,8 @@ sequenceDiagram
     GlobalScheduler->>GlobalScheduler: tick()
     GlobalScheduler->>GlobalScheduler: performUpdate()
     GlobalScheduler->>Graph: frame task
-    Graph->>Scheduler: performUpdate() for each layer
+    Graph->>Scheduler: performUpdate() for each layer (layers.update())
+    Graph->>Scheduler: performUpdate() for the scene layer (scene.update())
     Scheduler->>Scheduler: update()
     Scheduler->>Tree: traverseDown(iterator)
     Tree->>Component: prepareUpdate() for new and requested components

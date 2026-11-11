@@ -1,9 +1,12 @@
 import { computed, signal } from "@preact/signals-core";
+import type { ReadonlySignal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
 import type { Block, TBlock } from "../components/canvas/blocks/Block";
 import { BlockConnection } from "../components/canvas/connections/BlockConnection";
 import { Component } from "../lib";
+import type { TSceneRenderer } from "../lib/scene/types";
+import type { ISceneBackendModule } from "../lib/scene/webgl/backendTypes";
 import { defaultGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
 import type { TGetCameraBlockScaleLevel } from "../services/camera/defaultGetCameraBlockScaleLevel";
 import { mergeDefined } from "../utils/functions/mergeDefined";
@@ -81,6 +84,16 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    * Always set at runtime; `setupSettings` falls back to the exported `defaultGetCameraBlockScaleLevel` when omitted.
    */
   getCameraBlockScaleLevel: TGetCameraBlockScaleLevel;
+  /**
+   * Scene renderer: `"canvas"` draws through Canvas 2D, `"webgl"` draws the scene through the WebGL backend.
+   * @default "canvas"
+   */
+  renderer: TSceneRenderer;
+  /**
+   * Loader of the WebGL backend module. Used when `renderer` is `"webgl"`.
+   * When omitted, the built-in dynamic import is used.
+   */
+  webglBackend?: () => Promise<ISceneBackendModule>;
 };
 
 /** Partial public settings input. Undefined never resets or clears a value. */
@@ -111,6 +124,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   background: undefined,
   resolveWheelIntent: createWheelIntentResolver(),
   getCameraBlockScaleLevel: defaultGetCameraBlockScaleLevel,
+  renderer: "canvas",
 };
 
 export class GraphEditorSettings {
@@ -175,6 +189,12 @@ export class GraphEditorSettings {
   });
 
   public $canDrag = computed(() => this.$settings.value.canDrag);
+
+  public $renderer: ReadonlySignal<"canvas" | "webgl"> = computed(() => this.$settings.value.renderer);
+
+  public $webglBackend: ReadonlySignal<(() => Promise<ISceneBackendModule>) | undefined> = computed(
+    () => this.$settings.value.webglBackend
+  );
 
   public $dragThreshold = computed(() => this.$settings.value.dragThreshold);
 

@@ -5,10 +5,8 @@
 import { Graph } from "GRAPH";
 import { dashFlow } from "GRAPH_SRC/components/canvas/connections/effects";
 import { lineSegment } from "GRAPH_SRC/components/canvas/connections/geometry/segments";
-import { SceneRendererLayer } from "GRAPH_SRC/lib/scene/SceneRendererLayer";
-import type { TSceneRendererState } from "GRAPH_SRC/lib/scene/SceneRendererLayer";
-import { SceneStore } from "GRAPH_SRC/lib/scene/SceneStore";
 import type { TSceneElementInput } from "GRAPH_SRC/lib/scene/SceneStore";
+import type { TSceneRendererState } from "GRAPH_SRC/services/scene/types";
 import type { TScenePrimitive } from "GRAPH_SRC/lib/scene/types";
 
 type TPixel = [number, number, number, number];
@@ -98,8 +96,7 @@ function createHarness(root: HTMLElement) {
   root.style.width = `${VIEW.width}px`;
   root.style.height = `${VIEW.height}px`;
   const graph = new Graph({} as unknown as ConstructorParameters<typeof Graph>[0], root);
-  const store = new SceneStore();
-  return { graph, store };
+  return { graph, store: graph.scene.store };
 }
 
 async function run(options: TRunOptions): Promise<TCheckResult[]> {
@@ -126,14 +123,14 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
     primitives: [{ kind: "path", segments: lineOf([-50, 50], [400, 50]), stroke: { color: GREEN, width: 6 } }],
   });
 
-  const layer = graph.addLayer(SceneRendererLayer, { store, renderer: "canvas" });
+  const layer = graph.scene.layer;
   graph.start();
   const camera = graph.cameraService;
   const setCamera = (scale: number): void => camera.set({ scale, x: ORIGIN.x, y: ORIGIN.y });
   setCamera(1);
 
-  const seenStates: TSceneRendererState[] = [layer.$state.value];
-  layer.$state.subscribe((state) => {
+  const seenStates: TSceneRendererState[] = [graph.scene.$renderer.value];
+  graph.scene.$renderer.subscribe((state) => {
     if (seenStates[seenStates.length - 1] !== state) seenStates.push(state);
   });
 
@@ -141,10 +138,14 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
   const lumaBefore = typeof (globalThis as { luma?: unknown }).luma;
   await frame();
   const requestedAt = performance.now();
-  layer.setRenderer("webgl");
-  while (layer.$state.value !== "webgl") {
+  graph.updateSettings({ renderer: "webgl" });
+  while (graph.scene.$renderer.value !== "webgl") {
     if (performance.now() - requestedAt > 15000) {
-      record("SETUP", false, `state never reached webgl, stuck at ${layer.$state.value} (${seenStates.join(">")})`);
+      record(
+        "SETUP",
+        false,
+        `state never reached webgl, stuck at ${graph.scene.$renderer.value} (${seenStates.join(">")})`
+      );
       break;
     }
     await wait(5);
@@ -208,8 +209,8 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
     graph.scheduler.performUpdate();
     const out = new Uint8Array(w * h * 4);
     const backend = layer.getBackend();
-    if (layer.$state.value !== "webgl") reads.badState++;
-    if (layer.$state.value === "webgl" && backend) {
+    if (graph.scene.$renderer.value !== "webgl") reads.badState++;
+    if (graph.scene.$renderer.value === "webgl" && backend) {
       reads.webgl++;
       const gl = backend.canvas.getContext("webgl2") as WebGL2RenderingContext;
       const raw = new Uint8Array(w * h * 4);
@@ -391,7 +392,7 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
         "C5",
         differs && whileAnimating >= 8 && after === 0,
         `differing device px between reads ${elapsedMs.toFixed(1)} ms apart: ` +
-        `${differing}/${first.length / 4} ` +
+          `${differing}/${first.length / 4} ` +
           `(want >=8); red channel per css px ` +
           `t0=[${firstB.join(",")}] t1=[${secondB.join(",")}]; draw calls over 10 frames while animating=` +
           `${whileAnimating} (want >=8); while settling after removal=${settledAt}, over the next 10 frames=${after} ` +
@@ -513,7 +514,7 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
     const pixelsPerPhase: string[] = [];
     let ok = true;
     let thrown = "";
-    const phaseOf = (): string => layer.$state.value;
+    const phaseOf = (): string => graph.scene.$renderer.value;
     const x0 = 0;
     const failures: string[] = [];
     const startIndex = seenStates.length - 1;
@@ -550,8 +551,8 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
     }
     // Wait for the layer to finish restoring, then read once with the new backend.
     const waitStart = performance.now();
-    while (layer.$state.value !== "webgl" && performance.now() - waitStart < 8000) await wait(10);
-    const finalState = layer.$state.value;
+    while (graph.scene.$renderer.value !== "webgl" && performance.now() - waitStart < 8000) await wait(10);
+    const finalState = graph.scene.$renderer.value;
     const finalInside = pixelAt(60 + 75, 70);
     const finalOk = finalState === "webgl" && near(finalInside, bodyA);
     const seen = seenStates.slice(startIndex);

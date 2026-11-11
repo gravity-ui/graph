@@ -1,8 +1,6 @@
 // E3: the same scene drawn by a SceneRendererLayer with the lazily loaded WebGL backend. Same store as the
 // interpreter column, but with the default z buckets: groups 50, connections 100, blocks and anchors 200.
 import { Graph } from "GRAPH";
-import { SceneRendererLayer } from "GRAPH_SRC/lib/scene/SceneRendererLayer";
-import { SceneStore } from "GRAPH_SRC/lib/scene/SceneStore";
 import type { TSceneBackendStats } from "GRAPH_SRC/lib/scene/webgl/backendTypes";
 
 import { connectionElement, connectionGeometry } from "./interpreter";
@@ -14,12 +12,12 @@ import type { TColumn } from "./walk";
 
 export type TWebGLStats = TSceneBackendStats & { state: string };
 
-let activeLayer: SceneRendererLayer | undefined;
+let activeGraph: Graph | undefined;
 
 /** Stats of the backend of the last webgl column. */
 export function webglStats(): TWebGLStats | undefined {
-  const backend = activeLayer?.getBackend();
-  return backend && activeLayer ? { ...backend.stats, state: activeLayer.$state.value } : undefined;
+  const backend = activeGraph?.scene.layer.getBackend();
+  return backend && activeGraph ? { ...backend.stats, state: activeGraph.scene.$renderer.value } : undefined;
 }
 
 export async function setupWebGL(root: HTMLDivElement, scene: TBenchScene): Promise<TColumn> {
@@ -27,7 +25,7 @@ export async function setupWebGL(root: HTMLDivElement, scene: TBenchScene): Prom
     { settings: { canDragCamera: true, canZoomCamera: true } } as unknown as ConstructorParameters<typeof Graph>[0],
     root
   );
-  const store = new SceneStore(1024);
+  const { store } = graph.scene;
   for (const group of scene.groups) {
     const { x, y, width, height } = group.rect;
     store.add({
@@ -71,14 +69,17 @@ export async function setupWebGL(root: HTMLDivElement, scene: TBenchScene): Prom
     }
     graph.hitTest.$usableRect.value = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   }
-  const layer = graph.addLayer(SceneRendererLayer, { store, renderer: "webgl" });
-  activeLayer = layer;
+  const graphScene = graph.scene;
+  activeGraph = graph;
+  graph.updateSettings({ renderer: "webgl" });
   graph.start();
   // "loading" -> "webgl" (or "webgl-fallback", which makes this column meaningless).
   const deadline = performance.now() + 30000;
-  while (layer.$state.value !== "webgl") {
-    if (layer.$state.value === "webgl-fallback") throw new Error("webgl column: renderer state is webgl-fallback");
-    if (performance.now() > deadline) throw new Error(`webgl column: state is "${layer.$state.value}" after 30 s`);
+  while (graphScene.$renderer.value !== "webgl") {
+    if (graphScene.$renderer.value === "webgl-fallback")
+      throw new Error("webgl column: renderer state is webgl-fallback");
+    if (performance.now() > deadline)
+      throw new Error(`webgl column: state is "${graphScene.$renderer.value}" after 30 s`);
     await new Promise<void>((resolve) => setTimeout(resolve, 20));
   }
 
@@ -106,7 +107,7 @@ export async function setupWebGL(root: HTMLDivElement, scene: TBenchScene): Prom
         );
         store.update(connection.id, connectionElement(connectionGeometry(points, connection)));
       }
-      layer.performRender();
+      graphScene.layer.performRender();
     },
     visible(): { blocks: number; anchors: number; elements: number } {
       // Scene elements in the view (as the interpreter column's `elements`); GPU instances are on the webgl line.
