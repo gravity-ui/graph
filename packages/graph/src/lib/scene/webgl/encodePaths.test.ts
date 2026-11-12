@@ -3,6 +3,7 @@ import { lineSegment } from "../../../components/canvas/connections/geometry/seg
 import { INSTANCE_FLOATS } from "../../../components/canvas/connections/webgl/encode";
 
 import { PATH_ELEMENT_FLOATS, encodePaths } from "./encodePaths";
+import { USE_BASE_ALPHA } from "./tables";
 
 const straight = new Float32Array(lineSegment({ x: 0, y: 0 }, { x: 30, y: 0 }));
 const curved = new Float32Array([0, 0, 0, 50, 50, 50, 50, 0]);
@@ -19,6 +20,45 @@ describe("encodePaths", () => {
     expect(out.curveElements).toHaveLength(0);
     expect(out.lines[12]).toBe(2);
     expect(Array.from(out.lines.slice(8, 12))).toEqual([1, 0, 0, 1]);
+  });
+
+  it("encodes an unset stroke colour as the base paint on every instance of the path", () => {
+    const out = encodePaths(
+      [
+        { kind: "path", segments: straight, stroke: { width: 2 }, part: "stroke" },
+        { kind: "path", segments: curved, stroke: { width: 2 }, part: "stroke" },
+        { kind: "path", segments: straight, stroke: { color: "#f00", width: 2 } },
+      ],
+      0,
+      0,
+      slotOf
+    );
+    const colors = (data: Float32Array): number[][] => {
+      const out: number[][] = [];
+      for (let at = 0; at < data.length; at += INSTANCE_FLOATS) out.push(Array.from(data.slice(at + 8, at + 12)));
+      return out;
+    };
+    expect(colors(out.lines)).toEqual([
+      [0, 0, 0, USE_BASE_ALPHA],
+      [1, 0, 0, 1],
+    ]);
+    const curves = colors(out.curves);
+    expect(curves.length).toBeGreaterThanOrEqual(1);
+    for (const color of curves) expect(color).toEqual([0, 0, 0, USE_BASE_ALPHA]);
+  });
+
+  it("skips a path whose stroke width is unset: it draws nothing", () => {
+    const out = encodePaths(
+      [
+        { kind: "path", segments: straight, stroke: { color: "#f00" }, part: "stroke" },
+        { kind: "path", segments: straight, stroke: { color: "#f00", width: 2 } },
+      ],
+      0,
+      0,
+      slotOf
+    );
+    expect(out.lines).toHaveLength(INSTANCE_FLOATS);
+    expect(Array.from(out.lineElements.slice(0, 2))).toEqual([0, 1]);
   });
 
   it("emits element data for every curve piece with the sub of its path", () => {

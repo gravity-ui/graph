@@ -40,7 +40,6 @@ export type TConnection = {
     dashes?: number[];
   };
   dashed?: boolean;
-  selected?: boolean;
 } & (TConnectionBlockPoint | TConnectionPortPoint);
 
 function hasId<T>(id: T | null | undefined): id is T {
@@ -63,11 +62,10 @@ export class ConnectionState<T extends TConnection = TConnection> {
 
   /**
    * Connection state signal.
-   * Derives `selected` from the selection bucket, consistent with BlockState pattern.
+   * Selection is not part of the data: read it through `$selected`.
    */
   public $state = computed(() => ({
     ...this.$rawState.value,
-    selected: this.$selected.value,
   }));
 
   private $destroyed = signal(false);
@@ -267,7 +265,6 @@ export class ConnectionState<T extends TConnection = TConnection> {
   public asTConnection(): T & { id: TConnectionId } {
     return cloneDeep({
       ...this.$rawState.toJSON(),
-      selected: this.$selected.value,
     });
   }
 
@@ -278,7 +275,6 @@ export class ConnectionState<T extends TConnection = TConnection> {
   public toJSON(): T & { id: TConnectionId } {
     return cloneDeep({
       ...this.$rawState.toJSON(),
-      selected: this.$selected.value,
     });
   }
 

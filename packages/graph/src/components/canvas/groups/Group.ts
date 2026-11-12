@@ -56,6 +56,9 @@ const defaultGeometry: TGroupGeometry = {
 };
 
 export class Group<T extends TGroup = TGroup> extends GraphComponent<TGroupProps, TGroupState<T>, TGraphLayerContext> {
+  /** The entity type of the selection bucket and of tag addresses. */
+  public static entityType = "group";
+
   public static define(config: { style?: Partial<TGroupStyle>; geometry?: Partial<TGroupGeometry> }): typeof Group {
     return class SpecificGroup<T extends TGroup = TGroup> extends Group<T> {
       constructor(props: TGroupProps, parent: BlockGroups) {

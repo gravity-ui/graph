@@ -55,10 +55,6 @@ export function defineConigSchema(monaco: Monaco) {
                   type: "number",
                   description: "Block height",
                 },
-                selected: {
-                  type: "boolean",
-                  description: "Flag indicating if the block is selected",
-                },
                 name: {
                   type: "string",
                   description: "Block name",
@@ -75,7 +71,7 @@ export function defineConigSchema(monaco: Monaco) {
                   description: "Meta information (optional)",
                 },
               },
-              required: ["id", "is", "x", "y", "width", "height", "selected", "name", "anchors"],
+              required: ["id", "is", "x", "y", "width", "height", "name", "anchors"],
             },
             TConnection: {
               type: "object",
@@ -117,10 +113,6 @@ export function defineConigSchema(monaco: Monaco) {
                 dashed: {
                   type: "boolean",
                   description: "Flag indicating if the line is dashed (optional)",
-                },
-                selected: {
-                  type: "boolean",
-                  description: "Flag indicating if the connection is selected (optional)",
                 },
               },
               required: ["sourceBlockId", "targetBlockId"],

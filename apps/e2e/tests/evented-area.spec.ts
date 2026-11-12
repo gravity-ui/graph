@@ -223,7 +223,7 @@ class EventedAreaPageObject extends GraphPageObject {
 }
 
 function makeBlock(id: string, is: string, x: number, y: number) {
-  return { id, is, x, y, width: 200, height: 100, name: id, anchors: [], selected: false };
+  return { id, is, x, y, width: 200, height: 100, name: id, anchors: [] };
 }
 
 test.describe("EventedArea", () => {

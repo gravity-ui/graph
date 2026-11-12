@@ -9,8 +9,10 @@ export type TSceneRendererState = "canvas" | "loading" | "webgl" | "lost" | "res
 
 /** Stroke of a scene primitive; lengths in world units. */
 export type TSceneStroke = {
-  color: string;
-  width: TSceneSize;
+  /** Unset: the computed style supplies it; a stroke still unset draws nothing. */
+  color?: string;
+  /** Unset: the style's base width of the part supplies it; a stroke whose width is still unset draws nothing. */
+  width?: TSceneSize;
   /** Where the stroke of a closed shape lies relative to its edge. Default: "center". */
   align?: "inside" | "center" | "outside";
   dash?: readonly number[];
@@ -29,10 +31,49 @@ export type TSceneTextSize = TSceneSize;
 export type TScenePart = string;
 
 /**
- * Overrides per part. `visible: false` hides the whole primitive that has the part; `color` recolours the part's
- * paint (the border of a "border" part, the fill, text or stroke colour otherwise).
+ * Values of one part. Table properties: color, visible, dim. Element properties: width, scale, opacity. In a row, a
+ * `parts` value wins over the `base` value of the same property.
  */
-export type TSceneStyle = Readonly<Record<TScenePart, { color?: string; visible?: boolean }>>;
+export type TScenePartStyle = {
+  /** The part's paint: a "border" part's border, otherwise the fill, text or stroke colour. */
+  color?: string;
+  /** false hides every primitive of the part; a `parts` value wins over a `base` one. */
+  visible?: boolean;
+  /** Width of the part's stroke or border; a `base` width fills only an unset width. */
+  width?: TSceneSize;
+  /** Radius factor of the part's circles; a `parts` value wins over a `base` one. */
+  scale?: number;
+  /**
+   * In [0, 1] (clamped): moves every paint of the part's primitives towards the scene's dim colour, alpha kept. A
+   * `parts` value wins over a `base` one, and both over the element's `dim`.
+   */
+  dim?: number;
+  /**
+   * In [0, 1] (clamped): multiplies the alpha of every paint of the part's primitives, so what lies under them shows
+   * through. A `parts` value wins over a `base` one; the result multiplies the element's `opacity`.
+   */
+  opacity?: number;
+};
+
+/** A computed style row. */
+export type TSceneStyle = Readonly<{
+  /** State rules: override the primitive's own values. */
+  parts?: Readonly<Record<TScenePart, Readonly<TScenePartStyle>>>;
+  /**
+   * Base rules: a colour or width fills only a value the primitive leaves unset; `visible`, `scale` and `dim` apply
+   * unless `parts` sets them.
+   */
+  base?: Readonly<Record<TScenePart, Readonly<TScenePartStyle>>>;
+  /** Added to the element's zIndex bucket while the style is on. */
+  raise?: number;
+  /** The dim of every part that sets none (`TScenePartStyle.dim`) and of primitives without a part. */
+  dim?: number;
+  /**
+   * In [0, 1] (clamped): multiplies the alpha of every paint of the element's primitives; a part's own `opacity`
+   * (`TScenePartStyle.opacity`) multiplies it again. Each primitive fades on its own: this is not CSS group opacity.
+   */
+  opacity?: number;
+}>;
 
 /** Shown while minScale <= camera scale < maxScale; either bound may be absent. */
 export type TSceneVisibility = { minScale?: number; maxScale?: number; part?: TScenePart };
@@ -61,19 +102,19 @@ export type TScenePrimitive = TSceneVisibility &
         size: TSceneSize;
         /** Line height in world units. */
         lineHeight: number;
-        color: string;
+        color?: string;
         x: number;
         y: number;
         width: number;
         height?: number;
         align?: CanvasTextAlign;
       }
-    | { kind: "icon"; path: Path2D; viewBox: number; x: number; y: number; size: number; color: string }
+    | { kind: "icon"; path: Path2D; viewBox: number; x: number; y: number; size: number; color?: string }
     /** Cubic segments, 8 numbers each (p0, c1, c2, p3), as the connection geometries produce them. */
     /** The effect is drawn by WebGL only; the Canvas2D interpreter ignores it. */
     | { kind: "path"; segments: Float32Array; stroke: TSceneStroke; effect?: TConnectionEffectUse }
     /** A closed polygon given as x, y pairs. */
-    | { kind: "polygon"; points: Float32Array; fill: string; stroke?: TSceneStroke }
+    | { kind: "polygon"; points: Float32Array; fill?: string; stroke?: TSceneStroke }
   );
 
 /** One drawn entity of the scene: a block with its anchors, a group, a connection. */

@@ -12,7 +12,7 @@ import type { TUniformTypes } from "../../../components/canvas/connections/effec
 import { FRAGMENT_MAIN, FRAGMENT_PRELUDE, IDENTITY_EFFECT } from "../../../components/canvas/connections/webgl/shaders";
 
 import { SCENE_DEPTH } from "./depth";
-import { TABLE_WIDTH } from "./tables";
+import { DIM_TEXEL, PART_SLOTS, TABLE_WIDTH } from "./tables";
 
 const SUBS = 2 ** SCENE_DEPTH.SUB_BITS;
 const KEYS = 2 ** (SCENE_DEPTH.BAND_BITS + SCENE_DEPTH.RANK_BITS + SCENE_DEPTH.SUB_BITS);
@@ -23,7 +23,10 @@ uniform vec2 scene_viewport;            // CSS pixels
 uniform vec3 scene_camera;              // x, y, scale: screen = world * scale + (x, y)
 uniform float scene_time;               // seconds on the graph clock
 uniform highp sampler2D scene_elements; // per element: origin x, y, depth key (-1: hidden), style id
-uniform highp sampler2D scene_styles;   // a row per style, a texel per part slot: rgba, a = -1 without an override
+// A row per style: texels 0..7 override a part slot (rgba; a = -1: no override, -2: hidden), texels 8..15 are the
+// slot's base colour (a = -1: none), texels 16..23 hold the slot's dim in r.
+uniform highp sampler2D scene_styles;
+uniform vec4 scene_dimColor;            // straight rgb, 0..1, that dim moves paints towards; a < 0: none, no dimming
 
 // Hidden and culled vertices go outside the clip volume.
 const vec4 SCENE_HIDDEN = vec4(2.0, 2.0, 2.0, 1.0);
@@ -34,6 +37,10 @@ vec4 sceneElement(float index) {
 
 vec4 sceneStyle(float styleId, float slot) {
   return texelFetch(scene_styles, ivec2(int(slot), int(styleId)), 0);
+}
+
+vec4 sceneBase(float styleId, float slot) {
+  return texelFetch(scene_styles, ivec2(int(slot) + ${PART_SLOTS}, int(styleId)), 0);
 }
 
 // depthOf(): larger is nearer.
@@ -65,9 +72,31 @@ vec4 sceneOverride(vec4 color, float styleId, float slot) {
   return paint.a >= 0.0 ? paint : color;
 }
 
+// The paint of a part slot: an unset paint (USE_BASE_ALPHA, a < -2.5) takes the style's base colour, none paints
+// nothing; then the style's override applies.
+vec4 scenePaint(vec4 color, float styleId, float slot) {
+  vec4 paint = color;
+  if (paint.a < -2.5) {
+    vec4 base = sceneBase(styleId, slot);
+    paint = base.a < 0.0 ? vec4(0.0) : base;
+  }
+  return sceneOverride(paint, styleId, slot);
+}
+
 // Whether the style hides the part slot (visible: false, a < -1.5): then the whole primitive is not drawn.
 bool sceneHidden(float styleId, float slot) {
   return sceneStyle(styleId, slot).a < -1.5;
+}
+
+// The dim of a part slot, 0..1; slot 0 holds the element's dim.
+float sceneDim(float styleId, float slot) {
+  return texelFetch(scene_styles, ivec2(int(slot) + ${DIM_TEXEL}, int(styleId)), 0).r;
+}
+
+// A straight paint (after scenePaint) moved towards the dim colour by the dim. The alpha is kept, so an opaque paint
+// stays in the opaque pass; the fragment shader premultiplies afterwards, as for any paint.
+vec4 sceneDimmed(vec4 paint, float dim) {
+  return scene_dimColor.a < 0.0 ? paint : vec4(mix(paint.rgb, scene_dimColor.rgb, dim), paint.a);
 }
 `;
 
@@ -108,8 +137,8 @@ layout(location = 0) in vec2 scene_template;   // quad corner, 0..1
 layout(location = 1) in vec4 rect_ids;         // element index, sub, fill slot, border slot
 layout(location = 2) in vec4 rect_box;         // x, y, width, height from the element origin
 layout(location = 3) in vec4 rect_radius;      // top-left, top-right, bottom-right, bottom-left
-layout(location = 4) in vec4 rect_fill;        // straight rgba; alpha 0: no fill
-layout(location = 5) in vec4 rect_border;      // straight rgba; alpha 0: no border
+layout(location = 4) in vec4 rect_fill;        // straight rgba; alpha 0: no fill, -3: the base colour
+layout(location = 5) in vec4 rect_border;      // straight rgba; alpha 0: no border, -3: the base colour
 layout(location = 6) in vec4 rect_borderSize;  // camera-aware width: mode, value, min, max
 layout(location = 7) in vec4 rect_extra;       // align (0 inside, 1 center, 2 outside), minScale, maxScale
 ${SCENE_COMMON}
@@ -138,8 +167,11 @@ void main() {
   rect_vLocal = local;
   rect_vHalfSize = halfSize;
   rect_vRadius = rect_radius;
-  rect_vFill = sceneOverride(rect_fill, element.w, rect_ids.z);
-  rect_vBorder = sceneOverride(rect_border, element.w, rect_ids.w);
+  // The primitive's part slot: one of the two paint slots is the part's, the other is 0 (both 0 without a part). Dim
+  // belongs to the primitive, so it moves both paints, as in the Canvas2D interpreter.
+  float dim = sceneDim(element.w, max(rect_ids.z, rect_ids.w));
+  rect_vFill = sceneDimmed(scenePaint(rect_fill, element.w, rect_ids.z), dim);
+  rect_vBorder = sceneDimmed(scenePaint(rect_border, element.w, rect_ids.w), dim);
   rect_vEdges = vec2(outer - width, outer);
 }
 `;
@@ -200,7 +232,7 @@ layout(location = 0) in vec2 scene_template;  // quad corner, 0..1
 layout(location = 1) in vec4 glyph_ids;       // element index, sub, part slot
 layout(location = 2) in vec4 glyph_quad;      // x, y, width, height at the base size, from the text origin
 layout(location = 3) in vec4 glyph_uv;        // u0, v0, u1, v1 in the atlas
-layout(location = 4) in vec4 glyph_color;     // straight rgba
+layout(location = 4) in vec4 glyph_color;     // straight rgba; alpha -3: the base colour
 layout(location = 5) in vec4 glyph_size;      // camera-aware font size: mode, value, min, max
 layout(location = 6) in vec4 glyph_origin;    // text origin x, y from the element origin, base size
 layout(location = 7) in vec4 glyph_scales;    // minScale, maxScale
@@ -218,7 +250,7 @@ void main() {
   vec2 world = element.xy + glyph_origin.xy + (glyph_quad.xy + scene_template * glyph_quad.zw) * s;
   gl_Position = sceneClip(world, sceneDepth(element.z, glyph_ids.y));
   glyph_vUv = mix(glyph_uv.xy, glyph_uv.zw, scene_template);
-  glyph_vColor = sceneOverride(glyph_color, element.w, glyph_ids.z);
+  glyph_vColor = sceneDimmed(scenePaint(glyph_color, element.w, glyph_ids.z), sceneDim(element.w, glyph_ids.z));
 }
 `;
 
@@ -259,7 +291,7 @@ export const PATH_ELEMENT_ATTRIBUTES = ["scene_pathIds", "scene_pathScales"] as 
 
 /**
  * #451's line vertex shader with the element: control points are relative to the element origin, the depth comes
- * from the element key and the path's sub, the style overrides the stroke colour by the path's part slot, and a hidden
+ * from the element key and the path's sub, the style paints the stroke by the path's part slot, and a hidden
  * element or a camera scale outside the path's bounds moves the instance out of the clip volume.
  */
 export const PATH_VERTEX = /* glsl */ `#version 300 es
@@ -268,7 +300,7 @@ precision highp float;
 layout(location = 0) in vec2 graph_template;     // t along the piece, side -1 or +1
 layout(location = 1) in vec4 graph_p0c1;         // p0, c1
 layout(location = 2) in vec4 graph_c2p3;         // c2, p3
-layout(location = 3) in vec4 graph_rgba;         // straight rgba, 0..1
+layout(location = 3) in vec4 graph_rgba;         // straight rgba, 0..1; alpha -3: the base colour
 layout(location = 4) in vec4 graph_stroke;       // width, connection length, distance at the piece start, piece length
 layout(location = 5) in vec4 graph_dash;         // on, off, on, off; zeros: solid
 layout(location = 6) in vec4 graph_params0;      // effect params 0..3
@@ -336,7 +368,10 @@ void main() {
   graph_vAcross = graph_template.y * extent;
   graph_vHalfWidth = halfPx;
   graph_vHairline = min(deviceWidth, 1.0);
-  graph_vColor = sceneOverride(graph_rgba, element.w, scene_pathIds.z);
+  graph_vColor = sceneDimmed(
+    scenePaint(graph_rgba, element.w, scene_pathIds.z),
+    sceneDim(element.w, scene_pathIds.z)
+  );
   graph_vAlong = graph_stroke.z + t * graph_stroke.w;
   // The vertex's world position, off the center line: each fragment interpolates its own.
   graph_vWorld = center + offset / graph_camera.z;

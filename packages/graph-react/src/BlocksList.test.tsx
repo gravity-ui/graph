@@ -8,7 +8,7 @@ import { BlocksList } from "./BlocksList";
 describe("BlocksList", () => {
   it("renders blocks at scale 0.55 when a custom strategy makes the level detailed from 0.5 (G7)", () => {
     const graph = new Graph({
-      blocks: [{ is: "Block", id: "b1", name: "b1", x: 0, y: 0, width: 100, height: 60, selected: false, anchors: [] }],
+      blocks: [{ is: "Block", id: "b1", name: "b1", x: 0, y: 0, width: 100, height: 60, anchors: [] }],
       settings: {
         getCameraBlockScaleLevel: (_g: Graph, scale: number) =>
           scale >= 0.5 ? ECameraScaleLevel.Detailed : ECameraScaleLevel.Schematic,

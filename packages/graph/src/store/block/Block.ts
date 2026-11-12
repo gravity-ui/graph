@@ -27,7 +27,6 @@ export class BlockState<T extends TBlock = TBlock> {
    */
   public $state = computed(() => ({
     ...this.$rawState.value,
-    selected: this.$selected.value,
   }));
 
   /**
@@ -267,7 +266,6 @@ export class BlockState<T extends TBlock = TBlock> {
   public asTBlock(): T {
     return cloneDeep({
       ...this.$rawState.toJSON(),
-      selected: this.$selected.value,
     });
   }
 
@@ -278,7 +276,6 @@ export class BlockState<T extends TBlock = TBlock> {
   public asTBlockShallow(): Readonly<T> {
     return {
       ...this.$rawState.value,
-      selected: this.$selected.value,
     };
   }
 }

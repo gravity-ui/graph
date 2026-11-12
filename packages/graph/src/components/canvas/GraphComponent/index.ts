@@ -345,6 +345,10 @@ export class GraphComponent<
       this.context.graph.rootStore.connectionsList.releasePort(port.id, this);
     });
     this.ports.clear();
+    // A removed component under a stationary pointer must not stay hovered (and keep hoveredTag).
+    // (Graph doubles in unit tests may lack a graph layer.)
+    const graphLayer = (this.context.graph as Partial<Graph>).getGraphLayer?.();
+    if (graphLayer && graphLayer.$hoveredComponent.peek() === this) graphLayer.setHoveredComponent(undefined);
     this.destroyHitBox();
     this.mounted = false;
     // Dispatch before super.unmount(): EventedComponent.unmount() drops this component's listeners,

@@ -37,8 +37,8 @@ function duplicate(blocks: TBlock[], connections: TMultipointConnection[] = []):
 
 describe("createDuplicates", () => {
   describe("blocks", () => {
-    it("keeps the source block type and data, moves the copy and drops selection", () => {
-      const source = block("a", { is: "CustomBlock", x: 5, y: 7, selected: true, meta: { color: "red" } });
+    it("keeps the source block type and data, moves the copy", () => {
+      const source = block("a", { is: "CustomBlock", x: 5, y: 7, meta: { color: "red" } });
 
       const { blocks } = duplicate([source]);
 
@@ -83,7 +83,6 @@ describe("createDuplicates", () => {
           id: "inner",
           sourceBlockId: "a",
           targetBlockId: "b",
-          selected: true,
           label: "edge",
           dashed: true,
           styles: { background: "red" },

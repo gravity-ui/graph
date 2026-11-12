@@ -5,6 +5,7 @@ import isObject from "lodash/isObject";
 import { Component } from "../../../lib/Component";
 import { DragContext, DragDiff } from "../../../services/drag";
 import { ESelectionStrategy } from "../../../services/selection";
+import type { TStyleParts } from "../../../services/styles/types";
 import { TGraphSettingsConfig } from "../../../store";
 import { EAnchorType } from "../../../store/anchor/Anchor";
 import { BlockState, IS_BLOCK_TYPE, TBlockId } from "../../../store/block/Block";
@@ -40,7 +41,6 @@ export type TBlock<T extends Record<string, unknown> = {}> = {
   group?: string;
   width: number;
   height: number;
-  selected?: boolean;
   name: string;
   anchors?: TAnchor[];
   settings?: TBlockSettings;
@@ -93,12 +93,24 @@ export type TBlockViewOptions = {
   text?: boolean;
 };
 
+/** Component state of a block: the block data plus the selection read from `$selected`. */
+export type TBlockComponentState<T extends TBlock = TBlock> = T & { selected?: boolean };
+
 export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlockProps> extends GraphComponent<
   Props,
-  T,
+  TBlockComponentState<T>,
   TGraphLayerContext
 > {
   public static IS = IS_BLOCK_TYPE;
+
+  /** The entity type of the selection bucket and of tag addresses. */
+  public static entityType = "block";
+
+  /**
+   * Part names style rules can set for blocks; a type brand only, never set at runtime. A subclass adds parts by
+   * redeclaring it: `public declare readonly __styleParts?: TStyleParts<"body" | "border" | "title" | "badge">`.
+   */
+  public declare readonly __styleParts?: TStyleParts<"body" | "border" | "title">;
 
   public cursor?: string = "pointer";
 
@@ -107,7 +119,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
 
   public declare context: TGraphLayerContext;
 
-  public declare state: T;
+  public declare state: TBlockComponentState<T>;
 
   public declare props: Props;
 
@@ -205,16 +217,24 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     return blockState as BlockState<T>;
   }
 
+  /** The selection as a state patch: it comes from the selection bucket (`$selected`), never from the block data. */
+  private selectionState(): Pick<TBlockComponentState<T>, "selected"> {
+    // T may declare its own `selected`; the component state's `selected` is the bucket's boolean.
+    return { selected: this.connectedState.$selected.peek() } as unknown as Pick<TBlockComponentState<T>, "selected">;
+  }
+
   protected subscribe(id: TBlockId) {
     this.connectedStateUnsubscribers.forEach((unsub) => unsub());
     this.connectedStateUnsubscribers = [];
 
     this.connectedState = this.getConnectedState(id);
-    this.state = cloneDeep(this.connectedState.$state.value);
+    this.state = { ...cloneDeep(this.connectedState.$state.value), selected: this.connectedState.$selected.value };
     this.connectedState.setViewComponent(this);
     this.setState({
       ...this.connectedState.$state.value,
       anchors: this.connectedState.$anchors.value,
+      // After the spread: a legacy `selected` in untyped or persisted data must not override the selection.
+      ...this.selectionState(),
     });
     this.updateViewState({
       zIndex: this.zIndex,
@@ -228,10 +248,16 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
         });
         this.shouldUpdateChildren = true;
       }),
+      this.connectedState.$selected.subscribe((selected) => {
+        if (selected !== this.getNextState().selected) {
+          this.setState({ selected } as unknown as Pick<TBlockComponentState<T>, "selected">);
+        }
+      }),
       this.connectedState.$state.subscribe(() => {
         this.setState({
           ...this.connectedState.$state.value,
           anchors: this.connectedState.$anchors.value,
+          ...this.selectionState(),
         });
         this.updateHitBox(this.connectedState.$geometry.value);
         if (!this.blockHidden) {
@@ -276,7 +302,7 @@ export class Block<T extends TBlock = TBlock, Props extends TBlockProps = TBlock
     this.performRender();
   }
 
-  protected stateChanged(nextState: T): void {
+  protected stateChanged(nextState: TBlockComponentState<T>): void {
     if (!this.firstIterate && nextState.selected !== this.state.selected) {
       this.raiseBlock();
     }

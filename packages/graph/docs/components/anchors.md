@@ -48,7 +48,6 @@ const graphConfig = {
       width: 150,
       height: 80,
       name: "Source Block",
-      selected: false,
       anchors: [
         {
           id: "out1",
@@ -66,7 +65,6 @@ const graphConfig = {
       width: 150,
       height: 80,
       name: "Target Block",
-      selected: false,
       anchors: [
         {
           id: "in1",
@@ -84,7 +82,6 @@ const graphConfig = {
       sourceAnchorId: "out1", // Reference to the source anchor
       targetBlockId: "block2",
       targetAnchorId: "in1", // Reference to the target anchor
-      selected: false
     }
   ]
 };
@@ -106,7 +103,6 @@ const blockId = graph.api.addBlock({
   width: 150,
   height: 80,
   name: "New Block",
-  selected: false,
   anchors: [
     {
       id: "in",

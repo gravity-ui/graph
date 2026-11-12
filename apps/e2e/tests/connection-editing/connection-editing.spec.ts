@@ -21,7 +21,6 @@ const BLOCKS: TBlock[] = [
     width: 200,
     height: 100,
     name: "Block A",
-    selected: false,
     anchors: [
       { id: "in-a", blockId: "block-a", type: "IN" },
       { id: "out-a", blockId: "block-a", type: "OUT" },
@@ -35,7 +34,6 @@ const BLOCKS: TBlock[] = [
     width: 200,
     height: 100,
     name: "Block B",
-    selected: false,
     anchors: [
       { id: "in-b", blockId: "block-b", type: "IN" },
       { id: "out-b", blockId: "block-b", type: "OUT" },
@@ -49,7 +47,6 @@ const BLOCKS: TBlock[] = [
     width: 200,
     height: 100,
     name: "Block C",
-    selected: false,
     anchors: [],
   },
 ];

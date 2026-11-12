@@ -13,7 +13,6 @@ export function createBlock(x: number, y: number, index: number | string): TBloc
     y,
     width: 200,
     height: 150,
-    selected: false,
     name: blockId,
     anchors: [],
   };

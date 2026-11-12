@@ -70,6 +70,8 @@ async function setup(options: {
   scale: number;
   /** Interpreter only: ends a path run after this many paths and polygons (drawElements' maxRun). */
   maxRun?: number;
+  /** WebGL only: a style with this `opacity` on every block element. */
+  blockOpacity?: number;
 }): Promise<{ blocks: number; connections: number; groups: number; first: number[] }> {
   const root = document.getElementById("root") as HTMLDivElement;
   root.style.width = `${options.width}px`;
@@ -88,8 +90,9 @@ async function setup(options: {
   }
   state.center = { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
   if (options.renderer === "walk") state.column = setupWalk(root, scene);
-  else if (options.renderer === "webgl") state.column = await setupWebGL(root, scene);
-  else if (options.renderer === "cached") state.column = setupInterpreter(root, scene, { batchConnections: true });
+  else if (options.renderer === "webgl") {
+    state.column = await setupWebGL(root, scene, { blockOpacity: options.blockOpacity });
+  } else if (options.renderer === "cached") state.column = setupInterpreter(root, scene, { batchConnections: true });
   else state.column = setupInterpreter(root, scene, { maxRun: options.maxRun });
   instrument(state.column.graph);
   centerAt(options.scale);
@@ -105,6 +108,8 @@ async function run(options: {
   warmup: number;
   steps: number;
   scale: number;
+  /** World units the drag mode moves the block by, back and forth (default 3). */
+  dragOffset?: number;
 }): Promise<{ samples: number[]; frames: number[]; timeouts: number; ticks: number[]; actionMs: number }> {
   if (options.warmup < 1) throw new Error("run() needs warmup >= 1: the first zoom step does not change the scale");
   const column = state.column;
@@ -140,7 +145,7 @@ async function run(options: {
       const { width, height } = camera.getCameraState();
       camera.zoom(width / 2, height / 2, base * (1 + 0.003 * (phase < 15 ? phase : 30 - phase)));
     } else {
-      column.drag(i % 2 ? 0 : 3);
+      column.drag(i % 2 ? 0 : options.dragOffset ?? 3);
     }
     if (i >= options.warmup) actionTotal += performance.now() - actionStart;
     const ticked = await waitForTick(previous);

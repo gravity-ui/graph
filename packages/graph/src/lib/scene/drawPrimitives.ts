@@ -1,6 +1,7 @@
 import { renderText } from "../../utils/renderers/text";
 
 import { resolveSceneSize } from "./size";
+import { applyStyle } from "./style";
 import type { TSceneElement, TScenePrimitive, TSceneStroke, TSceneStyle } from "./types";
 
 export function isPrimitiveVisible(primitive: TScenePrimitive, scale: number): boolean {
@@ -9,9 +10,9 @@ export function isPrimitiveVisible(primitive: TScenePrimitive, scale: number): b
   return true;
 }
 
-/** How far a stroke's centre line moves inwards from the shape's edge. */
+/** How far a stroke's centre line moves inwards from the shape's edge; an unset width draws no stroke. */
 function strokeInset(stroke: TSceneStroke, scale: number): number {
-  const width = resolveSceneSize(stroke.width, scale);
+  const width = stroke.width === undefined ? 0 : resolveSceneSize(stroke.width, scale);
   if (stroke.align === "inside") return width / 2;
   if (stroke.align === "outside") return -width / 2;
   return 0;
@@ -23,14 +24,19 @@ function insetRadius(radius: number | readonly number[] | undefined, inset: numb
   return radius.map((value) => Math.max(0, value - inset));
 }
 
-export function applyStroke(ctx: CanvasRenderingContext2D, stroke: TSceneStroke, scale: number): void {
+/** Sets the stroke's style; false when its colour or width is unset, which draws nothing. */
+export function applyStroke(ctx: CanvasRenderingContext2D, stroke: TSceneStroke, scale: number): boolean {
+  if (stroke.color === undefined || stroke.width === undefined) return false;
   ctx.strokeStyle = stroke.color;
   ctx.lineWidth = resolveSceneSize(stroke.width, scale);
   ctx.setLineDash(stroke.dash ? [...stroke.dash] : []);
+  return true;
 }
 
 export function strokeKey(stroke: TSceneStroke | undefined, scale: number): string {
-  return stroke ? `${stroke.color}|${resolveSceneSize(stroke.width, scale)}|${stroke.dash?.join(",") ?? ""}` : "none";
+  if (!stroke) return "none";
+  const width = stroke.width === undefined ? "" : resolveSceneSize(stroke.width, scale);
+  return `${stroke.color ?? ""}|${width}|${stroke.dash?.join(",") ?? ""}`;
 }
 
 /** Draws a rect, circle, text or icon whose coordinates are relative to (ox, oy). */
@@ -51,9 +57,8 @@ function drawShape(
         ctx.roundRect(x, y, primitive.width, primitive.height, insetRadius(primitive.radius, 0));
         ctx.fill();
       }
-      if (primitive.border) {
+      if (primitive.border && applyStroke(ctx, primitive.border, scale)) {
         const inset = strokeInset(primitive.border, scale);
-        applyStroke(ctx, primitive.border, scale);
         ctx.beginPath();
         ctx.roundRect(
           x + inset,
@@ -73,13 +78,13 @@ function drawShape(
         ctx.fillStyle = primitive.fill;
         ctx.fill();
       }
-      if (primitive.border) {
-        applyStroke(ctx, primitive.border, scale);
+      if (primitive.border && applyStroke(ctx, primitive.border, scale)) {
         ctx.stroke();
       }
       return;
     }
     case "text": {
+      if (primitive.color === undefined) return;
       const size = resolveSceneSize(primitive.size, scale);
       ctx.fillStyle = primitive.color;
       ctx.textAlign = primitive.align ?? "left";
@@ -92,6 +97,7 @@ function drawShape(
       return;
     }
     case "icon": {
+      if (primitive.color === undefined) return;
       const factor = primitive.size / primitive.viewBox;
       ctx.save();
       ctx.translate(ox + primitive.x, oy + primitive.y);
@@ -126,32 +132,9 @@ export type TDrawElementsOptions = {
   maxRun?: number;
   /** Style overrides by `element.styleId`; see `TSceneStyle`. */
   styles?: readonly TSceneStyle[];
+  /** The colour a style's `dim` moves paints towards (`SceneStore.getDimColor()`); without it `dim` changes nothing. */
+  dimColor?: string;
 };
-
-/** The primitive with the style's override of its part applied; undefined when the part is hidden. */
-function applyStyle(primitive: TScenePrimitive, style: TSceneStyle | undefined): TScenePrimitive | undefined {
-  const override = primitive.part !== undefined ? style?.[primitive.part] : undefined;
-  if (!override) return primitive;
-  if (override.visible === false) return undefined;
-  const color = override.color;
-  if (color === undefined) return primitive;
-  if (primitive.part === "border" && (primitive.kind === "rect" || primitive.kind === "circle")) {
-    return primitive.border ? { ...primitive, border: { ...primitive.border, color } } : primitive;
-  }
-  switch (primitive.kind) {
-    case "rect":
-    case "circle":
-    case "polygon":
-      return { ...primitive, fill: color };
-    case "text":
-    case "icon":
-      return { ...primitive, color };
-    case "path":
-      return { ...primitive, stroke: { ...primitive.stroke, color } };
-    default:
-      return primitive;
-  }
-}
 
 function resolveMaxRun(maxRun: number | undefined): number {
   if (maxRun === undefined || maxRun === Infinity) return Infinity;
@@ -194,7 +177,8 @@ export function appendPolygon(path: Path2D, points: Float32Array, ox: number, oy
  * other form a run, drawn with one `fill` of all its polygons and then one `stroke` of all its paths and polygon
  * outlines. Inside a run the order is therefore not kept: every polygon fill lies under every stroke of the run, also
  * under the stroke of a path that came before the polygon. Any other primitive ends the run first, so the order between
- * runs and the other primitives is kept.
+ * runs and the other primitives is kept. A style's `opacity` and `dim` are applied to the colours (`applyStyle`), so
+ * paths of a different opacity have a different stroke key and never share a run.
  */
 export function drawElements(
   ctx: CanvasRenderingContext2D,
@@ -211,8 +195,7 @@ export function drawElements(
       ctx.fillStyle = run.fill;
       ctx.fill(run.fillPath);
     }
-    if (run.stroke) {
-      applyStroke(ctx, run.stroke, scale);
+    if (run.stroke && applyStroke(ctx, run.stroke, scale)) {
       ctx.stroke(run.strokePath);
     }
     run = undefined;
@@ -223,7 +206,7 @@ export function drawElements(
     const style = options.styles?.[element.styleId];
     for (let p = 0; p < element.primitives.length; p++) {
       if (!isPrimitiveVisible(element.primitives[p], scale)) continue;
-      const primitive = applyStyle(element.primitives[p], style);
+      const primitive = applyStyle(element.primitives[p], style, options.dimColor);
       if (!primitive) continue;
       drawn++;
       if (primitive.kind === "path" || primitive.kind === "polygon") {

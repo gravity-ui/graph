@@ -98,7 +98,6 @@ export function GraphEditor() {
           y: -450,
           width: 126,
           height: 126,
-          selected: true,
           name: "Block #1",
           anchors: [
             {
@@ -116,7 +115,6 @@ export function GraphEditor() {
           y: 176,
           width: 126,
           height: 126,
-          selected: false,
           name: "Block #2",
           anchors: [
             {
@@ -263,6 +261,7 @@ graph.zoomTo("center", { padding: 100 });
    - [Public API](docs/system/public_api.md)
    - [Scheduler System](docs/system/scheduler-system.md)
    - [Scene](docs/system/scene.md)
+   - [Tags and styles](docs/system/tags-and-styles.md)
 
 2. Components
    - [Canvas Graph Component](docs/components/canvas-graph-component.md)

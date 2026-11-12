@@ -144,7 +144,7 @@ RootStore
 ```typescript
 BlockState {
   $rawState: Signal<TBlock>           // Raw block data
-  $state: computed(() => ...)         // Full state + selection
+  $state: computed(() => ...)         // Full block data; selection is not part of it, read $selected
   $geometry: computed(() => ...)      // x, y, width, height
   $selected: computed(() => ...)      // Selection state
   $anchorStates: Signal<AnchorState[]>
@@ -1215,14 +1215,13 @@ export const MyStory = () => {
 
 ### Data Types
 
-**Blocks must have required TBlock fields:**
+**Blocks must have required TBlock fields** (selection is not block data; it lives in the selection buckets, read it through `$selected`, `selectedTag` or the selection API):
 ```typescript
 const blocksData: TBlock[] = [
   {
     is: "Block" as const,      // Required
     id: "block-1",              // Required
     name: "Block 1",            // Required
-    selected: false,            // Required
     x: 100,
     y: 100,
     width: 200,

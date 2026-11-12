@@ -55,6 +55,22 @@ describe("SceneDepth atomicity and bulk load", () => {
     expect(depth.takeChanged()).toHaveLength(20000);
     expect(depth.keyOf("e0")).toBeLessThan(depth.keyOf("e1"));
   });
+
+  it("lists the elements whose own zIndex or order was set, not the ones a renumbering moved", () => {
+    const depth = new SceneDepth();
+    depth.set("a", 200, 1);
+    depth.set("b", 200, 2);
+    depth.set("c", 200, 3);
+    expect(depth.takeSet().sort()).toEqual(["a", "b", "c"]);
+    depth.takeChanged();
+    depth.set("a", 200, 4); // a raise: b and c move up a rank
+    expect(new Set(depth.takeChanged())).toEqual(new Set(["a", "b", "c"]));
+    expect(depth.takeSet()).toEqual(["a"]);
+    expect(depth.takeSet()).toEqual([]);
+    depth.set("d", 200, 5);
+    depth.delete("d");
+    expect(depth.takeSet()).toEqual([]);
+  });
 });
 
 describe("depthOf", () => {

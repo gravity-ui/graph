@@ -38,10 +38,10 @@ export class SceneCanvasLayer extends Layer<TSceneCanvasLayerProps> {
     const elements = this.props.store.query(viewport);
     const scale = this.props.graph.cameraService.getCameraScale();
     const { maxRun, batches, store } = this.props;
-    const styles = store.getStyles();
+    const options = { maxRun, styles: store.getStyles(), dimColor: store.getDimColor() };
     this.stats.elements = elements.length;
     if (!batches || batches.length === 0) {
-      this.stats.primitives = drawElements(ctx, elements, scale, { maxRun, styles });
+      this.stats.primitives = drawElements(ctx, elements, scale, options);
       this.stats.batchedPrimitives = 0;
       this.stats.chunks = 0;
       return;
@@ -52,14 +52,14 @@ export class SceneCanvasLayer extends Layer<TSceneCanvasLayerProps> {
     let next = 0;
     for (const batch of [...batches].sort((a, b) => a.zIndex - b.zIndex)) {
       let end = next;
-      while (end < elements.length && elements[end].zIndex <= batch.zIndex) end++;
-      if (end > next) primitives += drawElements(ctx, elements.slice(next, end), scale, { maxRun, styles });
+      while (end < elements.length && store.zIndexOf(elements[end]) <= batch.zIndex) end++;
+      if (end > next) primitives += drawElements(ctx, elements.slice(next, end), scale, options);
       next = end;
       const drawn = batch.render(ctx, viewport);
       batchedPrimitives += drawn.primitives;
       chunks += drawn.chunks;
     }
-    if (next < elements.length) primitives += drawElements(ctx, elements.slice(next), scale, { maxRun, styles });
+    if (next < elements.length) primitives += drawElements(ctx, elements.slice(next), scale, options);
     this.stats.primitives = primitives + batchedPrimitives;
     this.stats.batchedPrimitives = batchedPrimitives;
     this.stats.chunks = chunks;

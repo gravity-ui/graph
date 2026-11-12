@@ -12,7 +12,6 @@ const BLOCKS = [
     height: 100,
     name: "Near Block",
     anchors: [],
-    selected: false,
   },
   {
     id: "far",
@@ -23,7 +22,6 @@ const BLOCKS = [
     height: 100,
     name: "Far Block",
     anchors: [],
-    selected: false,
   },
 ];
 

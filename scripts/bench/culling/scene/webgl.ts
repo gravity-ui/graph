@@ -20,7 +20,11 @@ export function webglStats(): TWebGLStats | undefined {
   return backend && activeGraph ? { ...backend.stats, state: activeGraph.scene.$renderer.value } : undefined;
 }
 
-export async function setupWebGL(root: HTMLDivElement, scene: TBenchScene): Promise<TColumn> {
+export async function setupWebGL(
+  root: HTMLDivElement,
+  scene: TBenchScene,
+  options: { blockOpacity?: number } = {}
+): Promise<TColumn> {
   const graph = new Graph(
     { settings: { canDragCamera: true, canZoomCamera: true } } as unknown as ConstructorParameters<typeof Graph>[0],
     root
@@ -50,6 +54,11 @@ export async function setupWebGL(root: HTMLDivElement, scene: TBenchScene): Prom
       bounds: blockBounds(block.height),
       primitives: [...blockPrimitives(block.meta, block.height), ...anchorPrimitives(block.meta)],
     });
+  }
+  if (options.blockOpacity !== undefined) {
+    // Every block faded: its primitives move into the translucent pass, drawn in scene order.
+    const faded = store.defineStyle({ opacity: options.blockOpacity });
+    for (const block of scene.blocks) store.setStyle(block.id, faded);
   }
   {
     let minX = Infinity;

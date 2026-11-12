@@ -10,7 +10,6 @@ describe("getBlocksRect", () => {
     y,
     width,
     height,
-    selected: false,
     name: `Block ${id}`,
     anchors: [],
     settings: {

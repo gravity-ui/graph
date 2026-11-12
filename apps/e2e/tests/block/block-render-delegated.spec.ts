@@ -30,7 +30,6 @@ const BLOCKS = [
     height: 100,
     name: "Block 1",
     anchors: [],
-    selected: false,
   },
   {
     id: "block-2",
@@ -41,7 +40,6 @@ const BLOCKS = [
     height: 100,
     name: "Block 2",
     anchors: [],
-    selected: false,
   },
 ];
 

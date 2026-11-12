@@ -3,6 +3,7 @@ export {
   Block as CanvasBlock,
   isTBlock,
   type TBlock,
+  type TBlockComponentState,
   type TBlockProps,
   type TBlockViewOptions,
 } from "./components/canvas/blocks/Block";
@@ -73,7 +74,48 @@ export type {
   TSceneRenderer,
   TSceneRendererState,
 } from "./services/scene/types";
-export type { TScenePrimitive, TSceneSize, TSceneStroke, TSceneStyle, TSceneElement } from "./lib/scene/types";
+export {
+  defineTag,
+  entityKey,
+  selectedTag,
+  hoveredTag,
+  draggingTag,
+  dropTargetTag,
+  connectionSourceTag,
+  connectionTargetTag,
+  getEntityAddress,
+} from "./services/tags";
+// Types only: the graph creates its own tag store and stylesheet (`graph.scene.tags`, `graph.scene.styles`).
+export type { TagStore } from "./services/tags/TagStore";
+export type {
+  TEntityAddress,
+  TEntityId,
+  TEntityType,
+  TTag,
+  TTagIds,
+  TTagMembers,
+  TTagSet,
+} from "./services/tags/types";
+export type { SceneStyleSheet, TOrderedRule } from "./services/styles/SceneStyleSheet";
+export { createThemeRules } from "./services/styles/themeRules";
+export type {
+  TPartsOf,
+  TRuleStyle,
+  TStyleExplanation,
+  TStyleParts,
+  TStyleRule,
+  TStyleScope,
+  TStyleTarget,
+  TTagValues,
+} from "./services/styles/types";
+export type {
+  TScenePartStyle,
+  TScenePrimitive,
+  TSceneSize,
+  TSceneStroke,
+  TSceneStyle,
+  TSceneElement,
+} from "./lib/scene/types";
 export type { ISceneBackendModule, TSceneBackendStats } from "./lib/scene/webgl/backendTypes";
 export * from "./utils/shapes";
 export { applyAlpha, clearColorCache } from "./utils/functions/color";

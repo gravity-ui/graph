@@ -13,7 +13,6 @@ export const withAnchorsConfig: TGraphConfig = {
       height: 300,
       id: "Left",
       is: "Block",
-      selected: false,
       name: "left blocks",
       anchors: [
         {
@@ -49,7 +48,6 @@ export const withAnchorsConfig: TGraphConfig = {
       height: 300,
       id: "Right",
       is: "Block",
-      selected: false,
       name: "right block",
       anchors: [
         {

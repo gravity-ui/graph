@@ -1,0 +1,256 @@
+# Tags and styles (`graph.scene.tags`, `graph.scene.styles`)
+
+A visual state of a graph element (selected, hovered, running) is a **tag** plus a **rule**, not code in a component
+class:
+
+1. **Systems write tags.** Selection, drag, hover and your own code say "this entity has this tag".
+2. **Rules map tags to part values.** A stylesheet says "a block with `selected` gets this border colour".
+3. **The scene draws computed styles.** For each element the scene resolves its class and tags into a style row and
+   draws the row's values.
+
+Tags and styles live on the scene (`graph.scene.tags`, `graph.scene.styles`) because they exist for the scene's looks.
+See [Scene](scene.md) for the renderer itself.
+
+## Tags
+
+A tag belongs to an entity, addressed by `(entityType, id)`: `"block"`, `"connection"`, `"anchor"`, `"group"` or a type
+a layer registers. A canvas component exposes its type as `static entityType`; `getEntityAddress(component)` returns the
+address.
+
+```ts
+import { defineTag } from "@gravity-ui/graph";
+
+const runningTag = defineTag("running"); // TTag<true>
+const presenceTag = defineTag<string>("presence"); // a tag with a value per entity
+
+graph.scene.tags.set(runningTag, { block: ["a", "b"] }); // exactly these blocks
+graph.scene.tags.add(presenceTag, { block: new Map([["a", "#ff4081"]]) }); // add members
+graph.scene.tags.delete(runningTag, { block: ["a"] });
+graph.scene.tags.clear(runningTag);
+graph.scene.tags.setRoot(focusTag, true); // a graph-wide ("root") tag
+```
+
+- `set` replaces the members of a tag, `add` adds to them, `delete` removes the given ids, `clear` removes all.
+- `bind(tag, $members)` keeps a tag equal to a signal of members and returns an unsubscribe function.
+- `setRoot(tag, on)` and `$root` hold graph-wide tags (for example "something is focused").
+- `$of(type, id)` is a signal of one entity's tags with their values; `membersOf(tag)` lists a tag's members.
+
+**Few distinct values.** The tag values of an entity are part of its style signature: the scene resolves one style row
+per distinct `(class, tags, values)` combination. A tag value fits when it takes few distinct values across the graph:
+a status out of a small set, or the presence colour of one of a few collaborators. Continuous data (a progress from 0
+to 1, a latency) does not belong in a tag; keep it in element data.
+
+**JSON-serialisable values.** The signature encodes tag values with `JSON.stringify`, so a value must be
+JSON-serialisable: strings, numbers, booleans, `null`, and plain arrays and objects of them. A `bigint` throws; a `Map`
+or a `Set` encodes as `{}` and a function as nothing, so different values of them share one style row.
+
+### Built-in tags
+
+| Tag | Writer |
+| --- | --- |
+| `selectedTag` | bound to `graph.selectionService.$selection`: every selected entity of every type |
+| `hoveredTag` | `GraphLayer`: the component under the pointer, one entity at a time |
+| `draggingTag` | `DragService`: the participants of the current drag |
+| `dropTargetTag` | the groups transfer layer: a group that accepts the dragged blocks |
+| `connectionSourceTag`, `connectionTargetTag` | defined; the connection editing layer writes them in a later step |
+
+`selected` is no longer a field of `TBlock`, `TConnection` or their `$state`. Read it with `$selected`, `selectedTag` or
+the selection API (`graph.selectionService`).
+
+## Rules
+
+`graph.scene.styles` is the graph's stylesheet (type `SceneStyleSheet`); `graph.scene.tags` is its tag store (type
+`TagStore`). The graph creates both; the package exports their types only.
+
+```ts
+import { CanvasBlock } from "@gravity-ui/graph";
+
+const remove = graph.scene.styles.add([
+  {
+    target: CanvasBlock,
+    tags: [runningTag],
+    style: { parts: { border: { color: "#00c853" } } },
+  },
+  {
+    target: CanvasBlock,
+    tags: [runningTag],
+    scope: { levels: ["minimalistic"] },
+    style: { parts: { body: { color: "#00c853" } } },
+  },
+  {
+    // Focus: fade every block that is not highlighted. `dim` keeps the blocks' colours, so a selected block keeps the
+    // theme's selection border, faded.
+    target: CanvasBlock,
+    root: [focusTag],
+    notTags: [highlightedTag],
+    style: { dim: 0.6 },
+  },
+  {
+    target: CanvasBlock,
+    tags: [presenceTag],
+    style: (values) => ({ parts: { border: { color: values.get(presenceTag) } } }),
+  },
+]);
+remove(); // removes exactly these rules
+```
+
+| Field | Meaning |
+| --- | --- |
+| `target` | A component class. A rule applies to the class and its subclasses (`instanceof` semantics). |
+| `tags` | All of these tags are on the entity. |
+| `notTags` | None of these tags is on the entity. |
+| `root` | These graph-wide tags are on. |
+| `scope` | Where the rule applies, like a media query: `levels` (scene levels) and `minScale` / `maxScale` (`[min, max)`). |
+| `priority` | Higher applies later and wins, over theme and user rules alike; at equal priority theme rules come first, then registration order. Default 0. |
+| `style` | `{ parts?, raise?, dim?, opacity? }`, or a function of the entity's tag values returning the same. |
+
+A part value (`TScenePartStyle`) is `color`, `visible`, `width` (stroke or border), `scale` (circle radius factor),
+`dim` and `opacity`. `raise` is added to the element's `zIndex` bucket while the rule applies: a selected block draws
+above its neighbour.
+
+**`dim`** (0 to 1, clamped) fades without recolouring: it moves every paint of a primitive towards the scene's dim
+colour, the theme's `colors.canvas.layerBackground`, by that amount (`rgb = mix(rgb, dimColor, dim)`). Alpha does not
+change, so an opaque block stays opaque. `dim` on the style sets it for the whole element; `dim` on a part overrides it
+for that part's primitives, so `{ dim: 0.6, parts: { title: { dim: 0 } } }` fades a block but keeps its title. Because
+`dim` touches no colour, it combines with any rule that does: a selected block under a focus `dim` keeps the theme's
+selection border, faded. Both renderers read the paints and the layer background in any CSS colour syntax.
+
+**`opacity`** (0 to 1, clamped) is real transparency: it multiplies the alpha of every paint of a primitive (`a = a ×
+opacity`), whether the paint comes from the primitive's data, a base rule or a state rule, so whatever lies under the
+element shows through: other elements, and the layers below the scene, such as the `BelowLayer` grid (the scene canvas
+is transparent, and the browser composites it over them).
+- **Nesting.** The element's `opacity` and a part's multiply: the effective opacity of a part is
+  `(style.opacity ?? 1) × (part's state opacity ?? part's base opacity ?? 1)`, so
+  `{ opacity: 0.5, parts: { title: { opacity: 0.5 } } }` draws the title at 0.25. A primitive without a part takes
+  the element's opacity.
+- **Per primitive, not a group.** Each primitive fades on its own, and the primitives of one element show through each
+  other. This is not CSS `opacity` on a group, which draws the element first and then fades it as one layer. A block
+  at `opacity: 0.5` whose border lies over its body shows the body through the border band: the band is the border at
+  0.5 over the body at 0.5 (75% cover), not the border colour at 50%. Group opacity is not available yet.
+- **Drawing.** A faded primitive is drawn in the translucent pass. Wherever translucent primitives overlap, WebGL
+  draws them in scene order across all kinds, as Canvas2D does: the `zIndex` bucket with its `raise`, then the
+  element's order, then the primitive's index in the element. So a faded block's body covers the title of a faded
+  block below it. Faded elements whose bounds do not overlap share draw calls: WebGL groups them into overlap levels
+  (an element is one level above the highest earlier faded element it overlaps) and draws, level by level, one call
+  per kind of primitive (paths, rects, text) and per change of kind inside an element.
+
+**`dim` or `opacity`.** Use `dim` to fade many elements cheaply, as a focus mode does: it rewrites style table rows,
+re-encodes nothing and keeps the elements opaque. Use `opacity` when what lies under an element must show through: a
+change re-encodes each affected element. On WebGL the faded elements cost a few draw calls unless faded elements
+overlap heavily; a stack of overlapping faded elements costs a few calls per element in the stack. Dragging a faded
+element stays cheap: only it and the faded elements around it are re-levelled, and while it overlaps other faded
+elements the pass can take a few more draw calls.
+
+### Cascade
+
+Values are resolved in this order; a later step overrides an earlier one:
+
+1. **Base rules** (no `tags`, `notTags` or `root`; a `scope` alone keeps a rule a base rule) give the part's default
+   values. The theme's colours are base rules: a primitive with no `fill` takes the theme's body colour.
+2. **Data**: the values the primitive sets itself.
+3. **State rules** (any rule with `tags`, `notTags` or `root`) override the data.
+
+How each part property goes through these steps:
+
+| Property | Base rule | Data | State rule |
+| --- | --- | --- | --- |
+| `color` | fills a paint the primitive leaves unset | the primitive's own paint beats the base | replaces the paint |
+| `width` | fills a stroke or border width the primitive leaves unset | the primitive's own width beats the base | replaces the width |
+| `visible` | applies: `false` hides every primitive of the part | primitives have no visibility of their own | wins over the base: `true` shows a part a base rule hides |
+| `scale` | applies to the part's circles | the primitive's radius | wins over the base scale |
+| `dim` (part) | applies to the part's primitives | primitives have no dim of their own | wins over the base dim |
+| `opacity` (part) | applies to the part's primitives | primitives have no opacity of their own (a translucent paint keeps its alpha, and the opacity multiplies it) | wins over the base opacity |
+
+The element-level `dim` merges like `raise`: the last matching rule that sets it wins, whatever its layer. A part
+without a `dim` of its own (from a state or a base rule) and a primitive without a part take it. The effective dim of a
+part is therefore its state dim, else its base dim, else the element's, else 0 (`parts ?? base ?? element`). So a base
+rule's part `dim` beats a state rule's element-level `dim`: `{ parts: { title: { dim: 0 } } }` in a base rule keeps the
+title of a block a focus rule dims with `{ dim: 0.6 }`.
+
+The element-level `opacity` merges the same way, the last matching rule that sets it winning; a part's `opacity` merges
+per part like any other part value. Unlike `dim`, the two do not replace each other: they multiply.
+
+A paint or a stroke width that is still unset after the cascade draws nothing. A look that needs new structure (a
+badge, a status icon) is a part the component declares and draws, hidden by a base rule and shown by a state rule:
+
+```ts
+const failedTag = defineTag("failed");
+
+// StatusBlock declares a "badge" part (see "Part schemas" below) and draws it.
+graph.scene.styles.add([
+  { target: StatusBlock, style: { parts: { badge: { visible: false } } } },
+  { target: StatusBlock, tags: [failedTag], style: { parts: { badge: { visible: true, color: "#e53935" } } } },
+  // A scope alone keeps a rule a base rule: the title is hidden on the minimalistic level.
+  { target: StatusBlock, scope: { levels: ["minimalistic"] }, style: { parts: { title: { visible: false } } } },
+]);
+```
+
+Within a step, rules apply in one order, a later one winning per property: by `priority` (a higher priority applies
+later), theme and user rules alike; at equal priority the **theme rules** (created from `TGraphColors` by
+`createThemeRules` and replaced when the colours change) come before user rules; then registration order. The theme's
+rules have the default priority 0, so a user rule of priority 0 or more overrides them, and a user rule with
+`priority: -1` applies before them: it sets a default the theme's selection, drag and hover rules still win over.
+
+### Part schemas
+
+A class declares its part names with a type brand, and `styles.add` checks each rule's `parts` against its own target:
+
+```ts
+class StatusBlock extends CanvasBlock {
+  public declare readonly __styleParts?: TStyleParts<"body" | "border" | "title" | "badge">;
+}
+```
+
+The brand is bivariant: a subclass can add parts, and a subclass that does not redeclare it inherits its base's parts.
+The canvas `Block` declares `"body" | "border" | "title"` and `Anchor` declares `"anchor"`. A class without a brand
+accepts any part name.
+
+## Elements and `explain`
+
+A scene element is styled when it is bound to an entity. Library components do this themselves; code that writes
+elements into `graph.scene.store` directly (stories, benches) calls the internal
+`graph.scene.bindStyle(elementId, { type, id }, target)` **after** adding the element (adding resets its style row to
+0). It returns a function that releases the binding.
+
+`graph.scene.explain(entityType, id)` answers "why does this entity look like this": its tags and values, the root
+tags, the class its element is styled as, the matched rules in application order (theme or not, priority, base or
+state layer, tags) and the computed style. It reads no signal. `graph.scene.styleFor(target, tags)` computes a style
+without an element, and `graph.scene.$styleGeneration` changes when rules or the theme change.
+
+## Costs
+
+| Change | What the renderer does |
+| --- | --- |
+| a tag, a rule or the theme changes a `color`, `visible` or `dim` | rewrites style table rows; no element is re-encoded |
+| the theme changes the dim colour (`canvas.layerBackground`) | redraws; no row is rewritten and no element is re-encoded |
+| `width`, `scale`, or a colour with alpha < 1 | re-encodes one element (a translucent colour moves its primitive into the translucent pass) |
+| `opacity` below 1 (element or part), or a colour of a part under it | re-encodes one element: its faded primitives get their colours baked and move into the translucent pass. Opacity 1 or none changes nothing |
+| `raise` | re-encodes nothing; it changes the element's depth key. On WebGL a raise renumbers the dense depth ranks of its zIndex band, O(N) in the band (to be made incremental with the full WebGL backend) |
+| `scope` with `minScale` / `maxScale` | adds a threshold; crossing it re-resolves the affected rows |
+
+Rows are shared: a thousand blocks with the same class and tags use one row.
+
+## Limits (this step)
+
+- No text size or effects (dash, animation) by tag yet; the types do not list them. They come with the full WebGL
+  backend and connections.
+- No group opacity: `opacity` fades each primitive on its own (see `opacity` above).
+- Anchors keep drawing on `GraphLayer` until the component work moves them into the scene; the anchor theme rules are
+  provisional.
+- A primitive's paint colour and stroke width are optional: with no value of its own and none from a style, the paint
+  or the stroke draws nothing.
+
+## Migration
+
+- `selected` is gone from `TBlock`, `TConnection` and `$state`, and from `asTBlock()`, `asTBlockShallow()`,
+  `asTConnection()` and `toJSON()`. Select through the selection API and read `$selected`, `selectedTag` or
+  `graph.selectionService`.
+- React: `GraphBlock` and `GraphBlockAnchor` get a `graph-tag-<name>` class per tag and `--graph-block-<part>-color` /
+  `--graph-block-anchor-<part>-color` variables; the `selected` classes stay as aliases. `useEntityStyle(graph, entity,
+  target, prefix)` gives the same for your own components.
+
+## Testing note
+
+Do not compare a live component with Jest's `toMatchObject` or another deep subset matcher: a component links preact
+signal graphs, and the traversal can take minutes. Compare components by identity (`expect(a).toBe(b)`) or compare
+their ids.

@@ -13,7 +13,6 @@ const BLOCK_1 = {
   height: 100,
   name: "Block 1",
   anchors: [],
-  selected: false,
 };
 
 const BLOCK_2 = {
@@ -25,7 +24,6 @@ const BLOCK_2 = {
   height: 100,
   name: "Block 2",
   anchors: [],
-  selected: false,
 };
 
 test.describe("Camera mouse event emulation (emulateMouseEventsOnCameraChange)", () => {

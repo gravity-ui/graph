@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // scripts/bench/culling/scene-slice.mjs
-// WebGL scene vertical slice: checks C1-C12 and measurements M2-M4 (scene/slice.ts) in Chromium with the real GPU.
+// WebGL scene vertical slice: checks C1-C16 and measurements M2-M4 (scene/slice.ts) in Chromium with the real GPU.
 // Prints "<id> PASS|FAIL <details>" per check; exit code 1 when a check fails.
 import { chromium } from "@playwright/test";
 import esbuild from "esbuild";

@@ -9,7 +9,6 @@ export const DEVTOOLS_STORY_BLOCKS: TBlock[] = [
     y: 100,
     width: 120,
     height: 80,
-    selected: false,
     anchors: [],
   },
   {
@@ -20,7 +19,6 @@ export const DEVTOOLS_STORY_BLOCKS: TBlock[] = [
     y: 250,
     width: 150,
     height: 60,
-    selected: false,
     anchors: [],
   },
   {
@@ -31,7 +29,6 @@ export const DEVTOOLS_STORY_BLOCKS: TBlock[] = [
     y: -30,
     width: 100,
     height: 100,
-    selected: false,
     anchors: [],
   },
 ];

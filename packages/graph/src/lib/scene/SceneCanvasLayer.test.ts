@@ -205,6 +205,48 @@ describe("SceneCanvasLayer", () => {
       expect(paint([1, 1, 2], [1, 1, 2])).toEqual([e(1), e(1), b(1), b(1), e(2), b(2)]);
     });
 
+    it("places a raised element by its raised bucket relative to a batch", () => {
+      const store = new SceneStore(100);
+      for (const [id, zIndex] of [
+        ["plain", 203],
+        ["raised", 200],
+      ] as const) {
+        store.add({
+          id,
+          zIndex,
+          x: 0,
+          y: 0,
+          bounds,
+          primitives: [{ kind: "rect", x: 0, y: 0, width: 5, height: 5, fill: elementFill(zIndex) }],
+        });
+      }
+      // The raised element sits in bucket 205, after the plain one (203), though its own zIndex is lower.
+      store.setStyle("raised", store.defineStyle({ raise: 5 }));
+      const batch = new ScenePathBatch({ zIndex: 204 });
+      batch.add({
+        id: "b",
+        x: 0,
+        y: 0,
+        bounds,
+        primitives: [
+          { kind: "path", segments: new Float32Array([0, 0, 1, 0]), stroke: { color: batchStroke(204), width: 2 } },
+        ],
+      });
+      const layer = new SceneCanvasLayer({ graph, camera: graph.cameraService, store, batches: [batch] });
+      layer.attachLayer(document.createElement("div"));
+      const ctx = layer.context.ctx as CanvasRenderingContext2D;
+      const painted: string[] = [];
+      jest.spyOn(ctx, "fill").mockImplementation(() => {
+        painted.push(`e${(ctx.fillStyle as string).slice(3, 5)}`);
+      });
+      jest.spyOn(ctx, "stroke").mockImplementation(() => {
+        painted.push(`b${(ctx.strokeStyle as string).slice(1, 3)}`);
+      });
+      layer.drawScene(viewport);
+      layer.detachLayer();
+      expect(painted).toEqual([e(203), b(204), e(200)]);
+    });
+
     it("applies maxRun to the slices of elements on the batches path", () => {
       const store = new SceneStore(100);
       for (const id of ["a", "b", "c"]) {

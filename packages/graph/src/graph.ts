@@ -26,6 +26,7 @@ import { CameraService, getInitCameraState } from "./services/camera/CameraServi
 import type { TCameraState } from "./services/camera/CameraService";
 import { DragService } from "./services/drag";
 import { GraphScene } from "./services/scene/GraphScene";
+import { bindBuiltinTags } from "./services/tags/systems";
 import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
 import { TConnection } from "./store/connection/ConnectionState";
@@ -135,6 +136,8 @@ export class Graph {
   /** Scene runtime: element store, renderer (Canvas2D or WebGL), level and clock. */
   public readonly scene: GraphScene;
 
+  private readonly unbindBuiltinTags: () => void;
+
   private removeFrameTask: (() => void) | undefined;
 
   public get blocks() {
@@ -164,6 +167,7 @@ export class Graph {
 
     // Initialize DragService for managing drag operations on GraphComponents
     this.dragService = new DragService(this);
+    this.unbindBuiltinTags = bindBuiltinTags(this);
     this.keyboardService = new KeyboardService(this);
 
     this.selectionLayer.hide();
@@ -594,7 +598,10 @@ export class Graph {
     // Before the layers are unmounted: pending ready waiters must not fire on a graph that is
     // being torn down, and removing the layers' hit boxes must not queue hit-test work.
     this.hitTest.destroy();
+    // The scene first: it releases its style bindings before the built-in tags are cleared, so clearing them does not
+    // re-run every bound element's style effect.
     this.scene.dispose();
+    this.unbindBuiltinTags();
     this.layers.unmount();
     clearTextCache();
     clearColorCache();

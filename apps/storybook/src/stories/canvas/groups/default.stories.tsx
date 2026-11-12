@@ -19,7 +19,6 @@ const createConfig = () => {
       width: 200,
       height: 150,
       group: "group1",
-      selected: false,
       anchors: [],
     },
     {
@@ -31,7 +30,6 @@ const createConfig = () => {
       width: 200,
       height: 150,
       group: "group1",
-      selected: false,
       anchors: [],
     },
     {
@@ -43,7 +41,6 @@ const createConfig = () => {
       width: 200,
       height: 150,
       group: "group2",
-      selected: false,
       anchors: [],
     },
     {
@@ -55,7 +52,6 @@ const createConfig = () => {
       width: 200,
       height: 150,
       group: "group2",
-      selected: false,
       anchors: [],
     },
     {
@@ -66,7 +62,6 @@ const createConfig = () => {
       y: 400,
       width: 200,
       height: 150,
-      selected: false,
       anchors: [],
     },
   ];

@@ -10,6 +10,7 @@ import { ICamera, TCameraState } from "../../../../services/camera/CameraService
 import { getEventDelta } from "../../../../utils/functions";
 import { Point } from "../../../../utils/types/shapes";
 import { EventedComponent } from "../../EventedComponent/EventedComponent";
+import { GraphComponent } from "../../GraphComponent";
 import { Blocks } from "../../blocks/Blocks";
 import { BlockConnection } from "../../connections/BlockConnection";
 import { BlockConnections } from "../../connections/BlockConnections";
@@ -49,6 +50,14 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
   public declare $: Component["$"] & { camera?: Camera };
 
   private camera: ICamera;
+
+  private readonly hoveredComponent = signal<GraphComponent | undefined>(undefined);
+
+  /**
+   * The graph component under the pointer (or captured), `undefined` over the camera or empty space.
+   * Written only by pointer handling; the hovered tag follows it.
+   */
+  public readonly $hoveredComponent: ReadonlySignal<GraphComponent | undefined> = this.hoveredComponent;
 
   private targetComponent?: EventedComponent;
 
@@ -143,6 +152,20 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
   public releaseCapture() {
     this.capturedTargetComponent = undefined;
+    this.publishHovered();
+  }
+
+  /**
+   * @internal Sets the hovered component outside pointer handling: a component that unmounts while hovered clears it,
+   * and tests drive it.
+   */
+  public setHoveredComponent(component: GraphComponent | undefined): void {
+    this.hoveredComponent.value = component;
+  }
+
+  private publishHovered(): void {
+    const target = this.capturedTargetComponent ?? this.targetComponent;
+    this.hoveredComponent.value = target instanceof GraphComponent ? target : undefined;
   }
 
   public handleEvent(e: Event): void {
@@ -217,6 +240,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
     if (this.capturedTargetComponent) {
       this.targetComponent = this.capturedTargetComponent;
+      this.publishHovered();
       return;
     }
 
@@ -229,6 +253,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     this.lastMouseCanvasY = point.canvas.y;
 
     this.targetComponent = this.context.graph.getElementOverPoint(point) || this.$.camera;
+    this.publishHovered();
   }
 
   private onCameraChangeEmulateMouseEvents(camera: TCameraState) {
@@ -249,6 +274,7 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
 
     this.prevTargetComponent = this.targetComponent;
     this.targetComponent = newTarget;
+    this.publishHovered();
     this.onRootPointerMove(fakeEvent);
   }
 

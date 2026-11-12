@@ -1,8 +1,7 @@
-import { colorFloats } from "../../../components/canvas/connections/webgl/encode";
 import { resolveSceneSize } from "../size";
 import type { TScenePrimitive } from "../types";
 
-import { InstanceList, checkSub, scaleBound, writeSize } from "./encodeRects";
+import { InstanceList, checkSub, isTranslucentPaint, paintFloats, scaleBound, writeSize } from "./encodeRects";
 import type { TEncodedInstances, TSlotOf } from "./encodeRects";
 import { layoutText } from "./glyphs";
 import type { GlyphAtlas } from "./glyphs";
@@ -12,7 +11,10 @@ export const GLYPH_FLOATS = 28;
 
 const NO_LIMIT = 1e9;
 
-/** Text primitives as glyph instances (one per non-space character), split by translucency. */
+/**
+ * Text primitives as glyph instances (one per non-space character), split by translucency. An unset colour is written
+ * as `USE_BASE`.
+ */
 export function encodeText(
   primitives: readonly TScenePrimitive[],
   elementIndex: number,
@@ -24,8 +26,8 @@ export function encodeText(
   primitives.forEach((primitive, sub) => {
     if (primitive.kind !== "text") return;
     checkSub(sub);
-    const color = colorFloats(primitive.color);
-    const list = color[3] < 1 ? translucent : opaque;
+    const color = paintFloats(primitive.color);
+    const list = isTranslucentPaint(primitive.color) ? translucent : opaque;
     const slot = slotOf(primitive.part);
     const baseSize = resolveSceneSize(primitive.size, 1);
     for (const glyph of layoutText(primitive, atlas)) {

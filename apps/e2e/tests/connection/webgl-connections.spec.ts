@@ -5,8 +5,8 @@ import type { GraphConfig } from "../../page-objects/GraphPageObject";
 import { GraphPageObject } from "../../page-objects/GraphPageObject";
 
 const BLOCKS = [
-  { id: "source", is: "Block", x: 100, y: 100, width: 200, height: 100, name: "Source", anchors: [], selected: false },
-  { id: "target", is: "Block", x: 600, y: 300, width: 200, height: 100, name: "Target", anchors: [], selected: false },
+  { id: "source", is: "Block", x: 100, y: 100, width: 200, height: 100, name: "Source", anchors: [] },
+  { id: "target", is: "Block", x: 600, y: 300, width: 200, height: 100, name: "Target", anchors: [] },
 ];
 
 const CONNECTIONS = [{ id: "c1", sourceBlockId: "source", targetBlockId: "target" }];

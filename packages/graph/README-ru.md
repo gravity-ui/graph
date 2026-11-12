@@ -91,7 +91,6 @@ export function GraphEditor() {
           y: -450,
           width: 126,
           height: 126,
-          selected: true,
           name: "Block #1",
           anchors: [
             {
@@ -109,7 +108,6 @@ export function GraphEditor() {
           y: 176,
           width: 126,
           height: 126,
-          selected: false,
           name: "Block #2",
           anchors: [
             {

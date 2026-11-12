@@ -1,5 +1,6 @@
 import { Component } from "../../../lib/Component";
 import { DragContext, DragDiff } from "../../../services/drag";
+import type { TStyleParts } from "../../../services/styles/types";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { PortState } from "../../../store/connection/port/Port";
@@ -29,6 +30,15 @@ type TAnchorState = {
 
 export class Anchor<T extends TAnchorProps = TAnchorProps> extends GraphComponent<T, TAnchorState> {
   public readonly cursor = "pointer";
+
+  /** The entity type of the selection bucket and of tag addresses. */
+  public static entityType = "anchor";
+
+  /**
+   * Part names style rules can set for anchors; a type brand only, never set at runtime. A subclass adds parts by
+   * redeclaring it with a wider `TStyleParts<...>`.
+   */
+  public declare readonly __styleParts?: TStyleParts<"anchor">;
 
   public static CANVAS_HOVER_FACTOR = 1.8;
   public static DETAILED_HOVER_FACTOR = 1.2;

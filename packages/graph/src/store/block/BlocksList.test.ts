@@ -12,7 +12,6 @@ const generateBlock = (): TBlock => {
     y: Math.random() * 100,
     width: Math.random() * 100,
     height: Math.random() * 100,
-    selected: false,
     name: "fakeBlock",
     anchors: [],
   };

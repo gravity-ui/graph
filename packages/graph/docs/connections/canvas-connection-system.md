@@ -301,10 +301,7 @@ const fullConnection = {
     selectedBackground: "#1976d2",
     dashes: [10, 5]
   },
-  dashed: true,
-  
-  // Selection state
-  selected: false
+  dashed: true
 };
 ```
 

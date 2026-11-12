@@ -89,6 +89,13 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
         this.performRender();
       }
     );
+    // A change of table properties only (a colour, `visible` or `dim` from a tag, rule or theme, or the dim colour)
+    // updates no element: the next frame reads the new rows and colour (the WebGL backend uploads its style table when
+    // it draws).
+    this.onSignal(
+      { subscribe: (listener: (value: void) => void) => this.props.store.subscribeStyles(() => listener()) },
+      () => this.performRender()
+    );
     const fonts = typeof document === "undefined" ? undefined : document.fonts;
     if (fonts) {
       fonts.addEventListener("loadingdone", this.handleFontsLoaded, { signal: this.eventAbortController.signal });
@@ -138,7 +145,8 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
     }
     const { width, height, x, y, scale } = this.props.graph.cameraService.getCameraState();
     const time = this.props.clock ? this.props.clock.now() : (performance.now() - this.start) / 1000;
-    if (backend.draw({ width, height, x, y, scale, dpr: this.getDRP(), time })) this.performRender();
+    const dimColor = store.getDimColor();
+    if (backend.draw({ width, height, x, y, scale, dpr: this.getDRP(), time, dimColor })) this.performRender();
   }
 
   private drawInterpreter(): void {
@@ -146,7 +154,10 @@ export class SceneRendererLayer extends Layer<TSceneRendererLayerProps> {
     if (!ctx) return;
     const scale = this.props.graph.cameraService.getCameraScale();
     const store = this.props.store;
-    drawElements(ctx, store.query(this.getWorldViewport()), scale, { styles: store.getStyles() });
+    drawElements(ctx, store.query(this.getWorldViewport()), scale, {
+      styles: store.getStyles(),
+      dimColor: store.getDimColor(),
+    });
   }
 
   private getWorldViewport(): TTileRect {

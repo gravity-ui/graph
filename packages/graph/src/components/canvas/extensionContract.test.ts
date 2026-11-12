@@ -14,7 +14,7 @@ function mount(blockComponents: TBlockComponents, x: number): { graph: Graph; bl
   Object.defineProperties(container, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
   const graph = new Graph(
     {
-      blocks: [{ id: "b", is: "custom", name: "b", x, y: 100, width: 100, height: 50, selected: false, anchors: [] }],
+      blocks: [{ id: "b", is: "custom", name: "b", x, y: 100, width: 100, height: 50, anchors: [] }],
       settings: { blockComponents },
     },
     container

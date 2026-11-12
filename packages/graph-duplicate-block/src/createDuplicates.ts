@@ -63,15 +63,15 @@ function addDerivedPorts(ports: Map<TPortId, TPortId>, block: TBlock, duplicateI
 /**
  * Builds the duplicates of the given blocks and of the connections between them.
  *
- * Each duplicate keeps every field of its source except `id`, position and selection.
+ * Each duplicate keeps every field of its source except `id` and position.
  *
  * Connections are duplicated only when at least two blocks are duplicated. Each end is resolved the way core
  * resolves it: by its port ID when it has one, otherwise by its block ID (with an optional anchor ID).
  * - A block end is duplicated when its block is duplicated; the anchor ID is kept.
  * - A port end is duplicated when it is a port core derives for a duplicated block (its block point or one
  *   of its anchors). Custom ports cannot be mapped to the duplicate, so such connections are skipped.
- * A connection is copied only when both ends can be duplicated. The copy keeps every field except selection,
- * gets an ID from `createConnectionId`, and its route points and positioned labels are shifted by `delta`.
+ * A connection is copied only when both ends can be duplicated. The copy keeps every field except `id`;
+ * it gets an ID from `createConnectionId`, and its route points and positioned labels are shifted by `delta`.
  */
 export function createDuplicates({
   blocks,
@@ -84,11 +84,10 @@ export function createDuplicates({
   const portMap = new Map<TPortId, TPortId>();
 
   const duplicatedBlocks = blocks.map(({ block, coord }) => {
-    const { selected: _selected, ...source } = block;
     const id = createId(block);
     idMap.set(block.id.toString(), id);
     addDerivedPorts(portMap, block, id);
-    return { ...source, id, x: coord.x, y: coord.y };
+    return { ...block, id, x: coord.x, y: coord.y };
   });
 
   if (idMap.size < 2) {
@@ -99,7 +98,7 @@ export function createDuplicates({
     hasValue(blockId) ? idMap.get(blockId.toString()) : undefined;
 
   const duplicatedConnections = connections.flatMap((connection) => {
-    const { id: _id, selected: _selected, ...source } = connection;
+    const { id: _id, ...source } = connection;
     const duplicate: TMultipointConnection = { ...source };
 
     for (const end of ["source", "target"] as const) {

@@ -169,7 +169,6 @@ describe("GraphComponent.onUnmounted", () => {
     y: 0,
     width: 100,
     height: 50,
-    selected: false,
     name: "b1",
     anchors: [],
   };
@@ -221,7 +220,8 @@ describe("GraphComponent.onUnmounted", () => {
     expect(graph.getElementsOverRect({ x: 0, y: 0, width: 100, height: 50 }, [Block])).not.toContain(view);
     expect(onUnmounted).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledTimes(1);
-    expect(listener.mock.calls[0][0]).toMatchObject({ detail: { component: view } });
+    // Identity, not toMatchObject: a deep match walks every path through the live graph's signal mesh.
+    expect((listener.mock.calls[0][0] as CustomEvent<{ component: Block }>).detail.component).toBe(view);
 
     dispatchUnmounted(view);
     expect(onUnmounted).toHaveBeenCalledTimes(1);

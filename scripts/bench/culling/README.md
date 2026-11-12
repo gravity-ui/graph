@@ -156,6 +156,11 @@ an action is the measured ticks plus `action`. In `drag`, `interpreter` and `cac
 the moved connections inside `action`, while the walk does that work inside its ticks (about 2.1 ticks against 1.1), so
 compare drag columns on ticks plus `action`, not on ticks alone.
 
+`--drag-offset N` (default 3): the `drag` mode moves the block with the most connections by N world units back and
+forth, in every column. The default keeps it inside its group. With `--drag-offset 200` on the guarantee scene the
+block lies over its right neighbour on every other step, so with `--block-opacity` the overlap levels of the webgl
+column change on every step (the neighbour's instances are then drawn from where they lie, see C16).
+
 `--query-timing [rounds]` (default 40): after the screenshot, each interpreter column times the tile-index query, the
 sort of its result, `SceneStore.query()` and one `drawScene()` apart at the measured view, and prints the medians.
 
@@ -163,11 +168,21 @@ sort of its result, `SceneStore.query()` and one `drawScene()` apart at the meas
 and the lazily loaded WebGL backend. Its store uses the default z buckets (groups 50, connections 100, blocks and
 anchors 200) instead of the 0/1/2 of the other columns; `setup()` waits for the `webgl` state and a
 `webgl-fallback` is a hard error. Its `elements` count is `store.query()` over the view; a `webgl:` line adds
-`deviceMs`, `lastReplayMs` (initial replay), the last frame's `instances` and `drawCalls`, and the SKIPPED counts of
+`deviceMs`, `lastReplayMs` (initial replay), the last frame's `instances` and `drawCalls` (with the translucent pass's
+share: for each overlap level, for each step, one draw call per program), `translucent levels N` with the time of the
+last level update and of the last sort of the translucent instances (`lastLevelsMs`, `lastTranslucentOrderMs`: after
+`pan` and `zoom` these are the full build of the first frame, since a pan or a zoom rebuilds nothing; after `drag`,
+the last moved block's), and the SKIPPED counts of
 polygons and icons: the slice has no support for them, so the webgl column draws fewer primitives than the others
 (the bench scene has one arrow polygon per connection). **The webgl tick is CPU
 only** (layer render and the submission of `backend.draw`); GPU execution is not in it, so compare `frames` p50/p95 with
 the other columns, not the tick.
+
+`--block-opacity X` (webgl column only; the other columns ignore it) puts a style with `opacity: X` on every block
+element, so every block is drawn in the translucent pass. The `webgl:` line then names the opacity, and its translucent
+draw calls show the cost of the overlap levels: the guarantee scene's blocks lie over their groups (level 1) and not
+over each other, so the pass is a few draw calls (the groups' rects, then the blocks' bodies, texts and anchors).
+Pixels of that column differ from `walk`, which draws opaque blocks.
 
 `node scripts/bench/culling/scene-size.mjs` (M1, no browser) bundles `WebGLSceneBackend.ts` with esbuild (minified ESM)
 and prints raw and gzip bytes, the bytes by package (`@luma.gl/*`, `@mapbox/tiny-sdf`, `@math.gl/*`, `@probe.gl/*`,
@@ -181,8 +196,35 @@ the main chunk ("layer plus core") contains any `@luma.gl` input.
 macOS) at 800x600, DPR 2, and runs the checks of the WebGL vertical slice: C1 draw order and text, C2 z raise, C3
 translucent blend, C4 overlap by order, C5 animated dash and idle frames, C6 camera-aware border width at three scales,
 C7 HTML over the canvas (a `page.screenshot` decoded in the page), C8 range upload after a primitive change, C9 context
-loss and restore with a moving block, C10 style change without re-encode, C11 growth with 3000 elements, C12 `visible: false` hides the whole primitive. It also prints a HEADER line with the
-context's `DEPTH_BITS` and `SAMPLES` (a SETUP FAIL if the depth buffer is under 24 bits), and prints
+loss and restore with a moving block, C10 style change without re-encode, C11 growth with 3000 elements, C12
+`visible: false` hides the whole primitive, C13 styles in WebGL (three lines: a translucent border override blended
+like the Canvas2D picture of the same scene, drawn offscreen with `drawElements`; a style's `raise` above a later block
+of the same bucket; a base colour filling a rect without a fill, with no re-encode), C14 `dim` (three lines: an element
+with `dim: 0.5` matches the Canvas2D picture in its body, border band, black title and unparted circle and against the
+analytic mix with the dim colour, with no re-encode; its rect instances stay in the opaque pass, read from the backend's
+per-pass counts, so a translucent rect of a lower bucket added after it stays under it; a part's `dim: 0` wins over the
+element's, and a translucent colour with `dim` matches the premultiplied Canvas2D picture), C15 `opacity` (three lines: an
+element with `opacity: 0.5` matches the premultiplied Canvas2D picture in its body, its border band over the body (each
+primitive fades on its own) and an unparted circle, and against the analytic "over"; its white title's brightest red
+matches; it is re-encoded; the translucent draw calls are 0 before and 3 after; two faded blocks of one bucket, the later
+one's body over the earlier one's title, compared by the title's brightest red with Canvas2D and the analytic value, the
+wrong order's value printed next to it; a faded path over a faded rect of an earlier element of the same bucket), C16
+translucent batching by overlap levels (five lines: a 10 x 10 grid of faded elements that do not overlap, each a body
+rect and a title, draws with at most 6 translucent draw calls on one level and matches Canvas2D; a stack of three
+overlapping faded elements keeps scene order in the triple overlap and under the second body, with 6 draw calls on 3
+levels; dragging the middle one of three faded elements onto the first by an `x` update puts its body over the first
+one's title in the next frame and leaves the third one's picture alone, with 2 draw calls before and 6 after: the
+move changes no range (the rect list's layout revision is unchanged), so the dragged element's instances are drawn
+from where they lie, between the other two; adding faded rects past the translucent rect buffer's capacity in one
+frame, after a frame that drew from rect instances 1 and 2, grows the buffer (its generation changes) and still
+matches Canvas2D; with 10,000 faded elements and three opaque ones in one band, off screen, raising an opaque one
+(which renumbers the ranks of the whole band) runs no level update and rebuilds no draw runs, while raising a faded one
+updates the levels; the line prints the call and tick times of each raise and the first tick after adding them). A
+buffer grows only when ranges were added, and then the backend sorts the translucent instances
+first, so the first draw of each program in that frame starts at instance 0: the fourth line passes with or without
+the backend's rebind after a resize; it guards the picture, not that code path. It also
+prints a HEADER line with
+the context's `DEPTH_BITS` and `SAMPLES` (a SETUP FAIL if the depth buffer is under 24 bits), and prints
 M2 (device and first-frame time, time to the `webgl` state), M3 (replay time) and M4 (when luma is loaded).
 
 Each line is `<id> PASS|FAIL <details>` with the numbers read (INFO for measurements); the exit code is 1 if any check

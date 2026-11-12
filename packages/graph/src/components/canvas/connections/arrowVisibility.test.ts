@@ -74,7 +74,7 @@ describe("connection paint bounds at the viewport edge", () => {
   it.each([1005, 1008])(
     "draws a regular arrow or its stroke entering the viewport from x=%s with no hit threshold",
     (x) => {
-      const state = start({ id: "c", sourcePortId: "s", targetPortId: "t", selected: true });
+      const state = start({ id: "c", sourcePortId: "s", targetPortId: "t" });
       if (!state) throw new Error("Expected connection");
       state.$sourcePortState.value.updatePort({ x, y: 100, lookup: false });
       state.$targetPortState.value.updatePort({ x: x + 1, y: 100, lookup: false });

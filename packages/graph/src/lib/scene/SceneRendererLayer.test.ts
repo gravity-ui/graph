@@ -210,12 +210,40 @@ describe("SceneRendererLayer", () => {
     frame();
     expect(fake.draws).toBe(2);
     expect(fake.styles).toHaveLength(1);
-    const styleId = store.defineStyle({ id: "s" } as unknown as TSceneStyle);
+    const styleId = store.defineStyle({ raise: 0 });
     store.setStyle("b", styleId);
     frame();
     expect(fake.draws).toBe(3);
     expect(fake.styles).toHaveLength(2);
     expect(fake.styles[1]).toBe(store.getStyles());
+  });
+
+  it("redraws and uploads the styles after a change of table properties only", async () => {
+    const { store, fake, frame } = setup({ renderer: "webgl" });
+    await flushPromises();
+    store.add(element("a", 200));
+    const row = store.defineStyle({ parts: { body: { color: "#ff0000" } } });
+    store.setStyle("a", row);
+    frame();
+    const draws = fake.draws;
+    const applied = fake.applied.length;
+    store.replaceStyles(new Map([[row, { parts: { body: { color: "#0000ff" } } }]]));
+    frame();
+    expect(fake.applied).toHaveLength(applied);
+    expect(fake.draws).toBe(draws + 1);
+    expect(fake.styles.at(-1)).toBe(store.getStyles());
+  });
+
+  it("schedules a Canvas2D frame after a change of table properties only", () => {
+    const { layer, store, frame } = setup({ renderer: "canvas" });
+    store.add(element("a", 200));
+    const row = store.defineStyle({ parts: { body: { color: "#ff0000" } } });
+    store.setStyle("a", row);
+    frame();
+    const scheduled = jest.spyOn(layer, "performRender");
+    store.replaceStyles(new Map([[row, { parts: { body: { visible: false } } }]]));
+    expect(scheduled).toHaveBeenCalled();
+    scheduled.mockRestore();
   });
 
   it.each(["apply", "draw", "setStyles"] as const)(
@@ -244,14 +272,20 @@ describe("SceneRendererLayer", () => {
     }
   );
 
-  it("builds the frame from the camera and the graph clock", async () => {
-    const { fake, frame } = setup({ renderer: "webgl" });
+  it("builds the frame from the camera, the graph clock and the store's dim colour", async () => {
+    const { fake, frame, store } = setup({ renderer: "webgl" });
     await flushPromises();
     graph.cameraService.set({ x: 10, y: 20, width: 800, height: 600, scale: 0.5 });
     frame();
     const last = fake.frames[fake.frames.length - 1];
-    expect(last).toMatchObject({ x: 10, y: 20, width: 800, height: 600, scale: 0.5 });
+    expect(last).toMatchObject({ x: 10, y: 20, width: 800, height: 600, scale: 0.5, dimColor: store.getDimColor() });
     expect(last.time).toBeGreaterThanOrEqual(0);
+    // A new dim colour draws a frame with it.
+    const draws = fake.draws;
+    store.setDimColor("#123456");
+    frame();
+    expect(fake.draws).toBe(draws + 1);
+    expect(fake.frames[fake.frames.length - 1].dimColor).toBe("#123456");
   });
 
   it("disposes the backend on setRenderer(canvas) and ignores a late load", async () => {

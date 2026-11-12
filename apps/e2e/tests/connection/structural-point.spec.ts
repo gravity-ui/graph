@@ -20,7 +20,6 @@ for (const deviceScaleFactor of [1, 2]) {
               height: 100,
               name: "Source",
               anchors: [],
-              selected: false,
             },
             {
               id: "target",
@@ -31,7 +30,6 @@ for (const deviceScaleFactor of [1, 2]) {
               height: 100,
               name: "Target",
               anchors: [],
-              selected: false,
             },
           ],
           connections: [{ sourceBlockId: "source", targetBlockId: "target" }],

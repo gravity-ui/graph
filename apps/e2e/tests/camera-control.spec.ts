@@ -19,7 +19,6 @@ test.describe("Camera Control", () => {
           height: 100,
           name: "Block 1",
           anchors: [],
-          selected: false,
         },
         {
           id: "block-2",
@@ -30,7 +29,6 @@ test.describe("Camera Control", () => {
           height: 100,
           name: "Block 2",
           anchors: [],
-          selected: false,
         },
       ],
       connections: [],

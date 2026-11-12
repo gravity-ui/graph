@@ -11,7 +11,6 @@ const BLOCKS_DATA = [
     height: 100,
     name: "Block 1",
     anchors: [],
-    selected: false,
   },
   {
     id: "block-2",
@@ -22,7 +21,6 @@ const BLOCKS_DATA = [
     height: 100,
     name: "Block 2",
     anchors: [],
-    selected: false,
   },
   {
     id: "block-3",
@@ -33,7 +31,6 @@ const BLOCKS_DATA = [
     height: 100,
     name: "Block 3",
     anchors: [],
-    selected: false,
   },
 ];
 
@@ -120,7 +117,6 @@ test.describe("setEntities - HTML blocks rendering (issue #249)", () => {
         height: 100,
         name: "New Block 1",
         anchors: [],
-        selected: false,
       },
     ];
 

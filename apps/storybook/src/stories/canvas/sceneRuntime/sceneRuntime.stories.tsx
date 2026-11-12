@@ -160,7 +160,9 @@ const SceneRuntimeApp = (): React.JSX.Element => {
   const toggleTag = useCallback((): void => {
     const store = graph.scene.store;
     if (selectedStyle.current === undefined) {
-      selectedStyle.current = store.defineStyle({ border: { color: "#ffcc00" }, anchor: { color: "#ffffff" } });
+      selectedStyle.current = store.defineStyle({
+        parts: { border: { color: "#ffcc00" }, anchor: { color: "#ffffff" } },
+      });
     }
     store.setStyle("A", tagged ? 0 : selectedStyle.current);
     setTagged(!tagged);

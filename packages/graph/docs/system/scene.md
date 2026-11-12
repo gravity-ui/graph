@@ -60,3 +60,10 @@ ctx.restore();
 ```
 
 `graph.scene.store` is `@internal`: it is the write side used by the library components and the benches.
+
+## Styles: `bindStyle`, `styleFor`, `explain`
+
+Elements take their looks from [tags and styles](tags-and-styles.md). `graph.scene.bindStyle(elementId, { type, id },
+target)` (`@internal`) keeps an element's style row on the tags of an entity; add the element to the store first.
+`graph.scene.styleFor(target, tags)` computes a style, and `graph.scene.explain(entityType, id)` lists an entity's
+tags, matched rules and computed style.

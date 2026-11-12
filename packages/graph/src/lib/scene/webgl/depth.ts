@@ -19,6 +19,8 @@ export class SceneDepth {
   private zIndexOf = new Map<string, number>();
   private keys = new Map<string, number>();
   private changed = new Set<string>();
+  /** Elements whose own zIndex or order was set since `takeSet`. */
+  private readonly own = new Set<string>();
   private dirty = false;
 
   public set(id: string, zIndex: number, order: number): void {
@@ -30,6 +32,7 @@ export class SceneDepth {
     list.splice(at, 0, { id, order });
     this.bands.set(zIndex, list);
     this.zIndexOf.set(id, zIndex);
+    this.own.add(id);
     this.dirty = true;
   }
 
@@ -40,6 +43,7 @@ export class SceneDepth {
     this.zIndexOf.delete(id);
     this.keys.delete(id);
     this.changed.delete(id);
+    this.own.delete(id);
     this.dirty = true;
   }
 
@@ -54,6 +58,17 @@ export class SceneDepth {
     this.renumberIfDirty();
     const ids = [...this.changed];
     this.changed.clear();
+    return ids;
+  }
+
+  /**
+   * The elements whose own zIndex or order was set since the last call. Unlike `takeChanged`, it leaves out the
+   * elements whose key only moved because the dense ranks of their band were renumbered: their order relative to each
+   * other did not change.
+   */
+  public takeSet(): string[] {
+    const ids = [...this.own];
+    this.own.clear();
     return ids;
   }
 

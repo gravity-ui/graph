@@ -507,7 +507,6 @@ function CustomGraph() {
         y: 100,
         width: 200,
         height: 100,
-        selected: false,
         anchors: [
           {
             id: 'out1',
@@ -525,7 +524,6 @@ function CustomGraph() {
         y: 100,
         width: 200,
         height: 100,
-        selected: false,
         anchors: [
           {
             id: 'in1',

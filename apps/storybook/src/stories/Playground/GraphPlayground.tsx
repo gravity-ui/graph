@@ -169,17 +169,6 @@ export function GraphPLayground() {
     editorRef?.current?.scrollTo(geometryBatch[0].id);
   });
 
-  useGraphEvent(graph, "blocks-selection-change", ({ changes }) => {
-    const withSelection = (id: TBlock["id"], selected: boolean): TBlock[] => {
-      const block = graph.blocks.getBlock(id);
-      return block ? [{ ...block, selected }] : [];
-    };
-    editorRef.current?.updateBlocks([
-      ...changes.add.flatMap((id) => withSelection(id, true)),
-      ...changes.removed.flatMap((id) => withSelection(id, false)),
-    ]);
-  });
-
   useGraphEvent(graph, "connection-create-drop", ({ sourceBlockId, sourceAnchorId, targetPort, point }) => {
     if (targetPort) {
       // The default action of connection-created has already added the connection.

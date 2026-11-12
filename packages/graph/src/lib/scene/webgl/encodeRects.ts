@@ -1,6 +1,8 @@
 import { colorFloats } from "../../../components/canvas/connections/webgl/encode";
 import type { TScenePrimitive, TSceneSize, TSceneStroke } from "../types";
 
+import { USE_BASE_ALPHA } from "./tables";
+
 /** Floats per rect instance. */
 export const RECT_FLOATS = 28;
 
@@ -14,7 +16,22 @@ export type TEncodedInstances = { opaque: Float32Array; translucent: Float32Arra
 /** A scale bound that is never reached. */
 export const NO_LIMIT = 1e9;
 
+/** The instance colour of a paint that the primitive leaves unset: the shader paints the part's base colour. */
+export const USE_BASE: readonly [number, number, number, number] = [0, 0, 0, USE_BASE_ALPHA];
+
+/** Straight rgba of a paint: its own colour, or `USE_BASE` when it is unset. */
+export function paintFloats(color: string | undefined): readonly number[] {
+  return color === undefined ? USE_BASE : colorFloats(color);
+}
+
+/** Whether a paint goes to the translucent pass: only its own colour decides; an unset paint stays opaque. */
+export function isTranslucentPaint(color: string | undefined): boolean {
+  return color !== undefined && colorFloats(color)[3] < 1;
+}
+
 const ALIGN = { inside: 0, center: 1, outside: 2 } as const;
+
+const NO_PAINT: readonly number[] = [0, 0, 0, 0];
 
 export function checkSub(sub: number): void {
   if (sub > MAX_SUB) throw new RangeError(`A scene element has at most ${MAX_SUB + 1} primitives, got index ${sub}`);
@@ -97,7 +114,18 @@ function rectShape(primitive: TScenePrimitive): TRectShape | undefined {
   return undefined;
 }
 
-/** Rect and circle primitives as rect instances, split by translucency. `sub` is the index in the element. */
+/**
+ * Whether a stroke is drawn by its width: a stroke whose width is still unset after styling draws nothing, as in the
+ * Canvas2D interpreter.
+ */
+export function hasStrokeWidth(stroke: TSceneStroke | undefined): stroke is TSceneStroke & { width: TSceneSize } {
+  return stroke?.width !== undefined;
+}
+
+/**
+ * Rect and circle primitives as rect instances, split by translucency. `sub` is the index in the element. An unset fill
+ * or border colour is written as `USE_BASE`; a border with an unset width is no border.
+ */
 export function encodeRects(
   primitives: readonly TScenePrimitive[],
   elementIndex: number,
@@ -109,11 +137,13 @@ export function encodeRects(
     const rect = rectShape(primitive);
     if (!rect) return;
     checkSub(sub);
-    const fill = rect.fill ? colorFloats(rect.fill) : [0, 0, 0, 0];
-    const border = rect.border ? colorFloats(rect.border.color) : [0, 0, 0, 0];
+    // An empty fill is no fill, as in the Canvas2D interpreter; without a border the band is empty. Neither takes the
+    // base colour.
+    const fill = rect.fill === "" ? NO_PAINT : paintFloats(rect.fill);
+    const drawn = hasStrokeWidth(rect.border) ? rect.border : undefined;
+    const border = drawn ? paintFloats(drawn.color) : NO_PAINT;
     const isBorderPart = primitive.part === "border";
-    // Absent paint has alpha 0 and does not make the instance translucent.
-    const isTranslucent = (rect.fill && fill[3] < 1) || (rect.border && border[3] < 1);
+    const isTranslucent = isTranslucentPaint(rect.fill || undefined) || isTranslucentPaint(drawn?.color);
     const out = (isTranslucent ? translucent : opaque).next();
     out[0] = elementIndex;
     out[1] = sub;
@@ -126,8 +156,8 @@ export function encodeRects(
     out.set(rect.radius, 8);
     out.set(fill, 12);
     out.set(border, 16);
-    writeSize(out, 20, rect.border ? rect.border.width : 0);
-    out[24] = ALIGN[rect.border?.align ?? "center"];
+    writeSize(out, 20, drawn ? drawn.width : 0);
+    out[24] = ALIGN[drawn?.align ?? "center"];
     out[25] = scaleBound(primitive.minScale, 0);
     out[26] = scaleBound(primitive.maxScale, NO_LIMIT);
   });

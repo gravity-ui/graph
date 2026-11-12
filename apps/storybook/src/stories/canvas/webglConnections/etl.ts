@@ -201,7 +201,6 @@ export const etlBlocks: TEtlBlock[] = stages.map(
     lastRun,
     duration,
     error: stageErrors[id],
-    selected: false,
     x: column * (blockWidth + gapX),
     y: row * (blockHeight + gapY),
     width: blockWidth,

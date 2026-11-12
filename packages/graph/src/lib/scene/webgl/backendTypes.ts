@@ -12,6 +12,8 @@ export type TSceneFrame = {
   dpr: number;
   /** Seconds on the graph clock. */
   time: number;
+  /** The colour a style's `dim` moves paints towards (`SceneStore.getDimColor()`). */
+  dimColor: string;
 };
 
 export type TSceneBackendStats = {
@@ -32,6 +34,17 @@ export type TSceneBackendStats = {
   lastReplayMs: number;
   /** Primitives now in the backend that it does not draw: the slice has no polygon and no icon support. */
   skipped: { polygon: number; icon: number };
+  /**
+   * In the last frame: the draw calls of the translucent pass (part of `drawCalls`): for each overlap level, for each
+   * step, one per program with instances there.
+   */
+  translucentDrawCalls: number;
+  /** The overlap levels of the translucent elements after the last level update; 0 without translucent elements. */
+  translucentLevels: number;
+  /** The last level update: the translucent set, a depth key, or a translucent element's origin or bounds changed. */
+  lastLevelsMs: number;
+  /** The last sort of the translucent instances and build of the translucent draw calls. */
+  lastTranslucentOrderMs: number;
 };
 
 export interface ISceneBackend {

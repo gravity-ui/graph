@@ -37,7 +37,7 @@ class RecordingBatch implements IConnectionBatch {
   }
 }
 
-type TStubState = Partial<TConnection & { hovered: boolean }>;
+type TStubState = Partial<TConnection & { hovered: boolean; selected: boolean }>;
 
 /** The members of BlockConnection a line reads. */
 function stubConnection(

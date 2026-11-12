@@ -1,20 +1,17 @@
-import { Buffer, Texture, luma } from "@luma.gl/core";
+import { Buffer, Texture, getAttributeInfosFromLayouts, luma } from "@luma.gl/core";
 import type { BufferLayout, Device, RenderPass, RenderPipelineParameters, VertexFormat } from "@luma.gl/core";
 import { DynamicBuffer, Model } from "@luma.gl/engine";
 import type { ShaderPlugin } from "@luma.gl/shadertools";
-import { webgl2Adapter } from "@luma.gl/webgl";
+import { WEBGLBuffer, WEBGLVertexArray, webgl2Adapter } from "@luma.gl/webgl";
 
 import { toConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
 import type { ConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
 import type { TUniformTypes } from "../../../components/canvas/connections/effects/types";
-import {
-  INSTANCE_ATTRIBUTES,
-  INSTANCE_FLOATS,
-  colorFloats,
-  scaleBucket,
-} from "../../../components/canvas/connections/webgl/encode";
+import { INSTANCE_ATTRIBUTES, INSTANCE_FLOATS, scaleBucket } from "../../../components/canvas/connections/webgl/encode";
 import { createCurveTemplate, createLineTemplate } from "../../../components/canvas/connections/webgl/shaders";
 import type { SceneStore } from "../SceneStore";
+import { readColorRgba } from "../colorAlpha";
+import { bakeElementStyle } from "../style";
 import type { TSceneChange, TSceneElement, TScenePrimitive, TSceneStyle } from "../types";
 
 import { InstanceRanges } from "./InstanceRanges";
@@ -27,10 +24,11 @@ import type {
 } from "./backendTypes";
 import { SceneDepth } from "./depth";
 import { PATH_ELEMENT_FLOATS, encodePaths } from "./encodePaths";
-import { RECT_FLOATS, encodeRects } from "./encodeRects";
-import type { TEncodedInstances } from "./encodeRects";
+import { RECT_FLOATS, encodeRects, hasStrokeWidth, isTranslucentPaint } from "./encodeRects";
 import { GLYPH_FLOATS, encodeText } from "./encodeText";
 import { GlyphAtlas } from "./glyphs";
+import { geometryBounds } from "./levelBounds";
+import { TranslucentLevels } from "./overlapLevels";
 import {
   ALPHA_FRAGMENT,
   ALPHA_VERTEX,
@@ -47,8 +45,10 @@ import {
   RECT_VERTEX,
   createPathPlugin,
 } from "./shaders";
-import { ElementTable, PART_SLOTS, StyleTable, TABLE_WIDTH } from "./tables";
+import { ElementTable, STYLE_ROW_TEXELS, StyleTable, TABLE_WIDTH } from "./tables";
 import { createTinySdfGenerator } from "./tinySdfGlyphs";
+import { elementSteps, orderTranslucent, splitSteps } from "./translucentOrder";
+import type { TTranslucentRun } from "./translucentOrder";
 
 type TPass = "opaque" | "translucent";
 
@@ -63,6 +63,12 @@ type TTextureName = "scene_elements" | "scene_styles" | "scene_atlas";
 
 type TEffect = ConnectionEffect<TUniformTypes, never>;
 
+/** An instance attribute's pointer: shader location, float components, byte offset in the instance and stride. */
+type TPointer = { location: number; components: number; byteOffset: number; stride: number };
+
+/** A per-instance buffer of a model: its name in the buffer layout and the buffer. */
+type TInstanceBuffer = { name: string; buffer: DynamicBuffer };
+
 /** Per-element instances of one program and pass, their GPU buffer and the model that draws them. */
 type TBatch = {
   ranges: InstanceRanges;
@@ -73,7 +79,17 @@ type TBatch = {
   /** The model's uniforms: luma reads this object at every draw. */
   uniforms: TUniforms;
   textures: readonly TTextureName[];
+  /** Every buffer layout of the model, and its per-instance buffers (`buffer`, then the path element data). */
+  layout: readonly BufferLayout[];
+  instanceBuffers: readonly TInstanceBuffer[];
+  /** The pointers of the per-instance attributes, per instance buffer; read from the linked program on first use. */
+  pointers?: readonly { buffer: DynamicBuffer; attributes: readonly TPointer[] }[];
+  /** The instance the per-instance attributes point at: translucent runs start inside the buffer. */
+  pointedAt: number;
 };
+
+/** An element's translucent instances of one program, before they are cut into steps. */
+type TTranslucentWrite = { batch: TBatch; instances: Float32Array; elements?: Float32Array };
 
 /** The paths of one pass and one effect program ("plain" without an effect): a batch per vertex template. */
 type TPathGroup = {
@@ -143,6 +159,9 @@ const WRITE_ALPHA = 0x8;
 const WRITE_ALL = 0xf;
 
 const TABLE_SAMPLER = { minFilter: "nearest", magFilter: "nearest", mipmapFilter: "none" } as const;
+
+/** `scene_dimColor` without a dim colour: alpha -1, the shaders leave every paint undimmed. */
+const NO_DIM_COLOR: readonly number[] = [0, 0, 0, -1];
 
 const ATLAS_SAMPLER = { minFilter: "linear", magFilter: "linear", mipmapFilter: "none" } as const;
 
@@ -230,6 +249,10 @@ function removeInstances(batch: TBatch, id: string): void {
   batch.elements?.ranges.delete(id);
 }
 
+function sameNumbers(a: readonly number[], b: readonly number[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
 /** Primitives of the kinds the slice does not draw. */
 function countSkipped(primitives: readonly TScenePrimitive[]): { polygon: number; icon: number } {
   const counts = { polygon: 0, icon: 0 };
@@ -252,12 +275,18 @@ class WebGLSceneBackend implements ISceneBackend {
     lastUploadKind: "none",
     lastReplayMs: 0,
     skipped: { polygon: 0, icon: 0 },
+    translucentDrawCalls: 0,
+    translucentLevels: 0,
+    lastLevelsMs: 0,
+    lastTranslucentOrderMs: 0,
   };
 
   private readonly styles = new StyleTable();
   private readonly atlas = new GlyphAtlas(createTinySdfGenerator());
   private table = new ElementTable();
   private depth = new SceneDepth();
+  /** The store of the last replay: its style rows are baked into the primitives and raise the depth bucket. */
+  private store: SceneStore | undefined;
 
   /** The elements in the backend: their current origin, visibility and style are written on a depth change. */
   private readonly elements = new Map<string, TSceneElement>();
@@ -279,7 +308,23 @@ class WebGLSceneBackend implements ISceneBackend {
   private readonly pathGroups = new Map<string, TPathGroup>();
   private readonly alphaModel: Model;
 
+  /** The overlap levels of the elements with translucent instances. */
+  private readonly levels = new TranslucentLevels();
+  /**
+   * The level revision and the revisions of the translucent instance lists the current runs were built from. Depth keys
+   * enter the runs only through the levels.
+   */
+  private orderStamp: number[] = [];
+  /** The layout revisions of the translucent instance lists when the runs were built: a change sorts them again. */
+  private layoutStamp: number[] = [];
+  /** The translucent batches the runs index, and the runs: scene order where translucent primitives overlap. */
+  private translucentBatches: TBatch[] = [];
+  private translucentRuns: TTranslucentRun[] = [];
+
   private frames = 0;
+  /** The dim colour of the last frame and its `scene_dimColor` value. */
+  private dimColor: string | undefined;
+  private dimFloats: readonly number[] = NO_DIM_COLOR;
   private disposed = false;
   /** Set once the context is lost: its GL objects are gone for good, a restore included. */
   private objectsLost = false;
@@ -295,7 +340,7 @@ class WebGLSceneBackend implements ISceneBackend {
     this.lineTemplate = this.createTemplate(createLineTemplate());
     this.curveTemplate = this.createTemplate(createCurveTemplate());
     this.elementTexture = this.createTableTexture(TABLE_WIDTH, 1);
-    this.styleTexture = this.createTableTexture(PART_SLOTS, 1);
+    this.styleTexture = this.createTableTexture(STYLE_ROW_TEXELS, 1);
     this.styleTexture.writeData(this.noStyles(1));
     this.atlasTexture = device.createTexture({
       format: "r8unorm",
@@ -342,6 +387,7 @@ class WebGLSceneBackend implements ISceneBackend {
   public replay(store: SceneStore): void {
     const start = performance.now();
     this.reset();
+    this.store = store;
     this.setStyles(store.getStyles());
     store.forEach((element) => this.applyChange({ type: "add", element }));
     this.flushDepth();
@@ -367,6 +413,9 @@ class WebGLSceneBackend implements ISceneBackend {
         Math.max(1, Math.round(frame.height * frame.dpr))
       );
     this.uploadTables();
+    this.setDimColor(frame.dimColor);
+    // Before the uploads: sorting moves translucent instances.
+    this.orderTranslucent();
     let uploadKind: TUploadKind = "none";
     for (const batch of this.allBatches()) {
       const kind = this.upload(batch);
@@ -375,11 +424,14 @@ class WebGLSceneBackend implements ISceneBackend {
     this.stats.lastUploadKind = uploadKind;
     this.stats.drawCalls = 0;
     this.stats.instances = 0;
+    for (const group of this.pathGroups.values()) this.setEffectUniforms(group);
 
     const pass = this.device.beginRenderPass({ clearColor: [0, 0, 0, 0], clearDepth: 0, clearStencil: false });
     this.gl.enable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     let opaque = false;
-    for (const batch of this.passBatches("opaque")) opaque = this.drawBatch(pass, batch, frame) || opaque;
+    for (const batch of this.passBatches("opaque")) {
+      opaque = this.drawInstances(pass, batch, frame, batch.ranges.count) || opaque;
+    }
     this.gl.disable(GL_SAMPLE_ALPHA_TO_COVERAGE);
     if (opaque) {
       pass.setParameters({ colorMask: WRITE_ALPHA });
@@ -387,9 +439,15 @@ class WebGLSceneBackend implements ISceneBackend {
       pass.setParameters({ colorMask: WRITE_ALL });
       this.stats.drawCalls += 1;
     }
-    // Known limitation: translucent instances are not sorted across programs; depth orders them only against opaque
-    // ones, so a translucent path above a translucent rect is still drawn under it.
-    for (const batch of this.passBatches("translucent")) this.drawBatch(pass, batch, frame);
+    // Translucent primitives blend over each other in scene order wherever they overlap, across programs (paths, rects,
+    // glyphs): level by level, step by step, one instanced draw per program and range. Depth orders them against the
+    // opaque pass.
+    for (const run of this.translucentRuns) {
+      const batch = this.translucentBatches[run.source];
+      this.pointInstances(batch, run.first);
+      this.drawInstances(pass, batch, frame, run.count);
+    }
+    this.stats.translucentDrawCalls = this.translucentRuns.length;
     pass.end();
     this.device.submit();
 
@@ -423,7 +481,7 @@ class WebGLSceneBackend implements ISceneBackend {
     }
     this.elements.set(element.id, element);
     if (change.type === "add") {
-      this.depth.set(element.id, element.zIndex, element.order);
+      this.depth.set(element.id, this.zIndexOf(element), element.order);
       this.encode(element);
       // The depth key is written by flushDepth(): a new element always gets one.
       this.table.write(element.id, element.x, element.y, 0, element.hidden, element.styleId);
@@ -431,9 +489,14 @@ class WebGLSceneBackend implements ISceneBackend {
     }
     const fields = change.fields;
     const changed = (field: keyof TSceneElement): boolean => fields === undefined || fields.has(field);
-    if (changed("zIndex") || changed("order")) this.depth.set(element.id, element.zIndex, element.order);
+    // A change of the style's raise comes as a zIndex change: the bucket is the zIndex plus the raise.
+    if (changed("zIndex") || changed("order")) this.depth.set(element.id, this.zIndexOf(element), element.order);
+    // Also when the primitives are the same array: the element properties of the style (widths, translucent colours,
+    // opacity) changed.
     if (changed("primitives")) this.encode(element);
     if (changed("x") || changed("y") || changed("hidden") || changed("styleId")) this.writeElement(element);
+    // A translucent element that moves can start or stop overlapping others.
+    if (changed("x") || changed("y") || changed("bounds")) this.levels.moved(element.id);
   }
 
   /** Writes the element texels of every element whose depth key changed. */
@@ -442,6 +505,20 @@ class WebGLSceneBackend implements ISceneBackend {
       const element = this.elements.get(id);
       if (element) this.writeElement(element);
     }
+    // Only an element whose own zIndex or order was set can change the order of the translucent elements among
+    // themselves. A raise renumbers the dense ranks of its whole band, but the others keep their order, so their
+    // levels stand.
+    for (const id of this.depth.takeSet()) this.levels.reordered(id);
+  }
+
+  /** The element's zIndex bucket with the raise of its style. */
+  private zIndexOf(element: TSceneElement): number {
+    return this.store ? this.store.zIndexOf(element) : element.zIndex;
+  }
+
+  /** The element's style row in the store: the backend's style table is only updated at the next draw. */
+  private styleOf(element: TSceneElement): TSceneStyle | undefined {
+    return this.store?.getStyles()[element.styleId];
   }
 
   private writeElement(element: TSceneElement): void {
@@ -455,6 +532,7 @@ class WebGLSceneBackend implements ISceneBackend {
     this.setSkipped(id, { polygon: 0, icon: 0 });
     this.animated.delete(id);
     this.depth.delete(id);
+    this.levels.delete(id);
     this.table.free(id);
     this.elements.delete(id);
   }
@@ -467,6 +545,7 @@ class WebGLSceneBackend implements ISceneBackend {
     this.stats.skipped.icon = 0;
     this.animated.clear();
     this.depth = new SceneDepth();
+    this.levels.clear();
     this.table = new ElementTable();
     for (const batch of this.allBatches()) {
       batch.ranges = new InstanceRanges(batch.ranges.floats);
@@ -476,13 +555,26 @@ class WebGLSceneBackend implements ISceneBackend {
 
   private readonly slotOf = (part: string | undefined): number => this.styles.slotOf(part);
 
+  /**
+   * Encodes the element's primitives with the element properties of its style baked in (widths, circle scale,
+   * translucent colours, opacity: a faded primitive gets all its colours baked, faded); the other opaque colours and
+   * visibility stay in the style table. Instances with a baked alpha below 1 go to the translucent pass.
+   */
   private encode(element: TSceneElement): void {
     const start = performance.now();
-    const { id, primitives } = element;
+    const { id } = element;
+    const primitives = bakeElementStyle(element.primitives, this.styleOf(element));
     const index = this.table.indexOf(id);
-    this.setPassInstances(this.rects, id, encodeRects(primitives, index, this.slotOf));
-    this.setPassInstances(this.glyphs, id, encodeText(primitives, index, this.slotOf, this.atlas));
-    this.encodePathsOf(element, index);
+    const rects = encodeRects(primitives, index, this.slotOf);
+    const glyphs = encodeText(primitives, index, this.slotOf, this.atlas);
+    setInstances(this.rects.opaque, id, rects.opaque);
+    setInstances(this.glyphs.opaque, id, glyphs.opaque);
+    const translucent = this.encodePathsOf(id, primitives, index);
+    translucent.push(
+      { batch: this.rects.translucent, instances: rects.translucent },
+      { batch: this.glyphs.translucent, instances: glyphs.translucent }
+    );
+    this.setTranslucent(id, primitives, translucent);
     this.setSkipped(id, countSkipped(primitives));
     this.stats.encodes += primitives.length;
     this.stats.lastEncodeMs = performance.now() - start;
@@ -497,24 +589,55 @@ class WebGLSceneBackend implements ISceneBackend {
     else this.skippedOf.delete(id);
   }
 
-  private setPassInstances(batches: Record<TPass, TBatch>, id: string, encoded: TEncodedInstances): void {
-    setInstances(batches.opaque, id, encoded.opaque);
-    setInstances(batches.translucent, id, encoded.translucent);
+  /**
+   * Writes an element's translucent instances of every translucent program (`writes`: its paths' lines and curves,
+   * then rects, then glyphs), cut into its local steps: a new step at each change of program in primitive order. Keeps
+   * the element in the overlap levels while it has translucent instances, with the bounds of its baked primitives.
+   */
+  private setTranslucent(id: string, primitives: readonly TScenePrimitive[], writes: TTranslucentWrite[]): void {
+    const present = writes.filter((write) => write.instances.length > 0);
+    for (const write of writes) if (write.instances.length === 0) removeInstances(write.batch, id);
+    const steps = elementSteps(
+      present.map((write) => ({
+        subs: write.elements ?? write.instances,
+        floats: write.elements ? PATH_ELEMENT_FLOATS : write.batch.ranges.floats,
+      }))
+    );
+    present.forEach((write, source) => {
+      const { batch, instances, elements } = write;
+      batch.ranges.setSteps(id, splitSteps(instances, batch.ranges.floats, steps[source]));
+      if (batch.elements && elements) {
+        batch.elements.ranges.setSteps(id, splitSteps(elements, PATH_ELEMENT_FLOATS, steps[source]));
+      }
+    });
+    if (present.length > 0) this.levels.set(id, geometryBounds(primitives));
+    else this.levels.delete(id);
   }
 
-  /** Encodes the paths of each group separately; `sub` stays the path's index in the element. */
-  private encodePathsOf(element: TSceneElement, index: number): void {
-    const { id, primitives } = element;
+  /**
+   * Encodes the paths of each group separately; `sub` stays the path's index in the element. A path whose stroke width
+   * is unset draws nothing and joins no group. Writes the opaque groups and returns the writes of the translucent ones,
+   * lines before curves.
+   */
+  private encodePathsOf(id: string, primitives: readonly TScenePrimitive[], index: number): TTranslucentWrite[] {
     const groupOfSub = primitives.map((primitive) =>
-      primitive.kind === "path" ? this.pathGroupOf(primitive) : undefined
+      primitive.kind === "path" && hasStrokeWidth(primitive.stroke) ? this.pathGroupOf(primitive) : undefined
     );
     const groups = new Set<TPathGroup>();
     for (const group of groupOfSub) if (group) groups.add(group);
+    const translucent: TTranslucentWrite[] = [];
     for (const group of groups) {
       const select = (_: TScenePrimitive, sub: number): boolean => groupOfSub[sub] === group;
       const encoded = encodePaths(primitives, index, PATH_BUCKET, this.slotOf, select);
-      setInstances(group.lines, id, encoded.lines, encoded.lineElements);
-      setInstances(group.curves, id, encoded.curves, encoded.curveElements);
+      if (group.pass === "translucent") {
+        translucent.push(
+          { batch: group.lines, instances: encoded.lines, elements: encoded.lineElements },
+          { batch: group.curves, instances: encoded.curves, elements: encoded.curveElements }
+        );
+      } else {
+        setInstances(group.lines, id, encoded.lines, encoded.lineElements);
+        setInstances(group.curves, id, encoded.curves, encoded.curveElements);
+      }
     }
     for (const group of this.pathGroupsOf.get(id) ?? []) {
       if (groups.has(group)) continue;
@@ -525,12 +648,16 @@ class WebGLSceneBackend implements ISceneBackend {
     else this.pathGroupsOf.delete(id);
     if ([...groups].some((group) => group.effect?.animated)) this.animated.add(id);
     else this.animated.delete(id);
+    return translucent;
   }
 
-  /** Effects may draw any alpha, so their paths join the translucent pass; plain ones go by the stroke alpha. */
+  /**
+   * Effects may draw any alpha, so their paths join the translucent pass; plain ones go by the stroke alpha. An unset
+   * stroke colour takes the base colour from the style table, which is opaque or none: it stays opaque.
+   */
   private pathGroupOf(primitive: TPathPrimitive): TPathGroup {
     const effect = primitive.effect ? toConnectionEffect(primitive.effect.effect) : undefined;
-    const pass: TPass = effect || colorFloats(primitive.stroke.color)[3] < 1 ? "translucent" : "opaque";
+    const pass: TPass = effect || isTranslucentPaint(primitive.stroke.color) ? "translucent" : "opaque";
     return this.pathGroupFor(pass, effect);
   }
 
@@ -626,7 +753,16 @@ class WebGLSceneBackend implements ISceneBackend {
       isInstanced: true,
       instanceCount: 0,
     });
-    return { ranges: new InstanceRanges(floats), buffer, model, uniforms, textures };
+    return {
+      ranges: new InstanceRanges(floats),
+      buffer,
+      model,
+      uniforms,
+      textures,
+      layout,
+      instanceBuffers: [{ name: layout[1].name, buffer }],
+      pointedAt: 0,
+    };
   }
 
   private createPathBatch(
@@ -657,7 +793,20 @@ class WebGLSceneBackend implements ISceneBackend {
       isInstanced: true,
       instanceCount: 0,
     });
-    return { ranges: new InstanceRanges(INSTANCE_FLOATS), buffer, elements, model, uniforms, textures: PATH_TEXTURES };
+    return {
+      ranges: new InstanceRanges(INSTANCE_FLOATS),
+      buffer,
+      elements,
+      model,
+      uniforms,
+      textures: PATH_TEXTURES,
+      layout: PATH_LAYOUT,
+      instanceBuffers: [
+        { name: PATH_LAYOUT[1].name, buffer },
+        { name: PATH_LAYOUT[2].name, buffer: elements.buffer },
+      ],
+      pointedAt: 0,
+    };
   }
 
   private bindings(names: readonly TTextureName[]): Record<string, Texture> {
@@ -681,18 +830,109 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   /**
-   * The batches of a pass. Depth orders the opaque pass; the translucent one is drawn paths, rects, glyphs, the order
-   * of the default buckets (connections below blocks, a block's text over its body).
+   * The batches of a pass: paths, rects, glyphs. Depth orders the opaque pass; the translucent pass is drawn by
+   * `translucentRuns`, where this order breaks ties (the line and curve pieces of one path).
    */
   private *passBatches(pass: TPass): Generator<TBatch> {
     for (const group of this.pathGroups.values()) {
       if (group.pass !== pass) continue;
-      this.setEffectUniforms(group);
       yield group.lines;
       yield group.curves;
     }
     yield this.rects[pass];
     yield this.glyphs[pass];
+  }
+
+  private readonly keyOf = (id: string): number => this.depth.keyOf(id);
+
+  private readonly levelOf = (id: string): number => this.levels.levelOf(id);
+
+  private readonly elementOf = (id: string): TSceneElement | undefined => this.elements.get(id);
+
+  /**
+   * Updates the overlap levels after a change of the translucent set, of a translucent element's own zIndex or order,
+   * or of a translucent element's origin or bounds. Then, when a level or a translucent instance list changed since the
+   * runs were built, rebuilds the draw runs: for each level, for each step, a draw per program. The instances are
+   * sorted by (level, step, element key) when ranges were added or removed since (the lists upload in full then
+   * anyway). A level change alone leaves them where they lie: a moved element's chunks are drawn from there at their
+   * new draw position, a draw call or two each, until more than `MAX_OUT_OF_PLACE` buckets are out of place
+   * (`orderTranslucent`); sorting instead would move and upload every instance between their old and new places. A pan
+   * or a zoom does neither.
+   */
+  private orderTranslucent(): void {
+    if (this.levels.pending) {
+      const start = performance.now();
+      this.levels.update(this.keyOf, this.elementOf);
+      this.stats.lastLevelsMs = performance.now() - start;
+      this.stats.translucentLevels = this.levels.count;
+    }
+    const batches = [...this.passBatches("translucent")];
+    const stamp = (): number[] => [this.levels.revision, ...batches.map((batch) => batch.ranges.revision)];
+    if (sameNumbers(stamp(), this.orderStamp)) return;
+    const start = performance.now();
+    const layout = (): number[] => batches.map((batch) => batch.ranges.layoutRevision);
+    this.translucentRuns = orderTranslucent(
+      batches.map((batch) => ({ instances: batch.ranges, elements: batch.elements?.ranges })),
+      this.levelOf,
+      this.keyOf,
+      !sameNumbers(layout(), this.layoutStamp)
+    );
+    this.translucentBatches = batches;
+    // After the sort: it changes the revisions of the lists it reorders.
+    this.orderStamp = stamp();
+    this.layoutStamp = layout();
+    this.stats.lastTranslucentOrderMs = performance.now() - start;
+  }
+
+  /**
+   * Points the batch's per-instance attributes at instance `first`. WebGL 2 has no base instance, so a run that starts
+   * inside the instance buffer moves the attribute offsets in the model's vertex array; the formats are float32.
+   */
+  private pointInstances(batch: TBatch, first: number): void {
+    if (batch.pointedAt === first) return;
+    const vertexArray = batch.model.vertexArray;
+    if (!(vertexArray instanceof WEBGLVertexArray)) throw new Error("The scene backend needs a WebGL vertex array");
+    batch.pointers ??= this.instancePointers(batch);
+    const { gl } = this;
+    gl.bindVertexArray(vertexArray.handle);
+    for (const { buffer, attributes } of batch.pointers) {
+      const target = buffer.buffer;
+      if (!(target instanceof WEBGLBuffer)) throw new Error("The scene backend needs WebGL buffers");
+      gl.bindBuffer(gl.ARRAY_BUFFER, target.handle);
+      for (const { location, components, byteOffset, stride } of attributes) {
+        gl.vertexAttribPointer(location, components, gl.FLOAT, false, stride, byteOffset + first * stride);
+      }
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    gl.bindVertexArray(null);
+    batch.pointedAt = first;
+  }
+
+  /**
+   * The pointers luma sets for the batch's per-instance attributes (`WEBGLVertexArray.setBuffer`), per buffer. Each
+   * must be a float32 attribute, neither integer nor normalized: `pointInstances` re-points them as such.
+   */
+  private instancePointers(batch: TBatch): { buffer: DynamicBuffer; attributes: TPointer[] }[] {
+    const infos = Object.values(getAttributeInfosFromLayouts(batch.model.pipeline.shaderLayout, [...batch.layout]));
+    return batch.instanceBuffers.map(({ name, buffer }) => ({
+      buffer,
+      attributes: infos
+        .filter((info) => info.bufferName === name)
+        .map((info) => {
+          if (info.bufferDataType !== "float32" || info.integer || info.normalized) {
+            throw new Error(
+              `The scene backend re-points ${info.attributeName} of ${batch.model.id} as float32, but it is ` +
+                `${info.bufferDataType}${info.integer ? " integer" : ""}${info.normalized ? " normalized" : ""}`
+            );
+          }
+          return {
+            location: info.location,
+            components: info.bufferComponents,
+            byteOffset: info.byteOffset,
+            stride: info.byteStride,
+          };
+        }),
+    }));
   }
 
   /** The group's extra width (0 without an effect) and its effect's `u_<name>` values. */
@@ -708,9 +948,19 @@ class WebGLSceneBackend implements ISceneBackend {
     }
   }
 
-  /** Draws the batch; false when it has no instances. */
-  private drawBatch(pass: RenderPass, batch: TBatch, frame: TSceneFrame): boolean {
-    const count = batch.ranges.count;
+  /**
+   * `scene_dimColor` of a dim colour, parsed as the Canvas2D interpreter parses it (`readColorRgba`): a colour that
+   * does not parse dims nothing in either renderer.
+   */
+  private setDimColor(color: string): void {
+    if (color === this.dimColor) return;
+    this.dimColor = color;
+    const rgba = readColorRgba(color);
+    this.dimFloats = rgba ? [rgba[0] / 255, rgba[1] / 255, rgba[2] / 255, 1] : NO_DIM_COLOR;
+  }
+
+  /** Draws `count` instances of the batch from where its attributes point; false when there are none. */
+  private drawInstances(pass: RenderPass, batch: TBatch, frame: TSceneFrame, count: number): boolean {
     if (count === 0) return false;
     const viewport = [frame.width, frame.height];
     const camera = [frame.x, frame.y, frame.scale];
@@ -718,6 +968,7 @@ class WebGLSceneBackend implements ISceneBackend {
     uniforms.scene_viewport = viewport;
     uniforms.scene_camera = camera;
     uniforms.scene_time = frame.time;
+    uniforms.scene_dimColor = this.dimFloats;
     uniforms.graph_viewport = viewport;
     uniforms.graph_camera = camera;
     uniforms.graph_dpr = frame.dpr;
@@ -731,8 +982,16 @@ class WebGLSceneBackend implements ISceneBackend {
 
   /** Uploads what changed in the instance data of a batch: everything after a resize or removal, else a range. */
   private upload(batch: TBatch): TUploadKind {
+    const generations = (): number => batch.buffer.generation + (batch.elements?.buffer.generation ?? 0);
+    const before = generations();
     const kind = this.uploadRanges(batch.ranges, batch.buffer);
     if (batch.elements) this.uploadRanges(batch.elements.ranges, batch.elements.buffer);
+    if (generations() !== before) {
+      // A resize replaced a GPU buffer. Bind it now: luma would rebind it at offset 0 inside the next draw, after
+      // pointInstances() set a run's offset.
+      batch.model.setAttributes(Object.fromEntries(batch.instanceBuffers.map(({ name, buffer }) => [name, buffer])));
+      batch.pointedAt = 0;
+    }
     return kind;
   }
 
@@ -771,10 +1030,10 @@ class WebGLSceneBackend implements ISceneBackend {
     if (this.styles.takeDirty() && this.styles.rows > 0) {
       if (this.styles.rows > this.styleTexture.height) {
         this.styleTexture.destroy();
-        this.styleTexture = this.createTableTexture(PART_SLOTS, this.styles.rows);
+        this.styleTexture = this.createTableTexture(STYLE_ROW_TEXELS, this.styles.rows);
         this.rebind();
       }
-      this.styleTexture.writeData(this.styles.data, { width: PART_SLOTS, height: this.styles.rows });
+      this.styleTexture.writeData(this.styles.data, { width: STYLE_ROW_TEXELS, height: this.styles.rows });
       this.stats.uploads += 1;
     }
     if (this.atlas.takeDirty()) {
@@ -797,9 +1056,9 @@ class WebGLSceneBackend implements ISceneBackend {
     for (const batch of this.allBatches()) batch.model.setBindings(this.bindings(batch.textures));
   }
 
-  /** Rows of style texels without overrides (alpha -1). */
+  /** Rows of style texels without overrides and base colours (alpha -1) and without dim (r 0). */
   private noStyles(rows: number): Float32Array {
-    const data = new Float32Array(rows * PART_SLOTS * 4);
+    const data = new Float32Array(rows * STYLE_ROW_TEXELS * 4);
     for (let i = 3; i < data.length; i += 4) data[i] = -1;
     return data;
   }

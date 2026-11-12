@@ -82,12 +82,9 @@ const GraphApp = () => {
     [onConnectionChange]
   );
 
-  const onSelectedUpdate: CheckboxProps["onUpdate"] = useCallback(
-    (value) => {
-      onConnectionChange({ selected: value });
-    },
-    [onConnectionChange]
-  );
+  const onSelectedUpdate: CheckboxProps["onUpdate"] = useCallback((value) => {
+    graphRef.current?.api.selectConnections(["OneLeft:TwoRight"], value);
+  }, []);
 
   const onStrokeColorUpdate: SegmentedRadioGroupProps<string>["onUpdate"] = useCallback(
     (value) => {

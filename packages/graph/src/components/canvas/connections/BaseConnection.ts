@@ -23,6 +23,8 @@ export type TBaseConnectionProps = {
  */
 export type TBaseConnectionState = TComponentState &
   TConnection & {
+    /** Selection, read from `ConnectionState.$selected`; it is not part of the connection data */
+    selected?: boolean;
     /** Whether the connection is currently being hovered */
     hovered?: boolean;
   };
@@ -82,6 +84,9 @@ export class BaseConnection<
   Context extends GraphComponentContext = GraphComponentContext,
   Connection extends TConnection = TConnection,
 > extends GraphComponent<Props, State, Context> {
+  /** The entity type of the selection bucket and of tag addresses. */
+  public static entityType = "connection";
+
   /**
    * @deprecated use port system instead
    */
@@ -145,7 +150,11 @@ export class BaseConnection<
     this.connectedState.setViewComponent(this);
 
     // Initialize component state with connection data
-    this.setState({ ...(this.connectedState.$state.value as TBaseConnectionState), hovered: false });
+    this.setState({
+      ...(this.connectedState.$state.value as TBaseConnectionState),
+      selected: this.connectedState.$selected.value,
+      hovered: false,
+    });
   }
 
   public getEntityId() {
@@ -160,7 +169,10 @@ export class BaseConnection<
       if (selected !== this.getState().selected) this.setState({ selected });
     });
     this.subscribeSignal(this.connectedState.$state, (state) => {
-      if (hasChangedValue<TConnection>(state, this.getState())) this.setState({ ...state });
+      // After the spread: a legacy `selected` in untyped or persisted data must not override the selection.
+      if (hasChangedValue<TConnection>(state, this.getState())) {
+        this.setState({ ...state, selected: this.connectedState.$selected.peek() });
+      }
     });
 
     // Endpoints: the first value is applied now; later moves recompute once in the next update, so moving both

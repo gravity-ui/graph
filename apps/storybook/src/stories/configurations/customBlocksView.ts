@@ -47,7 +47,6 @@ export const customSchematicViewConfig: TGraphConfig = {
       width: 200,
       height: 160,
       id: "Lonely block without anchors",
-      selected: false,
       name: "one block",
       anchors: [],
     },

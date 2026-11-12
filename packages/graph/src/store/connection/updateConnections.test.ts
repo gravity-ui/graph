@@ -13,7 +13,6 @@ const createBlock = (id: string, x: number): TBlock => ({
   y: 0,
   width: 100,
   height: 50,
-  selected: false,
   anchors: [],
 });
 

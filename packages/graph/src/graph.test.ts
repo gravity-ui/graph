@@ -89,7 +89,6 @@ describe("Graph export/import and updateBlock integration", () => {
       y: 20,
       width: 100,
       height: 50,
-      selected: false,
       name: "TestBlock",
       anchors: [],
     };
@@ -142,7 +141,7 @@ describe("Graph colors runtime merge behavior", () => {
 
 describe("setEntities + waitUsableRectUpdate (pendingEntitiesUpdate fix)", () => {
   function makeBlock(id: string, x = 0, y = 0): TBlock {
-    return { id, is: "Block", x, y, width: 100, height: 50, selected: false, name: id, anchors: [] };
+    return { id, is: "Block", x, y, width: 100, height: 50, name: id, anchors: [] };
   }
 
   it("resolves waitUsableRectUpdate after setEntities with same block positions", (done) => {

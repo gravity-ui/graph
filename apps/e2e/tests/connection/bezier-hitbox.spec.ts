@@ -23,7 +23,6 @@ test.describe("Bezier Connection Hitbox", () => {
             height: 100,
             name: "Source",
             anchors: [],
-            selected: false,
           },
           {
             id: "target",
@@ -34,7 +33,6 @@ test.describe("Bezier Connection Hitbox", () => {
             height: 100,
             name: "Target",
             anchors: [],
-            selected: false,
           },
         ],
         connections: [
@@ -162,7 +160,6 @@ test.describe("Bezier Connection Hitbox", () => {
               height: 150,
               name: "Source",
               anchors: [],
-              selected: false,
             },
             {
               id: "target",
@@ -173,7 +170,6 @@ test.describe("Bezier Connection Hitbox", () => {
               height: 150,
               name: "Target",
               anchors: [],
-              selected: false,
             },
           ],
           connections: [

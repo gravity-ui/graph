@@ -38,7 +38,6 @@ const BLOCKS = [
     height: 100,
     name: "Block 1",
     anchors: [],
-    selected: false,
     group: "group-1",
   },
   {
@@ -50,7 +49,6 @@ const BLOCKS = [
     height: 100,
     name: "Block 2",
     anchors: [],
-    selected: false,
     group: "group-1",
   },
   {
@@ -62,7 +60,6 @@ const BLOCKS = [
     height: 100,
     name: "Outer Block",
     anchors: [],
-    selected: false,
   },
 ];
 
@@ -479,7 +476,6 @@ test.describe("CollapsibleGroup", () => {
           width: 200,
           height: 100,
           name: "Block A",
-          selected: false,
           group: "group-anchors",
           anchors: [
             { id: "anchor-out", blockId: "block-a", type: "OUT", index: 0 },
@@ -494,7 +490,6 @@ test.describe("CollapsibleGroup", () => {
           width: 200,
           height: 100,
           name: "Block B",
-          selected: false,
           anchors: [{ id: "anchor-in-b", blockId: "block-b", type: "IN", index: 0 }],
         },
       ];

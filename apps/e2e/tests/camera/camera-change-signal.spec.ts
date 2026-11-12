@@ -18,7 +18,6 @@ test.describe("camera-change event and $camera signal", () => {
           height: 100,
           name: "Block 1",
           anchors: [],
-          selected: false,
         },
       ],
       connections: [],

@@ -9,10 +9,12 @@ import React, {
   useState,
 } from "react";
 
-import { ESchedulerPriority, Graph, TBlock } from "@gravity-ui/graph";
+import { CanvasBlock, ESchedulerPriority, Graph, TBlock, TStyleTarget } from "@gravity-ui/graph";
 
 import { useSchedulerDebounce, useSignalEffect } from "./hooks";
 import { useBlockState, useBlockViewState } from "./hooks/useBlockState";
+import { useEntityStyle } from "./hooks/useEntityStyle";
+import { useSignal } from "./hooks/useSignal";
 import { applyBlockContainerLayout } from "./utils/applyBlockContainerLayout";
 import { cn } from "./utils/cn";
 
@@ -189,9 +191,14 @@ function GraphBlockInner<T extends TBlock>(
     return cn("graph-block-container", containerClassName, !interactive ? "graph-block-container-non-interactive" : "");
   }, [containerClassName, interactive]);
 
+  const blockComponents = useSignal(graph.rootStore.settings.$blockComponents);
+  const blockClass: TStyleTarget = blockComponents[block.is] || CanvasBlock;
+  const entityStyle = useEntityStyle(graph, { type: "block", id: block.id }, blockClass, "graph-block");
+  const selected = state?.$selected.value;
+
   const wrapperClassNames = useMemo(() => {
-    return cn("graph-block-wrapper", className, state?.$selected.value ? "selected" : "");
-  }, [className, state?.$selected.value]);
+    return cn("graph-block-wrapper", className, selected ? "selected" : "", entityStyle.className);
+  }, [className, selected, entityStyle.className]);
 
   if (!viewState || !state) {
     return null;
@@ -199,7 +206,9 @@ function GraphBlockInner<T extends TBlock>(
 
   return (
     <div className={containerClassNames} ref={setContainerRef}>
-      <div className={wrapperClassNames}>{children}</div>
+      <div className={wrapperClassNames} style={entityStyle.style}>
+        {children}
+      </div>
     </div>
   );
 }

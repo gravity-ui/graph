@@ -1,6 +1,7 @@
 import type { TScenePrimitive } from "../types";
 
 import { RECT_FLOATS, encodeRects } from "./encodeRects";
+import { USE_BASE_ALPHA } from "./tables";
 
 const slotOf = (part: string | undefined): number => (part === "border" ? 3 : Number(part !== undefined) * 2);
 
@@ -33,6 +34,55 @@ describe("encodeRects", () => {
     );
     expect(opaque).toHaveLength(0);
     expect(translucent).toHaveLength(RECT_FLOATS);
+  });
+
+  it("encodes an unset fill and an unset border colour as the base paint, in the opaque pass", () => {
+    const { opaque, translucent } = encodeRects(
+      [{ kind: "rect", x: 0, y: 0, width: 1, height: 1, border: { width: 2 }, part: "body" }],
+      0,
+      slotOf
+    );
+    expect(translucent).toHaveLength(0);
+    expect(opaque).toHaveLength(RECT_FLOATS);
+    expect(Array.from(opaque.slice(12, 16))).toEqual([0, 0, 0, USE_BASE_ALPHA]);
+    expect(Array.from(opaque.slice(16, 20))).toEqual([0, 0, 0, USE_BASE_ALPHA]);
+  });
+
+  it("encodes a rect without a border as no border paint", () => {
+    const { opaque } = encodeRects([{ kind: "rect", x: 0, y: 0, width: 1, height: 1, fill: "#fff" }], 0, slotOf);
+    expect(Array.from(opaque.slice(16, 20))).toEqual([0, 0, 0, 0]);
+  });
+
+  it("encodes a border whose width is unset as no border, in the pass of its fill", () => {
+    const { opaque, translucent } = encodeRects(
+      [
+        {
+          kind: "rect",
+          x: 0,
+          y: 0,
+          width: 1,
+          height: 1,
+          fill: "#fff",
+          border: { color: "rgba(255,0,0,0.5)", align: "inside" },
+        },
+      ],
+      0,
+      slotOf
+    );
+    expect(translucent).toHaveLength(0);
+    expect(Array.from(opaque.slice(16, 24))).toEqual([0, 0, 0, 0, 0, 0, 0, 1e9]);
+    expect(opaque[24]).toBe(1);
+  });
+
+  it("puts a rect with a translucent border and an unset fill into translucent", () => {
+    const { opaque, translucent } = encodeRects(
+      [{ kind: "rect", x: 0, y: 0, width: 1, height: 1, border: { color: "rgba(255,0,0,0.5)", width: 2 } }],
+      0,
+      slotOf
+    );
+    expect(opaque).toHaveLength(0);
+    expect(Array.from(translucent.slice(12, 16))).toEqual([0, 0, 0, USE_BASE_ALPHA]);
+    expect(Array.from(translucent.slice(16, 20))).toEqual([1, 0, 0, 0.5]);
   });
 
   it("encodes a circle as a rect with equal radii", () => {

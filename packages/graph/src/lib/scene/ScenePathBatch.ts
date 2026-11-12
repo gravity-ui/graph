@@ -103,8 +103,7 @@ export class ScenePathBatch {
             ctx.fill(path);
           }
         }
-        if (first.stroke) {
-          applyStroke(ctx, first.stroke, 1);
+        if (first.stroke && applyStroke(ctx, first.stroke, 1)) {
           ctx.stroke(path);
         }
         ctx.restore();

@@ -78,7 +78,6 @@ async function generateByImage() {
             y: y * 10,
             width: 50,
             height: 50,
-            selected: false,
             name: `block_${x}-${y}`,
             anchors: [],
             meta: {

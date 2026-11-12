@@ -1,12 +1,21 @@
 import { colorFloats } from "../../../components/canvas/connections/webgl/encode";
-import type { TSceneStyle } from "../types";
+import { parseColorAlpha } from "../colorAlpha";
+import { styleDim, styleOpacity } from "../style";
+import type { TScenePartStyle, TSceneStyle } from "../types";
 
 export const TABLE_WIDTH = 1024;
 export const PART_SLOTS = 8;
+/** The first dim texel of a style row: texels `DIM_TEXEL + slot` hold the dim of each part slot in r. */
+export const DIM_TEXEL = 2 * PART_SLOTS;
+/** Texels of a style row: the override of every part slot, then its base colour, then its dim. */
+export const STYLE_ROW_TEXELS = 3 * PART_SLOTS;
 
-const NO_OVERRIDE_ALPHA = -1;
+/** The alpha of a texel without a colour: an override that keeps the paint, a base that paints nothing. */
+const NO_COLOR_ALPHA = -1;
 /** The alpha of a slot whose part is hidden by `visible: false`: below it the shader culls the primitive. */
 export const HIDDEN_ALPHA = -2;
+/** The instance alpha of a paint that the primitive leaves unset: the shader takes the base colour of its part. */
+export const USE_BASE_ALPHA = -3;
 
 /** One texel per element: (originX, originY, elementKey or -1 when hidden, styleId). */
 export class ElementTable {
@@ -73,7 +82,22 @@ export class ElementTable {
   }
 }
 
-/** One row per style id, one texel per part slot (r, g, b, a); a = -1 means no override. */
+/** Writes an opaque colour at `at`; a translucent one is baked into the primitive by the encoder instead. */
+function writeOpaque(data: Float32Array, at: number, paint: Readonly<TScenePartStyle>): void {
+  if (paint.color !== undefined && parseColorAlpha(paint.color) >= 1) data.set(colorFloats(paint.color), at);
+}
+
+/**
+ * One row per style id, `STYLE_ROW_TEXELS` texels (r, g, b, a) per row:
+ * - texels 0..7 override the paint of a part slot (a = -1: no override, -2: the part is hidden);
+ * - texels 8..15 are the base colour that fills an unset paint of the slot (a = -1: none, the paint draws nothing);
+ * - texels 16..23 hold the effective dim of the slot in r (`styleDim`): slot 0 ("none") and every part the row does
+ *   not name hold the element's `dim`, so a slot registered after the row was written reads the right value.
+ *
+ * A part is hidden by its effective visibility: the override's `visible`, else the base's. Translucent colours are not
+ * in the table: `bakeElementStyle` puts them into the primitive, which then lands in the translucent pass. Neither is
+ * the override colour of a part whose effective opacity (`styleOpacity`) is below 1: the encoder bakes it, faded.
+ */
 export class StyleTable {
   public data = new Float32Array(0);
 
@@ -99,14 +123,25 @@ export class StyleTable {
   }
 
   public setStyles(styles: readonly TSceneStyle[]): void {
-    const data = new Float32Array(styles.length * PART_SLOTS * 4);
-    for (let i = 3; i < data.length; i += 4) data[i] = NO_OVERRIDE_ALPHA;
+    const data = new Float32Array(styles.length * STYLE_ROW_TEXELS * 4);
+    for (let i = 3; i < data.length; i += 4) data[i] = NO_COLOR_ALPHA;
     styles.forEach((style, row) => {
-      for (const [part, paint] of Object.entries(style)) {
-        const at = (row * PART_SLOTS + this.slotOf(part)) * 4;
-        if (paint.color !== undefined) data.set(colorFloats(paint.color), at);
-        // visible: false hides the whole primitive that has this part: the shaders cull it.
-        if (paint.visible === false) data[at + 3] = HIDDEN_ALPHA;
+      const rowAt = row * STYLE_ROW_TEXELS;
+      const dimAt = (slot: number): number => (rowAt + DIM_TEXEL + slot) * 4;
+      const elementDim = styleDim(style, undefined);
+      for (let slot = 0; slot < PART_SLOTS; slot++) data.set([elementDim, 0, 0, 0], dimAt(slot));
+      const parts = new Set([...Object.keys(style.parts ?? {}), ...Object.keys(style.base ?? {})]);
+      for (const part of parts) {
+        const override = style.parts?.[part];
+        const base = style.base?.[part];
+        const slot = this.slotOf(part);
+        const at = (rowAt + slot) * 4;
+        // A faded part's colours are baked with its opacity: an override here would paint over them.
+        if (override && styleOpacity(style, part) >= 1) writeOpaque(data, at, override);
+        if (base) writeOpaque(data, (rowAt + PART_SLOTS + slot) * 4, base);
+        // An effectively invisible part hides the whole primitive that has it: the shaders cull it.
+        if ((override?.visible ?? base?.visible) === false) data[at + 3] = HIDDEN_ALPHA;
+        data[dimAt(slot)] = styleDim(style, part);
       }
     });
     this.data = data;

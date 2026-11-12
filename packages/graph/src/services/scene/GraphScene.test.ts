@@ -1,8 +1,15 @@
+import { Block } from "../../components/canvas/blocks/Block";
 import { Graph } from "../../graph";
 import type { TSceneElementInput } from "../../lib/scene/SceneStore";
+import { drawElements } from "../../lib/scene/drawPrimitives";
 import type { TSceneChange } from "../../lib/scene/types";
 import type { ISceneBackend, ISceneBackendModule } from "../../lib/scene/webgl/backendTypes";
 import { Layer } from "../Layer";
+import { ESelectionStrategy } from "../selection";
+import { StyleResolver } from "../styles/StyleResolver";
+import type { TStyleParts } from "../styles/types";
+import { selectedTag } from "../tags/builtinTags";
+import { defineTag } from "../tags/defineTag";
 
 import type { TSceneElementView, TSceneRendererState } from "./types";
 
@@ -368,6 +375,272 @@ describe("graph.scene", () => {
       expect(added).toBe(true);
       expect(fake.drawn.length).toBeGreaterThan(0);
       expect(fake.drawn.at(-1)).toContain("late");
+    });
+  });
+});
+
+describe("bindStyle and explain", () => {
+  class Styled {
+    public declare readonly __styleParts?: TStyleParts<"border">;
+  }
+  const running = defineTag("running");
+  let graph: Graph;
+
+  afterEach(() => graph.unmount());
+
+  function addElement(id: string): void {
+    graph.scene.store.add({
+      id,
+      zIndex: 200,
+      x: 0,
+      y: 0,
+      bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1 },
+      primitives: [],
+    });
+  }
+
+  it("keeps the element's style on the entity's tags and explains it", () => {
+    graph = new Graph({});
+    graph.scene.styles.add([{ target: Styled, tags: [running], style: { parts: { border: { color: "#2e7d32" } } } }]);
+    addElement("e");
+    const unbind = graph.scene.bindStyle("e", { type: "block", id: "e" }, Styled);
+    expect(graph.scene.store.get("e")?.styleId).not.toBe(0);
+    const plain = graph.scene.store.get("e")?.styleId;
+    graph.scene.tags.add(running, { block: ["e"] });
+    const styled = graph.scene.store.get("e")?.styleId;
+    expect(styled).not.toBe(plain);
+    const explanation = graph.scene.explain("block", "e");
+    expect(explanation.tags).toEqual([{ name: "running", value: true }]);
+    expect(explanation.target).toBe("Styled");
+    expect(explanation.style?.parts).toEqual({ border: { color: "#2e7d32" } });
+    unbind();
+    expect(graph.scene.store.get("e")?.styleId).toBe(0);
+    expect(graph.scene.explain("block", "e").rules).toEqual([]);
+  });
+
+  it("explains matched rules with their layer, priority and tags", () => {
+    graph = new Graph({});
+    const focus = defineTag("focus");
+    graph.scene.styles.add([
+      { target: Styled, style: { parts: { border: { width: 1 } } } },
+      { target: Styled, tags: [running], priority: 2, style: { parts: { border: { color: "#2e7d32" } } } },
+    ]);
+    graph.scene.tags.setRoot(focus, true);
+    graph.scene.tags.add(running, { block: ["e"] });
+    addElement("e");
+    const unbind = graph.scene.bindStyle("e", { type: "block", id: "e" }, Styled);
+    const explanation = graph.scene.explain("block", "e");
+    expect(explanation.root).toEqual(["focus"]);
+    expect(explanation.rules).toEqual([
+      { theme: false, priority: 0, layer: "base", tags: [] },
+      { theme: false, priority: 2, layer: "state", tags: ["running"] },
+    ]);
+    expect(explanation.style).toBe(graph.scene.store.getStyles()[graph.scene.store.get("e")?.styleId ?? 0]);
+    unbind();
+  });
+
+  it("explains an unbound entity with its tags only", () => {
+    graph = new Graph({});
+    graph.scene.tags.add(running, { block: ["x"] });
+    expect(graph.scene.explain("block", "x")).toEqual({
+      tags: [{ name: "running", value: true }],
+      root: [],
+      rules: [],
+    });
+  });
+
+  it("frees the old row when the tags change and the row on unbind", () => {
+    graph = new Graph({});
+    addElement("e");
+    const unbind = graph.scene.bindStyle("e", { type: "block", id: "e" }, Styled);
+    const plain = graph.scene.store.get("e")?.styleId ?? 0;
+    graph.scene.tags.add(running, { block: ["e"] });
+    expect(graph.scene.store.getStyles()[plain]).toEqual({});
+    const styled = graph.scene.store.get("e")?.styleId ?? 0;
+    unbind();
+    unbind();
+    expect(graph.scene.store.getStyles()[styled]).toEqual({});
+    graph.scene.tags.delete(running, { block: ["e"] });
+    expect(graph.scene.store.get("e")?.styleId).toBe(0);
+  });
+
+  it("shares a row between entities with the same tags", () => {
+    graph = new Graph({});
+    addElement("a");
+    addElement("b");
+    graph.scene.bindStyle("a", { type: "block", id: "a" }, Styled);
+    graph.scene.bindStyle("b", { type: "block", id: "b" }, Styled);
+    expect(graph.scene.store.get("a")?.styleId).toBe(graph.scene.store.get("b")?.styleId);
+  });
+
+  it("binds before the element exists and after it is deleted", () => {
+    graph = new Graph({});
+    const unbind = graph.scene.bindStyle("late", { type: "block", id: "late" }, Styled);
+    graph.scene.tags.add(running, { block: ["late"] });
+    expect(graph.scene.store.get("late")).toBeUndefined();
+    expect(() => unbind()).not.toThrow();
+  });
+
+  it("hides a part by a scope-only rule and shows it again by a state rule", () => {
+    class Titled {
+      public declare readonly __styleParts?: TStyleParts<"title">;
+    }
+    const shown = defineTag("shown");
+    graph = new Graph({});
+    graph.cameraService.set({ scale: 0.05 });
+    expect(graph.scene.$level.value).toBe("minimalistic");
+    graph.scene.styles.add([
+      { target: Titled, scope: { levels: ["minimalistic"] }, style: { parts: { title: { visible: false } } } },
+      { target: Titled, tags: [shown], style: { parts: { title: { visible: true } } } },
+    ]);
+    graph.scene.store.add({
+      id: "e",
+      zIndex: 200,
+      x: 0,
+      y: 0,
+      bounds: { minX: 0, minY: 0, maxX: 10, maxY: 10 },
+      primitives: [{ kind: "rect", part: "title", x: 0, y: 0, width: 10, height: 10, fill: "#000000" }],
+    });
+    graph.scene.bindStyle("e", { type: "block", id: "e" }, Titled);
+    const ctx = document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D;
+    const draw = (): number =>
+      drawElements(ctx, graph.scene.store.query({ minX: 0, minY: 0, maxX: 10, maxY: 10 }), 0.05, {
+        styles: graph.scene.store.getStyles(),
+      });
+    expect(draw()).toBe(0);
+    graph.scene.tags.add(shown, { block: ["e"] });
+    expect(draw()).toBe(1);
+    graph.scene.tags.clear(shown);
+    expect(draw()).toBe(0);
+    graph.cameraService.set({ scale: 1 });
+    expect(draw()).toBe(1);
+  });
+
+  it("draws the next frame after a root tag or a rule changes only colours", () => {
+    graph = new Graph({}, document.createElement("div"));
+    graph.start();
+    const focus = defineTag("focus");
+    graph.scene.styles.add([{ target: Styled, root: [focus], style: { parts: { border: { color: "#ff0000" } } } }]);
+    addElement("e");
+    graph.scene.bindStyle("e", { type: "block", id: "e" }, Styled);
+    const drawn: (string | undefined)[] = [];
+    const draw = jest.spyOn(graph.scene.layer as unknown as { render(): void }, "render").mockImplementation(() => {
+      const styleId = graph.scene.store.get("e")?.styleId ?? 0;
+      drawn.push(graph.scene.store.getStyles()[styleId]?.parts?.border?.color);
+    });
+    graph.scheduler.performUpdate();
+    drawn.length = 0;
+
+    graph.scene.tags.setRoot(focus, true);
+    graph.scheduler.performUpdate();
+    expect(drawn).toEqual(["#ff0000"]);
+
+    graph.scene.styles.add([
+      { target: Styled, root: [focus], priority: 1, style: { parts: { border: { color: "#00ff00" } } } },
+    ]);
+    graph.scheduler.performUpdate();
+    expect(drawn).toEqual(["#ff0000", "#00ff00"]);
+    draw.mockRestore();
+  });
+
+  it("takes the dim colour from the theme's layer background", () => {
+    graph = new Graph({});
+    expect(graph.scene.store.getDimColor()).toBe(graph.$graphColors.value.canvas.layerBackground);
+    graph.setColors({ canvas: { layerBackground: "#123456" } });
+    expect(graph.scene.store.getDimColor()).toBe("#123456");
+  });
+
+  it("draws the next frame after a rule changes only dim or the theme changes the dim colour", () => {
+    graph = new Graph({}, document.createElement("div"));
+    graph.start();
+    const focus = defineTag("focus");
+    graph.scene.styles.add([{ target: Styled, root: [focus], style: { dim: 0.6 } }]);
+    addElement("e");
+    graph.scene.bindStyle("e", { type: "block", id: "e" }, Styled);
+    const drawn: [number | undefined, string][] = [];
+    const draw = jest.spyOn(graph.scene.layer as unknown as { render(): void }, "render").mockImplementation(() => {
+      const styleId = graph.scene.store.get("e")?.styleId ?? 0;
+      drawn.push([graph.scene.store.getStyles()[styleId]?.dim, graph.scene.store.getDimColor()]);
+    });
+    graph.scheduler.performUpdate();
+    drawn.length = 0;
+
+    graph.scene.tags.setRoot(focus, true);
+    graph.scheduler.performUpdate();
+    const background = graph.$graphColors.value.canvas.layerBackground;
+    expect(drawn).toEqual([[0.6, background]]);
+
+    graph.setColors({ canvas: { layerBackground: "#000000" } });
+    graph.scheduler.performUpdate();
+    expect(drawn).toEqual([
+      [0.6, background],
+      [0.6, "#000000"],
+    ]);
+    draw.mockRestore();
+  });
+
+  it("a focus dim rule keeps the theme's selection border of a block outside the highlight", () => {
+    graph = new Graph({});
+    const focus = defineTag("focus");
+    const highlighted = defineTag("highlighted");
+    graph.scene.styles.add([{ target: Block, root: [focus], notTags: [highlighted], style: { dim: 0.6 } }]);
+    graph.scene.tags.setRoot(focus, true);
+    const style = graph.scene.styleFor(Block, new Map([[selectedTag, true]]));
+    expect(style.parts?.border?.color).toBe(graph.$graphColors.value.block.selectedBorder);
+    expect(style.dim).toBe(0.6);
+    expect(graph.scene.styleFor(Block, new Map([[highlighted, true]])).dim).toBeUndefined();
+  });
+
+  it("an opacity rule on a tag re-encodes the bound element and fades its paints on Canvas2D", () => {
+    graph = new Graph({});
+    const ghost = defineTag("ghost");
+    graph.scene.styles.add([{ target: Styled, tags: [ghost], style: { opacity: 0.4 } }]);
+    graph.scene.store.add({
+      id: "e",
+      zIndex: 200,
+      x: 0,
+      y: 0,
+      bounds: { minX: 0, minY: 0, maxX: 4, maxY: 4 },
+      primitives: [{ kind: "rect", x: 0, y: 0, width: 4, height: 4, fill: "#ff0000", part: "border" }],
+    });
+    graph.scene.bindStyle("e", { type: "block", id: "e" }, Styled);
+    const fields: string[][] = [];
+    graph.scene.store.subscribe((change) => fields.push([...(change.fields ?? [])]));
+    graph.scene.tags.set(ghost, { block: ["e"] });
+    const element = graph.scene.store.get("e");
+    expect(element && graph.scene.store.getStyles()[element.styleId].opacity).toBe(0.4);
+    expect(fields.some((changed) => changed.includes("primitives"))).toBe(true);
+    const ctx = document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D;
+    const fills: unknown[] = [];
+    const fill = jest.spyOn(ctx, "fill").mockImplementation(() => fills.push(ctx.fillStyle));
+    drawElements(ctx, element ? [element] : [], 1, { styles: graph.scene.store.getStyles() });
+    expect(fills).toEqual(["rgba(255, 0, 0, 0.4)"]);
+    fill.mockRestore();
+  });
+
+  it("unmount releases style bindings before it clears the built-in tags", () => {
+    graph = new Graph({});
+    graph.setEntities({ blocks: [{ is: "Block", id: "e", name: "E", x: 0, y: 0, width: 1, height: 1, anchors: [] }] });
+    graph.selectionService.select("block", ["e"], ESelectionStrategy.REPLACE);
+    addElement("e");
+    graph.scene.bindStyle("e", { type: "block", id: "e" }, Styled);
+    expect(graph.scene.tags.$of("block", "e").value.has(selectedTag)).toBe(true);
+    const acquire = jest.spyOn(StyleResolver.prototype, "acquire");
+    try {
+      graph.unmount();
+      expect(acquire).not.toHaveBeenCalled();
+    } finally {
+      acquire.mockRestore();
+    }
+  });
+
+  it("styleFor and $styleGeneration follow the stylesheet", () => {
+    graph = new Graph({});
+    const generation = graph.scene.$styleGeneration.value;
+    graph.scene.styles.add([{ target: Styled, tags: [running], style: { parts: { border: { color: "#2e7d32" } } } }]);
+    expect(graph.scene.$styleGeneration.value).toBe(generation + 1);
+    expect(graph.scene.styleFor(Styled, new Map([[running, true]])).parts).toEqual({
+      border: { color: "#2e7d32" },
     });
   });
 });

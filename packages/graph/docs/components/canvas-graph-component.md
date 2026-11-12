@@ -631,8 +631,7 @@ class BadgeComponent extends GraphComponent<BadgeComponentProps, BadgeComponentS
       x: props.x,
       y: props.y,
       radius: props.radius || 20,
-      count: props.count || 0,
-      selected: false
+      count: props.count || 0
     };
     
     // Set up the circular hitbox

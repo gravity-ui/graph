@@ -64,7 +64,7 @@ describe("scene primitives", () => {
       border: { color: "#000", width: 2 },
     };
     drawElements(ctx, [element({ styleId: 1, primitives: [rect] })], 1, {
-      styles: [{}, { border: { color: "#ffcc00" } }],
+      styles: [{}, { parts: { border: { color: "#ffcc00" } } }],
     });
     const colors = ctx
       .__getEvents()
@@ -73,14 +73,94 @@ describe("scene primitives", () => {
     expect(colors).toEqual(["#ffcc00"]);
   });
 
+  it("dims the paints of a styled element towards the dim colour", () => {
+    const fills = (dimColor: string | undefined): unknown[] => {
+      const ctx = createContext();
+      const rect = { kind: "rect" as const, x: 0, y: 0, width: 4, height: 4, fill: "#000000" };
+      drawElements(ctx, [element({ styleId: 1, primitives: [rect] })], 1, { styles: [{}, { dim: 0.5 }], dimColor });
+      return ctx
+        .__getEvents()
+        .filter((event) => event.type === "fillStyle")
+        .map((event) => event.props.value);
+    };
+    expect(fills("#ffffff")).toEqual(["#808080"]);
+    expect(fills(undefined)).toEqual(["#000000"]);
+  });
+
+  it("fades every paint of a styled element by its opacity", () => {
+    const ctx = createContext();
+    const rect = {
+      kind: "rect" as const,
+      part: "body",
+      x: 0,
+      y: 0,
+      width: 4,
+      height: 4,
+      fill: "#000000",
+      border: { color: "#ffffff", width: 1 },
+    };
+    drawElements(ctx, [element({ styleId: 1, primitives: [rect] })], 1, {
+      styles: [{}, { opacity: 0.5, parts: { body: { opacity: 0.8 } } }],
+    });
+    const values = (type: string): unknown[] =>
+      ctx
+        .__getEvents()
+        .filter((event) => event.type === type)
+        .map((event) => event.props.value);
+    expect(values("fillStyle")).toEqual(["rgba(0, 0, 0, 0.4)"]);
+    expect(values("strokeStyle")).toEqual(["rgba(255, 255, 255, 0.4)"]);
+  });
+
+  it("does not merge paths of different opacities into one run", () => {
+    const ctx = createContext();
+    const stroke = jest.spyOn(ctx, "stroke");
+    const faded = (id: string): TSceneElement => ({ ...line(id), styleId: 1 });
+    const styles = [{}, { opacity: 0.5 }];
+    expect(drawElements(ctx, [line("a"), faded("b"), faded("c"), line("d")], 1, { styles })).toBe(4);
+    // a | b c | d: the faded paths share a run, but never with an opaque one.
+    expect(stroke).toHaveBeenCalledTimes(3);
+    const colors = ctx
+      .__getEvents()
+      .filter((event) => event.type === "strokeStyle")
+      .map((event) => event.props.value);
+    expect(colors).toEqual(["#112233", "rgba(17, 34, 51, 0.5)", "#112233"]);
+  });
+
   it("skips a part a style hides and keeps the primitive without a style", () => {
     const ctx = createContext();
     const rect = { kind: "rect" as const, part: "glow", x: 0, y: 0, width: 4, height: 4, fill: "#f00" };
     const hidden = element({ styleId: 1, primitives: [rect] });
-    expect(drawElements(ctx, [hidden], 1, { styles: [{}, { glow: { visible: false } }] })).toBe(0);
+    expect(drawElements(ctx, [hidden], 1, { styles: [{}, { parts: { glow: { visible: false } } }] })).toBe(0);
     expect(ctx.__getDrawCalls().filter((call) => call.type === "fill")).toHaveLength(0);
-    drawElements(ctx, [element({ primitives: [rect] })], 1, { styles: [{}, { glow: { visible: false } }] });
+    drawElements(ctx, [element({ primitives: [rect] })], 1, { styles: [{}, { parts: { glow: { visible: false } } }] });
     expect(ctx.__getDrawCalls().filter((call) => call.type === "fill")).toHaveLength(1);
+  });
+
+  it("hides a part by a base rule's visible: false unless the state layer shows it", () => {
+    const ctx = createContext();
+    const rect = { kind: "rect" as const, part: "title", x: 0, y: 0, width: 4, height: 4, fill: "#f00" };
+    const styled = element({ styleId: 1, primitives: [rect] });
+    expect(drawElements(ctx, [styled], 1, { styles: [{}, { base: { title: { visible: false } } }] })).toBe(0);
+    const shown = { base: { title: { visible: false } }, parts: { title: { visible: true } } };
+    expect(drawElements(ctx, [styled], 1, { styles: [{}, shown] })).toBe(1);
+  });
+
+  it("draws no stroke whose width is unset after styling, and takes the base width", () => {
+    const ctx = createContext();
+    const stroke = jest.spyOn(ctx, "stroke");
+    const rect = { kind: "rect" as const, part: "border", x: 0, y: 0, width: 4, height: 4, border: { color: "#000" } };
+    const path = { kind: "path" as const, part: "line", segments: SEGMENTS, stroke: { color: "#123" } };
+    drawElements(ctx, [element({ primitives: [rect, path] })], 1);
+    expect(stroke).not.toHaveBeenCalled();
+    drawElements(ctx, [element({ styleId: 1, primitives: [rect, path] })], 1, {
+      styles: [{}, { base: { border: { width: 2 }, line: { width: 3 } } }],
+    });
+    expect(stroke).toHaveBeenCalledTimes(2);
+    const widths = ctx
+      .__getEvents()
+      .filter((event) => event.type === "lineWidth")
+      .map((event) => event.props.value);
+    expect(widths).toEqual([2, 3]);
   });
 
   it("insets an inside border and outsets an outside one by half its width", () => {

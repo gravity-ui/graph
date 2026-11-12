@@ -22,7 +22,6 @@ export function createActionBlock(x: number, y: number, index: number): TGravity
     y,
     width: 63 * 2,
     height: 63 * 2,
-    selected: false,
     name: `Block #${index}`,
     anchors: [
       {
@@ -52,7 +51,6 @@ export function createTextBlock(x: number, y: number, width: number, index: numb
     y,
     width,
     height: 48,
-    selected: false,
     name: `Text Block`,
     anchors: [],
     meta: {

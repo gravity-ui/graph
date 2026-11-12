@@ -55,6 +55,19 @@ for (const [index, value] of runCapValues.entries()) {
   if (runCapValues.indexOf(value) !== index) fail(`--run-cap: "${value}" is given twice`);
 }
 const runCaps = runCapValues.map((value) => (value === "none" ? undefined : Number(value)));
+// --block-opacity X: the webgl column puts a style with `opacity: X` on every block (the translucent pass in scene
+// order); the other columns ignore it.
+const blockOpacityOption = option("block-opacity", undefined);
+const blockOpacity = blockOpacityOption === undefined ? undefined : Number(blockOpacityOption);
+if (blockOpacity !== undefined && !(blockOpacity >= 0 && blockOpacity <= 1)) {
+  fail(`--block-opacity: "${blockOpacityOption}" is not a number in [0, 1]`);
+}
+// --drag-offset N: the drag mode moves the block by N world units back and forth (default 3, inside its group). A
+// larger offset (200 on the guarantee scene) lays the block over its neighbour on every other step, so with
+// --block-opacity the overlap levels change on every step.
+const dragOffsetOption = option("drag-offset", undefined);
+const dragOffset = dragOffsetOption === undefined ? 3 : Number(dragOffsetOption);
+if (!Number.isFinite(dragOffset)) fail(`--drag-offset: "${dragOffsetOption}" is not a number`);
 // walk and cached (E2b) get no run cap: the cached store holds no paths or polygons.
 const columns = renderers.flatMap((renderer) =>
   renderer === "interpreter"
@@ -193,7 +206,8 @@ async function rendererName() {
   return name;
 }
 console.log(
-  `repeats=${repeats} steps=${steps} view=${VIEW.width}x${VIEW.height} columns=${columns.map((c) => c.name).join(",")}`
+  `repeats=${repeats} steps=${steps} view=${VIEW.width}x${VIEW.height} columns=${columns.map((c) => c.name).join(",")}` +
+    (modes.includes("drag") ? ` drag offset ${dragOffset}` : "")
 );
 console.log(`chromium ${browser.version()} gpu=${gpu} renderer: ${await rendererName()}`);
 for (const scene of scenes) {
@@ -219,6 +233,7 @@ for (const scene of scenes) {
           height: VIEW.height,
           scale,
           maxRun,
+          blockOpacity,
         });
         first.push(...sizes.first);
         for (const mode of modes) {
@@ -233,6 +248,7 @@ for (const scene of scenes) {
             warmup: 10,
             steps,
             scale,
+            dragOffset,
           });
           if (cdp) {
             const { profile } = await cdp.send("Profiler.stop");
@@ -287,7 +303,11 @@ for (const scene of scenes) {
         console.log(
           `          webgl: state ${webgl.state} | deviceMs ${webgl.deviceMs.toFixed(1)} | ` +
             `lastReplayMs ${webgl.lastReplayMs.toFixed(1)} | last frame instances ${webgl.instances} ` +
-            `drawCalls ${webgl.drawCalls} | uploads ${webgl.uploads} lastUpload ${webgl.lastUploadKind} | ` +
+            `drawCalls ${webgl.drawCalls} (translucent ${webgl.translucentDrawCalls}) | ` +
+            `translucent levels ${webgl.translucentLevels} (last level update ${webgl.lastLevelsMs.toFixed(2)} ms, ` +
+            `last sort ${webgl.lastTranslucentOrderMs.toFixed(2)} ms) | ` +
+            `${blockOpacity === undefined ? "" : `blocks at opacity ${blockOpacity} | `}` +
+            `uploads ${webgl.uploads} lastUpload ${webgl.lastUploadKind} | ` +
             `SKIPPED (not drawn: no support in the slice) polygons ${webgl.skipped.polygon} icons ${webgl.skipped.icon}`
         );
         console.log(

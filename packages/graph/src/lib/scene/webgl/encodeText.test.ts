@@ -1,5 +1,6 @@
 import { GLYPH_FLOATS, encodeText } from "./encodeText";
 import { GlyphAtlas } from "./glyphs";
+import { USE_BASE_ALPHA } from "./tables";
 
 function atlas(): GlyphAtlas {
   return new GlyphAtlas(
@@ -61,5 +62,17 @@ describe("encodeText", () => {
     );
     expect(opaque).toHaveLength(0);
     expect(translucent).toHaveLength(GLYPH_FLOATS);
+  });
+
+  it("encodes an unset colour as the base paint, in the opaque pass", () => {
+    const { opaque, translucent } = encodeText(
+      [{ kind: "text", text: "a", family: "f", size: 12, lineHeight: 14, x: 0, y: 0, width: 9, part: "title" }],
+      0,
+      () => 1,
+      atlas()
+    );
+    expect(translucent).toHaveLength(0);
+    expect(opaque).toHaveLength(GLYPH_FLOATS);
+    expect(Array.from(opaque.slice(12, 16))).toEqual([0, 0, 0, USE_BASE_ALPHA]);
   });
 });

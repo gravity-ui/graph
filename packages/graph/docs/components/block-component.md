@@ -330,7 +330,6 @@ const graphConfig: TGraphConfig = {
       width: 180,
       height: 120,
       label: "My Special Block",
-      selected: false,
       anchors: [
         // Define anchors for the block
         { id: "input1", type: EAnchorType.INPUT, point: [0, 0.5] },
@@ -433,7 +432,6 @@ export const customBlockGraphConfig: TGraphConfig = {
       width: 200,
       height: 150,
       label: "Rounded Block 1",
-      selected: false,
       anchors: [
         { id: "in1", type: EAnchorType.INPUT, point: [0, 0.3] },
         { id: "in2", type: EAnchorType.INPUT, point: [0, 0.7] },
@@ -448,7 +446,6 @@ export const customBlockGraphConfig: TGraphConfig = {
       width: 200,
       height: 150,
       label: "Rounded Block 2",
-      selected: false,
       anchors: [
         { id: "in", type: EAnchorType.INPUT, point: [0, 0.5] },
         { id: "out1", type: EAnchorType.OUTPUT, point: [1, 0.3] },
