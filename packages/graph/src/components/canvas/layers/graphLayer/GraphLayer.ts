@@ -163,6 +163,15 @@ export class GraphLayer extends Layer<TGraphLayerProps, TGraphLayerContext> {
     this.hoveredComponent.value = component;
   }
 
+  /** @internal Drops an unmounted component from the pointer state, so no later event targets or re-publishes it. */
+  public forgetComponent(component: EventedComponent): void {
+    if (this.targetComponent === component) this.targetComponent = undefined;
+    if (this.prevTargetComponent === component) this.prevTargetComponent = undefined;
+    if (this.pointerStartTarget === component) this.pointerStartTarget = undefined;
+    if (this.capturedTargetComponent === component) this.capturedTargetComponent = undefined;
+    if (this.hoveredComponent.peek() === component) this.hoveredComponent.value = undefined;
+  }
+
   private publishHovered(): void {
     const target = this.capturedTargetComponent ?? this.targetComponent;
     this.hoveredComponent.value = target instanceof GraphComponent ? target : undefined;

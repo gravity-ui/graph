@@ -2,6 +2,7 @@ import { Graph } from "../../graph";
 import { globalScheduler } from "../../lib/Scheduler";
 
 import { Block } from "./blocks/Block";
+import { LegacyCanvasBlock } from "./blocks/LegacyCanvasBlock";
 
 function frames(): void {
   for (let i = 0; i < 3; i++) globalScheduler.performUpdate();
@@ -34,7 +35,7 @@ function mount(blockComponents: TBlockComponents, x: number): { graph: Graph; bl
 
 describe("extension contract for custom components", () => {
   it("vetoes painting through isRenderAllowed()", () => {
-    class Vetoed extends Block {
+    class Vetoed extends LegacyCanvasBlock {
       public allowed = false;
       public paints = 0;
       protected override isRenderAllowed(): boolean {
@@ -56,7 +57,7 @@ describe("extension contract for custom components", () => {
   });
 
   it("keeps culling for an iterate() override that calls super.iterate() without arguments", () => {
-    class Logged extends Block {
+    class Logged extends LegacyCanvasBlock {
       public iterations = 0;
       public paints = 0;
       public override iterate(): boolean {

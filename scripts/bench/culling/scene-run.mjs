@@ -26,11 +26,71 @@ const scales = list(option("scales", "0.05,0.15,0.3,0.6")).map(Number);
 const modes = list(option("modes", "pan,zoom,drag"));
 const renderers = list(option("renderers", "walk,interpreter"));
 for (const renderer of renderers) {
-  if (!["walk", "interpreter", "cached", "webgl"].includes(renderer)) {
-    console.error(`scene-run: --renderers: "${renderer}" is not one of walk, interpreter, cached, webgl`);
+  if (!["walk", "interpreter", "cached", "webgl", "blocks", "blocks-webgl", "blocks-default"].includes(renderer)) {
+    console.error(`scene-run: --renderers: "${renderer}" is not one of walk, interpreter, cached, webgl, blocks, blocks-webgl, blocks-default`);
     process.exit(1);
   }
 }
+// --minimap: the blocks columns also add a MiniMapLayer (its cost per tick, review I12).
+const minimap = Boolean(option("minimap", false));
+// --no-anchors: the walk and blocks columns turn useBlocksAnchors off (no anchor components or child elements).
+const noAnchors = Boolean(option("no-anchors", false));
+// --visit [scale]: after the bulk actions, the walk and blocks columns visit the schematic level (default 0.225, the
+// first schematic scale) at the view's centre and come back: the first zoom-in (lazy anchors are created), a second
+// one, a pan at the schematic level with the anchors' view test, and the pan at the measured scale before and after.
+const visitOption = option("visit", false);
+const visitScale = visitOption === false ? undefined : visitOption === true ? 0.225 : Number(visitOption);
+if (visitScale !== undefined && !(visitScale > 0)) {
+  console.error(`scene-run: --visit: "${visitOption}" is not a positive scale`);
+  process.exit(1);
+}
+// --bulk-spin <ms> (default 0, off): every column's page runs a busy loop of <ms> (arithmetic only: no allocation, no
+// heap reads) right before bulk(), so every column starts the bulk actions with a busy main thread. Without it a column
+// whose frames are cheap (blocks-webgl: 3-5 ms ticks) enters bulk() from a mostly idle main thread, and the first
+// ~100 ms of the burst run slower (Task 17f: CPU state, not GC).
+const bulkSpinOption = option("bulk-spin", 0);
+const bulkSpin = bulkSpinOption === true ? 400 : Number(bulkSpinOption);
+if (!(Number.isFinite(bulkSpin) && bulkSpin >= 0)) {
+  fail(`--bulk-spin: "${bulkSpinOption}" is not a finite number of ms of at least 0`);
+}
+// --export [level] (off by default; "schematic" when given without a value): after the bulk actions (and the visit),
+// the real-blocks columns time graph.scene.toImage() of the whole scene at the measured scale and that level, three
+// times: the anchors the export creates and drops (Task 17g), its prepare / draw / cleanup split, the next tick, and
+// the JS heap before, at the peak (right after the preparation, after a forced GC) and after.
+const exportOption = option("export", false);
+const exportLevel = exportOption === false ? undefined : exportOption === true ? "schematic" : String(exportOption);
+if (exportLevel !== undefined && !["minimalistic", "schematic", "detailed"].includes(exportLevel)) {
+  fail(`--export: "${exportOption}" is not one of minimalistic, schematic, detailed`);
+}
+// --camera-aware-names [family] (Task 17i): the blocks columns draw each name as a camera-aware text over the body,
+// in `family` when given (system-ui: a font whose widths do not scale linearly, laid out again at every size).
+const cameraAwareNamesOption = option("camera-aware-names", false);
+const cameraAwareNames =
+  typeof cameraAwareNamesOption === "boolean" ? cameraAwareNamesOption : String(cameraAwareNamesOption);
+// --sweep [from,to,steps] (Task 17i, default 0.25,1,30): after the modes, a zoom sweep from -> to -> from (once
+// unmeasured, then measured): per step the ticks, the frame interval, the WebGL text re-layouts and every WebGL upload.
+const sweepOption = option("sweep", false);
+const sweepArgs =
+  sweepOption === false ? undefined : (sweepOption === true ? "0.25,1,30" : String(sweepOption)).split(",");
+const sweepSpec = sweepArgs && { from: Number(sweepArgs[0]), to: Number(sweepArgs[1]), steps: Number(sweepArgs[2]) };
+if (sweepSpec && !(sweepSpec.from > 0 && sweepSpec.to > 0 && sweepSpec.steps >= 1)) {
+  fail(`--sweep: "${sweepOption}" is not from,to,steps`);
+}
+// --toggle [scale] (Task 17i, default 0.25): after the sweep, the frames that turn cameraAwareText off and on again.
+const toggleOption = option("toggle", false);
+const toggleScale = toggleOption === false ? undefined : toggleOption === true ? 0.25 : Number(toggleOption);
+// --upload-policy gap,spans[,enclose] (Task 17i): InstanceRanges' span merge threshold (bytes), per-frame span cap,
+// and whether a dense change goes up as its enclosing span (1, the default, or 0).
+const uploadPolicyOption = option("upload-policy", undefined);
+const uploadPolicyArgs =
+  uploadPolicyOption === undefined ? undefined : String(uploadPolicyOption).split(",").map(Number);
+const uploadPolicy = uploadPolicyArgs && {
+  mergeGapBytes: uploadPolicyArgs[0],
+  maxSpans: uploadPolicyArgs[1],
+  enclose: uploadPolicyArgs[2] !== 0,
+};
+// --no-bulk: skip the bulk actions (select-all, drag-start, change-all) at the end of each repeat.
+const noBulk = Boolean(option("no-bulk", false));
 const repeats = Number(option("repeats", 3));
 const steps = Number(option("steps", 40));
 const headed = Boolean(option("headed", false));
@@ -79,6 +139,8 @@ const columns = renderers.flatMap((renderer) =>
     : [{ renderer, maxRun: undefined, name: renderer }]
 );
 const VIEW = { width: 1600, height: 1000 };
+/** Columns with real block components (and so lazy anchors): the ones `--visit` measures. */
+const realBlocks = ["walk", "blocks", "blocks-webgl", "blocks-default"];
 // A pixel whose channel differs by more than this is a real difference, not edge anti-aliasing or alpha rounding.
 const SEVERE_DELTA = 8;
 
@@ -94,7 +156,12 @@ async function build() {
     platform: "browser",
     target: ["es2020"],
     tsconfig: path.join(repo, "packages/graph/tsconfig.json"),
-    alias: { GRAPH: path.join(source, "index.ts"), GRAPH_SRC: source },
+    alias: {
+      GRAPH: path.join(source, "index.ts"),
+      GRAPH_SRC: source,
+      GRAPH_MINIMAP: path.join(repo, "packages/graph-minimap/src/index.ts"),
+      "@gravity-ui/graph": path.join(source, "index.ts"),
+    },
     nodePaths: [path.join(repo, "packages/graph/node_modules"), path.join(repo, "node_modules")],
     plugins: [
       {
@@ -190,6 +257,7 @@ const browser = await chromium.launch({
   headless: !headed,
   args: [
     "--enable-precise-memory-info",
+    "--js-flags=--expose-gc",
     ...(gpu && process.platform === "darwin" ? ["--use-angle=metal", "--use-gl=angle"] : []),
   ],
   ...(gpu ? { channel: "chromium", ignoreDefaultArgs: ["--enable-unsafe-swiftshader"] } : {}),
@@ -207,7 +275,17 @@ async function rendererName() {
 }
 console.log(
   `repeats=${repeats} steps=${steps} view=${VIEW.width}x${VIEW.height} columns=${columns.map((c) => c.name).join(",")}` +
-    (modes.includes("drag") ? ` drag offset ${dragOffset}` : "")
+    (modes.includes("drag") ? ` drag offset ${dragOffset}` : "") +
+    (noAnchors ? " no-anchors" : "") +
+    (bulkSpin > 0 ? ` bulk-spin ${bulkSpin}` : "") +
+    (exportLevel === undefined ? "" : ` export ${exportLevel}`) +
+    (cameraAwareNames === false ? "" : " camera-aware-names") +
+    (typeof cameraAwareNames === "string" ? ` ${cameraAwareNames}` : "") +
+    (sweepSpec ? ` sweep ${sweepSpec.from}<->${sweepSpec.to} x${sweepSpec.steps}` : "") +
+    (toggleScale === undefined ? "" : ` toggle at ${toggleScale}`) +
+    (uploadPolicy
+      ? ` upload-policy ${uploadPolicy.mergeGapBytes},${uploadPolicy.maxSpans},${uploadPolicy.enclose ? 1 : 0}`
+      : "")
 );
 console.log(`chromium ${browser.version()} gpu=${gpu} renderer: ${await rendererName()}`);
 for (const scene of scenes) {
@@ -215,9 +293,18 @@ for (const scene of scenes) {
     const shots = {};
     for (const { renderer, maxRun, name } of columns) {
       const results = Object.fromEntries(
-        modes.map((mode) => [mode, { samples: [], frames: [], ticks: [], timeouts: 0, actionMs: [] }])
+        modes.map((mode) => [mode, { samples: [], frames: [], ticks: [], timeouts: 0, actionMs: [], scene: [] }])
       );
       let first = [];
+      const sweeps = [];
+      const toggles = [];
+      const mounts = [];
+      const mountScenes = [];
+      const heaps = [];
+      const bulks = [];
+      const visits = [];
+      const exports = [];
+      const mountElements = [];
       let sizes;
       let counts;
       let timing;
@@ -234,8 +321,16 @@ for (const scene of scenes) {
           scale,
           maxRun,
           blockOpacity,
+          minimap,
+          anchors: !noAnchors,
+          cameraAwareNames,
+          uploadPolicy,
         });
         first.push(...sizes.first);
+        mounts.push(sizes.mountMs);
+        mountScenes.push(sizes.mountSceneMs);
+        heaps.push(sizes.heapMB);
+        mountElements.push(sizes.sceneElements);
         for (const mode of modes) {
           const profiling = profileDir && repeat === 0 && mode === "pan";
           const cdp = profiling ? await context.newCDPSession(page) : undefined;
@@ -263,6 +358,7 @@ for (const scene of scenes) {
           results[mode].ticks.push(...result.ticks);
           results[mode].timeouts += result.timeouts;
           results[mode].actionMs.push(result.actionMs);
+          if (result.sceneMs !== null) results[mode].scene.push(result.sceneMs);
         }
         if (repeat === 0) {
           counts = await page.evaluate((options) => window.bench.visible(options), { scale });
@@ -281,6 +377,33 @@ for (const scene of scenes) {
             });
           }
         }
+        if (sweepSpec && (renderer === "blocks" || renderer === "blocks-webgl")) {
+          sweeps.push(await page.evaluate((options) => window.bench.sweep(options), sweepSpec));
+        }
+        if (toggleScale !== undefined && (renderer === "blocks" || renderer === "blocks-webgl")) {
+          const toggleOptions = { scale: toggleScale, rounds: 3 };
+          toggles.push(await page.evaluate((options) => window.bench.toggle(options), toggleOptions));
+        }
+        // Last in every repeat, on its own fresh page: the bulk actions leave the scene selected and restyled. The spin
+        // runs in the same evaluate as bulk(), so no protocol round trip lets the core idle between them.
+        if (!noBulk) {
+          bulks.push(
+            await page.evaluate(
+              (options) => {
+                if (options.spin > 0) window.bench.spin(options.spin);
+                return window.bench.bulk(options);
+              },
+              { count: 1000, spin: bulkSpin }
+            )
+          );
+        }
+        if (visitScale !== undefined && realBlocks.includes(renderer)) {
+          visits.push(await page.evaluate((options) => window.bench.visit(options), { scale, visitScale, steps }));
+        }
+        if (exportLevel !== undefined && realBlocks.includes(renderer)) {
+          const exportOptions = { scale, level: exportLevel };
+          exports.push(await page.evaluate((options) => window.bench.exportScene(options), exportOptions));
+        }
         await context.close();
       }
       const parts = modes.map((mode) => {
@@ -289,7 +412,8 @@ for (const scene of scenes) {
         const frames = `${median(r.frames).toFixed(1)}/${percentile(r.frames, 0.95).toFixed(1)}`;
         const ticks = mean(r.ticks).toFixed(1);
         const action = ` action ${mean(r.actionMs).toFixed(2)} ms`;
-        return `${mode} ${mean(r.samples).toFixed(2)} ms (${ticks} ticks) frames ${frames}${timeouts}${action}`;
+        const scene = r.scene.length ? ` scene ${median(r.scene).toFixed(2)} ms` : "";
+        return `${mode} ${mean(r.samples).toFixed(2)} ms (${ticks} ticks) frames ${frames}${timeouts}${action}${scene}`;
       });
       console.log(
         `${scene.padEnd(9)} scale=${String(scale).padEnd(5)} ${name.padEnd(18)} ` +
@@ -299,6 +423,128 @@ for (const scene of scenes) {
           `elements ${counts.elements}` +
           (counts.batched === undefined ? "" : ` batched ${counts.batched} chunks ${counts.chunks}`)
       );
+      const range = (values) =>
+        `${median(values).toFixed(1)} (${Math.min(...values).toFixed(1)}-${Math.max(...values).toFixed(1)})`;
+      const shown = (values) => (values.some((value) => value === null) ? "n/a" : `${range(values)} ms`);
+      const bulkOf = (key) => {
+        if (bulks.length === 0) return "n/a";
+        const sceneKey = key.replace("Ms", "SceneMs");
+        const scenes = bulks.map((result) => result[sceneKey]);
+        return range(bulks.map((result) => result[key])) + (scenes.some((value) => value === null) ? "" : ` (scene ${range(scenes)})`);
+      };
+      const mountScene = mountScenes.some((value) => value === null) ? "" : ` (scene ${range(mountScenes)})`;
+      const elementsAtMount = realBlocks.includes(renderer) ? ` | scene elements after mount ${median(mountElements)}` : "";
+      const uploadsOf = (key) => {
+        const uploads = bulks.map((result) => result[key]).filter(Boolean);
+        if (uploads.length === 0 || uploads.every((u) => u.calls === 0)) return "";
+        const kb = uploads.map((u) => u.bytes / 1024);
+        return ` | ${key.replace("Uploads", "")} uploads ${range(kb)} KB in ${range(uploads.map((u) => u.calls))} ` +
+          `calls, ${range(uploads.map((u) => u.ms))} ms`;
+      };
+      const lastCalls = bulks.length > 0 ? bulks[bulks.length - 1].changeAllUploads?.log : undefined;
+      const callsOf = (log) =>
+        log.map((call) => `${call.name} ${(call.bytes / 1024).toFixed(1)} KB ${call.ms.toFixed(2)} ms`).join(", ");
+      const changeAllCalls = lastCalls?.length ? ` | change-all calls (last repeat): ${callsOf(lastCalls)}` : "";
+      const bulkUploads = uploadsOf("selectAllUploads") + uploadsOf("changeAllUploads") + changeAllCalls;
+      const splits = bulks.map((result) => result.changeAllSplit).filter(Boolean);
+      const changeAllSplit = splits.length
+        ? ` | change-all split: updateBlock calls ${range(splits.map((s) => s.actionMs))} ms; scene: level ` +
+          `${range(splits.map((s) => s.levelMs))} write ${range(splits.map((s) => s.writeMs))} apply ` +
+          `${range(splits.map((s) => s.applyMs))} ms; its two ticks ` +
+          `${range(bulks.filter((r) => r.changeAllSplit).map((r) => r.changeAllMs - r.changeAllSplit.actionMs))} ms`
+        : "";
+      console.log(
+        `          median (min-max) of ${repeats}: mount ${shown(mounts)}${mountScene} | heap ${range(heaps)} MB | ` +
+          `select-all ${bulkOf("selectAllMs")} ms | drag-start-1000 ${bulkOf("dragStartMs")} ms | ` +
+          `change-all ${bulkOf("changeAllMs")} ms${elementsAtMount}${changeAllSplit}${bulkUploads}`
+      );
+      if (sweeps.length) {
+        const steps = sweeps.flatMap((result) => result.steps);
+        const frames = sweeps.flatMap((result) => result.frames);
+        const ticks = steps.map((step) => step.tickMs);
+        const kb = (bytes) => (bytes / 1024).toFixed(1);
+        const breaking = steps.filter((step) => step.relayouts > 0);
+        const ratiosOf = (pick) => breaking.filter((s) => pick(s) > 0).map((s) => s.uploadBytes / pick(s));
+        const ratios = ratiosOf((step) => step.relayoutBytes);
+        const written = ratiosOf((step) => step.writtenBytes ?? 0);
+        const drawn = ratiosOf((step) => step.drawnBytes ?? 0);
+        const ratioText = (values) =>
+          values.length ? `median ${median(values).toFixed(2)} max ${Math.max(...values).toFixed(2)}` : "n/a";
+        const shares = breaking.filter((step) => step.blocks > 0).map((step) => step.relayouts / step.blocks);
+        const share = (pick) => (100 * (shares.length ? pick(shares) : 0)).toFixed(1);
+        const total = (pick) => steps.reduce((sum, step) => sum + pick(step), 0);
+        const mean = (pick, digits) => (total(pick) / steps.length).toFixed(digits);
+        const uploads = steps.map((s) => s.uploadBytes);
+        const uploadMean = kb(total((s) => s.uploadBytes) / steps.length);
+        const shareMax = share((values) => Math.max(...values));
+        console.log(
+          `          sweep ${sweepSpec.from}<->${sweepSpec.to} (${sweeps.length} repeats x ${sweeps[0].steps.length} ` +
+            `steps): tick median ${median(ticks).toFixed(2)} p95 ${percentile(ticks, 0.95).toFixed(2)} max ` +
+            `${Math.max(...ticks).toFixed(2)} ms | frames median ${median(frames).toFixed(1)} p95 ` +
+            `${percentile(frames, 0.95).toFixed(1)} ms | re-laid-out texts per step mean ` +
+            `${mean((s) => s.relayouts, 1)} max ${Math.max(...steps.map((s) => s.relayouts))}, ${breaking.length} ` +
+            `of ${steps.length} steps (laid out again with the same glyphs, nothing written: mean ` +
+            `${mean((s) => s.kept, 1)}); of the blocks in view on those steps median ${share(median)}% max ` +
+            `${shareMax}% | uploaded per step mean ${uploadMean} ` +
+            `KB median ${kb(median(uploads))} KB max ${kb(Math.max(...uploads))} KB in mean ` +
+            `${mean((s) => s.uploadCalls, 1)} calls, ${mean((s) => s.uploadMs, 3)} ms of upload calls (mean) | ` +
+            `re-layout ms per step mean ${mean((s) => s.relayoutMs, 3)} p95 ` +
+            `${percentile(steps.map((s) => s.relayoutMs), 0.95).toFixed(3)} | on re-layout steps: uploaded / glyph ` +
+            `bytes of the re-laid-out texts ${ratioText(ratios)}; / bytes they wrote ${ratioText(written)}; / bytes ` +
+            `of the glyphs they draw ${ratioText(drawn)}`
+        );
+      }
+      if (toggles.length) {
+        const of = (side, pick) => range(toggles.flatMap((result) => result[side].map(pick)));
+        const kb = (bytes) => `${(bytes / 1024).toFixed(1)}`;
+        const side = (name) =>
+          `${name} ${of(name, (f) => f.ms)} ms (re-layouts ${of(name, (f) => f.relayouts)} in ` +
+          `${of(name, (f) => f.relayoutMs)} ms, uploaded ${of(name, (f) => Number(kb(f.uploadBytes)))} KB in ` +
+          `${of(name, (f) => f.uploadCalls)} calls, ${of(name, (f) => f.uploadMs)} ms, for ` +
+          `${of(name, (f) => Number(kb(f.relayoutBytes)))} KB of glyphs)`;
+        console.log(
+          `          toggle cameraAwareText at ${toggleScale} (${toggles.length} pages x ${toggles[0].off.length}): ` +
+            `${side("off")} | ${side("on")}`
+        );
+      }
+      if (visits.length) {
+        const of = (pick) => range(visits.map(pick));
+        const ticks = (pick) => visits[0] && pick(visits[0]).map((ms) => ms.toFixed(1)).join("/");
+        console.log(
+          `          visit ${visitScale} (median (min-max) of ${visits.length}): pan at ${scale} before ` +
+            `${of((v) => v.panBefore)} ms, after ${of((v) => v.panAfter)} ms, after - before ` +
+            `${of((v) => v.panAfter - v.panBefore)} ms | query at ${scale} before ${of((v) => v.queryBefore.ms)} ms ` +
+            `(${visits[0].queryBefore.elements} elements), after ${of((v) => v.queryAfter.ms)} ms ` +
+            `(${visits[0].queryAfter.elements} elements; store ${visits[0].elementsBefore} -> ${visits[0].elementsAfter})`
+        );
+        const zoomScene = visits.some((v) => v.zoomIn.sceneMs === null) ? "" : ` (scene ${of((v) => v.zoomIn.sceneMs)})`;
+        console.log(
+          `          first zoom-in ${of((v) => v.zoomIn.totalMs)} ms${zoomScene}: action ${of((v) => v.zoomIn.actionMs)} ` +
+            `ms + ticks ${ticks((v) => v.zoomIn.ticks)} ms, anchors created ${of((v) => v.zoomIn.anchors)} | ` +
+            `second zoom-in ${of((v) => v.zoomInAgain.totalMs)} ms (action ${of((v) => v.zoomInAgain.actionMs)} ms) | ` +
+            `pan at ${visitScale}: ${of((v) => v.schematicPan.tickMs)} ms per step, view test ` +
+            `${visits.map((v) => v.schematicPan.viewTestMs.toFixed(3)).join("/")} ms per camera change ` +
+            `(${visits[0].schematicPan.viewTestRuns} runs, ${of((v) => v.schematicPan.requested)} blocks asked, anchors ` +
+            `${of((v) => v.schematicPan.anchors)} after it)`
+        );
+      }
+      if (exports.length) {
+        const of = (pick) => range(exports.flatMap((e) => e.runs.map(pick)));
+        const first = exports[0];
+        console.log(
+          `          export ${exportLevel} of the whole scene at ${scale} (${first.width} x ${first.height} px, ` +
+            `median (min-max) of ${exports.length} pages x ${first.runs.length} runs): total ${of((r) => r.totalMs)} ms ` +
+            `= prepare ${of((r) => r.prepareMs)} + draw ${of((r) => r.drawMs)} + cleanup ${of((r) => r.cleanupMs)} ms; ` +
+            `next tick ${of((r) => r.nextTickMs)} ms | first run on each page ` +
+            `${range(exports.map((e) => e.runs[0].totalMs))} ms | anchors created ${of((r) => r.anchors)} on ` +
+            `${of((r) => r.blocks)} blocks; store ${first.elementsBefore} -> ` +
+            `${first.elementsPeak} at the peak -> ${first.elementsAfter} after`
+        );
+        console.log(
+          `          export heap (MB, after a forced GC): before ${range(exports.map((e) => e.heapBeforeMB))} | at the ` +
+            `peak ${range(exports.map((e) => e.heapPeakMB))} | after ${range(exports.map((e) => e.heapAfterMB))}`
+        );
+      }
       if (renderer === "webgl" && webgl) {
         console.log(
           `          webgl: state ${webgl.state} | deviceMs ${webgl.deviceMs.toFixed(1)} | ` +

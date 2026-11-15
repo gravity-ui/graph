@@ -7,32 +7,47 @@ export type TSceneRenderer = "canvas" | "webgl";
 /** State of the scene renderer; `"canvas"` and `"webgl"` are the settled states, the rest are transitions. */
 export type TSceneRendererState = "canvas" | "loading" | "webgl" | "lost" | "restoring" | "webgl-fallback";
 
-/** Stroke of a scene primitive; lengths in world units. */
+/** Stroke of a scene primitive; lengths in world units. Read-only, like the primitive that holds it. */
 export type TSceneStroke = {
   /** Unset: the computed style supplies it; a stroke still unset draws nothing. */
-  color?: string;
+  readonly color?: string;
   /** Unset: the style's base width of the part supplies it; a stroke whose width is still unset draws nothing. */
-  width?: TSceneSize;
+  readonly width?: TSceneSize;
   /** Where the stroke of a closed shape lies relative to its edge. Default: "center". */
-  align?: "inside" | "center" | "outside";
-  dash?: readonly number[];
+  readonly align?: "inside" | "center" | "outside";
+  readonly dash?: readonly number[];
 };
 
-/** A size in world units, in pixels clamped by world units, or in world units clamped by pixels. */
+/**
+ * A stroke or border width in world units, in pixels clamped by world units, or in world units clamped by pixels. Text
+ * sizes are numbers with a `cameraAware` mode instead (`TSceneCameraAware`).
+ */
 export type TSceneSize =
   | number
-  | { px: number; minWorld?: number; maxWorld?: number }
-  | { world: number; minPx?: number; maxPx?: number };
+  | { readonly px: number; readonly minWorld?: number; readonly maxWorld?: number }
+  | { readonly world: number; readonly minPx?: number; readonly maxPx?: number };
 
-/** @deprecated Use TSceneSize. */
-export type TSceneTextSize = TSceneSize;
+/**
+ * How a text's font size follows the camera. Off (`false` or unset): `size` is in world units, so the text scales like
+ * any other world object. On (`true` or an object): `size` is in screen pixels at every camera scale, so the world font
+ * size is `size / scale`, clamped to `[minWorld, maxWorld]` when the object sets them; the text re-fits its box as the
+ * camera zooms. A part style's `cameraAware` and the graph setting `cameraAwareText` can change the mode
+ * (`TScenePartStyle.cameraAware`); a style's `true` keeps the clamps given here.
+ */
+export type TSceneCameraAware = boolean | { readonly minWorld?: number; readonly maxWorld?: number };
+
+/**
+ * What the graph allows scene text: `cameraAware: false` (the `cameraAwareText` setting off) makes every text
+ * world-sized whatever its primitive and styles say. Renderers and exports receive it with each frame.
+ */
+export type TSceneTextPolicy = { readonly cameraAware: boolean };
 
 /** Named part of a primitive; styles recolour parts. */
 export type TScenePart = string;
 
 /**
- * Values of one part. Table properties: color, visible, dim. Element properties: width, scale, opacity. In a row, a
- * `parts` value wins over the `base` value of the same property.
+ * Values of one part. Table properties: color, visible, dim. Element properties: width, scale, opacity, cameraAware.
+ * In a row, a `parts` value wins over the `base` value of the same property.
  */
 export type TScenePartStyle = {
   /** The part's paint: a "border" part's border, otherwise the fill, text or stroke colour. */
@@ -53,6 +68,12 @@ export type TScenePartStyle = {
    * through. A `parts` value wins over a `base` one; the result multiplies the element's `opacity`.
    */
   opacity?: number;
+  /**
+   * Turns the camera-aware mode of the part's texts on or off (`TSceneCameraAware`): a `parts` value wins over a `base`
+   * one, and both over the primitive's own mode (a base value too, unlike the base colours and widths). `true` keeps
+   * the primitive's clamps. The graph setting `cameraAwareText: false` turns every text off whatever the styles say.
+   */
+  cameraAware?: boolean;
 };
 
 /** A computed style row. */
@@ -60,8 +81,8 @@ export type TSceneStyle = Readonly<{
   /** State rules: override the primitive's own values. */
   parts?: Readonly<Record<TScenePart, Readonly<TScenePartStyle>>>;
   /**
-   * Base rules: a colour or width fills only a value the primitive leaves unset; `visible`, `scale` and `dim` apply
-   * unless `parts` sets them.
+   * Base rules: a colour or width fills only a value the primitive leaves unset; `visible`, `scale`, `dim`, `opacity`
+   * and `cameraAware` apply unless `parts` sets them.
    */
   base?: Readonly<Record<TScenePart, Readonly<TScenePartStyle>>>;
   /** Added to the element's zIndex bucket while the style is on. */
@@ -76,52 +97,111 @@ export type TSceneStyle = Readonly<{
 }>;
 
 /** Shown while minScale <= camera scale < maxScale; either bound may be absent. */
-export type TSceneVisibility = { minScale?: number; maxScale?: number; part?: TScenePart };
+export type TSceneVisibility = {
+  minScale?: number;
+  maxScale?: number;
+  part?: TScenePart;
+  /**
+   * Levels the primitive is shown on: a sum of `LEVEL_BIT` values (minimalistic 1, schematic 2, detailed 4); unset
+   * means every level. `SceneComponent` sets it from the level method that returned the primitive.
+   */
+  levelMask?: number;
+};
 
-/** Coordinates are relative to the element's origin, in world units. */
-export type TScenePrimitive = TSceneVisibility &
-  (
-    | {
-        kind: "rect";
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-        /** One radius or [top-left, top-right, bottom-right, bottom-left]. */
-        radius?: number | readonly number[];
-        fill?: string;
-        border?: TSceneStroke;
-      }
-    | { kind: "circle"; cx: number; cy: number; r: number; fill?: string; border?: TSceneStroke }
-    | {
-        kind: "text";
-        text: string;
-        family: string;
-        /** A keyword weight ("normal", "bold"): layoutText reads digits of the font string as a line height. */
-        weight?: string;
-        size: TSceneSize;
-        /** Line height in world units. */
-        lineHeight: number;
-        color?: string;
-        x: number;
-        y: number;
-        width: number;
-        height?: number;
-        align?: CanvasTextAlign;
-      }
-    | { kind: "icon"; path: Path2D; viewBox: number; x: number; y: number; size: number; color?: string }
-    /** Cubic segments, 8 numbers each (p0, c1, c2, p3), as the connection geometries produce them. */
-    /** The effect is drawn by WebGL only; the Canvas2D interpreter ignores it. */
-    | { kind: "path"; segments: Float32Array; stroke: TSceneStroke; effect?: TConnectionEffectUse }
-    /** A closed polygon given as x, y pairs. */
-    | { kind: "polygon"; points: Float32Array; fill?: string; stroke?: TSceneStroke }
-  );
+/**
+ * Coordinates are relative to the element's origin, in world units.
+ *
+ * A primitive is a value: never change one after it went into the scene (a text above all). To change an element,
+ * give it new primitives (`SceneStore.update`). The WebGL backend compares texts by identity first and keeps the
+ * objects of its last encode (`sameText`, `adoptTexts`), so a text changed in place draws stale glyphs. The type is
+ * read-only (strokes and sizes too), and development builds freeze the text primitives the store receives (with their
+ * `cameraAware` objects), so a text changed in place throws there.
+ */
+export type TScenePrimitive = Readonly<
+  TSceneVisibility &
+    (
+      | {
+          kind: "rect";
+          x: number;
+          y: number;
+          width: number;
+          height: number;
+          /** One radius or [top-left, top-right, bottom-right, bottom-left]. */
+          radius?: number | readonly number[];
+          fill?: string;
+          border?: TSceneStroke;
+        }
+      | { kind: "circle"; cx: number; cy: number; r: number; fill?: string; border?: TSceneStroke }
+      | {
+          kind: "text";
+          text: string;
+          family: string;
+          /** A CSS font weight ("normal", "bold", "500"); default "normal". */
+          weight?: string;
+          /**
+           * The font size: world units, or screen pixels at every camera scale when the text is camera-aware
+           * (`cameraAware`). The text is laid out at the resolved world size (`resolveTextSize`).
+           */
+          size: number;
+          /** Whether `size` is in screen pixels, and its world clamps (`TSceneCameraAware`). Default: off. */
+          cameraAware?: TSceneCameraAware;
+          /**
+           * The line pitch in the units of `size` (world units, or screen pixels when camera-aware): it scales with the
+           * resolved font size. Not positive: one line at most.
+           */
+          lineHeight: number;
+          color?: string;
+          x: number;
+          y: number;
+          /** The box's width: lines wrap to it, `align` places each line against it, and it clips the text. */
+          width: number;
+          /**
+           * The box's height: a line is kept while it fits the box at the resolved line pitch, `verticalAlign` places
+           * the block of lines in it, and it clips the text. Without a height, lines are unbounded and the text is
+           * clipped by the box's width only.
+           */
+          height?: number;
+          /** Places each line against the box: left (start), centre or right (end). */
+          align?: CanvasTextAlign;
+          /**
+           * Places the block of lines in the box `[y, y + height]` (without a height, the block at `size`): its top at
+           * `y` (`"top"`, the default and the v1 placement), its centre at the box's centre or its bottom at the box's
+           * bottom.
+           */
+          verticalAlign?: "top" | "middle" | "bottom";
+          /** Wraps by words to the box's width (default `true`); `false` keeps one line. */
+          wrap?: boolean;
+          /**
+           * What a text that does not fit shows: `"clip"` (the default) cuts it at the box; `"ellipsis"` ends the last
+           * kept line with "…" when content remains.
+           */
+          overflow?: "clip" | "ellipsis";
+          /** The most lines kept, after the box's height. */
+          maxLines?: number;
+        }
+      | { kind: "icon"; path: Path2D; viewBox: number; x: number; y: number; size: number; color?: string }
+      /** Cubic segments, 8 numbers each (p0, c1, c2, p3), as the connection geometries produce them. */
+      /** The effect is drawn by WebGL only; the Canvas2D interpreter ignores it. */
+      | { kind: "path"; segments: Float32Array; stroke: TSceneStroke; effect?: TConnectionEffectUse }
+      /** A closed polygon given as x, y pairs. */
+      | { kind: "polygon"; points: Float32Array; fill?: string; stroke?: TSceneStroke }
+    )
+>;
 
 /** One drawn entity of the scene: a block with its anchors, a group, a connection. */
 export type TSceneElement = {
   readonly id: string;
+  /**
+   * The element this one belongs to (a child element, spec §5.2): it draws right above its parent and under the next
+   * owner, hidden while the parent is hidden, in the parent's raised bucket, with the parent's element dim and opacity.
+   * Unset for an owner. A child cannot have children.
+   */
+  readonly parent?: string;
+  /** A child's place among its parent's children, lowest first; 0 for owners. */
+  childOrder: number;
+  /** The bucket; ignored for a child, which draws in its parent's. */
   zIndex: number;
-  /** Order within a z-level; a raise gives a new, larger value. */
+  /** Order within a bucket; a raise gives a new, larger value. 0 for a child: it orders by its parent. */
   order: number;
   /** Origin of the primitives in world units. */
   x: number;
@@ -134,9 +214,23 @@ export type TSceneElement = {
   styleId: number;
 };
 
+/**
+ * A change of the store, as renderers receive it.
+ *
+ * Child elements (spec §5.2): when only a parent changes, its children get no update. A raise or `raiseMany`, a
+ * `zIndex` update, a change of the raise of its style and a change of its `hidden` flag name the parent alone; a
+ * renderer derives each child's depth key and hidden state from its owner (`SceneStore.rootOf`, `childrenOf`,
+ * `isDrawnHidden`). A child's own `zIndex` and `order` (always 0) are ignored, and its style updates carry `styleId`
+ * (and `primitives` when the encode key changes) but never `zIndex`.
+ */
 export type TSceneChange = {
   type: "add" | "update" | "delete";
   element: TSceneElement;
-  /** Fields an update changed: x, y, bounds, primitives, hidden, zIndex, order, styleId. */
+  /**
+   * Fields an update changed: x, y, bounds, primitives, hidden, zIndex, order, styleId, childOrder. A child element's
+   * `styleId` is its drawn row (its own row composed with its parent's element values, see `SceneStore.ownStyleOf`),
+   * and a raise of a child raises its parent, so the update names the parent. A delete of an owner is preceded by one
+   * delete per child element.
+   */
   fields?: ReadonlySet<keyof TSceneElement>;
 };

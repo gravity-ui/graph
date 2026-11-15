@@ -1,7 +1,7 @@
 module.exports = {
   testPathIgnorePatterns: ["/node_modules/", "/build/"],
   testEnvironment: "jsdom",
-  setupFiles: ["<rootDir>/setupJest.cjs", "jest-canvas-mock"],
+  setupFiles: ["<rootDir>/setupJest.cjs", "jest-canvas-mock", "<rootDir>/../graph/setupCanvasMock.cjs"],
   transformIgnorePatterns: [],
   moduleNameMapper: {
     // Unit tests consume only the core public entrypoint; installed artifacts are tested separately.

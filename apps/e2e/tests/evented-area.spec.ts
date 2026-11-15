@@ -8,13 +8,13 @@ class EventedAreaPageObject extends GraphPageObject {
       const rootEl = document.getElementById("root");
       if (!(rootEl instanceof HTMLDivElement)) throw new Error("Root element not found");
 
-      const { CanvasBlock, Graph } = window.GraphModule;
+      const { LegacyCanvasBlock, Graph } = window.GraphModule;
 
       (window as any).__eventedAreaEvents = {};
       (window as any).__eventLog = [];
       (window as any).__areaEnabled = true;
 
-      class TestBlock extends CanvasBlock {
+      class TestBlock extends LegacyCanvasBlock {
         render() {
           super.render();
           this.eventedArea(
@@ -55,7 +55,7 @@ class EventedAreaPageObject extends GraphPageObject {
         }
       }
 
-      class RejectHitBoxBlock extends CanvasBlock {
+      class RejectHitBoxBlock extends LegacyCanvasBlock {
         render() {
           super.render();
           this.eventedArea(
@@ -72,7 +72,7 @@ class EventedAreaPageObject extends GraphPageObject {
         }
       }
 
-      class AcceptHitBoxBlock extends CanvasBlock {
+      class AcceptHitBoxBlock extends LegacyCanvasBlock {
         render() {
           super.render();
           this.eventedArea(
@@ -89,7 +89,7 @@ class EventedAreaPageObject extends GraphPageObject {
         }
       }
 
-      class HoverTestBlock extends CanvasBlock {
+      class HoverTestBlock extends LegacyCanvasBlock {
         willMount() {
           super.willMount();
           this.addEventListener("mouseenter", () => {
@@ -124,7 +124,7 @@ class EventedAreaPageObject extends GraphPageObject {
         }
       }
 
-      class ToggleAreaBlock extends CanvasBlock {
+      class ToggleAreaBlock extends LegacyCanvasBlock {
         render() {
           super.render();
           if ((window as any).__areaEnabled) {

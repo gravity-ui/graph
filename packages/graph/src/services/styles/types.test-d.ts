@@ -49,22 +49,24 @@ sheet.add([{ target: Widened, style: { parts: { bdge: { color: "#000000" } } } }
 sheet.add([{ target: Inherited, style: { parts: { badge: { color: "#000000" } } } }]);
 
 // The same with the canvas Block, the case custom blocks hit.
-class BadgeBlock extends Block {
-  public declare readonly __styleParts?: TStyleParts<"body" | "border" | "title" | "badge">;
+class IconBlock extends Block {
+  public declare readonly __styleParts?: TStyleParts<"body" | "border" | "title" | "halo" | "badge" | "icon">;
 }
 class PlainBlock extends Block {}
 
 sheet.add([
-  { target: BadgeBlock, style: { parts: { badge: { color: "#000000" }, title: { color: "#000000" } } } },
+  { target: IconBlock, style: { parts: { icon: { color: "#000000" }, title: { color: "#000000" } } } },
   { target: PlainBlock, style: { parts: { border: { color: "#000000" } } } },
 ]);
-// @ts-expect-error "bdge" is not a part of BadgeBlock.
-sheet.add([{ target: BadgeBlock, style: { parts: { bdge: { color: "#000000" } } } }]);
+// @ts-expect-error "icn" is not a part of IconBlock.
+sheet.add([{ target: IconBlock, style: { parts: { icn: { color: "#000000" } } } }]);
+// @ts-expect-error "icon" is a part of IconBlock only, not of the canvas Block.
+sheet.add([{ target: PlainBlock, style: { parts: { icon: { color: "#000000" } } } }]);
 
 export const partChecks: [
-  TExpectEqual<TPartsOf<typeof Block>, "body" | "border" | "title">,
-  TExpectEqual<TPartsOf<typeof BadgeBlock>, "body" | "border" | "title" | "badge">,
-  TExpectEqual<TPartsOf<typeof PlainBlock>, "body" | "border" | "title">,
+  TExpectEqual<TPartsOf<typeof Block>, "body" | "border" | "title" | "halo" | "badge">,
+  TExpectEqual<TPartsOf<typeof IconBlock>, "body" | "border" | "title" | "halo" | "badge" | "icon">,
+  TExpectEqual<TPartsOf<typeof PlainBlock>, "body" | "border" | "title" | "halo" | "badge">,
   TExpectEqual<TPartsOf<typeof Widened>, "body" | "badge">,
   TExpectEqual<TPartsOf<typeof Inherited>, "body">,
   TExpectEqual<TPartsOf<typeof Untyped>, string>,

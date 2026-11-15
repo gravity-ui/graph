@@ -121,17 +121,40 @@ Components use several boolean flags to control their behavior:
 | `shouldUpdateChildren` | Controls children updates | `true` |
 | `shouldRenderChildren` | Explicitly allows or suppresses traversal of descendants | `true` |
 
-### 6. Detached Components
+### 6. Retained Components
 
-A class that declares `static detached = true` is not walked by the frame. It is created, updated and unmounted by
+A class that declares `static override readonly mode = "retained"` is not walked by the frame. It is created, updated and unmounted by
 its parent and receives context, but never `iterate()`, `render()`, `willRender()`, `didRender()`, `willNotRender()`,
 `didIterate()` or `viewportChanged()`. `performRender()` (and so `setState()` / `setProps()`) queues it; the tree
 applies the queue before painting, running `checkData()`, `willIterate()` (`willMount()` first) and the children
 lifecycle: a culled tree after preparing its walked components, a tree without culling before the walk and again
-right after a parent reconciles detached children. A component applies once per frame, and once more after each
+right after a parent reconciles retained children. A component applies once per frame, and once more after each
 reconciliation by its parent in that frame, so props from a reconciliation are not a frame late; what it requests
-during its own update applies in the next frame. Children of a detached component must be detached; a root cannot
-be. In development builds a detached class with per-frame hooks logs a warning. Connection components (`BlockConnection`) are detached. `EventedComponent` evented areas are registered while painting, so a detached component should not use them: they would never be cleared.
+during its own update applies in the next frame. Children of a retained component must be retained; a root cannot
+be. In development builds a retained class with per-frame hooks logs a warning. Connection components (`BlockConnection`) are retained. `EventedComponent` evented areas are registered while painting, so a retained component should not use them: they would never be cleared.
+
+### 7. Scene Components
+
+A `SceneComponent` (the canvas `Block` and `Anchor`) is a retained component that [the scene](scene.md) draws. Its
+element is written in its queued update:
+
+1. **Trigger.** In `willMount()` it creates a `computed` of its view data (`getViewData()`), its origin
+   (`getSceneOrigin()`), its bucket (`getSceneZIndex()`) and an invalidation counter. When one of them changes (a
+   store signal it reads, new props, `invalidate()`), it calls `performRender()`, which queues its update. `setState()`
+   and `setProps()` queue it too.
+2. **Update.** In the frame, before painting, the tree applies the queued update: `checkData()`, then `willIterate()`,
+   which writes the element. The level methods run there, lazily: only when the view data changed or after `invalidate()`
+   (normally once per frame; a parent's reconciliation can apply it again in the same frame, and an export can apply
+   it outside a frame). A move writes the origin only, and level output equal to the last one re-encodes nothing. The hidden state (`isSceneHidden()`) and the parent (`getSceneParent()`) are read in the update itself, so
+   a change of them must call `performRender()`.
+3. **Children.** The children update after their parent, so a child element (an anchor's) is written after its parent
+   element exists. A child whose parent element is missing writes nothing and logs an error.
+
+`willMount()` must call `super.willMount()`, which creates the computeds; without it the element is never written, and
+development builds log an error. `invalidate()` from `stateChanged()` has no effect when the view data reads component
+state: the view data is recomputed at once, before the new state is assigned. Call it in `willIterate()`, before
+`super.willIterate()`. A scene component with `static override readonly mode = "immediate"` (such as `LegacyCanvasBlock`) is walked: its
+update runs in every frame and writes its element only when an input changed.
 
 ## Examples
 

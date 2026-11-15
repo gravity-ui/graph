@@ -22,6 +22,7 @@ type TFake = {
   events: TSceneBackendEvents;
   replayed: string[];
   applied: TSceneChange[];
+  applyCalls: number;
   styles: (readonly TSceneStyle[])[];
   frames: TSceneFrame[];
   draws: number;
@@ -70,6 +71,7 @@ describe("SceneRendererLayer", () => {
     const fake = {
       replayed: [],
       applied: [],
+      applyCalls: 0,
       styles: [],
       frames: [],
       draws: 0,
@@ -96,9 +98,10 @@ describe("SceneRendererLayer", () => {
           canvas: document.createElement("canvas"),
           stats: {},
           replay: (s: SceneStore) => s.forEach((el) => fake.replayed.push(el.id)),
-          apply: (change: TSceneChange) => {
+          applyMany: (changes: readonly TSceneChange[]) => {
             if (fake.throwIn === "apply") throw new Error("capacity");
-            fake.applied.push(change);
+            fake.applyCalls++;
+            fake.applied.push(...changes);
           },
           setStyles: (styles: readonly TSceneStyle[]) => {
             if (fake.throwIn === "setStyles") throw new Error("styles");
@@ -192,12 +195,37 @@ describe("SceneRendererLayer", () => {
     expect(fake.draws).toBe(settled);
   });
 
-  it("forwards store changes to the backend in webgl", async () => {
-    const { store, fake } = setup({ renderer: "webgl" });
+  it("forwards store changes to the backend once per frame, one change per element", async () => {
+    const { store, fake, frame } = setup({ renderer: "webgl" });
     await flushPromises();
     store.add(element("b", 200));
     store.update("b", { x: 3 });
-    expect(fake.applied.map((c) => c.type)).toEqual(["add", "update"]);
+    expect(fake.applied).toEqual([]);
+    frame();
+    expect(fake.applied.map((change) => change.type)).toEqual(["add"]);
+    store.update("b", { x: 4 });
+    store.update("b", { hidden: true });
+    frame();
+    expect(fake.applied.slice(1).map((change) => [change.type, [...(change.fields ?? [])].sort()])).toEqual([
+      ["update", ["hidden", "x"]],
+    ]);
+    expect(fake.applyCalls).toBe(2);
+  });
+
+  it("drops the changes queued before a context loss: the restored backend replays the store", async () => {
+    const { layer, store, fake, frame } = setup({ renderer: "webgl" });
+    await flushPromises();
+    store.add(element("a", 200));
+    fake.events.onLost();
+    frame();
+    fake.events.onRestored();
+    fake.replayed.length = 0;
+    await flushPromises();
+    expect(layer.$state.value).toBe("webgl");
+    expect(fake.replayed).toEqual(["a"]);
+    frame();
+    expect(fake.applied).toEqual([]);
+    expect(fake.applyCalls).toBe(0);
   });
 
   it("passes styles to the backend only when they change", async () => {
@@ -410,6 +438,23 @@ describe("SceneRendererLayer", () => {
       expect(layer.getBackend()).not.toBe(first);
     });
 
+    it("drops the changes queued before a font reload: the new backend replays the store", async () => {
+      const fonts = new EventTarget();
+      Object.defineProperty(document, "fonts", { value: fonts, configurable: true });
+      const { layer, store, fake, frame } = setup({ renderer: "webgl" });
+      await flushPromises();
+      store.add(element("a", 200));
+      store.update("a", { x: 3 });
+      fonts.dispatchEvent(new Event("loadingdone"));
+      fake.replayed.length = 0;
+      await flushPromises();
+      expect(layer.$state.value).toBe("webgl");
+      expect(fake.replayed).toEqual(["a"]);
+      frame();
+      expect(fake.applied).toEqual([]);
+      expect(fake.applyCalls).toBe(0);
+    });
+
     it("removes the fonts listener on unmount", async () => {
       const fonts = new EventTarget();
       Object.defineProperty(document, "fonts", { value: fonts, configurable: true });
@@ -430,13 +475,32 @@ describe("SceneRendererLayer", () => {
       expect(fake.created).toBe(1);
     });
 
-    it("ignores loadingdone outside webgl", async () => {
+    it("redraws with the interpreter on loadingdone outside webgl, creating no backend", async () => {
       const fonts = new EventTarget();
       Object.defineProperty(document, "fonts", { value: fonts, configurable: true });
-      const { fake } = setup({ renderer: "canvas" });
+      const { layer, store, fake, frame } = setup({ renderer: "canvas" });
+      store.add({
+        ...element("a", 200),
+        primitives: [
+          { kind: "text", text: "a", family: "f", size: 10, lineHeight: 12, color: "#000", x: 0, y: 0, width: 50 },
+        ],
+      });
+      const ctx = layer.getCanvas()?.getContext("2d");
+      if (!ctx) throw new Error("the layer has no 2D context");
+      const drawn = jest.spyOn(ctx, "fillText");
+      for (let i = 0; i < 4; i++) frame();
+      expect(drawn).toHaveBeenCalled();
+      drawn.mockClear();
+      frame();
+      // Nothing changed: the scheduler skips the layer.
+      expect(drawn).not.toHaveBeenCalled();
       fonts.dispatchEvent(new Event("loadingdone"));
+      frame();
+      // The interpreter draws again: the text is wrapped with the loaded fonts (the scene cleared the wrap cache).
+      expect(drawn).toHaveBeenCalledWith("a", 0, expect.any(Number));
       await flushPromises();
       expect(fake.created).toBe(0);
+      expect(layer.$state.value).toBe("canvas");
     });
   });
 });

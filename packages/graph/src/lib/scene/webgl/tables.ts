@@ -4,7 +4,7 @@ import { styleDim, styleOpacity } from "../style";
 import type { TScenePartStyle, TSceneStyle } from "../types";
 
 export const TABLE_WIDTH = 1024;
-export const PART_SLOTS = 8;
+export const PART_SLOTS = 16;
 /** The first dim texel of a style row: texels `DIM_TEXEL + slot` hold the dim of each part slot in r. */
 export const DIM_TEXEL = 2 * PART_SLOTS;
 /** Texels of a style row: the override of every part slot, then its base colour, then its dim. */
@@ -89,9 +89,9 @@ function writeOpaque(data: Float32Array, at: number, paint: Readonly<TScenePartS
 
 /**
  * One row per style id, `STYLE_ROW_TEXELS` texels (r, g, b, a) per row:
- * - texels 0..7 override the paint of a part slot (a = -1: no override, -2: the part is hidden);
- * - texels 8..15 are the base colour that fills an unset paint of the slot (a = -1: none, the paint draws nothing);
- * - texels 16..23 hold the effective dim of the slot in r (`styleDim`): slot 0 ("none") and every part the row does
+ * - texels 0..15 override the paint of a part slot (a = -1: no override, -2: the part is hidden);
+ * - texels 16..31 are the base colour that fills an unset paint of the slot (a = -1: none, the paint draws nothing);
+ * - texels 32..47 hold the effective dim of the slot in r (`styleDim`): slot 0 ("none") and every part the row does
  *   not name hold the element's `dim`, so a slot registered after the row was written reads the right value.
  *
  * A part is hidden by its effective visibility: the override's `visible`, else the base's. Translucent colours are not
@@ -109,8 +109,9 @@ export class StyleTable {
     return this.rowCount;
   }
 
-  /** Slot 0 is "none" and is never overridden; slots 1..7 are registered on first use. */
+  /** Slot 0 is "none" and is never overridden; slots 1..15 are registered on first use. */
   public slotOf(part: string | undefined): number {
+    if (part === "none") throw new Error('The part name "none" is reserved for primitives without a part');
     if (part === undefined) return 0;
     const known = this.slots.get(part);
     if (known !== undefined) return known;

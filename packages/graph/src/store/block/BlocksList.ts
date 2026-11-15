@@ -1,6 +1,6 @@
 import { batch, computed, signal } from "@preact/signals-core";
 
-import { TAnchor, TAnchorId } from "../../components/canvas/anchors";
+import { TAnchor } from "../../components/canvas/anchors";
 import { Block, TBlock, isTBlock } from "../../components/canvas/blocks/Block";
 import { Graph } from "../../graph";
 import { MultipleSelectionBucket } from "../../services/selection/MultipleSelectionBucket";
@@ -8,6 +8,7 @@ import { SingleSelectionBucket } from "../../services/selection/SingleSelectionB
 import { ESelectionStrategy } from "../../services/selection/types";
 import { generateRandomId } from "../../utils/functions/generateRandomId";
 import { AnchorState } from "../anchor/Anchor";
+import { parseAnchorEntityId } from "../anchor/anchorEntityId";
 import { RootStore } from "../index";
 
 import { BlockState, TBlockId } from "./Block";
@@ -108,7 +109,11 @@ export class BlockListStore {
     return this.blockSelectionBucket.$selectedComponents.value as Block[];
   });
 
-  public readonly anchorSelectionBucket: SingleSelectionBucket<TAnchorId, AnchorState>;
+  /**
+   * Bucket for anchor selection. Anchor ids are unique only within their block, so it holds block-qualified ids:
+   * `anchorEntityId(blockId, anchorId)` (read one back with `parseAnchorEntityId`).
+   */
+  public readonly anchorSelectionBucket: SingleSelectionBucket<string, AnchorState>;
 
   /**
    * @deprecated Use blockSelectionBucket.$selectedEntities instead
@@ -140,14 +145,11 @@ export class BlockListStore {
       (ids) => ids.map((id) => this.getBlockState(id)).filter((block): block is BlockState => block !== undefined)
     );
 
-    this.anchorSelectionBucket = new SingleSelectionBucket<TAnchorId, AnchorState>(
+    this.anchorSelectionBucket = new SingleSelectionBucket<string, AnchorState>(
       "anchor",
       (diff, defaultAction) => {
         if (diff.changes.add.length > 0) {
-          const anchorId = diff.changes.add[0];
-          const anchor = this.$blocks.value
-            .flatMap((block) => block.$anchorStates.value)
-            .find((a) => a.id === anchorId);
+          const anchor = this.getAnchorStateByEntityId(diff.changes.add[0]);
           if (anchor) {
             return this.graph.executеDefaultEventAction(
               "block-anchor-selection-change",
@@ -157,10 +159,7 @@ export class BlockListStore {
           }
         }
         if (diff.changes.removed.length > 0) {
-          const anchorId = diff.changes.removed[0];
-          const anchor = this.$blocks.value
-            .flatMap((block) => block.$anchorStates.value)
-            .find((a) => a.id === anchorId);
+          const anchor = this.getAnchorStateByEntityId(diff.changes.removed[0]);
           if (anchor) {
             return this.graph.executеDefaultEventAction(
               "block-anchor-selection-change",
@@ -174,15 +173,9 @@ export class BlockListStore {
       undefined,
       (ids) => {
         if (!this.rootStore.settings.getConfigFlag("useBlocksAnchors")) return [];
-        const result: AnchorState[] = [];
-        for (const block of this.$blocks.value) {
-          for (const anchor of block.$anchorStates.value) {
-            if (ids.includes(anchor.id)) {
-              result.push(anchor);
-            }
-          }
-        }
-        return result;
+        return ids
+          .map((id) => this.getAnchorStateByEntityId(id))
+          .filter((anchor): anchor is AnchorState => anchor !== undefined);
       }
     );
 
@@ -209,10 +202,16 @@ export class BlockListStore {
     }
 
     if (selected) {
-      this.anchorSelectionBucket.select([anchorId], ESelectionStrategy.REPLACE);
+      this.anchorSelectionBucket.select([anchor.entityId], ESelectionStrategy.REPLACE);
     } else {
-      this.anchorSelectionBucket.deselect([anchorId]);
+      this.anchorSelectionBucket.deselect([anchor.entityId]);
     }
+  }
+
+  /** The anchor state an anchor entity id names (see `anchorEntityId`); undefined for a missing block or anchor. */
+  private getAnchorStateByEntityId(entityId: string): AnchorState | undefined {
+    const address = parseAnchorEntityId(entityId);
+    return address ? this.getBlockState(address.blockId)?.getAnchorById(address.anchorId) : undefined;
   }
 
   /**

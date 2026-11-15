@@ -186,6 +186,10 @@ export class PortState<T = unknown> {
       this.savedPoint = { x, y };
       return;
     }
+    // The same point writes nothing: a new state would make every connection at this port recompute its geometry
+    // (a block calls this for each of its ports on every state change, a meta-only update included).
+    const state = this.$state.peek();
+    if (Object.is(state.x, x) && Object.is(state.y, y)) return;
     this.updatePort({ x, y });
   }
 

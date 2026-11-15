@@ -17,7 +17,7 @@ import { random } from "../../storyUtils";
 import { useFn } from "../../useFn";
 import { EAnchorType } from "../configurations/definitions";
 
-import { ActionBlock } from "./ActionBlock";
+import { ActionBlock, actionBlockRules } from "./ActionBlock";
 import { ConfigEditor, ConfigEditorController } from "./Editor";
 import { GraphSettings } from "./Settings";
 import { TextBlock } from "./TextBlock";
@@ -206,9 +206,11 @@ export function GraphPLayground() {
   });
 
   useLayoutEffect(() => {
+    const removeRules = graph.scene.styles.add(actionBlockRules);
     setEntities({ blocks: [...textBlocks, ...generated.blocks], connections: generated.connections });
     updateVisibleConfig();
-  }, [setEntities]);
+    return removeRules;
+  }, [graph, setEntities]);
 
   useGraphEvent(graph, "state-change", ({ state }) => {
     if (state === GraphState.ATTACHED) {

@@ -30,8 +30,16 @@ The temporary branch and release process is documented separately in
 - Import `MultipointConnection` from `@gravity-ui/graph`; `@gravity-ui/graph-react` no longer re-exports it or installs `elkjs`.
 - Canvas components are culled by the viewport: check custom components against [Viewport culling and the component lifecycle](#viewport-culling-and-the-component-lifecycle) — veto painting with `isRenderAllowed()`, request updates for external changes, report bounds before painting, react to leaving the viewport with `viewportChanged()`, and set `culling` on screen-space layers.
 - Stop reading and writing `selected` on `TBlock`, `TConnection` and their `$state`: read `$selected`, `selectedTag` or the selection API, and style states with tags and rules (see [Tags and styles](../system/tags-and-styles.md)). `asTBlock()`, `asTBlockShallow()`, `asTConnection()` and `toJSON()` no longer include `selected`, so saved data and snapshots lose it; a `selected` left in untyped data selects nothing (it stays in the data as an unknown field). (`TAnchor` never had `selected`; anchor selection stays in `graph.api.setAnchorSelection()` and `AnchorState.$selected`.)
+- Anchor selection and anchor tags use block-qualified ids, `anchorEntityId(blockId, anchorId)`: selecting or hovering anchor `"out"` of one block no longer marks every block's `"out"`. Code that passes bare anchor ids to `graph.selectionService.select("anchor", …)` or `anchorSelectionBucket`, reads them from `$selection.get("anchor")` or `selectedTag`/`hoveredTag` members, writes anchor tags or calls `explain("anchor", …)`, or reads `Anchor.getEntityId()`, switches to `anchorEntityId()` / `parseAnchorEntityId()` (see [Anchor entity IDs](../components/anchors.md#anchor-entity-ids)). `anchorSelectionBucket` is typed `SingleSelectionBucket<string, AnchorState>`. `graph.api.setAnchorSelection(blockId, anchorId, selected)`, `AnchorState.$selected`, `BlockState.$selectedAnchors` and the `block-anchor-selection-change` payload are unchanged (the payload now names the right block when anchor ids repeat).
 - In Jest, do not deep-compare live components with `toMatchObject` or another deep subset matcher: the scene's signal graph is reachable from every component, and the traversal can take minutes. Compare components by identity (`toBe`) or compare their ids.
-- `BlockConnection` subclasses: per-frame hooks no longer run (see [Detached components](#detached-components-connections-outside-the-frame-walk)).
+- `BlockConnection` subclasses: per-frame hooks no longer run (see [Retained components](#retained-components-connections-outside-the-frame-walk)). `static detached` of v2 pre-releases is now `static override readonly mode`, `"retained"` or `"immediate"`.
+- Custom canvas blocks: `Block` draws through `graph.scene` now and its render members are gone. Port the look to level methods (`schematic`, `detailed`) and states to tags and rules, or extend `LegacyCanvasBlock` for one release (see [Blocks in the scene](#blocks-in-the-scene)).
+- Block order and hit-testing follow the scene: blocks are in bucket 200 (201 while selected or dragged), so a layer component hit above blocks needs a `zIndex` of at least 201, and anchors are hit in their block's order.
+- Anchors are not drawn or hit at the minimalistic level and are created lazily: guard `AnchorState.getViewComponent()`, read anchor positions from their ports, and expect the `Block` as the owner of an anchor port until its component exists (see [Anchors](#anchors)).
+- Take screenshots with `graph.scene.toImage()`: `getGraphCanvas()` no longer holds scene blocks.
+- Scene text sizes are numbers: replace a text `size: { px, minWorld, maxWorld }` with `size: px, cameraAware: {
+  minWorld, maxWorld }` (see [Text, primitives and ports](#text-primitives-and-ports)). The `{ world, minPx, maxPx }`
+  text form and `TSceneTextSize` are gone; `TSceneSize` keeps both forms for stroke and border widths.
 - `BlockConnection` subclasses: move paths and shapes to `static geometry` or a `Path2DLine` subclass, styles and batch groups to the line class (`static line`), and expect connection hits within half the stroke width plus `THRESHOLD_LINE_HIT` (see [Connection lines and geometry](#connection-lines-and-geometry)).
 
 ## React package boundary
@@ -975,7 +983,7 @@ paints them in z-order. Compared with v1:
 | Compute badges, labels or decorations while painting | Compute their geometry when data changes and include it in the bounds (`setCullingBounds()`, the hit box, or for connections `static geometry`, the line's `getBounds()`, `getAfterRenderBounds()` and `updateLabelGeometry()`). A component is culled by the bounds it reports. |
 | `batch.markDirty(connection)` after changing data used by `createPath()` | `connection.updateGeometry()` when the geometry or the line's `createPath()` reads that data: rebuilds the geometry, paths, bounds and hit testing together; `connection.invalidateLine()` when only the look reads it. `markDirty()` only rebuilds the batch chunk from the item's cached path. |
 | `isIterated()` as "updated in the last frame" | In a culled layer it means the component is attached in a branch that is walked. |
-| `CanvasBlock.isRendered()` as `shouldRender` | `shouldRender && isVisible()`: false outside the viewport. |
+| `CanvasBlock.isRendered()` as `shouldRender` | False outside the viewport: for a scene block, true while the scene draws it; for a `LegacyCanvasBlock`, `shouldRender && isVisible()` (see [Blocks in the scene](#blocks-in-the-scene)). |
 | Return `false` from `iterate()`, or set `shouldRenderChildren = false` in `render()`, to hide children in the same frame | In a culled layer only the component's preparation decides: set `shouldRenderChildren` (or return `false` from `prepareUpdate()`). A value changed while painting applies from the next frame, which the component requests itself; the value `iterate()` returns is ignored. |
 | A screen-space layer | Pass `culling: "screen"`; `"none"` walks every component without viewport culling. See [Layers](../rendering/layers.md). |
 | Mount a `Layer` as a child component | Layers are tree roots: add them with `graph.addLayer()`. A component that culls cannot become a child; a child layer must pass `culling: "none"`. Appended under a culled tree, it joins its parent's culling: the parent's viewport culls its components. |
@@ -1003,48 +1011,223 @@ for translucent colors and at anti-aliased crossings. `connection.PATH2D_CHUNK_S
 `ConnectionLabelRenderer`, as `BlockConnections` does. A subclass that declared `override afterRender` and called
 `super.afterRender?.()` must drop both, because the base method no longer exists (TS4113/TS2339).
 
-The minimap draws block bodies without names: it calls `renderMinimalisticBlock(ctx, { text: false })`. A
-custom block that overrides `renderMinimalisticBlock` or `renderSchematicView` follows this rule only if its
-override accepts `options` and passes them on (or checks `options?.text` itself); an override that takes only
-`ctx` decides on its own what the minimap shows.
+The minimap draws block bodies without names. Scene blocks are drawn from their scene elements at the minimalistic
+level without text (see [Blocks in the scene](#blocks-in-the-scene)). For a `LegacyCanvasBlock` it calls
+`renderMinimalisticBlock(ctx, { text: false })`: an override of `renderMinimalisticBlock` or `renderSchematicView`
+follows this rule only if it accepts `options` and passes them on (or checks `options?.text` itself); an override that
+takes only `ctx` decides on its own what the minimap shows.
 
-`viewportCulling: false` turns viewport culling off: every component is walked (detached components are never walked), a
+`viewportCulling: false` turns viewport culling off: every component is walked (retained components are never walked), a
 graph component paints when the camera sees its hit box, connection batches draw every chunk and connection labels are
 drawn when the camera sees their rectangle. The lifecycle rules shared with culling
 still apply (an offscreen component is not painted on mount; visibility is decided after preparation), so the
 switch rules out spatial culling only.
 
-## Detached components: connections outside the frame walk
+## Retained components: connections outside the frame walk
 
-A component class can declare `static detached = true`. A detached component is still a child of its parent: the
+A component class can declare `static override readonly mode = "retained"`. A retained component is still a child of its parent: the
 parent creates, updates and unmounts it, and it receives context. The frame does not walk it: it has no place in the
 layer's paint order or culling index and never receives `iterate()`, `render()`, `willRender()`, `didRender()`,
 `willNotRender()`, `didIterate()` or `viewportChanged()`. When its data changes (`setState()`, `setProps()`, context,
 `performRender()`), it is queued, and its layer applies the update before painting: `checkData()`
 (`propsChanged()`, `stateChanged()`), `willIterate()` (`willMount()` on the first update) and its children, which must
-be detached too. A layer with viewport culling applies these updates after preparing its other components; a layer
-without culling applies them before the walk and again right after a parent reconciles detached children. A component
+be retained too. A layer with viewport culling applies these updates after preparing its other components; a layer
+without culling applies them before the walk and again right after a parent reconciles retained children. A component
 applies once per frame, and once more after each reconciliation by its parent in that frame; what it requests during
 its own update applies in the next frame.
 
-`BlockConnection` and its subclasses are detached: the `BlockConnections` batch draws their lines and arrows and its
+`BlockConnection` and its subclasses are retained: the `BlockConnections` batch draws their lines and arrows and its
 label pass their labels, so unchanged connections cost a frame nothing. A connection keeps its label item current from
 its own updates (state, props, geometry and the label font size), never from per-frame hooks. `BaseConnection` stays
 in the walk.
 
 | Pattern in a `BlockConnection` subclass | v2 replacement |
 |---|---|
-| Draw in `render()`, `willRender()` or `didRender()`, or animate every frame | Declare `static detached = false`: the class is walked and culled again, and only it pays for that. Or extend `BaseConnection`. |
+| Draw in `render()`, `willRender()` or `didRender()`, or animate every frame | Declare `static override readonly mode = "immediate"`: the class is walked and culled again, and only it pays for that. Or extend `BaseConnection`. |
 | Draw extra content | Labels and badges: prepare their bounds in `updateLabelGeometry()` and draw in `renderLabelText()`, which the label pass calls for labels in the viewport. Other content: `afterRender(ctx)`, which the Path2D batch runs after the connection's chunk for connections in the viewport, with its bounds from `getAfterRenderBounds()`. |
 | Read external state in `willIterate()` every frame | Subscribe to it and call `setState()`, or `updateGeometry()` for geometry inputs. |
-| Hide an overlay in `viewportChanged()` | Not called for detached components: check `isInViewport()` where you draw, or declare `static detached = false`. |
+| Hide an overlay in `viewportChanged()` | Not called for retained components: check `isInViewport()` where you draw, or declare `static override readonly mode = "immediate"`. |
 | Read `connectionPoints`, `getBBox()` or `getGeometry()` right after moving a block or port | Endpoint moves are applied once per frame, before painting: read after the next frame, or call `updateGeometry()` first. The connection's hit box follows its geometry from the next frame too. |
 
-A detached component cannot cull: `setChildrenCulling` throws.
+A retained component cannot cull: `setChildrenCulling` throws.
 
-In development builds (`process.env.NODE_ENV !== "production"`) a detached class that defines one of these per-frame
-hooks logs one warning. A detached connection keeps its store order for hit testing, `isIterated()` is true while
+In development builds (`process.env.NODE_ENV !== "production"`) a retained class that defines one of these per-frame
+hooks logs one warning. A retained connection keeps its store order for hit testing, `isIterated()` is true while
 `BlockConnections` walks its children, and `isInViewport()` compares its paint bounds with the layer's viewport.
+
+Earlier v2 pre-releases spelled the mode as a boolean:
+
+| Before | Now |
+|---|---|
+| `static detached = true` | `static override readonly mode = "retained"` |
+| `static detached = false` | `static override readonly mode = "immediate"` |
+
+The type is `TComponentMode`. `detached` is no longer read: a class that still declares it silently keeps its base's
+mode, and `static override detached` no longer compiles (TS4113).
+
+## Blocks in the scene
+
+`CanvasBlock` (`Block`) and `Anchor` are scene components: `graph.scene` draws them on its canvas, with Canvas 2D or
+WebGL, from level methods that return primitives, and tags and rules style them. `GraphLayer` stays their parent and
+keeps events, hit-testing, drags and the camera; connections still draw on its canvas, under the scene canvas. See
+[Block component](../components/block-component.md), [Anchors](../components/anchors.md), [Scene](../system/scene.md)
+and [Tags and styles](../system/tags-and-styles.md).
+
+### Removed `Block` members
+
+| v1 member of `Block` | v2 |
+|---|---|
+| `render()`, `renderBody(ctx)`, `renderSchematicView(ctx, options)`, `renderMinimalisticBlock(ctx, options)`, `renderDetailedView(ctx)`, `renderStroke(color)`, `renderText(text, ctx, options)` | Level methods `schematic(view)`, `detailed(view)` and, when it differs, `minimalistic(view)`, which return primitives; states as tags and rules on parts. Or extend `LegacyCanvasBlock` for one release. |
+| `willRender()` override, `shouldRenderText` | The title's `minScale` (`block.SCALES[0]`); `minScale` / `maxScale` on your own primitives. |
+| `calcZIndex()`, `raiseBlock()`, the selection raise in `stateChanged()`, `getRenderIndex()` | Scene raises: the theme's `raise: 1` while selected or dragged, and a new scene order on selection and on drag start. |
+| `shouldRenderHtml`, `raised`, `updateViewState()`, `didIterate()` | Removed. React containers read `$viewState`. |
+| `$viewState` as a writable `signal` of `{ zIndex, order }` (tree values) | A `ReadonlySignal` of `{ zIndex: 0, order: rank }`: the dense rank, in scene order, among the blocks React containers show. |
+| `isRendered()` as `shouldRender && isVisible()` | True while the scene draws the block: its element is written, not hidden, and its hit box is in the viewport. |
+| `renderAnchor()` and `updateChildren()` without declared types | `renderAnchor(): ComponentDescriptor<typeof Anchor>`; `updateChildren(): ChildDescriptor[]`, an empty list when anchors are off. |
+| `minimalistic(view)` in v2 pre-releases (`this.schematic(view)`) | Not defined: the minimalistic level takes the schematic list. `super.minimalistic(view)` does not compile (TS2722) and throws at runtime: call `super.schematic(view)`. |
+
+`Anchor` lost its `zIndex` getter and `render()`: it is a retained scene component with the parts `anchor` and
+`border` (see [Anchors](#anchors)). The theme rules have new parts: a block's `halo` and `badge` (hidden), an anchor's
+`border` (the ring).
+
+### `LegacyCanvasBlock`: one release to port
+
+To keep a v1 block's imperative look for one release, switch the base class and keep the overrides:
+
+```diff
+- import { CanvasBlock } from "@gravity-ui/graph";
++ import { LegacyCanvasBlock } from "@gravity-ui/graph";
+
+- class MyBlock extends CanvasBlock {
++ class MyBlock extends LegacyCanvasBlock {
+    public override renderSchematicView(ctx: CanvasRenderingContext2D): void {
+      // unchanged
+    }
+  }
+```
+
+`LegacyCanvasBlock` is deprecated. It is walked and draws on the `GraphLayer` canvas, under every scene block, and never in
+WebGL. Its element takes tags and styles (bucket, hit order, and the dim and opacity its anchors inherit), but its
+imperative body drawing ignores scene styles. It is hit in scene order, so where it overlaps scene blocks the picture
+and the hit order can disagree. Its anchors draw in the scene. In development builds a `CanvasBlock` subclass that still defines one of the
+removed render members logs one warning per class. A block whose children draw in `render()` must extend
+`LegacyCanvasBlock` too: children of a retained component must be retained, or mounting them throws.
+
+Port a block by moving its drawing into level methods:
+
+```diff
+- class StatusBlock extends CanvasBlock {
+-   protected renderBody(ctx: CanvasRenderingContext2D): void {
+-     ctx.fillStyle = this.state.meta?.failed ? "#d32f2f" : this.context.colors.block.background;
+-     ctx.fillRect(this.state.x, this.state.y, this.state.width, this.state.height);
+-   }
+- }
++ // The default Block, no subclass: the state is a tag, the look a rule on its body part.
++ const failedTag = defineTag("failed");
++ graph.scene.styles.add([
++   { target: CanvasBlock, tags: [failedTag], style: { parts: { body: { color: "#d32f2f" } } } },
++ ]);
++ graph.scene.tags.set(failedTag, { block: ["b3"] });
+```
+
+A look that needs more structure is a subclass with `schematic(view)` (and `detailed(view)` when it differs), with
+coordinates relative to the block's origin; see [Block component](../components/block-component.md#level-methods).
+
+### Order and hit-testing
+
+| Before | Now |
+|---|---|
+| `block.DEFAULT_Z_INDEX` is 1, a selected or dragged block 2 | Block elements are in bucket 200 (`block.DEFAULT_Z_INDEX`), 201 while selected or dragged (the theme's `raise`). Connections keep 0. |
+| Blocks are painted and hit by the tree `zIndex` and `renderOrder` | The scene order decides both ([`compareOrder`](../system/scene.md#compareorder)): bucket, then the element's order (a selection or a drag start gives a new, highest one), anchors right above their block. A block's tree `zIndex` and `renderOrder` no longer order it. |
+| An anchor's `zIndex` is its block's + 1: it wins hits over every block of that `zIndex` | An anchor is hit in its block's scene order: an upper block covers the anchors of a lower one. |
+| A layer component with a tree `zIndex` from 2 to 199 is hit above blocks | It is hit below blocks. Give it a `zIndex` of at least 201 to stay above every block, selected ones included (at an equal value a component without a scene key wins), or more if your rules raise blocks further. |
+| A prevented `block-change` still moved the drawn block (component state) | A scene block stays where the store says: its origin reads the store. |
+
+The drag raise comes from `Block.handleDragStart`, in the default action of `block-drag-start`: a prevented
+`block-drag-start` does not raise the block. React containers take their CSS z-index from `$viewState`'s rank; a newly
+mounted container gets its rank in the next frame.
+
+### Anchors
+
+- **No anchors at the minimalistic level.** The default anchor is drawn on the schematic level only. The detailed
+  level draws nothing for anchors, because React draws them there. The anchor is hit from the schematic level on. At
+  the minimalistic level the block under it is hit, so gestures that start on an anchor (connection creation, anchor
+  selection, hover) start from the schematic level on.
+- **Lazy components.** A block creates its `Anchor` components once the camera shows it at the schematic or detailed
+  level. Until then `AnchorState.getViewComponent()` is `undefined` (it is reactive through `$viewComponentReady`),
+  the anchor port's `owner` is the `Block` (check `instanceof Anchor` on port owners with care), and
+  `getElementsOverPoint` / `getElementsOverRect` and `$selectedComponents` return created anchors only. Read anchor
+  positions from the port (`block.getAnchorPort(anchorId).getPoint()`), not from
+  `getViewComponent().getPosition()`. Override `Block.shouldCreateAnchors()` to create them on other terms.
+- **Look.** The selected anchor keeps its ring: the ring is the `border` part, hidden by the theme and shown by
+  `selectedTag`. Hover is the theme's `hoveredTag` rule, which scales the hovered anchor's dot and ring by 1.8. Restyle
+  both with rules on `Anchor`.
+- **`useBlocksAnchors`** turned off at runtime still hides the connections attached to anchors, and turning it on shows
+  them again; a graph that starts with it off draws them.
+- **graph-react:** `GraphBlockAnchor` positions itself from the anchor's port while the canvas component does not
+  exist.
+
+### Text, primitives and ports
+
+- **Text sizes.** A text primitive's `size` is a number: world units, or screen pixels with `cameraAware`. The text
+  forms of `TSceneSize` are removed, with `TSceneTextSize`:
+
+  | Before (v2 pre-releases) | After |
+  | --- | --- |
+  | `size: { px: 9, maxWorld: 90 }` | `size: 9, cameraAware: { maxWorld: 90 }` |
+  | `size: { px: 13 }` | `size: 13, cameraAware: true` |
+  | `size: { world: 12, minPx, maxPx }` | no equivalent: a world size `size: 12`, or a camera-aware one with world clamps |
+  | `size: 14` | `size: 14` (unchanged: world text) |
+
+  `lineHeight` is the pitch at `size`, in its units, and scales with the resolved font size. A part style's
+  `cameraAware` and the graph setting `cameraAwareText` (default `true`; `false` turns every text world-sized) change
+  the mode at runtime (see [Text primitives](../system/scene.md#text-primitives)).
+- **Text fits its box at every zoom, as v1's `layoutText` did.** Both renderers and exports lay a text out with one
+  shared layout at the resolved size: lines wrap to `width` (a word wider than the box splits by characters, whitespace
+  and newlines collapse), a line is kept while it fits `height` at the resolved pitch, then `maxLines`; `wrap: false`
+  keeps one line and `overflow: "ellipsis"` ends the last kept line with "…". Lines never leave the box. The pre-release
+  scene wrapped once at scale 1 and stretched the lines, so camera-aware text overflowed its block when zoomed out;
+  that is fixed, and pre-cut texts (an app's own `fitText` with "…") can pass the full text with `wrap: false`,
+  `maxLines: 1`, `overflow: "ellipsis"` instead. A text whose lines fit its box is not clipped, as in v1 (glyph ink may
+  overhang by side bearings, accents and descenders); one whose layout overflows the box is clipped to it in both
+  renderers. A style's `cameraAware: true` applies only to texts with a `height`.
+- **Placement.** Each line's top lies where v1 Canvas 2D drew it (`textBaseline = "top"`), in both renderers:
+  `verticalAlign` (`"top"`, the default, `"middle"`, `"bottom"`) places the block of lines in its box. This undoes the
+  1–3 px downward shift of the earlier v2 pre-releases. Line breaks are the same in both renderers.
+- **Bounds.** A text with a `height` contributes its box to the element's culling bounds, at any zoom.
+- Primitive types are read-only (`TScenePrimitive`, `TSceneStroke` and the object forms of `TSceneSize`): code that
+  assigns to a primitive no longer compiles. Development builds freeze the text primitives the store receives, so
+  changing one in place throws.
+- `PortState.setPoint(x, y)` with the port's current point writes nothing, so its subscribers and the connections at
+  the port do not recompute.
+- View data compares a hole in a sparse array as `undefined` (see
+  [View data](../components/block-component.md#view-data)).
+
+### Minimap, export and the canvas
+
+- The minimap draws scene blocks from their scene elements with the interpreter (`drawInterpreted`, minimalistic
+  level, no text, delegated blocks included) and `LegacyCanvasBlock`s with `renderMinimalisticBlock(ctx, { text: false })`.
+  Anchors are not drawn on it.
+- Take screenshots with `graph.scene.toImage()` (see [toImage](../system/scene.md#toimage)): `getGraphCanvas()` keeps
+  returning the `GraphLayer` canvas, which no longer holds scene blocks.
+
+### Custom WebGL backends
+
+A custom module for the `webglBackend` setting (`ISceneBackendModule`) changed its contract since the earlier v2
+pre-releases:
+
+- The backend implements `applyMany(changes: readonly TSceneChange[])` instead of `apply(change)`. The scene passes
+  the changes of one frame at once, coalesced per element, and the backend renumbers its depth once per call. A backend
+  that still only has `apply()` throws when the scene calls `applyMany()` on the first update; the scene then
+  reports the failure and falls back to the Canvas 2D interpreter.
+- `stats` has a required `subBits` field (the depth's sub-order width after the last apply, at least 5), and
+  `lastApplyMs` now measures `applyMany()`.
+- `replay(store, text?)` and `applyMany(changes, text?)` receive the camera scale and text policy to lay texts out for
+  (`TSceneTextFrame`), and each frame carries the `textPolicy` (the `cameraAwareText` setting). `stats` has the text
+  re-layout counters (`textRelayouts`, `lastTextRelayouts`, `lastTextRelayoutGlyphs`, `lastTextRelayoutBytes`,
+  `lastTextRelayoutWrittenBytes`, `lastTextRelayoutDrawnBytes`, `lastTextRelayoutMs`, `lastTextRelayoutsKept`,
+  `staleTexts`) and the upload sizes (`uploadBytes`, `lastUploadBytes`,
+  `lastUploadWrites`).
 
 ## Connection lines and geometry
 
@@ -1246,5 +1429,5 @@ TypeScript also rejects `override` on a method the base class no longer has (TS4
 name). The protected `geometry` field (`{ x1, y1, x2, y2 }`) is gone, and `this.geometry` does not compile (TS2576:
 `geometry` is the static geometry function now): read `this.connectionPoints` or `this.getGeometry()`.
 
-`static detached = false` with a custom `render()` stays possible: the class is walked again and draws on the graph
+`static override readonly mode = "immediate"` with a custom `render()` stays possible: the class is walked again and draws on the graph
 layer's canvas every frame it is rendered, above the lines of either renderer.

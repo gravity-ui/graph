@@ -1,13 +1,18 @@
 import { colorFloats } from "../../../components/canvas/connections/webgl/encode";
+import { ALL_LEVELS_MASK } from "../levels";
 import type { TScenePrimitive, TSceneSize, TSceneStroke } from "../types";
 
+import { DEPTH_INDICES } from "./depth";
 import { USE_BASE_ALPHA } from "./tables";
 
 /** Floats per rect instance. */
 export const RECT_FLOATS = 28;
 
-/** The depth key reserves 5 bits of sub-order per element. */
-export const MAX_SUB = 31;
+/**
+ * The largest sub of a scene with one depth key, the encoders' default. The backend passes the largest sub its keys
+ * leave room for (`SceneDepth.maxSub`).
+ */
+export const MAX_SUB = DEPTH_INDICES - 1;
 
 export type TSlotOf = (part: string | undefined) => number;
 
@@ -26,25 +31,47 @@ export function paintFloats(color: string | undefined): readonly number[] {
 
 /** Whether a paint goes to the translucent pass: only its own colour decides; an unset paint stays opaque. */
 export function isTranslucentPaint(color: string | undefined): boolean {
-  return color !== undefined && colorFloats(color)[3] < 1;
+  return color !== undefined && isTranslucentFloats(colorFloats(color));
+}
+
+/** Whether the straight rgba floats of a set paint are translucent: the one test `isTranslucentPaint` and the rect encoder share. */
+export function isTranslucentFloats(floats: readonly number[]): boolean {
+  return floats[3] < 1;
 }
 
 const ALIGN = { inside: 0, center: 1, outside: 2 } as const;
 
 const NO_PAINT: readonly number[] = [0, 0, 0, 0];
 
-export function checkSub(sub: number): void {
-  if (sub > MAX_SUB) throw new RangeError(`A scene element has at most ${MAX_SUB + 1} primitives, got index ${sub}`);
+/**
+ * Throws when a primitive's sub lies past `maxSub`, the widest sub-order width the scene's depth keys leave room for:
+ * the depth could not order it.
+ */
+export function checkSub(sub: number, maxSub: number): void {
+  if (sub > maxSub) {
+    throw new RangeError(
+      `A scene element's primitive takes sub-order ${sub}, past ${maxSub}, the last one the depth keys leave room for`
+    );
+  }
 }
 
 /** Writes `(mode, value, min, max)` of a camera-aware size at `offset`. */
 export function writeSize(out: Float32Array, offset: number, size: TSceneSize): void {
   if (typeof size === "number") {
-    out.set([0, size, 0, NO_LIMIT], offset);
+    out[offset] = 0;
+    out[offset + 1] = size;
+    out[offset + 2] = 0;
+    out[offset + 3] = NO_LIMIT;
   } else if ("px" in size) {
-    out.set([1, size.px, size.minWorld ?? 0, size.maxWorld ?? NO_LIMIT], offset);
+    out[offset] = 1;
+    out[offset + 1] = size.px;
+    out[offset + 2] = size.minWorld ?? 0;
+    out[offset + 3] = size.maxWorld ?? NO_LIMIT;
   } else {
-    out.set([2, size.world, size.minPx ?? 0, size.maxPx ?? NO_LIMIT], offset);
+    out[offset] = 2;
+    out[offset + 1] = size.world;
+    out[offset + 2] = size.minPx ?? 0;
+    out[offset + 3] = size.maxPx ?? NO_LIMIT;
   }
 }
 
@@ -53,7 +80,13 @@ export function scaleBound(value: number | undefined, fallback: number): number 
   return value === undefined || !Number.isFinite(value) ? fallback : value;
 }
 
-/** A growing list of fixed-size instances. */
+/** The instances of an encode that yields none: shared, it has nothing to change. */
+const NO_INSTANCES = new Float32Array(0);
+
+/**
+ * A growing list of fixed-size instances. The encoders keep one list per kind and pass and reuse it (`reset`), so an
+ * encode allocates only its result (`toArray`), not a list.
+ */
 export class InstanceList {
   private data: Float32Array;
   private length = 0;
@@ -62,56 +95,121 @@ export class InstanceList {
     this.data = new Float32Array(floats * 16);
   }
 
+  /** Empties the list for the next encode; it keeps its room. */
+  public reset(): void {
+    this.length = 0;
+  }
+
   /** The next instance to fill, zeroed. */
   public next(): Float32Array {
     const end = this.length + this.floats;
-    if (end > this.data.length) {
-      const grown = new Float32Array(this.data.length * 2);
-      grown.set(this.data);
-      this.data = grown;
-    }
+    this.reserve(end);
     const at = this.length;
     this.length = end;
-    return this.data.subarray(at, end);
+    const instance = this.data.subarray(at, end);
+    // A reused list holds the floats of an earlier encode.
+    instance.fill(0);
+    return instance;
   }
 
+  /** Appends an instance of a list of one float per instance, holding `value`; `next` without a view per instance. */
+  public push(value: number): void {
+    if (this.floats !== 1) throw new Error("InstanceList.push needs a list of one float per instance");
+    this.reserve(this.length + 1);
+    this.data[this.length++] = value;
+  }
+
+  /**
+   * Appends `count` zeroed instances and returns the offset of their first float in `buffer`, which holds them until
+   * the next append: `next` without a view per instance.
+   */
+  public claim(count: number): number {
+    const at = this.length;
+    const end = at + count * this.floats;
+    this.reserve(end);
+    this.length = end;
+    this.data.fill(0, at, end);
+    return at;
+  }
+
+  /** The list's floats (more than it holds): valid until the next append. */
+  public get buffer(): Float32Array {
+    return this.data;
+  }
+
+  /** A copy of the instances; the list can be reset and reused afterwards. */
   public toArray(): Float32Array {
-    return this.data.slice(0, this.length);
+    return this.length === 0 ? NO_INSTANCES : this.data.slice(0, this.length);
+  }
+
+  /** Room for `end` floats. */
+  private reserve(end: number): void {
+    if (end <= this.data.length) return;
+    const grown = new Float32Array(Math.max(this.data.length * 2, end));
+    grown.set(this.data.subarray(0, this.length));
+    this.data = grown;
   }
 }
 
-type TRectShape = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  radius: readonly [number, number, number, number];
-  fill?: string;
-  border?: TSceneStroke;
-};
+/** The lists of one encoder: emptied at the start of each encode (encoders do not call each other). */
+export type TInstanceLists = { readonly opaque: InstanceList; readonly translucent: InstanceList };
 
-function radii(radius: number | readonly number[] | undefined): readonly [number, number, number, number] {
-  if (radius === undefined) return [0, 0, 0, 0];
-  if (typeof radius === "number") return [radius, radius, radius, radius];
-  return [radius[0] ?? 0, radius[1] ?? 0, radius[2] ?? 0, radius[3] ?? 0];
+/** Lists for an encoder of `floats` floats per instance, reused by every encode (`takeLists`). */
+export function createInstanceLists(floats: number): TInstanceLists {
+  return { opaque: new InstanceList(floats), translucent: new InstanceList(floats) };
 }
 
-function rectShape(primitive: TScenePrimitive): TRectShape | undefined {
-  if (primitive.kind === "rect") return { ...primitive, radius: radii(primitive.radius) };
-  if (primitive.kind === "circle") {
+/** Empties the encoder's lists and hands them to one encode. */
+export function takeLists(lists: TInstanceLists): TInstanceLists {
+  lists.opaque.reset();
+  lists.translucent.reset();
+  return lists;
+}
+
+const RECT_LISTS = createInstanceLists(RECT_FLOATS);
+
+type TRectPrimitive = Extract<TScenePrimitive, { kind: "rect" | "circle" }>;
+
+/** Writes the four corner radii (top-left, top-right, bottom-right, bottom-left) at `offset`; unset ones are 0. */
+function writeRadii(out: Float32Array, offset: number, radius: number | readonly number[] | undefined): void {
+  if (typeof radius === "number") {
+    out[offset] = radius;
+    out[offset + 1] = radius;
+    out[offset + 2] = radius;
+    out[offset + 3] = radius;
+  } else {
+    out[offset] = radius?.[0] ?? 0;
+    out[offset + 1] = radius?.[1] ?? 0;
+    out[offset + 2] = radius?.[2] ?? 0;
+    out[offset + 3] = radius?.[3] ?? 0;
+  }
+}
+
+/** Writes x, y, width, height and the corner radii at 4..11; a circle is the square of its diameter, all round. */
+function writeShape(out: Float32Array, primitive: TRectPrimitive): void {
+  if (primitive.kind === "rect") {
+    out[4] = primitive.x;
+    out[5] = primitive.y;
+    out[6] = primitive.width;
+    out[7] = primitive.height;
+    writeRadii(out, 8, primitive.radius);
+  } else {
     const { cx, cy, r } = primitive;
-    const radius: readonly [number, number, number, number] = [r, r, r, r];
-    return {
-      x: cx - r,
-      y: cy - r,
-      width: 2 * r,
-      height: 2 * r,
-      radius,
-      fill: primitive.fill,
-      border: primitive.border,
-    };
+    out[4] = cx - r;
+    out[5] = cy - r;
+    out[6] = 2 * r;
+    out[7] = 2 * r;
+    writeRadii(out, 8, r);
   }
-  return undefined;
+}
+
+/** Writes the drawn border's width and align (none: width 0) at 20..24, then the scale bounds and the level mask. */
+function writeBorderAndBounds(out: Float32Array, drawn: TSceneStroke | undefined, primitive: TRectPrimitive): void {
+  writeSize(out, 20, drawn?.width ?? 0);
+  out[24] = ALIGN[drawn?.align ?? "center"];
+  out[25] = scaleBound(primitive.minScale, 0);
+  out[26] = scaleBound(primitive.maxScale, NO_LIMIT);
+  out[27] = primitive.levelMask ?? ALL_LEVELS_MASK;
 }
 
 /**
@@ -123,43 +221,46 @@ export function hasStrokeWidth(stroke: TSceneStroke | undefined): stroke is TSce
 }
 
 /**
- * Rect and circle primitives as rect instances, split by translucency. `sub` is the index in the element. An unset fill
- * or border colour is written as `USE_BASE`; a border with an unset width is no border.
+ * Rect and circle primitives as rect instances, split by translucency. `sub` is `subBase` plus the index in the
+ * element. An unset fill or border colour is written as `USE_BASE`; a border with an unset width is no border.
+ *
+ * @param subBase The depth sub-order of the first primitive: a child element's primitives follow its parent's and its
+ * earlier siblings'.
+ * @param maxSub The largest sub the depth keys leave room for (`checkSub`).
  */
 export function encodeRects(
   primitives: readonly TScenePrimitive[],
   elementIndex: number,
-  slotOf: TSlotOf
+  slotOf: TSlotOf,
+  subBase = 0,
+  maxSub = MAX_SUB
 ): TEncodedInstances {
-  const opaque = new InstanceList(RECT_FLOATS);
-  const translucent = new InstanceList(RECT_FLOATS);
-  primitives.forEach((primitive, sub) => {
-    const rect = rectShape(primitive);
-    if (!rect) return;
-    checkSub(sub);
+  const { opaque, translucent } = takeLists(RECT_LISTS);
+  for (let sub = 0; sub < primitives.length; sub++) {
+    const primitive = primitives[sub];
+    if (primitive.kind !== "rect" && primitive.kind !== "circle") continue;
+    const at = subBase + sub;
+    checkSub(at, maxSub);
     // An empty fill is no fill, as in the Canvas2D interpreter; without a border the band is empty. Neither takes the
     // base colour.
-    const fill = rect.fill === "" ? NO_PAINT : paintFloats(rect.fill);
-    const drawn = hasStrokeWidth(rect.border) ? rect.border : undefined;
+    const fillColor = primitive.fill;
+    const fill = fillColor === "" ? NO_PAINT : paintFloats(fillColor);
+    const drawn = hasStrokeWidth(primitive.border) ? primitive.border : undefined;
     const border = drawn ? paintFloats(drawn.color) : NO_PAINT;
     const isBorderPart = primitive.part === "border";
-    const isTranslucent = isTranslucentPaint(rect.fill || undefined) || isTranslucentPaint(drawn?.color);
+    // `isTranslucentPaint` of the fill (an empty one is none) and of the border, from the floats parsed above.
+    const isTranslucent =
+      (fillColor !== undefined && fillColor !== "" && isTranslucentFloats(fill)) ||
+      (drawn?.color !== undefined && isTranslucentFloats(border));
     const out = (isTranslucent ? translucent : opaque).next();
     out[0] = elementIndex;
-    out[1] = sub;
+    out[1] = at;
     out[2] = isBorderPart ? 0 : slotOf(primitive.part);
     out[3] = isBorderPart ? slotOf("border") : 0;
-    out[4] = rect.x;
-    out[5] = rect.y;
-    out[6] = rect.width;
-    out[7] = rect.height;
-    out.set(rect.radius, 8);
+    writeShape(out, primitive);
     out.set(fill, 12);
     out.set(border, 16);
-    writeSize(out, 20, drawn ? drawn.width : 0);
-    out[24] = ALIGN[drawn?.align ?? "center"];
-    out[25] = scaleBound(primitive.minScale, 0);
-    out[26] = scaleBound(primitive.maxScale, NO_LIMIT);
-  });
+    writeBorderAndBounds(out, drawn, primitive);
+  }
   return { opaque: opaque.toArray(), translucent: translucent.toArray() };
 }

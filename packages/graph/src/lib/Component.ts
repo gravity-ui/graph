@@ -163,12 +163,20 @@ export class Component<
   public override prepareUpdate(): boolean {
     if (this.updatePrepared) return this.shouldRenderChildren;
     super.prepareUpdate();
-    this.checkData();
-    this.willIterate();
+    // The hooks below run with this update on the stack: `CoreComponent.applyUpdatesNow` does not enter it again.
+    const comp = this.__comp;
+    const updating = comp.updating;
+    comp.updating = true;
+    try {
+      this.checkData();
+      this.willIterate();
 
-    if (this.shouldUpdateChildren) {
-      this.shouldUpdateChildren = false;
-      this.childrenLifeCycle();
+      if (this.shouldUpdateChildren) {
+        this.shouldUpdateChildren = false;
+        this.childrenLifeCycle();
+      }
+    } finally {
+      comp.updating = updating;
     }
     return this.shouldRenderChildren;
   }

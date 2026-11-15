@@ -3,7 +3,7 @@ import { CoreComponent } from "./CoreComponent";
 import { warnDetachedFrameHooks } from "./detachedWarning";
 
 class Detached extends Component {
-  public static override readonly detached = true;
+  public static override readonly mode = "retained";
 }
 
 class Painting extends Detached {
@@ -46,9 +46,10 @@ describe("warnDetachedFrameHooks", () => {
     warnDetachedFrameHooks(Painting);
     warnDetachedFrameHooks(Painting);
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0][0]).toContain("Painting is detached");
+    expect(warn.mock.calls[0][0]).toContain("Painting is retained");
     expect(warn.mock.calls[0][0]).toContain("render, didIterate");
-    expect(warn.mock.calls[0][0]).toContain("static detached = false");
+    // A declaration that compiles under a retained base (a bare `static mode = "immediate"` is TS2417 and TS4114).
+    expect(warn.mock.calls[0][0]).toContain('Declare `static override readonly mode = "immediate";` on it');
   });
 
   it("ignores update hooks and the bases above the class that declared it detached", () => {
@@ -64,7 +65,7 @@ describe("warnDetachedFrameHooks", () => {
       }
     }
     const root = mountWith(Late);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Late is detached"));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Late is retained"));
     CoreComponent.unmount(root);
   });
 

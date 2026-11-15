@@ -1,4 +1,5 @@
 import { Graph } from "../../graph";
+import { anchorEntityId } from "../anchor/anchorEntityId";
 
 import { PortState } from "./port/Port";
 
@@ -108,7 +109,7 @@ test("retained anchor state cannot select a replacement with the same ID", () =>
   state?.updateAnchors([]);
   state?.updateAnchors([anchor]);
   previous?.setSelection(true);
-  expect(graph.blocks.anchorSelectionBucket.isSelected("a")).toBe(false);
+  expect(graph.blocks.anchorSelectionBucket.isSelected(anchorEntityId(0, "a"))).toBe(false);
 });
 
 test("arbitrary anchor types produce finite per-type indexes", () => {

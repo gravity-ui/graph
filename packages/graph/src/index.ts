@@ -1,12 +1,16 @@
-export { Anchor, type TAnchor, type TAnchorProps } from "./components/canvas/anchors";
+export { Anchor, type TAnchor, type TAnchorProps, type TAnchorView } from "./components/canvas/anchors";
 export {
   Block as CanvasBlock,
   isTBlock,
+  type BlockViewState,
   type TBlock,
   type TBlockComponentState,
+  type TBlockLook,
   type TBlockProps,
+  type TBlockView,
   type TBlockViewOptions,
 } from "./components/canvas/blocks/Block";
+export { LegacyCanvasBlock } from "./components/canvas/blocks/LegacyCanvasBlock";
 export { GraphComponent } from "./components/canvas/GraphComponent";
 export * from "./components/canvas/connections";
 export * from "./graph";
@@ -55,6 +59,7 @@ export { EAnchorType } from "./store/anchor/Anchor";
 export type { BlockState, TBlockId } from "./store/block/Block";
 export type { ConnectionState, TConnection, TConnectionId } from "./store/connection/ConnectionState";
 export type { AnchorState } from "./store/anchor/Anchor";
+export { anchorEntityId, parseAnchorEntityId, type TAnchorAddress } from "./store/anchor/anchorEntityId";
 export type { PortState, TPort, TPortId } from "./store/connection/port/Port";
 export { createAnchorPortId, createBlockPointPortId, createPortId } from "./store/connection/port/utils";
 export { ECanDrag } from "./store/settings";
@@ -69,11 +74,16 @@ export { Point, Rect, type TPoint, type TRect } from "./utils/types/shapes";
 export { ESelectionStrategy } from "./services/selection/types";
 export type {
   IGraphScene,
+  ITextMeasurer,
+  TSceneImageOptions,
   TSceneElementView,
   TSceneLevel,
   TSceneRenderer,
   TSceneRendererState,
 } from "./services/scene/types";
+export type { ISceneKeyed, TSceneKey } from "./services/scene/sceneKey";
+export { SceneComponent } from "./components/canvas/scene";
+export type { TSceneParent } from "./components/canvas/scene";
 export {
   defineTag,
   entityKey,
@@ -109,14 +119,16 @@ export type {
   TTagValues,
 } from "./services/styles/types";
 export type {
+  TSceneCameraAware,
   TScenePartStyle,
   TScenePrimitive,
   TSceneSize,
   TSceneStroke,
   TSceneStyle,
   TSceneElement,
+  TSceneTextPolicy,
 } from "./lib/scene/types";
-export type { ISceneBackendModule, TSceneBackendStats } from "./lib/scene/webgl/backendTypes";
+export type { ISceneBackendModule, TSceneBackendStats, TSceneTextFrame } from "./lib/scene/webgl/backendTypes";
 export * from "./utils/shapes";
 export { applyAlpha, clearColorCache } from "./utils/functions/color";
 
@@ -139,5 +151,6 @@ export type {
   ComponentDescriptor,
   ChildDescriptor,
 } from "./lib/CoreComponent";
+export type { TComponentMode } from "./lib/CoreComponent";
 export type { TTreeCullingOptions } from "./lib/culling/TreeCulling";
 export type { TTileRect } from "./lib/culling/TileIndex";

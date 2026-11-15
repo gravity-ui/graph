@@ -125,7 +125,7 @@ import { GraphBlockAnchor } from "@gravity-ui/graph-react";
   className="anchor"
 >
   {(state) => (
-    <div className={state.selected ? 'selected' : ''}>
+    <div className={state.$selected.value ? 'selected' : ''}>
       {/* Anchor visuals */}
     </div>
   )}
@@ -142,7 +142,7 @@ import { GraphBlockAnchor } from "@gravity-ui/graph-react";
   // Inputs will be placed on the left, outputs on the right
 >
   {(state) => (
-    <div className={state.selected ? 'selected' : ''}>
+    <div className={state.$selected.value ? 'selected' : ''}>
       {/* Anchor visuals */}
     </div>
   )}

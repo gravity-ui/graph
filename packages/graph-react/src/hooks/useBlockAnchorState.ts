@@ -11,6 +11,17 @@ export function useBlockAnchorState(graph: Graph, anchor: TAnchor): AnchorState 
   );
 }
 
+/**
+ * The anchor's world position: from its canvas component, else from its port. A block creates its canvas anchors
+ * lazily (only once the camera shows it at the schematic or detailed level), and positions their ports itself until
+ * then. Reads signals only, so an effect that calls it follows the component, the block and the port.
+ */
+function anchorPosition(state: AnchorState): { x: number; y: number } | undefined {
+  const view = state.getViewComponent();
+  if (view) return view.getPosition();
+  return state.block.getViewComponent()?.getAnchorPort(state.id).getPoint();
+}
+
 export function useBlockAnchorPosition(
   state: AnchorState | undefined,
   anchorContainerRef: React.RefObject<HTMLDivElement> | undefined
@@ -19,7 +30,7 @@ export function useBlockAnchorPosition(
     // Subscribe even while the DOM ref is empty, so later mounts keep receiving
     // geometry and view-readiness changes without replacing the ref object.
     const blockGeometry = state?.block.$geometry.value;
-    const position = state?.$viewComponentReady.value ? state.getViewComponent()?.getPosition() : undefined;
+    const position = state ? anchorPosition(state) : undefined;
     const container = anchorContainerRef?.current;
     if (!container) return;
 

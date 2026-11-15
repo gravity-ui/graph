@@ -1,6 +1,7 @@
 import { dashFlow } from "../../../components/canvas/connections/effects";
 import { lineSegment } from "../../../components/canvas/connections/geometry/segments";
 import { INSTANCE_FLOATS } from "../../../components/canvas/connections/webgl/encode";
+import type { TScenePrimitive } from "../types";
 
 import { PATH_ELEMENT_FLOATS, encodePaths } from "./encodePaths";
 import { USE_BASE_ALPHA } from "./tables";
@@ -12,11 +13,21 @@ const curved = new Float32Array([0, 0, 0, 50, 50, 50, 50, 0]);
 const slotOf = (part: string | undefined): number => (part === undefined ? 0 : 5);
 
 describe("encodePaths", () => {
+  it("writes the level mask of a path", () => {
+    const out = encodePaths(
+      [{ kind: "path", segments: straight, stroke: { color: "#f00", width: 2 }, levelMask: 1 }],
+      0,
+      0,
+      slotOf
+    );
+    expect(out.lineElements[6]).toBe(1);
+  });
+
   it("encodes a straight path as one line instance", () => {
     const out = encodePaths([{ kind: "path", segments: straight, stroke: { color: "#f00", width: 2 } }], 4, 0, slotOf);
     expect(out.lines).toHaveLength(INSTANCE_FLOATS);
     expect(out.curves).toHaveLength(0);
-    expect(Array.from(out.lineElements)).toEqual([4, 0, 0, 0, 0, 1e9, 0, 0]);
+    expect(Array.from(out.lineElements)).toEqual([4, 0, 0, 0, 0, 1e9, 7, 0]);
     expect(out.curveElements).toHaveLength(0);
     expect(out.lines[12]).toBe(2);
     expect(Array.from(out.lines.slice(8, 12))).toEqual([1, 0, 0, 1]);
@@ -95,7 +106,7 @@ describe("encodePaths", () => {
       0,
       slotOf
     );
-    expect(Array.from(out.lineElements)).toEqual([3, 0, 5, 0, 0.25, 2, 0, 0]);
+    expect(Array.from(out.lineElements)).toEqual([3, 0, 5, 0, 0.25, 2, 7, 0]);
   });
 
   it("lists the effects of paths that have one", () => {
@@ -112,6 +123,13 @@ describe("encodePaths", () => {
     expect(out.effects).toEqual([use]);
     expect(out.lines.length / INSTANCE_FLOATS).toBe(2);
     expect(Array.from(out.lines.slice(16, 20))).toEqual([4, 2, 0, 0]);
+  });
+
+  it("offsets the depth sub-order by the sub base and checks the budget", () => {
+    const path: TScenePrimitive = { kind: "path", segments: straight, stroke: { color: "#f00", width: 2 } };
+    expect(encodePaths([path], 0, 0, slotOf, () => true, 5).lineElements[1]).toBe(5);
+    expect(() => encodePaths([path, path], 0, 0, slotOf, () => true, 31, 31)).toThrow(RangeError);
+    expect(encodePaths([path, path], 0, 0, slotOf, () => true, 31).lineElements[PATH_ELEMENT_FLOATS + 1]).toBe(32);
   });
 
   it("encodes only the selected paths and keeps their index as sub", () => {

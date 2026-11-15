@@ -1,7 +1,7 @@
 // E1: today's path. Every frame walks NirvanaLikeBlock components and their core anchors; connections are
 // MultipointConnection on the Path2D batch; groups are a BlockGroups layer.
 import { batch } from "@preact/signals-core";
-import { BlockGroups, CanvasBlock, ECanDrag, Graph, Group, MultipointConnection } from "GRAPH";
+import { BlockGroups, ECanDrag, Graph, Group, LegacyCanvasBlock, MultipointConnection } from "GRAPH";
 import { drawElements } from "GRAPH_SRC/lib/scene/drawPrimitives";
 import type { TSceneElement } from "GRAPH_SRC/lib/scene/types";
 
@@ -19,20 +19,36 @@ export type TQueryTiming = {
   drawScene: number;
 };
 
+/** The scene's share of an action (blocks columns): level methods, element writes, backend applies. */
+export type TSceneMeter = {
+  start(): void;
+  afterTick(): void;
+  stop(): number;
+  /** The parts of the last `stop()`: level methods, element writes, backend applies (ms). */
+  split?: { levelMs: number; writeMs: number; applyMs: number };
+};
+
 export type TColumn = {
   graph: Graph;
   drag(offset: number): void;
   visible(): { blocks: number; anchors: number; elements: number };
+  /** Synchronous mount: setEntities, start and three scheduler updates (real component columns only). */
+  mountMs?: number;
+  /** Blocks columns: the scene's share of `mountMs`. */
+  mountSceneMs?: number;
+  sceneMeter?: TSceneMeter;
+  /** Blocks columns: ms spent in graph.scene.update, summed over ticks; `run()` resets and reads it. */
+  sceneTicks?: { ms: number };
   /** Interpreter only. */
   timeQuery?(rounds: number): TQueryTiming;
 };
 
-/** The CanvasBlock members this block uses; they are protected in the library. */
+/** The LegacyCanvasBlock members this block uses; they are protected in the library. */
 interface IBlockBase {
   state: { id: string; x: number; y: number; meta: TBlockMeta; height: number };
   context: { camera: { getCameraScale(): number } };
 }
-const BlockBase = CanvasBlock as unknown as new (...args: unknown[]) => IBlockBase;
+const BlockBase = LegacyCanvasBlock as unknown as new (...args: unknown[]) => IBlockBase;
 
 const counters = { blocks: 0 };
 
@@ -53,6 +69,7 @@ class NirvanaLikeBlock extends BlockBase {
       this.elementMeta = meta;
       this.element = {
         id,
+        childOrder: 0,
         zIndex: 2,
         order: 0,
         styleId: 0,
@@ -93,14 +110,19 @@ export function dragTarget(scene: TBenchScene): TBenchBlock {
   return best;
 }
 
-export function setupWalk(root: HTMLDivElement, scene: TBenchScene): TColumn {
+export function setupWalk(
+  root: HTMLDivElement,
+  scene: TBenchScene,
+  options: { anchors?: boolean } = {}
+): TColumn {
   const graph = new Graph(
     {
       settings: {
         canDragCamera: true,
         canZoomCamera: true,
         canDrag: ECanDrag.ALL,
-        useBlocksAnchors: true,
+        // --no-anchors: no Anchor components, so no anchor child elements.
+        useBlocksAnchors: options.anchors ?? true,
         showConnectionArrows: true,
         showConnectionLabels: false,
         connection: MultipointConnection,
@@ -112,8 +134,11 @@ export function setupWalk(root: HTMLDivElement, scene: TBenchScene): TColumn {
   const BenchGroup = Group.define({ style: GROUP_STYLE, geometry: { padding: [0, 0, 0, 0] } });
   const groups = graph.addLayer(BlockGroups, { draggable: false });
   groups.setGroups(scene.groups.map((group) => ({ id: group.id, rect: group.rect, component: BenchGroup })));
+  const mountStart = performance.now();
   graph.setEntities(scene as unknown as Parameters<Graph["setEntities"]>[0]);
   graph.start();
+  for (let i = 0; i < 3; i++) graph.scheduler.performUpdate();
+  const mountMs = performance.now() - mountStart;
 
   const target = dragTarget(scene);
   const byId = new Map(scene.blocks.map((block) => [block.id, block]));
@@ -123,6 +148,7 @@ export function setupWalk(root: HTMLDivElement, scene: TBenchScene): TColumn {
   const index = (anchorId: string): number => Number(anchorId.replace(/^.*_(in|out)/, ""));
   return {
     graph,
+    mountMs,
     drag(offset: number): void {
       const moved = { ...target, x: target.x + offset };
       batch(() => {
@@ -145,7 +171,11 @@ export function setupWalk(root: HTMLDivElement, scene: TBenchScene): TColumn {
       });
     },
     visible(): { blocks: number; anchors: number; elements: number } {
-      return { blocks: counters.blocks, anchors: 0, elements: 0 };
+      // The walked legacy blocks are counted as they draw; their anchors are scene child elements, counted in view.
+      const { x, y, scale, width, height } = graph.cameraService.getCameraState();
+      const view = { x: -x / scale, y: -y / scale, width: width / scale, height: height / scale };
+      const anchors = graph.scene.query(view).filter((element) => element.parent !== undefined).length;
+      return { blocks: counters.blocks, anchors, elements: 0 };
     },
   };
 }

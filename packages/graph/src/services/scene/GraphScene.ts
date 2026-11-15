@@ -3,11 +3,20 @@ import type { ReadonlySignal } from "@preact/signals-core";
 
 import type { Graph } from "../../graph";
 import { Component } from "../../lib/Component";
+import type { CoreComponent } from "../../lib/CoreComponent";
+import type { TTileRect } from "../../lib/culling/TileIndex";
 import { SceneRendererLayer } from "../../lib/scene/SceneRendererLayer";
 import { SceneStore } from "../../lib/scene/SceneStore";
 import { drawElements } from "../../lib/scene/drawPrimitives";
-import type { TSceneStyle } from "../../lib/scene/types";
+import { elementBounds } from "../../lib/scene/elementBounds";
+import { watchSceneLimits } from "../../lib/scene/sceneLimits";
+import { ignoresCameraAware } from "../../lib/scene/style";
+import { clearSceneTextMetrics } from "../../lib/scene/textMetrics";
+import type { TSceneElement, TSceneStyle, TSceneTextPolicy } from "../../lib/scene/types";
 import type { ISceneBackendModule } from "../../lib/scene/webgl/backendTypes";
+import { noop } from "../../utils/functions";
+import { clearMeasureTextCache } from "../../utils/functions/text";
+import { clearTextCache } from "../../utils/renderers/text";
 import type { TRect } from "../../utils/types/shapes";
 import { SceneStyleSheet } from "../styles/SceneStyleSheet";
 import { StyleResolver } from "../styles/StyleResolver";
@@ -17,9 +26,58 @@ import type { TStyleExplanation, TStyleTarget } from "../styles/types";
 import { TagStore, entityKey } from "../tags/TagStore";
 import type { TEntityAddress, TEntityId, TEntityType, TTagSet } from "../tags/types";
 
+import { DelegatedRanks } from "./DelegatedRanks";
 import { SceneClock } from "./SceneClock";
+import { isSceneKeyed } from "./sceneKey";
 import { createSceneLevel } from "./sceneLevel";
-import type { IGraphScene, TSceneElementView, TSceneLevel, TSceneRenderer, TSceneRendererState } from "./types";
+import type {
+  IGraphScene,
+  ITextMeasurer,
+  TSceneElementView,
+  TSceneExportPreparer,
+  TSceneImageOptions,
+  TSceneLevel,
+  TSceneRenderer,
+  TSceneRendererState,
+} from "./types";
+
+/** Canvas limits that hold in current browsers (side and area); larger outputs come back blank, so toImage throws. */
+const MAX_IMAGE_SIDE = 16384;
+const MAX_IMAGE_AREA = 2 ** 26;
+
+/** The text policies of the `cameraAwareText` setting. */
+const TEXT_POLICIES: Readonly<Record<"on" | "off", TSceneTextPolicy>> = Object.freeze({
+  on: Object.freeze({ cameraAware: true }),
+  off: Object.freeze({ cameraAware: false }),
+});
+
+/** One export, resolved from its options: the world rect, the scales, the level and the output size. */
+type TSceneImage = {
+  readonly rect: TRect;
+  readonly scale: number;
+  readonly ratio: number;
+  readonly level: TSceneLevel;
+  readonly currentView: boolean;
+  readonly background: string | undefined;
+  readonly width: number;
+  readonly height: number;
+};
+
+/** Whether a step of an export threw, and what. */
+type TOutcome = { failed: boolean; error: unknown };
+
+const UNDO_FAILED = "graph.scene.toImage(): undoing an export's preparation failed";
+
+/**
+ * @internal Bench counters of the last `toImage()` (Task 17g): the time its preparers took (the anchors an export
+ * creates), the draw and the cleanup. Off by default.
+ */
+export const sceneExportStats = {
+  enabled: false,
+  prepareMs: 0,
+  drawMs: 0,
+  cleanupMs: 0,
+};
 
 const defaultLoader = (): Promise<ISceneBackendModule> => import("../../lib/scene/webgl/WebGLSceneBackend");
 
@@ -37,6 +95,12 @@ export class GraphScene implements IGraphScene {
   /** @internal The element store; plan 3's components write to it. */
   public readonly store = new SceneStore();
 
+  /** @internal React ranks (spec §10). */
+  public readonly delegatedRanks: DelegatedRanks;
+
+  /** Stops the development errors for the scene limits. */
+  private readonly unwatchLimits = watchSceneLimits(this.store);
+
   /** Scene time in seconds. */
   public readonly clock: { now(): number };
 
@@ -46,6 +110,15 @@ export class GraphScene implements IGraphScene {
 
   /** Increments when computed styles may have changed: rules, root tags, the level or a crossed scale threshold. */
   public readonly $styleGeneration: ReadonlySignal<number>;
+
+  /**
+   * The `cameraAwareText` setting: `false` makes every scene text world-sized, whatever its primitive and the styles
+   * say. A change redraws the scene; no block rebuilds its look.
+   */
+  public readonly $cameraAwareText: ReadonlySignal<boolean>;
+
+  /** The text policy renderers and exports draw with, from `$cameraAwareText`. */
+  private readonly $textPolicy: ReadonlySignal<TSceneTextPolicy>;
 
   /** @internal The renderer layer. */
   public readonly layer: SceneRendererLayer;
@@ -57,7 +130,7 @@ export class GraphScene implements IGraphScene {
   private readonly resolver: StyleResolver;
 
   /** Style bindings by entity key, latest last; `explain` reads the target of the latest. */
-  private readonly styleBindings = new Map<string, { readonly target: TStyleTarget }[]>();
+  private readonly styleBindings = new Map<string, { readonly target: TStyleTarget; readonly elementId: string }[]>();
 
   /** Unbind functions of live style bindings; dispose() calls them. */
   private readonly styleUnbinds = new Set<() => void>();
@@ -68,16 +141,34 @@ export class GraphScene implements IGraphScene {
 
   private unfollowVisibility?: () => void;
 
+  /** Components whose level methods measured text; late web fonts run them again. */
+  private readonly textMeasurers = new Set<ITextMeasurer>();
+
+  private readonly fontEvents = new AbortController();
+
+  /** What prepares an export before it queries (`Blocks`: the anchors that do not exist yet), in the order added. */
+  private readonly exportPreparers = new Set<TSceneExportPreparer>();
+
+  /** Set while `toImage()` prepares, draws and cleans up: a nested call throws. */
+  private exporting = false;
+
   private disposed = false;
 
   constructor(private readonly graph: Graph) {
+    // The graph's frame task runs every frame while started and calls flush(), so nothing needs waking.
+    this.delegatedRanks = new DelegatedRanks(this.store, noop);
     const { settings } = graph.rootStore;
     this.clock = this.sceneClock;
+    this.$level = createSceneLevel(graph);
+    this.$cameraAwareText = computed(() => settings.$cameraAwareText.value);
+    this.$textPolicy = computed(() => (this.$cameraAwareText.value ? TEXT_POLICIES.on : TEXT_POLICIES.off));
     this.layer = graph.layers.createLayer(
       SceneRendererLayer,
       {
         store: this.store,
         clock: this.clock,
+        level: this.$level,
+        textPolicy: this.$textPolicy,
         renderer: settings.$renderer.value,
         loadBackend: (): Promise<ISceneBackendModule> => (settings.$webglBackend.value ?? defaultLoader)(),
         camera: graph.cameraService,
@@ -86,7 +177,6 @@ export class GraphScene implements IGraphScene {
       { selfUpdated: true }
     );
     this.$renderer = this.layer.$state;
-    this.$level = createSceneLevel(graph);
     this.$scale = computed(() => graph.$camera.value.scale);
     this.resolver = new StyleResolver({
       store: this.store,
@@ -103,6 +193,9 @@ export class GraphScene implements IGraphScene {
       // `dim` fades elements into the background they are drawn on.
       this.store.setDimColor(colors.canvas.layerBackground);
     });
+    if (typeof document !== "undefined" && document.fonts) {
+      document.fonts.addEventListener("loadingdone", () => this.onFontsLoaded(), { signal: this.fontEvents.signal });
+    }
 
     let current = settings.$renderer.value;
     this.unsubscribeRenderer = settings.$renderer.subscribe((value) => {
@@ -115,6 +208,7 @@ export class GraphScene implements IGraphScene {
   /** @internal Called by Graph's frame task after layers.update(). */
   public update(): void {
     if (this.disposed) return;
+    this.delegatedRanks.flush();
     Component.update(this.layer);
   }
 
@@ -134,6 +228,56 @@ export class GraphScene implements IGraphScene {
     this.unfollowVisibility = this.sceneClock.followVisibility(document);
   }
 
+  /** @internal */
+  public trackTextMeasure(component: ITextMeasurer): void {
+    this.textMeasurers.add(component);
+  }
+
+  /** @internal */
+  public untrackTextMeasure(component: ITextMeasurer): void {
+    this.textMeasurers.delete(component);
+  }
+
+  /**
+   * @internal Late web fonts (`document.fonts` `loadingdone`): measured widths are stale, so the caches are cleared
+   * (widths, the scene's shared text metrics, whose layouts are then laid out again on their next draw, and the wrapped
+   * lines of `cachedMeasureText`) and every component that measured text runs its level methods again (spec §4,
+   * decision 5). Elements with a heightless text grow their bounds to its lines in the loaded font (`growTextBounds`).
+   * The renderer layer redraws or recreates its backend on the same event.
+   */
+  public onFontsLoaded(): void {
+    if (this.disposed) return;
+    clearMeasureTextCache();
+    clearSceneTextMetrics();
+    clearTextCache();
+    for (const component of [...this.textMeasurers]) component.invalidateTextMeasures();
+    this.growTextBounds();
+  }
+
+  /**
+   * The bounds of a heightless text cover the lines it had in the metrics of its element's last write; a wider web font
+   * can give it more lines. Grows the bounds of every element with a heightless text to cover them in the current
+   * metrics (never shrinks them: a writer may have given more).
+   */
+  private growTextBounds(): void {
+    const grown: { id: string; bounds: TTileRect }[] = [];
+    this.store.forEach((element) => {
+      if (!element.primitives.some((primitive) => primitive.kind === "text" && primitive.height === undefined)) return;
+      const text = elementBounds(element.primitives);
+      const { bounds } = element;
+      const next = {
+        minX: Math.min(bounds.minX, text.minX),
+        minY: Math.min(bounds.minY, text.minY),
+        maxX: Math.max(bounds.maxX, text.maxX),
+        maxY: Math.max(bounds.maxY, text.maxY),
+      };
+      if (next.minX < bounds.minX || next.minY < bounds.minY || next.maxX > bounds.maxX || next.maxY > bounds.maxY) {
+        grown.push({ id: element.id, bounds: next });
+      }
+    });
+    for (const { id, bounds } of grown) this.store.update(id, { bounds });
+  }
+
   public setRenderer(renderer: TSceneRenderer): void {
     this.graph.rootStore.settings.setupSettings({ renderer });
   }
@@ -144,11 +288,9 @@ export class GraphScene implements IGraphScene {
    * Add the element first: a tag change sets the row of an element that exists, binding does not wait for one.
    */
   public bindStyle(elementId: string, entity: TEntityAddress, target: TStyleTarget): () => void {
+    if (this.disposed) return noop;
     const key = entityKey(entity.type, entity.id);
-    const binding = { target };
-    const bindings = this.styleBindings.get(key) ?? [];
-    bindings.push(binding);
-    this.styleBindings.set(key, bindings);
+    const binding = { target, elementId };
     const $tags = this.tags.$of(entity.type, entity.id);
     let current = 0;
     const stop = effect(() => {
@@ -156,11 +298,17 @@ export class GraphScene implements IGraphScene {
       untracked(() => {
         // Acquire before release: a row both signatures share is not freed and defined again.
         const next = this.resolver.acquire(target, tags);
-        if (this.store.get(elementId)) this.store.setStyle(elementId, next);
+        const element = this.store.get(elementId);
+        // A child's styleId is its drawn row; the row bound here is its own row.
+        if (element && this.store.ownStyleOf(elementId) !== next) this.store.setStyle(elementId, next);
         if (current !== 0) this.resolver.release(current);
         current = next;
       });
     });
+    // Recorded after effect(): a throwing first run leaves no binding.
+    const bindings = this.styleBindings.get(key) ?? [];
+    bindings.push(binding);
+    this.styleBindings.set(key, bindings);
     const unbind = (): void => {
       if (!this.styleUnbinds.delete(unbind)) return;
       stop();
@@ -182,7 +330,7 @@ export class GraphScene implements IGraphScene {
    */
   public explain(entityType: TEntityType, id: TEntityId): TStyleExplanation {
     return untracked((): TStyleExplanation => {
-      const tags = this.tags.$of(entityType, id).peek();
+      const tags = this.tags.peekOf(entityType, id);
       const root = this.tags.$root.peek();
       const explanation = {
         tags: [...tags].sort(([a], [b]) => a.id - b.id).map(([tag, value]) => ({ name: tag.name, value })),
@@ -190,7 +338,20 @@ export class GraphScene implements IGraphScene {
       };
       const bindings = this.styleBindings.get(entityKey(entityType, id));
       const target = bindings?.[bindings.length - 1]?.target;
-      if (!target) return { ...explanation, rules: [] };
+      // The setting wins over every style: say so, or a reported `cameraAware: true` would mislead.
+      const forced = this.$cameraAwareText.peek() ? {} : { cameraAwareText: "forced-off" as const };
+      if (!target) return { ...explanation, ...forced, rules: [] };
+      const style = this.resolver.styleFor(target, tags);
+      // A style's `cameraAware: true` that a heightless text of the element does not take: say so too.
+      const element = this.store.get(bindings?.[bindings.length - 1]?.elementId ?? "");
+      const ignored = [
+        ...new Set(
+          (element?.primitives ?? [])
+            .filter((primitive) => ignoresCameraAware(primitive, style))
+            .map((primitive) => primitive.part as string)
+        ),
+      ];
+      const notApplied = ignored.length > 0 ? { cameraAwareNotApplied: ignored } : {};
       const { matched } = computeStyle({
         rules: this.styles.$rules.peek(),
         target,
@@ -208,7 +369,9 @@ export class GraphScene implements IGraphScene {
           layer: isStateRule(ordered.rule) ? "state" : "base",
           tags: (ordered.rule.tags ?? []).map((tag) => tag.name),
         })),
-        style: this.resolver.styleFor(target, tags),
+        style,
+        ...forced,
+        ...notApplied,
       };
     });
   }
@@ -218,11 +381,65 @@ export class GraphScene implements IGraphScene {
     return this.resolver.styleFor(target, tags);
   }
 
+  private raiseBatches = 0;
+
+  private readonly pendingRaises = new Set<string>();
+
+  /**
+   * @internal Gives an element's owner a new highest `order` (spec V3): at once, or at the end of the running
+   * `batchRaises`, where all requested owners are raised in their current scene order.
+   */
+  public requestRaise(elementId: string): void {
+    if (this.raiseBatches > 0) this.pendingRaises.add(elementId);
+    else this.store.raiseMany([elementId]);
+  }
+
+  /** @internal Collects the raises `run` requests and applies them once, in the current scene order. */
+  public batchRaises(run: () => void): void {
+    this.raiseBatches++;
+    try {
+      run();
+    } finally {
+      this.raiseBatches--;
+      if (this.raiseBatches === 0 && this.pendingRaises.size > 0) {
+        const ids = [...this.pendingRaises];
+        this.pendingRaises.clear();
+        this.store.raiseMany(ids);
+      }
+    }
+  }
+
+  /**
+   * Scene order of two components (spec section 9), the key drawing and hit-testing share: negative when `a` draws
+   * below `b`. Components with a scene key compare by their elements' scene order (a child element right above its
+   * parent), then by the key's sub-order; other components (connections until step 2, groups, layer components) by
+   * (zIndex, renderOrder), above scene components of the same zIndex.
+   */
+  public compareOrder(a: CoreComponent, b: CoreComponent): number {
+    const left = this.sceneElementOf(a);
+    const right = this.sceneElementOf(b);
+    if (left && right) return this.store.compareOrder(left.element, right.element) || left.sub - right.sub;
+    const leftZIndex = left ? this.store.zIndexOf(left.element) : a.zIndex;
+    const rightZIndex = right ? this.store.zIndexOf(right.element) : b.zIndex;
+    if (leftZIndex !== rightZIndex) return leftZIndex - rightZIndex;
+    if (left) return -1;
+    if (right) return 1;
+    return a.renderOrder - b.renderOrder;
+  }
+
+  private sceneElementOf(component: CoreComponent): { element: TSceneElement; sub: number } | undefined {
+    const key = isSceneKeyed(component) ? component.getSceneKey() : undefined;
+    const element = key ? this.store.get(key.elementId) : undefined;
+    return key && element ? { element, sub: key.sub } : undefined;
+  }
+
   public query(rect: TRect): readonly TSceneElementView[] {
     const tileRect = { minX: rect.x, minY: rect.y, maxX: rect.x + rect.width, maxY: rect.y + rect.height };
     return this.store.query(tileRect).map((element) =>
       Object.freeze({
         id: element.id,
+        parent: element.parent,
+        childOrder: element.childOrder,
         x: element.x,
         y: element.y,
         bounds: element.bounds,
@@ -239,27 +456,221 @@ export class GraphScene implements IGraphScene {
     ctx: CanvasRenderingContext2D,
     elements: readonly TSceneElementView[],
     scale: number,
-    options: { skipText?: boolean } = {}
+    options: { skipText?: boolean; level?: TSceneLevel; drawHidden?: boolean; textPolicy?: TSceneTextPolicy } = {}
   ): void {
-    const visible = options.skipText
-      ? elements.map((element) => ({
-          ...element,
-          primitives: element.primitives.filter((primitive) => primitive.kind !== "text"),
-        }))
-      : elements;
-    drawElements(ctx, visible, scale, { styles: this.store.getStyles(), dimColor: this.store.getDimColor() });
+    drawElements(ctx, elements, scale, {
+      ...options,
+      textPolicy: options.textPolicy ?? this.$textPolicy.peek(),
+      styles: this.store.getStyles(),
+      dimColor: this.store.getDimColor(),
+    });
+  }
+
+  /**
+   * @internal Adds a function that makes the scene ready for each export before `toImage()` queries it (`Blocks`
+   * creates the anchor components the export needs); returns the function that removes it.
+   */
+  public addExportPreparer(prepare: TSceneExportPreparer): () => void {
+    this.exportPreparers.add(prepare);
+    return (): void => {
+      this.exportPreparers.delete(prepare);
+    };
+  }
+
+  /**
+   * The scene's picture as a new canvas, drawn by the Canvas2D interpreter whatever the renderer: WebGL's drawing
+   * buffer is not preserved, and export must not depend on it. For the current view (no `rect`, no `scale`) the visible
+   * layer canvases under the scene come first, so the image is what the user sees below the selection and HTML layers;
+   * any other rect draws the scene only (until step 2 moves connections into it).
+   *
+   * The picture does not depend on where the camera has been (Task 17g): the anchor components a block creates lazily
+   * are created for the export when its rect and level need them, through their normal lifecycle, and dropped again
+   * after the draw, also when the draw throws. Styles are those of the export's level and scale. A call made while
+   * another export runs (from a component hook it triggers) throws. So does a call from a block's own lifecycle hook
+   * (stateChanged, willIterate, ...) when that block has to create anchors for the export: entering its update again
+   * would run its hooks twice. Calls from outside that block's update work: a layer's render(), an event handler,
+   * another component's hook.
+   *
+   * Contracts of the anchors an export creates: a block's `renderAnchor` override can run during the export's search
+   * (for blocks outside the rect too) and again during construction, and a throw aborts the export. A look that
+   * reaches farther than `Anchor.LOOK_EXTENT` (a subclass, or a larger `size`/`lineWidth`) needs its own declared
+   * `LOOK_EXTENT`, or the export can miss the anchor near the crop edge; development builds warn naming the class.
+   */
+  public toImage(options: TSceneImageOptions = {}): HTMLCanvasElement {
+    // Untracked: an effect that exports does not follow the signals the anchors' lifecycle reads.
+    return untracked(() => this.exportImage(options));
+  }
+
+  private exportImage(options: TSceneImageOptions): HTMLCanvasElement {
+    if (this.exporting) {
+      throw new Error("graph.scene.toImage() cannot be called while another toImage() prepares, draws or cleans up");
+    }
+    const image = this.imageOf(options);
+    const canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("graph.scene.toImage() needs a 2D canvas context");
+    const stats = sceneExportStats.enabled ? sceneExportStats : undefined;
+    let start = stats ? performance.now() : 0;
+    const lap = (): number => {
+      const now = performance.now();
+      const ms = now - start;
+      start = now;
+      return ms;
+    };
+    this.exporting = true;
+    const cleanups: (() => void)[] = [];
+    const outcome: TOutcome = { failed: false, error: undefined };
+    try {
+      // Each cleanup is kept as soon as its preparer returns: a later preparer that throws undoes the earlier ones.
+      for (const prepare of [...this.exportPreparers]) {
+        const cleanup = prepare({ rect: image.rect, level: image.level });
+        if (cleanup) cleanups.push(cleanup);
+      }
+      if (stats) stats.prepareMs = lap();
+      this.drawImage(ctx, image);
+      if (stats) stats.drawMs = lap();
+    } catch (error) {
+      outcome.failed = true;
+      outcome.error = error;
+    }
+    const undone = this.undoExport(cleanups);
+    this.exporting = false;
+    if (stats) stats.cleanupMs = lap();
+    if (outcome.failed) {
+      // The draw's (or a preparer's) exception is the call's; a cleanup that failed after it is only reported.
+      if (undone.failed) console.error(UNDO_FAILED, undone.error);
+      throw outcome.error;
+    }
+    if (undone.failed) throw undone.error;
+    return canvas;
+  }
+
+  /**
+   * Runs an export's cleanups, last prepared first, all of them; returns the first exception and logs the later ones.
+   */
+  private undoExport(cleanups: readonly (() => void)[]): TOutcome {
+    const outcome: TOutcome = { failed: false, error: undefined };
+    for (const cleanup of [...cleanups].reverse()) {
+      try {
+        cleanup();
+      } catch (error) {
+        if (outcome.failed) console.error(UNDO_FAILED, error);
+        else {
+          outcome.failed = true;
+          outcome.error = error;
+        }
+      }
+    }
+    return outcome;
+  }
+
+  /** The export's rect, scales, level and size; throws a `RangeError` for invalid or too large ones. */
+  private imageOf(options: TSceneImageOptions): TSceneImage {
+    const camera = this.graph.cameraService.getCameraState();
+    const currentView = options.rect === undefined && options.scale === undefined;
+    const scale = options.scale ?? camera.scale;
+    const rect = options.rect ?? {
+      x: -camera.x / camera.scale,
+      y: -camera.y / camera.scale,
+      width: camera.width / camera.scale,
+      height: camera.height / camera.scale,
+    };
+    const ratio = options.pixelRatio ?? this.graph.layers.getDPR();
+    for (const [name, value] of [
+      ["scale", scale],
+      ["pixelRatio", ratio],
+    ] as const) {
+      if (!Number.isFinite(value) || value <= 0) {
+        throw new RangeError(`graph.scene.toImage(): ${name} must be a positive finite number, got ${value}`);
+      }
+    }
+    const width = Math.max(1, Math.ceil(rect.width * scale * ratio));
+    const height = Math.max(1, Math.ceil(rect.height * scale * ratio));
+    if (width > MAX_IMAGE_SIDE || height > MAX_IMAGE_SIDE || width * height > MAX_IMAGE_AREA) {
+      throw new RangeError(
+        `graph.scene.toImage(): ${width} x ${height} pixels exceed the canvas limits (${MAX_IMAGE_SIDE} per side, ` +
+          `${MAX_IMAGE_AREA} in total); pass a smaller rect, scale or pixelRatio`
+      );
+    }
+    const level = options.level ?? this.$level.peek();
+    return { rect, scale, ratio, level, currentView, background: options.background, width, height };
+  }
+
+  /** Draws an export into its canvas: the background, the layers under the scene for the current view, the scene. */
+  private drawImage(ctx: CanvasRenderingContext2D, image: TSceneImage): void {
+    const { rect, scale, ratio, level, width, height } = image;
+    if (image.background !== undefined) {
+      ctx.fillStyle = image.background;
+      ctx.fillRect(0, 0, width, height);
+    }
+    if (image.currentView) {
+      for (const below of this.canvasesBelow()) ctx.drawImage(below, 0, 0, width, height);
+    }
+    const k = scale * ratio;
+    ctx.setTransform(k, 0, 0, k, -rect.x * k, -rect.y * k);
+    const tileRect = { minX: rect.x, minY: rect.y, maxX: rect.x + rect.width, maxY: rect.y + rect.height };
+    // The rows as they compute at the export's level and scale, which need not be the live ones; children whose parent
+    // row needs composition only there draw with rows added for the export.
+    const { styles, childRows } = this.store.stylesWith(this.resolver.stylesAt(level, scale));
+    const found = this.store.query(tileRect, level, styles);
+    const elements =
+      childRows.size === 0
+        ? found
+        : found.map((element) => {
+            const styleId = childRows.get(element.id);
+            return styleId === undefined ? element : { ...element, styleId };
+          });
+    // Texts lay out at the export's scale under the setting, as the renderer would draw them there.
+    const textPolicy = this.$textPolicy.peek();
+    drawElements(ctx, elements, scale, { styles, dimColor: this.store.getDimColor(), level, textPolicy });
+  }
+
+  /**
+   * The canvases of visible layers that lie under the scene canvas on screen: a lower CSS zIndex, or the same one and
+   * added earlier (layers attach their canvases in the order they were created). Canvases without pixels are skipped.
+   */
+  private canvasesBelow(): HTMLCanvasElement[] {
+    const layers = this.graph.layers.getLayers();
+    // The scene canvas follows the GraphLayer canvas in the DOM, whether or not the list holds the layer.
+    const listed = layers.indexOf(this.layer);
+    const own = listed >= 0 ? listed : layers.indexOf(this.graph.getGraphLayer()) + 0.5;
+    const zIndexOf = (canvas: HTMLCanvasElement): number => Number(canvas.style.zIndex) || 0;
+    const ownCanvas = this.layer.getCanvas();
+    const ownZIndex = ownCanvas ? zIndexOf(ownCanvas) : 0;
+    return layers
+      .map((layer, index) => ({ layer, index, canvas: layer.getCanvas() }))
+      .filter(
+        ({ layer, index, canvas }) =>
+          layer !== this.layer &&
+          canvas !== undefined &&
+          !layer.isHidden() &&
+          canvas.width > 0 &&
+          canvas.height > 0 &&
+          (zIndexOf(canvas) < ownZIndex || (zIndexOf(canvas) === ownZIndex && index < own))
+      )
+      .sort(
+        (a, b) => zIndexOf(a.canvas as HTMLCanvasElement) - zIndexOf(b.canvas as HTMLCanvasElement) || a.index - b.index
+      )
+      .map(({ canvas }) => canvas as HTMLCanvasElement);
   }
 
   /** @internal */
   public dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.unwatchLimits();
+    this.delegatedRanks.dispose();
     this.unsubscribeRenderer?.();
     this.unsubscribeRenderer = undefined;
     this.stopTheme?.();
     this.stopTheme = undefined;
     this.unfollowVisibility?.();
     this.unfollowVisibility = undefined;
+    this.fontEvents.abort();
+    this.textMeasurers.clear();
+    this.exportPreparers.clear();
     for (const unbind of [...this.styleUnbinds]) unbind();
     this.resolver.dispose();
     this.tags.dispose();

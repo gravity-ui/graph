@@ -3,16 +3,17 @@ import type { ConnectionEffect } from "../../../components/canvas/connections/ef
 import type { TUniformTypes } from "../../../components/canvas/connections/effects/types";
 import type { TWebGLShape } from "../../../components/canvas/connections/lines/types";
 import { INSTANCE_FLOATS, createEncodedChunk, encodeShapes } from "../../../components/canvas/connections/webgl/encode";
+import { ALL_LEVELS_MASK } from "../levels";
 import { resolveSceneSize } from "../size";
 import type { TScenePrimitive } from "../types";
 
-import { NO_LIMIT, USE_BASE, checkSub, hasStrokeWidth, scaleBound } from "./encodeRects";
+import { MAX_SUB, NO_LIMIT, USE_BASE, checkSub, hasStrokeWidth, scaleBound } from "./encodeRects";
 import type { TSlotOf } from "./encodeRects";
 
 /** Offset of the straight rgba in a path instance (see `INSTANCE_FLOATS`). */
 const COLOR_OFFSET = 8;
 
-/** Floats of a path instance's element data: elementIndex, sub, stroke slot, 0, minScale, maxScale, 0, 0. */
+/** Floats of a path instance's element data: elementIndex, sub, stroke slot, 0, minScale, maxScale, levelMask, 0. */
 export const PATH_ELEMENT_FLOATS = 8;
 
 export type TEncodedPaths = {
@@ -48,14 +49,21 @@ function elementData(data: readonly number[], count: number): number[] {
  * Path primitives as connection-line instances for the scale bucket, each with its element data (element, sub, the
  * stroke's part slot, scale bounds). An unset stroke colour is written as `USE_BASE`; a path whose stroke width is
  * unset draws nothing and is skipped. Widths are resolved at scale 1: camera-aware path widths are out of scope for the
- * slice. `select` skips paths without renumbering: `sub` stays the index in `primitives`.
+ * slice. `select` skips paths without renumbering: it gets the index in `primitives`, and `sub` is `subBase` plus that
+ * index.
+ *
+ * @param subBase The depth sub-order of the first primitive: a child element's primitives follow its parent's and its
+ * earlier siblings'.
+ * @param maxSub The largest sub the depth keys leave room for (`checkSub`).
  */
 export function encodePaths(
   primitives: readonly TScenePrimitive[],
   elementIndex: number,
   bucket: number,
   slotOf: TSlotOf,
-  select: (primitive: TScenePrimitive, index: number) => boolean = selectAll
+  select: (primitive: TScenePrimitive, index: number) => boolean = selectAll,
+  subBase = 0,
+  maxSub = MAX_SUB
 ): TEncodedPaths {
   const chunk = createEncodedChunk();
   const lineElements: number[] = [];
@@ -63,7 +71,8 @@ export function encodePaths(
   const effects: TConnectionEffectUse[] = [];
   primitives.forEach((primitive, sub) => {
     if (primitive.kind !== "path" || !select(primitive, sub)) return;
-    checkSub(sub);
+    const at = subBase + sub;
+    checkSub(at, maxSub);
     const { stroke, effect } = primitive;
     if (!hasStrokeWidth(stroke)) return;
     const shape: TWebGLShape = {
@@ -79,12 +88,12 @@ export function encodePaths(
     };
     const data = [
       elementIndex,
-      sub,
+      at,
       slotOf(primitive.part),
       0,
       scaleBound(primitive.minScale, 0),
       scaleBound(primitive.maxScale, NO_LIMIT),
-      0,
+      primitive.levelMask ?? ALL_LEVELS_MASK,
       0,
     ];
     const lines = chunk.lines.count;

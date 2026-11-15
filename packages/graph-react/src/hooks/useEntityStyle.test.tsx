@@ -1,6 +1,14 @@
-import React from "react";
+import React, { StrictMode } from "react";
 
-import { Anchor, CanvasBlock as Block, ESelectionStrategy, Graph, defineTag, selectedTag } from "@gravity-ui/graph";
+import {
+  Anchor,
+  CanvasBlock as Block,
+  ESelectionStrategy,
+  Graph,
+  anchorEntityId,
+  defineTag,
+  selectedTag,
+} from "@gravity-ui/graph";
 import { act, render, renderHook } from "@testing-library/react";
 
 import { GraphBlockAnchor } from "../Anchor";
@@ -20,6 +28,25 @@ it("returns tag classes and part colour variables", () => {
   expect(result.current.style).toMatchObject({ "--graph-block-border-color": "#2e7d32" });
 });
 
+it("keeps tag classes and part colour variables current under StrictMode, without another style subscriber", () => {
+  // No block "a" exists, so nothing but the hook subscribes to its tags. StrictMode subscribes, unsubscribes (the
+  // store releases the signal) and subscribes again to the same signal.
+  const graph = new Graph({});
+  const running = defineTag("running");
+  graph.scene.styles.add([{ target: Block, tags: [running], style: { parts: { border: { color: "#2e7d32" } } } }]);
+  const { result } = renderHook(() => useEntityStyle(graph, { type: "block", id: "a" }, Block, "graph-block"), {
+    wrapper: StrictMode,
+  });
+  expect(result.current.className).toBe("");
+  act(() => graph.scene.tags.add(running, { block: ["a"] }));
+  expect(result.current.className).toBe("graph-tag-running");
+  expect(result.current.style).toMatchObject({ "--graph-block-border-color": "#2e7d32" });
+  act(() => graph.scene.tags.clear(running));
+  expect(result.current.className).toBe("");
+  // The theme's border colour again.
+  expect(result.current.style).not.toMatchObject({ "--graph-block-border-color": "#2e7d32" });
+});
+
 describe("React wrappers", () => {
   class CustomBlock extends Block {}
 
@@ -36,7 +63,17 @@ describe("React wrappers", () => {
           height: 60,
           anchors: [{ id: "a1", blockId: "c1", type: "IN" }],
         },
-        { is: "Block", id: "p1", name: "p1", x: 200, y: 0, width: 100, height: 60, anchors: [] },
+        {
+          is: "Block",
+          id: "p1",
+          name: "p1",
+          x: 200,
+          y: 0,
+          width: 100,
+          height: 60,
+          // The same anchor id as c1's: anchor ids are unique only within their block.
+          anchors: [{ id: "a1", blockId: "p1", type: "IN" }],
+        },
       ],
       settings: { blockComponents: { custom: CustomBlock } },
     });
@@ -57,7 +94,7 @@ describe("React wrappers", () => {
                 graph={g}
                 anchor={anchor}
                 position="fixed"
-                className={`n-${anchor.id}`}
+                className={`n-${block.id}-${anchor.id}`}
               />
             ))}
           </GraphBlock>
@@ -108,7 +145,7 @@ describe("React wrappers", () => {
 
   it("GraphBlockAnchor gets graph-tag-selected and keeps graph-block-anchor-selected", () => {
     const { graph, container, cleanup } = setup();
-    const el = container.querySelector<HTMLElement>(".n-a1") as HTMLElement;
+    const el = container.querySelector<HTMLElement>(".n-c1-a1") as HTMLElement;
     expect(el.classList.contains("graph-tag-selected")).toBe(false);
     act(() => {
       graph.scene.styles.add([
@@ -116,10 +153,22 @@ describe("React wrappers", () => {
       ]);
     });
     expect(el.style.getPropertyValue("--graph-block-anchor-anchor-color")).not.toBe("#654321");
-    act(() => graph.selectionService.select("anchor", ["a1"], ESelectionStrategy.REPLACE));
+    act(() => graph.selectionService.select("anchor", [anchorEntityId("c1", "a1")], ESelectionStrategy.REPLACE));
     expect(el.style.getPropertyValue("--graph-block-anchor-anchor-color")).toBe("#654321");
     expect(el.classList.contains("graph-tag-selected")).toBe(true);
     expect(el.classList.contains("graph-block-anchor-selected")).toBe(true);
+    cleanup();
+  });
+
+  it("GraphBlockAnchor styles only the selected block's anchor when two blocks share an anchor id", () => {
+    const { graph, container, cleanup } = setup();
+    const own = container.querySelector<HTMLElement>(".n-p1-a1") as HTMLElement;
+    const other = container.querySelector<HTMLElement>(".n-c1-a1") as HTMLElement;
+    act(() => graph.api.setAnchorSelection("p1", "a1", true));
+    expect(own.classList.contains("graph-tag-selected")).toBe(true);
+    expect(own.classList.contains("graph-block-anchor-selected")).toBe(true);
+    expect(other.classList.contains("graph-tag-selected")).toBe(false);
+    expect(other.classList.contains("graph-block-anchor-selected")).toBe(false);
     cleanup();
   });
 

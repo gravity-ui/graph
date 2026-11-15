@@ -56,15 +56,7 @@ export class StyleResolver {
 
   constructor(private readonly deps: TStyleResolverDeps) {
     this.$generation = this.generation;
-    this.$band = computed(() => {
-      const scale = deps.$scale.value;
-      let band = 0;
-      for (const threshold of deps.sheet.$thresholds.value) {
-        if (threshold > scale) break;
-        band++;
-      }
-      return band;
-    });
+    this.$band = computed(() => this.bandOf(deps.$scale.value, deps.sheet.$thresholds.value));
     let previous: readonly unknown[] | undefined;
     this.stop = effect(() => {
       // Every global input of a computed style; the effect re-runs when one of them changes.
@@ -106,18 +98,48 @@ export class StyleResolver {
     return this.rows.get(this.signatureOf(target, tags))?.style ?? this.compute(target, tags);
   }
 
+  /**
+   * The live rows as they compute at another level and scale, for an export that draws there (`toImage`): by row id,
+   * only the rows whose style differs from the live one. Empty at the live level and scale band. Reads no signal.
+   */
+  public stylesAt(level: TSceneLevel, scale: number): ReadonlyMap<number, TSceneStyle> {
+    const rows = new Map<number, TSceneStyle>();
+    const band = this.bandOf(scale, this.deps.sheet.$thresholds.peek());
+    if (level === this.deps.$level.peek() && band === this.$band.peek()) return rows;
+    for (const row of this.rows.values()) {
+      const style = this.compute(row.target, row.tags, level, scale);
+      if (JSON.stringify(style) !== row.json) rows.set(row.styleId, style);
+    }
+    return rows;
+  }
+
   public dispose(): void {
     this.stop();
   }
 
-  private compute(target: TStyleTarget, tags: TTagSet): TSceneStyle {
+  /** The number of rule thresholds at or below a scale; a zoom that crosses none keeps it. */
+  private bandOf(scale: number, thresholds: Iterable<number>): number {
+    let band = 0;
+    for (const threshold of thresholds) {
+      if (threshold > scale) break;
+      band++;
+    }
+    return band;
+  }
+
+  private compute(
+    target: TStyleTarget,
+    tags: TTagSet,
+    level: TSceneLevel = this.deps.$level.peek(),
+    scale: number = this.deps.$scale.peek()
+  ): TSceneStyle {
     return computeStyle({
       rules: this.deps.sheet.$rules.peek(),
       target,
       tags,
       root: this.deps.tags.$root.peek(),
-      level: this.deps.$level.peek(),
-      scale: this.deps.$scale.peek(),
+      level,
+      scale,
     }).style;
   }
 

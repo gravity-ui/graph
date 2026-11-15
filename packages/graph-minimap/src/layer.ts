@@ -1,4 +1,12 @@
-import { Layer, LayerContext, LayerProps, TCameraState, computeCssVariable } from "@gravity-ui/graph";
+import {
+  Layer,
+  LayerContext,
+  LayerProps,
+  LegacyCanvasBlock,
+  TCameraState,
+  computeCssVariable,
+} from "@gravity-ui/graph";
+import type { TSceneElementView } from "@gravity-ui/graph";
 
 type MiniMapPosition = Pick<CSSStyleDeclaration, "top" | "left" | "bottom" | "right">;
 
@@ -222,16 +230,35 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     this.context.ctx.fillRect(xPos, yPos, width, height);
   }
 
+  /**
+   * Scene blocks are drawn from their scene elements with one interpreter call per run of them; legacy blocks with
+   * their own imperative method, in between, so the list order is kept. Anchors (child elements) are not drawn.
+   */
   private renderBlocks(): void {
-    const blocks = this.props.graph.rootStore.blocksList.$blocks.value;
-
-    blocks.forEach((block) => {
-      const viewComponent = block.getViewComponent();
-
-      // The minimap's own rule: names are unreadable at its scale, and the main view's level of detail,
-      // which depends on where its camera has been, must not decide what the minimap shows.
-      viewComponent?.renderMinimalisticBlock(this.context.ctx, { text: false });
+    const ctx = this.context.ctx;
+    let run: TSceneElementView[] = [];
+    const flush = (): void => {
+      if (run.length === 0) return;
+      // The minimap's own rules: names are unreadable at its scale, the main view's level of detail (which depends
+      // on where its camera has been) must not decide what it shows, and blocks handed to HTML stay on it.
+      this.props.graph.scene.drawInterpreted(ctx, run, this.scale, {
+        level: "minimalistic",
+        skipText: true,
+        drawHidden: true,
+      });
+      run = [];
+    };
+    this.props.graph.rootStore.blocksList.$blocks.value.forEach((block) => {
+      const view = block.getViewComponent();
+      if (view instanceof LegacyCanvasBlock) {
+        flush();
+        view.renderMinimalisticBlock(ctx, { text: false });
+        return;
+      }
+      const element = view?.getSceneElementView();
+      if (element) run.push(element);
     });
+    flush();
   }
 
   private onCameraDrag(event: MouseEvent): void {

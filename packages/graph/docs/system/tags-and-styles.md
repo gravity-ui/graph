@@ -15,7 +15,9 @@ See [Scene](scene.md) for the renderer itself.
 
 A tag belongs to an entity, addressed by `(entityType, id)`: `"block"`, `"connection"`, `"anchor"`, `"group"` or a type
 a layer registers. A canvas component exposes its type as `static entityType`; `getEntityAddress(component)` returns the
-address.
+address. Anchor ids are unique only within their block, so an anchor's id is block-qualified:
+`anchorEntityId(blockId, anchorId)` (see [Anchor entity IDs](../components/anchors.md#anchor-entity-ids)), as in
+`graph.scene.tags.add(runningTag, { anchor: [anchorEntityId("a", "out")] })`.
 
 ```ts
 import { defineTag } from "@gravity-ui/graph";
@@ -33,7 +35,14 @@ graph.scene.tags.setRoot(focusTag, true); // a graph-wide ("root") tag
 - `set` replaces the members of a tag, `add` adds to them, `delete` removes the given ids, `clear` removes all.
 - `bind(tag, $members)` keeps a tag equal to a signal of members and returns an unsubscribe function.
 - `setRoot(tag, on)` and `$root` hold graph-wide tags (for example "something is focused").
-- `$of(type, id)` is a signal of one entity's tags with their values; `membersOf(tag)` lists a tag's members.
+- `$of(type, id)` is a signal of one entity's tags with their values; `peekOf(type, id)` reads them now without a
+  signal; `membersOf(tag)` lists a tag's members.
+
+**`$of` signals are released.** The store drops an entity's `$of` signal when its last subscriber leaves, and a later
+`$of` call returns a new signal. A holder that subscribes to the same signal again (React StrictMode re-runs effects,
+`<Activity>` reconnects them) still gets the entity's tags: the store takes the signal back, and its first read gives
+the tags written meanwhile. Read without a subscription, a released signal keeps the tags it had when it was released:
+read the current tags with `peekOf`.
 
 **Few distinct values.** The tag values of an entity are part of its style signature: the scene resolves one style row
 per distinct `(class, tags, values)` combination. A tag value fits when it takes few distinct values across the graph:
@@ -105,8 +114,27 @@ remove(); // removes exactly these rules
 | `style` | `{ parts?, raise?, dim?, opacity? }`, or a function of the entity's tag values returning the same. |
 
 A part value (`TScenePartStyle`) is `color`, `visible`, `width` (stroke or border), `scale` (circle radius factor),
-`dim` and `opacity`. `raise` is added to the element's `zIndex` bucket while the rule applies: a selected block draws
-above its neighbour.
+`dim`, `opacity` and `cameraAware` (the mode of the part's texts). `raise` is added to the element's `zIndex` bucket
+while the rule applies: a selected block draws above its neighbour.
+
+**`cameraAware`** (`true` or `false`) turns the camera-aware mode of the part's texts on or off (see
+[Text primitives](scene.md#text-primitives)): on, a text's `size` is in screen pixels and the text re-fits its box as
+the camera zooms; off, it is world-sized. The state value wins over the base value, and both over the primitive's own
+mode (a base rule too, unlike the base colours and widths, which only fill unset values); an explicit `false` turns a
+camera-aware text off. `true` keeps the primitive's clamps (`{ minWorld, maxWorld }`), and applies only to texts with a
+`height`: a heightless text that does not declare `cameraAware` itself keeps its world size, because its element's
+bounds cover its lines at that size only. Development builds warn once per element type and part, and `explain()`
+lists such parts in `cameraAwareNotApplied`; give the text a `height`, or declare `cameraAware` on the primitive. The
+graph setting `cameraAwareText: false` turns every text off whatever the rules say, and `explain()` then reports
+`cameraAwareText: "forced-off"`. Developers can set it per block type, or hand it to end users through a tag:
+
+```ts
+// Every default block's title keeps its size on screen.
+graph.scene.styles.add([{ target: CanvasBlock, style: { parts: { title: { cameraAware: true } } } }]);
+// Users who prefer world-sized names on some blocks: a tag and a state rule.
+const worldNames = defineTag("worldNames");
+graph.scene.styles.add([{ target: CanvasBlock, tags: [worldNames], style: { parts: { title: { cameraAware: false } } } }]);
+```
 
 **`dim`** (0 to 1, clamped) fades without recolouring: it moves every paint of a primitive towards the scene's dim
 colour, the theme's `colors.canvas.layerBackground`, by that amount (`rgb = mix(rgb, dimColor, dim)`). Alpha does not
@@ -160,6 +188,7 @@ How each part property goes through these steps:
 | `scale` | applies to the part's circles | the primitive's radius | wins over the base scale |
 | `dim` (part) | applies to the part's primitives | primitives have no dim of their own | wins over the base dim |
 | `opacity` (part) | applies to the part's primitives | primitives have no opacity of their own (a translucent paint keeps its alpha, and the opacity multiplies it) | wins over the base opacity |
+| `cameraAware` | applies to the part's texts, over their own mode | the text's `cameraAware` (and its clamps, kept by a style's `true`) | wins over the base value; the setting `cameraAwareText: false` wins over all |
 
 The element-level `dim` merges like `raise`: the last matching rule that sets it wins, whatever its layer. A part
 without a `dim` of its own (from a state or a base rule) and a primitive without a part take it. The effective dim of a
@@ -171,15 +200,16 @@ The element-level `opacity` merges the same way, the last matching rule that set
 per part like any other part value. Unlike `dim`, the two do not replace each other: they multiply.
 
 A paint or a stroke width that is still unset after the cascade draws nothing. A look that needs new structure (a
-badge, a status icon) is a part the component declares and draws, hidden by a base rule and shown by a state rule:
+status icon) is a part the component declares and draws, hidden by a base rule and shown by a state rule, as the
+default `Block` does with its halo and badge:
 
 ```ts
 const failedTag = defineTag("failed");
 
-// StatusBlock declares a "badge" part (see "Part schemas" below) and draws it.
+// StatusBlock declares a "status" part (see "Part schemas" below) and draws it.
 graph.scene.styles.add([
-  { target: StatusBlock, style: { parts: { badge: { visible: false } } } },
-  { target: StatusBlock, tags: [failedTag], style: { parts: { badge: { visible: true, color: "#e53935" } } } },
+  { target: StatusBlock, style: { parts: { status: { visible: false } } } },
+  { target: StatusBlock, tags: [failedTag], style: { parts: { status: { visible: true, color: "#e53935" } } } },
   // A scope alone keeps a rule a base rule: the title is hidden on the minimalistic level.
   { target: StatusBlock, scope: { levels: ["minimalistic"] }, style: { parts: { title: { visible: false } } } },
 ]);
@@ -197,13 +227,93 @@ A class declares its part names with a type brand, and `styles.add` checks each 
 
 ```ts
 class StatusBlock extends CanvasBlock {
-  public declare readonly __styleParts?: TStyleParts<"body" | "border" | "title" | "badge">;
+  public declare readonly __styleParts?: TStyleParts<"body" | "border" | "title" | "halo" | "badge" | "status">;
 }
 ```
 
 The brand is bivariant: a subclass can add parts, and a subclass that does not redeclare it inherits its base's parts.
-The canvas `Block` declares `"body" | "border" | "title"` and `Anchor` declares `"anchor"`. A class without a brand
-accepts any part name.
+The canvas `Block` declares `"body" | "border" | "title" | "halo" | "badge"` and `Anchor` declares
+`"anchor" | "border"`. A class without a brand accepts any part name.
+
+## Default block and anchor parts
+
+The default `Block` draws five parts (see [Block component](../components/block-component.md#the-default-look)):
+
+| Part | Primitive | Theme |
+| --- | --- | --- |
+| `body` | the block's rect | `colors.block.background` |
+| `border` | the same rect's inside border | `colors.block.border`; `colors.block.selectedBorder` while selected |
+| `title` | the name, from `block.SCALES[0]` on, not on the detailed level | `colors.block.text` |
+| `halo` | a rounded rect 12 world units around the block | hidden |
+| `badge` | a circle in the top-right corner | hidden |
+
+The theme hides the halo and the badge with a base rule, so a state rule shows them. The theme also raises a selected
+or dragged block by one bucket. Every state of the T1 story (`Canvas/SceneBlocks`) is a tag and a rule on these
+parts, with no `Block` subclass:
+
+```ts
+import { CanvasBlock, defineTag } from "@gravity-ui/graph";
+import type { TStyleRule } from "@gravity-ui/graph";
+
+const runningTag = defineTag("running");
+const failedTag = defineTag("failed");
+const highlightTag = defineTag("highlight");
+const focusTag = defineTag("focus");
+
+const rules: TStyleRule<typeof CanvasBlock>[] = [
+  { target: CanvasBlock, tags: [runningTag], style: { parts: { border: { color: "#2e7d32" } } } },
+  {
+    target: CanvasBlock,
+    tags: [runningTag],
+    scope: { levels: ["minimalistic"] },
+    priority: 1,
+    style: { parts: { body: { color: "#2e7d32" } } },
+  },
+  {
+    target: CanvasBlock,
+    tags: [failedTag],
+    style: { parts: { border: { color: "#d32f2f" }, badge: { visible: true, color: "#d32f2f" } } },
+  },
+  { target: CanvasBlock, tags: [highlightTag], style: { parts: { halo: { visible: true, color: "#ffb300" } } } },
+  { target: CanvasBlock, root: [focusTag], notTags: [highlightTag], style: { dim: 0.6 } },
+];
+
+graph.scene.styles.add(rules);
+graph.scene.tags.set(failedTag, { block: ["b3"] });
+```
+
+An anchor draws two parts: the `anchor` part (the dot, `colors.anchor.background`) and the `border` part (a ring
+around it, `colors.anchor.selectedBorder`), which the theme hides and shows while the anchor is selected. While an
+anchor is hovered, the theme scales both by `Anchor.CANVAS_HOVER_FACTOR` (1.8). Restyle anchors with rules on
+`Anchor`:
+
+```ts
+import { Anchor, hoveredTag, selectedTag } from "@gravity-ui/graph";
+
+graph.scene.styles.add([
+  // A solid dot instead of the ring: a selected anchor takes the selection colour.
+  {
+    target: Anchor,
+    tags: [selectedTag],
+    style: { parts: { anchor: { color: "#ffcc00" }, border: { visible: false } } },
+  },
+]);
+
+graph.scene.styles.add([
+  // Or another ring colour and width.
+  { target: Anchor, tags: [selectedTag], style: { parts: { border: { color: "#2962ff", width: 3 } } } },
+  // A larger hover scale.
+  { target: Anchor, tags: [hoveredTag], style: { parts: { anchor: { scale: 2.4 }, border: { scale: 2.4 } } } },
+]);
+```
+
+At equal priority user rules apply after the theme's, so these win. Another shape needs an `Anchor` subclass with its
+own level methods, returned from the block's `renderAnchor` (a `getAnchorClass` hook is planned).
+
+**Child elements.** An anchor's element is a child element of its block's (see [Scene](scene.md#child-elements)). Its
+drawn row is its own rules' style, with its block's element `dim` when it sets none and its element `opacity`
+multiplied by the block's. So a focus rule that dims a block dims its anchors too, while the anchors' parts follow the
+anchor rules. A child takes no `raise` of its own: it draws in its block's bucket.
 
 ## Elements and `explain`
 
@@ -223,22 +333,22 @@ without an element, and `graph.scene.$styleGeneration` changes when rules or the
 | --- | --- |
 | a tag, a rule or the theme changes a `color`, `visible` or `dim` | rewrites style table rows; no element is re-encoded |
 | the theme changes the dim colour (`canvas.layerBackground`) | redraws; no row is rewritten and no element is re-encoded |
-| `width`, `scale`, or a colour with alpha < 1 | re-encodes one element (a translucent colour moves its primitive into the translucent pass) |
+| `width`, `scale`, `cameraAware`, or a colour with alpha < 1 | re-encodes one element (a translucent colour moves its primitive into the translucent pass) |
 | `opacity` below 1 (element or part), or a colour of a part under it | re-encodes one element: its faded primitives get their colours baked and move into the translucent pass. Opacity 1 or none changes nothing |
-| `raise` | re-encodes nothing; it changes the element's depth key. On WebGL a raise renumbers the dense depth ranks of its zIndex band, O(N) in the band (to be made incremental with the full WebGL backend) |
+| `raise` | re-encodes nothing; it changes the element's depth key (its child elements' follow). On WebGL a raise renumbers the dense depth keys of the bands it leaves and enters and of the bands between them, O(N) in those bands (to be made incremental with the full WebGL backend) |
 | `scope` with `minScale` / `maxScale` | adds a threshold; crossing it re-resolves the affected rows |
 
 Rows are shared: a thousand blocks with the same class and tags use one row.
 
 ## Limits (this step)
 
-- No text size or effects (dash, animation) by tag yet; the types do not list them. They come with the full WebGL
-  backend and connections.
+- No text size or effects (dash, animation) by tag yet, beyond the `cameraAware` mode; the types do not list them.
+  They come with the full WebGL backend and connections.
 - No group opacity: `opacity` fades each primitive on its own (see `opacity` above).
-- Anchors keep drawing on `GraphLayer` until the component work moves them into the scene; the anchor theme rules are
-  provisional.
+- A part's `scale` is not part of the element's bounds (see [Renderer differences](scene.md#renderer-differences)).
 - A primitive's paint colour and stroke width are optional: with no value of its own and none from a style, the paint
   or the stroke draws nothing.
+- At most 15 distinct part names in the scene (see [Limits](scene.md#limits)).
 
 ## Migration
 

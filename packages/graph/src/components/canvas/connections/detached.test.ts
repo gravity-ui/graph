@@ -24,7 +24,7 @@ class CountingConnection extends BlockConnection<TConnection> {
 
 /** The same connection kept in the frame walk. */
 class WalkedConnection extends CountingConnection {
-  public static override readonly detached = false;
+  public static override readonly mode = "immediate";
 }
 
 const block = (id: string, x: number): TBlock => ({
@@ -271,7 +271,7 @@ describe("detached connection components", () => {
       }
     }
     mountPorts(Painting, [{ id: "edge" }]);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Painting is detached"));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Painting is retained"));
   });
 });
 

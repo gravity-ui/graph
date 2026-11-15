@@ -110,4 +110,82 @@ describe("TagStore", () => {
     const graph = new Graph({});
     expect(graph.scene.tags).toBeInstanceOf(TagStore);
   });
+
+  it("releases an entity's signal after its last subscriber and reads current tags afterwards", () => {
+    const tags = new TagStore();
+    const first = tags.$of("block", "1");
+    const sizes: number[] = [];
+    const stop = effect(() => {
+      sizes.push(first.value.size);
+    });
+    stop();
+    expect(tags.$of("block", "1")).not.toBe(first);
+    tags.add(running, { block: ["1"] });
+    expect(tags.peekOf("block", "1").has(running)).toBe(true);
+    expect(tags.$of("block", "1").value.has(running)).toBe(true);
+  });
+
+  describe("a holder that subscribes again to a released signal (React StrictMode, <Activity>)", () => {
+    it("keeps receiving tag changes, and the store hands that signal out again", () => {
+      const tags = new TagStore();
+      const held = tags.$of("block", "1");
+      // Subscribe, unsubscribe (the store releases it), subscribe again: the same object, no new $of call.
+      held.subscribe(() => undefined)();
+      const seen: boolean[] = [];
+      const stop = effect(() => {
+        seen.push(held.value.has(running));
+      });
+      tags.add(running, { block: ["1"] });
+      expect(seen).toEqual([false, true]);
+      expect(held.value.has(running)).toBe(true);
+      expect(tags.$of("block", "1")).toBe(held);
+      stop();
+    });
+
+    it("reads the tags written while it was released on its first read", () => {
+      const tags = new TagStore();
+      const held = tags.$of("block", "1");
+      held.subscribe(() => undefined)();
+      tags.add(running, { block: ["1"] });
+      const seen: boolean[] = [];
+      const stop = effect(() => {
+        seen.push(held.value.has(running));
+      });
+      expect(seen).toEqual([true]);
+      const derived = computed(() => held.value.size);
+      const sizes: number[] = [];
+      const stopSizes = effect(() => {
+        sizes.push(derived.value);
+      });
+      tags.clear(running);
+      expect([seen, sizes]).toEqual([
+        [true, false],
+        [1, 0],
+      ]);
+      stop();
+      stopSizes();
+    });
+
+    it("keeps both current when $of made a new signal meanwhile, and hands out the one still watched", () => {
+      const tags = new TagStore();
+      const held = tags.$of("block", "1");
+      held.subscribe(() => undefined)();
+      const other = tags.$of("block", "1");
+      expect(other).not.toBe(held);
+      const stopOther = other.subscribe(() => undefined);
+      const stopHeld = held.subscribe(() => undefined);
+      tags.add(running, { block: ["1"] });
+      expect([held.value.has(running), other.value.has(running)]).toEqual([true, true]);
+      // The store's signal loses its last subscriber: the held one, still watched, takes its place.
+      stopOther();
+      expect(tags.$of("block", "1")).toBe(held);
+      tags.delete(running, { block: ["1"] });
+      expect(held.value.size).toBe(0);
+      stopHeld();
+      // Both released: a later call returns a new signal with the current tags.
+      tags.add(running, { block: ["1"] });
+      const next = tags.$of("block", "1");
+      expect([next === held, next === other, next.value.has(running)]).toEqual([false, false, true]);
+    });
+  });
 });

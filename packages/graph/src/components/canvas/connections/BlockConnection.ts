@@ -1,5 +1,6 @@
 import intersects from "intersects";
 
+import type { TComponentMode } from "../../../lib/CoreComponent";
 import { isDevelopmentBuild } from "../../../lib/detachedWarning";
 import { HitBoxData } from "../../../services/HitTest";
 import { ESelectionStrategy } from "../../../services/selection/types";
@@ -44,11 +45,11 @@ export class BlockConnection<T extends TConnection = TConnection>
   implements IConnectionLabelOwner
 {
   /**
-   * Connections are detached: the batch draws their lines and arrows and the label pass their labels, so the frame
+   * Connections are retained: the batch draws their lines and arrows and the label pass their labels, so the frame
    * does not walk them. A subclass that draws in `render()` or relies on other per-frame hooks declares
-   * `static detached = false`.
+   * `static override readonly mode = "immediate";`.
    */
-  public static override readonly detached: boolean = true;
+  public static override readonly mode: TComponentMode = "retained";
 
   /** How lines are drawn; its kind picks the renderer of the whole graph. */
   public static line: TConnectionLineClass = Path2DLine;

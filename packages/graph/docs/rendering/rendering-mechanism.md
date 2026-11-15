@@ -153,7 +153,7 @@ The z-index system uses a **two-tier stacking model** that separates component *
 - Connections render above group backgrounds
 - When two components of different types overlap, the one with the higher `zIndex` always wins, regardless of render order
 
-This value is set per component class in `graphConfig.ts` and changed via `updateZIndex()` (e.g., when a block is selected or dragged, its zIndex is incremented to rise above its unselected peers).
+This value is set per component class in `graphConfig.ts` and changed via `updateZIndex()` (e.g., a `LegacyCanvasBlock` that is selected or dragged increments its zIndex to rise above its unselected peers; scene blocks rise in the scene instead, see below).
 
 ### Tier 2: renderOrder — Visual Stacking Within a Type
 
@@ -165,13 +165,23 @@ re-inserts it at the end of its current group. Group insertion order determines 
 
 This means drag-and-drop and selection automatically bring the interacted block to the front of its z-group without any extra bookkeeping.
 
+### Scene components
+
+Blocks and anchors are not ordered by these two tiers: [the scene](../system/scene.md) draws them, and its order
+decides. A block element is in the bucket `block.DEFAULT_Z_INDEX` (200), one higher while it is selected or dragged
+(the theme's `raise`), and within a bucket by the element's order, which a selection or a drag start makes the
+highest. Anchors draw right above their block. A block component's tree `zIndex` and `renderOrder` do not order it.
+
 ### Hit Testing
 
-`HitTest.testHitBox()` sorts candidates by both criteria (descending — highest = topmost):
-1. First by `zIndex` (type priority)
-2. Then by `renderOrder` (within-type visual stacking)
+`HitTest.testHitBox()` sorts candidates topmost first with `graph.scene.compareOrder()`:
+1. Scene components (blocks, anchors) by their scene order;
+2. Other components by `zIndex` (type priority), then by `renderOrder` (within-type visual stacking);
+3. A component without a scene key against a scene component by its `zIndex` and the element's bucket; at an equal
+   value it lies above.
 
-The first element of the returned array is the component the user most likely intended to interact with.
+The first element of the returned array is the component the user most likely intended to interact with. A layer
+component that must be hit above blocks needs a `zIndex` of at least 201.
 
 ### Summary
 

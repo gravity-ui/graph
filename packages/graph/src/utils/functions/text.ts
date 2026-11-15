@@ -17,6 +17,11 @@ const getCanvasContext = memoize(canvasContextGetter, () => "canvasContext");
 
 const mapTextToMeasures: Map<string, number> = new Map();
 
+/** Forgets every measured width, for example after late web fonts. */
+export function clearMeasureTextCache(): void {
+  mapTextToMeasures.clear();
+}
+
 export function measureText(text: string, font: string, approximate = true): number {
   const context = getCanvasContext();
 

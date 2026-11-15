@@ -51,7 +51,7 @@ each instance carries its own style; its draw calls and order are described in
 [Draw calls and order](webgl-connections.md#draw-calls-and-order).
 
 `afterRender` hooks of a drawn Path2D chunk run in chunk order, only for items in the viewport: an item's
-`isInViewport()` decides (a detached connection compares its bounds with the layer's culling viewport while
+`isInViewport()` decides (a retained connection compares its bounds with the layer's culling viewport while
 `BlockConnections` walks its children; without culling, its hit box against the camera), otherwise its bounds do.
 Items without bounds always run. The WebGL batch runs no `afterRender` hooks.
 

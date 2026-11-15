@@ -1,5 +1,12 @@
 import { drawElements, isPrimitiveVisible } from "./drawPrimitives";
-import type { TSceneElement } from "./types";
+import { layoutText } from "./textLayout";
+import { sceneTextMetrics } from "./textMetrics";
+import type { TSceneElement, TScenePrimitive } from "./types";
+
+jest.mock("./textLayout", () => {
+  const actual: typeof import("./textLayout") = jest.requireActual("./textLayout");
+  return { ...actual, layoutText: jest.fn(actual.layoutText) };
+});
 
 beforeAll(() => {
   // jest-canvas-mock 2.5 has no roundRect.
@@ -25,6 +32,7 @@ function createContext(): TMockContext {
 function element(patch: Partial<TSceneElement>): TSceneElement {
   return {
     id: "element",
+    childOrder: 0,
     zIndex: 0,
     order: 1,
     styleId: 0,
@@ -179,6 +187,29 @@ describe("scene primitives", () => {
     expect(roundRect).toHaveBeenNthCalledWith(2, 98, 48, 44, 24, 10);
   });
 
+  it("draws rects without a radius with rect, so they draw in a context without roundRect", () => {
+    const ctx = createContext();
+    // A browser without CanvasRenderingContext2D.roundRect.
+    Object.defineProperty(ctx, "roundRect", { value: undefined, configurable: true });
+    const rect = jest.spyOn(ctx, "rect");
+    const border = { color: "#000", width: 4, align: "inside" as const };
+    const plain = { kind: "rect" as const, x: 0, y: 0, width: 40, height: 20, fill: "#fff", border };
+    expect(() =>
+      drawElements(
+        ctx,
+        [
+          element({ x: 100, y: 50, primitives: [plain] }),
+          element({ x: 100, y: 50, primitives: [{ ...plain, radius: 0 }] }),
+          element({ x: 100, y: 50, primitives: [{ ...plain, radius: [0, 0, 0, 0] }] }),
+        ],
+        1
+      )
+    ).not.toThrow();
+    expect(rect).toHaveBeenCalledTimes(6);
+    expect(rect).toHaveBeenNthCalledWith(1, 100, 50, 40, 20);
+    expect(rect).toHaveBeenNthCalledWith(2, 102, 52, 36, 16);
+  });
+
   it("strokes consecutive paths of one stroke style with one call", () => {
     const ctx = createContext();
     const stroke = jest.spyOn(ctx, "stroke");
@@ -236,6 +267,153 @@ describe("scene primitives", () => {
     drawElements(ctx, [connection("a"), connection("b")], 1);
     expect(fill).toHaveBeenCalledTimes(1);
     expect(stroke).toHaveBeenCalledTimes(1);
+  });
+
+  it("draws a primitive only on the levels of its mask", () => {
+    const rect = { kind: "rect" as const, x: 0, y: 0, width: 4, height: 4, fill: "#f00", levelMask: 2 };
+    expect(isPrimitiveVisible(rect, 1, "schematic")).toBe(true);
+    expect(isPrimitiveVisible(rect, 1, "minimalistic")).toBe(false);
+    expect(isPrimitiveVisible(rect, 1)).toBe(true);
+    const ctx = createContext();
+    expect(drawElements(ctx, [element({ primitives: [rect] })], 1, { level: "detailed" })).toBe(0);
+    expect(drawElements(ctx, [element({ primitives: [rect] })], 1, { level: "schematic" })).toBe(1);
+  });
+
+  it("skips text and draws hidden elements on request, without copying elements", () => {
+    const rect = { kind: "rect" as const, x: 0, y: 0, width: 4, height: 4, fill: "#f00" };
+    const text = { kind: "text" as const, text: "t", family: "f", size: 4, lineHeight: 4, x: 0, y: 0, width: 4 };
+    const hidden = element({ primitives: [rect, text], hidden: true });
+    const ctx = createContext();
+    expect(drawElements(ctx, [hidden], 1)).toBe(0);
+    expect(drawElements(ctx, [hidden], 1, { drawHidden: true })).toBe(2);
+    expect(drawElements(ctx, [hidden], 1, { drawHidden: true, skipText: true })).toBe(1);
+  });
+
+  describe("text", () => {
+    type TText = Extract<TScenePrimitive, { kind: "text" }>;
+
+    beforeEach(() => {
+      // Half the font size per character at TEXT_METRICS_PX (100 px), and the alphabetic baseline 80 px below a top.
+      jest.spyOn(sceneTextMetrics, "width").mockImplementation((text) => text.length * 50);
+      jest.spyOn(sceneTextMetrics, "top").mockImplementation(() => 80);
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    /** A 10 px name (80 world units at most), 12 per line at that size, centred in a 120 x 48 box at (4, 20). */
+    const name = (patch: Partial<TText> = {}): TText => ({
+      kind: "text",
+      text: "aaa bbb ccc",
+      family: "f",
+      size: 10,
+      cameraAware: { maxWorld: 80 },
+      lineHeight: 12,
+      color: "#fff",
+      x: 4,
+      y: 20,
+      width: 120,
+      height: 48,
+      align: "center",
+      verticalAlign: "middle",
+      ...patch,
+    });
+
+    // A character is half the size wide, rounded as v1 (floor + 1): at size 10 "aaa" is 16 and a space 6, so the
+    // three words take 66 of the 120; at 20 two of them fit (84), and two lines of 24 fill the 48; at 40 one line of 48
+    // holds "aaa" (82), the rest is dropped.
+    const FITS: ReadonlyArray<[camera: number, size: number, lines: string[]]> = [
+      [1, 10, ["aaa bbb ccc"]],
+      [0.5, 20, ["aaa bbb", "ccc"]],
+      [0.25, 40, ["aaa"]],
+      [0.125, 80, []],
+    ];
+
+    for (const [camera, size, lines] of FITS) {
+      it(`re-fits a camera-aware name to its box at the resolved size ${size}`, () => {
+        const ctx = createContext();
+        const states: string[] = [];
+        // The state at each call: the clip's restore() resets it afterwards.
+        const fillText = jest.spyOn(ctx, "fillText").mockImplementation(() => {
+          states.push(`${ctx.textAlign} ${ctx.textBaseline} ${ctx.font}`);
+        });
+        drawElements(ctx, [element({ x: 100, y: 50, primitives: [name()] })], camera);
+        const pitch = 1.2 * size;
+        // The block of lines is centred on the box's centre (44); each line's top is drawn with textBaseline "top".
+        const top = 44 - (lines.length * pitch) / 2;
+        expect(fillText.mock.calls).toEqual(lines.map((line, row) => [line, 100 + 64, 50 + top + row * pitch]));
+        for (const state of states) expect(state).toMatch(new RegExp(`^center top .*\\b${size}px`));
+      });
+    }
+
+    it("keeps a world text's lines and size at any zoom, its top on the box's top", () => {
+      for (const camera of [1, 0.25]) {
+        const ctx = createContext();
+        const fillText = jest.spyOn(ctx, "fillText");
+        const world = name({ cameraAware: undefined, verticalAlign: "top", text: "aaa bbb", width: 30 });
+        drawElements(ctx, [element({ primitives: [world] })], camera);
+        expect(fillText.mock.calls).toEqual([
+          ["aaa", 4 + 15, 20],
+          ["bbb", 4 + 15, 32],
+        ]);
+      }
+    });
+
+    it("draws a camera-aware text at its world size while the policy turns camera awareness off", () => {
+      const ctx = createContext();
+      const fillText = jest.spyOn(ctx, "fillText");
+      drawElements(ctx, [element({ primitives: [name()] })], 0.25, { textPolicy: { cameraAware: false } });
+      expect(fillText.mock.calls).toEqual([["aaa bbb ccc", 64, 44 - 6]]);
+      expect(ctx.font).toContain("10px");
+    });
+
+    it("clips a text that can leave its box, and only such a text", () => {
+      const ctx = createContext();
+      const rect = jest.spyOn(ctx, "rect");
+      const clip = jest.spyOn(ctx, "clip");
+      const save = jest.spyOn(ctx, "save");
+      const restore = jest.spyOn(ctx, "restore");
+      // The name's line fits the box at scale 1: no clip.
+      drawElements(ctx, [element({ x: 100, y: 50, primitives: [name()] })], 1);
+      expect(clip).not.toHaveBeenCalled();
+      // One unwrapped line wider than the box: clipped to it.
+      drawElements(ctx, [element({ x: 100, y: 50, primitives: [name({ wrap: false, width: 30 })] })], 1);
+      expect(rect).toHaveBeenCalledWith(104, 70, 30, 48);
+      expect(clip).toHaveBeenCalledTimes(1);
+      expect(save).toHaveBeenCalledTimes(1);
+      expect(restore).toHaveBeenCalledTimes(1);
+    });
+
+    it("lays a text out again only when its size leaves the range of its line breaks", () => {
+      const layout = jest.mocked(layoutText);
+      layout.mockClear();
+      const ctx = createContext();
+      const primitive = name();
+      const draw = (camera: number): void => {
+        drawElements(ctx, [element({ primitives: [primitive] })], camera);
+      };
+      draw(1);
+      expect(layout).toHaveBeenCalledTimes(1);
+      // 10.5 and 11 keep one line: the 120-wide box holds the three words up to about 18.
+      draw(10 / 10.5);
+      draw(10 / 11);
+      expect(layout).toHaveBeenCalledTimes(1);
+      draw(0.5);
+      expect(layout).toHaveBeenCalledTimes(2);
+    });
+
+    it("draws one line of a text with a zero line height on the box's top", () => {
+      const ctx = createContext();
+      const fillText = jest.spyOn(ctx, "fillText");
+      const text = name({
+        cameraAware: undefined,
+        lineHeight: 0,
+        text: "aaa bbb",
+        verticalAlign: "top",
+        align: "left",
+      });
+      drawElements(ctx, [element({ primitives: [text] })], 1);
+      expect(fillText.mock.calls).toEqual([["aaa bbb", 4, 20]]);
+    });
   });
 
   it("skips hidden elements and primitives outside their scale range", () => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 
-import { CanvasBlock, Graph, TBlock, TGraphConfig } from "@gravity-ui/graph";
+import { Graph, LegacyCanvasBlock, TBlock, TGraphConfig } from "@gravity-ui/graph";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryFn } from "@storybook/react-webpack5";
 
@@ -31,7 +31,7 @@ type TBlockMeta = {
   imageOffsetY: number;
 };
 
-class SpecificBlockView extends CanvasBlock<TBlock<TBlockMeta>> {
+class SpecificBlockView extends LegacyCanvasBlock<TBlock<TBlockMeta>> {
   public override renderSchematicView() {
     const blockMetaState = this.state.meta;
     if (!blockMetaState) {

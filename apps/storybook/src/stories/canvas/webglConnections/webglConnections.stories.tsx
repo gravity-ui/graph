@@ -26,7 +26,7 @@ import {
 } from "./codeSamples";
 import { ETL_BLOCK_IS, etlBlocks, etlConnections, etlFlows, isEtlBlock, setEtlEffect } from "./etl";
 import type { TEtlEffect } from "./etl";
-import { EtlBlock } from "./etlBlock";
+import { EtlBlock, etlBlockRules } from "./etlBlock";
 import {
   comets,
   dataStyled,
@@ -347,6 +347,8 @@ const EtlGraphView = ({ renderer, effect, entities, graphRef }: TEtlGraphViewPro
   useEffect(() => {
     graphRef.current = graph;
   }, [graph, graphRef]);
+
+  useEffect(() => graph.scene.styles.add(etlBlockRules), [graph]);
 
   // Settings go first so the stages and the flows are created with the custom classes.
   useEffect(() => {

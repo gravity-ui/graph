@@ -152,4 +152,15 @@ describe("StyleTable", () => {
     expect(dim(3, border)[0]).toBe(0);
     expect(dim(3, 0)[0]).toBe(0);
   });
+
+  it("rejects the reserved part name none", () => {
+    expect(() => new StyleTable().slotOf("none")).toThrow(/reserved/);
+  });
+
+  it("has 15 part slots after none", () => {
+    const table = new StyleTable();
+    for (let i = 1; i <= 15; i++) expect(table.slotOf(`part${i}`)).toBe(i);
+    expect(() => table.slotOf("part16")).toThrow(/at most 15 distinct parts/);
+    expect(STYLE_ROW_TEXELS).toBe(48);
+  });
 });

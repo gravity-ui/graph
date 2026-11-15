@@ -66,4 +66,15 @@ export type TStyleExplanation = {
   /** Matched rules in application order. */
   rules: readonly { theme: boolean; priority: number; layer: "base" | "state"; tags: readonly string[] }[];
   style?: TSceneStyle;
+  /**
+   * Present while the graph setting `cameraAwareText` is off: every scene text is world-sized, whatever `style` says
+   * about `cameraAware`.
+   */
+  cameraAwareText?: "forced-off";
+  /**
+   * The parts whose `cameraAware: true` in `style` is not applied to a text of the element: a heightless text that does
+   * not declare `cameraAware` itself keeps its world size (give it a `height`, or declare `cameraAware` on the
+   * primitive).
+   */
+  cameraAwareNotApplied?: readonly string[];
 };

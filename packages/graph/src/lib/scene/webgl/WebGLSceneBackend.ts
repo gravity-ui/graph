@@ -9,10 +9,15 @@ import type { ConnectionEffect } from "../../../components/canvas/connections/ef
 import type { TUniformTypes } from "../../../components/canvas/connections/effects/types";
 import { INSTANCE_ATTRIBUTES, INSTANCE_FLOATS, scaleBucket } from "../../../components/canvas/connections/webgl/encode";
 import { createCurveTemplate, createLineTemplate } from "../../../components/canvas/connections/webgl/shaders";
+import type { TSceneLevel } from "../../../services/scene/types";
 import type { SceneStore } from "../SceneStore";
 import { readColorRgba } from "../colorAlpha";
+import { LEVEL_BIT, isOnLevel } from "../levels";
 import { bakeElementStyle } from "../style";
-import type { TSceneChange, TSceneElement, TScenePrimitive, TSceneStyle } from "../types";
+import { DEFAULT_TEXT_POLICY, isLayoutValid, layoutText, resolveTextSize } from "../textLayout";
+import type { TTextLayout } from "../textLayout";
+import { peekSceneTextLayout, sceneTextLayout, sceneTextMetrics } from "../textMetrics";
+import type { TSceneChange, TSceneElement, TScenePrimitive, TSceneStyle, TSceneTextPolicy } from "../types";
 
 import { InstanceRanges } from "./InstanceRanges";
 import type {
@@ -21,12 +26,15 @@ import type {
   TSceneBackendEvents,
   TSceneBackendStats,
   TSceneFrame,
+  TSceneTextFrame,
 } from "./backendTypes";
-import { SceneDepth } from "./depth";
+import { CameraTextEpochs } from "./cameraTextEpochs";
+import { SCENE_DEPTH, SceneDepth, movesInDepth } from "./depth";
 import { PATH_ELEMENT_FLOATS, encodePaths } from "./encodePaths";
-import { RECT_FLOATS, encodeRects, hasStrokeWidth, isTranslucentPaint } from "./encodeRects";
-import { GLYPH_FLOATS, encodeText } from "./encodeText";
-import { GlyphAtlas } from "./glyphs";
+import { RECT_FLOATS, checkSub, encodeRects, hasStrokeWidth, isTranslucentPaint } from "./encodeRects";
+import { GLYPH_FLOATS, GLYPH_SUB_FLOATS, encodeText, writeTextGlyphs } from "./encodeText";
+import type { TTextEncodeInput, TTextGlyphPlaces } from "./encodeText";
+import { GlyphAtlas, glyphRun } from "./glyphs";
 import { geometryBounds } from "./levelBounds";
 import { TranslucentLevels } from "./overlapLevels";
 import {
@@ -34,6 +42,7 @@ import {
   ALPHA_VERTEX,
   GLYPH_ATTRIBUTES,
   GLYPH_FRAGMENT,
+  GLYPH_SUB_ATTRIBUTE,
   GLYPH_VERTEX,
   PATH_ATTRIBUTES,
   PATH_ELEMENT_ATTRIBUTES,
@@ -46,9 +55,13 @@ import {
   createPathPlugin,
 } from "./shaders";
 import { ElementTable, STYLE_ROW_TEXELS, StyleTable, TABLE_WIDTH } from "./tables";
+import { adoptTexts, planTextEncode, resubGlyphs, textsOf } from "./textEncodes";
+import type { TTextEncode, TTextLayouts } from "./textEncodes";
+import { TextRelayout } from "./textRelayout";
+import type { ITextRelayoutHost } from "./textRelayout";
 import { createTinySdfGenerator } from "./tinySdfGlyphs";
-import { elementSteps, orderTranslucent, splitSteps } from "./translucentOrder";
-import type { TTranslucentRun } from "./translucentOrder";
+import { SUB_FLOAT, elementSteps, orderTranslucent, splitSteps } from "./translucentOrder";
+import type { TElementSubs, TTranslucentRun } from "./translucentOrder";
 
 type TPass = "opaque" | "translucent";
 
@@ -57,6 +70,15 @@ type TUploadKind = TSceneBackendStats["lastUploadKind"];
 type TUniforms = Record<string, number | readonly number[]>;
 
 type TPathPrimitive = Extract<TScenePrimitive, { kind: "path" }>;
+
+type TTextPrimitive = Extract<TScenePrimitive, { kind: "text" }>;
+
+/**
+ * An element with a camera-aware text: its baked primitives (what a full glyph re-encode encodes again) and its last
+ * text encode (the texts' glyph counts and layouts: a zoom across a line break rewrites a text's glyphs in place).
+ * Which frame checks it is `CameraTextEpochs`'s.
+ */
+type TCameraTexts = { primitives: readonly TScenePrimitive[]; encode: TTextEncode };
 
 /** The tables a program samples. */
 type TTextureName = "scene_elements" | "scene_styles" | "scene_atlas";
@@ -69,17 +91,30 @@ type TPointer = { location: number; components: number; byteOffset: number; stri
 /** A per-instance buffer of a model: its name in the buffer layout and the buffer. */
 type TInstanceBuffer = { name: string; buffer: DynamicBuffer };
 
+/**
+ * A second per-instance list of a batch, kept in step with its instances (the same elements, steps, counts and order,
+ * so each range lies at the same instance offset in both lists), in a GPU buffer of its own:
+ * - `"elements"` (paths): each instance's element data, `PATH_ELEMENT_FLOATS` (element index, sub, part slot, scale
+ *   bounds, level mask);
+ * - `"subs"` (glyphs): each instance's sub, one float (`TEncodedGlyphs.subs`), so that a re-sub of unchanged texts
+ *   writes and uploads this buffer only.
+ */
+type TCompanion = { kind: "elements" | "subs"; ranges: InstanceRanges; buffer: DynamicBuffer };
+
+/** The float of a companion instance that holds the primitive's sub. */
+const COMPANION_SUB_FLOAT: Record<TCompanion["kind"], number> = { elements: SUB_FLOAT, subs: 0 };
+
 /** Per-element instances of one program and pass, their GPU buffer and the model that draws them. */
 type TBatch = {
   ranges: InstanceRanges;
   buffer: DynamicBuffer;
-  /** Path batches only: the element data of every instance (`PATH_ELEMENT_FLOATS`), kept in step with `ranges`. */
-  elements?: { ranges: InstanceRanges; buffer: DynamicBuffer };
+  /** Path and glyph batches: the companion list of the instances (`TCompanion`), kept in step with `ranges`. */
+  companion?: TCompanion;
   model: Model;
   /** The model's uniforms: luma reads this object at every draw. */
   uniforms: TUniforms;
   textures: readonly TTextureName[];
-  /** Every buffer layout of the model, and its per-instance buffers (`buffer`, then the path element data). */
+  /** Every buffer layout of the model, and its per-instance buffers (`buffer`, then the companion's). */
   layout: readonly BufferLayout[];
   instanceBuffers: readonly TInstanceBuffer[];
   /** The pointers of the per-instance attributes, per instance buffer; read from the linked program on first use. */
@@ -88,8 +123,14 @@ type TBatch = {
   pointedAt: number;
 };
 
-/** An element's translucent instances of one program, before they are cut into steps. */
-type TTranslucentWrite = { batch: TBatch; instances: Float32Array; elements?: Float32Array };
+/**
+ * An element's translucent instances of one program, before they are cut into steps, and their companion data when the
+ * batch keeps a companion list.
+ */
+type TTranslucentWrite = { batch: TBatch; instances: Float32Array; companion?: Float32Array };
+
+/** An element's translucent glyphs and their subs (`TEncodedGlyphs`). */
+type TTranslucentGlyphs = { instances: Float32Array; subs: Float32Array };
 
 /** The paths of one pass and one effect program ("plain" without an effect): a batch per vertex template. */
 type TPathGroup = {
@@ -111,6 +152,9 @@ const INITIAL_INSTANCES = 64;
 
 const GL_SAMPLE_ALPHA_TO_COVERAGE = 0x809e;
 
+/** The translucent glyphs of an element whose texts kept their instances: none, its texts are all opaque. */
+const NO_GLYPHS: TTranslucentGlyphs = { instances: new Float32Array(0), subs: new Float32Array(0) };
+
 // eslint-disable-next-line no-bitwise -- luma usage flags are bit masks
 const BUFFER_USAGE = Buffer.VERTEX | Buffer.COPY_DST;
 
@@ -118,6 +162,9 @@ const BUFFER_USAGE = Buffer.VERTEX | Buffer.COPY_DST;
 const TEXTURE_USAGE = Texture.SAMPLE | Texture.COPY_DST;
 
 const UPLOAD_COST: Record<TUploadKind, number> = { none: 0, range: 1, full: 2 };
+
+/** RGBA32F texels of the element and style tables, r8 of the atlas: bytes per texel. */
+const TABLE_TEXEL_BYTES = 16;
 
 const VERTEX_FORMATS: Record<number, VertexFormat> = {
   1: "float32",
@@ -177,13 +224,17 @@ function vec4Layout(name: string, attributes: readonly string[], floats: number)
   };
 }
 
-/** A program drawn as instanced quads: shaders, buffers (template, instances), floats per instance, tables read. */
+/**
+ * A program drawn as instanced quads: shaders, buffers (template, instances), floats per instance, tables read, and the
+ * kind, buffer layout and floats per instance of its companion list, if it keeps one.
+ */
 type TQuadProgram = {
   vs: string;
   fs: string;
   layout: readonly [BufferLayout, BufferLayout];
   floats: number;
   textures: readonly TTextureName[];
+  companion?: { kind: TCompanion["kind"]; layout: BufferLayout; floats: number };
 };
 
 const RECT_PROGRAM: TQuadProgram = {
@@ -203,6 +254,16 @@ const GLYPH_PROGRAM: TQuadProgram = {
   ],
   floats: GLYPH_FLOATS,
   textures: ["scene_elements", "scene_styles", "scene_atlas"],
+  companion: {
+    kind: "subs",
+    layout: {
+      name: GLYPH_SUB_ATTRIBUTE,
+      stepMode: "instance",
+      byteStride: GLYPH_SUB_FLOATS * FLOAT_BYTES,
+      format: "float32",
+    },
+    floats: GLYPH_SUB_FLOATS,
+  },
 };
 
 const PATH_TEXTURES: readonly TTextureName[] = ["scene_elements", "scene_styles"];
@@ -234,11 +295,27 @@ function isLinked(model: Model): boolean {
   return model.pipeline.linkStatus !== "error";
 }
 
-/** Writes the instances of an element, or removes the element when it has none. */
-function setInstances(batch: TBatch, id: string, instances: Float32Array, elements?: Float32Array): void {
+/**
+ * The companion data written with instances of a batch that keeps a companion list: one companion instance per
+ * instance, or the lists would part.
+ */
+function companionData(
+  batch: TBatch,
+  companion: TCompanion,
+  instances: Float32Array,
+  data?: Float32Array
+): Float32Array {
+  if (!data || data.length / companion.ranges.floats !== instances.length / batch.ranges.floats) {
+    throw new Error(`The scene batch ${batch.model.id} needs one companion instance per instance`);
+  }
+  return data;
+}
+
+/** Writes the instances of an element and their companion data, or removes the element when it has none. */
+function setInstances(batch: TBatch, id: string, instances: Float32Array, companion?: Float32Array): void {
   if (instances.length > 0) {
     batch.ranges.set(id, instances);
-    if (batch.elements && elements) batch.elements.ranges.set(id, elements);
+    if (batch.companion) batch.companion.ranges.set(id, companionData(batch, batch.companion, instances, companion));
   } else {
     removeInstances(batch, id);
   }
@@ -246,7 +323,18 @@ function setInstances(batch: TBatch, id: string, instances: Float32Array, elemen
 
 function removeInstances(batch: TBatch, id: string): void {
   batch.ranges.delete(id);
-  batch.elements?.ranges.delete(id);
+  batch.companion?.ranges.delete(id);
+}
+
+/** Where a translucent write holds its subs: in its companion data when its batch keeps them there, else inline. */
+function subsOfWrite(write: TTranslucentWrite): TElementSubs {
+  const { batch, instances, companion } = write;
+  if (!batch.companion) return { subs: instances, floats: batch.ranges.floats };
+  return {
+    subs: companionData(batch, batch.companion, instances, companion),
+    floats: batch.companion.ranges.floats,
+    subFloat: COMPANION_SUB_FLOAT[batch.companion.kind],
+  };
 }
 
 function sameNumbers(a: readonly number[], b: readonly number[]): boolean {
@@ -261,6 +349,27 @@ function countSkipped(primitives: readonly TScenePrimitive[]): { polygon: number
     else if (primitive.kind === "icon") counts.icon++;
   }
   return counts;
+}
+
+/** Whether two layouts hold the same lines. */
+function sameLines(a: TTextLayout | undefined, b: TTextLayout | undefined): boolean {
+  if (!a || !b) return a === b;
+  return a.lines.length === b.lines.length && a.lines.every((line, index) => line === b.lines[index]);
+}
+
+/**
+ * The camera-aware texts a re-layout changed: their lines, or the policy they are laid out under (their glyphs' size
+ * mode follows it).
+ */
+function changedTexts(before: TTextLayouts, after: TTextLayouts | undefined): number {
+  if (!after) return 0;
+  let changed = 0;
+  before.texts.forEach((text, index) => {
+    if (!text.cameraAware) return;
+    const policy = before.policy.cameraAware !== after.policy.cameraAware;
+    if (policy || !sameLines(before.layouts[index], after.layouts[index])) changed++;
+  });
+  return changed;
 }
 
 class WebGLSceneBackend implements ISceneBackend {
@@ -279,6 +388,20 @@ class WebGLSceneBackend implements ISceneBackend {
     translucentLevels: 0,
     lastLevelsMs: 0,
     lastTranslucentOrderMs: 0,
+    lastApplyMs: 0,
+    textRelayouts: 0,
+    lastTextRelayouts: 0,
+    lastTextRelayoutGlyphs: 0,
+    lastTextRelayoutBytes: 0,
+    lastTextRelayoutWrittenBytes: 0,
+    lastTextRelayoutDrawnBytes: 0,
+    lastTextRelayoutsKept: 0,
+    lastTextRelayoutMs: 0,
+    staleTexts: 0,
+    uploadBytes: 0,
+    lastUploadBytes: 0,
+    lastUploadWrites: 0,
+    subBits: SCENE_DEPTH.MIN_SUB_BITS,
   };
 
   private readonly styles = new StyleTable();
@@ -295,6 +418,81 @@ class WebGLSceneBackend implements ISceneBackend {
   private readonly skippedOf = new Map<string, { polygon: number; icon: number }>();
   /** Elements with a path whose effect is animated. */
   private readonly animated = new Set<string>();
+  /** The depth sub-order of each child element's first primitive; owners start at 0. */
+  private readonly subBases = new Map<string, number>();
+  /**
+   * Owners whose children need their sub bases checked after this batch, and whose sub-order count (their primitives
+   * with their children's) goes to the depth then.
+   */
+  private readonly rebase = new Set<string>();
+  /** Children to encode after this batch, with their sub base. */
+  private readonly encodeLater = new Set<string>();
+  /** The last text encode of each element whose glyphs all went to the opaque pass (`encodeGlyphs`). */
+  private readonly textEncodes = new Map<string, TTextEncode>();
+  /**
+   * The primitive count of each owner's last encode (children have none): an owner's children move only when it
+   * changes.
+   */
+  private readonly encodedCounts = new Map<string, number>();
+  /** The elements with instances in a translucent batch (`setTranslucent`). */
+  private readonly translucentIds = new Set<string>();
+  /** The scale and policy texts are laid out for: the next draw's (`applyMany`, `replay`, `draw`). */
+  private textFrame: TSceneTextFrame = { scale: 1, textPolicy: DEFAULT_TEXT_POLICY };
+  /** The text frame of the draws (`refreshTexts`), rewritten by each one. */
+  private readonly drawTextFrame: { scale: number; textPolicy: TSceneTextPolicy } = {
+    scale: 1,
+    textPolicy: DEFAULT_TEXT_POLICY,
+  };
+  /** The elements with a camera-aware text (`TCameraTexts`). */
+  private readonly cameraTexts = new Map<string, TCameraTexts>();
+  /** Which elements of `cameraTexts` a frame checks (`refreshTexts`). */
+  private readonly textEpochs = new CameraTextEpochs({
+    isDrawn: (id) => {
+      const element = this.elements.get(id);
+      return element !== undefined && !this.hiddenInScene(element);
+    },
+    showsTexts: (id, scale, level) => this.showsTexts(id, scale, level),
+    refresh: (id) => {
+      const camera = this.cameraTexts.get(id);
+      if (camera && !this.layoutsCurrent(camera.encode)) this.relayoutTexts(id, camera);
+    },
+  });
+  /** Bytes and writes of the uploads in the current draw (`stats.lastUploadBytes`, `stats.lastUploadWrites`). */
+  private frameUploadBytes = 0;
+  private frameUploadWrites = 0;
+  /**
+   * The translucent writes of the last encode of each element of `cameraTexts` with translucent instances: a glyph
+   * re-encode re-cuts the element's steps with them instead of encoding its rects and paths again.
+   */
+  private readonly translucentWrites = new Map<string, TTranslucentWrite[]>();
+  /** The pass of each text of an encode, and the glyphs its lines placed (`writeGlyphs`), reused by every encode. */
+  private readonly glyphPasses: boolean[] = [];
+  private readonly glyphPlaced: number[] = [];
+  /** The in-place re-layout of `relayoutTexts`, and the element it works on (`relayoutHost`) during a call. */
+  private readonly textRelayout = new TextRelayout();
+  private relayoutId = "";
+  private relayoutCamera: TCameraTexts | undefined;
+  private readonly relayoutHost: ITextRelayoutHost = {
+    metrics: sceneTextMetrics,
+    layout: (text, size) => sceneTextLayout(text, text, size),
+    run: (text, layout) => glyphRun(text, layout, this.atlas, sceneTextMetrics),
+    edit: (encode, at, first, written, layout, run) => {
+      const text = encode.texts[at];
+      const batch = encode.translucent?.[at] ? this.glyphs.translucent : this.glyphs.opaque;
+      const target = {
+        elementIndex: encode.index,
+        slot: this.slotOf(text.part),
+        policy: this.textFrame.textPolicy,
+        atlas: this.atlas,
+      };
+      return batch.ranges.editSpan(this.relayoutId, first, written, (data, offset) =>
+        writeTextGlyphs(data, offset, written, text, layout, run, target)
+      );
+    },
+    rewrite: () => {
+      if (this.relayoutCamera) this.rewriteGlyphs(this.relayoutId, this.relayoutCamera);
+    },
+  };
 
   private readonly quadTemplate: Buffer;
   private readonly lineTemplate: Buffer;
@@ -305,14 +503,16 @@ class WebGLSceneBackend implements ISceneBackend {
 
   private readonly rects: Record<TPass, TBatch>;
   private readonly glyphs: Record<TPass, TBatch>;
+  /** The subs of the opaque glyphs: a re-sub rewrites them only (`encodeGlyphs`). */
+  private readonly glyphSubs: TCompanion;
   private readonly pathGroups = new Map<string, TPathGroup>();
   private readonly alphaModel: Model;
 
   /** The overlap levels of the elements with translucent instances. */
   private readonly levels = new TranslucentLevels();
   /**
-   * The level revision and the revisions of the translucent instance lists the current runs were built from. Depth keys
-   * enter the runs only through the levels.
+   * The depth's width, the level revision and the revisions of the translucent instance lists the current runs were
+   * built from. Depth keys enter the runs only through the levels.
    */
   private orderStamp: number[] = [];
   /** The layout revisions of the translucent instance lists when the runs were built: a change sorts them again. */
@@ -322,6 +522,8 @@ class WebGLSceneBackend implements ISceneBackend {
   private translucentRuns: TTranslucentRun[] = [];
 
   private frames = 0;
+  /** `scene_subs` of the frame: the depth's sub-orders per key, 2^subBits. */
+  private subs = 2 ** SCENE_DEPTH.MIN_SUB_BITS;
   /** The dim colour of the last frame and its `scene_dimColor` value. */
   private dimColor: string | undefined;
   private dimFloats: readonly number[] = NO_DIM_COLOR;
@@ -357,6 +559,9 @@ class WebGLSceneBackend implements ISceneBackend {
       opaque: this.createBatch("glyph-opaque", GLYPH_PROGRAM, "opaque"),
       translucent: this.createBatch("glyph-translucent", GLYPH_PROGRAM, "translucent"),
     };
+    const glyphSubs = this.glyphs.opaque.companion;
+    if (!glyphSubs) throw new Error("The scene glyph batches keep their subs in a companion list");
+    this.glyphSubs = glyphSubs;
     canvas.addEventListener(
       "webglcontextlost",
       () => {
@@ -384,19 +589,30 @@ class WebGLSceneBackend implements ISceneBackend {
     this.stats.deviceMs = performance.now() - createdAt;
   }
 
-  public replay(store: SceneStore): void {
+  public replay(store: SceneStore, text?: TSceneTextFrame): void {
     const start = performance.now();
     this.reset();
+    if (text) this.textFrame = text;
     this.store = store;
     this.setStyles(store.getStyles());
     store.forEach((element) => this.applyChange({ type: "add", element }));
+    this.rebaseChildren();
     this.flushDepth();
     this.stats.lastReplayMs = performance.now() - start;
   }
 
-  public apply(change: TSceneChange): void {
-    this.applyChange(change);
+  public applyMany(changes: readonly TSceneChange[], text?: TSceneTextFrame): void {
+    const start = performance.now();
+    if (text) this.textFrame = text;
+    // The elements the frame deletes or moves give up their depth places before any element takes one: the frame then
+    // fits the depth limits whenever its changes one by one did, whatever the order of different elements' changes.
+    for (const change of changes) {
+      if (change.type === "delete" || movesInDepth(change)) this.depth.release(change.element.id);
+    }
+    for (const change of changes) this.applyChange(change);
+    this.rebaseChildren();
     this.flushDepth();
+    this.stats.lastApplyMs = performance.now() - start;
   }
 
   public setStyles(styles: readonly TSceneStyle[]): void {
@@ -406,6 +622,10 @@ class WebGLSceneBackend implements ISceneBackend {
   public draw(frame: TSceneFrame): boolean {
     if (this.disposed || this.gl.isContextLost()) return false;
     const start = performance.now();
+    this.frameUploadBytes = 0;
+    this.frameUploadWrites = 0;
+    // Before the uploads: a re-laid-out text writes glyph instances, and maybe atlas glyphs.
+    this.refreshTexts(frame);
     this.device
       .getDefaultCanvasContext()
       .setDrawingBufferSize(
@@ -414,6 +634,9 @@ class WebGLSceneBackend implements ISceneBackend {
       );
     this.uploadTables();
     this.setDimColor(frame.dimColor);
+    // The width of the last apply (a no-op renumber): every program multiplies the element keys by it.
+    this.depth.renumber();
+    this.subs = 2 ** this.depth.subBits;
     // Before the uploads: sorting moves translucent instances.
     this.orderTranslucent();
     let uploadKind: TUploadKind = "none";
@@ -422,6 +645,9 @@ class WebGLSceneBackend implements ISceneBackend {
       if (UPLOAD_COST[kind] > UPLOAD_COST[uploadKind]) uploadKind = kind;
     }
     this.stats.lastUploadKind = uploadKind;
+    this.stats.lastUploadBytes = this.frameUploadBytes;
+    this.stats.lastUploadWrites = this.frameUploadWrites;
+    this.stats.uploadBytes += this.frameUploadBytes;
     this.stats.drawCalls = 0;
     this.stats.instances = 0;
     for (const group of this.pathGroups.values()) this.setEffectUniforms(group);
@@ -481,34 +707,155 @@ class WebGLSceneBackend implements ISceneBackend {
     }
     this.elements.set(element.id, element);
     if (change.type === "add") {
-      this.depth.set(element.id, this.zIndexOf(element), element.order);
-      this.encode(element);
-      // The depth key is written by flushDepth(): a new element always gets one.
-      this.table.write(element.id, element.x, element.y, 0, element.hidden, element.styleId);
+      this.addElement(element);
       return;
     }
     const fields = change.fields;
     const changed = (field: keyof TSceneElement): boolean => fields === undefined || fields.has(field);
+    const { parent } = element;
     // A change of the style's raise comes as a zIndex change: the bucket is the zIndex plus the raise.
-    if (changed("zIndex") || changed("order")) this.depth.set(element.id, this.zIndexOf(element), element.order);
+    // The same test as the release in applyMany(): a released element always gets its place back. A child's own
+    // zIndex and order are ignored: it draws with its parent's key.
+    if (parent === undefined && movesInDepth(change)) {
+      this.depth.set(element.id, this.zIndexOf(element), element.order);
+    }
     // Also when the primitives are the same array: the element properties of the style (widths, translucent colours,
     // opacity) changed.
-    if (changed("primitives")) this.encode(element);
+    if (changed("primitives")) this.primitivesChanged(element);
+    if (parent !== undefined && changed("childOrder")) this.rebase.add(parent);
     if (changed("x") || changed("y") || changed("hidden") || changed("styleId")) this.writeElement(element);
+    // The store sends no update to the children of an owner whose hidden flag changed.
+    if (parent === undefined && changed("hidden")) this.writeChildren(element.id);
     // A translucent element that moves can start or stop overlapping others.
-    if (changed("x") || changed("y") || changed("bounds")) this.levels.moved(element.id);
+    const moved = changed("x") || changed("y") || changed("bounds");
+    if (moved) this.levels.moved(element.id);
+    if (moved || changed("hidden")) this.textsMoved(element, moved, changed("hidden"));
   }
 
-  /** Writes the element texels of every element whose depth key changed. */
+  /**
+   * A camera-aware text that moves or shows again (itself, or a child of an owner whose hidden flag changed) can
+   * enter the view with stale lines: the next frame checks it.
+   */
+  private textsMoved(element: TSceneElement, moved: boolean, hidden: boolean): void {
+    if (this.cameraTexts.has(element.id)) {
+      const { x, y, bounds } = element;
+      if (moved) this.textEpochs.move(element.id, x + bounds.minX, y + bounds.minY, x + bounds.maxX, y + bounds.maxY);
+      else this.textEpochs.showAgain(element.id);
+    }
+    if (!hidden || element.parent !== undefined) return;
+    for (const child of this.store?.childrenOf(element.id) ?? []) this.textEpochs.showAgain(child.id);
+  }
+
+  /**
+   * An owner takes its depth place and is encoded now, and gives the depth its sub-order count after the batch; a
+   * child is encoded once the batch knows its sub base.
+   */
+  private addElement(element: TSceneElement): void {
+    if (element.parent === undefined) {
+      this.depth.set(element.id, this.zIndexOf(element), element.order);
+      this.encode(element);
+      this.rebase.add(element.id);
+    } else {
+      // A child takes no depth place: it draws with its parent's key (`rebaseChildren`).
+      this.rebase.add(element.parent);
+      this.encodeLater.add(element.id);
+    }
+    // The depth key is written by flushDepth(): a new owner always gets one, and its children's texels with it.
+    this.writeElement(element);
+  }
+
+  /**
+   * An owner is encoded now and, when its primitive count changed, checks its children's sub bases and its sub-order
+   * count after the batch; a child is encoded after the batch, and its parent checks the sub bases of its siblings.
+   */
+  private primitivesChanged(element: TSceneElement): void {
+    if (element.parent === undefined) {
+      const before = this.encodedCounts.get(element.id);
+      this.encode(element);
+      // The same count moves no child and keeps the sub-order count: a child's own changes rebase its parent.
+      if (before !== element.primitives.length) this.rebase.add(element.id);
+    } else {
+      this.encodeLater.add(element.id);
+      this.rebase.add(element.parent);
+    }
+  }
+
+  /**
+   * Writes the element texels of every element whose depth key changed, and of their children, which draw with their
+   * parent's key; the store sends them no update when only their parent moves in depth.
+   */
   private flushDepth(): void {
     for (const id of this.depth.takeChanged()) {
       const element = this.elements.get(id);
       if (element) this.writeElement(element);
+      this.writeChildren(id);
     }
+    // The width of this batch: a change rewrites nothing, the frame's `scene_subs` and the translucent order take it.
+    this.stats.subBits = this.depth.subBits;
     // Only an element whose own zIndex or order was set can change the order of the translucent elements among
     // themselves. A raise renumbers the dense ranks of its whole band, but the others keep their order, so their
-    // levels stand.
-    for (const id of this.depth.takeSet()) this.levels.reordered(id);
+    // levels stand. Children move with their parent.
+    for (const id of this.depth.takeSet()) {
+      this.levels.reordered(id);
+      for (const child of this.store?.childrenOf(id) ?? []) this.levels.reordered(child.id);
+    }
+  }
+
+  /** Writes the texels of the owner's children in the backend: their key and hidden state follow the owner. */
+  private writeChildren(ownerId: string): void {
+    for (const child of this.store?.childrenOf(ownerId) ?? []) {
+      if (this.elements.has(child.id)) this.writeElement(child);
+    }
+  }
+
+  private rootIdOf(element: TSceneElement): string {
+    return element.parent ?? element.id;
+  }
+
+  /** Hidden itself or through its parent: the texel key is -1 then. */
+  private hiddenInScene(element: TSceneElement): boolean {
+    return element.hidden || (element.parent !== undefined && (this.elements.get(element.parent)?.hidden ?? false));
+  }
+
+  /**
+   * The order of an element among translucent ones: its root's depth key, then its sub base, at the depth's current
+   * width (below `ELEMENT_KEYS`). The numbers change with the width, the order does not; nothing keeps them.
+   */
+  private readonly orderKeyOf = (id: string): number => {
+    const element = this.elements.get(id);
+    if (!element) return 0;
+    // keyOf renumbers first, which also sets the width.
+    const key = this.depth.keyOf(this.rootIdOf(element));
+    return key * 2 ** this.depth.subBits + (this.subBases.get(id) ?? 0);
+  };
+
+  /**
+   * Gives each child of the owners touched in this batch its sub base (the owner's primitive count plus the counts of
+   * the siblings before it), encodes the children whose base moved or that wait for an encode, and gives the depth
+   * each owner's sub-order count: its primitives with its children's. Bases are absolute subs, so a width change
+   * re-encodes nothing.
+   */
+  private rebaseChildren(): void {
+    for (const parentId of this.rebase) {
+      const parent = this.elements.get(parentId);
+      let base = parent ? parent.primitives.length : 0;
+      for (const child of this.store?.childrenOf(parentId) ?? []) {
+        if (!this.elements.has(child.id)) continue;
+        if (this.subBases.get(child.id) !== base) {
+          this.subBases.set(child.id, base);
+          this.encodeLater.add(child.id);
+          this.levels.reordered(child.id);
+        }
+        base += child.primitives.length;
+      }
+      if (parent) this.depth.setSubCount(parentId, base);
+    }
+    this.rebase.clear();
+    for (const id of this.encodeLater) {
+      const element = this.elements.get(id);
+      if (element) this.encode(element);
+    }
+    this.encodeLater.clear();
   }
 
   /** The element's zIndex bucket with the raise of its style. */
@@ -521,16 +868,30 @@ class WebGLSceneBackend implements ISceneBackend {
     return this.store?.getStyles()[element.styleId];
   }
 
+  /**
+   * Writes the element's texels with its root's key of the last renumber: a write while changes are applied never
+   * renumbers; `flushDepth()` rewrites every element whose key the single renumber changed, children included.
+   */
   private writeElement(element: TSceneElement): void {
-    const key = this.depth.keyOf(element.id);
-    this.table.write(element.id, element.x, element.y, key, element.hidden, element.styleId);
+    const key = this.depth.peekKey(this.rootIdOf(element));
+    this.table.write(element.id, element.x, element.y, key, this.hiddenInScene(element), element.styleId);
   }
 
   private remove(id: string): void {
+    const parent = this.elements.get(id)?.parent;
+    if (parent !== undefined) {
+      this.subBases.delete(id);
+      // The siblings after it move down.
+      if (this.elements.has(parent)) this.rebase.add(parent);
+    }
     for (const batch of this.allBatches()) removeInstances(batch, id);
     this.pathGroupsOf.delete(id);
     this.setSkipped(id, { polygon: 0, icon: 0 });
     this.animated.delete(id);
+    this.textEncodes.delete(id);
+    this.forgetCameraTexts(id);
+    this.encodedCounts.delete(id);
+    this.translucentIds.delete(id);
     this.depth.delete(id);
     this.levels.delete(id);
     this.table.free(id);
@@ -544,12 +905,21 @@ class WebGLSceneBackend implements ISceneBackend {
     this.stats.skipped.polygon = 0;
     this.stats.skipped.icon = 0;
     this.animated.clear();
+    this.subBases.clear();
+    this.rebase.clear();
+    this.encodeLater.clear();
+    this.textEncodes.clear();
+    this.cameraTexts.clear();
+    this.textEpochs.reset();
+    this.translucentWrites.clear();
+    this.encodedCounts.clear();
+    this.translucentIds.clear();
     this.depth = new SceneDepth();
     this.levels.clear();
     this.table = new ElementTable();
     for (const batch of this.allBatches()) {
       batch.ranges = new InstanceRanges(batch.ranges.floats);
-      if (batch.elements) batch.elements.ranges = new InstanceRanges(PATH_ELEMENT_FLOATS);
+      if (batch.companion) batch.companion.ranges = new InstanceRanges(batch.companion.ranges.floats);
     }
   }
 
@@ -558,26 +928,276 @@ class WebGLSceneBackend implements ISceneBackend {
   /**
    * Encodes the element's primitives with the element properties of its style baked in (widths, circle scale,
    * translucent colours, opacity: a faded primitive gets all its colours baked, faded); the other opaque colours and
-   * visibility stay in the style table. Instances with a baked alpha below 1 go to the translucent pass.
+   * visibility stay in the style table. Instances with a baked alpha below 1 go to the translucent pass. A child
+   * element's subs start at its sub base, after its parent's and its earlier siblings' primitives.
    */
   private encode(element: TSceneElement): void {
     const start = performance.now();
     const { id } = element;
     const primitives = bakeElementStyle(element.primitives, this.styleOf(element));
     const index = this.table.indexOf(id);
-    const rects = encodeRects(primitives, index, this.slotOf);
-    const glyphs = encodeText(primitives, index, this.slotOf, this.atlas);
+    const subBase = this.subBases.get(id) ?? 0;
+    const { maxSub } = this.depth;
+    const rects = encodeRects(primitives, index, this.slotOf, subBase, maxSub);
+    const glyphs = this.encodeGlyphs(id, primitives, index, subBase, maxSub);
     setInstances(this.rects.opaque, id, rects.opaque);
-    setInstances(this.glyphs.opaque, id, glyphs.opaque);
-    const translucent = this.encodePathsOf(id, primitives, index);
+    const translucent = this.encodePathsOf(id, primitives, index, subBase, maxSub);
     translucent.push(
       { batch: this.rects.translucent, instances: rects.translucent },
-      { batch: this.glyphs.translucent, instances: glyphs.translucent }
+      { batch: this.glyphs.translucent, instances: glyphs.instances, companion: glyphs.subs }
     );
     this.setTranslucent(id, primitives, translucent);
     this.setSkipped(id, countSkipped(primitives));
+    if (element.parent === undefined) this.encodedCounts.set(id, primitives.length);
     this.stats.encodes += primitives.length;
     this.stats.lastEncodeMs = performance.now() - start;
+  }
+
+  /**
+   * Writes the element's opaque glyphs and their subs, and returns its translucent ones. Texts equal to those of its
+   * last encode (`sameText`), at the same element index, all opaque and with layouts still current for the text frame
+   * (`layoutsCurrent`), keep the instances they wrote (`planTextEncode`): at the same subs nothing is written, and when
+   * a primitive before them was added or removed only their subs are (`resubGlyphs`), in the sub list, which uploads
+   * alone. Either way the glyph pass and its subs hold the floats a full encode would write; a change of any text
+   * encodes them all again. An element without texts keeps no record: its encode finds no text to lay out.
+   */
+  private encodeGlyphs(
+    id: string,
+    primitives: readonly TScenePrimitive[],
+    index: number,
+    subBase: number,
+    maxSub: number
+  ): TTranslucentGlyphs {
+    const last = this.textEncodes.get(id);
+    const plan = planTextEncode(last, index, primitives, subBase, this.layoutsCurrent);
+    if (last && plan !== "encode") {
+      // The widest sub is the last text's: check it before the record takes the new subs, so a throw leaves it intact.
+      for (let at = primitives.length - 1; at >= 0; at--) {
+        if (primitives[at].kind !== "text") continue;
+        checkSub(subBase + at, maxSub);
+        break;
+      }
+      adoptTexts(last, primitives, subBase);
+      this.trackCameraTexts(id, primitives, last);
+      const { subs } = last;
+      if (plan === "resub") {
+        // The glyph instances stay as they are: only their subs are rewritten, and only the sub buffer uploads.
+        this.glyphSubs.ranges.edit(id, (glyphSubs, step) => {
+          // `resubGlyphs` walks the texts from the first glyph of the range it gets: only right for a single range.
+          if (step !== 0) throw new Error("The opaque glyph pass of a scene element must be a single step-0 range");
+          resubGlyphs(glyphSubs, last.glyphs, subs);
+        });
+      }
+      return NO_GLYPHS;
+    }
+    return this.writeGlyphs(id, primitives, index, subBase, maxSub);
+  }
+
+  /**
+   * Encodes the element's texts, laid out for the text frame (`sceneTextLayout`), into the opaque glyph pass and
+   * returns the translucent glyphs; keeps the record of its last text encode (`textEncodes` while every glyph is
+   * opaque) and of its camera-aware texts.
+   */
+  private writeGlyphs(
+    id: string,
+    primitives: readonly TScenePrimitive[],
+    index: number,
+    subBase: number,
+    maxSub: number
+  ): TTranslucentGlyphs {
+    const { texts, subs } = textsOf(primitives, subBase);
+    const layouts: (TTextLayout | undefined)[] = [];
+    const { scale, textPolicy } = this.textFrame;
+    const input: TTextEncodeInput = {
+      policy: textPolicy,
+      metrics: sceneTextMetrics,
+      layoutOf: (text: TTextPrimitive): TTextLayout => {
+        const size = resolveTextSize(text, scale, textPolicy);
+        // A world text keeps its lines until the metrics change: the backend keeps no layout of it. A heightless one
+        // takes the layout its element's bounds made and the shared cache keeps (`elementBounds`).
+        if (!text.cameraAware) {
+          layouts.push(undefined);
+          const bounded = text.height === undefined ? peekSceneTextLayout(text, size) : undefined;
+          return bounded ?? layoutText(text, size, sceneTextMetrics);
+        }
+        const layout = sceneTextLayout(text, text, size);
+        layouts.push(layout);
+        return layout;
+      },
+    };
+    const passes = this.glyphPasses;
+    passes.length = 0;
+    const placedScratch = this.glyphPlaced;
+    placedScratch.length = 0;
+    const places: TTextGlyphPlaces = { counts: [], translucent: passes, placed: placedScratch };
+    const glyphs = encodeText(primitives, index, this.slotOf, this.atlas, input, subBase, maxSub, places);
+    setInstances(this.glyphs.opaque, id, glyphs.opaque, glyphs.subs.opaque);
+    const encode: TTextEncode = {
+      index,
+      texts,
+      subs,
+      glyphs: places.counts,
+      // Kept only for an element with a translucent text: the others' glyphs all lie in the opaque pass.
+      translucent: passes.includes(true) ? passes.slice() : undefined,
+      // Kept only for an element with a camera-aware text: a re-layout rewrites the slots its lines use.
+      placed: texts.some((text) => text.cameraAware) ? placedScratch.slice() : undefined,
+      layouts,
+      policy: textPolicy,
+      generation: sceneTextMetrics.generation,
+    };
+    if (texts.length > 0 && glyphs.translucent.length === 0) this.textEncodes.set(id, encode);
+    else this.textEncodes.delete(id);
+    this.trackCameraTexts(id, primitives, encode);
+    return { instances: glyphs.translucent, subs: glyphs.subs.translucent };
+  }
+
+  /**
+   * Keeps the element in `cameraTexts` and the text index while one of its texts is camera-aware (whatever the policy
+   * says), with its baked primitives and its last text encode.
+   */
+  private trackCameraTexts(id: string, primitives: readonly TScenePrimitive[], encode: TTextEncode): void {
+    if (!encode.texts.some((text) => text.cameraAware)) {
+      this.forgetCameraTexts(id);
+      return;
+    }
+    const known = this.cameraTexts.get(id);
+    if (known) {
+      known.primitives = primitives;
+      known.encode = encode;
+    } else {
+      this.cameraTexts.set(id, { primitives, encode });
+    }
+    const element = this.elements.get(id);
+    if (!element) return;
+    const { x, y, bounds } = element;
+    this.textEpochs.track(id, encode.texts, x + bounds.minX, y + bounds.minY, x + bounds.maxX, y + bounds.maxY);
+  }
+
+  private forgetCameraTexts(id: string): void {
+    if (!this.cameraTexts.delete(id)) return;
+    this.textEpochs.forget(id);
+    this.translucentWrites.delete(id);
+  }
+
+  /**
+   * Whether texts laid out as `encoded` are what an encode for the text frame would lay out: the same metrics, and
+   * each camera-aware text laid out under the same policy (its glyphs' size mode follows it) with a layout valid at its
+   * size there (`isLayoutValid`). A world text's lines change only with the metrics.
+   */
+  private readonly layoutsCurrent = (encoded: TTextLayouts): boolean => {
+    if (encoded.generation !== sceneTextMetrics.generation) return false;
+    const { scale, textPolicy } = this.textFrame;
+    for (let index = 0; index < encoded.texts.length; index++) {
+      const text = encoded.texts[index];
+      if (!text.cameraAware) continue;
+      if (encoded.policy.cameraAware !== textPolicy.cameraAware) return false;
+      const layout = encoded.layouts[index];
+      if (!layout || !isLayoutValid(layout, resolveTextSize(text, scale, textPolicy), sceneTextMetrics)) return false;
+    }
+    return true;
+  };
+
+  /**
+   * Before a draw: the camera-aware texts the frame shows whose lines change at its scale, level or policy are laid
+   * out again and their glyphs rewritten (`relayoutTexts`); the others may stay stale until a frame shows them
+   * (`CameraTextEpochs`). Between line breaks nothing is re-encoded: the shader scales the glyphs. Allocates nothing
+   * unless a text is laid out again.
+   */
+  private refreshTexts(frame: TSceneFrame): void {
+    const textPolicy = frame.textPolicy ?? DEFAULT_TEXT_POLICY;
+    // Rewritten in place: a zoom frame allocates no text frame.
+    const drawn = this.drawTextFrame;
+    drawn.scale = frame.scale;
+    drawn.textPolicy = textPolicy;
+    this.textFrame = drawn;
+    const { stats } = this;
+    stats.lastTextRelayouts = 0;
+    stats.lastTextRelayoutGlyphs = 0;
+    stats.lastTextRelayoutBytes = 0;
+    stats.lastTextRelayoutWrittenBytes = 0;
+    stats.lastTextRelayoutDrawnBytes = 0;
+    stats.lastTextRelayoutsKept = 0;
+    stats.lastTextRelayoutMs = 0;
+    if (this.cameraTexts.size === 0) {
+      stats.staleTexts = 0;
+      return;
+    }
+    const start = performance.now();
+    const { x, y, width, height, scale, level } = frame;
+    this.textEpochs.check(x, y, width, height, scale, level, textPolicy.cameraAware);
+    stats.staleTexts = this.textEpochs.stale;
+    if (stats.lastTextRelayouts > 0) stats.lastTextRelayoutMs = performance.now() - start;
+  }
+
+  /** Whether one of the element's camera-aware texts is on the scale range and the level of a frame. */
+  private showsTexts(id: string, scale: number, level: TSceneLevel | undefined): boolean {
+    const camera = this.cameraTexts.get(id);
+    if (!camera) return false;
+    for (const text of camera.encode.texts) {
+      if (
+        text.cameraAware &&
+        (text.minScale === undefined || scale >= text.minScale) &&
+        (text.maxScale === undefined || scale < text.maxScale) &&
+        isOnLevel(text.levelMask, level)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Lays the element's camera-aware texts out for the text frame and rewrites in place the glyphs of each whose glyphs
+   * change (`TextRelayout`: only the slots up to the larger of the glyphs its lines placed before and place now; the
+   * element's rects, paths, other texts, glyph subs and translucent steps stay as they are). Other metrics or another
+   * element index, a text that would place more glyphs than it keeps, or a span its pass does not hold re-encode the
+   * element's glyphs instead (`rewriteGlyphs`), against its last encode as it was.
+   */
+  private relayoutTexts(id: string, camera: TCameraTexts): void {
+    const { encode } = camera;
+    if (encode.generation !== sceneTextMetrics.generation || encode.index !== this.table.indexOf(id)) {
+      this.rewriteGlyphs(id, camera);
+      return;
+    }
+    this.relayoutId = id;
+    this.relayoutCamera = camera;
+    try {
+      const { scale, textPolicy } = this.textFrame;
+      this.textRelayout.relayout(encode, scale, textPolicy, this.relayoutHost, this.stats);
+    } finally {
+      this.relayoutCamera = undefined;
+    }
+  }
+
+  /**
+   * Re-encodes the element's glyphs alone for the text frame, in both passes: the opaque glyph range is replaced, and,
+   * when the element had or has translucent glyphs, they replace their write among its last translucent writes, whose
+   * steps are cut again (`setTranslucent`). Its rects and paths are not encoded again.
+   */
+  private rewriteGlyphs(id: string, camera: TCameraTexts): void {
+    const before = camera.encode;
+    const index = this.table.indexOf(id);
+    const subBase = this.subBases.get(id) ?? 0;
+    const glyphs = this.writeGlyphs(id, camera.primitives, index, subBase, this.depth.maxSub);
+    const writes = this.translucentWrites.get(id);
+    const hadGlyphs = writes?.some((write) => write.batch === this.glyphs.translucent && write.instances.length > 0);
+    if (hadGlyphs || glyphs.instances.length > 0) {
+      const next = (writes ?? []).filter((write) => write.batch !== this.glyphs.translucent);
+      next.push({ batch: this.glyphs.translucent, instances: glyphs.instances, companion: glyphs.subs });
+      this.setTranslucent(id, camera.primitives, next);
+    }
+    const { stats } = this;
+    const after = this.cameraTexts.get(id)?.encode;
+    const count = changedTexts(before, after);
+    stats.textRelayouts += count;
+    stats.lastTextRelayouts += count;
+    for (const glyphCount of after?.glyphs ?? []) {
+      stats.lastTextRelayoutGlyphs += glyphCount;
+      stats.lastTextRelayoutBytes += glyphCount * GLYPH_FLOATS * FLOAT_BYTES;
+      stats.lastTextRelayoutWrittenBytes += glyphCount * GLYPH_FLOATS * FLOAT_BYTES;
+    }
+    for (const placedCount of after?.placed ?? [])
+      stats.lastTextRelayoutDrawnBytes += placedCount * GLYPH_FLOATS * FLOAT_BYTES;
   }
 
   /** Replaces the element's share of `stats.skipped`. */
@@ -591,35 +1211,57 @@ class WebGLSceneBackend implements ISceneBackend {
 
   /**
    * Writes an element's translucent instances of every translucent program (`writes`: its paths' lines and curves,
-   * then rects, then glyphs), cut into its local steps: a new step at each change of program in primitive order. Keeps
-   * the element in the overlap levels while it has translucent instances, with the bounds of its baked primitives.
+   * then rects, then glyphs), and their companion data, cut into its local steps: a new step at each change of program
+   * in primitive order. Keeps the element in the overlap levels while it has translucent instances, with the bounds of
+   * its baked primitives.
    */
   private setTranslucent(id: string, primitives: readonly TScenePrimitive[], writes: TTranslucentWrite[]): void {
+    // Nothing translucent before or now: no instances to remove, no overlap level to drop.
+    if (!this.translucentIds.has(id) && writes.every((write) => write.instances.length === 0)) return;
     const present = writes.filter((write) => write.instances.length > 0);
     for (const write of writes) if (write.instances.length === 0) removeInstances(write.batch, id);
-    const steps = elementSteps(
-      present.map((write) => ({
-        subs: write.elements ?? write.instances,
-        floats: write.elements ? PATH_ELEMENT_FLOATS : write.batch.ranges.floats,
-      }))
-    );
+    const subs = present.map(subsOfWrite);
+    const steps = elementSteps(subs);
     present.forEach((write, source) => {
-      const { batch, instances, elements } = write;
+      const { batch, instances } = write;
       batch.ranges.setSteps(id, splitSteps(instances, batch.ranges.floats, steps[source]));
-      if (batch.elements && elements) {
-        batch.elements.ranges.setSteps(id, splitSteps(elements, PATH_ELEMENT_FLOATS, steps[source]));
+      // A write with a companion list holds its subs in its companion data (`subsOfWrite`).
+      if (batch.companion) {
+        batch.companion.ranges.setSteps(
+          id,
+          splitSteps(subs[source].subs, batch.companion.ranges.floats, steps[source])
+        );
       }
     });
-    if (present.length > 0) this.levels.set(id, geometryBounds(primitives));
-    else this.levels.delete(id);
+    if (present.length > 0) {
+      this.levels.set(id, geometryBounds(primitives));
+      this.translucentIds.add(id);
+    } else {
+      this.levels.delete(id);
+      this.translucentIds.delete(id);
+    }
+    // A glyph re-encode of a camera-aware text re-cuts the steps with them (`relayoutTexts`).
+    if (present.length > 0 && this.cameraTexts.has(id)) this.translucentWrites.set(id, writes);
+    else this.translucentWrites.delete(id);
   }
 
   /**
-   * Encodes the paths of each group separately; `sub` stays the path's index in the element. A path whose stroke width
-   * is unset draws nothing and joins no group. Writes the opaque groups and returns the writes of the translucent ones,
-   * lines before curves.
+   * Encodes the paths of each group separately; `sub` stays `subBase` plus the path's index in the element. A path
+   * whose stroke width is unset draws nothing and joins no group. Writes the opaque groups and returns the writes of
+   * the translucent ones, lines before curves.
    */
-  private encodePathsOf(id: string, primitives: readonly TScenePrimitive[], index: number): TTranslucentWrite[] {
+  private encodePathsOf(
+    id: string,
+    primitives: readonly TScenePrimitive[],
+    index: number,
+    subBase: number,
+    maxSub: number
+  ): TTranslucentWrite[] {
+    // No path now and none before: no group to write or to leave.
+    if (!this.pathGroupsOf.has(id) && !primitives.some((primitive) => primitive.kind === "path")) {
+      this.animated.delete(id);
+      return [];
+    }
     const groupOfSub = primitives.map((primitive) =>
       primitive.kind === "path" && hasStrokeWidth(primitive.stroke) ? this.pathGroupOf(primitive) : undefined
     );
@@ -628,11 +1270,11 @@ class WebGLSceneBackend implements ISceneBackend {
     const translucent: TTranslucentWrite[] = [];
     for (const group of groups) {
       const select = (_: TScenePrimitive, sub: number): boolean => groupOfSub[sub] === group;
-      const encoded = encodePaths(primitives, index, PATH_BUCKET, this.slotOf, select);
+      const encoded = encodePaths(primitives, index, PATH_BUCKET, this.slotOf, select, subBase, maxSub);
       if (group.pass === "translucent") {
         translucent.push(
-          { batch: group.lines, instances: encoded.lines, elements: encoded.lineElements },
-          { batch: group.curves, instances: encoded.curves, elements: encoded.curveElements }
+          { batch: group.lines, instances: encoded.lines, companion: encoded.lineElements },
+          { batch: group.curves, instances: encoded.curves, companion: encoded.curveElements }
         );
       } else {
         setInstances(group.lines, id, encoded.lines, encoded.lineElements);
@@ -710,7 +1352,7 @@ class WebGLSceneBackend implements ISceneBackend {
     if (!this.ownsObjects()) return;
     batch.model.vertexArray.destroy();
     batch.buffer.destroy();
-    batch.elements?.buffer.destroy();
+    batch.companion?.buffer.destroy();
   }
 
   private createTemplate(data: Float32Array): Buffer {
@@ -734,18 +1376,36 @@ class WebGLSceneBackend implements ISceneBackend {
     });
   }
 
-  /** A rect or glyph batch: the quad template and one instance buffer (`layout[1]`). */
+  /**
+   * A rect or glyph batch: the quad template, one instance buffer (`layout[1]`) and, for a program with a companion
+   * list (glyphs: their subs), the companion's buffer.
+   */
   private createBatch(id: string, program: TQuadProgram, pass: TPass): TBatch {
     const { vs, fs, layout, floats, textures } = program;
     const buffer = this.createInstanceBuffer(floats);
+    const instanceBuffers: TInstanceBuffer[] = [{ name: layout[1].name, buffer }];
+    const bufferLayout: BufferLayout[] = [...layout];
+    let companion: TCompanion | undefined;
+    if (program.companion) {
+      companion = {
+        kind: program.companion.kind,
+        ranges: new InstanceRanges(program.companion.floats),
+        buffer: this.createInstanceBuffer(program.companion.floats),
+      };
+      instanceBuffers.push({ name: program.companion.layout.name, buffer: companion.buffer });
+      bufferLayout.push(program.companion.layout);
+    }
     const uniforms: TUniforms = { scene_opaquePass: pass === "opaque" ? 1 : 0 };
     const model = new Model(this.device, {
       id,
       vs,
       fs,
       topology: "triangle-strip",
-      bufferLayout: [...layout],
-      attributes: { [layout[0].name]: this.quadTemplate, [layout[1].name]: buffer },
+      bufferLayout,
+      attributes: {
+        [layout[0].name]: this.quadTemplate,
+        ...Object.fromEntries(instanceBuffers.map((instance) => [instance.name, instance.buffer])),
+      },
       bindings: this.bindings(textures),
       uniforms,
       parameters: PASS_PARAMETERS[pass],
@@ -756,11 +1416,12 @@ class WebGLSceneBackend implements ISceneBackend {
     return {
       ranges: new InstanceRanges(floats),
       buffer,
+      companion,
       model,
       uniforms,
       textures,
-      layout,
-      instanceBuffers: [{ name: layout[1].name, buffer }],
+      layout: bufferLayout,
+      instanceBuffers,
       pointedAt: 0,
     };
   }
@@ -773,7 +1434,8 @@ class WebGLSceneBackend implements ISceneBackend {
     templateData: Float32Array
   ): TBatch {
     const buffer = this.createInstanceBuffer(INSTANCE_FLOATS);
-    const elements = {
+    const elements: TCompanion = {
+      kind: "elements",
       ranges: new InstanceRanges(PATH_ELEMENT_FLOATS),
       buffer: this.createInstanceBuffer(PATH_ELEMENT_FLOATS),
     };
@@ -796,7 +1458,7 @@ class WebGLSceneBackend implements ISceneBackend {
     return {
       ranges: new InstanceRanges(INSTANCE_FLOATS),
       buffer,
-      elements,
+      companion: elements,
       model,
       uniforms,
       textures: PATH_TEXTURES,
@@ -843,8 +1505,6 @@ class WebGLSceneBackend implements ISceneBackend {
     yield this.glyphs[pass];
   }
 
-  private readonly keyOf = (id: string): number => this.depth.keyOf(id);
-
   private readonly levelOf = (id: string): number => this.levels.levelOf(id);
 
   private readonly elementOf = (id: string): TSceneElement | undefined => this.elements.get(id);
@@ -857,24 +1517,27 @@ class WebGLSceneBackend implements ISceneBackend {
    * anyway). A level change alone leaves them where they lie: a moved element's chunks are drawn from there at their
    * new draw position, a draw call or two each, until more than `MAX_OUT_OF_PLACE` buckets are out of place
    * (`orderTranslucent`); sorting instead would move and upload every instance between their old and new places. A pan
-   * or a zoom does neither.
+   * or a zoom does neither. A change of the depth's width rebuilds the runs in its frame: it bounds the steps of an
+   * element, so it numbers the draw positions.
    */
   private orderTranslucent(): void {
     if (this.levels.pending) {
       const start = performance.now();
-      this.levels.update(this.keyOf, this.elementOf);
+      this.levels.update(this.orderKeyOf, this.elementOf);
       this.stats.lastLevelsMs = performance.now() - start;
       this.stats.translucentLevels = this.levels.count;
     }
+    const { subBits } = this.depth;
     const batches = [...this.passBatches("translucent")];
-    const stamp = (): number[] => [this.levels.revision, ...batches.map((batch) => batch.ranges.revision)];
+    const stamp = (): number[] => [subBits, this.levels.revision, ...batches.map((batch) => batch.ranges.revision)];
     if (sameNumbers(stamp(), this.orderStamp)) return;
     const start = performance.now();
     const layout = (): number[] => batches.map((batch) => batch.ranges.layoutRevision);
     this.translucentRuns = orderTranslucent(
-      batches.map((batch) => ({ instances: batch.ranges, elements: batch.elements?.ranges })),
+      batches.map((batch) => ({ instances: batch.ranges, companion: batch.companion?.ranges })),
       this.levelOf,
-      this.keyOf,
+      this.orderKeyOf,
+      subBits,
       !sameNumbers(layout(), this.layoutStamp)
     );
     this.translucentBatches = batches;
@@ -968,6 +1631,8 @@ class WebGLSceneBackend implements ISceneBackend {
     uniforms.scene_viewport = viewport;
     uniforms.scene_camera = camera;
     uniforms.scene_time = frame.time;
+    uniforms.scene_level = frame.level === undefined ? 0 : LEVEL_BIT[frame.level];
+    uniforms.scene_subs = this.subs;
     uniforms.scene_dimColor = this.dimFloats;
     uniforms.graph_viewport = viewport;
     uniforms.graph_camera = camera;
@@ -980,12 +1645,20 @@ class WebGLSceneBackend implements ISceneBackend {
     return true;
   }
 
-  /** Uploads what changed in the instance data of a batch: everything after a resize or removal, else a range. */
+  /**
+   * Uploads what changed in the instance data of a batch and in its companion list, each list on its own: everything
+   * after a resize or removal, else its dirty range (a re-sub of glyphs: the range of their subs only). Returns the
+   * larger upload of the two.
+   */
   private upload(batch: TBatch): TUploadKind {
-    const generations = (): number => batch.buffer.generation + (batch.elements?.buffer.generation ?? 0);
+    const { companion } = batch;
+    const generations = (): number => batch.buffer.generation + (companion?.buffer.generation ?? 0);
     const before = generations();
-    const kind = this.uploadRanges(batch.ranges, batch.buffer);
-    if (batch.elements) this.uploadRanges(batch.elements.ranges, batch.elements.buffer);
+    let kind = this.uploadRanges(batch.ranges, batch.buffer);
+    if (companion) {
+      const companionKind = this.uploadRanges(companion.ranges, companion.buffer);
+      if (UPLOAD_COST[companionKind] > UPLOAD_COST[kind]) kind = companionKind;
+    }
     if (generations() !== before) {
       // A resize replaced a GPU buffer. Bind it now: luma would rebind it at offset 0 inside the next draw, after
       // pointInstances() set a run's offset.
@@ -1004,13 +1677,24 @@ class WebGLSceneBackend implements ISceneBackend {
       }
       if (data.byteLength > 0) {
         buffer.write(data);
-        this.stats.uploads += 1;
+        this.countUpload(data.byteLength);
       }
-    } else if (upload.kind === "range" && upload.data.byteLength > 0) {
-      buffer.write(upload.data, upload.byteOffset);
-      this.stats.uploads += 1;
+    } else if (upload.kind === "range") {
+      // Each dirty span on its own (`instanceUploadPolicy` merged them within the byte budget).
+      for (const span of upload.spans) {
+        if (span.data.byteLength === 0) continue;
+        buffer.write(span.data, span.byteOffset);
+        this.countUpload(span.data.byteLength);
+      }
     }
     return upload.kind;
+  }
+
+  /** One buffer or texture write of `bytes` in the current draw. */
+  private countUpload(bytes: number): void {
+    this.stats.uploads += 1;
+    this.frameUploadBytes += bytes;
+    this.frameUploadWrites += 1;
   }
 
   /** Uploads the dirty rows of the element table, the style table and the glyph atlas. */
@@ -1034,11 +1718,11 @@ class WebGLSceneBackend implements ISceneBackend {
         this.rebind();
       }
       this.styleTexture.writeData(this.styles.data, { width: STYLE_ROW_TEXELS, height: this.styles.rows });
-      this.stats.uploads += 1;
+      this.countUpload(STYLE_ROW_TEXELS * this.styles.rows * TABLE_TEXEL_BYTES);
     }
     if (this.atlas.takeDirty()) {
       this.atlasTexture.writeData(this.atlas.data);
-      this.stats.uploads += 1;
+      this.countUpload(this.atlas.data.byteLength);
     }
   }
 
@@ -1049,7 +1733,7 @@ class WebGLSceneBackend implements ISceneBackend {
       width: TABLE_WIDTH,
       height: to - from,
     });
-    this.stats.uploads += 1;
+    this.countUpload((to - from) * TABLE_WIDTH * TABLE_TEXEL_BYTES);
   }
 
   private rebind(): void {
@@ -1065,7 +1749,8 @@ class WebGLSceneBackend implements ISceneBackend {
 
   private hasVisibleAnimation(): boolean {
     for (const id of this.animated) {
-      if (this.elements.get(id)?.hidden === false) return true;
+      const element = this.elements.get(id);
+      if (element && !this.hiddenInScene(element)) return true;
     }
     return false;
   }

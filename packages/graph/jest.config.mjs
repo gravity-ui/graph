@@ -2,7 +2,7 @@
 const jestConfig = {
   testPathIgnorePatterns: ["/node_modules/", "/build/", "/scripts/"],
   testEnvironment: "jsdom",
-  setupFiles: ["<rootDir>/setupJest.cjs", "jest-canvas-mock"],
+  setupFiles: ["<rootDir>/setupJest.cjs", "jest-canvas-mock", "<rootDir>/setupCanvasMock.cjs"],
   setupFilesAfterEnv: ["<rootDir>/setupCullingInvariants.ts"],
   transformIgnorePatterns: [],
   moduleNameMapper: {

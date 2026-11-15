@@ -1,13 +1,13 @@
 import React, { useEffect, useRef } from "react";
 
-import { ECanDrag, Graph, TGraphConfig, TGraphSettingsConfig } from "@gravity-ui/graph";
+import { ECanDrag, Graph, TGraphConfig, TGraphSettingsConfig, TStyleRule } from "@gravity-ui/graph";
 import { ThemeProvider } from "@gravity-ui/uikit";
 import type { Meta, StoryObj } from "@storybook/react-webpack5";
 
 import { CustomLayerConfig } from "../configurations/CustomLayerConfig";
 import { oneBezierConnectionConfig } from "../configurations/bezierConnection";
 import { coloredConnections } from "../configurations/coloredConnections";
-import { customSchematicViewConfig } from "../configurations/customBlocksView";
+import { customBlockRules, customSchematicViewConfig } from "../configurations/customBlocksView";
 import { emptyGraphConfig } from "../configurations/emptyGraph";
 import { generatePrettyBlocks } from "../configurations/generatePretty";
 import { oneBlockConfig } from "../configurations/oneBlock";
@@ -22,9 +22,17 @@ import "@gravity-ui/uikit/styles/styles.css";
 const GraphApp = ({
   config,
   constants,
+  rules,
   ...settings
-}: { config: TGraphConfig; constants?: TGraphComponentProps["constants"] } & Partial<TGraphSettingsConfig>) => {
+}: {
+  config: TGraphConfig;
+  constants?: TGraphComponentProps["constants"];
+  /** Style rules of the story's custom blocks, registered on the graph's scene while the story is mounted. */
+  rules?: readonly TStyleRule[];
+} & Partial<TGraphSettingsConfig>) => {
   const graphRef = useRef<Graph | undefined>(undefined);
+
+  useEffect(() => graphRef.current?.scene.styles.add(rules ?? []), [rules]);
 
   useEffect(() => {
     if (graphRef.current) {
@@ -170,7 +178,9 @@ export const NirvanaMaxGraphTest: Story = {
 };
 
 export const CustomSchematicBlock: Story = {
-  render: (args) => <GraphApp {...args} config={customSchematicViewConfig}></GraphApp>,
+  render: (args) => (
+    <GraphApp {...args} config={customSchematicViewConfig} rules={customBlockRules as readonly TStyleRule[]}></GraphApp>
+  ),
 };
 export const CustomLayer: Story = {
   render: (args) => <GraphApp {...args} config={CustomLayerConfig}></GraphApp>,

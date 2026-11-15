@@ -1,4 +1,14 @@
-import { applyStyle, bakeElementStyle, styleDim, styleEncodeKey, styleOpacity, styleRaise } from "./style";
+import {
+  applyStyle,
+  bakeElementStyle,
+  composeChildStyle,
+  ignoresCameraAware,
+  inheritsElementStyle,
+  styleDim,
+  styleEncodeKey,
+  styleOpacity,
+  styleRaise,
+} from "./style";
 import type { TScenePrimitive, TSceneStyle } from "./types";
 
 const body: TScenePrimitive = { kind: "rect", x: 0, y: 0, width: 10, height: 10, part: "body" };
@@ -353,5 +363,115 @@ describe("opacity", () => {
   it("returns the same primitives from bakeElementStyle with opacity 1", () => {
     const primitives = [black, title];
     expect(bakeElementStyle(primitives, { opacity: 1, parts: { title: { opacity: 1 } } })).toBe(primitives);
+  });
+
+  it("computes a row's encode key once", () => {
+    const row = Object.freeze({ parts: { border: { width: 4 } } });
+    const stringify = jest.spyOn(JSON, "stringify");
+    expect(styleEncodeKey(row)).toBe(styleEncodeKey(row));
+    expect(stringify).toHaveBeenCalledTimes(1);
+    stringify.mockRestore();
+  });
+});
+
+describe("child element styles", () => {
+  it("composes a child's row from its own row and the parent's element values", () => {
+    expect(composeChildStyle({ dim: 0.2, opacity: 0.5, raise: 2 }, { dim: 0.6, opacity: 0.5 })).toEqual({
+      dim: 0.2,
+      opacity: 0.25,
+    });
+    expect(composeChildStyle(undefined, { dim: 0.6 })).toEqual({ dim: 0.6 });
+    expect([inheritsElementStyle({ dim: 0 }), inheritsElementStyle({ opacity: 1 }), inheritsElementStyle({})]).toEqual([
+      true,
+      false,
+      false,
+    ]);
+  });
+
+  it("multiplies the clamped opacities, as each renderer clamps them", () => {
+    // Unclamped, 2 * 0.4 would be 0.8 and -1 * -1 would be 1.
+    expect(composeChildStyle({ opacity: 2 }, { opacity: 0.4 }).opacity).toBe(0.4);
+    expect(composeChildStyle({ opacity: -1 }, { opacity: -1 }).opacity).toBe(0);
+    expect(composeChildStyle({ opacity: NaN }, { opacity: 0.5 }).opacity).toBe(0.5);
+  });
+});
+
+describe("cameraAware precedence (Task 17h)", () => {
+  type TText = Extract<TScenePrimitive, { kind: "text" }>;
+  const title = (cameraAware?: TText["cameraAware"]): TText => ({
+    kind: "text",
+    part: "title",
+    text: "t",
+    family: "f",
+    size: 9,
+    lineHeight: 9,
+    color: "#000000",
+    x: 0,
+    y: 0,
+    width: 10,
+    height: 20,
+    ...(cameraAware === undefined ? {} : { cameraAware }),
+  });
+  const clamps = { maxWorld: 90 };
+  const modeOf = (primitive: TScenePrimitive | undefined): unknown =>
+    primitive?.kind === "text" ? primitive.cameraAware : "not a text";
+
+  // [primitive's mode, base value, parts value, effective mode]: parts, then base, then the primitive's own, then off;
+  // an explicit false survives, and true keeps the primitive's clamps.
+  const TABLE: ReadonlyArray<[TText["cameraAware"], boolean | undefined, boolean | undefined, unknown]> = [
+    [undefined, undefined, undefined, undefined],
+    [clamps, undefined, undefined, clamps],
+    [clamps, false, undefined, false],
+    [clamps, true, undefined, clamps],
+    [undefined, true, undefined, true],
+    [true, false, true, true],
+    [clamps, true, false, false],
+    [false, undefined, true, true],
+    [clamps, false, true, clamps],
+    [undefined, undefined, false, undefined],
+  ];
+
+  for (const [own, base, parts, want] of TABLE) {
+    it(`own ${JSON.stringify(own)}, base ${base}, parts ${parts}: ${JSON.stringify(want)} on both renderers`, () => {
+      const style: TSceneStyle = {
+        ...(base === undefined ? {} : { base: { title: { cameraAware: base } } }),
+        ...(parts === undefined ? {} : { parts: { title: { cameraAware: parts } } }),
+      };
+      expect(modeOf(applyStyle(title(own), style))).toEqual(want);
+      expect(modeOf(bakeElementStyle([title(own)], style)[0])).toEqual(want);
+      // The faded path bakes every value of the part too.
+      expect(modeOf(bakeElementStyle([title(own)], { ...style, opacity: 0.5 })[0])).toEqual(want);
+    });
+  }
+
+  it("does not turn a heightless text on: its bounds cover its world size only", () => {
+    const on: TSceneStyle = { base: { title: { cameraAware: true } } };
+    const heightless: TText = { ...title(), height: undefined };
+    expect(modeOf(applyStyle(heightless, on))).toBeUndefined();
+    expect(modeOf(bakeElementStyle([heightless], on)[0])).toBeUndefined();
+    expect(modeOf(bakeElementStyle([heightless], { ...on, opacity: 0.5 })[0])).toBeUndefined();
+    expect(ignoresCameraAware(heightless, on)).toBe(true);
+    // A heightless text that declares the mode itself keeps it, and a style can still turn it off.
+    const declared: TText = { ...title(clamps), height: undefined };
+    expect(modeOf(applyStyle(declared, on))).toEqual(clamps);
+    expect(ignoresCameraAware(declared, on)).toBe(false);
+    expect(modeOf(applyStyle(declared, { parts: { title: { cameraAware: false } } }))).toBe(false);
+    expect(ignoresCameraAware(title(), on)).toBe(false);
+    expect(ignoresCameraAware(heightless, { parts: { title: { cameraAware: false } } })).toBe(false);
+  });
+
+  it("keeps the primitive's clamp object, and leaves other kinds and texts without a style alone", () => {
+    const own = title(clamps);
+    const styled = applyStyle(own, { base: { title: { cameraAware: true } } });
+    expect(styled).toBe(own);
+    expect(applyStyle(body, { base: { body: { cameraAware: false } } })).toBe(body);
+    expect(applyStyle(own, undefined)).toBe(own);
+  });
+
+  it("is an element property: part of the encode key", () => {
+    expect(styleEncodeKey({ base: { title: { cameraAware: true } } })).not.toBe(styleEncodeKey({}));
+    expect(styleEncodeKey({ parts: { title: { cameraAware: false } } })).not.toBe(
+      styleEncodeKey({ parts: { title: { cameraAware: true } } })
+    );
   });
 });

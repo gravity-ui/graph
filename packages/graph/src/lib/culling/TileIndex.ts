@@ -96,6 +96,16 @@ export class TileIndex<T> {
   /** Union of every bounds ever stored. It never shrinks, so it is a safe outer bound. */
   private readonly extent: TTileRect = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
 
+  /** The rect, the visitor and the tile range of the running `visitIn`, which is not reentrant. */
+  private visitRect: TTileRect | undefined;
+  private visitItem: ((item: T) => void) | undefined;
+  private visitTx0 = 0;
+  private visitTy0 = 0;
+  private visitTx1 = 0;
+  private visitTy1 = 0;
+  private visitFrom = 0;
+  private visitTo = 0;
+
   constructor({ tileSize, maxCellSpan = 2, maxStripSpan = 4 }: TTileIndexOptions) {
     if (!(tileSize > 0)) {
       throw new Error(`TileIndex tile size must be positive, got ${tileSize}`);
@@ -212,6 +222,87 @@ export class TileIndex<T> {
       }
       return false;
     });
+  }
+
+  /**
+   * `query` that allocates nothing per call: it visits the same items in the same order, with no closure per call and
+   * no entry per occupied tile (a Map's `forEach` with a bound callback). Not reentrant: `visit` must not visit this
+   * index again, nor change it (`set`, `delete`, `clear`) during the walk.
+   */
+  public visitIn(rect: TTileRect, visit: (item: T) => void): void {
+    if (this.visitItem) throw new Error("TileIndex.visitIn is not reentrant");
+    this.visitRect = rect;
+    this.visitItem = visit;
+    try {
+      const unbounded = this.unbounded;
+      for (let i = 0; i < unbounded.length; i++) visit(unbounded[i].item);
+      this.visitRecords(this.large);
+      const tx0 = this.toTile(rect.minX);
+      const ty0 = this.toTile(rect.minY);
+      const tx1 = this.toTile(rect.maxX);
+      const ty1 = this.toTile(rect.maxY);
+      // As `scan`: items are stored at their top-left tile, so the range widens to the left and the top.
+      const cellReach = this.maxCellSpan - 1;
+      this.visitTx0 = tx0 - cellReach;
+      this.visitTy0 = ty0 - cellReach;
+      this.visitTx1 = tx1;
+      this.visitTy1 = ty1;
+      if ((tx1 - this.visitTx0 + 1) * (ty1 - this.visitTy0 + 1) <= this.cells.size) {
+        for (let tx = this.visitTx0; tx <= tx1; tx++) {
+          for (let ty = this.visitTy0; ty <= ty1; ty++) {
+            const list = this.cells.get(cellKey(tx, ty));
+            if (list) this.visitRecords(list);
+          }
+        }
+      } else {
+        this.cells.forEach(this.visitCellEntry);
+      }
+      const stripReach = this.maxStripSpan - 1;
+      this.visitStrips(this.columns, tx0 - stripReach, tx1);
+      this.visitStrips(this.rows, ty0 - stripReach, ty1);
+    } finally {
+      this.visitRect = undefined;
+      this.visitItem = undefined;
+    }
+  }
+
+  /** `visitIn`'s walk of the occupied tiles: the lists of the tiles in its range. */
+  private readonly visitCellEntry = (list: TRecord<T>[], key: number): void => {
+    const tx = cellX(key);
+    const ty = cellY(key);
+    if (tx >= this.visitTx0 && tx <= this.visitTx1 && ty >= this.visitTy0 && ty <= this.visitTy1) {
+      this.visitRecords(list);
+    }
+  };
+
+  /** `visitIn`'s walk of the occupied strips: the lists in its range. */
+  private readonly visitStripEntry = (list: TRecord<T>[], index: number): void => {
+    if (index >= this.visitFrom && index <= this.visitTo) this.visitRecords(list);
+  };
+
+  /** `visitIn`'s columns or rows from `from` to `to`, as `scanStrips` takes them. */
+  private visitStrips(strips: TBuckets<T>, from: number, to: number): void {
+    if (to - from + 1 <= strips.size) {
+      for (let i = from; i <= to; i++) {
+        const list = strips.get(i);
+        if (list) this.visitRecords(list);
+      }
+      return;
+    }
+    this.visitFrom = from;
+    this.visitTo = to;
+    strips.forEach(this.visitStripEntry);
+  }
+
+  /** `visitIn`'s visit of the items of a list whose bounds meet its rect. */
+  private visitRecords(list: TRecord<T>[]): void {
+    const rect = this.visitRect;
+    const visit = this.visitItem;
+    if (!rect || !visit) return;
+    for (let i = 0; i < list.length; i++) {
+      const record = list[i];
+      if (intersects(record, rect)) visit(record.item);
+    }
   }
 
   /** Calls `visit` with every bucket list a query of the rect has to test; stops when it returns true. */

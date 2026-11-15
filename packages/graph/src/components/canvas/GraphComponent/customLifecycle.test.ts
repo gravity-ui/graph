@@ -1,8 +1,8 @@
 import { Graph } from "../../../graph";
 import { globalScheduler } from "../../../lib/Scheduler";
-import { Block } from "../blocks/Block";
+import { LegacyCanvasBlock } from "../blocks/LegacyCanvasBlock";
 
-class CustomBlock extends Block {
+class CustomBlock extends LegacyCanvasBlock {
   public sourceValue = 0;
   public snapshot = 0;
   public painted: number[] = [];

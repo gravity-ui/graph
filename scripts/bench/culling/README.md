@@ -75,8 +75,10 @@ hardware canvas. Inside a sandbox that blocks Mach ports, run it outside the san
 
 `scene-run.mjs` measures the working tree only. It draws one Nirvana-like scene in two columns:
 
-- `walk`: today's component walk. `NirvanaLikeBlock`, core anchors, `MultipointConnection` on the Path2D batch and a
-  `BlockGroups` layer.
+- `walk`: today's component walk. `NirvanaLikeBlock` (a `LegacyCanvasBlock`, walked and drawn on the GraphLayer
+  canvas), core anchors, `MultipointConnection` on the Path2D batch and a `BlockGroups` layer. Since plan 3a the
+  anchors are retained scene components: the walk no longer visits them, the scene draws them as child elements of
+  their blocks' (empty) elements, and the `anchors` count of `visible()` is the number of child elements in view.
 - `interpreter`: the scene prototype (`packages/graph/src/lib/scene`). A `SceneCanvasLayer` draws the same look from
   scene data without walking components.
 
@@ -95,14 +97,76 @@ tick (`api.updateBlock` / `updateConnection` re-render one tick later); the firs
 `(<n> ticks)` is the mean number of working ticks per action. `frames` are the intervals between the first ticks of
 consecutive actions.
 
+Under each column's main line the runner prints one more line, `median (min-max) of <repeats>`:
+
+- `mount`: the synchronous `setEntities` + `start` + three `graph.scheduler.performUpdate()` calls, in ms. It is
+  measured at the default camera, before the bench calls `centerAt(scale)` (so the camera is not yet at the measured
+  scale), and the three updates are the only ticks it includes. Only the `walk` column mounts real components; the
+  other columns print `n/a`. Later tasks must measure mount the same way.
+- `heap`: JS heap in MB after the scene has settled: two forced `gc()` calls separated by one animation frame. The
+  runner launches Chromium with `--js-flags=--expose-gc` and `--enable-precise-memory-info`; without them the number
+  is NaN or coarse.
+- `select-all`, `drag-start-1000`, `change-all`: `window.bench.bulk({ count: 1000 })`, run last in every repeat (each
+  repeat has its own fresh page, so the actions never touch another repeat's measurements). Each is the synchronous
+  action plus the two scheduler ticks that draw it: select every block; start a drag of 1000 selected blocks (the
+  `DragService` state, then `handleDragStart` of each, batched by `graph.scene.batchRaises` where it exists); change
+  the status of every block. Task 17i fix round 1 adds the WebGL uploads of select-all and change-all (KB, calls and
+  the ms of the calls, from the patched `WebGL2RenderingContext`), the ms of change-all's two ticks, and each upload
+  call of the last repeat's change-all (`change-all calls`).
+- `--bulk-spin [ms]` (off by default; 400 when given without a value; a finite number of ms of at least 0, anything
+  else exits with an error): every column's page runs a busy loop of `ms` (arithmetic only: no allocation, no heap
+  reads) right before `bulk()`, in the same `page.evaluate`. The bulk actions are bursts of 50–300 ms that start right
+  after the drag run, and a burst after a mostly idle main thread runs its first ~100 ms slower (Task 17f: consistent
+  with CPU power/scheduling state; GC does not explain the excess). `blocks-webgl` ticks cost 3–5 ms, so its main
+  thread is idle most of the frame before `bulk()` and its `updateBlock` share comes out ~15–25 ms above `blocks`;
+  with `--bulk-spin 400` both start busy and the gap falls to ~1–7 ms. The header line ends with `bulk-spin <ms>`.
+  Numbers with and without it are not comparable; the gates are measured without it.
+- `--export [level]` (off by default; `schematic` when given without a value): after the bulk actions (and the visit),
+  each real-blocks column (`walk`, `blocks`, `blocks-webgl`, `blocks-default`) times `graph.scene.toImage()` of the
+  whole scene (the hit test's usable rect) at the measured scale and that level, three runs per page (Task 17g). At
+  0.038 the camera is at the minimalistic level, so the export creates the anchor components of every block that the
+  camera never showed at schematic, draws, and drops them. Two lines: the total with its prepare / draw / cleanup split,
+  the ticks after the export (until an idle one), the first run of each page, the anchors created, and the store size
+  before, at the peak and after; then the JS heap after a forced GC before, at the peak (a GC forced inside the third
+  run, right after the preparation; that run's times are not reported) and after. The header line ends with
+  `export <level>`.
+
+- `--camera-aware-names [family]` (Task 17i, off by default): the `blocks` and `blocks-webgl` columns draw each block's
+  name as a camera-aware text over its body (12 screen px, at most 48 world units, bold, centred both ways in the body
+  with 12 units of padding: one to three lines from scale 1 down to 0.25), in `family` when given (`system-ui`: a font
+  whose widths do not scale linearly, laid out again at every size). The other columns and the pixel comparison at
+  the measured scale (no text is drawn at 0.038) are unchanged.
+- `--sweep [from,to,steps]` (Task 17i, off by default; `0.25,1,30` when given without a value): after the modes, the
+  `blocks` and `blocks-webgl` columns zoom about the scene's centre from `from` to `to` and back in `steps` geometric
+  steps each way, once unmeasured (lazy anchors, caches) and once measured. One line: the scheduler ticks of each step
+  (until an idle one; median, p95, max), the frame intervals (median, p95; vsync-bound), the texts the WebGL backend
+  laid out again per step (`stats.lastTextRelayouts`, summed over the step's draws) and those laid out again with the
+  same glyphs (`lastTextRelayoutsKept`, nothing written), their share of the blocks in view, the bytes and calls of
+  every WebGL upload of the step (counted on `WebGL2RenderingContext`'s `bufferSubData`, `bufferData`,
+  `texSubImage2D` and `texImage2D`, so any tree measures the same way) and the time of those calls, the re-layout ms,
+  and on steps that lay texts out the uploaded bytes over the glyph bytes of those texts (`lastTextRelayoutGlyphs` x
+  112).
+- `--toggle [scale]` (Task 17i, off by default; 0.25 when given without a value): after the sweep, the `blocks` and
+  `blocks-webgl` columns time the frame that turns the `cameraAwareText` setting off and the one that turns it on
+  again at `scale` (three rounds per page): the synchronous `updateSettings` and the ticks until an idle one, with the
+  re-layouts, the upload bytes and calls, and the glyph bytes of the texts laid out again.
+- `--upload-policy gap,spans[,enclose]` (Task 17i): sets `instanceUploadPolicy` (the dirty-span merge threshold in
+  bytes, the per-frame span cap of `InstanceRanges`, and, fix round 2, whether a dense change goes up as its enclosing
+  span: 1, the default, or 0) before the column is set up; a tree without it exits with an error.
+- `--no-bulk`: skips the bulk actions at the end of each repeat (their columns print `n/a`).
+
+Note on `first two frames`: `instrument()` now runs after the column is set up, so the walk column's mount ticks (now
+counted in `mount`) are no longer part of `first two frames`. Numbers from before this change are not comparable; use
+only the baseline recorded after it.
+
 Reading these numbers:
 
 - **Drag** is the cost of one isolated drag step: the time to the final picture. In a continuous drag the walk's
   second redraw would merge into the next frame's tick, so a per-frame comparison is closer to pan.
 - **Timer.** A `file://` page is not cross-origin isolated, so `performance.now()` is coarsened to ~0.1 ms. An idle
   tick can then read above `IDLE_TICK_MS` and count as a working tick; that is part of every `(1.1 ticks)`.
-- **Anchor counter.** The wrapper on `Anchor.prototype.render` that counts visible anchors stays installed during the
-  walk's measured ticks.
+- **Anchor counter.** Anchors no longer render: `visible()` counts the scene's child elements in the camera's world
+  rect (`graph.scene.query`), so nothing is installed on `Anchor` during the measured ticks.
 
 At the 1600×1000 view the guarantee scene fits at scale ≈ 0.038 (all 10,000 blocks visible). At 0.05 only ~59% of
 its blocks are visible.
@@ -219,7 +283,73 @@ from where they lie, between the other two; adding faded rects past the transluc
 frame, after a frame that drew from rect instances 1 and 2, grows the buffer (its generation changes) and still
 matches Canvas2D; with 10,000 faded elements and three opaque ones in one band, off screen, raising an opaque one
 (which renumbers the ranks of the whole band) runs no level update and rebuilds no draw runs, while raising a faded one
-updates the levels; the line prints the call and tick times of each raise and the first tick after adding them). A
+updates the levels; the line prints the call and tick times of each raise and the first tick after adding them), C17
+level masks (one element with a red rect for minimalistic, a green for schematic and a blue for detailed at one place:
+each level, reached by zooming, shows its own rect and matches Canvas2D, with no re-encode), C18 child elements (five
+lines on an owner P with a child circle C on its right edge, a later owner Q of the same bucket over C's right half
+and an owner X of that bucket between them, off screen: order, where C draws above P and under Q, raising P brings C
+above Q with no re-encode, also outside P where only Q lies under C (X makes the ranks move by two, so a child texel
+that kept P's old key would fall under Q), hiding P hides C, and P's `dim` and C's own `opacity` show on C as in the
+Canvas2D picture; re-basing, where a later sibling C2 stays over C when C grows so that its circle moves to sub 3,
+with 4 primitives re-encoded; childOrder, where moving C after C2 draws it over C2 in the next frame; translucent,
+where faded P, Q and C, with C in the translucent set before P, match Canvas2D on at least 3 overlap levels; one frame,
+where moving C, deleting P and adding P hidden and C again without a read keeps C hidden until P is shown, in the
+`webgl` state), C19 real blocks through the scene (two default `Block`s overlap and the later one covers the first
+one's right border and its OUT anchor, a child element; WebGL matches the Canvas2D picture in the body, the inside
+border band, the anchor and the title's darkest pixel; selecting the first block recolours its border and raises it
+with its anchor over the second one, with no re-encode), C20 export (in the `webgl` state `graph.scene.toImage()` of
+the current view draws the scene through the interpreter over the layer canvases under it; at A's body, the line L and
+B's body its opaque pixels match the WebGL picture), C21 the adaptive depth budget (three lines on
+a default `Block` W1 with 40 anchors, 20 IN and then 20 OUT, 5 + 80 primitives, and a later block W2 over its OUT
+anchors 10..19: budget, where W1 stays on WebGL with no state change, no backend failure or limit error and a sub-order
+width of 7 bits, read from the backend's `stats.subBits`; order, where its OUT anchors 0..9 draw over its body and
+border and its anchors 10..19, at subs 65..83 past the old fixed 32, under W2's body, as on Canvas2D; growth, where
+going from 10 anchors (5 bits) to 40 (7 bits) encodes only the 30 new anchors' 60 primitives, and W1's own only if its
+look changed: a width change re-encodes nothing, only the shader's `scene_subs` changes), C22 camera-aware text in a box
+that holds its line or not (Task 17h: a 48-high black block with a white 13 px "NOON", `size: 13, cameraAware: {
+maxWorld: 104 }`, centred by `align: "center"` and `verticalAlign: "middle"` in its `height: 48` box, `lineHeight` 16;
+the block's centre at CSS (400, 300); at scales 1 and 0.5 the ink's coverage-weighted centre is v1's (the line's top half
+the pitch above the box's centre, the capitals on the baseline the shared metrics put below it, the ink centre from
+`measureText`'s glyph box) within 1 CSS px on both WebGL and the Canvas2D picture, WebGL's coverage within 10 % of
+Canvas2D's with the brightest red matching, and the coverage within 25 % across the two scales (a 13 px name); at 0.125
+the block is 6 px high and the 13 px line does not fit: neither renderer draws ink), C23 text reuse on re-encode, C24 the encode fast paths (after each step every list's GPU buffer, read
+back, holds its CPU floats, and the opaque glyph pass is written and uploaded as the step needs: nothing for a keep, the
+glyph subs only (their own buffer, a range) for a re-sub, both for an encode; steps run in a row on the same backend,
+so adopted records feed later steps; after each step the backend's instances of the elements, in every batch, equal bit
+for bit, with each table's element index, the ones of the same primitives added as fresh far-away elements: C23 an
+owner with a body, two titles and a progress rect that comes and goes, the glyph subs alone written when the rect moved
+the titles' subs, the glyphs too when a title changed; C24 a child with a text under an owner that changes only a fill
+and then gains a rect, a translucent rect that comes and goes with `stats.translucentLevels`, a path added to and
+removed from an element without one), and C25 a re-subbed title over a primitive inserted before it (a black plate
+inserted between a black body and a white "NOON", then removed: WebGL's coverage of the name within 10 % of its first
+step's and of Canvas2D's, and only the glyph subs written and uploaded; a sub left behind on the GPU ties the plate's
+depth and hides the name), C26 one clip rule in both renderers (Task 17h fix round 1: three white texts on black bodies
+whose layouts overflow their boxes, a world text kept on one line wider than its box, a world text with a line pitch under
+its size whose third line's em box passes the box, and a camera-aware 14 px line that outgrows its box as the camera zooms
+out; through scales 2 to 0.15 each overflows at one scale at least, the ink outside each box grown by 1 CSS px is 0 on
+WebGL and on the Canvas2D picture, with ink inside where a line fits; a fourth text that fits its box is not clipped, so
+its "Å" ring and "j" overhang it in both renderers at scales 2 to 0.5, as in v1), C27 the same
+line breaks in both renderers (a corpus with long words split by characters, several spaces, newlines and tabs, an
+ellipsis, world and camera-aware sizes: each text's ink lines, runs of rows with ink, are as many as the shared
+layout's lines on both renderers and agree within 1 CSS px at their tops and bottoms and 1.5 at their ends) and C28
+re-layout while drawing (a zoom across a line break draws the new lines on WebGL in the same frame with a text
+re-layout counted in it, and a 1 % zoom inside the breaks re-lays out and encodes nothing; a camera-aware text left
+stale off the view draws its new lines in the first frame a pan shows it, after which `stats.staleTexts` is 0; the
+`cameraAwareText` setting redraws the world lines in the next frame and back; a web font loaded under the text's family
+recreates the backend on `loadingdone`, and the lines come from the new metrics on both renderers; a second C28 line
+zooms a camera-aware text in a translucent colour across a break: its glyphs alone are re-encoded, and its lines and a
+faded stripe of the same element match Canvas2D, recorded as C28b), and C29 break-change uploads (Task 17i: 30
+elements with camera-aware names, three in `system-ui`, three translucent and three under a translucent stripe, zoomed
+0.6 to 0.2 in 24 steps and then through the `cameraAwareText` setting off and on: each frame that lays texts out again
+uploads at most twice the glyph bytes of those texts, no list whole, and only the glyph instance lists; a frame that
+lays nothing out uploads nothing; in the middle, at the end and after the setting, every element's floats equal a
+fresh encode's, every GPU buffer holds its CPU floats, and the picture equals the one a full replay draws). M5 is a
+zoom sweep over 400 camera-aware names: the texts re-laid out per step, the glyphs written, the time, the upload kinds
+and bytes, and the opaque glyph buffer's size. M8 (Task 17i fix round 1) is the worst case of upload calls: 10,000
+camera-aware texts in view, every hundredth one laid out again in each frame (the texts, bytes, writes and the time of
+the upload calls). M6 reports, per font family (`system-ui`, `sans-serif`, `YS Text, sans-serif`, Arial, monospace) and
+character group (Latin, Cyrillic, emoji), whether its widths scale linearly (a non-linear text is
+measured at each size). A
 buffer grows only when ranges were added, and then the backend sorts the translucent instances
 first, so the first draw of each program in that frame starts at instance 0: the fourth line passes with or without
 the backend's rebind after a resize; it guards the picture, not that code path. It also
@@ -238,3 +368,65 @@ Both the harness and the webgl column of `scene-run.mjs` run on `graph.scene`: e
 `graph.scene.store` (`@internal`), the renderer is switched with `graph.updateSettings({ renderer: "webgl" })`, the
 state is read from `graph.scene.$renderer` and the backend from `graph.scene.layer.getBackend()` (also `@internal`,
 for the benches only). They no longer add a standalone `SceneRendererLayer`.
+
+### `blocks` columns (plan 3a: real scene blocks)
+
+`--renderers blocks,blocks-webgl,blocks-default` measure the real path: `CanvasBlock` subclasses that draw from level
+methods (`schematic`/`detailed`), their core anchors as child scene elements, `MultipointConnection` on GraphLayer's
+Path2D batch and a `BlockGroups` layer.
+
+- `blocks`: scene renderer `canvas`, the Nirvana-like look (`SceneNirvanaBlock`, `scene/blocks.ts`).
+- `blocks-webgl`: the same on the WebGL backend (needs `--gpu`). The mount starts only once the backend is `webgl`, so
+  every element goes through `applyMany`. Its tick still includes GraphLayer's connections on Canvas2D.
+- `blocks-default`: canvas renderer with the default `Block` look (nothing registered for `nirvana-like`).
+- `--minimap`: adds a `MiniMapLayer` to the blocks columns (compare the pan tick with and without it).
+- `--no-anchors`: the `walk` and blocks columns set `useBlocksAnchors: false`, so no `Anchor` components and no anchor
+  child elements exist; the first output line ends with `no-anchors`. Compare with a run without it to get the anchors'
+  share of pan, mount, heap and the bulk actions. Connections still end at their anchor ports.
+- **Lazy anchors** (Task 17c): anchors have no look at the minimalistic level, and a block creates its `Anchor`
+  components only once the camera shows it at the schematic or detailed level. So the mount creates the anchors of the
+  blocks the default camera shows (scale 0.5 at the world origin), and the measured view at 0.038 creates none. The
+  median line of the `walk` and blocks columns ends with `scene elements after mount` (block elements plus those
+  anchors). The blocks columns' mount waits for the block elements only.
+- `--visit [scale]` (default 0.225, the first schematic scale): after the bulk actions of every repeat, the `walk` and
+  blocks columns run `window.bench.visit()` and print two more lines:
+  - `visit`: the pan at the measured scale (the same `run()` as the `pan` mode) before and after a zoom to `scale` at
+    the view's centre and back, and their difference; and the interpreter's `store.query()` over the view at the
+    current level before and after (median of 30 calls, with its element count and the store size). The anchors
+    created by the visit stay mounted, and the level-filtered query skips their elements at the minimalistic level.
+  - `first zoom-in`: the first zoom to `scale` (one `centerAt`) as an action: the synchronous camera change, which runs
+    the anchors' view test (one hit-test search of the view), plus the scheduler ticks that draw it, in which the
+    blocks in view create their anchors; `anchors created` counts the new scene elements. `second zoom-in` repeats it
+    once the anchors exist. `pan at <scale>` is 40 camera moves at the schematic level, each with its ticks, and the
+    view test's mean ms per camera change (`anchorViewStats`), per repeat.
+
+Scene share: `scene` after a mode's numbers is the median ms per action spent in `graph.scene.update` (the rest of
+the tick is GraphLayer's connections and groups). The mount line prints `mount <ms> (scene <ms>)` and the bulk
+actions `(scene <ms>)`: level methods + element writes (`sceneComponentStats`) + the backend applies of the ticks
+(`stats.lastApplyMs`). The mount, heap, select-all, drag-start-1000 and change-all lines of `blocks` compare against
+the `walk` column.
+
+```bash
+node scripts/bench/culling/scene-run.mjs --gpu --scenes guarantee --scales 0.038 --modes pan,zoom,drag \
+  --renderers walk,cached,webgl,blocks,blocks-webgl,blocks-default --repeats 3
+node scripts/bench/culling/scene-run.mjs --gpu --scenes guarantee --scales 0.038 --modes pan \
+  --renderers blocks --repeats 3 --minimap
+node scripts/bench/culling/scene-run.mjs --gpu --scenes guarantee --scales 0.038 --modes pan \
+  --renderers walk,blocks,blocks-webgl,blocks-default --repeats 3 --visit
+```
+
+Plan 3a numbers (guarantee scene at 0.038, `--gpu`, 5 repeats, Apple M3 Pro, Chromium 145, ANGLE Metal), against the
+baseline before plan 3a (ce527c07, 3 repeats). Median ms (MB for heap); the scene share in parentheses. Canvas 2D
+columns vary by about ±1 ms run to run, so compare a column with `cached` of the same run.
+
+| Column | pan | mount | heap | select-all | drag-start-1000 | change-all |
+|---|---|---|---|---|---|---|
+| `walk`, baseline | 37.45 | 753.8 | 279.1 | 98.8 | 40.8 | 267.0 |
+| `walk` | 17.78 | 514.4 | 194.6 | 79.5 | 24.6 | 116.5 |
+| `cached`, baseline | 13.72 | n/a | 34.9 | 4.2 | 0.1 | 0.9 |
+| `cached` | 14.78 | n/a | 35.9 | 5.1 | 0.0 | 0.8 |
+| `webgl`, baseline | 1.04 | n/a | 115.5 | 10.6 | 0.1 | 1.7 |
+| `webgl` | 0.78 | n/a | 130.4 | 12.9 | 0.1 | 1.5 |
+| `blocks` | 14.03 (11.50) | 523.7 (46.6) | 193.5 | 59.2 (0.0) | 19.3 (0.0) | 139.0 (27.9) |
+| `blocks-webgl` | 3.06 (0.27) | 718.9 (295.8) | 267.5 | 77.4 (11.4) | 9.6 (0.7) | 187.3 (55.7) |
+| `blocks-default` | 11.55 (8.93) | 525.9 (47.9) | 195.3 | 59.2 (0.0) | 17.6 (0.0) | 123.4 (21.9) |

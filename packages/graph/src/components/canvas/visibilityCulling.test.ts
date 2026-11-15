@@ -4,6 +4,7 @@ import { TBlockId } from "../../store/block/Block";
 
 import { Anchor } from "./anchors";
 import { Block, TBlock } from "./blocks/Block";
+import { LegacyCanvasBlock } from "./blocks/LegacyCanvasBlock";
 import { BlockConnection } from "./connections/BlockConnection";
 
 const block = (id: string, x: number, y: number): TBlock => ({
@@ -36,7 +37,8 @@ describe("Visibility culling of graph components", () => {
   };
 
   beforeEach(() => {
-    graph = new Graph({}, document.createElement("div"));
+    // The walk tests use the walked (legacy) block; scene blocks are covered by Block.scene.test.ts.
+    graph = new Graph({ settings: { blockComponents: { Block: LegacyCanvasBlock } } }, document.createElement("div"));
     graph.setEntities({
       blocks: [block("near", 100, 100), block("far", 50_000, 50_000)],
       connections: [{ id: "near-far", sourceBlockId: "near", targetBlockId: "far" }],
@@ -121,6 +123,8 @@ describe("Visibility culling of graph components", () => {
   });
 
   it("draws visible anchors outside their off-screen block's bounds", () => {
+    // 20 anchors are 40 primitives under one block: they fit the depth's adaptive width, so no limit is reported.
+    const error = jest.spyOn(console, "error");
     graph.setEntities({
       blocks: [
         {
@@ -135,18 +139,26 @@ describe("Visibility culling of graph components", () => {
     frames(8);
     const anchor = graph.rootStore.blocksList.getBlockState("overflow")?.getAnchorById("a15")?.getViewComponent();
     expect(anchor?.getPosition()).toEqual({ x: 200, y: 168 });
-    const arc = jest.spyOn(view("overflow").context.ctx, "arc").mockClear();
 
     graph.getGraphLayer().performRender();
     frames(3);
 
     expect(view("overflow").isRendered()).toBe(false);
-    expect(arc).toHaveBeenCalledWith(200, 168, 9, 0, 2 * Math.PI);
+    const anchorElement = anchor?.getSceneElementId() ?? "";
+    expect(graph.scene.store.get(anchorElement)?.x).toBe(200);
+    const viewport = { minX: 0, minY: 0, maxX: 2000, maxY: 1600 };
+    expect(graph.scene.store.query(viewport).map((element) => element.id)).toContain(anchorElement);
     expect(graph.getElementOverPoint({ x: 200, y: 168 }, [Anchor])).toBe(anchor);
+    expect(graph.scene.store.childrenOf(view("overflow").getSceneElementId())).toHaveLength(20);
+    expect(error).not.toHaveBeenCalled();
   });
 
   it("keeps point and rectangle queries consistent for anchors in a skipped branch", () => {
     graph.api.updateBlock({ id: "far", anchors: [{ id: "out", blockId: "far", type: "OUT" }] });
+    // The camera shows the block once, so it creates its anchor (lazy anchors, Task 17c), and leaves it again.
+    lookAt(49_800, 49_800);
+    frames(3);
+    lookAt(0, 0);
     frames(5);
     const anchor = graph.rootStore.blocksList.getBlockState("far")?.getAnchorById("out")?.getViewComponent();
     expect(anchor).toBeInstanceOf(Anchor);

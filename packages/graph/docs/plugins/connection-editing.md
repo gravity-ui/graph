@@ -31,7 +31,7 @@ In React, use `useLayer(graph, ConnectionEditingLayer, props)` from `@gravity-ui
 A connection starts from the first match under the cursor:
 
 1. **A connection port**: a port within `searchRadius` whose meta has `ConnectionEditingLayer.PortMetaKey` with `snappable: true`. While dragging, the endpoint snaps to the nearest connection port within `searchRadius`; the per-port `snapCondition` can reject it.
-2. **An anchor**, when the `useBlocksAnchors` setting is on. It connects to an anchor of another block.
+2. **An anchor**, when the `useBlocksAnchors` setting is on. It connects to an anchor of another block. Anchors are hit from the schematic level on: at the minimalistic level the block under the cursor is hit instead (see [Anchors](../components/anchors.md#drawing-and-lazy-creation)).
 3. **A block**, while Shift is held. It connects to another block; the preview line starts at the mousedown point.
 
 Connection ports are also valid targets for anchor and block sources. Anchor connections are created in the OUT → IN direction, whichever end the drag started from. Use `canStart` to restrict sources, for example to connection ports only:

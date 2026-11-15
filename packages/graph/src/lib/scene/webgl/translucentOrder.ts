@@ -1,20 +1,32 @@
 import type { InstanceRanges, TStepInstances } from "./InstanceRanges";
 import { SCENE_DEPTH } from "./depth";
 
-/** The depth keys of elements: the raised zIndex band, then the rank in it. */
-const ELEMENT_KEYS = 2 ** (SCENE_DEPTH.BAND_BITS + SCENE_DEPTH.RANK_BITS);
+/**
+ * The element keys of the translucent order: the root's depth key times the sub-order width, plus the sub base of a
+ * child element (`WebGLSceneBackend.orderKeyOf`). They lie below the depth indices at every width.
+ */
+export const ELEMENT_KEYS = 2 ** SCENE_DEPTH.INDEX_BITS;
 
 /**
- * The steps an element can have: one per change of program in primitive order, so at most one per primitive, or two
- * for a path (its line pieces, then its curve pieces).
+ * The steps an element can have at a sub-order width: one per change of program in primitive order, so at most one
+ * per primitive, or two for a path (its line pieces, then its curve pieces); an element has at most 2^subBits
+ * primitives.
  */
-export const MAX_STEPS = 2 * 2 ** SCENE_DEPTH.SUB_BITS;
+export function maxStepsOf(subBits: number): number {
+  return 2 * 2 ** subBits;
+}
 
-/** The float of a rect or glyph instance, and of a path instance's element data, that holds the primitive's `sub`. */
+/**
+ * The float of a rect instance, and of a path instance's element data, that holds the primitive's `sub`. A glyph's sub
+ * is the only float of its instance in the glyph sub list (`TEncodedGlyphs.subs`).
+ */
 export const SUB_FLOAT = 1;
 
-/** One program's translucent instances of one element: `subs` holds each instance's `sub` at float `SUB_FLOAT`. */
-export type TElementSubs = { subs: Float32Array; floats: number };
+/**
+ * One program's translucent instances of one element: `subs` holds each instance's `sub` at float `subFloat` (default
+ * `SUB_FLOAT`) of its `floats` floats.
+ */
+export type TElementSubs = { subs: Float32Array; floats: number; subFloat?: number };
 
 /** Consecutive instances of one element and one program that share a step. */
 export type TStepChunk = { step: number; first: number; count: number };
@@ -29,8 +41,8 @@ export function elementSteps(sources: readonly TElementSubs[]): TStepChunk[][] {
   const chunks = sources.map((): TStepChunk[] => []);
   const next = sources.map(() => 0);
   const subAt = (source: number, index: number): number => {
-    const { subs, floats } = sources[source];
-    return subs[index * floats + SUB_FLOAT];
+    const { subs, floats, subFloat = SUB_FLOAT } = sources[source];
+    return subs[index * floats + subFloat];
   };
   const countOf = (source: number): number => sources[source].subs.length / sources[source].floats;
   let step = -1;
@@ -67,10 +79,10 @@ export function splitSteps(data: Float32Array, floats: number, chunks: readonly 
 }
 
 /**
- * The translucent instances of one program, kept per element and step. `elements` is the element data of a path
- * program, kept in step with `instances`.
+ * The translucent instances of one program, kept per element and step. `companion` is a second per-instance list of
+ * the program kept in step with `instances` (a path's element data, a glyph's sub): it is sorted along with them.
  */
-export type TTranslucentSource = { instances: InstanceRanges; elements?: InstanceRanges };
+export type TTranslucentSource = { instances: InstanceRanges; companion?: InstanceRanges };
 
 /** One instanced draw call: `count` instances of one source from instance `first`. */
 export type TTranslucentRun = { source: number; first: number; count: number };
@@ -78,14 +90,17 @@ export type TTranslucentRun = { source: number; first: number; count: number };
 /** Instances of one source with one draw position `(level, step)`: a contiguous range of its buffer. */
 export type TBucket = { bucket: number; first: number; count: number };
 
-/** The draw position of a step of an element on a level: levels first, then steps. */
-export function bucketOf(level: number, step: number): number {
-  return level * MAX_STEPS + step;
+/** The draw position of a step of an element on a level at the depth's sub-order width: levels first, then steps. */
+export function bucketOf(level: number, step: number, subBits: number): number {
+  return level * maxStepsOf(subBits) + step;
 }
 
-/** The buffer order of a chunk of translucent instances: its level, its step, then its element's depth key. */
-export function chunkOrder(level: number, step: number, elementKey: number): number {
-  return bucketOf(level, step) * ELEMENT_KEYS + elementKey;
+/**
+ * The buffer order of a chunk of translucent instances: its level, its step, then its element key. The order is the
+ * same at every width that holds the scene's roots; the numbers are not, so they are never kept across frames.
+ */
+export function chunkOrder(level: number, step: number, elementKey: number, subBits: number): number {
+  return bucketOf(level, step, subBits) * ELEMENT_KEYS + elementKey;
 }
 
 /**
@@ -96,10 +111,10 @@ export function chunkOrder(level: number, step: number, elementKey: number): num
 export const MAX_OUT_OF_PLACE = 16;
 
 /** A source's ranges grouped by draw position, in buffer order; a sorted source has one bucket per position. */
-export function sourceBuckets(ranges: InstanceRanges, levelOf: (id: string) => number): TBucket[] {
+export function sourceBuckets(ranges: InstanceRanges, levelOf: (id: string) => number, subBits: number): TBucket[] {
   const buckets: TBucket[] = [];
   ranges.forEachRange((id, offset, count, step) => {
-    const bucket = bucketOf(levelOf(id), step);
+    const bucket = bucketOf(levelOf(id), step, subBits);
     const last = buckets[buckets.length - 1];
     if (last && last.bucket === bucket && last.first + last.count === offset) last.count += count;
     else buckets.push({ bucket, first: offset, count });
@@ -148,7 +163,8 @@ export function mergeBuckets(sources: readonly (readonly TBucket[])[]): TTranslu
  * Returns the draw calls of all sources: for each level, for each step, an instanced draw per program with instances
  * there. The elements of one level never overlap (`TranslucentLevels`), so they share draws, and the steps keep each
  * element's own primitive order; where translucent primitives overlap, this is the scene order. `levelOf` gives an
- * element's level, `keyOf` its depth key.
+ * element's level, `keyOf` its element key (below `ELEMENT_KEYS`) and `subBits` the depth's sub-order width of this
+ * frame, which bounds the steps of an element.
  *
  * With `compact` (the default; the backend passes it when ranges were added or removed, which uploads the lists in
  * full anyway) every source's chunks are first sorted by `(level, step, element key)`, primitive order kept inside a
@@ -161,16 +177,18 @@ export function orderTranslucent(
   sources: readonly TTranslucentSource[],
   levelOf: (id: string) => number,
   keyOf: (id: string) => number,
+  subBits: number,
   compact = true
 ): TTranslucentRun[] {
   const sortSources = (): void => {
-    const order = (id: string, step: number): number => chunkOrder(levelOf(id), step, keyOf(id));
-    for (const { instances, elements } of sources) {
+    const order = (id: string, step: number): number => chunkOrder(levelOf(id), step, keyOf(id), subBits);
+    for (const { instances, companion } of sources) {
       instances.sortBy(order);
-      elements?.sortBy(order);
+      companion?.sortBy(order);
     }
   };
-  const bucketLists = (): TBucket[][] => sources.map((source) => sortBuckets(sourceBuckets(source.instances, levelOf)));
+  const bucketLists = (): TBucket[][] =>
+    sources.map((source) => sortBuckets(sourceBuckets(source.instances, levelOf, subBits)));
   if (compact) sortSources();
   let lists = bucketLists();
   if (!compact && lists.reduce((sum, list) => sum + outOfPlace(list), 0) > MAX_OUT_OF_PLACE) {

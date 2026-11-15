@@ -353,7 +353,7 @@ function BlockInfo({ graph, blockId }: Props): JSX.Element | null {
     <div>
       <p>Position: {geometry.x}, {geometry.y}</p>
       <p>Size: {geometry.width} x {geometry.height}</p>
-      <p>Selected: {blockState.selected ? "Yes" : "No"}</p>
+      <p>Selected: {blockState.$selected.value ? "Yes" : "No"}</p>
     </div>
   );
 }
@@ -377,7 +377,7 @@ Hook to get the view component of a block. Useful for accessing rendering-specif
 ```typescript
 import { useBlockViewState } from "@gravity-ui/graph-react";
 import type { Graph, TBlockId } from "@gravity-ui/graph";
-import type { Block } from "@gravity-ui/graph";
+import type { CanvasBlock } from "@gravity-ui/graph";
 
 interface Props {
   graph: Graph;
@@ -385,15 +385,15 @@ interface Props {
 }
 
 function BlockView({ graph, blockId }: Props): JSX.Element | null {
-  // Returns: Block | undefined (the view component)
-  const viewComponent: Block | undefined = useBlockViewState(graph, blockId);
+  // Returns: CanvasBlock | undefined (the view component)
+  const viewComponent: CanvasBlock | undefined = useBlockViewState(graph, blockId);
 
   if (!viewComponent) return null;
 
-  // Access view-specific methods
-  const anchors = viewComponent.getAnchors();
-  
-  return <div>Block has {anchors.length} anchors</div>;
+  // The block's data (anchors included) lives in its BlockState; the view component draws it.
+  const anchors = graph.rootStore.blocksList.getBlockState(blockId)?.$anchors.value ?? [];
+
+  return <div>Block has {anchors.length} anchors, view at x = {viewComponent.connectedState.x}</div>;
 }
 ```
 
@@ -406,7 +406,7 @@ function BlockView({ graph, blockId }: Props): JSX.Element | null {
 
 #### Returns
 
-Returns the block's view component (`Block`) or `undefined`.
+Returns the block's view component (`CanvasBlock`) or `undefined`.
 
 ### useBlockAnchorState
 
@@ -429,7 +429,7 @@ function AnchorInfo({ graph, anchor }: Props): JSX.Element | null {
   if (!anchorState) return null;
 
   return (
-    <div className={anchorState.selected ? "selected" : ""}>
+    <div className={anchorState.$selected.value ? "selected" : ""}>
       Anchor: {anchor.id}
     </div>
   );

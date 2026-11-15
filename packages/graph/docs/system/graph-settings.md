@@ -17,6 +17,9 @@ Settings can be applied when creating a new graph instance:
 ```typescript
 import { Graph, ECanDrag } from '@gravity-ui/graph';
 
+const container = document.getElementById("graph-container") as HTMLDivElement | null;
+if (!container) throw new Error("No #graph-container element");
+
 // Create a graph instance with custom settings
 const graph = new Graph(
   {
@@ -27,7 +30,7 @@ const graph = new Graph(
       // other settings...
     },
   },
-  document.getElementById("graph-container")
+  container
 );
 ```
 
@@ -80,6 +83,7 @@ These settings control the interactive behaviors and visual styles of the graph.
 | `background` | typeof Component | `undefined` | Custom background component |
 | `renderer` | 'canvas' \| 'webgl' | `'canvas'` | Scene renderer: `'canvas'` draws the scene with the Canvas 2D interpreter, `'webgl'` with the lazily loaded WebGL backend, see [Scene](./scene.md) |
 | `webglBackend` | () => Promise<ISceneBackendModule> | built-in dynamic import | Loader of the WebGL backend module, used when `renderer` is `'webgl'` |
+| `cameraAwareText` | boolean | `true` | Whether scene texts may follow the camera. `cameraAware` texts keep a fixed screen size and re-fit their box as the camera zooms; `false` makes every scene text world-sized, whatever its primitive and the styles say. It is the switch for weak devices, which an app may hand to its users. A change redraws the scene (WebGL lays its camera-aware texts out again); no block rebuilds its look. `graph.scene.$cameraAwareText` is the setting as a signal, and `graph.scene.explain()` reports `cameraAwareText: "forced-off"` while it is off. See [Text primitives](./scene.md#text-primitives) |
 
 ## Graph Colors
 
@@ -159,8 +163,8 @@ Constants control the sizing, spacing, and other numerical values used throughou
 
 | Constant | Default | Description |
 |----------|---------|-------------|
-| `SCALES` | `[0.125, 0.225, 0.7]` | Scale thresholds for different levels of detail. These values determine when the block switches between rendering modes:\n- First value (0.125): Below this zoom level, blocks are rendered in minimalistic mode showing just basic shapes\n- Second value (0.225): Between first and second value, blocks are rendered in schematic mode with basic details\n- Third value (0.7): Above this zoom level, blocks are rendered in detailed mode with full information |
-| `DEFAULT_Z_INDEX` | `1` | Default z-index for blocks |
+| `SCALES` | `[0.125, 0.225, 0.7]` | Scale thresholds of the levels of detail (`graph.scene.$level`) with the default strategy: the scene level is minimalistic below the second value, schematic from it and detailed from the third. The default block title shows from the first value. |
+| `DEFAULT_Z_INDEX` | `200` | Scene bucket of block elements; the theme raises a selected or dragged block by 1. Also the tree z-index of a `LegacyCanvasBlock` |
 | `HEAD_HEIGHT` | `64` | Height of the block header section |
 | `BODY_PADDING` | `24` | Padding inside block body |
 | `WIDTH` | `200` | Default block width |

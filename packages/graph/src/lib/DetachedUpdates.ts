@@ -82,6 +82,21 @@ export class DetachedUpdates {
     return applied;
   }
 
+  /**
+   * Runs `run` with flushes suppressed: a `flush()` it causes (a reconcile of detached children outside a frame)
+   * does nothing, and what it queues stays queued for the caller to apply or for the next frame. Used to apply chosen
+   * entries now (`CoreComponent.applyUpdatesNow`) without applying the rest of the queue.
+   */
+  public isolate(run: () => void): void {
+    const flushing = this.flushing;
+    this.flushing = true;
+    try {
+      run();
+    } finally {
+      this.flushing = flushing;
+    }
+  }
+
   /** Drops every queued entry, for example when the tree's root unmounts. */
   public clear(): void {
     for (const entry of this.queue) if (entry) entry.slot = -1;

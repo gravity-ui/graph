@@ -7,29 +7,14 @@ import { Layer, LayerProps } from "../../services/Layer";
 import { GraphComponent, TGraphComponentProps } from "./GraphComponent";
 import { Anchor, TAnchor, TAnchorProps } from "./anchors";
 import { Block, TBlock } from "./blocks/Block";
+import { LegacyCanvasBlock } from "./blocks/LegacyCanvasBlock";
 
-class TracedAnchor<T extends TAnchorProps = TAnchorProps> extends Anchor<T> {
-  public readonly paint: string[] = [];
-
-  protected willRender() {
-    this.paint.push("willRender");
-    super.willRender();
-  }
-
-  protected render() {
-    this.paint.push("render");
-    super.render();
-  }
-
-  protected didRender() {
-    this.paint.push("didRender");
-    super.didRender();
-  }
-}
+/** Anchors are retained scene components: the frame never paints them, the scene draws their child elements. */
+class TracedAnchor<T extends TAnchorProps = TAnchorProps> extends Anchor<T> {}
 
 const AnchorView: typeof Anchor = TracedAnchor;
 
-class TracedBlock extends Block {
+class TracedBlock extends LegacyCanvasBlock {
   public readonly paint: string[] = [];
 
   protected willRender() {
@@ -155,27 +140,31 @@ describe("Native viewport traversal through Graph", () => {
       connections: [{ id: "edge", sourceBlockId: "far", sourceAnchorId: "out", targetBlockId: "near" }],
     });
 
-    expect(anchor("far", "out").isMounted()).toBe(true);
+    // Anchors are created lazily (Task 17c): the offscreen block has no anchor component; it owns and positions the
+    // anchor's port, so the connection keeps its endpoint.
+    expect(graph.rootStore.blocksList.getBlockState("far")?.getAnchorById("out")?.getViewComponent()).toBeUndefined();
     expect(view("far").getInputPort().getPoint()).toEqual({ x: 50_000, y: 50_050 });
-    expect(view("far").getAnchorPort("out").component).toBe(anchor("far", "out"));
+    expect(view("far").getAnchorPort("out").component).toBe(view("far"));
+    expect(view("far").getAnchorPort("out").getPoint()).toEqual({ x: 50_100, y: 50_088 });
     expect(graph.rootStore.connectionsList.getConnectionState("edge")?.getViewComponent()?.connectionPoints).toEqual([
       { x: 50_100, y: 50_088 },
       { x: 100, y: 150 },
     ]);
     expect(view("near").paint).toContain("render");
     expect(view("far").paint).toEqual([]);
-    expect(anchor("far", "out").paint).toEqual([]);
   });
 
-  it("reconciles and removes offscreen anchors while keeping connection endpoints current", () => {
+  it("drops an offscreen block's anchors when its anchor list changes, keeping connection endpoints current", () => {
+    // In view first, so the block has created its anchor (lazy anchors, Task 17c).
     start({
-      blocks: [block("near", 100, 100), block("far", 50_000, 50_000, [{ id: "old", blockId: "far", type: "OUT" }])],
+      blocks: [block("near", 100, 100), block("far", 400, 100, [{ id: "old", blockId: "far", type: "OUT" }])],
       connections: [{ id: "edge", sourceBlockId: "near", targetBlockId: "far" }],
     });
     const far = view("far");
     const oldAnchor = anchor("far", "old");
     const removed = jest.fn();
     oldAnchor.onUnmounted(removed);
+    far.paint.length = 0;
     graph.api.updateBlock({
       id: "far",
       x: 60_000,
@@ -184,12 +173,14 @@ describe("Native viewport traversal through Graph", () => {
     });
     frames(4);
 
-    const nextAnchor = anchor("far", "new");
     expect(far.state).toMatchObject({ x: 60_000, y: 70_000 });
     expect(oldAnchor.isMounted()).toBe(false);
     expect(removed).toHaveBeenCalledTimes(1);
-    expect(nextAnchor.isMounted()).toBe(true);
-    expect(nextAnchor.getPosition()).toEqual({ x: 60_100, y: 70_088 });
+    // The new list is created lazily: no component while the block is offscreen, and the block positions the port.
+    expect(graph.rootStore.blocksList.getBlockState("far")?.getAnchorById("new")?.getViewComponent()).toBeUndefined();
+    expect(far.getAnchorPort("new").component).toBe(far);
+    expect(far.getAnchorPort("new").getPoint()).toEqual({ x: 60_100, y: 70_088 });
+    // The block-point connection follows the block, as before.
     expect(
       graph.rootStore.connectionsList.getConnectionState("edge")?.getViewComponent()?.connectionPoints?.[1]
     ).toEqual({
@@ -197,15 +188,10 @@ describe("Native viewport traversal through Graph", () => {
       y: 70_050,
     });
     expect(far.paint).toEqual([]);
-    expect(nextAnchor.paint).toEqual([]);
 
     const port = far.getInputPort();
-    const nextRemoved = jest.fn();
-    nextAnchor.onUnmounted(nextRemoved);
     graph.setEntities({ blocks: [], connections: [] });
     frames(3);
-    expect(nextRemoved).toHaveBeenCalledTimes(1);
-    expect(nextAnchor.isMounted()).toBe(false);
     expect(far.isEntityAvailable()).toBe(false);
     expect(graph.rootStore.connectionsList.getPort(port.id)).toBeUndefined();
     expect(graph.getElementsOverRect({ x: 59_000, y: 69_000, width: 2000, height: 2000 }, [Block, Anchor])).toEqual([]);
@@ -223,13 +209,20 @@ describe("Native viewport traversal through Graph", () => {
     });
 
     expect(anchor("overflow", "out").getPosition()).toEqual({ x: 200, y: 100 });
-    expect(anchor("overflow", "out").paint).toContain("render");
+    expect(
+      graph.scene.store.query({ minX: 190, minY: 90, maxX: 210, maxY: 110 }).map((element) => element.id)
+    ).toContain(anchor("overflow", "out").getSceneElementId());
     expect(view("overflow").paint).toEqual([]);
     expect(graph.getElementOverPoint({ x: 200, y: 100 }, [Anchor])).toBe(anchor("overflow", "out"));
   });
 
   it("keeps world point and rectangle hits consistent in a skipped branch before and after an update", () => {
     start({ blocks: [block("far", 50_000, 50_000, [{ id: "out", blockId: "far", type: "OUT" }])] });
+    // The camera shows the block once, so it creates its anchor (lazy anchors, Task 17c), and leaves it again.
+    graph.cameraService.set({ x: -49_900 * 0.5, y: -49_900 * 0.5 });
+    frames(3);
+    graph.cameraService.set({ x: 0, y: 0 });
+    frames(3);
     const target = anchor("far", "out");
     const iterate = jest.spyOn(view("far"), "iterate");
     graph.getGraphLayer().performRender();
@@ -248,7 +241,6 @@ describe("Native viewport traversal through Graph", () => {
       expect(graph.getElementsOverRect({ x: x + 49, y: y + 49, width: 2, height: 2 }, [Block])).toEqual([view("far")]);
     }
     expect(graph.getElementOverPoint({ x: 50_100, y: 50_088 }, [Anchor])).toBeUndefined();
-    expect(target.paint).toEqual([]);
   });
 
   it("raises a selected block that has never been painted above overlapping offscreen siblings", () => {
@@ -262,6 +254,7 @@ describe("Native viewport traversal through Graph", () => {
 
     expect(view("first").state.selected).toBe(true);
     expect(view("first").zIndex).toBeGreaterThan(view("second").zIndex);
+    expect(graph.scene.compareOrder(view("first"), view("second"))).toBeGreaterThan(0);
     expect(graph.getElementOverPoint({ x: 50_050, y: 50_050 }, [Block])).toBe(view("first"));
     expect(view("first").paint).toEqual([]);
   });

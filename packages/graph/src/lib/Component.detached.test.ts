@@ -15,7 +15,7 @@ const viewport: TTileRect = { minX: 0, minY: 0, maxX: 100, maxY: 100 };
 
 /** A detached leaf that logs the hooks it receives. */
 class Item extends Component<TItemProps, TItemState> {
-  public static override readonly detached = true;
+  public static override readonly mode = "retained";
 
   public applied = 0;
 
@@ -373,11 +373,11 @@ describe("detached components", () => {
   it("reject attached children, a detached root and culling", () => {
     const { root } = createRoot({ Child: BadGroup, names: ["g"] });
     try {
-      expect(() => CoreComponent.update(root)).toThrow(/must be detached/);
+      expect(() => CoreComponent.update(root)).toThrow(/must be retained/);
     } finally {
       CoreComponent.unmount(root);
     }
-    expect(() => CoreComponent.mount(Item, { log: [], name: "root" })).toThrow(/is detached/);
+    expect(() => CoreComponent.mount(Item, { log: [], name: "root" })).toThrow(/is retained/);
 
     class CullingItem extends Item {
       constructor(props: TItemProps, parent: CoreComponent) {

@@ -5,6 +5,7 @@ import { drawElements } from "../../lib/scene/drawPrimitives";
 import type { TSceneChange } from "../../lib/scene/types";
 import type { ISceneBackend, ISceneBackendModule } from "../../lib/scene/webgl/backendTypes";
 import { Layer } from "../Layer";
+import { ECameraScaleLevel } from "../camera/cameraScaleEnums";
 import { ESelectionStrategy } from "../selection";
 import { StyleResolver } from "../styles/StyleResolver";
 import type { TStyleParts } from "../styles/types";
@@ -56,9 +57,11 @@ function createFakeGpu(): TFakeGpu {
         stats: {},
         replay: (store: { forEach(cb: (element: { id: string }) => void): void }): void =>
           store.forEach((element) => known.add(element.id)),
-        apply: (change: TSceneChange): void => {
-          if (change.type === "delete") known.delete(change.element.id);
-          else known.add(change.element.id);
+        applyMany: (changes: readonly TSceneChange[]): void => {
+          for (const change of changes) {
+            if (change.type === "delete") known.delete(change.element.id);
+            else known.add(change.element.id);
+          }
         },
         setStyles: (): void => undefined,
         draw: (): boolean => {
@@ -155,6 +158,18 @@ describe("graph.scene", () => {
     expect(Object.isFrozen(view)).toBe(true);
   });
 
+  it("query returns child elements after their parent, with parent and childOrder", () => {
+    graph = new Graph({}, document.createElement("div"));
+    const base = { x: 0, y: 0, bounds: { minX: 0, minY: 0, maxX: 10, maxY: 10 }, primitives: [] };
+    graph.scene.store.add({ id: "p", zIndex: 200, ...base });
+    graph.scene.store.add({ id: "c", zIndex: 0, parent: "p", childOrder: 4, ...base });
+    const views = graph.scene.query({ x: 0, y: 0, width: 10, height: 10 });
+    expect(views.map((view) => [view.id, view.parent, view.childOrder])).toEqual([
+      ["p", undefined, 0],
+      ["c", "p", 4],
+    ]);
+  });
+
   it("queries by a TRect, leaving out hidden and distant elements", () => {
     graph = new Graph({}, document.createElement("div"));
     graph.scene.store.add({ ...rectElement("near"), x: 100, y: 100 });
@@ -167,6 +182,42 @@ describe("graph.scene", () => {
     expect(ids({ x: 0, y: 0, width: 2000, height: 2000 })).toEqual(["near", "far"]);
   });
 
+  it("redraws on a level change that no camera change caused", () => {
+    graph = new Graph({}, document.createElement("div"));
+    graph.start();
+    graph.cameraService.set({ scale: 0.5 });
+    graph.scheduler.performUpdate();
+    const render = jest.spyOn(graph.scene.layer as unknown as { render(): void }, "render");
+    graph.updateSettings({ getCameraBlockScaleLevel: () => ECameraScaleLevel.Detailed });
+    graph.scheduler.performUpdate();
+    expect(graph.scene.$level.value).toBe("detailed");
+    expect(render).toHaveBeenCalled();
+  });
+
+  it("drawInterpreted draws the primitives of the given level only", () => {
+    graph = new Graph({}, document.createElement("div"));
+    const ctx = document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D & {
+      __getDrawCalls(): { type: string }[];
+    };
+    const view = Object.freeze({
+      id: "e",
+      childOrder: 0,
+      x: 0,
+      y: 0,
+      zIndex: 0,
+      order: 1,
+      styleId: 0,
+      hidden: false,
+      bounds: { minX: 0, minY: 0, maxX: 4, maxY: 4 },
+      primitives: [
+        { kind: "rect" as const, x: 0, y: 0, width: 4, height: 4, fill: "#f00", levelMask: 1 },
+        { kind: "rect" as const, x: 0, y: 0, width: 4, height: 4, fill: "#0f0", levelMask: 2 },
+      ],
+    });
+    graph.scene.drawInterpreted(ctx, [view], 1, { level: "schematic" });
+    expect(ctx.__getDrawCalls().filter((call) => call.type === "fill")).toHaveLength(1);
+  });
+
   it("dispose is idempotent", () => {
     graph = new Graph({}, document.createElement("div"));
     graph.scene.dispose();
@@ -176,6 +227,7 @@ describe("graph.scene", () => {
   describe("drawInterpreted", () => {
     const textElement = (): TSceneElementView => ({
       ...rectElement("t"),
+      childOrder: 0,
       hidden: false,
       order: 1,
       styleId: 0,
@@ -642,5 +694,119 @@ describe("bindStyle and explain", () => {
     expect(graph.scene.styleFor(Styled, new Map([[running, true]])).parts).toEqual({
       border: { color: "#2e7d32" },
     });
+  });
+
+  it("bindStyle after dispose does nothing", () => {
+    graph = new Graph({});
+    addElement("e");
+    graph.scene.dispose();
+    const unbind = graph.scene.bindStyle("e", { type: "block", id: "e" }, Block);
+    expect(graph.scene.store.get("e")?.styleId).toBe(0);
+    expect(() => unbind()).not.toThrow();
+  });
+
+  it("bindStyle leaves an element alone when it already has the row", () => {
+    graph = new Graph({});
+    addElement("e");
+    const setStyle = jest.spyOn(graph.scene.store, "setStyle");
+    graph.scene.bindStyle("e", { type: "block", id: "e" }, Block);
+    const calls = setStyle.mock.calls.length;
+    graph.scene.bindStyle("e", { type: "block", id: "e" }, Block);
+    expect(setStyle.mock.calls.length).toBe(calls);
+  });
+
+  it("bindStyle records no binding when its first run throws", () => {
+    graph = new Graph({});
+    addElement("e");
+    const bad = defineTag("bad");
+    graph.scene.styles.add([
+      {
+        target: Block,
+        tags: [bad],
+        style: () => {
+          throw new Error("boom");
+        },
+      },
+    ]);
+    graph.scene.tags.add(bad, { block: ["e"] });
+    expect(() => graph.scene.bindStyle("e", { type: "block", id: "e" }, Block)).toThrow("boom");
+    expect(graph.scene.explain("block", "e").target).toBeUndefined();
+  });
+
+  it("toImage draws the scene through the interpreter at the camera's view", () => {
+    graph = new Graph({}, document.createElement("div"));
+    graph.cameraService.set({ width: 200, height: 100, x: 0, y: 0, scale: 1 });
+    graph.scene.store.add({
+      id: "e",
+      zIndex: 200,
+      x: 10,
+      y: 10,
+      bounds: { minX: 0, minY: 0, maxX: 20, maxY: 20 },
+      primitives: [{ kind: "rect", x: 0, y: 0, width: 20, height: 20, fill: "#ff0000" }],
+    });
+    const image = graph.scene.toImage({ pixelRatio: 2, background: "#ffffff" });
+    expect([image.width, image.height]).toEqual([400, 200]);
+    const ctx = image.getContext("2d") as CanvasRenderingContext2D & { __getDrawCalls(): { type: string }[] };
+    expect(ctx.__getDrawCalls().filter((call) => call.type === "fill" || call.type === "fillRect")).toHaveLength(2);
+  });
+
+  it("toImage of the current view draws the visible layer canvases under the scene first", () => {
+    graph = new Graph({}, document.createElement("div"));
+    graph.start();
+    graph.scheduler.performUpdate();
+    graph.cameraService.set({ width: 200, height: 100, x: 0, y: 0, scale: 1 });
+    // jsdom gives the root no size: give every layer canvas pixels, so it can be drawn.
+    for (const layer of graph.layers.getLayers()) {
+      const canvas = layer.getCanvas();
+      if (canvas) {
+        canvas.width = 20;
+        canvas.height = 10;
+      }
+    }
+    type TCall = { type: string; props: { img?: unknown } };
+    const images = (canvas: HTMLCanvasElement): unknown[] =>
+      (canvas.getContext("2d") as unknown as { __getDrawCalls(): TCall[] })
+        .__getDrawCalls()
+        .filter((call) => call.type === "drawImage")
+        .map((call) => call.props.img);
+    const composed = images(graph.scene.toImage({ pixelRatio: 1 }));
+    expect(composed).toContain(graph.getGraphCanvas());
+    expect(composed).not.toContain(graph.scene.layer.getCanvas());
+    expect(composed.length).toBeGreaterThanOrEqual(2);
+    expect(images(graph.scene.toImage({ rect: { x: 0, y: 0, width: 10, height: 10 }, pixelRatio: 1 }))).toEqual([]);
+  });
+
+  it("toImage draws in the WebGL states too, and getGraphCanvas stays the GraphLayer canvas", async () => {
+    graph = new Graph({}, document.createElement("div"));
+    graph.start();
+    graph.updateSettings({ renderer: "webgl", webglBackend: () => Promise.reject(new Error("no gpu")) });
+    await Promise.resolve();
+    expect(graph.getGraphCanvas()).toBe(graph.getGraphLayer().getCanvas());
+    expect(graph.getGraphCanvas()).not.toBe(graph.scene.layer.getCanvas());
+    expect(() => graph.scene.toImage({ rect: { x: 0, y: 0, width: 10, height: 10 }, scale: 1 })).not.toThrow();
+  });
+
+  it("toImage refuses an output past the canvas size limits", () => {
+    graph = new Graph({}, document.createElement("div"));
+    expect(() =>
+      graph.scene.toImage({ rect: { x: 0, y: 0, width: 100000, height: 100 }, scale: 1, pixelRatio: 1 })
+    ).toThrow(/100000 x 100 pixels/);
+  });
+
+  it("toImage refuses an output past the total area limit", () => {
+    graph = new Graph({}, document.createElement("div"));
+    expect(() =>
+      graph.scene.toImage({ rect: { x: 0, y: 0, width: 10000, height: 10000 }, scale: 1, pixelRatio: 1 })
+    ).toThrow(/10000 x 10000 pixels/);
+  });
+
+  it("toImage rejects a scale or pixelRatio that is not a positive finite number", () => {
+    graph = new Graph({}, document.createElement("div"));
+    const rect = { x: 0, y: 0, width: 10, height: 10 };
+    const { scene } = graph;
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, 0, -1]) {
+      expect(() => scene.toImage({ rect, scale: bad, pixelRatio: 1 })).toThrow(/scale/);
+      expect(() => scene.toImage({ rect, scale: 1, pixelRatio: bad })).toThrow(/pixelRatio/);
+    }
   });
 });

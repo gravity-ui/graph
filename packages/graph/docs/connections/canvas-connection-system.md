@@ -339,12 +339,12 @@ A `BlockConnection` has two pluggable parts, set as statics of its class:
 The look (`getStroke()`, `style()`) lives in the line class; the component keeps data, state, interaction, the z-level
 and the label. See [Connection Lines, Geometry and WebGL](webgl-connections.md) for the whole API.
 
-`BlockConnection` and its subclasses are *detached*: the frame does not walk them; the batch draws their lines and
+`BlockConnection` and its subclasses are *retained*: the frame does not walk them; the batch draws their lines and
 arrows and the label pass their labels. They update when their data changes (`propsChanged`, `stateChanged`,
 `willIterate`, geometry hooks) and never receive `render()` or other per-frame hooks. Draw labels in
 `renderLabelText()` and other extra content in `afterRender()`, which the Path2D batch runs (WebGL does not); a
-subclass that must draw every frame declares `static detached = false`. `BaseConnection` subclasses are walked and
-draw in `render()`. See [Detached components](../migration-guides/v1-to-v2.md#detached-components-connections-outside-the-frame-walk).
+subclass that must draw every frame declares `static override readonly mode = "immediate"`. `BaseConnection` subclasses are walked and
+draw in `render()`. See [Retained components](../migration-guides/v1-to-v2.md#retained-components-connections-outside-the-frame-walk).
 
 ### Extending BaseConnection
 
@@ -495,14 +495,14 @@ per-connection parameters.
 
 Extra Canvas2D content on top of the line goes into `afterRender(ctx)`, with its bounds from
 `getAfterRenderBounds()`; only the Path2D batch calls it. A subclass that draws every frame in `render()` stays
-possible: it declares `static detached = false` and is walked again:
+possible: it declares `static override readonly mode = "immediate"` and is walked again:
 
 ```typescript
 import { BlockConnection } from "@gravity-ui/graph";
 
 class AnimatedConnection extends BlockConnection {
   // Drawn in render() every frame: keep this subclass in the frame walk.
-  public static override readonly detached = false;
+  public static override readonly mode = "immediate";
 
   private animationPhase = 0;
 

@@ -195,8 +195,11 @@ export class DragService {
     };
 
     // Notify all components about drag start
-    this.dragComponents.forEach((component) => {
-      if (component.isEntityAvailable()) component.handleDragStart(context);
+    // One raise of all the participants, in their scene order (decision 6).
+    this.graph.scene.batchRaises(() => {
+      this.dragComponents.forEach((component) => {
+        if (component.isEntityAvailable()) component.handleDragStart(context);
+      });
     });
   };
 

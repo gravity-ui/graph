@@ -370,21 +370,18 @@ export class HitTest extends Emitter<{ update: (hitTest: HitTest) => void }> {
       }
     }
 
-    const res = result.sort((a, b) => {
-      const aZIndex = typeof a.zIndex === "number" ? a.zIndex : -1;
-      const bZIndex = typeof b.zIndex === "number" ? b.zIndex : -1;
-      if (aZIndex !== bZIndex) {
-        return bZIndex - aZIndex;
-      }
-
-      const aOrder = typeof a.renderOrder === "number" ? a.renderOrder : -1;
-      const bOrder = typeof b.renderOrder === "number" ? b.renderOrder : -1;
-
-      return bOrder - aOrder;
-    });
-
-    return res;
+    const scene = (this.graph as Partial<Graph>).scene;
+    return result.sort(scene ? (a, b): number => scene.compareOrder(b, a) : compareByZIndex);
   }
+}
+
+function compareByZIndex(a: Component, b: Component): number {
+  const aZIndex = typeof a.zIndex === "number" ? a.zIndex : -1;
+  const bZIndex = typeof b.zIndex === "number" ? b.zIndex : -1;
+  if (aZIndex !== bZIndex) return bZIndex - aZIndex;
+  const aOrder = typeof a.renderOrder === "number" ? a.renderOrder : -1;
+  const bOrder = typeof b.renderOrder === "number" ? b.renderOrder : -1;
+  return bOrder - aOrder;
 }
 
 export class HitBox implements IHitBox {

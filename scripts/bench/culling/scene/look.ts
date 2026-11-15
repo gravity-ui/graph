@@ -73,8 +73,38 @@ export function anchorPosition(isInput: boolean, index: number): { x: number; y:
   return { x: isInput ? 0 : BLOCK.width, y: BLOCK.header + BLOCK.row * (index + 0.5) };
 }
 
+/**
+ * The look's options: `cameraAwareName` makes the name a camera-aware text over the body (`--camera-aware-names`), in
+ * `nameFamily` when given (`--camera-aware-names system-ui`: a font whose widths do not scale linearly).
+ */
+export type TLookOptions = { cameraAwareName?: boolean; nameFamily?: string };
+
+/**
+ * The camera-aware name (Task 17i): 12 screen px, at most 48 world units, in the body's box with 12 units of padding,
+ * centred both ways, so it re-fits the block as the camera zooms (one to three lines from scale 1 down to 0.25).
+ */
+function cameraAwareName(meta: TBlockMeta, height: number, family = "sans-serif"): TScenePrimitive {
+  return {
+    kind: "text",
+    text: meta.name,
+    family,
+    weight: "bold",
+    size: 12,
+    cameraAware: { maxWorld: 48 },
+    lineHeight: 15,
+    color: COLORS.blockText,
+    x: 12,
+    y: 12,
+    width: BLOCK.width - 24,
+    height: height - 24,
+    align: "center",
+    verticalAlign: "middle",
+    minScale: TEXT_SCALE,
+  };
+}
+
 /** Body, status, progress, texts and icons; anchors are separate (core components in the walk column). */
-export function blockPrimitives(meta: TBlockMeta, height: number): TScenePrimitive[] {
+export function blockPrimitives(meta: TBlockMeta, height: number, options: TLookOptions = {}): TScenePrimitive[] {
   const width = BLOCK.width;
   const primitives: TScenePrimitive[] = [
     {
@@ -100,21 +130,23 @@ export function blockPrimitives(meta: TBlockMeta, height: number): TScenePrimiti
     });
   }
   primitives.push(
-    {
-      kind: "text",
-      text: meta.name,
-      family: "sans-serif",
-      weight: "bold",
-      size: 16,
-      lineHeight: 20,
-      color: COLORS.blockText,
-      x: 12,
-      y: 12,
-      width: width - 24,
-      height: 40,
-      align: "center",
-      minScale: TEXT_SCALE,
-    },
+    options.cameraAwareName
+      ? cameraAwareName(meta, height, options.nameFamily)
+      : {
+          kind: "text",
+          text: meta.name,
+          family: "sans-serif",
+          weight: "bold",
+          size: 16,
+          lineHeight: 20,
+          color: COLORS.blockText,
+          x: 12,
+          y: 12,
+          width: width - 24,
+          height: 40,
+          align: "center",
+          minScale: TEXT_SCALE,
+        },
     {
       kind: "text",
       text: meta.subname,

@@ -1,27 +1,143 @@
+import type { TSceneLevel } from "../../services/scene/types";
 import { TileIndex } from "../culling/TileIndex";
 import type { TTileRect } from "../culling/TileIndex";
+import { isDevelopmentBuild } from "../detachedWarning";
 
-import { styleEncodeKey, styleRaise } from "./style";
-import type { TSceneChange, TSceneElement, TSceneStyle } from "./types";
+import { LEVEL_BIT, SCENE_LEVELS, isOnLevel } from "./levels";
+import { composeChildStyle, ignoresCameraAware, inheritsElementStyle, styleEncodeKey, styleRaise } from "./style";
+import type { TSceneChange, TSceneElement, TScenePrimitive, TSceneStyle } from "./types";
 
-export type TSceneElementInput = Omit<TSceneElement, "order" | "styleId" | "hidden"> & { hidden?: boolean };
+export type TSceneElementInput = Omit<TSceneElement, "order" | "styleId" | "hidden" | "childOrder"> & {
+  hidden?: boolean;
+  childOrder?: number;
+};
 
 /** The dim colour of a store until it is set: the default theme's layer background (`initGraphColors`). */
 const DEFAULT_DIM_COLOR = "#f9f9f9";
 
+const NO_ELEMENTS: readonly TSceneElement[] = Object.freeze([]);
+
+const NO_CHILD_ROWS: ReadonlyMap<string, number> = new Map();
+
+/** @internal The style rows of an export drawn at another level or scale (`SceneStore.stylesWith`). */
+export type TSceneExportStyles = {
+  /** The style list: rows replaced, composed rows composed again, and the rows `childRows` adds. */
+  readonly styles: readonly TSceneStyle[];
+  /**
+   * Child element ids and the rows they draw with in the export where that is not their `styleId`: their parent's row
+   * needs composition (an element `dim` or `opacity`) only at the export's level and scale.
+   */
+  readonly childRows: ReadonlyMap<string, number>;
+};
+
+/** The levels at least one of the primitives shows on, as a level mask; 0 for an element without primitives. */
+function levelsOf(primitives: readonly TScenePrimitive[]): number {
+  let mask = 0;
+  for (const level of SCENE_LEVELS) {
+    if (primitives.some((primitive) => isOnLevel(primitive.levelMask, level))) mask += LEVEL_BIT[level];
+  }
+  return mask;
+}
+
 /**
- * Draw order of the scene by the elements' own zIndex: z-level first, then the order of mounting and raising. A
- * store's `query()` also adds the raise of the element's style (`SceneStore.zIndexOf`).
+ * Development builds: freezes the text primitives an element receives, with their `cameraAware` objects, so code that
+ * changes one in place after it went into the scene throws (strict mode) instead of drawing stale glyphs: the WebGL
+ * backend compares texts by identity and keeps the objects of its last encode (`TScenePrimitive`). Other kinds are left
+ * to the read-only types: freezing every primitive cost +8 ms of element writes per 10,000 blocks changed (Task 17g
+ * A/B).
  */
-export function compareSceneOrder(a: TSceneElement, b: TSceneElement): number {
-  return a.zIndex - b.zIndex || a.order - b.order;
+function freezeTexts(primitives: readonly TScenePrimitive[]): void {
+  if (!isDevelopmentBuild()) return;
+  for (const primitive of primitives) {
+    if (primitive.kind !== "text" || Object.isFrozen(primitive)) continue;
+    if (typeof primitive.cameraAware === "object") Object.freeze(primitive.cameraAware);
+    Object.freeze(primitive);
+  }
+}
+
+/** Element types and parts already warned about by `warnIgnoredCameraAware`. */
+const ignoredCameraAware = new Set<string>();
+
+/**
+ * Development builds: one warning per element type and part whose drawn row has a `cameraAware: true` that a text of
+ * the element does not take (`ignoresCameraAware`: a heightless text that does not declare `cameraAware`). The type is
+ * the element id's first segment (`entityKey`). The primitives are checked first, the build last: in a production
+ * build the check costs a test per primitive.
+ */
+function warnIgnoredCameraAware(element: TSceneElement, style: TSceneStyle | undefined): void {
+  if (!style) return;
+  for (const primitive of element.primitives) {
+    if (!ignoresCameraAware(primitive, style)) continue;
+    const type = element.id.split("\u0000")[0];
+    const key = `${type}\u0000${primitive.part}`;
+    if (ignoredCameraAware.has(key) || !isDevelopmentBuild()) continue;
+    ignoredCameraAware.add(key);
+    console.warn(
+      `Scene element type "${type}", part "${primitive.part}": a style's cameraAware: true is not applied to a text ` +
+        "without a height (its element's bounds would not cover it); give the text a height, or declare cameraAware " +
+        "on the primitive"
+    );
+  }
+}
+
+/** Whether a row sets `cameraAware: true` on some part, in its base or its state values. */
+function turnsCameraAwareOn(style: TSceneStyle): boolean {
+  for (const values of [style.base, style.parts]) {
+    if (!values) continue;
+    for (const part in values) {
+      if (values[part]?.cameraAware === true) return true;
+    }
+  }
+  return false;
+}
+
+/** A development error for a child order that is not an integer of at least 0; such an order still sorts. */
+function checkChildOrder(id: string, childOrder: number | undefined): void {
+  if (childOrder === undefined || (Number.isInteger(childOrder) && childOrder >= 0) || !isDevelopmentBuild()) return;
+  console.error(`Scene element ${id}: childOrder ${childOrder} is not an integer of at least 0`);
+}
+
+/**
+ * The store's record of an element. The tile index holds nodes, so a query reaches an element's owner without a
+ * lookup.
+ */
+type TNode = {
+  readonly element: TSceneElement;
+  /** A child's parent node; undefined for an owner. */
+  readonly parent: TNode | undefined;
+  /**
+   * An owner's child elements by child order, then in the order they were added: the draw order (`childrenOf`). A new
+   * array on every change; empty for a child.
+   */
+  children: readonly TSceneElement[];
+  /** A child's index in its parent's `children`: its place in `compareOrder`. */
+  childIndex: number;
+  /** When a child was added: siblings of an equal child order keep this order. */
+  added: number;
+  /** The levels the element's primitives show on (`levelsOf`): a query for a level skips an element without it. */
+  levels: number;
+  /** The last query that reached the node: an owner it collected, or a child it found. */
+  mark: number;
+  /** For an owner in the query that marked it: whether it found the owner itself, and how many of its children. */
+  self: boolean;
+  found: number;
+  /** For an owner in the query that marked it: its bucket, the zIndex with the raise of its style. */
+  bucket: number;
+};
+
+/** Scene order of two owners: the bucket, then `order` (`SceneStore.compareOrder` of owners). */
+function compareOwners(a: TNode, b: TNode): number {
+  return a.bucket - b.bucket || a.element.order - b.element.order;
 }
 
 /** Research prototype (E2): the elements of a scene, found by world rect and returned in draw order. */
 export class SceneStore {
-  private readonly elements = new Map<string, TSceneElement>();
+  private readonly nodes = new Map<string, TNode>();
 
-  private readonly index: TileIndex<TSceneElement>;
+  private readonly index: TileIndex<TNode>;
+
+  /** The last query's mark (`TNode.mark`). */
+  private queryMark = 0;
 
   private order = 0;
 
@@ -30,8 +146,20 @@ export class SceneStore {
   /** Ids of freed style rows, reused by defineStyle. */
   private readonly freeStyles: number[] = [];
 
-  /** Elements by the style row they use; row 0 is not tracked. */
+  /** Elements by the style row they draw with (`styleId`); row 0 is not tracked. */
   private readonly styleUsers = new Map<number, Set<string>>();
+
+  /** The last add sequence number given to a child (`TNode.added`). */
+  private childSequence = 0;
+
+  /** The row bindStyle set on a child; its `styleId` is the drawn row. */
+  private readonly ownStyles = new Map<string, number>();
+
+  /** Composed rows by `${own}|${parent}`, counted by the children that draw with them. */
+  private readonly composed = new Map<string, { id: number; own: number; parent: number; users: number }>();
+
+  /** The composed row key each child draws with, if any. */
+  private readonly composedOf = new Map<string, string>();
 
   private readonly listeners = new Set<(change: TSceneChange) => void>();
 
@@ -41,24 +169,66 @@ export class SceneStore {
   private dimColor = DEFAULT_DIM_COLOR;
 
   constructor(tileSize = 1024) {
-    this.index = new TileIndex<TSceneElement>({ tileSize });
+    this.index = new TileIndex<TNode>({ tileSize });
   }
 
   public get size(): number {
-    return this.elements.size;
+    return this.nodes.size;
   }
 
   public get(id: string): TSceneElement | undefined {
-    return this.elements.get(id);
+    return this.nodes.get(id)?.element;
   }
 
+  /**
+   * Adds an element. An input with `parent` adds a child element (spec §5.2): its parent must exist and be an owner,
+   * it takes no `order` of its own (0) and its drawn row starts composed with its parent's element values. A
+   * `childOrder` that is not an integer of at least 0 is a development error.
+   */
   public add(input: TSceneElementInput): TSceneElement {
-    if (this.elements.has(input.id)) {
+    if (this.nodes.has(input.id)) {
       throw new Error(`Scene element ${input.id} already exists`);
     }
-    const element: TSceneElement = { ...input, hidden: input.hidden ?? false, order: ++this.order, styleId: 0 };
-    this.elements.set(element.id, element);
-    this.place(element);
+    checkChildOrder(input.id, input.childOrder);
+    let parentNode: TNode | undefined;
+    if (input.parent !== undefined) {
+      parentNode = this.nodes.get(input.parent);
+      if (!parentNode) {
+        throw new Error(`Scene element ${input.id}: its parent ${input.parent} does not exist`);
+      }
+      if (parentNode.element.parent !== undefined) {
+        throw new Error(
+          `Scene element ${input.id}: ${input.parent} is a child element; child elements cannot have children`
+        );
+      }
+    }
+    freezeTexts(input.primitives);
+    const element: TSceneElement = {
+      ...input,
+      hidden: input.hidden ?? false,
+      childOrder: input.childOrder ?? 0,
+      order: input.parent === undefined ? ++this.order : 0,
+      styleId: 0,
+    };
+    const node: TNode = {
+      element,
+      parent: parentNode,
+      children: NO_ELEMENTS,
+      childIndex: 0,
+      added: parentNode ? ++this.childSequence : 0,
+      levels: levelsOf(element.primitives),
+      mark: 0,
+      self: false,
+      found: 0,
+      bucket: 0,
+    };
+    this.nodes.set(element.id, node);
+    this.place(node);
+    if (parentNode) {
+      this.insertChild(node);
+      // No update: the add carries the element with its drawn row.
+      this.applyChildStyle(element, false);
+    }
     this.emit({ type: "add", element });
     return element;
   }
@@ -84,7 +254,31 @@ export class SceneStore {
 
   /** Visits every element, hidden ones included, in no particular order. */
   public forEach(callback: (element: TSceneElement) => void): void {
-    this.elements.forEach(callback);
+    this.nodes.forEach((node) => callback(node.element));
+  }
+
+  /**
+   * The child elements of an element, by child order, siblings of an equal order in the order they were added: the
+   * draw order of both renderers. Empty for an element without children.
+   */
+  public childrenOf(id: string): readonly TSceneElement[] {
+    return this.nodes.get(id)?.children ?? NO_ELEMENTS;
+  }
+
+  /** The owner a child belongs to; an owner is its own root. */
+  public rootOf(element: TSceneElement): TSceneElement {
+    return element.parent === undefined ? element : this.nodes.get(element.parent)?.element ?? element;
+  }
+
+  /** Whether the element is not drawn: hidden itself, or a child of a hidden parent. */
+  public isDrawnHidden(element: TSceneElement): boolean {
+    return element.hidden || (element.parent !== undefined && this.rootOf(element).hidden);
+  }
+
+  /** The row bindStyle set: a child's own row; an owner's `styleId`. */
+  public ownStyleOf(id: string): number {
+    const element = this.require(id);
+    return element.parent === undefined ? element.styleId : this.ownStyles.get(id) ?? 0;
   }
 
   /**
@@ -119,10 +313,55 @@ export class SceneStore {
   }
 
   /**
+   * The style list with some rows replaced, without changing the store, for an export drawn at another level or scale
+   * (`toImage`). The composed rows of children are composed again from the replaced own and parent rows. A parent row
+   * that needs composition (an element `dim` or `opacity`) only in the export gets composed rows for its owners'
+   * children, added to the list (`childRows`: the export draws those children with them). A parent row that stops
+   * needing it leaves its children's composed rows equal to their own rows but for `raise`, which children ignore. Row
+   * 0 and unknown ids are skipped; without rows it is the live list.
+   */
+  public stylesWith(rows: ReadonlyMap<number, TSceneStyle>): TSceneExportStyles {
+    if (rows.size === 0) return { styles: this.styles, childRows: NO_CHILD_ROWS };
+    const next = [...this.styles];
+    rows.forEach((style, id) => {
+      if (id > 0 && id < this.styles.length) next[id] = style;
+    });
+    this.composed.forEach((entry) => {
+      if (rows.has(entry.own) || rows.has(entry.parent)) {
+        next[entry.id] = composeChildStyle(next[entry.own], next[entry.parent]);
+      }
+    });
+    const childRows = new Map<string, number>();
+    const added = new Map<string, number>();
+    rows.forEach((_style, parentRow) => {
+      if (parentRow <= 0 || parentRow >= this.styles.length) return;
+      if (inheritsElementStyle(this.styles[parentRow]) || !inheritsElementStyle(next[parentRow])) return;
+      // Its children draw with their own rows now (no composed entry): give each pair one composed row.
+      this.styleUsers.get(parentRow)?.forEach((id) => {
+        const node = this.nodes.get(id);
+        if (!node || node.parent !== undefined) return;
+        for (const child of node.children) {
+          const own = this.ownStyles.get(child.id) ?? 0;
+          const key = `${own}|${parentRow}`;
+          let row = added.get(key);
+          if (row === undefined) {
+            row = next.length;
+            next.push(composeChildStyle(next[own], next[parentRow]));
+            added.set(key, row);
+          }
+          childRows.set(child.id, row);
+        }
+      });
+    });
+    return { styles: Object.freeze(next), childRows };
+  }
+
+  /**
    * Rewrites rows in one copy of the style list. An element whose row changed gets an update with `primitives` when
-   * the encode keys differ and `zIndex` when the raises differ; a change of table properties only emits no element
-   * update. Every call that changes a row then notifies `subscribeStyles` listeners once. Row 0 and unknown ids are
-   * skipped.
+   * the encode keys differ and `zIndex` when the raises differ (never for a child, which draws in its parent's
+   * bucket); a change of table properties only emits no element update. The children of an owner whose row changed
+   * get their drawn rows again, and the composed rows of a changed own or parent row are rewritten. Every call that
+   * changes a row then notifies `subscribeStyles` listeners. Row 0 and unknown ids are skipped.
    */
   public replaceStyles(rows: ReadonlyMap<number, TSceneStyle>): void {
     const next = [...this.styles];
@@ -135,54 +374,119 @@ export class SceneStore {
     if (changes.length === 0) return;
     this.styles = Object.freeze(next);
     for (const [id, previous, style] of changes) {
+      // A rule added or changed after binding can turn camera-aware text on where a text does not take it.
+      if (turnsCameraAwareOn(style)) {
+        this.styleUsers.get(id)?.forEach((elementId) => {
+          const element = this.get(elementId);
+          if (element) warnIgnoredCameraAware(element, style);
+        });
+      }
       const fields = this.styleFields(previous, style);
       if (fields.size === 0) continue;
       this.styleUsers.get(id)?.forEach((elementId) => {
-        const element = this.elements.get(elementId);
-        if (element) this.emit({ type: "update", element, fields: new Set(fields) });
+        const element = this.get(elementId);
+        if (!element) return;
+        const elementFields = this.fieldsOf(element, fields);
+        if (elementFields.size > 0) this.emit({ type: "update", element, fields: elementFields });
       });
     }
+    const changedIds = new Set(changes.map(([id]) => id));
+    // A parent row can start or stop needing composition.
+    for (const id of changedIds) {
+      const users = this.styleUsers.get(id);
+      if (!users) continue;
+      for (const elementId of [...users]) {
+        const element = this.get(elementId);
+        if (element && element.parent === undefined) {
+          this.childrenOf(elementId).forEach((child) => this.applyChildStyle(child, true));
+        }
+      }
+    }
+    // Composed rows are never the own or parent row of another entry, so this recursion ends.
+    const rewrites = new Map<number, TSceneStyle>();
+    this.composed.forEach((entry) => {
+      if (changedIds.has(entry.own) || changedIds.has(entry.parent)) {
+        rewrites.set(entry.id, composeChildStyle(this.styles[entry.own], this.styles[entry.parent]));
+      }
+    });
+    if (rewrites.size > 0) this.replaceStyles(rewrites);
     this.emitStyles();
   }
 
   /** Resets a row to the empty style and offers it to the next defineStyle. Row 0 is never freed. */
   public freeStyle(styleId: number): void {
     if (styleId <= 0 || styleId >= this.styles.length || this.freeStyles.includes(styleId)) return;
+    if (isDevelopmentBuild() && (this.styleUsers.get(styleId)?.size ?? 0) > 0) {
+      console.warn(
+        `Scene style row ${styleId} is freed while elements still use it; they draw with the next style defined ` +
+          "in its place"
+      );
+    }
     this.replaceStyles(new Map([[styleId, {}]]));
     this.freeStyles.push(styleId);
   }
 
+  /**
+   * Sets the element's row. An owner draws with it, and its children get their drawn rows again. A child keeps it as
+   * its own row (`ownStyleOf`) and draws with it composed with its parent's element values (`composeChildStyle`).
+   */
   public setStyle(id: string, styleId: number): void {
     const element = this.require(id);
-    const previous = this.styles[element.styleId];
-    this.styleUsers.get(element.styleId)?.delete(id);
-    element.styleId = styleId;
-    if (styleId > 0) {
-      let users = this.styleUsers.get(styleId);
-      if (!users) {
-        users = new Set();
-        this.styleUsers.set(styleId, users);
-      }
-      users.add(id);
+    if (element.parent !== undefined) {
+      if (styleId === 0) this.ownStyles.delete(id);
+      else this.ownStyles.set(id, styleId);
+      this.applyChildStyle(element, true);
+      warnIgnoredCameraAware(element, this.styles[element.styleId]);
+      return;
     }
-    const fields = this.styleFields(previous, this.styles[styleId]);
-    fields.add("styleId");
-    this.emit({ type: "update", element, fields });
+    this.useRow(element, styleId, true);
+    this.childrenOf(id).forEach((child) => this.applyChildStyle(child, true));
+    warnIgnoredCameraAware(element, this.styles[element.styleId]);
   }
 
-  /** The element's zIndex bucket with the raise of its style. */
+  /** The element's zIndex bucket with the raise of its style; a child's is its root's. */
   public zIndexOf(element: TSceneElement): number {
-    return element.zIndex + styleRaise(this.styles[element.styleId]);
+    const root = this.rootOf(element);
+    return root.zIndex + styleRaise(this.styles[root.styleId]);
   }
 
+  /**
+   * Scene order of two elements: the root's zIndex with its style's raise, the root's `order`, then the root before
+   * its children, which follow in `childrenOf` order (by `childOrder`, then in the order they were added), as the
+   * WebGL backend gives them their depth sub-orders.
+   */
+  public compareOrder(a: TSceneElement, b: TSceneElement): number {
+    const rootA = this.rootOf(a);
+    const rootB = this.rootOf(b);
+    return (
+      this.zIndexOf(rootA) - this.zIndexOf(rootB) || rootA.order - rootB.order || this.childRank(a) - this.childRank(b)
+    );
+  }
+
+  /**
+   * Patches an element and emits an update. Primitives are values: a patch replaces `primitives` with an array of
+   * primitives that are never mutated afterwards, text primitives above all (the WebGL backend compares them by
+   * identity and keeps the live objects of its last encode, so a text changed in place is not seen as changed).
+   */
   public update(
     id: string,
-    patch: Partial<Pick<TSceneElement, "x" | "y" | "bounds" | "primitives" | "hidden" | "zIndex">>
+    patch: Partial<Pick<TSceneElement, "x" | "y" | "bounds" | "primitives" | "hidden" | "zIndex" | "childOrder">>
   ): void {
-    const element = this.require(id);
+    const node = this.requireNode(id);
+    const { element } = node;
+    checkChildOrder(id, patch.childOrder);
+    if (patch.primitives !== undefined) freezeTexts(patch.primitives);
     Object.assign(element, patch);
+    if (patch.primitives !== undefined) {
+      node.levels = levelsOf(patch.primitives);
+      warnIgnoredCameraAware(element, this.styles[element.styleId]);
+    }
     if (patch.x !== undefined || patch.y !== undefined || patch.bounds !== undefined) {
-      this.place(element);
+      this.place(node);
+    }
+    if (patch.childOrder !== undefined && node.parent !== undefined) {
+      this.removeChild(node);
+      this.insertChild(node);
     }
     const fields = new Set<keyof TSceneElement>();
     for (const [key, value] of Object.entries(patch)) {
@@ -191,28 +495,104 @@ export class SceneStore {
     this.emit({ type: "update", element, fields });
   }
 
+  /** Raises the element above the others of its bucket; a child raises its root. */
   public raise(id: string): void {
-    const element = this.require(id);
+    const element = this.rootOf(this.require(id));
     element.order = ++this.order;
     this.emit({ type: "update", element, fields: new Set(["order"]) });
   }
 
-  public delete(id: string): void {
-    const element = this.elements.get(id);
-    if (!element) return;
-    this.elements.delete(id);
-    this.styleUsers.get(element.styleId)?.delete(id);
-    this.index.delete(element);
-    this.emit({ type: "delete", element });
+  /**
+   * Raises the elements above the others of their bucket, keeping their order among themselves (spec V3): each gets a
+   * new highest `order`, in their current scene order, with one update each. A child stands for its root; unknown ids
+   * are skipped.
+   */
+  public raiseMany(ids: Iterable<string>): void {
+    const elements = new Map<string, TSceneElement>();
+    for (const id of ids) {
+      const element = this.get(id);
+      if (!element) continue;
+      const root = this.rootOf(element);
+      elements.set(root.id, root);
+    }
+    const ordered = [...elements.values()].sort((a, b) => this.compareOrder(a, b));
+    for (const element of ordered) {
+      element.order = ++this.order;
+      this.emit({ type: "update", element, fields: new Set<keyof TSceneElement>(["order"]) });
+    }
   }
 
-  /** Visible elements whose bounds meet the rect, in draw order. */
-  public query(rect: TTileRect): TSceneElement[] {
-    const found: TSceneElement[] = [];
-    this.index.query(rect, (element) => {
-      if (!element.hidden) found.push(element);
+  /** Deletes the element; an owner's children go first, with one delete change each. */
+  public delete(id: string): void {
+    const node = this.nodes.get(id);
+    if (!node) return;
+    const { element } = node;
+    [...node.children].forEach((child) => this.delete(child.id));
+    this.nodes.delete(id);
+    this.styleUsers.get(element.styleId)?.delete(id);
+    this.index.delete(node);
+    let composedKey: string | undefined;
+    if (node.parent !== undefined) {
+      this.removeChild(node);
+      composedKey = this.composedOf.get(id);
+      this.composedOf.delete(id);
+      this.ownStyles.delete(id);
+    }
+    this.emit({ type: "delete", element });
+    if (composedKey !== undefined) this.releaseComposed(composedKey);
+  }
+
+  /**
+   * Drawn elements whose bounds meet the rect, in draw order (`compareOrder`): not hidden, and not children of hidden
+   * parents. Only the owners are sorted, by their bucket and `order`; each owner's children follow it in `childrenOf`
+   * order, which is their draw order. An owner whose bounds miss the rect still places the children that meet it.
+   *
+   * With a `level`, an element without a primitive on that level is left out before any other work: an element
+   * without primitives, or an anchor at the minimalistic level. An owner left out still places its children that have
+   * primitives on the level.
+   *
+   * `styles` is the style list whose raises order the owners: the live one by default, an export's (`stylesWith`'s
+   * `styles`).
+   */
+  public query(rect: TTileRect, level?: TSceneLevel, styles: readonly TSceneStyle[] = this.styles): TSceneElement[] {
+    const mark = ++this.queryMark;
+    const owners: TNode[] = [];
+    // The level's bit, tested with arithmetic as `isOnLevel` does (no-bitwise); 0 for no level.
+    const bit = level === undefined ? 0 : LEVEL_BIT[level];
+    this.index.query(rect, (node) => {
+      if (bit !== 0 && Math.floor(node.levels / bit) % 2 !== 1) return;
+      const owner = node.parent ?? node;
+      if (node.element.hidden || owner.element.hidden) return;
+      if (owner.mark !== mark) {
+        owner.mark = mark;
+        owner.self = false;
+        owner.found = 0;
+        owners.push(owner);
+      }
+      if (node === owner) {
+        owner.self = true;
+      } else {
+        node.mark = mark;
+        owner.found++;
+      }
     });
-    return found.sort((a, b) => this.zIndexOf(a) - this.zIndexOf(b) || a.order - b.order);
+    for (const owner of owners) owner.bucket = owner.element.zIndex + styleRaise(styles[owner.element.styleId]);
+    owners.sort(compareOwners);
+    const found: TSceneElement[] = [];
+    for (const owner of owners) {
+      if (owner.self) found.push(owner.element);
+      if (owner.found === 0) continue;
+      const children = owner.children;
+      if (owner.found === children.length) {
+        for (const child of children) found.push(child);
+        continue;
+      }
+      // Some children miss the rect or are hidden: keep the ones this query found.
+      for (const child of children) {
+        if (this.nodes.get(child.id)?.mark === mark) found.push(child);
+      }
+    }
+    return found;
   }
 
   /** What an element has to redo when its row changes from `previous` to `next`. */
@@ -223,9 +603,107 @@ export class SceneStore {
     return fields;
   }
 
-  private place(element: TSceneElement): void {
+  /** The style fields that apply to the element: a child draws in its parent's bucket, so its raise moves nothing. */
+  private fieldsOf(element: TSceneElement, fields: ReadonlySet<keyof TSceneElement>): Set<keyof TSceneElement> {
+    const own = new Set(fields);
+    if (element.parent !== undefined) own.delete("zIndex");
+    return own;
+  }
+
+  /**
+   * Makes the element draw with a row: the users bookkeeping, the `styleId` write and, with `emit`, an update with the
+   * style fields and `styleId`, emitted even for an equal row.
+   */
+  private useRow(element: TSceneElement, styleId: number, emit: boolean): void {
+    const previous = this.styles[element.styleId];
+    this.styleUsers.get(element.styleId)?.delete(element.id);
+    element.styleId = styleId;
+    if (styleId > 0) {
+      let users = this.styleUsers.get(styleId);
+      if (!users) {
+        users = new Set();
+        this.styleUsers.set(styleId, users);
+      }
+      users.add(element.id);
+    }
+    if (!emit) return;
+    const fields = this.fieldsOf(element, this.styleFields(previous, this.styles[styleId]));
+    fields.add("styleId");
+    this.emit({ type: "update", element, fields });
+  }
+
+  /** Place of an element under its root: 0 for the root, 1 + its index in `childrenOf` for a child. */
+  private childRank(element: TSceneElement): number {
+    return element.parent === undefined ? 0 : 1 + (this.nodes.get(element.id)?.childIndex ?? 0);
+  }
+
+  private insertChild(child: TNode): void {
+    const parent = child.parent;
+    if (!parent) return;
+    const added = (element: TSceneElement): number => this.nodes.get(element.id)?.added ?? 0;
+    const list = [...parent.children, child.element];
+    list.sort((a, b) => a.childOrder - b.childOrder || added(a) - added(b));
+    this.setChildren(parent, list);
+  }
+
+  private removeChild(child: TNode): void {
+    const parent = child.parent;
+    if (!parent) return;
+    this.setChildren(
+      parent,
+      parent.children.filter((entry) => entry !== child.element)
+    );
+  }
+
+  private setChildren(parent: TNode, list: readonly TSceneElement[]): void {
+    parent.children = list.length > 0 ? list : NO_ELEMENTS;
+    list.forEach((entry, index) => {
+      const node = this.nodes.get(entry.id);
+      if (node) node.childIndex = index;
+    });
+  }
+
+  /**
+   * Sets a child's drawn row from its own row and its parent's row: the own row itself while the parent's row has no
+   * element dim or opacity, else the composed row of the pair, interned and counted. With `emit`, an update with the
+   * style fields follows a change. The child leaves its previous composed row before that row is released, so a freed
+   * row has no users.
+   */
+  private applyChildStyle(child: TSceneElement, emit: boolean): void {
+    const own = this.ownStyles.get(child.id) ?? 0;
+    const parentRow = this.rootOf(child).styleId;
+    const key = inheritsElementStyle(this.styles[parentRow]) ? `${own}|${parentRow}` : undefined;
+    const current = this.composedOf.get(child.id);
+    let next = own;
+    if (key !== undefined) {
+      let entry = this.composed.get(key);
+      if (!entry) {
+        const id = this.defineStyle(composeChildStyle(this.styles[own], this.styles[parentRow]));
+        entry = { id, own, parent: parentRow, users: 0 };
+        this.composed.set(key, entry);
+      }
+      if (current !== key) entry.users++;
+      next = entry.id;
+    }
+    if (child.styleId !== next) this.useRow(child, next, emit);
+    if (current !== key) {
+      if (key === undefined) this.composedOf.delete(child.id);
+      else this.composedOf.set(child.id, key);
+      if (current !== undefined) this.releaseComposed(current);
+    }
+  }
+
+  private releaseComposed(key: string): void {
+    const entry = this.composed.get(key);
+    if (!entry || --entry.users > 0) return;
+    this.composed.delete(key);
+    this.freeStyle(entry.id);
+  }
+
+  private place(node: TNode): void {
+    const { element } = node;
     const { minX, minY, maxX, maxY } = element.bounds;
-    this.index.set(element, element.x + minX, element.y + minY, element.x + maxX, element.y + maxY);
+    this.index.set(node, element.x + minX, element.y + minY, element.x + maxX, element.y + maxY);
   }
 
   private emit(change: TSceneChange): void {
@@ -237,8 +715,12 @@ export class SceneStore {
   }
 
   private require(id: string): TSceneElement {
-    const element = this.elements.get(id);
-    if (!element) throw new Error(`Scene element ${id} does not exist`);
-    return element;
+    return this.requireNode(id).element;
+  }
+
+  private requireNode(id: string): TNode {
+    const node = this.nodes.get(id);
+    if (!node) throw new Error(`Scene element ${id} does not exist`);
+    return node;
   }
 }

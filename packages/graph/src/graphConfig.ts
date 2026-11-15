@@ -340,7 +340,7 @@ export const initGraphConstants: TGraphConstants = {
     HEAD_HEIGHT: 16 * 4,
     BODY_PADDING: 16 * 1.5,
     SCALES: [0.125, 0.225, 0.7],
-    DEFAULT_Z_INDEX: 1,
+    DEFAULT_Z_INDEX: 200,
     INCRIMENT_Z_INDEX: 10,
     GHOST_BLOCK_OPACITY: 0.7,
     WIDTH: 200,

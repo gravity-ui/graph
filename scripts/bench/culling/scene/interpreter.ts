@@ -3,7 +3,7 @@
 import { Graph, getSegmentsBounds, multipointGeometry } from "GRAPH";
 import { SceneCanvasLayer } from "GRAPH_SRC/lib/scene/SceneCanvasLayer";
 import { ScenePathBatch } from "GRAPH_SRC/lib/scene/ScenePathBatch";
-import { SceneStore, compareSceneOrder } from "GRAPH_SRC/lib/scene/SceneStore";
+import { SceneStore } from "GRAPH_SRC/lib/scene/SceneStore";
 import type { TileIndex, TTileRect } from "GRAPH_SRC/lib/culling/TileIndex";
 import type { TSceneElement, TScenePrimitive } from "GRAPH_SRC/lib/scene/types";
 
@@ -151,11 +151,12 @@ export function setupInterpreter(
       // SceneStore.query() is the tile-index query followed by a sort; the index is private, so it is reached here to
       // time the two parts apart. Each part runs REPS times per round so that the 0.1 ms timer resolution matters less.
       const REPS = 5;
-      const tiles = (store as unknown as { index: TileIndex<TSceneElement> }).index;
+      // The index holds the store's nodes, each with its element.
+      const tiles = (store as unknown as { index: TileIndex<{ element: TSceneElement }> }).index;
       const viewport = layer.getWorldViewport();
       const collect = (): TSceneElement[] => {
         const found: TSceneElement[] = [];
-        tiles.query(viewport, (element) => {
+        tiles.query(viewport, ({ element }) => {
           if (!element.hidden) found.push(element);
         });
         return found;
@@ -173,7 +174,7 @@ export function setupInterpreter(
         parts.indexQuery.push((performance.now() - start) / REPS);
         const copies = Array.from({ length: REPS }, collect);
         start = performance.now();
-        for (const copy of copies) copy.sort(compareSceneOrder);
+        for (const copy of copies) copy.sort((a, b) => store.compareOrder(a, b));
         parts.sort.push((performance.now() - start) / REPS);
         start = performance.now();
         for (let r = 0; r < REPS; r++) elements = store.query(viewport).length;

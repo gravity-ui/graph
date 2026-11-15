@@ -124,4 +124,21 @@ describe("StyleResolver", () => {
     level.value = "minimalistic";
     expect(resolver.$generation.value).toBe(generation);
   });
+
+  it("computes the live rows at another level and scale without changing them (an export's styles)", () => {
+    const { store, sheet, resolver } = setup();
+    sheet.add([
+      { target: Target, scope: { levels: ["minimalistic"] }, style: { parts: { border: { color: "#2e7d32" } } } },
+      { target: Target, scope: { minScale: 1 }, style: { parts: { border: { width: 4 } } } },
+    ]);
+    const id = resolver.acquire(Target, new Map() as never);
+    const live = store.getStyles()[id];
+    const generation = resolver.$generation.value;
+    // At the live level and scale band nothing differs; 0.6 is in the live band (below the 1 threshold).
+    expect(resolver.stylesAt("schematic", 0.6).size).toBe(0);
+    expect(resolver.stylesAt("minimalistic", 0.5).get(id)?.base).toEqual({ border: { color: "#2e7d32" } });
+    expect(resolver.stylesAt("schematic", 2).get(id)?.base).toEqual({ border: { width: 4 } });
+    expect(store.getStyles()[id]).toBe(live);
+    expect(resolver.$generation.value).toBe(generation);
+  });
 });

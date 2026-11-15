@@ -17,6 +17,15 @@ import { TConnection } from "./connection/ConnectionState";
 
 import { RootStore } from "./index";
 
+/** Whether two records hold the same keys with identical values. */
+function sameEntries(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const keys = Object.keys(a);
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every((key) => Object.prototype.hasOwnProperty.call(b, key) && a[key] === b[key])
+  );
+}
+
 export enum ECanDrag {
   /** Any component can be dragged. If component is in selection, all selected draggable components move together */
   ALL = "all",
@@ -90,6 +99,13 @@ export type TGraphSettingsConfig<Block extends TBlock = TBlock, Connection exten
    */
   renderer: TSceneRenderer;
   /**
+   * Whether scene texts may follow the camera (`cameraAware` texts keep a fixed screen size and re-fit their box as
+   * the camera zooms). `false` makes every scene text world-sized, whatever its primitive and the styles say: the
+   * switch for weak devices, which an app may hand to its users. A change redraws; no block rebuilds its look.
+   * @default true
+   */
+  cameraAwareText: boolean;
+  /**
    * Loader of the WebGL backend module. Used when `renderer` is `"webgl"`.
    * When omitted, the built-in dynamic import is used.
    */
@@ -125,6 +141,7 @@ export const DefaultSettings: TGraphSettingsConfig = {
   resolveWheelIntent: createWheelIntentResolver(),
   getCameraBlockScaleLevel: defaultGetCameraBlockScaleLevel,
   renderer: "canvas",
+  cameraAwareText: true,
 };
 
 export class GraphEditorSettings {
@@ -132,8 +149,18 @@ export class GraphEditorSettings {
 
   public $settings = signal(cloneDeep(DefaultSettings));
 
-  public $blockComponents = computed(() => {
-    return this.$settings.value.blockComponents;
+  private lastBlockComponents?: TGraphSettingsConfig["blockComponents"];
+
+  /**
+   * The block classes by type. Every settings update copies the record, so it keeps the last one while the classes
+   * are the same: a settings change that registers no block class does not reconcile every block.
+   */
+  public $blockComponents = computed((): TGraphSettingsConfig["blockComponents"] => {
+    const next = this.$settings.value.blockComponents;
+    const last = this.lastBlockComponents;
+    if (last && sameEntries(last, next)) return last;
+    this.lastBlockComponents = next;
+    return next;
   });
 
   public $background = computed(() => {
@@ -190,7 +217,12 @@ export class GraphEditorSettings {
 
   public $canDrag = computed(() => this.$settings.value.canDrag);
 
+  public $useBlocksAnchors = computed(() => this.$settings.value.useBlocksAnchors);
+
   public $renderer: ReadonlySignal<"canvas" | "webgl"> = computed(() => this.$settings.value.renderer);
+
+  /** The `cameraAwareText` setting. */
+  public $cameraAwareText: ReadonlySignal<boolean> = computed(() => this.$settings.value.cameraAwareText);
 
   public $webglBackend: ReadonlySignal<(() => Promise<ISceneBackendModule>) | undefined> = computed(
     () => this.$settings.value.webglBackend

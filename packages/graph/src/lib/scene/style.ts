@@ -69,6 +69,38 @@ function withScale(primitive: TScenePrimitive, scale: number | undefined): TScen
   return scale !== undefined && primitive.kind === "circle" ? { ...primitive, r: primitive.r * scale } : primitive;
 }
 
+/**
+ * A text with its part's `cameraAware` mode (the override's, else the base's): `false` turns it off, `true` turns it on
+ * and keeps the primitive's own clamps. A style turns a text on only within a box: a heightless text that does not
+ * declare `cameraAware` itself keeps its world size (`ignoresCameraAware`), since its element's bounds cover its lines
+ * at that size only. Other primitives, and texts the style says nothing about, stay as they are.
+ */
+function withCameraAware(primitive: TScenePrimitive, mode: boolean | undefined): TScenePrimitive {
+  if (mode === undefined || primitive.kind !== "text") return primitive;
+  if (!mode) return primitive.cameraAware ? { ...primitive, cameraAware: false } : primitive;
+  if (primitive.cameraAware || primitive.height === undefined) return primitive;
+  return { ...primitive, cameraAware: true };
+}
+
+/** A style's `cameraAware` for a part: the override's, else the base's. */
+export function styleCameraAware(style: TSceneStyle | undefined, part: string | undefined): boolean | undefined {
+  if (!style || part === undefined) return undefined;
+  return style.parts?.[part]?.cameraAware ?? style.base?.[part]?.cameraAware;
+}
+
+/**
+ * Whether a style's `cameraAware: true` is not applied to a primitive: a heightless text that does not declare
+ * `cameraAware` itself (give the text a `height`, or declare `cameraAware` on the primitive).
+ */
+export function ignoresCameraAware(primitive: TScenePrimitive, style: TSceneStyle | undefined): boolean {
+  return (
+    primitive.kind === "text" &&
+    primitive.height === undefined &&
+    !primitive.cameraAware &&
+    styleCameraAware(style, primitive.part) === true
+  );
+}
+
 /** A dim in [0, 1]: an unset value or NaN is 0. */
 function clampDim(value: number | undefined): number {
   return value !== undefined && value > 0 ? Math.min(1, value) : 0;
@@ -130,7 +162,8 @@ function withOpacity(primitive: TScenePrimitive, opacity: number): TScenePrimiti
 
 /**
  * The primitive with its part's base and override values; undefined when the part is hidden. Per property:
- * - `visible` and `scale`: the override's value, else the base's;
+ * - `visible`, `scale` and `cameraAware`: the override's value, else the base's (`cameraAware` over the primitive's
+ *   own mode; `true` keeps the primitive's clamps and does not apply to a heightless text, `ignoresCameraAware`);
  * - `color` and `width`: the base fills a value the primitive leaves unset, then the override replaces it;
  * - `opacity` (`styleOpacity`): the alpha of every paint of the primitive is then multiplied by it (`fadeColor`);
  * - `dim` (`styleDim`): with a `dimColor`, every paint of the primitive is then moved towards it (`mixColor`, alpha
@@ -151,7 +184,7 @@ export function applyStyle(
   return dimColor === undefined ? faded : withDim(faded, styleDim(style, part), dimColor);
 }
 
-/** Colours, widths and the circle scale of a part's base and override values, in cascade order. */
+/** Colours, widths, the circle scale and the text mode of a part's base and override values, in cascade order. */
 function withPartValues(
   primitive: TScenePrimitive,
   base: Readonly<TScenePartStyle> | undefined,
@@ -165,6 +198,7 @@ function withPartValues(
   result = withWidth(result, base?.width, true);
   if (override?.color !== undefined) result = withColor(result, slot, override.color);
   result = withWidth(result, override?.width, false);
+  result = withCameraAware(result, override?.cameraAware ?? base?.cameraAware);
   return withScale(result, override?.scale ?? base?.scale);
 }
 
@@ -173,13 +207,18 @@ function translucent(color: string | undefined): boolean {
 }
 
 /**
- * Element properties of a row: what an encoder has to bake. Widths, circle scales, translucent colours and every
- * opacity below 1: the element's and each part's effective one. Under an opacity below 1 every colour of the part is
- * baked, opaque ones too, so their changes re-encode as well. `visible` and `dim` are table properties and not part of
- * it; an opacity of 1 or none changes nothing.
+ * Element properties of a row: what an encoder has to bake. Widths, circle scales, text modes (`cameraAware`),
+ * translucent colours and every opacity below 1: the element's and each part's effective one. Under an opacity below 1
+ * every colour of the part is baked, opaque ones too, so their changes re-encode as well. `visible` and `dim` are table
+ * properties and not part of it; an opacity of 1 or none changes nothing. Rows are immutable, so the key is cached per
+ * row object.
  */
+const encodeKeys = new WeakMap<object, string>();
+
 export function styleEncodeKey(style: TSceneStyle | undefined): string {
   if (!style) return "";
+  const cached = encodeKeys.get(style);
+  if (cached !== undefined) return cached;
   const key: Record<string, unknown> = {};
   const elementOpacity = styleOpacity(style, undefined);
   if (elementOpacity < 1) key.opacity = elementOpacity;
@@ -188,26 +227,49 @@ export function styleEncodeKey(style: TSceneStyle | undefined): string {
       const opacity = styleOpacity(style, part);
       if (value.width !== undefined) key[`${layer}.${part}.width`] = value.width;
       if (value.scale !== undefined) key[`${layer}.${part}.scale`] = value.scale;
+      if (value.cameraAware !== undefined) key[`${layer}.${part}.cameraAware`] = value.cameraAware;
       if (value.color !== undefined && (opacity < 1 || translucent(value.color))) {
         key[`${layer}.${part}.color`] = value.color;
       }
       if (opacity < 1) key[`opacity.${part}`] = opacity;
     }
   }
-  return JSON.stringify(key);
+  const encoded = JSON.stringify(key);
+  encodeKeys.set(style, encoded);
+  return encoded;
 }
 
 export function styleRaise(style: TSceneStyle | undefined): number {
   return style?.raise ?? 0;
 }
 
+/** Whether a parent's row changes how its children draw: it sets an element dim or an element opacity below 1. */
+export function inheritsElementStyle(style: TSceneStyle | undefined): boolean {
+  return style?.dim !== undefined || (style?.opacity !== undefined && style.opacity < 1);
+}
+
 /**
- * The primitives with the row's element properties applied (widths, circle scale, translucent colours, opacity), for
- * the WebGL encoder, with the same cascade as `applyStyle`. A primitive with an effective opacity below 1 gets all its
- * colours baked (the base colour fills an unset paint, the override replaces it) and every paint faded; the style table
- * leaves the overrides of such parts out (`StyleTable`), so the shader keeps the baked colour. Table properties (opaque
- * colours of other primitives, visibility, dim) stay for the shader, which also dims the baked colours. Returns the
- * same array when nothing has to be baked.
+ * The drawn row of a child element (spec §5.2): its own row, with the parent's element `dim` where it sets none and
+ * its element `opacity` multiplied by the parent's, each clamped to [0, 1] first as the renderers clamp them. `raise`
+ * is dropped: a child draws in its parent's bucket.
+ */
+export function composeChildStyle(own: TSceneStyle | undefined, parent: TSceneStyle | undefined): TSceneStyle {
+  const opacity = clampOpacity(own?.opacity) * clampOpacity(parent?.opacity);
+  return Object.freeze({
+    ...own,
+    raise: undefined,
+    dim: own?.dim ?? parent?.dim,
+    opacity: opacity < 1 ? opacity : undefined,
+  });
+}
+
+/**
+ * The primitives with the row's element properties applied (widths, circle scale, text modes, translucent colours,
+ * opacity), for the WebGL encoder, with the same cascade as `applyStyle`. A primitive with an effective opacity below 1
+ * gets all its colours baked (the base colour fills an unset paint, the override replaces it) and every paint faded;
+ * the style table leaves the overrides of such parts out (`StyleTable`), so the shader keeps the baked colour. Table
+ * properties (opaque colours of other primitives, visibility, dim) stay for the shader, which also dims the baked
+ * colours. Returns the same array when nothing has to be baked.
  */
 export function bakeElementStyle(
   primitives: readonly TScenePrimitive[],
@@ -229,7 +291,10 @@ export function bakeElementStyle(
   });
 }
 
-/** The element properties of a part's base and override values: widths, the circle scale, translucent colours. */
+/**
+ * The element properties of a part's base and override values: widths, the circle scale, the text mode, translucent
+ * colours.
+ */
 function withElementValues(
   primitive: TScenePrimitive,
   base: Readonly<TScenePartStyle> | undefined,
@@ -239,6 +304,7 @@ function withElementValues(
   let result = withWidth(primitive, base?.width, true);
   result = withWidth(result, override?.width, false);
   result = withScale(result, override?.scale ?? base?.scale);
+  result = withCameraAware(result, override?.cameraAware ?? base?.cameraAware);
   if (base?.color !== undefined && translucent(base.color) && currentColor(result, slot) === undefined) {
     result = withColor(result, slot, base.color);
   }

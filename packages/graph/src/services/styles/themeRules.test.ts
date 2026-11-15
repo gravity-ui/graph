@@ -21,18 +21,30 @@ describe("theme rules", () => {
     expect(style.base?.title?.color).toBe(graph.graphColors.block?.text);
   });
 
+  it("hide a block's halo and badge", () => {
+    const style = graph.scene.styleFor(Block, new Map());
+    expect(style.base?.halo).toEqual({ visible: false });
+    expect(style.base?.badge).toEqual({ visible: false });
+  });
+
   it("raise a dragged block", () => {
     expect(graph.scene.styleFor(Block, new Map([[draggingTag, true]])).raise).toBe(1);
   });
 
-  it("style anchors", () => {
-    expect(graph.scene.styleFor(Anchor, new Map()).base?.anchor?.color).toBe(graph.graphColors.anchor?.background);
-    expect(graph.scene.styleFor(Anchor, new Map([[selectedTag, true]])).parts?.anchor?.color).toBe(
-      graph.graphColors.anchor?.selectedBorder
-    );
-    expect(graph.scene.styleFor(Anchor, new Map([[hoveredTag, true]])).parts?.anchor?.scale).toBe(
-      Anchor.CANVAS_HOVER_FACTOR
-    );
+  it("style anchors: a dot in the background colour and a ring shown while selected", () => {
+    const base = graph.scene.styleFor(Anchor, new Map());
+    expect(base.base?.anchor?.color).toBe(graph.graphColors.anchor?.background);
+    expect(base.base?.border).toEqual({ color: graph.graphColors.anchor?.selectedBorder, visible: false });
+    const selected = graph.scene.styleFor(Anchor, new Map([[selectedTag, true]]));
+    expect(selected.parts?.border?.visible).toBe(true);
+    // The dot keeps the background colour, as before.
+    expect(selected.parts?.anchor?.color).toBeUndefined();
+    expect(selected.base?.anchor?.color).toBe(graph.graphColors.anchor?.background);
+    const hovered = graph.scene.styleFor(Anchor, new Map([[hoveredTag, true]]));
+    expect([hovered.parts?.anchor?.scale, hovered.parts?.border?.scale]).toEqual([
+      Anchor.CANVAS_HOVER_FACTOR,
+      Anchor.CANVAS_HOVER_FACTOR,
+    ]);
   });
 
   it("follow a colour change", () => {

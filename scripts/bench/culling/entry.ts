@@ -64,7 +64,8 @@ interface IBlockBase {
   getContentRect(): { height: number };
 }
 
-const BlockBase = CanvasBlock as unknown as new (...args: unknown[]) => IBlockBase;
+// Older variants (baselines) have no LegacyCanvasBlock; there CanvasBlock is the imperative block.
+const BlockBase = (exportsOf.LegacyCanvasBlock ?? CanvasBlock) as unknown as new (...args: unknown[]) => IBlockBase;
 
 /** Storybook Playground ActionBlock at the scales measured here: a rounded body with two anchors. */
 class ActionBlock extends BlockBase {

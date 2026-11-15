@@ -2,6 +2,7 @@ import { batch, signal } from "@preact/signals-core";
 
 import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
 import { GraphComponent } from "./components/canvas/GraphComponent";
+import { Anchor } from "./components/canvas/anchors";
 import { TBlock } from "./components/canvas/blocks/Block";
 import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
 import { CursorLayer, CursorLayerCursorTypes } from "./components/canvas/layers/cursorLayer";
@@ -26,6 +27,7 @@ import { CameraService, getInitCameraState } from "./services/camera/CameraServi
 import type { TCameraState } from "./services/camera/CameraService";
 import { DragService } from "./services/drag";
 import { GraphScene } from "./services/scene/GraphScene";
+import { bindSceneRaises } from "./services/scene/sceneRaises";
 import { bindBuiltinTags } from "./services/tags/systems";
 import { RootStore } from "./store";
 import { TBlockId } from "./store/block/Block";
@@ -138,6 +140,8 @@ export class Graph {
 
   private readonly unbindBuiltinTags: () => void;
 
+  private readonly unbindSceneRaises: () => void;
+
   private removeFrameTask: (() => void) | undefined;
 
   public get blocks() {
@@ -168,6 +172,7 @@ export class Graph {
     // Initialize DragService for managing drag operations on GraphComponents
     this.dragService = new DragService(this);
     this.unbindBuiltinTags = bindBuiltinTags(this);
+    this.unbindSceneRaises = bindSceneRaises(this);
     this.keyboardService = new KeyboardService(this);
 
     this.selectionLayer.hide();
@@ -300,13 +305,19 @@ export class Graph {
     return this.getElementsOverRect(viewportRect, filter);
   }
 
+  /**
+   * Returns the elements whose hit boxes meet a world rect. Anchors are left out at the minimalistic level, where they
+   * have no look and are not hit by points either (`Anchor.onHitBox`), whether or not their components exist.
+   */
   public getElementsOverRect<T extends GraphComponentConstructor>(rect: TRect, filter?: T[]): InstanceType<T>[] {
-    const items = this.hitTest.testBox({
+    const found = this.hitTest.testBox({
       minX: rect.x,
       minY: rect.y,
       maxX: rect.x + rect.width,
       maxY: rect.y + rect.height,
     });
+    const items =
+      this.scene.$level.peek() === "minimalistic" ? found.filter((item) => !(item instanceof Anchor)) : found;
     if (filter && items.length > 0) {
       return items.filter((item) => filter.some((Component) => item instanceof Component)) as InstanceType<T>[];
     }
@@ -600,6 +611,7 @@ export class Graph {
     this.hitTest.destroy();
     // The scene first: it releases its style bindings before the built-in tags are cleared, so clearing them does not
     // re-run every bound element's style effect.
+    this.unbindSceneRaises();
     this.scene.dispose();
     this.unbindBuiltinTags();
     this.layers.unmount();

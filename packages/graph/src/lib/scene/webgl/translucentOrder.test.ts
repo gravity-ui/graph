@@ -1,17 +1,21 @@
 import { InstanceRanges } from "./InstanceRanges";
 import { SCENE_DEPTH } from "./depth";
 import {
+  ELEMENT_KEYS,
   MAX_OUT_OF_PLACE,
-  MAX_STEPS,
   bucketOf,
   chunkOrder,
   elementSteps,
+  maxStepsOf,
   mergeBuckets,
   orderTranslucent,
   sourceBuckets,
   splitSteps,
 } from "./translucentOrder";
 import type { TTranslucentRun, TTranslucentSource } from "./translucentOrder";
+
+/** The narrowest sub-order width, which the tests use unless they change it. */
+const BITS = SCENE_DEPTH.MIN_SUB_BITS;
 
 /** Instances of 3 floats: (tag, sub, 0); the tag names the primitive so a test can read the buffer order. */
 function quads(...entries: [tag: number, sub: number][]): Float32Array {
@@ -37,6 +41,18 @@ describe("element steps", () => {
     const rects = { subs: quads([0, 0], [0, 1], [0, 3], [0, 4]), floats: 3 };
     const glyphs = { subs: quads([0, 2], [0, 2], [0, 2]), floats: 3 };
     expect(elementSteps([rects, glyphs])).toEqual([
+      [
+        { step: 0, first: 0, count: 2 },
+        { step: 2, first: 2, count: 2 },
+      ],
+      [{ step: 1, first: 0, count: 3 }],
+    ]);
+  });
+
+  it("reads each source's subs at its own float: glyph subs in a list of one float per glyph", () => {
+    const rects = { subs: quads([0, 0], [0, 1], [0, 3], [0, 4]), floats: 3 };
+    const glyphSubs = { subs: new Float32Array([2, 2, 2]), floats: 1, subFloat: 0 };
+    expect(elementSteps([rects, glyphSubs])).toEqual([
       [
         { step: 0, first: 0, count: 2 },
         { step: 2, first: 2, count: 2 },
@@ -79,10 +95,55 @@ describe("element steps", () => {
 
 describe("translucent order", () => {
   it("orders chunks by level, then step, then element key", () => {
-    const keys = 2 ** (SCENE_DEPTH.BAND_BITS + SCENE_DEPTH.RANK_BITS);
-    expect(chunkOrder(0, 1, keys - 1)).toBeLessThan(chunkOrder(0, 2, 0));
-    expect(chunkOrder(0, MAX_STEPS - 1, keys - 1)).toBeLessThan(chunkOrder(1, 0, 0));
-    expect(bucketOf(1, 0)).toBe(MAX_STEPS);
+    expect(ELEMENT_KEYS).toBe(2 ** SCENE_DEPTH.INDEX_BITS);
+    for (const bits of [BITS, 7]) {
+      const steps = maxStepsOf(bits);
+      expect(chunkOrder(0, 1, ELEMENT_KEYS - 1, bits)).toBeLessThan(chunkOrder(0, 2, 0, bits));
+      expect(chunkOrder(0, steps - 1, ELEMENT_KEYS - 1, bits)).toBeLessThan(chunkOrder(1, 0, 0, bits));
+      expect(bucketOf(1, 0, bits)).toBe(steps);
+    }
+    expect(maxStepsOf(BITS)).toBe(64);
+    expect(maxStepsOf(7)).toBe(256);
+  });
+
+  it("orders chunks by the extended element key, sub base included", () => {
+    expect(chunkOrder(0, 1, 0, BITS)).toBeGreaterThan(chunkOrder(0, 0, 2 ** 23 - 1, BITS));
+  });
+
+  it("keeps the order across a width change: an element's steps past 64 stay under the next level", () => {
+    // A alternates rects and glyphs, so each primitive is a step; B lies on level 1 with one rect.
+    const rects = new InstanceRanges(3);
+    const glyphs = new InstanceRanges(3);
+    const writeA = (count: number): void => {
+      const primitives = Array.from({ length: count }, (_, sub): [number, number] => [100 + sub, sub]);
+      writeElement("A", [
+        [rects, quads(...primitives.filter(([, sub]) => sub % 2 === 0))],
+        [glyphs, quads(...primitives.filter(([, sub]) => sub % 2 === 1))],
+      ]);
+    };
+    writeA(20);
+    writeElement("B", [[rects, quads([7, 0])]]);
+    const levels: Record<string, number> = { A: 0, B: 1 };
+    const keys: Record<string, number> = { A: 1, B: 2 };
+    const order = (bits: number): TTranslucentRun[] =>
+      orderTranslucent(
+        [{ instances: rects }, { instances: glyphs }],
+        (id) => levels[id],
+        (id) => keys[id] * 2 ** bits,
+        bits
+      );
+    expect(order(BITS).at(-1)).toEqual({ source: 0, first: 10, count: 1 });
+    expect(tags(rects).at(-1)).toBe(7);
+    // A grows to 70 primitives (70 steps): its root needs 7 bits. Under the old width, steps 64..69 would share the
+    // draw positions of level 1 and B's rect would land between them.
+    writeA(70);
+    const stale = order(BITS);
+    expect(tags(rects).at(-1)).not.toBe(7);
+    expect(stale.at(-1)).not.toEqual({ source: 0, first: 35, count: 1 });
+    const runs = order(7);
+    expect(tags(rects).at(-1)).toBe(7);
+    expect(runs.at(-1)).toEqual({ source: 0, first: 35, count: 1 });
+    expect(runs).toHaveLength(71);
   });
 
   it("draws elements of one level together: one draw per (level, step, program)", () => {
@@ -101,7 +162,8 @@ describe("translucent order", () => {
     const runs = orderTranslucent(
       sources,
       () => 0,
-      (id) => keys[id]
+      (id) => keys[id],
+      BITS
     );
     // Sorted by (level, step, element key): the bodies of A, B, C, then their anchors.
     expect(tags(rects)).toEqual([20, 30, 10, 22, 23, 32, 33, 12, 13]);
@@ -131,7 +193,8 @@ describe("translucent order", () => {
     const runs = orderTranslucent(
       [{ instances: rects }, { instances: glyphs }],
       (id) => levels[id],
-      (id) => keys[id]
+      (id) => keys[id],
+      BITS
     );
     expect(tags(rects)).toEqual([10, 12, 20]);
     expect(tags(glyphs)).toEqual([31, 11, 11, 21]);
@@ -149,7 +212,8 @@ describe("translucent order", () => {
       orderTranslucent(
         [{ instances: rects }, { instances: glyphs }],
         (id) => levels[id],
-        (id) => keys[id]
+        (id) => keys[id],
+        BITS
       )
     ).toEqual([
       { source: 0, first: 0, count: 2 },
@@ -181,9 +245,10 @@ describe("translucent order", () => {
     write("P", 10);
     const keys: Record<string, number> = { P: 1, Q: 2 };
     const runs = orderTranslucent(
-      [{ instances: lines, elements: lineData }, { instances: curves, elements: curveData }, { instances: rects }],
+      [{ instances: lines, companion: lineData }, { instances: curves, companion: curveData }, { instances: rects }],
       () => 0,
-      (id) => keys[id]
+      (id) => keys[id],
+      BITS
     );
     expect(tags(lines)).toEqual([10, 20]);
     expect(tags(lineData)).toEqual(tags(lines));
@@ -203,7 +268,8 @@ describe("translucent order", () => {
     orderTranslucent(
       [{ instances: rects }],
       () => 0,
-      (id) => keys[id]
+      (id) => keys[id],
+      BITS
     );
     expect(tags(rects)).toEqual([10, 20]);
     keys.A = 3;
@@ -211,7 +277,8 @@ describe("translucent order", () => {
       orderTranslucent(
         [{ instances: rects }],
         () => 0,
-        (id) => keys[id]
+        (id) => keys[id],
+        BITS
       )
     ).toEqual([{ source: 0, first: 0, count: 2 }]);
     expect(tags(rects)).toEqual([20, 10]);
@@ -222,7 +289,8 @@ describe("translucent order", () => {
       orderTranslucent(
         [{ instances: new InstanceRanges(3) }],
         () => 0,
-        () => 0
+        () => 0,
+        BITS
       )
     ).toEqual([]);
   });
@@ -233,9 +301,9 @@ describe("translucent order", () => {
     rects.set("B", quads([2, 0], [3, 0]));
     rects.set("C", quads([4, 0]));
     const levels: Record<string, number> = { A: 0, B: 0, C: 1 };
-    expect(sourceBuckets(rects, (id) => levels[id])).toEqual([
+    expect(sourceBuckets(rects, (id) => levels[id], BITS)).toEqual([
       { bucket: 0, first: 0, count: 3 },
-      { bucket: MAX_STEPS, first: 3, count: 1 },
+      { bucket: maxStepsOf(BITS), first: 3, count: 1 },
     ]);
     expect(mergeBuckets([[{ bucket: 5, first: 0, count: 2 }], [{ bucket: 5, first: 0, count: 3 }]])).toEqual([
       { source: 0, first: 0, count: 2 },
@@ -262,6 +330,7 @@ describe("translucent order", () => {
         sources,
         (id) => levels.get(id) ?? 0,
         (id) => keys.get(id) ?? 0,
+        BITS,
         compact
       );
     expect(order(true)).toEqual([
@@ -295,6 +364,7 @@ describe("translucent order", () => {
       [{ instances: many }],
       (id) => manyLevels.get(id) ?? 0,
       (id) => Number(id.slice(1)),
+      BITS,
       false
     );
     expect(runs).toEqual([{ source: 0, first: 0, count: manyIds.length }]);

@@ -32,6 +32,22 @@ test("measureText caches a numeric width and fresh measurement bypasses the cach
   expect(measure).toHaveBeenCalledTimes(2);
 });
 
+test("clearMeasureTextCache forgets measured widths", () => {
+  const context = document.createElement("canvas").getContext("2d");
+  if (!context) throw new Error("Test requires a Canvas context");
+  const { clearMeasureTextCache, measureText } = text;
+  jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context);
+  // jest-canvas-mock's measureText is one mock for every context: count from here.
+  const measure = jest.spyOn(context, "measureText");
+  measure.mockClear();
+  measureText("cache-clear", "14px sans-serif");
+  measureText("cache-clear", "14px sans-serif");
+  expect(measure).toHaveBeenCalledTimes(1);
+  clearMeasureTextCache();
+  measureText("cache-clear", "14px sans-serif");
+  expect(measure).toHaveBeenCalledTimes(2);
+});
+
 test("multiline measurement keeps wrapping, empty text and size scaling behavior", () => {
   const { getFontSize, measureMultilineText } = text;
   expect(getFontSize(24, 2)).toBe(12);

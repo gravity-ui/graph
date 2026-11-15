@@ -183,4 +183,35 @@ describe("TileIndex", () => {
     }
     expect(index.size).toBe(truth.size);
   });
+
+  it("visits in visitIn the items query finds, in the same order, both ways of walking the tiles", () => {
+    let seed = 7;
+    const draw = (): number => {
+      seed = (seed * 16807) % 2147483647;
+      return (seed - 1) / 2147483646;
+    };
+    const index = new TileIndex<number>({ tileSize: 100 });
+    for (let item = 0; item < 600; item++) {
+      const x = draw() * 4000 - 2000;
+      const y = draw() * 4000 - 2000;
+      // Small items, long thin ones (columns and rows), huge ones and a few without bounds.
+      const sizes: Record<number, [number, number]> = { 7: [900, 20], 8: [20, 900], 9: [3000, 3000] };
+      const [w, h] = sizes[item % 10] ?? [draw() * 150, draw() * 150];
+      if (item % 97 === 0) index.set(item, NaN, 0, 0, 0);
+      else index.set(item, x, y, x + w, y + h);
+    }
+    // Small rects walk tile by tile, a rect wider than the occupied tiles walks the occupied ones.
+    for (const query of [rect(0, 0, 50, 50), rect(-300, -200, 400, 250), rect(-5000, -5000, 5000, 5000)]) {
+      const visited: number[] = [];
+      index.visitIn(query, (item) => visited.push(item));
+      expect(visited).toEqual(collect(index, query));
+    }
+    // Not reentrant.
+    expect(() => index.visitIn(rect(0, 0, 10, 10), () => index.visitIn(rect(0, 0, 1, 1), () => undefined))).toThrow(
+      /reentrant/
+    );
+    const after: number[] = [];
+    index.visitIn(rect(0, 0, 50, 50), (item) => after.push(item));
+    expect(after).toEqual(collect(index, rect(0, 0, 50, 50)));
+  });
 });

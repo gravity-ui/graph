@@ -1,6 +1,8 @@
 import { TBlock } from "../../components/canvas/blocks/Block";
 import { Graph } from "../../graph";
-import { EAnchorType } from "../anchor/Anchor";
+import { ESelectionStrategy } from "../../services/selection/types";
+import { AnchorState, EAnchorType } from "../anchor/Anchor";
+import { anchorEntityId, parseAnchorEntityId } from "../anchor/anchorEntityId";
 
 import { BlockListStore } from "./BlocksList";
 
@@ -257,5 +259,108 @@ describe("Anchors selection", () => {
     const blockBState = store.getBlockState(blockB.id);
     const anchor2State = blockBState?.getAnchorState("anchor-2");
     expect(anchor2State?.$selected.value).toBe(true);
+  });
+});
+
+describe("Block-qualified anchor selection", () => {
+  let graph: Graph;
+  let store: BlockListStore;
+
+  const blockWithOut = (id: TBlock["id"]): TBlock => ({
+    ...generateBlock(),
+    id,
+    anchors: [{ id: "out", blockId: id, type: EAnchorType.OUT, index: 0 }],
+  });
+  const outOf = (blockId: TBlock["id"]): AnchorState => {
+    const state = store.getBlockState(blockId)?.getAnchorById("out");
+    if (!state) throw new Error(`no anchor "out" in ${String(blockId)}`);
+    return state;
+  };
+
+  beforeEach(() => {
+    graph = new Graph({});
+    store = graph.rootStore.blocksList;
+    store.setBlocks([blockWithOut("A"), blockWithOut("B")]);
+  });
+
+  it("selects the anchor of one block only, though both blocks have an anchor 'out'", () => {
+    store.setAnchorSelection("A", "out", true);
+    expect(store.anchorSelectionBucket.$selected.value).toEqual(new Set([anchorEntityId("A", "out")]));
+    expect([outOf("A").$selected.value, outOf("B").$selected.value]).toEqual([true, false]);
+    expect(store.$selectedAnchor.value).toBe(outOf("A"));
+    expect(store.anchorSelectionBucket.$selectedEntities.value).toEqual([outOf("A")]);
+  });
+
+  it("keeps $selectedAnchors per block", () => {
+    store.setAnchorSelection("B", "out", true);
+    expect(store.getBlockState("A")?.$selectedAnchors.value).toEqual([]);
+    expect(store.getBlockState("B")?.$selectedAnchors.value).toEqual([outOf("B")]);
+    expect(store.getBlockState("B")?.getSelectedAnchor()).toBe(outOf("B"));
+    store.setAnchorSelection("A", "out", true);
+    expect(store.getBlockState("A")?.$selectedAnchors.value).toEqual([outOf("A")]);
+    expect(store.getBlockState("B")?.$selectedAnchors.value).toEqual([]);
+  });
+
+  it("gives each anchor state its block-qualified entity id", () => {
+    expect(outOf("A").entityId).toBe(anchorEntityId("A", "out"));
+    expect(outOf("B").entityId).toBe(anchorEntityId("B", "out"));
+  });
+
+  it("round-trips through the public selection API", () => {
+    graph.api.setAnchorSelection("B", "out", true);
+    const selected = [...(graph.selectionService.$selection.value.get("anchor") ?? [])];
+    expect(selected).toEqual([anchorEntityId("B", "out")]);
+    expect(parseAnchorEntityId(selected[0])).toEqual({ blockId: "B", anchorId: "out" });
+    // Deselecting the other block's "out" leaves the selection alone.
+    graph.api.setAnchorSelection("A", "out", false);
+    expect(outOf("B").$selected.value).toBe(true);
+    // The selection service takes the same ids.
+    graph.selectionService.select("anchor", [anchorEntityId("A", "out")], ESelectionStrategy.REPLACE);
+    expect([outOf("A").$selected.value, outOf("B").$selected.value]).toEqual([true, false]);
+    graph.api.setAnchorSelection("A", "out", false);
+    expect(graph.selectionService.$selection.value.get("anchor")?.size).toBe(0);
+    // A bare anchor id names no anchor.
+    graph.selectionService.select("anchor", ["out"], ESelectionStrategy.REPLACE);
+    expect([outOf("A").$selected.value, outOf("B").$selected.value]).toEqual([false, false]);
+    expect(store.$selectedAnchor.value).toBeUndefined();
+  });
+
+  it("resolves a number block id", () => {
+    store.setBlocks([blockWithOut(1), blockWithOut("1")]);
+    graph.api.setAnchorSelection(1, "out", true);
+    expect(store.$selectedAnchor.value).toBe(outOf(1));
+    expect([outOf(1).$selected.value, outOf("1").$selected.value]).toEqual([true, false]);
+  });
+
+  it("selects a number anchor id with its events and entities (TAnchorId is string | number)", () => {
+    // Data read from JSON can carry number anchor ids; TAnchor declares a string.
+    const id = 7 as unknown as string;
+    store.setBlocks([
+      { ...generateBlock(), id: "N", anchors: [{ id, blockId: "N", type: EAnchorType.OUT, index: 0 }] },
+    ]);
+    const state = store.getBlockState("N")?.getAnchorById(7);
+    expect(state?.entityId).toBe('["N",7]');
+    const handler = jest.fn();
+    graph.on("block-anchor-selection-change", handler);
+    state?.setSelection(true);
+    expect(state?.$selected.value).toBe(true);
+    expect(store.$selectedAnchor.value).toBe(state);
+    expect(store.anchorSelectionBucket.$selectedEntities.value).toEqual([state]);
+    state?.setSelection(false);
+    expect(handler.mock.calls.map(([event]) => event.detail)).toEqual([
+      { anchor: { id: 7, blockId: "N", type: EAnchorType.OUT, index: 0 }, selected: true },
+      { anchor: { id: 7, blockId: "N", type: EAnchorType.OUT, index: 0 }, selected: false },
+    ]);
+  });
+
+  it("emits block-anchor-selection-change with the anchor of the selected block", () => {
+    const handler = jest.fn();
+    graph.on("block-anchor-selection-change", handler);
+    store.setAnchorSelection("B", "out", true);
+    store.setAnchorSelection("B", "out", false);
+    expect(handler.mock.calls.map(([event]) => event.detail)).toEqual([
+      { anchor: { id: "out", blockId: "B", type: EAnchorType.OUT, index: 0 }, selected: true },
+      { anchor: { id: "out", blockId: "B", type: EAnchorType.OUT, index: 0 }, selected: false },
+    ]);
   });
 });

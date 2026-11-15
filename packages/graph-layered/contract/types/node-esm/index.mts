@@ -23,7 +23,7 @@ const root = document.getElementById("graph") as HTMLDivElement;
 const graph = new Graph({ settings: { connection: MultipointConnection } }, root);
 graph.setEntities({
   blocks: blocks.map(
-    (b): TBlock => ({ ...b, ...result.blocks[b.id], is: "Block", name: b.id, selected: false, anchors: [] })
+    (b): TBlock => ({ ...b, ...result.blocks[b.id], is: "Block", name: b.id, anchors: [] })
   ),
   connections: connections.map((c) => ({ ...c, ...result.edges[c.id] })),
 });

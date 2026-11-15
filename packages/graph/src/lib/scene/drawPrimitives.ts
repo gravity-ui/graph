@@ -1,13 +1,18 @@
-import { renderText } from "../../utils/renderers/text";
+import type { TSceneLevel } from "../../services/scene/types";
 
+import { isOnLevel } from "./levels";
 import { resolveSceneSize } from "./size";
 import { applyStyle } from "./style";
-import type { TSceneElement, TScenePrimitive, TSceneStroke, TSceneStyle } from "./types";
+import { placeText, resolveTextSize, textClip } from "./textLayout";
+import { sceneTextLayout, sceneTextMetrics } from "./textMetrics";
+import type { TSceneElement, TScenePrimitive, TSceneStroke, TSceneStyle, TSceneTextPolicy } from "./types";
 
-export function isPrimitiveVisible(primitive: TScenePrimitive, scale: number): boolean {
+type TTextPrimitive = Extract<TScenePrimitive, { kind: "text" }>;
+
+export function isPrimitiveVisible(primitive: TScenePrimitive, scale: number, level?: TSceneLevel): boolean {
   if (primitive.minScale !== undefined && scale < primitive.minScale) return false;
   if (primitive.maxScale !== undefined && scale >= primitive.maxScale) return false;
-  return true;
+  return isOnLevel(primitive.levelMask, level);
 }
 
 /** How far a stroke's centre line moves inwards from the shape's edge; an unset width draws no stroke. */
@@ -22,6 +27,23 @@ function insetRadius(radius: number | readonly number[] | undefined, inset: numb
   if (radius === undefined) return 0;
   if (typeof radius === "number") return Math.max(0, radius - inset);
   return radius.map((value) => Math.max(0, value - inset));
+}
+
+/**
+ * Adds a rect to the path: `rect` without a radius (or with every radius 0), so square rects, the default block's
+ * included, draw in browsers without `roundRect`.
+ */
+function addRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number | number[]
+): void {
+  const square = typeof radius === "number" ? radius === 0 : radius.every((value) => value === 0);
+  if (square) ctx.rect(x, y, width, height);
+  else ctx.roundRect(x, y, width, height, radius);
 }
 
 /** Sets the stroke's style; false when its colour or width is unset, which draws nothing. */
@@ -39,13 +61,60 @@ export function strokeKey(stroke: TSceneStroke | undefined, scale: number): stri
   return `${stroke.color ?? ""}|${width}|${stroke.dash?.join(",") ?? ""}`;
 }
 
-/** Draws a rect, circle, text or icon whose coordinates are relative to (ox, oy). */
+/**
+ * Draws a text whose coordinates are relative to (ox, oy), from the shared layout at its resolved size
+ * (`textLayout.ts`, the one WebGL places its glyphs from): each line with `textBaseline = "top"` at its top, aligned to
+ * the anchor by `align`. A text whose layout overflows its box (`TTextLayout.overflows`, the rule WebGL clips by too)
+ * is clipped to it; the others draw without a clip, as v1 drew every text, so their glyphs may overhang the box by
+ * their side bearings. `source` is the primitive as the element holds it: its layout is cached on it, so a styled copy
+ * drawn every frame lays out nothing new.
+ */
+function drawText(
+  ctx: CanvasRenderingContext2D,
+  primitive: TTextPrimitive,
+  source: TTextPrimitive,
+  ox: number,
+  oy: number,
+  scale: number,
+  policy: TSceneTextPolicy | undefined
+): void {
+  if (primitive.color === undefined) return;
+  const size = resolveTextSize(primitive, scale, policy);
+  const layout = sceneTextLayout(source, primitive, size);
+  const lines = layout.lines.length;
+  if (lines === 0) return;
+  const place = placeText(primitive, lines, size, sceneTextMetrics);
+  const clip = layout.overflows;
+  if (clip) {
+    const box = textClip(primitive);
+    ctx.save();
+    ctx.beginPath();
+    if (Number.isFinite(box.minY)) ctx.rect(ox + box.minX, oy + box.minY, box.maxX - box.minX, box.maxY - box.minY);
+    else ctx.rect(ox + box.minX, oy + place.top - size, box.maxX - box.minX, lines * place.pitch + 3 * size);
+    ctx.clip();
+  }
+  ctx.fillStyle = primitive.color;
+  ctx.textAlign = primitive.align ?? "left";
+  ctx.textBaseline = "top";
+  ctx.font = `${primitive.weight ?? "normal"} ${size}px ${primitive.family}`;
+  for (let row = 0; row < lines; row++) {
+    ctx.fillText(layout.lines[row], ox + place.x, oy + place.top + row * place.pitch);
+  }
+  if (clip) ctx.restore();
+}
+
+/**
+ * Draws a rect, circle, text or icon whose coordinates are relative to (ox, oy); `source` is the primitive before
+ * styles (the text layout cache key).
+ */
 function drawShape(
   ctx: CanvasRenderingContext2D,
   primitive: TScenePrimitive,
+  source: TScenePrimitive,
   ox: number,
   oy: number,
-  scale: number
+  scale: number,
+  policy: TSceneTextPolicy | undefined
 ): void {
   switch (primitive.kind) {
     case "rect": {
@@ -54,13 +123,14 @@ function drawShape(
       if (primitive.fill) {
         ctx.fillStyle = primitive.fill;
         ctx.beginPath();
-        ctx.roundRect(x, y, primitive.width, primitive.height, insetRadius(primitive.radius, 0));
+        addRect(ctx, x, y, primitive.width, primitive.height, insetRadius(primitive.radius, 0));
         ctx.fill();
       }
       if (primitive.border && applyStroke(ctx, primitive.border, scale)) {
         const inset = strokeInset(primitive.border, scale);
         ctx.beginPath();
-        ctx.roundRect(
+        addRect(
+          ctx,
           x + inset,
           y + inset,
           primitive.width - 2 * inset,
@@ -83,19 +153,9 @@ function drawShape(
       }
       return;
     }
-    case "text": {
-      if (primitive.color === undefined) return;
-      const size = resolveSceneSize(primitive.size, scale);
-      ctx.fillStyle = primitive.color;
-      ctx.textAlign = primitive.align ?? "left";
-      renderText(
-        primitive.text,
-        ctx,
-        { x: ox + primitive.x, y: oy + primitive.y, width: primitive.width, height: primitive.height },
-        { font: `${primitive.weight ?? "normal"} ${size}px ${primitive.family}`, lineHeight: primitive.lineHeight }
-      );
+    case "text":
+      drawText(ctx, primitive, source.kind === "text" ? source : primitive, ox, oy, scale, policy);
       return;
-    }
     case "icon": {
       if (primitive.color === undefined) return;
       const factor = primitive.size / primitive.viewBox;
@@ -134,7 +194,28 @@ export type TDrawElementsOptions = {
   styles?: readonly TSceneStyle[];
   /** The colour a style's `dim` moves paints towards (`SceneStore.getDimColor()`); without it `dim` changes nothing. */
   dimColor?: string;
+  /** The current scene level: primitives whose `levelMask` lacks it are skipped. Unset draws every level. */
+  level?: TSceneLevel;
+  /** Leaves text primitives out, as the minimap does. */
+  skipText?: boolean;
+  /** Draws hidden elements too, as the minimap does for blocks handed to HTML. */
+  drawHidden?: boolean;
+  /** What the graph allows text (the `cameraAwareText` setting); unset allows camera-aware text. */
+  textPolicy?: TSceneTextPolicy;
 };
+
+function isPrimitiveDrawn(primitive: TScenePrimitive, scale: number, options: TDrawElementsOptions): boolean {
+  if (options.skipText && primitive.kind === "text") return false;
+  return isPrimitiveVisible(primitive, scale, options.level);
+}
+
+/**
+ * Whether a path or polygon of this stroke key and fill starts a new run instead of joining `run`: another stroke
+ * style, a full run, or a polygon fill other than the run's.
+ */
+function endsRun(run: TRun, key: string, fill: string | undefined, maxRun: number): boolean {
+  return run.key !== key || run.size >= maxRun || (fill !== undefined && run.fill !== undefined && run.fill !== fill);
+}
 
 function resolveMaxRun(maxRun: number | undefined): number {
   if (maxRun === undefined || maxRun === Infinity) return Infinity;
@@ -202,23 +283,19 @@ export function drawElements(
   };
   for (let e = 0; e < elements.length; e++) {
     const element = elements[e];
-    if (element.hidden) continue;
+    if (element.hidden && !options.drawHidden) continue;
     const style = options.styles?.[element.styleId];
     for (let p = 0; p < element.primitives.length; p++) {
-      if (!isPrimitiveVisible(element.primitives[p], scale)) continue;
-      const primitive = applyStyle(element.primitives[p], style, options.dimColor);
+      const source = element.primitives[p];
+      if (!isPrimitiveDrawn(source, scale, options)) continue;
+      const primitive = applyStyle(source, style, options.dimColor);
       if (!primitive) continue;
       drawn++;
       if (primitive.kind === "path" || primitive.kind === "polygon") {
         const stroke = primitive.stroke;
         const fill = primitive.kind === "polygon" ? primitive.fill : undefined;
         const key = strokeKey(stroke, scale);
-        if (
-          run &&
-          (run.key !== key || run.size >= maxRun || (fill !== undefined && run.fill !== undefined && run.fill !== fill))
-        ) {
-          flush();
-        }
+        if (run && endsRun(run, key, fill, maxRun)) flush();
         if (!run) run = { key, stroke, strokePath: new Path2D(), fillPath: new Path2D(), size: 0 };
         run.size++;
         if (primitive.kind === "path") {
@@ -231,7 +308,7 @@ export function drawElements(
         continue;
       }
       flush();
-      drawShape(ctx, primitive, element.x, element.y, scale);
+      drawShape(ctx, primitive, source, element.x, element.y, scale, options.textPolicy);
     }
   }
   flush();

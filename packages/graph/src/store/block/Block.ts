@@ -2,7 +2,7 @@ import type { Signal } from "@preact/signals-core";
 import { computed, signal } from "@preact/signals-core";
 import cloneDeep from "lodash/cloneDeep";
 
-import { TAnchor } from "../../components/canvas/anchors";
+import { TAnchor, TAnchorId } from "../../components/canvas/anchors";
 import { Block, TBlock } from "../../components/canvas/blocks/Block";
 import { ESelectionStrategy, ISelectionBucket } from "../../services/selection/types";
 import { AnchorState } from "../anchor/Anchor";
@@ -125,16 +125,13 @@ export class BlockState<T extends TBlock = TBlock> {
   });
 
   /**
-   * Block selected anchors signal
+   * The selected anchors of this block (the anchor selection bucket holds block-qualified ids, see `anchorEntityId`)
    *
-   * @returns {TAnchor[]} Block selected anchors
+   * @returns {AnchorState[]} Block selected anchors
    */
   public $selectedAnchors = computed(() => {
-    return (
-      this.$anchorStates.value?.filter((anchorState) =>
-        this.store.anchorSelectionBucket.$selected.value.has(anchorState.id)
-      ) || []
-    );
+    const selected = this.store.anchorSelectionBucket.$selected.value;
+    return this.$anchorStates.value?.filter((anchorState) => selected.has(anchorState.entityId)) || [];
   });
 
   public readonly $viewComponent = signal<Block | undefined>(undefined);
@@ -254,7 +251,8 @@ export class BlockState<T extends TBlock = TBlock> {
     this.getViewComponent()?.updateHitBox(this.$geometry.value, true);
   }
 
-  public getAnchorById(anchorId: string): AnchorState | undefined {
+  /** The anchor state of an anchor id; data read from JSON can carry number anchor ids (`TAnchorId`). */
+  public getAnchorById(anchorId: TAnchorId): AnchorState | undefined {
     return this.$anchorStates.value.find((anchor) => anchor.id === anchorId);
   }
 

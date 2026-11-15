@@ -186,3 +186,71 @@ describe("root update lifecycle", () => {
     CoreComponent.unmount(root);
   });
 });
+
+describe("a child whose constructor throws (Task 17g fix round 1)", () => {
+  /** The instances alive between construction and unmount(). */
+  const registry = new Set<CoreComponent>();
+  const log: string[] = [];
+
+  /** Registers itself and queues its first state from its constructor, as an anchor binds its anchor state. */
+  class Registered extends Component<{ label: string }, { label: string }> {
+    public static override readonly mode = "retained";
+
+    constructor(props: { label: string }, parent: CoreComponent) {
+      super(props, parent);
+      registry.add(this);
+      this.setState({ label: props.label });
+      if (props.label.startsWith("broken")) throw new Error(`${props.label} failed`);
+    }
+
+    protected willMount(): void {
+      log.push(`mount:${this.props.label}`);
+    }
+
+    protected unmount(): void {
+      registry.delete(this);
+      log.push(`unmount:${this.props.label}`);
+      super.unmount();
+    }
+  }
+
+  afterEach(() => {
+    registry.clear();
+    log.length = 0;
+  });
+
+  it("records the children mounted before it, undoes it, and never applies it", () => {
+    const root = Component.mount(RenderingRoot);
+    root.descriptors = [Registered.create({ label: "first" }, { key: "first", ref: "first" })];
+    root.refresh();
+    Component.update(root);
+    const first = root.$.first;
+    root.descriptors = [
+      Registered.create({ label: "first" }, { key: "first", ref: "first" }),
+      Registered.create({ label: "second" }, { key: "second", ref: "second" }),
+      Registered.create({ label: "broken" }, { key: "broken" }),
+    ];
+    expect(() => root.syncChildren()).toThrow("broken failed");
+    const second = root.$.second;
+    // The partly built child ran its unmount(): its constructor's registration is undone.
+    expect([...registry]).toEqual([first, second]);
+    expect(log).toEqual(["mount:first", "unmount:broken"]);
+
+    // Its queued state never applies; the child mounted before it does, as a recorded child.
+    Component.update(root);
+    Component.update(root);
+    expect(log).toEqual(["mount:first", "unmount:broken", "mount:second"]);
+    expect(root.childCount()).toBe(2);
+
+    // The same descriptor list reconciles again (it was not applied), and a list without them removes both.
+    expect(() => root.syncChildren()).toThrow("broken failed");
+    expect(root.$.first).toBe(first);
+    expect(root.$.second).toBe(second);
+    root.descriptors = [];
+    root.syncChildren();
+    expect(registry.size).toBe(0);
+    expect(root.childCount()).toBe(0);
+    expect(log.slice(-3)).toEqual(["unmount:broken", "unmount:first", "unmount:second"]);
+    CoreComponent.unmount(root);
+  });
+});

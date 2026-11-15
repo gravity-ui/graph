@@ -11,20 +11,19 @@ import type { ConnectionEffect } from "../../../components/canvas/connections/ef
 import type { TUniformTypes } from "../../../components/canvas/connections/effects/types";
 import { FRAGMENT_MAIN, FRAGMENT_PRELUDE, IDENTITY_EFFECT } from "../../../components/canvas/connections/webgl/shaders";
 
-import { SCENE_DEPTH } from "./depth";
+import { DEPTH_INDICES } from "./depth";
 import { DIM_TEXEL, PART_SLOTS, TABLE_WIDTH } from "./tables";
-
-const SUBS = 2 ** SCENE_DEPTH.SUB_BITS;
-const KEYS = 2 ** (SCENE_DEPTH.BAND_BITS + SCENE_DEPTH.RANK_BITS + SCENE_DEPTH.SUB_BITS);
 
 /** Shared by every vertex shader: frame uniforms, the element and style tables, depth, sizes and clip space. */
 export const SCENE_COMMON = /* glsl */ `
 uniform vec2 scene_viewport;            // CSS pixels
 uniform vec3 scene_camera;              // x, y, scale: screen = world * scale + (x, y)
 uniform float scene_time;               // seconds on the graph clock
+uniform float scene_level;              // the current level's bit (1, 2 or 4); 0 draws every level
+uniform float scene_subs;               // 2^subBits: the depth's sub-orders per element key (SceneDepth.subBits)
 uniform highp sampler2D scene_elements; // per element: origin x, y, depth key (-1: hidden), style id
-// A row per style: texels 0..7 override a part slot (rgba; a = -1: no override, -2: hidden), texels 8..15 are the
-// slot's base colour (a = -1: none), texels 16..23 hold the slot's dim in r.
+// A row per style: texels 0..15 override a part slot (rgba; a = -1: no override, -2: hidden), texels 16..31 are the
+// slot's base colour (a = -1: none), texels 32..47 hold the slot's dim in r.
 uniform highp sampler2D scene_styles;
 uniform vec4 scene_dimColor;            // straight rgb, 0..1, that dim moves paints towards; a < 0: none, no dimming
 
@@ -43,9 +42,10 @@ vec4 sceneBase(float styleId, float slot) {
   return texelFetch(scene_styles, ivec2(int(slot) + ${PART_SLOTS}, int(styleId)), 0);
 }
 
-// depthOf(): larger is nearer.
+// depthOf(): larger is nearer. The key is the root's dense depth key and the sub is absolute (the sub base of a child
+// element included), so a width change only changes scene_subs. key * scene_subs + sub stays below 2^23: exact floats.
 float sceneDepth(float key, float sub) {
-  return (key * ${SUBS}.0 + sub + 1.0) / (${KEYS}.0 + 1.0);
+  return (key * scene_subs + sub + 1.0) / (${DEPTH_INDICES}.0 + 1.0);
 }
 
 // resolveSceneSize() of a size written as (mode, value, min, max).
@@ -64,6 +64,11 @@ vec4 sceneClip(vec2 world, float depth) {
 // [minScale, maxScale).
 bool sceneShown(float key, float minScale, float maxScale) {
   return key >= 0.0 && scene_camera.z >= minScale && scene_camera.z < maxScale;
+}
+
+// Whether a level mask (a sum of 1 minimalistic, 2 schematic, 4 detailed) includes the current level.
+bool sceneOnLevel(float mask) {
+  return scene_level < 0.5 || mod(floor(mask / scene_level), 2.0) >= 0.5;
 }
 
 // The colour with the style's override of the part slot: a >= 0 replaces it (a = 0 paints nothing).
@@ -140,7 +145,7 @@ layout(location = 3) in vec4 rect_radius;      // top-left, top-right, bottom-ri
 layout(location = 4) in vec4 rect_fill;        // straight rgba; alpha 0: no fill, -3: the base colour
 layout(location = 5) in vec4 rect_border;      // straight rgba; alpha 0: no border, -3: the base colour
 layout(location = 6) in vec4 rect_borderSize;  // camera-aware width: mode, value, min, max
-layout(location = 7) in vec4 rect_extra;       // align (0 inside, 1 center, 2 outside), minScale, maxScale
+layout(location = 7) in vec4 rect_extra;       // align (0 inside, 1 center, 2 outside), minScale, maxScale, levelMask
 ${SCENE_COMMON}
 out vec2 rect_vLocal;        // world units from the rect's center
 flat out vec2 rect_vHalfSize;
@@ -152,7 +157,7 @@ flat out vec2 rect_vEdges;   // the border band: distances of its inner and oute
 void main() {
   vec4 element = sceneElement(rect_ids.x);
   bool hidden = sceneHidden(element.w, rect_ids.z) || sceneHidden(element.w, rect_ids.w);
-  if (hidden || !sceneShown(element.z, rect_extra.y, rect_extra.z)) {
+  if (hidden || !sceneShown(element.z, rect_extra.y, rect_extra.z) || !sceneOnLevel(rect_extra.w)) {
     gl_Position = SCENE_HIDDEN;
     return;
   }
@@ -225,31 +230,45 @@ export const GLYPH_ATTRIBUTES = [
   "glyph_scales",
 ] as const;
 
+/**
+ * The glyph program's sub attribute, a float per instance in a buffer of its own (`TEncodedGlyphs.subs`): a re-sub of
+ * unchanged texts uploads only that buffer.
+ */
+export const GLYPH_SUB_ATTRIBUTE = "glyph_sub";
+
 export const GLYPH_VERTEX = /* glsl */ `#version 300 es
 precision highp float;
 
 layout(location = 0) in vec2 scene_template;  // quad corner, 0..1
-layout(location = 1) in vec4 glyph_ids;       // element index, sub, part slot
-layout(location = 2) in vec4 glyph_quad;      // x, y, width, height at the base size, from the text origin
+layout(location = 1) in vec4 glyph_ids;       // element index, clip left, part slot, clip right (+-1e9: none)
+layout(location = 2) in vec4 glyph_quad;      // x, y, width, height at the layout size, from the text's anchor
 layout(location = 3) in vec4 glyph_uv;        // u0, v0, u1, v1 in the atlas
 layout(location = 4) in vec4 glyph_color;     // straight rgba; alpha -3: the base colour
 layout(location = 5) in vec4 glyph_size;      // camera-aware font size: mode, value, min, max
-layout(location = 6) in vec4 glyph_origin;    // text origin x, y from the element origin, base size
-layout(location = 7) in vec4 glyph_scales;    // minScale, maxScale
+layout(location = 6) in vec4 glyph_origin;    // the text's anchor x, y from the element origin, layout size, clip top
+layout(location = 7) in vec4 glyph_scales;    // minScale, maxScale, levelMask, clip bottom
+layout(location = 8) in float glyph_sub;      // the primitive's sub, from a buffer of its own
 ${SCENE_COMMON}
 out vec2 glyph_vUv;
+out vec2 glyph_vLocal;       // world units from the element origin
 flat out vec4 glyph_vColor;
+flat out vec4 glyph_vClip;   // the text's box from the element origin: left, top, right, bottom
 
 void main() {
   vec4 element = sceneElement(glyph_ids.x);
-  if (sceneHidden(element.w, glyph_ids.z) || !sceneShown(element.z, glyph_scales.x, glyph_scales.y)) {
+  if (sceneHidden(element.w, glyph_ids.z) || !sceneShown(element.z, glyph_scales.x, glyph_scales.y)
+      || !sceneOnLevel(glyph_scales.z)) {
     gl_Position = SCENE_HIDDEN;
     return;
   }
+  // The text's block of lines scales about its anchor by the resolved size over the size its quads were placed at:
+  // between line breaks the glyphs follow the camera continuously (textLayout.ts).
   float s = sceneSize(glyph_size, scene_camera.z) / glyph_origin.z;
-  vec2 world = element.xy + glyph_origin.xy + (glyph_quad.xy + scene_template * glyph_quad.zw) * s;
-  gl_Position = sceneClip(world, sceneDepth(element.z, glyph_ids.y));
+  vec2 local = glyph_origin.xy + (glyph_quad.xy + scene_template * glyph_quad.zw) * s;
+  gl_Position = sceneClip(element.xy + local, sceneDepth(element.z, glyph_sub));
   glyph_vUv = mix(glyph_uv.xy, glyph_uv.zw, scene_template);
+  glyph_vLocal = local;
+  glyph_vClip = vec4(glyph_ids.y, glyph_origin.w, glyph_ids.w, glyph_scales.w);
   glyph_vColor = sceneDimmed(scenePaint(glyph_color, element.w, glyph_ids.z), sceneDim(element.w, glyph_ids.z));
 }
 `;
@@ -260,14 +279,22 @@ precision highp float;
 uniform sampler2D scene_atlas;
 
 in vec2 glyph_vUv;
+in vec2 glyph_vLocal;
 flat in vec4 glyph_vColor;
+flat in vec4 glyph_vClip;
 
 out vec4 scene_fragColor;
 ${SCENE_OUTPUT}
 void main() {
+  // The sample and its derivative come first: derivatives need uniform control flow, before any discard.
   float sdf = texture(scene_atlas, glyph_vUv).r;
   // tiny-sdf with cutoff 0.25 puts the glyph's edge at 0.75.
   float e = max(fwidth(sdf) * 0.7, 1e-4);
+  // No ink outside the box of a text whose layout overflows it, as Canvas2D clips it (unbounded for the others).
+  if (glyph_vLocal.x < glyph_vClip.x || glyph_vLocal.x > glyph_vClip.z || glyph_vLocal.y < glyph_vClip.y
+      || glyph_vLocal.y > glyph_vClip.w) {
+    discard;
+  }
   float alpha = smoothstep(0.75 - e, 0.75 + e, sdf) * glyph_vColor.a;
   if (alpha < 0.002) discard;
   scene_fragColor = sceneOutput(glyph_vColor.rgb * alpha, alpha);
@@ -308,7 +335,7 @@ layout(location = 7) in vec4 graph_params1;      // effect params 4..7
 // Selection rgb; hovered + 2 selected + 4 round(alpha * 255) + 1024 when the effect shows the selection.
 layout(location = 8) in vec4 graph_interaction;
 layout(location = 9) in vec4 scene_pathIds;      // element index, sub, stroke part slot
-layout(location = 10) in vec4 scene_pathScales; // minScale, maxScale
+layout(location = 10) in vec4 scene_pathScales; // minScale, maxScale, levelMask
 
 uniform vec2 graph_viewport;     // CSS pixels
 uniform vec3 graph_camera;       // x, y, scale
@@ -340,7 +367,8 @@ vec2 graph_bezierSlope(vec2 a, vec2 b, vec2 c, vec2 d, float t) {
 
 void main() {
   vec4 element = sceneElement(scene_pathIds.x);
-  if (sceneHidden(element.w, scene_pathIds.z) || !sceneShown(element.z, scene_pathScales.x, scene_pathScales.y)) {
+  if (sceneHidden(element.w, scene_pathIds.z) || !sceneShown(element.z, scene_pathScales.x, scene_pathScales.y)
+      || !sceneOnLevel(scene_pathScales.z)) {
     gl_Position = SCENE_HIDDEN;
     return;
   }
@@ -403,7 +431,9 @@ const PATH_PRELUDE_MODULE: ShaderModule = {
  * #451's main() writes premultiplied colour, which the translucent pass blends as is. The opaque pass needs the colour
  * at full strength with the coverage as alpha (see `SCENE_OUTPUT`).
  */
-const OPAQUE_PASS_OUTPUT = /* glsl */ `  if (scene_opaquePass > 0.5 && graph_fragColor.a > 0.0) graph_fragColor.rgb /= graph_fragColor.a;
+const OPAQUE_PASS_OUTPUT = /* glsl */ `  if (scene_opaquePass > 0.5 && graph_fragColor.a > 0.0) {
+    graph_fragColor.rgb /= graph_fragColor.a;
+  }
 `;
 
 /**

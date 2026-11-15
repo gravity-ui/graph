@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from "react";
 
-import { Anchor, AnchorState, Graph, TAnchor } from "@gravity-ui/graph";
+import { Anchor, AnchorState, Graph, TAnchor, anchorEntityId } from "@gravity-ui/graph";
 
 import { useComputedSignal, useSignal } from "./hooks";
 import { useBlockAnchorPosition, useBlockAnchorState } from "./hooks/useBlockAnchorState";
@@ -33,7 +33,12 @@ export function GraphBlockAnchor({
 
   useBlockAnchorPosition(anchorState, anchorContainerRef);
 
-  const entityStyle = useEntityStyle(graph, { type: "anchor", id: anchor.id }, Anchor, "graph-block-anchor");
+  // Anchor ids are unique only within their block: tags address anchors by block-qualified ids.
+  const entity = useMemo(
+    () => ({ type: "anchor", id: anchorEntityId(anchor.blockId, anchor.id) }),
+    [anchor.blockId, anchor.id]
+  );
+  const entityStyle = useEntityStyle(graph, entity, Anchor, "graph-block-anchor");
 
   const classNames = useMemo(() => {
     return cn(

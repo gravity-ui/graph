@@ -8,15 +8,18 @@ import type { TScenePrimitive, TSceneSize, TSceneStroke } from "../types";
  */
 export const MIN_CAMERA_SCALE = 0.01;
 
+/** The lowest camera scale a primitive is shown at: `MIN_CAMERA_SCALE`, or its `minScale` when that is higher. */
+export function lowestShownScale(minScale?: number): number {
+  return minScale !== undefined && Number.isFinite(minScale) ? Math.max(MIN_CAMERA_SCALE, minScale) : MIN_CAMERA_SCALE;
+}
+
 /**
  * The largest world extent of a size over the camera scales at which its primitive is shown. A camera-aware size never
- * shrinks as the camera zooms out, so this is its size at the lowest such scale: `MIN_CAMERA_SCALE`, or the
- * primitive's `minScale` when that is higher (spec §3.2).
+ * shrinks as the camera zooms out, so this is its size at the lowest such scale (`lowestShownScale`, spec §3.2). A
+ * camera-aware text's font size is largest there too (`largestTextSize`, `elementBounds`).
  */
 export function largestSize(size: TSceneSize, minScale?: number): number {
-  const lowest =
-    minScale !== undefined && Number.isFinite(minScale) ? Math.max(MIN_CAMERA_SCALE, minScale) : MIN_CAMERA_SCALE;
-  return resolveSceneSize(size, lowest);
+  return resolveSceneSize(size, lowestShownScale(minScale));
 }
 
 /** How far a closed shape's stroke reaches outside its edge, at its largest extent. */
@@ -49,8 +52,8 @@ function joinPoints(box: TTileRect, points: Float32Array, pad: number): void {
  * The bounds of the rects, circles, paths and polygons, relative to the element's origin, with their strokes at their
  * largest extent over the scales at which each is shown; undefined when there are none. These are the primitives
  * whose geometry a style can widen beyond the store's bounds (a `width` or a circle `scale` baked by
- * `bakeElementStyle`), so pass the baked primitives. Text and icons are left to the store's bounds: no style changes
- * their geometry.
+ * `bakeElementStyle`), so pass the baked primitives. Text and icons are left to the store's bounds (`elementBounds`,
+ * text by `textBounds`): no style changes their geometry.
  * - A rect or circle border reaches out by its width (`outside`), half of it (`center`, the default) or nothing
  *   (`inside`).
  * - A path takes the hull of its control points, which contains the curve, padded by the whole stroke width: that

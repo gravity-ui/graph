@@ -830,7 +830,7 @@ internal.
 - Effect parameters are 8 numbers per connection; uniforms are `float` and `vec2`–`vec4`.
 - Every graph with WebGL lines has its own WebGL context. Browsers keep a limited number of live contexts (about
   16), so a page with many WebGL graphs can run out; a graph whose context the browser drops falls back to Path2D.
-- Labels, and anything a `static detached = false` connection draws in `render()`, are drawn on the graph layer's
+- Labels, and anything a `static override readonly mode = "immediate"` connection draws in `render()`, are drawn on the graph layer's
   canvas, above every WebGL line.
 
 ## Diagnostics
