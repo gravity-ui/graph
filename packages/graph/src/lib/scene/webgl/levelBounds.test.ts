@@ -2,7 +2,7 @@ import type { TTileRect } from "../../culling/TileIndex";
 import { bakeElementStyle } from "../style";
 import type { TScenePrimitive } from "../types";
 
-import { geometryBounds, largestSize } from "./levelBounds";
+import { geometryBounds, largestSize, paintedGeometryBounds } from "./levelBounds";
 
 const box = (minX: number, minY: number, maxX: number, maxY: number): TTileRect => ({ minX, minY, maxX, maxY });
 
@@ -95,5 +95,66 @@ describe("geometryBounds", () => {
       parts: { border: { width: 20 }, anchor: { scale: 5 } },
     });
     expect(geometryBounds(baked)).toEqual(box(-20, -20, 120, 70));
+  });
+});
+
+describe("paintedGeometryBounds", () => {
+  const circle = (align: "inside" | "center" | "outside"): TScenePrimitive => ({
+    kind: "circle",
+    cx: 0,
+    cy: 0,
+    r: 9,
+    border: { width: 8, align },
+  });
+  const rect = (width: number): TScenePrimitive => ({
+    kind: "rect",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 10,
+    border: { width, align: "inside" },
+  });
+
+  it("pads a circle border by half its width at least: Canvas 2D strokes it centred on the radius", () => {
+    expect(geometryBounds([circle("inside")])).toEqual(box(-9, -9, 9, 9));
+    expect(paintedGeometryBounds([circle("inside")])).toEqual(box(-13, -13, 13, 13));
+    expect(paintedGeometryBounds([circle("center")])).toEqual(box(-13, -13, 13, 13));
+    expect(paintedGeometryBounds([circle("outside")])).toEqual(box(-17, -17, 17, 17));
+  });
+
+  it("keeps an inside rect border within the rect until it is wider than the rect's shorter side", () => {
+    expect(paintedGeometryBounds([rect(10)])).toEqual(box(0, 0, 100, 10));
+    expect(paintedGeometryBounds([rect(16)])).toEqual(box(-6, -6, 106, 16));
+    expect(geometryBounds([rect(16)])).toEqual(box(0, 0, 100, 10));
+  });
+
+  it("pads stroked paths and polygons by the reach of a miter join at Canvas's default limit, 10: 5 x the width", () => {
+    const path: TScenePrimitive = {
+      kind: "path",
+      segments: new Float32Array([0, 100, 10, 100, 20, 120, 30, 100]),
+      stroke: { width: 6 },
+    };
+    const polygon: TScenePrimitive = {
+      kind: "polygon",
+      points: new Float32Array([200, 0, 210, 10, 200, 20]),
+      stroke: { width: 2 },
+    };
+    expect(geometryBounds([path])).toEqual(box(-6, 94, 36, 126));
+    expect(paintedGeometryBounds([path])).toEqual(box(-30, 70, 60, 150));
+    expect(geometryBounds([polygon])).toEqual(box(198, -2, 212, 22));
+    expect(paintedGeometryBounds([polygon])).toEqual(box(190, -10, 220, 30));
+    // The miter limit is a ratio to half the width: a px width takes its largest extent first.
+    const wide: TScenePrimitive = { ...polygon, stroke: { width: { px: 1, maxWorld: 4 } } };
+    expect(paintedGeometryBounds([wide])).toEqual(box(180, -20, 230, 40));
+  });
+
+  it("equals geometryBounds for the other shapes and alignments, and for an unstroked polygon", () => {
+    const primitives: TScenePrimitive[] = [
+      { kind: "rect", x: 0, y: 0, width: 100, height: 50, border: { width: 4, align: "outside" } },
+      { kind: "rect", x: 0, y: 0, width: 100, height: 50, border: { width: 6 } },
+      { kind: "circle", cx: 10, cy: 10, r: 5, fill: "#000" },
+      { kind: "polygon", points: new Float32Array([200, 0, 210, 10, 200, 20]), fill: "#000" },
+    ];
+    expect(paintedGeometryBounds(primitives)).toEqual(geometryBounds(primitives));
   });
 });

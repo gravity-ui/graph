@@ -6,6 +6,8 @@ import { TSelectionDiff, TSelectionEntityId } from "./services/selection/types";
 
 export type GraphMouseEvent<E extends Event = Event> = CustomEvent<{
   target?: EventedComponent;
+  /** On `mouseenter` and `mouseleave`: the other side of the target change; none for the camera or outside. */
+  relatedTarget?: EventedComponent;
   sourceEvent: E;
   pointerPressed?: boolean;
 }>;

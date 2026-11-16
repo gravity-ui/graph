@@ -51,6 +51,20 @@ describe("SceneComponent", () => {
     expect(box.getSceneKey()).toEqual({ elementId: entityKey("box", "b1"), sub: 0 });
   });
 
+  it("writes its class's entity type on its elements, whatever their ids", () => {
+    class RenamedBox extends Box {
+      protected override createSceneElementId(): string {
+        return `renamed:${this.props.id}`;
+      }
+    }
+    mount(RenamedBox, { dots: 1 });
+    expect(graph.scene.store.get("renamed:b1")?.entityType).toBe("box");
+    expect(graph.scene.store.get(entityKey("dot", "b1/0"))?.entityType).toBe("dot");
+    expect(graph.scene.query({ x: -1000, y: -1000, width: 2000, height: 2000 }, { entityTypes: ["box"] })).toEqual([
+      expect.objectContaining({ id: "renamed:b1", entityType: "box" }),
+    ]);
+  });
+
   it("moves without running the level methods again", () => {
     mount();
     const primitives = element()?.primitives;

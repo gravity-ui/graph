@@ -168,7 +168,16 @@ describe("Visibility culling of graph components", () => {
     frames(3);
 
     expect(far).not.toHaveBeenCalled();
-    expect(graph.getElementsOverRect({ x: 50_099, y: 50_087, width: 2, height: 2 }, [Anchor])).toContain(anchor);
+    const rect = { x: 50_099, y: 50_087, width: 2, height: 2 };
+    // Scale 1 is the detailed level: without an HTML view the stock anchor is not shown, so neither query finds it
+    // (D4), and the point finds its block.
+    expect(graph.getElementsOverRect(rect, [Anchor])).toEqual([]);
+    expect(graph.getElementOverPoint({ x: 50_100, y: 50_088 }, [Anchor])).toBeUndefined();
+    expect(graph.getElementOverPoint({ x: 50_100, y: 50_088 }) === view("far")).toBe(true);
+    // The schematic level shows it: both queries find it in the skipped branch (no frame runs in between).
+    graph.cameraService.set({ scale: 0.5 });
+    expect(graph.getElementsOverRect(rect, [Anchor])).toContain(anchor);
     expect(graph.getElementOverPoint({ x: 50_100, y: 50_088 }, [Anchor])).toBe(anchor);
+    expect(far).not.toHaveBeenCalled();
   });
 });

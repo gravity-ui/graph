@@ -52,22 +52,25 @@ The following mouse events are supported:
 
 | Event | Description | Default Prevention |
 |-------|-------------|-------------------|
-| `mousedown` | Mouse button pressed down | Prevents browser default |
+| `mousedown` | Mouse button pressed down | Prevents browser default; stops the camera's pan and the drag |
 | `click` | Mouse button released after press | Prevents browser default |
-| `mouseenter` | Mouse pointer enters graph area | - |
-| `mouseleave` | Mouse pointer leaves graph area | - |
+| `mouseenter` | The pointer's target changed: `detail.target` is the new target, `detail.relatedTarget` the old one | Keeps it from the components, whose `hoveredTag` then stays as it was |
+| `mouseleave` | The pointer's target changed: `detail.target` is the old target, `detail.relatedTarget` the new one | Keeps it from the components, whose `hoveredTag` then stays as it was |
 
-These events use the `GraphMouseEvent` type:
+`mouseenter` and `mouseleave` follow the target, the component under the pointer: they fire at every target change,
+not only when the pointer enters or leaves the graph's area. `relatedTarget` is none for the camera (empty space) or
+outside the graph. See [Event model](./event-model.md#the-model-events-walk-up-the-component-tree).
 
-```typescript
-import { EventedComponent } from "@gravity-ui/graph";
+These events are `CustomEvent`s. Their `detail` (`UnwrapGraphEventsDetail<"mousedown">`, and the same for the others)
+has these fields:
 
-interface GraphMouseEvent<E extends Event = Event> = CustomEvent<{
-  target?: EventedComponent;
-  sourceEvent: E;
-  pointerPressed?: boolean;
-}>
-```
+- `target`: the graph component under the pointer, or the camera over empty space.
+- `relatedTarget`: on `mouseenter` and `mouseleave` only, the other side of the target change.
+- `sourceEvent`: the event GraphLayer dispatched. It is the browser's event for a press, a copy of the browser's
+  event for an emulated click (its DOM `target` is `null`), and the hover `CustomEvent` for `mouseenter` and
+  `mouseleave`. `getEventTarget(sourceEvent)` returns the target as a graph
+  component (`undefined` for the camera).
+- `pointerPressed`: whether a mouse button is down.
 
 > **Important:** Preventing these events will block delegation to target components, affecting selection, drag and drop, and other component behaviors.
 

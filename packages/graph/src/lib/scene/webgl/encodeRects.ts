@@ -16,7 +16,24 @@ export const MAX_SUB = DEPTH_INDICES - 1;
 
 export type TSlotOf = (part: string | undefined) => number;
 
-export type TEncodedInstances = { opaque: Float32Array; translucent: Float32Array };
+/** The members of a typed array that hand out its memory or write it: a view has none of them (`TInstanceView`). */
+type TAliasingMembers = "buffer" | "subarray" | "set" | "fill" | "copyWithin" | "reverse" | "sort";
+
+/**
+ * Instances read in place from an encoder's reused list (`InstanceList.view`), not copied. Valid only until the list's
+ * next `reset()` or append, which the next encode with the same encoder makes: whoever gets one copies it before that
+ * (`InstanceRanges.set` does) and keeps nothing of it. It is no `Float32Array` to the type checker (it has neither
+ * `buffer`, `subarray` nor writes), so code that keeps arrays cannot keep one by mistake; `slice()` copies, and a copy
+ * may be kept.
+ */
+export type TInstanceView = Readonly<Omit<Float32Array, TAliasingMembers>>;
+
+/**
+ * The instances of one encode, split by pass: the opaque ones as a view of the encoder's list (`TInstanceView`), to be
+ * copied before the next encode with the same encoder; the translucent ones as a copy of their own, which may be kept
+ * (the backend keeps those of camera-aware texts to cut their steps again).
+ */
+export type TEncodedInstances = { opaque: TInstanceView; translucent: Float32Array };
 
 /** A scale bound that is never reached. */
 export const NO_LIMIT = 1e9;
@@ -85,7 +102,8 @@ const NO_INSTANCES = new Float32Array(0);
 
 /**
  * A growing list of fixed-size instances. The encoders keep one list per kind and pass and reuse it (`reset`), so an
- * encode allocates only its result (`toArray`), not a list.
+ * encode allocates no list: it hands its instances out as a view (`view`), or as a copy (`toArray`) where they are
+ * kept.
  */
 export class InstanceList {
   private data: Float32Array;
@@ -140,6 +158,14 @@ export class InstanceList {
   /** A copy of the instances; the list can be reset and reused afterwards. */
   public toArray(): Float32Array {
     return this.length === 0 ? NO_INSTANCES : this.data.slice(0, this.length);
+  }
+
+  /**
+   * The instances in place, without a copy (`TInstanceView`). Valid only until the list's next `reset()` or append
+   * (`next`, `push`, `claim`): read or copy it before then, and keep nothing of it.
+   */
+  public view(): TInstanceView {
+    return this.length === 0 ? NO_INSTANCES : this.data.subarray(0, this.length);
   }
 
   /** Room for `end` floats. */
@@ -222,7 +248,8 @@ export function hasStrokeWidth(stroke: TSceneStroke | undefined): stroke is TSce
 
 /**
  * Rect and circle primitives as rect instances, split by translucency. `sub` is `subBase` plus the index in the
- * element. An unset fill or border colour is written as `USE_BASE`; a border with an unset width is no border.
+ * element. An unset fill or border colour is written as `USE_BASE`; a border with an unset width is no border. The
+ * opaque instances are a view of the encoder's list, valid until the next `encodeRects` (`TEncodedInstances`).
  *
  * @param subBase The depth sub-order of the first primitive: a child element's primitives follow its parent's and its
  * earlier siblings'.
@@ -262,5 +289,5 @@ export function encodeRects(
     out.set(border, 16);
     writeBorderAndBounds(out, drawn, primitive);
   }
-  return { opaque: opaque.toArray(), translucent: translucent.toArray() };
+  return { opaque: opaque.view(), translucent: translucent.toArray() };
 }

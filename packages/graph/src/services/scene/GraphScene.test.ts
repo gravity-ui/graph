@@ -777,13 +777,23 @@ describe("bindStyle and explain", () => {
   });
 
   it("toImage draws in the WebGL states too, and getGraphCanvas stays the GraphLayer canvas", async () => {
-    graph = new Graph({}, document.createElement("div"));
-    graph.start();
-    graph.updateSettings({ renderer: "webgl", webglBackend: () => Promise.reject(new Error("no gpu")) });
-    await Promise.resolve();
-    expect(graph.getGraphCanvas()).toBe(graph.getGraphLayer().getCanvas());
-    expect(graph.getGraphCanvas()).not.toBe(graph.scene.layer.getCanvas());
-    expect(() => graph.scene.toImage({ rect: { x: 0, y: 0, width: 10, height: 10 }, scale: 1 })).not.toThrow();
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      graph = new Graph({}, document.createElement("div"));
+      graph.start();
+      graph.updateSettings({ renderer: "webgl", webglBackend: () => Promise.reject(new Error("no gpu")) });
+      await Promise.resolve();
+      expect(graph.getGraphCanvas()).toBe(graph.getGraphLayer().getCanvas());
+      expect(graph.getGraphCanvas()).not.toBe(graph.scene.layer.getCanvas());
+      expect(() => graph.scene.toImage({ rect: { x: 0, y: 0, width: 10, height: 10 }, scale: 1 })).not.toThrow();
+      // The rejected backend falls back to Canvas2D asynchronously, with its warning: wait for it before the spy goes.
+      for (let i = 0; i < 20 && graph.scene.$renderer.value !== "webgl-fallback"; i++) await Promise.resolve();
+      expect(graph.scene.$renderer.value).toBe("webgl-fallback");
+      expect(warn).toHaveBeenCalledWith("WebGL scene backend is unavailable, drawing with Canvas2D", expect.any(Error));
+      expect(() => graph.scene.toImage({ rect: { x: 0, y: 0, width: 10, height: 10 }, scale: 1 })).not.toThrow();
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("toImage refuses an output past the canvas size limits", () => {

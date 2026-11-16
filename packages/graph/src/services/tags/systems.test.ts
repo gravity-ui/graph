@@ -52,20 +52,22 @@ describe("built-in tags", () => {
     expect(graph.scene.tags.$of("block", "a").value.has(draggingTag)).toBe(true);
   });
 
-  it("hoveredTag follows GraphLayer's hovered component", () => {
+  it("leaves hoveredTag to the components: GraphLayer's hovered component writes no tag", () => {
     const graph = makeGraph();
     const layer = graph.getGraphLayer();
     const block = graph.rootStore.blocksList.getBlockState("a")?.getViewComponent();
     layer.setHoveredComponent(block);
-    expect(graph.scene.tags.$of("block", "a").value.has(hoveredTag)).toBe(true);
-    layer.setHoveredComponent(undefined);
     expect(graph.scene.tags.$of("block", "a").value.has(hoveredTag)).toBe(false);
+    // A pointer move over the block: the block tags itself (scale 1 at the origin, world = client).
+    layer.handleEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 25 }));
+    expect(graph.scene.tags.$of("block", "a").value.has(hoveredTag)).toBe(true);
+    graph.unmount();
   });
 
-  it("hoveredTag is dropped when the hovered component is removed under a stationary pointer", () => {
+  it("drops a block's hoveredTag when the block is removed under a still pointer", () => {
     const graph = makeGraph();
     const layer = graph.getGraphLayer();
-    layer.setHoveredComponent(graph.rootStore.blocksList.getBlockState("a")?.getViewComponent());
+    layer.handleEvent(new MouseEvent("mousemove", { clientX: 50, clientY: 25 }));
     expect(graph.scene.tags.$of("block", "a").value.has(hoveredTag)).toBe(true);
     graph.setEntities({
       blocks: [{ is: "Block", id: "b", name: "B", x: 200, y: 0, width: 100, height: 50, anchors: [] }],
@@ -74,6 +76,7 @@ describe("built-in tags", () => {
     for (let i = 0; i < 3; i++) globalScheduler.performUpdate();
     expect(layer.$hoveredComponent.value).toBeUndefined();
     expect(graph.scene.tags.$of("block", "a").value.has(hoveredTag)).toBe(false);
+    graph.unmount();
   });
 
   it("exposes the hovered component read-only; only GraphLayer and its internal setter write it", () => {

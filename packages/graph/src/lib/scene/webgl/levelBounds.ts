@@ -36,6 +36,49 @@ function strokeReach(stroke: TSceneStroke | undefined, minScale: number | undefi
   }
 }
 
+/**
+ * How far a circle's border reaches outside its radius in what either renderer paints, at its largest extent: WebGL
+ * places it by its alignment (`strokeReach`); Canvas 2D strokes it centred on the radius whatever the alignment, so it
+ * reaches half its width at least.
+ */
+function paintedCircleReach(stroke: TSceneStroke | undefined, minScale: number | undefined): number {
+  if (stroke?.width === undefined) return 0;
+  return Math.max(strokeReach(stroke, minScale), largestSize(stroke.width, minScale) / 2);
+}
+
+/**
+ * How far a rect's border reaches outside its edge in what either renderer paints, at its largest extent. Both place
+ * it by its alignment (`strokeReach`), Canvas 2D by insetting the path by half the width for `inside`: once the border
+ * is wider than the rect's shorter side the inset path crosses the rect's middle, and the stroke paints past the rect
+ * by the excess.
+ */
+function paintedRectReach(
+  stroke: TSceneStroke | undefined,
+  minScale: number | undefined,
+  width: number,
+  height: number
+): number {
+  const reach = strokeReach(stroke, minScale);
+  if (stroke?.width === undefined || stroke.align !== "inside") return reach;
+  const excess = largestSize(stroke.width, minScale) - Math.min(Math.abs(width), Math.abs(height));
+  return Math.max(reach, excess);
+}
+
+/**
+ * The miter limit Canvas 2D strokes paths and polygons with: the context's default. `drawPrimitives` sets no `lineJoin`
+ * and no `miterLimit`, so their joins are miters, and a join sharper than the limit is bevelled.
+ */
+const CANVAS_MITER_LIMIT = 10;
+
+/**
+ * How far the stroke of a path or polygon of a width reaches from its points in what Canvas 2D paints: a miter join
+ * reaches up to `CANVAS_MITER_LIMIT` half-widths from its vertex (the limit is a ratio of the miter length to half the
+ * width), farther than the whole width `geometryBounds` pads by, which also covers caps and bevels.
+ */
+function paintedJoinReach(width: number): number {
+  return Math.max(width, (CANVAS_MITER_LIMIT * width) / 2);
+}
+
 function joinBox(box: TTileRect, minX: number, minY: number, maxX: number, maxY: number, pad: number): void {
   box.minX = Math.min(box.minX, Math.min(minX, maxX) - pad);
   box.minY = Math.min(box.minY, Math.min(minY, maxY) - pad);
@@ -55,35 +98,58 @@ function joinPoints(box: TTileRect, points: Float32Array, pad: number): void {
  * `bakeElementStyle`), so pass the baked primitives. Text and icons are left to the store's bounds (`elementBounds`,
  * text by `textBounds`): no style changes their geometry.
  * - A rect or circle border reaches out by its width (`outside`), half of it (`center`, the default) or nothing
- *   (`inside`).
+ *   (`inside`), as WebGL places it; `paintedGeometryBounds` also covers what Canvas 2D paints.
  * - A path takes the hull of its control points, which contains the curve, padded by the whole stroke width: that
  *   covers the caps of its pieces as well as half the width. A path's effect draws `extraWidth` CSS pixels beyond the
  *   stroke; the store's bounds of the element have to cover it.
  * - A polygon takes its points, padded by its stroke width.
  */
 export function geometryBounds(primitives: readonly TScenePrimitive[]): TTileRect | undefined {
+  return boundsOf(primitives, false);
+}
+
+/**
+ * `geometryBounds` with each stroke at the larger of its reach in either renderer:
+ * - Canvas 2D strokes circles centred on their radius whatever their alignment (`paintedCircleReach`), and an `inside`
+ *   rect border wider than the rect paints past it (`paintedRectReach`);
+ * - it joins the pieces of paths and the sides of polygons with miters, which reach up to 5 widths from a vertex at
+ *   its default miter limit (`paintedJoinReach`).
+ *
+ * The store culls a styled element by these (`SceneStore.styledBounds`), so a style that widens such a stroke keeps it
+ * drawn at the viewport's edge. `geometryBounds`, and so an element's own bounds, keep the alignment's reach and the
+ * width's pad.
+ */
+export function paintedGeometryBounds(primitives: readonly TScenePrimitive[]): TTileRect | undefined {
+  return boundsOf(primitives, true);
+}
+
+function boundsOf(primitives: readonly TScenePrimitive[], painted: boolean): TTileRect | undefined {
   const box: TTileRect = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
   for (const primitive of primitives) {
     const { minScale } = primitive;
     switch (primitive.kind) {
       case "rect": {
-        const { x, y, width, height } = primitive;
-        joinBox(box, x, y, x + width, y + height, strokeReach(primitive.border, minScale));
+        const { x, y, width, height, border } = primitive;
+        const pad = painted ? paintedRectReach(border, minScale, width, height) : strokeReach(border, minScale);
+        joinBox(box, x, y, x + width, y + height, pad);
         break;
       }
       case "circle": {
-        const { cx, cy, r } = primitive;
-        joinBox(box, cx - r, cy - r, cx + r, cy + r, strokeReach(primitive.border, minScale));
+        const { cx, cy, r, border } = primitive;
+        const pad = painted ? paintedCircleReach(border, minScale) : strokeReach(border, minScale);
+        joinBox(box, cx - r, cy - r, cx + r, cy + r, pad);
         break;
       }
       case "path":
         if (primitive.stroke.width !== undefined) {
-          joinPoints(box, primitive.segments, largestSize(primitive.stroke.width, minScale));
+          const width = largestSize(primitive.stroke.width, minScale);
+          joinPoints(box, primitive.segments, painted ? paintedJoinReach(width) : width);
         }
         break;
       case "polygon": {
-        const width = primitive.stroke?.width;
-        joinPoints(box, primitive.points, width === undefined ? 0 : largestSize(width, minScale));
+        const stroke = primitive.stroke?.width;
+        const width = stroke === undefined ? 0 : largestSize(stroke, minScale);
+        joinPoints(box, primitive.points, painted ? paintedJoinReach(width) : width);
         break;
       }
       default:

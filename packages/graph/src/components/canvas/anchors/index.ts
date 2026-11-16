@@ -1,19 +1,20 @@
+import { batch } from "@preact/signals-core";
+
 import { Component } from "../../../lib/Component";
 import type { TComponentMode } from "../../../lib/CoreComponent";
 import { isDevelopmentBuild } from "../../../lib/detachedWarning";
-import { SCENE_LEVELS } from "../../../lib/scene/levels";
+import { SCENE_LEVELS, isOnLevel, levelMaskOf, levelMaskOfPrimitives } from "../../../lib/scene/levels";
 import type { TScenePrimitive } from "../../../lib/scene/types";
-import type { HitBoxData } from "../../../services/HitTest";
 import { DragContext, DragDiff } from "../../../services/drag";
 import type { TSceneLevel } from "../../../services/scene/types";
 import type { TStyleParts } from "../../../services/styles/types";
 import { AnchorState, EAnchorType } from "../../../store/anchor/Anchor";
 import { TBlockId } from "../../../store/block/Block";
 import { PortState } from "../../../store/connection/port/Port";
-import type { TPoint } from "../../../utils/types/shapes";
+import type { TPoint, TRect } from "../../../utils/types/shapes";
+import { pointerTargetAfter } from "../EventedComponent/EventedComponent";
 import { GraphComponent, TGraphComponentProps } from "../GraphComponent";
 import { SceneComponent } from "../scene/SceneComponent";
-import type { TSceneParent } from "../scene/SceneComponent";
 
 export type TAnchorId = string | number;
 export type TAnchor = {
@@ -45,21 +46,37 @@ export type TAnchorView = {
   readonly block?: object;
 };
 
+/**
+ * An anchor class `Block.getAnchorClass` returns (spec §5.2): `Anchor` or a subclass whose props are `TAnchorProps`.
+ * The block creates the component with the anchor's data, its port and the class's `SIZE` and `LINE_WIDTH`; a class
+ * reads anything else from its anchor (`this.props`) and its block (its view data `view.block`, or the block's data in
+ * a method of its own).
+ */
+export type TAnchorClass = (new (props: TAnchorProps, parent: Component) => Anchor) &
+  Pick<typeof Anchor, "SIZE" | "LINE_WIDTH" | "LOOK_EXTENT" | "CREATION_LEVELS" | "create">;
+
 const NO_PRIMITIVES: readonly TScenePrimitive[] = Object.freeze([]);
 
 /** Anchor classes already warned about, per development check (`Anchor.checkLook`). */
 const warnedLevelFields = new WeakSet<object>();
 const warnedExtents = new WeakSet<object>();
+const warnedCreationLevels = new WeakSet<object>();
 
 /**
  * An anchor of a block (decision 2): a retained scene component that owns a child element of its block's element, so
  * it draws right above its block, hides and raises with it, and is hit in its block's scene order. The theme's anchor
  * rules colour it, show its ring while it is selected and scale it while it is hovered.
  *
- * Anchors are drawn and hit from the schematic level on: at the minimalistic level they have no look and the block
- * under them is hit. A block creates its anchor components lazily, once the camera shows it at the schematic or
- * detailed level (`Block.updateChildren`); until then its anchor ports belong to the block, which positions them, so
- * connections attach to anchors whether or not their components exist.
+ * Anchors are hit where they are shown (D4, `SceneComponent.hitLevels`): stock anchors on the schematic level, where
+ * their look draws, and on every level while their block is shown outside the scene (an HTML view); elsewhere the
+ * block under them is hit. A class that draws on another level is hit there too. An anchor hidden itself, or of a block
+ * hidden for a reason other than delegation (its group's `setHiddenBlock`), takes no hits, as in the DOM
+ * (`SceneComponent.isHitBarrier`).
+ *
+ * A block creates its anchor components lazily, once the camera shows it at a level of their class's
+ * `CREATION_LEVELS` (schematic and detailed for the stock class; `Block.updateChildren`); until then its anchor ports
+ * belong to the block, which positions them, so connections attach to anchors whether or not their components exist.
+ * `Block.getAnchorClass` picks the class of each anchor.
  */
 export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponent<TAnchorView, T, TAnchorState> {
   /** Updated on change, never walked: the scene draws its element. */
@@ -76,6 +93,20 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
    */
   public declare readonly __styleParts?: TStyleParts<"anchor" | "border">;
 
+  /** The dot's diameter of this class's anchors in world units, passed as their `size` (hover scales it). */
+  public static SIZE = 18;
+
+  /** The line width of this class's anchors, passed as their `lineWidth`; the stock ring is `lineWidth + 3` wide. */
+  public static LINE_WIDTH = 2;
+
+  /**
+   * The levels on which blocks create anchors of this class lazily, once the camera shows the block there. The stock
+   * look draws on the schematic level, and React draws anchors on the detailed one (where they are hit while an HTML
+   * view holds the block). A class whose look draws on the minimalistic level declares it here; development builds warn
+   * when a created anchor draws on a level this list omits.
+   */
+  public static CREATION_LEVELS: readonly TSceneLevel[] = ["schematic", "detailed"];
+
   public static CANVAS_HOVER_FACTOR = 1.8;
   public static DETAILED_HOVER_FACTOR = 1.2;
 
@@ -84,12 +115,11 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
    * distance of its element's bounds from its origin. `graph.scene.toImage()` searches this far around its rect (and
    * past the anchors' own points) for blocks whose anchor components do not exist yet, and the camera's lazy creation
    * this far around its view (`Block.shouldCreateAnchors`), so a look that reaches farther can be left out of an export
-   * of a rect, or of a view, it reaches only with its look. The default is the default look with
-   * `Block`'s anchor props (size 18, lineWidth 2): the dot (radius 9) and its ring (width 5, centred on the dot's
-   * edge) reach 11.5.
+   * of a rect, or of a view, it reaches only with its look. The default is the default look with `SIZE` 18 and
+   * `LINE_WIDTH` 2: the dot (radius 9) and its ring (width 5, centred on the dot's edge) reach 11.5.
    *
-   * Contract: a subclass, or a block that passes a larger `size` or `lineWidth` to its anchors, whose look reaches
-   * farther than the declared extent must declare its own: `public static override LOOK_EXTENT = 40;`. Otherwise an
+   * Contract: a subclass, or a class with a larger `SIZE` or `LINE_WIDTH`, whose look reaches farther than the
+   * declared extent must declare its own: `public static override LOOK_EXTENT = 40;`. Otherwise an
    * export can miss such anchors of a block near the crop edge (the export finds blocks whose anchors do not exist yet
    * by this extent), and development builds warn, naming the class, once when an anchor's element reaches past it.
    */
@@ -103,8 +133,13 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
    * (`Block.createExportAnchors`), so a subclass that draws nothing on a level costs the export temporary anchors,
    * never a missing one.
    */
-  public static drawsOnLevel(klass: typeof Anchor, level: TSceneLevel): boolean {
+  public static drawsOnLevel(klass: TAnchorClass, level: TSceneLevel): boolean {
     return level === "schematic" || klass !== Anchor;
+  }
+
+  /** @internal The levels on which blocks create anchors of a class (`CREATION_LEVELS`), as a level mask. */
+  public static creationLevelsOf(klass: TAnchorClass): number {
+    return levelMaskOf(klass.CREATION_LEVELS);
   }
 
   public override isEntityAvailable(): boolean {
@@ -119,7 +154,15 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
     return this.connectedState.entityId;
   }
 
+  /**
+   * The anchor state this component is bound to: the one its block's store entry gives for its id. A block removed and
+   * added back with the same id in one frame keeps this component, which then binds to the new state
+   * (`propsChanged`).
+   */
   public connectedState: AnchorState;
+
+  /** Ends the subscription to the bound state's selection (`subscribeAnchorState`). */
+  private unsubscribeAnchorState?: () => void;
 
   private shift = 0;
 
@@ -130,10 +173,10 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
     super(props, parent);
     this.state = { size: props.size, raised: false, selected: false };
 
-    const anchorState = this.context.graph.rootStore.blocksList.getBlockState(props.blockId)?.getAnchorById(props.id);
+    const anchorState = this.findAnchorState(props);
     if (!anchorState) throw new Error(`Cannot bind Anchor to missing anchor ${props.id} in block ${props.blockId}`);
     this.connectedState = anchorState;
-    this.connectedState.setViewComponent(this);
+    this.bindAnchorState();
 
     this.addEventListener("click", this);
     this.addEventListener("mouseenter", this);
@@ -161,22 +204,75 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
     super.stateChanged(_nextState);
   }
 
-  protected propsChanged(_nextProps: T): void {
-    if (this.props.lineWidth !== _nextProps.lineWidth) {
-      this.computeShift(this.state, _nextProps);
+  protected propsChanged(nextProps: T): void {
+    // Its block reconciles it with every update of its anchors, a re-add of the block included.
+    const registered = this.findAnchorState(nextProps);
+    if (registered && registered !== this.connectedState && registered.entityId === this.connectedState.entityId) {
+      this.rebindAnchorState(registered);
+    }
+    if (this.props.lineWidth !== nextProps.lineWidth) {
+      this.computeShift(this.state, nextProps);
       this.onPositionChanged();
     }
-    super.propsChanged(_nextProps);
+    super.propsChanged(nextProps);
+  }
+
+  /** The anchor state its block's store entry gives for these props' anchor id, if any. */
+  private findAnchorState(props: TAnchorProps): AnchorState | undefined {
+    return this.context.graph.rootStore.blocksList.getBlockState(props.blockId)?.getAnchorById(props.id);
+  }
+
+  /**
+   * Binds this component to `connectedState`: it becomes the state's view component and, once mounted, follows its
+   * selection (before the mount, `willMount` subscribes). The constructor and a rebind take this one path.
+   */
+  private bindAnchorState(): void {
+    this.connectedState.setViewComponent(this);
+    if (this.isMounted()) this.subscribeAnchorState();
+  }
+
+  /** Undoes `bindAnchorState`: the state no longer names this component, and nothing of it is subscribed to. */
+  private unbindAnchorState(): void {
+    this.unsubscribeAnchorState?.();
+    this.unsubscribeAnchorState = undefined;
+    this.connectedState.unsetViewComponent();
+  }
+
+  /**
+   * Binds this component to the new anchor state of its entity. Its block was removed and added back with the same id
+   * before a frame, or the anchor left its block's list and came back: the block's component and this one are kept
+   * (keyed by id), but the store made a new anchor state, and the old one rejects selection writes and drags
+   * (`isAttached`). The entity stays, and with it the element, the tags and the style binding (all addressed by the
+   * entity id), the port and the hit box. It asks for no retarget: the pointer's target is the same component.
+   */
+  private rebindAnchorState(next: AnchorState): void {
+    // One batch: the connections' endpoint computeds read the block state through this component and depend on the
+    // bound state's view (`ConnectionState.$sourceBlock`), so they must run again only once the new state is bound.
+    batch(() => {
+      this.unbindAnchorState();
+      this.connectedState = next;
+      this.bindAnchorState();
+    });
+    // The port it follows (`willMount` subscribed to it) stays its own: a block that saw the anchor leave its list
+    // released the port and claimed it again.
+    const port = this.props.port;
+    if (this.isMounted() && port.owner !== this) port.setOwner(this);
+  }
+
+  private subscribeAnchorState(): void {
+    this.unsubscribeAnchorState?.();
+    this.unsubscribeAnchorState = this.connectedState.$selected.subscribe((selected) => {
+      this.setState({ selected });
+    });
   }
 
   protected willMount(): void {
     this.props.port.setOwner(this);
-    this.subscribeSignal(this.connectedState.$selected, (selected) => {
-      this.setState({ selected });
-    });
-    this.subscribeSignal(this.props.port.$point, this.onPositionChanged);
+    this.subscribeAnchorState();
+    // The extent first: the port subscription sets the first hit box at once, and it has its final geometry, so the
+    // anchor mounting under a still pointer asks for no retarget (settled item 11: camera moves keep today's rule).
     this.computeShift(this.state, this.props);
-    this.onPositionChanged();
+    this.subscribeSignal(this.props.port.$point, this.onPositionChanged);
     super.willMount();
   }
 
@@ -192,11 +288,23 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
    * the class's `LOOK_EXTENT`.
    */
   private checkLook(): void {
-    const bounds = this.getSceneElementView()?.bounds;
-    if (!bounds) return;
+    const element = this.getSceneElementView();
+    const bounds = element?.bounds;
+    if (!element || !bounds) return;
     this.lookChecked = true;
     const klass = this.constructor as typeof Anchor;
     const name = klass.name || "An anchor class";
+    const drawn = levelMaskOfPrimitives(element.primitives);
+    const created = Anchor.creationLevelsOf(klass);
+    const missing = SCENE_LEVELS.filter((level) => isOnLevel(drawn, level) && !isOnLevel(created, level));
+    if (drawn > 0 && missing.length > 0 && !warnedCreationLevels.has(klass)) {
+      warnedCreationLevels.add(klass);
+      console.warn(
+        `${name}: its anchors draw on the ${missing.join(" and ")} level, but ${name}.CREATION_LEVELS omits it: ` +
+          "blocks do not create them there, so the look shows there only after the camera visited another level. " +
+          `Declare \`public static override CREATION_LEVELS = [${SCENE_LEVELS.map((l) => `"${l}"`).join(", ")}];\`.`
+      );
+    }
     for (const level of SCENE_LEVELS) {
       if (!Object.prototype.hasOwnProperty.call(this, level) || warnedLevelFields.has(klass)) continue;
       warnedLevelFields.add(klass);
@@ -274,15 +382,6 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
     this.connectedState.block.getViewComponent()?.handleDragEnd(context);
   }
 
-  /**
-   * Not hit at the minimalistic level, where anchors have no look: the block under the anchor is hit instead, so
-   * gestures that start on an anchor (connection creation) start from the schematic level on.
-   */
-  public override onHitBox(data: HitBoxData): boolean {
-    if (this.context.graph.scene.$level.peek() === "minimalistic") return false;
-    return super.onHitBox(data);
-  }
-
   protected unmount() {
     // A constructor that found no anchor state threw before binding: the reconcile unmounts the half-built anchor
     // (`discardChild`), which owns no port and holds no view-component binding.
@@ -295,21 +394,39 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
     if (port.owner === this) {
       // While the anchor still belongs to its block (its components were dropped: `useBlocksAnchors` turned off, or
       // the anchor list changed out of view), the block owns its port again and keeps positioning it, so connections
-      // keep this endpoint, as before the component existed. A removed anchor's port waits for an owner.
+      // keep this endpoint, as before the component existed. A removed anchor's port waits for an owner. It belongs
+      // while its block's store entry has a state of its entity: the bound one, or a new one after a re-add of the
+      // block in this frame, whose reconcile dropped this component without rebinding it.
       const block = this.getParent();
-      if (this.connectedState.isAttached() && block instanceof GraphComponent) {
+      const registered = this.findAnchorState(this.props);
+      if (registered?.entityId === bound.entityId && block instanceof GraphComponent) {
         port.setOwner(block);
         // `useBlocksAnchors` turned off at runtime hides anchor connections (the block does it for the ports it owns).
         if (!this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors")) port.updatePort({ lookup: true });
       } else port.removeOwner();
     }
-    this.connectedState.unsetViewComponent();
+    this.unbindAnchorState();
     super.unmount();
   }
 
-  public handleEvent(event: MouseEvent | KeyboardEvent) {
+  /**
+   * The anchor's `hoveredTag`: on while the anchor itself is the pointer's target, not while one of its children is
+   * (D5). From the hook, so it follows the pointer whatever the anchor's interactivity, as the tag always did.
+   */
+  protected override onDispatchedEvent(event: Event): void {
+    super.onDispatchedEvent(event);
+    if (event.type === "mouseenter" || event.type === "mouseleave") {
+      this.setHoveredTag(pointerTargetAfter(event) === this);
+    }
+  }
+
+  /**
+   * Clicks and presses stay the anchor's own; hover events go on to its block (D5: the anchor handles them and passes
+   * them on, so its block follows the pointer). Its tag is written by `onDispatchedEvent`.
+   */
+  public handleEvent(event: MouseEvent | KeyboardEvent): void {
     event.preventDefault();
-    event.stopPropagation();
+    if (event.type !== "mouseenter" && event.type !== "mouseleave") event.stopPropagation();
 
     switch (event.type) {
       case "click": {
@@ -348,7 +465,7 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
   /**
    * No look at the minimalistic level (user decision, 2026-11-14): there an anchor is a sub-pixel dot, and the scene
    * skips an element without primitives on the level before any per-element work. A selected anchor shows no ring
-   * there either.
+   * there either. A subclass that draws here declares the level in `CREATION_LEVELS`, so blocks create it here.
    *
    * Level methods of anchors are best written as prototype methods, in subclasses too
    * (`protected override minimalistic() {}`), not instance properties (`minimalistic = () => [...]`); development
@@ -380,12 +497,9 @@ export class Anchor<T extends TAnchorProps = TAnchorProps> extends SceneComponen
     return { x, y };
   }
 
-  /** A child element of its block's element, ordered by its place among the block's anchors. */
-  protected override getSceneParent(): TSceneParent | undefined {
-    const block = this.getParent();
-    return block instanceof SceneComponent
-      ? { elementId: block.getSceneElementId(), order: this.renderOrder }
-      : undefined;
+  /** None: the anchor sets its hit box from its port (`onPositionChanged`), a square of `size / 2 + lineWidth`. */
+  protected override getHitRect(): TRect | undefined {
+    return undefined;
   }
 
   private lookCache?: { readonly view: TAnchorView; readonly primitives: readonly TScenePrimitive[] };

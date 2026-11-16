@@ -2,19 +2,22 @@ import { computed, signal, untracked } from "@preact/signals-core";
 import type { ReadonlySignal } from "@preact/signals-core";
 
 import type { TComponentState } from "../../../lib/Component";
-import type { TComponentMode } from "../../../lib/CoreComponent";
+import type { CoreComponent, TComponentMode } from "../../../lib/CoreComponent";
 import type { TTileRect } from "../../../lib/culling/TileIndex";
 import { isDevelopmentBuild } from "../../../lib/detachedWarning";
 import type { SceneStore } from "../../../lib/scene/SceneStore";
 import { EMPTY_BOUNDS, elementBounds } from "../../../lib/scene/elementBounds";
+import { isOnLevel, levelMaskOf, levelMaskOfPrimitives } from "../../../lib/scene/levels";
 import { runLevelMethods } from "../../../lib/scene/purity";
 import type { TSceneElement, TScenePrimitive, TSceneSize } from "../../../lib/scene/types";
+import type { HitBoxData } from "../../../services/HitTest";
 import type { ISceneKeyed, TSceneKey } from "../../../services/scene/sceneKey";
-import type { ITextMeasurer, TSceneElementView } from "../../../services/scene/types";
+import type { ITextMeasurer, TSceneElementView, TSceneLevel } from "../../../services/scene/types";
 import type { TStyleTarget } from "../../../services/styles/types";
 import { entityKey } from "../../../services/tags/TagStore";
 import { measureText } from "../../../utils/functions/text";
-import type { TPoint } from "../../../utils/types/shapes";
+import { track } from "../../../utils/functions/track";
+import type { TPoint, TRect } from "../../../utils/types/shapes";
 import { GraphComponent } from "../GraphComponent";
 import type { GraphComponentContext, TGraphComponentProps } from "../GraphComponent";
 
@@ -95,11 +98,6 @@ export const sceneComponentStats = {
   },
 };
 
-/** Reads a signal so the surrounding computed tracks it. */
-function track(source: ReadonlySignal<unknown>): unknown {
-  return source.value;
-}
-
 /** A development message once per class and kind. */
 function reportOnce(owner: string, kind: string, message: string, level: "warn" | "error"): void {
   const key = `${owner}\u0000${kind}`;
@@ -107,6 +105,22 @@ function reportOnce(owner: string, kind: string, message: string, level: "warn" 
   reported.add(key);
   if (level === "error") console.error(message);
   else console.warn(message);
+}
+
+/** A class without a `static hitLevels` declaration, in `declaredHitMasks` (a level mask is never negative). */
+const UNDECLARED = -1;
+
+/** `static hitLevels` as a level mask per class, `UNDECLARED` without a declaration (never changed later). */
+const declaredHitMasks = new WeakMap<object, number>();
+
+function declaredHitMask(klass: typeof SceneComponent): number | undefined {
+  let mask = declaredHitMasks.get(klass);
+  if (mask === undefined) {
+    const declared = klass.hitLevels;
+    mask = declared === undefined ? UNDECLARED : levelMaskOf(declared);
+    declaredHitMasks.set(klass, mask);
+  }
+  return mask === UNDECLARED ? undefined : mask;
 }
 
 function isUnboundedPx(size: TSceneSize | undefined): boolean {
@@ -178,6 +192,9 @@ function elementPatch(written: TWritten, next: TWritten): TElementPatch | undefi
  * §5.2): level methods describe its look as primitives, view data says when they run again, and a style row from its
  * entity's tags paints its parts. It is retained: the frame walk never visits it, and its element changes in its queued
  * update when an input changes.
+ *
+ * A scene component returned from another one's `updateChildren()` is a sub-component: by default it is nested in its
+ * parent's element, at its parent's origin, and is hit where it draws.
  */
 export abstract class SceneComponent<
     TView extends object = object,
@@ -193,6 +210,15 @@ export abstract class SceneComponent<
 
   /** Tag address of the element owner ("block", "anchor", a layer's type); also the prefix of its element id. */
   public static entityType?: string;
+
+  /**
+   * The levels on which the hit test finds components of this class, whatever shows them (spec §9, D4). Without a
+   * declaration: an element owner on every level; a sub-component with a look on the levels its primitives are on, and
+   * on every level while it or a scene component above it is shown outside the scene; a look-less sub-component on
+   * none (declare where the look it stands for is shown). A sub-component of a hidden one takes no hits at all,
+   * declared or not, as in the DOM (`isHitBarrier`).
+   */
+  public static hitLevels?: readonly TSceneLevel[];
 
   private readonly invalidation = signal(0);
 
@@ -232,6 +258,27 @@ export abstract class SceneComponent<
 
   private measuresText = false;
 
+  /** The hit box last set from `getHitRect` (removed again when it returns none); undefined while none is set. */
+  private lastHitRect?: TRect;
+
+  /** A sub-component's own levels as a hit mask: those of its primitives, 0 without any (`levelMaskOfPrimitives`). */
+  private hitMask = 0;
+
+  /**
+   * Whether its last write was, or tried to be, a child element. A child whose add failed (its parent element is
+   * missing, or its id is taken) has no written element, and is still no element owner (`isHitOnLevel`).
+   */
+  private writesChild = false;
+
+  /** Whether a hit box was set (`setHitBox`, from `getHitRect` or by hand) and not removed since. */
+  private hasHitBox = false;
+
+  /** The hit barrier (`isHitBarrier`) at the last write; undefined before the first. */
+  private syncedBarrier?: boolean;
+
+  /** How many times its element was added: after the first, its scene children write theirs again. */
+  private adds = 0;
+
   /**
    * The inputs of the level methods; read inside a computed, so the signals it reads are tracked (spec §5.3), and read
    * again after new props and after `invalidate()`. Return a fresh object on every call: development builds freeze it
@@ -268,9 +315,14 @@ export abstract class SceneComponent<
     this.invalidate();
   }
 
-  /** The element's origin in world units; tracked, and read again after new props. */
+  /**
+   * The element's origin in world units; tracked, and read again after new props. A sub-component (a scene component
+   * returned from another one's `updateChildren()`) draws at its parent's origin by default, so its primitives are in
+   * its parent's frame; any other component at the world origin.
+   */
   protected getSceneOrigin(): TPoint {
-    return { x: 0, y: 0 };
+    const parent = this.getParent();
+    return parent instanceof SceneComponent ? parent.readSceneOrigin() : { x: 0, y: 0 };
   }
 
   /** The element's zIndex bucket; tracked, and read again after new props. Ignored for a child element. */
@@ -278,14 +330,52 @@ export abstract class SceneComponent<
     return 0;
   }
 
-  /** The parent element of a child element; read in the update, so a change must call performRender(). */
+  /**
+   * The parent element of a child element; read in the update, so a change must call performRender(). By default a
+   * sub-component is nested in its parent's element (an owner's or another child's), ordered by its place among the
+   * parent's retained children; the store derives its draw order from the whole nesting. Return undefined for an
+   * element of its own.
+   */
   protected getSceneParent(): TSceneParent | undefined {
-    return undefined;
+    const parent = this.getParent();
+    if (!(parent instanceof SceneComponent)) return undefined;
+    return { elementId: parent.getSceneElementId(), order: this.renderOrder };
   }
 
-  /** Whether the element is hidden; read in the update, so a change must call performRender(). */
+  /**
+   * The hit box a write sets, from the element's bounds in world units (its origin applied; undefined without
+   * primitives). By default a sub-component's bounds, so a child is hit where it draws; none for an element owner,
+   * which sets its own hit box (`setHitBox`, as `Block` does), and none without primitives. Override it for another
+   * shape or a look-less child, or return undefined to set the hit box yourself (as `Anchor` does).
+   */
+  protected getHitRect(bounds: TTileRect | undefined): TRect | undefined {
+    if (!bounds || this.written?.parent === undefined) return undefined;
+    return { x: bounds.minX, y: bounds.minY, width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY };
+  }
+
+  /**
+   * Reads the view data of its child scene components again in their next update, for inputs of theirs that are not
+   * signals (a field of this component they read). What they read through `readSceneView()` is tracked already.
+   */
+  protected invalidateChildren(): void {
+    for (const child of this.getChildComponents()) {
+      if (child instanceof SceneComponent) child.invalidate();
+    }
+  }
+
+  /**
+   * Whether the element is hidden for a reason of its own, delegation aside: by default `setVisibility(false, …)`; an
+   * override adds its reasons (`Block` adds its group's `setHiddenBlock`). The scene also hides the element while its
+   * drawing is delegated (`isRenderDelegated`), and this is the hit barrier (`isHitBarrier`): no sub-component under it
+   * takes hits. Read in the update, so a change must call performRender().
+   */
   protected isSceneHidden(): boolean {
-    return this.hidden;
+    return super.isHiddenForOtherReason();
+  }
+
+  /** Hidden for a reason other than delegation: `isSceneHidden()`, with the reasons subclasses add there. */
+  public override isHiddenForOtherReason(): boolean {
+    return this.isSceneHidden();
   }
 
   /** The class style rules match against. */
@@ -309,7 +399,7 @@ export abstract class SceneComponent<
     return this.sceneKey;
   }
 
-  /** @internal The written element as a read-only view (the minimap draws it until 3b); undefined before. */
+  /** @internal The written element as a read-only view; undefined before. */
   public getSceneElementView(): TSceneElementView | undefined {
     return this.written ? this.context.graph.scene.store.get(this.getSceneElementId()) : undefined;
   }
@@ -317,6 +407,15 @@ export abstract class SceneComponent<
   /** @internal This component's view data, tracked: a child's view data may carry its parent's (spec V6b). */
   public readSceneView(): TView | undefined {
     return this.sceneView?.value;
+  }
+
+  /**
+   * @internal The element origin as this component's update reads it; tracked inside a computed, so a sub-component
+   * that draws at this origin follows its moves.
+   */
+  public readSceneOrigin(): TPoint {
+    const trigger = this.sceneTrigger?.value;
+    return trigger ? { x: trigger.x, y: trigger.y } : this.getSceneOrigin();
   }
 
   /** Whether the scene draws this component's element now: written, not hidden (nor its parent), in the viewport. */
@@ -327,6 +426,61 @@ export abstract class SceneComponent<
       !this.context.graph.scene.store.isDrawnHidden(element as TSceneElement) &&
       this.isInViewport()
     );
+  }
+
+  /** Whether the hit test finds this component on a level (`static hitLevels`, spec §9, D4). */
+  public isHitOnLevel(level: TSceneLevel): boolean {
+    const declared = declaredHitMask(this.constructor as typeof SceneComponent);
+    // An element owner: every level without a declaration, as every graph component.
+    if (!this.writesChild) return declared === undefined || isOnLevel(declared, level);
+    // The cheap rejections first, before the walks up the nesting. A look-less sub-component without a declaration is
+    // not hit (settled item 10); a declaration that omits the level is authoritative.
+    if (declared === undefined ? this.hitMask === 0 : !isOnLevel(declared, level)) return false;
+    const showing = this.hitShowing();
+    // Hidden itself or above, for a reason other than delegation: no hits in the subtree (user ruling, as in the DOM).
+    if (showing === "hidden") return false;
+    const shownOutside = showing === "outside";
+    if (declared === undefined && !shownOutside && !isOnLevel(this.hitMask, level)) return false;
+    return shownOutside || !this.isChildDrawnHidden();
+  }
+
+  /** Not hit on a level it is not hit on (`isHitOnLevel`); otherwise as every graph component. */
+  public override onHitBox(data: HitBoxData): boolean {
+    if (!this.isHitOnLevel(this.context.graph.scene.$level.peek())) return false;
+    return super.onHitBox(data);
+  }
+
+  /** Sets the hit box as every graph component; development builds check a look-less child's declaration. */
+  public override setHitBox(minX: number, minY: number, maxX: number, maxY: number, force?: boolean): void {
+    super.setHitBox(minX, minY, maxX, maxY, force);
+    this.hasHitBox = true;
+    this.checkLookLessHitBox();
+  }
+
+  public override removeHitBox(): void {
+    super.removeHitBox();
+    this.hasHitBox = false;
+  }
+
+  /**
+   * Whether something outside the scene shows this component now (D4): it and its sub-components are then hit on
+   * every level, drawn in the scene or not, unless one of them is hidden for another reason (`isHitBarrier`). By
+   * default while its drawing is delegated (`setRenderDelegated`); `Block` adds an HTML view's hold.
+   */
+  public isShownOutsideScene(): boolean {
+    return this.isRenderDelegated();
+  }
+
+  /**
+   * Whether this component is a hit barrier (user ruling on D4, as `display: none` in the DOM): every sub-component
+   * under it, and it too when it is a sub-component, takes no hits, on any level, under an owner shown outside the
+   * scene too and whatever they declare. An element owner (a block) is hit, on the levels its `hitLevels` allow, as long
+   * as it keeps its hit box: hiding it with `setVisibility(false, { removeHitbox: true })` or a collapsed group removes
+   * the box, `removeHitbox: false` keeps it. By default a barrier while it is hidden for a reason other than delegation
+   * (`isHiddenForOtherReason`), whether or not it is shown outside the scene; delegation alone is no barrier.
+   */
+  protected isHitBarrier(): boolean {
+    return this.isHiddenForOtherReason();
   }
 
   protected propsChanged(nextProps: Props): void {
@@ -455,14 +609,127 @@ export abstract class SceneComponent<
   }
 
   /**
-   * Whether the inputs the update reads untracked still match the last write: the hidden state and the parent. A child
-   * element also has to be in the store still: its parent's element, added again, takes it along.
+   * Whether the inputs the update reads untracked still match the last write: the hidden state, the hit barrier and
+   * the parent. A child element also has to be in the store still: its parent's element, added again, takes it along.
    */
   private writtenPlaceHolds(written: TWritten): boolean {
-    if (this.isSceneHidden() !== written.hidden) return false;
+    if (this.isWrittenHidden() !== written.hidden || this.isHitBarrier() !== this.syncedBarrier) return false;
     const parent = this.getSceneParent();
     if (parent?.elementId !== written.parent || (parent?.order ?? 0) !== written.childOrder) return false;
     return written.parent === undefined || this.context.graph.scene.store.get(this.getSceneElementId()) !== undefined;
+  }
+
+  /** The element's hidden flag: hidden for a reason of its own (`isSceneHidden`) or delegated. */
+  private isWrittenHidden(): boolean {
+    return this.isRenderDelegated() || this.isSceneHidden();
+  }
+
+  /**
+   * Notes the hit barrier at a write; a change after the first asks GraphLayer to find the target again. The written
+   * hidden flag can stay (a delegated component that another input hides), and `isSceneHidden` overrides read inputs
+   * of their own, so the barrier itself is compared. The first write asks nothing, as a first hit box.
+   */
+  private syncHitBarrier(): void {
+    const barrier = this.isHitBarrier();
+    if (this.syncedBarrier !== undefined && barrier !== this.syncedBarrier) this.requestRetarget();
+    this.syncedBarrier = barrier;
+  }
+
+  /** Sets the hit box from `getHitRect` after a write that moved or reshaped the element. */
+  private syncHitRect(next: TWritten): void {
+    const bounds =
+      next.primitives.length === 0
+        ? undefined
+        : {
+            minX: next.x + next.bounds.minX,
+            minY: next.y + next.bounds.minY,
+            maxX: next.x + next.bounds.maxX,
+            maxY: next.y + next.bounds.maxY,
+          };
+    const rect = this.getHitRect(bounds);
+    const last = this.lastHitRect;
+    const same =
+      rect === undefined
+        ? last === undefined
+        : last !== undefined &&
+          rect.x === last.x &&
+          rect.y === last.y &&
+          rect.width === last.width &&
+          rect.height === last.height;
+    if (same) return;
+    this.lastHitRect = rect;
+    // A look that goes, comes back, moves or changes size changes what a still pointer hits (re-review 5):
+    // `setHitBox` and `removeHitBox` ask GraphLayer to find the target again (`GraphComponent.requestRetarget`).
+    if (rect) this.setHitBox(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
+    else if (last) this.removeHitBox();
+  }
+
+  /**
+   * A development warning, once per class: a look-less child with a hit box, from `getHitRect` or set by hand (as
+   * `Anchor` does), is hit only on the levels its class declares, so without `hitLevels` it is never hit. Checked once
+   * both are known, after a write and after a hit box is set, whichever comes last.
+   */
+  private checkLookLessHitBox(): void {
+    const written = this.written;
+    if (!this.hasHitBox || written?.parent === undefined || written.primitives.length > 0) return;
+    const klass = this.constructor as typeof SceneComponent;
+    if (declaredHitMask(klass) !== undefined || !isDevelopmentBuild()) return;
+    reportOnce(
+      klass.name,
+      "hitLevels",
+      `${klass.name}: a look-less child with a hit box is hit only on the levels it declares; declare them ` +
+        '(`public static override hitLevels = ["schematic"];`) where the look it stands for is shown',
+      "warn"
+    );
+  }
+
+  /**
+   * Writes a sub-component's hit mask after a write (none written: 0); a later change asks GraphLayer to find the
+   * target again. The first add only sets it (`initial`): a component that mounts under a still pointer is found at the
+   * next pointer move, and the anchors a camera move creates lazily must not turn that move into a retarget (settled
+   * item 11).
+   */
+  private syncHitMask(written: TWritten | undefined, initial = false): void {
+    const mask = written?.parent === undefined ? 0 : levelMaskOfPrimitives(written.primitives);
+    if (mask === this.hitMask) return;
+    this.hitMask = mask;
+    if (!initial) this.requestRetarget();
+  }
+
+  /**
+   * How this sub-component's nesting shows it now: "hidden" when it or a scene component above it is a hit barrier
+   * (`isHitBarrier`), whatever is shown outside the scene; else "outside" when it or one above is shown outside the
+   * scene; else "scene".
+   */
+  private hitShowing(): "hidden" | "outside" | "scene" {
+    // `this` on its own: its generic type is not assignable to `CoreComponent` (a narrower `setContext`).
+    if (this.isHitBarrier()) return "hidden";
+    let outside = this.isShownOutsideScene();
+    let node: CoreComponent | undefined = this.getParent();
+    while (node instanceof SceneComponent) {
+      // The walk goes on past a node shown outside: a hidden one above it still hides the whole subtree.
+      if (node.isHitBarrier()) return "hidden";
+      if (!outside) outside = node.isShownOutsideScene();
+      node = node.getParent();
+    }
+    return outside ? "outside" : "scene";
+  }
+
+  /**
+   * Whether the scene does not draw this sub-component's element: not in the store (its add failed, or it was deleted
+   * with its parent's and not written again yet), or hidden itself or up its nesting.
+   */
+  private isChildDrawnHidden(): boolean {
+    const { store } = this.context.graph.scene;
+    const element = this.written === undefined ? undefined : store.get(this.getSceneElementId());
+    return element === undefined || store.isDrawnHidden(element as TSceneElement);
+  }
+
+  /** After its element was added again (what was nested in it went with the old one): its children write again. */
+  private rewriteChildren(): void {
+    for (const child of this.getChildComponents()) {
+      if (child instanceof SceneComponent) child.performRender();
+    }
   }
 
   /** The origin and the bucket; after an exception, the last ones (the origin and bucket 0 before any). */
@@ -534,11 +801,16 @@ export abstract class SceneComponent<
       x: trigger.x,
       y: trigger.y,
       zIndex: trigger.zIndex,
-      hidden: this.isSceneHidden(),
+      hidden: this.isWrittenHidden(),
       parent: parent?.elementId,
       childOrder: parent?.order ?? 0,
     };
     const written = this.written;
+    // Before the write: a child whose add fails is still no element owner (`isHitOnLevel`).
+    this.writesChild = next.parent !== undefined;
+    // Before any early return: the barrier can change while the element stays as written (a delegated one hidden by
+    // another input).
+    this.syncHitBarrier();
     if (written && store.get(id) && written.parent === next.parent) {
       const patch = elementPatch(written, next);
       if (!patch) return;
@@ -548,7 +820,16 @@ export abstract class SceneComponent<
       store.update(id, patch);
       this.written = next;
       if (patch.childOrder !== undefined) this.sceneKey = { elementId: id, sub: 0 };
+      const geometry =
+        patch.x !== undefined || patch.y !== undefined || patch.bounds !== undefined || patch.primitives !== undefined;
+      if (geometry) this.syncHitRect(next);
+      if (patch.primitives !== undefined) {
+        this.syncHitMask(next);
+        this.checkLookLessHitBox();
+      }
     } else if (!this.addSceneElement(store, id, next)) {
+      // Nothing written: no look of its own is hit.
+      this.syncHitMask(undefined);
       return;
     }
     if (sceneComponentStats.enabled) {
@@ -593,6 +874,8 @@ export abstract class SceneComponent<
     if (isDevelopmentBuild()) checkScenePrimitives(owner, next.primitives);
     store.add({
       id,
+      // The type is the class's, whatever the id (`createSceneElementId` may be overridden).
+      entityType: (this.constructor as typeof SceneComponent).entityType,
       primitives: next.primitives,
       bounds: next.bounds,
       x: next.x,
@@ -604,8 +887,13 @@ export abstract class SceneComponent<
     });
     owners.set(id, this);
     this.written = next;
+    this.syncHitMask(next, this.adds === 0);
     this.sceneKey = { elementId: id, sub: 0 };
     this.bindSceneStyle(id);
+    this.syncHitRect(next);
+    // A hit box set before the first write (by hand, as `Anchor` does) is checked once the look is known.
+    this.checkLookLessHitBox();
+    if (this.adds++ > 0) this.rewriteChildren();
     return true;
   }
 

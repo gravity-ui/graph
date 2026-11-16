@@ -22,11 +22,12 @@ classDiagram
         +context: TComponentContext
         +addEventListener()
         +removeEventListener()
-        #eventedArea()
     }
     
     class GraphComponent {
         +hitBox: HitBox
+        +static transparentToEvents
+        +isTransparentToEvents()
         +setHitBox()
         +getHitBox()
         +isVisible()
@@ -152,18 +153,21 @@ GraphComponent adds the ability to listen to mouse events on the element, includ
 ```typescript
 // Listen for basic mouse events
 this.addEventListener('click', (event) => {
-  console.log('Component clicked at:', event.point);
+  // A click is the browser's MouseEvent: take its world point from the graph.
+  const { world } = this.context.graph.getPointInCameraSpace(event);
+  console.log('Component clicked at:', world.x, world.y);
   this.setState({ selected: true });
 });
 
-this.addEventListener('mouseenter', () => {
+// Hover events of the children walk up here too: react only to this component's own.
+this.addEventListener('mouseenter', (event) => {
+  if (getEventTarget(event) !== this) return;
   this.setState({ hovered: true });
-  this.performRender();
 });
 
-this.addEventListener('mouseleave', () => {
+this.addEventListener('mouseleave', (event) => {
+  if (getEventTarget(event) !== this) return;
   this.setState({ hovered: false });
-  this.performRender();
 });
 
 // Use the specialized drag handling system
@@ -188,8 +192,14 @@ this.onDrag({
 });
 ```
 
+`onDrag()` listens to the component's own `mousedown`, so it starts only for a press that neither a drag nor the
+camera's pan takes. Under a draggable block, the block's drag takes a child's press. A child of a draggable block uses
+`isDraggable()` and the `handleDrag*` methods below, or a graph `mousedown` listener with
+`graph.dragService.startDrag` (see
+[Presses and drags](../system/event-model.md#presses-and-drags)).
+
 **What makes this powerful:**
-- Events operate in world coordinates rather than screen coordinates
+- Hit testing works in world coordinates; `graph.getPointInCameraSpace(event)` gives an event's world point
 - Event bubbling works through the component hierarchy
 - Proper mouse hit testing via the HitBox system
 - Camera transforms are handled automatically
@@ -201,6 +211,28 @@ this.onDrag({
 - `mousedown`, `mouseup` - Mouse button press and release
 - `mouseenter`, `mouseleave` - Mouse pointer entering or leaving the component
 - Specialized `onDrag` system with precise coordinate handling
+
+**Whose event it is.** GraphLayer dispatches an event at the component under the pointer, and the event walks up the
+parent chain until a listener calls `stopPropagation()`. So a component's listeners also hear its children's events,
+`mouseenter` and `mouseleave` included. `getEventTarget(event)` returns the component that was hit, and hover events
+carry `detail.target` and `detail.relatedTarget` (see [Event model](../system/event-model.md)).
+
+#### Transparent components
+
+`static transparentToEvents = true` lets pointer events pass through a component that has a hit box. The pointer's
+target, its hover events, the cursor and `graph.getElementOverPoint()` skip it for the component under it, and
+`GraphLayer.captureEvents()` does not capture it. Its hit box stays: it counts in the usable rect, and
+`getElementsOverPoint()` and `getElementsOverRect()` return it. Override `isTransparentToEvents()` to decide per
+instance. A component that must stay out of every hit query keeps `onHitBox() { return false; }`.
+
+```typescript
+import { GraphComponent } from "@gravity-ui/graph";
+
+/** Reserves usable-rect space under a layer's HTML panel; never the pointer's target. */
+class Reserver extends GraphComponent {
+  public static override transparentToEvents = true;
+}
+```
 
 **The `onDrag` callback structure:**
 
@@ -337,25 +369,9 @@ For more details on the drag system, see [Drag System](../system/drag-system.md)
 
 ### 5. Evented Areas
 
-Declare **interactive sub-regions** on a component from `render()`:
-
-```typescript
-protected eventedArea(fn: (state: TEventedAreaState) => TRect, params: TEventedAreaParams): TRect
-```
-
-`fn` draws the region and returns its world-space `TRect`; `state` includes `hovered`. `params` must set a unique `key` per area, optional `onHitBox` for custom hit-testing, and handlers such as `click` / `mouseenter`. Areas are re-registered each frame; hover is tracked per `key`.
-
-```typescript
-this.eventedArea(
-  ({ hovered }) => {
-    const ctx = this.context.ctx;
-    ctx.fillStyle = hovered ? "rgba(0, 120, 255, 0.4)" : "rgba(0, 120, 255, 0.2)";
-    ctx.fillRect(this.state.x, this.state.y, 40, 40);
-    return { x: this.state.x, y: this.state.y, width: 40, height: 40 };
-  },
-  { key: "btn", click: () => this.onBtn() },
-);
-```
+Evented areas were removed in v2. A clickable region of a block is a child component (see
+[Block component](block-component.md#child-components)); a hit region without a look declares `getHitRect()` and
+`static hitLevels`.
 
 ### 4. Reactive Data with Signal Subscriptions
 
@@ -958,8 +974,10 @@ GraphComponents can be used in various contexts within the graph system. Underst
 
 A scene block (`CanvasBlock`) is retained, so its children must be retained too: mounting a walked child that draws in
 `render()` throws. Draw a badge, an icon or a progress bar as primitives of the block's level methods, as parts that
-rules style (see [Block component](./block-component.md#level-methods)). The pattern below, with children that draw
-in `render()`, needs a `LegacyCanvasBlock` (deprecated). Keep the block's anchors: `super.updateChildren()` returns
+rules style (see [Block component](./block-component.md#level-methods)). A region with events of its own (a button)
+is a child scene component, drawn and hit in the scene (see
+[Child components](./block-component.md#child-components)). The pattern below, with children that draw in
+`render()`, needs a `LegacyCanvasBlock` (deprecated). Keep the block's anchors: `super.updateChildren()` returns
 them.
 
 ```typescript

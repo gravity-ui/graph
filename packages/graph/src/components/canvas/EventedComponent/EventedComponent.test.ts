@@ -1,6 +1,6 @@
 import { Component } from "../../../lib/Component";
 
-import { EventedComponent, TEventedAreaParams } from "./EventedComponent";
+import { EventedComponent } from "./EventedComponent";
 
 class TestComponent extends EventedComponent {
   public clearInteractive() {
@@ -9,10 +9,6 @@ class TestComponent extends EventedComponent {
   public readonly handled = jest.fn();
   protected handleEvent(event: Event) {
     this.handled(event);
-  }
-  public registerArea(params: TEventedAreaParams) {
-    this.eventedArea(() => ({ x: 0, y: 0, width: 10, height: 10 }), params);
-    this._lastHitBoxData = { minX: 1, minY: 1, maxX: 2, maxY: 2, x: 1, y: 1 };
   }
 }
 
@@ -42,16 +38,9 @@ test("component listeners preserve identity, bubbling, objects and cleanup", () 
   Component.unmount(root);
 });
 
-test("component area hover uses native synthetic events and bubbling preserves graph hover events", () => {
+test("a graph hover event reaches its listener, and none after unmount", () => {
   const parent = new Component({});
   const child = new TestComponent({}, parent);
-  const enter = jest.fn();
-  const leave = jest.fn();
-  child.registerArea({ key: "area", mouseenter: enter, mouseleave: leave });
-  child._trackAreaHover();
-  expect(enter.mock.calls[0][0]).toBeInstanceOf(MouseEvent);
-  child._clearAreaHover();
-  expect(leave.mock.calls[0][0]).toBeInstanceOf(MouseEvent);
   const listener = jest.fn();
   child.addEventListener("mouseenter", listener);
   const event = new CustomEvent("mouseenter", { detail: { sourceEvent: new MouseEvent("mousemove") } });
@@ -61,6 +50,35 @@ test("component area hover uses native synthetic events and bubbling preserves g
   child.dispatchEvent(event);
   expect(listener).toHaveBeenCalledTimes(1);
   Component.unmount(parent);
+});
+
+test("events walk the parent chain; onDispatchedEvent sees them before listeners; stopping ends the walk", () => {
+  const seen: string[] = [];
+  class Hooked extends TestComponent {
+    public name = "";
+
+    protected override onDispatchedEvent(event: Event): void {
+      seen.push(`${this.name}:hook:${event.type}`);
+    }
+  }
+  const root = new Component({});
+  const parent = new Hooked({}, root);
+  const child = new Hooked({}, parent);
+  parent.name = "parent";
+  child.name = "child";
+  parent.addEventListener("mouseenter", () => seen.push("parent:listener:mouseenter"));
+  child.addEventListener("mouseleave", (event: Event) => event.stopPropagation());
+  child.dispatchEvent(new CustomEvent("mouseenter", { bubbles: false }));
+  child.dispatchEvent(new CustomEvent("mouseleave", { bubbles: false }));
+  expect(seen).toEqual([
+    "child:hook:mouseenter",
+    "parent:hook:mouseenter",
+    "parent:listener:mouseenter",
+    "child:hook:mouseleave",
+  ]);
+  Component.unmount(child);
+  Component.unmount(parent);
+  Component.unmount(root);
 });
 
 test("interactive defaults to true when omitted or cleared, while false stays false", () => {

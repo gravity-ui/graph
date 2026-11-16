@@ -92,8 +92,6 @@ The component automatically inherits styles from graph settings but can be custo
   --graph-block-geometry-y: 0px;
   --graph-block-geometry-width: 200px;
   --graph-block-geometry-height: 100px;
-  --graph-block-z-index: 1;
-  --graph-block-order: 0;
 
   /* Theme variables (from graph settings) */
   --graph-block-bg: rgba(37, 27, 37, 1);
@@ -109,6 +107,53 @@ The component automatically inherits styles from graph settings but can be custo
   border-color: var(--graph-block-border-selected);
 }
 ```
+
+The container's stacking is not a CSS variable: `GraphBlock` writes its `style.zIndex` as `zIndex + order` from the
+block's `$viewState`, where `order` is the block's rank in scene order among the blocks React shows. A container that
+has just mounted gets its rank with the next graph frame.
+
+#### The handover to HTML
+
+`GraphBlock` hands its block over to HTML once React has rendered it, while the scene is at the detailed level: from
+then on the scene stops drawing the block, its anchors and its child components. It calls the block's
+`delegateRender()` (see [The handover to HTML](../components/block-component.md#the-handover-to-html)).
+
+- `autoHideCanvas` (default `true`) hands the block over as soon as its HTML has mounted.
+- `autoHideCanvas={false} canvasVisible={!ready}` keeps the scene drawing until the view is ready.
+- `autoHideCanvas={false}` without `canvasVisible` keeps the scene drawing; the view still holds the block.
+
+```tsx
+import React, { useEffect, useState } from "react";
+
+import type { Graph, TBlock } from "@gravity-ui/graph";
+import { GraphBlock } from "@gravity-ui/graph-react";
+
+function LoadingBlock({ graph, block }: { graph: Graph; block: TBlock }): React.JSX.Element {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setReady(true), 400); // data arrives
+    return () => window.clearTimeout(timer);
+  }, []);
+  // The scene draws the block until its HTML has something to show.
+  return (
+    <GraphBlock graph={graph} block={block} autoHideCanvas={false} canvasVisible={!ready}>
+      {ready ? block.name : "Loading…"}
+    </GraphBlock>
+  );
+}
+```
+
+ReactLayer switches its HTML at the end of the graph frame, so zooming out draws the canvas blocks in the frame that
+hides the HTML. A stopped graph does not switch it. While a view holds its block at the detailed level, the block, its
+anchors and its child components are hit there, drawn in the scene or not, unless a class's `static hitLevels` leaves
+the detailed level out (see [Hit levels](../system/event-model.md#hit-levels)). Clicks on the HTML reach the graph's
+events with the component under the pointer as the target: a click on an anchor's HTML is the graph's `click` on that
+anchor (`getEventTarget(detail.sourceEvent)` returns it).
+
+When the level becomes detailed, the blocks list holds the pointer's target until its views have mounted (at most
+three graph frames), so an anchor under a still pointer is not dropped and taken back. A `GraphBlock` rendered
+outside `GraphCanvas`'s blocks list, or a view that mounts later than that, can move the target once: one extra
+`mouseleave` and `mouseenter`.
 
 ### GraphBlockAnchor
 

@@ -35,8 +35,13 @@ export class ReactLayer extends Layer<TReactLayerProps, TReactLayerContext> {
     // Settle the activity before the first camera transform, so a hidden layer is not left in the "moving" state.
     this.setHtmlActive(this.props.graph.scene.$level.value === "detailed");
     super.afterInit();
-    // The HTML layer is active exactly at the "detailed" scene level, whatever strategy produces it.
-    this.onSignal(this.props.graph.scene.$level, (level) => this.setHtmlActive(level === "detailed"));
+    // The HTML layer is active exactly at the "detailed" scene level. It switches at the end of the graph frame, after
+    // every layer and the scene updated, so the frame that hides the HTML is the one that draws the blocks it held
+    // (spec §10), whatever the layer order and whatever changed the camera. A stopped graph does not switch it.
+    const stop = this.props.graph.scene.onFrameEnd(() => {
+      this.setHtmlActive(this.props.graph.scene.$level.peek() === "detailed");
+    });
+    this.eventAbortController.signal.addEventListener("abort", stop, { once: true });
     this.applyBlockListClassName(undefined, this.props.blockListClassName);
   }
 

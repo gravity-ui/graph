@@ -6,8 +6,9 @@ The graph frame task updates it right after all layers (`layers.update()`, then 
 
 ## What the scene draws
 
-Blocks and their anchors draw in the scene. Each `CanvasBlock` owns one scene element, and each of its anchors owns a
-child element of it (see [Block component](../components/block-component.md) and [Anchors](../components/anchors.md)).
+Blocks, their anchors and their child components draw in the scene. Each `CanvasBlock` owns one scene element, and
+each of its anchors and child components owns a child element nested in it (see
+[Block component](../components/block-component.md) and [Anchors](../components/anchors.md)).
 `GraphLayer` stays the parent of these components: it keeps the component tree, events, hit-testing, drags and the
 camera.
 
@@ -63,16 +64,35 @@ hidden, and resumes on `graph.start()`, so animations do not jump after a pause.
 
 ## Child elements
 
-An element can name a `parent` element: an anchor's element names its block's. A child element:
+An element can be nested in another one: an anchor's element is nested in its block's, and so is a child component's.
+A scene component returned from another one's `updateChildren()` is a sub-component. By default:
 
-- takes no rank of its own: it draws right above its parent's primitives and under the next owner element, in its
-  parent's raised bucket, among its siblings by `childOrder`;
-- is hidden while its parent is hidden, and rises with it (a selection, a drag start, a style `raise`);
-- takes its parent's element `dim` when it sets none, and multiplies its own element `opacity` by the parent's; its
-  parts are styled by its own rules;
-- is deleted with its parent. A child cannot have children.
+- it is nested in its parent's element (an owner's, or another child's), ordered by its place among the parent's
+  retained children;
+- it draws at its parent's origin, so its primitives are in its parent's frame;
+- its hit box is its element's bounds, in world units (`getHitRect()`; `Anchor` sets its own from its port);
+- development builds report two children of one parent with one key: the second would get no component.
 
-In WebGL a child's depth is its parent's key plus a sub-order after the parent's primitives.
+A child element:
+
+- takes no rank of its own: it draws right above its scene parent and under the next owner element, in its owner's
+  raised bucket, among its siblings by `childOrder`;
+- is hidden while anything up its nesting is hidden, and rises with its owner (a selection, a drag start, a style
+  `raise`);
+- takes its scene parent's element `dim` when it sets none, and multiplies its own element `opacity` by the parent's;
+  its parts are styled by its own rules;
+- is deleted with its scene parent.
+
+The store keeps the nesting, to any depth. `parent` is an element's owner, the root element of its nesting.
+`nestedIn` is the child element it is nested in, and is unset for a direct child of its owner. The owner's draw list
+(`childrenOf`) is the pre-order of the nesting: a child's subtree draws after it and before its next sibling, and a
+reorder moves the whole subtree. Hidden, `dim` and `opacity` are derived down the chain by the store. An export
+recomputes the inherited rows that exist live, down the whole chain. One limitation: when an element gains an element
+`dim` or `opacity` only at the export's level or scale (it had none live, so its children have no inherited rows), the
+export gives inherited rows to its direct children only; deeper descendants keep their live rows (see
+[toImage](#toimage)).
+
+In WebGL a child's depth is its owner's key plus a sub-order after the primitives drawn before it.
 
 ## Updates
 
@@ -87,33 +107,64 @@ renumbering. The Canvas 2D interpreter reads the store when it draws.
 when `a` draws below `b`. `HitTest` sorts its results with it, so the component drawn on top is hit first.
 
 - Components with a scene key (a `SceneComponent` whose element is written, see `getSceneKey()`) compare by their
-  elements: the bucket (`zIndex` plus the style's `raise`), then the element's `order` (a raise gives a new, larger
-  one), then a child element right above its parent, siblings by `childOrder`.
+  elements: the bucket (`zIndex` plus the style's `raise`), then the owner's `order` (a raise gives a new, larger
+  one), then the pre-order of the owner's nesting: a child element right above its scene parent, siblings by
+  `childOrder`.
 - Other components (connections until step 2, groups, layer components) compare by `(zIndex, renderOrder)`.
 - A component without a scene key against a scene component compares its `zIndex` with the element's bucket; at an
   equal value it lies above.
 
+The order decides among the components a point hits; the level decides which scene components are hit at all. A
+scene component is hit on the levels where it is shown: an element owner on every level; a child on the levels its
+look is drawn on, and wherever its block is shown outside the scene (an HTML view's hold at the detailed level,
+`setRenderDelegated(true)` on every level); a child without a look only on the levels it declares. `static hitLevels`
+overrides the rule (see [Event model](event-model.md#hit-levels)). `graph.getElementsOverRect()` leaves out what the
+level does not hit, as point queries do.
+
 ## `query` and `drawInterpreted`
 
-`query(rect)` takes a world rectangle as `TRect` (`{ x, y, width, height }`, like `zoomToRect`) and returns read-only
-views of the visible (non-hidden) elements whose bounds meet it, in draw order, bottom first: block elements, each
-followed by its anchors' child elements. A view's `bounds` is relative to the element's origin (`x`, `y`), and
-`hidden` is always `false`. `query` does not filter by level.
+`query(rect, options)` takes a world rectangle as `TRect` (`{ x, y, width, height }`, like `zoomToRect`) and returns
+read-only views of the elements whose bounds meet it, in draw order, bottom first: owner elements, each followed by
+what is nested in it, in the pre-order of its nesting. By default it returns visible elements only, and a view's
+`hidden` is `false`. A view's `bounds` is relative to the element's origin (`x`, `y`). Views are frozen snapshots.
+The options (`TSceneQueryOptions`):
+
+- `level`: only elements with a primitive on that level. An owner left out still places its children that have one.
+- `includeHidden`: hidden elements too: a block handed over to HTML, a block in a collapsed group, and what is nested
+  in them. Their views say `hidden: true`.
+- `entityTypes`: only elements of these types. An element's `entityType` (in its view too) is the `static entityType`
+  of the component that wrote it.
+
+The option `live` is `@internal`: the minimap reads the store's live elements with it instead of frozen copies.
 
 `drawInterpreted(ctx, elements, scale, options)` draws views on any 2D context with the Canvas 2D interpreter,
 whatever the active renderer. The caller owns the context transform, device pixel ratio included. Options:
 `skipText` leaves text out, `level` skips primitives of other levels, `drawHidden` draws hidden elements too, and
 `textPolicy` (`{ cameraAware: boolean }`) replaces the `cameraAwareText` setting for this draw. Texts are laid out at
-`scale`. The minimap draws scene blocks this way, at the minimalistic level and without text:
+`scale`. A layer can draw the scene's blocks this way, at the minimalistic level, without text and with blocks
+handed over to HTML, as the minimap does. The minimap's `entityTypes` are `"block"` plus the `entityType` of the
+block classes that declare their own; the example below takes `"block"` only:
 
 ```ts
 const dpr = window.devicePixelRatio || 1;
-const elements = graph.scene.query({ x: 0, y: 0, width: 4000, height: 3000 });
+const rect = { x: 0, y: 0, width: 4000, height: 3000 };
+const elements = graph.scene.query(rect, { level: "minimalistic", includeHidden: true, entityTypes: ["block"] });
 ctx.save();
 ctx.setTransform(k * dpr, 0, 0, k * dpr, offsetX * dpr, offsetY * dpr); // world to minimap device pixels
-graph.scene.drawInterpreted(ctx, elements, k, { level: "minimalistic", skipText: true });
+graph.scene.drawInterpreted(ctx, elements, k, { level: "minimalistic", skipText: true, drawHidden: true });
 ctx.restore();
 ```
+
+`revisionOf(entityType)` is a signal of a counter. It steps once at the end of a graph frame in which elements of that
+type changed: added, moved, restyled, hidden, reordered or removed, or nested in an element that was hidden, raised,
+moved to another bucket or reordered. It also steps when style rows were rewritten (a rule, level or root-tag change)
+or the dim colour changed. A row change to a row that looks the same steps nothing. A layer that draws from `query()`
+redraws on it, one frame after the change; the minimap follows `"block"` and the types of the other block classes it
+draws. Every call with one type returns the same signal.
+
+`onFrameEnd(listener)` calls the listener at the end of every graph frame, after every layer and the scene updated.
+It returns the function that removes the listener. GraphLayer finds the pointer's target again there, and ReactLayer
+switches its HTML there, so the frame that hides the HTML draws the scene blocks that go with it.
 
 `graph.scene.store` is `@internal`: it is the write side used by the library components and the benches.
 
@@ -147,13 +198,15 @@ const crop = graph.scene.toImage({ rect: { x: 0, y: 0, width: 2000, height: 1000
   px in total. Otherwise `toImage` throws a `RangeError` before it prepares anything.
 - **Anchors.** The picture does not depend on where the camera has been. Blocks create their anchor components lazily
   (see [Anchors](../components/anchors.md#drawing-and-lazy-creation)), so an export creates the missing ones its rect
-  and level need, through their normal lifecycle (`renderAnchor`, level methods, tags and styles), and drops them
-  after the draw, also when the draw throws. Blocks hidden by a collapsed group or drawn by React get none, and no
-  block does while `useBlocksAnchors` is off. The default `Anchor` draws nothing on the minimalistic and detailed
+  and level need, through their normal lifecycle (`getAnchorClass`, level methods, tags and styles), and drops them
+  after the draw, also when the draw throws. Blocks hidden by a collapsed group or handed over to HTML get none, and
+  no block does while `useBlocksAnchors` is off. The default `Anchor` draws nothing on the minimalistic and detailed
   levels, so exports there create none of them; an `Anchor` subclass counts as drawing on every level.
 - **Styles** are computed at the export's level and scale: rules with `scope.levels` or `minScale` / `maxScale` apply
-  as at the requested level and scale. An element `dim` or `opacity` that a block's row gains only at the export's
-  level also reaches its anchors.
+  as at the requested level and scale. An element `dim` or `opacity` reaches what is nested in the element. When the
+  block had one live, the export recomputes the inherited rows down the whole nesting. When the block gains it only at
+  the export's level or scale, it reaches the block's direct children (its anchors and child components), not what is
+  nested deeper.
 - **Texts** are laid out at the export's `scale` under the `cameraAwareText` setting: a camera-aware name re-fits its
   box as it would on screen at that scale.
 - **Cost.** `toImage` is synchronous. A whole-graph export at a level that draws anchors creates and drops every
@@ -163,16 +216,15 @@ const crop = graph.scene.toImage({ rect: { x: 0, y: 0, width: 2000, height: 1000
   hit box was added and destroyed (`hitTest.isUnstable` until the next hit-test run), and the connections at its port
   recompute their geometry.
 - **`Anchor.LOOK_EXTENT`.** The export finds the blocks that need temporary anchors by their rect, widened by their
-  anchor points and by the `LOOK_EXTENT` of their anchor classes: 11.5 world units, the default dot and ring with
-  `Block`'s anchor props (size 18, lineWidth 2). An `Anchor` subclass whose look reaches farther, or a block that gives
-  its anchors a larger `size` or `lineWidth`, declares its own (`public static override LOOK_EXTENT = 40;`). Otherwise
-  an export can miss its anchors near the crop edge. Development builds warn, naming the class, when an anchor's
-  initial look (the first check of that instance) reaches past its class's extent; a later growth of the same
-  instance is not checked.
-- **`renderAnchor`.** The search calls a block's `renderAnchor` override to learn its anchor classes, for blocks
-  outside the rect too, and the export calls it again when it constructs the anchors: keep it a pure function of the
-  block's data. While the block has a pending update (new props or state not applied yet) the search does not call it,
-  and the block counts as a candidate. A throw from it aborts the export.
+  anchor points and by the `LOOK_EXTENT` of their anchor classes: 11.5 world units for the default dot and ring
+  (`SIZE` 18, `LINE_WIDTH` 2). An `Anchor` subclass whose look reaches farther, or one with a larger `SIZE` or
+  `LINE_WIDTH`, declares its own (`public static override LOOK_EXTENT = 40;`). Otherwise an export can miss its anchors
+  near the crop edge. Development builds warn, naming the class, when an anchor's initial look (the first check of
+  that instance) reaches past its class's extent; a later growth of the same instance is not checked.
+- **`getAnchorClass`.** The search reads a block's anchor classes from `getAnchorClass`, as cached by the block's last
+  update, for blocks outside the rect too. A block whose classes are unknown (a pending update may change them) counts
+  as a candidate. The export can call `getAnchorClass` again when it constructs the anchors: keep it a pure function
+  of the anchor and the block's data. A throw from it there aborts the export.
 - **Errors.** A call while another export prepares, draws or cleans up throws. So does a call from a block's own
   lifecycle hook (`stateChanged`, `willIterate`, ...) when that block has to create anchors for the export: "cannot
   create the anchors of block `<id>` from that block's own update". Running that update again would run its hooks
@@ -301,6 +353,21 @@ primitives instead of changing them. The WebGL backend compares texts by identit
 encode, so a text changed in place would draw stale glyphs. Development builds freeze the text primitives the store
 receives (with their `cameraAware` objects), so changing one in place throws a `TypeError`.
 
+## Bounds and styles
+
+- A style row that scales circles or widens strokes (the theme's anchor hover ×1.8, a rule's border `width`) grows the
+  element's indexed bounds, so the Canvas 2D viewport query finds what it draws, and so does `query()`. The element's
+  `bounds` (in `query()` views too) stay the ones its component wrote, and so does its hit box: a style `scale`
+  changes the drawing and the culling bounds, not what is hit.
+- The grown bounds cover what either renderer paints. A circle's border reaches at least half its width past its
+  radius, whatever its alignment. An `inside` rect border wider than the rect's shorter side paints past the rect. The
+  joins of a path or a polygon reach up to 5 stroke widths from a vertex (Canvas 2D's default miter limit).
+- Limitation: `toImage()` resolves its own styles. Geometry grown only by an export's rules (a rule scoped to the
+  export's level or scale) is not indexed, so such an export can crop it.
+- A `{ px }` width without `maxWorld` in a rule grows the bounds to its width at the minimum camera scale
+  (`px / 0.01` world units), and so does a `{ world }` width with a `minPx`. Culling is then much looser around every
+  element drawn with the rule. Development builds warn once.
+
 ## Limits
 
 Development builds report each limit with one console error before the WebGL renderer falls back to Canvas 2D
@@ -335,8 +402,10 @@ The two renderers draw the same picture, with these known differences:
 - Element bounds of a heightless wrapping text assume that a piece of a split word is never narrower than a shorter
   piece of it. A font with contextual ligatures that break this can draw such a text's last lines past its bounds,
   so culling can hide them; give such a text a `height`.
-- A style's `scale` (the theme's ×1.8 anchor hover) is not part of an element's bounds. Canvas 2D viewport and tile
-  culling and `toImage` crops can clip a scaled look at their edges.
+- Canvas 2D strokes a circle's border centred on its radius, whatever its `align`; WebGL places it by its `align`
+  (`inside`, `center` or `outside`).
+- A style's `scale` or `width` grows the culling bounds of the live view (see [Bounds and styles](#bounds-and-styles));
+  an export's own rules do not, so an export can crop what only they grow.
 
 ## Memory
 

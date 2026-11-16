@@ -1,5 +1,7 @@
 import type { TSceneLevel } from "../../services/scene/types";
 
+import type { TScenePrimitive } from "./types";
+
 /** The scene levels, least detailed first. */
 export const SCENE_LEVELS: readonly TSceneLevel[] = Object.freeze(["minimalistic", "schematic", "detailed"] as const);
 
@@ -24,4 +26,22 @@ export function levelMaskOf(levels: Iterable<TSceneLevel>): number {
 export function isOnLevel(mask: number | undefined, level: TSceneLevel | undefined): boolean {
   if (mask === undefined || level === undefined) return true;
   return Math.floor(mask / LEVEL_BIT[level]) % 2 === 1;
+}
+
+/** The levels at least one of the primitives shows on, as a level mask; 0 for no primitives. */
+export function levelMaskOfPrimitives(primitives: readonly TScenePrimitive[]): number {
+  let mask = 0;
+  for (const level of SCENE_LEVELS) {
+    if (primitives.some((primitive) => isOnLevel(primitive.levelMask, level))) mask += LEVEL_BIT[level];
+  }
+  return mask;
+}
+
+/** The levels of either mask, as one mask (arithmetic only: no-bitwise). */
+export function unionLevelMasks(a: number, b: number): number {
+  let mask = 0;
+  for (const level of SCENE_LEVELS) {
+    if (isOnLevel(a, level) || isOnLevel(b, level)) mask += LEVEL_BIT[level];
+  }
+  return mask;
 }

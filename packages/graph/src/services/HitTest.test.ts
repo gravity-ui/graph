@@ -130,6 +130,23 @@ describe("HitTest.markPendingUpdate", () => {
   });
 });
 
+describe("HitBox.update", () => {
+  it("applies the rect set last, also one that goes back to the applied rect before the queue runs", () => {
+    const ht = makeHitTest(true);
+    const box = new HitBox({ zIndex: 0 } as unknown as ConstructorParameters<typeof HitBox>[0], ht);
+    const flush = (): void => (ht as unknown as { processQueue: { flush(): void } }).processQueue.flush();
+    box.update(0, 0, 100, 100);
+    flush();
+    // A collapse and an expand (or a re-add) in one frame: another rect, then the applied one again, before the
+    // queue runs. The last one must win.
+    box.update(0, 0, 50, 50);
+    box.update(0, 0, 100, 100);
+    flush();
+    expect(box.getRect()).toEqual([0, 0, 100, 100]);
+    expect([box.minX, box.minY, box.maxX, box.maxY]).toEqual([0, 0, 100, 100]);
+  });
+});
+
 describe("HitTest.destroy", () => {
   it("drops pending readiness waiters without calling them", () => {
     const ht = makeHitTest(true);

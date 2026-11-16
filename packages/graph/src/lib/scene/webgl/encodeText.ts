@@ -40,7 +40,9 @@ const SUB_LISTS = createInstanceLists(GLYPH_SUB_FLOATS);
 /**
  * Glyph instances split by translucency, and the sub of each glyph in a list of its own per pass, in step with them:
  * `subs.opaque[i]` is the depth sub-order of the opaque glyph instance `i`. The backend keeps the subs in a GPU buffer
- * of their own, so a re-sub of unchanged texts writes and uploads only them.
+ * of their own, so a re-sub of unchanged texts writes and uploads only them. As in `TEncodedInstances`, the opaque
+ * glyphs and their subs are views of the encoder's lists, valid until the next `encodeText`; the translucent ones are
+ * copies.
  */
 export type TEncodedGlyphs = TEncodedInstances & { readonly subs: TEncodedInstances };
 
@@ -225,8 +227,8 @@ export function encodeText(
     subList.buffer.fill(at, subAt, subAt + count);
   }
   return {
-    opaque: opaque.toArray(),
+    opaque: opaque.view(),
     translucent: translucent.toArray(),
-    subs: { opaque: subs.opaque.toArray(), translucent: subs.translucent.toArray() },
+    subs: { opaque: subs.opaque.view(), translucent: subs.translucent.toArray() },
   };
 }

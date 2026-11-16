@@ -131,7 +131,9 @@ lifecycle: a culled tree after preparing its walked components, a tree without c
 right after a parent reconciles retained children. A component applies once per frame, and once more after each
 reconciliation by its parent in that frame, so props from a reconciliation are not a frame late; what it requests
 during its own update applies in the next frame. Children of a retained component must be retained; a root cannot
-be. In development builds a retained class with per-frame hooks logs a warning. Connection components (`BlockConnection`) are retained. `EventedComponent` evented areas are registered while painting, so a retained component should not use them: they would never be cleared.
+be. In development builds a retained class with per-frame hooks logs a warning. Connection components
+(`BlockConnection`) are retained. Retained components draw clickable regions as child components (see
+[Block component](../components/block-component.md#child-components)).
 
 ### 7. Scene Components
 
@@ -145,10 +147,11 @@ element is written in its queued update:
 2. **Update.** In the frame, before painting, the tree applies the queued update: `checkData()`, then `willIterate()`,
    which writes the element. The level methods run there, lazily: only when the view data changed or after `invalidate()`
    (normally once per frame; a parent's reconciliation can apply it again in the same frame, and an export can apply
-   it outside a frame). A move writes the origin only, and level output equal to the last one re-encodes nothing. The hidden state (`isSceneHidden()`) and the parent (`getSceneParent()`) are read in the update itself, so
-   a change of them must call `performRender()`.
-3. **Children.** The children update after their parent, so a child element (an anchor's) is written after its parent
-   element exists. A child whose parent element is missing writes nothing and logs an error.
+   it outside a frame). A move writes the origin only, and level output equal to the last one re-encodes nothing.
+   The hidden state (`isSceneHidden()`, and the handover: `isRenderDelegated()`) and the parent (`getSceneParent()`)
+   are read in the update itself, so a change of them must call `performRender()`.
+3. **Children.** The children update after their parent, so a child element (an anchor's, a child component's) is
+   written after its parent element exists. A child whose parent element is missing writes nothing and logs an error.
 
 `willMount()` must call `super.willMount()`, which creates the computeds; without it the element is never written, and
 development builds log an error. `invalidate()` from `stateChanged()` has no effect when the view data reads component

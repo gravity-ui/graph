@@ -15,7 +15,7 @@ import { setupBlocks } from "./blocks";
 import { setupInterpreter } from "./interpreter";
 import { setupWebGL, webglStats } from "./webgl";
 import { resetWalkCounters, setupWalk } from "./walk";
-import type { TColumn, TQueryTiming } from "./walk";
+import type { THoverStop, TColumn, TQueryTiming } from "./walk";
 
 const raf = (): Promise<number> => new Promise<number>((resolve) => requestAnimationFrame(resolve));
 
@@ -207,6 +207,10 @@ async function setup(options: {
   anchors?: boolean;
   /** Blocks columns: camera-aware names over the body (Task 17i, `--camera-aware-names [family]`). */
   cameraAwareNames?: boolean | string;
+  /** Blocks columns: Task 13's new-path case, an anchor class created at the minimalistic level. */
+  farAnchors?: boolean;
+  /** Blocks columns: Task 13's new-path case, N child components with a look per block. */
+  childLooks?: number;
   /** Task 17i: the span merge threshold and per-frame span cap of InstanceRanges (`--upload-policy`). */
   uploadPolicy?: { mergeGapBytes: number; maxSpans: number; enclose: boolean };
 }): Promise<{
@@ -254,6 +258,8 @@ async function setup(options: {
       look: options.renderer === "blocks-default" ? "default" : "nirvana",
       minimap: options.minimap ?? false,
       anchors: options.anchors,
+      farAnchors: options.farAnchors,
+      childLooks: options.childLooks,
       cameraAwareNames: options.cameraAwareNames ?? false,
     });
   } else if (options.renderer === "cached") state.column = setupInterpreter(root, scene, { batchConnections: true });
@@ -278,13 +284,25 @@ async function setup(options: {
 
 /** Same history for every column before measuring (JIT feedback), then `warmup + steps` measured actions. */
 async function run(options: {
-  mode: "pan" | "zoom" | "drag";
+  mode: "pan" | "zoom" | "drag" | "hover";
   warmup: number;
   steps: number;
   scale: number;
   /** World units the drag mode moves the block by, back and forth (default 3). */
   dragOffset?: number;
-}): Promise<{ samples: number[]; frames: number[]; timeouts: number; ticks: number[]; actionMs: number; sceneMs: number | null }> {
+  /** The hover mode's checked stops, from an earlier run (they are checked again); new ones when absent. */
+  hoverPath?: readonly THoverStop[];
+}): Promise<{
+  samples: number[];
+  frames: number[];
+  timeouts: number;
+  ticks: number[];
+  actionMs: number;
+  sceneMs: number | null;
+  minimapDraws: number;
+  hoverEnters: number;
+  hoverPath: THoverStop[] | undefined;
+}> {
   if (options.warmup < 1) throw new Error("run() needs warmup >= 1: the first zoom step does not change the scale");
   const column = state.column;
   if (!column) throw new Error("setup() first");
@@ -301,6 +319,9 @@ async function run(options: {
   centerAt(options.scale);
   await raf();
   await raf();
+  const hoverStops = options.mode === "hover" ? column.setHoverPath?.(options.hoverPath) : undefined;
+  const entersBefore = column.hoverEnters?.count ?? 0;
+  const drawsBefore = column.minimapDraws?.count ?? 0;
   const base = camera.getCameraState().scale;
   const measured: number[] = [];
   const tickCounts: number[] = [];
@@ -319,7 +340,8 @@ async function run(options: {
       const phase = i % 30;
       const { width, height } = camera.getCameraState();
       camera.zoom(width / 2, height / 2, base * (1 + 0.003 * (phase < 15 ? phase : 30 - phase)));
-    } else {
+    } else if (options.mode === "hover") column.hover?.(i);
+    else {
       column.drag(i % 2 ? 0 : options.dragOffset ?? 3);
     }
     if (i >= options.warmup) actionTotal += performance.now() - actionStart;
@@ -353,9 +375,18 @@ async function run(options: {
     await raf();
   }
   const frames = stamps.slice(1).map((stamp, index) => stamp - stamps[index]);
-  return { samples: measured, frames, timeouts, ticks: tickCounts, actionMs: actionTotal / options.steps,
+  const result = { samples: measured, frames, timeouts, ticks: tickCounts, actionMs: actionTotal / options.steps,
     sceneMs: column.sceneTicks ? column.sceneTicks.ms / options.steps : null,
+    minimapDraws: (column.minimapDraws?.count ?? 0) - drawsBefore,
+    hoverEnters: (column.hoverEnters?.count ?? 0) - entersBefore,
+    hoverPath: hoverStops,
   };
+  if (options.mode === "hover") {
+    // Outside the measured interval: the last target leaves and the tags it set settle, so the next mode starts clean.
+    column.hoverEnd?.();
+    for (let i = 0; i < 3; i++) await raf();
+  }
+  return result;
 }
 
 async function settle(options: { scale: number }): Promise<void> {
@@ -841,6 +872,8 @@ async function exportScene(options: { scale: number; level: TSceneLevel }): Prom
   run,
   settle,
   visible,
+  /** The scene renderer's state of the column's graph ("canvas", "webgl", "webgl-fallback", ...). */
+  rendererState: (): string => String(graph().scene.$renderer.value),
   queryTiming,
   webglStats,
   bulk,

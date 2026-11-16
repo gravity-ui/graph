@@ -2,7 +2,7 @@ import { computed } from "@preact/signals-core";
 
 import type { Graph } from "../../graph";
 
-import { draggingTag, hoveredTag, selectedTag } from "./builtinTags";
+import { draggingTag, selectedTag } from "./builtinTags";
 import { getEntityAddress } from "./entity";
 import type { TEntityId, TTagMembers } from "./types";
 
@@ -16,7 +16,10 @@ function byType(components: readonly object[]): TTagMembers<true> {
   return members;
 }
 
-/** Binds the core's built-in tags to their writers. The returned function unbinds them. */
+/**
+ * Binds the core's built-in tags to their writers. The returned function unbinds them. `hoveredTag` is not bound:
+ * each component writes it on its own entity from the pointer events it gets (`GraphComponent.setHoveredTag`, D5).
+ */
 export function bindBuiltinTags(graph: Graph): () => void {
   const unbinds = [
     graph.scene.tags.bind(
@@ -32,13 +35,6 @@ export function bindBuiltinTags(graph: Graph): () => void {
       computed(() => {
         const state = graph.dragService.$state.value;
         return state.isDragging ? byType(state.components) : {};
-      })
-    ),
-    graph.scene.tags.bind(
-      hoveredTag,
-      computed(() => {
-        const hovered = graph.getGraphLayer().$hoveredComponent.value;
-        return hovered ? byType([hovered]) : {};
       })
     ),
   ];

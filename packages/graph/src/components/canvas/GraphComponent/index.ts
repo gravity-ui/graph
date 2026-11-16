@@ -6,6 +6,8 @@ import { Component } from "../../../lib";
 import { TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { HitBox, HitBoxData } from "../../../services/HitTest";
 import { DragContext, DragDiff } from "../../../services/drag";
+import { hoveredTag } from "../../../services/tags/builtinTags";
+import { getEntityAddress } from "../../../services/tags/entity";
 import { PortState, TPort, TPortId } from "../../../store/connection/port/Port";
 import { TypedEventListener, addTypedEventListener } from "../../../utils/eventListener";
 import { applyAlpha, getXY } from "../../../utils/functions";
@@ -31,6 +33,45 @@ export class GraphComponent<
   Context extends GraphComponentContext = GraphComponentContext,
 > extends EventedComponent<Props, State, Context> {
   public hitBox: HitBox;
+
+  /**
+   * Whether pointer events pass through components of this class (spec §5.1): the pointer's target and its hover
+   * skip them for the component under them, as does `graph.getElementOverPoint()`; the cursor follows the target, so
+   * it skips them too. `GraphLayer.captureEvents()` does not capture them. Their hit box stays: it counts
+   * in the usable rect, and `getElementsOverPoint()` and `getElementsOverRect()` return them. `onHitBox() => false`
+   * instead keeps a component out of every hit query.
+   */
+  public static transparentToEvents = false;
+
+  /** Whether pointer events pass through this component now; `static transparentToEvents` by default. */
+  public isTransparentToEvents(): boolean {
+    return (this.constructor as typeof GraphComponent).transparentToEvents;
+  }
+
+  /** Whether a hit box was set: the first one, at mount, asks for no retarget. */
+  private hitBoxSet = false;
+
+  /** Whether `removeHitBox` took the hit box out of the hit test and none was set since. */
+  private hitBoxRemoved = false;
+
+  /**
+   * Whether `setVisibility(false, { removeHitbox: true })` keeps the hit box out until the component shows again:
+   * geometry updates meanwhile (`setHitBox`) only record the box, so neither the hit test nor the usable rect sees a
+   * component that is not shown.
+   */
+  private hitBoxSuppressed = false;
+
+  /**
+   * While the box is suppressed: the last box `setHitBox` asked for, `null` when `removeHitBox` took it away meanwhile,
+   * undefined when neither ran (the box it had comes back).
+   */
+  private suppressedHitBox?: readonly [number, number, number, number] | null;
+
+  /** While above 0, hit box changes follow the camera (`withCameraDerivedHitBox`) and ask for no retarget. */
+  private cameraDerivedHitBoxes = 0;
+
+  /** Whether this component put hoveredTag on itself (`setHoveredTag`). */
+  private hoveredTagged = false;
 
   private unsubscribe: (() => void)[] = [];
 
@@ -90,7 +131,17 @@ export class GraphComponent<
 
   private unmounting = false;
 
+  /**
+   * Whether it is hidden now, derived from its inputs: hidden by `setVisibility` or delegated (`setRenderDelegated`).
+   * Each input has one writer, and no setter overwrites the other's (settled item: derive, don't override).
+   */
   protected hidden = false;
+
+  /** The explicit visibility input: hidden by `setVisibility(false, …)`. */
+  private visibilityHidden = false;
+
+  /** The delegation input: something else draws it (`setRenderDelegated`). */
+  private renderDelegated = false;
 
   constructor(props: Props, parent: Component) {
     super(props, parent);
@@ -345,8 +396,9 @@ export class GraphComponent<
       this.context.graph.rootStore.connectionsList.releasePort(port.id, this);
     });
     this.ports.clear();
-    // A removed component under a stationary pointer must not stay hovered (and keep hoveredTag).
+    // A removed component takes its own tag off, and must not stay the pointer's target under a still pointer.
     // (Graph doubles in unit tests may lack a graph layer.)
+    this.setHoveredTag(false);
     (this.context.graph as Partial<Graph>).getGraphLayer?.()?.forgetComponent(this);
     this.destroyHitBox();
     this.mounted = false;
@@ -360,10 +412,45 @@ export class GraphComponent<
     }
   }
 
-  public setHitBox(minX: number, minY: number, maxX: number, maxY: number, force?: boolean) {
-    this.hitBox.update(minX, minY, maxX, maxY, force);
+  public setHitBox(minX: number, minY: number, maxX: number, maxY: number, force?: boolean): void {
+    if (this.hitBoxSuppressed) {
+      // Hidden with its box removed: the box waits for the component to show again (`setVisibility`). The culling
+      // bounds follow, as before.
+      this.suppressedHitBox = [minX, minY, maxX, maxY];
+      if (!this.hitBox.destroyed) this.setCullingBounds(minX, minY, maxX, maxY);
+      return;
+    }
+    const [x, y, width, height] = this.hitBox.getRect();
+    const moved = minX !== x || minY !== y || maxX - minX !== width || maxY - minY !== height;
+    // A hit box set again, moved or resized changes what a still pointer hits (settled item 11). The first one asks
+    // nothing: a component mounts there (a block added through the API, found at the next pointer move as today, or
+    // an anchor the camera's lazy search creates: camera moves keep today's rule). Nor does a forced update of the
+    // same box (`BlockState.updateBlock` forces one after every update).
+    const changed = this.hitBoxSet && (this.hitBoxRemoved || moved);
+    // A box set again after removeHitBox goes back into the hit test even when its rect is the one it had: HitBox
+    // skips an update of the same rect, and its rect survives the removal.
+    const restore = this.hitBoxRemoved;
+    this.hitBoxSet = true;
+    this.hitBoxRemoved = false;
+    this.hitBox.update(minX, minY, maxX, maxY, force || restore);
     // Every component reports its own bounds to the layer's shared index.
     if (!this.hitBox.destroyed) this.setCullingBounds(minX, minY, maxX, maxY);
+    if (changed && !this.hitBox.destroyed && this.cameraDerivedHitBoxes === 0) this.requestRetarget();
+  }
+
+  /**
+   * Runs `update` with the hit box changes it makes counted as following the camera: a label or a stroke whose world
+   * size follows the zoom (`BlockConnection`'s label). They ask for no retarget: camera moves keep today's rule
+   * (settled item 11, `emulateMouseEventsOnCameraChange`), so the target changes at the next pointer move. Changes
+   * outside `update`, and those of other components (an API move in the same frame), still ask.
+   */
+  protected withCameraDerivedHitBox(update: () => void): void {
+    this.cameraDerivedHitBoxes += 1;
+    try {
+      update();
+    } finally {
+      this.cameraDerivedHitBoxes -= 1;
+    }
   }
 
   protected override willIterate(): void {
@@ -394,41 +481,133 @@ export class GraphComponent<
     return { x, y, width, height };
   }
 
+  /**
+   * The explicit visibility input. Hidden here, a component stays hidden while it is delegated and after its
+   * delegation ends, and a delegated one stays delegated through a hide and its end: the two inputs are separate.
+   * With `removeHitbox` its hit box is out until it shows again, delegated or not.
+   */
   protected setVisibility(visible: boolean, { removeHitbox }: { removeHitbox: boolean }): void {
     const hidden = !visible;
-    if (this.hidden !== hidden) {
+    if (this.visibilityHidden === hidden) return;
+    this.visibilityHidden = hidden;
+    // What a still pointer hits changes: a hidden scene component is a hit barrier for its subtree
+    // (`SceneComponent.isHitBarrier`), with or without a hit box change.
+    this.requestRetarget();
+    if (hidden && removeHitbox) {
+      this.removeHitBox();
+      // Kept out through geometry updates until the component shows again.
+      this.hitBoxSuppressed = true;
+      this.suppressedHitBox = undefined;
+    } else if (!hidden && this.hitBoxSuppressed) {
+      this.restoreHitBox(removeHitbox);
+    }
+    this.applyHidden();
+  }
+
+  /** Whether it is hidden for a reason other than delegation: `setVisibility(false, …)`; subclasses add theirs. */
+  public isHiddenForOtherReason(): boolean {
+    return this.visibilityHidden;
+  }
+
+  /**
+   * Called when the derived hidden state changes (`setVisibility`, `setRenderDelegated`), after `hidden` is set and
+   * before the queued render. A no-op; a subclass with state that follows it updates here (`BlockConnection`'s line).
+   */
+  protected hiddenChanged(_hidden: boolean): void {
+    // Nothing by default.
+  }
+
+  /** Derives `hidden` from the two inputs. */
+  private applyHidden(): void {
+    const hidden = this.visibilityHidden || this.renderDelegated;
+    if (hidden !== this.hidden) {
       this.hidden = hidden;
-      this.shouldRender = visible;
-      if (removeHitbox) {
-        if (hidden) {
-          this.removeHitBox();
-        } else {
-          const { x, y, width, height } = this.getHitBoxRect();
-          this.setHitBox(x, y, x + width, y + height, true);
-        }
-      }
-      this.performRender();
+      this.shouldRender = !hidden;
+      this.hiddenChanged(hidden);
+    }
+    // An input changed: a scene component writes its element again (its hidden flag, its hit barrier).
+    this.performRender();
+  }
+
+  /**
+   * Ends the suppression of `setVisibility(false, { removeHitbox: true })`: the box set meanwhile comes back, or with
+   * `removeHitbox` the box it had; none when `removeHitBox` took it away meanwhile.
+   */
+  private restoreHitBox(removeHitbox: boolean): void {
+    const box = this.suppressedHitBox;
+    this.hitBoxSuppressed = false;
+    this.suppressedHitBox = undefined;
+    if (box === null) return;
+    if (box) {
+      this.setHitBox(box[0], box[1], box[2], box[3], true);
+    } else if (removeHitbox) {
+      const { x, y, width, height } = this.getHitBoxRect();
+      this.setHitBox(x, y, x + width, y + height, true);
     }
   }
 
+  /**
+   * The low-level "something else draws this component" switch, the delegation input: it is not drawn and keeps its
+   * hit box. A scene component and its sub-components are then hit on every level
+   * (`SceneComponent.isShownOutsideScene`), except those under one hidden for another reason
+   * (`SceneComponent.isHitBarrier`). It writes no visibility of its own: a component hidden by `setVisibility` stays
+   * hidden when its delegation ends.
+   */
   public setRenderDelegated(delegated: boolean): void {
-    this.setVisibility(!delegated, { removeHitbox: false });
+    if (this.renderDelegated === delegated) return;
+    this.renderDelegated = delegated;
+    // Shown outside the scene or not changes what a still pointer hits.
+    this.requestRetarget();
+    this.applyHidden();
+  }
+
+  /** Whether its drawing is delegated now (`setRenderDelegated`); `Block` adds an HTML view's hold. */
+  public isRenderDelegated(): boolean {
+    return this.renderDelegated;
   }
 
   public getHitBox() {
     return this.hitBox.getRect();
   }
 
-  public removeHitBox() {
+  public removeHitBox(): void {
+    if (this.hitBoxSuppressed) {
+      // Out already; nothing comes back when the component shows again.
+      this.suppressedHitBox = null;
+      return;
+    }
     this.hitBox.remove();
+    if (this.hitBoxRemoved || !this.hitBoxSet) return;
+    this.hitBoxRemoved = true;
+    if (this.cameraDerivedHitBoxes === 0) this.requestRetarget();
+  }
+
+  /** Asks GraphLayer to find the pointer's target again at the frame's end (settled item 11). */
+  protected requestRetarget(): void {
+    (this.context.graph as Partial<Graph>).getGraphLayer?.()?.requestRetarget();
+  }
+
+  /**
+   * Puts `hoveredTag` on this component's own entity, or takes it off (D5). `hoveredTag` is a styling tool: a component
+   * decides itself when it shows as hovered, from the pointer events it gets and those bubbling up from its
+   * descendants (`detail.target`, `detail.relatedTarget`). It writes only its own entity; without an entity address
+   * (no `static entityType`) there is nothing to write. No library code reads the tag to decide behaviour.
+   */
+  protected setHoveredTag(hovered: boolean): void {
+    if (hovered === this.hoveredTagged) return;
+    const address = getEntityAddress(this);
+    if (!address) return;
+    this.hoveredTagged = hovered;
+    const { tags } = this.context.graph.scene;
+    if (hovered) tags.add(hoveredTag, { [address.type]: [address.id] });
+    else tags.delete(hoveredTag, { [address.type]: [address.id] });
   }
 
   public destroyHitBox() {
     this.hitBox.destroy();
   }
 
-  public onHitBox(data: HitBoxData) {
-    this._lastHitBoxData = data;
+  public onHitBox(_data: HitBoxData): boolean {
     return this.isIterated();
   }
 }

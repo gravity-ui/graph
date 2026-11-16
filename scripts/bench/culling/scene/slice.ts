@@ -1,10 +1,29 @@
-// WebGL scene vertical-slice harness: checks C1-C29 and measurements M2-M7, run in
+// WebGL scene vertical-slice harness: checks C1-C35 and measurements M2-M8, run in
 // Chromium with the real GPU.
 // Pixels are read with gl.readPixels in the same task as a synchronous render (the drawing buffer is not preserved).
 // readPixels returns PREMULTIPLIED RGBA; every sampled point lies over an opaque block or is compared as such, so the
 // values are compared as read (premultiplied) and need no un-premultiplication. C14 also compares a translucent rect
 // over nothing: it premultiplies the Canvas2D reference instead.
-import { Graph } from "GRAPH";
+import {
+  Anchor,
+  BlockGroups,
+  CanvasBlock,
+  CollapsibleGroup,
+  Graph,
+  SceneComponent,
+  createBlockPointPortId,
+  hoveredTag,
+  pointerTargetAfter,
+} from "GRAPH";
+import type {
+  ChildDescriptor,
+  TAnchor,
+  TAnchorClass,
+  TBlock,
+  TCollapsibleGroup,
+  TGraphComponentProps,
+  TSceneLevel,
+} from "GRAPH";
 import { dashFlow } from "GRAPH_SRC/components/canvas/connections/effects";
 import { lineSegment } from "GRAPH_SRC/components/canvas/connections/geometry/segments";
 import { initGraphColors } from "GRAPH_SRC/graphConfig";
@@ -36,6 +55,134 @@ const BODY_B = "#604020";
 const BORDER = "#dfdfdf";
 const GREEN = "#00ff00";
 const ANCHOR = "#ff8800";
+
+/** C30: a 16 x 16 square instead of the stock dot, on the schematic level. */
+class SliceSquareAnchor extends Anchor {
+  public static override SIZE = 16;
+  public static override LOOK_EXTENT = 8;
+
+  protected override schematic(): readonly TScenePrimitive[] {
+    return [{ kind: "rect", part: "anchor", x: -8, y: -8, width: 16, height: 16 }];
+  }
+}
+
+/** C30 and C30b: an 80 x 80 square on the minimalistic level only, declared in its creation levels. */
+class SliceFarAnchor extends Anchor {
+  public static override LOOK_EXTENT = 40;
+
+  public static override CREATION_LEVELS: readonly TSceneLevel[] = ["minimalistic", "schematic", "detailed"];
+
+  protected override minimalistic(): readonly TScenePrimitive[] {
+    return [{ kind: "rect", part: "anchor", x: -40, y: -40, width: 80, height: 80 }];
+  }
+}
+
+/** C30 and C30b: OUT anchors are squares, IN anchors draw on the minimalistic level. */
+class SliceShapesBlock extends CanvasBlock {
+  protected override getAnchorClass(anchor: TAnchor): TAnchorClass {
+    return anchor.type === "OUT" ? SliceSquareAnchor : SliceFarAnchor;
+  }
+}
+
+type TSliceChipProps = TGraphComponentProps & { id: string; x: number; color: string; inner?: ChildDescriptor[] };
+
+/** C31: a 40 x 30 rect at (x, 60) in its block's frame, and what is nested in it, drawn on every level. */
+class SliceChip extends SceneComponent<{ x: number; color: string }, TSliceChipProps> {
+  public static override entityType = "sliceChip";
+
+  public override getEntityId(): string {
+    return this.props.id;
+  }
+
+  public setHiddenLook(hidden: boolean): void {
+    this.setVisibility(!hidden, { removeHitbox: false });
+  }
+
+  protected override getViewData(): { x: number; color: string } {
+    return { x: this.props.x, color: this.props.color };
+  }
+
+  protected override schematic(view: { x: number; color: string }): readonly TScenePrimitive[] {
+    return [{ kind: "rect", part: "chip", x: view.x, y: 60, width: 40, height: 30, fill: view.color }];
+  }
+
+  protected override updateChildren(): ChildDescriptor[] {
+    return this.props.inner ?? [];
+  }
+}
+
+/** C31: chip A (blue, x 20..60) with a nested orange chip at x 30..70, then chip B (green, x 50..90). */
+class SliceNestedBlock extends CanvasBlock {
+  public chipA?: SliceChip;
+
+  protected override updateChildren(): ChildDescriptor[] {
+    const id = String(this.props.id);
+    const inner = [SliceChip.create({ id: `${id}/a1`, x: 30, color: "#ff8800" }, { key: "a1" })];
+    const chipA = SliceChip.create(
+      { id: `${id}/a`, x: 20, color: "#0000ff", inner },
+      {
+        key: "a",
+        ref: (component: SliceChip): void => {
+          this.chipA = component;
+        },
+      }
+    );
+    return [chipA, SliceChip.create({ id: `${id}/b`, x: 50, color: "#00aa00" }, { key: "b" })];
+  }
+}
+
+/** C32: a 50 x 30 button at the block's bottom right, drawn on the schematic level, filled #00aaff. */
+class SliceButton extends SceneComponent<{ width: number }, TGraphComponentProps & { id: string }> {
+  public static override entityType = "sliceButton";
+
+  protected override willMount(): void {
+    super.willMount();
+    // It tags itself while it is the target (D5: no library default does it).
+    const follow = (event: Event): void => this.setHoveredTag(pointerTargetAfter(event) === this);
+    this.addEventListener("mouseenter", follow);
+    this.addEventListener("mouseleave", follow);
+  }
+
+  public override getEntityId(): string {
+    return this.props.id;
+  }
+
+  protected override getViewData(): { width: number } {
+    const block = this.getParent();
+    const view = block instanceof SceneComponent ? block.readSceneView() : undefined;
+    return { width: (view as { width?: number } | undefined)?.width ?? 200 };
+  }
+
+  protected override minimalistic(): readonly TScenePrimitive[] {
+    return [];
+  }
+
+  protected override schematic(view: { width: number }): readonly TScenePrimitive[] {
+    return [{ kind: "rect", part: "button", x: view.width - 50, y: 70, width: 50, height: 30, fill: "#00aaff" }];
+  }
+
+  protected override detailed(): readonly TScenePrimitive[] {
+    return [];
+  }
+}
+
+/** C32: the button before the anchors, so the OUT anchor draws over it. */
+class SliceChildBlock extends CanvasBlock {
+  public button?: SliceButton;
+
+  protected override updateChildren(): ChildDescriptor[] {
+    const button = SliceButton.create(
+      { id: String(this.props.id) },
+      {
+        key: "button",
+        ref: (component: SliceButton): void => {
+          this.button = component;
+        },
+      }
+    );
+    return [button, ...super.updateChildren()];
+  }
+}
 
 function hex(color: string): TPixel {
   const value = parseInt(color.slice(1), 16);
@@ -189,7 +336,7 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
     firstFrameMs: firstStats?.firstFrameMs ?? NaN,
   };
 
-  /** Reads of the current check: where each came from. A check other than C9 must read only from webgl. */
+  /** Reads of the current check: where each came from. A check other than C9 and C35 must read only from webgl. */
   const reads = { webgl: 0, twoD: 0, badState: 0 };
   const check = async (id: string, body: () => Promise<void>): Promise<void> => {
     reads.webgl = 0;
@@ -203,7 +350,8 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
     }
     const mine = results.slice(before).filter((result) => result.id === id);
     if (mine.length === 0) record(id, false, "the check recorded no result");
-    if (id !== "C9") {
+    // C9 reads through a context loss on purpose, C35 the Canvas 2D renderer.
+    if (id !== "C9" && id !== "C35") {
       const source = `reads webgl=${reads.webgl} 2d=${reads.twoD} not-webgl-state=${reads.badState}`;
       for (const result of mine) {
         result.details += ` [${source}]`;
@@ -3399,6 +3547,358 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
     }
   });
 
+  // C30: anchor classes from getAnchorClass. Block S (x 0..200, y 3000..3100) has a square OUT anchor at (200, 3088)
+  // and an IN anchor at (0, 3088) whose class draws an 80 x 80 square on the minimalistic level only.
+  // 1. schematic (0.5): the square's corner (207, 3081), outside a radius-9 dot, has the anchor colour, as on Canvas2D;
+  // 2. minimalistic (0.1), S added while the camera is there: the IN anchor exists (its class declares the level) and
+  //    its square left of the block, at (-25, 3088), has the anchor colour, as on Canvas2D.
+  const anchorColor = hex("#ff00ff");
+  const shapes = {
+    id: "S",
+    is: "Shapes",
+    name: "Shapes",
+    x: 0,
+    y: 3000,
+    width: 200,
+    height: 100,
+    anchors: [
+      { id: "i", blockId: "S", type: "IN" },
+      { id: "o", blockId: "S", type: "OUT" },
+    ],
+  };
+  const lookAtShapes = (scale: number): void => camera.set({ scale, x: ORIGIN.x, y: ORIGIN.y - 3000 * scale });
+  await check("C30", async () => {
+    graph.updateSettings({ useBlocksAnchors: true, blockComponents: { Shapes: SliceShapesBlock } });
+    graph.setColors({ anchor: { background: "#ff00ff" } });
+    try {
+      lookAtShapes(0.5);
+      graph.setEntities({ blocks: [shapes], connections: [] });
+      for (let i = 0; i < 6; i++) graph.scheduler.performUpdate();
+      const corner = pixelAt(207, 3081);
+      const square = againstCanvas2D(194, 3082, 12, 12);
+      graph.setEntities({ blocks: [], connections: [] });
+      // S unmounts before it comes back, so its anchors are created fresh at the minimalistic level. C30b covers the
+      // re-add in the same frame.
+      for (let i = 0; i < 2; i++) graph.scheduler.performUpdate();
+      lookAtShapes(0.1);
+      graph.setEntities({ blocks: [shapes], connections: [] });
+      for (let i = 0; i < 6; i++) graph.scheduler.performUpdate();
+      const far = pixelAt(-25, 3088);
+      const farRegion = againstCanvas2D(-35, 3080, 20, 16);
+      const created = graph.rootStore.blocksList.getBlockState("S")?.getAnchorById("i")?.getViewComponent();
+      const worst = Math.max(square.worst, farRegion.worst);
+      record(
+        "C30",
+        near(corner, anchorColor) && near(far, anchorColor) && created instanceof SliceFarAnchor && worst <= TOLERANCE,
+        `schematic square corner ${show(corner)} (want #ff00ff); minimalistic IN square ${show(far)} (want #ff00ff), ` +
+          `IN anchor created at minimalistic=${created instanceof SliceFarAnchor}; worst channel difference from ` +
+          `Canvas2D=${worst} (square ${square.worst}, far ${farRegion.worst})`
+      );
+    } finally {
+      graph.setEntities({ blocks: [], connections: [] });
+      graph.updateSettings({ blockComponents: {} });
+      graph.setColors({ anchor: { background: initGraphColors.anchor.background } });
+      setCamera(1);
+    }
+  });
+
+  // C30b (Task 3x): block S removed and added back in one frame. S and its anchors exist at schematic (0.5); then S is
+  // removed, the camera goes to minimalistic (0.1) and S is added again, all before a frame. The kept block and its
+  // kept anchor components bind to the new block and anchor states: the new state of the IN anchor names the component
+  // created at schematic, and its square at (-25, 3088) has the anchor colour, as on Canvas2D.
+  await check("C30b", async () => {
+    // C30's removal settles first, so this check's re-add is the only one in its frame.
+    for (let i = 0; i < 2; i++) graph.scheduler.performUpdate();
+    graph.updateSettings({ useBlocksAnchors: true, blockComponents: { Shapes: SliceShapesBlock } });
+    graph.setColors({ anchor: { background: "#ff00ff" } });
+    try {
+      lookAtShapes(0.5);
+      graph.setEntities({ blocks: [shapes], connections: [] });
+      for (let i = 0; i < 6; i++) graph.scheduler.performUpdate();
+      const before = graph.rootStore.blocksList.getBlockState("S")?.getAnchorById("i");
+      const component = before?.getViewComponent();
+      graph.setEntities({ blocks: [], connections: [] });
+      lookAtShapes(0.1);
+      graph.setEntities({ blocks: [shapes], connections: [] });
+      for (let i = 0; i < 6; i++) graph.scheduler.performUpdate();
+      const far = pixelAt(-25, 3088);
+      const farRegion = againstCanvas2D(-35, 3080, 20, 16);
+      const after = graph.rootStore.blocksList.getBlockState("S")?.getAnchorById("i");
+      const created = component instanceof SliceFarAnchor;
+      const rebound = created && after !== undefined && after !== before && after.getViewComponent() === component;
+      record(
+        "C30b",
+        near(far, anchorColor) && rebound && farRegion.worst <= TOLERANCE,
+        `minimalistic IN square ${show(far)} (want #ff00ff); IN anchor created at schematic=${created}, kept and ` +
+          `bound to the new anchor state=${rebound}; worst channel difference from Canvas2D=${farRegion.worst}`
+      );
+    } finally {
+      graph.setEntities({ blocks: [], connections: [] });
+      graph.updateSettings({ blockComponents: {} });
+      graph.setColors({ anchor: { background: initGraphColors.anchor.background } });
+      setCamera(1);
+    }
+  });
+
+  // C31: nested children. Block NE (x 0..200, y 3500..3600) has chip A (x 20..60, y 3560..3590) with a nested chip
+  // A1 (x 30..70), then chip B (x 50..90). At scale 0.5: A1 draws over A and under B (the pre-order A, A1, B), as
+  // Canvas2D draws it; hiding A hides A1 on WebGL too (the backend reads the nesting), and showing A draws it again.
+  await check("C31", async () => {
+    graph.updateSettings({ blockComponents: { SliceNested: SliceNestedBlock } });
+    graph.setEntities({
+      blocks: [{ id: "NE", is: "SliceNested", name: "Nested", x: 0, y: 3500, width: 200, height: 100, anchors: [] }],
+      connections: [],
+    });
+    camera.set({ scale: 0.5, x: ORIGIN.x, y: ORIGIN.y - 3500 * 0.5 });
+    for (let i = 0; i < 6; i++) graph.scheduler.performUpdate();
+    try {
+      const view = graph.rootStore.blocksList.getBlockState("NE")?.getViewComponent();
+      const chipA = view instanceof SliceNestedBlock ? view.chipA : undefined;
+      if (!chipA) throw new Error("C31: no chip A");
+      const region = againstCanvas2D(24, 3562, 70, 26);
+      const a = pixelAt(25, 3575);
+      const a1 = pixelAt(40, 3575);
+      const b = pixelAt(65, 3575);
+      chipA.setHiddenLook(true);
+      for (let i = 0; i < 3; i++) graph.scheduler.performUpdate();
+      const hiddenA1 = pixelAt(40, 3575);
+      chipA.setHiddenLook(false);
+      for (let i = 0; i < 3; i++) graph.scheduler.performUpdate();
+      const shownA1 = pixelAt(40, 3575);
+      record(
+        "C31",
+        region.worst <= TOLERANCE &&
+          near(a, hex("#0000ff")) &&
+          near(a1, hex("#ff8800")) &&
+          near(b, hex("#00aa00")) &&
+          !near(hiddenA1, hex("#ff8800")) &&
+          !near(hiddenA1, hex("#0000ff")) &&
+          near(shownA1, hex("#ff8800")),
+        `worst channel difference from Canvas2D=${region.worst}; A ${show(a)} (want #0000ff), A1 ${show(a1)} (want ` +
+          `#ff8800), B ${show(b)} (want #00aa00); A hidden: A1 ${show(hiddenA1)} (want neither); shown again: ` +
+          `${show(shownA1)} (want #ff8800)`
+      );
+    } finally {
+      graph.setEntities({ blocks: [], connections: [] });
+      graph.updateSettings({ blockComponents: {} });
+      setCamera(1);
+    }
+  });
+
+  // C32: child scene components. Block CH (x 0..200, y 2000..2100) has a button child at world (150..200,
+  // 2070..2100) and its OUT anchor at (200, 2088), a later child. At scale 0.5 (schematic): the button draws over CH's
+  // body and under the anchor, as Canvas2D draws them; the button's own hover event (as GraphLayer dispatches it to a
+  // target) makes it tag itself, and a `hoveredTag` rule recolours its part, with no re-encode.
+  await check("C32", async () => {
+    const stats = layer.getBackend()?.stats;
+    if (!stats) throw new Error("no backend in C32");
+    const scale = 0.5;
+    graph.updateSettings({ useBlocksAnchors: true, blockComponents: { SliceChild: SliceChildBlock } });
+    graph.setColors({ anchor: { background: "#ff00ff" } });
+    const removeRules = graph.scene.styles.add([
+      { target: SliceButton, tags: [hoveredTag], style: { parts: { button: { color: "#ff8800" } } } },
+    ]);
+    graph.setEntities({
+      blocks: [
+        {
+          id: "CH",
+          is: "SliceChild",
+          name: "Children",
+          x: 0,
+          y: 2000,
+          width: 200,
+          height: 100,
+          anchors: [{ id: "o", blockId: "CH", type: "OUT" }],
+        },
+      ],
+      connections: [],
+    });
+    camera.set({ scale, x: ORIGIN.x, y: ORIGIN.y - 2000 * scale });
+    for (let i = 0; i < 6; i++) graph.scheduler.performUpdate();
+    try {
+      const view = graph.rootStore.blocksList.getBlockState("CH")?.getViewComponent();
+      const child = view instanceof SliceChildBlock ? view.button : undefined;
+      if (!child) throw new Error("C32: no button child");
+      // Below the title, whose 24-unit glyphs (y 2010..2034) the two renderers antialias differently.
+      const body = againstCanvas2D(20, 2050, 40, 10);
+      const buttonRegion = againstCanvas2D(160, 2072, 20, 6);
+      const overlap = againstCanvas2D(195, 2086, 3, 3);
+      const buttonBefore = pixelAt(165, 2075);
+      const anchorOverButton = pixelAt(196, 2088);
+      const encodes = stats.encodes;
+      child.dispatchEvent(new CustomEvent("mouseenter", { detail: { target: child, relatedTarget: view } }));
+      for (let i = 0; i < 3; i++) graph.scheduler.performUpdate();
+      const buttonHovered = pixelAt(165, 2075);
+      const hoverEncodes = stats.encodes - encodes;
+      const worst = Math.max(body.worst, buttonRegion.worst, overlap.worst);
+      record(
+        "C32",
+        worst <= TOLERANCE &&
+          near(buttonBefore, hex("#00aaff")) &&
+          near(anchorOverButton, hex("#ff00ff")) &&
+          near(buttonHovered, hex("#ff8800")) &&
+          hoverEncodes === 0,
+        `worst channel difference from Canvas2D=${worst} (body ${body.worst}, button ${buttonRegion.worst}, anchor ` +
+          `over button ${overlap.worst}); button ${show(buttonBefore)} (want #00aaff), anchor over it ` +
+          `${show(anchorOverButton)} (want #ff00ff), hovered ${show(buttonHovered)} (want #ff8800); encodes on ` +
+          `hover=${hoverEncodes} (want 0)`
+      );
+    } finally {
+      removeRules();
+      graph.setEntities({ blocks: [], connections: [] });
+      graph.updateSettings({ blockComponents: {} });
+      graph.setColors({ anchor: { background: initGraphColors.anchor.background } });
+      setCamera(1);
+    }
+  });
+
+  // C33: the handover. Block H (x 0..200, y 2500..2600) is held by an HTML view (`delegateRender`) at scale 1
+  // (detailed): its body is not drawn, with no re-encode. Zooming out to 0.5 draws it in the first graph frame after
+  // the camera change (pixelAt runs exactly one), zooming back in hides it again, and the release draws it.
+  await check("C33", async () => {
+    const stats = layer.getBackend()?.stats;
+    if (!stats) throw new Error("no backend in C33");
+    const bodyColor = hex(initGraphColors.block.background);
+    const lookAt = (scale: number): void => camera.set({ scale, x: ORIGIN.x, y: ORIGIN.y - 2500 * scale });
+    graph.setEntities({
+      blocks: [{ id: "H", is: "Block", name: "Held", x: 0, y: 2500, width: 200, height: 100, anchors: [] }],
+      connections: [],
+    });
+    lookAt(1);
+    for (let i = 0; i < 6; i++) graph.scheduler.performUpdate();
+    try {
+      const view = graph.rootStore.blocksList.getBlockState("H")?.getViewComponent();
+      if (!view) throw new Error("C33: no block view");
+      const drawn = pixelAt(50, 2550);
+      const encodes = stats.encodes;
+      // Run red first (re-review 11): before Step 3 the tree's handover is the ungated `setRenderDelegated`.
+      const holder = view as unknown as { delegateRender?: (request: { canvasVisible: boolean }) => () => void };
+      let release: () => void;
+      if (holder.delegateRender) release = holder.delegateRender({ canvasVisible: false });
+      else {
+        view.setRenderDelegated(true);
+        release = (): void => view.setRenderDelegated(false);
+      }
+      const held = pixelAt(50, 2550);
+      const holdEncodes = stats.encodes - encodes;
+      lookAt(0.5);
+      const zoomedOut = pixelAt(50, 2550);
+      lookAt(1);
+      const back = pixelAt(50, 2550);
+      release();
+      const released = pixelAt(50, 2550);
+      record(
+        "C33",
+        near(drawn, bodyColor) &&
+          !near(held, bodyColor) &&
+          holdEncodes === 0 &&
+          near(zoomedOut, bodyColor) &&
+          !near(back, bodyColor) &&
+          near(released, bodyColor),
+        `body drawn ${show(drawn)}, held ${show(held)} (want no body), re-encodes on hold=${holdEncodes} (want 0), ` +
+          `first frame at 0.5 ${show(zoomedOut)} (want the body), back at 1 ${show(back)} (want no body), released ` +
+          `${show(released)} (want the body ${initGraphColors.block.background})`
+      );
+    } finally {
+      graph.setEntities({ blocks: [], connections: [] });
+      setCamera(1);
+    }
+  });
+
+  // C34 (Task 3y): the same-frame re-add family, in pixels of the graph layer's 2D canvas, where Path2D draws the
+  // connections (straight lines here, cyan, 2 px).
+  // 1. Blocks P (x 0..100) and Q (x 400..500), y 4000..4050, and connection K from P's output (100, 4025) to Q's input
+  //    (400, 4025). K is removed and added back before a frame: the line is drawn at (250, 4025).
+  // 2. Blocks M1 (x 0..100) and M2 (x 150..250), y 4200..4250, in collapsible group G, and block O (x 600..700), with
+  //    connection N from M1's output (100, 4225) to O. G collapses, so M1's ports are delegated to G's edge ports (the
+  //    right one at (200, 4204)). M1 is removed and added back without its group before a frame: it owns its ports
+  //    again, and N is drawn from (100, 4225), at (130, 4225), left of where the group's edge port would start it.
+  await check("C34", async () => {
+    const cyan = hex("#00ffff");
+    const c34Block = (id: string, x: number, y: number, group?: string): TBlock => ({
+      id,
+      is: "Block",
+      name: id,
+      x,
+      y,
+      width: 100,
+      height: 50,
+      anchors: [],
+      ...(group === undefined ? {} : { group }),
+    });
+    const styles = { background: "#00ffff" };
+    const bezier = graph.rootStore.settings.getConfigFlag("useBezierConnections");
+    graph.updateSettings({ useBezierConnections: false });
+    const groups = graph.addLayer(BlockGroups, {});
+    const settle = (): void => {
+      for (let i = 0; i < 6; i++) graph.scheduler.performUpdate();
+    };
+    /** Whether a vertical strip of 13 device px around a WORLD point of the graph layer's canvas has a cyan pixel. */
+    const lineAt = (wx: number, wy: number): { found: boolean; sample: string } => {
+      settle();
+      const canvas = graph.getGraphCanvas();
+      const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
+      const [sx, sy] = screenOf(wx, wy);
+      const data = ctx.getImageData(Math.floor(sx * dpr), Math.floor(sy * dpr) - 6, 1, 13).data;
+      let best: TPixel = [0, 0, 0, 0];
+      for (let i = 0; i < data.length; i += 4) {
+        const pixel: TPixel = [data[i], data[i + 1], data[i + 2], data[i + 3]];
+        if (pixel[3] >= 200 && near(pixel, cyan)) return { found: true, sample: show(pixel) };
+        if (pixel[3] > best[3]) best = pixel;
+      }
+      return { found: false, sample: show(best) };
+    };
+    try {
+      camera.set({ scale: 1, x: ORIGIN.x, y: ORIGIN.y - 4000 });
+      graph.setEntities({
+        blocks: [c34Block("P", 0, 4000), c34Block("Q", 400, 4000)],
+        connections: [{ id: "K", sourceBlockId: "P", targetBlockId: "Q", styles }],
+      });
+      settle();
+      const connections = graph.rootStore.connectionsList;
+      const oldK = connections.getConnectionState("K");
+      if (!oldK) throw new Error("C34: no connection K");
+      connections.deleteConnections([oldK]);
+      connections.addConnection({ id: "K", sourceBlockId: "P", targetBlockId: "Q", styles });
+      const readded = lineAt(250, 4025);
+      const newK = connections.getConnectionState("K");
+      const bound = newK !== undefined && newK !== oldK && newK.getViewComponent() !== undefined;
+
+      camera.set({ scale: 1, x: ORIGIN.x, y: ORIGIN.y - 4200 });
+      graph.setEntities({
+        blocks: [c34Block("M1", 0, 4200, "G"), c34Block("M2", 150, 4200, "G"), c34Block("O", 600, 4200)],
+        connections: [{ id: "N", sourceBlockId: "M1", targetBlockId: "O", styles }],
+      });
+      graph.rootStore.groupsList.setGroups<TCollapsibleGroup>([
+        { id: "G", rect: { x: -20, y: 4180, width: 290, height: 90 }, component: CollapsibleGroup },
+      ]);
+      settle();
+      const group = graph.rootStore.groupsList.getGroupState("G")?.getViewComponent();
+      if (!(group instanceof CollapsibleGroup)) throw new Error("C34: no collapsible group G");
+      group.collapse();
+      settle();
+      const output = connections.getPort(createBlockPointPortId("M1", false));
+      const delegatedWhileCollapsed = output?.isDelegated === true;
+      graph.rootStore.blocksList.deleteBlocks(["M1"]);
+      graph.rootStore.blocksList.addBlock(c34Block("M1", 0, 4200));
+      const left = lineAt(130, 4225);
+      const own = output?.isDelegated === false;
+      record(
+        "C34",
+        readded.found && bound && delegatedWhileCollapsed && left.found && own,
+        `K re-added in one frame: line at (250, 4025) ${readded.found ? "drawn" : "missing"} (${readded.sample}, ` +
+          `want cyan), new state has a component=${bound}; M1 left collapsed G by a re-add: port delegated while ` +
+          `collapsed=${delegatedWhileCollapsed}, own port after=${own}, line at (130, 4225) ` +
+          `${left.found ? "drawn" : "missing"} (${left.sample}, want cyan)`
+      );
+    } finally {
+      graph.removeLayer(groups);
+      graph.setEntities({ blocks: [], connections: [] });
+      graph.updateSettings({ useBezierConnections: bezier });
+      setCamera(1);
+    }
+  });
+
   // M8 (Task 17i fix round 1): the worst case of upload calls. 10,000 elements with a camera-aware text each, in view
   // together; every hundredth one (100 texts, spread over the glyph buffer) changes its line breaks between two scales,
   // the others keep a fixed size. Per frame: the texts laid out again, the bytes and writes uploaded, and the time of
@@ -3555,6 +4055,75 @@ async function run(options: TRunOptions): Promise<TCheckResult[]> {
       );
     } finally {
       for (let i = 0; i < 400; i++) store.delete(`SW${i}`);
+      setCamera(1);
+    }
+  });
+
+  // C35 (Task 6): a style that grows a look grows its culling bounds, in pixels of the Canvas 2D renderer (the WebGL
+  // backend culls nothing, so the check sets the renderer to "canvas"; it runs last, after the measurements of the
+  // backend). Block H (x 0..200, y 5000..5100) has an OUT anchor at (200, 5088). Its look reaches 11.5 from there
+  // (LOOK_EXTENT); the theme's hover scales the dot by 1.8, to a radius of 16.2. At scale 0.5:
+  // 1. the camera's left edge at world x 180: the anchor is created and its dot drawn at (205, 5088);
+  // 2. the left edge at world x 213, past the anchor's own bounds (211.5), and the anchor hovered: the grown dot is
+  //    drawn at (215, 5088), 15 from its point, and not at (218, 5088), past its radius (the ring is hidden).
+  await check("C35", async () => {
+    const magenta = hex("#ff00ff");
+    const scale = 0.5;
+    const lookFrom = (left: number): void => camera.set({ scale, x: -left * scale, y: 300 - 5088 * scale });
+    const settle = (): void => {
+      for (let i = 0; i < 6; i++) graph.scheduler.performUpdate();
+    };
+    let view: Anchor | undefined;
+    graph.updateSettings({ useBlocksAnchors: true, renderer: "canvas" });
+    graph.setColors({ anchor: { background: "#ff00ff" } });
+    try {
+      const requested = performance.now();
+      while (graph.scene.$renderer.value !== "canvas" && performance.now() - requested < 5000) await wait(5);
+      const state = graph.scene.$renderer.value;
+      lookFrom(180);
+      graph.setEntities({
+        blocks: [
+          {
+            id: "H",
+            is: "Block",
+            name: "H",
+            x: 0,
+            y: 5000,
+            width: 200,
+            height: 100,
+            anchors: [{ id: "o", blockId: "H", type: "OUT" }],
+          },
+        ],
+        connections: [],
+      });
+      settle();
+      const plain = pixelAt(205, 5088);
+      const component = graph.rootStore.blocksList.getBlockState("H")?.getAnchorById("o")?.getViewComponent();
+      if (!(component instanceof Anchor)) throw new Error("C35: no anchor");
+      view = component;
+      lookFrom(213);
+      settle();
+      const before = pixelAt(215, 5088);
+      // The anchor's own hover event, as GraphLayer sends it to a target: the anchor tags itself (D5).
+      view.dispatchEvent(new CustomEvent("mouseenter", { detail: { target: view } }));
+      settle();
+      const grown = pixelAt(215, 5088);
+      const past = pixelAt(218, 5088);
+      const drawn = near(plain, magenta) && near(grown, magenta);
+      record(
+        "C35",
+        state === "canvas" && drawn && !near(before, magenta) && !near(past, magenta),
+        `renderer state=${state} (want canvas); viewport over the anchor: dot at (205, 5088) ${show(plain)} (want ` +
+          `#ff00ff); left edge at x 213: before the hover (215, 5088) ${show(before)} (want not #ff00ff), hovered ` +
+          `${show(grown)} (want #ff00ff), past the grown radius (218, 5088) ${show(past)} (want not #ff00ff)`
+      );
+    } finally {
+      view?.dispatchEvent(new CustomEvent("mouseleave", { detail: { target: view, relatedTarget: undefined } }));
+      graph.setEntities({ blocks: [], connections: [] });
+      graph.setColors({ anchor: { background: initGraphColors.anchor.background } });
+      graph.updateSettings({ renderer: "webgl" });
+      const requested = performance.now();
+      while (graph.scene.$renderer.value !== "webgl" && performance.now() - requested < 15000) await wait(5);
       setCamera(1);
     }
   });

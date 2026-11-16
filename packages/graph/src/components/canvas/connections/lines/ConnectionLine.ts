@@ -185,10 +185,11 @@ export abstract class ConnectionLine<C extends BlockConnection<TConnection> = Bl
 
   /**
    * For looks that depend on outside data: the connection's `invalidateLine()`, which reads the strokes again (see
-   * update()) and keeps the bounds, the hit box and the label in step with them.
+   * update()) and keeps the bounds, the hit box and the label in step with them. A width that follows the camera
+   * passes `{ followsCamera: true }` (see `invalidateLine`).
    */
-  public invalidate(): void {
-    this.connection.invalidateLine();
+  public invalidate(options?: { readonly followsCamera?: boolean }): void {
+    this.connection.invalidateLine(options);
   }
 
   /** Removes the line and arrow items from the batch. */

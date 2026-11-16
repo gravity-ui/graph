@@ -1,5 +1,4 @@
 import { EventedComponent } from "../../components/canvas/EventedComponent/EventedComponent";
-import { GraphComponent } from "../../components/canvas/GraphComponent";
 import { TGraphLayerContext } from "../../components/canvas/layers/graphLayer/GraphLayer";
 import { GraphMouseEvent } from "../../graphEvents";
 import { Component, ESchedulerPriority } from "../../lib";
@@ -11,6 +10,7 @@ import { dragListener } from "../../utils/functions/dragListener";
 import { EWheelIntent, isPinchZoomGesture } from "../../utils/functions/wheelIntent";
 import { EVENTS } from "../../utils/types/events";
 import { schedule } from "../../utils/utils/schedule";
+import { findDragTarget } from "../drag/findDragTarget";
 
 import { ICamera, TCameraState } from "./CameraService";
 
@@ -180,6 +180,10 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
    * Not a graph listener: a plain `EventTarget` calls listeners in registration order, so the camera,
    * created with the graph, would start panning before any layer could prevent the event.
    *
+   * A press pans only when nothing in the pressed component's chain is draggable (D8, as in the DOM): a press on a
+   * child of a draggable block is the block's drag, which DragService starts. The middle button pans whatever it
+   * presses.
+   *
    * @internal
    */
   public handleGraphMouseDown(event: GraphMouseEvent): void {
@@ -213,10 +217,11 @@ export class Camera extends EventedComponent<TCameraProps, TComponentState, TGra
   }
 
   /**
-   * DragService handles draggable graph components; camera pan is deferred in that case.
+   * Whether the press has a drag target (`findDragTarget`, D8): the target itself when it is draggable, else its
+   * nearest draggable ancestor. DragService handles that drag, so the camera pan is deferred then.
    */
   private isTargetDraggable(target: EventedComponent | undefined): boolean {
-    return target instanceof GraphComponent && target.isDraggable();
+    return findDragTarget(target) !== undefined;
   }
 
   private onDragStart(event: MouseEvent) {

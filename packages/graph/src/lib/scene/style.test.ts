@@ -6,6 +6,8 @@ import {
   inheritsElementStyle,
   styleDim,
   styleEncodeKey,
+  styleGeometryKey,
+  styleLookKey,
   styleOpacity,
   styleRaise,
 } from "./style";
@@ -99,6 +101,39 @@ describe("encode key and raise", () => {
     expect(a).toBe(b);
     expect(c).not.toBe(a);
     expect(d).not.toBe(a);
+  });
+
+  it("keys the geometry a row changes: circle scales and stroke widths, nothing else", () => {
+    expect(styleGeometryKey(undefined)).toBe("");
+    expect(styleGeometryKey({ parts: { border: { color: "#f00" } }, raise: 1 })).toBe("");
+    const scaled = styleGeometryKey({ parts: { anchor: { scale: 1.8, color: "#f00" } } });
+    expect(scaled).not.toBe("");
+    expect(styleGeometryKey({ parts: { anchor: { scale: 1.8, color: "#0f0" } } })).toBe(scaled);
+    expect(styleGeometryKey({ parts: { anchor: { scale: 2 } } })).not.toBe(scaled);
+    expect(styleGeometryKey({ base: { border: { width: 4 } } })).not.toBe("");
+  });
+
+  it("keys a row's look by its content", () => {
+    const red = (): { parts: { body: { color: string } } } => ({ parts: { body: { color: "#f00" } } });
+    expect(styleLookKey(red())).toBe(styleLookKey(red()));
+    expect(styleLookKey(red())).not.toBe(styleLookKey({ parts: { body: { color: "#0f0" } } }));
+    expect(styleLookKey(undefined)).toBe(styleLookKey({}));
+  });
+
+  it("keys a row's look whatever the order of its properties and parts", () => {
+    expect(styleLookKey({ parts: { body: { color: "#ff0000", visible: true } } })).toBe(
+      styleLookKey({ parts: { body: { visible: true, color: "#ff0000" } } })
+    );
+    expect(styleLookKey({ parts: { body: { width: 2 }, title: { width: 1 } }, raise: 1 })).toBe(
+      styleLookKey({ raise: 1, parts: { title: { width: 1 }, body: { width: 2 } } })
+    );
+    expect(styleLookKey({ base: { border: { width: { px: 2, maxWorld: 4 } } } })).toBe(
+      styleLookKey({ base: { border: { width: { maxWorld: 4, px: 2 } } } })
+    );
+    // Undefined values and empty objects draw nothing.
+    expect(styleLookKey({ parts: {}, raise: undefined })).toBe(styleLookKey({}));
+    expect(styleLookKey({ parts: { body: {} }, dim: 0.5 })).toBe(styleLookKey({ dim: 0.5 }));
+    expect(styleLookKey({ parts: { body: { width: 2 } } })).not.toBe(styleLookKey({ parts: { title: { width: 2 } } }));
   });
 
   it("raise defaults to 0", () => {

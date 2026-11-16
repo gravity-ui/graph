@@ -9,8 +9,8 @@ Anchors are connection points on blocks that allow creating connections between 
 An anchor's canvas component is `Anchor`, a retained [scene component](block-component.md#scene-components). It owns
 a child element of its block's element (see [Scene](../system/scene.md#child-elements)):
 
-- it draws right above its block, ordered among the block's anchors, and under the next block;
-- it is hidden while its block is hidden (delegated to React, or in a collapsed group) and rises with its block when
+- it draws right above its block, ordered among the block's anchors and children, and under the next block;
+- it is hidden while its block is hidden (handed over to HTML, or in a collapsed group) and rises with its block when
   the block is selected or dragged;
 - it takes its block's element `dim` and `opacity`, so a focus rule that dims a block dims its anchors;
 - it is hit in its block's scene order: an upper block covers the anchors of a lower one, for the pointer too.
@@ -21,24 +21,38 @@ anchor is selected (`selectedTag`). While the anchor is hovered (`hoveredTag`) t
 `Anchor.CANVAS_HOVER_FACTOR` (1.8). Restyle them with rules on `Anchor` (see
 [Default block and anchor parts](../system/tags-and-styles.md#default-block-and-anchor-parts)).
 
-**Levels.** Anchors are drawn on the schematic level only, and hit from it on:
+**Hover and events.** An anchor puts `hoveredTag` on itself while it is the pointer's target. It stops its clicks and
+presses: a click toggles its selection and does not reach its block. Its `mouseenter` and `mouseleave` go on to its
+block, which stays hovered while the pointer is on the anchor (see
+[Child components](block-component.md#child-components)).
 
-- on the minimalistic level they have no look and are not hit: the block under them is, so gestures that start on an
-  anchor (connection creation, anchor selection, hover) start from the schematic level on;
-- on the detailed level they draw nothing, as before (a React graph shows HTML anchors there); they stay hittable.
+**Levels.** The stock anchor is drawn on the schematic level only. It is hit there, and wherever its block is shown
+outside the scene: at the detailed level while an HTML view holds its block (React draws anchors there, and a click on
+that HTML is the graph's click on the anchor), and on every level after `setRenderDelegated(true)`. Elsewhere it is
+not hit: the block under it is.
 
-**Lazy creation.** A block creates its `Anchor` components once the camera shows it (its rect, an anchor point outside
-it, or an anchor's look within the `LOOK_EXTENT` of its class, as an export finds them) at the schematic or detailed
-level, and keeps them until its anchor list changes, `useBlocksAnchors` turns off or the block unmounts. A camera without a size (a graph not laid out yet) counts as showing every block.
+- On the minimalistic level it has no look and is not hit, so gestures that start on an anchor (connection creation,
+  anchor selection, hover) start from the schematic level on.
+- At the detailed level without an HTML view it draws nothing and is not hit.
+- A subclass is hit on the levels its own look is drawn on, or on those its `static hitLevels` declares.
+- The anchors of a block that a collapsed group hides take no hits on any level.
+
+**Lazy creation.** A block creates its anchor components once the camera shows it (its rect, an anchor point outside
+it, or an anchor's look within the `LOOK_EXTENT` of its class, as an export finds them) on the levels its anchor
+class's `static CREATION_LEVELS` lists (schematic and detailed by default). A class whose look draws at the
+minimalistic level declares that level there; development builds warn when it does not. The block keeps them until
+its anchor list changes, `useBlocksAnchors` turns off or the block unmounts. A camera without a size (a graph not laid
+out yet) counts as showing every block.
 Until its anchors exist, the block owns their ports and positions them, so connections attach to anchors either way.
 Consequences:
 
-- `AnchorState.getViewComponent()` is `undefined` for a block the camera never showed at the schematic level or
-  closer. It is reactive: it reads `$viewComponentReady`.
+- `AnchorState.getViewComponent()` is `undefined` for a block the camera never showed on a level of its anchor
+  classes' `CREATION_LEVELS`. It is reactive: it reads `$viewComponentReady`.
 - Read an anchor's position from its port (`block.getAnchorPort(anchorId).getPoint()`), not from its component.
 - An anchor port's `owner` is the `Block` until the anchor component exists.
 - `graph.getElementsOverPoint()`, `graph.getElementsOverRect()` and the anchor selection bucket's
-  `$selectedComponents` return created anchors only; on the minimalistic level the hit queries return no anchors.
+  `$selectedComponents` return created anchors only. The hit queries leave out the anchors the current level does not
+  hit (see **Levels** above).
 - Override the protected `Block.shouldCreateAnchors()` to create anchors on other terms. It is asked in the block's
   updates and after camera changes that show the block.
 - `graph.scene.toImage()` creates the anchors an export needs and drops them after the draw (see
@@ -47,10 +61,48 @@ Consequences:
 **`useBlocksAnchors` at runtime.** Turning it off unmounts the anchor components and hides the connections attached to
 anchors; turning it on shows them again. A graph that starts with it off draws those connections.
 
-**Custom anchors.** Override `Block.renderAnchor(anchor)` to return another `Anchor` class or other props. A subclass
-describes its look with level methods (prototype methods, not instance properties). A look that reaches farther than
-`Anchor.LOOK_EXTENT` (11.5 world units) from the anchor's point, or a larger `size` or `lineWidth`, declares its own
-extent: `public static override LOOK_EXTENT = 40;`.
+**Custom anchors.** Override `Block.getAnchorClass(anchor)` to return another `Anchor` class, per anchor. The block
+creates the component with the anchor's data, its port and the class's statics:
+
+- `SIZE` (default 18): the dot's diameter, passed as the anchor's `size`;
+- `LINE_WIDTH` (default 2): passed as its `lineWidth`;
+- `LOOK_EXTENT` (default 11.5, the stock dot and ring): how far its look reaches from the anchor's point;
+- `CREATION_LEVELS` (default schematic and detailed): the levels blocks create it on.
+
+Creating anchors at the minimalistic level is costly at a far zoom, where the camera shows many blocks. Measured on an
+Apple M3 Pro with 10,000 blocks and about 40,000 anchors, all of a class created at the minimalistic level, at scale
+0.038: each Canvas 2D pan frame takes about 31 ms more (45 ms instead of 14 ms), and the page heap grows by about
+200 MB. WebGL pan frames take no longer. Add the minimalistic level only to anchor classes that must show there.
+
+A class describes its look with level methods (prototype methods, not instance properties). Its view data carries its
+block's (`view.block`). A look that reaches farther than `LOOK_EXTENT` from the anchor's point declares its own:
+`public static override LOOK_EXTENT = 40;`. An anchor class has no props of its own. It reads what it needs from the
+anchor (`this.props.type`, `this.props.index`) and from its block's data in a method of its own, and it shows states
+with tags. The class may follow the block's data (`this.state.meta`): the block asks again after that data changes.
+
+```typescript
+import { Anchor, CanvasBlock } from "@gravity-ui/graph";
+import type { TAnchor, TAnchorClass, TScenePrimitive } from "@gravity-ui/graph";
+
+class SquareAnchor extends Anchor {
+  public static override SIZE = 14;
+  public static override LOOK_EXTENT = 10;
+
+  protected override schematic(): readonly TScenePrimitive[] {
+    return [{ kind: "rect", part: "anchor", x: -7, y: -7, width: 14, height: 14 }];
+  }
+}
+
+class SquareOutBlock extends CanvasBlock {
+  protected override getAnchorClass(anchor: TAnchor): TAnchorClass {
+    return anchor.type === "OUT" ? SquareAnchor : Anchor;
+  }
+}
+```
+
+`getAnchorClass` is a pure function of the anchor and the block's data (`this.state`, `this.props`,
+`this.connectedState`), without side effects. A throw from it is reported with `console.error`, and the block keeps
+the classes it read before, if any.
 
 ## Anchor Structure
 

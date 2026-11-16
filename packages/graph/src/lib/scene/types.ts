@@ -192,11 +192,21 @@ export type TScenePrimitive = Readonly<
 export type TSceneElement = {
   readonly id: string;
   /**
-   * The element this one belongs to (a child element, spec §5.2): it draws right above its parent and under the next
-   * owner, hidden while the parent is hidden, in the parent's raised bucket, with the parent's element dim and opacity.
-   * Unset for an owner. A child cannot have children.
+   * The owner this element belongs to (a child element, spec §5.2): it draws right above its owner and under the next
+   * owner, hidden while an element it is nested in is hidden, in the owner's raised bucket, with its scene parent's
+   * element dim and opacity. Unset for an owner.
    */
   readonly parent?: string;
+  /**
+   * The child element this child is nested in (its scene parent), when that is not its owner. `parent` stays the owner:
+   * the element draws in its owner's bucket, after it, in the pre-order of the nesting (`SceneStore.childrenOf`).
+   */
+  readonly nestedIn?: string;
+  /**
+   * The `static entityType` of the component that wrote the element (the minimap's `"block"`), whatever the element's
+   * id; none for others.
+   */
+  readonly entityType?: string;
   /** A child's place among its parent's children, lowest first; 0 for owners. */
   childOrder: number;
   /** The bucket; ignored for a child, which draws in its parent's. */
@@ -218,10 +228,10 @@ export type TSceneElement = {
  * A change of the store, as renderers receive it.
  *
  * Child elements (spec §5.2): when only a parent changes, its children get no update. A raise or `raiseMany`, a
- * `zIndex` update, a change of the raise of its style and a change of its `hidden` flag name the parent alone; a
- * renderer derives each child's depth key and hidden state from its owner (`SceneStore.rootOf`, `childrenOf`,
- * `isDrawnHidden`). A child's own `zIndex` and `order` (always 0) are ignored, and its style updates carry `styleId`
- * (and `primitives` when the encode key changes) but never `zIndex`.
+ * `zIndex` update, a change of the raise of its style name the owner alone; a change of an element's `hidden` flag
+ * names that element alone. A renderer derives each child's depth key from its owner and its hidden state from its
+ * nesting (`SceneStore.rootOf`, `childrenOf`, `isDrawnHidden`). A child's own `zIndex` and `order` (always 0) are
+ * ignored, and its style updates carry `styleId` (and `primitives` when the encode key changes) but never `zIndex`.
  */
 export type TSceneChange = {
   type: "add" | "update" | "delete";
@@ -233,4 +243,12 @@ export type TSceneChange = {
    * delete per child element.
    */
   fields?: ReadonlySet<keyof TSceneElement>;
+  /** On an update from a row change: the row the element drew with before (`styleId` names the new one). */
+  previousStyleId?: number;
 };
+
+/**
+ * Why the style rows changed (`SceneStore.subscribeStyles`): a row defined, the rows rewritten (a rule, level or
+ * root-tag change, and the composed rows that follow them), a row freed, or the dim colour changed.
+ */
+export type TSceneStyleChange = "define" | "free" | "replace" | "dim";

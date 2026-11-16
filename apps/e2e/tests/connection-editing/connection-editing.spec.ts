@@ -54,11 +54,16 @@ const BLOCKS: TBlock[] = [
 let graphPO: GraphPageObject;
 let layerPO: ConnectionEditingPageObject;
 
-async function setup(page: import("@playwright/test").Page): Promise<void> {
+/**
+ * At 0.5 by default, the schematic level, where canvas anchors are shown and so hit (D4); `zoomTo("center")` alone
+ * clamps to `scaleMax` 1 for this scene, the detailed level, where anchors without an HTML view are not hit.
+ */
+async function setup(page: import("@playwright/test").Page, scale = 0.5): Promise<void> {
   graphPO = new GraphPageObject(page);
   layerPO = new ConnectionEditingPageObject(page, graphPO);
   // Blocks are draggable, as in a typical editor: the camera does not pan when a drag starts on a block.
   await graphPO.initialize({ blocks: BLOCKS, connections: [], settings: { useBlocksAnchors: true, canDrag: "all" } });
+  await graphPO.camera().zoomToScale(scale);
 }
 
 async function isAnchorSelected(blockId: string, anchorId: string): Promise<boolean> {
@@ -394,6 +399,47 @@ test.describe("ConnectionEditingLayer – blocks", () => {
     expect(await graphPO.getConnections()).toEqual([]);
     expect(await layerPO.getEventTypes()).toEqual([]);
     expect(await graphPO.block("block-c").getGeometry()).toMatchObject({ x: 350, y: 350 });
+  });
+});
+
+test.describe("ConnectionEditingLayer – the detailed level without HTML (D4)", () => {
+  test.beforeEach(async ({ page }) => {
+    await setup(page, 1);
+    await layerPO.addLayer();
+    await layerPO.recordEvents();
+  });
+
+  test("a plain anchor starts no connection: the press is the block's, which drags", async () => {
+    const from = await layerPO.getAnchorPoint("block-a", "out-a");
+    await graphPO.drag(from, { x: from.x, y: from.y + 150 });
+    expect(await graphPO.getConnections()).toEqual([]);
+    expect(await layerPO.getEventTypes()).toEqual([]);
+    expect(await graphPO.block("block-a").getGeometry()).toMatchObject({ x: 0, y: 150 });
+  });
+
+  test("a block gesture dropped on a plain anchor's point connects to the block", async ({ page }) => {
+    const from = await graphPO.block("block-c").getCenter();
+    const to = await layerPO.getAnchorPoint("block-b", "in-b");
+    await page.keyboard.down("Shift");
+    await graphPO.drag(from, to);
+    await page.keyboard.up("Shift");
+    // At the schematic level this drop targets the anchor and is rejected ("a block to anchor drop ...").
+    const connections = await graphPO.getConnections();
+    expect(connections).toHaveLength(1);
+    expect(endpointFields(connections[0])).toEqual({ sourceBlockId: "block-c", targetBlockId: "block-b" });
+  });
+
+  test("snappable anchor ports still connect through the block's port map", async () => {
+    await layerPO.makeAnchorPortsSnappable([
+      { blockId: "block-a", anchorId: "out-a" },
+      { blockId: "block-b", anchorId: "in-b" },
+    ]);
+    const from = await layerPO.getAnchorPoint("block-a", "out-a");
+    const to = await layerPO.getAnchorPoint("block-b", "in-b");
+    await graphPO.drag(from, { x: to.x - 15, y: to.y + 5 });
+    expect(await graphPO.getConnections()).toEqual([
+      expect.objectContaining({ sourceAnchorId: "out-a", targetAnchorId: "in-b" }),
+    ]);
   });
 });
 

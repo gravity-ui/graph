@@ -21,6 +21,28 @@ graph.addLayer(MiniMapLayer, {
 graph.start();
 ```
 
+## What it draws
+
+The minimap draws the scene's block elements at the minimalistic level, without text, through the Canvas 2D
+interpreter (`graph.scene.query()` and `drawInterpreted()`), whatever the main view's renderer and level, in the order
+of the blocks list. Blocks handed to HTML and blocks in collapsed groups stay on it; anchors and other scene elements
+do not. Tags and style rules show on it. A `LegacyCanvasBlock` draws itself with
+`renderMinimalisticBlock(ctx, { text: false })`, in its place in the list.
+
+It caches its picture and redraws it only when what it shows changes:
+
+- Changes of what it shows are throttled: pointer drags, block moves such as `api.updateBlock()`, tag and style
+  changes, changes of the blocks list and of the usable rect. After a quiet period the minimap draws a pointer drag in
+  the same frame as the main view, and the other changes one frame after it. During continuous changes it draws them
+  together at most about once per 100 ms, and always draws the last state, at most about 100 ms after the change. The
+  click and drag navigation and the camera frame use the mapping of the picture shown, so they match what it shows
+  while a picture waits.
+- Block subclasses that declare their own `entityType` are drawn and followed like `Block`: the blocks list decides
+  what is drawn.
+- Colour changes and changes of the minimap's size redraw it in the next frame.
+- A camera move only redraws the camera frame, unless a `LegacyCanvasBlock` is on the minimap: then every camera move
+  redraws the picture.
+
 `@gravity-ui/graph` is a required peer dependency. This package uses its public `Layer` API and shares the consumer's core runtime. React is not required.
 
 The layer sets its per-instance position and dimensions inline on the canvas when attached. Configure them through the layer props; overriding them with CSS requires `!important`. Import core styles before `@gravity-ui/graph-minimap/styles.css` for the default border and background. The default selector `canvas.layer:where(.graph-minimap)` has specificity `(0,1,1)`. Custom rules with two classes, such as `.graph-minimap.my-minimap`, override these visual defaults regardless of their load order. A single-class selector such as `.my-minimap` or `.graph-minimap` has lower specificity and does not override them.

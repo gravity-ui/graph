@@ -58,10 +58,22 @@ or a `Set` encodes as `{}` and a function as nothing, so different values of the
 | Tag | Writer |
 | --- | --- |
 | `selectedTag` | bound to `graph.selectionService.$selection`: every selected entity of every type |
-| `hoveredTag` | `GraphLayer`: the component under the pointer, one entity at a time |
+| `hoveredTag` | each component on itself (`GraphComponent.setHoveredTag`), from the pointer events it gets; see below |
 | `draggingTag` | `DragService`: the participants of the current drag |
 | `dropTargetTag` | the groups transfer layer: a group that accepts the dragged blocks |
 | `connectionSourceTag`, `connectionTargetTag` | defined; the connection editing layer writes them in a later step |
+
+`hoveredTag`:
+
+- It is a styling tool that components put on themselves (`GraphComponent.setHoveredTag`). The library `Block`
+  tags itself while the pointer is on it or on any of its descendants (CSS `:hover`; `isHoveredBy` decides). `Anchor`,
+  connections and groups tag themselves while they are the pointer's target. A custom component tags itself only if
+  it does so; nothing binds the tag to the pointer.
+- It is for styling only: no library code reads `hoveredTag`, or any tag's membership, to decide behaviour. Events,
+  targets, the cursor, hit-testing and menus come from the [event model](event-model.md).
+- One indirect effect: a rule that gives a tagged component a `raise` changes the scene order, and the hit order
+  follows it. So a `hoveredTag → raise` rule changes which component gets clicks where components overlap; the theme
+  has no such rule. A `scale` (the anchor's ×1.8) changes the drawing and the culling bounds, not the hit box.
 
 `selected` is no longer a field of `TBlock`, `TConnection` or their `$state`. Read it with `$selected`, `selectedTag` or
 the selection API (`graph.selectionService`).
@@ -308,12 +320,13 @@ graph.scene.styles.add([
 ```
 
 At equal priority user rules apply after the theme's, so these win. Another shape needs an `Anchor` subclass with its
-own level methods, returned from the block's `renderAnchor` (a `getAnchorClass` hook is planned).
+own level methods, returned from the block's `getAnchorClass(anchor)` (see [Anchors](../components/anchors.md)).
 
-**Child elements.** An anchor's element is a child element of its block's (see [Scene](scene.md#child-elements)). Its
-drawn row is its own rules' style, with its block's element `dim` when it sets none and its element `opacity`
-multiplied by the block's. So a focus rule that dims a block dims its anchors too, while the anchors' parts follow the
-anchor rules. A child takes no `raise` of its own: it draws in its block's bucket.
+**Child elements.** An anchor's element is a child element of its block's, and so is a child component's (see
+[Scene](scene.md#child-elements)). Its drawn row is its own rules' style, with its scene parent's element `dim` when
+it sets none and its element `opacity` multiplied by the parent's. So a focus rule that dims a block dims its anchors
+and children too, while their parts follow their own classes' rules. A child takes no `raise` of its own: it draws in
+its block's bucket.
 
 ## Elements and `explain`
 
@@ -345,7 +358,9 @@ Rows are shared: a thousand blocks with the same class and tags use one row.
 - No text size or effects (dash, animation) by tag yet, beyond the `cameraAware` mode; the types do not list them.
   They come with the full WebGL backend and connections.
 - No group opacity: `opacity` fades each primitive on its own (see `opacity` above).
-- A part's `scale` is not part of the element's bounds (see [Renderer differences](scene.md#renderer-differences)).
+- A part's `scale` or `width` grows the element's culling bounds in the live view, not its `bounds` or its hit box. An
+  export's own rules do not grow them, so an export can crop what only they grow (see
+  [Bounds and styles](scene.md#bounds-and-styles)).
 - A primitive's paint colour and stroke width are optional: with no value of its own and none from a style, the paint
   or the stroke draws nothing.
 - At most 15 distinct part names in the scene (see [Limits](scene.md#limits)).

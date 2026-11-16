@@ -190,6 +190,14 @@ export class BlockState<T extends TBlock = TBlock> {
   }
 
   /**
+   * The block's component no longer shows this state: the block was removed and added back with its id before a
+   * frame, and its kept component bound to the new state. This state then names no component.
+   */
+  public unsetViewComponent(): void {
+    this.$viewComponent.value = undefined;
+  }
+
+  /**
    * Request to hide or show this block's canvas component.
    * Safe to call before the canvas component is mounted — the request is
    * deferred and applied automatically in setViewComponent().

@@ -5,14 +5,12 @@ import { globalScheduler } from "../../lib/Scheduler";
 import { Layer, LayerProps } from "../../services/Layer";
 
 import { GraphComponent, TGraphComponentProps } from "./GraphComponent";
-import { Anchor, TAnchor, TAnchorProps } from "./anchors";
+import { Anchor, TAnchor, TAnchorClass, TAnchorProps } from "./anchors";
 import { Block, TBlock } from "./blocks/Block";
 import { LegacyCanvasBlock } from "./blocks/LegacyCanvasBlock";
 
 /** Anchors are retained scene components: the frame never paints them, the scene draws their child elements. */
 class TracedAnchor<T extends TAnchorProps = TAnchorProps> extends Anchor<T> {}
-
-const AnchorView: typeof Anchor = TracedAnchor;
 
 class TracedBlock extends LegacyCanvasBlock {
   public readonly paint: string[] = [];
@@ -32,11 +30,8 @@ class TracedBlock extends LegacyCanvasBlock {
     super.didRender();
   }
 
-  protected renderAnchor(anchor: TAnchor) {
-    return AnchorView.create(
-      { ...anchor, zIndex: this.zIndex, size: 18, lineWidth: 2, port: this.getAnchorPort(anchor.id) },
-      { key: anchor.id }
-    );
+  protected override getAnchorClass(): TAnchorClass {
+    return TracedAnchor;
   }
 }
 

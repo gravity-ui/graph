@@ -1,5 +1,5 @@
 import { Graph } from "../../../graph";
-import type { ComponentDescriptor } from "../../../lib/CoreComponent";
+import type { Component } from "../../../lib/Component";
 import { globalScheduler } from "../../../lib/Scheduler";
 import { LEVEL_BIT } from "../../../lib/scene/levels";
 import { entityKey } from "../../../services/tags/TagStore";
@@ -11,7 +11,7 @@ import { Block } from "../blocks/Block";
 import type { TBlock } from "../blocks/Block";
 
 import { Anchor } from "./index";
-import type { TAnchor } from "./index";
+import type { TAnchorClass, TAnchorProps } from "./index";
 
 function frames(count = 6): void {
   for (let i = 0; i < count; i++) globalScheduler.performUpdate();
@@ -67,6 +67,21 @@ describe("anchors as child elements of their block", () => {
     expect(style?.base?.border).toEqual({ color: graph.graphColors.anchor.selectedBorder, visible: false });
   });
 
+  it("steps the anchor revision and not the block's on an anchor's hover (settled item 6)", () => {
+    const blocks = graph.scene.revisionOf("block");
+    const anchors = graph.scene.revisionOf("anchor");
+    frames();
+    const start = [blocks.value, anchors.value];
+    const blockRow = graph.scene.store.get(entityKey("block", "lower"))?.styleId;
+    const hovered = anchor("lower", "out");
+    hovered.dispatchEvent(new CustomEvent("mouseenter", { detail: { target: hovered } }));
+    frames();
+    // The block tags itself too (D5, В1); the theme has no hover rule for blocks, so its new row looks the same.
+    expect(graph.scene.tags.$of("block", "lower").value.has(hoveredTag)).toBe(true);
+    expect(graph.scene.store.get(entityKey("block", "lower"))?.styleId === blockRow).toBe(false);
+    expect([blocks.value, anchors.value]).toEqual([start[0], start[1] + 1]);
+  });
+
   describe("two blocks with an anchor of the same id", () => {
     const rowOf = (blockId: string): ReturnType<Graph["scene"]["store"]["getStyles"]>[number] | undefined => {
       const element = anchorElement(blockId, "out");
@@ -103,7 +118,9 @@ describe("anchors as child elements of their block", () => {
     it("scales only the hovered one; the other keeps the plain row", () => {
       const plain = anchorElement("upper", "out")?.styleId;
       expect(anchorElement("lower", "out")?.styleId).toBe(plain);
-      graph.getGraphLayer().setHoveredComponent(anchor("lower", "out"));
+      // The anchor's own hover event, as GraphLayer sends it to a target: the anchor tags itself (D5).
+      const hovered = anchor("lower", "out");
+      hovered.dispatchEvent(new CustomEvent("mouseenter", { detail: { target: hovered } }));
       frames();
       expect(graph.scene.tags.$of("anchor", anchorEntityId("lower", "out")).value.has(hoveredTag)).toBe(true);
       expect(graph.scene.tags.$of("anchor", anchorEntityId("upper", "out")).value.has(hoveredTag)).toBe(false);
@@ -142,6 +159,52 @@ describe("anchors as child elements of their block", () => {
     const tagged = anchorElement("lower", "out");
     expect(tagged && graph.scene.store.getStyles()[tagged.styleId].parts?.anchor?.scale).toBe(2);
     expect(graph.scene.store.get(entityKey("block", "lower"))?.primitives).toBe(lower);
+  });
+
+  it("is found by a scene query that meets only its hovered look, and keeps the bounds it wrote", () => {
+    // The OUT anchor of "lower" sits at (300, 188). Its look reaches 11.5 (LOOK_EXTENT); the theme's hover scales the
+    // dot and the ring by 1.8: 9 x 1.8 + 2.5 = 18.7. The rect lies 13 to 15 units right of the point.
+    const edge = { x: 313, y: 187, width: 2, height: 2 };
+    const view = anchor("lower", "out");
+    const id = view.getSceneElementId();
+    const found = (): boolean => graph.scene.query(edge).some((element) => element.id === id);
+    const bounds = anchorElement("lower", "out")?.bounds;
+    expect(found()).toBe(false);
+    view.dispatchEvent(new CustomEvent("mouseenter", { detail: { target: view } }));
+    frames();
+    expect(found()).toBe(true);
+    expect(anchorElement("lower", "out")?.bounds).toEqual(bounds);
+    view.dispatchEvent(new CustomEvent("mouseleave", { detail: { target: view, relatedTarget: undefined } }));
+    frames();
+    expect(found()).toBe(false);
+  });
+
+  it("is drawn by Canvas 2D when only its hovered look meets the viewport", () => {
+    type TArc = { type: string; props: { radius?: number } };
+    const canvas = graph.scene.layer.getCanvas();
+    const ctx = canvas?.getContext("2d") as unknown as { __getEvents(): TArc[]; __clearEvents(): void } | undefined;
+    const dots = (): number[] =>
+      (ctx?.__getEvents() ?? [])
+        .filter((event) => event.type === "arc")
+        .map((event) => Number(event.props.radius?.toFixed(3)));
+    const scale = 0.5;
+    const drawnFrom = (left: number): number[] => {
+      graph.cameraService.set({ width: 400, height: 300, x: -left * scale, y: -100 * scale, scale });
+      frames();
+      ctx?.__clearEvents();
+      graph.scene.layer.performRender();
+      frames();
+      return dots();
+    };
+    // The blocks draw no circles (the badge is hidden): a viewport over the anchor draws its dot.
+    expect(drawnFrom(290)).toEqual([9]);
+    // The viewport starts 13 world units right of the anchor's point (300, 188): past its look's 11.5, within the
+    // hovered 18.7.
+    expect(drawnFrom(313)).toEqual([]);
+    const view = anchor("lower", "out");
+    view.dispatchEvent(new CustomEvent("mouseenter", { detail: { target: view } }));
+    frames();
+    expect(dots()).toContain(16.2);
   });
 
   it("shows today's ring on a selected anchor, and a user rule restyles it, re-encoding no block", () => {
@@ -208,13 +271,16 @@ describe("anchors as child elements of their block", () => {
 });
 
 describe("an anchor whose constructor finds no anchor state", () => {
-  /** Renders its anchors with an id its block does not have: the Anchor constructor throws before it binds. */
+  /** Builds its anchors with an id their block does not have: the Anchor constructor throws before it binds. */
+  class MissingAnchor<T extends TAnchorProps = TAnchorProps> extends Anchor<T> {
+    constructor(props: T, parent: Component) {
+      super({ ...props, id: "missing" }, parent);
+    }
+  }
+
   class MissingAnchorBlock extends Block {
-    protected override renderAnchor(item: TAnchor): ComponentDescriptor<typeof Anchor> {
-      return Anchor.create(
-        { ...item, id: "missing", zIndex: this.zIndex, size: 18, lineWidth: 2, port: this.getAnchorPort(item.id) },
-        { key: item.id }
-      );
+    protected override getAnchorClass(): TAnchorClass {
+      return MissingAnchor;
     }
   }
 

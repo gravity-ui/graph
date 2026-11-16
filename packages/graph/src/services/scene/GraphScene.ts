@@ -1,5 +1,5 @@
-import { computed, effect, untracked } from "@preact/signals-core";
-import type { ReadonlySignal } from "@preact/signals-core";
+import { batch, computed, effect, signal, untracked } from "@preact/signals-core";
+import type { ReadonlySignal, Signal } from "@preact/signals-core";
 
 import type { Graph } from "../../graph";
 import { Component } from "../../lib/Component";
@@ -10,9 +10,9 @@ import { SceneStore } from "../../lib/scene/SceneStore";
 import { drawElements } from "../../lib/scene/drawPrimitives";
 import { elementBounds } from "../../lib/scene/elementBounds";
 import { watchSceneLimits } from "../../lib/scene/sceneLimits";
-import { ignoresCameraAware } from "../../lib/scene/style";
+import { ignoresCameraAware, styleLookKey } from "../../lib/scene/style";
 import { clearSceneTextMetrics } from "../../lib/scene/textMetrics";
-import type { TSceneElement, TSceneStyle, TSceneTextPolicy } from "../../lib/scene/types";
+import type { TSceneChange, TSceneElement, TSceneStyle, TSceneTextPolicy } from "../../lib/scene/types";
 import type { ISceneBackendModule } from "../../lib/scene/webgl/backendTypes";
 import { noop } from "../../utils/functions";
 import { clearMeasureTextCache } from "../../utils/functions/text";
@@ -37,6 +37,7 @@ import type {
   TSceneExportPreparer,
   TSceneImageOptions,
   TSceneLevel,
+  TSceneQueryOptions,
   TSceneRenderer,
   TSceneRendererState,
 } from "./types";
@@ -80,6 +81,24 @@ export const sceneExportStats = {
 };
 
 const defaultLoader = (): Promise<ISceneBackendModule> => import("../../lib/scene/webgl/WebGLSceneBackend");
+
+/** The fields of an update from a row change (`SceneStore.useRow`): the row, its encode key and its raise. */
+const ROW_FIELDS: ReadonlySet<keyof TSceneElement> = new Set<keyof TSceneElement>(["styleId", "primitives", "zIndex"]);
+
+/**
+ * Whether an update changes the query result of what is nested in the element, which gets no update of its own: its
+ * hidden flag, its owner's place (`order`, its bucket) or its place among its siblings. An update without fields may
+ * change any of them.
+ */
+function movesNested(fields: ReadonlySet<keyof TSceneElement> | undefined): boolean {
+  return (
+    fields === undefined ||
+    fields.has("hidden") ||
+    fields.has("order") ||
+    fields.has("zIndex") ||
+    fields.has("childOrder")
+  );
+}
 
 /**
  * The scene runtime of a graph: the element store, the renderer layer (Canvas2D interpreter or lazily loaded
@@ -152,11 +171,48 @@ export class GraphScene implements IGraphScene {
   /** Set while `toImage()` prepares, draws and cleans up: a nested call throws. */
   private exporting = false;
 
+  /** What `onFrameEnd` registered, called at the end of every graph frame. */
+  private readonly frameEndListeners = new Set<() => void>();
+
+  /** One counter per entity type a caller asked for (`revisionOf`); "" for elements without a type. */
+  private readonly revisions = new Map<string, Signal<number>>();
+
+  /**
+   * Types whose elements changed since the last frame end, whether or not a counter exists yet: a counter first asked
+   * for during a frame steps for that frame's earlier changes. "" for elements without a type.
+   */
+  private readonly changedTypes = new Set<string>();
+
+  /** The type `changedTypes` got last: a run of changes of one type costs one comparison each. */
+  private lastChangedType: string | undefined;
+
+  /**
+   * Elements whose update moved what is nested in them (`movesNested`) since the last frame end. The types of what is
+   * nested in them are resolved once, at the frame's end (`resolveNested`): a store change costs one set insert, and
+   * repeated updates of one element walk its nesting once.
+   */
+  private readonly movedNestings = new Set<string>();
+
+  /** Set by a row rewrite or a dim change since the last frame end: every counter steps. */
+  private everyTypeChanged = false;
+
+  /** Stops following the store's element and style changes for `revisions`. */
+  private readonly unsubscribeChanges: () => void;
+
   private disposed = false;
 
   constructor(private readonly graph: Graph) {
     // The graph's frame task runs every frame while started and calls flush(), so nothing needs waking.
     this.delegatedRanks = new DelegatedRanks(this.store, noop);
+    const stopElements = this.store.subscribe((change) => this.noteChange(change));
+    const stopStyles = this.store.subscribeStyles((change) => {
+      // A rule, level or root-tag change rewrites rows of any type, and the dim colour paints them all.
+      if (change === "replace" || change === "dim") this.everyTypeChanged = true;
+    });
+    this.unsubscribeChanges = (): void => {
+      stopElements();
+      stopStyles();
+    };
     const { settings } = graph.rootStore;
     this.clock = this.sceneClock;
     this.$level = createSceneLevel(graph);
@@ -210,6 +266,110 @@ export class GraphScene implements IGraphScene {
     if (this.disposed) return;
     this.delegatedRanks.flush();
     Component.update(this.layer);
+    // Before the frame-end listeners: a change they make steps at the next frame's end.
+    this.stepRevisions();
+    this.frameEndListeners.forEach((listener) => {
+      try {
+        listener();
+      } catch (error) {
+        console.error("graph.scene.onFrameEnd: a listener threw", error);
+      }
+    });
+  }
+
+  public onFrameEnd(listener: () => void): () => void {
+    this.frameEndListeners.add(listener);
+    return (): void => {
+      this.frameEndListeners.delete(listener);
+    };
+  }
+
+  public revisionOf(entityType: string): ReadonlySignal<number> {
+    let counter = this.revisions.get(entityType);
+    if (!counter) {
+      counter = signal(0);
+      this.revisions.set(entityType, counter);
+    }
+    return counter;
+  }
+
+  /**
+   * Notes a store change in constant time: the element's type and, for an update that moves what is nested in the
+   * element (`movesNested`), the element, whose nesting `resolveNested` reads at the frame's end. A row change between
+   * rows that look the same notes nothing; a child-only change never notes its owner.
+   */
+  private noteChange(change: TSceneChange): void {
+    if (change.type === "update" && this.looksTheSame(change)) return;
+    const type = change.element.entityType ?? "";
+    if (type !== this.lastChangedType) {
+      this.lastChangedType = type;
+      this.changedTypes.add(type);
+    }
+    if (change.type === "update" && movesNested(change.fields)) this.movedNestings.add(change.element.id);
+  }
+
+  /**
+   * An update from a row change (`previousStyleId`, row fields only) whose old and new rows draw the same, whatever the
+   * order of their properties and parts (`styleLookKey`): nothing a query reader sees changed. A `primitives` field
+   * there is the rows' encode keys differing, which a part order alone can do.
+   */
+  private looksTheSame(change: TSceneChange): boolean {
+    const { fields, previousStyleId } = change;
+    if (previousStyleId === undefined || !fields) return false;
+    for (const field of fields) {
+      if (!ROW_FIELDS.has(field)) return false;
+    }
+    const styles = this.store.getStyles();
+    return styleLookKey(styles[previousStyleId]) === styleLookKey(styles[change.element.styleId]);
+  }
+
+  /**
+   * Adds the types of what is nested in the moved elements to `changedTypes`, one walk per element; it stops once every
+   * counter's type is in, and walks nothing without a counter that needs it. Reads the nesting as it is at the frame's
+   * end: what was added, removed or moved meanwhile has changes of its own.
+   */
+  private resolveNested(): void {
+    let missing = 0;
+    this.revisions.forEach((_counter, type) => {
+      if (!this.changedTypes.has(type)) missing += 1;
+    });
+    if (missing === 0) return;
+    for (const id of this.movedNestings) {
+      for (const nested of this.store.childrenOf(id)) {
+        const type = nested.entityType ?? "";
+        if (!this.revisions.has(type) || this.changedTypes.has(type)) continue;
+        this.changedTypes.add(type);
+        missing -= 1;
+        if (missing === 0) return;
+      }
+    }
+  }
+
+  /**
+   * Steps, once and in one batch, the counter of every type that changed since the last frame end (every counter after
+   * a row rewrite or a dim change), and clears what was noted first: what the counters' subscribers change steps at the
+   * next frame's end. A subscriber that throws is reported; the frame goes on.
+   */
+  private stepRevisions(): void {
+    const every = this.everyTypeChanged;
+    if (!every && this.changedTypes.size === 0 && this.movedNestings.size === 0) return;
+    if (!every) this.resolveNested();
+    const due: Signal<number>[] = [];
+    this.revisions.forEach((counter, type) => {
+      if (every || this.changedTypes.has(type)) due.push(counter);
+    });
+    this.everyTypeChanged = false;
+    this.changedTypes.clear();
+    this.lastChangedType = undefined;
+    this.movedNestings.clear();
+    if (due.length === 0) return;
+    try {
+      batch(() => {
+        for (const counter of due) counter.value = counter.peek() + 1;
+      });
+    } catch (error) {
+      console.error("graph.scene.revisionOf: a subscriber threw", error);
+    }
   }
 
   /** @internal */
@@ -427,18 +587,29 @@ export class GraphScene implements IGraphScene {
     return a.renderOrder - b.renderOrder;
   }
 
+  /**
+   * A key whose element is not in the store (not written yet, or deleted) gives none: the component then compares by
+   * its tree (zIndex, renderOrder), as one without a key.
+   */
   private sceneElementOf(component: CoreComponent): { element: TSceneElement; sub: number } | undefined {
     const key = isSceneKeyed(component) ? component.getSceneKey() : undefined;
     const element = key ? this.store.get(key.elementId) : undefined;
     return key && element ? { element, sub: key.sub } : undefined;
   }
 
-  public query(rect: TRect): readonly TSceneElementView[] {
+  public query(rect: TRect, options: TSceneQueryOptions = {}): readonly TSceneElementView[] {
     const tileRect = { minX: rect.x, minY: rect.y, maxX: rect.x + rect.width, maxY: rect.y + rect.height };
-    return this.store.query(tileRect).map((element) =>
+    const includeHidden = options.includeHidden ?? false;
+    const types = options.entityTypes;
+    const found = this.store.query(tileRect, options.level, undefined, includeHidden);
+    const elements = types ? found.filter((element) => types.includes(element.entityType ?? "")) : found;
+    if (options.live) return elements;
+    return elements.map((element) =>
       Object.freeze({
         id: element.id,
+        entityType: element.entityType,
         parent: element.parent,
+        nestedIn: element.nestedIn,
         childOrder: element.childOrder,
         x: element.x,
         y: element.y,
@@ -447,7 +618,7 @@ export class GraphScene implements IGraphScene {
         zIndex: element.zIndex,
         order: element.order,
         styleId: element.styleId,
-        hidden: element.hidden,
+        hidden: includeHidden && this.store.isDrawnHidden(element),
       })
     );
   }
@@ -491,10 +662,11 @@ export class GraphScene implements IGraphScene {
    * would run its hooks twice. Calls from outside that block's update work: a layer's render(), an event handler,
    * another component's hook.
    *
-   * Contracts of the anchors an export creates: a block's `renderAnchor` override can run during the export's search
-   * (for blocks outside the rect too) and again during construction, and a throw aborts the export. A look that
-   * reaches farther than `Anchor.LOOK_EXTENT` (a subclass, or a larger `size`/`lineWidth`) needs its own declared
-   * `LOOK_EXTENT`, or the export can miss the anchor near the crop edge; development builds warn naming the class.
+   * Contracts of the anchors an export creates: the search uses the anchor classes a block's `getAnchorClass` override
+   * returned in the block's last update (a block whose classes are unknown is a candidate), the construction can call
+   * it again, and a throw there aborts the export. A look that reaches farther than `Anchor.LOOK_EXTENT` (a subclass,
+   * or a larger `SIZE`/`LINE_WIDTH`) needs its own declared `LOOK_EXTENT`, or the export can miss the anchor near the
+   * crop edge; development builds warn naming the class.
    */
   public toImage(options: TSceneImageOptions = {}): HTMLCanvasElement {
     // Untracked: an effect that exports does not follow the signals the anchors' lifecycle reads.
@@ -660,6 +832,9 @@ export class GraphScene implements IGraphScene {
   public dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.unsubscribeChanges();
+    this.changedTypes.clear();
+    this.movedNestings.clear();
     this.unwatchLimits();
     this.delegatedRanks.dispose();
     this.unsubscribeRenderer?.();
@@ -671,6 +846,7 @@ export class GraphScene implements IGraphScene {
     this.fontEvents.abort();
     this.textMeasurers.clear();
     this.exportPreparers.clear();
+    this.frameEndListeners.clear();
     for (const unbind of [...this.styleUnbinds]) unbind();
     this.resolver.dispose();
     this.tags.dispose();

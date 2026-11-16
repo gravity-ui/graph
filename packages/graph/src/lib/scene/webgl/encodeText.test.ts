@@ -2,7 +2,8 @@ import { DEFAULT_TEXT_POLICY, TEXT_METRICS_PX, layoutText, placeText, resolveTex
 import type { ISceneTextMetrics } from "../textLayout";
 import type { TScenePrimitive, TSceneTextPolicy } from "../types";
 
-import { GLYPH_FLOATS, encodeText, textGlyphCount, writeTextGlyphs } from "./encodeText";
+import { InstanceRanges } from "./InstanceRanges";
+import { GLYPH_FLOATS, GLYPH_SUB_FLOATS, encodeText, textGlyphCount, writeTextGlyphs } from "./encodeText";
 import type { TTextEncodeInput, TTextGlyphPlaces } from "./encodeText";
 import { ATLAS_FONT_PX, GlyphAtlas, SDF_BUFFER, glyphCapacity, glyphRun, layoutGlyphs } from "./glyphs";
 import { USE_BASE_ALPHA } from "./tables";
@@ -141,6 +142,51 @@ describe("encodeText", () => {
     expect(none.subs.translucent).toHaveLength(0);
   });
 
+  it("returns its opaque glyphs and subs as views of the encoder's lists, the translucent ones as copies", () => {
+    const shared = atlas();
+    const faded = (value: string): TText => text({ text: value, cameraAware: true, color: "rgba(0, 0, 0, 0.5)" });
+    const first = encodeText([text({ text: "ab" }), faded("cd")], 2, () => 2, shared, input(), 4);
+    expect([first.opaque[0], first.subs.opaque[0]]).toEqual([2, 4]);
+    expect([first.translucent[0], first.subs.translucent[0]]).toEqual([2, 5]);
+    const translucent = Array.from(first.translucent);
+    const subs = Array.from(first.subs.translucent);
+    encodeText([text({ text: "xyz" }), faded("uvw")], 3, () => 2, shared, input(), 9);
+    // Read in place, not copied: the next encode, which reuses the encoder's lists, wrote over the views.
+    expect([first.opaque[0], first.subs.opaque[0]]).toEqual([3, 9]);
+    // A camera-aware translucent text's glyphs and subs are copies of their own (the backend keeps them to cut its
+    // steps again on a re-layout): unchanged.
+    expect(Array.from(first.translucent)).toEqual(translucent);
+    expect(Array.from(first.subs.translucent)).toEqual(subs);
+  });
+
+  it("leaves InstanceRanges copies of its opaque views: later encodes do not change what the ranges hold", () => {
+    const shared = atlas();
+    const glyphs = new InstanceRanges(GLYPH_FLOATS);
+    const subs = new InstanceRanges(GLYPH_SUB_FLOATS);
+    const a = encodeText([text({ text: "ab" })], 1, () => 2, shared, input(), 4);
+    const aFloats = [...Array.from(a.opaque), ...Array.from(a.subs.opaque)];
+    glyphs.set("a", a.opaque);
+    subs.set("a", a.subs.opaque);
+    const b = encodeText([text({ text: "c" })], 2, () => 2, shared, input(), 6);
+    const bFloats = [...Array.from(b.opaque), ...Array.from(b.subs.opaque)];
+    glyphs.set("b", b.opaque);
+    subs.set("b", b.subs.opaque);
+    // Another encode with the same lists, wider than both: it writes over every float their views showed.
+    encodeText([text({ text: "wxyz" })], 3, () => 2, shared, input(), 8);
+    const held = (id: string): number[] => {
+      const out: number[] = [];
+      for (const ranges of [glyphs, subs]) {
+        const { data, floats } = ranges;
+        ranges.forEachRange((at, offset, count) => {
+          if (at === id) out.push(...Array.from(data.subarray(offset * floats, (offset + count) * floats)));
+        });
+      }
+      return out;
+    };
+    expect(held("a")).toEqual(aFloats);
+    expect(held("b")).toEqual(bFloats);
+  });
+
   it("offsets the depth sub-order by the sub base and checks the budget", () => {
     expect(encodeText([text()], 0, () => 2, atlas(), input(), 5).subs.opaque[0]).toBe(5);
     expect(() => encodeText([text(), text()], 0, () => 2, atlas(), input(), 31, 31)).toThrow(RangeError);
@@ -152,7 +198,7 @@ describe("encodeText", () => {
     // baseline. Runs are at TEXT_METRICS_PX; the shader scales them by the resolved size over it.
     const k = TEXT_METRICS_PX / ATLAS_FONT_PX;
     /** The vertex shader's world position of a glyph quad's corner (0, 0): anchor + quad x resolved / layout size. */
-    const shaderCorner = (out: Float32Array, at: number, size: number): { x: number; y: number } => {
+    const shaderCorner = (out: ArrayLike<number>, at: number, size: number): { x: number; y: number } => {
       const s = size / out[at + 22];
       return { x: out[at + 20] + out[at + 4] * s, y: out[at + 21] + out[at + 5] * s };
     };
@@ -245,7 +291,9 @@ describe("encodeText", () => {
   it("rewrites a text's glyphs in place with the floats a full encode at the new lines writes", () => {
     const shared = atlas();
     const primitive = text({ text: "Load the daily partitions", cameraAware: true, width: 120, height: 60 });
-    const at = (camera: number): Float32Array => encodeText([primitive], 6, () => 2, shared, input(camera)).opaque;
+    // A copy: the opaque glyphs are a view that the next encode overwrites.
+    const at = (camera: number): Float32Array =>
+      encodeText([primitive], 6, () => 2, shared, input(camera)).opaque.slice();
     const before = at(1);
     const after = at(0.25);
     expect(Array.from(after)).not.toEqual(Array.from(before));
@@ -393,7 +441,9 @@ describe("encodeText", () => {
   it("rewrites only the slots that change: up to the larger of the old and the new placed glyphs", () => {
     const shared = atlas();
     const primitive = text({ text: "Load the daily partitions", cameraAware: true, width: 120, height: 60 });
-    const at = (camera: number): Float32Array => encodeText([primitive], 6, () => 2, shared, input(camera)).opaque;
+    // A copy: the opaque glyphs are a view that the next encode overwrites.
+    const at = (camera: number): Float32Array =>
+      encodeText([primitive], 6, () => 2, shared, input(camera)).opaque.slice();
     const before = at(1);
     const after = at(0.25);
     const wide = layoutText(primitive, resolveTextSize(primitive, 0.25), metrics);
@@ -436,7 +486,8 @@ describe("encodeText", () => {
     const shared = atlas();
     const glyph = jest.spyOn(shared, "glyph");
     const title = (x: number): TText => text({ text: "ab cd", x, y: 2, align: "center" });
-    const first = encodeText([title(0)], 0, () => 1, shared, input()).opaque;
+    // A copy: the opaque glyphs are a view that the next encode overwrites.
+    const first = encodeText([title(0)], 0, () => 1, shared, input()).opaque.slice();
     // Each glyph's quad and texture rect are layoutGlyphs'.
     const placements = layoutGlyphs(title(0), ["ab cd"], shared, metrics).glyphs;
     expect(first).toHaveLength(placements.length * GLYPH_FLOATS);

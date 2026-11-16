@@ -1,5 +1,6 @@
 import type { TScenePrimitive, TSceneSize, TSceneStroke } from "../types";
 
+import { InstanceRanges } from "./InstanceRanges";
 import { InstanceList, MAX_SUB, RECT_FLOATS, encodeRects, isTranslucentPaint, paintFloats } from "./encodeRects";
 import { USE_BASE_ALPHA } from "./tables";
 
@@ -134,17 +135,54 @@ describe("encodeRects", () => {
     expect(MAX_SUB).toBe(2 ** 23 - 1);
   });
 
-  it("returns instances of their own: a later encode, which reuses the encoder's lists, changes none", () => {
-    const fill = (color: string): TScenePrimitive => ({ kind: "rect", x: 0, y: 0, width: 1, height: 1, fill: color });
-    const first = encodeRects([fill("#f00"), fill("#0f0"), fill("#00f")], 1, slotOf);
-    const copy = Array.from(first.opaque);
-    const second = encodeRects([fill("#fff")], 2, slotOf);
-    expect(Array.from(first.opaque)).toEqual(copy);
+  it("returns its opaque instances as a view of the encoder's list until the next encode, the translucent as a copy", () => {
+    const first = encodeRects([fill("#f00"), fill("#0f0"), fill("rgba(0, 0, 255, 0.5)")], 1, slotOf);
+    expect(first.opaque).toHaveLength(2 * RECT_FLOATS);
+    expect(first.opaque[0]).toBe(1);
+    const translucent = Array.from(first.translucent);
+    const second = encodeRects([fill("#fff"), fill("rgba(255, 0, 0, 0.5)")], 2, slotOf);
     expect(second.opaque).toHaveLength(RECT_FLOATS);
     expect(second.opaque[0]).toBe(2);
-    expect(first.translucent).toHaveLength(0);
+    // Read in place, not copied: the next encode, which reuses the encoder's list, wrote over the first one's view.
+    expect(first.opaque[0]).toBe(2);
+    // The translucent instances are a copy of their own (the backend keeps them): unchanged.
+    expect(Array.from(first.translucent)).toEqual(translucent);
+    expect(first.translucent[0]).toBe(1);
+  });
+
+  it("leaves InstanceRanges a copy of each opaque view: later encodes do not change what the ranges hold", () => {
+    const ranges = new InstanceRanges(RECT_FLOATS);
+    /** What the ranges hold per element. */
+    const held = (): Record<string, number[]> => {
+      const out: Record<string, number[]> = {};
+      const { data } = ranges;
+      ranges.forEachRange((id, offset, count) => {
+        out[id] = Array.from(data.subarray(offset * RECT_FLOATS, (offset + count) * RECT_FLOATS));
+      });
+      return out;
+    };
+    const a = encodeRects([fill("#f00"), fill("#0f0")], 1, slotOf);
+    const aFloats = Array.from(a.opaque);
+    ranges.set("a", a.opaque);
+    const b = encodeRects([fill("#00f")], 2, slotOf);
+    const bFloats = Array.from(b.opaque);
+    ranges.set("b", b.opaque);
+    // Another encode with the same list, wider than both: it writes over every float their views showed.
+    encodeRects([fill("#fff"), fill("#fff"), fill("#fff")], 3, slotOf);
+    expect(held()).toEqual({ a: aFloats, b: bFloats });
+    // A rewrite in place (the same count) copies too.
+    const again = encodeRects([fill("#ff0"), fill("#0ff")], 1, slotOf);
+    const againFloats = Array.from(again.opaque);
+    expect(againFloats).not.toEqual(aFloats);
+    ranges.set("a", again.opaque);
+    encodeRects([fill("#fff"), fill("#fff")], 4, slotOf);
+    expect(held()).toEqual({ a: againFloats, b: bFloats });
   });
 });
+
+function fill(color: string): TScenePrimitive {
+  return { kind: "rect", x: 0, y: 0, width: 1, height: 1, fill: color };
+}
 
 /** encodeRects before Task 17d (object spread per rect, arrays per radius and size): the floats to keep. */
 function referenceEncodeRects(
@@ -245,9 +283,7 @@ describe("encodeRects against its earlier implementation", () => {
     for (const subBase of [0, 40]) {
       const encoded = encodeRects(primitives, 5, slotOf, subBase, 4096);
       const reference = referenceEncodeRects(primitives, 5, slotOf, subBase);
-      const bits = (values: Float32Array | number[]): number[] => [
-        ...new Uint32Array(Float32Array.from(values).buffer),
-      ];
+      const bits = (values: ArrayLike<number>): number[] => [...new Uint32Array(Float32Array.from(values).buffer)];
       expect(bits(encoded.opaque)).toEqual(bits(reference.opaque));
       expect(bits(encoded.translucent)).toEqual(bits(reference.translucent));
       expect(encoded.opaque.length + encoded.translucent.length).toBe(2 * fills.length * borders.length * RECT_FLOATS);
@@ -282,5 +318,22 @@ describe("InstanceList", () => {
     list.next()[0] = 6;
     expect(Array.from(list.toArray())).toEqual([5, 6]);
     expect(() => new InstanceList(2).push(1)).toThrow();
+  });
+
+  it("shows its instances in place until the next reset or append, and a view is no array to keep", () => {
+    const list = new InstanceList(2);
+    list.next().set([1, 2]);
+    const view = list.view();
+    expect(Array.from(view)).toEqual([1, 2]);
+    list.reset();
+    list.next().set([3, 4]);
+    // The reused list wrote over it: a view is read before the list's next reset or append, or not at all.
+    expect(Array.from(view)).toEqual([3, 4]);
+    expect(Array.from(list.view())).toEqual([3, 4]);
+    list.reset();
+    expect(list.view()).toHaveLength(0);
+    // @ts-expect-error A view is no Float32Array: code that keeps arrays cannot keep one.
+    const kept: Float32Array = list.view();
+    expect(kept).toHaveLength(0);
   });
 });

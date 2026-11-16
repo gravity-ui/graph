@@ -3,6 +3,7 @@ import { TComponentState } from "../../../lib/Component";
 import { ConnectionState, TConnection, TConnectionId } from "../../../store/connection/ConnectionState";
 import { debounce } from "../../../utils/functions";
 import { TPoint, TRect } from "../../../utils/types/shapes";
+import { pointerTargetAfter } from "../EventedComponent/EventedComponent";
 import { GraphComponent, GraphComponentContext } from "../GraphComponent";
 import { TAnchor } from "../anchors";
 import { Block } from "../blocks/Block";
@@ -162,6 +163,8 @@ export class BaseConnection<
   }
 
   protected willMount(): void {
+    // Sets GraphComponent's mounted flag (`isMounted()`).
+    super.willMount();
     // Subscriptions fire once while mounting, with the values this component already applied: they request an update
     // only for changes. Otherwise every connection would run an empty update in its second frame.
     let mounting = true;
@@ -215,6 +218,17 @@ export class BaseConnection<
     if (!this.isEntityAvailable() || !this.hasGeometry()) return false;
     if (this.connectedState.$hidden.value) return false;
     return super.isRenderAllowed();
+  }
+
+  /**
+   * The connection's `hoveredTag`: on while it is the pointer's target (D5). From the hook, so it follows the pointer
+   * whatever the connection's interactivity, as the tag always did.
+   */
+  protected override onDispatchedEvent(event: Event): void {
+    super.onDispatchedEvent(event);
+    if (event.type === "mouseenter" || event.type === "mouseleave") {
+      this.setHoveredTag(pointerTargetAfter(event) === this);
+    }
   }
 
   protected override handleEvent(event: MouseEvent) {

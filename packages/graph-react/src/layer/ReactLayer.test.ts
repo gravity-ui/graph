@@ -41,6 +41,9 @@ describe("ReactLayer", () => {
     });
   };
 
+  /** One graph frame of the scene: its end switches the HTML layer (the frame-end listeners run). */
+  const frame = (): void => graph.scene.update();
+
   const readHTMLElement = (layer: ReactLayer): HTMLElement => {
     const element = layer.getHTML();
     if (!element) throw new Error("React layer HTML was not created");
@@ -381,6 +384,7 @@ describe("ReactLayer", () => {
       const belowScale = Math.max(activationScale - 0.05, minScale);
 
       camera.set({ scale: belowScale });
+      frame();
 
       expect(layer.isHtmlActive()).toBe(false);
       expect(htmlElement.classList.contains("layer-hidden")).toBe(true);
@@ -396,10 +400,14 @@ describe("ReactLayer", () => {
       const aboveScale = Math.min(activationScale + 0.05, maxScale);
 
       camera.set({ scale: belowScale });
+      frame();
       expect(layer.isHtmlActive()).toBe(false);
       expect(htmlElement.classList.contains("layer-hidden")).toBe(true);
 
       camera.set({ scale: aboveScale });
+      // The switch waits for the graph frame's end.
+      expect(layer.isHtmlActive()).toBe(false);
+      frame();
       expect(layer.isHtmlActive()).toBe(true);
       expect(htmlElement.classList.contains("layer-hidden")).toBe(false);
     });
@@ -416,11 +424,13 @@ describe("ReactLayer", () => {
       getHTMLElement(layer);
 
       camera.set({ scale: 0.55 });
+      frame();
 
       expect(graph.scene.$level.value).toBe("detailed");
       expect(layer.isHtmlActive()).toBe(true);
 
       camera.set({ scale: 0.45 });
+      frame();
       expect(layer.isHtmlActive()).toBe(false);
     });
 
@@ -428,12 +438,32 @@ describe("ReactLayer", () => {
       const layer = createLayer();
       const htmlElement = getHTMLElement(layer);
       camera.set({ scale: 0.55 });
+      frame();
       expect(layer.isHtmlActive()).toBe(false);
 
       graph.updateSettings({ getCameraBlockScaleLevel: detailedFrom(0.5) });
+      frame();
 
       expect(layer.isHtmlActive()).toBe(true);
       expect(htmlElement.classList.contains("layer-hidden")).toBe(false);
+    });
+
+    it("switches once per frame end after a detach and re-attach", () => {
+      const layer = createLayer();
+      getHTMLElement(layer);
+      layer.detachLayer();
+      layer.attachLayer(rootElement);
+      const switches = jest.spyOn(layer as unknown as { setHtmlActive(active: boolean): void }, "setHtmlActive");
+      camera.set({ scale: 1 });
+      frame();
+      expect(layer.isHtmlActive()).toBe(true);
+      // One frame-end listener: the one of the first attachment went with the detach.
+      expect(switches).toHaveBeenCalledTimes(1);
+      camera.set({ scale: 0.1 });
+      frame();
+      expect(layer.isHtmlActive()).toBe(false);
+      expect(switches).toHaveBeenCalledTimes(2);
+      switches.mockRestore();
     });
   });
 

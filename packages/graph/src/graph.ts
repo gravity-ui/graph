@@ -2,12 +2,12 @@ import { batch, signal } from "@preact/signals-core";
 
 import { PublicGraphApi, ZoomConfig } from "./api/PublicGraphApi";
 import { GraphComponent } from "./components/canvas/GraphComponent";
-import { Anchor } from "./components/canvas/anchors";
 import { TBlock } from "./components/canvas/blocks/Block";
 import { BelowLayer } from "./components/canvas/layers/belowLayer/BelowLayer";
 import { CursorLayer, CursorLayerCursorTypes } from "./components/canvas/layers/cursorLayer";
 import { GraphLayer } from "./components/canvas/layers/graphLayer/GraphLayer";
 import { SelectionLayer } from "./components/canvas/layers/selectionLayer/SelectionLayer";
+import { SceneComponent } from "./components/canvas/scene/SceneComponent";
 import {
   GraphComponentConstructor,
   TGraphColorsPatch,
@@ -276,12 +276,19 @@ export class Graph {
     return items as InstanceType<T>[];
   }
 
-  /** Returns the topmost element at a world-space point. */
+  /**
+   * Returns the topmost element at a world-space point that pointer events reach: components transparent to events
+   * (`GraphComponent.transparentToEvents`) are skipped. GraphLayer targets the pointer with it.
+   */
   public getElementOverPoint<T extends GraphComponentConstructor>(
     point: TPoint | CameraPoint,
     filter?: T[]
   ): InstanceType<T> | undefined {
-    return this.getElementsOverPoint(point, filter)?.[0] as InstanceType<T> | undefined;
+    for (const item of this.getElementsOverPoint(point, filter)) {
+      const component: unknown = item;
+      if (!(component instanceof GraphComponent) || !component.isTransparentToEvents()) return item;
+    }
+    return undefined;
   }
 
   /**
@@ -306,22 +313,36 @@ export class Graph {
   }
 
   /**
-   * Returns the elements whose hit boxes meet a world rect. Anchors are left out at the minimalistic level, where they
-   * have no look and are not hit by points either (`Anchor.onHitBox`), whether or not their components exist.
+   * Returns the elements whose hit boxes meet a world rect, without the scene components the current level does not
+   * hit (`SceneComponent.isHitOnLevel`: a stock anchor at the minimalistic level, or at the detailed level without an
+   * HTML view), as points leave them out.
    */
   public getElementsOverRect<T extends GraphComponentConstructor>(rect: TRect, filter?: T[]): InstanceType<T>[] {
+    const level = this.scene.$level.peek();
+    return this.getComponentsOverRect(rect, filter).filter(
+      (item) => !(item instanceof SceneComponent) || item.isHitOnLevel(level)
+    ) as InstanceType<T>[];
+  }
+
+  /**
+   * @internal The components whose hit boxes meet the viewport, whether or not the current level hits them: what is in
+   * view, not what the pointer can target (`getElementsInViewport` leaves out what the level does not hit). React's
+   * `BlocksList` picks the blocks it renders as HTML with it, so a block class whose `hitLevels` exclude the detailed
+   * level keeps its HTML view.
+   */
+  public getComponentsInViewport<T extends GraphComponentConstructor>(filter?: T[]): InstanceType<T>[] {
+    return this.getComponentsOverRect(this.getViewportRect(), filter) as InstanceType<T>[];
+  }
+
+  /** The components of the filter's classes whose hit boxes meet a world rect, hit levels aside. */
+  private getComponentsOverRect(rect: TRect, filter?: GraphComponentConstructor[]): ReturnType<HitTest["testBox"]> {
     const found = this.hitTest.testBox({
       minX: rect.x,
       minY: rect.y,
       maxX: rect.x + rect.width,
       maxY: rect.y + rect.height,
     });
-    const items =
-      this.scene.$level.peek() === "minimalistic" ? found.filter((item) => !(item instanceof Anchor)) : found;
-    if (filter && items.length > 0) {
-      return items.filter((item) => filter.some((Component) => item instanceof Component)) as InstanceType<T>[];
-    }
-    return items as InstanceType<T>[];
+    return filter ? found.filter((item) => filter.some((Component) => item instanceof Component)) : found;
   }
 
   /** Returns exact world and canvas-relative CSS coordinates of a mouse event. */

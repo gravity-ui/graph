@@ -1,7 +1,6 @@
 import React from "react";
 
 import {
-  Anchor,
   CanvasBlock,
   EAnchorType,
   TAnchor,
@@ -137,21 +136,6 @@ export class ActionBlock extends CanvasBlock<TGravityActionBlock> {
 
   public renderHTML() {
     return <ActionBlockHtml graph={this.context.graph} block={this.connectedState.$state.value} />;
-  }
-
-  protected renderAnchor(anchor: TAnchor) {
-    return Anchor.create(
-      {
-        ...anchor,
-        zIndex: this.zIndex,
-        size: 18,
-        lineWidth: 2,
-        port: this.getAnchorPort(anchor.id),
-      },
-      {
-        key: anchor.id,
-      }
-    );
   }
 
   protected getAnchorsYOffter(type: EAnchorType) {

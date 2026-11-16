@@ -21,19 +21,52 @@ export type TSceneLevel = "minimalistic" | "schematic" | "detailed";
 
 /**
  * A read-only view of a scene element, as returned by query(). `bounds` is relative to the element's origin
- * (`x`, `y`), strokes included. `hidden` is always `false` in query() results: hidden elements and the children of
- * hidden parents are not returned. A child element names its `parent` and comes right after it, by `childOrder`; its
- * `styleId` is its drawn row. A child's `zIndex` and `order` are its own ignored values (`order` is 0), not its draw
- * position: it draws in its parent's raised bucket at its parent's order.
+ * (`x`, `y`), strokes included. `hidden` is `false` unless the query included hidden elements (`includeHidden`): then
+ * it is `true` for a hidden element and for what is nested in one. A child element names its owner as `parent`, the
+ * child element it is nested in as `nestedIn`, and comes after its scene parent, by `childOrder`; its `styleId` is its
+ * drawn row. A child's `zIndex` and `order` are its own ignored values (`order` is 0), not its draw position: it draws
+ * in its owner's raised bucket at its owner's order. `entityType` is the `static entityType` of the component that
+ * wrote the element.
  */
 export type TSceneElementView = Readonly<
   Pick<
     TSceneElement,
-    "id" | "parent" | "childOrder" | "x" | "y" | "primitives" | "zIndex" | "order" | "styleId" | "hidden"
+    | "id"
+    | "entityType"
+    | "parent"
+    | "nestedIn"
+    | "childOrder"
+    | "x"
+    | "y"
+    | "primitives"
+    | "zIndex"
+    | "order"
+    | "styleId"
+    | "hidden"
   > & {
     bounds: Readonly<TSceneElement["bounds"]>;
   }
 >;
+
+/** Options of `graph.scene.query()`. */
+export type TSceneQueryOptions = {
+  /** Only elements with a primitive on this level; an owner left out still places its children that have one. */
+  readonly level?: TSceneLevel;
+  /**
+   * Hidden elements too: a block handed to HTML, one in a collapsed group, and their children. Their views say
+   * `hidden: true` (a child of a hidden owner included).
+   */
+  readonly includeHidden?: boolean;
+  /** Only elements of these entity types: the `static entityType` of the component that wrote the element. */
+  readonly entityTypes?: readonly string[];
+  /**
+   * @internal The store's live elements instead of frozen copies (the minimap's redraw). Read them at once; never keep
+   * or change them. Their `hidden` is the element's own flag, not the drawn state: with `includeHidden`, a child of a
+   * hidden owner says `hidden: false`. A caller that combines the two and needs the drawn state reads
+   * `graph.scene.store.isDrawnHidden(element)`; an owner's own flag is its drawn state.
+   */
+  readonly live?: boolean;
+};
 
 /** A component whose level methods measured text (SceneComponent.measureText). */
 export interface ITextMeasurer {
@@ -93,12 +126,30 @@ export interface IGraphScene {
   /** Writes the `renderer` setting. */
   setRenderer(renderer: TSceneRenderer): void;
   /**
-   * Visible (non-hidden) elements whose bounds meet a world rectangle, in draw order (bottom first).
-   * Views are frozen snapshots; `bounds` stays relative to each element's origin.
+   * Elements whose bounds meet a world rectangle, in draw order (bottom first): visible ones by default; options
+   * filter by level and entity type and add hidden ones. The bounds are grown where an element's style scales its
+   * circles or widens its strokes past them (a hover scale), as the Canvas 2D renderer culls; the views' `bounds` are
+   * the element's own. Views are frozen snapshots; `bounds` stays relative to each element's origin.
    */
-  query(rect: TRect): readonly TSceneElementView[];
+  query(rect: TRect, options?: TSceneQueryOptions): readonly TSceneElementView[];
+  /**
+   * Steps once at the end of a graph frame in which elements of this entity type changed (added, moved, restyled,
+   * hidden, reordered, removed; an element nested in one that was hidden, raised, moved to another bucket or reordered
+   * included), or style rows were rewritten (a rule, level or root-tag change) or the dim colour changed. A row change
+   * to a row that looks the same steps nothing, whatever the order of the rows' properties and parts. A layer that
+   * draws from `query()` (the minimap, with `"block"`) redraws on it, one frame after the change. The same signal for
+   * every call with one type; a counter first asked for during a frame steps at its end for that frame's changes.
+   */
+  revisionOf(entityType: string): ReadonlySignal<number>;
   /** Scene order of two components, shared by drawing and hit-testing: negative when `a` draws below `b`. */
   compareOrder(a: CoreComponent, b: CoreComponent): number;
+  /**
+   * Calls the listener at the end of every graph frame, after every layer and the scene updated (the scene drew).
+   * GraphLayer finds the pointer's target again there, and a layer that switches HTML with the scene (ReactLayer) does
+   * it there, so the frame that changes the HTML draws the scene that goes with it, whatever the layer order. Returns
+   * the function that removes the listener.
+   */
+  onFrameEnd(listener: () => void): () => void;
   /**
    * Draws views with the Canvas2D interpreter on any 2D context, whatever the active renderer. The caller owns
    * the context transform, including the device pixel ratio. `skipText` leaves text primitives out, `level` skips
@@ -123,10 +174,11 @@ export interface IGraphScene {
    * computed at the export's level and scale, and texts laid out at its scale under the `cameraAwareText` setting.
    * Synchronous: an export of a large rect at a level that draws anchors creates their components for its duration.
    * Blocks are found for it by their anchor overflow and by the `LOOK_EXTENT` of their anchor classes
-   * (`Anchor.LOOK_EXTENT`): an anchor class whose look reaches farther than its declared extent (a subclass, or a block
-   * passing a larger `size`/`lineWidth`) must declare its own, or the export can miss its anchors near the crop edge
-   * (development builds warn, naming the class). A block's `renderAnchor` override can run during the export's search,
-   * for blocks outside the rect too, and again when the anchors are constructed; a throw from it aborts the export.
+   * (`Anchor.LOOK_EXTENT`): an anchor class whose look reaches farther than its declared extent (a subclass, or one
+   * with a larger `SIZE`/`LINE_WIDTH`) must declare its own, or the export can miss its anchors near the crop edge
+   * (development builds warn, naming the class). The search uses the classes a block's `getAnchorClass` override
+   * returned in its last update (a block whose classes are unknown is a candidate); constructing the anchors can call
+   * it again, and a throw from it there aborts the export.
    *
    * Throws when called while another export runs, and when called from a block's own lifecycle hook (stateChanged,
    * willIterate, ...) while that block has to create anchors for the export: "cannot create the anchors of block

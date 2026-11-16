@@ -7,6 +7,12 @@ type TRange = { id: string; step: number; offset: number; count: number; dead: b
 /** The instances of one step of an element. */
 export type TStepInstances = { step: number; instances: Float32Array };
 
+/**
+ * The instances of one step as `set` and `setSteps` take them: the list copies them at once and keeps nothing of them,
+ * so they may be a view that the next encode overwrites (`TInstanceView`).
+ */
+type TStepSource = { step: number; instances: ArrayLike<number> };
+
 /** A part of a list to upload: the floats of `data`, written at `byteOffset` of the GPU buffer. */
 export type TInstanceSpan = { readonly byteOffset: number; readonly data: Float32Array };
 
@@ -61,7 +67,7 @@ const FORCED_COMPACTIONS = 8;
 /** The source of revisions: shared by every list, so a new list never repeats the revision of a list it replaces. */
 let lastRevision = 0;
 
-function sameShape(ranges: readonly TRange[], steps: readonly TStepInstances[], floats: number): boolean {
+function sameShape(ranges: readonly TRange[], steps: readonly TStepSource[], floats: number): boolean {
   return (
     ranges.length === steps.length &&
     ranges.every(
@@ -147,8 +153,8 @@ export class InstanceRanges {
     for (const range of this.list) visit(range.id, range.offset, range.count, range.step);
   }
 
-  /** Writes the element's instances as step 0, its only range. */
-  public set(id: string, instances: Float32Array): void {
+  /** Writes the element's instances as step 0, its only range: a copy (`TStepSource`). */
+  public set(id: string, instances: ArrayLike<number>): void {
     const current = this.byId.get(id);
     // The rewrite in place of `setSteps` for one step of the same count, without its step lists.
     if (current?.length === 1 && current[0].step === 0 && instances.length > 0) {
@@ -166,7 +172,7 @@ export class InstanceRanges {
    * none left the element is deleted. With the same steps and counts the data is rewritten in place (a range upload);
    * otherwise the old ranges are removed and the new ones go to the end (a full upload).
    */
-  public setSteps(id: string, steps: readonly TStepInstances[]): void {
+  public setSteps(id: string, steps: readonly TStepSource[]): void {
     const chunks = steps.filter((chunk) => chunk.instances.length > 0);
     for (let i = 1; i < chunks.length; i++) {
       if (chunks[i].step <= chunks[i - 1].step) throw new Error("InstanceRanges.setSteps: steps must ascend");
@@ -389,7 +395,7 @@ export class InstanceRanges {
     ends.length = kept;
   }
 
-  private write(range: TRange, instances: Float32Array): void {
+  private write(range: TRange, instances: ArrayLike<number>): void {
     this.buffer.set(instances, range.offset * this.floats);
     this.markDirty(range);
   }
@@ -421,7 +427,7 @@ export class InstanceRanges {
     }
   }
 
-  private append(id: string, chunk: TStepInstances): TRange {
+  private append(id: string, chunk: TStepSource): TRange {
     const range: TRange = {
       id,
       step: chunk.step,

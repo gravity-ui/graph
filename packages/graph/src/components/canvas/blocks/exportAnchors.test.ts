@@ -2,7 +2,6 @@ import { effect } from "@preact/signals-core";
 
 import { Graph } from "../../../graph";
 import type { Component } from "../../../lib/Component";
-import type { ComponentDescriptor } from "../../../lib/CoreComponent";
 import { globalScheduler } from "../../../lib/Scheduler";
 import type { TScenePrimitive } from "../../../lib/scene/types";
 import { Layer } from "../../../services/Layer";
@@ -12,7 +11,7 @@ import type { AnchorState } from "../../../store/anchor/Anchor";
 import { createAnchorPortId } from "../../../store/connection/port/utils";
 import type { TPoint } from "../../../utils/types/shapes";
 import { Anchor } from "../anchors";
-import type { TAnchor, TAnchorProps, TAnchorView } from "../anchors";
+import type { TAnchor, TAnchorClass, TAnchorProps, TAnchorView } from "../anchors";
 
 import { Block } from "./Block";
 import type { TBlock, TBlockComponentState } from "./Block";
@@ -134,12 +133,8 @@ abstract class PropsChosenBlock extends Block {
 
   protected abstract isWide(): boolean;
 
-  protected override renderAnchor(anchor: TAnchor): ComponentDescriptor<typeof Anchor> {
-    const klass: typeof Anchor = this.isWide() ? WideAnchor : SmallAnchor;
-    return klass.create(
-      { ...anchor, zIndex: this.zIndex, size: 18, lineWidth: 2, port: this.getAnchorPort(anchor.id) },
-      { key: anchor.id }
-    );
+  protected override getAnchorClass(): TAnchorClass {
+    return this.isWide() ? WideAnchor : SmallAnchor;
   }
 }
 
@@ -177,12 +172,8 @@ class DataChosenBlock extends Block {
     return { x: anchor.id === "out" ? this.connectedState.width : 0, y: 0 };
   }
 
-  protected override renderAnchor(anchor: TAnchor): ComponentDescriptor<typeof Anchor> {
-    const klass: typeof Anchor = (this.state.meta as { wide?: boolean } | undefined)?.wide ? WideAnchor : SmallAnchor;
-    return klass.create(
-      { ...anchor, zIndex: this.zIndex, size: 18, lineWidth: 2, port: this.getAnchorPort(anchor.id) },
-      { key: anchor.id }
-    );
+  protected override getAnchorClass(): TAnchorClass {
+    return (this.state.meta as { wide?: boolean } | undefined)?.wide ? WideAnchor : SmallAnchor;
   }
 }
 
@@ -207,22 +198,19 @@ class BrokenAnchor<T extends TAnchorProps = TAnchorProps> extends Anchor<T> {
 
 /** Renders its anchors as `anchorClass`. */
 class ClassAnchorBlock extends Block {
-  protected anchorClass: typeof Anchor = Anchor;
+  protected anchorClass: TAnchorClass = Anchor;
 
-  protected override renderAnchor(anchor: TAnchor): ComponentDescriptor<typeof Anchor> {
-    return this.anchorClass.create(
-      { ...anchor, zIndex: this.zIndex, size: 18, lineWidth: 2, port: this.getAnchorPort(anchor.id) },
-      { key: anchor.id }
-    );
+  protected override getAnchorClass(): TAnchorClass {
+    return this.anchorClass;
   }
 }
 
 class SquareBlock extends ClassAnchorBlock {
-  protected override anchorClass: typeof Anchor = SquareAnchor;
+  protected override anchorClass: TAnchorClass = SquareAnchor;
 }
 
 class FarBlock extends ClassAnchorBlock {
-  protected override anchorClass: typeof Anchor = FarAnchor;
+  protected override anchorClass: TAnchorClass = FarAnchor;
 }
 
 /** Its OUT anchor lies 300 world units left of the block. */
@@ -234,7 +222,7 @@ class OutlierBlock extends Block {
 
 /** Wide anchors at the block's top corners. */
 class CornerWideBlock extends ClassAnchorBlock {
-  protected override anchorClass: typeof Anchor = WideAnchor;
+  protected override anchorClass: TAnchorClass = WideAnchor;
 
   public override getAnchorPosition(anchor: TAnchor): TPoint {
     return { x: anchor.id === "out" ? this.connectedState.width : 0, y: 0 };
@@ -242,19 +230,19 @@ class CornerWideBlock extends ClassAnchorBlock {
 }
 
 class UndeclaredWideBlock extends CornerWideBlock {
-  protected override anchorClass: typeof Anchor = UndeclaredWideAnchor;
+  protected override anchorClass: TAnchorClass = UndeclaredWideAnchor;
 }
 
 class FieldLevelBlock extends ClassAnchorBlock {
-  protected override anchorClass: typeof Anchor = FieldLevelAnchor;
+  protected override anchorClass: TAnchorClass = FieldLevelAnchor;
 }
 
 class FieldExportBlock extends ClassAnchorBlock {
-  protected override anchorClass: typeof Anchor = FieldExportAnchor;
+  protected override anchorClass: TAnchorClass = FieldExportAnchor;
 }
 
 class BrokenAnchorBlock extends ClassAnchorBlock {
-  protected override anchorClass: typeof Anchor = BrokenAnchor;
+  protected override anchorClass: TAnchorClass = BrokenAnchor;
 }
 
 /** What the exporting test classes saw: their hook calls, and each export's image or error message. */
@@ -353,7 +341,7 @@ class SelectionAwareAnchor<T extends TAnchorProps = TAnchorProps> extends Anchor
 }
 
 class AwareBlock extends ClassAnchorBlock {
-  protected override anchorClass: typeof Anchor = SelectionAwareAnchor;
+  protected override anchorClass: TAnchorClass = SelectionAwareAnchor;
 }
 
 describe("toImage with lazily created anchors", () => {
@@ -531,19 +519,23 @@ describe("toImage with lazily created anchors", () => {
     expect(arcs(schematic({ x: 0, y: 0, width: 350, height: 400 }))).toBe(2);
   });
 
-  it("asks a block's renderAnchor() for its anchor classes, and an export fails when it throws", () => {
+  it("asks a block's getAnchorClass() for its anchor classes, and an export fails when it throws", () => {
+    const error = jest.spyOn(console, "error").mockImplementation(() => undefined);
     class NoAnchorsBlock extends Block {
-      protected override renderAnchor(): ComponentDescriptor<typeof Anchor> {
+      protected override getAnchorClass(): TAnchorClass {
         throw new Error("no anchors");
       }
     }
     start([anchored("ok", 100), anchored("broken", 2000, 100, "Broken")], FAR, {
       blockComponents: { Broken: NoAnchorsBlock },
     });
-    // The search reads the classes' LOOK_EXTENT before it knows whether the block's anchors reach the rect.
+    // The block's update read its classes and reported the failure once; with its classes unknown it is a candidate of
+    // every export's search, and creating its anchors asks getAnchorClass() again.
+    expect(error).toHaveBeenCalledTimes(1);
     expect(() => schematic({ x: 0, y: 0, width: 600, height: 400 })).toThrow("no anchors");
     expect(anchorChildren("ok")).toBe(0);
     expect(anchorOf("ok", "in")).toBeUndefined();
+    error.mockRestore();
   });
 
   it("uses a subclass's anchor look", () => {
@@ -554,6 +546,7 @@ describe("toImage with lazily created anchors", () => {
   });
 
   it("creates no default anchors for a level they draw nothing on, and a subclass's that draw there", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
     start([anchored("plain", 100), anchored("far", 600, 100, "Far")], FAR, {
       blockComponents: { Far: FarBlock },
     });
@@ -576,6 +569,13 @@ describe("toImage with lazily created anchors", () => {
     expect(fills(detailed).filter((value) => value === "#0000ff")).toHaveLength(0);
     remove();
     expect(anchorOf("far", "in")).toBeUndefined();
+    // FarAnchor declares no CREATION_LEVELS: its temporary anchors draw on the minimalistic level, which development
+    // builds report once, naming the class.
+    const reports = warn.mock.calls
+      .map(([message]) => String(message))
+      .filter((text) => text.includes("CREATION_LEVELS"));
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toContain("FarAnchor");
   });
 
   it("finds anchors outside their block, and an anchor whose look alone meets the rect", () => {
@@ -667,7 +667,8 @@ describe("toImage with lazily created anchors", () => {
     const created = anchorOf("sel", "in");
     expect(created).toBeInstanceOf(Anchor);
     const bounds = graph.scene.store.get(created?.getSceneElementId() ?? "")?.bounds;
-    graph.getGraphLayer().setHoveredComponent(created);
+    // The anchor's own hover event, as GraphLayer sends it to a target: the anchor tags itself (D5).
+    created?.dispatchEvent(new CustomEvent("mouseenter", { detail: { target: created } }));
     frames();
     // Hovered, scaled by x1.8 as a style row: its element bounds, which the development check reads, are the same.
     // This says nothing about crop completeness: the scaled look can draw outside these bounds (tracked separately).

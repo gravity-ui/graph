@@ -343,7 +343,17 @@ elements with camera-aware names, three in `system-ui`, three translucent and th
 0.6 to 0.2 in 24 steps and then through the `cameraAwareText` setting off and on: each frame that lays texts out again
 uploads at most twice the glyph bytes of those texts, no list whole, and only the glyph instance lists; a frame that
 lays nothing out uploads nothing; in the middle, at the end and after the setting, every element's floats equal a
-fresh encode's, every GPU buffer holds its CPU floats, and the picture equals the one a full replay draws). M5 is a
+fresh encode's, every GPU buffer holds its CPU floats, and the picture equals the one a full replay draws). C30 —
+anchor classes: a `getAnchorClass` square matches Canvas2D; a class that declares the minimalistic level is created and
+drawn there (C30b: a block removed and added back in one frame keeps that anchor, bound to its new state, and draws
+it there). C31 — nested children: the pre-order draws as Canvas2D does; hiding a child hides what is nested in it
+on WebGL. C32 — child scene components: a button child draws over its block and under its anchor as Canvas2D does; a
+hovered rule recolours it without re-encoding. C33 — the handover: a block an HTML view holds is not drawn at the
+detailed level, with no re-encode, and is drawn in the first frame after a zoom-out. C34 — the same-frame re-add family
+(Task 3y), in pixels of the graph layer's canvas: a connection removed and added back before a frame is drawn, and a
+block that left a collapsed group by such a re-add draws its connection from its own port, not from the group's edge. C35 — bounds grown by a style (Task 6), in pixels of the Canvas 2D
+renderer (it runs last, with the renderer set to "canvas"): a hovered anchor whose own bounds lie left of the viewport,
+but whose dot scaled ×1.8 reaches into it, is drawn there. M5 is a
 zoom sweep over 400 camera-aware names: the texts re-laid out per step, the glyphs written, the time, the upload kinds
 and bytes, and the opaque glyph buffer's size. M8 (Task 17i fix round 1) is the worst case of upload calls: 10,000
 camera-aware texts in view, every hundredth one laid out again in each frame (the texts, bytes, writes and the time of
@@ -383,6 +393,20 @@ Path2D batch and a `BlockGroups` layer.
 - `--no-anchors`: the `walk` and blocks columns set `useBlocksAnchors: false`, so no `Anchor` components and no anchor
   child elements exist; the first output line ends with `no-anchors`. Compare with a run without it to get the anchors'
   share of pan, mount, heap and the bulk actions. Connections still end at their anchor ports.
+- `--far-anchors` (plan 3b, Task 13, report only): the blocks columns' blocks return an anchor class created and drawn
+  at the minimalistic level too (`BenchFarAnchor`, a 6 x 6 square; `CREATION_LEVELS` lists all three levels), so every
+  anchor in view exists at the far zoom: the worst case of a class that draws far away. The first output line ends with
+  `far-anchors`. Compare with a run without it (mount, heap, pan, zoom and drag ticks at 0.038 and 0.3).
+- `--child-looks [N]` (plan 3b, Task 13, report only; N defaults to 4, one of the two new-path cases, so it cannot be
+  combined with `--far-anchors`): every block of the blocks columns gets N `SceneComponent` children, each a 12 x 12
+  chip drawn on the schematic level (`BenchChip`). The first output line ends with `child-looks N`.
+- `--modes hover` (plan 3b, Task 13): per step the pointer moves through the graph root's DOM listener, as a mouse does:
+  body, then an OUT anchor, then body of one block, then the next block, over 30 blocks of the view. The tick is the
+  scheduler work the move causes, `action` the time GraphLayer takes to handle the `mousemove` (hit test, hover
+  dispatch, tag writes); `minimap draws` counts the redraws of the minimap (`drawInterpreted` calls) over the repeats.
+  The path is checked (its 30 stops hit their block and anchor components) and a run fails when the graph reports
+  fewer `mouseenter` events than moves. `--hover-path <file>` writes the stops on the first hover run and reads them
+  (and checks them again) on every later one, in either library tree, so two trees move the same path.
 - **Lazy anchors** (Task 17c): anchors have no look at the minimalistic level, and a block creates its `Anchor`
   components only once the camera shows it at the schematic or detailed level. So the mount creates the anchors of the
   blocks the default camera shows (scale 0.5 at the world origin), and the measured view at 0.038 creates none. The
@@ -419,14 +443,14 @@ Plan 3a numbers (guarantee scene at 0.038, `--gpu`, 5 repeats, Apple M3 Pro, Chr
 baseline before plan 3a (ce527c07, 3 repeats). Median ms (MB for heap); the scene share in parentheses. Canvas 2D
 columns vary by about ±1 ms run to run, so compare a column with `cached` of the same run.
 
-| Column | pan | mount | heap | select-all | drag-start-1000 | change-all |
-|---|---|---|---|---|---|---|
-| `walk`, baseline | 37.45 | 753.8 | 279.1 | 98.8 | 40.8 | 267.0 |
-| `walk` | 17.78 | 514.4 | 194.6 | 79.5 | 24.6 | 116.5 |
-| `cached`, baseline | 13.72 | n/a | 34.9 | 4.2 | 0.1 | 0.9 |
-| `cached` | 14.78 | n/a | 35.9 | 5.1 | 0.0 | 0.8 |
-| `webgl`, baseline | 1.04 | n/a | 115.5 | 10.6 | 0.1 | 1.7 |
-| `webgl` | 0.78 | n/a | 130.4 | 12.9 | 0.1 | 1.5 |
-| `blocks` | 14.03 (11.50) | 523.7 (46.6) | 193.5 | 59.2 (0.0) | 19.3 (0.0) | 139.0 (27.9) |
-| `blocks-webgl` | 3.06 (0.27) | 718.9 (295.8) | 267.5 | 77.4 (11.4) | 9.6 (0.7) | 187.3 (55.7) |
-| `blocks-default` | 11.55 (8.93) | 525.9 (47.9) | 195.3 | 59.2 (0.0) | 17.6 (0.0) | 123.4 (21.9) |
+| Column             | pan           | mount         | heap  | select-all  | drag-start-1000 | change-all   |
+| ------------------ | ------------- | ------------- | ----- | ----------- | --------------- | ------------ |
+| `walk`, baseline   | 37.45         | 753.8         | 279.1 | 98.8        | 40.8            | 267.0        |
+| `walk`             | 17.78         | 514.4         | 194.6 | 79.5        | 24.6            | 116.5        |
+| `cached`, baseline | 13.72         | n/a           | 34.9  | 4.2         | 0.1             | 0.9          |
+| `cached`           | 14.78         | n/a           | 35.9  | 5.1         | 0.0             | 0.8          |
+| `webgl`, baseline  | 1.04          | n/a           | 115.5 | 10.6        | 0.1             | 1.7          |
+| `webgl`            | 0.78          | n/a           | 130.4 | 12.9        | 0.1             | 1.5          |
+| `blocks`           | 14.03 (11.50) | 523.7 (46.6)  | 193.5 | 59.2 (0.0)  | 19.3 (0.0)      | 139.0 (27.9) |
+| `blocks-webgl`     | 3.06 (0.27)   | 718.9 (295.8) | 267.5 | 77.4 (11.4) | 9.6 (0.7)       | 187.3 (55.7) |
+| `blocks-default`   | 11.55 (8.93)  | 525.9 (47.9)  | 195.3 | 59.2 (0.0)  | 17.6 (0.0)      | 123.4 (21.9) |

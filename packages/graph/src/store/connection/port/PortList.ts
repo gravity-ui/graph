@@ -144,8 +144,8 @@ export class PortsStore {
     searchRadius = 0,
     filter?: (port: PortState) => boolean
   ): PortState | undefined {
-    // Get all components under cursor (GraphComponent only)
-    const component = this.graph.getElementOverPoint(point, [GraphComponent]);
+    // A spatial query: components transparent to pointer events keep their ports (`getElementOverPoint` skips them).
+    const component = this.graph.getElementsOverPoint(point, [GraphComponent])[0];
     if (!component) {
       return undefined;
     }

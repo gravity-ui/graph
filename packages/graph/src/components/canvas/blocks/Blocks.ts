@@ -1,19 +1,23 @@
 import { effect, untracked } from "@preact/signals-core";
-import type { ReadonlySignal } from "@preact/signals-core";
 
 import { Component } from "../../../lib/Component";
 import { CoreComponent } from "../../../lib/CoreComponent";
+import { isOnLevel, unionLevelMasks } from "../../../lib/scene/levels";
 import type { TSceneExportRequest, TSceneLevel } from "../../../services/scene/types";
 import { BlockState } from "../../../store/block/Block";
 import { TGraphSettingsConfig } from "../../../store/settings";
+import { track } from "../../../utils/functions/track";
 import { TGraphLayerContext } from "../layers/graphLayer/GraphLayer";
 
-import { Block, anchorOverflowOf, anchorReachOf, resetAnchorOverflow, resetAnchorReach } from "./Block";
-
-/** Reads a signal so the surrounding effect tracks it. */
-function track(source: ReadonlySignal<unknown>): unknown {
-  return source.value;
-}
+import {
+  Block,
+  anchorLevelsOf,
+  anchorOverflowOf,
+  anchorReachOf,
+  resetAnchorLevels,
+  resetAnchorOverflow,
+  resetAnchorReach,
+} from "./Block";
 
 /**
  * @internal Bench counters of the lazy anchors' view test (Task 17c): how often it ran, its time, and how many blocks
@@ -192,12 +196,14 @@ export class Blocks extends Component {
   }
 
   /**
-   * The camera's view test of the lazy anchors (user decision, 2026-11-14): at a level that draws anchors, every block
-   * the camera shows creates its anchor components (`Block.requestAnchors`). It reuses the hit-test index, so it costs
+   * The camera's view test of the lazy anchors (user decision, 2026-11-14): at a level on which the graph's blocks
+   * create anchors (`anchorLevelsOf`: the anchor classes' `CREATION_LEVELS`), every block the camera shows creates its
+   * anchor components (`Block.requestAnchors`). It reuses the hit-test index, so it costs
    * one search of the view per camera change. Blocks that mount, move or are shown check themselves in their update.
    */
   protected createAnchorsInView(level: TSceneLevel): void {
-    if (level === "minimalistic" || !this.context.graph.rootStore.settings.getConfigFlag("useBlocksAnchors")) return;
+    const graph = this.context.graph;
+    if (!isOnLevel(anchorLevelsOf(graph), level) || !graph.rootStore.settings.getConfigFlag("useBlocksAnchors")) return;
     const start = anchorViewStats.enabled ? performance.now() : 0;
     let requested = 0;
     const { relativeX, relativeY, relativeWidth, relativeHeight } = this.context.camera.getCameraState();
@@ -242,8 +248,8 @@ export class Blocks extends Component {
 
   /**
    * After a reconcile that followed a block list change (data replaced, blocks added or removed): the graph's largest
-   * anchor overflow and anchor look reach become the largest of the blocks it now has, so a removed outlier stops
-   * widening view searches.
+   * anchor overflow and anchor look reach become the largest of the blocks it now has, and its anchor creation levels
+   * their union, so a removed outlier stops widening view searches.
    */
   protected didUpdateChildren(): void {
     super.didUpdateChildren();
@@ -251,14 +257,17 @@ export class Blocks extends Component {
     this.blocksChanged = false;
     let overflow = 0;
     let reach = 0;
+    let levels = 0;
     for (const state of this.blocks) {
       const block = state.getViewComponent();
       if (!block) continue;
       overflow = Math.max(overflow, block.getAnchorOverflow());
       reach = Math.max(reach, block.getAnchorReach());
+      levels = unionLevelMasks(levels, block.getAnchorLevels());
     }
     resetAnchorOverflow(this.context.graph, overflow);
     resetAnchorReach(this.context.graph, reach);
+    resetAnchorLevels(this.context.graph, levels);
   }
 
   protected updateChildren() {

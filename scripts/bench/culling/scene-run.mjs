@@ -33,6 +33,20 @@ for (const renderer of renderers) {
 }
 // --minimap: the blocks columns also add a MiniMapLayer (its cost per tick, review I12).
 const minimap = Boolean(option("minimap", false));
+// --hover-path <file>: the hover mode's checked stops (3b Task 14). The first hover run writes them when the file does
+// not exist; every later run, in either library tree and with or without --minimap, reads the same stops and checks
+// them again.
+const hoverPathFile = option("hover-path", undefined);
+if (hoverPathFile === true) fail("--hover-path: give a file");
+let hoverPath =
+  hoverPathFile && fs.existsSync(hoverPathFile) ? JSON.parse(fs.readFileSync(hoverPathFile, "utf8")) : undefined;
+// --far-anchors: the blocks columns' anchors use a class created and drawn at the minimalistic level (3b Task 13).
+const farAnchors = Boolean(option("far-anchors", false));
+// --child-looks <N>: every block of the blocks columns gets N child components with a look (3b Task 13).
+const childLooksOption = option("child-looks", 0);
+const childLooks = childLooksOption === true ? 4 : Number(childLooksOption);
+if (!(Number.isInteger(childLooks) && childLooks >= 0)) fail(`--child-looks: "${childLooksOption}" is not a count`);
+if (farAnchors && childLooks > 0) fail("--far-anchors and --child-looks measure one new path each: pass one");
 // --no-anchors: the walk and blocks columns turn useBlocksAnchors off (no anchor components or child elements).
 const noAnchors = Boolean(option("no-anchors", false));
 // --visit [scale]: after the bulk actions, the walk and blocks columns visit the schematic level (default 0.225, the
@@ -277,6 +291,8 @@ console.log(
   `repeats=${repeats} steps=${steps} view=${VIEW.width}x${VIEW.height} columns=${columns.map((c) => c.name).join(",")}` +
     (modes.includes("drag") ? ` drag offset ${dragOffset}` : "") +
     (noAnchors ? " no-anchors" : "") +
+    (farAnchors ? " far-anchors" : "") +
+    (childLooks > 0 ? ` child-looks ${childLooks}` : "") +
     (bulkSpin > 0 ? ` bulk-spin ${bulkSpin}` : "") +
     (exportLevel === undefined ? "" : ` export ${exportLevel}`) +
     (cameraAwareNames === false ? "" : " camera-aware-names") +
@@ -293,7 +309,10 @@ for (const scene of scenes) {
     const shots = {};
     for (const { renderer, maxRun, name } of columns) {
       const results = Object.fromEntries(
-        modes.map((mode) => [mode, { samples: [], frames: [], ticks: [], timeouts: 0, actionMs: [], scene: [] }])
+        modes.map((mode) => [
+          mode,
+          { samples: [], frames: [], ticks: [], timeouts: 0, actionMs: [], scene: [], minimapDraws: [] },
+        ])
       );
       let first = [];
       const sweeps = [];
@@ -305,6 +324,8 @@ for (const scene of scenes) {
       const visits = [];
       const exports = [];
       const mountElements = [];
+      /** The scene renderer's state (`graph.scene.$renderer`) after setup and after the modes, over the repeats. */
+      const rendererStates = new Set();
       let sizes;
       let counts;
       let timing;
@@ -312,6 +333,14 @@ for (const scene of scenes) {
       for (let repeat = 0; repeat < repeats; repeat++) {
         const context = await browser.newContext({ viewport: VIEW, deviceScaleFactor: 2 });
         const page = await context.newPage();
+        // Fallback evidence: the page's warnings and errors about the WebGL backend or the scene limits.
+        page.on("console", (message) => {
+          const text = message.text();
+          if (["warning", "error"].includes(message.type()) && /fall|watchSceneLimits|WebGL scene/i.test(text)) {
+            console.log(`          page ${message.type()} (${name}, repeat ${repeat}): ${text}`);
+          }
+        });
+        page.on("pageerror", (error) => console.log(`          page error (${name}, repeat ${repeat}): ${error.message}`));
         await page.goto(`file://${pagePath}`);
         sizes = await page.evaluate((options) => window.bench.setup(options), {
           scene,
@@ -323,6 +352,8 @@ for (const scene of scenes) {
           blockOpacity,
           minimap,
           anchors: !noAnchors,
+          farAnchors,
+          childLooks,
           cameraAwareNames,
           uploadPolicy,
         });
@@ -331,6 +362,9 @@ for (const scene of scenes) {
         mountScenes.push(sizes.mountSceneMs);
         heaps.push(sizes.heapMB);
         mountElements.push(sizes.sceneElements);
+        if (realBlocks.includes(renderer) && renderer !== "walk") {
+          rendererStates.add(`after setup: ${await page.evaluate(() => window.bench.rendererState())}`);
+        }
         for (const mode of modes) {
           const profiling = profileDir && repeat === 0 && mode === "pan";
           const cdp = profiling ? await context.newCDPSession(page) : undefined;
@@ -344,6 +378,7 @@ for (const scene of scenes) {
             steps,
             scale,
             dragOffset,
+            hoverPath,
           });
           if (cdp) {
             const { profile } = await cdp.send("Profiler.stop");
@@ -359,6 +394,20 @@ for (const scene of scenes) {
           results[mode].timeouts += result.timeouts;
           results[mode].actionMs.push(result.actionMs);
           if (result.sceneMs !== null) results[mode].scene.push(result.sceneMs);
+          results[mode].minimapDraws.push(result.minimapDraws);
+          if (mode === "hover") {
+            // Every move of the path changes the target (body, anchor, body, the next body): fewer `mouseenter`
+            // events than moves mean the run did not take the path it reports. `10` is the run's warmup.
+            const moves = 10 + steps;
+            if (result.hoverEnters < moves) fail(`hover: ${result.hoverEnters} target changes in ${moves} moves`);
+            if (!hoverPath) {
+              hoverPath = result.hoverPath;
+              if (hoverPathFile) fs.writeFileSync(hoverPathFile, JSON.stringify(hoverPath, null, 2));
+            }
+          }
+        }
+        if (realBlocks.includes(renderer) && renderer !== "walk") {
+          rendererStates.add(`after modes: ${await page.evaluate(() => window.bench.rendererState())}`);
         }
         if (repeat === 0) {
           counts = await page.evaluate((options) => window.bench.visible(options), { scale });
@@ -413,7 +462,8 @@ for (const scene of scenes) {
         const ticks = mean(r.ticks).toFixed(1);
         const action = ` action ${mean(r.actionMs).toFixed(2)} ms`;
         const scene = r.scene.length ? ` scene ${median(r.scene).toFixed(2)} ms` : "";
-        return `${mode} ${mean(r.samples).toFixed(2)} ms (${ticks} ticks) frames ${frames}${timeouts}${action}${scene}`;
+        const draws = mode === "hover" ? ` minimap draws ${r.minimapDraws.reduce((sum, count) => sum + count, 0)}` : "";
+        return `${mode} ${mean(r.samples).toFixed(2)} ms (${ticks} ticks) frames ${frames}${timeouts}${action}${draws}${scene}`;
       });
       console.log(
         `${scene.padEnd(9)} scale=${String(scale).padEnd(5)} ${name.padEnd(18)} ` +
@@ -433,7 +483,9 @@ for (const scene of scenes) {
         return range(bulks.map((result) => result[key])) + (scenes.some((value) => value === null) ? "" : ` (scene ${range(scenes)})`);
       };
       const mountScene = mountScenes.some((value) => value === null) ? "" : ` (scene ${range(mountScenes)})`;
-      const elementsAtMount = realBlocks.includes(renderer) ? ` | scene elements after mount ${median(mountElements)}` : "";
+      const elementsAtMount =
+        (realBlocks.includes(renderer) ? ` | scene elements after mount ${median(mountElements)}` : "") +
+        (rendererStates.size ? ` | renderer ${[...rendererStates].join(", ")}` : "");
       const uploadsOf = (key) => {
         const uploads = bulks.map((result) => result[key]).filter(Boolean);
         if (uploads.length === 0 || uploads.every((u) => u.calls === 0)) return "";

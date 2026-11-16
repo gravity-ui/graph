@@ -79,6 +79,30 @@ type TPrivateComponentData = {
  */
 let constructing: { readonly parent: CoreComponent; child: CoreComponent | undefined } | undefined;
 
+/** Component classes whose duplicate child keys were reported (once per class). */
+const reportedDuplicateKeys = new WeakSet<object>();
+
+/**
+ * Development error for two child descriptors with one key: the reconcile maps both to one component, so the second
+ * never gets its own (a scene child would never draw, an anchor would vanish).
+ */
+function reportDuplicateKeys(owner: object, keys: readonly string[]): void {
+  if (reportedDuplicateKeys.has(owner.constructor)) return;
+  const seen = new Set<string>();
+  for (const key of keys) {
+    if (!seen.has(key)) {
+      seen.add(key);
+      continue;
+    }
+    reportedDuplicateKeys.add(owner.constructor);
+    console.error(
+      `${owner.constructor.name}: two children share the key ${JSON.stringify(key)}; the second gets no component. ` +
+        "Give each child descriptor its own key (an anchor's key is its id)."
+    );
+    return;
+  }
+}
+
 export type CoreComponentProps = Record<string, unknown>;
 export type CoreComponentContext = Record<string, unknown>;
 
@@ -274,6 +298,16 @@ export class CoreComponent<
     return this.__comp.parent;
   }
 
+  /** The mounted children, in reconcile order. */
+  protected getChildComponents(): readonly CoreComponent[] {
+    const children: CoreComponent[] = [];
+    for (const key of this.__comp.childrenKeys) {
+      const child = this.__comp.children.get(key);
+      if (child) children.push(child);
+    }
+    return children;
+  }
+
   public setContext<K extends keyof Context>(context: Pick<Context, K>) {
     this.context = Object.assign({}, this.context, context);
 
@@ -429,6 +463,7 @@ export class CoreComponent<
         descriptorsToMount.push({ key, descriptor });
       }
     });
+    if (isDevelopmentBuild()) reportDuplicateKeys(this, nextKeys);
 
     previousKeys.forEach((key) => {
       const child = this.__comp.children.get(key);

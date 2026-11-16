@@ -113,12 +113,13 @@ function encodeOnce(
     policy: DEFAULT_TEXT_POLICY,
     generation: 0,
   };
-  return { last, opaque: encoded.opaque, glyphSubs: encoded.subs.opaque };
+  // Copies: the opaque glyphs and subs are views that the next encode overwrites.
+  return { last, opaque: encoded.opaque.slice(), glyphSubs: encoded.subs.opaque.slice() };
 }
 
 /** The bits of a float list: equal floats bit for bit, not only by value (0 and -0 apart). */
-function bitsOf(floats: Float32Array): Uint32Array {
-  return new Uint32Array(floats.buffer, floats.byteOffset, floats.length);
+function bitsOf(floats: ArrayLike<number>): Uint32Array {
+  return new Uint32Array(Float32Array.from(floats).buffer);
 }
 
 describe("textEncodes", () => {

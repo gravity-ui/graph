@@ -123,7 +123,10 @@ describe("scene order of components", () => {
     expect(pointer.targetComponent).toBe(boxes.b);
     layer.setProps({ children: [] });
     frames();
-    expect(pointer.targetComponent).toBeUndefined();
+    // The removed box is forgotten, and the target is found again under the still pointer at the frame's end
+    // (settled item 11): nothing is there now, so it is the camera.
+    expect(pointer.targetComponent).not.toBe(boxes.b);
+    expect(pointer.targetComponent).toBe(graph.getGraphLayer().$.camera);
     expect(graph.getGraphLayer().$hoveredComponent.value).toBeUndefined();
   });
 });

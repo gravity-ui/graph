@@ -36,6 +36,11 @@ The temporary branch and release process is documented separately in
 - Custom canvas blocks: `Block` draws through `graph.scene` now and its render members are gone. Port the look to level methods (`schematic`, `detailed`) and states to tags and rules, or extend `LegacyCanvasBlock` for one release (see [Blocks in the scene](#blocks-in-the-scene)).
 - Block order and hit-testing follow the scene: blocks are in bucket 200 (201 while selected or dragged), so a layer component hit above blocks needs a `zIndex` of at least 201, and anchors are hit in their block's order.
 - Anchors are not drawn or hit at the minimalistic level and are created lazily: guard `AnchorState.getViewComponent()`, read anchor positions from their ports, and expect the `Block` as the owner of an anchor port until its component exists (see [Anchors](#anchors)).
+- Replace `renderAnchor` overrides by `getAnchorClass`; move evented areas to child components; read
+  `isRenderDelegated()` instead of `hidden` (see [Blocks in the scene](#blocks-in-the-scene)).
+- Check block listeners of `mouseenter` and `mouseleave`: they now hear their anchors' and children's hover events
+  too. Tell them apart with `getEventTarget(event)` or `detail.relatedTarget` (see
+  [Events and hover](#events-and-hover)).
 - Take screenshots with `graph.scene.toImage()`: `getGraphCanvas()` no longer holds scene blocks.
 - Scene text sizes are numbers: replace a text `size: { px, minWorld, maxWorld }` with `size: px, cameraAware: {
   minWorld, maxWorld }` (see [Text, primitives and ports](#text-primitives-and-ports)). The `{ world, minPx, maxPx }`
@@ -1083,7 +1088,10 @@ and [Tags and styles](../system/tags-and-styles.md).
 | `shouldRenderHtml`, `raised`, `updateViewState()`, `didIterate()` | Removed. React containers read `$viewState`. |
 | `$viewState` as a writable `signal` of `{ zIndex, order }` (tree values) | A `ReadonlySignal` of `{ zIndex: 0, order: rank }`: the dense rank, in scene order, among the blocks React containers show. |
 | `isRendered()` as `shouldRender && isVisible()` | True while the scene draws the block: its element is written, not hidden, and its hit box is in the viewport. |
-| `renderAnchor()` and `updateChildren()` without declared types | `renderAnchor(): ComponentDescriptor<typeof Anchor>`; `updateChildren(): ChildDescriptor[]`, an empty list when anchors are off. |
+| `renderAnchor(anchor)` returning a descriptor | `getAnchorClass(anchor)` returning an anchor class; size and line width are the class's `SIZE` and `LINE_WIDTH`; the key is the anchor's id. An anchor class takes no props of its own (see [Anchor classes](#anchor-classes)). Development builds warn about a class that still defines `renderAnchor`: blocks never call it. |
+| `updateChildren()` without a declared type | `updateChildren(): ChildDescriptor[]`, an empty list when anchors are off. It may return child scene components besides the anchors (see [Evented areas are removed](#evented-areas-are-removed)). |
+| `setRenderDelegated(true)` from an HTML view | `delegateRender({ canvasVisible })` (graph-react's `GraphBlock` does it): the scene hides the block only at the detailed level. `setRenderDelegated` remains, without the level rule. |
+| reading `this.hidden` to know the block is handed to HTML | `isRenderDelegated()` (both writers), or `isShownOutsideScene()` to include views that keep the canvas drawing. `isHeldByHtml()` is true while any view holds the block at the detailed level. |
 | `minimalistic(view)` in v2 pre-releases (`this.schematic(view)`) | Not defined: the minimalistic level takes the schematic list. `super.minimalistic(view)` does not compile (TS2722) and throws at runtime: call `super.schematic(view)`. |
 
 `Anchor` lost its `zIndex` getter and `render()`: it is a retained scene component with the parts `anchor` and
@@ -1150,11 +1158,15 @@ mounted container gets its rank in the next frame.
 ### Anchors
 
 - **No anchors at the minimalistic level.** The default anchor is drawn on the schematic level only. The detailed
-  level draws nothing for anchors, because React draws them there. The anchor is hit from the schematic level on. At
-  the minimalistic level the block under it is hit, so gestures that start on an anchor (connection creation, anchor
-  selection, hover) start from the schematic level on.
-- **Lazy components.** A block creates its `Anchor` components once the camera shows it at the schematic or detailed
-  level. Until then `AnchorState.getViewComponent()` is `undefined` (it is reactive through `$viewComponentReady`),
+  level draws nothing for anchors, because React draws them there. The anchor is hit at the schematic level. At the
+  detailed level it is hit only while its block is shown outside the scene (an HTML view holds it, or
+  `setRenderDelegated(true)`), subject to `static hitLevels` declarations and hidden components (see
+  [Anchors are hit where they are shown](#anchors-are-hit-where-they-are-shown)). At the minimalistic level the block
+  under it is hit, so gestures that start on an anchor (connection creation, anchor selection, hover) start from the
+  schematic level on.
+- **Lazy components.** A block creates its anchor components once the camera shows it on a level of its anchor
+  classes' `CREATION_LEVELS` (schematic and detailed for `Anchor`). Until then `AnchorState.getViewComponent()` is
+  `undefined` (it is reactive through `$viewComponentReady`),
   the anchor port's `owner` is the `Block` (check `instanceof Anchor` on port owners with care), and
   `getElementsOverPoint` / `getElementsOverRect` and `$selectedComponents` return created anchors only. Read anchor
   positions from the port (`block.getAnchorPort(anchorId).getPoint()`), not from
@@ -1166,6 +1178,427 @@ mounted container gets its rank in the next frame.
   them again; a graph that starts with it off draws them.
 - **graph-react:** `GraphBlockAnchor` positions itself from the anchor's port while the canvas component does not
   exist.
+
+#### Anchor classes
+
+A `renderAnchor` override becomes `getAnchorClass`. The block creates the component itself, with the anchor's data,
+its port and the class's `SIZE` and `LINE_WIDTH`, keyed by the anchor's id:
+
+```diff
+- protected renderAnchor(anchor: TAnchor) {
+-   return MyAnchor.create({ ...anchor, zIndex: this.zIndex, size: 16, lineWidth: 2, shape: "square",
+-     port: this.getAnchorPort(anchor.id) }, { key: `${anchor.id}/${anchor.index}` });
+- }
++ protected override getAnchorClass(anchor: TAnchor): TAnchorClass {
++   return anchor.type === "OUT" ? SquareAnchor : Anchor; // class SquareAnchor { static SIZE = 16; ... }
++ }
+```
+
+An anchor with props of its own (a shape, data types, a muted flag) becomes an anchor class that reads its block:
+
+- A shape prop becomes one class per shape, chosen from the block's data (`this.state.meta`).
+- What the look reads (data types for its colour) comes from the block's view data (`view.block`).
+- What code outside the look reads (connection validation reading `isGraphEndpoint` or `dataTypes`) becomes a method
+  of the anchor class that reads its block's data (`this.connectedState.block`, or the parent block component).
+- A state such as muted becomes a tag with a style rule.
+- A per-block size getter that returns a constant (an `anchorSize` of 16) becomes the class's `SIZE`. A size that
+  differs per block needs one class per size.
+- A key with the anchor's index (`${id}/${index}`) only changed component identity. The key is the anchor's id now,
+  and development builds report two anchors with one id.
+
+```typescript
+import { Anchor, CanvasBlock, defineTag } from "@gravity-ui/graph";
+import type { Graph, TAnchor, TAnchorClass, TAnchorView, TBlock, TScenePrimitive } from "@gravity-ui/graph";
+
+declare const graph: Graph;
+
+type TStepMeta = { anchors?: Record<string, { stream?: boolean; dataTypes?: string[] }> };
+
+/** The anchors of a step: 16 world units, their data types read from the block's data. */
+class StepAnchor extends Anchor {
+  public static override SIZE = 16;
+
+  /** For connection validation: read from the block's data, not from props. */
+  public getDataTypes(): readonly string[] {
+    const meta = this.connectedState.block.$state.value.meta as TStepMeta | undefined;
+    return meta?.anchors?.[this.props.id]?.dataTypes ?? [];
+  }
+}
+
+/** A stream anchor is a square: another shape is another class. */
+class StreamAnchor extends StepAnchor {
+  protected override schematic(view: TAnchorView): readonly TScenePrimitive[] {
+    const half = view.size / 2;
+    return [{ kind: "rect", part: "anchor", x: -half, y: -half, width: view.size, height: view.size }];
+  }
+}
+
+class StepBlock extends CanvasBlock<TBlock<TStepMeta>> {
+  protected override getAnchorClass(anchor: TAnchor): TAnchorClass {
+    return this.state.meta?.anchors?.[anchor.id]?.stream ? StreamAnchor : StepAnchor;
+  }
+}
+
+// Muted is a tag and a rule, not an anchor prop: the anchors multiply their opacity by their block's.
+const mutedTag = defineTag("muted");
+graph.scene.styles.add([{ target: StepBlock, tags: [mutedTag], style: { opacity: 0.4 } }]);
+graph.scene.tags.add(mutedTag, { block: ["step-1"] });
+```
+
+### Evented areas are removed
+
+`eventedArea(fn, params)` and its hover tracking are gone. A clickable region becomes a child component: a
+`SceneComponent` returned from the block's `updateChildren()`. Its rect is its look (or `getHitRect()`, without a
+look), its handlers are listeners, and the `hovered` state of the render callback becomes `hoveredTag` on the child,
+styled by rules on its class. Its primitives are in the block's frame: `x: 0, y: 0` is the block's corner, where the
+area used `this.state.x`. To keep a region off a level, draw nothing there or declare `static hitLevels`; a region
+without a look must declare it. See [Child components](../components/block-component.md#child-components).
+
+```diff
+- class TestBlock extends LegacyCanvasBlock {
+-   render() {
+-     super.render();
+-     this.eventedArea(() => ({ x: this.state.x, y: this.state.y, width: 50, height: 50 }), {
+-       key: "area1",
+-       click: () => onArea1(),
+-     });
+-   }
+- }
++ class Area1 extends SceneComponent<object, TGraphComponentProps & { blockId: string }> {
++   public static override entityType = "area1";
++   public override getEntityId(): string { return this.props.blockId; }
++   protected override willMount(): void { super.willMount(); this.addEventListener("click", () => onArea1()); }
++   protected override getViewData(): object { return {}; }
++   protected override schematic(): readonly TScenePrimitive[] {
++     return [{ kind: "rect", x: 0, y: 0, width: 50, height: 50, fill: "rgba(0, 120, 255, 0.2)" }];
++   }
++ }
++ class TestBlock extends CanvasBlock {
++   protected override updateChildren(): ChildDescriptor[] {
++     return [Area1.create({ blockId: String(this.props.id) }, { key: "area1" }), ...super.updateChildren()];
++   }
++ }
+```
+
+The event order of a child differs from an area's. These are differences of the replacement, not changes of a kept
+API:
+
+- **Handler order.** The owner's handlers ran before its areas' (`_fireEvent`). Now the child's handler runs first,
+  then its parent's through the parent walk.
+- **Stopping.** A child's `stopPropagation()` keeps the event from its parent: a button that stops its click no longer
+  lets the block select.
+- **Overlaps.** A click went to every area under the pointer. Now it goes to the one topmost child.
+- **Outside the owner.** A child's hit box may lie outside its owner's, and takes events there.
+- **Hover events.** As for every event, `mouseenter` and `mouseleave` walk the parent chain from the target, so a
+  block's listeners hear its children's hover too. Check `getEventTarget(event)`, `detail.target` or the new
+  `detail.relatedTarget` to tell which. `Anchor` no longer stops its hover events, only its clicks and presses.
+- **Presses.** A press on a child that is not draggable drags its nearest draggable ancestor, as in the DOM. So a
+  press-drag on a former area still drags the block, as in v1, and the camera pans only when nothing in the chain is
+  draggable. A press that the drag or the pan takes reaches no component: the child gets no `mousedown`, as the block
+  body gets none. The `mouseup` and the `click` reach the child. A child with a gesture of its own makes itself
+  draggable (`isDraggable()` and `handleDrag*`, as `Anchor` does), or a graph `mousedown` listener prevents the press
+  and calls `graph.dragService.startDrag`. A child's `onDrag()` never starts under a draggable block. See
+  [Presses and drags](../system/event-model.md#presses-and-drags).
+
+### Hit levels and transparent components
+
+- A scene component is hit on the levels where it is shown:
+  - an element owner (a block) on every level;
+  - a child (an anchor, a child component) on the levels its look is drawn on, and wherever its block is shown outside
+    the scene: at the detailed level while an HTML view holds the block, on every level after
+    `setRenderDelegated(true)`;
+  - a child without a look only on the levels its `static hitLevels` declares. The declaration is required: without
+    it the child is not hit, and development builds warn.
+
+  `static hitLevels` overrides the rule in every case. `getElementsOverRect()` leaves out what the level does not hit.
+- **Visible change:** the stock anchor at the detailed level is no longer hit while nothing shows its block outside
+  the scene (no HTML view, no `setRenderDelegated(true)`). v1 drew no canvas anchor there but hit it; now the block
+  under it is hit. Reason: a component is hit where it is shown, and events have one source, the graph's bus. See
+  [Anchors are hit where they are shown](#anchors-are-hit-where-they-are-shown).
+- A scene component hidden for a reason other than the handover (`setVisibility(false, …)`, a collapsed group) is a
+  barrier for its descendants: none of them is hit, on any level, as under `display: none` in the DOM. A hidden child
+  is not hit either. A hidden block is not hit once its hit box is removed
+  (`setVisibility(false, { removeHitbox: true })`, a collapsed group); with `removeHitbox: false` it keeps its hit box
+  and stays a target. See
+  [Hit levels](../system/event-model.md#hit-levels).
+- `static transparentToEvents = true` is available for a component that keeps a hit box but must never be the
+  pointer's target: `getElementOverPoint()` and the pointer skip it, while `getElementsOverPoint()`,
+  `getElementsOverRect()` and the usable rect keep it. `onHitBox() { return false; }` keeps working and leaves the
+  component out of every hit query; keep it where that is what you need.
+
+### Events and hover
+
+**The model.** The event model is the component tree's. The component under the pointer handles an event and lets it
+go on, or stops it. An event it does not stop reaches its parent, and its parent's parent, and each can check the
+target. Hover events also carry `detail.relatedTarget`, the other side of the target change (none for the camera or
+outside the graph), so a parent can tell whether the pointer stayed inside it.
+
+**The hit target (new).** `getEventTarget(event)` returns the graph component a pointer event hit (a block, an anchor,
+a child component, a connection or a group), the same in every handler of the walk and after the dispatch;
+`getEventTarget(event, Class)` returns it only for that class.
+
+- `click`, `mousedown`, `mouseup` and `dblclick` stay the browser's `MouseEvent`s. An emulated click is a copy of the
+  browser's event, and its DOM `target` is `null`.
+- Only the hover events (`mouseenter`, `mouseleave`, `mouseover`, `mouseout`) are `CustomEvent`s with
+  `detail.target` and `detail.relatedTarget` (`TGraphHoverDetail`).
+- On the graph's bus, use `detail.target` or `getEventTarget(detail.sourceEvent)`.
+
+```typescript
+import { CanvasBlock, getEventTarget } from "@gravity-ui/graph";
+
+class RunButtonAwareBlock extends CanvasBlock {
+  protected override willMount(): void {
+    super.willMount();
+    this.addEventListener("click", (event: Event) => {
+      if (getEventTarget(event) !== this) return; // a child's click that bubbled up
+      // A click on the block itself.
+    });
+  }
+}
+```
+
+**The graph's events.** `graph.on` and `useGraphEvent` get the same events with the same targets, with
+`relatedTarget` added on `mouseenter` and `mouseleave` (`GraphMouseEvent.detail.relatedTarget`). Menus and cursors
+that follow the target behave as before.
+
+**Visible changes of the event model**, each with its reason:
+
+- **Only the sides of a change that exist get events.** Entering the graph no longer sends the new target a
+  `mouseleave` first. Reason: that leave named the new target as the old side, a false leave.
+- **Leaving the graph.** When the pointer leaves the graph's root, the target becomes none: the old target gets its
+  `mouseleave`, and a camera move then finds no target. Reason: the target must match what the pointer is on.
+- **A removed hovered component** gets no event, as before. The nearest graph component above it gets the
+  `mouseleave` in its place when the pointer is no longer on it, so a block whose hovered child is removed stops
+  showing as hovered. Reason: otherwise the block stayed hovered.
+- **A still pointer.** When what it hits changes, the target is found again at the end of the frame (or once the hit
+  test has indexed the frame's hit boxes): a component hidden, shown or removed; a hit box that was set before
+  moving, resizing, going or coming back (a block or an anchor moved through the API, a child's look); hit levels, an
+  HTML hold or the scene level changing. Hover and
+  cursor used to wait for the next pointer move there. The graph's `mouseenter` and `mouseleave` fire then as well,
+  so menus, tooltips and other listeners that follow the target react without a pointer move. A level change does
+  this even with `emulateMouseEventsOnCameraChange` off. A component that mounts under the pointer is found at the
+  next move, as before, and so are the anchors a pan creates. Camera moves keep the
+  `emulateMouseEventsOnCameraChange` rule. Reason: hover, cursor and the bus must follow what the pointer hits.
+- **Hover of a block.** A block stays hovered (`hoveredTag`, React's `graph-tag-hovered`) while the pointer is on its
+  anchor or another child; the tag used to go away there. Reason: a block shows as hovered as an element does with
+  CSS `:hover`, while the pointer is on it or on any of its descendants.
+- **`Anchor` now lets its `mouseenter` and `mouseleave` reach its block.** A block listener that set a hover state on
+  `mouseenter` and cleared it on `mouseleave` without checking the target now also hears its anchors': the state stays
+  on over the anchor and goes off when the pointer leaves the block. Check `getEventTarget(event)`, or
+  `detail.relatedTarget` on leave, to keep the old behaviour. Reason: a parent hears the events of its
+  children, as in the DOM.
+
+**`hoveredTag`** is written by components on themselves, for styles only. The binding to the pointer's target is
+gone. The library `Block` tags itself while the pointer is on it or on a descendant (`isHoveredBy`); `Anchor`,
+connections and groups while they are the target. A custom component with a `static entityType` that relied on the
+binding tags itself now: call `this.setHoveredTag(pointerTargetAfter(event) === this)` from its `mouseenter` and
+`mouseleave` listeners, or `isWithinComponent(this, pointerTargetAfter(event))` for a CSS-like hover of itself and
+its descendants.
+
+```typescript
+import { GraphComponent, pointerTargetAfter } from "@gravity-ui/graph";
+
+class Pin extends GraphComponent {
+  public static entityType = "pin";
+
+  public override getEntityId(): string {
+    return "pin-1";
+  }
+
+  protected override willMount(): void {
+    super.willMount();
+    // Tagged while it is the pointer's target, as the binding did.
+    const follow = (event: Event): void => this.setHoveredTag(pointerTargetAfter(event) === this);
+    this.addEventListener("mouseenter", follow);
+    this.addEventListener("mouseleave", follow);
+  }
+}
+```
+
+- No library code reads `hoveredTag` to decide behaviour. A rule that gives hovered components a `raise` changes the
+  scene order, and so the hit order where components overlap; a `scale` changes the drawing, not the hit box.
+- A graph `mouseleave` handler that calls `preventDefault()` keeps the event from the components, so a block or an
+  anchor that was tagged keeps its `hoveredTag`. Prevent hover events only where that is what you want.
+- A child or a custom anchor that calls `stopPropagation()` on `mouseleave` keeps the event from its block, so the
+  block keeps its `hoveredTag` after the pointer leaves it through that child. Stop hover events only where the parent
+  must not hear them.
+- **An overridden `dispatchEvent`.** The hover hook `onDispatchedEvent` runs in the parent walk (`_dipping`). A class
+  that overrides `dispatchEvent` to fire its own listeners without the walk, as a block that keeps its events to
+  itself does, skips its own hook too. The library `Block`'s hover then follows only what bubbles up from its anchors,
+  so it is off over the body and stays on after the pointer leaves the body. Keep the stopping and call the hook
+  first:
+
+  ```diff
+    public override dispatchEvent(event: Event): boolean {
+      if (!this.isInteractive()) return this._dipping(this, event);
+  +   // Its own events reach the hover hook, as the parent walk would do.
+  +   this.onDispatchedEvent(event);
+      if (this._hasListener(this, event.type)) this._fireEvent(this, event);
+      return false;
+    }
+  ```
+
+  Routing through `super.dispatchEvent(event)` instead changes more than the hover: the events then walk on to the
+  block's parents (the camera unsets the selection on a `click` that reaches it) unless a listener stops them.
+- A connection whose stroke width follows the camera (a width in screen pixels, read again on zoom) calls
+  `invalidateLine({ followsCamera: true })` or `ConnectionLine.invalidate({ followsCamera: true })`: the hit box it
+  resizes then asks for no retarget, as camera moves keep their rule. The option is new and optional.
+
+### The handover to HTML
+
+- `GraphBlock` no longer calls `setRenderDelegated`. It calls `delegateRender({ canvasVisible })` once its HTML has
+  mounted, and releases it on unmount. A hold counts at the detailed level only: there the block and its children are
+  hit, unless a class's `static hitLevels` leaves the detailed level out (see
+  [Hit levels and transparent components](#hit-levels-and-transparent-components)), and with `canvasVisible: false`
+  the scene draws nothing of the block.
+- `hidden` no longer means "held by HTML": a hold does not write it. A block that skips work while it is not visible
+  reads the handover instead:
+
+  ```diff
+  - if (!this.isVisible() && !this.hidden) return; // off screen, and no HTML view
+  + if (!this.isVisible() && !this.isShownOutsideScene()) return; // off screen, and no HTML view
+  ```
+
+  `isShownOutsideScene()` covers a view that keeps the canvas drawing (`canvasVisible={!ready}`); `isHeldByHtml()`
+  is true while any view holds the block at the detailed level. A test that called `setRenderDelegated(true)` to stand
+  for the HTML view calls `delegateRender({ canvasVisible: false })` at the detailed level.
+- **Visible change: the handover follows the level.** ReactLayer switches its HTML at the end of the graph frame, so
+  zooming out draws the canvas blocks in the frame that hides the HTML, and no frame shows neither picture. A stopped
+  graph does not switch it. Reason: the HTML and the scene blocks must switch in one frame.
+- When the level becomes detailed, graph-react's blocks list holds the pointer's retarget until its views have
+  mounted (at most three graph frames). A `GraphBlock` rendered outside that list, or a view that mounts later, can
+  move the target once: one extra `mouseleave` and `mouseenter`.
+
+### Anchors are hit where they are shown
+
+Events come from one source, the graph's bus: GraphLayer listens on the root, where HTML events bubble, and targets the
+hit-tested component. A component is hit on the levels where it is shown, by its scene look or by an HTML view. v1 hit
+the stock anchor at the detailed level, where it drew nothing on the canvas. v2 hits it there only while its block is
+shown outside the scene (an HTML view holds it, or `setRenderDelegated(true)`), subject to `static hitLevels`
+declarations and hidden components (see
+[Hit levels and transparent components](#hit-levels-and-transparent-components)). Standard anchors at the
+minimalistic level are not a new consequence: earlier v2 pre-releases already stopped drawing and hitting them
+there.
+
+| Case | Consequence |
+| --- | --- |
+| Detailed without HTML, a stock anchor | Point queries no longer return it; the target is the block under it, or another entity, or the camera |
+| A click on such an anchor | The anchor's selection toggle no longer runs; the block's or the background's action may run |
+| Hover | The anchor's enter/leave, raised state, `hoveredTag`, tooltip and cursor do not activate; the new target gets the events |
+| The graph bus and target-based menus | `mousedown`, `click`, `dblclick`, hover events and `getElementOverPoint()` callers get another target |
+| Starting a connection gesture | The anchor-based start goes; where a block start is allowed (Shift) the block gesture remains |
+| Finishing a connection gesture | Without `snappable` meta the fallback picks the block's input port instead of the anchor's; validation and the endpoint change |
+| Explicitly snappable ports | The port search can still reach the anchor port through the block's port map: a separate port path |
+| Rect and viewport queries | Excluded anchors leave `getElementsOverRect()` and `getElementsInViewport()`; their custom callers change |
+| Rect selection | Unchanged: the default selects `[Block]`, and the anchor selection bucket relates to no component, so a rect selection never selected anchors. Only custom callers of `getElementsOverRect()` see fewer anchors |
+| A block a collapsed group hides | Its anchors take no hits and drop out of point and rect queries, on every level |
+| Zooming across a level boundary | Retargets the pointer at the end of the frame: a still pointer over an anchor's point gets the anchor at the schematic level, and loses it at the detailed level without HTML |
+| Drag | Where an anchor took the gesture, the block's or the camera's rules apply; visible with `captureAnchors` and connection editing |
+| A custom anchor drawn at minimalistic | Once created with its look, it is a hit target there: hover, selection and anchor gestures where earlier pre-releases rejected every anchor |
+| Detailed with an HTML hold | Anchors and other children keep the graph-bus interaction, except levels excluded by `hitLevels`; `autoHideCanvas={false}` without `canvasVisible` registers the hold too |
+| Explicit `hitLevels` | It may exclude detailed even under HTML; the next eligible target gets the events |
+
+`<GraphBlock autoHideCanvas={false}>` without `canvasVisible` now registers the view (the canvas stays drawn), so its
+anchors are hit through the HTML at the detailed level. A canvas-only graph that started connections from anchors at
+the detailed level starts them at the schematic level, or marks anchor ports `snappable`.
+
+### Visibility, delegation and groups
+
+**API.**
+
+- `setVisibility(visible, …)` and `setRenderDelegated(delegated)` write two separate inputs, and `hidden` is derived
+  from both. New: `GraphComponent.isHiddenForOtherReason()` (hidden by `setVisibility` or a subclass's reason, not by
+  delegation) and the protected hook `hiddenChanged(hidden)`, called when the derived state changes.
+  `BlockConnection` no longer overrides `setVisibility`: a subclass that followed it overrides `hiddenChanged`.
+- `SceneComponent.isSceneHidden()` no longer includes delegation. An override that returns `this.hidden || x` makes a
+  delegated component a hit barrier, because `this.hidden` is the derived state: return `super.isSceneHidden() || x`.
+  `SceneComponent.isHitBarrier()` (protected) decides whether the component's descendants take no hits; a hidden
+  child is not hit itself either, while an element owner leaves the hit test only with its hit box.
+- `Group.subscribeGroupSignal(signal, callback)` subscribes for as long as the component is bound to its group state.
+  A group removed and added back with its id before a frame keeps its component, which binds to the new state: a
+  `subscribeToGroup` override that subscribes with plain `subscribeSignal` keeps a stale subscription to the old
+  state per rebind. `Group.leaveGroupState()` (protected) undoes what the component applied for its state, on a rebind
+  and on unmount; `CollapsibleGroup` ends its collapse there.
+
+  ```typescript
+  import { CollapsibleGroup } from "@gravity-ui/graph";
+
+  class BadgeGroup extends CollapsibleGroup {
+    protected override subscribeToGroup(): void {
+      super.subscribeToGroup();
+      // Ended on a rebind and on unmount; subscribeSignal would keep listening to the old state.
+      this.subscribeGroupSignal(this.groupState.$selected, () => this.performRender());
+    }
+  }
+  ```
+- `BlockState.unsetViewComponent()` is public: a block state names no component after its block was re-added and the
+  kept component bound to the new state. `BaseConnection.isMounted()` is now true while the connection is mounted.
+
+**Visible changes**, each with its reason:
+
+- **Hide, then delegate, then end the delegation: the component stays hidden.** v1 showed it again, because the last
+  writer of one shared flag won. `setVisibility(true, …)` on a delegated component no longer draws it while it is
+  delegated. `setVisibility(false, { removeHitbox: true })` on a delegated component now removes its hit box. Reason:
+  one writer per input (derive, don't override).
+- **A block that leaves a collapsed group** (by `updateBlock`, a move to another group, or a re-add with or without a
+  frame between) is shown, and its ports are its own again. Earlier versions could leave it hidden, with its ports
+  delegated to the group. Reason: the group no longer holds a block it does not contain.
+- **A member re-added with its membership** into a collapsed group that a static `setGroups` set (no grouping layer
+  sets the groups again) is shown, as it is with a frame between. The earlier same-frame path kept it hidden by
+  accident.
+  Under `withBlockGrouping` it stays hidden. Reason: one result whatever the frames between.
+- **`BlockState.getViewComponent()` of a removed block's state** is `undefined` once its component unmounts; v1
+  returned the dead component. So the deprecated `$sourceBlock` and `$targetBlock` of a connection whose endpoint
+  block was removed become `undefined` after the frame. Reason: a dead component accepted writes that went nowhere.
+- **Same-frame remove and re-add.** An entity removed and added back with its id before a frame (an undo and a redo,
+  or `setEntities` without it and then with it) now ends as it does with a frame between. Reason, for each case
+  below: one result whatever the frames between.
+  - **Anchors.** The kept anchors of a re-added block bind to the new block's `AnchorState`s: the new state's
+    `getViewComponent()` names the anchor, and its selection, clicks and drags go through the new state. They used to
+    stay bound to the removed states, and the new states named no component. The anchor component, its element, its
+    tags and its port stay.
+  - **Connections.** A re-added connection gets a new component. The old one unmounts: `graph-component-unmounted`
+    fires, listeners added to it are gone, and the new state's `getViewComponent()` returns the new component. The
+    old component used to stay, bound to the removed state, and the new state got none. Code that holds a connection
+    component across an undo and a redo (a hover menu or a tooltip that keeps the instance) sees it unmount. Its hover
+    state starts over on the new component; the selection stays, because it is kept by id.
+  - **Connection endpoints.** A connection's `$sourceBlock`, `$targetBlock` (deprecated) and `$hidden` follow a block
+    re-added before a frame: they read the new `BlockState`, so the line hides and shows with the new block. They
+    used to keep the removed state, also after the block moved.
+  - **A re-added block's hidden state.** The block takes the new state's hidden value, `false` included. It used to
+    keep its old value: a block hidden by a collapsed group, or hidden directly, stayed hidden after the re-add until
+    something showed it again.
+  - **Deleting a group in the frame of its collapse** shows its blocks and gives them their ports back. They used to
+    stay hidden, with their ports delegated to the removed group: the deletion read the component's collapsed state,
+    which the collapse had not reached yet.
+  - **A hit box set back in the same frame.** A hit box changed and then set back to where it was before the frame
+    runs (a group collapsed and expanded in one frame, or collapsed and re-added expanded) ends where the last change
+    put it. The change before it used to win: such a group was hit only on its collapsed header.
+
+### New members for child components, hit levels, events and the handover
+
+| Member | What it is |
+| --- | --- |
+| `getEventTarget(event, Class?)` | The graph component a pointer event hit (a block, an anchor, a child component, a connection or a group), in every handler of its walk |
+| `pointerTargetAfter(event)`, `isWithinComponent(ancestor, target)` | Hover helpers: the target after a hover event; whether a target is a component or its descendant |
+| `TGraphHoverDetail`, `GraphMouseEvent.detail.relatedTarget` | The detail of hover events; the other side of a target change |
+| `EventedComponent.onDispatchedEvent(event)` (protected) | A hook for each event that walks through the component, before its listeners |
+| `GraphComponent.transparentToEvents`, `isTransparentToEvents()` | Pointer events pass through the component |
+| `GraphComponent.setHoveredTag(hovered)` (protected) | Writes the component's own `hoveredTag` |
+| `GraphComponent.isRenderDelegated()`, `isHiddenForOtherReason()`, `hiddenChanged(hidden)` (protected) | The delegation input, the other hide reasons, and a hook for the derived `hidden` |
+| `GraphComponent.withCameraDerivedHitBox(update)` (protected) | Hit box changes inside `update` follow the camera and ask for no retarget |
+| `SceneComponent.hitLevels`, `isHitOnLevel(level)`, `isShownOutsideScene()`, `isHitBarrier()` (protected) | Hit levels: a component is hit where it is shown |
+| `SceneComponent.getHitRect(bounds)`, `invalidateChildren()` (protected) | A child's hit box; reading the view data of its child scene components again |
+| `Block.getAnchorClass(anchor)`, `isHoveredBy(target)` (protected) | The anchor classes; when the block shows as hovered |
+| `Block.delegateRender(request)`, `isHeldByHtml()`, `THtmlViewRequest` | The handover to HTML |
+| `Anchor.SIZE`, `LINE_WIDTH`, `CREATION_LEVELS`, `TAnchorClass` | An anchor class's statics |
+| `graph.scene.query(rect, options)`, `TSceneQueryOptions`, `revisionOf(type)`, `onFrameEnd(listener)` | Scene queries by level, hidden state and type; per-type revisions; the frame's end |
+| `TSceneElementView.entityType`, `nestedIn` | An element's type and the child element it is nested in |
+| `BlockState.unsetViewComponent()`, `Group.subscribeGroupSignal()`, `Group.leaveGroupState()` (protected) | Rebinding to a re-added entity |
+| `BlockConnection.invalidateLine({ followsCamera })`, `ConnectionLine.invalidate({ followsCamera })` | A stroke width that follows the camera asks for no retarget |
+
+`Graph.getComponentsInViewport()`, `GraphLayer.requestRetarget()`, `GraphLayer.holdRetarget()`,
+`HitTest.hasPendingUpdates()` and `Anchor.creationLevelsOf()` are `@internal`.
 
 ### Text, primitives and ports
 
@@ -1205,9 +1638,20 @@ mounted container gets its rank in the next frame.
 
 ### Minimap, export and the canvas
 
-- The minimap draws scene blocks from their scene elements with the interpreter (`drawInterpreted`, minimalistic
-  level, no text, delegated blocks included) and `LegacyCanvasBlock`s with `renderMinimalisticBlock(ctx, { text: false })`.
-  Anchors are not drawn on it.
+- The minimap draws the scene's block elements with `graph.scene.query(rect, { level: "minimalistic", includeHidden:
+  true, entityTypes })` and the interpreter, in the blocks list order. `entityTypes` are `"block"` and the types of the
+  other block classes on the list or in `blockComponents`. Blocks handed over to HTML and blocks in collapsed groups
+  stay on it; anchors and child components do not. `LegacyCanvasBlock`s draw with
+  `renderMinimalisticBlock(ctx, { text: false })` and redraw it on every camera move.
+- The minimap draws from a cached picture, redrawn on `graph.scene.revisionOf()` of those types and on block moves.
+  **Visible change:** it shows tags and styles one frame after the main view, and during continuous changes (pointer
+  drags, a stream of API moves) it redraws at most about once per 100 ms, always ending with the last state. Before,
+  block moves and drags redrew it in the same frame. Reason: the picture is redrawn whole, and a redraw in every frame
+  of a drag cost that frame's time; one full redraw per change, or per period of continuous changes, is the
+  accepted cost. A camera move only redraws the camera frame. The `@gravity-ui/graph-minimap` README
+  ("What it draws") lists what redraws it.
+- A style that scales or widens primitives now widens their culling bounds: a hovered anchor at the edge of the view
+  is no longer clipped (see [Bounds and styles](../system/scene.md#bounds-and-styles)).
 - Take screenshots with `graph.scene.toImage()` (see [toImage](../system/scene.md#toimage)): `getGraphCanvas()` keeps
   returning the `GraphLayer` canvas, which no longer holds scene blocks.
 

@@ -1,4 +1,10 @@
-export { Anchor, type TAnchor, type TAnchorProps, type TAnchorView } from "./components/canvas/anchors";
+export {
+  Anchor,
+  type TAnchor,
+  type TAnchorClass,
+  type TAnchorProps,
+  type TAnchorView,
+} from "./components/canvas/anchors";
 export {
   Block as CanvasBlock,
   isTBlock,
@@ -9,9 +15,16 @@ export {
   type TBlockProps,
   type TBlockView,
   type TBlockViewOptions,
+  type THtmlViewRequest,
 } from "./components/canvas/blocks/Block";
 export { LegacyCanvasBlock } from "./components/canvas/blocks/LegacyCanvasBlock";
-export { GraphComponent } from "./components/canvas/GraphComponent";
+export { GraphComponent, type TGraphComponentProps } from "./components/canvas/GraphComponent";
+export {
+  isWithinComponent,
+  pointerTargetAfter,
+  type TGraphHoverDetail,
+} from "./components/canvas/EventedComponent/EventedComponent";
+export { getEventTarget } from "./components/canvas/EventedComponent/eventTarget";
 export * from "./components/canvas/connections";
 export * from "./graph";
 export { layerConfig, type LayerConfig } from "./services/LayerConfig";
@@ -78,6 +91,7 @@ export type {
   TSceneImageOptions,
   TSceneElementView,
   TSceneLevel,
+  TSceneQueryOptions,
   TSceneRenderer,
   TSceneRendererState,
 } from "./services/scene/types";
@@ -126,6 +140,7 @@ export type {
   TSceneStroke,
   TSceneStyle,
   TSceneElement,
+  TSceneStyleChange,
   TSceneTextPolicy,
 } from "./lib/scene/types";
 export type { ISceneBackendModule, TSceneBackendStats, TSceneTextFrame } from "./lib/scene/webgl/backendTypes";

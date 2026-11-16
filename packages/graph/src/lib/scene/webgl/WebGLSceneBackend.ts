@@ -125,7 +125,8 @@ type TBatch = {
 
 /**
  * An element's translucent instances of one program, before they are cut into steps, and their companion data when the
- * batch keeps a companion list.
+ * batch keeps a companion list. Arrays of their own, never an encode's view (`TInstanceView`): `translucentWrites`
+ * keeps them past later encodes.
  */
 type TTranslucentWrite = { batch: TBatch; instances: Float32Array; companion?: Float32Array };
 
@@ -299,20 +300,24 @@ function isLinked(model: Model): boolean {
  * The companion data written with instances of a batch that keeps a companion list: one companion instance per
  * instance, or the lists would part.
  */
-function companionData(
+function companionData<TData extends ArrayLike<number>>(
   batch: TBatch,
   companion: TCompanion,
-  instances: Float32Array,
-  data?: Float32Array
-): Float32Array {
+  instances: ArrayLike<number>,
+  data?: TData
+): TData {
   if (!data || data.length / companion.ranges.floats !== instances.length / batch.ranges.floats) {
     throw new Error(`The scene batch ${batch.model.id} needs one companion instance per instance`);
   }
   return data;
 }
 
-/** Writes the instances of an element and their companion data, or removes the element when it has none. */
-function setInstances(batch: TBatch, id: string, instances: Float32Array, companion?: Float32Array): void {
+/**
+ * Writes the instances of an element and their companion data, or removes the element when it has none. The ranges
+ * copy them at once, so they may be an encode's views (`TInstanceView`): each is handed here before the next encode
+ * with its encoder.
+ */
+function setInstances(batch: TBatch, id: string, instances: ArrayLike<number>, companion?: ArrayLike<number>): void {
   if (instances.length > 0) {
     batch.ranges.set(id, instances);
     if (batch.companion) batch.companion.ranges.set(id, companionData(batch, batch.companion, instances, companion));
@@ -724,8 +729,8 @@ class WebGLSceneBackend implements ISceneBackend {
     if (changed("primitives")) this.primitivesChanged(element);
     if (parent !== undefined && changed("childOrder")) this.rebase.add(parent);
     if (changed("x") || changed("y") || changed("hidden") || changed("styleId")) this.writeElement(element);
-    // The store sends no update to the children of an owner whose hidden flag changed.
-    if (parent === undefined && changed("hidden")) this.writeChildren(element.id);
+    // The store sends no update to what is nested in an element whose hidden flag changed.
+    if (changed("hidden")) this.writeChildren(element.id);
     // A translucent element that moves can start or stop overlapping others.
     const moved = changed("x") || changed("y") || changed("bounds");
     if (moved) this.levels.moved(element.id);
@@ -733,7 +738,7 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   /**
-   * A camera-aware text that moves or shows again (itself, or a child of an owner whose hidden flag changed) can
+   * A camera-aware text that moves or shows again (itself, or nested in an element whose hidden flag changed) can
    * enter the view with stale lines: the next frame checks it.
    */
   private textsMoved(element: TSceneElement, moved: boolean, hidden: boolean): void {
@@ -742,7 +747,7 @@ class WebGLSceneBackend implements ISceneBackend {
       if (moved) this.textEpochs.move(element.id, x + bounds.minX, y + bounds.minY, x + bounds.maxX, y + bounds.maxY);
       else this.textEpochs.showAgain(element.id);
     }
-    if (!hidden || element.parent !== undefined) return;
+    if (!hidden) return;
     for (const child of this.store?.childrenOf(element.id) ?? []) this.textEpochs.showAgain(child.id);
   }
 
@@ -801,9 +806,12 @@ class WebGLSceneBackend implements ISceneBackend {
     }
   }
 
-  /** Writes the texels of the owner's children in the backend: their key and hidden state follow the owner. */
-  private writeChildren(ownerId: string): void {
-    for (const child of this.store?.childrenOf(ownerId) ?? []) {
+  /**
+   * Writes the texels of the elements drawn after an element in its owner (`SceneStore.childrenOf`: an owner's
+   * children, or what is nested in a child): their key follows the owner, their hidden state the nesting.
+   */
+  private writeChildren(id: string): void {
+    for (const child of this.store?.childrenOf(id) ?? []) {
       if (this.elements.has(child.id)) this.writeElement(child);
     }
   }
@@ -812,9 +820,17 @@ class WebGLSceneBackend implements ISceneBackend {
     return element.parent ?? element.id;
   }
 
-  /** Hidden itself or through its parent: the texel key is -1 then. */
+  /** Hidden itself or through an element it is nested in, up to its owner: the texel key is -1 then. */
   private hiddenInScene(element: TSceneElement): boolean {
-    return element.hidden || (element.parent !== undefined && (this.elements.get(element.parent)?.hidden ?? false));
+    if (element.hidden) return true;
+    let above = element.nestedIn ?? element.parent;
+    while (above !== undefined) {
+      const next = this.elements.get(above);
+      if (!next) return false;
+      if (next.hidden) return true;
+      above = next.nestedIn ?? next.parent;
+    }
+    return false;
   }
 
   /**
@@ -939,8 +955,9 @@ class WebGLSceneBackend implements ISceneBackend {
     const subBase = this.subBases.get(id) ?? 0;
     const { maxSub } = this.depth;
     const rects = encodeRects(primitives, index, this.slotOf, subBase, maxSub);
-    const glyphs = this.encodeGlyphs(id, primitives, index, subBase, maxSub);
+    // The opaque rects are a view of the encoder's list (`TInstanceView`): written before any other encode runs.
     setInstances(this.rects.opaque, id, rects.opaque);
+    const glyphs = this.encodeGlyphs(id, primitives, index, subBase, maxSub);
     const translucent = this.encodePathsOf(id, primitives, index, subBase, maxSub);
     translucent.push(
       { batch: this.rects.translucent, instances: rects.translucent },
@@ -1031,6 +1048,8 @@ class WebGLSceneBackend implements ISceneBackend {
     placedScratch.length = 0;
     const places: TTextGlyphPlaces = { counts: [], translucent: passes, placed: placedScratch };
     const glyphs = encodeText(primitives, index, this.slotOf, this.atlas, input, subBase, maxSub, places);
+    // The opaque glyphs and their subs are views of the encoder's lists (`TInstanceView`): written at once. The
+    // translucent ones returned below are copies, which `translucentWrites` may keep.
     setInstances(this.glyphs.opaque, id, glyphs.opaque, glyphs.subs.opaque);
     const encode: TTextEncode = {
       index,

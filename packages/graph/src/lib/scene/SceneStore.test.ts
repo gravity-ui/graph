@@ -187,7 +187,12 @@ describe("style rows", () => {
     expect(notified).toBe(2);
     store.replaceStyles(new Map([[row, store.getStyles()[row]]]));
     expect(notified).toBe(2);
+    // Element a still uses the row: freeing it warns, as development builds do.
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
     store.freeStyle(row);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toMatch(/Scene style row 1 is freed while elements still use it/);
+    warn.mockRestore();
     expect(notified).toBe(3);
     expect(store.defineStyle({ raise: 1 })).toBe(row);
     expect(notified).toBe(4);
@@ -356,7 +361,7 @@ describe("child elements", () => {
     expect(c.styleId).toBe(own);
   });
 
-  it("deletes the children with their parent and rejects a missing or nested parent", () => {
+  it("deletes the children with their parent, rejects a missing parent and nests in a child", () => {
     const store = new SceneStore();
     store.add(input("p", { zIndex: 200 }));
     store.add(input("c", { zIndex: 0, parent: "p" }));
@@ -370,7 +375,9 @@ describe("child elements", () => {
     expect(() => store.add(input("x", { parent: "nope" }))).toThrow(/parent nope does not exist/);
     store.add(input("p2", { zIndex: 200 }));
     store.add(input("c2", { zIndex: 0, parent: "p2" }));
-    expect(() => store.add(input("x", { parent: "c2" }))).toThrow(/cannot have children/);
+    // A child element may have children (nesting at any depth): `parent` names the owner, `nestedIn` the child.
+    const nested = store.add(input("x", { parent: "c2" }));
+    expect([nested.parent, nested.nestedIn]).toEqual(["p2", "c2"]);
   });
 
   it("moves a child off its composed row before freeing it, and its own raise moves nothing", () => {
@@ -632,5 +639,339 @@ describe("primitives are values (Task 17g)", () => {
       primitive.width = 20;
     }
     expect(primitive).toEqual({ kind: "rect", x: 0, y: 0, width: 20, height: 10 });
+  });
+});
+
+describe("bounds grown by a style", () => {
+  const dot = (): TSceneElementInput => ({
+    id: "dot",
+    zIndex: 1,
+    x: 0,
+    y: 0,
+    bounds: { minX: -9, minY: -9, maxX: 9, maxY: 9 },
+    primitives: [{ kind: "circle", part: "anchor", cx: 0, cy: 0, r: 9 }],
+  });
+  /** 13 to 15 units right of the dot's centre: outside its radius 9, inside 9 x 1.8 = 16.2. */
+  const edge = (x = 0): { minX: number; minY: number; maxX: number; maxY: number } => ({
+    minX: x + 13,
+    minY: -1,
+    maxX: x + 15,
+    maxY: 1,
+  });
+  const ids = (store: SceneStore, rect = edge()): string[] => store.query(rect).map((element) => element.id);
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it("finds an element whose row scales its circles past the bounds its component wrote", () => {
+    const store = new SceneStore(100);
+    store.add(dot());
+    expect(ids(store)).toEqual([]);
+    const hovered = store.defineStyle({ parts: { anchor: { scale: 1.8 } } });
+    store.setStyle("dot", hovered);
+    expect(ids(store)).toEqual(["dot"]);
+    expect(store.get("dot")?.bounds).toEqual({ minX: -9, minY: -9, maxX: 9, maxY: 9 });
+    store.setStyle("dot", 0);
+    expect(ids(store)).toEqual([]);
+  });
+
+  it("follows a change of the row the element draws with, and skips the bake for a colour-only change", () => {
+    const store = new SceneStore(100);
+    store.add(dot());
+    const row = store.defineStyle({ parts: { anchor: { color: "#ff0000" } } });
+    store.setStyle("dot", row);
+    expect(ids(store)).toEqual([]);
+    store.replaceStyles(new Map([[row, { parts: { anchor: { scale: 1.8 } } }]]));
+    expect(ids(store)).toEqual(["dot"]);
+    const bake = jest.spyOn(SceneStore.prototype as unknown as { styledBounds(): unknown }, "styledBounds");
+    store.replaceStyles(new Map([[row, { parts: { anchor: { scale: 1.8, color: "#00ff00" } } }]]));
+    expect(bake).not.toHaveBeenCalled();
+    expect(ids(store)).toEqual(["dot"]);
+  });
+
+  it("keeps the grown bounds through a move and drops them with primitives that fit", () => {
+    const store = new SceneStore(100);
+    store.add(dot());
+    store.setStyle("dot", store.defineStyle({ parts: { anchor: { scale: 1.8 } } }));
+    store.update("dot", { x: 100 });
+    expect(ids(store, edge(100))).toEqual(["dot"]);
+    store.update("dot", {
+      primitives: [{ kind: "circle", part: "anchor", cx: 0, cy: 0, r: 2 }],
+      bounds: { minX: -2, minY: -2, maxX: 2, maxY: 2 },
+    });
+    // 2 x 1.8 = 3.6: the edge is out of reach again.
+    expect(ids(store, edge(100))).toEqual([]);
+  });
+
+  /** A closed shape with an inside border of width 2, in part "ring", whose component wrote `bounds`. */
+  const bordered = (primitive: TScenePrimitive, bounds: TSceneElementInput["bounds"]): TSceneElementInput => ({
+    id: "ring",
+    zIndex: 1,
+    x: 0,
+    y: 0,
+    bounds,
+    primitives: [primitive],
+  });
+  const widened = (store: SceneStore, width: number): void =>
+    store.setStyle("ring", store.defineStyle({ parts: { ring: { width } } }));
+
+  it("covers a widened inside circle border as Canvas 2D strokes it: centred on the radius", () => {
+    const store = new SceneStore(100);
+    store.add(
+      bordered(
+        { kind: "circle", part: "ring", cx: 0, cy: 0, r: 9, border: { width: 2, align: "inside" } },
+        { minX: -10, minY: -10, maxX: 10, maxY: 10 }
+      )
+    );
+    const strip = { minX: 11.5, minY: -0.5, maxX: 12.5, maxY: 0.5 };
+    expect(ids(store, strip)).toEqual([]);
+    // Canvas 2D strokes arc(r 9) with lineWidth 8 whatever the alignment: the stroke reaches 9 + 4 = 13.
+    widened(store, 8);
+    expect(ids(store, strip)).toEqual(["ring"]);
+    expect(store.get("ring")?.bounds).toEqual({ minX: -10, minY: -10, maxX: 10, maxY: 10 });
+  });
+
+  it("keeps a widened inside rect border inside the rect while it fits, and covers one wider than the rect", () => {
+    const store = new SceneStore(100);
+    const rect = { minX: 0, minY: 0, maxX: 10, maxY: 10 };
+    store.add(
+      bordered(
+        { kind: "rect", part: "ring", x: 0, y: 0, width: 10, height: 10, border: { width: 2, align: "inside" } },
+        rect
+      )
+    );
+    const bake = jest.spyOn(SceneStore.prototype as unknown as { styledBounds(): unknown }, "styledBounds");
+    // Canvas 2D insets an inside border by half its width: a width of 10 still paints within the rect.
+    widened(store, 10);
+    expect(bake).toHaveBeenCalledTimes(1);
+    expect(ids(store, { minX: 10.5, minY: 4, maxX: 11, maxY: 5 })).toEqual([]);
+    // A width of 30 insets the path by 15, past the rect's middle: it runs from 15 back to -5 and its stroke paints
+    // from -20 to 30.
+    widened(store, 30);
+    expect(ids(store, { minX: 25, minY: 4, maxX: 26, maxY: 5 })).toEqual(["ring"]);
+    expect(ids(store, { minX: -16, minY: 4, maxX: -15, maxY: 5 })).toEqual(["ring"]);
+    expect(store.get("ring")?.bounds).toEqual(rect);
+  });
+
+  it("covers the miter join of a widened polygon stroke: Canvas 2D joins at its default miter limit", () => {
+    const store = new SceneStore(100);
+    // A triangle whose sharp vertex lies at the origin; its bounds pad its points by the width 2, as geometryBounds
+    // does. The element stands at x 100.
+    const triangle: TScenePrimitive = {
+      kind: "polygon",
+      part: "ring",
+      points: new Float32Array([0, 0, 100, 20, 100, -20]),
+      stroke: { color: "#000000", width: 2 },
+    };
+    const bounds = { minX: -2, minY: -22, maxX: 102, maxY: 22 };
+    store.add({ ...bordered(triangle, bounds), x: 100 });
+    // The vertex's angle is 22.6 degrees: its miter reaches (w / 2) / sin(11.3 degrees) = 5.1 w left of it, under the
+    // limit of 10 x (w / 2). Width 2: to x 94.9, out of this rect; width 8: to x 79.6, past the width's own pad (92).
+    const tip = { minX: 75, minY: -1, maxX: 81, maxY: 1 };
+    expect(ids(store, tip)).toEqual([]);
+    widened(store, 8);
+    expect(ids(store, tip)).toEqual(["ring"]);
+    expect(store.get("ring")?.bounds).toEqual(bounds);
+  });
+
+  it("warns once in development builds about a { px } width without maxWorld", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const store = new SceneStore(100);
+    store.defineStyle({ parts: { border: { width: { px: 2 } } } });
+    store.defineStyle({ parts: { border: { width: { px: 3 } } } });
+    store.defineStyle({ parts: { border: { width: { px: 2, maxWorld: 4 } } } });
+    expect(warn.mock.calls.filter(([message]) => String(message).includes("maxWorld"))).toHaveLength(1);
+  });
+
+  it("warns about a { px } width without maxWorld that a row gets by a rewrite", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const store = new SceneStore(100);
+    const row = store.defineStyle({ parts: { border: { color: "#ff0000" } } });
+    const unbounded = (): number => warn.mock.calls.filter(([message]) => String(message).includes("maxWorld")).length;
+    expect(unbounded()).toBe(0);
+    store.replaceStyles(new Map([[row, { base: { border: { width: { px: 2 } } } }]]));
+    expect(unbounded()).toBe(1);
+  });
+
+  it("warns once in development builds about a { world } width with a positive minPx, in that form's words", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const store = new SceneStore(100);
+    const minPx = (): string[] =>
+      warn.mock.calls.map(([message]) => String(message)).filter((message) => message.includes("minPx"));
+    store.defineStyle({ parts: { border: { width: { world: 1, minPx: 0 } } } });
+    store.defineStyle({ parts: { border: { width: { world: 1, maxPx: 3 } } } });
+    expect(minPx()).toEqual([]);
+    const row = store.defineStyle({ parts: { border: { width: { world: 1, minPx: 2 } } } });
+    store.replaceStyles(new Map([[row, { base: { border: { width: { world: 2, minPx: 1, maxPx: 4 } } } }]]));
+    expect(minPx()).toHaveLength(1);
+    expect(minPx()[0]).toContain("minPx / 0.01");
+    expect(minPx()[0]).not.toContain("maxWorld");
+    // The { px } form keeps its own warning.
+    store.defineStyle({ parts: { border: { width: { px: 2 } } } });
+    expect(warn.mock.calls.filter(([message]) => String(message).includes("maxWorld"))).toHaveLength(1);
+  });
+
+  it("grows the bounds by a { world, minPx } width at the minimum camera scale", () => {
+    jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const store = new SceneStore(100);
+    store.add(
+      bordered(
+        { kind: "circle", part: "ring", cx: 0, cy: 0, r: 9, border: { width: 2 } },
+        { minX: -10, minY: -10, maxX: 10, maxY: 10 }
+      )
+    );
+    // At scale 0.01 the width is 2 / 0.01 = 200 world units: the stroke reaches 9 + 100 = 109.
+    store.setStyle("ring", store.defineStyle({ parts: { ring: { width: { world: 1, minPx: 2 } } } }));
+    expect(ids(store, { minX: 108, minY: -0.5, maxX: 108.5, maxY: 0.5 })).toEqual(["ring"]);
+    expect(ids(store, { minX: 109.5, minY: -0.5, maxX: 110, maxY: 0.5 })).toEqual([]);
+  });
+
+  it("costs no bake for rows without a scale or a width, nor for a move", () => {
+    const store = new SceneStore(100);
+    store.add(dot());
+    const bake = jest.spyOn(SceneStore.prototype as unknown as { styledBounds(): unknown }, "styledBounds");
+    const plain = store.defineStyle({ parts: { anchor: { color: "#ff0000" } }, raise: 1, dim: 0.5, opacity: 0.5 });
+    store.setStyle("dot", plain);
+    store.update("dot", { x: 5, primitives: dot().primitives, bounds: dot().bounds });
+    store.replaceStyles(new Map([[plain, { parts: { anchor: { color: "#00ff00" } } }]]));
+    store.setStyle("dot", 0);
+    expect(bake).not.toHaveBeenCalled();
+    store.setStyle("dot", store.defineStyle({ parts: { anchor: { scale: 1.8 } } }));
+    expect(bake).toHaveBeenCalledTimes(1);
+    store.update("dot", { x: 6 });
+    expect(bake).toHaveBeenCalledTimes(1);
+  });
+
+  describe("in nesting", () => {
+    /** An owner far from the edge rect, so only its children can meet it. */
+    const owner = (id = "block"): TSceneElementInput => ({
+      id,
+      zIndex: 1,
+      x: -500,
+      y: -500,
+      bounds: { minX: 0, minY: 0, maxX: 10, maxY: 10 },
+      primitives: [{ kind: "rect", part: "body", x: 0, y: 0, width: 10, height: 10 }],
+    });
+    const nested = (id: string, parent: string): TSceneElementInput => ({ ...dot(), id, parent });
+
+    it("finds a child by its own row's scale while its parent's dim and opacity compose the row it draws with", () => {
+      const store = new SceneStore(100);
+      store.add(owner());
+      store.add(nested("dot", "block"));
+      const hovered = store.defineStyle({ parts: { anchor: { scale: 1.8 } } });
+      store.setStyle("dot", hovered);
+      expect(ids(store)).toEqual(["dot"]);
+      const faded = store.defineStyle({ dim: 0.5, opacity: 0.5 });
+      store.setStyle("block", faded);
+      expect(store.get("dot")?.styleId === hovered).toBe(false);
+      expect(ids(store)).toEqual(["dot"]);
+      store.setStyle("block", 0);
+      expect(store.get("dot")?.styleId).toBe(hovered);
+      expect(ids(store)).toEqual(["dot"]);
+      store.setStyle("block", faded);
+      store.setStyle("dot", 0);
+      expect(ids(store)).toEqual([]);
+    });
+
+    it("follows a rewrite of a child's own row through the composed row it draws with", () => {
+      const store = new SceneStore(100);
+      store.add(owner());
+      store.add(nested("dot", "block"));
+      const own = store.defineStyle({ parts: { anchor: { color: "#ff0000" } } });
+      store.setStyle("block", store.defineStyle({ opacity: 0.5 }));
+      store.setStyle("dot", own);
+      expect(store.get("dot")?.styleId === own).toBe(false);
+      expect(ids(store)).toEqual([]);
+      store.replaceStyles(new Map([[own, { parts: { anchor: { scale: 1.8 } } }]]));
+      expect(ids(store)).toEqual(["dot"]);
+      store.replaceStyles(new Map([[own, { parts: { anchor: { color: "#00ff00" } } }]]));
+      expect(ids(store)).toEqual([]);
+    });
+
+    it("keeps an element nested two deep found through rewrites of the rows composed down to it", () => {
+      const store = new SceneStore(100);
+      store.add(owner());
+      store.add({ ...owner("port"), parent: "block" });
+      store.add(nested("dot", "port"));
+      const parentRow = store.defineStyle({ opacity: 0.5 });
+      store.setStyle("block", parentRow);
+      store.setStyle("port", store.defineStyle({ dim: 0.2 }));
+      const own = store.defineStyle({ parts: { anchor: { scale: 1.8 } } });
+      store.setStyle("dot", own);
+      expect(ids(store)).toEqual(["dot"]);
+      store.replaceStyles(new Map([[parentRow, { opacity: 0.25 }]]));
+      expect(ids(store)).toEqual(["dot"]);
+      store.replaceStyles(new Map([[own, { parts: { anchor: { color: "#ff0000" } } }]]));
+      expect(ids(store)).toEqual([]);
+    });
+  });
+});
+
+describe("entity types, hidden queries and change reasons (plan 3b, Task 9)", () => {
+  it("keeps the entity type an element was added with", () => {
+    const store = new SceneStore();
+    store.add(input("custom-id", { entityType: "block" }));
+    store.add(input("plain"));
+    expect(store.get("custom-id")?.entityType).toBe("block");
+    expect(store.get("plain")?.entityType).toBeUndefined();
+  });
+
+  it("returns hidden elements and what is nested in them only when asked", () => {
+    const store = new SceneStore(100);
+    store.add(element("shown", 1));
+    store.add({ ...element("held", 1), hidden: true });
+    store.add({ ...element("child", 1), parent: "held" });
+    store.add({ ...element("deep", 1), parent: "child" });
+    const found = (level?: TSceneLevel, includeHidden?: boolean): string[] =>
+      store.query(ALL, level, undefined, includeHidden).map((entry) => entry.id);
+    expect(found()).toEqual(["shown"]);
+    expect(found(undefined, true)).toEqual(["shown", "held", "child", "deep"]);
+    store.update("held", { hidden: false });
+    store.update("child", { hidden: true });
+    expect(found()).toEqual(["shown", "held"]);
+    expect(found("minimalistic", true)).toEqual(["shown", "held", "child", "deep"]);
+  });
+
+  it("tells style listeners why the rows changed", () => {
+    const store = new SceneStore();
+    store.add(input("a"));
+    const reasons: string[] = [];
+    store.subscribeStyles((change) => reasons.push(change));
+    const row = store.defineStyle({ parts: { border: { color: "#ff0000" } } });
+    store.replaceStyles(new Map([[row, { parts: { border: { color: "#0000ff" } } }]]));
+    store.setDimColor("#101010");
+    store.freeStyle(row);
+    expect(reasons).toEqual(["define", "replace", "dim", "free"]);
+  });
+
+  it("names the rewrite of the composed rows a replaced row starts a replace too", () => {
+    const store = new SceneStore();
+    store.add(input("block"));
+    store.add({ ...input("dot"), parent: "block" });
+    const row = store.defineStyle({ opacity: 0.5 });
+    store.setStyle("block", row);
+    const reasons: string[] = [];
+    store.subscribeStyles((change) => reasons.push(change));
+    store.replaceStyles(new Map([[row, { opacity: 0.25 }]]));
+    expect(reasons).toEqual(["replace", "replace"]);
+  });
+
+  it("names the row an element drew with before a row change", () => {
+    const store = new SceneStore();
+    store.add(input("a"));
+    store.add({ ...input("dot"), parent: "a" });
+    const changes: TSceneChange[] = [];
+    store.subscribe((change) => changes.push(change));
+    const one = store.defineStyle({ parts: { border: { color: "#ff0000" } } });
+    const two = store.defineStyle({ parts: { border: { color: "#00ff00" } } });
+    store.setStyle("a", one);
+    store.setStyle("a", two);
+    store.setStyle("dot", one);
+    store.update("a", { x: 4 });
+    expect(changes.map((change) => [change.element.id, change.previousStyleId])).toEqual([
+      ["a", 0],
+      ["a", one],
+      ["dot", 0],
+      ["a", undefined],
+    ]);
   });
 });

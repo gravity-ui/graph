@@ -239,6 +239,66 @@ export function styleEncodeKey(style: TSceneStyle | undefined): string {
   return encoded;
 }
 
+const geometryKeys = new WeakMap<object, string>();
+
+/**
+ * The geometry a row changes when baked (`bakeElementStyle`): each part's circle `scale` and stroke `width`, as a
+ * string; "" when it changes none. Two rows with one key bake the same bounds. Rows are immutable, so the key is
+ * cached per row object.
+ */
+export function styleGeometryKey(style: TSceneStyle | undefined): string {
+  if (!style) return "";
+  const cached = geometryKeys.get(style);
+  if (cached !== undefined) return cached;
+  const entries: string[] = [];
+  for (const [layer, values] of [
+    ["base", style.base],
+    ["parts", style.parts],
+  ] as const) {
+    if (!values) continue;
+    for (const part of Object.keys(values).sort()) {
+      const value = values[part];
+      if (!value || (value.scale === undefined && value.width === undefined)) continue;
+      entries.push(`${layer}:${part}:${value.scale ?? ""}:${JSON.stringify(value.width ?? null)}`);
+    }
+  }
+  const key = entries.join("|");
+  geometryKeys.set(style, key);
+  return key;
+}
+
+const lookKeys = new WeakMap<object, string>();
+
+/**
+ * A value as JSON with the keys of every object sorted, and undefined values and empty objects left out: rows that
+ * differ only in property or part order, or in an empty `parts` or part value, give one string.
+ */
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  const record = value as Record<string, unknown>;
+  const entries: string[] = [];
+  for (const key of Object.keys(record).sort()) {
+    if (record[key] === undefined) continue;
+    const json = canonicalJson(record[key]);
+    if (json !== "{}") entries.push(`${JSON.stringify(key)}:${json}`);
+  }
+  return `{${entries.join(",")}}`;
+}
+
+/**
+ * A row's content as a key: two rows with one key draw the same (no row and the empty row included), whatever the
+ * order of their properties and parts. Rows are immutable, so the key is cached per row object.
+ */
+export function styleLookKey(style: TSceneStyle | undefined): string {
+  if (!style) return "{}";
+  const cached = lookKeys.get(style);
+  if (cached !== undefined) return cached;
+  const key = canonicalJson(style);
+  lookKeys.set(style, key);
+  return key;
+}
+
 export function styleRaise(style: TSceneStyle | undefined): number {
   return style?.raise ?? 0;
 }

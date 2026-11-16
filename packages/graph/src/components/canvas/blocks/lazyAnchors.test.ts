@@ -1,11 +1,10 @@
 import { Graph } from "../../../graph";
-import type { ComponentDescriptor } from "../../../lib/CoreComponent";
 import { globalScheduler } from "../../../lib/Scheduler";
 import { entityKey } from "../../../services/tags/TagStore";
 import { createAnchorPortId } from "../../../store/connection/port/utils";
 import type { TPoint } from "../../../utils/types/shapes";
 import { Anchor } from "../anchors";
-import type { TAnchor, TAnchorProps } from "../anchors";
+import type { TAnchorClass, TAnchorProps } from "../anchors";
 
 import { Block, anchorOverflowOf } from "./Block";
 import type { TBlock } from "./Block";
@@ -122,6 +121,26 @@ describe("lazily created anchors", () => {
     graph.api.updateBlock({ id: "far", x: 600 });
     frames(1);
     expect(anchorChildren("far")).toBe(2);
+  });
+
+  it("creates the anchors a pan brings under a still pointer without a point query or a target change", () => {
+    // Camera moves keep today's rule (settled item 11; emulateMouseEventsOnCameraChange is off): an anchor mounting
+    // under the pointer sets its first hit box, which asks for no retarget, and the target changes at the next move.
+    start([anchored("near", 100), anchored("far", 5000)], NEAR);
+    const layer = graph.getGraphLayer();
+    // The body of "near" at world (200, 150), client (100, 75).
+    layer.handleEvent(new MouseEvent("mousemove", { clientX: 100, clientY: 75 }));
+    expect(layer.$hoveredComponent.value).toBe(view("near"));
+    const queries = jest.spyOn(graph, "getElementOverPoint");
+    // Bring the OUT anchor of "far", world (5200, 188), under the pointer: client = world * 0.5 + camera.
+    graph.cameraService.set({ scale: NEAR, x: 100 - 5200 * NEAR, y: 75 - 188 * NEAR });
+    frames();
+    expect(queries).not.toHaveBeenCalled();
+    expect(layer.$hoveredComponent.value).toBe(view("near"));
+    // The anchor exists under the pointer: the next move finds it.
+    const created = anchorOf("far", "out");
+    expect(created).toBeInstanceOf(Anchor);
+    expect(graph.getElementOverPoint({ x: 5200, y: 188 })).toBe(created);
   });
 
   it("keeps the components it has when its anchor list changes in view, and drops them out of view", () => {
@@ -430,16 +449,13 @@ describe("lazily created anchors", () => {
       expect(anchorChildren("past")).toBe(0);
     });
 
-    it("reads the reach of a renderAnchor class that declares a larger LOOK_EXTENT", () => {
+    it("reads the reach of a getAnchorClass class that declares a larger LOOK_EXTENT", () => {
       class WideAnchor<T extends TAnchorProps = TAnchorProps> extends Anchor<T> {
         public static override LOOK_EXTENT = 40;
       }
       class WideAnchorBlock extends Block {
-        protected override renderAnchor(anchor: TAnchor): ComponentDescriptor<typeof Anchor> {
-          return WideAnchor.create(
-            { ...anchor, zIndex: this.zIndex, size: 18, lineWidth: 2, port: this.getAnchorPort(anchor.id) },
-            { key: anchor.id }
-          );
+        protected override getAnchorClass(): TAnchorClass {
+          return WideAnchor;
         }
       }
       // The OUT point at x = -30: out of a stock anchor's reach, in this one's.

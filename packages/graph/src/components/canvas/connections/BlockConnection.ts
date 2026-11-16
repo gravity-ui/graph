@@ -122,8 +122,12 @@ export class BlockConnection<T extends TConnection = TConnection>
   /**
    * Re-reads the line's look: for looks that depend on data outside the connection's store. It also re-evaluates
    * an `isRenderAllowed()` override that reads such data, for the line, its arrow and the label.
+   *
+   * A stroke whose width follows the camera (a width in screen pixels, read again on zoom) passes
+   * `{ followsCamera: true }`: the hit box it resizes then asks GraphLayer for no new pointer target, as camera moves
+   * keep today's rule (settled item 11). A width that follows data asks, so hover follows it under a still pointer.
    */
-  public invalidateLine(): void {
+  public invalidateLine(options?: { readonly followsCamera?: boolean }): void {
     // An unmounted connection has left the batch and the label pass.
     if (!this.isEntityAvailable()) return;
     const lineHalfWidth = this.line.getLineHalfWidth();
@@ -132,8 +136,12 @@ export class BlockConnection<T extends TConnection = TConnection>
     this.line.update();
     if (lineHalfWidth !== this.line.getLineHalfWidth() || arrowHalfWidth !== this.line.getArrowHalfWidth()) {
       // Bounds and the hit box pad by half the stroke widths.
-      this.updateBounds();
-      this.updateCullingBounds();
+      const updateBounds = (): void => {
+        this.updateBounds();
+        this.updateCullingBounds();
+      };
+      if (options?.followsCamera) this.withCameraDerivedHitBox(updateBounds);
+      else updateBounds();
     }
     this.syncLabel();
   }
@@ -176,14 +184,21 @@ export class BlockConnection<T extends TConnection = TConnection>
         if (previous === next) return;
         previous = next;
         // Offscreen labels can grow into the viewport; keep their bounds current without recomputing the geometry.
-        this.updateBounds();
-        this.updateCullingBounds();
+        const updateBounds = (): void => {
+          this.updateBounds();
+          this.updateCullingBounds();
+        };
+        // A zoom that changed the font size resizes the box without a retarget (settled item 11: camera moves keep
+        // today's rule); a change of the graph constants (the label's threshold) asks for one.
+        if (this.context.isLabelFontSizeFromCamera?.()) this.withCameraDerivedHitBox(updateBounds);
+        else updateBounds();
       });
     }
   }
 
-  protected override setVisibility(visible: boolean, options: { removeHitbox: boolean }): void {
-    super.setVisibility(visible, options);
+  /** Hidden or shown (by `setVisibility` or by delegation): the line follows `isRenderAllowed()`. */
+  protected override hiddenChanged(hidden: boolean): void {
+    super.hiddenChanged(hidden);
     this.updateLine();
   }
 

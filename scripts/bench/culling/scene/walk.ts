@@ -28,6 +28,14 @@ export type TSceneMeter = {
   split?: { levelMs: number; writeMs: number; applyMs: number };
 };
 
+/** One block of the hover path: client points of its body and of its OUT anchor, and the ids they must hit. */
+export type THoverStop = {
+  blockId: string;
+  anchorId: string;
+  body: { x: number; y: number };
+  anchor: { x: number; y: number };
+};
+
 export type TColumn = {
   graph: Graph;
   drag(offset: number): void;
@@ -39,6 +47,20 @@ export type TColumn = {
   sceneMeter?: TSceneMeter;
   /** Blocks columns: ms spent in graph.scene.update, summed over ticks; `run()` resets and reads it. */
   sceneTicks?: { ms: number };
+  /** Blocks columns: one pointer move of the hover path (`--modes hover`), through the root's DOM listener. */
+  hover?(step: number): void;
+  /** Blocks columns: after a hover run, moves the pointer to empty space so the last target leaves. */
+  hoverEnd?(): void;
+  /**
+   * Blocks columns: sets the hover path before a hover run, from saved stops (checked again) or new ones, and returns
+   * the stops. It throws unless all 30 stops hit their block at the body point and its anchor component at the
+   * anchor point, so a run that would miss the anchors fails.
+   */
+  setHoverPath?(stops?: readonly THoverStop[]): THoverStop[];
+  /** Blocks columns: the graph's `mouseenter` events since setup, one per target change. */
+  hoverEnters?: { count: number };
+  /** Blocks columns: `graph.scene.drawInterpreted` calls since setup (the minimap's redraws). */
+  minimapDraws?: { count: number };
   /** Interpreter only. */
   timeQuery?(rounds: number): TQueryTiming;
 };

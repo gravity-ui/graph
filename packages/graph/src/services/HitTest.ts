@@ -101,6 +101,11 @@ export class HitTest extends Emitter<{ update: (hitTest: HitTest) => void }> {
     return hasProcessingQueue || hasZeroUsableRect || this.$pendingEntitiesUpdate.value;
   }
 
+  /** @internal Whether hit boxes wait in the queue: queries see them only after it is processed. */
+  public hasPendingUpdates(): boolean {
+    return this.processQueue.isScheduled() || this.queue.size > 0;
+  }
+
   /**
    * Load array of HitBox items
    * @param items Array of HitBox items to load
@@ -442,7 +447,10 @@ export class HitBox implements IHitBox {
    */
   public update = (minX: number, minY: number, maxX: number, maxY: number, force?: boolean): void => {
     if (this.destroyed) return;
-    if (minX === this.minX && minY === this.minY && maxX === this.maxX && maxY === this.maxY && !force) return;
+    // Against the rect set last, which waits in the queue until it runs: a rect that goes back to the applied one
+    // before the queue runs (a collapse and an expand, or a re-add, in one frame) must replace the waiting one.
+    const [x, y, width, height] = this.rect;
+    if (minX === x && minY === y && maxX - minX === width && maxY - minY === height && !force) return;
     this.unstable = true;
     this.rect = [minX, minY, maxX - minX, maxY - minY];
     this.hitTest.update(this, { minX, minY, maxX, maxY, x: this.x, y: this.y }, force);

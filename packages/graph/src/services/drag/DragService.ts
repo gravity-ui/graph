@@ -9,6 +9,7 @@ import { getXY } from "../../utils/functions";
 import { DragEmitter, dragListener } from "../../utils/functions/dragListener";
 import { EVENTS } from "../../utils/types/events";
 
+import { findDragTarget } from "./findDragTarget";
 import type { DragContext, DragDiff, DragOperationCallbacks, DragOperationOptions, DragState } from "./types";
 
 /**
@@ -95,7 +96,14 @@ export class DragService {
   }
 
   /**
-   * Handle mousedown on graph - determine if drag should start
+   * Handle mousedown on graph - determine if drag should start.
+   *
+   * The press drags its drag target (`findDragTarget`, D8, as in the DOM): the pressed component when it is draggable,
+   * else its nearest draggable ancestor, so a press on a child button inside a block drags the block. Without a drag
+   * target, or when it is not available, nothing happens. Otherwise the drag target goes on to `collectDragComponents`
+   * (the selection rules of `ALL` and `ONLY_SELECTED`). A press that has components to drag is taken: it stops the
+   * graph event's propagation, so GraphLayer gives it to no component, the pressed one and the drag target included.
+   * The release and the click are dispatched separately and still reach the pressed component.
    */
   public handleMouseDown = (event: GraphMouseEvent): void => {
     // Prevent initiating new drag while one is already in progress
@@ -111,9 +119,9 @@ export class DragService {
       return;
     }
 
-    const target = event.detail.target;
+    const target = findDragTarget(event.detail.target);
 
-    if (!(target instanceof GraphComponent) || !target.isEntityAvailable() || !target.isDraggable()) {
+    if (!target || !target.isEntityAvailable()) {
       return;
     }
 

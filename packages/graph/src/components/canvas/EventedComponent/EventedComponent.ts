@@ -1,11 +1,35 @@
-import intersects from "intersects";
-
 import { GraphMouseEvent } from "../../../graphEvents";
 import { Component, TComponentContext, TComponentProps, TComponentState } from "../../../lib/Component";
 import { CoreComponent } from "../../../lib/CoreComponent";
-import { HitBoxData } from "../../../services/HitTest";
 import { TypedEventListener, toDOMListener } from "../../../utils/eventListener";
-import { TRect } from "../../../utils/types/shapes";
+
+/** The detail of the hover events GraphLayer dispatches (`mouseenter`, `mouseleave`, `mouseover`, `mouseout`; D5). */
+export type TGraphHoverDetail = {
+  /** The hit target: the old one on `mouseleave`/`mouseout`, the new one on `mouseenter`/`mouseover`. */
+  target: EventedComponent | undefined;
+  /** The other side of the target change: none for the camera or outside the graph. */
+  relatedTarget: EventedComponent | undefined;
+  sourceEvent: MouseEvent;
+  pointerPressed: boolean;
+};
+
+/**
+ * The pointer's target after a hover event: the target of a `mouseenter`/`mouseover`, the related target of a
+ * `mouseleave`/`mouseout` (none for the camera or outside the graph).
+ */
+export function pointerTargetAfter(event: Event): EventedComponent | undefined {
+  const detail = (event as CustomEvent<Partial<TGraphHoverDetail> | undefined>).detail;
+  if (typeof detail !== "object" || detail === null) return undefined;
+  return event.type === "mouseenter" || event.type === "mouseover" ? detail.target : detail.relatedTarget;
+}
+
+/** Whether `target` is `ancestor` or one of its descendants (the CSS-like hover of `Block`). */
+export function isWithinComponent(ancestor: CoreComponent, target: CoreComponent | undefined): boolean {
+  for (let node: CoreComponent | undefined = target; node; node = node.getParent()) {
+    if (node === ancestor) return true;
+  }
+  return false;
+}
 
 export interface EventedComponentEvents
   extends Omit<HTMLElementEventMap, "mouseenter" | "mouseleave" | "mouseover" | "mouseout"> {
@@ -24,34 +48,6 @@ const listeners = new WeakMap<object, Map<string, Set<StoredListener>>>();
 // Lifecycle notifications must reach their listeners even when pointer interaction is disabled.
 const INTERACTIVITY_INDEPENDENT_EVENTS: ReadonlySet<string> = new Set(["graph-component-unmounted"]);
 
-function createSyntheticHoverEvent(type: "mouseenter" | "mouseleave"): MouseEvent {
-  return new MouseEvent(type, {
-    bubbles: false,
-    cancelable: false,
-    clientX: 0,
-    clientY: 0,
-  });
-}
-
-export type TEventedAreaState = {
-  hovered: boolean;
-};
-
-export type TEventedAreaParams = {
-  key: string;
-  onHitBox?: (data: HitBoxData) => boolean;
-  [eventName: string]: ((...args: never[]) => unknown) | string | undefined;
-} & {
-  [K in keyof EventedComponentEvents]?: (
-    event: K extends "mouseenter" | "mouseleave" ? MouseEvent : EventedComponentEvents[K]
-  ) => void;
-};
-
-type TEventedArea = {
-  rect: TRect;
-  params: TEventedAreaParams;
-};
-
 export type TEventedComponentProps = TComponentProps & { interactive?: boolean };
 
 export class EventedComponent<
@@ -62,14 +58,6 @@ export class EventedComponent<
   public readonly evented: boolean = true;
 
   public cursor?: string;
-
-  protected _eventedAreas: Map<string, TEventedArea> = new Map();
-
-  protected _lastHitBoxData: HitBoxData | undefined;
-
-  protected _hoveredEventedAreaKey: string | undefined;
-
-  private _prevHoveredAreaLeaveHandler: ((event: MouseEvent) => void) | undefined;
 
   constructor(props: Props, parent: Component) {
     super(
@@ -103,113 +91,17 @@ export class EventedComponent<
     super.unmount();
   }
 
-  protected willRender() {
-    if (this._hoveredEventedAreaKey !== undefined) {
-      const area = this._eventedAreas.get(this._hoveredEventedAreaKey);
-      if (area) {
-        const handler = area.params.mouseleave;
-        this._prevHoveredAreaLeaveHandler = typeof handler === "function" ? handler : undefined;
-      }
-    }
-    this._eventedAreas.clear();
-    super.willRender();
-  }
-
-  protected didRender() {
-    super.didRender();
-    if (this._hoveredEventedAreaKey !== undefined && !this._eventedAreas.has(this._hoveredEventedAreaKey)) {
-      this._prevHoveredAreaLeaveHandler?.(createSyntheticHoverEvent("mouseleave"));
-      this._hoveredEventedAreaKey = undefined;
-    }
-    this._prevHoveredAreaLeaveHandler = undefined;
-  }
-
-  private _areaHitTest(area: TEventedArea, hitBoxData: HitBoxData): boolean {
-    const onHitBox = area.params.onHitBox;
-    if (onHitBox) return onHitBox(hitBoxData);
-
-    const { x, y, width, height } = area.rect;
-    return intersects.boxBox(
-      x,
-      y,
-      width,
-      height,
-      hitBoxData.minX,
-      hitBoxData.minY,
-      hitBoxData.maxX - hitBoxData.minX,
-      hitBoxData.maxY - hitBoxData.minY
-    );
-  }
-
-  public _trackAreaHover(): void {
-    if (this._eventedAreas.size === 0 || !this._lastHitBoxData) {
-      this._clearAreaHover(true);
-      return;
-    }
-
-    const hitBoxData = this._lastHitBoxData;
-    let newHoveredKey: string | undefined;
-
-    for (const [key, area] of this._eventedAreas) {
-      if (this._areaHitTest(area, hitBoxData)) {
-        newHoveredKey = key;
-        break;
-      }
-    }
-
-    if (newHoveredKey === this._hoveredEventedAreaKey) return;
-
-    const prevArea =
-      this._hoveredEventedAreaKey !== undefined ? this._eventedAreas.get(this._hoveredEventedAreaKey) : undefined;
-    if (prevArea) {
-      const leaveHandler = prevArea.params.mouseleave;
-      if (typeof leaveHandler === "function") {
-        leaveHandler(createSyntheticHoverEvent("mouseleave"));
-      }
-    }
-
-    this._hoveredEventedAreaKey = newHoveredKey;
-
-    if (newHoveredKey !== undefined) {
-      const nextArea = this._eventedAreas.get(newHoveredKey);
-      if (nextArea) {
-        const enterHandler = nextArea.params.mouseenter;
-        if (typeof enterHandler === "function") {
-          enterHandler(createSyntheticHoverEvent("mouseenter"));
-        }
-      }
-    }
-
-    this.performRender();
-  }
-
-  public _clearAreaHover(scheduleRender = false): void {
-    if (this._hoveredEventedAreaKey !== undefined) {
-      const area = this._eventedAreas.get(this._hoveredEventedAreaKey);
-      if (area) {
-        const leaveHandler = area.params.mouseleave;
-        if (typeof leaveHandler === "function") {
-          leaveHandler(createSyntheticHoverEvent("mouseleave"));
-        }
-      }
-      this._hoveredEventedAreaKey = undefined;
-      if (scheduleRender) {
-        this.performRender();
-      }
-    }
-  }
-
-  protected eventedArea(fn: (state: TEventedAreaState) => TRect, params: TEventedAreaParams): TRect {
-    const state: TEventedAreaState = {
-      hovered: this._hoveredEventedAreaKey === params.key,
-    };
-    const rect = fn(state);
-    this._eventedAreas.set(params.key, { rect, params });
-    return rect;
-  }
-
   protected handleEvent(_: Event) {
     // noop
+  }
+
+  /**
+   * Called for each event that walks through this component (its own and its descendants' bubbling up), before its
+   * listeners and whatever its interactivity, unless an earlier component stopped the event. A class overrides it to
+   * follow events without listeners of its own per instance (`Block`'s hover, D5). It does nothing here.
+   */
+  protected onDispatchedEvent(_event: Event): void {
+    // A hook for subclasses.
   }
 
   public listenEvents<K extends string>(
@@ -266,29 +158,19 @@ export class EventedComponent<
       }
       return cb.handleEvent(event);
     });
-
-    if (cmp instanceof EventedComponent && cmp._eventedAreas.size > 0 && cmp._lastHitBoxData) {
-      if (
-        event.type === "mouseenter" ||
-        event.type === "mouseleave" ||
-        event.type === "key" ||
-        event.type === "onHitBox"
-      )
-        return;
-
-      const hitBoxData = cmp._lastHitBoxData;
-      for (const area of cmp._eventedAreas.values()) {
-        const handler = area.params[event.type];
-        if (typeof handler !== "function") continue;
-
-        if (cmp._areaHitTest(area, hitBoxData)) {
-          const listener = toDOMListener(handler);
-          if (typeof listener === "function") listener(event);
-        }
-      }
-    }
   }
 
+  /**
+   * Dispatches `event` at this component: it walks the parent chain from here (D5), `bubbles: false` or not, through
+   * each component's `onDispatchedEvent` and listeners, until a listener calls `stopPropagation()`. Returns false when
+   * the walk was stopped.
+   *
+   * GraphLayer dispatches the pointer events it passes on to components at their hit target, as the native events,
+   * unchanged (an emulated click is a copy of the browser's). Hover events (`mouseenter`, `mouseleave`, `mouseover`,
+   * `mouseout`) carry `detail.target` and `detail.relatedTarget` (`TGraphHoverDetail`); every pointer event's hit
+   * target is `getEventTarget(event)`, the same in each handler of the walk, so a parent can tell an event on itself
+   * from one that bubbled up from a child.
+   */
   public dispatchEvent(event: Event): boolean {
     return this._dipping(this, event);
   }
@@ -301,13 +183,11 @@ export class EventedComponent<
     };
 
     while (parent) {
-      if (this._isMutedByInteractivity(parent, event.type) || !this._hasListener(parent, event.type)) {
-        parent = parent.getParent();
-        continue;
-      }
-      this._fireEvent(parent, event);
-      if (stopPropagation) {
-        return false;
+      if (parent instanceof EventedComponent) parent.onDispatchedEvent(event);
+      if (stopPropagation) return false;
+      if (!this._isMutedByInteractivity(parent, event.type) && this._hasListener(parent, event.type)) {
+        this._fireEvent(parent, event);
+        if (stopPropagation) return false;
       }
       parent = parent.getParent();
     }
@@ -319,14 +199,8 @@ export class EventedComponent<
     return cmp instanceof EventedComponent && !cmp.isInteractive?.() && !INTERACTIVITY_INDEPENDENT_EVENTS.has(type);
   }
 
-  protected _hasListener(comp: object, type: string) {
-    if (listeners.get(comp)?.has?.(type)) return true;
-    if (comp instanceof EventedComponent && comp._eventedAreas.size > 0) {
-      for (const area of comp._eventedAreas.values()) {
-        if (typeof area.params[type] === "function") return true;
-      }
-    }
-    return false;
+  protected _hasListener(comp: object, type: string): boolean {
+    return listeners.get(comp)?.has?.(type) ?? false;
   }
 }
 
