@@ -1,0 +1,106 @@
+/*
+ * The stage card is 280 × 136 world units: CSS pixels at scale 1. The status effects (htmlEffects.css) sit inside it;
+ * only the selection glow's halo reaches outside.
+ */
+.scene-stage {
+  position: relative;
+  border-radius: 12px;
+  transition:
+    opacity 0.2s,
+    box-shadow 0.2s;
+}
+
+/* The selection glow, the twin of the scene's `glow` part: its edge inside the card, its halo outside. */
+.scene-stage.selected {
+  border-color: #ffcc00;
+  box-shadow:
+    inset 0 0 0 1px #ffcc00,
+    0 0 22px 6px rgba(255, 204, 0, 0.55);
+}
+
+/* "Focus on failures": GraphBlock puts the dimmed tag's class on the wrapper; the scene rule dims by 0.75. */
+.scene-stage.graph-tag-dimmed {
+  opacity: 0.25;
+}
+
+.scene-stage__body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  height: 100%;
+  padding: 12px 14px 12px 24px;
+  overflow: hidden;
+  border-radius: 11px;
+}
+
+/* The `stripe` part's colour, computed by the status rule and passed by GraphBlock as a variable. */
+.scene-stage__stripe {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 8px;
+  background: var(--graph-block-stripe-color, #c4c6cc);
+}
+
+.scene-stage__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+}
+
+.scene-stage__badge {
+  padding: 0 5px;
+  border-radius: 4px;
+  background: #eef0f3;
+  color: #4b5563;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.scene-stage__pipeline {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.scene-stage__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--graph-block-stripe-color, #c4c6cc) 14%, transparent);
+  color: var(--graph-block-stripe-color, #6b7280);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.scene-stage__name {
+  margin-top: 10px;
+  overflow: hidden;
+  color: #1f2329;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 26px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.scene-stage__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+}
+
+.scene-stage__rows {
+  color: #6b7280;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}

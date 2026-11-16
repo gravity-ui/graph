@@ -1,0 +1,171 @@
+/*
+ * The CSS twins of the scene effects (htmlEffects.tsx). Sizes are CSS pixels: world units at scale 1. The outline
+ * effects lie inside the card, their outer edge on the card's edge, as the scene's do.
+ */
+
+/* The start angle of a conic gradient, animatable because it is a registered property. */
+@property --fx-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.scene-fx-svg {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Marching border: the dash pattern moves forward along the outline by one period per cycle. */
+.scene-fx-dash {
+  animation-name: scene-fx-dash;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes scene-fx-dash {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: var(--fx-dash-shift);
+  }
+}
+
+/* A ring of `--fx-thickness` inside the card's edge: the padding box shows, the content box is masked out. */
+.scene-fx-conic {
+  position: absolute;
+  padding: var(--fx-thickness);
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  animation-name: scene-fx-turn;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* Orbiting comet: a sharp head and a fading tail behind it. */
+.scene-fx-comet {
+  background: conic-gradient(from var(--fx-angle), transparent 0turn, transparent 0.62turn, var(--fx-color) 1turn);
+}
+
+/* Gradient outline: blue to orange and back, turning. */
+.scene-fx-gradient {
+  background: conic-gradient(from var(--fx-angle), #2f7cf6, #f28f2b, #2f7cf6);
+}
+
+@keyframes scene-fx-turn {
+  to {
+    --fx-angle: 360deg;
+  }
+}
+
+/* Pulsing outline: opacity only, so the compositor runs it. */
+.scene-fx-pulse {
+  position: absolute;
+  border: var(--fx-thickness) solid var(--fx-color);
+  pointer-events: none;
+  animation-name: scene-fx-pulse;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes scene-fx-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
+/* Glow: a coloured edge inside the card and a soft halo outside, breathing (the shader's halo is outside too). */
+.scene-fx-glow {
+  position: absolute;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 var(--fx-thickness) var(--fx-color),
+    0 0 18px 6px color-mix(in srgb, var(--fx-color) 60%, transparent);
+  animation-name: scene-fx-breathe;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes scene-fx-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Spinner: a faint circle with one coloured quarter, rotating. */
+.scene-fx-spinner {
+  display: inline-block;
+  flex: none;
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: var(--fx-track);
+  border-top-color: var(--fx-color);
+  border-radius: 50%;
+  animation-name: scene-fx-spin;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes scene-fx-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Particles: a strip of dots one spacing wider than the line, moved right by one spacing per cycle. */
+.scene-fx-particles {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.scene-fx-particles__strip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: calc(-1 * var(--fx-spacing));
+  background: radial-gradient(circle closest-side, var(--fx-color) 80%, transparent 100%) 0 50% / var(--fx-spacing)
+    var(--fx-size) repeat-x;
+  animation-name: scene-fx-flow;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes scene-fx-flow {
+  to {
+    transform: translateX(var(--fx-spacing));
+  }
+}
+
+/* Sparkline: one bright dash (path length 100) runs along the line, from before its start to past its end. */
+.scene-fx-spark {
+  stroke-dasharray: 14 106;
+  animation-name: scene-fx-spark;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes scene-fx-spark {
+  from {
+    stroke-dashoffset: 14;
+  }
+  to {
+    stroke-dashoffset: -100;
+  }
+}
