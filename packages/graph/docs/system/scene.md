@@ -420,8 +420,11 @@ A camera-aware text takes its glyph capacity in the glyph buffer (112 bytes per 
 while it shows fewer glyphs: a 30-character name zoomed out to one short line keeps its 30 glyphs (a surrogate pair,
 such as an emoji, takes two: a word split at a narrow box can draw it as two halves). World texts keep the glyphs of
 their lines. The atlas holds every glyph a camera-aware text can show, packed with its first encode, so a break change
-never uploads the atlas; it keeps the glyphs, not the texts. A heightless world text's layout is kept in the shared
-layout cache while its primitive lives (its bounds are its laid-out lines, and both renderers draw that layout).
+never uploads the atlas; it keeps the glyphs, not the texts. The atlas is one 2048 × 2048 single-channel texture
+(4 MB, and as much for its copy in memory) of distance-field glyphs generated at 48 px, about 400 rows per font and
+weight for Latin, digits and Cyrillic; a frame that packs new glyphs uploads only the rows they went to. A heightless
+world text's layout is kept in the shared layout cache while its primitive lives (its bounds are its laid-out lines,
+and both renderers draw that layout).
 
 Instance lists upload their dirty spans, each with one `bufferSubData`, and never more than twice what changed in a
 list in a frame. A dense change (every block restyled), whose dirty spans cover at least half of the span enclosing

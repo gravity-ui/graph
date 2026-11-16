@@ -52,14 +52,35 @@ export function glyphCapacity(text: string): number {
   return count;
 }
 
-/** Font size, in pixels, the SDF glyphs are generated at. */
-export const ATLAS_FONT_PX = 24;
-/** Distance field margin around a glyph, in atlas pixels. */
-export const SDF_BUFFER = 3;
-/** Distance field reach, in atlas pixels. */
-export const SDF_RADIUS = 8;
+/**
+ * Font size, in pixels, the SDF glyphs are generated at. A 22-unit title at camera scale 1 and DPR 2 is about 44
+ * device pixels: at 24 px each glyph was magnified about 2x, which rounded its corners and smeared thin details.
+ */
+export const ATLAS_FONT_PX = 48;
+/** Distance field margin around a glyph, in atlas pixels: an eighth of `ATLAS_FONT_PX`, as 3 px was at 24 px. */
+export const SDF_BUFFER = 6;
+/** Distance field reach, in atlas pixels: a third of `ATLAS_FONT_PX`, as 8 px was at 24 px. */
+export const SDF_RADIUS = 16;
+/** tiny-sdf's cutoff: it encodes the edge it finds at 1 - cutoff of the byte range. */
+export const SDF_CUTOFF = 0.25;
+/**
+ * How far the shader moves tiny-sdf's edge in, in atlas pixels. tiny-sdf reads anti-aliased alpha as gamma-encoded,
+ * so its edge passes where a pixel is about 22% covered, not 50%: about 0.28 px outside the outline on a straight
+ * edge. Canvas 2D text is itself heavier than its outline, by an amount that depends on size and colour: moving the
+ * edge in by the full 0.28 px made WebGL text 4–10% lighter than Canvas 2D's, and not moving it left dark bold titles
+ * up to 8% heavier. 0.06 px keeps the ink of dark text on light and light text on dark within about 7% of Canvas 2D's
+ * at camera scales 0.5–2 (Chromium, macOS, DPR 2).
+ */
+const SDF_EDGE_OUTSET = 0.06;
+/** The distance field value the glyph shader puts the outline at: tiny-sdf's edge, moved in by `SDF_EDGE_OUTSET`. */
+export const SDF_EDGE = 1 - SDF_CUTOFF + SDF_EDGE_OUTSET / SDF_RADIUS;
 
-const DEFAULT_ATLAS_SIZE = 1024;
+/**
+ * Atlas side, in texels (r8: 4 MB). 48 px glyphs take about 4 times the texels of 24 px ones: Latin, digits, ASCII
+ * punctuation and Cyrillic take about 400 rows of 2048 per font and weight, while two of them already filled 740 of
+ * 1024 rows and three overflowed it. 2048 is also the least `MAX_TEXTURE_SIZE` WebGL2 guarantees.
+ */
+const DEFAULT_ATLAS_SIZE = 2048;
 
 /** Gap between packed glyphs, in atlas pixels. */
 const PADDING = 1;
@@ -123,7 +144,9 @@ export class GlyphAtlas {
   private cursorX = 0;
   private cursorY = 0;
   private rowHeight = 0;
-  private dirty = false;
+  /** The rows [dirtyTop, dirtyBottom) written since the last `takeDirtyRows`; none while dirtyBottom is 0. */
+  private dirtyTop = Infinity;
+  private dirtyBottom = 0;
 
   constructor(
     private readonly generate: TGlyphGenerator,
@@ -179,11 +202,16 @@ export class GlyphAtlas {
     this.glyph(ELLIPSIS, family, weight);
   }
 
-  /** Whether `data` changed since the last call. */
-  public takeDirty(): boolean {
-    const dirty = this.dirty;
-    this.dirty = false;
-    return dirty;
+  /**
+   * The rows [from, to) of `data` written since the last call, or null: an upload of them alone costs the shelves new
+   * glyphs went to, not the whole atlas.
+   */
+  public takeDirtyRows(): [number, number] | null {
+    if (this.dirtyBottom === 0) return null;
+    const range: [number, number] = [this.dirtyTop, this.dirtyBottom];
+    this.dirtyTop = Infinity;
+    this.dirtyBottom = 0;
+    return range;
   }
 
   private pack(generated: TGeneratedGlyph): TAtlasGlyph {
@@ -203,7 +231,10 @@ export class GlyphAtlas {
     }
     this.cursorX += width + PADDING;
     this.rowHeight = Math.max(this.rowHeight, height);
-    this.dirty = true;
+    if (height > 0) {
+      this.dirtyTop = Math.min(this.dirtyTop, y);
+      this.dirtyBottom = Math.max(this.dirtyBottom, y + height);
+    }
     return {
       index: this.packed.length,
       u0: x / size,

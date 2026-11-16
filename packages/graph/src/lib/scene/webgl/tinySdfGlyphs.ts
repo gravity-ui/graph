@@ -1,7 +1,7 @@
 import TinySDF from "@mapbox/tiny-sdf";
 
 import type { TGeneratedGlyph, TGlyphGenerator } from "./glyphs";
-import { ATLAS_FONT_PX, SDF_BUFFER, SDF_RADIUS } from "./glyphs";
+import { ATLAS_FONT_PX, SDF_BUFFER, SDF_CUTOFF, SDF_RADIUS } from "./glyphs";
 
 /** tiny-sdf generator per family and weight, for GlyphAtlas. */
 export function createTinySdfGenerator(): TGlyphGenerator {
@@ -14,7 +14,7 @@ export function createTinySdfGenerator(): TGlyphGenerator {
         fontSize: ATLAS_FONT_PX,
         buffer: SDF_BUFFER,
         radius: SDF_RADIUS,
-        cutoff: 0.25,
+        cutoff: SDF_CUTOFF,
         fontFamily: family,
         fontWeight: weight,
       });

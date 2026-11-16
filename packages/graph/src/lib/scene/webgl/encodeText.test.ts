@@ -194,7 +194,7 @@ describe("encodeText", () => {
   });
 
   describe("places glyphs where Canvas2D draws the shared layout's lines", () => {
-    // The fake glyphs: 10 atlas px quads and advances, the quad 3 atlas px (SDF_BUFFER) left of the pen and above the
+    // The fake glyphs: 10 atlas px quads and advances, the quad SDF_BUFFER atlas px left of the pen and above the
     // baseline. Runs are at TEXT_METRICS_PX; the shader scales them by the resolved size over it.
     const k = TEXT_METRICS_PX / ATLAS_FONT_PX;
     /** The vertex shader's world position of a glyph quad's corner (0, 0): anchor + quad x resolved / layout size. */
@@ -331,10 +331,10 @@ describe("encodeText", () => {
     const packed = new Set(glyph.mock.calls.map(([char]) => char));
     expect(packed).toEqual(new Set(["a", "b", "c", "d", "…"]));
     // Again, the same text or a copy: lookups only, nothing new packed.
-    shared.takeDirty();
+    shared.takeDirtyRows();
     encodeText([aware], 0, () => 2, shared, input(0.1));
     encodeText([{ ...aware }], 0, () => 2, shared, input(0.1));
-    expect(shared.takeDirty()).toBe(false);
+    expect(shared.takeDirtyRows()).toBeNull();
     // A camera-aware text whose lines place every character packs only the ellipsis more; one cut by "…" packs all.
     glyph.mockClear();
     encodeText(
@@ -418,13 +418,13 @@ describe("encodeText", () => {
       const places: TTextGlyphPlaces = { counts: [], translucent: [] };
       encodeText([emoji], 3, () => 2, shared, unitInput(from), 0, undefined, places);
       expect(places.counts).toEqual([5]);
-      shared.takeDirty();
+      shared.takeDirtyRows();
       const layout = layoutText(emoji, resolveTextSize(emoji, to), units);
       const run = glyphRun(emoji, layout, shared, units);
       // At most five glyphs in five slots: rewritten in place, no fallback; the first encode packed both halves and
       // both pairs, so the atlas is unchanged.
       expect(textGlyphCount(emoji, run)).toBe(5);
-      expect(shared.takeDirty()).toBe(false);
+      expect(shared.takeDirtyRows()).toBeNull();
       const fresh = encodeText([emoji], 3, () => 2, shared, unitInput(to)).opaque;
       const inPlace = new Float32Array(fresh.length);
       writeTextGlyphs(inPlace, 0, 5, emoji, layout, run, {
@@ -434,7 +434,7 @@ describe("encodeText", () => {
         atlas: shared,
       });
       expect(Array.from(inPlace)).toEqual(Array.from(fresh));
-      expect(shared.takeDirty()).toBe(false);
+      expect(shared.takeDirtyRows()).toBeNull();
     }
   });
 

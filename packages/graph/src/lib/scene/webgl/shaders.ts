@@ -12,6 +12,7 @@ import type { TUniformTypes } from "../../../components/canvas/connections/effec
 import { FRAGMENT_MAIN, FRAGMENT_PRELUDE, IDENTITY_EFFECT } from "../../../components/canvas/connections/webgl/shaders";
 
 import { DEPTH_INDICES } from "./depth";
+import { SDF_EDGE } from "./glyphs";
 import { DIM_TEXEL, PART_SLOTS, TABLE_WIDTH } from "./tables";
 
 /** Shared by every vertex shader: frame uniforms, the element and style tables, depth, sizes and clip space. */
@@ -236,6 +237,9 @@ export const GLYPH_ATTRIBUTES = [
  */
 export const GLYPH_SUB_ATTRIBUTE = "glyph_sub";
 
+/** `SDF_EDGE` as a GLSL float literal. */
+const GLYPH_EDGE = SDF_EDGE.toFixed(6);
+
 export const GLYPH_VERTEX = /* glsl */ `#version 300 es
 precision highp float;
 
@@ -288,14 +292,15 @@ ${SCENE_OUTPUT}
 void main() {
   // The sample and its derivative come first: derivatives need uniform control flow, before any discard.
   float sdf = texture(scene_atlas, glyph_vUv).r;
-  // tiny-sdf with cutoff 0.25 puts the glyph's edge at 0.75.
-  float e = max(fwidth(sdf) * 0.7, 1e-4);
+  // The field's change per screen pixel across the outline: its gradient's length, on curves and diagonals too.
+  float grad = max(length(vec2(dFdx(sdf), dFdy(sdf))), 1e-4);
   // No ink outside the box of a text whose layout overflows it, as Canvas2D clips it (unbounded for the others).
   if (glyph_vLocal.x < glyph_vClip.x || glyph_vLocal.x > glyph_vClip.z || glyph_vLocal.y < glyph_vClip.y
       || glyph_vLocal.y > glyph_vClip.w) {
     discard;
   }
-  float alpha = smoothstep(0.75 - e, 0.75 + e, sdf) * glyph_vColor.a;
+  // The pixel's coverage: a one-pixel ramp centred on the outline (SDF_EDGE, glyphs.ts), as the rect program's edges.
+  float alpha = clamp(0.5 + (sdf - ${GLYPH_EDGE}) / grad, 0.0, 1.0) * glyph_vColor.a;
   if (alpha < 0.002) discard;
   scene_fragColor = sceneOutput(glyph_vColor.rgb * alpha, alpha);
 }

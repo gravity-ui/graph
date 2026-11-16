@@ -1739,9 +1739,17 @@ class WebGLSceneBackend implements ISceneBackend {
       this.styleTexture.writeData(this.styles.data, { width: STYLE_ROW_TEXELS, height: this.styles.rows });
       this.countUpload(STYLE_ROW_TEXELS * this.styles.rows * TABLE_TEXEL_BYTES);
     }
-    if (this.atlas.takeDirty()) {
-      this.atlasTexture.writeData(this.atlas.data);
-      this.countUpload(this.atlas.data.byteLength);
+    const atlasRows = this.atlas.takeDirtyRows();
+    if (atlasRows) {
+      // Only the rows new glyphs went to: the atlas is 4 MB, a shelf of 48 px glyphs about 130 KB.
+      const { size } = this.atlas;
+      const [from, to] = atlasRows;
+      this.atlasTexture.writeData(this.atlas.data.subarray(from * size, to * size), {
+        y: from,
+        width: size,
+        height: to - from,
+      });
+      this.countUpload((to - from) * size);
     }
   }
 

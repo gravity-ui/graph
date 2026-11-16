@@ -7,10 +7,14 @@ import {
   GlyphAtlas,
   GlyphLayoutCache,
   SDF_BUFFER,
+  SDF_CUTOFF,
+  SDF_EDGE,
+  SDF_RADIUS,
   glyphRun,
   layoutGlyphs,
 } from "./glyphs";
 import type { TGeneratedGlyph, TGlyphGenerator, TGlyphRun } from "./glyphs";
+import { GLYPH_FRAGMENT } from "./shaders";
 
 const BOX = 10;
 
@@ -56,11 +60,32 @@ describe("GlyphAtlas", () => {
     expect(generate).toHaveBeenCalledTimes(2);
   });
 
-  it("copies the bitmap, reports it dirty once and wraps shelves", () => {
+  it("generates glyphs at 48 px with a distance field of the same reach relative to the glyph as at 24 px", () => {
+    expect(ATLAS_FONT_PX).toBe(48);
+    expect(SDF_BUFFER).toBe(6);
+    expect(SDF_RADIUS).toBe(16);
+    // 24 px glyphs had a 3 px margin and an 8 px reach.
+    expect(SDF_BUFFER / ATLAS_FONT_PX).toBe(3 / 24);
+    expect(SDF_RADIUS / ATLAS_FONT_PX).toBe(8 / 24);
+  });
+
+  it("draws the outline 0.06 atlas px inside tiny-sdf's edge, with a one-pixel ramp", () => {
+    expect((SDF_EDGE - (1 - SDF_CUTOFF)) * SDF_RADIUS).toBeCloseTo(0.06, 9);
+    expect(GLYPH_FRAGMENT).toContain(`clamp(0.5 + (sdf - ${SDF_EDGE.toFixed(6)}) / grad, 0.0, 1.0)`);
+  });
+
+  it("holds 2048 x 2048 texels by default", () => {
+    const atlas = new GlyphAtlas(fakeGenerator());
+    expect(atlas.size).toBe(2048);
+    expect(atlas.data).toHaveLength(2048 * 2048);
+  });
+
+  it("copies the bitmap, reports the rows it wrote once and wraps shelves", () => {
     const atlas = new GlyphAtlas(fakeGenerator(), 21);
+    expect(atlas.takeDirtyRows()).toBeNull();
     const first = atlas.glyph("a", "f", "normal");
-    expect(atlas.takeDirty()).toBe(true);
-    expect(atlas.takeDirty()).toBe(false);
+    expect(atlas.takeDirtyRows()).toEqual([0, BOX]);
+    expect(atlas.takeDirtyRows()).toBeNull();
     atlas.glyph("b", "f", "normal");
     const third = atlas.glyph("c", "f", "normal");
     expect(atlas.data[0]).toBe(255);
@@ -68,6 +93,13 @@ describe("GlyphAtlas", () => {
     // two 10 px glyphs and a gap fit a 21 px shelf; the third glyph starts a new shelf.
     expect(third.u0).toBe(0);
     expect(third.v0).toBe((BOX + 1) / 21);
+    // Both shelves since the last call, the gap between them too.
+    expect(atlas.takeDirtyRows()).toEqual([0, 2 * BOX + 1]);
+    // A known glyph writes nothing.
+    atlas.glyph("c", "f", "normal");
+    expect(atlas.takeDirtyRows()).toBeNull();
+    atlas.glyph("d", "f", "normal");
+    expect(atlas.takeDirtyRows()).toEqual([BOX + 1, 2 * BOX + 1]);
   });
 
   it("throws when the atlas is full", () => {
@@ -236,7 +268,7 @@ describe("glyphRun", () => {
     for (const same of [
       { x: 50, y: 70 },
       { width: 20, height: 20 },
-      { size: 12, lineHeight: 10 },
+      { size: ATLAS_FONT_PX / 2, lineHeight: 10 },
     ]) {
       expect(glyphRun({ ...primitive, ...same }, lines, atlas, metrics)).toBe(first);
     }
