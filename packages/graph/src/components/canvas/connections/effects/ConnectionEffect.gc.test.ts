@@ -1,3 +1,4 @@
+/** @jest-environment node */
 import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";
 
@@ -32,16 +33,15 @@ describe("connection effect objects per fragment", () => {
 
   it("counts the objects alive at once: graphs that clone an effect per mount do not warn", async () => {
     const effect = defineConnectionEffect({ fragment: `${FRAGMENT} // a clone per mount` });
-    // 120 clones over three mounts, at most 41 objects alive at once.
-    for (let mount = 0; mount < 3; mount += 1) {
-      for (let i = 0; i < 40; i += 1) effect.clone();
-      await collect();
-    }
+    // Each mount creates 63 clones plus the shared effect, right at the warning threshold.
+    Array.from({ length: 63 }, () => effect.clone());
+    await collect();
+
+    const alive = Array.from({ length: 63 }, () => effect.clone());
     expect(warn).not.toHaveBeenCalled();
 
-    // More than 64 alive at once still warn.
-    const alive = Array.from({ length: 70 }, () => effect.clone());
-    expect(alive).toHaveLength(70);
+    alive.push(effect.clone());
+    expect(alive).toHaveLength(64);
     expect(warn).toHaveBeenCalledTimes(1);
   });
 });
