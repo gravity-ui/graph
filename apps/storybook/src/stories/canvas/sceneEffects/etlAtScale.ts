@@ -274,6 +274,32 @@ export class EtlSimulation {
     return this.statuses.get(id) ?? DEFAULT_STAGE_STATUS;
   }
 
+  /** Move the first pipeline's Orders DB flow and keep live status updates attached to its current inputs. */
+  public retargetOrdersFlow(flow: TEtlConnection, retarget: boolean): void {
+    const id = String(flow.id);
+    const ends = this.ends.get(id);
+    const current = this.graph.rootStore.connectionsList.getConnectionState(id);
+    if (!ends || !current) return;
+    const target = retarget ? "p01/ingest" : String(flow.targetBlockId);
+    const anchor = retarget ? "in-1" : flow.targetAnchorId;
+    if (ends[1] !== target) {
+      const previous = ends[1];
+      this.flowsOf.set(
+        previous,
+        (this.flowsOf.get(previous) ?? []).filter((entry) => entry !== id)
+      );
+      this.flowsOf.set(target, [...(this.flowsOf.get(target) ?? []), id]);
+      ends[1] = target;
+    }
+    if (current.targetBlockId === target && current.targetAnchorId === anchor) return;
+    const update: Partial<TEtlConnection> = {
+      targetBlockId: target,
+      targetAnchorId: anchor,
+      status: this.flowStatus(ends[0], target),
+    };
+    this.graph.api.updateConnection(id, update);
+  }
+
   /** "Focus on failures": the dimmed tag on every stage that has not failed. */
   public setFocus(on: boolean): void {
     this.focus = on;
@@ -297,7 +323,7 @@ export class EtlSimulation {
     for (const flow of flows) {
       const [source, target] = this.ends.get(flow) ?? ["", ""];
       const update: Partial<TEtlConnection> = {
-        status: getFlowStatus(this.etlStatus(source), this.etlStatus(target)),
+        status: this.flowStatus(source, target),
       };
       this.graph.api.updateConnection(flow, update);
     }
@@ -319,7 +345,7 @@ export class EtlSimulation {
     this.graph.scene.tags.set(dimmedTag, { block: other });
   }
 
-  private etlStatus(id: string): TEtlStageStatus {
-    return toEtlStatus(this.statusOf(id));
+  private flowStatus(source: string, target: string): TEtlConnection["status"] {
+    return getFlowStatus(toEtlStatus(this.statusOf(source)), toEtlStatus(this.statusOf(target)));
   }
 }

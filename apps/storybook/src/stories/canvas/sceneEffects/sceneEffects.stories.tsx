@@ -280,6 +280,7 @@ type TEtlAtScaleArgs = {
   renderer: TRenderer;
   html: boolean;
   minimap: boolean;
+  retargetOrdersFlow: boolean;
   live: boolean;
   focusOnFailures: boolean;
   view: (typeof ETL_VIEWS)[number];
@@ -294,6 +295,7 @@ const etlDefaults: TEtlAtScaleArgs = {
   renderer: "webgl",
   html: true,
   minimap: false,
+  retargetOrdersFlow: false,
   live: false,
   focusOnFailures: false,
   view: "fit",
@@ -316,6 +318,7 @@ const EtlAtScaleApp = ({
   renderer,
   html,
   minimap,
+  retargetOrdersFlow,
   live,
   focusOnFailures,
   view,
@@ -361,6 +364,11 @@ const EtlAtScaleApp = ({
     start();
     return remove;
   }, [graph, data, simulation, components, setEntities, start]);
+
+  useEffect(() => {
+    // Changing effect classes also reloads the original entities above.
+    simulation.retargetOrdersFlow(data.connections[0], retargetOrdersFlow);
+  }, [components, data, simulation, retargetOrdersFlow]);
 
   useEffect(() => {
     if (view === "fit") {
@@ -504,6 +512,12 @@ EtlAtScale.argTypes = {
   renderer: { name: "Renderer", control: "radio", options: ["webgl", "canvas"] },
   html: { name: "HTML cards", control: "boolean" },
   minimap: { name: "Minimap", control: "boolean" },
+  retargetOrdersFlow: {
+    name: "Retarget Orders DB flow",
+    description:
+      "Choose View → One pipeline. Switch the Orders DB output from Extract orders (in-0) to Ingest events (in-1). Switch off to restore it.",
+    control: "boolean",
+  },
   live: { name: "Live", control: "boolean" },
   focusOnFailures: { name: "Focus on failures", control: "boolean" },
   view: {
