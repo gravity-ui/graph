@@ -432,7 +432,7 @@ export class BlockConnection<T extends TConnection = TConnection>
 
   protected override propsChanged(nextProps: TConnectionProps) {
     super.propsChanged(nextProps);
-    this.updateLine(this.state, nextProps);
+    if (hasChangedValue(nextProps, this.props)) this.updateLine(this.state, nextProps);
   }
 
   protected override stateChanged(nextState: TBaseConnectionState) {

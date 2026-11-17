@@ -143,13 +143,21 @@ describe("a connection added back in the same frame gets a component of its own"
     expect(errors).not.toHaveBeenCalled();
   });
 
-  it("keeps the component of a connection whose state is unchanged", () => {
+  it("keeps the component and primitives of a connection whose state is unchanged", () => {
     start();
     const view = viewOf();
+    const primitives = elementOf(view)?.primitives;
+    expect(primitives).toBeDefined();
     graph.rootStore.connectionsList.addConnection({ id: "d", sourceBlockId: "b", targetBlockId: "a" });
     frames();
     expect(viewOf() === view).toBe(true);
     expect(view.isMounted()).toBe(true);
-    expect(elementOf(view)).toBeDefined();
+    expect(elementOf(view)?.primitives).toBe(primitives);
+    graph.rootStore.connectionsList.deleteConnections([stateOf("d")]);
+    frames();
+    expect(elementOf(view)?.primitives).toBe(primitives);
+    view.setProps({ showConnectionArrows: !view.props.showConnectionArrows });
+    frames();
+    expect(elementOf(view)?.primitives).not.toBe(primitives);
   });
 });
