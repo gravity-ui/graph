@@ -277,6 +277,7 @@ type TEtlAtScaleArgs = {
   connectionCount: number;
   renderer: TRenderer;
   html: boolean;
+  minimap: boolean;
   live: boolean;
   focusOnFailures: boolean;
   view: (typeof ETL_VIEWS)[number];
@@ -288,6 +289,7 @@ const etlDefaults: TEtlAtScaleArgs = {
   connectionCount: 1400,
   renderer: "webgl",
   html: true,
+  minimap: true,
   live: true,
   focusOnFailures: false,
   view: "fit",
@@ -307,6 +309,7 @@ const EtlAtScaleApp = ({
   connectionCount,
   renderer,
   html,
+  minimap,
   live,
   focusOnFailures,
   view,
@@ -324,7 +327,7 @@ const EtlAtScaleApp = ({
   const level = useSignal(graph.scene.$level);
 
   useLayer(graph, PipelineGroups, { draggable: true, updateBlocksOnDrag: true });
-  useLayer(graph, MiniMapLayer, { location: "bottomRight", width: 280, height: 124 });
+  useLayer(minimap ? graph : null, MiniMapLayer, { location: "bottomRight", width: 280, height: 124 });
 
   useEffect(() => {
     graph.updateSettings({ renderer });
@@ -467,6 +470,7 @@ EtlAtScale.argTypes = {
   connectionCount: { name: "Connections", control: ETL_COUNT_CONTROL },
   renderer: { name: "Renderer", control: "radio", options: ["webgl", "canvas"] },
   html: { name: "HTML cards", control: "boolean" },
+  minimap: { name: "Minimap", control: "boolean" },
   live: { name: "Live", control: "boolean" },
   focusOnFailures: { name: "Focus on failures", control: "boolean" },
   view: {
@@ -482,7 +486,7 @@ EtlAtScale.parameters = {
       story:
         "Vary the number of stages and connections independently in Controls. Stages have different numbers of " +
         "input and output anchors, with room for every port in the scene blocks and HTML cards. " +
-        "Hover over a connection to highlight its route. " +
+        "Hover over a connection to highlight its route. Turn Minimap off to remove its layer and compare performance. " +
         "Live updates ten stage statuses and their touching flows every 500 ms. Focus on failures dims the other " +
         "stages. HTML cards replace the scene blocks at the detailed level and let you run, pause, or retry a stage.",
     },
