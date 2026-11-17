@@ -20,7 +20,8 @@ export function gatheredPathDrawCount(
 export class PathDrawIds {
   private values = new Float32Array(0);
   private count = 0;
-  private spans: TPathDrawSpan[] = [];
+  private spanSnapshot = new Uint32Array(0);
+  private spanCount = 0;
 
   public get data(): Float32Array {
     return this.values.subarray(0, this.count);
@@ -29,8 +30,8 @@ export class PathDrawIds {
   /** Returns the changed address interval; removing an unchanged tail needs no buffer write. */
   public update(spans: readonly TPathDrawSpan[]): TInstanceSpan | undefined {
     if (
-      spans.length === this.spans.length &&
-      spans.every((span, i) => span.first === this.spans[i].first && span.count === this.spans[i].count)
+      spans.length === this.spanCount &&
+      spans.every(({ first, count }, i) => first === this.spanSnapshot[i * 2] && count === this.spanSnapshot[i * 2 + 1])
     ) {
       return undefined;
     }
@@ -47,10 +48,17 @@ export class PathDrawIds {
       values.set(this.values);
       this.values = values;
     }
+    const snapshotSize = spans.length * 2;
+    if (snapshotSize > this.spanSnapshot.length) {
+      this.spanSnapshot = new Uint32Array(Math.max(snapshotSize, this.spanSnapshot.length * 2));
+    }
     let from = count;
     let to = 0;
     let offset = 0;
-    for (const { first, count: size } of spans) {
+    for (let span = 0; span < spans.length; span++) {
+      const { first, count: size } = spans[span];
+      this.spanSnapshot[span * 2] = first;
+      this.spanSnapshot[span * 2 + 1] = size;
       for (let i = 0; i < size; i++, offset++) {
         const address = first + i;
         if (offset >= this.count || this.values[offset] !== address) {
@@ -61,7 +69,7 @@ export class PathDrawIds {
       }
     }
     this.count = count;
-    this.spans = spans.map(({ first, count: size }) => ({ first, count: size }));
+    this.spanCount = spans.length;
     return from < to ? { byteOffset: from * 4, data: this.values.subarray(from, to) } : undefined;
   }
 }

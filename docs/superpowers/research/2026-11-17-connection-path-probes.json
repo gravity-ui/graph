@@ -1,0 +1,1753 @@
+{
+  "date": "2026-11-17",
+  "baselineCommit": "86da2d13a42d0caaed4a35335d715da197ebe552",
+  "baselineBundleSha256": "239ede6e2eb86ab31163044c6ac32715e5c96ef7cb5abfa783ab614696cd81dd",
+  "acceptedCandidate": {
+    "name": "Retain numeric PathDrawIds span snapshots",
+    "scope": [
+      "packages/graph/src/lib/scene/webgl/pathDrawIds.ts",
+      "packages/graph/src/lib/scene/webgl/pathDrawIds.test.ts"
+    ],
+    "bundleSha256": "73fdba277831867c463050b50b0b81616a8590ad0191267aa05d5b3298679d1f",
+    "sourceHashes": {
+      "pathDrawIds.ts": "db70deb3b9fa476e5d3abae13c507e72330a56da5a610abcc6744ff0dc9e60f7"
+    },
+    "change": "Replace copied per-span {first,count} snapshot objects with retained Uint32Array metadata and a logical span count. Geometry, visibility, draw order, output ID sequence, and upload-range semantics are unchanged.",
+    "gate": "Measured allocation and CPU improvement; root owns final verification and commit.",
+    "timing": {
+      "order": [
+        "baseline",
+        "candidate",
+        "candidate",
+        "baseline"
+      ],
+      "measuredFramesPerMode": 100,
+      "modes": [
+        "idle",
+        "sweep"
+      ],
+      "results": [
+        {
+          "case": "span-snapshot-0-baseline-webgl-nirvana-0.01-idle",
+          "drawCpuMs": {
+            "n": 100,
+            "p50": 1.7,
+            "p95": 2.7,
+            "max": 3.1,
+            "sum": 180.299999
+          },
+          "rafMs": {
+            "n": 100,
+            "p50": 16.7,
+            "p95": 24.8,
+            "max": 25.8,
+            "sum": 1624.9
+          },
+          "gpuMs": {
+            "n": 16,
+            "p50": 29.877708,
+            "p95": 33.164749,
+            "max": 33.164749,
+            "sum": 481.16916
+          },
+          "calls": {
+            "n": 100,
+            "p50": 5,
+            "p95": 5,
+            "max": 5,
+            "sum": 500
+          },
+          "instances": {
+            "n": 100,
+            "p50": 588866,
+            "p95": 588866,
+            "max": 588866,
+            "sum": 58886600
+          },
+          "vertices": {
+            "n": 100,
+            "p50": 14092424,
+            "p95": 14092424,
+            "max": 14092424,
+            "sum": 1409242400
+          },
+          "uploadBytes": {
+            "n": 100,
+            "p50": 0,
+            "p95": 0,
+            "max": 0,
+            "sum": 0
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0,
+          "mixedSpans": {
+            "n": 100,
+            "p50": 37244,
+            "p95": 37244,
+            "max": 37244,
+            "sum": 3724400
+          },
+          "stockSpans": {}
+        },
+        {
+          "case": "span-snapshot-0-baseline-webgl-nirvana-0.01-sweep",
+          "drawCpuMs": {
+            "n": 100,
+            "p50": 1.9,
+            "p95": 11.4,
+            "max": 17.6,
+            "sum": 356.7
+          },
+          "rafMs": {
+            "n": 100,
+            "p50": 16.5,
+            "p95": 17.5,
+            "max": 25,
+            "sum": 1366.6
+          },
+          "gpuMs": {
+            "n": 17,
+            "p50": 29.988083,
+            "p95": 33.712583,
+            "max": 33.712583,
+            "sum": 381.220325
+          },
+          "calls": {
+            "n": 100,
+            "p50": 5,
+            "p95": 5,
+            "max": 5,
+            "sum": 486
+          },
+          "instances": {
+            "n": 100,
+            "p50": 552194,
+            "p95": 588866,
+            "max": 588866,
+            "sum": 45569350
+          },
+          "vertices": {
+            "n": 100,
+            "p50": 12845576,
+            "p95": 14092424,
+            "max": 14092424,
+            "sum": 955407580
+          },
+          "uploadBytes": {
+            "n": 100,
+            "p50": 868,
+            "p95": 45404,
+            "max": 181552,
+            "sum": 782140
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 41,
+          "stockOrderRebuilds": 54,
+          "mixedSpans": {
+            "n": 100,
+            "p50": 31073,
+            "p95": 37244,
+            "max": 37244,
+            "sum": 2568479
+          },
+          "stockSpans": {
+            "n": 13,
+            "p50": 1285,
+            "p95": 2867,
+            "max": 2867,
+            "sum": 17972
+          }
+        },
+        {
+          "case": "span-snapshot-1-span-snapshot-webgl-nirvana-0.01-idle",
+          "drawCpuMs": {
+            "n": 100,
+            "p50": 1.5,
+            "p95": 2.8,
+            "max": 3.4,
+            "sum": 159.2
+          },
+          "rafMs": {
+            "n": 100,
+            "p50": 16.6,
+            "p95": 17.3,
+            "max": 91.9,
+            "sum": 1616.7
+          },
+          "gpuMs": {
+            "n": 16,
+            "p50": 30.067,
+            "p95": 31.267,
+            "max": 31.267,
+            "sum": 478.169411
+          },
+          "calls": {
+            "n": 100,
+            "p50": 5,
+            "p95": 5,
+            "max": 5,
+            "sum": 500
+          },
+          "instances": {
+            "n": 100,
+            "p50": 588866,
+            "p95": 588866,
+            "max": 588866,
+            "sum": 58886600
+          },
+          "vertices": {
+            "n": 100,
+            "p50": 14092424,
+            "p95": 14092424,
+            "max": 14092424,
+            "sum": 1409242400
+          },
+          "uploadBytes": {
+            "n": 100,
+            "p50": 0,
+            "p95": 0,
+            "max": 0,
+            "sum": 0
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0,
+          "mixedSpans": {
+            "n": 100,
+            "p50": 37244,
+            "p95": 37244,
+            "max": 37244,
+            "sum": 3724400
+          },
+          "stockSpans": {}
+        },
+        {
+          "case": "span-snapshot-1-span-snapshot-webgl-nirvana-0.01-sweep",
+          "drawCpuMs": {
+            "n": 100,
+            "p50": 2.2,
+            "p95": 9.3,
+            "max": 16.3,
+            "sum": 332.399999
+          },
+          "rafMs": {
+            "n": 100,
+            "p50": 16.2,
+            "p95": 17.3,
+            "max": 25.4,
+            "sum": 1325.1
+          },
+          "gpuMs": {
+            "n": 17,
+            "p50": 28.909374,
+            "p95": 31.179333,
+            "max": 31.179333,
+            "sum": 365.1417
+          },
+          "calls": {
+            "n": 100,
+            "p50": 5,
+            "p95": 5,
+            "max": 5,
+            "sum": 486
+          },
+          "instances": {
+            "n": 100,
+            "p50": 552194,
+            "p95": 588866,
+            "max": 588866,
+            "sum": 45569350
+          },
+          "vertices": {
+            "n": 100,
+            "p50": 12845576,
+            "p95": 14092424,
+            "max": 14092424,
+            "sum": 955407580
+          },
+          "uploadBytes": {
+            "n": 100,
+            "p50": 868,
+            "p95": 45404,
+            "max": 181552,
+            "sum": 782140
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 41,
+          "stockOrderRebuilds": 54,
+          "mixedSpans": {
+            "n": 100,
+            "p50": 31073,
+            "p95": 37244,
+            "max": 37244,
+            "sum": 2568479
+          },
+          "stockSpans": {
+            "n": 13,
+            "p50": 1285,
+            "p95": 2867,
+            "max": 2867,
+            "sum": 17972
+          }
+        },
+        {
+          "case": "span-snapshot-2-span-snapshot-webgl-nirvana-0.01-idle",
+          "drawCpuMs": {
+            "n": 100,
+            "p50": 2,
+            "p95": 2.7,
+            "max": 3.2,
+            "sum": 198.7
+          },
+          "rafMs": {
+            "n": 100,
+            "p50": 16.4,
+            "p95": 24.5,
+            "max": 24.7,
+            "sum": 1659
+          },
+          "gpuMs": {
+            "n": 16,
+            "p50": 29.958624,
+            "p95": 35.280875,
+            "max": 35.280875,
+            "sum": 489.396616
+          },
+          "calls": {
+            "n": 100,
+            "p50": 5,
+            "p95": 5,
+            "max": 5,
+            "sum": 500
+          },
+          "instances": {
+            "n": 100,
+            "p50": 588866,
+            "p95": 588866,
+            "max": 588866,
+            "sum": 58886600
+          },
+          "vertices": {
+            "n": 100,
+            "p50": 14092424,
+            "p95": 14092424,
+            "max": 14092424,
+            "sum": 1409242400
+          },
+          "uploadBytes": {
+            "n": 100,
+            "p50": 0,
+            "p95": 0,
+            "max": 0,
+            "sum": 0
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0,
+          "mixedSpans": {
+            "n": 100,
+            "p50": 37244,
+            "p95": 37244,
+            "max": 37244,
+            "sum": 3724400
+          },
+          "stockSpans": {}
+        },
+        {
+          "case": "span-snapshot-2-span-snapshot-webgl-nirvana-0.01-sweep",
+          "drawCpuMs": {
+            "n": 100,
+            "p50": 2,
+            "p95": 9,
+            "max": 17.8,
+            "sum": 333.6
+          },
+          "rafMs": {
+            "n": 100,
+            "p50": 16.2,
+            "p95": 19.5,
+            "max": 24.8,
+            "sum": 1334.3
+          },
+          "gpuMs": {
+            "n": 17,
+            "p50": 28.94175,
+            "p95": 33.356624,
+            "max": 33.356624,
+            "sum": 366.664992
+          },
+          "calls": {
+            "n": 100,
+            "p50": 5,
+            "p95": 5,
+            "max": 5,
+            "sum": 486
+          },
+          "instances": {
+            "n": 100,
+            "p50": 552194,
+            "p95": 588866,
+            "max": 588866,
+            "sum": 45569350
+          },
+          "vertices": {
+            "n": 100,
+            "p50": 12845576,
+            "p95": 14092424,
+            "max": 14092424,
+            "sum": 955407580
+          },
+          "uploadBytes": {
+            "n": 100,
+            "p50": 868,
+            "p95": 45404,
+            "max": 181552,
+            "sum": 782140
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 41,
+          "stockOrderRebuilds": 54,
+          "mixedSpans": {
+            "n": 100,
+            "p50": 31073,
+            "p95": 37244,
+            "max": 37244,
+            "sum": 2568479
+          },
+          "stockSpans": {
+            "n": 13,
+            "p50": 1285,
+            "p95": 2867,
+            "max": 2867,
+            "sum": 17972
+          }
+        },
+        {
+          "case": "span-snapshot-3-baseline-webgl-nirvana-0.01-idle",
+          "drawCpuMs": {
+            "n": 100,
+            "p50": 2,
+            "p95": 3.1,
+            "max": 3.6,
+            "sum": 203.7
+          },
+          "rafMs": {
+            "n": 100,
+            "p50": 16.6,
+            "p95": 24.9,
+            "max": 25.3,
+            "sum": 1625.0
+          },
+          "gpuMs": {
+            "n": 16,
+            "p50": 30.148,
+            "p95": 39.186708,
+            "max": 39.186708,
+            "sum": 490.702492
+          },
+          "calls": {
+            "n": 100,
+            "p50": 5,
+            "p95": 5,
+            "max": 5,
+            "sum": 500
+          },
+          "instances": {
+            "n": 100,
+            "p50": 588866,
+            "p95": 588866,
+            "max": 588866,
+            "sum": 58886600
+          },
+          "vertices": {
+            "n": 100,
+            "p50": 14092424,
+            "p95": 14092424,
+            "max": 14092424,
+            "sum": 1409242400
+          },
+          "uploadBytes": {
+            "n": 100,
+            "p50": 0,
+            "p95": 0,
+            "max": 0,
+            "sum": 0
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0,
+          "mixedSpans": {
+            "n": 100,
+            "p50": 37244,
+            "p95": 37244,
+            "max": 37244,
+            "sum": 3724400
+          },
+          "stockSpans": {}
+        },
+        {
+          "case": "span-snapshot-3-baseline-webgl-nirvana-0.01-sweep",
+          "drawCpuMs": {
+            "n": 100,
+            "p50": 2,
+            "p95": 11.5,
+            "max": 19.6,
+            "sum": 344.3
+          },
+          "rafMs": {
+            "n": 100,
+            "p50": 16.4,
+            "p95": 24.3,
+            "max": 25,
+            "sum": 1392.3
+          },
+          "gpuMs": {
+            "n": 17,
+            "p50": 29.309874,
+            "p95": 33.904958,
+            "max": 33.904958,
+            "sum": 383.583781
+          },
+          "calls": {
+            "n": 100,
+            "p50": 5,
+            "p95": 5,
+            "max": 5,
+            "sum": 486
+          },
+          "instances": {
+            "n": 100,
+            "p50": 552194,
+            "p95": 588866,
+            "max": 588866,
+            "sum": 45569350
+          },
+          "vertices": {
+            "n": 100,
+            "p50": 12845576,
+            "p95": 14092424,
+            "max": 14092424,
+            "sum": 955407580
+          },
+          "uploadBytes": {
+            "n": 100,
+            "p50": 868,
+            "p95": 45404,
+            "max": 181552,
+            "sum": 782140
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 41,
+          "stockOrderRebuilds": 54,
+          "mixedSpans": {
+            "n": 100,
+            "p50": 31073,
+            "p95": 37244,
+            "max": 37244,
+            "sum": 2568479
+          },
+          "stockSpans": {
+            "n": 13,
+            "p50": 1285,
+            "p95": 2867,
+            "max": 2867,
+            "sum": 17972
+          }
+        }
+      ]
+    },
+    "allocation": {
+      "separateFromHeadlineTiming": true,
+      "protocol": "CDP HeapProfiler.startSampling",
+      "samplingIntervalBytes": 16384,
+      "includeObjectsCollectedByMinorGC": true,
+      "includeObjectsCollectedByMajorGC": true,
+      "window": "After a full prewarm sweep, sampling surrounds window.run: 40 stationary setup frames, one initial rAF synchronization, 100 measured sweep frames, and eight settling frames. Browser dispatch overhead is also inside the sampling window. Both variants use the same window.",
+      "order": [
+        "baseline",
+        "candidate"
+      ],
+      "results": [
+        {
+          "variant": "baseline",
+          "totalSampledAllocationBytes": 429650244,
+          "pathDrawIdsUpdateSampledBytes": 36176028,
+          "pathDrawIdsUpdateSampleRoots": [
+            {
+              "line": 49815,
+              "selfSize": 16408,
+              "subtreeSize": 34105156
+            },
+            {
+              "line": 49815,
+              "selfSize": 0,
+              "subtreeSize": 855872
+            },
+            {
+              "line": 49815,
+              "selfSize": 0,
+              "subtreeSize": 1215000
+            }
+          ]
+        },
+        {
+          "variant": "span-snapshot",
+          "totalSampledAllocationBytes": 397266072,
+          "pathDrawIdsUpdateSampledBytes": 0,
+          "pathDrawIdsUpdateSampleRoots": []
+        }
+      ],
+      "totalReductionPercent": 7.537334,
+      "interpretation": "Estimated transient allocated bytes, not retained heap. No samples at the candidate helper does not mean literally zero allocation; small return/view allocations can fall below the sampling interval. Larger scene-plan allocation sites remain."
+    },
+    "quality": {
+      "fixedTimeSeconds": 2.5,
+      "scale": 0.01,
+      "framebuffer": [
+        3200,
+        1352
+      ],
+      "bytesPerImage": 17305600,
+      "comparisonsToFirstBaseline": 3,
+      "differentChannels": [
+        0,
+        0,
+        0
+      ],
+      "maxChannelDelta": [
+        0,
+        0,
+        0
+      ],
+      "glErrors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "scope": "One exact frozen NirvanaEffects pose, A/B/B/A. The unchanged primitive geometry and shader paths are additionally guarded by unchanged frame counters and helper unit tests."
+    },
+    "invariants": {
+      "sweepMixedPlanRebuildsEach": 41,
+      "sweepStockOrderRebuildsEach": 54,
+      "sweepGlobalTranslucentOrderRebuildsEach": 0,
+      "sweepEncodesEach": 0,
+      "sweepUploadBytesEach": 782140,
+      "idleMixedPlanRebuildsEach": 0,
+      "idleStockOrderRebuildsEach": 0,
+      "idleUploadBytesEach": 0,
+      "fitMixedPlanSpans": 37244,
+      "sweepMedianMixedPlanSpans": 31073
+    },
+    "conclusion": "Sweep draw CPU p95 improved from11.4/11.5ms to9.3/9.0ms; total draw CPU over100 measured frames from356.7/344.3ms to332.4/333.6ms. Idle ranges overlap. No frame-pacing, GPU, or retained-heap improvement is claimed."
+  },
+  "method": {
+    "browser": "Playwright Chromium, launched with --use-angle=metal and --use-gl=angle; exact browser version was not captured by this harness.",
+    "reportedGpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+    "devicePixelRatio": 2,
+    "browserViewportCss": [
+      1600,
+      1000
+    ],
+    "serialization": "Shared with-chromium-lock.sh; other agents paused CPU tests/builds during timed runs.",
+    "seed": 7,
+    "source": "Real Storybook components bundled from frozen86da source; fixed captured NirvanaEffects fixture injected into the original generator.",
+    "instrumentation": "Identical top-level backend/scheduler phase timers, plan identity/miss counts, draw/vertex/upload counters. No per-range performance.now observer. GPU timer query every sixth measured frame, at most eight outstanding; values are GPU duration estimates, not display latency.",
+    "warmup": "Initial30frames; each run40 stationary setup frames. Moving scenarios additionally run their whole trajectory once before measurement.",
+    "camera": {
+      "nirvanaCenter": [
+        33500,
+        0
+      ],
+      "nirvanaScale": 0.01,
+      "sweepCssPixelsPerFrame": 12,
+      "sweepFrames": 100,
+      "panCircleRadiusCss": 180
+    },
+    "fixtures": {
+      "nirvanaEffects": {
+        "blocks": 13916,
+        "resolvedConnections": 18622,
+        "inputConnectionsBeforeDuplicateIds": 21654,
+        "graphViewportCss": [
+          1600,
+          676
+        ],
+        "fingerprintIncludingId": 1653173899,
+        "oneAttachedWebGLContext": true,
+        "effects": "Default Pipeline",
+        "minimap": false
+      },
+      "runningDashStory": {
+        "blocks": 2286,
+        "resolvedConnections": 19290,
+        "graphViewportCss": [
+          1600,
+          694
+        ],
+        "fitScale": 0.010941,
+        "center": [
+          18850,
+          325
+        ],
+        "fingerprintIncludingId": 1583863239,
+        "oneAttachedWebGLContext": true
+      },
+      "etlAtScale": {
+        "blocks": 10000,
+        "resolvedConnections": 10000,
+        "graphViewportCss": [
+          1600,
+          965
+        ],
+        "center": [
+          61720,
+          12884
+        ],
+        "html": true,
+        "minimap": true,
+        "live": false,
+        "focusOnFailures": false,
+        "effectMinScale": 0.1,
+        "selectionGlow": 0.6,
+        "cameraMotion": "manual",
+        "fingerprintIncludingId": 4269558956,
+        "oneAttachedWebGLContext": true
+      }
+    }
+  },
+  "legacyReference": {
+    "log": "/private/tmp/graph-connections-86da2d13/legacy-reference.log",
+    "fixture": {
+      "blocks": 2286,
+      "resolvedConnections": 19290,
+      "fingerprint": 1766260873,
+      "viewport": [
+        1600,
+        900
+      ],
+      "dpr": 2,
+      "scale": 0.015504
+    },
+    "oldDedicated": {
+      "panRafP95Ms": [
+        9.1,
+        9.1
+      ],
+      "gpuP50Ms": [
+        3.44,
+        3.78
+      ],
+      "verticesPerFrame": 1158068,
+      "curvePieces": 29522,
+      "lineArrowPieces": 38580
+    },
+    "currentUnified": {
+      "panRafP95Ms": [
+        25.5,
+        25.6
+      ],
+      "gpuP50Ms": [
+        30.36,
+        28.95
+      ],
+      "verticesPerFrameApprox": 9531259,
+      "curvePieces": 238116,
+      "lineArrowPieces": 38580
+    },
+    "currentCanvasBaseStrokeOnly": {
+      "panRafP95Ms": [
+        16.8,
+        16.9
+      ],
+      "schedulerP95Ms": [
+        12.8,
+        11.7
+      ]
+    },
+    "interpretation": "Same seed and topology; 8.23x total vertex work correlates with 8-9x GPU time. Not proof of vertex-only cost: shaders, texture fetches, and block rendering also differ. Canvas does not animate RunningDash and is a base-stroke reference only."
+  },
+  "legacyCaveats": [
+    "Legacy six-way comparison uses graph viewport1600x900 and fit.015503875968992248, NOT the taller Storybook chrome arrangement with actual graph height694 and fit.010941306755260243.",
+    "Legacy fingerprint1766260873 hashes sourceBlockId/targetBlockId. Story harness fingerprint1583863239 also includes connection id. Both reference runs match their own frozen seed7 topology.",
+    "Current Canvas in RunningDash is a base-stroke reference; it does not reproduce animated RunningDash effect semantics.",
+    "The8.23x vertex-work increase correlates with8-9x GPU time but does not prove vertices alone explain all cost: shaders, record-texture lookups, and block rendering also differ."
+  ],
+  "rejectedCandidates": [
+    {
+      "name": "Mixed shader surplus-vertex early exit",
+      "bundleSha256": "608a844419698950c78a7839e9c3c42597ddd070867f991166a585f6b046a486",
+      "exactRgbaPairs": 10,
+      "reason": "No robust end-to-end gain. ETL far GPU baseline4.15/4.21ms vs candidate4.08/4.15ms; rAF p95~9.1-9.3ms throughout. Dash fit GPU29.10→28.53ms did not improve pacing. Full34-vertex invocation count remains."
+    },
+    {
+      "name": "Resident owner/sub object interval cache",
+      "bundleSha256": "bbf330952056d30127a58c7a6a0c3c2d5c14484f2f3636ba38262d8169c63cb7",
+      "reason": "Nirvana sweep total draw CPU314.1→352.4ms, p959.3→11.7ms. Local stock-order improvement did not offset mixed-plan cost."
+    },
+    {
+      "name": "Resident owner/sub direct Uint32 end-index cache",
+      "bundleSha256": "fd472d26c3cfa96f86350293280e667161b8ae8c9bacf16af856b4a6860aca1b",
+      "reason": "Nirvana sweep total draw CPU377.2→379.7ms, p9516.2→17.6ms. No demonstrated net gain."
+    },
+    {
+      "name": "Fine8 culling before logical plan construction",
+      "bundleSha256": "e1ce7ca19a162739aae75d732101a3deeecc55e423e2f56229b469f8db6ec29c",
+      "exactRgbaPairs": 16,
+      "reason": "Dash fit draw CPU p951.1→11.4ms and mixed plan misses0→45 per100frames. Finer physical visibility invalidates logical plans. Some ETL near wins are insufficient."
+    },
+    {
+      "name": "Fine8 culling after plan construction, per-span queries",
+      "bundleSha256": "42fc8f19d46ab5694982cc692b4c74d624f3457b4448f881cfb1d8a27a81004b",
+      "exactRgbaPairs": 16,
+      "reason": "Coarse plan miss counts preserved but Dash fit CPU p951.2→5.2ms, Nirvana sweep16.4→20.2ms. Repeated range work remains expensive. Initial move probe was isolated-block-only and is excluded from path mutation evidence."
+    },
+    {
+      "name": "Post-plan fine8 with one per-batch visibility index",
+      "bundleSha256": "f96ade838de2d7503cd2db47caafa33be9fb65332527ed121b317fb44f8f7ce5",
+      "exactRgbaPairs": 16,
+      "reason": "Dash fit CPU p951.3→7.7ms and26,582,696 additional upload bytes/100frames with identical median submitted geometry. Nirvana sweep10.1→23.7ms. Correctness passed, performance gate failed."
+    },
+    {
+      "name": "Fine8 only for separate native physical draws",
+      "bundleSha256": "cb743aa259edb4d1b449e9afbe1ebbe05638af34a3626bec209f14561c066612",
+      "exactRgbaPairs": 6,
+      "reason": "ETL .35 ABBA CPU p953.3/3.3→3.0/2.8ms and calls132→74, but no pacing/GPU gain. Far CPU2.2/2.2→3.1/2.5ms; detailed CPU ranges overlap. All fine-culling production changes were reverted.",
+      "results": [
+        {
+          "case": "native-fine-dash-0-baseline-webgl-dash-0.010941306755260243-pan",
+          "drawCpuMs": {
+            "n": 100,
+            "p50": 1.5,
+            "p95": 2.6,
+            "max": 3.3,
+            "sum": 169.600001
+          },
+          "rafMs": {
+            "n": 100,
+            "p50": 16.5,
+            "p95": 24.8,
+            "max": 25.4,
+            "sum": 1350.5
+          },
+          "gpuMs": {
+            "n": 17,
+            "p50": 22.263625,
+            "p95": 36.631374,
+            "max": 36.631374,
+            "sum": 423.31499
+          },
+          "calls": {
+            "n": 100,
+            "p50": 5,
+            "p95": 5,
+            "max": 5,
+            "sum": 500
+          },
+          "instances": {
+            "n": 100,
+            "p50": 307593,
+            "p95": 307593,
+            "max": 307593,
+            "sum": 30759300
+          },
+          "vertices": {
+            "n": 100,
+            "p50": 9531252,
+            "p95": 9531252,
+            "max": 9531252,
+            "sum": 953125200
+          },
+          "uploadBytes": {
+            "n": 100,
+            "p50": 0,
+            "p95": 0,
+            "max": 0,
+            "sum": 0
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0
+        },
+        {
+          "case": "native-fine-dash-1-native-fine-webgl-dash-0.010941306755260243-pan",
+          "drawCpuMs": {
+            "n": 100,
+            "p50": 1.2,
+            "p95": 2.2,
+            "max": 2.6,
+            "sum": 132.2
+          },
+          "rafMs": {
+            "n": 100,
+            "p50": 9.1,
+            "p95": 17.2,
+            "max": 18.6,
+            "sum": 1204.1
+          },
+          "gpuMs": {
+            "n": 17,
+            "p50": 22.1105,
+            "p95": 28.729083,
+            "max": 28.729083,
+            "sum": 381.736954
+          },
+          "calls": {
+            "n": 100,
+            "p50": 5,
+            "p95": 5,
+            "max": 5,
+            "sum": 500
+          },
+          "instances": {
+            "n": 100,
+            "p50": 307593,
+            "p95": 307593,
+            "max": 307593,
+            "sum": 30759300
+          },
+          "vertices": {
+            "n": 100,
+            "p50": 9531252,
+            "p95": 9531252,
+            "max": 9531252,
+            "sum": 953125200
+          },
+          "uploadBytes": {
+            "n": 100,
+            "p50": 0,
+            "p95": 0,
+            "max": 0,
+            "sum": 0
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0
+        },
+        {
+          "case": "native-fine-etl-0-baseline-webgl-etl1-0.05-pan",
+          "drawCpuMs": {
+            "n": 120,
+            "p50": 1.7,
+            "p95": 2.2,
+            "max": 5.9,
+            "sum": 208.299999
+          },
+          "rafMs": {
+            "n": 120,
+            "p50": 8.3,
+            "p95": 9.1,
+            "max": 9.3,
+            "sum": 1000
+          },
+          "gpuMs": {
+            "n": 20,
+            "p50": 4.346749,
+            "p95": 9.653875,
+            "max": 9.653875,
+            "sum": 90.986033
+          },
+          "calls": {
+            "n": 120,
+            "p50": 6,
+            "p95": 6,
+            "max": 6,
+            "sum": 720
+          },
+          "instances": {
+            "n": 120,
+            "p50": 369454,
+            "p95": 378053,
+            "max": 378119,
+            "sum": 44471610
+          },
+          "vertices": {
+            "n": 120,
+            "p50": 2663806,
+            "p95": 2925452,
+            "max": 2927696,
+            "sum": 322799460
+          },
+          "uploadBytes": {
+            "n": 120,
+            "p50": 128552,
+            "p95": 181196,
+            "max": 210712,
+            "sum": 12551792
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0
+        },
+        {
+          "case": "native-fine-etl-0-baseline-webgl-etl1-0.35-pan",
+          "drawCpuMs": {
+            "n": 120,
+            "p50": 2.9,
+            "p95": 3.3,
+            "max": 3.4,
+            "sum": 345.5
+          },
+          "rafMs": {
+            "n": 120,
+            "p50": 8.3,
+            "p95": 9.1,
+            "max": 9.3,
+            "sum": 1000.1
+          },
+          "gpuMs": {
+            "n": 20,
+            "p50": 2.971749,
+            "p95": 3.298875,
+            "max": 3.298875,
+            "sum": 59.8832
+          },
+          "calls": {
+            "n": 120,
+            "p50": 132,
+            "p95": 151,
+            "max": 163,
+            "sum": 15726
+          },
+          "instances": {
+            "n": 120,
+            "p50": 329784,
+            "p95": 330736,
+            "max": 330736,
+            "sum": 39595199
+          },
+          "vertices": {
+            "n": 120,
+            "p50": 1403976,
+            "p95": 1428184,
+            "max": 1428184,
+            "sum": 169002296
+          },
+          "uploadBytes": {
+            "n": 120,
+            "p50": 0,
+            "p95": 10708,
+            "max": 15180,
+            "sum": 212648
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0
+        },
+        {
+          "case": "native-fine-etl-0-baseline-webgl-etl1-0.8-pan",
+          "drawCpuMs": {
+            "n": 120,
+            "p50": 2.6,
+            "p95": 10.5,
+            "max": 11,
+            "sum": 459.500001
+          },
+          "rafMs": {
+            "n": 120,
+            "p50": 8.3,
+            "p95": 9.3,
+            "max": 16.6,
+            "sum": 1024.6
+          },
+          "gpuMs": {
+            "n": 20,
+            "p50": 2.890999,
+            "p95": 3.259499,
+            "max": 3.259499,
+            "sum": 58.27082
+          },
+          "calls": {
+            "n": 120,
+            "p50": 39,
+            "p95": 84,
+            "max": 85,
+            "sum": 5500
+          },
+          "instances": {
+            "n": 120,
+            "p50": 328082,
+            "p95": 328428,
+            "max": 328434,
+            "sum": 39363238
+          },
+          "vertices": {
+            "n": 120,
+            "p50": 1351062,
+            "p95": 1362886,
+            "max": 1362886,
+            "sum": 161867992
+          },
+          "uploadBytes": {
+            "n": 120,
+            "p50": 0,
+            "p95": 115300,
+            "max": 118796,
+            "sum": 2388844
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0
+        },
+        {
+          "case": "native-fine-etl-1-native-fine-webgl-etl1-0.05-pan",
+          "drawCpuMs": {
+            "n": 120,
+            "p50": 1.9,
+            "p95": 3.1,
+            "max": 7.5,
+            "sum": 243.2
+          },
+          "rafMs": {
+            "n": 120,
+            "p50": 8.3,
+            "p95": 9,
+            "max": 9.3,
+            "sum": 1000.2
+          },
+          "gpuMs": {
+            "n": 20,
+            "p50": 4.243958,
+            "p95": 7.751083,
+            "max": 7.751083,
+            "sum": 88.406158
+          },
+          "calls": {
+            "n": 120,
+            "p50": 6,
+            "p95": 6,
+            "max": 6,
+            "sum": 720
+          },
+          "instances": {
+            "n": 120,
+            "p50": 366329,
+            "p95": 374189,
+            "max": 374351,
+            "sum": 44028314
+          },
+          "vertices": {
+            "n": 120,
+            "p50": 2617556,
+            "p95": 2868236,
+            "max": 2873504,
+            "sum": 316274036
+          },
+          "uploadBytes": {
+            "n": 120,
+            "p50": 129784,
+            "p95": 185292,
+            "max": 195192,
+            "sum": 12749376
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0
+        },
+        {
+          "case": "native-fine-etl-1-native-fine-webgl-etl1-0.35-pan",
+          "drawCpuMs": {
+            "n": 120,
+            "p50": 2.6,
+            "p95": 3,
+            "max": 3.4,
+            "sum": 308.4
+          },
+          "rafMs": {
+            "n": 120,
+            "p50": 8.3,
+            "p95": 9.1,
+            "max": 9.3,
+            "sum": 999.9
+          },
+          "gpuMs": {
+            "n": 20,
+            "p50": 3.093124,
+            "p95": 4.438875,
+            "max": 4.438875,
+            "sum": 65.476361
+          },
+          "calls": {
+            "n": 120,
+            "p50": 74,
+            "p95": 79,
+            "max": 79,
+            "sum": 8848
+          },
+          "instances": {
+            "n": 120,
+            "p50": 328950,
+            "p95": 329502,
+            "max": 329509,
+            "sum": 39485953
+          },
+          "vertices": {
+            "n": 120,
+            "p50": 1390076,
+            "p95": 1408848,
+            "max": 1409116,
+            "sum": 167170192
+          },
+          "uploadBytes": {
+            "n": 120,
+            "p50": 0,
+            "p95": 9848,
+            "max": 12304,
+            "sum": 200484
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0
+        },
+        {
+          "case": "native-fine-etl-1-native-fine-webgl-etl1-0.8-pan",
+          "drawCpuMs": {
+            "n": 120,
+            "p50": 2.5,
+            "p95": 9.9,
+            "max": 10.6,
+            "sum": 446.699999
+          },
+          "rafMs": {
+            "n": 120,
+            "p50": 8.3,
+            "p95": 9.3,
+            "max": 16.9,
+            "sum": 1033.4
+          },
+          "gpuMs": {
+            "n": 20,
+            "p50": 2.799875,
+            "p95": 3.11925,
+            "max": 3.11925,
+            "sum": 55.51291
+          },
+          "calls": {
+            "n": 120,
+            "p50": 18,
+            "p95": 27,
+            "max": 27,
+            "sum": 2261
+          },
+          "instances": {
+            "n": 120,
+            "p50": 327402,
+            "p95": 327806,
+            "max": 327806,
+            "sum": 39267047
+          },
+          "vertices": {
+            "n": 120,
+            "p50": 1339998,
+            "p95": 1353254,
+            "max": 1353254,
+            "sum": 160029038
+          },
+          "uploadBytes": {
+            "n": 120,
+            "p50": 0,
+            "p95": 115268,
+            "max": 118724,
+            "sum": 2376764
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0
+        },
+        {
+          "case": "native-fine-etl-2-native-fine-webgl-etl1-0.05-pan",
+          "drawCpuMs": {
+            "n": 120,
+            "p50": 1.6,
+            "p95": 2.5,
+            "max": 4.6,
+            "sum": 207.299999
+          },
+          "rafMs": {
+            "n": 120,
+            "p50": 8.3,
+            "p95": 9.1,
+            "max": 9.3,
+            "sum": 1000.1
+          },
+          "gpuMs": {
+            "n": 20,
+            "p50": 4.356499,
+            "p95": 6.973333,
+            "max": 6.973333,
+            "sum": 88.174905
+          },
+          "calls": {
+            "n": 120,
+            "p50": 6,
+            "p95": 6,
+            "max": 6,
+            "sum": 720
+          },
+          "instances": {
+            "n": 120,
+            "p50": 366329,
+            "p95": 374189,
+            "max": 374351,
+            "sum": 44028314
+          },
+          "vertices": {
+            "n": 120,
+            "p50": 2617556,
+            "p95": 2868236,
+            "max": 2873504,
+            "sum": 316274036
+          },
+          "uploadBytes": {
+            "n": 120,
+            "p50": 129784,
+            "p95": 185292,
+            "max": 195192,
+            "sum": 12749376
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0
+        },
+        {
+          "case": "native-fine-etl-2-native-fine-webgl-etl1-0.35-pan",
+          "drawCpuMs": {
+            "n": 120,
+            "p50": 2.5,
+            "p95": 2.8,
+            "max": 3.5,
+            "sum": 300.4
+          },
+          "rafMs": {
+            "n": 120,
+            "p50": 8.3,
+            "p95": 9.1,
+            "max": 9.2,
+            "sum": 1000
+          },
+          "gpuMs": {
+            "n": 20,
+            "p50": 3.241875,
+            "p95": 3.61075,
+            "max": 3.61075,
+            "sum": 63.862571
+          },
+          "calls": {
+            "n": 120,
+            "p50": 74,
+            "p95": 79,
+            "max": 79,
+            "sum": 8848
+          },
+          "instances": {
+            "n": 120,
+            "p50": 328950,
+            "p95": 329502,
+            "max": 329509,
+            "sum": 39485953
+          },
+          "vertices": {
+            "n": 120,
+            "p50": 1390076,
+            "p95": 1408848,
+            "max": 1409116,
+            "sum": 167170192
+          },
+          "uploadBytes": {
+            "n": 120,
+            "p50": 0,
+            "p95": 9848,
+            "max": 12304,
+            "sum": 200484
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0
+        },
+        {
+          "case": "native-fine-etl-2-native-fine-webgl-etl1-0.8-pan",
+          "drawCpuMs": {
+            "n": 120,
+            "p50": 2.8,
+            "p95": 10.6,
+            "max": 10.9,
+            "sum": 483.0
+          },
+          "rafMs": {
+            "n": 120,
+            "p50": 8.3,
+            "p95": 16.6,
+            "max": 17.2,
+            "sum": 1050.1
+          },
+          "gpuMs": {
+            "n": 20,
+            "p50": 2.886208,
+            "p95": 3.287124,
+            "max": 3.287124,
+            "sum": 58.36903
+          },
+          "calls": {
+            "n": 120,
+            "p50": 18,
+            "p95": 27,
+            "max": 27,
+            "sum": 2261
+          },
+          "instances": {
+            "n": 120,
+            "p50": 327402,
+            "p95": 327806,
+            "max": 327806,
+            "sum": 39267047
+          },
+          "vertices": {
+            "n": 120,
+            "p50": 1339998,
+            "p95": 1353254,
+            "max": 1353254,
+            "sum": 160029038
+          },
+          "uploadBytes": {
+            "n": 120,
+            "p50": 0,
+            "p95": 115268,
+            "max": 118724,
+            "sum": 2376764
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0
+        },
+        {
+          "case": "native-fine-etl-3-baseline-webgl-etl1-0.05-pan",
+          "drawCpuMs": {
+            "n": 120,
+            "p50": 1.8,
+            "p95": 2.2,
+            "max": 3.5,
+            "sum": 211.5
+          },
+          "rafMs": {
+            "n": 120,
+            "p50": 8.3,
+            "p95": 9.1,
+            "max": 9.3,
+            "sum": 1000.2
+          },
+          "gpuMs": {
+            "n": 20,
+            "p50": 4.233916,
+            "p95": 10.165083,
+            "max": 10.165083,
+            "sum": 90.738952
+          },
+          "calls": {
+            "n": 120,
+            "p50": 6,
+            "p95": 6,
+            "max": 6,
+            "sum": 720
+          },
+          "instances": {
+            "n": 120,
+            "p50": 369454,
+            "p95": 378053,
+            "max": 378119,
+            "sum": 44471610
+          },
+          "vertices": {
+            "n": 120,
+            "p50": 2663806,
+            "p95": 2925452,
+            "max": 2927696,
+            "sum": 322799460
+          },
+          "uploadBytes": {
+            "n": 120,
+            "p50": 128552,
+            "p95": 181196,
+            "max": 210712,
+            "sum": 12551792
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0
+        },
+        {
+          "case": "native-fine-etl-3-baseline-webgl-etl1-0.35-pan",
+          "drawCpuMs": {
+            "n": 120,
+            "p50": 2.9,
+            "p95": 3.3,
+            "max": 3.6,
+            "sum": 344
+          },
+          "rafMs": {
+            "n": 120,
+            "p50": 8.3,
+            "p95": 9.2,
+            "max": 9.3,
+            "sum": 1000.2
+          },
+          "gpuMs": {
+            "n": 20,
+            "p50": 2.928999,
+            "p95": 3.343041,
+            "max": 3.343041,
+            "sum": 58.880864
+          },
+          "calls": {
+            "n": 120,
+            "p50": 132,
+            "p95": 151,
+            "max": 163,
+            "sum": 15726
+          },
+          "instances": {
+            "n": 120,
+            "p50": 329784,
+            "p95": 330736,
+            "max": 330736,
+            "sum": 39595199
+          },
+          "vertices": {
+            "n": 120,
+            "p50": 1403976,
+            "p95": 1428184,
+            "max": 1428184,
+            "sum": 169002296
+          },
+          "uploadBytes": {
+            "n": 120,
+            "p50": 0,
+            "p95": 10708,
+            "max": 15180,
+            "sum": 212648
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0
+        },
+        {
+          "case": "native-fine-etl-3-baseline-webgl-etl1-0.8-pan",
+          "drawCpuMs": {
+            "n": 120,
+            "p50": 2.5,
+            "p95": 9.8,
+            "max": 10.1,
+            "sum": 439.900001
+          },
+          "rafMs": {
+            "n": 120,
+            "p50": 8.3,
+            "p95": 9.2,
+            "max": 16.7,
+            "sum": 1024.9
+          },
+          "gpuMs": {
+            "n": 20,
+            "p50": 2.784208,
+            "p95": 3.2935,
+            "max": 3.2935,
+            "sum": 55.76578
+          },
+          "calls": {
+            "n": 120,
+            "p50": 39,
+            "p95": 84,
+            "max": 85,
+            "sum": 5500
+          },
+          "instances": {
+            "n": 120,
+            "p50": 328082,
+            "p95": 328428,
+            "max": 328434,
+            "sum": 39363238
+          },
+          "vertices": {
+            "n": 120,
+            "p50": 1351062,
+            "p95": 1362886,
+            "max": 1362886,
+            "sum": 161867992
+          },
+          "uploadBytes": {
+            "n": 120,
+            "p50": 0,
+            "p95": 115300,
+            "max": 118796,
+            "sum": 2388844
+          },
+          "encodes": 0,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 0,
+          "stockOrderRebuilds": 0
+        },
+        {
+          "case": "native-fine-move-0-baseline-webgl-nirvana-0.25-move",
+          "drawCpuMs": {
+            "n": 60,
+            "p50": 6.1,
+            "p95": 7.9,
+            "max": 14,
+            "sum": 382.3
+          },
+          "rafMs": {
+            "n": 60,
+            "p50": 8.3,
+            "p95": 9.1,
+            "max": 17.5,
+            "sum": 508.4
+          },
+          "gpuMs": {
+            "n": 10,
+            "p50": 4.939083,
+            "p95": 5.257374,
+            "max": 5.257374,
+            "sum": 48.630494
+          },
+          "calls": {
+            "n": 60,
+            "p50": 5,
+            "p95": 5,
+            "max": 5,
+            "sum": 300
+          },
+          "instances": {
+            "n": 60,
+            "p50": 276098,
+            "p95": 276098,
+            "max": 276098,
+            "sum": 16565880
+          },
+          "vertices": {
+            "n": 60,
+            "p50": 3358472,
+            "p95": 3358472,
+            "max": 3358472,
+            "sum": 201508320
+          },
+          "uploadBytes": {
+            "n": 60,
+            "p50": 23104,
+            "p95": 23104,
+            "max": 23104,
+            "sum": 1386240
+          },
+          "encodes": 120,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 60,
+          "stockOrderRebuilds": 60
+        },
+        {
+          "case": "native-fine-move-1-native-fine-webgl-nirvana-0.25-move",
+          "drawCpuMs": {
+            "n": 60,
+            "p50": 6.2,
+            "p95": 8.1,
+            "max": 14.6,
+            "sum": 390.5
+          },
+          "rafMs": {
+            "n": 60,
+            "p50": 8.3,
+            "p95": 9.3,
+            "max": 16.6,
+            "sum": 508.1
+          },
+          "gpuMs": {
+            "n": 10,
+            "p50": 7.77325,
+            "p95": 8.155333,
+            "max": 8.155333,
+            "sum": 64.908578
+          },
+          "calls": {
+            "n": 60,
+            "p50": 5,
+            "p95": 5,
+            "max": 5,
+            "sum": 300
+          },
+          "instances": {
+            "n": 60,
+            "p50": 275674,
+            "p95": 275674,
+            "max": 275674,
+            "sum": 16540440
+          },
+          "vertices": {
+            "n": 60,
+            "p50": 3356776,
+            "p95": 3356776,
+            "max": 3356776,
+            "sum": 201406560
+          },
+          "uploadBytes": {
+            "n": 60,
+            "p50": 23104,
+            "p95": 23104,
+            "max": 23104,
+            "sum": 1386240
+          },
+          "encodes": 120,
+          "orderRebuilds": 0,
+          "mixedRebuilds": 60,
+          "stockOrderRebuilds": 60
+        }
+      ]
+    }
+  ],
+  "movingDataValidation": {
+    "scope": "Corrected final fine-index and native-only experiments",
+    "blockId": "block_6591",
+    "resolvedDegree": 1,
+    "publicUpdate": "Alternate original x and original x+12world units at fixed y",
+    "frames": 60,
+    "boundsPrimitivesUpdatesPerVariant": 60,
+    "encodesPerVariant": 120,
+    "note": "The earlier block_6592 move had degree0 and must not be cited as a connection-geometry update benchmark."
+  },
+  "limitationsAndExclusions": [
+    "The retained-snapshot change does not resolve the legacy fit GPU gap or establish general connection-rendering parity.",
+    "The initial ETL rows in baseline.log used a wrong pipeline metadata lookup and invalid camera center; they are excluded and replaced by baseline-etl.log.",
+    "Fresh-route ETL CPU profiles contain lazy anchor construction and are attribution probes, not pure warmed-camera measurements.",
+    "CDP allocation and CPU-profiler captures are separate diagnostic runs; their wall times are not headline timing.",
+    "rAF pacing varied in unchanged fit paths across repeated runs; no broad FPS claim is inferred from those differences."
+  ],
+  "artifacts": {
+    "directory": "/private/tmp/graph-connections-86da2d13",
+    "fullLedger": "/private/tmp/graph-connections-86da2d13/investigation-summary.json",
+    "acceptedTiming": "/private/tmp/graph-connections-86da2d13/span-snapshot-gates.log",
+    "acceptedAllocation": "/private/tmp/graph-connections-86da2d13/span-snapshot-allocation.log",
+    "allocationSummary": "/private/tmp/graph-connections-86da2d13/span-snapshot-allocation-summary.json",
+    "exactSpanFixture": "/private/tmp/graph-connections-86da2d13/span-snapshot-0-baseline-webgl-nirvana-0.01-idle-spans.json",
+    "runner": "/private/tmp/graph-connections-86da2d13/run.cjs",
+    "build": "/private/tmp/graph-connections-86da2d13/build.cjs",
+    "baselineSourceArchive": "/private/tmp/graph-connections-86da2d13/source"
+  }
+}

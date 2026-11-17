@@ -61,4 +61,23 @@ describe("path draw IDs", () => {
     expect(ids.update(spans)).toEqual({ byteOffset: 8, data: new Float32Array([10, 11, 12]) });
     expect(ids.data).toEqual(new Float32Array([8, 9, 10, 11, 12]));
   });
+
+  it("rewrites a removed tail on regrowth and replaces the full address list after clearing", () => {
+    const ids = new PathDrawIds();
+    const spans = [
+      { first: 10, count: 2 },
+      { first: 2, count: 1 },
+      { first: 30, count: 2 },
+      { first: 40, count: 1 },
+    ];
+    ids.update(spans);
+    expect(ids.update(spans.slice(0, 2))).toBeUndefined();
+    expect(ids.data).toEqual(new Float32Array([10, 11, 2]));
+    expect(ids.update(spans)).toEqual({ byteOffset: 12, data: new Float32Array([30, 31, 40]) });
+
+    expect(ids.update([])).toBeUndefined();
+    expect(ids.data).toHaveLength(0);
+    expect(ids.update(spans)).toEqual({ byteOffset: 0, data: new Float32Array([10, 11, 2, 30, 31, 40]) });
+    expect(ids.update(spans)).toBeUndefined();
+  });
 });
