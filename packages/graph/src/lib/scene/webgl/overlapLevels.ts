@@ -192,12 +192,14 @@ export class OverlapGrid {
   }
 
   /**
-   * Re-levels after the boxes `moved` changed in place in the array given to `compute`. Re-evaluates the moved boxes
-   * and the later boxes in their old and new cells, then, in scene order, the later boxes around every box whose level
-   * changed. Returns the boxes whose level changed, or leaves the previous levels in place and returns undefined
-   * when a moved box is wide or the scan budget is exhausted. The caller then rebuilds the grid with `compute`.
+   * Re-levels after the boxes `moved` changed in place in the array given to `compute`. A single move queues only
+   * possible lost supports and new raises, including wide boxes; multiple moves conservatively visit later boxes
+   * in every old and new cell. Propagation follows scene order. Returns the boxes whose level changed, or restores
+   * the previous levels and returns undefined if the scan budget runs out or a multi-move touches a wide box. The
+   * caller then rebuilds the grid with `compute`.
    */
   public move(moved: readonly number[]): number[] | undefined {
+    const single = moved.length === 1;
     const queue = new MinQueue();
     const budget = { remaining: Math.max(MIN_MOVE_SCAN_WORK, MOVE_SCAN_FACTOR * (this.count + this.entries)) };
     const changed: number[] = [];
@@ -208,7 +210,7 @@ export class OverlapGrid {
       queue.push(box);
     };
     for (const box of moved) {
-      if (!this.refileMoved(box, enqueue, budget)) return this.abortMove(changed, previous);
+      if (!this.refileMoved(box, enqueue, budget, single)) return this.abortMove(changed, previous);
       enqueue(box);
     }
     for (let box = queue.pop(); box !== undefined; box = queue.pop()) {
@@ -218,11 +220,18 @@ export class OverlapGrid {
       if (level === this.levels[box]) continue;
       budget.remaining -= this.cellCountOf(box);
       if (budget.remaining < 0) return this.abortMove(changed, previous);
-      previous.push(this.levels[box]);
+      const old = this.levels[box];
+      previous.push(old);
       this.levels[box] = level;
       changed.push(box);
       this.raiseCells(box);
-      if (!this.later(box, enqueue, budget)) return this.abortMove(changed, previous);
+      const visit = single
+        ? (other: number): void => {
+            if ((this.levels[other] === old + 1 || level >= this.levels[other]) && intersects(this.boxes, box, other))
+              enqueue(other);
+          }
+        : enqueue;
+      if (!this.later(box, visit, budget)) return this.abortMove(changed, previous);
     }
     if (changed.length > 0) {
       this.top = -1;
@@ -231,15 +240,28 @@ export class OverlapGrid {
     return changed;
   }
 
-  private refileMoved(box: number, enqueue: (other: number) => void, budget: TMoveBudget): boolean {
-    if (this.ranges[box * 4] < 0 || !this.later(box, enqueue, budget) || !this.unfile(box, budget)) return false;
+  private refileMoved(box: number, enqueue: (other: number) => void, budget: TMoveBudget, single = false): boolean {
+    // Old bounds are already overwritten, but the old cells include every possible lost support.
+    const lost = single
+      ? (other: number): void => {
+          if (this.levels[other] === this.levels[box] + 1) enqueue(other);
+        }
+      : enqueue;
+    if ((!single && this.ranges[box * 4] < 0) || !this.later(box, lost, budget) || !this.unfile(box, budget))
+      return false;
     this.setRange(box);
-    if (this.ranges[box * 4] < 0) return false;
+    if (!single && this.ranges[box * 4] < 0) return false;
     // Filing adds each entry and then raises the bound of its cell.
     budget.remaining -= 2 * this.cellCountOf(box);
     if (budget.remaining < 0) return false;
     this.file(box);
-    return this.later(box, enqueue, budget);
+    // The moved level may stay equal while its new overlaps raise later boxes. A changed level propagates again.
+    const gained = single
+      ? (other: number): void => {
+          if (this.levels[box] >= this.levels[other] && intersects(this.boxes, box, other)) enqueue(other);
+        }
+      : enqueue;
+    return this.later(box, gained, budget);
   }
 
   private abortMove(changed: readonly number[], previous: readonly number[]): undefined {
@@ -357,6 +379,12 @@ export class OverlapGrid {
   /** Takes the box out of its cells; a cell's level bound stays an upper bound. */
   private unfile(box: number, budget: TMoveBudget): boolean {
     const at = box * 4;
+    if (this.ranges[at] < 0) {
+      budget.remaining -= 2 * this.wide.length;
+      if (budget.remaining < 0) return false;
+      this.wide.splice(this.wide.indexOf(box), 1);
+      return true;
+    }
     for (let cy = this.ranges[at + 1]; cy <= this.ranges[at + 3]; cy++) {
       for (let cx = this.ranges[at]; cx <= this.ranges[at + 2]; cx++) {
         if (--budget.remaining < 0) return false;
@@ -429,6 +457,7 @@ export class OverlapGrid {
 
 /** What the levels read of an element: its origin and the store's bounds, relative to the origin. */
 export type TLevelElement = { x: number; y: number; bounds: TTileRect };
+type TLevelBand = { first: number; count: number; grid: OverlapGrid };
 
 /**
  * The overlap levels of the translucent elements of a scene. Scene order matters only between translucent primitives
@@ -441,7 +470,8 @@ export type TLevelElement = { x: number; y: number; bounds: TTileRect };
  *
  * `update()` recomputes the levels only after a change that can move them. A change of the translucent set or of a
  * translucent element's depth key rebuilds them all; a translucent element that moves or changes its bounds re-levels
- * itself and the later elements around it (`OverlapGrid.move`). A pan changes nothing here.
+ * itself and the later elements around it (`OverlapGrid.move`). With authoritative painter bands, each contiguous
+ * band uses its own grid and reserves levels from its first ordered index. A pan changes nothing here.
  */
 export class TranslucentLevels {
   /** The translucent elements and the bounds of their baked primitives. */
@@ -454,18 +484,34 @@ export class TranslucentLevels {
   /** Elements whose box changed since the last update. */
   private readonly moves = new Set<string>();
   private changes = 0;
-  private readonly grid = new OverlapGrid();
+  private changedIds: readonly string[] | undefined;
+  private partitioned = false;
+  private bands: TLevelBand[] = [];
+  private readonly bandByFirst = new Map<number, TLevelBand>();
   private boxes = new Float64Array(0);
   private out = new Int32Array(0);
+  private bases = new Uint32Array(0);
 
   /** Changes whenever a level changes. */
   public get revision(): number {
     return this.changes;
   }
 
-  /** The number of levels after the last update. */
+  /** Exact changed IDs for the latest revision; undefined after a membership or order rebuild. */
+  public get changedLevelIds(): readonly string[] | undefined {
+    return this.changedIds;
+  }
+
+  /** Start of the next painter band; every level of the first band is strictly below it. */
+  public get firstUpperLevel(): number | undefined {
+    return this.bands[1]?.first;
+  }
+
+  /** The number of distinct levels; unused gaps between painter bands do not count. */
   public get count(): number {
-    return this.grid.levelCount;
+    let count = 0;
+    for (const band of this.bands) count += band.grid.levelCount;
+    return count;
   }
 
   /** Whether a change waits for `update()`. */
@@ -476,7 +522,7 @@ export class TranslucentLevels {
   /** The element's level after the last update; 0 for an element it does not know. */
   public levelOf(id: string): number {
     const index = this.indexOf.get(id);
-    return index === undefined ? 0 : this.out[index];
+    return index === undefined ? 0 : this.bases[index] + this.out[index];
   }
 
   /** Adds an element or updates its relative bounds. Complete bounds replace the store box. */
@@ -508,40 +554,65 @@ export class TranslucentLevels {
   public clear(): void {
     this.baked.clear();
     this.full = true;
+    this.changedIds = undefined;
     this.changes++;
   }
 
   /**
    * Recomputes the levels a change can move; returns whether a level changed. `keyOf` gives an element's depth key,
-   * `elementOf` its origin and store bounds.
+   * `elementOf` its origin and store bounds. Optional `bandOf` partitions consecutive keys into painter-ordered bands;
+   * a band change must be reported through `reordered`, just like a depth-key change.
    */
-  public update(keyOf: (id: string) => number, elementOf: (id: string) => TLevelElement | undefined): boolean {
-    if (this.full) return this.rebuild(keyOf, elementOf);
+  public update(
+    keyOf: (id: string) => number,
+    elementOf: (id: string) => TLevelElement | undefined,
+    bandOf?: (id: string) => number
+  ): boolean {
+    if (this.full || this.partitioned !== Boolean(bandOf)) return this.rebuild(keyOf, elementOf, bandOf);
     if (this.moves.size === 0) return false;
-    const before = this.changes;
-    const moved: number[] = [];
+    const moved = new Map<TLevelBand, number[]>();
     for (const id of this.moves) {
       const index = this.indexOf.get(id);
       if (index === undefined) continue;
-      if (this.writeBox(index, elementOf)) moved.push(index);
+      if (!this.writeBox(index, elementOf)) continue;
+      const band = this.bandByFirst.get(this.bases[index]);
+      if (!band) continue;
+      let indices = moved.get(band);
+      if (!indices) moved.set(band, (indices = []));
+      indices.push(index - band.first);
     }
     this.moves.clear();
-    if (moved.length === 0) return false;
-    const changed = this.grid.move(moved);
-    if (changed === undefined) {
-      const previous = this.out.slice(0, this.ordered.length);
-      this.grid.compute(this.boxes, this.ordered.length, this.out);
-      if (previous.some((level, index) => level !== this.out[index])) this.changes++;
-    } else if (changed.length > 0) {
+    const changedIds: string[] = [];
+    for (const [band, indices] of moved) {
+      const { first, count, grid } = band;
+      const changed = grid.move(indices);
+      if (changed === undefined) {
+        const out = this.out.subarray(first, first + count);
+        const previous = out.slice();
+        grid.compute(this.boxes.subarray(first * 4, (first + count) * 4), count, out);
+        for (let index = 0; index < count; index++) {
+          if (previous[index] !== out[index]) changedIds.push(this.ordered[first + index]);
+        }
+      } else {
+        for (const index of changed) changedIds.push(this.ordered[first + index]);
+      }
+    }
+    if (changedIds.length > 0) {
+      this.changedIds = changedIds;
       this.changes++;
     }
-    return this.changes !== before;
+    return changedIds.length > 0;
   }
 
   /** Orders the translucent elements by depth key and computes every level. */
-  private rebuild(keyOf: (id: string) => number, elementOf: (id: string) => TLevelElement | undefined): boolean {
+  private rebuild(
+    keyOf: (id: string) => number,
+    elementOf: (id: string) => TLevelElement | undefined,
+    bandOf?: (id: string) => number
+  ): boolean {
     const previousIndex = this.indexOf;
     const previous = this.out;
+    const previousBases = this.bases;
     const keyed = [...this.baked.keys()].map((id) => ({ id, key: keyOf(id) }));
     keyed.sort((a, b) => a.key - b.key);
     this.ordered = keyed.map((entry) => entry.id);
@@ -549,13 +620,30 @@ export class TranslucentLevels {
     const count = this.ordered.length;
     if (this.boxes.length < count * 4) this.boxes = new Float64Array(count * 8);
     this.out = new Int32Array(count);
+    this.bases = new Uint32Array(count);
     for (let index = 0; index < count; index++) this.writeBox(index, elementOf);
-    this.grid.compute(this.boxes, count, this.out);
+    const previousBands = this.bands;
+    this.bands = [];
+    this.bandByFirst.clear();
+    for (let first = 0; first < count; ) {
+      const key = bandOf?.(this.ordered[first]);
+      let end = first + 1;
+      while (end < count && bandOf?.(this.ordered[end]) === key) end++;
+      const grid = previousBands[this.bands.length]?.grid ?? new OverlapGrid();
+      grid.compute(this.boxes.subarray(first * 4, end * 4), end - first, this.out.subarray(first, end));
+      const band = { first, count: end - first, grid };
+      this.bands.push(band);
+      this.bandByFirst.set(first, band);
+      this.bases.fill(first, first, end);
+      first = end;
+    }
+    this.partitioned = Boolean(bandOf);
+    this.changedIds = undefined;
     this.full = false;
     this.moves.clear();
     const changed = this.ordered.some((id, index) => {
       const before = previousIndex.get(id);
-      return before === undefined || previous[before] !== this.out[index];
+      return before === undefined || previousBases[before] + previous[before] !== this.bases[index] + this.out[index];
     });
     if (changed) this.changes++;
     return changed;

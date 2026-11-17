@@ -98,11 +98,11 @@ async function anchorPoint(page: Page, blockId: string, anchorId: string): Promi
 }
 
 test.describe("Scene blocks with the WebGL renderer", () => {
-  test("keeps translucent ordering when an owner and its child hide and show", async ({ page }) => {
+  test("retains visibility after geometry edits and refreshes hidden owners, nesting and parts", async ({ page }) => {
     const graph = new GraphPageObject(page);
     await graph.initialize({ ...CONFIG, blocks: [] });
     test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
-    await page.evaluate(() => {
+    const styleId = await page.evaluate(() => {
       const { defineConnectionEffect, lineSegment } = window.GraphModule;
       const { scene, cameraService } = window.graph;
       cameraService.set({ scale: 0.8, x: 0, y: 0 });
@@ -121,13 +121,24 @@ test.describe("Scene blocks with the WebGL renderer", () => {
       });
       scene.store.add({ id: "handover-owner", x: 0, y: 0, zIndex: 200, bounds, primitives: [] });
       scene.store.add({
-        id: "handover-child",
+        id: "handover-parent",
         parent: "handover-owner",
         x: 0,
         y: 0,
         zIndex: 0,
         bounds,
-        primitives: [{ kind: "path", segments, stroke: { color: "#00ff00", width: 60 }, effect: effect.use([]) }],
+        primitives: [],
+      });
+      scene.store.add({
+        id: "handover-child",
+        parent: "handover-parent",
+        x: 0,
+        y: 0,
+        zIndex: 0,
+        bounds,
+        primitives: [
+          { kind: "path", part: "line", segments, stroke: { color: "#00ff00", width: 60 }, effect: effect.use([]) },
+        ],
       });
       scene.store.add({
         id: "upper-path",
@@ -137,15 +148,21 @@ test.describe("Scene blocks with the WebGL renderer", () => {
         bounds,
         primitives: [{ kind: "path", segments, stroke: { color: "rgba(0, 0, 255, 0.5)", width: 60 } }],
       });
+      const row = scene.store.defineStyle({});
+      scene.store.setStyle("handover-child", row);
+      return row;
     });
     await expect.poll(() => rendererState(page)).toBe("webgl");
     await graph.waitForFrames(3);
-    const result = await page.evaluate(() => {
+    const result = await page.evaluate((row) => {
       const { scene, scheduler, cameraService } = window.graph;
+      type TVisibility = { isShown(...args: unknown[]): boolean };
       const backend = scene.layer.getBackend() as unknown as {
         canvas: HTMLCanvasElement;
         translucentRuns: object;
         orderStamp: readonly number[];
+        allBatches(): Iterable<object>;
+        visibility: WeakMap<object, TVisibility>;
       };
       const gl = backend.canvas.getContext("webgl2");
       if (!gl) throw new Error("WebGL2 unavailable");
@@ -171,29 +188,81 @@ test.describe("Scene blocks with the WebGL renderer", () => {
       };
       render();
       const before = pixels();
+      const cache = [...backend.allBatches()].map((batch) => backend.visibility.get(batch)).find(Boolean);
+      if (!cache) throw new Error("Missing visibility cache for the active translucent paths");
+      const prototype = Object.getPrototypeOf(cache) as TVisibility;
+      const original = prototype.isShown;
+      let calls = 0;
+      const edits = [];
+      prototype.isShown = function (...args): boolean {
+        calls++;
+        return original.apply(this, args);
+      };
+      try {
+        const primitives = scene.store.get("handover-child")!.primitives;
+        const changes = [
+          { y: 100 },
+          { y: 0 },
+          {
+            primitives: primitives.map((part) =>
+              part.kind === "path" ? { ...part, stroke: { color: "#00ff00", width: 20 } } : part
+            ),
+          },
+          { primitives },
+        ];
+        for (const change of changes) {
+          calls = 0;
+          scene.store.update("handover-child", change);
+          render();
+          const next = pixels();
+          edits.push({
+            calls,
+            differentBytes: next.reduce((count, value, index) => count + Number(value !== before[index]), 0),
+          });
+        }
+      } finally {
+        prototype.isShown = original;
+      }
       const runs = backend.translucentRuns;
       const stamp = backend.orderStamp;
       const states = [];
-      for (const hidden of [true, false, true, false, true, false]) {
-        // This is the store update made by HTML viewport handover; children receive no update of their own.
-        scene.store.update("handover-owner", { hidden });
-        render();
-        const next = pixels();
-        states.push({
-          hidden,
-          sameRuns: backend.translucentRuns === runs,
-          sameStamp: backend.orderStamp === stamp,
-          differentBytes: next.reduce((count, value, index) => count + Number(value !== before[index]), 0),
-          pixel: Array.from(next.subarray(0, 4)),
-        });
+      for (const target of ["handover-owner", "handover-parent", "part"]) {
+        for (const hidden of [true, false]) {
+          // This is the store update made by HTML viewport handover; children receive no update of their own.
+          if (target === "part") scene.store.replaceStyles(new Map([[row, { parts: { line: { visible: !hidden } } }]]));
+          else scene.store.update(target, { hidden });
+          render();
+          const next = pixels();
+          states.push({
+            target,
+            hidden,
+            sameRuns: backend.translucentRuns === runs,
+            sameStamp: backend.orderStamp === stamp,
+            differentBytes: next.reduce((count, value, index) => count + Number(value !== before[index]), 0),
+            pixel: Array.from(next.subarray(0, 4)),
+          });
+        }
       }
-      return { states, before: Array.from(before.subarray(0, 4)), error: gl.getError(), level: scene.$level.value };
-    });
+      return {
+        edits,
+        states,
+        before: Array.from(before.subarray(0, 4)),
+        error: gl.getError(),
+        level: scene.$level.value,
+      };
+    }, styleId);
     expect(result.level).toBe("detailed");
     expect(result.before[1]).toBeGreaterThan(40);
+    for (const [index, edit] of result.edits.entries()) {
+      expect(edit.calls, `geometry edit ${index}`).toBe(0);
+      if (index % 2 === 0) expect(edit.differentBytes).toBeGreaterThan(0);
+      else expect(edit.differentBytes).toBe(0);
+    }
     for (const state of result.states) {
-      expect(state.sameRuns).toBe(true);
-      expect(state.sameStamp).toBe(true);
+      if (state.target !== "part") {
+        expect(state.sameRuns).toBe(true);
+        expect(state.sameStamp).toBe(true);
+      }
       if (state.hidden) {
         expect(state.differentBytes).toBeGreaterThan(0);
         expect(state.pixel[1]).toBe(0);

@@ -125,6 +125,35 @@ describe("overlapLevels", () => {
 });
 
 describe("OverlapGrid.move", () => {
+  it("refiles a single wide box in both directions without relabeling unsupported successors", () => {
+    const count = 1000;
+    const boxes = Array.from({ length: count }, (_, i) =>
+      box(i * 10, i % 2 === 0 ? 0 : 10000, i * 10 + 1, i % 2 === 0 ? 1 : 10001)
+    );
+    const moved = 100;
+    boxes[moved] = box(-100, -100, -90, -90);
+    for (let i = 0; i < 6; i++) boxes[200 + i] = box(5000 + i * 9, 5000, 5010 + i * 9, 5010);
+    const flat = new Float64Array(boxes.flatMap((b) => [b.minX, b.minY, b.maxX, b.maxY]));
+    const levels = new Int32Array(count);
+    const grid = new OverlapGrid();
+    grid.compute(flat, count, levels);
+    for (const next of [
+      box(1000, 1000, 9000, 9000),
+      box(-100, -100, -90, -90),
+      box(-Infinity, 1000, Infinity, 9000),
+      box(3000, 1000, 9000, 9000),
+      box(-100, -100, -90, -90),
+    ]) {
+      const before = [...levels];
+      boxes[moved] = next;
+      flat.set([next.minX, next.minY, next.maxX, next.maxY], moved * 4);
+      const changed = grid.move([moved]);
+      expect(changed).toBeDefined();
+      expect([...levels]).toEqual(bruteForce(boxes));
+      expect(changed).toEqual(before.flatMap((old, i) => (old === levels[i] ? [] : [i])));
+    }
+  });
+
   it("abandons a dense cascade with the original levels intact, then rebuilds exactly", () => {
     const count = 512;
     const flat = new Float64Array(count * 4);
@@ -220,6 +249,162 @@ describe("TranslucentLevels", () => {
     bounds: box(0, 0, 100, 60),
     zIndex,
     order,
+  });
+
+  it("keeps later painter bands stable when an earlier edge gains or drops overlaps", () => {
+    const elements = {
+      edge: placed(0, 0, 100, 0),
+      next: placed(50, 0, 100, 1),
+      block: placed(75, 0, 200, 2),
+      label: placed(90, 0, 200, 3),
+    };
+    const { depth, levels } = scene(elements);
+    const ids = Object.keys(elements) as (keyof typeof elements)[];
+    const update = () =>
+      levels.update(
+        (id) => depth.keyOf(id),
+        (id) => elements[id as keyof typeof elements],
+        (id) => elements[id as keyof typeof elements].zIndex
+      );
+    for (const id of ids) levels.set(id, undefined);
+    update();
+    expect(ids.map((id) => levels.levelOf(id))).toEqual([0, 1, 2, 3]);
+    elements.edge.x = 500;
+    levels.moved("edge");
+    expect(update()).toBe(true);
+    expect(ids.map((id) => levels.levelOf(id))).toEqual([0, 0, 2, 3]);
+    expect(levels.count).toBe(3);
+    expect(levels.changedLevelIds).toEqual(["next"]);
+    const revision = levels.revision;
+    const delta = levels.changedLevelIds;
+    elements.edge.x = 510;
+    levels.moved("edge");
+    expect(update()).toBe(false);
+    expect(levels.revision).toBe(revision);
+    expect(levels.changedLevelIds).toBe(delta);
+    elements.edge.x = 0;
+    levels.moved("edge");
+    expect(update()).toBe(true);
+    expect(ids.map((id) => levels.levelOf(id))).toEqual([0, 1, 2, 3]);
+    expect(levels.changedLevelIds).toEqual(["next"]);
+    expect(levels.count).toBe(4);
+  });
+
+  it("limits a dense fallback to the changed band and reports every dropped transitive level", () => {
+    const count = 512;
+    const elements: Record<string, TPlaced> = {};
+    for (let i = 0; i < count; i++)
+      elements[`edge${i}`] = {
+        x: 0,
+        y: 0,
+        zIndex: 100,
+        order: i,
+        bounds: i ? box(9.5, 0, 19.5, 10) : box(0, 0, 10, 10),
+      };
+    elements.block = placed(0, 0, 200, count);
+    elements.label = placed(0, 0, 200, count + 1);
+    const { depth, levels } = scene(elements);
+    const update = () =>
+      levels.update(
+        (id) => depth.keyOf(id),
+        (id) => elements[id],
+        (id) => elements[id].zIndex
+      );
+    for (const id of Object.keys(elements)) levels.set(id, undefined);
+    update();
+    const compute = jest.spyOn(OverlapGrid.prototype, "compute");
+    try {
+      elements.edge0.bounds = box(1, 1, 9, 9);
+      levels.moved("edge0");
+      expect(update()).toBe(true);
+      expect(compute.mock.calls.map((call) => call[1])).toEqual([count]);
+      expect(Array.from({ length: count }, (_, i) => levels.levelOf(`edge${i}`))).toEqual(
+        Array.from({ length: count }, (_, i) => Math.max(0, i - 1))
+      );
+      expect([levels.levelOf("block"), levels.levelOf("label")]).toEqual([count, count + 1]);
+      expect(levels.changedLevelIds).toEqual(Array.from({ length: count - 1 }, (_, i) => `edge${i + 1}`));
+    } finally {
+      compute.mockRestore();
+    }
+  });
+
+  it("keeps single-band results exact and invalidates deltas on membership, reorder and mode changes", () => {
+    const elements: Record<string, TPlaced> = {
+      a: placed(0, 0, 100, 0),
+      b: placed(50, 0, 100, 1),
+      c: placed(120, 0, 100, 2),
+    };
+    const { depth, levels } = scene(elements);
+    const keyOf = (id: string) => depth.keyOf(id);
+    const elementOf = (id: string) => elements[id];
+    const bandOf = (id: string) => elements[id].zIndex;
+    for (const id of Object.keys(elements)) levels.set(id, undefined);
+    levels.update(keyOf, elementOf, bandOf);
+    expect(["a", "b", "c"].map((id) => levels.levelOf(id))).toEqual([0, 1, 2]);
+    elements.a.x = 500;
+    levels.moved("a");
+    levels.update(keyOf, elementOf, bandOf);
+    expect(["a", "b", "c"].map((id) => levels.levelOf(id))).toEqual([0, 0, 1]);
+    expect(levels.changedLevelIds).toEqual(["b", "c"]);
+    levels.delete("b");
+    levels.update(keyOf, elementOf, bandOf);
+    expect(levels.changedLevelIds).toBeUndefined();
+    elements.a.zIndex = 200;
+    depth.set("a", 200, 0);
+    levels.reordered("a");
+    levels.update(keyOf, elementOf, bandOf);
+    expect([levels.levelOf("c"), levels.levelOf("a")]).toEqual([0, 1]);
+    expect(levels.changedLevelIds).toBeUndefined();
+    levels.update(keyOf, elementOf);
+    expect([levels.levelOf("c"), levels.levelOf("a")]).toEqual([0, 0]);
+    expect(levels.changedLevelIds).toBeUndefined();
+    levels.clear();
+    levels.update(keyOf, elementOf, bandOf);
+    expect(levels.count).toBe(0);
+  });
+
+  it("matches independent band computations and exact deltas while multiple bands move", () => {
+    const random = seeded(31);
+    const elements: Record<string, TPlaced> = {};
+    for (let i = 0; i < 54; i++) elements[`n${i}`] = placed(random() * 600, random() * 300, Math.floor(i / 18), i);
+    const ids = Object.keys(elements);
+    const { depth, levels } = scene(elements);
+    const update = () =>
+      levels.update(
+        (id) => depth.keyOf(id),
+        (id) => elements[id],
+        (id) => elements[id].zIndex
+      );
+    const expected = () => {
+      const values: number[] = [];
+      for (let first = 0; first < ids.length; first += 18) {
+        const boxes = ids.slice(first, first + 18).map((id) => {
+          const { x, y, bounds } = elements[id];
+          return box(x + bounds.minX, y + bounds.minY, x + bounds.maxX, y + bounds.maxY);
+        });
+        values.push(...bruteForce(boxes).map((level) => first + level));
+      }
+      return values;
+    };
+    for (const id of ids) levels.set(id, undefined);
+    update();
+    expect(ids.map((id) => levels.levelOf(id))).toEqual(expected());
+    for (let round = 0; round < 40; round++) {
+      const before = ids.map((id) => levels.levelOf(id));
+      for (let band = 0; band < 3; band++) {
+        const id = ids[band * 18 + Math.floor(random() * 18)];
+        elements[id].x = random() * 800;
+        elements[id].y = random() * 400;
+        levels.moved(id);
+      }
+      const changed = update();
+      const after = ids.map((id) => levels.levelOf(id));
+      const wanted = expected();
+      expect(after).toEqual(wanted);
+      const delta = ids.filter((_id, index) => before[index] !== wanted[index]);
+      expect(changed).toBe(delta.length > 0);
+      if (changed) expect([...(levels.changedLevelIds ?? [])].sort()).toEqual(delta.sort());
+    }
   });
 
   it("walks in scene order: a raised zIndex bucket puts the element above a later one", () => {

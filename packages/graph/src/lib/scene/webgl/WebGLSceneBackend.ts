@@ -634,6 +634,8 @@ class WebGLSceneBackend implements ISceneBackend {
   >();
   /** Above the measured large-upload range, camera changes must not repack the resident lists. */
   private scheduleRevision = 0;
+  /** External shader visibility inputs; geometry and numeric painter keys do not change these predicates. */
+  private visibilityStateRevision = 0;
   private mixedRootRevision = -1;
   private mixedRootsSeparated = false;
   private mixedOwnershipRevision = 0;
@@ -904,6 +906,7 @@ class WebGLSceneBackend implements ISceneBackend {
     }
     // Colour-only LOD rules leave the envelope intact; revealing a part can add real painted overlap.
     if (changedRows.size) {
+      this.visibilityStateRevision++;
       for (const id of this.effectOverlapPrimitives.keys()) {
         const element = this.elements.get(id);
         if (element && changedRows.has(element.styleId)) this.overlapDirty.add(id);
@@ -1072,6 +1075,16 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   private applyChange(change: TSceneChange): void {
+    if (
+      change.type !== "update" ||
+      !change.fields ||
+      change.fields.has("hidden") ||
+      change.fields.has("styleId") ||
+      change.fields.has("parent") ||
+      change.fields.has("nestedIn")
+    ) {
+      this.visibilityStateRevision++;
+    }
     if (change.type !== "update" || !change.fields || change.fields.has("parent") || change.fields.has("entityType")) {
       this.mixedOwnershipRevision++;
     }
@@ -1314,6 +1327,7 @@ class WebGLSceneBackend implements ISceneBackend {
     this.effectOverlapPrimitives.clear();
     this.overlapGeometry.clear();
     this.scheduleRevision++;
+    this.visibilityStateRevision++;
     this.activeStamp = [];
     this.activeScope = undefined;
     this.coalesceScope = undefined;
@@ -2186,6 +2200,12 @@ class WebGLSceneBackend implements ISceneBackend {
 
   private readonly elementOf = (id: string): TSceneElement | undefined => this.elements.get(id);
 
+  private readonly depthBandOf = (id: string): number => {
+    const element = this.elements.get(id);
+    const root = element?.parent === undefined ? element : this.elements.get(element.parent);
+    return root ? this.zIndexOf(root) : 0;
+  };
+
   /**
    * Updates the overlap levels after a change of the translucent set, of a translucent element's own zIndex or order,
    * or of a translucent element's origin or bounds. When levels or range layout change, rebuilds
@@ -2198,7 +2218,7 @@ class WebGLSceneBackend implements ISceneBackend {
   private orderTranslucent(): void {
     if (this.levels.pending) {
       const start = performance.now();
-      this.levels.update(this.orderKeyOf, this.elementOf);
+      this.levels.update(this.orderKeyOf, this.elementOf, this.depthBandOf);
       this.stats.lastLevelsMs = performance.now() - start;
       this.stats.translucentLevels = this.levels.count;
     }
@@ -2214,6 +2234,8 @@ class WebGLSceneBackend implements ISceneBackend {
     const start = performance.now();
     const layout = (): number[] => batches.map((batch) => batch.ranges.layoutRevision);
     this.translucentOrderCache.levelRevision = this.levels.revision;
+    this.translucentOrderCache.changedLevelIds = this.levels.changedLevelIds;
+    this.translucentOrderCache.firstUpperLevel = this.levels.firstUpperLevel;
     this.translucentRuns = orderTranslucent(
       batches.map((batch) => ({ instances: batch.ranges, companion: batch.companion?.ranges })),
       this.levelOf,
@@ -2274,7 +2296,7 @@ class WebGLSceneBackend implements ISceneBackend {
           this.table.data,
           this.styles.data,
           frame,
-          this.scheduleRevision
+          this.visibilityStateRevision
         );
         scope.from = Math.max(scope.from, cached.from);
         scope.to = Math.min(scope.to, cached.to);
@@ -2558,7 +2580,7 @@ class WebGLSceneBackend implements ISceneBackend {
         visibility = new InstanceVisibility(kind);
         this.visibility.set(batch, visibility);
       }
-      visibility.update(batch.ranges, this.table.data, this.styles.data, frame, this.scheduleRevision);
+      visibility.update(batch.ranges, this.table.data, this.styles.data, frame, this.visibilityStateRevision);
       if (visibility.any(first, count)) return true;
     }
     return false;
@@ -3316,7 +3338,7 @@ class WebGLSceneBackend implements ISceneBackend {
         visibility = new InstanceVisibility("path");
         this.visibility.set(batch, visibility);
       }
-      visibility.update(batch.companion.ranges, this.table.data, this.styles.data, frame, this.scheduleRevision);
+      visibility.update(batch.companion.ranges, this.table.data, this.styles.data, frame, this.visibilityStateRevision);
     }
     return kind;
   }

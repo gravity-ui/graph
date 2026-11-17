@@ -98,10 +98,25 @@ type TSourceSnapshot = {
   buckets: TBucket[];
 };
 
+type TUpperBandSnapshot = {
+  bucket: number;
+  subBits: number;
+  /** First upper bucket in each source's sorted list. */
+  cuts: number[];
+  /** First whole upper run in the merged list. A run spanning the boundary is immediately before it. */
+  firstRun: number;
+  /** The upper portion of that spanning run, independent of the lower draws that can change on the next edit. */
+  joined?: TTranslucentRun;
+};
+
 /** Backend-owned snapshots; weak source keys do not keep retired instance lists alive. */
 export type TTranslucentOrderCache = {
   /** Optional revision of levelOf; callers without one compare the numeric positions on every call. */
   levelRevision?: number;
+  /** All IDs whose levels changed from the previous numeric revision to this one, when known. */
+  changedLevelIds?: readonly string[];
+  firstUpperLevel?: number;
+  upper?: TUpperBandSnapshot;
   sources?: WeakMap<InstanceRanges, TSourceSnapshot>;
   lists?: readonly (readonly TBucket[])[];
   runs?: TTranslucentRun[];
@@ -181,13 +196,20 @@ function cachedSourceBuckets(
   let snapshot = sources.get(ranges);
   const layout = ranges.layoutRevision;
   const levelRevision = cache.levelRevision;
-  if (
-    snapshot?.layout === layout &&
-    snapshot.subBits === subBits &&
-    levelRevision !== undefined &&
-    snapshot.levelRevision === levelRevision
-  )
-    return snapshot.buckets;
+  if (snapshot?.layout === layout && snapshot.subBits === subBits && levelRevision !== undefined) {
+    if (snapshot.levelRevision === levelRevision) return snapshot.buckets;
+    const changed = cache.changedLevelIds;
+    // A delta covers exactly one revision. For a small change, query the source's existing element index.
+    if (
+      snapshot.levelRevision === levelRevision - 1 &&
+      changed &&
+      changed.length <= snapshot.positions.length &&
+      !changed.some((id) => ranges.countOf(id) > 0)
+    ) {
+      snapshot.levelRevision = levelRevision;
+      return snapshot.buckets;
+    }
+  }
 
   const previous = snapshot?.buckets;
   let changed = false;
@@ -249,19 +271,34 @@ export function outOfPlace(sorted: readonly TBucket[]): number {
  * a tie, and a bucket that follows a bucket of the same source in draw order and in its buffer joins its draw call.
  */
 export function mergeBuckets(sources: readonly (readonly TBucket[])[]): TTranslucentRun[] {
-  const next = sources.map(() => 0);
   const runs: TTranslucentRun[] = [];
+  mergeBucketSpan(
+    sources,
+    sources.map(() => 0),
+    sources.map((list) => list.length),
+    runs
+  );
+  return runs;
+}
+
+/** Append the sorted fragments in [next, ends) to the runs, joining an adjacent draw already in the output. */
+function mergeBucketSpan(
+  sources: readonly (readonly TBucket[])[],
+  next: number[],
+  ends: readonly number[],
+  runs: TTranslucentRun[]
+): void {
   for (;;) {
     let best = -1;
     let bestBucket = Infinity;
     for (let source = 0; source < sources.length; source++) {
       const bucket = sources[source][next[source]];
-      if (bucket && bucket.bucket < bestBucket) {
+      if (next[source] < ends[source] && bucket.bucket < bestBucket) {
         best = source;
         bestBucket = bucket.bucket;
       }
     }
-    if (best < 0) return runs;
+    if (best < 0) return;
     // Every fragment of this source at the winning position precedes the next source. Retained slots can leave
     // thousands of such fragments; search the sources once per position, not once per physical fragment.
     do {
@@ -269,8 +306,81 @@ export function mergeBuckets(sources: readonly (readonly TBucket[])[]): TTranslu
       const last = runs[runs.length - 1];
       if (last && last.source === best && last.first + last.count === bucket.first) last.count += bucket.count;
       else runs.push({ source: best, first: bucket.first, count: bucket.count });
-    } while (sources[best][next[best]]?.bucket === bestBucket);
+    } while (next[best] < ends[best] && sources[best][next[best]].bucket === bestBucket);
   }
+}
+
+function upperStart(list: readonly TBucket[], bucket: number): number {
+  let first = 0;
+  let end = list.length;
+  while (first < end) {
+    const mid = Math.floor((first + end) / 2);
+    if (list[mid].bucket < bucket) first = mid + 1;
+    else end = mid;
+  }
+  return first;
+}
+
+function sameUpper(list: readonly TBucket[], start: number, old: readonly TBucket[], previous: number): boolean {
+  if (list === old && start === previous) return true;
+  if (list.length - start !== old.length - previous) return false;
+  while (start < list.length) {
+    const a = list[start++];
+    const b = old[previous++];
+    if (a.bucket !== b.bucket || a.first !== b.first || a.count !== b.count) return false;
+  }
+  return true;
+}
+
+/** The upper runs depend only on their sorted bucket triples at each source index, including for shared programs. */
+function mergeBands(lists: TBucket[][], cache: TTranslucentOrderCache, subBits: number): TTranslucentRun[] {
+  if (cache.firstUpperLevel === undefined) {
+    cache.upper = undefined;
+    return mergeBuckets(lists);
+  }
+  const bucket = bucketOf(cache.firstUpperLevel, 0, subBits);
+  const cuts = lists.map((list) => upperStart(list, bucket));
+  const runs: TTranslucentRun[] = [];
+  mergeBucketSpan(
+    lists,
+    lists.map(() => 0),
+    cuts,
+    runs
+  );
+  const firstRun = runs.length;
+  const last = runs[firstRun - 1];
+  const before = last?.count ?? 0;
+  const previous = cache.upper;
+  const oldLists = cache.lists;
+  const oldRuns = cache.runs;
+  if (
+    previous?.bucket === bucket &&
+    previous.subBits === subBits &&
+    oldRuns &&
+    oldLists?.length === lists.length &&
+    lists.every((list, index) => sameUpper(list, cuts[index], oldLists[index], previous.cuts[index]))
+  ) {
+    let index = previous.firstRun;
+    const first = previous.joined ?? oldRuns[index++];
+    if (first) {
+      if (last && last.source === first.source && last.first + last.count === first.first) last.count += first.count;
+      else runs.push(first);
+      for (; index < oldRuns.length; index++) runs.push(oldRuns[index]);
+    }
+  } else {
+    mergeBucketSpan(
+      lists,
+      [...cuts],
+      lists.map((list) => list.length),
+      runs
+    );
+  }
+  const joined =
+    last && last.count !== before
+      ? { source: last.source, first: last.first + before, count: last.count - before }
+      : undefined;
+  cache.upper = { bucket, subBits, cuts, firstRun, joined };
+  return runs;
 }
 
 /** Filters shader-inactive draws, sharing unchanged runs and copying only merges across inactive buffer gaps. */
@@ -359,6 +469,7 @@ export function orderTranslucent(
   if (!cache || visible) return mergeBuckets(lists);
   if (cache.runs && cache.lists?.length === lists.length && lists.every((list, index) => list === cache.lists?.[index]))
     return cache.runs;
+  const runs = mergeBands(lists, cache, subBits);
   cache.lists = lists;
-  return (cache.runs = mergeBuckets(lists));
+  return (cache.runs = runs);
 }

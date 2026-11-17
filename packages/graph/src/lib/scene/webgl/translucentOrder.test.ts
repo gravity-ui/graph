@@ -150,12 +150,15 @@ describe("translucent order", () => {
     expect(visitB).not.toHaveBeenCalled();
     levels.a = 2;
     cache.levelRevision = 1;
+    cache.changedLevelIds = ["a"];
     const moved = order();
     expect(moved).toEqual([
       { source: 1, first: 0, count: 1 },
       { source: 0, first: 0, count: 2 },
     ]);
     expect(moved).not.toBe(first);
+    expect(visitA).toHaveBeenCalled();
+    expect(visitB).not.toHaveBeenCalled();
     visitA.mockClear();
     visitB.mockClear();
     expect(order()).toBe(moved);
@@ -163,6 +166,89 @@ describe("translucent order", () => {
     expect(visitB).not.toHaveBeenCalled();
     visitA.mockRestore();
     visitB.mockRestore();
+  });
+
+  it("rescans a source when the latest level delta cannot describe the changes since its snapshot", () => {
+    const edges = new InstanceRanges(3);
+    const blocks = new InstanceRanges(3);
+    edges.set("e", quads([1, 0]));
+    blocks.set("b", quads([2, 0]));
+    edges.retainLayout();
+    blocks.retainLayout();
+    const sources = [{ instances: edges }, { instances: blocks }];
+    const cache: TTranslucentOrderCache = { levelRevision: 2 };
+    const levels: Record<string, number> = { e: 1, b: 0, added: 0 };
+    const level = (id: string) => levels[id];
+    const order = (bits: number = BITS) => orderTranslucent(sources, level, () => 0, bits, false, undefined, cache);
+    const exact = (bits: number = BITS) => orderTranslucent(sources, level, () => 0, bits, false);
+    order();
+    // The block moved in the skipped revision. The latest delta includes only the edge.
+    levels.b = 3;
+    levels.e = 2;
+    cache.levelRevision = 4;
+    cache.changedLevelIds = ["e"];
+    expect(order()).toEqual(exact());
+    // A source layout can change in the same update as an unrelated element's level.
+    blocks.set("added", quads([3, 0]));
+    levels.e = 1;
+    cache.levelRevision = 5;
+    expect(order()).toEqual(exact());
+    // The same level has a different bucket position when the step width changes.
+    cache.levelRevision = 6;
+    cache.changedLevelIds = [];
+    const visit = jest.spyOn(blocks, "forEachRange");
+    const resized = order(BITS + 1);
+    expect(visit).toHaveBeenCalled();
+    visit.mockRestore();
+    expect(resized).toEqual(exact(BITS + 1));
+  });
+
+  it("shares unchanged upper painter bands through layout changes and joins across the boundary in both directions", () => {
+    const a = new InstanceRanges(3);
+    const b = new InstanceRanges(3);
+    a.set("lowerA", quads([1, 0]));
+    a.set("upperA", quads([2, 0]));
+    b.set("lowerB", quads([3, 0]));
+    b.set("upperB", quads([4, 0]));
+    a.retainLayout();
+    b.retainLayout();
+    const cache: TTranslucentOrderCache = { firstUpperLevel: 10 };
+    const levels: Record<string, number> = { lowerA: 1, lowerB: 0, upperA: 10, upperB: 11, added: 0 };
+    const level = (id: string) => levels[id];
+    let sources = [{ instances: a }, { instances: b }];
+    const compare = (bits: number = BITS) => {
+      const result = orderTranslucent(sources, level, () => 0, bits, true, undefined, cache);
+      expect(result).toEqual(orderTranslucent(sources, level, () => 0, bits, true));
+      return result;
+    };
+    const initial = compare();
+    expect(initial[1]).toEqual({ source: 0, first: 0, count: 2 });
+    const upperTail = initial[2];
+
+    // Both programs have ranges in both bands. A lower layout edit splits the old cross-band run.
+    levels.lowerA = 0;
+    b.set("added", quads([5, 0]));
+    const split = compare();
+    expect(split[split.length - 2]).toEqual({ source: 0, first: 1, count: 1 });
+    expect(split[split.length - 1]).toBe(upperTail);
+    b.delete("added");
+    levels.lowerA = 1;
+    const joined = compare();
+    expect(joined[1]).toEqual({ source: 0, first: 0, count: 2 });
+    expect(joined[2]).toBe(upperTail);
+    expect(initial[1].count).toBe(2);
+
+    // Relocating an upper range, changing source order or the depth width, and removing the band split stay exact.
+    b.set("upperB", quads([6, 0], [7, 0]));
+    const resized = compare();
+    expect(resized[resized.length - 1]).not.toBe(upperTail);
+    sources = [{ instances: b }, { instances: a }];
+    compare();
+    compare(BITS + 1);
+    cache.firstUpperLevel = undefined;
+    levels.lowerA = 0;
+    compare();
+    expect(cache.upper).toBeUndefined();
   });
 
   it("matches stateless ordering through retained hole reuse, source changes, steps, levels and dense sorting", () => {
