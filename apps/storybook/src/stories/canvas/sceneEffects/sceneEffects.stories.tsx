@@ -27,6 +27,8 @@ import type { TEffectCard } from "./effectCard";
 import { EFFECT_PARTS } from "./effectPaths";
 import type { TEffectPart } from "./effectPaths";
 import { EtlSimulation, createEtlAtScale, pipelineRect } from "./etlAtScale";
+import { startEtlCameraMotion } from "./etlCameraMotion";
+import type { TEtlCameraMotion } from "./etlCameraMotion";
 import { createEtlScaleConnection, etlFlowRules } from "./etlConnection";
 import {
   STAGE_IS,
@@ -281,19 +283,21 @@ type TEtlAtScaleArgs = {
   live: boolean;
   focusOnFailures: boolean;
   view: (typeof ETL_VIEWS)[number];
+  cameraMotion: "manual" | TEtlCameraMotion;
   selectionGlow: number;
   effectMinScale: number;
 };
 
 const etlDefaults: TEtlAtScaleArgs = {
-  blockCount: 1064,
-  connectionCount: 1400,
+  blockCount: 10_000,
+  connectionCount: 10_000,
   renderer: "webgl",
   html: true,
   minimap: true,
-  live: true,
+  live: false,
   focusOnFailures: false,
   view: "fit",
+  cameraMotion: "manual",
   selectionGlow: 0.6,
   effectMinScale: 0.1,
 };
@@ -315,6 +319,7 @@ const EtlAtScaleApp = ({
   live,
   focusOnFailures,
   view,
+  cameraMotion,
   selectionGlow,
   effectMinScale,
 }: TEtlAtScaleArgs): React.JSX.Element => {
@@ -358,10 +363,27 @@ const EtlAtScaleApp = ({
   }, [graph, data, simulation, components, setEntities, start]);
 
   useEffect(() => {
-    if (view === "fit") zoomTo("center", { padding: FIT_PADDING });
-    else if (view === "pipeline") zoomTo(pipelineRect(data, data.pipelines[0]), { padding: 80 });
+    if (view === "fit") {
+      return graph.hitTest.waitUsableRectUpdate((rect) => {
+        zoomTo(rect, { padding: FIT_PADDING });
+      });
+    }
+    if (view === "pipeline") zoomTo(pipelineRect(data, data.pipelines[0]), { padding: 80 });
     else graph.zoom({ scale: Number(view) });
+    return undefined;
   }, [data, graph, view, zoomTo]);
+
+  useEffect(() => {
+    if (cameraMotion === "manual") return undefined;
+    let stop: (() => void) | undefined;
+    const cancelReady = graph.hitTest.waitUsableRectUpdate(() => {
+      stop = startEtlCameraMotion(graph.cameraService, data, cameraMotion);
+    });
+    return () => {
+      cancelReady();
+      stop?.();
+    };
+  }, [cameraMotion, data, graph, view]);
 
   useEffect(() => {
     glowUniform.value = selectionGlow;
@@ -489,6 +511,11 @@ EtlAtScale.argTypes = {
     options: [...ETL_VIEWS],
     control: { type: "select", labels: { fit: "Fit all", pipeline: "One pipeline" } },
   },
+  cameraMotion: {
+    name: "Camera motion",
+    options: ["manual", "zoom", "pan"],
+    control: { type: "select", labels: { manual: "Manual", zoom: "Zoom cycle", pan: "Circular pan" } },
+  },
   selectionGlow: { name: "Selection glow", control: { type: "range", min: 0, max: 1.5, step: 0.05 } },
   effectMinScale: {
     name: "Effect min scale",
@@ -501,14 +528,17 @@ EtlAtScale.parameters = {
   docs: {
     description: {
       story:
-        "Vary the number of stages and connections independently in Controls. Stages have different numbers of " +
+        "The story starts with 10,000 stages and 10,000 connections. Vary either count independently in Controls. " +
+        "Camera motion can run a 20-second zoom cycle from 0.05 to 0.9 and back around a central pipeline, " +
+        "or pan in a circle at the current scale over 16 seconds. Stages have different numbers of " +
         "input and output anchors, with room for every port in the scene blocks and HTML cards. " +
         "Hover over a connection to highlight its route. Turn Minimap off to remove its layer and compare performance. " +
         "Effect min scale makes block and running-flow effects steady below the cutoff (0 means always active); " +
         "status colours and selection remain visible. Hover highlighting still animates one connection at any scale. " +
         "Changing the control reconfigures the scene; zooming across the cutoff keeps the same geometry. " +
-        "Live updates ten stage statuses and their touching flows every 500 ms. Focus on failures dims the other " +
-        "stages. HTML cards replace the scene blocks at the detailed level and let you run, pause, or retry a stage.",
+        "Enable Live independently to update ten stage statuses and their touching flows every 500 ms. " +
+        "Focus on failures dims the other stages. HTML cards replace the scene blocks at the detailed level " +
+        "and let you run, pause, or retry a stage.",
     },
   },
 };

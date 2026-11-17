@@ -71,6 +71,9 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
   /** The entity types whose revisions the picture follows (their unsubscribes): those the block classes use. */
   private readonly followedTypes = new Map<string, () => void>();
 
+  /** Hidden-only updates do not change the picture, which deliberately draws hidden blocks. */
+  private readonly pictureChanges = new Map<string, { revision: number; hiddenOnly: boolean }>();
+
   /**
    * Types of the block views on the list at the last walk, whether the `blockComponents` setting names them or not:
    * followed while such a view is on the list, released once none is and the setting does not name them
@@ -118,6 +121,16 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     });
     // The revisions of the entity types the blocks use: a block subclass may declare its own `entityType`.
     this.followedTypes.clear();
+    this.pictureChanges.clear();
+    const stopElements = graph.scene.store.subscribe((change) => {
+      this.notePictureChange(change.type === "update" && change.fields?.size === 1 && change.fields.has("hidden"));
+    });
+    const stopStyles = graph.scene.store.subscribeStyles(() => this.notePictureChange(false));
+    this.eventAbortController.signal.addEventListener("abort", () => {
+      stopElements();
+      stopStyles();
+      this.pictureChanges.clear();
+    });
     this.onSignal(graph.rootStore.settings.$blockComponents, () => this.followBlockTypes());
     this.onGraphFrameEnd(() => this.onFrameEnd());
     this.onGraphEvent("colors-changed", () => this.invalidatePicture());
@@ -159,6 +172,15 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
     return types;
   }
 
+  private notePictureChange(hiddenOnly: boolean): void {
+    for (const type of this.followedTypes.keys()) {
+      const revision = this.props.graph.scene.revisionOf(type).peek();
+      const known = this.pictureChanges.get(type);
+      if (!known || known.revision !== revision) this.pictureChanges.set(type, { revision, hiddenOnly });
+      else known.hiddenOnly &&= hiddenOnly;
+    }
+  }
+
   /**
    * Follows the revisions of `"block"`, of the classes in the `blockComponents` setting and of the types of the block
    * views on the list (`metTypes`), and stops following any other type.
@@ -170,13 +192,19 @@ export class MiniMapLayer extends Layer<MiniMapLayerProps, MiniMapLayerContext> 
       if (types.has(type)) return;
       stop();
       this.followedTypes.delete(type);
+      this.pictureChanges.delete(type);
     });
     for (const type of types) {
       if (this.followedTypes.has(type)) continue;
       const revision = this.props.graph.scene.revisionOf(type);
       this.followedTypes.set(
         type,
-        this.onChange(revision, () => this.requestThrottledPicture())
+        this.onChange(revision, () => {
+          const changes = this.pictureChanges.get(type);
+          // Key by the counter: changes made by frame-end listeners already belong to its next revision.
+          if (changes?.revision === revision.peek() - 1 && changes.hiddenOnly) return;
+          this.requestThrottledPicture();
+        })
       );
     }
   }

@@ -59,7 +59,7 @@ import type { TTextEncodeInput, TTextGlyphPlaces } from "./encodeText";
 import { TRIANGLE_FLOATS, encodeTriangles, isFilledTriangle } from "./encodeTriangles";
 import { GlyphAtlas, glyphRun } from "./glyphs";
 import { InstanceVisibility } from "./instanceVisibility";
-import { CachedGeometryBounds, geometryBounds } from "./levelBounds";
+import { CachedGeometryBounds, MIN_CAMERA_SCALE, geometryBounds } from "./levelBounds";
 import {
   MIXED_PATH_MAX_SOURCES,
   MIXED_PATH_SOURCE_STRIDE,
@@ -99,7 +99,7 @@ import {
   createStockPathPlugin,
 } from "./shaders";
 import { orderResidentPathDraws } from "./stockPathOrder";
-import { ElementTable, STYLE_ROW_TEXELS, StyleTable, TABLE_WIDTH } from "./tables";
+import { ElementTable, HIDDEN_ALPHA, PART_SLOTS, STYLE_ROW_TEXELS, StyleTable, TABLE_WIDTH } from "./tables";
 import { adoptTexts, planTextEncode, resubGlyphs, textsOf } from "./textEncodes";
 import type { TTextEncode, TTextLayouts } from "./textEncodes";
 import { TextRelayout } from "./textRelayout";
@@ -227,6 +227,11 @@ function stockGroup(group: TPathGroup | undefined): boolean {
       !group.fallback &&
       (!group.effect || (group.effect.extraWidth === 0 && MIXED_EFFECT_PROGRAMS.has(group.effect.programKey)))
   );
+}
+
+/** In the shared pass an inactive custom effect already draws as a plain stroke. */
+function nativeStockGroup(group: TPathGroup | undefined): boolean {
+  return stockGroup(group) || Boolean(group?.effect && !group.fallback && !group.effectActive);
 }
 
 function hasEffectDepthWrites(effect?: TEffect): boolean {
@@ -497,6 +502,28 @@ function subsOfWrite(write: TTranslucentWrite): TElementSubs {
   };
 }
 
+/** Geometry of the translucent pass. A text can emit new glyphs on relayout without changing its primitive. */
+function translucentPrimitives(
+  primitives: readonly TScenePrimitive[],
+  sources: readonly TElementSubs[],
+  subBase: number
+): readonly TScenePrimitive[] {
+  if (primitives.length <= 1) return primitives;
+  const emitted = new Set<number>();
+  for (const { subs, floats, subFloat = SUB_FLOAT } of sources) {
+    for (let at = subFloat; at < subs.length; at += floats) {
+      const index = subs[at] - subBase;
+      if (!Number.isInteger(index) || index < 0 || index >= primitives.length) return primitives;
+      emitted.add(index);
+    }
+  }
+  return emitted.size === primitives.length
+    ? primitives
+    : primitives.filter(
+        (primitive, index) => emitted.has(index) || (primitive.kind === "text" && isTranslucentPaint(primitive.color))
+      );
+}
+
 function sameNumbers(a: readonly number[], b: readonly number[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
@@ -598,7 +625,7 @@ class WebGLSceneBackend implements ISceneBackend {
   /** Effects have screen-space halos and often different shapes by level. Ordinary paints keep stable overlap boxes. */
   private readonly effectOverlapPrimitives = new Map<string, readonly TScenePrimitive[]>();
   private readonly overlapDirty = new Set<string>();
-  private overlapScope?: TOverlapScope;
+  private overlapLimits?: { minScale: number; dpr: number };
   private overlapStyles: readonly TSceneStyle[] = [];
   private readonly overlapGeometry = new Map<
     string,
@@ -626,7 +653,8 @@ class WebGLSceneBackend implements ISceneBackend {
   };
   private mixedDraw?: TMixedDraw;
   private stockDraw?: TMixedDraw;
-  private stockPlan?: { revision: number; draws: readonly TDraw[]; plan?: TStockPlan };
+  private stockPlan?: { revision: number; activity: number; draws: readonly TDraw[]; plan?: TStockPlan };
+  private stockActivityRevision = 0;
   private stockOrder?: { stamp: number[]; physical: readonly TDraw[]; ordered: readonly TDraw[] };
   private readonly stockPhysicalDraws: TDraw[] = [];
   private readonly pathBatchGroups = new WeakMap<TBatch, TPathGroup>();
@@ -654,6 +682,7 @@ class WebGLSceneBackend implements ISceneBackend {
   };
   private readonly visibility = new WeakMap<TBatch, InstanceVisibility>();
   private activeStamp: number[] = [];
+  private activeStockActivityRevision = -1;
   private activeScope?: Pick<TOverlapScope, "from" | "to" | "level">;
   private activeRuns: TTranslucentRun[] = [];
   private activeDrawGroups = 0;
@@ -855,14 +884,28 @@ class WebGLSceneBackend implements ISceneBackend {
 
   public setStyles(styles: readonly TSceneStyle[]): void {
     this.scheduleRevision++;
-    if (styles !== this.overlapStyles) {
-      for (const id of this.effectOverlapPrimitives.keys()) {
-        const row = this.elements.get(id)?.styleId;
-        if (row !== undefined && this.overlapStyles[row] !== styles[row]) this.overlapDirty.add(id);
-      }
-      this.overlapStyles = styles;
-    }
+    this.overlapStyles = styles;
+    const previous = this.styles.data;
     this.styles.setStyles(styles);
+    const next = this.styles.data;
+    const changedRows = new Set<number>();
+    const stride = STYLE_ROW_TEXELS * 4;
+    for (let row = 0; row * stride < Math.max(previous.length, next.length); row++) {
+      for (let slot = 0; slot < PART_SLOTS; slot++) {
+        const at = row * stride + slot * 4 + 3;
+        if ((previous[at] === HIDDEN_ALPHA) !== (next[at] === HIDDEN_ALPHA)) {
+          changedRows.add(row);
+          break;
+        }
+      }
+    }
+    // Colour-only LOD rules leave the envelope intact; revealing a part can add real painted overlap.
+    if (changedRows.size) {
+      for (const id of this.effectOverlapPrimitives.keys()) {
+        const element = this.elements.get(id);
+        if (element && changedRows.has(element.styleId)) this.overlapDirty.add(id);
+      }
+    }
   }
 
   public draw(frame: TSceneFrame): boolean {
@@ -1053,8 +1096,8 @@ class WebGLSceneBackend implements ISceneBackend {
     const visibilityChanged = changed("hidden") || changed("styleId");
     if (changed("x") || changed("y") || visibilityChanged) this.writeElement(element);
     // The store sends no update to what is nested in an element whose hidden flag changed.
-    if (changed("hidden")) this.writeChildren(element.id, true);
-    if (visibilityChanged || changed("bounds")) this.invalidateOverlap(element.id);
+    if (changed("hidden")) this.writeChildren(element.id);
+    if (changed("bounds") || changed("styleId")) this.invalidateOverlap(element.id);
     // A translucent element that moves can start or stop overlapping others.
     const moved = changed("x") || changed("y") || changed("bounds");
     if (moved) this.levels.moved(element.id);
@@ -1134,10 +1177,9 @@ class WebGLSceneBackend implements ISceneBackend {
    * Writes the texels of the elements drawn after an element in its owner (`SceneStore.childrenOf`: an owner's
    * children, or what is nested in a child): their key follows the owner, their hidden state the nesting.
    */
-  private writeChildren(id: string, visibilityChanged = false): void {
+  private writeChildren(id: string): void {
     for (const child of this.store?.childrenOf(id) ?? []) {
       if (this.elements.has(child.id)) this.writeElement(child);
-      if (visibilityChanged) this.invalidateOverlap(child.id);
     }
   }
 
@@ -1274,7 +1316,7 @@ class WebGLSceneBackend implements ISceneBackend {
     this.scheduleScale = undefined;
     this.refineTranslucent = false;
     this.overlapDirty.clear();
-    this.overlapScope = undefined;
+    this.overlapLimits = undefined;
     this.depth = new SceneDepth();
     this.levels.clear();
     this.table = new ElementTable();
@@ -1605,11 +1647,13 @@ class WebGLSceneBackend implements ISceneBackend {
     });
     if (present.length > 0) {
       this.translucentIds.add(id);
+      const hasEffects = primitives.some((primitive) => primitive.kind === "path" && primitive.effect);
       if (this.overlapGeometry.get(id)?.primitives !== primitives) {
-        this.overlapGeometry.set(id, { primitives, geometry: new CachedGeometryBounds(primitives) });
+        const paint = hasEffects ? translucentPrimitives(primitives, subs, this.subBases.get(id) ?? 0) : primitives;
+        this.overlapGeometry.set(id, { primitives, geometry: new CachedGeometryBounds(paint) });
+        if (hasEffects) this.effectOverlapPrimitives.set(id, paint);
       }
-      if (primitives.some((primitive) => primitive.kind === "path" && primitive.effect)) {
-        this.effectOverlapPrimitives.set(id, primitives);
+      if (hasEffects) {
         this.overlapDirty.add(id);
       } else {
         this.effectOverlapPrimitives.delete(id);
@@ -2010,26 +2054,56 @@ class WebGLSceneBackend implements ISceneBackend {
 
   private refreshOverlapBounds(frame: TSceneFrame): void {
     if (this.effectOverlapPrimitives.size === 0) return;
-    // The shaders compare floats. Use those same thresholds to keep the order valid on the crossing frame.
-    const scale = Math.fround(frame.scale);
-    let scope = this.overlapScope;
+    const requested = Math.fround(Math.min(frame.scale, frame.scaleMin ?? MIN_CAMERA_SCALE));
+    const minScale = requested > 0 && Number.isFinite(requested) ? requested : MIN_CAMERA_SCALE;
+    const dpr = frame.dpr > 0 && Number.isFinite(frame.dpr) ? Math.fround(frame.dpr) : 1;
+    let limits = this.overlapLimits;
     let ids: Iterable<string> = this.overlapDirty;
-    const level = frame.level;
-    if (!scope || !withinOverlapScope(scope, scale, level, frame.dpr)) {
-      // At the low end of each octave strokes and halos have their largest world extent.
-      const minScale = 2 ** Math.floor(Math.log2(scale));
-      scope = { from: minScale, to: 2 * minScale, minScale, level, dpr: frame.dpr };
-      this.overlapScope = scope;
+    if (!limits || minScale < limits.minScale || dpr < limits.dpr) {
+      limits = { minScale: Math.min(minScale, limits?.minScale ?? minScale), dpr: Math.min(dpr, limits?.dpr ?? dpr) };
+      this.overlapLimits = limits;
       ids = this.effectOverlapPrimitives.keys();
     }
     for (const id of ids) {
       const element = this.elements.get(id);
       const primitives = this.effectOverlapPrimitives.get(id);
-      const box = element && primitives && this.overlapBounds(element, primitives, scope, scale);
+      const box = element && primitives && this.overlapEnvelope(element, primitives, limits);
       if (box) this.levels.set(id, box, true);
       else this.levels.delete(id);
     }
     this.overlapDirty.clear();
+  }
+
+  /** All resident LODs keep their places; hidden style parts contribute no paint until explicitly revealed. */
+  private overlapEnvelope(
+    element: TSceneElement,
+    primitives: readonly TScenePrimitive[],
+    limits: { minScale: number; dpr: number }
+  ): TTileRect | undefined {
+    const style = this.overlapStyles[element.styleId];
+    let lowest = Infinity;
+    let text = false;
+    const geometry = (this.overlapGeometry.get(element.id)?.geometry ?? new CachedGeometryBounds(primitives)).at(
+      (primitive) => {
+        const { part } = primitive;
+        if (part !== undefined && (style?.parts?.[part]?.visible ?? style?.base?.[part]?.visible) === false)
+          return undefined;
+        const scale = Math.max(limits.minScale, Math.fround(scaleBound(primitive.minScale, 0)));
+        lowest = Math.min(lowest, scale);
+        text ||= primitive.kind === "text" && isTranslucentPaint(primitive.color);
+        return scale;
+      }
+    );
+    const bounds = text ? element.bounds : geometry;
+    if (!bounds) return undefined;
+    const paint = geometry ?? bounds;
+    const pad = Math.max(1, 1.5 / limits.dpr) / lowest;
+    return {
+      minX: Math.min(paint.minX, bounds.minX) - pad,
+      minY: Math.min(paint.minY, bounds.minY) - pad,
+      maxX: Math.max(paint.maxX, bounds.maxX) + pad,
+      maxY: Math.max(paint.maxY, bounds.maxY) + pad,
+    };
   }
 
   private overlapBounds(
@@ -2085,11 +2159,11 @@ class WebGLSceneBackend implements ISceneBackend {
 
   /**
    * Updates the overlap levels after a change of the translucent set, of a translucent element's own zIndex or order,
-   * or of a translucent element's origin or bounds. When levels, range layout or path eligibility change, rebuilds
+   * or of a translucent element's origin or bounds. When levels or range layout change, rebuilds
    * the draw runs: for each level, for each step, a draw per program. Retained path ranges stay at their resident
    * offsets; only their visible draw schedule follows the levels. Dense lists sort after structural changes or more than
-   * `MAX_OUT_OF_PLACE` buckets move; a smaller level change adds draws without moving their instances. A pan does
-   * neither. A change of the depth's width rebuilds the runs in its frame: it bounds the steps of an element, so it
+   * `MAX_OUT_OF_PLACE` buckets move; a smaller level change adds draws without moving their instances. Camera, LOD
+   * and visibility changes only filter these runs. A change of the depth's width rebuilds the runs: it bounds the steps of an element, so it
    * numbers the draw positions.
    */
   private orderTranslucent(): void {
@@ -2106,7 +2180,6 @@ class WebGLSceneBackend implements ISceneBackend {
       subBits,
       this.levels.revision,
       ...batches.map((batch) => batch.ranges.layoutRevision),
-      ...batches.map((batch) => (batch.pathRecords ? this.visibility.get(batch)?.orderRevision ?? 0 : 0)),
     ];
     if (sameNumbers(stamp(), this.orderStamp)) return;
     const start = performance.now();
@@ -2116,9 +2189,7 @@ class WebGLSceneBackend implements ISceneBackend {
       this.levelOf,
       this.orderKeyOf,
       subBits,
-      !sameNumbers(layout(), this.layoutStamp),
-      (source, first, count) =>
-        !batches[source].pathRecords || (this.visibility.get(batches[source])?.anyForOrder(first, count) ?? true)
+      !sameNumbers(layout(), this.layoutStamp)
     );
     this.translucentBatches = batches;
     // After the sort: it changes the revisions of the lists it reorders.
@@ -2182,13 +2253,16 @@ class WebGLSceneBackend implements ISceneBackend {
         (source, first, count) => visibility[source].any(first, count),
         (source) => !batches[source].pathRecords
       );
-      // The path address stream already joins adjacent runs of one source, regardless of resident gaps. Only
-      // remaining program barriers justify the more expensive overlap coalescer; non-path runs keep their draws.
-      this.activeDrawGroups = this.stockDrawGroups(this.activeRuns, batches);
       this.activeOwners = [];
       this.activeScope = scope;
       this.activeStamp = stamp;
+      this.activeStockActivityRevision = -1;
       this.coalesceScope = undefined;
+    }
+    if (this.activeStockActivityRevision !== this.stockActivityRevision) {
+      // A custom effect crossing its activity bound changes program barriers but leaves visibility intact.
+      this.activeDrawGroups = this.stockDrawGroups(this.activeRuns, batches);
+      this.activeStockActivityRevision = this.stockActivityRevision;
     }
     if (this.activeDrawGroups < 512) return this.activeRuns;
     const x = Math.fround(frame.x),
@@ -2312,7 +2386,9 @@ class WebGLSceneBackend implements ISceneBackend {
   /** The group's extra width (0 without an effect) and its effect's `u_<name>` values. */
   private setEffectUniforms(group: TPathGroup, scale: number): void {
     const { effect } = group;
-    group.effectActive = Boolean(effect) && isConnectionEffectActive(group, scale);
+    const active = Boolean(effect) && isConnectionEffectActive(group, scale);
+    if (group.effectActive !== active && !stockGroup(group)) this.stockActivityRevision++;
+    group.effectActive = active;
     for (const batch of [group.lines, group.curves, group.coarseCurves]) {
       if (!batch) continue;
       const { uniforms } = batch;
@@ -2662,6 +2738,7 @@ class WebGLSceneBackend implements ISceneBackend {
   /** A shared stock program needs painter order, but no spatial overlap search to batch it. */
   private orderedStockPaths(frame: TSceneFrame): readonly TDraw[] | undefined {
     const batches = [...this.passBatches("translucent")].filter((batch) => batch.ranges.liveCount > 0);
+    // Keep order preparation independent of custom-effect activity; only native batching changes at its bounds.
     if (
       batches.length === 0 ||
       batches.length > MIXED_PATH_MAX_SOURCES ||
@@ -2709,18 +2786,24 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   /** Stock shaders can share a draw even where their translucent owner order alternates. */
-  private stockDrawGroups(runs: readonly TTranslucentRun[], batches: readonly TBatch[]): number {
+  private stockDrawGroups(
+    runs: readonly TTranslucentRun[],
+    batches: readonly TBatch[],
+    includeInactive = true
+  ): number {
     const sources = new Set<number>();
     let previous = -2;
     let groups = 0;
     for (const run of runs) {
       const batch = batches[run.source];
-      const stock = stockGroup(this.pathBatchGroups.get(batch));
+      const group = this.pathBatchGroups.get(batch);
+      const stock = includeInactive ? nativeStockGroup(group) : stockGroup(group);
       if (stock) sources.add(run.source);
       const source = stock ? -1 : run.source;
       if (source !== previous || !batch.pathRecords) groups++;
       previous = source;
     }
+    if (includeInactive && sources.size > MIXED_PATH_MAX_SOURCES) return this.stockDrawGroups(runs, batches, false);
     return sources.size <= MIXED_PATH_MAX_SOURCES
       ? groups
       : gatheredPathDrawCount(
@@ -2730,7 +2813,7 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   /** Preserve the supplied logical order and native barriers; only the GPU address stream is combined. */
-  private buildStockPlan(draws: readonly TDraw[]): TStockPlan | undefined {
+  private buildStockPlan(draws: readonly TDraw[], isStock = nativeStockGroup): TStockPlan | undefined {
     const sources: TMixedSource[] = [];
     const ranges: (TMixedPathRange | TNativePathRange<TBatch>)[] = [];
     let ordinaryGroups = 0;
@@ -2742,7 +2825,7 @@ class WebGLSceneBackend implements ISceneBackend {
       previous = draw;
       const group = this.pathBatchGroups.get(batch);
       const range = { key, sub: 0, tie: 0, first, count };
-      if (!batch.pathRecords || !group || !stockGroup(group)) {
+      if (!batch.pathRecords || !group || !isStock(group)) {
         ranges.push({ ...range, native: batch });
         continue;
       }
@@ -2750,15 +2833,21 @@ class WebGLSceneBackend implements ISceneBackend {
       let source = sources.findIndex((item) => item.records === batch.pathRecords && item.chords === chords);
       if (source < 0) {
         source = sources.length;
-        if (source >= MIXED_PATH_MAX_SOURCES) return undefined;
+        if (source >= MIXED_PATH_MAX_SOURCES) return this.retryStockPlan(draws, isStock);
         sources.push({ records: batch.pathRecords, chords, group, tie: source });
       }
       ranges.push({ ...range, source });
     }
     if (ordinaryGroups < 32 || sources.length === 0) return undefined;
     const schedule = mixedPathSchedule(ranges);
-    if (!schedule || schedule.commands.length + 16 > ordinaryGroups) return undefined;
+    if (!schedule) return this.retryStockPlan(draws, isStock);
+    if (schedule.commands.length + 16 > ordinaryGroups) return undefined;
     return { sources, ...schedule };
+  }
+
+  /** Preserve the original grouping if inactive custom sources cannot fit in the packed layout. */
+  private retryStockPlan(draws: readonly TDraw[], isStock: typeof stockGroup): TStockPlan | undefined {
+    return isStock === stockGroup ? undefined : this.buildStockPlan(draws, stockGroup);
   }
 
   private prepareStockPaths(draws: readonly TDraw[]): TPreparedStock | undefined {
@@ -2767,9 +2856,15 @@ class WebGLSceneBackend implements ISceneBackend {
       return undefined;
     }
     let cached = this.stockPlan;
-    if (!cached || cached.revision !== this.scheduleRevision || !sameDraws(cached.draws, draws)) {
+    if (
+      !cached ||
+      cached.revision !== this.scheduleRevision ||
+      cached.activity !== this.stockActivityRevision ||
+      !sameDraws(cached.draws, draws)
+    ) {
       cached = {
         revision: this.scheduleRevision,
+        activity: this.stockActivityRevision,
         draws: draws.map((draw) => ({ ...draw })),
         plan: this.buildStockPlan(draws),
       };

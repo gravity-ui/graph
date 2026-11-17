@@ -186,13 +186,14 @@ export function mergeBuckets(sources: readonly (readonly TBucket[])[]): TTranslu
   }
 }
 
-/** Removes shader-inactive draws and joins survivors only through shader-inactive gaps in their resident buffer. */
+/** Filters shader-inactive draws, sharing unchanged runs and copying only merges across inactive buffer gaps. */
 export function filterTranslucentRuns(
   input: readonly TTranslucentRun[],
   visible: (source: number, first: number, count: number) => boolean,
   bridge: (source: number) => boolean = () => true
 ): TTranslucentRun[] {
   const runs: TTranslucentRun[] = [];
+  let borrowed = false;
   for (const run of input) {
     if (!visible(run.source, run.first, run.count)) continue;
     const last = runs[runs.length - 1];
@@ -204,8 +205,13 @@ export function filterTranslucentRuns(
       (gap === 0 || bridge(run.source)) &&
       !visible(run.source, last.first + last.count, gap)
     ) {
-      last.count += gap + run.count;
-    } else runs.push({ ...run });
+      if (borrowed) runs[runs.length - 1] = { ...last, count: last.count + gap + run.count };
+      else last.count += gap + run.count;
+      borrowed = false;
+    } else {
+      runs.push(run);
+      borrowed = true;
+    }
   }
   return runs;
 }

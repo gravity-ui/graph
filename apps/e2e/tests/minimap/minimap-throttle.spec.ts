@@ -277,6 +277,59 @@ test.describe("MiniMap – throttled picture (D6)", () => {
     expect(xOf(drawn[0], "added")).toBe(300);
   });
 
+  test("keeps the same picture through hidden-only scene updates", async ({ page }) => {
+    const image = (): Promise<string> =>
+      page.evaluate(() => (document.querySelector(".graph-minimap") as HTMLCanvasElement).toDataURL());
+    const before = (await pictures(page)).length;
+    const pixels = await image();
+    await page.evaluate(() => {
+      const w = window as unknown as TThrottleWindow;
+      return w.eachFrame((i) => {
+        if (i > 16) return true;
+        window.graph.scene.store.update("block\u0000over", { hidden: i % 2 === 1 });
+        return undefined;
+      });
+    });
+    await runFrames(page, QUIET_FRAMES);
+    // The minimap deliberately includes hidden blocks, including HTML handover and collapsed groups.
+    expect(await image()).toBe(pixels);
+    expect((await pictures(page)).length).toBe(before);
+  });
+
+  test("still refreshes paint and geometry mixed with hidden updates", async ({ page }) => {
+    const before = (await pictures(page)).length;
+    const pixels = await page.evaluate(() =>
+      (document.querySelector(".graph-minimap") as HTMLCanvasElement).toDataURL()
+    );
+    await page.evaluate(() => {
+      const { scene } = window.graph;
+      scene.store.update("block\u0000over", { hidden: true });
+      // A table-only rule change can repaint the picture without an element geometry update.
+      scene.styles.add([{ target: window.GraphModule.CanvasBlock, style: { parts: { body: { color: "#0000ff" } } } }]);
+      scene.store.update("block\u0000over", { hidden: false });
+    });
+    await runFrames(page, QUIET_FRAMES);
+    expect((await pictures(page)).length).toBe(before + 1);
+    expect(
+      await page.evaluate(() => (document.querySelector(".graph-minimap") as HTMLCanvasElement).toDataURL())
+    ).not.toBe(pixels);
+
+    const painted = (await pictures(page)).length;
+    await page.evaluate(() => {
+      const scene = window.graph.scene;
+      // A frame-end mutation belongs to the next revision, even when another hidden update follows it.
+      const stop = scene.onFrameEnd(() => {
+        stop();
+        scene.store.update("block\u0000over", { x: 150 });
+        scene.store.update("block\u0000over", { hidden: true });
+      });
+    });
+    await runFrames(page, QUIET_FRAMES);
+    const drawn = (await pictures(page)).slice(painted);
+    expect(drawn.length).toBe(1);
+    expect(xOf(drawn[0], "over")).toBe(150);
+  });
+
   test("throttles a pointer drag inside the usable rect, and ends with its last position", async ({ page }) => {
     const before = (await pictures(page)).length;
     // From the part of "over" that block-1 does not cover.

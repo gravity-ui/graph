@@ -418,6 +418,7 @@ test("alternating stock effects share a native draw without changing translucent
       orderedStockPaths(...args: unknown[]): unknown;
       stockOrder?: unknown;
       stockDraw?: unknown;
+      stockPlan?: { plan?: { commands: { native?: unknown }[] } };
     };
     const prepare = probe.prepareStockPaths;
     const order = probe.orderedStockPaths;
@@ -432,14 +433,21 @@ test("alternating stock effects share a native draw without changing translucent
     const custom = window.GraphModule.defineConnectionEffect({
       fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
     });
-    return ["initial", "raise", "move", "nonpath", "custom", "restore"].flatMap((phase) => {
+    const scopedCustom = window.GraphModule.defineConnectionEffect({
+      extraWidth: 6,
+      fragment: `vec4 effect(ConnectionFragment f, vec4 color) {
+        gl_FragDepth = 1.0;
+        return vec4(0.9, 0.2, 0.7, 0.5);
+      }`,
+    });
+    return ["initial", "raise", "move", "nonpath", "custom", "scoped-custom", "restore"].flatMap((phase) => {
       if (phase === "raise")
         scene.store.setStyle(
           "alternating-3",
           scene.store.defineStyle({ raise: 2, parts: { line: { color: "#ff00ff" } } })
         );
       if (phase === "move") scene.store.update("alternating-3", { x: 13, y: 7 });
-      if (phase === "nonpath")
+      if (phase === "nonpath" || phase === "scoped-custom")
         scene.store.add({
           id: "transparent-cover",
           x: 0,
@@ -454,10 +462,21 @@ test("alternating stock effects share a native draw without changing translucent
           primitives: original.primitives.map((p) => (p.kind === "path" ? { ...p, effect: custom.use([]) } : p)),
         });
       }
-      if (phase === "restore") scene.store.update(original.id, { primitives: original.primitives });
+      if (phase === "scoped-custom") {
+        scene.store.update(original.id, {
+          primitives: original.primitives.map((p) =>
+            p.kind === "path" ? { ...p, effect: scopedCustom.use([], { minScale: 0.5 }) } : p
+          ),
+        });
+      }
+      if (phase === "restore") {
+        scene.store.delete("transparent-cover");
+        scene.store.update(original.id, { primitives: original.primitives });
+      }
       scene.layer.performRender();
       scheduler.performUpdate();
-      return [0.25, 0.75, 1].map((scale) => {
+      const scales = phase === "scoped-custom" ? [0.25, 0.75, 0.25] : [0.25, 0.75, 1];
+      return scales.map((scale) => {
         const frame = {
           ...cameraService.getCameraState(),
           scale,
@@ -481,6 +500,7 @@ test("alternating stock effects share a native draw without changing translucent
           before,
           after: backend.stats.drawCalls,
           stock: Boolean(probe.stockDraw),
+          native: probe.stockPlan?.plan?.commands.filter((command) => command.native !== undefined).length,
           different: actual.reduce((n, value, i) => n + Number(value !== reference[i]), 0),
           error: gl.getError(),
         };
@@ -489,7 +509,10 @@ test("alternating stock effects share a native draw without changing translucent
   });
   for (const row of result) {
     expect(row.stock).toBe(true);
-    expect(row.strict, JSON.stringify(row)).toBe(row.phase !== "custom" && row.phase !== "nonpath");
+    expect(row.strict, JSON.stringify(row)).toBe(!["custom", "nonpath", "scoped-custom"].includes(row.phase));
+    if (row.phase === "scoped-custom") {
+      expect(row.native, "the translucent rect always remains a barrier").toBe(row.scale === 0.25 ? 1 : 2);
+    }
     expect(row.before).toBeGreaterThan(40);
     expect(row.after).toBeLessThan(10);
     expect(row.different).toBe(0);

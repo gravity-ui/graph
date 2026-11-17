@@ -203,14 +203,15 @@ test.describe("Scene blocks with the WebGL renderer", () => {
     expect(await rendererState(page)).toBe("webgl");
   });
 
-  test("batches effect paths by their visible bounds at the current zoom", async ({ page }) => {
+  test("retains translucent order across zoom, effect activation, LOD and part visibility", async ({ page }) => {
     const graph = new GraphPageObject(page);
     await graph.initialize({ ...CONFIG, blocks: [] });
     test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
     const row = await page.evaluate(() => {
       const { defineConnectionEffect, lineSegment } = window.GraphModule;
       const { scene, cameraService } = window.graph;
-      cameraService.set({ scale: 1, x: 0, y: 0 });
+      // The translucent pass first draws plain strokes below the custom effect's activity range.
+      cameraService.set({ scale: 0.08, x: 0, y: 0 });
       const styleId = scene.store.defineStyle({});
       const glow = defineConnectionEffect({
         extraWidth: 8,
@@ -224,13 +225,15 @@ test.describe("Scene blocks with the WebGL renderer", () => {
           zIndex: 200,
           bounds: { minX: -810, minY: -710, maxX: 810, maxY: 1210 },
           primitives: [
+            { kind: "rect", x: 20, y: 440, width: 30, height: 30, fill: "#00ff00" },
             {
               kind: "path",
               part: "glow",
               minScale: 0.07,
+              levelMask: i < 2 ? 7 : 2,
               segments: new Float32Array(lineSegment({ x: 0, y: 100 }, { x: 0, y: 400 })),
               stroke: { color: i % 2 === 0 ? "#ff0000" : "#0000ff", width: 16 },
-              effect: glow.use([]),
+              effect: glow.use([], { minScale: 0.09 }),
             },
           ],
         });
@@ -239,45 +242,86 @@ test.describe("Scene blocks with the WebGL renderer", () => {
       return styleId;
     });
     await expect.poll(() => rendererState(page)).toBe("webgl");
-    const levels = (): Promise<number | undefined> =>
-      page.evaluate(() => window.graph.scene.layer.getBackend()?.stats.translucentLevels);
-    await expect.poll(levels).toBe(1);
-
-    await graph.evaluate((g) => g.cameraService.set({ scale: 0.1, x: 0, y: 0 }));
-    await expect.poll(levels).toBeGreaterThan(1);
-    const pixel = await page.evaluate(() => {
-      const { scene, scheduler } = window.graph;
-      scene.layer.performRender();
-      scheduler.performUpdate();
-      const gl = scene.layer.getBackend()?.canvas.getContext("webgl2");
+    await graph.waitForFrames(3);
+    const result = await page.evaluate((styleId) => {
+      const { scene, scheduler, cameraService } = window.graph;
+      const backend = scene.layer.getBackend();
+      if (!backend) throw new Error("Missing backend");
+      const probe = backend as typeof backend & { translucentRuns: object; orderStamp: object };
+      const gl = backend.canvas.getContext("webgl2");
       if (!gl) throw new Error("WebGL2 unavailable");
-      const rgba = new Uint8Array(4);
-      const dpr = gl.drawingBufferWidth / window.graph.cameraService.getCameraState().width;
-      gl.readPixels(
-        Math.floor(14 * dpr),
-        gl.drawingBufferHeight - Math.floor(21 * dpr),
-        1,
-        1,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        rgba
+      const render = (): void => {
+        scene.layer.performRender();
+        scheduler.performUpdate();
+      };
+      render();
+      const runs = probe.translucentRuns,
+        stamp = probe.orderStamp,
+        encodes = backend.stats.encodes;
+      const pixel = (x = 14, y = 21): number[] => {
+        const rgba = new Uint8Array(4);
+        const dpr = gl.drawingBufferWidth / cameraService.getCameraState().width;
+        gl.readPixels(
+          Math.floor(x * dpr),
+          gl.drawingBufferHeight - Math.floor(y * dpr),
+          1,
+          1,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          rgba
+        );
+        return Array.from(rgba);
+      };
+      const frames = [0.1, 0.08, 0.5, 0.25, 0.1, 0.065, 0.1, 0.225, 0.7, 1, 0.1].map((scale) => {
+        cameraService.set({ scale, x: 0, y: 0 });
+        render();
+        return {
+          scale,
+          sameRuns: probe.translucentRuns === runs,
+          sameStamp: probe.orderStamp === stamp,
+          encodes: backend.stats.encodes - encodes,
+          levels: backend.stats.translucentLevels,
+        };
+      });
+      const visible = pixel();
+      scene.store.replaceStyles(new Map([[styleId, { base: { glow: { visible: false } } }]]));
+      render();
+      const hidden = { pixel: pixel(), body: pixel(13, 45), levels: backend.stats.translucentLevels };
+      scene.store.replaceStyles(
+        new Map([[styleId, { base: { glow: { visible: false } }, parts: { glow: { visible: true } } }]])
       );
-      return Array.from(rgba);
-    });
-    expect(Math.abs(pixel[0] - 64)).toBeLessThanOrEqual(2);
-    expect(Math.abs(pixel[2] - 128)).toBeLessThanOrEqual(2);
-
-    await graph.evaluate((g) => g.cameraService.set({ scale: 0.065, x: 0, y: 0 }));
-    await expect.poll(levels).toBe(0);
-
-    await graph.evaluate((g) => g.cameraService.set({ scale: 1, x: 0, y: 0 }));
-    await expect.poll(levels).toBe(1);
-
-    // A stylesheet can re-use a row id while changing visibility of every element that uses it.
-    await page.evaluate((id) => {
-      window.graph.scene.store.replaceStyles(new Map([[id, { parts: { glow: { visible: false } } }]]));
+      render();
+      const revealed = { pixel: pixel(), levels: backend.stats.translucentLevels };
+      const beforeRaise = probe.translucentRuns;
+      scene.store.update("effect-0", { zIndex: 300 });
+      render();
+      return {
+        frames,
+        visible,
+        hidden,
+        revealed,
+        raised: pixel(),
+        changedOrder: probe.translucentRuns !== beforeRaise,
+        encodes: backend.stats.encodes - encodes,
+        error: gl.getError(),
+      };
     }, row);
-    await expect.poll(levels).toBe(0);
+    expect(result.hidden.levels).toBe(0);
+    expect(result.revealed.levels).toBeGreaterThan(0);
+    for (const frame of result.frames) {
+      expect(frame.sameRuns, JSON.stringify(frame)).toBe(true);
+      expect(frame.sameStamp).toBe(true);
+      expect(frame.encodes).toBe(0);
+    }
+    expect(Math.abs(result.visible[0] - 64)).toBeLessThanOrEqual(2);
+    expect(Math.abs(result.visible[2] - 128)).toBeLessThanOrEqual(2);
+    expect(result.hidden.pixel).toEqual([0, 0, 0, 0]);
+    expect(result.hidden.body).toEqual([0, 255, 0, 255]);
+    expect(result.revealed.pixel).toEqual(result.visible);
+    expect(result.encodes).toBe(0);
+    expect(result.changedOrder).toBe(true);
+    expect(result.raised[0]).toBeGreaterThan(result.raised[2]);
+    expect(result.error).toBe(0);
   });
 
   test("draws a filled arrow triangle in scene order", async ({ page }) => {

@@ -112,6 +112,7 @@ export class CachedGeometryBounds {
     width?: TSceneSize;
     reach: number;
     halo: number;
+    haloMinScale: number;
   }[];
 
   constructor(primitives: readonly TScenePrimitive[]) {
@@ -120,10 +121,13 @@ export class CachedGeometryBounds {
       let width: TSceneSize | undefined;
       let reach = 0;
       let halo = 0;
+      let haloMinScale = 0;
       if (primitive.kind === "path") {
         width = primitive.stroke.width;
         reach = 1;
         halo = primitive.effect ? toConnectionEffect(primitive.effect.effect).extraWidth : 0;
+        // Shader scale is f32, even when the effect's CPU activity range is narrower than one float step.
+        haloMinScale = Math.fround(primitive.effect?.minScale ?? 0);
         if (width !== undefined) bare = { ...primitive, stroke: { ...primitive.stroke, width: 0 }, effect: undefined };
       } else if (primitive.kind === "rect" || primitive.kind === "circle") {
         width = primitive.border?.width;
@@ -136,17 +140,18 @@ export class CachedGeometryBounds {
         reach = 1;
         bare = { ...primitive, stroke: undefined };
       }
-      return { primitive, hull: geometryBounds([bare]), width, reach, halo };
+      return { primitive, hull: geometryBounds([bare]), width, reach, halo, haloMinScale };
     });
   }
 
   /** `scaleOf` also visits text: the caller can include its laid-out bounds separately. */
   public at(scaleOf: (primitive: TScenePrimitive) => number | undefined): TTileRect | undefined {
     const box: TTileRect = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
-    for (const { primitive, hull, width, reach, halo } of this.items) {
+    for (const { primitive, hull, width, reach, halo, haloMinScale } of this.items) {
       const scale = scaleOf(primitive);
       if (scale === undefined || !hull) continue;
-      const pad = (width === undefined ? 0 : resolveSceneSize(width, scale) * reach) + halo / scale;
+      const pad =
+        (width === undefined ? 0 : resolveSceneSize(width, scale) * reach) + halo / Math.max(scale, haloMinScale);
       joinBox(box, hull.minX, hull.minY, hull.maxX, hull.maxY, pad);
     }
     return box.minX <= box.maxX ? box : undefined;

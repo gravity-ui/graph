@@ -22,9 +22,8 @@ type TCohort = {
   to: number;
   mask: number;
   active: boolean;
-  ordered: boolean;
 };
-type TChunk = { cohorts: TCohort[]; next: Uint8Array; orderNext: Uint8Array };
+type TChunk = { cohorts: TCohort[]; next: Uint8Array };
 
 /** Shader visibility predicates, cached in fixed chunks so local uploads do not reread the resident list. */
 export class InstanceVisibility {
@@ -34,14 +33,11 @@ export class InstanceVisibility {
   private stateRevision?: number;
   private level: TSceneFrame["level"];
   public visibilityRevision = 0;
-  /** Owner hiding changes the draw filter, not its position in the conservative order plan. */
-  public orderRevision = 0;
   private count = 0;
   private full = true;
   private readonly dirty = new Set<number>();
   private chunks: TChunk[] = [];
   private prefix = new Uint32Array(1);
-  private orderPrefix = new Uint32Array(1);
   public from = -Infinity;
   public to = Infinity;
 
@@ -69,10 +65,7 @@ export class InstanceVisibility {
   ): void {
     const changed = this.source !== ranges || this.revision !== ranges.revision;
     const predicatesChanged = changed && this.read(ranges);
-    if (predicatesChanged) {
-      this.visibilityRevision++;
-      this.orderRevision++;
-    }
+    if (predicatesChanged) this.visibilityRevision++;
     const scale = Math.fround(frame.scale);
     if (!predicatesChanged && this.sameVisibilityState(scale, frame.level, stateRevision)) return;
     this.stateRevision = stateRevision;
@@ -83,76 +76,49 @@ export class InstanceVisibility {
     for (let chunk = 0; chunk < this.chunks.length; chunk++) {
       const { cohorts } = this.chunks[chunk];
       let changed = false;
-      let orderChanged = false;
       let count = 0;
-      let orderCount = 0;
       for (let i = 0; i < cohorts.length; i++) {
         const cohort = cohorts[i];
         if (scale < cohort.from) this.to = Math.min(this.to, cohort.from);
         else this.from = Math.max(this.from, cohort.from);
         if (scale < cohort.to) this.to = Math.min(this.to, cohort.to);
         else this.from = Math.max(this.from, cohort.to);
-        const ordered = this.eligibleForOrder(cohort, scale, level, table, styles);
-        const active = ordered && table[cohort.owner * 4 + 2] >= 0;
+        const active = this.isShown(cohort, scale, level, table, styles);
         changed ||= active !== cohort.active;
-        orderChanged ||= ordered !== cohort.ordered;
         cohort.active = active;
-        cohort.ordered = ordered;
         if (active) count += cohort.end - cohort.first;
-        if (ordered) orderCount += cohort.end - cohort.first;
       }
       if (changed) {
         this.writeNext(chunk);
         this.visibilityRevision++;
       }
-      if (orderChanged) {
-        this.writeNext(chunk, true);
-        this.orderRevision++;
-      }
       this.prefix[chunk + 1] = this.prefix[chunk] + count;
-      this.orderPrefix[chunk + 1] = this.orderPrefix[chunk] + orderCount;
     }
   }
 
   public any(first: number, count: number): boolean {
-    return this.anyIn(first, count, false);
+    const end = Math.min(this.count, first + count);
+    first = Math.max(0, first);
+    if (first >= end) return false;
+    const start = Math.floor(first / CHUNK_SIZE);
+    const next = this.chunks[start].next[first % CHUNK_SIZE];
+    if (next < CHUNK_SIZE) return start * CHUNK_SIZE + next < end;
+    const last = Math.floor((end - 1) / CHUNK_SIZE);
+    if (last === start) return false;
+    // Whole middle chunks use the prefix; the last partial chunk needs only its first active offset.
+    return this.prefix[last] > this.prefix[start + 1] || this.chunks[last].next[0] < end - last * CHUNK_SIZE;
   }
 
-  /** Includes hidden owners so showing one reuses its already ordered resident ranges. */
-  public anyForOrder(first: number, count: number): boolean {
-    return this.anyIn(first, count, true);
-  }
-
-  private eligibleForOrder(
-    cohort: TCohort,
-    scale: number,
-    level: number,
-    table: Float32Array,
-    styles: Float32Array
-  ): boolean {
+  private isShown(cohort: TCohort, scale: number, level: number, table: Float32Array, styles: Float32Array): boolean {
     const row = table[cohort.owner * 4 + 3] * STYLE_ROW_TEXELS * 4;
     return (
+      table[cohort.owner * 4 + 2] >= 0 &&
       scale >= cohort.from &&
       scale < cohort.to &&
       (level === 0 || Math.floor(cohort.mask / level) % 2 === 1) &&
       !(styles[row + cohort.slot * 4 + 3] < -1.5) &&
       !(styles[row + cohort.other * 4 + 3] < -1.5)
     );
-  }
-
-  private anyIn(first: number, count: number, ordered: boolean): boolean {
-    const end = Math.min(this.count, first + count);
-    first = Math.max(0, first);
-    if (first >= end) return false;
-    const start = Math.floor(first / CHUNK_SIZE);
-    const key = ordered ? "orderNext" : "next";
-    const prefix = ordered ? this.orderPrefix : this.prefix;
-    const next = this.chunks[start][key][first % CHUNK_SIZE];
-    if (next < CHUNK_SIZE) return start * CHUNK_SIZE + next < end;
-    const last = Math.floor((end - 1) / CHUNK_SIZE);
-    if (last === start) return false;
-    // Whole middle chunks use the prefix; the last partial chunk needs only its first active offset.
-    return prefix[last] > prefix[start + 1] || this.chunks[last][key][0] < end - last * CHUNK_SIZE;
   }
 
   private sameVisibilityState(scale: number, level: TSceneFrame["level"], stateRevision?: number): boolean {
@@ -192,10 +158,7 @@ export class InstanceVisibility {
     this.dirty.clear();
     this.full = false;
     this.count = count;
-    if (this.prefix.length !== length + 1) {
-      this.prefix = new Uint32Array(length + 1);
-      this.orderPrefix = new Uint32Array(length + 1);
-    }
+    if (this.prefix.length !== length + 1) this.prefix = new Uint32Array(length + 1);
     this.source = ranges;
     this.invalidatedRevision = this.revision = ranges.revision;
     return changed;
@@ -234,7 +197,6 @@ export class InstanceVisibility {
           to,
           mask,
           active: false,
-          ordered: false,
         });
     }
     const previous = this.chunks[chunk];
@@ -257,24 +219,19 @@ export class InstanceVisibility {
       })
     )
       return previous;
-    return {
-      cohorts,
-      next: new Uint8Array(CHUNK_SIZE).fill(CHUNK_SIZE),
-      orderNext: new Uint8Array(CHUNK_SIZE).fill(CHUNK_SIZE),
-    };
+    return { cohorts, next: new Uint8Array(CHUNK_SIZE).fill(CHUNK_SIZE) };
   }
 
   /** One byte per resident slot makes each range query constant-time, independent of cohort fragmentation. */
-  private writeNext(index: number, ordered = false): void {
-    const { cohorts } = this.chunks[index];
-    const next = ordered ? this.chunks[index].orderNext : this.chunks[index].next;
+  private writeNext(index: number): void {
+    const { cohorts, next } = this.chunks[index];
     const base = index * CHUNK_SIZE;
     let nearest = CHUNK_SIZE;
     for (let i = cohorts.length - 1; i >= 0; i--) {
       const cohort = cohorts[i];
       const first = cohort.first - base;
       const end = cohort.end - base;
-      if (ordered ? cohort.ordered : cohort.active) {
+      if (cohort.active) {
         for (let at = first; at < end; at++) next[at] = at;
         nearest = first;
       } else {

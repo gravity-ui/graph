@@ -198,6 +198,24 @@ describe("translucent order", () => {
     expect(filterTranslucentRuns(input, visible)).toEqual([input[0], input[2]]);
   });
 
+  it("reuses unchanged runs and copies only merged runs without changing the resident schedule", () => {
+    const input = [
+      { source: 0, first: 0, count: 2 },
+      { source: 1, first: 0, count: 2 },
+      { source: 1, first: 2, count: 2 },
+      { source: 1, first: 4, count: 2 },
+      { source: 2, first: 0, count: 2 },
+    ];
+    const original = input.map((run) => ({ ...run }));
+    input.forEach(Object.freeze);
+    const result = filterTranslucentRuns(input, (_source, _first, count) => count > 0);
+    expect(result).toEqual([input[0], { source: 1, first: 0, count: 6 }, input[4]]);
+    expect(result[0]).toBe(input[0]);
+    expect(result[1]).not.toBe(input[1]);
+    expect(result[2]).toBe(input[4]);
+    expect(input).toEqual(original);
+  });
+
   it("orders chunks by level, then step, then element key", () => {
     expect(ELEMENT_KEYS).toBe(2 ** SCENE_DEPTH.INDEX_BITS);
     for (const bits of [BITS, 7]) {

@@ -74,6 +74,29 @@ describe("geometryBounds", () => {
     expect(paintedGeometryBounds(styled)).toEqual(paintedGeometryBounds([path]));
   });
 
+  it.each([{ minScale: 0.1 }, { minScale: 0.1 - 1e-12, maxScale: 0.1 + 1e-12 }])(
+    "pads a cached halo from the earliest scale where its effect can run (%j)",
+    (range) => {
+      const glow = defineConnectionEffect({
+        extraWidth: 6,
+        fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+      });
+      const path: TScenePrimitive = {
+        kind: "path",
+        segments: new Float32Array([0, 0, 10, 0, 20, 0, 30, 0]),
+        stroke: { width: { px: 2, maxWorld: 30 } },
+        effect: glow.use([], range),
+      };
+      const cache = new CachedGeometryBounds([path]);
+      // Stroke reach starts at the interval's floor, even when the halo first appears at a later scale.
+      // The narrow range still activates in JS when both endpoints round to the same shader float.
+      const pad = 30 + 6 / Math.fround(0.1);
+      expect(cache.at(() => 0.025)).toEqual(box(-pad, -pad, 30 + pad, pad));
+      const shownPad = 2 / Math.fround(0.1) + 6 / Math.fround(0.1);
+      expect(cache.at(() => Math.fround(0.1))).toEqual(box(-shownPad, -shownPad, 30 + shownPad, shownPad));
+    }
+  );
+
   it("pads a rect by its border: outside by the width, center by half, inside by nothing", () => {
     const rect = (align: "inside" | "center" | "outside"): TScenePrimitive => ({
       kind: "rect",
