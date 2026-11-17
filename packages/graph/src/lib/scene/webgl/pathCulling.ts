@@ -5,6 +5,7 @@ import type { TInstanceUpload } from "./InstanceRanges";
 import type { TSceneFrame } from "./backendTypes";
 import { CURVE_DETAIL_OFFSET } from "./curveTessellation";
 import { PATH_ELEMENT_FLOATS } from "./encodePaths";
+import type { ElementTable } from "./tables";
 
 /** Large enough to keep fragmented connection order from becoming a draw per connection. */
 const CHUNK_SIZE = 128;
@@ -12,6 +13,7 @@ const FLOAT_BYTES = 4;
 
 type TRange = { first: number; count: number; curveChords?: number };
 type TRangeOptions = { bridgeGap?: number; curveChords?: 8 };
+type TRangeVisitor = (first: number, count: number, curveChords?: number) => void;
 type TOrigin = { x: number; y: number; chunks: Set<number> };
 type TBounds = {
   minX: number;
@@ -58,6 +60,7 @@ export class PathCulling {
   private readonly dirty = new Set<number>();
   private full = true;
   private count = 0;
+  private originRevision = -1;
   private level: TSceneFrame["level"];
   private levelSensitive = false;
   private from = Infinity;
@@ -73,7 +76,8 @@ export class PathCulling {
     }
   }
 
-  public update(paths: Float32Array, elements: Float32Array, table: Float32Array, frame: TSceneFrame): void {
+  public update(paths: Float32Array, elements: Float32Array, table: ElementTable, frame: TSceneFrame): void {
+    const { data, originRevision } = table;
     const count = paths.length / INSTANCE_FLOATS;
     const scale = Math.fround(frame.scale);
     const resized = this.count !== count;
@@ -93,16 +97,21 @@ export class PathCulling {
       this.full = false;
     } else {
       if (resized) this.resizeChunks(count);
-      for (const [element, origin] of this.origins) {
-        const at = element * 4;
-        if (origin.x === table[at] && origin.y === table[at + 1]) continue;
-        for (const chunk of origin.chunks) this.dirty.add(chunk);
-        origin.x = table[at];
-        origin.y = table[at + 1];
+      if (this.originRevision !== originRevision) {
+        this.origins.forEach((origin, element) => {
+          const at = element * 4;
+          const x = data[at];
+          const y = data[at + 1];
+          if (Object.is(origin.x, x) && Object.is(origin.y, y)) return;
+          for (const chunk of origin.chunks) this.dirty.add(chunk);
+          origin.x = x;
+          origin.y = y;
+        });
       }
     }
+    this.originRevision = originRevision;
     if (this.dirty.size > 0) {
-      for (const chunk of this.dirty) this.writeChunk(chunk, paths, elements, table);
+      for (const chunk of this.dirty) this.writeChunk(chunk, paths, elements, data);
       this.dirty.clear();
       visibilityChanged = true;
     }
@@ -154,15 +163,37 @@ export class PathCulling {
     }
   }
 
-  /** Filters only this draw's range: no reordering or merging across translucent draw runs. */
   public ranges(
     first: number,
     count: number,
     frame: TSceneFrame,
     extraWidth: number,
-    options: TRangeOptions = {}
+    options?: TRangeOptions
   ): TRange[] {
-    if (count === 0) return [];
+    const result: TRange[] = [];
+    this.forEachRange(
+      first,
+      count,
+      frame,
+      extraWidth,
+      (first, count, curveChords) => {
+        result.push(curveChords === undefined ? { first, count } : { first, count, curveChords });
+      },
+      options
+    );
+    return result;
+  }
+
+  /** Filters only this draw's range, keeping its order and merging adjacent spans without allocating draw records. */
+  public forEachRange(
+    first: number,
+    count: number,
+    frame: TSceneFrame,
+    extraWidth: number,
+    visit: TRangeVisitor,
+    options?: TRangeOptions
+  ): void {
+    if (count === 0) return;
     const width = Math.fround(frame.width);
     const height = Math.fround(frame.height);
     const dpr = Math.fround(frame.dpr);
@@ -171,10 +202,15 @@ export class PathCulling {
     const y = Math.fround(frame.y);
     const scale = Math.fround(frame.scale);
     if (!(scale > 0 && dpr > 0) || !Number.isFinite(x + y + scale + width + height + dpr + halo)) {
-      return [{ first, count }];
+      visit(first, count, undefined);
+      return;
     }
-    const result: TRange[] = [];
+    const bridgeGap = options?.bridgeGap ?? 0;
+    const minimumChords = options?.curveChords;
     const end = first + count;
+    let runFirst = first;
+    let runEnd = first;
+    let runChords: number | undefined;
     for (let index = Math.floor(first / CHUNK_SIZE); index < Math.ceil(end / CHUNK_SIZE); index++) {
       const box = this.chunks[index];
       if (box.minX > box.maxX || box.minY > box.maxY) continue;
@@ -195,18 +231,17 @@ export class PathCulling {
         continue;
       const from = Math.max(first, index * CHUNK_SIZE);
       const to = Math.min(end, (index + 1) * CHUNK_SIZE);
-      const curveChords =
-        options.curveChords === undefined ? undefined : Math.max(options.curveChords, box.curveChords);
-      const last = result[result.length - 1];
-      if (last && last.first + last.count + (options.bridgeGap ?? 0) >= from && last.curveChords === curveChords) {
-        last.count = to - last.first;
+      const curveChords = minimumChords === undefined ? undefined : Math.max(minimumChords, box.curveChords);
+      if (runEnd > runFirst && runEnd + bridgeGap >= from && runChords === curveChords) {
+        runEnd = to;
       } else {
-        result.push(
-          curveChords === undefined ? { first: from, count: to - from } : { first: from, count: to - from, curveChords }
-        );
+        if (runEnd > runFirst) visit(runFirst, runEnd - runFirst, runChords);
+        runFirst = from;
+        runEnd = to;
+        runChords = curveChords;
       }
     }
-    return result;
+    if (runEnd > runFirst) visit(runFirst, runEnd - runFirst, runChords);
   }
 
   private writeChunk(index: number, paths: Float32Array, elements: Float32Array, table: Float32Array): void {

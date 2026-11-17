@@ -20,10 +20,46 @@ describe("ElementTable", () => {
     expect(table.indexOf("b")).toBe(slot);
   });
 
-  it("grows by whole rows", () => {
+  it("changes the origin revision only for stored coordinate changes, including slot reuse", () => {
     const table = new ElementTable();
-    for (let i = 0; i <= TABLE_WIDTH; i++) table.write(`e${i}`, 0, 0, 0, false, 0);
-    expect(table.rows).toBe(2);
+    const empty = table.originRevision;
+    table.write("a", 1, 2, 3, false, 0);
+    const moved = table.originRevision;
+    expect(moved).not.toBe(empty);
+    table.takeDirtyRows();
+
+    table.write("a", 1 + 2 ** -25, 2, 4, true, 5);
+    expect(table.originRevision).toBe(moved);
+    expect(table.takeDirtyRows()).toEqual([0, 1]);
+
+    table.free("a");
+    const freed = table.originRevision;
+    expect(freed).not.toBe(moved);
+    expect(table.indexOf("b")).toBe(0);
+    expect(table.originRevision).toBe(freed);
+    table.write("b", 0, 3, 4, false, 0);
+    expect(table.originRevision).not.toBe(freed);
+    expect(new ElementTable().originRevision).not.toBe(table.originRevision);
+  });
+
+  it("reserves backing rows without adding logical or dirty rows", () => {
+    const table = new ElementTable();
+    for (let i = 0; i <= 2 * TABLE_WIDTH; i++) table.write(`e${i}`, i, -i, 3, false, 2);
+    const reserved = table.data;
+    const floatsPerRow = TABLE_WIDTH * 4;
+    expect(table.rows).toBe(3);
+    expect(reserved.length).toBeGreaterThan(3 * floatsPerRow);
+    expect(table.takeDirtyRows()).toEqual([0, 3]);
+    expect(table.takeDirtyRows()).toBeNull();
+    expect(table.indexOf("e1")).toBe(1);
+    expect([...reserved.subarray(4, 8)]).toEqual([1, -1, 3, 2]);
+
+    for (let i = 2 * TABLE_WIDTH + 1; i <= 3 * TABLE_WIDTH; i++) table.indexOf(`e${i}`);
+    table.write(`e${3 * TABLE_WIDTH}`, 10, 20, 7, false, 2);
+    expect(table.data).toBe(reserved);
+    expect(table.rows).toBe(4);
+    expect(table.takeDirtyRows()).toEqual([3, 4]);
+    expect([...reserved.subarray(3 * floatsPerRow, 3 * floatsPerRow + 4)]).toEqual([10, 20, 7, 2]);
   });
 });
 

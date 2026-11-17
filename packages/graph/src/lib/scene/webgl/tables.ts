@@ -17,6 +17,8 @@ export const HIDDEN_ALPHA = -2;
 /** The instance alpha of a paint that the primitive leaves unset: the shader takes the base colour of its part. */
 export const USE_BASE_ALPHA = -3;
 
+let lastOriginRevision = 0;
+
 /** One texel per element: (originX, originY, elementKey or -1 when hidden, styleId). */
 export class ElementTable {
   public data = new Float32Array(TABLE_WIDTH * 4);
@@ -26,9 +28,15 @@ export class ElementTable {
   private used = 0;
   private dirtyMin = Infinity;
   private dirtyMax = -1;
+  private originChanges = ++lastOriginRevision;
 
   public get rows(): number {
     return Math.ceil(this.used / TABLE_WIDTH);
+  }
+
+  /** Changes with the stored origins or when the table is replaced. */
+  public get originRevision(): number {
+    return this.originChanges;
   }
 
   public indexOf(id: string): number {
@@ -64,6 +72,11 @@ export class ElementTable {
 
   private put(index: number, x: number, y: number, key: number, styleId: number): void {
     const at = index * 4;
+    x = Math.fround(x);
+    y = Math.fround(y);
+    if (!Object.is(this.data[at], x) || !Object.is(this.data[at + 1], y)) {
+      this.originChanges = ++lastOriginRevision;
+    }
     this.data[at] = x;
     this.data[at + 1] = y;
     this.data[at + 2] = key;
@@ -76,7 +89,8 @@ export class ElementTable {
   private ensureCapacity(index: number): void {
     const needed = (Math.floor(index / TABLE_WIDTH) + 1) * TABLE_WIDTH * 4;
     if (needed <= this.data.length) return;
-    const grown = new Float32Array(needed);
+    // Reserve CPU space geometrically. The texture still uses the logical row count.
+    const grown = new Float32Array(Math.max(needed, this.data.length * 2));
     grown.set(this.data);
     this.data = grown;
   }

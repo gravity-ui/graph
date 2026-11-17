@@ -361,6 +361,57 @@ describe("InstanceRanges", () => {
     ).toThrow(/ascend/);
   });
 
+  it.each([false, true])(
+    "keeps identical step data, revisions and pending uploads unchanged (retained: %s)",
+    (retain) => {
+      const ranges = new InstanceRanges(2);
+      const steps = [
+        { step: 0, instances: inst(1, 2) },
+        { step: 2, instances: inst(3, 4, 5, 6) },
+      ];
+      ranges.setSteps("a", steps);
+      ranges.set("b", inst(7, 8));
+      if (retain) ranges.retainLayout();
+      ranges.takeUpload();
+      const revision = ranges.revision;
+      const layout = ranges.layoutRevision;
+      ranges.setSteps(
+        "a",
+        steps.map(({ step, instances }) => ({ step, instances: instances.slice() }))
+      );
+      expect(ranges.revision).toBe(revision);
+      expect(ranges.layoutRevision).toBe(layout);
+      expect(ranges.takeUpload()).toEqual({ kind: "none" });
+      ranges.set("b", inst(9, 10));
+      const pending = ranges.revision;
+      ranges.setSteps("a", steps);
+      expect(ranges.revision).toBe(pending);
+      expect(spansOf(ranges.takeUpload(), 2)).toEqual([[3, [9, 10]]]);
+      ranges.setSteps("a", [steps[0], { step: 2, instances: inst(30, 4, 5, 6) }]);
+      expect(ranges.revision).not.toBe(pending);
+      expect(ranges.layoutRevision).toBe(layout);
+      expect([...ranges.data]).toEqual([1, 2, 30, 4, 5, 6, 9, 10]);
+      expect(ranges.takeUpload().kind).toBe("range");
+    }
+  );
+
+  it("preserves signed-zero changes and keeps NaN payload writes observable", () => {
+    const ranges = new InstanceRanges(1);
+    ranges.setSteps("a", [{ step: 0, instances: inst(-0) }]);
+    ranges.takeUpload();
+    const revision = ranges.revision;
+    ranges.setSteps("a", [{ step: 0, instances: inst(0) }]);
+    expect(ranges.revision).not.toBe(revision);
+    expect(Object.is(ranges.data[0], 0)).toBe(true);
+    expect(ranges.takeUpload().kind).toBe("range");
+    ranges.setSteps("a", [{ step: 0, instances: inst(NaN) }]);
+    ranges.takeUpload();
+    const nanRevision = ranges.revision;
+    ranges.setSteps("a", [{ step: 0, instances: inst(NaN) }]);
+    expect(ranges.revision).not.toBe(nanRevision);
+    expect(ranges.takeUpload().kind).toBe("range");
+  });
+
   it("deletes every step of an element and closes every gap", () => {
     const ranges = new InstanceRanges(1);
     ranges.setSteps("a", [{ step: 0, instances: inst(1, 1) }]);

@@ -207,14 +207,18 @@ export class InstanceRanges {
   private matches(range: TRange, instances: ArrayLike<number>): boolean {
     const start = range.offset * this.floats;
     for (let i = 0; i < instances.length; i++) {
-      if (this.buffer[start + i] !== instances[i]) return false;
+      const before = this.buffer[start + i];
+      const after = instances[i];
+      // Custom shaders can distinguish signed zero; NaN payloads remain writes.
+      if (before !== after || (before === 0 && !Object.is(before, after))) return false;
     }
     return true;
   }
 
   /**
    * Replaces the element's ranges by one range per step, steps in ascending order; empty steps are skipped, and with
-   * none left the element is deleted. With the same steps and counts the data is rewritten in place (a range upload);
+   * none left the element is deleted. Identical steps and data are kept; changed data with the same steps and counts
+   * is rewritten in place (a range upload);
    * otherwise the old ranges are removed and the new ones go to the end. Only new or moved instances are uploaded.
    */
   public setSteps(id: string, steps: readonly TStepSource[]): void {
@@ -226,12 +230,14 @@ export class InstanceRanges {
       this.delete(id);
       return;
     }
-    this.changes = ++lastRevision;
     const current = this.byId.get(id);
     if (current && sameShape(current, chunks, this.floats)) {
+      if (current.every((range, index) => this.matches(range, chunks[index].instances))) return;
+      this.changes = ++lastRevision;
       current.forEach((range, index) => this.write(range, chunks[index].instances));
       return;
     }
+    this.changes = ++lastRevision;
     if (current) this.removeRanges(current);
     this.layoutChanges = ++lastRevision;
     if (!this.retained) this.reserve(chunks.reduce((sum, chunk) => sum + chunk.instances.length / this.floats, 0));

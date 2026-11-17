@@ -608,6 +608,20 @@ class WebGLSceneBackend implements ISceneBackend {
   private mixedComposite?: Model;
   private mixedTextureUnits?: number;
   private mixedTextureLimit?: number;
+  // Frame commands are mutable scratch; cached mixed plans keep their own physical-range copies.
+  private readonly frameDrawPool: TDraw[] = [];
+  private frameDrawCount = 0;
+  private readonly opaqueFrameDraws: TDraw[] = [];
+  private readonly translucentFrameDraws: TDraw[] = [];
+  private cullingDrawCount = 0;
+  private readonly gatheredDraws = new Map<TBatch, { draws: TDraw[]; count: number }>();
+  private cullingBatch?: TBatch;
+  private cullingDraws: TDraw[] = [];
+  private readonly cullingOptions: { curveChords?: 8 } = {};
+  private readonly appendCulledRange = (first: number, count: number, curveDetail?: number): void => {
+    if (this.cullingBatch)
+      this.cullingDraws[this.cullingDrawCount++] = this.frameDraw(this.cullingBatch, first, count, curveDetail);
+  };
   private readonly visibility = new WeakMap<TBatch, InstanceVisibility>();
   private activeStamp: number[] = [];
   private activeScope?: Pick<TOverlapScope, "from" | "to" | "level">;
@@ -850,22 +864,33 @@ class WebGLSceneBackend implements ISceneBackend {
       if (UPLOAD_COST[kind] > UPLOAD_COST[uploadKind]) uploadKind = kind;
     }
     for (const group of this.pathGroups.values()) this.setEffectUniforms(group);
-    const opaqueDraws: TDraw[] = [];
-    const translucentDraws: TDraw[] = [];
+    this.frameDrawCount = 0;
+    const opaqueDraws = this.opaqueFrameDraws;
+    const translucentDraws = this.translucentFrameDraws;
+    this.cullingDrawCount = 0;
     for (const batch of this.passBatches("opaque")) {
       this.appendVisibleDraws(opaqueDraws, batch, frame, 0, batch.ranges.count);
     }
+    opaqueDraws.length = this.cullingDrawCount;
+    this.cullingDrawCount = 0;
     for (const run of this.visibleTranslucentRuns(frame)) {
       this.appendVisibleDraws(translucentDraws, this.translucentBatches[run.source], frame, run.first, run.count);
     }
+    translucentDraws.length = this.cullingDrawCount;
+    this.cullingBatch = undefined;
     const mixed = this.prepareMixedPlane(frame, opaqueDraws, translucentDraws);
     const nativeRuns: TDraw[][] = [];
     for (const command of mixed?.plan.commands ?? []) {
       // Individual passes prevent gather's local merging from crossing a stock window.
-      if (command.native) nativeRuns.push([{ batch: command.native, first: command.first, count: command.count }]);
+      if (command.native) nativeRuns.push([this.frameDraw(command.native, command.first, command.count)]);
     }
-    const upperOpaque = mixed ? mixed.plan.upperOpaque.map((draw) => ({ ...draw })) : opaqueDraws;
-    const upperTranslucent = mixed ? mixed.plan.upperTranslucent.map((draw) => ({ ...draw })) : translucentDraws;
+    const upperOpaque = mixed
+      ? mixed.plan.upperOpaque.map((draw) => this.frameDraw(draw.batch, draw.first, draw.count, draw.curveDetail))
+      : opaqueDraws;
+    const upperTranslucent = mixed
+      ? mixed.plan.upperTranslucent.map((draw) => this.frameDraw(draw.batch, draw.first, draw.count, draw.curveDetail))
+      : translucentDraws;
+    this.frameDrawPool.length = this.frameDrawCount;
     const addressUpload = this.gatherPathDraws(...nativeRuns, upperOpaque, upperTranslucent);
     if (mixed && UPLOAD_COST[mixed.upload] > UPLOAD_COST[uploadKind]) uploadKind = mixed.upload;
     if (UPLOAD_COST[addressUpload] > UPLOAD_COST[uploadKind]) uploadKind = addressUpload;
@@ -904,6 +929,11 @@ class WebGLSceneBackend implements ISceneBackend {
   public dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.gatheredDraws.clear();
+    this.frameDrawPool.length = 0;
+    this.opaqueFrameDraws.length = this.translucentFrameDraws.length = 0;
+    this.cullingDraws = [];
+    this.cullingBatch = undefined;
     this.listeners.abort();
     for (const group of this.pathGroups.values()) group.stopUniforms?.();
     for (const batch of this.allBatches()) this.destroyBatch(batch);
@@ -1154,6 +1184,7 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   private reset(): void {
+    this.gatheredDraws.clear();
     this.elements.clear();
     for (const group of this.pathGroups.values()) group.users = 0;
     this.pathGroupsOf.clear();
@@ -2506,10 +2537,11 @@ class WebGLSceneBackend implements ISceneBackend {
   private cachedMixedPlane(opaque: readonly TDraw[], translucent: readonly TDraw[]): TMixedPlan | undefined {
     const sceneRevision = this.scheduleRevision;
     // Camera-driven packing can move records while a prepared span retains identical first/count values.
-    const layouts = [...new Set([...opaque, ...translucent].map(({ batch }) => batch))].flatMap((batch) => [
-      batch.ranges.layoutRevision,
-      batch.companion?.ranges.layoutRevision ?? 0,
-    ]);
+    const batches = new Set<TBatch>();
+    for (const draw of opaque) batches.add(draw.batch);
+    for (const draw of translucent) batches.add(draw.batch);
+    const layouts: number[] = [];
+    for (const batch of batches) layouts.push(batch.ranges.layoutRevision, batch.companion?.ranges.layoutRevision ?? 0);
     let cached = this.mixedPlan;
     if (
       !cached ||
@@ -2646,23 +2678,40 @@ class WebGLSceneBackend implements ISceneBackend {
     this.dimFloats = rgba ? [rgba[0] / 255, rgba[1] / 255, rgba[2] / 255, 1] : NO_DIM_COLOR;
   }
 
+  private frameDraw(batch: TBatch, first: number, count: number, curveDetail?: number): TDraw {
+    let draw = this.frameDrawPool[this.frameDrawCount];
+    if (!draw) {
+      draw = { batch, first, count, curveDetail };
+      this.frameDrawPool.push(draw);
+    } else {
+      draw.batch = batch;
+      draw.first = first;
+      draw.count = count;
+      draw.curveDetail = curveDetail;
+    }
+    this.frameDrawCount++;
+    return draw;
+  }
+
   /** Culls physical resident ranges before the path address stream is gathered. */
   private appendVisibleDraws(draws: TDraw[], batch: TBatch, frame: TSceneFrame, first: number, count: number): void {
     if (count === 0) return;
-    const curveChords =
-      batch.curveChords && canCoarsenCurves(frame, batch.culling?.untranslated === true)
-        ? batch.curveChords
-        : undefined;
-    const ranges = batch.culling?.ranges(first, count, frame, Number(batch.uniforms.graph_extraWidth ?? 0), {
-      curveChords,
-    });
-    if (!ranges) {
-      draws.push({ batch, first, count });
+    if (!batch.culling) {
+      draws[this.cullingDrawCount++] = this.frameDraw(batch, first, count);
       return;
     }
-    for (const range of ranges) {
-      draws.push({ batch, first: range.first, count: range.count, curveDetail: range.curveChords });
-    }
+    this.cullingOptions.curveChords =
+      batch.curveChords && canCoarsenCurves(frame, batch.culling.untranslated) ? batch.curveChords : undefined;
+    this.cullingBatch = batch;
+    this.cullingDraws = draws;
+    batch.culling.forEachRange(
+      first,
+      count,
+      frame,
+      Number(batch.uniforms.graph_extraWidth ?? 0),
+      this.appendCulledRange,
+      this.cullingOptions
+    );
   }
 
   /**
@@ -2670,17 +2719,25 @@ class WebGLSceneBackend implements ISceneBackend {
    * even when their resident slots lie apart or run backwards; non-path commands remain ordering barriers.
    */
   private gatherPathDraws(...passes: TDraw[][]): TUploadKind {
-    const byBatch = new Map<TBatch, TDraw[]>();
+    const batches: { batch: TBatch; ordered: { draws: TDraw[]; count: number } }[] = [];
     for (const draws of passes) {
       for (const draw of draws) {
         if (!draw.batch.pathRecords) continue;
-        let ordered = byBatch.get(draw.batch);
-        if (!ordered) byBatch.set(draw.batch, (ordered = []));
-        ordered.push(draw);
+        let ordered = this.gatheredDraws.get(draw.batch);
+        if (!ordered) this.gatheredDraws.set(draw.batch, (ordered = { draws: [], count: 0 }));
+        if (ordered.count === 0) batches.push({ batch: draw.batch, ordered });
+        ordered.draws[ordered.count++] = draw;
       }
     }
+    // Dormant lists must not retain commands whose pooled slots now belong to another batch.
+    for (const [batch, ordered] of this.gatheredDraws) {
+      if (ordered.count === 0) this.gatheredDraws.delete(batch);
+    }
     let kind: TUploadKind = "none";
-    for (const [batch, draws] of byBatch) {
+    for (const { batch, ordered } of batches) {
+      const draws = ordered.draws;
+      draws.length = ordered.count;
+      ordered.count = 0;
       const records = batch.pathRecords;
       if (!records) continue;
       const { ids } = records;
@@ -2705,9 +2762,8 @@ class WebGLSceneBackend implements ISceneBackend {
       }
     }
     for (const draws of passes) {
-      let used = 0;
+      let last: TDraw | undefined;
       for (const draw of draws) {
-        const last = draws[used - 1];
         if (
           draw.batch.pathRecords &&
           last?.batch === draw.batch &&
@@ -2715,17 +2771,19 @@ class WebGLSceneBackend implements ISceneBackend {
           last.first + last.count === draw.first
         ) {
           last.count += draw.count;
+          // Keep the reusable list's storage; only the surviving command issues a draw.
+          draw.count = 0;
         } else {
-          draws[used++] = draw;
+          last = draw;
         }
       }
-      draws.length = used;
     }
     return kind;
   }
 
   private drawPrepared(pass: RenderPass, draws: readonly TDraw[], frame: TSceneFrame): void {
     for (const { batch, first, count, curveDetail } of draws) {
+      if (count === 0) continue;
       this.pointInstances(batch, first);
       this.drawInstances(pass, batch, frame, count, curveDetail);
     }
@@ -2777,7 +2835,7 @@ class WebGLSceneBackend implements ISceneBackend {
       if (!batch.pathRecords || !batch.companion) continue;
       const uploaded = this.upload(batch);
       if (UPLOAD_COST[uploaded] > UPLOAD_COST[kind]) kind = uploaded;
-      batch.culling?.update(batch.ranges.data, batch.companion.ranges.data, this.table.data, frame);
+      batch.culling?.update(batch.ranges.data, batch.companion.ranges.data, this.table, frame);
       if (!batch.retainRanges) continue;
       let visibility = this.visibility.get(batch);
       if (!visibility) {

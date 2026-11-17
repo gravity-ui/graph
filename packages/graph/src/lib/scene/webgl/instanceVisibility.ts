@@ -64,12 +64,10 @@ export class InstanceVisibility {
     stateRevision?: number
   ): void {
     const changed = this.source !== ranges || this.revision !== ranges.revision;
-    if (changed) {
-      this.read(ranges);
-      this.visibilityRevision++;
-    }
+    const predicatesChanged = changed && this.read(ranges);
+    if (predicatesChanged) this.visibilityRevision++;
     const scale = Math.fround(frame.scale);
-    if (!changed && this.sameVisibilityState(scale, frame.level, stateRevision)) return;
+    if (!predicatesChanged && this.sameVisibilityState(scale, frame.level, stateRevision)) return;
     this.stateRevision = stateRevision;
     this.level = frame.level;
     const level = frame.level === undefined ? 0 : LEVEL_BIT[frame.level];
@@ -128,12 +126,14 @@ export class InstanceVisibility {
     );
   }
 
-  private read(ranges: InstanceRanges): void {
+  private read(ranges: InstanceRanges): boolean {
     const data = ranges.data;
     const stride = ranges.floats;
     const count = data.length / stride;
     const length = Math.ceil(count / CHUNK_SIZE);
+    let changed = count !== this.count;
     if (this.full || this.invalidatedRevision !== ranges.revision) {
+      changed = true;
       this.chunks = [];
       this.dirty.clear();
       for (let chunk = 0; chunk < length; chunk++) this.dirty.add(chunk);
@@ -144,7 +144,11 @@ export class InstanceVisibility {
         this.dirty.add(chunk);
     }
     for (const chunk of this.dirty) {
-      if (chunk < length) this.chunks[chunk] = this.readChunk(data, stride, chunk, count);
+      if (chunk < length) {
+        const next = this.readChunk(data, stride, chunk, count);
+        changed ||= next !== this.chunks[chunk];
+        this.chunks[chunk] = next;
+      }
     }
     this.dirty.clear();
     this.full = false;
@@ -152,6 +156,7 @@ export class InstanceVisibility {
     if (this.prefix.length !== length + 1) this.prefix = new Uint32Array(length + 1);
     this.source = ranges;
     this.invalidatedRevision = this.revision = ranges.revision;
+    return changed;
   }
 
   private readChunk(data: Float32Array, stride: number, chunk: number, count: number): TChunk {
@@ -189,6 +194,26 @@ export class InstanceVisibility {
           active: false,
         });
     }
+    const previous = this.chunks[chunk];
+    // Subs, widths and paint can change without changing any shader visibility predicate.
+    if (
+      previous &&
+      cohorts.length === previous.cohorts.length &&
+      cohorts.every((cohort, index) => {
+        const known = previous.cohorts[index];
+        return (
+          cohort.first === known.first &&
+          cohort.end === known.end &&
+          cohort.owner === known.owner &&
+          cohort.slot === known.slot &&
+          cohort.other === known.other &&
+          cohort.from === known.from &&
+          cohort.to === known.to &&
+          cohort.mask === known.mask
+        );
+      })
+    )
+      return previous;
     return { cohorts, next: new Uint8Array(CHUNK_SIZE).fill(CHUNK_SIZE) };
   }
 

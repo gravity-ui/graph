@@ -259,4 +259,38 @@ describe("instance visibility cohorts", () => {
     expect(visibility.any(0, 256)).toBe(true);
     expect(ranges.reads).toBe(0);
   });
+
+  it("keeps its visibility revision for changed path subs and widths with the same predicates", () => {
+    const ranges = new ObservedRanges(8);
+    ranges.set("paths", paths(384));
+    const visibility = new InstanceVisibility("path"),
+      paint = styles();
+    visibility.update(ranges, table, paint, frame(0.2), 1);
+    ranges.takeUpload();
+    const revision = visibility.visibilityRevision;
+    ranges.reads = 0;
+    ranges.editSpan("paths", 128, 1, (data, at) => {
+      data[at + 1] = 3;
+      data[at + 3] = 20;
+      data[at + 6] += 8;
+      data[at + 7] = 40;
+    });
+    visibility.invalidate(ranges.takeUpload(), ranges);
+    visibility.update(ranges, table, paint, frame(0.2), 2);
+    expect(visibility.visibilityRevision).toBe(revision);
+    expect(visibility.any(127, 130)).toBe(true);
+    expect(ranges.reads).toBeLessThanOrEqual(128 * 6);
+    expect(visibility.from).toBe(Math.fround(0.1));
+    expect(visibility.to).toBe(0.5);
+    // The cached cohort still observes later style and scale changes.
+    paint[7] = -2;
+    visibility.update(ranges, table, paint, frame(0.2), 3);
+    expect(visibility.visibilityRevision).toBeGreaterThan(revision);
+    expect(visibility.any(0, 384)).toBe(false);
+    paint[7] = -1;
+    visibility.update(ranges, table, paint, frame(0.5), 4);
+    expect(visibility.any(0, 384)).toBe(false);
+    visibility.update(ranges, table, paint, frame(0.2), 4);
+    expect(visibility.any(128, 1)).toBe(true);
+  });
 });

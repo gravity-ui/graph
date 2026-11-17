@@ -3,11 +3,12 @@ import { INSTANCE_FLOATS } from "../../../components/canvas/connections/webgl/en
 import type { TSceneFrame } from "./backendTypes";
 import { PATH_ELEMENT_FLOATS } from "./encodePaths";
 import { PathCulling } from "./pathCulling";
+import { ElementTable } from "./tables";
 
 const frame: TSceneFrame = { width: 100, height: 100, x: 0, y: 0, scale: 1, dpr: 2, time: 0, dimColor: "" };
 const CHUNK = 128;
 
-function paths(xs: number[]): { paths: Float32Array; elements: Float32Array; table: Float32Array } {
+function paths(xs: number[]): { paths: Float32Array; elements: Float32Array; table: ElementTable } {
   const data = new Float32Array(xs.length * INSTANCE_FLOATS);
   const elements = new Float32Array(xs.length * PATH_ELEMENT_FLOATS);
   xs.forEach((x, index) => {
@@ -15,7 +16,10 @@ function paths(xs: number[]): { paths: Float32Array; elements: Float32Array; tab
     data[index * INSTANCE_FLOATS + 12] = 2;
     elements.set([0, 0, 0, 0, 0, 1e9, 7, 1e9], index * PATH_ELEMENT_FLOATS);
   });
-  return { paths: data, elements, table: new Float32Array([0, 0, 0, 0, 0, 0, 0, 0]) };
+  const table = new ElementTable();
+  table.indexOf("e0");
+  table.indexOf("e1");
+  return { paths: data, elements, table };
 }
 
 describe("PathCulling", () => {
@@ -45,7 +49,7 @@ describe("PathCulling", () => {
     sync();
     expect(write.mock.calls.map((call) => call[0])).toEqual([1]);
     write.mockClear();
-    data.table[4] = 200;
+    data.table.write("e1", 200, 0, 0, false, 0);
     sync();
     expect(write).not.toHaveBeenCalled();
     expect(culling.ranges(0, count, frame, 0)).toEqual([{ first: 0, count }]);
@@ -54,7 +58,7 @@ describe("PathCulling", () => {
     expect(write).not.toHaveBeenCalled();
     count = 0;
     sync();
-    data.table[0] = 200;
+    data.table.write("e0", 200, 0, 0, false, 0);
     sync();
     expect(write).not.toHaveBeenCalled();
     expect(culling.ranges(0, 0, frame, 0)).toEqual([]);
@@ -105,6 +109,26 @@ describe("PathCulling", () => {
     expect(culling.ranges(0, CHUNK * 2, frame, 0, { bridgeGap: CHUNK })).toEqual([{ first: 0, count: CHUNK }]);
   });
 
+  it("visits merged ranges in the same order, including an invalid camera fallback", () => {
+    const data = paths(Array.from({ length: CHUNK * 4 }, (_, i) => (i >= CHUNK && i < CHUNK * 2 ? 500 : 10)));
+    data.paths[CHUNK * 3 * INSTANCE_FLOATS + 20] = 16;
+    const culling = new PathCulling();
+    culling.update(data.paths, data.elements, data.table, frame);
+    const visit = jest.fn();
+    const options = { bridgeGap: CHUNK, curveChords: 8 } as const;
+    culling.forEachRange(CHUNK / 2, CHUNK * 3, frame, 0, visit, options);
+    expect(visit.mock.calls).toEqual([
+      [CHUNK / 2, CHUNK * 2.5, 8],
+      [CHUNK * 3, CHUNK / 2, 16],
+    ]);
+    visit.mockClear();
+    culling.forEachRange(0, 2, { ...frame, scale: 0 }, 0, visit, options);
+    expect(visit.mock.calls).toEqual([[0, 2, undefined]]);
+    visit.mockClear();
+    culling.forEachRange(0, 0, frame, 0, visit, options);
+    expect(visit).not.toHaveBeenCalled();
+  });
+
   it("uses the control hull, stroke width, effect halo and hairline rim at the current scale and DPR", () => {
     const data = paths([110]);
     const culling = new PathCulling();
@@ -144,12 +168,31 @@ describe("PathCulling", () => {
     expect(culling.ranges(0, 1, frame, 0)).toHaveLength(1);
   });
 
+  it("keeps cached origins during pan and paint changes and samples a new table", () => {
+    const data = paths([500]);
+    const culling = new PathCulling();
+    data.table.write("e0", 1, 0, 1, false, 0);
+    culling.update(data.paths, data.elements, data.table, frame);
+    expect(culling.ranges(0, 1, frame, 0)).toEqual([]);
+
+    data.table.write("e0", 1, 0, 2, false, 3);
+    const read = jest.fn((target: typeof data.table.data, key: PropertyKey) => Reflect.get(target, key, target));
+    data.table.data = new Proxy(data.table.data, { get: read });
+    culling.update(data.paths, data.elements, data.table, { ...frame, x: -1 });
+    expect(read).not.toHaveBeenCalled();
+
+    const next = new ElementTable();
+    next.write("other", -500, 0, 1, false, 0);
+    culling.update(data.paths, data.elements, next, frame);
+    expect(culling.ranges(0, 1, frame, 0)).toHaveLength(1);
+  });
+
   it("updates moved origins without an instance upload, including after companion data changes owners", () => {
     const data = paths([500]);
     const culling = new PathCulling();
     culling.update(data.paths, data.elements, data.table, frame);
     expect(culling.ranges(0, 1, frame, 0)).toEqual([]);
-    data.table[0] = -500;
+    data.table.write("e0", -500, 0, 0, false, 0);
     culling.update(data.paths, data.elements, data.table, frame);
     expect(culling.ranges(0, 1, frame, 0)).toHaveLength(1);
     data.elements[0] = 1;
@@ -159,7 +202,7 @@ describe("PathCulling", () => {
     );
     culling.update(data.paths, data.elements, data.table, frame);
     expect(culling.ranges(0, 1, frame, 0)).toEqual([]);
-    data.table[4] = -500;
+    data.table.write("e1", -500, 0, 0, false, 0);
     culling.update(data.paths, data.elements, data.table, frame);
     expect(culling.ranges(0, 1, frame, 0)).toHaveLength(1);
   });
@@ -169,17 +212,16 @@ describe("PathCulling", () => {
     const culling = new PathCulling();
     culling.update(data.paths, data.elements, data.table, frame);
     expect(culling.untranslated).toBe(true);
-    data.table[0] = 1;
+    data.table.write("e0", 1, 0, 0, false, 0);
     culling.update(data.paths, data.elements, data.table, frame);
     expect(culling.untranslated).toBe(false);
-    data.table[0] = 0;
+    data.table.write("e0", 0, 0, 0, false, 0);
     culling.update(data.paths, data.elements, data.table, frame);
     expect(culling.untranslated).toBe(true);
-    data.table[1] = NaN;
+    data.table.write("e0", 0, NaN, 0, false, 0);
     culling.update(data.paths, data.elements, data.table, frame);
     expect(culling.untranslated).toBe(false);
-    data.table[1] = 0;
-    data.table[0] = Math.fround(1e-40);
+    data.table.write("e0", 1e-40, 0, 0, false, 0);
     culling.update(data.paths, data.elements, data.table, frame);
     expect(culling.untranslated).toBe(false);
   });
@@ -280,7 +322,7 @@ describe("PathCulling", () => {
     culling.update(data.paths, data.elements, data.table, low);
     expect(culling.untranslated).toBe(true);
     write.mockClear();
-    data.table[4] = -500;
+    data.table.write("e1", -500, 0, 0, false, 0);
     culling.update(data.paths, data.elements, data.table, low);
     expect(write).toHaveBeenCalledTimes(1);
     expect(culling.untranslated).toBe(true);
@@ -318,11 +360,11 @@ describe("PathCulling", () => {
 
   it("keeps float32 origin addition and large camera cancellation conservative", () => {
     const data = paths([100000000]);
-    data.table[0] = -100000000;
+    data.table.write("e0", -100000000, 0, 0, false, 0);
     const culling = new PathCulling();
     culling.update(data.paths, data.elements, data.table, frame);
     expect(culling.ranges(0, 1, frame, 0)).toHaveLength(1);
-    data.table[0] = 0;
+    data.table.write("e0", 0, 0, 0, false, 0);
     culling.update(data.paths, data.elements, data.table, frame);
     expect(culling.ranges(0, 1, { ...frame, x: -100000000 }, 0)).toHaveLength(1);
     data.paths[0] = Infinity;

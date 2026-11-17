@@ -89,3 +89,18 @@ The first final Chromium Metal run passed 106/106 relevant browser tests, includ
 Final CPU checks after cleanup: 183 core suites, 1906 tests and 9 snapshots passed (6 existing todo); monorepo package/app typechecks passed; full package/Storybook lint passed with six warnings and no errors. The prior React check passed 189 tests (4 skipped). Browser/packed-package verification continues.
 
 Final browser/package verification completed: 317/317 Chromium Metal, 36 relevant WebKit scenarios (35 initial + corrected DPR pixel test), and installed graph/graph-react/graph-minimap consumer contracts passed. The only browser fix was the test's CSS-to-device-pixel coordinate conversion. The current scene renderer is ready for the following minimap/drag assessment; Running Dash's remaining gap to legacy and LOD transition stalls are documented, not claimed solved.
+
+## Allocation and spatial follow-up (2026-11-17)
+
+The user reported frequent GC and questioned whether the frame work still follows visible rather than resident data. The audit and results are in [scene-memory](../research/2026-11-17-scene-memory.md).
+
+- [x] Compare constant visible work at 1k/10k/100k resident blocks; distinguish missing GPU culling from actual CPU cost.
+- [x] Profile real ETL/Dash allocation separately from GC pauses and retained heap. Confirm the per-frame origin scan, range wrappers and draw command churn.
+- [x] Reuse private commands/range traversal; preserve cached-plan ownership; track actual origin changes; retain identical writes/predicates; grow CPU element storage geometrically.
+- [x] Test long ETL Live ABBA without allocation sampling. Record the pre-existing rare weak-closure full GC rather than claiming it solved.
+- [x] Check repeated far/back frozen-time RGBA, context recovery, one context, delegated ports and the full Chromium regression suite; target WebKit connection checks also pass.
+- [ ] Measure a two-level spatial path-ID candidate (owner lookup, then piece bounds), independently of physical slots. Bypass it at fit; preserve exact geometry and authored ordering. Integrate only on net hardware improvement.
+- [ ] Attribute the remaining rare full-GC weak closure using retaining paths at matched scene state; cache type changes remain hypotheses.
+- [ ] Test stopping animation when accepted path ranges contain no active animated paint.
+
+The new GC results do not establish legacy Running Dash parity. Full non-path culling remains a measured follow-on, with renderer-specific glyph/halo/float bounds and a draw-fragmentation budget.

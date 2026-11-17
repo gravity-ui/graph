@@ -27,6 +27,8 @@ interface TWebGLProbeWindow extends Window {
   sceneTestLoss?: WEBGL_lose_context;
   sceneTestMixedTarget?: WebGLFramebuffer;
   sceneTestMixedContext?: WebGL2RenderingContext;
+  sceneTestMixedBackend?: object;
+  sceneTestMixedPixels?: Uint8Array;
 }
 
 async function trackWebGLContexts(page: Page): Promise<void> {
@@ -331,12 +333,22 @@ test("the mixed connection plane recreates its framebuffer and fixed-time image 
       const gl = backend.canvas.getContext("webgl2");
       const target = probe.mixedTarget?.handle;
       if (!gl || !target || !gl.isFramebuffer(target)) throw new Error("The mixed framebuffer was not created");
+      const pixels = new Uint8Array(gl.drawingBufferWidth * gl.drawingBufferHeight * 4);
+      gl.readPixels(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      const original = (win.sceneTestMixedPixels ??= pixels);
+      if (original.length !== pixels.length) throw new Error("The scene drawing buffer changed size");
+      let differentBytes = 0;
+      for (let i = 0; i < pixels.length; i++) if (pixels[i] !== original[i]) differentBytes++;
       const result = {
         image: backend.canvas.toDataURL(),
+        differentBytes,
+        drawCalls: backend.stats.drawCalls,
+        newBackend: backend !== win.sceneTestMixedBackend,
         newTarget: target !== win.sceneTestMixedTarget,
         newContext: gl !== win.sceneTestMixedContext,
         error: gl.getError(),
       };
+      win.sceneTestMixedBackend = backend;
       win.sceneTestMixedTarget = target;
       win.sceneTestMixedContext = gl;
       win.sceneTestLoss = gl.getExtension("WEBGL_lose_context") ?? undefined;
@@ -346,6 +358,28 @@ test("the mixed connection plane recreates its framebuffer and fixed-time image 
   const before = await capture();
   expect(before.error).toBe(0);
   expect(await attachedWebGLContexts(page)).toBe(1);
+
+  // Shrink and refill the frame's command pool without rebuilding the backend or advancing the effect's clock.
+  await graph.evaluate((each) => each.cameraService.set({ x: 10000, y: 10000 }));
+  const away = await capture();
+  expect(away.error).toBe(0);
+  expect(away.newBackend).toBe(false);
+  expect(away.newContext).toBe(false);
+  expect(away.newTarget).toBe(false);
+  expect(away.drawCalls, "offscreen paths leave the draw schedule").toBeLessThan(before.drawCalls);
+  expect(away.differentBytes).toBeGreaterThan(0);
+
+  await graph.evaluate((each) => each.cameraService.set({ x: 0, y: 0 }));
+  for (let frame = 0; frame < 3; frame++) {
+    const back = await capture();
+    expect(back.error).toBe(0);
+    expect(back.newBackend).toBe(false);
+    expect(back.newContext).toBe(false);
+    expect(back.newTarget).toBe(false);
+    expect(back.drawCalls, `restored draw schedule, frame ${frame}`).toBe(before.drawCalls);
+    expect(back.differentBytes, `fixed-time RGBA after pan, frame ${frame}`).toBe(0);
+  }
+
   const extensionAvailable = await page.evaluate(() => {
     const extension = (window as unknown as TWebGLProbeWindow).sceneTestLoss;
     extension?.loseContext();
@@ -359,8 +393,10 @@ test("the mixed connection plane recreates its framebuffer and fixed-time image 
   await expectRenderer(page, "webgl");
   const restored = await capture();
   expect(restored.error).toBe(0);
+  expect(restored.newBackend).toBe(true);
   expect(restored.newContext).toBe(true);
   expect(restored.newTarget).toBe(true);
+  expect(restored.differentBytes).toBe(0);
   expect(restored.image).toBe(before.image);
   expect(await attachedWebGLContexts(page)).toBe(1);
 
