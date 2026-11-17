@@ -62,6 +62,7 @@ import { InstanceVisibility } from "./instanceVisibility";
 import { CachedGeometryBounds, geometryBounds } from "./levelBounds";
 import {
   MIXED_PATH_MAX_SOURCES,
+  MIXED_PATH_SOURCE_STRIDE,
   canonicalizeMixedSources,
   fullySubpixelPaths,
   mixedPathSchedule,
@@ -89,12 +90,15 @@ import {
   RECT_ATTRIBUTES,
   RECT_FRAGMENT,
   RECT_VERTEX,
+  STOCK_PATH_FRAGMENT,
   TRIANGLE_ATTRIBUTES,
   TRIANGLE_FRAGMENT,
   TRIANGLE_VERTEX,
   createMixedPathVertex,
   createPathPlugin,
+  createStockPathPlugin,
 } from "./shaders";
+import { orderResidentPathDraws } from "./stockPathOrder";
 import { ElementTable, STYLE_ROW_TEXELS, StyleTable, TABLE_WIDTH } from "./tables";
 import { adoptTexts, planTextEncode, resubGlyphs, textsOf } from "./textEncodes";
 import type { TTextEncode, TTextLayouts } from "./textEncodes";
@@ -181,6 +185,7 @@ type TBatch = {
 /** Physical instance offsets until gathering; path commands then address their compact ID stream. */
 type TDraw = { batch: TBatch; first: number; count: number; curveDetail?: number };
 const MIXED_EFFECT_PROGRAMS = new Set([toConnectionEffect(dashFlow).programKey, toConnectionEffect(pulse).programKey]);
+const PULSE_PROGRAM = toConnectionEffect(pulse).programKey;
 // The extra pass pays off on the measured large fit views. At around 600k vertices the shared pass wins.
 const MIN_MIXED_CONNECTION_VERTICES = 1_500_000;
 
@@ -213,6 +218,16 @@ type TMixedDraw = TInstancePointerTarget & {
   ids: PathDrawIds;
 };
 type TPreparedMixed = { plan: TMixedPlan; draw: TMixedDraw; target: Framebuffer; upload: TUploadKind };
+type TStockPlan = Pick<TMixedPlan, "sources" | "spans" | "commands">;
+type TPreparedStock = { plan: TStockPlan; draw: TMixedDraw; upload: TUploadKind };
+
+function stockGroup(group: TPathGroup | undefined): boolean {
+  return Boolean(
+    group &&
+      !group.fallback &&
+      (!group.effect || (group.effect.extraWidth === 0 && MIXED_EFFECT_PROGRAMS.has(group.effect.programKey)))
+  );
+}
 
 function hasEffectDepthWrites(effect?: TEffect): boolean {
   return /\bgl_FragDepth\b/.test(effect?.fragment ?? "");
@@ -610,6 +625,11 @@ class WebGLSceneBackend implements ISceneBackend {
     plan?: TMixedPlan;
   };
   private mixedDraw?: TMixedDraw;
+  private stockDraw?: TMixedDraw;
+  private stockPlan?: { revision: number; draws: readonly TDraw[]; plan?: TStockPlan };
+  private stockOrder?: { stamp: number[]; physical: readonly TDraw[]; ordered: readonly TDraw[] };
+  private readonly stockPhysicalDraws: TDraw[] = [];
+  private readonly pathBatchGroups = new WeakMap<TBatch, TPathGroup>();
   private readonly mixedDisabled = new Set<string>();
   private mixedTarget?: Framebuffer;
   private mixedComposite?: Model;
@@ -865,17 +885,20 @@ class WebGLSceneBackend implements ISceneBackend {
     this.subs = 2 ** this.depth.subBits;
     // Resident paths never sort: upload their local changes and prepare exact visibility before building buckets.
     let uploadKind = this.uploadPaths(frame);
-    this.refreshOverlapBounds(frame);
-    this.orderTranslucent();
+    for (const group of this.pathGroups.values()) this.setEffectUniforms(group, frame.scale);
+    this.frameAnimated = false;
+    this.frameDrawCount = 0;
+    const stockOrder = this.orderedStockPaths(frame);
+    if (!stockOrder) {
+      this.refreshOverlapBounds(frame);
+      this.orderTranslucent();
+    }
     // Dense non-path lists may still have moved during ordering.
     for (const batch of this.allBatches()) {
       if (batch.pathRecords) continue;
       const kind = this.upload(batch);
       if (UPLOAD_COST[kind] > UPLOAD_COST[uploadKind]) uploadKind = kind;
     }
-    for (const group of this.pathGroups.values()) this.setEffectUniforms(group, frame.scale);
-    this.frameAnimated = false;
-    this.frameDrawCount = 0;
     const opaqueDraws = this.opaqueFrameDraws;
     const translucentDraws = this.translucentFrameDraws;
     this.cullingDrawCount = 0;
@@ -884,8 +907,19 @@ class WebGLSceneBackend implements ISceneBackend {
     }
     opaqueDraws.length = this.cullingDrawCount;
     this.cullingDrawCount = 0;
-    for (const run of this.visibleTranslucentRuns(frame)) {
-      this.appendVisibleDraws(translucentDraws, this.translucentBatches[run.source], frame, run.first, run.count);
+    if (stockOrder) {
+      this.refineTranslucent = false;
+      for (const draw of stockOrder)
+        translucentDraws[this.cullingDrawCount++] = this.frameDraw(
+          draw.batch,
+          draw.first,
+          draw.count,
+          draw.curveDetail
+        );
+    } else {
+      for (const run of this.visibleTranslucentRuns(frame)) {
+        this.appendVisibleDraws(translucentDraws, this.translucentBatches[run.source], frame, run.first, run.count);
+      }
     }
     translucentDraws.length = this.cullingDrawCount;
     this.cullingBatch = undefined;
@@ -901,9 +935,19 @@ class WebGLSceneBackend implements ISceneBackend {
     const upperTranslucent = mixed
       ? mixed.plan.upperTranslucent.map((draw) => this.frameDraw(draw.batch, draw.first, draw.count, draw.curveDetail))
       : translucentDraws;
+    const stock = this.prepareStockPaths(upperTranslucent);
+    const stockNativeRuns: TDraw[][] = [];
+    for (const command of stock?.plan.commands ?? []) {
+      if (command.native) stockNativeRuns.push([this.frameDraw(command.native, command.first, command.count)]);
+    }
     this.frameDrawPool.length = this.frameDrawCount;
-    const addressUpload = this.gatherPathDraws(...nativeRuns, upperOpaque, upperTranslucent);
+    const addressUpload = this.gatherPathDraws([
+      ...nativeRuns,
+      upperOpaque,
+      ...(stock ? stockNativeRuns : [upperTranslucent]),
+    ]);
     if (mixed && UPLOAD_COST[mixed.upload] > UPLOAD_COST[uploadKind]) uploadKind = mixed.upload;
+    if (stock && UPLOAD_COST[stock.upload] > UPLOAD_COST[uploadKind]) uploadKind = stock.upload;
     if (UPLOAD_COST[addressUpload] > UPLOAD_COST[uploadKind]) uploadKind = addressUpload;
     this.stats.lastUploadKind = uploadKind;
     this.stats.lastUploadBytes = this.frameUploadBytes;
@@ -928,7 +972,8 @@ class WebGLSceneBackend implements ISceneBackend {
     // level, step by step, one instanced draw per program and range. Depth orders them against the
     // opaque pass.
     const beforeTranslucent = this.stats.drawCalls;
-    this.drawPrepared(pass, upperTranslucent, frame);
+    if (stock) this.drawStockPaths(pass, stock, stockNativeRuns, frame);
+    else this.drawPrepared(pass, upperTranslucent, frame);
     this.stats.translucentDrawCalls = this.stats.drawCalls - beforeTranslucent + (mixed?.plan.commands.length ?? 0);
     pass.end();
     this.device.submit();
@@ -956,6 +1001,10 @@ class WebGLSceneBackend implements ISceneBackend {
     this.idlePathGroups.clear();
     this.pathGroupsOf.clear();
     this.destroyMixedDraw();
+    this.destroyStockDraw();
+    this.stockPlan = undefined;
+    this.stockOrder = undefined;
+    this.stockPhysicalDraws.length = 0;
     this.mixedComposite?.destroy();
     if (this.ownsObjects()) {
       this.mixedTarget?.destroy();
@@ -1195,6 +1244,9 @@ class WebGLSceneBackend implements ISceneBackend {
 
   private reset(): void {
     this.gatheredDraws.clear();
+    this.stockPlan = undefined;
+    this.stockOrder = undefined;
+    this.stockPhysicalDraws.length = 0;
     this.elements.clear();
     for (const group of this.pathGroups.values()) group.users = 0;
     this.pathGroupsOf.clear();
@@ -1730,6 +1782,9 @@ class WebGLSceneBackend implements ISceneBackend {
       group.coarseCurves.curveChords = 8;
       group.coarseCurves.culling = new PathCulling();
     }
+    this.pathBatchGroups.set(group.lines, group);
+    this.pathBatchGroups.set(group.curves, group);
+    if (group.coarseCurves) this.pathBatchGroups.set(group.coarseCurves, group);
     return group;
   }
 
@@ -2129,10 +2184,7 @@ class WebGLSceneBackend implements ISceneBackend {
       );
       // The path address stream already joins adjacent runs of one source, regardless of resident gaps. Only
       // remaining program barriers justify the more expensive overlap coalescer; non-path runs keep their draws.
-      this.activeDrawGroups = gatheredPathDrawCount(
-        this.activeRuns,
-        batches.map((batch) => Boolean(batch.pathRecords))
-      );
+      this.activeDrawGroups = this.stockDrawGroups(this.activeRuns, batches);
       this.activeOwners = [];
       this.activeScope = scope;
       this.activeStamp = stamp;
@@ -2427,7 +2479,7 @@ class WebGLSceneBackend implements ISceneBackend {
     const { batch } = draw;
     const { pathRecords, companion } = batch;
     if (!pathRecords || !companion || group.fallback) return false;
-    const native = group.effect && group.effect !== work.stock?.effect ? group.effect : undefined;
+    const native = group.effect && !stockGroup(group) ? group.effect : undefined;
     if (native && ((work.customEffect && work.customEffect !== native) || hasEffectDepthWrites(native))) return false;
     const chords = batch === group.lines ? 1 : draw.curveDetail ?? 16;
     let source = work.sources.findIndex((entry) => entry.records === pathRecords && entry.chords === chords);
@@ -2607,8 +2659,208 @@ class WebGLSceneBackend implements ISceneBackend {
     return cached.plan;
   }
 
+  /** A shared stock program needs painter order, but no spatial overlap search to batch it. */
+  private orderedStockPaths(frame: TSceneFrame): readonly TDraw[] | undefined {
+    const batches = [...this.passBatches("translucent")].filter((batch) => batch.ranges.liveCount > 0);
+    if (
+      batches.length === 0 ||
+      batches.length > MIXED_PATH_MAX_SOURCES ||
+      batches.some(
+        (batch) =>
+          !batch.pathRecords ||
+          batch.ranges.count > MIXED_PATH_SOURCE_STRIDE ||
+          !stockGroup(this.pathBatchGroups.get(batch))
+      )
+    ) {
+      this.stockOrder = undefined;
+      this.stockPhysicalDraws.length = 0;
+      return undefined;
+    }
+    const draws = this.stockPhysicalDraws;
+    this.cullingDrawCount = 0;
+    for (const batch of batches) this.appendVisibleDraws(draws, batch, frame, 0, batch.ranges.count);
+    draws.length = this.cullingDrawCount;
+    const stamp = [
+      this.scheduleRevision,
+      ...batches.flatMap((batch) => [
+        batch.companion?.ranges.layoutRevision ?? 0,
+        this.visibility.get(batch)?.visibilityRevision ?? 0,
+      ]),
+    ];
+    let cached = this.stockOrder;
+    if (!cached || !sameNumbers(cached.stamp, stamp) || !sameDraws(cached.physical, draws)) {
+      const sources = new Map(
+        batches.map((batch, tie) => [batch, batch.companion && { elements: batch.companion.ranges.data, tie }])
+      );
+      const ordered = orderResidentPathDraws(
+        draws,
+        this.table.data,
+        (batch) => sources.get(batch),
+        (batch, first, count) => this.visibility.get(batch)?.any(first, count) ?? true
+      );
+      if (!ordered) {
+        this.stockOrder = undefined;
+        return undefined;
+      }
+      cached = { stamp, physical: draws.map((draw) => ({ ...draw })), ordered };
+      this.stockOrder = cached;
+    }
+    return cached.ordered;
+  }
+
+  /** Stock shaders can share a draw even where their translucent owner order alternates. */
+  private stockDrawGroups(runs: readonly TTranslucentRun[], batches: readonly TBatch[]): number {
+    const sources = new Set<number>();
+    let previous = -2;
+    let groups = 0;
+    for (const run of runs) {
+      const batch = batches[run.source];
+      const stock = stockGroup(this.pathBatchGroups.get(batch));
+      if (stock) sources.add(run.source);
+      const source = stock ? -1 : run.source;
+      if (source !== previous || !batch.pathRecords) groups++;
+      previous = source;
+    }
+    return sources.size <= MIXED_PATH_MAX_SOURCES
+      ? groups
+      : gatheredPathDrawCount(
+          runs,
+          batches.map((batch) => Boolean(batch.pathRecords))
+        );
+  }
+
+  /** Preserve the supplied logical order and native barriers; only the GPU address stream is combined. */
+  private buildStockPlan(draws: readonly TDraw[]): TStockPlan | undefined {
+    const sources: TMixedSource[] = [];
+    const ranges: (TMixedPathRange | TNativePathRange<TBatch>)[] = [];
+    let ordinaryGroups = 0;
+    let previous: TDraw | undefined;
+    for (const [key, draw] of draws.entries()) {
+      const { batch, first, count } = draw;
+      if (!previous || previous.batch !== batch || previous.curveDetail !== draw.curveDetail || !batch.pathRecords)
+        ordinaryGroups++;
+      previous = draw;
+      const group = this.pathBatchGroups.get(batch);
+      const range = { key, sub: 0, tie: 0, first, count };
+      if (!batch.pathRecords || !group || !stockGroup(group)) {
+        ranges.push({ ...range, native: batch });
+        continue;
+      }
+      const chords = batch === group.lines ? 1 : draw.curveDetail ?? 16;
+      let source = sources.findIndex((item) => item.records === batch.pathRecords && item.chords === chords);
+      if (source < 0) {
+        source = sources.length;
+        if (source >= MIXED_PATH_MAX_SOURCES) return undefined;
+        sources.push({ records: batch.pathRecords, chords, group, tie: source });
+      }
+      ranges.push({ ...range, source });
+    }
+    if (ordinaryGroups < 32 || sources.length === 0) return undefined;
+    const schedule = mixedPathSchedule(ranges);
+    if (!schedule || schedule.commands.length + 16 > ordinaryGroups) return undefined;
+    return { sources, ...schedule };
+  }
+
+  private prepareStockPaths(draws: readonly TDraw[]): TPreparedStock | undefined {
+    if (draws.length < 32) {
+      this.stockPlan = undefined;
+      return undefined;
+    }
+    let cached = this.stockPlan;
+    if (!cached || cached.revision !== this.scheduleRevision || !sameDraws(cached.draws, draws)) {
+      cached = {
+        revision: this.scheduleRevision,
+        draws: draws.map((draw) => ({ ...draw })),
+        plan: this.buildStockPlan(draws),
+      };
+      this.stockPlan = cached;
+    }
+    const { plan } = cached;
+    if (!plan) return undefined;
+    const key = `native-stock|${plan.sources.length}`;
+    if (this.mixedDisabled.has(key)) return undefined;
+    let draw = this.stockDraw;
+    if (draw?.programKey !== key) {
+      this.destroyStockDraw();
+      const buffer = this.createInstanceBuffer(1);
+      const uniforms: TUniforms = { scene_opaquePass: 0 };
+      const model = new Model(this.device, {
+        id: "scene-stock-paths",
+        vs: createMixedPathVertex(plan.sources.length),
+        fs: STOCK_PATH_FRAGMENT,
+        plugins: [createStockPathPlugin()],
+        topology: "triangle-strip",
+        bufferLayout: PATH_LAYOUT,
+        attributes: { graph_template: this.curveTemplate, graph_recordId: buffer },
+        uniforms,
+        parameters: PASS_PARAMETERS.translucent,
+        vertexCount: createCurveTemplate().length / 2,
+        isInstanced: true,
+        instanceCount: 0,
+      });
+      draw = {
+        programKey: key,
+        model,
+        uniforms,
+        buffer,
+        ids: new PathDrawIds(),
+        layout: PATH_LAYOUT,
+        instanceBuffers: [{ name: PATH_LAYOUT[1].name, buffer }],
+        pointedAt: 0,
+      };
+      this.stockDraw = draw;
+      if (!isLinked(model)) {
+        this.mixedDisabled.add(key);
+        this.destroyStockDraw();
+        return undefined;
+      }
+    }
+    let changed = draw.ids.update(plan.spans);
+    let upload: TUploadKind = changed ? "range" : "none";
+    if (draw.ids.data.byteLength > draw.buffer.byteLength) {
+      draw.buffer.resize({ byteLength: Math.max(draw.ids.data.byteLength, draw.buffer.byteLength * 2) });
+      draw.model.setAttributes({ graph_recordId: draw.buffer });
+      draw.pointedAt = 0;
+      changed = { byteOffset: 0, data: draw.ids.data };
+      upload = "full";
+    }
+    if (changed) {
+      draw.buffer.write(changed.data, changed.byteOffset);
+      this.countUpload(changed.data.byteLength);
+    }
+    return { plan, draw, upload };
+  }
+
+  private drawStockPaths(
+    pass: RenderPass,
+    { plan, draw }: TPreparedStock,
+    nativeRuns: readonly TDraw[][],
+    frame: TSceneFrame
+  ): void {
+    this.setPathSources(draw, plan.sources);
+    let nativeIndex = 0;
+    for (const command of plan.commands) {
+      if (command.native) this.drawPrepared(pass, nativeRuns[nativeIndex++], frame);
+      else {
+        this.pointInstances(draw, command.first);
+        this.drawInstances(pass, draw, frame, command.count);
+      }
+    }
+  }
+
+  private destroyStockDraw(): void {
+    const draw = this.stockDraw;
+    if (!draw) return;
+    draw.model.destroy();
+    if (this.ownsObjects()) {
+      draw.model.vertexArray.destroy();
+      draw.buffer.destroy();
+    }
+    this.stockDraw = undefined;
+  }
+
   private mixedDrawFor(plan: TMixedPlan): TMixedDraw | undefined {
-    const key = `${plan.effect?.programKey ?? "plain"}|${plan.sources.length}`;
+    const key = `${plan.effect ? "stock" : "plain"}|${plan.sources.length}`;
     if (this.mixedDisabled.has(key)) return undefined;
     let draw = this.mixedDraw;
     if (draw?.programKey !== key) {
@@ -2618,8 +2870,8 @@ class WebGLSceneBackend implements ISceneBackend {
       const model = new Model(this.device, {
         id: "scene-mixed-connections",
         vs: createMixedPathVertex(plan.sources.length),
-        fs: MIXED_PATH_FRAGMENT,
-        plugins: [createPathPlugin(plan.effect)],
+        fs: plan.effect ? STOCK_PATH_FRAGMENT : MIXED_PATH_FRAGMENT,
+        plugins: [plan.effect ? createStockPathPlugin() : createPathPlugin(undefined)],
         topology: "triangle-strip",
         bufferLayout: PATH_LAYOUT,
         attributes: { graph_template: this.curveTemplate, graph_recordId: buffer },
@@ -2660,6 +2912,27 @@ class WebGLSceneBackend implements ISceneBackend {
     this.mixedDraw = undefined;
   }
 
+  private setPathSources(draw: TMixedDraw, sources: readonly TMixedSource[]): void {
+    const bindings: Record<string, Texture> = this.bindings(PATH_TEXTURES);
+    const widths = Array<number>(8).fill(10);
+    const kinds = Array<number>(8).fill(16);
+    sources.forEach(({ records, chords, group }, index) => {
+      const { texture } = records;
+      bindings[`graph_records${index}`] = texture;
+      widths[index] = texture.width;
+      kinds[index] = chords + (group.effectActive ? 0 : 32) + (group.effect?.programKey === PULSE_PROGRAM ? 64 : 0);
+    });
+    draw.model.setBindings(bindings);
+    draw.model.setVertexCount((Math.max(...sources.map(({ chords }) => chords)) + 1) * 2);
+    Object.assign(draw.uniforms, {
+      graph_extraWidth: 0,
+      graph_widths0: widths.slice(0, 4),
+      graph_widths1: widths.slice(4),
+      graph_kinds0: kinds.slice(0, 4),
+      graph_kinds1: kinds.slice(4),
+    });
+  }
+
   private beginMixedScene(
     frame: TSceneFrame,
     { plan, draw, target }: TPreparedMixed,
@@ -2670,24 +2943,8 @@ class WebGLSceneBackend implements ISceneBackend {
       clearDepth: 0,
       clearStencil: false as const,
     };
-    const bindings: Record<string, Texture> = this.bindings(PATH_TEXTURES);
-    const widths = Array<number>(8).fill(10);
-    const kinds = Array<number>(8).fill(16);
-    plan.sources.forEach(({ records, chords, group }, index) => {
-      const { texture } = records;
-      bindings[`graph_records${index}`] = texture;
-      widths[index] = texture.width;
-      kinds[index] = chords + (group.effectActive ? 0 : 32);
-    });
-    draw.model.setBindings(bindings);
-    draw.model.setVertexCount((Math.max(...plan.sources.map(({ chords }) => chords)) + 1) * 2);
-    Object.assign(draw.uniforms, plan.effectUniforms, {
-      graph_extraWidth: 0,
-      graph_widths0: widths.slice(0, 4),
-      graph_widths1: widths.slice(4),
-      graph_kinds0: kinds.slice(0, 4),
-      graph_kinds1: kinds.slice(4),
-    });
+    Object.assign(draw.uniforms, plan.effectUniforms);
+    this.setPathSources(draw, plan.sources);
     const connectionPass = this.device.beginRenderPass({ ...clear, clearDepth: false, framebuffer: target });
     let nativeIndex = 0;
     for (const command of plan.commands) {
@@ -2763,7 +3020,7 @@ class WebGLSceneBackend implements ISceneBackend {
    * Gather only after physical visibility, owner and ordering queries. Adjacent commands can then share a draw
    * even when their resident slots lie apart or run backwards; non-path commands remain ordering barriers.
    */
-  private gatherPathDraws(...passes: TDraw[][]): TUploadKind {
+  private gatherPathDraws(passes: readonly TDraw[][]): TUploadKind {
     const batches: { batch: TBatch; ordered: { draws: TDraw[]; count: number } }[] = [];
     for (const draws of passes) {
       for (const draw of draws) {

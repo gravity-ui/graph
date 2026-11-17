@@ -9,6 +9,11 @@ const WIDE_CELLS = 4096;
 /** Elements sampled for the typical element size. */
 const SIZE_SAMPLES = 64;
 
+/** The incremental pass can scan a few times the records and cell entries of a fresh pass. */
+const MOVE_SCAN_FACTOR = 4;
+const MIN_MOVE_SCAN_WORK = 2048;
+type TMoveBudget = { remaining: number };
+
 function sameBounds(a: TTileRect | undefined, b: TTileRect | undefined): boolean {
   if (!a || !b) return a === b;
   return a.minX === b.minX && a.minY === b.minY && a.maxX === b.maxX && a.maxY === b.maxY;
@@ -189,35 +194,35 @@ export class OverlapGrid {
   /**
    * Re-levels after the boxes `moved` changed in place in the array given to `compute`. Re-evaluates the moved boxes
    * and the later boxes in their old and new cells, then, in scene order, the later boxes around every box whose level
-   * changed. Returns the boxes whose level changed, or undefined when a full `compute` is needed: a box that was or
-   * becomes wide.
+   * changed. Returns the boxes whose level changed, or leaves the previous levels in place and returns undefined
+   * when a moved box is wide or the scan budget is exhausted. The caller then rebuilds the grid with `compute`.
    */
   public move(moved: readonly number[]): number[] | undefined {
     const queue = new MinQueue();
+    const budget = { remaining: Math.max(MIN_MOVE_SCAN_WORK, MOVE_SCAN_FACTOR * (this.count + this.entries)) };
+    const changed: number[] = [];
+    const previous: number[] = [];
     const enqueue = (box: number): void => {
       if (this.queued[box]) return;
       this.queued[box] = 1;
       queue.push(box);
     };
     for (const box of moved) {
-      if (this.ranges[box * 4] < 0) return this.abort(queue);
-      this.later(box, enqueue);
-      this.unfile(box);
-      this.setRange(box);
-      if (this.ranges[box * 4] < 0) return this.abort(queue);
-      this.file(box);
-      this.later(box, enqueue);
+      if (!this.refileMoved(box, enqueue, budget)) return this.abortMove(changed, previous);
       enqueue(box);
     }
-    const changed: number[] = [];
     for (let box = queue.pop(); box !== undefined; box = queue.pop()) {
       this.queued[box] = 0;
-      const level = this.levelFor(box);
+      const level = this.levelFor(box, budget);
+      if (level < 0) return this.abortMove(changed, previous);
       if (level === this.levels[box]) continue;
+      budget.remaining -= this.cellCountOf(box);
+      if (budget.remaining < 0) return this.abortMove(changed, previous);
+      previous.push(this.levels[box]);
       this.levels[box] = level;
       changed.push(box);
       this.raiseCells(box);
-      this.later(box, enqueue);
+      if (!this.later(box, enqueue, budget)) return this.abortMove(changed, previous);
     }
     if (changed.length > 0) {
       this.top = -1;
@@ -226,33 +231,44 @@ export class OverlapGrid {
     return changed;
   }
 
-  private abort(queue: MinQueue): undefined {
-    for (let box = queue.pop(); box !== undefined; box = queue.pop()) this.queued[box] = 0;
+  private refileMoved(box: number, enqueue: (other: number) => void, budget: TMoveBudget): boolean {
+    if (this.ranges[box * 4] < 0 || !this.later(box, enqueue, budget) || !this.unfile(box, budget)) return false;
+    this.setRange(box);
+    if (this.ranges[box * 4] < 0) return false;
+    // Filing adds each entry and then raises the bound of its cell.
+    budget.remaining -= 2 * this.cellCountOf(box);
+    if (budget.remaining < 0) return false;
+    this.file(box);
+    return this.later(box, enqueue, budget);
+  }
+
+  private abortMove(changed: readonly number[], previous: readonly number[]): undefined {
+    // The caller compares the exact rebuild with the pre-move levels. Grid entries are rebuilt from scratch.
+    for (let i = 0; i < changed.length; i++) this.levels[changed[i]] = previous[i];
+    this.queued.fill(0, 0, this.count);
     return undefined;
   }
 
-  /** 1 + the highest level of the earlier boxes that intersect `box`. */
-  private levelFor(box: number): number {
+  /** 1 + the highest level of the earlier boxes that intersect `box`, or -1 when a move runs out of scan work. */
+  private levelFor(box: number, budget?: TMoveBudget): number {
+    const at = box * 4;
+    if (this.ranges[at] < 0) return this.levelForWide(box, budget);
     const { boxes, levels } = this;
     let best = -1;
     for (const other of this.wide) {
+      if (budget && --budget.remaining < 0) return -1;
       if (other < box && levels[other] > best && intersects(boxes, other, box)) best = levels[other];
-    }
-    const at = box * 4;
-    if (this.ranges[at] < 0) {
-      for (let other = 0; other < box; other++) {
-        if (levels[other] > best && intersects(boxes, other, box)) best = levels[other];
-      }
-      return best + 1;
     }
     for (let cy = this.ranges[at + 1]; cy <= this.ranges[at + 3]; cy++) {
       for (let cx = this.ranges[at]; cx <= this.ranges[at + 2]; cx++) {
+        if (budget && --budget.remaining < 0) return -1;
         const c = cy * this.columns + cx;
         const bound = this.cellLevel[c];
         if (bound <= best) continue;
         // Entries are newest first. Once the best reaches the cell's bound, no entry can raise it: a stack of N boxes
         // in one cell costs O(N), not O(N^2).
         for (let entry = this.cellHead[c]; entry >= 0 && best < bound; entry = this.entryNext[entry]) {
+          if (budget && --budget.remaining < 0) return -1;
           const other = this.entryBox[entry];
           if (other < box && levels[other] > best && intersects(boxes, other, box)) best = levels[other];
         }
@@ -261,21 +277,41 @@ export class OverlapGrid {
     return best + 1;
   }
 
-  /** Visits the later boxes that can intersect `box`: in its cells, the wide ones, or all for a wide box. */
-  private later(box: number, visit: (other: number) => void): void {
+  /** Wide boxes already scan all earlier entries, including the earlier wide boxes. */
+  private levelForWide(box: number, budget: TMoveBudget | undefined): number {
+    const { boxes, levels } = this;
+    let best = -1;
+    for (let other = 0; other < box; other++) {
+      if (budget && --budget.remaining < 0) return -1;
+      if (levels[other] > best && intersects(boxes, other, box)) best = levels[other];
+    }
+    return best + 1;
+  }
+
+  /** Visits candidates for later overlaps until the scan budget is exhausted. */
+  private later(box: number, visit: (other: number) => void, budget: TMoveBudget): boolean {
     const at = box * 4;
     if (this.ranges[at] < 0) {
-      for (let other = box + 1; other < this.count; other++) visit(other);
-      return;
+      for (let other = box + 1; other < this.count; other++) {
+        if (--budget.remaining < 0) return false;
+        visit(other);
+      }
+      return true;
     }
-    for (const other of this.wide) if (other > box) visit(other);
+    for (const other of this.wide) {
+      if (--budget.remaining < 0) return false;
+      if (other > box) visit(other);
+    }
     for (let cy = this.ranges[at + 1]; cy <= this.ranges[at + 3]; cy++) {
       for (let cx = this.ranges[at]; cx <= this.ranges[at + 2]; cx++) {
+        if (--budget.remaining < 0) return false;
         for (let entry = this.cellHead[cy * this.columns + cx]; entry >= 0; entry = this.entryNext[entry]) {
+          if (--budget.remaining < 0) return false;
           if (this.entryBox[entry] > box) visit(this.entryBox[entry]);
         }
       }
     }
+    return true;
   }
 
   /** Writes the cell range of the box from its coordinates; a box over too many cells is wide. */
@@ -299,6 +335,12 @@ export class OverlapGrid {
     else this.ranges.set([cx0, cy0, cx1, cy1], i);
   }
 
+  private cellCountOf(box: number): number {
+    const at = box * 4;
+    const { ranges } = this;
+    return Math.max(0, ranges[at + 2] - ranges[at] + 1) * Math.max(0, ranges[at + 3] - ranges[at + 1] + 1);
+  }
+
   /** Enters the box into its cells, or into the wide list, and raises the cells' level bounds to its level. */
   private file(box: number): void {
     const at = box * 4;
@@ -313,13 +355,15 @@ export class OverlapGrid {
   }
 
   /** Takes the box out of its cells; a cell's level bound stays an upper bound. */
-  private unfile(box: number): void {
+  private unfile(box: number, budget: TMoveBudget): boolean {
     const at = box * 4;
     for (let cy = this.ranges[at + 1]; cy <= this.ranges[at + 3]; cy++) {
       for (let cx = this.ranges[at]; cx <= this.ranges[at + 2]; cx++) {
+        if (--budget.remaining < 0) return false;
         const c = cy * this.columns + cx;
         let previous = -1;
         for (let entry = this.cellHead[c]; entry >= 0; entry = this.entryNext[entry]) {
+          if (--budget.remaining < 0) return false;
           if (this.entryBox[entry] !== box) {
             previous = entry;
             continue;
@@ -332,6 +376,7 @@ export class OverlapGrid {
         }
       }
     }
+    return true;
   }
 
   private raiseCells(box: number): void {
@@ -478,10 +523,10 @@ export class TranslucentLevels {
     for (const id of this.moves) {
       const index = this.indexOf.get(id);
       if (index === undefined) continue;
-      this.writeBox(index, elementOf);
-      moved.push(index);
+      if (this.writeBox(index, elementOf)) moved.push(index);
     }
     this.moves.clear();
+    if (moved.length === 0) return false;
     const changed = this.grid.move(moved);
     if (changed === undefined) {
       const previous = this.out.slice(0, this.ordered.length);
@@ -516,23 +561,32 @@ export class TranslucentLevels {
     return changed;
   }
 
-  /** The complete overlap box, or the store's box widened by the baked primitives, at the element's origin. */
-  private writeBox(index: number, elementOf: (id: string) => TLevelElement | undefined): void {
+  /** Updates the absolute box. Returns whether its coordinates changed. */
+  private writeBox(index: number, elementOf: (id: string) => TLevelElement | undefined): boolean {
     const id = this.ordered[index];
     const element = elementOf(id);
     const i = index * 4;
-    if (!element) {
-      // Not in the scene: an empty box, which intersects nothing.
-      this.boxes.set([Infinity, Infinity, -Infinity, -Infinity], i);
-      return;
+    // An absent element has an empty box.
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    if (element) {
+      const { x, y, bounds } = element;
+      const baked = this.baked.get(id);
+      const paint = baked?.bounds ?? bounds;
+      const base = baked?.complete ? paint : bounds;
+      minX = x + Math.min(base.minX, paint.minX);
+      minY = y + Math.min(base.minY, paint.minY);
+      maxX = x + Math.max(base.maxX, paint.maxX);
+      maxY = y + Math.max(base.maxY, paint.maxY);
     }
-    const { x, y, bounds } = element;
-    const baked = this.baked.get(id);
-    const paint = baked?.bounds ?? bounds;
-    const base = baked?.complete ? paint : bounds;
-    this.boxes[i] = x + Math.min(base.minX, paint.minX);
-    this.boxes[i + 1] = y + Math.min(base.minY, paint.minY);
-    this.boxes[i + 2] = x + Math.max(base.maxX, paint.maxX);
-    this.boxes[i + 3] = y + Math.max(base.maxY, paint.maxY);
+    const { boxes } = this;
+    if (boxes[i] === minX && boxes[i + 1] === minY && boxes[i + 2] === maxX && boxes[i + 3] === maxY) return false;
+    boxes[i] = minX;
+    boxes[i + 1] = minY;
+    boxes[i + 2] = maxX;
+    boxes[i + 3] = maxY;
+    return true;
   }
 }

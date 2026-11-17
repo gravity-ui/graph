@@ -125,6 +125,34 @@ describe("overlapLevels", () => {
 });
 
 describe("OverlapGrid.move", () => {
+  it("abandons a dense cascade with the original levels intact, then rebuilds exactly", () => {
+    const count = 512;
+    const flat = new Float64Array(count * 4);
+    flat.set([0, 0, 10, 10]);
+    for (let i = 1; i < count; i++) flat.set([9.5, 0, 19.5, 10], i * 4);
+    const out = new Int32Array(count);
+    const grid = new OverlapGrid();
+    grid.compute(flat, count, out);
+    const before = out.slice();
+    expect(before.every((level, index) => level === index)).toBe(true);
+
+    // A small shrink separates the first box from the stack. Every later level falls by one.
+    flat.set([1, 1, 9, 9]);
+    expect(grid.move([0])).toBeUndefined();
+    expect(out).toEqual(before);
+    expect(grid.levelCount).toBe(count);
+    grid.compute(flat, count, out);
+    expect(out.every((level, index) => level === Math.max(0, index - 1))).toBe(true);
+    expect(grid.levelCount).toBe(count - 1);
+
+    // The exact rebuild clears all work queued by the aborted move.
+    const top = count - 1;
+    flat.set([40, 0, 50, 10], top * 4);
+    expect(grid.move([top])).toEqual([top]);
+    expect(out[top]).toBe(0);
+    expect(grid.levelCount).toBe(count - 2);
+  });
+
   it("re-levels moved boxes exactly as a full computation would, and reports the boxes whose level changed", () => {
     const random = seeded(11);
     const count = 400;
@@ -250,6 +278,25 @@ describe("TranslucentLevels", () => {
     levels.moved("a");
     expect(update()).toBe(true);
     expect(levels.levelOf("b")).toBe(0);
+  });
+
+  it("does not move grid entries when changed local bounds and origin leave the absolute box unchanged", () => {
+    const elements = { a: placed(0, 0, 200, 1), b: placed(50, 0, 200, 2) };
+    const { levels, update } = scene(elements);
+    levels.set("a", undefined);
+    levels.set("b", undefined);
+    update();
+    const move = jest.spyOn(OverlapGrid.prototype, "move");
+    try {
+      elements.a.x = 10;
+      elements.a.bounds = box(-10, 0, 90, 60);
+      levels.moved("a");
+      expect(update()).toBe(false);
+      expect(move).not.toHaveBeenCalled();
+      expect([levels.levelOf("a"), levels.levelOf("b")]).toEqual([0, 1]);
+    } finally {
+      move.mockRestore();
+    }
   });
 
   it("drops an element that stops being translucent and lowers the ones above it", () => {

@@ -9,6 +9,8 @@
 import type { ShaderModule, ShaderPlugin } from "@luma.gl/shadertools";
 
 import type { ConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
+import { toConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
+import { dashFlow, pulse } from "../../../components/canvas/connections/effects/library";
 import type { TUniformTypes } from "../../../components/canvas/connections/effects/types";
 import { FRAGMENT_MAIN, FRAGMENT_PRELUDE, IDENTITY_EFFECT } from "../../../components/canvas/connections/webgl/shaders";
 
@@ -358,7 +360,8 @@ const MIXED_RECORD_ADDRESS = /* glsl */ `
   int rowWidth = graph_source < 4 ? graph_widths0[lane] : graph_widths1[lane];
   int flags = graph_source < 4 ? graph_kinds0[lane] : graph_kinds1[lane];
   int kind = flags & 31;
-  graph_vMixedPlain = float(flags >> 5);
+  graph_vMixedPlain = float((flags >> 5) & 1);
+  graph_vStockEffect = float((flags >> 6) & 1);
   graph_recordBase = ivec2(record % rowWidth, record / rowWidth);
   // Records each occupy ten contiguous texels from the start of a physical row.
   record = 0;
@@ -430,7 +433,7 @@ flat out vec4 graph_vParams0;
 flat out vec4 graph_vParams1;
 flat out vec3 graph_vInteraction;     // hovered, selected, the effect shows the selection: 0.0 or 1.0
 flat out vec4 graph_vSelectionColor;  // straight rgba
-${sourceCount ? "flat out float graph_vMixedPlain;" : ""}
+${sourceCount ? "flat out float graph_vMixedPlain;\nflat out float graph_vStockEffect;" : ""}
 
 vec2 graph_bezier(vec2 a, vec2 b, vec2 c, vec2 d, float t) {
   float u = 1.0 - t;
@@ -536,6 +539,16 @@ ${FRAGMENT_MAIN.replace(
   `vec4 color = graph_vMixedPlain > 0.5 ? (${PATH_IDENTITY_COLOR}) : effect(f, graph_vColor);`
 )}`;
 
+/** Built-in effects share a program in logical draw order; each source independently selects identity or its effect. */
+export const STOCK_PATH_FRAGMENT = `#version 300 es
+precision highp float;
+flat in float graph_vMixedPlain;
+flat in float graph_vStockEffect;
+${FRAGMENT_MAIN.replace(
+  "vec4 color = effect(f, graph_vColor);",
+  `vec4 color = graph_vMixedPlain > 0.5 ? (${PATH_IDENTITY_COLOR}) : (graph_vStockEffect > 0.5 ? graph_pulseEffect(f, graph_vColor) : graph_dashFlowEffect(f, graph_vColor));`
+)}`;
+
 export const MIXED_COMPOSITE_VERTEX = /* glsl */ `#version 300 es
 void main() {
   const vec2 vertices[3] = vec2[3](vec2(-1, -1), vec2(3, -1), vec2(-1, 3));
@@ -584,6 +597,20 @@ export function createPathPlugin(effect: ConnectionEffect<TUniformTypes, never> 
     modules: [PATH_PRELUDE_MODULE],
     injections: [
       { target: "fs:#decl", injection: `uniform float scene_opaquePass;\n${source}` },
+      { target: "fs:#main-end", injection: OPAQUE_PASS_OUTPUT },
+    ],
+  };
+}
+
+/** Uses the exact built-in bodies and shared prelude, changing only their entry point names to coexist. */
+export function createStockPathPlugin(): ShaderPlugin {
+  const dash = toConnectionEffect(dashFlow).fragment.replace("vec4 effect(", "vec4 graph_dashFlowEffect(");
+  const wave = toConnectionEffect(pulse).fragment.replace("vec4 effect(", "vec4 graph_pulseEffect(");
+  return {
+    name: "sceneStockConnectionEffects",
+    modules: [PATH_PRELUDE_MODULE],
+    injections: [
+      { target: "fs:#decl", injection: `uniform float scene_opaquePass;\n${dash}\n${wave}` },
       { target: "fs:#main-end", injection: OPAQUE_PASS_OUTPUT },
     ],
   };

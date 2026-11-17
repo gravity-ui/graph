@@ -781,6 +781,12 @@ The scene orders connections by z-index and insertion order. The default connect
 while hovered or selected. The shaft, arrow and labels share that element's depth and hit order. The WebGL
 backend batches their primitives with the rest of the scene.
 
+Plain strokes, `dashFlow` and `pulse` can share a draw while retaining their individual parameters and scale
+ranges. Their animation runs in the shader from the graph clock; mixing these effects does not require rebuilding
+connection geometry. For scenes whose translucent paint consists only of these compatible paths, the backend
+culls their resident ranges and caches their exact scene order without searching for spatial overlaps.
+Custom shaders and other translucent primitives keep their ordering barriers in the shared pass.
+
 When all visible connection roots are below the other visible roots, a large eligible path workload can use an
 internal single-sample connection pass in the scene's WebGL context. It draws from the same resident records,
 preserves the order of path pieces and joins, and uses the shader's analytic coverage with premultiplied

@@ -351,3 +351,148 @@ test("mixed connection sources activate the same effect independently without re
   }
   expect(result[0].alphas[0], "the active pulse actually changes alpha").toBeLessThan(250);
 });
+
+test("alternating stock effects share a native draw without changing translucent pixels", async ({ page }) => {
+  const graph = new GraphPageObject(page);
+  await graph.initialize({ blocks: [], connections: [], settings: { renderer: "webgl" } });
+  test.skip(
+    !(await page.evaluate(() => Boolean(document.createElement("canvas").getContext("webgl2")))),
+    "WebGL2 unavailable"
+  );
+  await expect.poll(() => page.evaluate(() => window.graph.scene.$renderer.peek())).toBe("webgl");
+  await page.evaluate(() => {
+    const { dashFlow, pulse, lineSegment, bezierSegment } = window.GraphModule;
+    const { scene, cameraService } = window.graph;
+    cameraService.set({ x: 0, y: 0, scale: 1 });
+    for (let i = 0; i < 48; i++) {
+      const effect =
+        i % 3 === 0
+          ? undefined
+          : i % 3 === 1
+            ? dashFlow.use({ pattern: [12, 8], speed: 30 })
+            : pulse.use({ period: 2 }, { minScale: 0.5 });
+      scene.store.add({
+        id: `alternating-${i}`,
+        entityType: "connection",
+        x: 0,
+        y: 0,
+        zIndex: 0,
+        bounds: { minX: 90, minY: 60, maxX: 410, maxY: 165 },
+        primitives: [
+          {
+            kind: "path",
+            segments: new Float32Array(
+              i % 2
+                ? bezierSegment(
+                    { x: 100, y: 100 + i * 0.5 },
+                    { x: 200, y: 70 },
+                    { x: 300, y: 150 },
+                    { x: 400, y: 100 + i * 0.5 }
+                  )
+                : lineSegment({ x: 100, y: 100 + i * 0.5 }, { x: 400, y: 100 + i * 0.5 })
+            ),
+            part: "line",
+            stroke: { color: i % 3 === 0 ? "rgba(20,80,220,0.6)" : i % 3 === 1 ? "#e56918" : "#20b548", width: 12 },
+            effect,
+          },
+        ],
+      });
+    }
+    scene.store.add({
+      id: "opaque-cover",
+      x: 0,
+      y: 0,
+      zIndex: 1,
+      bounds: { minX: 230, minY: 95, maxX: 265, maxY: 125 },
+      primitives: [{ kind: "rect", x: 230, y: 95, width: 35, height: 30, fill: "#543321" }],
+    });
+  });
+  await graph.waitForFrames(3);
+  const result = await page.evaluate(() => {
+    const { scene, cameraService, scheduler } = window.graph;
+    scene.layer.performRender();
+    const backend = scene.layer.getBackend();
+    if (!backend) throw new Error("Missing backend");
+    const probe = backend as typeof backend & {
+      prepareStockPaths(...args: unknown[]): unknown;
+      orderedStockPaths(...args: unknown[]): unknown;
+      stockOrder?: unknown;
+      stockDraw?: unknown;
+    };
+    const prepare = probe.prepareStockPaths;
+    const order = probe.orderedStockPaths;
+    const gl = backend.canvas.getContext("webgl2");
+    if (!gl) throw new Error("Missing context");
+    const pixels = () => {
+      const data = new Uint8Array(gl.drawingBufferWidth * gl.drawingBufferHeight * 4);
+      gl.readPixels(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight, gl.RGBA, gl.UNSIGNED_BYTE, data);
+      return data;
+    };
+    const original = { ...scene.store.get("alternating-24")! };
+    const custom = window.GraphModule.defineConnectionEffect({
+      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+    });
+    return ["initial", "raise", "move", "nonpath", "custom", "restore"].flatMap((phase) => {
+      if (phase === "raise")
+        scene.store.setStyle(
+          "alternating-3",
+          scene.store.defineStyle({ raise: 2, parts: { line: { color: "#ff00ff" } } })
+        );
+      if (phase === "move") scene.store.update("alternating-3", { x: 13, y: 7 });
+      if (phase === "nonpath")
+        scene.store.add({
+          id: "transparent-cover",
+          x: 0,
+          y: 0,
+          zIndex: 1,
+          bounds: { minX: 200, minY: 85, maxX: 300, maxY: 140 },
+          primitives: [{ kind: "rect", x: 200, y: 85, width: 100, height: 55, fill: "rgba(255,0,0,0.4)" }],
+        });
+      if (phase === "custom") {
+        scene.store.delete("transparent-cover");
+        scene.store.update(original.id, {
+          primitives: original.primitives.map((p) => (p.kind === "path" ? { ...p, effect: custom.use([]) } : p)),
+        });
+      }
+      if (phase === "restore") scene.store.update(original.id, { primitives: original.primitives });
+      scene.layer.performRender();
+      scheduler.performUpdate();
+      return [0.25, 0.75, 1].map((scale) => {
+        const frame = {
+          ...cameraService.getCameraState(),
+          scale,
+          dpr: 2,
+          time: 1.234,
+          dimColor: scene.store.getDimColor(),
+        };
+        probe.prepareStockPaths = () => undefined;
+        probe.orderedStockPaths = () => undefined;
+        backend.draw(frame);
+        const reference = pixels(),
+          before = backend.stats.drawCalls;
+        probe.prepareStockPaths = prepare;
+        probe.orderedStockPaths = order;
+        backend.draw(frame);
+        const actual = pixels();
+        return {
+          scale,
+          phase,
+          strict: Boolean(probe.stockOrder),
+          before,
+          after: backend.stats.drawCalls,
+          stock: Boolean(probe.stockDraw),
+          different: actual.reduce((n, value, i) => n + Number(value !== reference[i]), 0),
+          error: gl.getError(),
+        };
+      });
+    });
+  });
+  for (const row of result) {
+    expect(row.stock).toBe(true);
+    expect(row.strict, JSON.stringify(row)).toBe(row.phase !== "custom" && row.phase !== "nonpath");
+    expect(row.before).toBeGreaterThan(40);
+    expect(row.after).toBeLessThan(10);
+    expect(row.different).toBe(0);
+    expect(row.error).toBe(0);
+  }
+});
