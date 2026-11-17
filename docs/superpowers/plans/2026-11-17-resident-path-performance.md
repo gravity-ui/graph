@@ -101,6 +101,6 @@ The user reported frequent GC and questioned whether the frame work still follow
 - [x] Check repeated far/back frozen-time RGBA, context recovery, one context, delegated ports and the full Chromium regression suite; target WebKit connection checks also pass.
 - [ ] Measure a two-level spatial path-ID candidate (owner lookup, then piece bounds), independently of physical slots. Bypass it at fit; preserve exact geometry and authored ordering. Integrate only on net hardware improvement.
 - [ ] Attribute the remaining rare full-GC weak closure using retaining paths at matched scene state; cache type changes remain hypotheses.
-- [ ] Test stopping animation when accepted path ranges contain no active animated paint.
+- [x] Verify that offscreen paths, hidden effects and effects outside their scale range stop requesting frames. The Chromium Metal and WebKit regression in `apps/e2e/tests/connection/scene-connection-effects.spec.ts` covers all three and restores active paint after a scale change.
 
 The new GC results do not establish legacy Running Dash parity. Full non-path culling remains a measured follow-on, with renderer-specific glyph/halo/float bounds and a draw-fragmentation budget.
