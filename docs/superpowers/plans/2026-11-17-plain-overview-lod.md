@@ -44,3 +44,5 @@ Final ABBA editing measurements no longer reproduce a consistent regression, wit
 ### Single-connection editing follow-up
 
 [The single-connection reconnect report](../research/2026-11-18-single-connection-reconnect.md) covers one existing edge retargeted and restored on ETL 10k/10k and Nirvana Max. The Storybook control in ETL at Scale lets a reviewer switch the first pipeline's Orders DB output between two real input anchors with the minimap off. The measured cross-pipeline edit, source revisions, camera controls, and fixed-time framebuffer comparisons are documented in the report.
+
+The [command preparation follow-up](../research/2026-11-18-etl-command-preparation.md) updates retained buckets from the affected owners and measures the result with the same edit and camera guards. The remaining ETL edit budget is in translucent schedule construction and visible-run filtering.
