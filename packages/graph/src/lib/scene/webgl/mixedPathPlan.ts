@@ -75,7 +75,7 @@ export function mixedPathSchedule<T>(
       return undefined;
     const ref = source * MIXED_PATH_SOURCE_STRIDE + first;
     const last = spans[spans.length - 1];
-    if (last && last.first + last.count === ref) last.count += count;
+    if (last && command?.native === undefined && last.first + last.count === ref) last.count += count;
     else spans.push({ first: ref, count });
     if (command && command.native === undefined) command.count += count;
     else commands.push({ first: offset, count });

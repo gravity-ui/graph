@@ -7,6 +7,7 @@ import {
   bezierSegment,
   lineSegment,
   roundedPolyline,
+  stockBezierSegments,
   writeBezierSegment,
   writeLineSegment,
 } from "./segments";
@@ -47,6 +48,7 @@ export const bezierGeometry: TConnectionGeometryFn = ({ source, target, bezierDi
   const [p0, c1, c2, p3] = generateBezierParams(source, target, bezierDirection);
   const segments = new Float32Array(SEGMENT_FLOATS);
   writeBezierSegment(segments, 0, p0, c1, c2, p3);
+  stockBezierSegments.add(segments);
   return {
     segments,
     arrow: {

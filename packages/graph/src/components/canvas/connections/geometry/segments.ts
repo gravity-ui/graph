@@ -3,6 +3,9 @@ import type { TPoint } from "../../../../utils/types/shapes";
 /** Numbers per cubic segment: p0, c1, c2, p3. */
 export const SEGMENT_FLOATS = 8;
 
+/** Arrays created by built-in Bézier geometry; arbitrary segment arrays retain their exact mesh. */
+export const stockBezierSegments = new WeakSet<Float32Array>();
+
 /** Max distance, in world units, of a control point from its third of the chord for a cubic to count as a line. */
 const LINE_TOLERANCE = 0.01;
 /** Turns sharper than this (a reversal) keep the corner sharp. */

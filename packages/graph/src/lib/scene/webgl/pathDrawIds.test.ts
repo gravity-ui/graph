@@ -1,3 +1,4 @@
+import { MIXED_PATH_SOURCE_STRIDE, mixedPathSchedule } from "./mixedPathPlan";
 import { PathDrawIds, gatheredPathDrawCount } from "./pathDrawIds";
 
 describe("path draw IDs", () => {
@@ -49,6 +50,84 @@ describe("path draw IDs", () => {
     expect(ids.update([])).toBeUndefined();
     expect(ids.data).toHaveLength(0);
     expect(() => ids.update([{ first: 2 ** 24, count: 1 }])).toThrow(/exact/);
+  });
+
+  it("keeps an empty overview source list on the canonical path without allocating command offsets", () => {
+    const ids = new PathDrawIds();
+    const spans = [{ first: 3, count: 200 }];
+    ids.update(spans, [undefined, undefined], true);
+    expect(ids["offsets"].byteLength).toBe(0);
+    expect(ids.data).toHaveLength(200);
+    expect(ids.offset(120)).toBe(120);
+  });
+
+  it("reuses an unchanged compressed prefix across snapshot growth and tail removal", () => {
+    const ids = new PathDrawIds();
+    const groups = { starts: new Uint8Array([1, 0, 0, 0]), revision: 1, pieces: 4 as const };
+    const prefix = { first: 0, count: 4 };
+    ids.update([prefix], [groups]);
+    ids.update([prefix, { first: 18, count: 3 }, { first: 30, count: 12 }], [groups]);
+    expect([...ids.data]).toEqual([-1, 18, 19, 20, ...Array.from({ length: 12 }, (_, i) => 30 + i)]);
+    expect([ids.offset(4), ids.offset(7), ids.offset(19)]).toEqual([1, 4, 16]);
+    expect(ids.update([prefix], [groups])).toBeUndefined();
+    expect([...ids.data]).toEqual([-1]);
+    expect(ids.offset(4)).toBe(1);
+  });
+
+  it("compacts complete four-piece descriptors within each ordered draw and restores detail across a cut", () => {
+    const ids = new PathDrawIds();
+    const source = { starts: new Uint8Array([1, 0, 0, 0, 1, 0, 0, 0]), revision: 1, pieces: 4 as const };
+    const spans = [
+      { first: 0, count: 4 },
+      { first: 4, count: 2 },
+      { first: 6, count: 2 },
+    ];
+    ids.update(spans, [source]);
+    expect(ids.data).toEqual(new Float32Array([-1, 4, 5, 6, 7]));
+    expect(ids.offset(4)).toBe(1);
+    expect(ids.offset(8)).toBe(5);
+    expect(ids.update(spans, [source])).toBeUndefined();
+    source.starts.fill(0);
+    source.revision++;
+    ids.update(spans, [source]);
+    expect(ids.data).toEqual(new Float32Array([0, 1, 2, 3, 4, 5, 6, 7]));
+    ids.update(spans);
+    expect(ids.offset(4)).toBe(4);
+  });
+
+  it("keeps two-piece and four-piece opaque/translucent sources separate through packed boundaries", () => {
+    const ids = new PathDrawIds();
+    const full = { starts: new Uint8Array([1, 0, 0, 0]), revision: 1, pieces: 4 as const };
+    const short = { starts: new Uint8Array([1, 0, 1, 0]), revision: 1, pieces: 2 as const };
+    const stride = 2 ** 21;
+    const spans = [
+      { first: stride, count: 4 },
+      { first: 0, count: 4 },
+    ];
+    ids.update(spans, [full, short], true);
+    expect([...ids.data]).toEqual([-1 - stride, -3 - stride, -1]);
+    expect(ids.offset(4)).toBe(2);
+    ids.update(spans, [full, short], false);
+    expect([...ids.data]).toEqual([stride, stride + 1, stride + 2, stride + 3, -1]);
+  });
+
+  it("stops a packed descriptor at a texture boundary even when the schedule merges the addresses", () => {
+    const ids = new PathDrawIds();
+    const stride = MIXED_PATH_SOURCE_STRIDE;
+    const first = stride - 2;
+    const large = { starts: new Uint8Array(stride + 2), revision: 1, pieces: 4 as const };
+    large.starts[first] = 1;
+    const small = { starts: new Uint8Array([1, 0]), revision: 1, pieces: 2 as const };
+    const spans =
+      mixedPathSchedule([
+        { key: 1, sub: 0, tie: 0, source: 0, first, count: 2 },
+        { key: 2, sub: 0, tie: 0, source: 1, first: 0, count: 2 },
+      ])?.spans ?? [];
+    expect(spans).toEqual([{ first, count: 4 }]);
+    ids.update(spans, [large, small], true);
+    expect([...ids.data]).toEqual([first, first + 1, -1 - stride]);
+    ids.update(spans, [large]);
+    expect([...ids.data]).toEqual([-1 - first]);
   });
 
   it("snapshots caller spans and preserves the unchanged prefix when its storage grows", () => {

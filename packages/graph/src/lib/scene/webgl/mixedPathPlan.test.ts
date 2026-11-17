@@ -46,7 +46,10 @@ describe("mixed connection path planning", () => {
         { key: 2, sub: 0, tie: 2, native, first: 16, count: 1 },
       ])
     ).toEqual({
-      spans: [{ first: MIXED_PATH_SOURCE_STRIDE + 10, count: 5 }],
+      spans: [
+        { first: MIXED_PATH_SOURCE_STRIDE + 10, count: 2 },
+        { first: MIXED_PATH_SOURCE_STRIDE + 12, count: 3 },
+      ],
       commands: [
         { first: 0, count: 2 },
         { native, first: 16, count: 2 },

@@ -70,6 +70,7 @@ import {
 } from "./mixedPathPlan";
 import type { TLowerPathCommand, TMixedPathRange, TNativePathRange, TSubpixelPathWidth } from "./mixedPathPlan";
 import { TranslucentLevels } from "./overlapLevels";
+import { OverviewCurveGroups, overviewCamera } from "./overviewCurves";
 import { PathCulling } from "./pathCulling";
 import { PathDrawIds, gatheredPathDrawCount } from "./pathDrawIds";
 import type { TPathDrawSpan } from "./pathDrawIds";
@@ -147,7 +148,7 @@ type TInstanceBuffer = { name: string; buffer: DynamicBuffer };
 type TCompanion = { kind: "elements" | "subs"; ranges: InstanceRanges; buffer?: DynamicBuffer };
 
 /** Paths keep one GPU copy of their payload and companion; the instance buffer holds only ordered addresses. */
-type TPathRecords = { texture: Texture; ids: PathDrawIds };
+type TPathRecords = { texture: Texture; ids: PathDrawIds; overview?: OverviewCurveGroups };
 
 /** The float of a companion instance that holds the primitive's sub. */
 const COMPANION_SUB_FLOAT: Record<TCompanion["kind"], number> = { elements: SUB_FLOAT, subs: 0 };
@@ -657,6 +658,7 @@ class WebGLSceneBackend implements ISceneBackend {
   private stockActivityRevision = 0;
   private stockOrder?: { stamp: number[]; physical: readonly TDraw[]; ordered: readonly TDraw[] };
   private readonly stockPhysicalDraws: TDraw[] = [];
+  private overviewFrame = false;
   private readonly pathBatchGroups = new WeakMap<TBatch, TPathGroup>();
   private readonly mixedDisabled = new Set<string>();
   private mixedTarget?: Framebuffer;
@@ -929,6 +931,7 @@ class WebGLSceneBackend implements ISceneBackend {
     // Resident paths never sort: upload their local changes and prepare exact visibility before building buckets.
     let uploadKind = this.uploadPaths(frame);
     for (const group of this.pathGroups.values()) this.setEffectUniforms(group, frame.scale);
+    this.overviewFrame = this.useOverviewCurves(frame);
     this.frameAnimated = false;
     this.frameDrawCount = 0;
     const stockOrder = this.orderedStockPaths(frame);
@@ -1285,6 +1288,7 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   private reset(): void {
+    this.overviewFrame = false;
     this.gatheredDraws.clear();
     this.stockPlan = undefined;
     this.stockOrder = undefined;
@@ -1699,7 +1703,27 @@ class WebGLSceneBackend implements ISceneBackend {
       if (!previous?.has(group)) group.users++;
       const select = (_: TScenePrimitive, sub: number): boolean => groupOfSub[sub] === group;
       const scratch = group.pass === "translucent" ? undefined : this.pathScratch;
-      const encoded = encodePaths(primitives, index, PATH_BUCKET, this.slotOf, select, subBase, maxSub, scratch);
+      const overview =
+        this.elements.get(id)?.entityType === "connection" &&
+        !group.fallback &&
+        (!group.effect || (MIXED_EFFECT_PROGRAMS.has(group.effect.programKey) && (group.minScale ?? 0) > 0));
+      const encoded = encodePaths(
+        primitives,
+        index,
+        PATH_BUCKET,
+        this.slotOf,
+        select,
+        subBase,
+        maxSub,
+        scratch,
+        overview ? (group.coarseCurves ? 8 : 16) : undefined
+      );
+      if (encoded.hasOverview) {
+        for (const batch of [group.curves, group.coarseCurves]) {
+          if (batch?.pathRecords)
+            batch.pathRecords.overview ??= new OverviewCurveGroups(batch === group.coarseCurves ? 2 : 4);
+        }
+      }
       if (group.pass === "translucent") {
         translucent.push(
           { batch: group.lines, instances: encoded.lines, companion: encoded.lineElements },
@@ -1824,6 +1848,7 @@ class WebGLSceneBackend implements ISceneBackend {
         createCurveTemplate()
       );
       group.coarseCurves.curveChords = 8;
+      group.coarseCurves.uniforms.graph_overviewPairs = 1;
       group.coarseCurves.culling = new PathCulling();
     }
     this.pathBatchGroups.set(group.lines, group);
@@ -1971,6 +1996,7 @@ class WebGLSceneBackend implements ISceneBackend {
       scene_opaquePass: pass === "opaque" ? 1 : 0,
       graph_effectEnabled: 1,
       graph_curveStep: 1,
+      graph_overviewPairs: 0,
       graph_recordWidth: PATH_RECORD_TEXELS,
     };
     const model = new Model(this.device, {
@@ -2645,6 +2671,33 @@ class WebGLSceneBackend implements ISceneBackend {
     return result;
   }
 
+  private useOverviewCurves(frame: TSceneFrame): boolean {
+    return overviewCamera(frame, this.overviewFrame);
+  }
+
+  private overviewSource(batch: TBatch, group: TPathGroup): OverviewCurveGroups | undefined {
+    const overview = batch.pathRecords?.overview;
+    return this.overviewFrame && !group.effectActive && batch.culling?.untranslated && overview?.count
+      ? overview
+      : undefined;
+  }
+
+  private combinedOverview(sources: readonly TMixedSource[]): (OverviewCurveGroups | undefined)[] | undefined {
+    if (!this.overviewFrame) return undefined;
+    let groups: (OverviewCurveGroups | undefined)[] | undefined;
+    for (let index = 0; index < sources.length; index++) {
+      const { records, group } = sources[index];
+      if (!records.overview?.count) continue;
+      const batch = group.coarseCurves?.pathRecords === records ? group.coarseCurves : group.curves;
+      const overview = this.overviewSource(batch, group);
+      if (overview) {
+        groups ??= Array<OverviewCurveGroups | undefined>(sources.length).fill(undefined);
+        groups[index] = overview;
+      }
+    }
+    return groups;
+  }
+
   private prepareMixedPlane(
     frame: TSceneFrame,
     opaque: readonly TDraw[],
@@ -2691,7 +2744,7 @@ class WebGLSceneBackend implements ISceneBackend {
         return undefined;
       }
     }
-    let changed = draw.ids.update(plan.spans);
+    let changed = draw.ids.update(plan.spans, this.combinedOverview(plan.sources), true);
     let upload: TUploadKind = changed ? "range" : "none";
     if (draw.ids.data.byteLength > draw.buffer.byteLength) {
       draw.buffer.resize({ byteLength: Math.max(draw.ids.data.byteLength, draw.buffer.byteLength * 2) });
@@ -2910,7 +2963,7 @@ class WebGLSceneBackend implements ISceneBackend {
         return undefined;
       }
     }
-    let changed = draw.ids.update(plan.spans);
+    let changed = draw.ids.update(plan.spans, this.combinedOverview(plan.sources), true);
     let upload: TUploadKind = changed ? "range" : "none";
     if (draw.ids.data.byteLength > draw.buffer.byteLength) {
       draw.buffer.resize({ byteLength: Math.max(draw.ids.data.byteLength, draw.buffer.byteLength * 2) });
@@ -2937,8 +2990,9 @@ class WebGLSceneBackend implements ISceneBackend {
     for (const command of plan.commands) {
       if (command.native) this.drawPrepared(pass, nativeRuns[nativeIndex++], frame);
       else {
-        this.pointInstances(draw, command.first);
-        this.drawInstances(pass, draw, frame, command.count);
+        const first = draw.ids.offset(command.first);
+        this.pointInstances(draw, first);
+        this.drawInstances(pass, draw, frame, draw.ids.offset(command.first + command.count) - first);
       }
     }
   }
@@ -3015,7 +3069,11 @@ class WebGLSceneBackend implements ISceneBackend {
       const { texture } = records;
       bindings[`graph_records${index}`] = texture;
       widths[index] = texture.width;
-      kinds[index] = chords + (group.effectActive ? 0 : 32) + (group.effect?.programKey === PULSE_PROGRAM ? 64 : 0);
+      kinds[index] =
+        chords +
+        (group.effectActive ? 0 : 32) +
+        (group.effect?.programKey === PULSE_PROGRAM ? 64 : 0) +
+        (records.overview?.pieces === 2 ? 128 : 0);
     });
     draw.model.setBindings(bindings);
     draw.model.setVertexCount((Math.max(...sources.map(({ chords }) => chords)) + 1) * 2);
@@ -3045,8 +3103,9 @@ class WebGLSceneBackend implements ISceneBackend {
     for (const command of plan.commands) {
       if (command.native) this.drawPrepared(connectionPass, nativeRuns[nativeIndex++], frame);
       else {
-        this.pointInstances(draw, command.first);
-        this.drawInstances(connectionPass, draw, frame, command.count);
+        const first = draw.ids.offset(command.first);
+        this.pointInstances(draw, first);
+        this.drawInstances(connectionPass, draw, frame, draw.ids.offset(command.first + command.count) - first);
       }
     }
     connectionPass.end();
@@ -3138,7 +3197,9 @@ class WebGLSceneBackend implements ISceneBackend {
       const records = batch.pathRecords;
       if (!records) continue;
       const { ids } = records;
-      let changed = ids.update(draws);
+      const group = records.overview && this.pathBatchGroups.get(batch);
+      const overview = group && this.overviewSource(batch, group);
+      let changed = ids.update(draws, overview ? [overview] : undefined);
       if (ids.data.byteLength > batch.buffer.byteLength) {
         batch.buffer.resize({ byteLength: Math.max(ids.data.byteLength, batch.buffer.byteLength * 2) });
         // A new GPU buffer needs the complete address list, including its unchanged prefix.
@@ -3158,8 +3219,9 @@ class WebGLSceneBackend implements ISceneBackend {
       }
       let first = 0;
       for (const draw of draws) {
-        draw.first = first;
+        draw.first = ids.offset(first);
         first += draw.count;
+        draw.count = ids.offset(first) - draw.first;
       }
     }
     for (const draws of passes) {
@@ -3284,6 +3346,7 @@ class WebGLSceneBackend implements ISceneBackend {
   private uploadPathRecords(batch: TBatch, records: TPathRecords, companion: TCompanion): TUploadKind {
     let payload = batch.ranges.takeUpload();
     const elements = companion.ranges.takeUpload();
+    records.overview?.update(companion.ranges.data, elements);
     this.visibility.get(batch)?.invalidate(elements, companion.ranges);
     batch.culling?.invalidate(payload, batch.ranges.floats);
     batch.culling?.invalidate(elements, companion.ranges.floats);

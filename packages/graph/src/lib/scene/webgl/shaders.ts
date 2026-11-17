@@ -353,15 +353,19 @@ void main() {
 `;
 
 const MIXED_RECORD_ADDRESS = /* glsl */ `
-  int packedSlot = int(graph_recordId);
+  int packedSlot = physicalSlot;
   graph_source = packedSlot >> ${MIXED_PATH_SOURCE_BITS};
-  int record = (packedSlot & ${MIXED_PATH_SOURCE_STRIDE - 1}) * 10;
+
   int lane = graph_source & 3;
   int rowWidth = graph_source < 4 ? graph_widths0[lane] : graph_widths1[lane];
   int flags = graph_source < 4 ? graph_kinds0[lane] : graph_kinds1[lane];
   int kind = flags & 31;
   graph_vMixedPlain = float((flags >> 5) & 1);
   graph_vStockEffect = float((flags >> 6) & 1);
+  int groupShift = (flags & 128) != 0 ? 1 : 2;
+  int chordShift = (kind == 8 ? 3 : 4) - groupShift;
+  int piece = min(chord >> chordShift, (1 << groupShift) - 1);
+  int record = ((packedSlot & ${MIXED_PATH_SOURCE_STRIDE - 1}) + (overview ? piece : 0)) * 10;
   graph_recordBase = ivec2(record % rowWidth, record / rowWidth);
   // Records each occupy ten contiguous texels from the start of a physical row.
   record = 0;
@@ -412,7 +416,8 @@ ${
   sourceCount
     ? mixedRecordDeclarations(sourceCount)
     : `uniform highp sampler2D graph_records;
-uniform int graph_recordWidth;`
+uniform int graph_recordWidth;
+uniform int graph_overviewPairs;`
 }
 
 uniform vec2 graph_viewport;     // CSS pixels
@@ -454,7 +459,18 @@ ${
 }
 
 void main() {
-  ${sourceCount ? MIXED_RECORD_ADDRESS : "int record = int(graph_recordId) * 10;"}
+  int physicalSlot = int(graph_recordId);
+  bool overview = physicalSlot < 0;
+  int chord = gl_VertexID >> 1;
+  if (overview) physicalSlot = -1 - physicalSlot;
+  ${
+    sourceCount
+      ? MIXED_RECORD_ADDRESS
+      : `int groupShift = graph_overviewPairs == 1 ? 1 : 2;
+  int chordShift = (graph_curveStep == 2.0 ? 3 : 4) - groupShift;
+  int piece = min(chord >> chordShift, (1 << groupShift) - 1);
+  int record = (physicalSlot + (overview ? piece : 0)) * 10;`
+  }
   vec4 graph_p0c1 = graph_record(record);         // p0, c1
   vec4 graph_c2p3 = graph_record(record + 1);     // c2, p3
   vec4 graph_rgba = graph_record(record + 2);    // straight rgba; alpha -3: base colour
@@ -477,6 +493,7 @@ void main() {
       ? "kind == 1 ? (gl_VertexID < 2 ? 0.0 : 1.0) : min(1.0, graph_template.x * (kind == 8 ? 2.0 : 1.0))"
       : "graph_template.x * graph_curveStep"
   };
+  if (overview) t = min(1.0, float(chord - (piece << chordShift)) / float(1 << chordShift));
   vec2 p0 = graph_p0c1.xy + element.xy;
   vec2 c1 = graph_p0c1.zw + element.xy;
   vec2 c2 = graph_c2p3.xy + element.xy;

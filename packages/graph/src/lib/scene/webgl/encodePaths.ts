@@ -1,6 +1,7 @@
 import type { TConnectionEffectUse } from "../../../components/canvas/connections/effects";
 import type { ConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
 import type { TUniformTypes } from "../../../components/canvas/connections/effects/types";
+import { stockBezierSegments } from "../../../components/canvas/connections/geometry/segments";
 import type { TWebGLShape } from "../../../components/canvas/connections/lines/types";
 import { INSTANCE_FLOATS, createEncodedChunk, encodeShapes } from "../../../components/canvas/connections/webgl/encode";
 import type { TEncodedChunk } from "../../../components/canvas/connections/webgl/encode";
@@ -9,6 +10,7 @@ import type { TScenePrimitive } from "../types";
 
 import { MAX_SUB, NO_LIMIT, USE_BASE, checkSub, hasStrokeWidth, scaleBound, writeSize } from "./encodeRects";
 import type { TSlotOf } from "./encodeRects";
+import { markOverviewCurves } from "./overviewCurves";
 
 /** Offset of the straight rgba in a path instance (see `INSTANCE_FLOATS`). */
 const COLOR_OFFSET = 8;
@@ -30,6 +32,7 @@ export type TEncodedPaths = {
   curveElements: Float32Array;
   /** The effect use of every path that has one, in primitive order. */
   effects: TConnectionEffectUse[];
+  hasOverview: boolean;
 };
 
 function selectAll(): boolean {
@@ -66,7 +69,8 @@ export function encodePaths(
   select: (primitive: TScenePrimitive, index: number) => boolean = selectAll,
   subBase = 0,
   maxSub = MAX_SUB,
-  scratch?: TEncodedChunk
+  scratch?: TEncodedChunk,
+  overviewChords?: 8 | 16
 ): TEncodedPaths {
   const chunk = scratch ?? createEncodedChunk();
   chunk.lines.count = 0;
@@ -74,6 +78,7 @@ export function encodePaths(
   const lineElements: number[] = [];
   const curveElements: number[] = [];
   const effects: TConnectionEffectUse[] = [];
+  let hasOverview = false;
   let widthSize: number[] | undefined;
   primitives.forEach((primitive, sub) => {
     if (primitive.kind !== "path" || !select(primitive, sub)) return;
@@ -126,6 +131,17 @@ export function encodePaths(
     }
     lineElements.push(...elementData(data, chunk.lines.count - lines));
     curveElements.push(...elementData(data, chunk.curves.count - curves));
+    if (
+      overviewChords &&
+      typeof width === "number" &&
+      !stroke.dash?.length &&
+      primitive.part === "line" &&
+      stockBezierSegments.has(primitive.segments)
+    ) {
+      hasOverview =
+        markOverviewCurves(chunk.curves.data, curveElements, curves, chunk.curves.count, width, overviewChords) ||
+        hasOverview;
+    }
     if (effect) effects.push(effect);
   });
   return {
@@ -139,5 +155,6 @@ export function encodePaths(
     lineElements: new Float32Array(lineElements),
     curveElements: new Float32Array(curveElements),
     effects,
+    hasOverview,
   };
 }
