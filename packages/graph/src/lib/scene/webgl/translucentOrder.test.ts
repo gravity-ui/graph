@@ -168,6 +168,62 @@ describe("translucent order", () => {
     visitB.mockRestore();
   });
 
+  it("splits, rejoins and relocates an affected owner's spans while sharing unrelated source fragments", () => {
+    const ranges = new InstanceRanges(3);
+    const levels = new Map<string, number>();
+    for (let i = 0; i < 24; i++) {
+      ranges.set(String(i), quads([i, 0]));
+      levels.set(String(i), i < 3 ? 0 : 1 + (i % 2));
+    }
+    ranges.retainLayout();
+    const level = (id: string) => levels.get(id) ?? 0;
+    const cache: TTranslucentOrderCache = { levelRevision: 0 };
+    const sources = [{ instances: ranges }];
+    const order = () => orderTranslucent(sources, level, () => 0, BITS, true, undefined, cache);
+    const original = order();
+    const buckets = () => cache.sources?.get(ranges)?.buckets ?? [];
+    const baseline = buckets();
+    const unchanged = baseline.find((bucket) => bucket.first === 15);
+    expect(unchanged).toBeDefined();
+    const visit = jest.spyOn(ranges, "forEachRange");
+    const compare = (): number => {
+      visit.mockClear();
+      const result = order();
+      const scans = visit.mock.calls.length;
+      expect(result).toEqual(orderTranslucent(sources, level, () => 0, BITS, true));
+      return scans;
+    };
+    levels.set("1", 2);
+    cache.levelRevision = 1;
+    cache.changedLevelIds = ["1"];
+    expect(compare()).toBe(0);
+    expect(buckets()).toEqual(
+      expect.arrayContaining([
+        { bucket: 0, first: 0, count: 1 },
+        { bucket: 0, first: 2, count: 1 },
+      ])
+    );
+    expect(buckets().find((bucket) => bucket.first === 15)).toBe(unchanged);
+    expect(baseline[0]).toEqual({ bucket: 0, first: 0, count: 3 });
+    levels.set("1", 0);
+    cache.levelRevision = 2;
+    expect(compare()).toBe(0);
+    expect(order()).toEqual(original);
+    expect(buckets()).toEqual(baseline);
+
+    ranges.setSteps("1", [
+      { step: 0, instances: quads([1, 0], [2, 0]) },
+      { step: 2, instances: quads([3, 0]) },
+    ]);
+    expect(compare()).toBe(0);
+    expect(buckets().find((bucket) => bucket.first === 15)).toBe(unchanged);
+    // Two structural edits exceed the retained journal. A full read must include the new owner in the reused slot.
+    ranges.delete("1");
+    ranges.set("new", quads([4, 0]));
+    expect(compare()).toBeGreaterThan(0);
+    visit.mockRestore();
+  });
+
   it("rescans a source when the latest level delta cannot describe the changes since its snapshot", () => {
     const edges = new InstanceRanges(3);
     const blocks = new InstanceRanges(3);

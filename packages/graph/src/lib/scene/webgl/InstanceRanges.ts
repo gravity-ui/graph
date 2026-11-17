@@ -3,6 +3,9 @@
  * the list, `dead`, until the next compaction.
  */
 type TRange = { id: string; step: number; offset: number; count: number; dead: boolean };
+export type TRetainedRange = Readonly<Pick<TRange, "step" | "offset" | "count">>;
+type TRetainedShapeChange = { from: number; id: string; previous: readonly TRetainedRange[] };
+const EMPTY_RANGES: readonly TRetainedRange[] = [];
 type TFreeSlot = { offset: number; count: number };
 
 /** The instances of one step of an element. */
@@ -109,6 +112,8 @@ export class InstanceRanges {
   private forcedCompactions = 0;
   /** The ranges of each element, by ascending step. */
   private readonly byId = new Map<string, TRange[]>();
+  /** Retained layout keeps old offsets stable. One change is enough to repair an isolated owner's order. */
+  private lastRetainedShape?: TRetainedShapeChange;
   private buffer: Float32Array;
   private used = 0;
   private live = 0;
@@ -182,6 +187,16 @@ export class InstanceRanges {
     return this.layoutChanges;
   }
 
+  /** The single retained shape change since this snapshot, if there have been no intervening layout edits. */
+  public retainedChangeSince(revision: number): TRetainedShapeChange | undefined {
+    return this.lastRetainedShape?.from === revision ? this.lastRetainedShape : undefined;
+  }
+
+  /** An owner's current spans in step order, without settling or walking unrelated retained slots. */
+  public ownerRanges(id: string): readonly TRetainedRange[] {
+    return this.byId.get(id) ?? EMPTY_RANGES;
+  }
+
   /** The ranges in buffer order: `offset` and `count` in instances. */
   public forEachRange(visit: (id: string, offset: number, count: number, step: number) => void): void {
     this.settle();
@@ -238,6 +253,7 @@ export class InstanceRanges {
       return;
     }
     this.changes = ++lastRevision;
+    if (this.retained) this.lastRetainedShape = { from: this.layoutChanges, id, previous: current ?? EMPTY_RANGES };
     if (current) this.removeRanges(current);
     this.layoutChanges = ++lastRevision;
     if (!this.retained) this.reserve(chunks.reduce((sum, chunk) => sum + chunk.instances.length / this.floats, 0));
@@ -296,6 +312,7 @@ export class InstanceRanges {
     const current = this.byId.get(id);
     if (!current) return;
     this.changes = ++lastRevision;
+    if (this.retained) this.lastRetainedShape = { from: this.layoutChanges, id, previous: current };
     this.layoutChanges = ++lastRevision;
     this.removeRanges(current);
     this.byId.delete(id);

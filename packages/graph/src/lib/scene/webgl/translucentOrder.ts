@@ -1,4 +1,4 @@
-import type { InstanceRanges, TStepInstances } from "./InstanceRanges";
+import type { InstanceRanges, TRetainedRange, TStepInstances } from "./InstanceRanges";
 import { SCENE_DEPTH } from "./depth";
 
 /**
@@ -95,6 +95,8 @@ type TSourceSnapshot = {
   subBits: number;
   levelRevision?: number;
   positions: Float64Array;
+  /** The sparse edit updated sorted buckets directly. Rebuild the physical positions before comparing them again. */
+  positionsStale?: boolean;
   buckets: TBucket[];
 };
 
@@ -185,6 +187,108 @@ export function sortBuckets(buckets: readonly TBucket[]): TBucket[] {
   return sorted;
 }
 
+/** First removed span whose end lies after this offset. The removed physical spans are sorted and disjoint. */
+function firstRemoval(removed: readonly TRetainedRange[], offset: number): number {
+  let first = 0;
+  let end = removed.length;
+  while (first < end) {
+    const mid = Math.floor((first + end) / 2);
+    if (removed[mid].offset + removed[mid].count <= offset) first = mid + 1;
+    else end = mid;
+  }
+  return first;
+}
+
+/** Subtract old physical spans and merge the affected owners' new positions into the same canonical order. */
+function patchBuckets(previous: TBucket[], removed: TRetainedRange[], additions: TBucket[]): TBucket[] {
+  removed.sort((a, b) => a.offset - b.offset);
+  additions.sort((a, b) => a.bucket - b.bucket || a.first - b.first);
+  const result: TBucket[] = [];
+  let next = 0;
+  const append = (value: TBucket): void => {
+    const last = result[result.length - 1];
+    // Unchanged fragments are borrowed from the previous schedule. Only replace the two that join.
+    if (last && last.bucket === value.bucket && last.first + last.count === value.first) {
+      result[result.length - 1] = { ...last, count: last.count + value.count };
+    } else result.push(value);
+  };
+  const keep = (value: TBucket): void => {
+    while (next < additions.length) {
+      const added = additions[next];
+      if (added.bucket > value.bucket || (added.bucket === value.bucket && added.first >= value.first)) break;
+      append(added);
+      next++;
+    }
+    append(value);
+  };
+  const min = removed[0]?.offset ?? Infinity;
+  const last = removed[removed.length - 1];
+  const max = last ? last.offset + last.count : -Infinity;
+  for (const item of previous) {
+    const end = item.first + item.count;
+    if (end <= min || item.first >= max) {
+      keep(item);
+      continue;
+    }
+    const first = firstRemoval(removed, item.first);
+    if (first === removed.length || removed[first].offset >= end) {
+      keep(item);
+      continue;
+    }
+    let cursor = item.first;
+    for (let i = first; i < removed.length && removed[i].offset < end; i++) {
+      const cut = removed[i];
+      if (cursor < cut.offset) keep({ bucket: item.bucket, first: cursor, count: cut.offset - cursor });
+      cursor = cut.offset + cut.count;
+    }
+    if (cursor < end) keep({ bucket: item.bucket, first: cursor, count: end - cursor });
+  }
+  while (next < additions.length) append(additions[next++]);
+  return previous.length === result.length && result.every((value, index) => sameBucket(value, previous[index]))
+    ? previous
+    : result;
+}
+
+function sameBucket(a: TBucket, b: TBucket): boolean {
+  return a === b || (a.bucket === b.bucket && a.first === b.first && a.count === b.count);
+}
+
+function patchRetainedSource(
+  snapshot: TSourceSnapshot,
+  ranges: InstanceRanges,
+  levelOf: (id: string) => number,
+  levelRevision: number,
+  changed: readonly string[] | undefined
+): TBucket[] | undefined {
+  if (!changed || changed.length > snapshot.positions.length) return undefined;
+  const layout = ranges.layoutRevision;
+  const edit = snapshot.layout === layout ? undefined : ranges.retainedChangeSince(snapshot.layout);
+  if (snapshot.layout !== layout && !edit) return undefined;
+  const ids = new Set(changed);
+  if (edit) ids.add(edit.id);
+  const removed: TRetainedRange[] = [];
+  const additions: TBucket[] = [];
+  for (const id of ids) {
+    const current = ranges.ownerRanges(id);
+    for (const span of edit?.id === id ? edit.previous : current) removed.push(span);
+    if (current.length > 0) {
+      const level = levelOf(id);
+      for (const span of current) {
+        additions.push({ bucket: bucketOf(level, span.step, snapshot.subBits), first: span.offset, count: span.count });
+      }
+    }
+  }
+  if (removed.length || additions.length) {
+    // A full pass is cheaper when at least as many fragments change as the previous schedule contains.
+    if (removed.length + additions.length >= snapshot.buckets.length) return undefined;
+    snapshot.buckets = patchBuckets(snapshot.buckets, removed, additions);
+    snapshot.positionsStale = true;
+  }
+  snapshot.layout = layout;
+  snapshot.levelRevision = levelRevision;
+  return snapshot.buckets;
+}
+
 /** A global level revision need not change this source's actual draw positions. */
 function cachedSourceBuckets(
   ranges: InstanceRanges,
@@ -196,12 +300,14 @@ function cachedSourceBuckets(
   let snapshot = sources.get(ranges);
   const layout = ranges.layoutRevision;
   const levelRevision = cache.levelRevision;
-  if (snapshot?.layout === layout && snapshot.subBits === subBits && levelRevision !== undefined) {
-    if (snapshot.levelRevision === levelRevision) return snapshot.buckets;
-    const changed = cache.changedLevelIds;
+  if (snapshot && snapshot.subBits === subBits && levelRevision !== undefined) {
+    const sameLayout = snapshot.layout === layout;
+    const sameLevels = snapshot.levelRevision === levelRevision;
+    if (sameLayout && sameLevels) return snapshot.buckets;
+    const changed = sameLevels ? [] : snapshot.levelRevision === levelRevision - 1 ? cache.changedLevelIds : undefined;
     // A delta covers exactly one revision. For a small change, query the source's existing element index.
     if (
-      snapshot.levelRevision === levelRevision - 1 &&
+      sameLayout &&
       changed &&
       changed.length <= snapshot.positions.length &&
       !changed.some((id) => ranges.countOf(id) > 0)
@@ -209,11 +315,15 @@ function cachedSourceBuckets(
       snapshot.levelRevision = levelRevision;
       return snapshot.buckets;
     }
+    if (ranges.layoutRetained) {
+      const patched = patchRetainedSource(snapshot, ranges, levelOf, levelRevision, changed);
+      if (patched) return patched;
+    }
   }
 
   const previous = snapshot?.buckets;
   let changed = false;
-  if (!snapshot || snapshot.layout !== layout) {
+  if (!snapshot || snapshot.layout !== layout || snapshot.positionsStale) {
     changed = true;
     let count = 0;
     ranges.forEachRange(() => count++);
@@ -248,11 +358,7 @@ function cachedSourceBuckets(
     const sorted = sortBuckets(physical);
     // Reusing a hole or rebuilding the layout can leave the effective schedule unchanged too.
     snapshot.buckets =
-      previous?.length === sorted.length &&
-      sorted.every((bucket, index) => {
-        const known = previous[index];
-        return bucket.bucket === known.bucket && bucket.first === known.first && bucket.count === known.count;
-      })
+      previous?.length === sorted.length && sorted.every((bucket, index) => sameBucket(bucket, previous[index]))
         ? previous
         : sorted;
   }
