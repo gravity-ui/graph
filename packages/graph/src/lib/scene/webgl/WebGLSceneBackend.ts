@@ -5,10 +5,13 @@ import type { ShaderPlugin } from "@luma.gl/shadertools";
 import { WEBGLBuffer, WEBGLVertexArray, webgl2Adapter } from "@luma.gl/webgl";
 import { untracked, effect as watch } from "@preact/signals-core";
 
-import { toConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
+import {
+  isConnectionEffectActive,
+  toConnectionEffect,
+} from "../../../components/canvas/connections/effects/ConnectionEffect";
 import type { ConnectionEffect } from "../../../components/canvas/connections/effects/ConnectionEffect";
 import { dashFlow, pulse } from "../../../components/canvas/connections/effects/library";
-import type { TUniformTypes } from "../../../components/canvas/connections/effects/types";
+import type { TConnectionEffectScaleRange, TUniformTypes } from "../../../components/canvas/connections/effects/types";
 import {
   CURVE_CHORDS,
   INSTANCE_FLOATS,
@@ -153,6 +156,9 @@ type TBatch = {
   companion?: TCompanion;
   pathRecords?: TPathRecords;
   model: Model;
+  /** Depth-writing custom effects need a plain program while inactive, sharing the same resident storage. */
+  plain?: TInstancePointerTarget;
+  animated?: boolean;
   /** The model's uniforms: luma reads this object at every draw. */
   uniforms: TUniforms;
   textures: readonly TTextureName[];
@@ -179,7 +185,7 @@ const MIXED_EFFECT_PROGRAMS = new Set([toConnectionEffect(dashFlow).programKey, 
 const MIN_MIXED_CONNECTION_VERTICES = 1_500_000;
 
 type TMixedOwnerRange = TPathDrawSpan & { connection: boolean };
-type TMixedSource = { records: TPathRecords; chords: number; plain: boolean; tie: number };
+type TMixedSource = { records: TPathRecords; chords: number; group: TPathGroup; tie: number };
 type TMixedPathWork = {
   stock?: TPathGroup;
   sources: TMixedSource[];
@@ -260,10 +266,11 @@ function containsBox(outer: TTileRect, inner: TTileRect): boolean {
 type TTranslucentGlyphs = { instances: Float32Array; subs: Float32Array };
 
 /** The paths of one pass and one effect instance: a batch per vertex template. */
-type TPathGroup = {
+type TPathGroup = TConnectionEffectScaleRange & {
   pass: TPass;
   programKey?: string;
   effect: TEffect | undefined;
+  effectActive: boolean;
   users: number;
   stopUniforms?: () => void;
   /** The effect does not compile or link: the group draws the plain stroke and never takes the effect up. */
@@ -554,8 +561,8 @@ class WebGLSceneBackend implements ISceneBackend {
   private readonly pathGroupsOf = new Map<string, Set<TPathGroup>>();
   /** Unsupported primitives per element. Summed in `stats.skipped`. */
   private readonly skippedOf = new Map<string, { polygon: number; icon: number }>();
-  /** Elements with a path whose effect is animated. */
-  private readonly animated = new Set<string>();
+  /** An active animated path survived this frame's spatial and semantic visibility checks. */
+  private frameAnimated = false;
   /** The depth sub-order of each child element's first primitive; owners start at 0. */
   private readonly subBases = new Map<string, number>();
   /**
@@ -619,8 +626,11 @@ class WebGLSceneBackend implements ISceneBackend {
   private cullingDraws: TDraw[] = [];
   private readonly cullingOptions: { curveChords?: 8 } = {};
   private readonly appendCulledRange = (first: number, count: number, curveDetail?: number): void => {
-    if (this.cullingBatch)
-      this.cullingDraws[this.cullingDrawCount++] = this.frameDraw(this.cullingBatch, first, count, curveDetail);
+    const batch = this.cullingBatch;
+    if (!batch) return;
+    this.cullingDraws[this.cullingDrawCount++] = this.frameDraw(batch, first, count, curveDetail);
+    if (!this.frameAnimated && batch.animated && (this.visibility.get(batch)?.any(first, count) ?? true))
+      this.frameAnimated = true;
   };
   private readonly visibility = new WeakMap<TBatch, InstanceVisibility>();
   private activeStamp: number[] = [];
@@ -863,7 +873,8 @@ class WebGLSceneBackend implements ISceneBackend {
       const kind = this.upload(batch);
       if (UPLOAD_COST[kind] > UPLOAD_COST[uploadKind]) uploadKind = kind;
     }
-    for (const group of this.pathGroups.values()) this.setEffectUniforms(group);
+    for (const group of this.pathGroups.values()) this.setEffectUniforms(group, frame.scale);
+    this.frameAnimated = false;
     this.frameDrawCount = 0;
     const opaqueDraws = this.opaqueFrameDraws;
     const translucentDraws = this.translucentFrameDraws;
@@ -923,7 +934,7 @@ class WebGLSceneBackend implements ISceneBackend {
     this.device.submit();
 
     if (this.frames++ === 0) this.stats.firstFrameMs = performance.now() - start;
-    return this.hasVisibleAnimation() || this.refineTranslucent;
+    return this.frameAnimated || this.refineTranslucent;
   }
 
   public dispose(): void {
@@ -1169,7 +1180,6 @@ class WebGLSceneBackend implements ISceneBackend {
     for (const group of this.pathGroupsOf.get(id) ?? []) group.users--;
     this.pathGroupsOf.delete(id);
     this.setSkipped(id, { polygon: 0, icon: 0 });
-    this.animated.delete(id);
     this.textEncodes.delete(id);
     this.forgetCameraTexts(id);
     this.encodedCounts.delete(id);
@@ -1191,7 +1201,6 @@ class WebGLSceneBackend implements ISceneBackend {
     this.skippedOf.clear();
     this.stats.skipped.polygon = 0;
     this.stats.skipped.icon = 0;
-    this.animated.clear();
     this.subBases.clear();
     this.rebase.clear();
     this.encodeLater.clear();
@@ -1581,7 +1590,6 @@ class WebGLSceneBackend implements ISceneBackend {
   ): TTranslucentWrite[] {
     // No path now and none before: no group to write or to leave.
     if (!this.pathGroupsOf.has(id) && !primitives.some((primitive) => primitive.kind === "path")) {
-      this.animated.delete(id);
       return [];
     }
     const groupOfSub = primitives.map((primitive) =>
@@ -1633,8 +1641,6 @@ class WebGLSceneBackend implements ISceneBackend {
     }
     if (groups.size > 0) this.pathGroupsOf.set(id, groups);
     else this.pathGroupsOf.delete(id);
-    if ([...groups].some((group) => group.effect?.animated)) this.animated.add(id);
-    else this.animated.delete(id);
     return translucent;
   }
 
@@ -1645,11 +1651,11 @@ class WebGLSceneBackend implements ISceneBackend {
   private pathGroupOf(primitive: TPathPrimitive): TPathGroup {
     const effect = primitive.effect ? toConnectionEffect(primitive.effect.effect) : undefined;
     const pass: TPass = effect || isTranslucentPaint(primitive.stroke.color) ? "translucent" : "opaque";
-    return this.pathGroupFor(pass, effect);
+    return this.pathGroupFor(pass, effect, primitive.effect);
   }
 
-  private pathGroupFor(pass: TPass, effect: TEffect | undefined): TPathGroup {
-    const key = `${pass}|${effect ? connectionEffectId(effect) : "plain"}`;
+  private pathGroupFor(pass: TPass, effect: TEffect | undefined, range?: TConnectionEffectScaleRange): TPathGroup {
+    const key = `${pass}|${effect ? connectionEffectId(effect) : "plain"}|${range?.minScale ?? 0}|${range?.maxScale ?? Infinity}`;
     const known = this.pathGroups.get(key);
     if (known) return known;
     const programKey = effect?.programKey;
@@ -1659,10 +1665,15 @@ class WebGLSceneBackend implements ISceneBackend {
       // A table can have grown and replaced its texture while this group was idle.
       group.lines.model.setBindings(this.batchBindings(group.lines));
       group.curves.model.setBindings(this.batchBindings(group.curves));
+      group.lines.plain?.model.setBindings(this.batchBindings(group.lines));
+      group.curves.plain?.model.setBindings(this.batchBindings(group.curves));
     }
     group ??= this.createPathGroup(pass, effect);
     group.effect = group.fallback ? undefined : effect;
-    if (group.effect) group.stopUniforms = this.watchUniforms(group.effect);
+    group.minScale = range?.minScale;
+    group.maxScale = range?.maxScale;
+    group.effectActive = Boolean(group.effect);
+    if (group.effect) group.stopUniforms = this.watchUniforms(group);
     this.pathGroups.set(key, group);
     this.orderStamp = [];
     this.layoutStamp = [];
@@ -1677,6 +1688,7 @@ class WebGLSceneBackend implements ISceneBackend {
       pass,
       programKey,
       effect: undefined,
+      effectActive: false,
       users: 0,
       fallback: false,
       lines: this.createPathBatch(`${id}-lines`, pass, plugin, this.lineTemplate, createLineTemplate()),
@@ -1697,6 +1709,7 @@ class WebGLSceneBackend implements ISceneBackend {
         pass,
         programKey,
         effect: undefined,
+        effectActive: false,
         users: 0,
         fallback: true,
         lines: this.createPathBatch(`${id}-lines`, pass, plugin, this.lineTemplate, createLineTemplate()),
@@ -1720,14 +1733,16 @@ class WebGLSceneBackend implements ISceneBackend {
     return group;
   }
 
-  private watchUniforms(effect: TEffect): (() => void) | undefined {
+  private watchUniforms(group: TPathGroup): (() => void) | undefined {
+    const effect = group.effect;
+    if (!effect) return undefined;
     const uniforms = Object.values(effect.uniforms);
     const requestDraw = this.requestDraw;
     if (uniforms.length === 0 || !requestDraw) return undefined;
     let subscribed = false;
     return watch(() => {
       for (const uniform of uniforms) track(uniform);
-      if (subscribed) untracked(requestDraw);
+      if (subscribed && group.effectActive) untracked(requestDraw);
       subscribed = true;
     });
   }
@@ -1758,8 +1773,10 @@ class WebGLSceneBackend implements ISceneBackend {
 
   private destroyBatch(batch: TBatch): void {
     batch.model.destroy();
+    batch.plain?.model.destroy();
     if (!this.ownsObjects()) return;
     batch.model.vertexArray.destroy();
+    batch.plain?.model.vertexArray.destroy();
     batch.buffer.destroy();
     batch.companion?.buffer?.destroy();
     batch.pathRecords?.texture.destroy();
@@ -1853,6 +1870,7 @@ class WebGLSceneBackend implements ISceneBackend {
     const pathRecords = { texture: this.createTableTexture(PATH_RECORD_TEXELS, 1), ids: new PathDrawIds() };
     const uniforms: TUniforms = {
       scene_opaquePass: pass === "opaque" ? 1 : 0,
+      graph_effectEnabled: 1,
       graph_curveStep: 1,
       graph_recordWidth: PATH_RECORD_TEXELS,
     };
@@ -1965,7 +1983,8 @@ class WebGLSceneBackend implements ISceneBackend {
     scope: TOverlapScope,
     scale: number
   ): TTileRect | undefined {
-    if (this.hiddenInScene(element)) return undefined;
+    // Keep hidden owners in the conservative overlap order. HTML viewport handover changes only their final
+    // visibility: showing an owner again must find its ranges in the same valid order without a global rebuild.
     const style = this.overlapStyles[element.styleId];
     let hasTranslucentText = false;
     const geometry = (this.overlapGeometry.get(element.id)?.geometry ?? new CachedGeometryBounds(primitives)).at(
@@ -2011,7 +2030,7 @@ class WebGLSceneBackend implements ISceneBackend {
 
   /**
    * Updates the overlap levels after a change of the translucent set, of a translucent element's own zIndex or order,
-   * or of a translucent element's origin or bounds. When levels, range layout or path visibility change, rebuilds
+   * or of a translucent element's origin or bounds. When levels, range layout or path eligibility change, rebuilds
    * the draw runs: for each level, for each step, a draw per program. Retained path ranges stay at their resident
    * offsets; only their visible draw schedule follows the levels. Dense lists sort after structural changes or more than
    * `MAX_OUT_OF_PLACE` buckets move; a smaller level change adds draws without moving their instances. A pan does
@@ -2032,7 +2051,7 @@ class WebGLSceneBackend implements ISceneBackend {
       subBits,
       this.levels.revision,
       ...batches.map((batch) => batch.ranges.layoutRevision),
-      ...batches.map((batch) => (batch.pathRecords ? this.visibility.get(batch)?.visibilityRevision ?? 0 : 0)),
+      ...batches.map((batch) => (batch.pathRecords ? this.visibility.get(batch)?.orderRevision ?? 0 : 0)),
     ];
     if (sameNumbers(stamp(), this.orderStamp)) return;
     const start = performance.now();
@@ -2044,7 +2063,7 @@ class WebGLSceneBackend implements ISceneBackend {
       subBits,
       !sameNumbers(layout(), this.layoutStamp),
       (source, first, count) =>
-        !batches[source].pathRecords || (this.visibility.get(batches[source])?.any(first, count) ?? true)
+        !batches[source].pathRecords || (this.visibility.get(batches[source])?.anyForOrder(first, count) ?? true)
     );
     this.translucentBatches = batches;
     // After the sort: it changes the revisions of the lists it reorders.
@@ -2239,12 +2258,38 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   /** The group's extra width (0 without an effect) and its effect's `u_<name>` values. */
-  private setEffectUniforms(group: TPathGroup): void {
+  private setEffectUniforms(group: TPathGroup, scale: number): void {
     const { effect } = group;
+    group.effectActive = Boolean(effect) && isConnectionEffectActive(group, scale);
     for (const batch of [group.lines, group.curves, group.coarseCurves]) {
       if (!batch) continue;
       const { uniforms } = batch;
-      uniforms.graph_extraWidth = effect?.extraWidth ?? 0;
+      batch.animated = group.effectActive && Boolean(effect?.animated);
+      uniforms.graph_effectEnabled = group.effectActive ? 1 : 0;
+      uniforms.graph_extraWidth = group.effectActive ? effect?.extraWidth ?? 0 : 0;
+      if (effect && !group.effectActive && hasEffectDepthWrites(effect) && !batch.plain) {
+        const line = batch === group.lines;
+        batch.plain = {
+          model: new Model(this.device, {
+            id: `${batch.model.id}-plain`,
+            vs: PATH_VERTEX,
+            fs: PATH_FRAGMENT,
+            plugins: [createPathPlugin(undefined)],
+            topology: "triangle-strip",
+            bufferLayout: PATH_LAYOUT,
+            attributes: { graph_template: line ? this.lineTemplate : this.curveTemplate, graph_recordId: batch.buffer },
+            bindings: this.batchBindings(batch),
+            uniforms,
+            parameters: PASS_PARAMETERS[group.pass],
+            vertexCount: (line ? createLineTemplate() : createCurveTemplate()).length / 2,
+            isInstanced: true,
+            instanceCount: 0,
+          }),
+          layout: batch.layout,
+          instanceBuffers: batch.instanceBuffers,
+          pointedAt: 0,
+        };
+      }
       if (!effect) continue;
       for (const name of Object.keys(effect.uniformTypes)) {
         const value = effect.uniforms[name]?.peek();
@@ -2389,7 +2434,7 @@ class WebGLSceneBackend implements ISceneBackend {
     if (!native && source < 0) {
       source = work.sources.length;
       if (source >= MIXED_PATH_MAX_SOURCES) return false;
-      work.sources.push({ records: pathRecords, chords, plain: !group.effect, tie });
+      work.sources.push({ records: pathRecords, chords, group, tie });
     }
     const elements = companion.ranges.data;
     const data = batch.ranges.data;
@@ -2628,11 +2673,11 @@ class WebGLSceneBackend implements ISceneBackend {
     const bindings: Record<string, Texture> = this.bindings(PATH_TEXTURES);
     const widths = Array<number>(8).fill(10);
     const kinds = Array<number>(8).fill(16);
-    plan.sources.forEach(({ records, chords, plain }, index) => {
+    plan.sources.forEach(({ records, chords, group }, index) => {
       const { texture } = records;
       bindings[`graph_records${index}`] = texture;
       widths[index] = texture.width;
-      kinds[index] = chords + (plain ? 32 : 0);
+      kinds[index] = chords + (group.effectActive ? 0 : 32);
     });
     draw.model.setBindings(bindings);
     draw.model.setVertexCount((Math.max(...plan.sources.map(({ chords }) => chords)) + 1) * 2);
@@ -2748,6 +2793,10 @@ class WebGLSceneBackend implements ISceneBackend {
         changed = { byteOffset: 0, data: ids.data };
         batch.model.setAttributes({ graph_recordId: batch.buffer });
         batch.pointedAt = 0;
+        if (batch.plain) {
+          batch.plain.model.setAttributes({ graph_recordId: batch.buffer });
+          batch.plain.pointedAt = 0;
+        }
         kind = "full";
       }
       if (changed) {
@@ -2784,8 +2833,9 @@ class WebGLSceneBackend implements ISceneBackend {
   private drawPrepared(pass: RenderPass, draws: readonly TDraw[], frame: TSceneFrame): void {
     for (const { batch, first, count, curveDetail } of draws) {
       if (count === 0) continue;
-      this.pointInstances(batch, first);
-      this.drawInstances(pass, batch, frame, count, curveDetail);
+      const target = batch.uniforms.graph_effectEnabled === 0 && batch.plain ? batch.plain : batch;
+      this.pointInstances(target, first);
+      this.drawInstances(pass, batch, frame, count, curveDetail, target.model);
     }
   }
 
@@ -2795,7 +2845,8 @@ class WebGLSceneBackend implements ISceneBackend {
     batch: Pick<TBatch, "model" | "uniforms" | "curveChords" | "culling">,
     frame: TSceneFrame,
     count: number,
-    curveDetail?: number
+    curveDetail?: number,
+    model = batch.model
   ): boolean {
     if (count === 0) return false;
     const viewport = [frame.width, frame.height];
@@ -2806,7 +2857,7 @@ class WebGLSceneBackend implements ISceneBackend {
         curveDetail ??
         (batch.curveChords && canCoarsenCurves(frame, batch.culling?.untranslated === true) ? batch.curveChords : 16);
       uniforms.graph_curveStep = 16 / chords;
-      batch.model.setVertexCount((chords + 1) * 2);
+      model.setVertexCount((chords + 1) * 2);
     }
     uniforms.scene_viewport = viewport;
     uniforms.scene_camera = camera;
@@ -2818,8 +2869,8 @@ class WebGLSceneBackend implements ISceneBackend {
     uniforms.graph_camera = camera;
     uniforms.graph_dpr = frame.dpr;
     uniforms.graph_time = frame.time;
-    batch.model.setInstanceCount(count);
-    batch.model.draw(pass);
+    model.setInstanceCount(count);
+    model.draw(pass);
     this.stats.drawCalls += 1;
     this.stats.instances += count;
     return true;
@@ -2903,6 +2954,7 @@ class WebGLSceneBackend implements ISceneBackend {
       records.texture = this.createTableTexture(width, height);
       batch.uniforms.graph_recordWidth = width;
       batch.model.setBindings(this.batchBindings(batch));
+      batch.plain?.model.setBindings(this.batchBindings(batch));
       payload = { kind: "full" };
     }
     const writes = pathRecordWrites(batch.ranges.data, companion.ranges.data, payload, elements, records.texture.width);
@@ -2992,7 +3044,11 @@ class WebGLSceneBackend implements ISceneBackend {
   }
 
   private rebind(): void {
-    for (const batch of this.allBatches()) batch.model.setBindings(this.batchBindings(batch));
+    for (const batch of this.allBatches()) {
+      const bindings = this.batchBindings(batch);
+      batch.model.setBindings(bindings);
+      batch.plain?.model.setBindings(bindings);
+    }
   }
 
   /** Rows of style texels without overrides and base colours (alpha -1) and without dim (r 0). */
@@ -3000,14 +3056,6 @@ class WebGLSceneBackend implements ISceneBackend {
     const data = new Float32Array(rows * STYLE_ROW_TEXELS * 4);
     for (let i = 3; i < data.length; i += 4) data[i] = -1;
     return data;
-  }
-
-  private hasVisibleAnimation(): boolean {
-    for (const id of this.animated) {
-      const element = this.elements.get(id);
-      if (element && !this.hiddenInScene(element)) return true;
-    }
-    return false;
   }
 }
 

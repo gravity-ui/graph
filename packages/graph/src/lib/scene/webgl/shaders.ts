@@ -517,8 +517,15 @@ void main() {
 `;
 }
 
-/** #451's fragment `main()`: the application source of the path program. */
-export const PATH_FRAGMENT = `#version 300 es\n${FRAGMENT_MAIN}`;
+const PATH_IDENTITY_COLOR = "graph_vInteraction.z * f.selected > 0.5 ? f.selectionColor : graph_vColor";
+
+/** Native groups can suspend their effect without changing the resident stroke or its selection treatment. */
+export const PATH_FRAGMENT = `#version 300 es
+uniform highp float graph_effectEnabled;
+${FRAGMENT_MAIN.replace(
+  "vec4 color = effect(f, graph_vColor);",
+  `vec4 color = graph_effectEnabled > 0.5 ? effect(f, graph_vColor) : (${PATH_IDENTITY_COLOR});`
+)}`;
 
 /** Plain paths use the same identity treatment even when they share an effect program. */
 export const MIXED_PATH_FRAGMENT = `#version 300 es
@@ -526,7 +533,7 @@ precision highp float;
 flat in float graph_vMixedPlain;
 ${FRAGMENT_MAIN.replace(
   "vec4 color = effect(f, graph_vColor);",
-  "vec4 color = graph_vMixedPlain > 0.5 ? (graph_vInteraction.z * f.selected > 0.5 ? f.selectionColor : graph_vColor) : effect(f, graph_vColor);"
+  `vec4 color = graph_vMixedPlain > 0.5 ? (${PATH_IDENTITY_COLOR}) : effect(f, graph_vColor);`
 )}`;
 
 export const MIXED_COMPOSITE_VERTEX = /* glsl */ `#version 300 es

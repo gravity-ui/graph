@@ -31,6 +31,33 @@ describe("defineConnectionEffect", () => {
     expect(effect.use([1, 2, 3]).params).toEqual([1, 2, 3]);
   });
 
+  it("carries optional scale bounds alongside the encoded parameters", () => {
+    const effect = defineConnectionEffect<Record<never, never>, number>({
+      fragment: FRAGMENT,
+      encode: (value) => [value * 2],
+    });
+    expect(effect.use(5, { minScale: 0.25, maxScale: 1 })).toEqual({
+      effect,
+      params: [10],
+      minScale: 0.25,
+      maxScale: 1,
+    });
+    expect(effect.use(5, { maxScale: 2 })).toEqual({ effect, params: [10], maxScale: 2 });
+    expect(effect.use(5, { minScale: 2 })).toEqual({ effect, params: [10], minScale: 2 });
+  });
+
+  it.each([
+    [{ minScale: -1 }, "minScale"],
+    [{ minScale: NaN }, "minScale"],
+    [{ maxScale: Infinity }, "maxScale"],
+    [{ maxScale: 0 }, "maxScale"],
+    [{ minScale: 1, maxScale: 1 }, "maxScale"],
+    [{ minScale: 2, maxScale: 1 }, "maxScale"],
+  ])("rejects invalid effect scale bounds %j", (range, property) => {
+    const effect = defineConnectionEffect({ fragment: FRAGMENT });
+    expect(() => effect.use([], range)).toThrow(property);
+  });
+
   it("keeps 8 parameters and warns once per effect object", () => {
     const effect = defineConnectionEffect({ fragment: FRAGMENT });
     const many = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];

@@ -255,7 +255,9 @@ export class BlockConnection<T extends TConnection = TConnection>
         segments: webgl?.segments ?? geometry.segments,
         stroke: sceneStroke(webgl?.stroke ?? strokes.shaft),
         canvasStroke: webgl?.effect ? sceneStroke(strokes.shaft) : undefined,
-        effect: webgl?.effect ? { effect: webgl.effect, params: webgl.params ?? [] } : undefined,
+        effect: webgl?.effect
+          ? { effect: webgl.effect, params: webgl.params ?? [], ...webgl.effectScaleRange }
+          : undefined,
         interaction: webgl?.interaction ?? this.getSceneInteraction(state),
         effectShowsSelection: webgl?.effectShowsSelection,
       },

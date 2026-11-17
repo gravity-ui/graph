@@ -1,5 +1,5 @@
 import { dashFlow, pulse } from "@gravity-ui/graph";
-import type { TScenePartStyle, TScenePrimitive } from "@gravity-ui/graph";
+import type { TConnectionEffectScaleRange, TScenePartStyle, TScenePrimitive } from "@gravity-ui/graph";
 
 import { glow, gradient, particles } from "../webglConnections/lines";
 
@@ -135,7 +135,8 @@ export function onScales(primitive: TScenePrimitive, minScale?: number, maxScale
 /** A dash running around the box: `dashFlow` with a short pattern. */
 export function marchingBorder(
   box: TBox,
-  look: { width: number; color: string; on: number; off: number; speed: number }
+  look: { width: number; color: string; on: number; off: number; speed: number },
+  range?: TConnectionEffectScaleRange
 ): TScenePrimitive {
   const path = roundedRectPath(box);
   const pattern = fitPattern(path.length, look.on, look.off);
@@ -144,7 +145,7 @@ export function marchingBorder(
     part: "march",
     segments: path.segments,
     stroke: { color: look.color, width: look.width },
-    effect: dashFlow.use({ pattern, speed: look.speed }),
+    effect: dashFlow.use({ pattern, speed: look.speed }, range),
   };
 }
 
@@ -154,7 +155,8 @@ export function marchingBorder(
  */
 export function orbitingComet(
   box: TBox,
-  look: { width: number; color: string; share: number; laps: number }
+  look: { width: number; color: string; share: number; laps: number },
+  range?: TConnectionEffectScaleRange
 ): TScenePrimitive {
   const path = roundedRectPath(box);
   return {
@@ -162,22 +164,29 @@ export function orbitingComet(
     part: "comet",
     segments: path.segments,
     stroke: { color: look.color, width: look.width },
-    effect: dashFlow.use({
-      pattern: [path.length * look.share, path.length * (1 - look.share)],
-      speed: path.length * look.laps,
-      fade: true,
-    }),
+    effect: dashFlow.use(
+      {
+        pattern: [path.length * look.share, path.length * (1 - look.share)],
+        speed: path.length * look.laps,
+        fade: true,
+      },
+      range
+    ),
   };
 }
 
 /** The whole outline pulses in place: `pulse` without a wavelength. */
-export function pulsingOutline(box: TBox, look: { width: number; color: string; period: number }): TScenePrimitive {
+export function pulsingOutline(
+  box: TBox,
+  look: { width: number; color: string; period: number },
+  range?: TConnectionEffectScaleRange
+): TScenePrimitive {
   return {
     kind: "path",
     part: "pulse",
     segments: roundedRectPath(box).segments,
     stroke: { color: look.color, width: look.width },
-    effect: pulse.use({ period: look.period }),
+    effect: pulse.use({ period: look.period }, range),
   };
 }
 
@@ -186,14 +195,15 @@ export function throughputParticles(
   x0: number,
   x1: number,
   y: number,
-  look: { width: number; color: string; spacing: number; speed: number }
+  look: { width: number; color: string; spacing: number; speed: number },
+  range?: TConnectionEffectScaleRange
 ): TScenePrimitive {
   return {
     kind: "path",
     part: "particles",
     segments: linePath(x0, y, x1, y).segments,
     stroke: { color: look.color, width: look.width },
-    effect: particles.use({ spacing: look.spacing, speed: look.speed }),
+    effect: particles.use({ spacing: look.spacing, speed: look.speed }, range),
   };
 }
 
@@ -205,7 +215,8 @@ export function spinner(
   cx: number,
   cy: number,
   r: number,
-  look: { width: number; color: string; track: string; period: number }
+  look: { width: number; color: string; track: string; period: number },
+  range?: TConnectionEffectScaleRange
 ): TScenePrimitive[] {
   const path = circlePath(cx, cy, r);
   return [
@@ -215,19 +226,26 @@ export function spinner(
       part: "spinner",
       segments: path.segments,
       stroke: { color: look.color, width: look.width },
-      effect: dashFlow.use({ pattern: [path.length * 0.3, path.length * 0.7], speed: path.length / look.period }),
+      effect: dashFlow.use(
+        { pattern: [path.length * 0.3, path.length * 0.7], speed: path.length / look.period },
+        range
+      ),
     },
   ];
 }
 
 /** A soft halo around the box: the `glow` shader; its intensity is the effect's global `u_intensity` uniform. */
-export function glowOutline(box: TBox, look: { width: number; color: string }): TScenePrimitive {
+export function glowOutline(
+  box: TBox,
+  look: { width: number; color: string },
+  range?: TConnectionEffectScaleRange
+): TScenePrimitive {
   return {
     kind: "path",
     part: "glow",
     segments: roundedRectPath(box).segments,
     stroke: { color: look.color, width: look.width },
-    effect: glow.use([]),
+    effect: glow.use([], range),
   };
 }
 

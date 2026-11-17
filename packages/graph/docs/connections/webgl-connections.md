@@ -419,6 +419,13 @@ The effect object has `uniforms` (signals), `use(input)`, which returns `{ effec
 `clone()`. A program is compiled on the first draw of its effect and cached by source text (the uniform declarations
 and the fragment); clones share it.
 
+Pass `effect.use(input, { minScale: 0.3, maxScale: 1.5 })` to activate the effect within a range of camera scales.
+The lower bound is inclusive and the upper bound is exclusive. Omitted bounds mean 0 and no upper limit.
+Supplied bounds must be finite and nonnegative, and the upper bound must exceed the lower one. The same optional
+fields can appear on a literal `{ effect, params, minScale, maxScale }`. Outside the range the connection uses its
+plain stroke, including its normal selection color. WebGL batches uses of the same effect instance with matching
+bounds, so distinct per-connection bounds can increase draw calls.
+
 ### Three levels of control
 
 1. **Whether** a connection has the effect: a condition in the line's `getStroke()`.
@@ -611,7 +618,8 @@ class ParticlesConnection extends BlockConnection {
 ### Fallback strokes
 
 Canvas2D paints the base stroke returned by `getStroke()`. Put a static dash in that stroke if the Canvas version
-should be dashed too. Effect-specific fallback callbacks remain available to the compatibility Canvas batch.
+should be dashed too. The compatibility Canvas batch uses an effect's fallback stroke inside its activity range and
+the base stroke outside it.
 
 ## Shader contract
 

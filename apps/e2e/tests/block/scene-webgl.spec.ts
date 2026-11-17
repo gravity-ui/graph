@@ -98,6 +98,111 @@ async function anchorPoint(page: Page, blockId: string, anchorId: string): Promi
 }
 
 test.describe("Scene blocks with the WebGL renderer", () => {
+  test("keeps translucent ordering when an owner and its child hide and show", async ({ page }) => {
+    const graph = new GraphPageObject(page);
+    await graph.initialize({ ...CONFIG, blocks: [] });
+    test.skip(!(await hasWebGL2(page)), "WebGL2 unavailable");
+    await page.evaluate(() => {
+      const { defineConnectionEffect, lineSegment } = window.GraphModule;
+      const { scene, cameraService } = window.graph;
+      cameraService.set({ scale: 0.8, x: 0, y: 0 });
+      const effect = defineConnectionEffect({
+        fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return vec4(color.rgb, 0.5); }",
+      });
+      const bounds = { minX: 70, minY: 120, maxX: 330, maxY: 180 };
+      const segments = new Float32Array(lineSegment({ x: 100, y: 150 }, { x: 300, y: 150 }));
+      scene.store.add({
+        id: "lower-path",
+        x: 0,
+        y: 0,
+        zIndex: 100,
+        bounds,
+        primitives: [{ kind: "path", segments, stroke: { color: "#ff0000", width: 60 }, effect: effect.use([]) }],
+      });
+      scene.store.add({ id: "handover-owner", x: 0, y: 0, zIndex: 200, bounds, primitives: [] });
+      scene.store.add({
+        id: "handover-child",
+        parent: "handover-owner",
+        x: 0,
+        y: 0,
+        zIndex: 0,
+        bounds,
+        primitives: [{ kind: "path", segments, stroke: { color: "#00ff00", width: 60 }, effect: effect.use([]) }],
+      });
+      scene.store.add({
+        id: "upper-path",
+        x: 0,
+        y: 0,
+        zIndex: 300,
+        bounds,
+        primitives: [{ kind: "path", segments, stroke: { color: "rgba(0, 0, 255, 0.5)", width: 60 } }],
+      });
+    });
+    await expect.poll(() => rendererState(page)).toBe("webgl");
+    await graph.waitForFrames(3);
+    const result = await page.evaluate(() => {
+      const { scene, scheduler, cameraService } = window.graph;
+      const backend = scene.layer.getBackend() as unknown as {
+        canvas: HTMLCanvasElement;
+        translucentRuns: object;
+        orderStamp: readonly number[];
+      };
+      const gl = backend.canvas.getContext("webgl2");
+      if (!gl) throw new Error("WebGL2 unavailable");
+      const render = (): void => {
+        scene.layer.performRender();
+        scheduler.performUpdate();
+      };
+      const pixels = (): Uint8Array => {
+        const { scale, width } = cameraService.getCameraState();
+        const dpr = gl.drawingBufferWidth / width;
+        const side = Math.round(24 * dpr);
+        const data = new Uint8Array(side * side * 4);
+        gl.readPixels(
+          Math.round((200 * scale - 12) * dpr),
+          gl.drawingBufferHeight - Math.round((150 * scale + 12) * dpr),
+          side,
+          side,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          data
+        );
+        return data;
+      };
+      render();
+      const before = pixels();
+      const runs = backend.translucentRuns;
+      const stamp = backend.orderStamp;
+      const states = [];
+      for (const hidden of [true, false, true, false, true, false]) {
+        // This is the store update made by HTML viewport handover; children receive no update of their own.
+        scene.store.update("handover-owner", { hidden });
+        render();
+        const next = pixels();
+        states.push({
+          hidden,
+          sameRuns: backend.translucentRuns === runs,
+          sameStamp: backend.orderStamp === stamp,
+          differentBytes: next.reduce((count, value, index) => count + Number(value !== before[index]), 0),
+          pixel: Array.from(next.subarray(0, 4)),
+        });
+      }
+      return { states, before: Array.from(before.subarray(0, 4)), error: gl.getError(), level: scene.$level.value };
+    });
+    expect(result.level).toBe("detailed");
+    expect(result.before[1]).toBeGreaterThan(40);
+    for (const state of result.states) {
+      expect(state.sameRuns).toBe(true);
+      expect(state.sameStamp).toBe(true);
+      if (state.hidden) {
+        expect(state.differentBytes).toBeGreaterThan(0);
+        expect(state.pixel[1]).toBe(0);
+      } else expect(state.differentBytes).toBe(0);
+    }
+    expect(result.error).toBe(0);
+    expect(await rendererState(page)).toBe("webgl");
+  });
+
   test("batches effect paths by their visible bounds at the current zoom", async ({ page }) => {
     const graph = new GraphPageObject(page);
     await graph.initialize({ ...CONFIG, blocks: [] });

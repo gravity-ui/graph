@@ -2,6 +2,7 @@ export { defineConnectionEffect, ConnectionEffect, toConnectionEffect } from "./
 export type {
   TConnectionEffect,
   TConnectionEffectDefinition,
+  TConnectionEffectScaleRange,
   TConnectionEffectUse,
   TUniformType,
   TUniformTypes,

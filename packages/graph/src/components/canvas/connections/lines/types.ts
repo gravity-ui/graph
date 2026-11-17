@@ -1,5 +1,5 @@
 import type { ConnectionEffect } from "../effects/ConnectionEffect";
-import type { TUniformTypes } from "../effects/types";
+import type { TConnectionEffectScaleRange, TUniformTypes } from "../effects/types";
 
 import type { ConnectionLine } from "./ConnectionLine";
 
@@ -33,6 +33,7 @@ export type TWebGLShape = {
   /** The effect recoloring the stroke (the line only), with the connection's parameters. */
   effect?: ConnectionEffect<TUniformTypes, never>;
   params?: readonly number[];
+  effectScaleRange?: TConnectionEffectScaleRange;
   /** The line's hover and selection; an arrow has none (encoded as zeros). */
   interaction?: TLineInteraction;
   /**

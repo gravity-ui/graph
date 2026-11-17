@@ -4,6 +4,7 @@ import type {
   TAnchorView,
   TBlock,
   TBlockView,
+  TConnectionEffectScaleRange,
   TScenePrimitive,
   TStyleParts,
   TStyleRule,
@@ -162,31 +163,49 @@ function flowRate(rowsPerSecond: number): number {
 }
 
 /** The effects of one zoom range, from `left` (after the stripe) to the card's right edge. */
-function effects(view: TBlockView<TStageBlock>, look: TEffectsLook, left: number): TScenePrimitive[] {
+function effects(
+  view: TBlockView<TStageBlock>,
+  look: TEffectsLook,
+  left: number,
+  range: TConnectionEffectScaleRange
+): TScenePrimitive[] {
   const { width, height, rowsPerSecond } = view;
   const card: TBox = { x: 0, y: 0, width, height, radius };
   return [
-    marchingBorder(strokeInside(card, look.march), {
-      width: look.march,
-      color: stageStatusColors.running,
-      on: look.dash[0],
-      off: look.dash[1],
-      speed: look.marchSpeed,
-    }),
-    orbitingComet(strokeInside(card, look.comet), {
-      width: look.comet,
-      color: stageStatusColors.queued,
-      share: 0.3,
-      laps: 0.4,
-    }),
-    pulsingOutline(strokeInside(card, look.pulse), { width: look.pulse, color: stageStatusColors.failed, period: 1.2 }),
-    throughputParticles(left, width - 20, look.particlesY(height), {
-      width: look.particles,
-      color: stageStatusColors.running,
-      spacing: look.spacing,
-      speed: look.spacing * 1.2 * flowRate(rowsPerSecond),
-    }),
-    glowOutline(strokeInside(card, look.glow), { width: look.glow, color: STAGE_SELECTION_COLOR }),
+    marchingBorder(
+      strokeInside(card, look.march),
+      {
+        width: look.march,
+        color: stageStatusColors.running,
+        on: look.dash[0],
+        off: look.dash[1],
+        speed: look.marchSpeed,
+      },
+      range
+    ),
+    orbitingComet(
+      strokeInside(card, look.comet),
+      { width: look.comet, color: stageStatusColors.queued, share: 0.3, laps: 0.4 },
+      range
+    ),
+    pulsingOutline(
+      strokeInside(card, look.pulse),
+      { width: look.pulse, color: stageStatusColors.failed, period: 1.2 },
+      range
+    ),
+    throughputParticles(
+      left,
+      width - 20,
+      look.particlesY(height),
+      {
+        width: look.particles,
+        color: stageStatusColors.running,
+        spacing: look.spacing,
+        speed: look.spacing * 1.2 * flowRate(rowsPerSecond),
+      },
+      range
+    ),
+    glowOutline(strokeInside(card, look.glow), { width: look.glow, color: STAGE_SELECTION_COLOR }, range),
   ];
 }
 
@@ -220,6 +239,7 @@ export class StageBlock extends CanvasBlock<TStageBlock> {
   >;
 
   private schematicCache?: { view: object; primitives: readonly TScenePrimitive[] };
+  protected readonly effectRange: TConnectionEffectScaleRange = {};
 
   protected override getAnchorClass(): TAnchorClass {
     return StageAnchor;
@@ -229,8 +249,8 @@ export class StageBlock extends CanvasBlock<TStageBlock> {
     const stripe = 36;
     return [
       ...stripeAndBody(view.width, view.height, stripe),
-      ...effects(view, farLook, stripe + 24).map((primitive) => onScales(primitive, undefined, 0.1)),
-      ...effects(view, midLook, stripe + 24).map((primitive) => onScales(primitive, 0.1)),
+      ...effects(view, farLook, stripe + 24, this.effectRange).map((primitive) => onScales(primitive, undefined, 0.1)),
+      ...effects(view, midLook, stripe + 24, this.effectRange).map((primitive) => onScales(primitive, 0.1)),
     ];
   }
 
@@ -301,15 +321,23 @@ export class StageBlock extends CanvasBlock<TStageBlock> {
         wrap: false,
         minScale: 0.35,
       },
-      ...effects(view, nearLook, left),
-      ...spinner(width - 26, 26, 11, {
-        width: 4,
-        color: stageStatusColors.queued,
-        track: "rgba(122, 90, 248, 0.15)",
-        period: 1,
-      }),
+      ...effects(view, nearLook, left, this.effectRange),
+      ...spinner(
+        width - 26,
+        26,
+        11,
+        { width: 4, color: stageStatusColors.queued, track: "rgba(122, 90, 248, 0.15)", period: 1 },
+        this.effectRange
+      ),
     ];
   }
+}
+
+/** A fixed story configuration: zoom only changes effect activity, not the block's generated primitives. */
+export function createStageBlock(minScale: number): typeof StageBlock {
+  return class extends StageBlock {
+    protected override readonly effectRange = { minScale };
+  };
 }
 
 /**

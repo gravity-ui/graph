@@ -7,6 +7,7 @@ import type { TLineStroke } from "../lines/types";
 import type {
   TConnectionEffect,
   TConnectionEffectDefinition,
+  TConnectionEffectScaleRange,
   TConnectionEffectUse,
   TUniformType,
   TUniformTypes,
@@ -64,6 +65,21 @@ function countObject(effect: object, fragment: string): void {
   }
 }
 
+/** Validates both `use()` options and effect uses supplied as literals. */
+export function validateConnectionEffectScaleRange({ minScale, maxScale }: TConnectionEffectScaleRange): void {
+  if (minScale !== undefined && (!Number.isFinite(minScale) || minScale < 0)) {
+    throw new Error("[@gravity-ui/graph] Effect minScale must be finite and nonnegative.");
+  }
+  if (maxScale !== undefined && (!Number.isFinite(maxScale) || maxScale <= (minScale ?? 0))) {
+    throw new Error("[@gravity-ui/graph] Effect maxScale must be finite and greater than minScale.");
+  }
+}
+
+/** The activity predicate shared by the renderers, in camera scale units. */
+export function isConnectionEffectActive(range: TConnectionEffectScaleRange, scale: number): boolean {
+  return scale >= (range.minScale ?? 0) && scale < (range.maxScale ?? Infinity);
+}
+
 /** Internal: the class behind every effect object. */
 export class ConnectionEffect<U extends TUniformTypes = TUniformTypes, P = readonly number[]>
   implements TConnectionEffect<U, P>
@@ -118,7 +134,8 @@ export class ConnectionEffect<U extends TUniformTypes = TUniformTypes, P = reado
     countObject(this, fragment);
   }
 
-  public use(input: P): TConnectionEffectUse {
+  public use(input: P, scaleRange?: TConnectionEffectScaleRange): TConnectionEffectUse {
+    if (scaleRange) validateConnectionEffectScaleRange(scaleRange);
     let params = this.definition.encode ? this.definition.encode(input) : (input as unknown as readonly number[]);
     if (params.length > MAX_EFFECT_PARAMS) {
       if (!this.paramsWarned && isDevelopmentBuild()) {
@@ -130,7 +147,10 @@ export class ConnectionEffect<U extends TUniformTypes = TUniformTypes, P = reado
       }
       params = params.slice(0, MAX_EFFECT_PARAMS);
     }
-    return { effect: this as unknown as TConnectionEffectUse["effect"], params };
+    const use: TConnectionEffectUse = { effect: this as unknown as TConnectionEffectUse["effect"], params };
+    if (scaleRange?.minScale !== undefined) use.minScale = scaleRange.minScale;
+    if (scaleRange?.maxScale !== undefined) use.maxScale = scaleRange.maxScale;
+    return use;
   }
 
   public clone(): ConnectionEffect<U, P> {

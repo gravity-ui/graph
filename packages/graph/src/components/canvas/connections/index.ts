@@ -11,6 +11,7 @@ export { defineConnectionEffect, dashFlow, pulse } from "./effects";
 export type {
   TConnectionEffect,
   TConnectionEffectDefinition,
+  TConnectionEffectScaleRange,
   TConnectionEffectUse,
   TUniformType,
   TUniformTypes,

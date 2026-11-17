@@ -1,3 +1,4 @@
+import { validateConnectionEffectScaleRange } from "../../components/canvas/connections/effects/ConnectionEffect";
 import type { TSceneLevel } from "../../services/scene/types";
 import { TileIndex } from "../culling/TileIndex";
 import type { TTileRect } from "../culling/TileIndex";
@@ -42,18 +43,25 @@ export type TSceneExportStyles = {
 };
 
 /**
- * Development builds: freezes the text primitives an element receives, with their `cameraAware` objects, so code that
- * changes one in place after it went into the scene throws (strict mode) instead of drawing stale glyphs: the WebGL
- * backend compares texts by identity and keeps the objects of its last encode (`TScenePrimitive`). Other kinds are left
- * to the read-only types: freezing every primitive cost +8 ms of element writes per 10,000 blocks changed (Task 17g
- * A/B).
+ * Validates literal effect ranges before publishing primitives. Development builds also freeze text primitives with
+ * their `cameraAware` objects, since the WebGL backend compares texts by identity and retains them after encoding.
  */
-function freezeTexts(primitives: readonly TScenePrimitive[]): void {
-  if (!isDevelopmentBuild()) return;
+function preparePrimitives(primitives: readonly TScenePrimitive[]): void {
+  const freezeText = isDevelopmentBuild();
   for (const primitive of primitives) {
-    if (primitive.kind !== "text" || Object.isFrozen(primitive)) continue;
+    if (primitive.kind === "path" && primitive.effect) validateConnectionEffectScaleRange(primitive.effect);
+    if (!freezeText || primitive.kind !== "text" || Object.isFrozen(primitive)) continue;
     if (typeof primitive.cameraAware === "object") Object.freeze(primitive.cameraAware);
     Object.freeze(primitive);
+  }
+}
+
+function validateStyleEffects(style: TSceneStyle): void {
+  for (const values of [style.base, style.parts]) {
+    for (const part in values) {
+      const effect = values[part]?.effect;
+      if (effect) validateConnectionEffectScaleRange(effect);
+    }
   }
 }
 
@@ -275,7 +283,7 @@ export class SceneStore {
       }
     }
     const ownerNode = upNode ? upNode.parent ?? upNode : undefined;
-    freezeTexts(input.primitives);
+    preparePrimitives(input.primitives);
     const element: TSceneElement = {
       ...input,
       entityType: input.entityType,
@@ -382,6 +390,7 @@ export class SceneStore {
    * units (`warnUnboundedWidth`).
    */
   public defineStyle(style: TSceneStyle): number {
+    validateStyleEffects(style);
     this.warnUnboundedWidth(style);
     const freed = this.freeStyles.pop();
     if (freed !== undefined) {
@@ -422,7 +431,10 @@ export class SceneStore {
     if (rows.size === 0) return { styles: this.styles, childRows: NO_CHILD_ROWS };
     const next = [...this.styles];
     rows.forEach((style, id) => {
-      if (id > 0 && id < this.styles.length) next[id] = style;
+      if (id > 0 && id < this.styles.length) {
+        validateStyleEffects(style);
+        next[id] = style;
+      }
     });
     // In insertion order an entry follows the entry of the row it is composed from (a row with dependents is never
     // freed, so its id is not reused under them): one pass recomposes scene parents first.
@@ -479,6 +491,7 @@ export class SceneStore {
     const changes: [number, TSceneStyle, TSceneStyle][] = [];
     rows.forEach((style, id) => {
       if (id <= 0 || id >= next.length || next[id] === style) return;
+      validateStyleEffects(style);
       changes.push([id, next[id], style]);
       next[id] = style;
     });
@@ -600,7 +613,7 @@ export class SceneStore {
     const node = this.requireNode(id);
     const { element } = node;
     checkChildOrder(id, patch.childOrder);
-    if (patch.primitives !== undefined) freezeTexts(patch.primitives);
+    if (patch.primitives !== undefined) preparePrimitives(patch.primitives);
     Object.assign(element, patch);
     if (patch.primitives !== undefined) {
       node.levels = levelMaskOfPrimitives(patch.primitives);

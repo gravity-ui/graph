@@ -1,3 +1,4 @@
+import { defineConnectionEffect } from "../../components/canvas/connections/effects";
 import type { TSceneLevel } from "../../services/scene/types";
 
 import { SceneStore } from "./SceneStore";
@@ -23,6 +24,29 @@ function element(id: string, zIndex: number): TSceneElementInput {
 const ALL = { minX: -1e6, minY: -1e6, maxX: 1e6, maxY: 1e6 };
 
 describe("SceneStore", () => {
+  it("rejects invalid literal effect scale bounds before replacing scene primitives or styles", () => {
+    const effect = defineConnectionEffect({
+      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+    });
+    const store = new SceneStore();
+    const path = {
+      kind: "path" as const,
+      segments: new Float32Array([0, 0, 1, 1, 2, 2, 3, 3]),
+      stroke: { color: "#123", width: 2 },
+      effect: { effect, minScale: 1, maxScale: 0.5 },
+    };
+    expect(() => store.add(input("line", { primitives: [path] }))).toThrow("maxScale");
+    store.add(input("line"));
+    expect(() => store.update("line", { primitives: [path] })).toThrow("maxScale");
+    expect(store.get("line")?.primitives).toEqual([]);
+    expect(() => store.defineStyle({ base: { line: { effect: path.effect } } })).toThrow("maxScale");
+    const row = store.defineStyle({});
+    expect(() => store.replaceStyles(new Map([[row, { parts: { line: { effect: path.effect } } }]]))).toThrow(
+      "maxScale"
+    );
+    expect(store.getStyles()[row]).toEqual({});
+  });
+
   it("returns visible elements that meet the rect, ordered by z-level and then by order", () => {
     const store = new SceneStore(100);
     store.add(input("block", { zIndex: 2 }));

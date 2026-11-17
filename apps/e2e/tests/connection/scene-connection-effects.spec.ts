@@ -103,3 +103,251 @@ test("tagged effects on stock connections keep independent uniforms and a plain 
   await graph.evaluate((each) => each.api.selectConnections(["line-0"], true));
   await expect.poll(() => linePixels(page)).toEqual([[255, 0, 255], green]);
 });
+
+test("effect scale ranges keep resident paths, stop animation and preserve custom depth", async ({ page }) => {
+  const graph = new GraphPageObject(page);
+  await graph.initialize({ blocks: [], connections: [], settings: { renderer: "webgl" } });
+  test.skip(
+    !(await page.evaluate(() => Boolean(document.createElement("canvas").getContext("webgl2")))),
+    "WebGL2 unavailable"
+  );
+  await expect.poll(() => page.evaluate(() => window.graph.scene.$renderer.peek())).toBe("webgl");
+  await page.evaluate(() => {
+    const { defineConnectionEffect, lineSegment } = window.GraphModule;
+    const { scene, cameraService } = window.graph;
+    cameraService.set({ x: 0, y: 0, scale: 1 });
+    const red = defineConnectionEffect({
+      animated: true,
+      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return vec4(u_tint, 1.); }",
+      uniforms: { tint: { type: "vec3", value: [1, 0, 0] } },
+    });
+    (window as unknown as TEffectTestWindow).sceneEffectTest = {
+      setFirstTint: (tint) => {
+        red.uniforms.tint.value = tint;
+      },
+      toggleFirst: () => undefined,
+    };
+    const depth = defineConnectionEffect({
+      animated: true,
+      fragment: `vec4 effect(ConnectionFragment f, vec4 color) {
+        gl_FragDepth = gl_FragCoord.z;
+        return vec4(1., 0., 0., 1.);
+      }`,
+    });
+    const comment = defineConnectionEffect({
+      animated: true,
+      fragment: `// gl_FragDepth is deliberately not written by this effect.
+        vec4 effect(ConnectionFragment f, vec4 color) { return vec4(1., 0., 0., 1.); }`,
+    });
+    [red, red, depth, comment].forEach((effect, i) => {
+      scene.store.add({
+        id: `scoped-${i}`,
+        x: 0,
+        y: 0,
+        zIndex: i,
+        bounds: { minX: 100, minY: 95 + i * 80, maxX: 400, maxY: 105 + i * 80 },
+        primitives: [
+          {
+            kind: "path",
+            segments: new Float32Array(lineSegment({ x: 100, y: 100 + i * 80 }, { x: 400, y: 100 + i * 80 })),
+            stroke: { color: "#0000ff", width: 12 },
+            effect: { ...effect.use([]), minScale: i === 1 ? 0.75 : 0.5, maxScale: 1.25 },
+          },
+        ],
+      });
+    });
+  });
+  await graph.waitForFrames(3);
+  const draw = (scale: number, x = 0) =>
+    page.evaluate(
+      ({ scale, x }) => {
+        const { scene, cameraService, scheduler } = window.graph;
+        scene.layer.performRender();
+        scheduler.performUpdate();
+        const backend = scene.layer.getBackend();
+        if (!backend) throw new Error("Missing backend");
+        const frame = {
+          ...cameraService.getCameraState(),
+          x,
+          scale,
+          dpr: 1,
+          time: 1.234,
+          dimColor: scene.store.getDimColor(),
+        };
+        backend.draw(frame);
+        const uploads = backend.stats.lastUploadBytes;
+        const animated = backend.draw(frame);
+        const gl = backend.canvas.getContext("webgl2");
+        if (!gl) throw new Error("Missing context");
+        const colors = [0, 1, 2, 3].map((i) => {
+          const pixel = new Uint8Array(4);
+          gl.readPixels(
+            Math.floor(250 * scale),
+            gl.drawingBufferHeight - Math.floor((100 + i * 80) * scale) - 1,
+            1,
+            1,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            pixel
+          );
+          return Array.from(pixel.slice(0, 3));
+        });
+        return { colors, animated, uploads, error: gl.getError() };
+      },
+      { scale, x }
+    );
+  const blue = [0, 0, 255];
+  const red = [255, 0, 0];
+  for (const [scale, colors, animated] of [
+    [0.25, [blue, blue, blue, blue], false],
+    [0.5, [red, blue, red, red], true],
+    [0.75, [red, red, red, red], true],
+    [1.25, [blue, blue, blue, blue], false],
+    [0.75, [red, red, red, red], true],
+  ] as const) {
+    const result = await draw(scale);
+    expect(result.colors, `scale ${scale}`).toEqual(colors);
+    expect(result.animated, `scale ${scale}`).toBe(animated);
+    expect(result.uploads).toBe(0);
+    expect(result.error).toBe(0);
+  }
+  expect((await draw(1, 10000)).animated, "offscreen effects stop requesting frames").toBe(false);
+  await page.evaluate(async () => {
+    const canvas = window.graph.scene.layer.getBackend()?.canvas;
+    const extension = canvas?.getContext("webgl2")?.getExtension("WEBGL_lose_context");
+    if (!canvas || !extension) throw new Error("Context loss extension unavailable");
+    await new Promise<void>((resolve) => {
+      canvas.addEventListener("webglcontextrestored", () => resolve(), { once: true });
+      canvas.addEventListener("webglcontextlost", () => setTimeout(() => extension.restoreContext(), 100), {
+        once: true,
+      });
+      extension.loseContext();
+    });
+  });
+  await expect.poll(() => page.evaluate(() => window.graph.scene.$renderer.peek())).toBe("webgl");
+  expect((await draw(0.25)).colors, "plain siblings survive context restoration").toEqual([blue, blue, blue, blue]);
+  expect((await draw(1)).colors, "custom depth effects resume after restoration").toEqual([red, red, red, red]);
+  await graph.evaluate((each) => each.cameraService.set({ scale: 0.25 }));
+  await graph.waitForFrames(3);
+  const wakes = await page.evaluate(async () => {
+    const backend = window.graph.scene.layer.getBackend();
+    if (!backend) throw new Error("Missing backend");
+    const original = backend.draw.bind(backend);
+    let count = 0;
+    backend.draw = (frame) => {
+      count++;
+      return original(frame);
+    };
+    (window as unknown as TEffectTestWindow).sceneEffectTest.setFirstTint([0, 1, 0]);
+    for (let i = 0; i < 3; i++) await new Promise(requestAnimationFrame);
+    backend.draw = original;
+    return count;
+  });
+  expect(wakes, "inactive uniforms do not wake the renderer").toBe(0);
+  expect((await draw(1)).colors, "reactivation reads the latest uniforms").toEqual([
+    [0, 255, 0],
+    [0, 255, 0],
+    red,
+    red,
+  ]);
+  await page.evaluate(() => {
+    for (let i = 0; i < 4; i++) window.graph.scene.store.update(`scoped-${i}`, { hidden: true });
+  });
+  expect((await draw(1)).animated, "hidden effects stop requesting frames").toBe(false);
+});
+
+test("mixed connection sources activate the same effect independently without replacing their address stream", async ({
+  page,
+}) => {
+  const graph = new GraphPageObject(page);
+  await graph.initialize({ blocks: [], connections: [], settings: { renderer: "webgl" } });
+  test.skip(
+    !(await page.evaluate(() => Boolean(document.createElement("canvas").getContext("webgl2")))),
+    "WebGL2 unavailable"
+  );
+  await expect.poll(() => page.evaluate(() => window.graph.scene.$renderer.peek())).toBe("webgl");
+  await page.evaluate(() => {
+    const { pulse, lineSegment } = window.GraphModule;
+    const { scene, cameraService } = window.graph;
+    cameraService.set({ x: 0, y: 0, scale: 1 });
+    for (let i = 0; i < 2; i++)
+      scene.store.add({
+        id: `mixed-scope-${i}`,
+        entityType: "connection",
+        x: 0,
+        y: 0,
+        zIndex: i,
+        bounds: { minX: 100, minY: 95 + i * 80, maxX: 400, maxY: 105 + i * 80 },
+        primitives: [
+          {
+            kind: "path",
+            segments: new Float32Array(lineSegment({ x: 100, y: 100 + i * 80 }, { x: 400, y: 100 + i * 80 })),
+            stroke: { color: "#0000ff", width: 12 },
+            effect: pulse.use({ period: 2 }, { minScale: i === 0 ? 0.5 : 0.75, maxScale: 1.25 }),
+          },
+        ],
+      });
+  });
+  await graph.waitForFrames(3);
+  const result = await page.evaluate(() => {
+    const { scene, cameraService } = window.graph;
+    scene.layer.performRender();
+    const backend = scene.layer.getBackend();
+    if (!backend) throw new Error("Missing backend");
+    const probe = backend as typeof backend & {
+      hasMixedVertexWork(): boolean;
+      mixedDraw?: { ids: { data: Float32Array } };
+      mixedTarget?: unknown;
+    };
+    // Keep the production mixed pass; bypass only its large-scene performance cutoff.
+    probe.hasMixedVertexWork = () => true;
+    const gl = backend.canvas.getContext("webgl2");
+    if (!gl) throw new Error("Missing context");
+    let ids: Float32Array | undefined;
+    return [1, 0.5, 0.75, 1.25, 0.5].map((scale) => {
+      const animated = backend.draw({
+        ...cameraService.getCameraState(),
+        scale,
+        dpr: 1,
+        time: 1.234,
+        dimColor: scene.store.getDimColor(),
+      });
+      const previous = ids;
+      ids = probe.mixedDraw?.ids.data;
+      const alphas = [0, 1].map((i) => {
+        const pixel = new Uint8Array(4);
+        gl.readPixels(
+          Math.floor(250 * scale),
+          gl.drawingBufferHeight - Math.floor((100 + i * 80) * scale) - 1,
+          1,
+          1,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          pixel
+        );
+        return pixel[3];
+      });
+      return {
+        scale,
+        alphas,
+        animated,
+        mixed: Boolean(probe.mixedTarget),
+        sameIds: previous?.buffer === ids?.buffer && previous?.length === ids?.length,
+        uploads: backend.stats.lastUploadBytes,
+        error: gl.getError(),
+      };
+    });
+  });
+  for (const [i, row] of result.entries()) {
+    expect(row.mixed).toBe(true);
+    expect(row.error).toBe(0);
+    if (i > 0) {
+      expect(row.sameIds).toBe(true);
+      expect(row.uploads).toBe(0);
+    }
+    expect(row.animated).toBe(row.scale < 1.25);
+    expect(row.alphas[0]).toBe(row.scale < 1.25 ? result[0].alphas[0] : 255);
+    expect(row.alphas[1]).toBe(row.scale >= 0.75 && row.scale < 1.25 ? result[0].alphas[1] : 255);
+  }
+  expect(result[0].alphas[0], "the active pulse actually changes alpha").toBeLessThan(250);
+});

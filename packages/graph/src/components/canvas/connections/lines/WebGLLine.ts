@@ -2,8 +2,12 @@ import type { TConnection } from "../../../../store/connection/ConnectionState";
 import type { TBaseConnectionState } from "../BaseConnection";
 import type { Path2DRenderStyleResult } from "../BatchPath2D";
 import type { BlockConnection, TConnectionProps } from "../BlockConnection";
-import { toConnectionEffect } from "../effects/ConnectionEffect";
-import type { TConnectionEffectUse } from "../effects/types";
+import {
+  isConnectionEffectActive,
+  toConnectionEffect,
+  validateConnectionEffectScaleRange,
+} from "../effects/ConnectionEffect";
+import type { TConnectionEffectScaleRange, TConnectionEffectUse } from "../effects/types";
 import { createArrowPath, createSegmentsPath, lineSegment } from "../geometry";
 import type { TConnectionArrow, TConnectionGeometry } from "../geometry";
 import { distanceToArrow, distanceToSegments } from "../geometry/distance";
@@ -27,6 +31,19 @@ const INTERACTION_MARK = Symbol("withInteraction");
 type TInteractionMark = { base: string; applied: string };
 
 type TMarkedStroke = TWebGLStroke & { [INTERACTION_MARK]?: TInteractionMark };
+
+type TCanvasStrokes = {
+  stroke: TLineStroke;
+  plain: TLineStroke;
+  fallbackStroke: TLineStroke;
+  range?: TConnectionEffectScaleRange;
+};
+
+function declaredEffectRange(effect: TConnectionEffectUse): TConnectionEffectScaleRange | undefined {
+  validateConnectionEffectScaleRange(effect);
+  const { minScale, maxScale } = effect;
+  return minScale !== undefined || maxScale !== undefined ? { minScale, maxScale } : undefined;
+}
 
 function readInteraction(connection: BlockConnection<TConnection>, state: TBaseConnectionState): TLineInteraction {
   return {
@@ -68,7 +85,7 @@ export class WebGLLine<
     shape: TWebGLShape;
   };
 
-  private fallback?: { stroke: TLineStroke; fallbackStroke: TLineStroke };
+  private fallback?: TCanvasStrokes;
 
   /** Hover and selection of the state the strokes were read for last, for the line shape. */
   private interaction?: TLineInteraction;
@@ -136,6 +153,7 @@ export class WebGLLine<
     if (effect) {
       shape.effect = toConnectionEffect(effect.effect);
       shape.params = effect.params ?? [];
+      shape.effectScaleRange = declaredEffectRange(effect);
     }
     if (shown) shape.effectShowsSelection = true;
     this.lineShape = { geometry, stroke, interaction, shape };
@@ -155,7 +173,9 @@ export class WebGLLine<
   }
 
   public style(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult {
-    return applyLineStyle(ctx, this.getFallbackStroke());
+    const { range, plain, fallbackStroke } = this.getFallbackStrokes();
+    const active = !range || isConnectionEffectActive(range, this.connection.context.camera.getCameraScale());
+    return applyLineStyle(ctx, active ? fallbackStroke : plain);
   }
 
   public styleArrow(ctx: CanvasRenderingContext2D): Path2DRenderStyleResult {
@@ -163,22 +183,30 @@ export class WebGLLine<
   }
 
   protected getBatchGroup(): string {
-    return `line/${strokeKey(this.getFallbackStroke())}`;
+    const { range, plain, fallbackStroke } = this.getFallbackStrokes();
+    const active = strokeKey(fallbackStroke);
+    if (!range) return `line/${active}`;
+    // A chunk draws every item with its first item's style. Both strokes and the crossing points must agree.
+    return `line/scoped/${JSON.stringify([range.minScale, range.maxScale, strokeKey(plain), active])}`;
   }
 
   /**
-   * The stroke Path2D draws: the stroke without its effect, or the effect's fallback of it. A selected stroke of
-   * `withInteraction()` has the selection color, which Path2D shows as it has no effect.
+   * The two strokes the compatibility batch can draw as the camera crosses the effect's range. Both include the
+   * selection changes of `withInteraction()`.
    */
-  private getFallbackStroke(): TLineStroke {
+  private getFallbackStrokes(): TCanvasStrokes {
     const stroke = this.getCurrentStroke();
-    if (this.fallback?.stroke === stroke) return this.fallback.fallbackStroke;
+    if (this.fallback?.stroke === stroke) return this.fallback;
     const { [INTERACTION_MARK]: _mark, effect, ...plain } = stroke as TMarkedStroke;
+    const range = effect && declaredEffectRange(effect);
+    // The callback receives its own stroke when the batch also needs the untouched one outside the range.
+    const fallbackInput = range ? { ...plain } : plain;
+    if (range && plain.dash) fallbackInput.dash = { ...plain.dash };
     const fallbackStroke = effect
-      ? toConnectionEffect(effect.effect).getFallbackStroke(plain, effect.params ?? [])
+      ? toConnectionEffect(effect.effect).getFallbackStroke(fallbackInput, effect.params ?? [])
       : plain;
-    this.fallback = { stroke, fallbackStroke };
-    return fallbackStroke;
+    this.fallback = { stroke, plain, fallbackStroke, range };
+    return this.fallback;
   }
 
   /** The interaction the strokes were read for last; the connection's state before the first read. */

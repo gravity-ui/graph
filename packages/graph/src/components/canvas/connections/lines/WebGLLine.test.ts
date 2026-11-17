@@ -218,7 +218,10 @@ describe("WebGLLine", () => {
     const pulse = defineConnectionEffect<Record<never, never>, number>({
       fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
       encode: (level) => [level],
-      fallback: (stroke, params) => ({ ...stroke, width: stroke.width + params[0] }),
+      fallback: (stroke, params) => {
+        stroke.width += params[0];
+        return stroke;
+      },
     });
 
     class EffectLine extends WebGLLine {
@@ -260,6 +263,53 @@ describe("WebGLLine", () => {
       const other = new WebGLLine(plain.connection);
       other.update();
       expect(plain.batch.items.get(other)?.group).not.toBe(batch.items.get(line)?.group);
+    });
+
+    it("uses the compatibility Canvas fallback only inside the scale range without regrouping on zoom", () => {
+      const { connection, batch, ctx } = stubConnection(straight, { selected: true }, noArrows);
+      let scale = 0.25;
+      jest.spyOn(connection.context.camera, "getCameraScale").mockImplementation(() => scale);
+      class ScopedLine extends WebGLLine {
+        public override getStroke(state: Parameters<WebGLLine["getStroke"]>[0]): TWebGLStroke {
+          return this.withInteraction(
+            { color: "#2f7cf6", width: 6, effect: pulse.use(3, { minScale: 0.5, maxScale: 1 }) },
+            state
+          );
+        }
+      }
+      const line = new ScopedLine(connection);
+      line.update();
+      const group = batch.items.get(line)?.group;
+      for (const [nextScale, width] of [
+        [0.25, 8],
+        [0.5, 11],
+        [0.75, 11],
+        [1, 8],
+        [0.5, 11],
+      ]) {
+        scale = nextScale;
+        line.style(ctx);
+        expect(ctx.lineWidth).toBe(width);
+        expect(ctx.strokeStyle).toBe("#ffcc00");
+      }
+      line.updateItems();
+      expect(batch.items.get(line)?.group).toBe(group);
+    });
+
+    it("separates compatibility Canvas groups that disagree on effect activity or the plain stroke", () => {
+      const group = (minScale: number, width: number, params: number): string | undefined => {
+        const { connection, batch } = stubConnection(straight, {}, noArrows);
+        class ScopedLine extends WebGLLine {
+          public override getStroke(): TWebGLStroke {
+            return { color: "#aaa", width, effect: pulse.use(params, { minScale }) };
+          }
+        }
+        const line = new ScopedLine(connection);
+        line.update();
+        return batch.items.get(line)?.group;
+      };
+      expect(group(1, 2, 3)).not.toBe(group(2, 2, 3));
+      expect(group(1, 2, 3)).not.toBe(group(1, 3, 2));
     });
 
     it("falls back to the stroke without the effect by default", () => {

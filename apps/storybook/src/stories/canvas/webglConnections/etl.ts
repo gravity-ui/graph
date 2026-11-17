@@ -1,5 +1,12 @@
 import { dashFlow, pulse } from "@gravity-ui/graph";
-import type { Graph, TBaseConnectionState, TBlock, TBlockId, TConnection } from "@gravity-ui/graph";
+import type {
+  Graph,
+  TBaseConnectionState,
+  TBlock,
+  TBlockId,
+  TConnection,
+  TConnectionEffectScaleRange,
+} from "@gravity-ui/graph";
 
 import { createConnection, glow, gradient, particles } from "./lines";
 import type { TLook } from "./lines";
@@ -94,7 +101,7 @@ export function setEtlEffect(effect: TEtlEffect): void {
 }
 
 /** The look of a running flow; `volume` (1..10, relative rows per second) sets speed, spacing and width. */
-function runningLook(effect: TEtlEffect, volume: number): TLook {
+function runningLook(effect: TEtlEffect, volume: number, range?: TConnectionEffectScaleRange): TLook {
   switch (effect) {
     case "comets": {
       // Short flows (200–450 units): a dense train of comets keeps every flow readable.
@@ -103,7 +110,7 @@ function runningLook(effect: TEtlEffect, volume: number): TLook {
         color: flowColor,
         width: 3 + volume * 0.5,
         pattern,
-        effect: dashFlow.use({ pattern, speed: 40 + volume * 20, fade: true }),
+        effect: dashFlow.use({ pattern, speed: 40 + volume * 20, fade: true }, range),
       };
     }
     case "dash": {
@@ -112,41 +119,44 @@ function runningLook(effect: TEtlEffect, volume: number): TLook {
         color: flowColor,
         width: 2 + volume * 0.3,
         pattern,
-        effect: dashFlow.use({ pattern, speed: 15 + volume * 10 }),
+        effect: dashFlow.use({ pattern, speed: 15 + volume * 10 }, range),
       };
     }
     case "pulse":
       return {
         color: flowColor,
         width: 3 + volume * 0.4,
-        effect: pulse.use({ period: 4.5 - volume * 0.3, wavelength: 3000 }),
+        effect: pulse.use({ period: 4.5 - volume * 0.3, wavelength: 3000 }, range),
       };
     case "particles":
       return {
         color: flowColor,
         width: 12,
-        effect: particles.use({ spacing: 150 - volume * 8, speed: 40 + volume * 20 }),
+        effect: particles.use({ spacing: 150 - volume * 8, speed: 40 + volume * 20 }, range),
       };
     case "gradient":
       return {
         color: "#7a8aa6",
         width: 4 + volume * 0.4,
-        effect: gradient.use({ from: [0.18, 0.49, 0.96], to: [0.95, 0.56, 0.17], laps: 0.1 + volume * 0.05 }),
+        effect: gradient.use({ from: [0.18, 0.49, 0.96], to: [0.95, 0.56, 0.17], laps: 0.1 + volume * 0.05 }, range),
       };
     case "glow":
-      return { color: flowColor, width: 2 + volume * 0.3, effect: glow.use([]) };
+      return { color: flowColor, width: 2 + volume * 0.3, effect: glow.use([], range) };
     default:
       return { color: flowColor, width: 2 + volume * 0.4 };
   }
 }
 
 /** Failed and idle flows look the same for every effect; a running flow takes the selected one. */
-export function createEtlConnection(readEffect: () => TEtlEffect): ReturnType<typeof createConnection> {
+export function createEtlConnection(
+  readEffect: () => TEtlEffect,
+  range?: TConnectionEffectScaleRange
+): ReturnType<typeof createConnection> {
   return createConnection((_id, state: TBaseConnectionState) => {
     const { status, volume = 1 } = state as TBaseConnectionState & Partial<TEtlConnection>;
     if (status === "failed") return { color: failedColor, width: 3, pattern: [10, 8] };
     if (status === "idle") return { color: "rgba(120, 120, 120, 0.6)", width: 1 };
-    return runningLook(readEffect(), volume);
+    return runningLook(readEffect(), volume, range);
   });
 }
 

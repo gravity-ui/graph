@@ -27,11 +27,11 @@ import type { TEffectCard } from "./effectCard";
 import { EFFECT_PARTS } from "./effectPaths";
 import type { TEffectPart } from "./effectPaths";
 import { EtlSimulation, createEtlAtScale, pipelineRect } from "./etlAtScale";
-import { EtlScaleConnection, etlFlowRules } from "./etlConnection";
+import { createEtlScaleConnection, etlFlowRules } from "./etlConnection";
 import {
   STAGE_IS,
   STAGE_STATUSES,
-  StageBlock,
+  createStageBlock,
   isStageBlock,
   stageRules,
   stageStatusColors,
@@ -282,6 +282,7 @@ type TEtlAtScaleArgs = {
   focusOnFailures: boolean;
   view: (typeof ETL_VIEWS)[number];
   selectionGlow: number;
+  effectMinScale: number;
 };
 
 const etlDefaults: TEtlAtScaleArgs = {
@@ -294,6 +295,7 @@ const etlDefaults: TEtlAtScaleArgs = {
   focusOnFailures: false,
   view: "fit",
   selectionGlow: 0.6,
+  effectMinScale: 0.1,
 };
 
 function boundedCount(value: number, fallback: number): number {
@@ -314,6 +316,7 @@ const EtlAtScaleApp = ({
   focusOnFailures,
   view,
   selectionGlow,
+  effectMinScale,
 }: TEtlAtScaleArgs): React.JSX.Element => {
   const { graph, setEntities, start, zoomTo } = useGraph({ viewConfiguration });
   const constants = graph.graphConstants;
@@ -322,6 +325,10 @@ const EtlAtScaleApp = ({
     [blockCount, connectionCount, constants]
   );
   const simulation = useMemo(() => new EtlSimulation(graph, data), [graph, data]);
+  const components = useMemo(
+    () => ({ connection: createEtlScaleConnection(effectMinScale), stage: createStageBlock(effectMinScale) }),
+    [effectMinScale]
+  );
   const [counts, setCounts] = useState(() => simulation.counts());
   const sceneState = useSignal(graph.scene.$renderer);
   const level = useSignal(graph.scene.$level);
@@ -335,8 +342,8 @@ const EtlAtScaleApp = ({
 
   useEffect(() => {
     graph.updateSettings({
-      connection: EtlScaleConnection,
-      blockComponents: { [STAGE_IS]: StageBlock },
+      connection: components.connection,
+      blockComponents: { [STAGE_IS]: components.stage },
       canDrag: ECanDrag.ALL,
       showConnectionLabels: false,
       useBezierConnections: true,
@@ -348,7 +355,7 @@ const EtlAtScaleApp = ({
     setEntities({ blocks: data.blocks, connections: data.connections });
     start();
     return remove;
-  }, [graph, data, simulation, setEntities, start]);
+  }, [graph, data, simulation, components, setEntities, start]);
 
   useEffect(() => {
     if (view === "fit") zoomTo("center", { padding: FIT_PADDING });
@@ -454,12 +461,16 @@ BlockEffects.parameters = {
 export const EtlAtScale: StoryFn<TEtlAtScaleArgs> = (args) => {
   const blockCount = boundedCount(args.blockCount, etlDefaults.blockCount);
   const connectionCount = boundedCount(args.connectionCount, etlDefaults.connectionCount);
+  const effectMinScale = Number.isFinite(args.effectMinScale)
+    ? Math.max(0, Math.min(0.7, args.effectMinScale))
+    : etlDefaults.effectMinScale;
   return (
     <EtlAtScaleApp
       key={`${blockCount}/${connectionCount}`}
       {...args}
       blockCount={blockCount}
       connectionCount={connectionCount}
+      effectMinScale={effectMinScale}
     />
   );
 };
@@ -479,6 +490,12 @@ EtlAtScale.argTypes = {
     control: { type: "select", labels: { fit: "Fit all", pipeline: "One pipeline" } },
   },
   selectionGlow: { name: "Selection glow", control: { type: "range", min: 0, max: 1.5, step: 0.05 } },
+  effectMinScale: {
+    name: "Effect min scale",
+    description:
+      "Block and running-flow effects become steady strokes below this scale; 0 keeps them active. Hover remains animated.",
+    control: { type: "number", min: 0, max: 0.7, step: 0.05 },
+  },
 };
 EtlAtScale.parameters = {
   docs: {
@@ -487,6 +504,9 @@ EtlAtScale.parameters = {
         "Vary the number of stages and connections independently in Controls. Stages have different numbers of " +
         "input and output anchors, with room for every port in the scene blocks and HTML cards. " +
         "Hover over a connection to highlight its route. Turn Minimap off to remove its layer and compare performance. " +
+        "Effect min scale makes block and running-flow effects steady below the cutoff (0 means always active); " +
+        "status colours and selection remain visible. Hover highlighting still animates one connection at any scale. " +
+        "Changing the control reconfigures the scene; zooming across the cutoff keeps the same geometry. " +
         "Live updates ten stage statuses and their touching flows every 500 ms. Focus on failures dims the other " +
         "stages. HTML cards replace the scene blocks at the detailed level and let you run, pause, or retry a stage.",
     },

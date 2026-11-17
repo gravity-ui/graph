@@ -10,10 +10,11 @@ import { BlockConnection } from "./BlockConnection";
 import type { BlockConnections } from "./BlockConnections";
 import type { IConnectionBatch, IConnectionBatchItem } from "./batch";
 import { generateBezierParams, getArrowCoords } from "./bezierHelpers";
+import { defineConnectionEffect } from "./effects";
 import { bezierGeometry, multipointGeometry } from "./geometry";
 import type { TConnectionGeometryFn } from "./geometry";
-import { Path2DLine } from "./lines";
-import type { ConnectionLine, TLineStroke } from "./lines";
+import { Path2DLine, WebGLLine } from "./lines";
+import type { ConnectionLine, TLineStroke, TWebGLStroke } from "./lines";
 import type { TMultipointConnection } from "./types";
 
 type TBlockConnectionsInternals = {
@@ -130,6 +131,25 @@ describe("BlockConnection line protocol", () => {
     graph = undefined;
     outsideColors.clear();
     jest.restoreAllMocks();
+  });
+
+  it("carries a direct, scoped WebGL effect use onto the native shaft only", () => {
+    const effect = defineConnectionEffect({
+      fragment: "vec4 effect(ConnectionFragment f, vec4 color) { return color; }",
+    });
+    class ScopedLine extends WebGLLine {
+      public override getStroke(state: TBaseConnectionState): TWebGLStroke {
+        return { ...super.getStroke(state), effect: { effect, params: [3], minScale: 0.5, maxScale: 1 } };
+      }
+    }
+    class ScopedConnection extends BlockConnection {
+      public static override line = ScopedLine;
+    }
+    graph = mount({ connection: ScopedConnection });
+    const [shaft, arrow] = pathsOf(graph, "a");
+    expect(shaft?.effect).toEqual({ effect, params: [3], minScale: 0.5, maxScale: 1 });
+    expect(arrow?.part).toBe("arrow");
+    expect(arrow?.effect).toBeUndefined();
   });
 
   it("puts the default shaft and open arrow into each connection's scene element", () => {

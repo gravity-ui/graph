@@ -2,6 +2,7 @@ import { InstanceRanges } from "./InstanceRanges";
 import type { TSceneFrame } from "./backendTypes";
 import { InstanceVisibility } from "./instanceVisibility";
 import { STYLE_ROW_TEXELS } from "./tables";
+import { filterTranslucentRuns, orderTranslucent } from "./translucentOrder";
 
 const frame = (scale: number, level: TSceneFrame["level"] = "schematic"): TSceneFrame => ({
   scale,
@@ -39,6 +40,94 @@ class ObservedRanges extends InstanceRanges {
 }
 
 describe("instance visibility cohorts", () => {
+  it("keeps hidden owners in the order plan and reveals them without rebuilding that plan", () => {
+    const ranges = new InstanceRanges(8);
+    ranges.set("held-by-html", [1, 0, 1, 0, 0.1, 0.5, 7, 0]);
+    ranges.set("shown", [0, 0, 1, 0, 0.1, 0.5, 7, 0]);
+    ranges.retainLayout();
+    const visibility = new InstanceVisibility("path"),
+      paint = styles(),
+      elements = table.slice();
+    visibility.update(ranges, elements, paint, frame(0.2), 1);
+    const revision = visibility.orderRevision;
+    const runs = orderTranslucent(
+      [{ instances: ranges }],
+      (id) => (id === "shown" ? 0 : 1),
+      () => 0,
+      5,
+      false,
+      (_source, first, count) => visibility.anyForOrder(first, count)
+    );
+    expect(runs).toEqual([
+      { source: 0, first: 1, count: 1 },
+      { source: 0, first: 0, count: 1 },
+    ]);
+    const visible = () =>
+      filterTranslucentRuns(
+        runs,
+        (_source, first, count) => visibility.any(first, count),
+        () => false
+      );
+    expect(visible()).toEqual([runs[0]]);
+    elements[6] = 1;
+    visibility.update(ranges, elements, paint, frame(0.2), 2);
+    expect(visibility.orderRevision).toBe(revision);
+    expect(visible()).toEqual(runs);
+    elements[2] = -1;
+    visibility.update(ranges, elements, paint, frame(0.2), 3);
+    expect(visibility.orderRevision).toBe(revision);
+    expect(visible()).toEqual([runs[1]]);
+  });
+
+  it("still invalidates order eligibility at scale, level and part-visibility boundaries", () => {
+    const ranges = new InstanceRanges(8);
+    ranges.set("paths", paths(260, 2));
+    const visibility = new InstanceVisibility("path"),
+      paint = styles(),
+      elements = table.slice();
+    elements[2] = -1;
+    visibility.update(ranges, elements, paint, frame(0.2), 1);
+    let revision = visibility.orderRevision;
+    expect(visibility.anyForOrder(0, 260)).toBe(true);
+    expect(visibility.any(0, 260)).toBe(false);
+    for (const next of [frame(0.5), frame(0.2), frame(0.2, "detailed"), frame(0.2)]) {
+      visibility.update(ranges, elements, paint, next, 1);
+      expect(visibility.orderRevision).toBeGreaterThan(revision);
+      revision = visibility.orderRevision;
+    }
+    paint[7] = -2;
+    visibility.update(ranges, elements, paint, frame(0.2), 2);
+    expect(visibility.orderRevision).toBeGreaterThan(revision);
+    expect(visibility.anyForOrder(0, 260)).toBe(false);
+  });
+
+  it("keeps retained holes and truncated tails out of the order mask, including partial chunk queries", () => {
+    const ranges = new InstanceRanges(8);
+    ranges.set("head", paths(140));
+    ranges.set("hole", paths(128));
+    ranges.set("tail", paths(140));
+    ranges.retainLayout();
+    const visibility = new InstanceVisibility("path"),
+      paint = styles(),
+      elements = table.slice();
+    elements[2] = -1;
+    const allLevels = { ...frame(0.2), level: undefined };
+    visibility.update(ranges, elements, paint, allLevels);
+    ranges.takeUpload();
+    ranges.delete("hole");
+    visibility.invalidate(ranges.takeUpload(), ranges);
+    visibility.update(ranges, elements, paint, allLevels);
+    expect(visibility.any(0, 408)).toBe(false);
+    expect(visibility.anyForOrder(140, 128)).toBe(false);
+    expect(visibility.anyForOrder(140, 129)).toBe(true);
+    expect(visibility.anyForOrder(139, 130)).toBe(true);
+    ranges.delete("tail");
+    visibility.invalidate(ranges.takeUpload(), ranges);
+    visibility.update(ranges, elements, paint, allLevels);
+    expect(visibility.anyForOrder(139, 1)).toBe(true);
+    expect(visibility.anyForOrder(140, 200)).toBe(false);
+  });
+
   it("matches float scale boundaries, level masks, hidden owners and hidden parts", () => {
     const ranges = new InstanceRanges(8);
     ranges.set("a", [0, 0, 1, 0, 0.1, 0.5, 2, 0, 0, 0, 1, 0, 0.1, 0.5, 2, 0]);

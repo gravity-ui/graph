@@ -5,6 +5,14 @@ import { createEtlConnection } from "../webglConnections/etl";
 
 export const EtlScaleConnection = createEtlConnection(() => "comets");
 
+/** Keep the original target class for hover rules while bounding the running line's effect. */
+export function createEtlScaleConnection(minScale: number): typeof EtlScaleConnection {
+  const bounded = createEtlConnection(() => "comets", { minScale });
+  return class extends EtlScaleConnection {
+    public static override line = bounded.line;
+  };
+}
+
 const hoverHighlight = defineConnectionEffect({
   animated: true,
   fragment: /* glsl */ `

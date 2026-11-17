@@ -25,14 +25,22 @@ export type TConnectionEffectDefinition<U extends TUniformTypes, P> = {
 
 export type TConnectionEffect<U extends TUniformTypes = TUniformTypes, P = readonly number[]> = {
   readonly uniforms: { [K in keyof U]: Signal<TUniformValue<U[K]>> };
-  /** `{ effect: this, params }`, with params from `encode(input)` (or `input` itself without `encode`). */
-  use(input: P): TConnectionEffectUse;
+  /** Packages this effect, the encoded input (or the input itself) and its optional activity range. */
+  use(input: P, scaleRange?: TConnectionEffectScaleRange): TConnectionEffectUse;
   /** The same source with its own uniform values: one program, separate values (another graph). */
   clone(): TConnectionEffect<U, P>;
+};
+
+/** The camera scales at which a connection effect is active. Supplied bounds must be finite and nonnegative. */
+export type TConnectionEffectScaleRange = {
+  /** Inclusive lower bound. Defaults to 0. */
+  minScale?: number;
+  /** Exclusive upper bound, greater than minScale. Omit for no upper bound. */
+  maxScale?: number;
 };
 
 /** What `getStroke()` returns in `stroke.effect`: the effect object and the connection's parameters. */
 export type TConnectionEffectUse = {
   effect: TConnectionEffect<TUniformTypes, never>;
   params?: readonly number[];
-};
+} & TConnectionEffectScaleRange;
