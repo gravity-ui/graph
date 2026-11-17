@@ -220,13 +220,8 @@ export class ConnectionsStore {
   }
 
   public deleteSelectedConnections() {
-    this.$connections.value.forEach((c) => {
-      if (c.$selected.value) {
-        c.destroy(); // Clean up port observers
-        this.$connectionsMap.value.delete(c.id);
-      }
-    });
-    this.notifyConnectionMapChanged();
+    const selected = this.connectionSelectionBucket.$selectedEntities.value;
+    if (selected.length) this.deleteConnections(selected);
   }
 
   /**

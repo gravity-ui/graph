@@ -90,6 +90,23 @@ export type TTranslucentRun = { source: number; first: number; count: number };
 /** Instances of one source with one draw position `(level, step)`: a contiguous range of its buffer. */
 export type TBucket = { bucket: number; first: number; count: number };
 
+type TSourceSnapshot = {
+  layout: number;
+  subBits: number;
+  levelRevision?: number;
+  positions: Float64Array;
+  buckets: TBucket[];
+};
+
+/** Backend-owned snapshots; weak source keys do not keep retired instance lists alive. */
+export type TTranslucentOrderCache = {
+  /** Optional revision of levelOf; callers without one compare the numeric positions on every call. */
+  levelRevision?: number;
+  sources?: WeakMap<InstanceRanges, TSourceSnapshot>;
+  lists?: readonly (readonly TBucket[])[];
+  runs?: TTranslucentRun[];
+};
+
 /** The draw position of a step of an element on a level at the depth's sub-order width: levels first, then steps. */
 export function bucketOf(level: number, step: number, subBits: number): number {
   return level * maxStepsOf(subBits) + step;
@@ -110,6 +127,12 @@ export function chunkOrder(level: number, step: number, elementKey: number, subB
  */
 export const MAX_OUT_OF_PLACE = 16;
 
+function appendBucket(buckets: TBucket[], bucket: number, first: number, count: number): void {
+  const last = buckets[buckets.length - 1];
+  if (last && last.bucket === bucket && last.first + last.count === first) last.count += count;
+  else buckets.push({ bucket, first, count });
+}
+
 /** A source's ranges grouped by draw position, in buffer order; a sorted source has one bucket per position. */
 export function sourceBuckets(
   ranges: InstanceRanges,
@@ -120,10 +143,7 @@ export function sourceBuckets(
   const buckets: TBucket[] = [];
   ranges.forEachRange((id, offset, count, step) => {
     if (visible && !visible(offset, count)) return;
-    const bucket = bucketOf(levelOf(id), step, subBits);
-    const last = buckets[buckets.length - 1];
-    if (last && last.bucket === bucket && last.first + last.count === offset) last.count += count;
-    else buckets.push({ bucket, first: offset, count });
+    appendBucket(buckets, bucketOf(levelOf(id), step, subBits), offset, count);
   });
   return buckets;
 }
@@ -148,6 +168,73 @@ export function sortBuckets(buckets: readonly TBucket[]): TBucket[] {
     for (const bucket of group) sorted.push(bucket);
   }
   return sorted;
+}
+
+/** A global level revision need not change this source's actual draw positions. */
+function cachedSourceBuckets(
+  ranges: InstanceRanges,
+  levelOf: (id: string) => number,
+  subBits: number,
+  cache: TTranslucentOrderCache
+): TBucket[] {
+  const sources = (cache.sources ??= new WeakMap());
+  let snapshot = sources.get(ranges);
+  const layout = ranges.layoutRevision;
+  const levelRevision = cache.levelRevision;
+  if (
+    snapshot?.layout === layout &&
+    snapshot.subBits === subBits &&
+    levelRevision !== undefined &&
+    snapshot.levelRevision === levelRevision
+  )
+    return snapshot.buckets;
+
+  const previous = snapshot?.buckets;
+  let changed = false;
+  if (!snapshot || snapshot.layout !== layout) {
+    changed = true;
+    let count = 0;
+    ranges.forEachRange(() => count++);
+    // Float64 keeps the existing JS-number bucket domain, including positions beyond Uint32.
+    snapshot = {
+      layout: ranges.layoutRevision,
+      subBits,
+      levelRevision,
+      positions: snapshot?.positions.length === count ? snapshot.positions : new Float64Array(count),
+      buckets: [],
+    };
+    sources.set(ranges, snapshot);
+  } else {
+    let index = 0;
+    const positions = snapshot.positions;
+    ranges.forEachRange((id, _first, _count, step) => {
+      if (changed) return;
+      changed = bucketOf(levelOf(id), step, subBits) !== positions[index++];
+    });
+  }
+  snapshot.subBits = subBits;
+  snapshot.levelRevision = levelRevision;
+  if (changed) {
+    const physical: TBucket[] = [];
+    const positions = snapshot.positions;
+    let index = 0;
+    ranges.forEachRange((id, first, count, step) => {
+      const bucket = bucketOf(levelOf(id), step, subBits);
+      positions[index++] = bucket;
+      appendBucket(physical, bucket, first, count);
+    });
+    const sorted = sortBuckets(physical);
+    // Reusing a hole or rebuilding the layout can leave the effective schedule unchanged too.
+    snapshot.buckets =
+      previous?.length === sorted.length &&
+      sorted.every((bucket, index) => {
+        const known = previous[index];
+        return bucket.bucket === known.bucket && bucket.first === known.first && bucket.count === known.count;
+      })
+        ? previous
+        : sorted;
+  }
+  return snapshot.buckets;
 }
 
 /** Buckets beyond one per draw position in a sorted bucket list: what out-of-place chunks add. */
@@ -235,7 +322,8 @@ export function orderTranslucent(
   keyOf: (id: string) => number,
   subBits: number,
   compact = true,
-  visible?: (source: number, first: number, count: number) => boolean
+  visible?: (source: number, first: number, count: number) => boolean,
+  cache?: TTranslucentOrderCache
 ): TTranslucentRun[] {
   const sortSources = (): void => {
     const order = (id: string, step: number): number => chunkOrder(levelOf(id), step, keyOf(id), subBits);
@@ -247,9 +335,16 @@ export function orderTranslucent(
   };
   const bucketLists = (): TBucket[][] =>
     sources.map((source, index) =>
-      sortBuckets(
-        sourceBuckets(source.instances, levelOf, subBits, visible && ((first, count) => visible(index, first, count)))
-      )
+      cache && !visible
+        ? cachedSourceBuckets(source.instances, levelOf, subBits, cache)
+        : sortBuckets(
+            sourceBuckets(
+              source.instances,
+              levelOf,
+              subBits,
+              visible && ((first, count) => visible(index, first, count))
+            )
+          )
     );
   if (compact) sortSources();
   let lists = bucketLists();
@@ -261,5 +356,9 @@ export function orderTranslucent(
     sortSources();
     lists = bucketLists();
   }
-  return mergeBuckets(lists);
+  if (!cache || visible) return mergeBuckets(lists);
+  if (cache.runs && cache.lists?.length === lists.length && lists.every((list, index) => list === cache.lists?.[index]))
+    return cache.runs;
+  cache.lists = lists;
+  return (cache.runs = mergeBuckets(lists));
 }

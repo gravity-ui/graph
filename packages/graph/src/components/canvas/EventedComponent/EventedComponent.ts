@@ -104,6 +104,21 @@ export class EventedComponent<
     // A hook for subclasses.
   }
 
+  /** @internal A listener here, or a listener or dispatch hook on the path above this component. */
+  protected hasDispatchObserver(type: string): boolean {
+    if (listeners.get(this)?.get(type)?.size) return true;
+    for (let parent = this.getParent(); parent; parent = parent.getParent()) {
+      if (
+        parent instanceof EventedComponent &&
+        (parent.onDispatchedEvent !== EventedComponent.prototype.onDispatchedEvent ||
+          listeners.get(parent)?.get(type)?.size)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   public listenEvents<K extends string>(
     events: K[],
     listener: TypedEventListener<ComponentEvent<NoInfer<K>>, undefined>

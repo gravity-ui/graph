@@ -5,6 +5,27 @@ import { ESelectionStrategy } from "../../services/selection";
 
 import type { TConnection } from "./ConnectionState";
 
+it("deletes only resolved selected connections without publishing an unchanged block list", () => {
+  const graph = new Graph({});
+  graph.setEntities({
+    blocks: [{ is: "Block", id: "a", name: "A", x: 0, y: 0, width: 10, height: 10, anchors: [] }],
+    connections: [
+      { id: "remove", sourceBlockId: "a", targetBlockId: "a" },
+      { id: "keep", sourceBlockId: "a", targetBlockId: "a" },
+    ],
+  });
+  const blocks = graph.rootStore.blocksList.$blocks.value;
+  graph.api.selectConnections(["remove", "missing"], true);
+  graph.api.deleteSelected();
+  expect(graph.connections.$connections.value.map((edge) => edge.id)).toEqual(["keep"]);
+  expect(graph.rootStore.blocksList.$blocks.value).toBe(blocks);
+
+  const connections = graph.connections.$connections.value;
+  graph.api.deleteSelected();
+  expect(graph.connections.$connections.value).toBe(connections);
+  expect(graph.rootStore.blocksList.$blocks.value).toBe(blocks);
+});
+
 it("connection $state has no selected field and does not change on selection", () => {
   const graph = new Graph({});
   graph.setEntities({

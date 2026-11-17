@@ -1,0 +1,3289 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-18",
+  "baselineCommit": "acd245f3dab63e665b35c139b63655e1c3af90fd",
+  "finalCandidate": "candidate-lean",
+  "sources": {
+    "baseline": {
+      "bundleSha256": "35b846642913c1f1e9e00647393cdfdfaf6cc6c666b9093a48783b0af7cf047d"
+    },
+    "candidate-1": {
+      "bundleSha256": "604cd7631897a29890ae47d1a6687afa4fdc6ddb424b16ef02c22a1b3d1c3eb5",
+      "productionHashes": {
+        "packages/graph/src/components/canvas/EventedComponent/EventedComponent.ts": "f5a607dd109b919b7f00a15d690feebbdcd6a9be9f71aca818cb090356d94120",
+        "packages/graph/src/components/canvas/connections/BlockConnection.ts": "697728cad8486f8fa29c8c3d6f6eff802edd8ae3494ede415bf5fef1df452dfa",
+        "packages/graph/src/lib/CoreComponent.ts": "dcd14e0f3f98c77d8b2af31738cbbab8b791ffd01a09db0975026266ade44815",
+        "packages/graph/src/lib/scene/webgl/WebGLSceneBackend.ts": "4c62bbb72733ed77b0b54c63e16447e046474f94b324fc91139ddedfb525fda2",
+        "packages/graph/src/lib/scene/webgl/translucentOrder.ts": "64b0126a7c738546e5db997c5cf83645fcbe343798482197f824243b29fca0a5",
+        "packages/graph/src/store/block/BlocksList.ts": "8e2fd5557d0d278bce4eb6d1a44b91a9befcb8a82f13c8f1c1fb800777156707",
+        "packages/graph/src/store/connection/ConnectionList.ts": "fd18a48fcdddc7d1bee00fed1edec64ce401db48727a5d1602d6d324fecca874"
+      }
+    },
+    "candidate-lean": {
+      "bundleSha256": "cdbb999c687b6953f5b7751de7725d41b4939426142888bc3c8b8d1476d14e96",
+      "productionHashes": {
+        "packages/graph/src/components/canvas/EventedComponent/EventedComponent.ts": "f5a607dd109b919b7f00a15d690feebbdcd6a9be9f71aca818cb090356d94120",
+        "packages/graph/src/components/canvas/connections/BlockConnection.ts": "697728cad8486f8fa29c8c3d6f6eff802edd8ae3494ede415bf5fef1df452dfa",
+        "packages/graph/src/lib/CoreComponent.ts": "dcd14e0f3f98c77d8b2af31738cbbab8b791ffd01a09db0975026266ade44815",
+        "packages/graph/src/lib/scene/webgl/WebGLSceneBackend.ts": "862519cc8f59f26ffe80edecb4832b079fa15ff1c38e82399754c3bcc02d871a",
+        "packages/graph/src/lib/scene/webgl/translucentOrder.ts": "5fd612ea949ff0d2cc0bed0ec1c44e4fa9f200e421b59f74242664ebf31fdbcc",
+        "packages/graph/src/store/block/BlocksList.ts": "8e2fd5557d0d278bce4eb6d1a44b91a9befcb8a82f13c8f1c1fb800777156707",
+        "packages/graph/src/store/connection/ConnectionList.ts": "fd18a48fcdddc7d1bee00fed1edec64ce401db48727a5d1602d6d324fecca874"
+      }
+    }
+  },
+  "method": {
+    "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+    "browser": "Chromium Playwright, ANGLE Metal",
+    "viewport": [
+      1600,
+      1000
+    ],
+    "dpr": 2,
+    "seed": 7,
+    "etl": {
+      "blocks": 10000,
+      "resolvedConnections": 10000,
+      "html": true,
+      "minimap": true,
+      "live": false,
+      "effectMinScale": 0.1,
+      "viewport": [
+        1600,
+        965
+      ],
+      "fit": 0.025
+    },
+    "nirvana": {
+      "blocks": 13916,
+      "resolvedConnections": 18604,
+      "fixture": "/private/tmp/graph-nirvana-story-fixture.json",
+      "fit": 0.01
+    },
+    "operations": "Public addConnection using an existing connected edge, updateConnection to a distinct resolved target, then selection and deleteSelected. Original counts asserted after each cycle. Twenty cycles per measured structural run after the same trajectory warmup.",
+    "cadence": "Structural ABBA and final lean B/A add two idle rAF after each operation. This is NOT proof all delayed MiniMap work has settled. Primary latency is public operation to first rAF/scene draw. Dedicated ETL runs wait at least 200 ms after input plus two rAF callbacks, three cycles each, and record every MiniMap picture.",
+    "statistics": "p50 and p95 use sorted[floor(n * p)], capped at the last entry; with 20 operations, p95 is the maximum. arithmeticMedian separately averages the two middle observations when n is even and is used in the human report.",
+    "timing": "Headline runs have top-level phase counters and sparse GPU timer queries, with no CPU sampler, GC trace, or user timing marks. Scheduler includes backend draw and other layers; phase values are NOT additive exclusive times. rAF timestamps are not physical input-to-photon measurements.",
+    "diagnostics": "Separate CPU sampling at 1 ms and V8, GC, and user timing traces. Trace windows include 40 initial idle frames and eight trailing rAF callbacks; operation summaries use explicit input/first-rAF or settled marks. These numbers are attribution, not headline latency.",
+    "quality": "Fixed time 2.5, scale 0.35, and actual seeded scenes. The full main WebGL framebuffer is read with readPixels after add, reconnect, and delete, following 16 settling rAF callbacks. This excludes the composited HTML overlay and the separate MiniMap canvas. Initial and lean candidates are separately compared to the frozen baseline.",
+    "memory": "Final cache inventory is taken once outside timing. Float64 equality positions replace duplicated per-range objects. Retained bucket/run objects are additional memory and are counted, not misrepresented as part of the 2.01 MiB numeric buffer."
+  },
+  "runs": [
+    {"key":"edit-abba-0-baseline-webgl-etl1-0.025135101168782203-churn","gpu":{"n":10,"arithmeticMedian":11.881,"p50":11.99,"p95":15.239,"max":15.239,"sum":118.398},"operations":{"add":{"inputToFirstRaf":{"n":20,"arithmeticMedian":68.6,"p50":68.7,"p95":123.1,"max":123.1,"sum":1435.9},"inputToSceneDraw":{"n":20,"arithmeticMedian":68.55,"p50":68.7,"p95":123.1,"max":123.1,"sum":1434.8},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.45,"p50":0.5,"p95":1.2,"max":1.2,"sum":9.7},"backendDrawCpu":{"n":20,"arithmeticMedian":41.85,"p50":42.3,"p95":77.7,"max":77.7,"sum":880.1},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":62.75,"p50":62.8,"p95":114.2,"max":114.2,"sum":1331.5},"orderCpu":{"n":20,"arithmeticMedian":29.65,"p50":30,"p95":67.9,"max":67.9,"sum":626.7},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":1.5},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":16000,"totalUploadBytes":7960800,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"reconnect":{"inputToFirstRaf":{"n":20,"arithmeticMedian":44.8,"p50":45.1,"p95":51.4,"max":51.4,"sum":894.1},"inputToSceneDraw":{"n":20,"arithmeticMedian":44.75,"p50":45,"p95":51.4,"max":51.4,"sum":893},"synchronousApiCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.6},"backendDrawCpu":{"n":20,"arithmeticMedian":35.95,"p50":36,"p95":42,"max":42,"sum":722.6},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":81.3,"p50":81.5,"p95":91.4,"max":91.4,"sum":1627.8},"orderCpu":{"n":20,"arithmeticMedian":26.5,"p50":26.5,"p95":32.9,"max":32.9,"sum":541.2},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.1,"max":0.1,"sum":1.4},"miniPictureCpu":{"n":20,"arithmeticMedian":43.1,"p50":43.3,"p95":50.1,"max":50.1,"sum":860.2},"miniPicturesInObservationWindow":20,"encodes":40,"sourceBytes":201600,"totalUploadBytes":6428880,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"delete":{"inputToFirstRaf":{"n":20,"arithmeticMedian":102.15,"p50":102.5,"p95":112.3,"max":112.3,"sum":2071.9},"inputToSceneDraw":{"n":20,"arithmeticMedian":101.4,"p50":101.9,"p95":111.7,"max":111.7,"sum":2057.9},"synchronousApiCpu":{"n":20,"arithmeticMedian":8.65,"p50":8.7,"p95":14.1,"max":14.1,"sum":179.6},"backendDrawCpu":{"n":20,"arithmeticMedian":42.1,"p50":42.3,"p95":46.6,"max":46.6,"sum":853.2},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":131,"p50":131.4,"p95":146,"max":146,"sum":2665.2},"orderCpu":{"n":20,"arithmeticMedian":33.45,"p50":33.5,"p95":37.2,"max":37.2,"sum":675.1},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":1.7},"miniPictureCpu":{"n":20,"arithmeticMedian":35.6,"p50":35.6,"p95":40.9,"max":40.9,"sum":734.3},"miniPicturesInObservationWindow":20,"encodes":0,"sourceBytes":0,"totalUploadBytes":9967040,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}}},"mutation":{"kind":"churn","degree":1,"target":"p264/sessionize","groupId":"p264","members":19,"incidentConnections":19,"created":20,"reconnected":20,"deleted":20,"incidentGeometryChanges":0,"fields":{"add:all":20,"update:bounds,primitives":20,"delete:all":20}},"cache":{"orderCacheRanges":0,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":0,"orderCacheSources":[{"index":0,"kind":null,"retained":true,"liveInstances":7984,"ranges":0,"buckets":0},{"index":1,"kind":null,"retained":true,"liveInstances":51053,"ranges":0,"buckets":0},{"index":2,"kind":null,"retained":true,"liveInstances":320000,"ranges":0,"buckets":0},{"index":3,"kind":null,"retained":true,"liveInstances":214176,"ranges":0,"buckets":0},{"index":4,"kind":null,"retained":true,"liveInstances":160000,"ranges":0,"buckets":0},{"index":5,"kind":null,"retained":true,"liveInstances":80000,"ranges":0,"buckets":0},{"index":6,"kind":null,"retained":true,"liveInstances":30000,"ranges":0,"buckets":0},{"index":7,"kind":null,"retained":true,"liveInstances":0,"ranges":0,"buckets":0},{"index":8,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"buckets":0},{"index":9,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"buckets":0},{"index":10,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":11,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":12,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0}]},"finalCounts":{"blocks":10000,"connections":10000},"glError":0},
+    {"key":"edit-abba-0-baseline-webgl-plain-0.01-churn","gpu":{"n":10,"arithmeticMedian":16.2,"p50":16.206,"p95":23.961,"max":23.961,"sum":169.122},"operations":{"add":{"inputToFirstRaf":{"n":20,"arithmeticMedian":59.25,"p50":59.3,"p95":79.1,"max":79.1,"sum":1226.7},"inputToSceneDraw":{"n":20,"arithmeticMedian":59.2,"p50":59.2,"p95":79.1,"max":79.1,"sum":1225.7},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.8,"p50":0.8,"p95":1.9,"max":1.9,"sum":17.8},"backendDrawCpu":{"n":20,"arithmeticMedian":18.2,"p50":18.2,"p95":29.9,"max":29.9,"sum":380.6},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":51.15,"p50":51.2,"p95":74.8,"max":74.8,"sum":1072.3},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"mixedPrepareCpu":{"n":20,"arithmeticMedian":17.1,"p50":17.2,"p95":28.6,"max":28.6,"sum":359.3},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":134400,"totalUploadBytes":4724320,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"reconnect":{"inputToFirstRaf":{"n":20,"arithmeticMedian":24.3,"p50":24.3,"p95":33.8,"max":33.8,"sum":504.6},"inputToSceneDraw":{"n":20,"arithmeticMedian":24.3,"p50":24.3,"p95":33.7,"max":33.7,"sum":503.5},"synchronousApiCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.7},"backendDrawCpu":{"n":20,"arithmeticMedian":15.9,"p50":15.9,"p95":24.9,"max":24.9,"sum":334.9},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":16.45,"p50":16.5,"p95":25.3,"max":25.3,"sum":343.6},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"mixedPrepareCpu":{"n":20,"arithmeticMedian":13.7,"p50":13.7,"p95":22.1,"max":22.1,"sum":290.2},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":144000,"totalUploadBytes":145600,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"delete":{"inputToFirstRaf":{"n":20,"arithmeticMedian":104.05,"p50":104.1,"p95":113.8,"max":113.8,"sum":2098.5},"inputToSceneDraw":{"n":20,"arithmeticMedian":101.75,"p50":102,"p95":111.7,"max":111.7,"sum":2055.8},"synchronousApiCpu":{"n":20,"arithmeticMedian":12.9,"p50":12.9,"p95":16.8,"max":16.8,"sum":266},"backendDrawCpu":{"n":20,"arithmeticMedian":22.3,"p50":22.3,"p95":26.3,"max":26.3,"sum":451.9},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":90.95,"p50":91.1,"p95":99.8,"max":99.8,"sum":1831.9},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.1},"mixedPrepareCpu":{"n":20,"arithmeticMedian":20,"p50":20,"p95":23.6,"max":23.6,"sum":403.7},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":0,"sourceBytes":0,"totalUploadBytes":4648960,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}}},"mutation":{"kind":"churn","degree":1,"target":"block_6593","groupId":null,"members":20,"incidentConnections":28,"created":20,"reconnected":20,"deleted":20,"incidentGeometryChanges":0,"fields":{"add:all":20,"update:bounds,primitives":20,"delete:all":20}},"cache":{"orderCacheRanges":0,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":0,"orderCacheSources":[{"index":0,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":1,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":2,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0}]},"finalCounts":{"blocks":13916,"connections":18604},"glError":0},
+    {"key":"edit-abba-1-candidate-1-webgl-etl1-0.025135101168782203-churn","gpu":{"n":10,"arithmeticMedian":9.252,"p50":9.364,"p95":13.739,"max":13.739,"sum":96.312},"operations":{"add":{"inputToFirstRaf":{"n":20,"arithmeticMedian":54.35,"p50":54.7,"p95":108.8,"max":108.8,"sum":1148.1},"inputToSceneDraw":{"n":20,"arithmeticMedian":54.35,"p50":54.7,"p95":108.6,"max":108.6,"sum":1146.7},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.4,"p50":0.4,"p95":1.8,"max":1.8,"sum":9.9},"backendDrawCpu":{"n":20,"arithmeticMedian":27.25,"p50":27.3,"p95":46.5,"max":46.5,"sum":578.1},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":47.05,"p50":47.1,"p95":101,"max":101,"sum":1005.7},"orderCpu":{"n":20,"arithmeticMedian":18.9,"p50":19,"p95":35.2,"max":35.2,"sum":406.6},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":1.2},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":16000,"totalUploadBytes":7960800,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"reconnect":{"inputToFirstRaf":{"n":20,"arithmeticMedian":39.7,"p50":39.9,"p95":47.8,"max":47.8,"sum":814.3},"inputToSceneDraw":{"n":20,"arithmeticMedian":39.65,"p50":39.9,"p95":47.7,"max":47.7,"sum":812.8},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.05,"p50":0.1,"p95":0.1,"max":0.1,"sum":1},"backendDrawCpu":{"n":20,"arithmeticMedian":31.3,"p50":31.3,"p95":39,"max":39,"sum":642},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":69.45,"p50":69.5,"p95":93.9,"max":93.9,"sum":1428.4},"orderCpu":{"n":20,"arithmeticMedian":22.6,"p50":22.7,"p95":28.2,"max":28.2,"sum":462.2},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":1.6},"miniPictureCpu":{"n":20,"arithmeticMedian":35.55,"p50":35.6,"p95":51,"max":51,"sum":740.6},"miniPicturesInObservationWindow":20,"encodes":40,"sourceBytes":201600,"totalUploadBytes":6428880,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"delete":{"inputToFirstRaf":{"n":20,"arithmeticMedian":61.35,"p50":62,"p95":78.5,"max":78.5,"sum":1248.5},"inputToSceneDraw":{"n":20,"arithmeticMedian":60.55,"p50":61.1,"p95":77.3,"max":77.3,"sum":1233.5},"synchronousApiCpu":{"n":20,"arithmeticMedian":5.5,"p50":5.5,"p95":10.1,"max":10.1,"sum":116.3},"backendDrawCpu":{"n":20,"arithmeticMedian":34.75,"p50":34.8,"p95":42.3,"max":42.3,"sum":710.4},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":55.25,"p50":56.1,"p95":110.5,"max":110.5,"sum":1388.8},"orderCpu":{"n":20,"arithmeticMedian":25.9,"p50":25.9,"p95":32.3,"max":32.3,"sum":532.4},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.1,"max":0.1,"sum":1.7},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":43.9,"max":43.9,"sum":262.8},"miniPicturesInObservationWindow":7,"encodes":0,"sourceBytes":0,"totalUploadBytes":9967040,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}}},"mutation":{"kind":"churn","degree":1,"target":"p264/sessionize","groupId":"p264","members":19,"incidentConnections":19,"created":20,"reconnected":20,"deleted":20,"incidentGeometryChanges":0,"fields":{"add:all":20,"update:bounds,primitives":20,"delete:all":20}},"cache":{"orderCacheRanges":263132,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":258780,"orderCacheSources":[{"index":0,"kind":null,"retained":true,"liveInstances":7984,"ranges":3992,"buckets":3066},{"index":1,"kind":null,"retained":true,"liveInstances":51053,"ranges":13992,"buckets":11468},{"index":2,"kind":null,"retained":true,"liveInstances":320000,"ranges":50000,"buckets":50000},{"index":3,"kind":null,"retained":true,"liveInstances":214176,"ranges":55148,"buckets":54246},{"index":4,"kind":null,"retained":true,"liveInstances":160000,"ranges":30000,"buckets":30000},{"index":5,"kind":null,"retained":true,"liveInstances":80000,"ranges":20000,"buckets":20000},{"index":6,"kind":null,"retained":true,"liveInstances":30000,"ranges":30000,"buckets":30000},{"index":7,"kind":null,"retained":true,"liveInstances":0,"ranges":0,"buckets":0},{"index":8,"kind":null,"retained":true,"liveInstances":120000,"ranges":30000,"buckets":30000},{"index":9,"kind":null,"retained":true,"liveInstances":120000,"ranges":30000,"buckets":30000},{"index":10,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":11,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":12,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0}]},"finalCounts":{"blocks":10000,"connections":10000},"glError":0},
+    {"key":"edit-abba-1-candidate-1-webgl-plain-0.01-churn","gpu":{"n":10,"arithmeticMedian":15.98,"p50":16.036,"p95":26.916,"max":26.916,"sum":170.806},"operations":{"add":{"inputToFirstRaf":{"n":20,"arithmeticMedian":45.75,"p50":46,"p95":71.3,"max":71.3,"sum":945.2},"inputToSceneDraw":{"n":20,"arithmeticMedian":45.65,"p50":45.9,"p95":71.2,"max":71.2,"sum":944.2},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.9,"p50":0.9,"p95":3,"max":3,"sum":19.4},"backendDrawCpu":{"n":20,"arithmeticMedian":18.35,"p50":18.4,"p95":23.3,"max":23.3,"sum":380.1},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":37.2,"p50":37.2,"p95":64.9,"max":64.9,"sum":780.6},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"mixedPrepareCpu":{"n":20,"arithmeticMedian":17.35,"p50":17.5,"p95":21.9,"max":21.9,"sum":357.7},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":134400,"totalUploadBytes":4724320,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"reconnect":{"inputToFirstRaf":{"n":20,"arithmeticMedian":24.85,"p50":24.9,"p95":27.5,"max":27.5,"sum":499.4},"inputToSceneDraw":{"n":20,"arithmeticMedian":24.75,"p50":24.9,"p95":27.5,"max":27.5,"sum":498.2},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.05,"p50":0.1,"p95":0.1,"max":0.1,"sum":1},"backendDrawCpu":{"n":20,"arithmeticMedian":16.25,"p50":16.3,"p95":19,"max":19,"sum":328.8},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":16.75,"p50":16.8,"p95":19.3,"max":19.3,"sum":336.2},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.1},"mixedPrepareCpu":{"n":20,"arithmeticMedian":14.5,"p50":14.5,"p95":17,"max":17,"sum":291.2},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":144000,"totalUploadBytes":145600,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"delete":{"inputToFirstRaf":{"n":20,"arithmeticMedian":49.75,"p50":49.9,"p95":57,"max":57,"sum":1012.5},"inputToSceneDraw":{"n":20,"arithmeticMedian":47.8,"p50":47.9,"p95":55,"max":55,"sum":973.1},"synchronousApiCpu":{"n":20,"arithmeticMedian":11.15,"p50":11.2,"p95":13.8,"max":13.8,"sum":227.6},"backendDrawCpu":{"n":20,"arithmeticMedian":19.95,"p50":20,"p95":23.6,"max":23.6,"sum":407.3},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":38.45,"p50":38.6,"p95":44,"max":44,"sum":783.5},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.1},"mixedPrepareCpu":{"n":20,"arithmeticMedian":17.6,"p50":17.6,"p95":21.1,"max":21.1,"sum":358.6},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":0,"sourceBytes":0,"totalUploadBytes":4648960,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}}},"mutation":{"kind":"churn","degree":1,"target":"block_6593","groupId":null,"members":20,"incidentConnections":28,"created":20,"reconnected":20,"deleted":20,"incidentGeometryChanges":0,"fields":{"add:all":20,"update:bounds,primitives":20,"delete:all":20}},"cache":{"orderCacheRanges":0,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":0,"orderCacheSources":[{"index":0,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":1,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":2,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0}]},"finalCounts":{"blocks":13916,"connections":18604},"glError":0},
+    {"key":"edit-abba-2-candidate-1-webgl-etl1-0.025135101168782203-churn","gpu":{"n":10,"arithmeticMedian":10.36,"p50":10.39,"p95":14.517,"max":14.517,"sum":99.291},"operations":{"add":{"inputToFirstRaf":{"n":20,"arithmeticMedian":56.5,"p50":56.6,"p95":107.9,"max":107.9,"sum":1164.9},"inputToSceneDraw":{"n":20,"arithmeticMedian":56.45,"p50":56.6,"p95":107.8,"max":107.8,"sum":1163.7},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.4,"p50":0.4,"p95":3.1,"max":3.1,"sum":12.7},"backendDrawCpu":{"n":20,"arithmeticMedian":28.6,"p50":28.6,"p95":45.9,"max":45.9,"sum":600.1},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":49.15,"p50":49.2,"p95":100,"max":100,"sum":1044.2},"orderCpu":{"n":20,"arithmeticMedian":20.3,"p50":20.3,"p95":35.9,"max":35.9,"sum":426.8},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":1.3},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":16000,"totalUploadBytes":7960800,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"reconnect":{"inputToFirstRaf":{"n":20,"arithmeticMedian":41,"p50":41.1,"p95":63.4,"max":63.4,"sum":861.4},"inputToSceneDraw":{"n":20,"arithmeticMedian":40.9,"p50":41,"p95":63.3,"max":63.3,"sum":860.2},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.05,"p50":0.1,"p95":0.1,"max":0.1,"sum":1},"backendDrawCpu":{"n":20,"arithmeticMedian":32.4,"p50":32.4,"p95":55.6,"max":55.6,"sum":694.7},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":70.9,"p50":70.9,"p95":103.9,"max":103.9,"sum":1452.4},"orderCpu":{"n":20,"arithmeticMedian":23.7,"p50":23.7,"p95":44.2,"max":44.2,"sum":511.2},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.1,"max":0.1,"sum":1.3},"miniPictureCpu":{"n":20,"arithmeticMedian":36.2,"p50":36.2,"p95":54.1,"max":54.1,"sum":715.1},"miniPicturesInObservationWindow":19,"encodes":40,"sourceBytes":201600,"totalUploadBytes":6428880,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"delete":{"inputToFirstRaf":{"n":20,"arithmeticMedian":62.95,"p50":63.2,"p95":98.6,"max":98.6,"sum":1306.4},"inputToSceneDraw":{"n":20,"arithmeticMedian":62.3,"p50":62.5,"p95":97.7,"max":97.7,"sum":1292.3},"synchronousApiCpu":{"n":20,"arithmeticMedian":5.25,"p50":5.3,"p95":8.6,"max":8.6,"sum":111.5},"backendDrawCpu":{"n":20,"arithmeticMedian":36.3,"p50":36.9,"p95":44.5,"max":44.5,"sum":736.4},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":94.1,"p50":94.3,"p95":113.8,"max":113.8,"sum":1641.4},"orderCpu":{"n":20,"arithmeticMedian":27,"p50":27.2,"p95":34.2,"max":34.2,"sum":558.5},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":1.4},"miniPictureCpu":{"n":20,"arithmeticMedian":34.55,"p50":34.8,"p95":39.4,"max":39.4,"sum":472},"miniPicturesInObservationWindow":13,"encodes":0,"sourceBytes":0,"totalUploadBytes":9967040,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}}},"mutation":{"kind":"churn","degree":1,"target":"p264/sessionize","groupId":"p264","members":19,"incidentConnections":19,"created":20,"reconnected":20,"deleted":20,"incidentGeometryChanges":0,"fields":{"add:all":20,"update:bounds,primitives":20,"delete:all":20}},"cache":{"orderCacheRanges":263132,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":258780,"orderCacheSources":[{"index":0,"kind":null,"retained":true,"liveInstances":7984,"ranges":3992,"buckets":3066},{"index":1,"kind":null,"retained":true,"liveInstances":51053,"ranges":13992,"buckets":11468},{"index":2,"kind":null,"retained":true,"liveInstances":320000,"ranges":50000,"buckets":50000},{"index":3,"kind":null,"retained":true,"liveInstances":214176,"ranges":55148,"buckets":54246},{"index":4,"kind":null,"retained":true,"liveInstances":160000,"ranges":30000,"buckets":30000},{"index":5,"kind":null,"retained":true,"liveInstances":80000,"ranges":20000,"buckets":20000},{"index":6,"kind":null,"retained":true,"liveInstances":30000,"ranges":30000,"buckets":30000},{"index":7,"kind":null,"retained":true,"liveInstances":0,"ranges":0,"buckets":0},{"index":8,"kind":null,"retained":true,"liveInstances":120000,"ranges":30000,"buckets":30000},{"index":9,"kind":null,"retained":true,"liveInstances":120000,"ranges":30000,"buckets":30000},{"index":10,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":11,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":12,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0}]},"finalCounts":{"blocks":10000,"connections":10000},"glError":0},
+    {"key":"edit-abba-2-candidate-1-webgl-plain-0.01-churn","gpu":{"n":10,"arithmeticMedian":16.148,"p50":16.154,"p95":25.844,"max":25.844,"sum":171.234},"operations":{"add":{"inputToFirstRaf":{"n":20,"arithmeticMedian":50.25,"p50":50.5,"p95":73.7,"max":73.7,"sum":1008.7},"inputToSceneDraw":{"n":20,"arithmeticMedian":50.15,"p50":50.3,"p95":73.6,"max":73.6,"sum":1007.7},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.9,"p50":0.9,"p95":2.9,"max":2.9,"sum":19.2},"backendDrawCpu":{"n":20,"arithmeticMedian":21.65,"p50":21.7,"p95":24.5,"max":24.5,"sum":424.1},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":41.8,"p50":41.9,"p95":65.6,"max":65.6,"sum":841.9},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"mixedPrepareCpu":{"n":20,"arithmeticMedian":20.45,"p50":20.5,"p95":23.1,"max":23.1,"sum":400.7},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":134400,"totalUploadBytes":4724320,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"reconnect":{"inputToFirstRaf":{"n":20,"arithmeticMedian":25.75,"p50":25.8,"p95":29.5,"max":29.5,"sum":514.6},"inputToSceneDraw":{"n":20,"arithmeticMedian":25.75,"p50":25.8,"p95":29.3,"max":29.3,"sum":513.2},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":1.4},"backendDrawCpu":{"n":20,"arithmeticMedian":16.85,"p50":16.9,"p95":20.7,"max":20.7,"sum":341.8},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":17.5,"p50":17.6,"p95":21.3,"max":21.3,"sum":351},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"mixedPrepareCpu":{"n":20,"arithmeticMedian":14.6,"p50":14.6,"p95":18.6,"max":18.6,"sum":299.6},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":144000,"totalUploadBytes":145600,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"delete":{"inputToFirstRaf":{"n":20,"arithmeticMedian":54.75,"p50":54.8,"p95":61.7,"max":61.7,"sum":1081.5},"inputToSceneDraw":{"n":20,"arithmeticMedian":52.5,"p50":52.6,"p95":58.8,"max":58.8,"sum":1037.5},"synchronousApiCpu":{"n":20,"arithmeticMedian":12.7,"p50":12.7,"p95":14.1,"max":14.1,"sum":246.7},"backendDrawCpu":{"n":20,"arithmeticMedian":22.95,"p50":23,"p95":27.6,"max":27.6,"sum":452.3},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":41.85,"p50":41.9,"p95":50.5,"max":50.5,"sum":834.3},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"mixedPrepareCpu":{"n":20,"arithmeticMedian":20.35,"p50":20.4,"p95":24.4,"max":24.4,"sum":399.5},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":0,"sourceBytes":0,"totalUploadBytes":4648960,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}}},"mutation":{"kind":"churn","degree":1,"target":"block_6593","groupId":null,"members":20,"incidentConnections":28,"created":20,"reconnected":20,"deleted":20,"incidentGeometryChanges":0,"fields":{"add:all":20,"update:bounds,primitives":20,"delete:all":20}},"cache":{"orderCacheRanges":0,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":0,"orderCacheSources":[{"index":0,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":1,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":2,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0}]},"finalCounts":{"blocks":13916,"connections":18604},"glError":0},
+    {"key":"edit-abba-3-baseline-webgl-etl1-0.025135101168782203-churn","gpu":{"n":10,"arithmeticMedian":10.716,"p50":10.808,"p95":15.082,"max":15.082,"sum":104.104},"operations":{"add":{"inputToFirstRaf":{"n":20,"arithmeticMedian":69.1,"p50":69.3,"p95":167.1,"max":167.1,"sum":1504},"inputToSceneDraw":{"n":20,"arithmeticMedian":69.05,"p50":69.3,"p95":167,"max":167,"sum":1502.7},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.5,"p50":0.5,"p95":5,"max":5,"sum":14.3},"backendDrawCpu":{"n":20,"arithmeticMedian":43.6,"p50":43.8,"p95":67.6,"max":67.6,"sum":898.3},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":64,"p50":64.2,"p95":156.6,"max":156.6,"sum":1408.9},"orderCpu":{"n":20,"arithmeticMedian":31.1,"p50":31.4,"p95":58.6,"max":58.6,"sum":671},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":1.7},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":16000,"totalUploadBytes":7960800,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"reconnect":{"inputToFirstRaf":{"n":20,"arithmeticMedian":45.1,"p50":45.4,"p95":54.1,"max":54.1,"sum":915.6},"inputToSceneDraw":{"n":20,"arithmeticMedian":45,"p50":45.3,"p95":54,"max":54,"sum":914.2},"synchronousApiCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.7},"backendDrawCpu":{"n":20,"arithmeticMedian":37.3,"p50":37.7,"p95":43.8,"max":43.8,"sum":756.4},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":81.15,"p50":81.2,"p95":103,"max":103,"sum":1633.8},"orderCpu":{"n":20,"arithmeticMedian":28.2,"p50":28.5,"p95":33.1,"max":33.1,"sum":566.6},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":1.9},"miniPictureCpu":{"n":20,"arithmeticMedian":41.3,"p50":42,"p95":55.6,"max":55.6,"sum":827.4},"miniPicturesInObservationWindow":20,"encodes":40,"sourceBytes":201600,"totalUploadBytes":6428880,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"delete":{"inputToFirstRaf":{"n":20,"arithmeticMedian":106.7,"p50":106.9,"p95":116.3,"max":116.3,"sum":2147.4},"inputToSceneDraw":{"n":20,"arithmeticMedian":106.05,"p50":106.2,"p95":115.4,"max":115.4,"sum":2132.6},"synchronousApiCpu":{"n":20,"arithmeticMedian":8.4,"p50":8.4,"p95":14.8,"max":14.8,"sum":189.8},"backendDrawCpu":{"n":20,"arithmeticMedian":43.55,"p50":43.7,"p95":45.9,"max":45.9,"sum":874.3},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":136.3,"p50":137.3,"p95":148.4,"max":148.4,"sum":2748.9},"orderCpu":{"n":20,"arithmeticMedian":34.4,"p50":34.4,"p95":37,"max":37,"sum":686.9},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":1.5},"miniPictureCpu":{"n":20,"arithmeticMedian":36.8,"p50":37.1,"p95":41.5,"max":41.5,"sum":750},"miniPicturesInObservationWindow":20,"encodes":0,"sourceBytes":0,"totalUploadBytes":9967040,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}}},"mutation":{"kind":"churn","degree":1,"target":"p264/sessionize","groupId":"p264","members":19,"incidentConnections":19,"created":20,"reconnected":20,"deleted":20,"incidentGeometryChanges":0,"fields":{"add:all":20,"update:bounds,primitives":20,"delete:all":20}},"cache":{"orderCacheRanges":0,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":0,"orderCacheSources":[{"index":0,"kind":null,"retained":true,"liveInstances":7984,"ranges":0,"buckets":0},{"index":1,"kind":null,"retained":true,"liveInstances":51053,"ranges":0,"buckets":0},{"index":2,"kind":null,"retained":true,"liveInstances":320000,"ranges":0,"buckets":0},{"index":3,"kind":null,"retained":true,"liveInstances":214176,"ranges":0,"buckets":0},{"index":4,"kind":null,"retained":true,"liveInstances":160000,"ranges":0,"buckets":0},{"index":5,"kind":null,"retained":true,"liveInstances":80000,"ranges":0,"buckets":0},{"index":6,"kind":null,"retained":true,"liveInstances":30000,"ranges":0,"buckets":0},{"index":7,"kind":null,"retained":true,"liveInstances":0,"ranges":0,"buckets":0},{"index":8,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"buckets":0},{"index":9,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"buckets":0},{"index":10,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":11,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":12,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0}]},"finalCounts":{"blocks":10000,"connections":10000},"glError":0},
+    {"key":"edit-abba-3-baseline-webgl-plain-0.01-churn","gpu":{"n":10,"arithmeticMedian":16.314,"p50":16.334,"p95":19.696,"max":19.696,"sum":165.849},"operations":{"add":{"inputToFirstRaf":{"n":20,"arithmeticMedian":61.5,"p50":61.8,"p95":69.1,"max":69.1,"sum":1252.6},"inputToSceneDraw":{"n":20,"arithmeticMedian":61.5,"p50":61.8,"p95":69,"max":69,"sum":1251.8},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.9,"p50":0.9,"p95":1.7,"max":1.7,"sum":18.4},"backendDrawCpu":{"n":20,"arithmeticMedian":19.2,"p50":19.2,"p95":23.1,"max":23.1,"sum":396.8},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":53.15,"p50":53.3,"p95":63.1,"max":63.1,"sum":1093.5},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.1},"mixedPrepareCpu":{"n":20,"arithmeticMedian":18.15,"p50":18.2,"p95":21.9,"max":21.9,"sum":375.7},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":134400,"totalUploadBytes":4724320,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"reconnect":{"inputToFirstRaf":{"n":20,"arithmeticMedian":24.6,"p50":24.6,"p95":31,"max":31,"sum":504.3},"inputToSceneDraw":{"n":20,"arithmeticMedian":24.5,"p50":24.5,"p95":30.9,"max":30.9,"sum":502.7},"synchronousApiCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.7},"backendDrawCpu":{"n":20,"arithmeticMedian":16.05,"p50":16.1,"p95":24.4,"max":24.4,"sum":341.2},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":16.5,"p50":16.5,"p95":24.7,"max":24.7,"sum":348.2},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.2},"mixedPrepareCpu":{"n":20,"arithmeticMedian":14.4,"p50":14.4,"p95":19.9,"max":19.9,"sum":300.9},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":144000,"totalUploadBytes":145600,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"delete":{"inputToFirstRaf":{"n":20,"arithmeticMedian":105.95,"p50":106.1,"p95":148.5,"max":148.5,"sum":2180.6},"inputToSceneDraw":{"n":20,"arithmeticMedian":103.9,"p50":103.9,"p95":145.7,"max":145.7,"sum":2137.5},"synchronousApiCpu":{"n":20,"arithmeticMedian":13.7,"p50":13.7,"p95":20.4,"max":20.4,"sum":285.1},"backendDrawCpu":{"n":20,"arithmeticMedian":22.9,"p50":22.9,"p95":27.5,"max":27.5,"sum":453.6},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":92.05,"p50":92.1,"p95":128,"max":128,"sum":1894.7},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.2},"mixedPrepareCpu":{"n":20,"arithmeticMedian":20.35,"p50":20.4,"p95":25,"max":25,"sum":404.1},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":0,"sourceBytes":0,"totalUploadBytes":4648960,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}}},"mutation":{"kind":"churn","degree":1,"target":"block_6593","groupId":null,"members":20,"incidentConnections":28,"created":20,"reconnected":20,"deleted":20,"incidentGeometryChanges":0,"fields":{"add:all":20,"update:bounds,primitives":20,"delete:all":20}},"cache":{"orderCacheRanges":0,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":0,"orderCacheSources":[{"index":0,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":1,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":2,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0}]},"finalCounts":{"blocks":13916,"connections":18604},"glError":0},
+    {"key":"zoom-pair-baseline-webgl-etl1-0.025135101168782203-zoom","gpu":{"n":40,"arithmeticMedian":3.882,"p50":3.886,"p95":15.078,"max":15.265,"sum":259.56},"operations":{"zoom":{"inputToFirstRaf":{"n":240,"arithmeticMedian":8.3,"p50":8.3,"p95":15.7,"max":47.4,"sum":2175.1},"inputToSceneDraw":{"n":240,"arithmeticMedian":8.3,"p50":8.3,"p95":15.7,"max":47.3,"sum":2171.4},"synchronousApiCpu":{"n":240,"arithmeticMedian":0,"p50":0,"p95":0.2,"max":7.7,"sum":34.6},"backendDrawCpu":{"n":240,"arithmeticMedian":2.6,"p50":2.6,"p95":9.6,"max":19.9,"sum":789.8},"schedulerCpuInObservationWindow":{"n":240,"arithmeticMedian":2.8,"p50":2.8,"p95":10.5,"max":47.1,"sum":953.1},"orderCpu":{"n":240,"arithmeticMedian":0,"p50":0,"p95":0,"max":0.1,"sum":0.7},"mixedPrepareCpu":{"n":240,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.2,"sum":8.6},"miniPictureCpu":{"n":240,"arithmeticMedian":0,"p50":0,"p95":0,"max":41,"sum":78.9},"miniPicturesInObservationWindow":2,"encodes":0,"sourceBytes":0,"totalUploadBytes":27930440,"backendFrames":{"n":240,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":240}}},"mutation":{"kind":"zoom","degree":1,"target":"p264/sessionize","groupId":"p264","members":19,"incidentConnections":19,"created":0,"reconnected":0,"deleted":0,"incidentGeometryChanges":0,"fields":{"update:hidden":168}},"cache":{"orderCacheRanges":0,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":0,"orderCacheSources":[{"index":0,"kind":null,"retained":true,"liveInstances":7984,"ranges":0,"buckets":0},{"index":1,"kind":null,"retained":true,"liveInstances":51053,"ranges":0,"buckets":0},{"index":2,"kind":null,"retained":true,"liveInstances":320000,"ranges":0,"buckets":0},{"index":3,"kind":null,"retained":true,"liveInstances":214176,"ranges":0,"buckets":0},{"index":4,"kind":null,"retained":true,"liveInstances":160000,"ranges":0,"buckets":0},{"index":5,"kind":null,"retained":true,"liveInstances":80000,"ranges":0,"buckets":0},{"index":6,"kind":null,"retained":true,"liveInstances":30000,"ranges":0,"buckets":0},{"index":7,"kind":null,"retained":true,"liveInstances":0,"ranges":0,"buckets":0},{"index":8,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"buckets":0},{"index":9,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"buckets":0},{"index":10,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":11,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":12,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0}]},"finalCounts":{"blocks":10000,"connections":10000},"glError":0},
+    {"key":"zoom-pair-baseline-webgl-plain-0.01-zoom","gpu":{"n":40,"arithmeticMedian":12.966,"p50":14.044,"p95":25.768,"max":26.032,"sum":565.233},"operations":{"zoom":{"inputToFirstRaf":{"n":240,"arithmeticMedian":9,"p50":9,"p95":16.5,"max":29.3,"sum":2471.6},"inputToSceneDraw":{"n":240,"arithmeticMedian":9,"p50":9,"p95":16.5,"max":29.3,"sum":2465},"synchronousApiCpu":{"n":240,"arithmeticMedian":0.3,"p50":0.3,"p95":0.5,"max":10.7,"sum":95.5},"backendDrawCpu":{"n":240,"arithmeticMedian":0.9,"p50":0.9,"p95":10.3,"max":16.1,"sum":634.2},"schedulerCpuInObservationWindow":{"n":240,"arithmeticMedian":1.2,"p50":1.2,"p95":10.4,"max":16.1,"sum":670.5},"orderCpu":{"n":240,"arithmeticMedian":0,"p50":0,"p95":0,"max":0.1,"sum":0.9},"mixedPrepareCpu":{"n":240,"arithmeticMedian":0.2,"p50":0.2,"p95":9.8,"max":15.5,"sum":485},"miniPictureCpu":{"n":240,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":0,"sourceBytes":0,"totalUploadBytes":63586008,"backendFrames":{"n":240,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":240}}},"mutation":{"kind":"zoom","degree":1,"target":"block_6593","groupId":null,"members":20,"incidentConnections":28,"created":0,"reconnected":0,"deleted":0,"incidentGeometryChanges":0,"fields":{"update:hidden":184}},"cache":{"orderCacheRanges":0,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":0,"orderCacheSources":[{"index":0,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":1,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":2,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0}]},"finalCounts":{"blocks":13916,"connections":18604},"glError":0},
+    {"key":"zoom-pair-candidate-1-webgl-etl1-0.025135101168782203-zoom","gpu":{"n":40,"arithmeticMedian":3.956,"p50":4.059,"p95":15.784,"max":16.092,"sum":272.427},"operations":{"zoom":{"inputToFirstRaf":{"n":240,"arithmeticMedian":8.3,"p50":8.3,"p95":16,"max":43.9,"sum":2162.9},"inputToSceneDraw":{"n":240,"arithmeticMedian":8.3,"p50":8.3,"p95":16,"max":43.9,"sum":2155.6},"synchronousApiCpu":{"n":240,"arithmeticMedian":0,"p50":0,"p95":0.2,"max":5.7,"sum":31.8},"backendDrawCpu":{"n":240,"arithmeticMedian":2.7,"p50":2.7,"p95":9.7,"max":15.9,"sum":798},"schedulerCpuInObservationWindow":{"n":240,"arithmeticMedian":3,"p50":3,"p95":10.7,"max":43.8,"sum":964},"orderCpu":{"n":240,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":1.5},"mixedPrepareCpu":{"n":240,"arithmeticMedian":0,"p50":0,"p95":0.2,"max":0.3,"sum":10.7},"miniPictureCpu":{"n":240,"arithmeticMedian":0,"p50":0,"p95":0,"max":37.7,"sum":74.9},"miniPicturesInObservationWindow":2,"encodes":0,"sourceBytes":0,"totalUploadBytes":27930440,"backendFrames":{"n":240,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":240}}},"mutation":{"kind":"zoom","degree":1,"target":"p264/sessionize","groupId":"p264","members":19,"incidentConnections":19,"created":0,"reconnected":0,"deleted":0,"incidentGeometryChanges":0,"fields":{"update:hidden":168}},"cache":{"orderCacheRanges":263132,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":258780,"orderCacheSources":[{"index":0,"kind":null,"retained":true,"liveInstances":7984,"ranges":3992,"buckets":3066},{"index":1,"kind":null,"retained":true,"liveInstances":51053,"ranges":13992,"buckets":11468},{"index":2,"kind":null,"retained":true,"liveInstances":320000,"ranges":50000,"buckets":50000},{"index":3,"kind":null,"retained":true,"liveInstances":214176,"ranges":55148,"buckets":54246},{"index":4,"kind":null,"retained":true,"liveInstances":160000,"ranges":30000,"buckets":30000},{"index":5,"kind":null,"retained":true,"liveInstances":80000,"ranges":20000,"buckets":20000},{"index":6,"kind":null,"retained":true,"liveInstances":30000,"ranges":30000,"buckets":30000},{"index":7,"kind":null,"retained":true,"liveInstances":0,"ranges":0,"buckets":0},{"index":8,"kind":null,"retained":true,"liveInstances":120000,"ranges":30000,"buckets":30000},{"index":9,"kind":null,"retained":true,"liveInstances":120000,"ranges":30000,"buckets":30000},{"index":10,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":11,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":12,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0}]},"finalCounts":{"blocks":10000,"connections":10000},"glError":0},
+    {"key":"zoom-pair-candidate-1-webgl-plain-0.01-zoom","gpu":{"n":40,"arithmeticMedian":13.057,"p50":14.246,"p95":26.348,"max":26.656,"sum":573.739},"operations":{"zoom":{"inputToFirstRaf":{"n":240,"arithmeticMedian":8.95,"p50":9,"p95":15.4,"max":28.5,"sum":2466.1},"inputToSceneDraw":{"n":240,"arithmeticMedian":8.9,"p50":8.9,"p95":15.4,"max":28.4,"sum":2460},"synchronousApiCpu":{"n":240,"arithmeticMedian":0.3,"p50":0.3,"p95":0.7,"max":11.7,"sum":98.5},"backendDrawCpu":{"n":240,"arithmeticMedian":0.8,"p50":0.8,"p95":9.5,"max":11.3,"sum":552.6},"schedulerCpuInObservationWindow":{"n":240,"arithmeticMedian":1.1,"p50":1.1,"p95":9.6,"max":11.4,"sum":592.9},"orderCpu":{"n":240,"arithmeticMedian":0,"p50":0,"p95":0,"max":0.1,"sum":1.1},"mixedPrepareCpu":{"n":240,"arithmeticMedian":0.2,"p50":0.2,"p95":8.6,"max":10.5,"sum":408.8},"miniPictureCpu":{"n":240,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":0,"sourceBytes":0,"totalUploadBytes":63586008,"backendFrames":{"n":240,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":240}}},"mutation":{"kind":"zoom","degree":1,"target":"block_6593","groupId":null,"members":20,"incidentConnections":28,"created":0,"reconnected":0,"deleted":0,"incidentGeometryChanges":0,"fields":{"update:hidden":184}},"cache":{"orderCacheRanges":0,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":0,"orderCacheSources":[{"index":0,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":1,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":2,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0}]},"finalCounts":{"blocks":13916,"connections":18604},"glError":0},
+    {"key":"lean-pair-candidate-lean-webgl-etl1-0.025135101168782203-churn","gpu":{"n":10,"arithmeticMedian":11.125,"p50":11.3,"p95":18.185,"max":18.185,"sum":114.734},"operations":{"add":{"inputToFirstRaf":{"n":20,"arithmeticMedian":60.65,"p50":60.9,"p95":94.6,"max":94.6,"sum":1285.2},"inputToSceneDraw":{"n":20,"arithmeticMedian":60.6,"p50":60.8,"p95":94.5,"max":94.5,"sum":1283.4},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.4,"p50":0.4,"p95":0.6,"max":0.6,"sum":8.7},"backendDrawCpu":{"n":20,"arithmeticMedian":33.45,"p50":33.6,"p95":53.6,"max":53.6,"sum":719},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":54.2,"p50":54.7,"p95":84.3,"max":84.3,"sum":1177.1},"orderCpu":{"n":20,"arithmeticMedian":24.3,"p50":24.7,"p95":43.4,"max":43.4,"sum":521.7},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":2},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":16000,"totalUploadBytes":7960800,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"reconnect":{"inputToFirstRaf":{"n":20,"arithmeticMedian":47.75,"p50":47.9,"p95":83.8,"max":83.8,"sum":996.2},"inputToSceneDraw":{"n":20,"arithmeticMedian":47.65,"p50":47.8,"p95":83.7,"max":83.7,"sum":994.7},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.1,"max":0.1,"sum":1.1},"backendDrawCpu":{"n":20,"arithmeticMedian":39.5,"p50":40,"p95":75.2,"max":75.2,"sum":831},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":79.95,"p50":80.2,"p95":132.1,"max":132.1,"sum":1680.3},"orderCpu":{"n":20,"arithmeticMedian":29.35,"p50":29.8,"p95":40.9,"max":40.9,"sum":610.4},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":1.6},"miniPictureCpu":{"n":20,"arithmeticMedian":39.3,"p50":39.5,"p95":54.2,"max":54.2,"sum":801.6},"miniPicturesInObservationWindow":20,"encodes":40,"sourceBytes":201600,"totalUploadBytes":6428880,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"delete":{"inputToFirstRaf":{"n":20,"arithmeticMedian":70.15,"p50":70.4,"p95":92.5,"max":92.5,"sum":1471},"inputToSceneDraw":{"n":20,"arithmeticMedian":69.55,"p50":69.8,"p95":91.5,"max":91.5,"sum":1455.8},"synchronousApiCpu":{"n":20,"arithmeticMedian":6.1,"p50":6.1,"p95":12.2,"max":12.2,"sum":135.5},"backendDrawCpu":{"n":20,"arithmeticMedian":43.3,"p50":43.5,"p95":58.3,"max":58.3,"sum":896.8},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":103.2,"p50":104.1,"p95":131.9,"max":131.9,"sum":2156.2},"orderCpu":{"n":20,"arithmeticMedian":33.25,"p50":33.3,"p95":46.7,"max":46.7,"sum":698.8},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":1.6},"miniPictureCpu":{"n":20,"arithmeticMedian":38.7,"p50":38.9,"p95":49.1,"max":49.1,"sum":794.6},"miniPicturesInObservationWindow":20,"encodes":0,"sourceBytes":0,"totalUploadBytes":9967040,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}}},"mutation":{"kind":"churn","degree":1,"target":"p264/sessionize","groupId":"p264","members":19,"incidentConnections":19,"created":20,"reconnected":20,"deleted":20,"incidentGeometryChanges":0,"fields":{"add:all":20,"update:bounds,primitives":20,"delete:all":20}},"cache":{"orderCacheRanges":0,"orderCachePositions":263132,"orderCachePositionBytes":2105056,"orderCacheBuckets":258780,"orderCacheSources":[{"index":0,"kind":null,"retained":true,"liveInstances":7984,"ranges":0,"positions":3992,"positionBytes":31936,"buckets":3066},{"index":1,"kind":null,"retained":true,"liveInstances":51053,"ranges":0,"positions":13992,"positionBytes":111936,"buckets":11468},{"index":2,"kind":null,"retained":true,"liveInstances":320000,"ranges":0,"positions":50000,"positionBytes":400000,"buckets":50000},{"index":3,"kind":null,"retained":true,"liveInstances":214176,"ranges":0,"positions":55148,"positionBytes":441184,"buckets":54246},{"index":4,"kind":null,"retained":true,"liveInstances":160000,"ranges":0,"positions":30000,"positionBytes":240000,"buckets":30000},{"index":5,"kind":null,"retained":true,"liveInstances":80000,"ranges":0,"positions":20000,"positionBytes":160000,"buckets":20000},{"index":6,"kind":null,"retained":true,"liveInstances":30000,"ranges":0,"positions":30000,"positionBytes":240000,"buckets":30000},{"index":7,"kind":null,"retained":true,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":8,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"positions":30000,"positionBytes":240000,"buckets":30000},{"index":9,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"positions":30000,"positionBytes":240000,"buckets":30000},{"index":10,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":11,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":12,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0}]},"finalCounts":{"blocks":10000,"connections":10000},"glError":0},
+    {"key":"lean-pair-candidate-lean-webgl-plain-0.01-churn","gpu":{"n":10,"arithmeticMedian":16.281,"p50":16.364,"p95":21.864,"max":21.864,"sum":170.907},"operations":{"add":{"inputToFirstRaf":{"n":20,"arithmeticMedian":45.95,"p50":46.2,"p95":87.7,"max":87.7,"sum":981.8},"inputToSceneDraw":{"n":20,"arithmeticMedian":45.95,"p50":46.2,"p95":87.6,"max":87.6,"sum":981},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.8,"p50":0.8,"p95":2.1,"max":2.1,"sum":17.7},"backendDrawCpu":{"n":20,"arithmeticMedian":19,"p50":19.3,"p95":42.5,"max":42.5,"sum":417.4},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":37.55,"p50":37.6,"p95":80.3,"max":80.3,"sum":818.7},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.1},"mixedPrepareCpu":{"n":20,"arithmeticMedian":17.85,"p50":18.1,"p95":40.2,"max":40.2,"sum":394.4},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":134400,"totalUploadBytes":4724320,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"reconnect":{"inputToFirstRaf":{"n":20,"arithmeticMedian":25.5,"p50":25.8,"p95":27.8,"max":27.8,"sum":512.6},"inputToSceneDraw":{"n":20,"arithmeticMedian":25.45,"p50":25.7,"p95":27.7,"max":27.7,"sum":511.4},"synchronousApiCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.9},"backendDrawCpu":{"n":20,"arithmeticMedian":16.95,"p50":17.2,"p95":19.1,"max":19.1,"sum":340.6},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":17.3,"p50":17.5,"p95":19.7,"max":19.7,"sum":348.8},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"mixedPrepareCpu":{"n":20,"arithmeticMedian":15.2,"p50":15.5,"p95":17.1,"max":17.1,"sum":304.4},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":144000,"totalUploadBytes":145600,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"delete":{"inputToFirstRaf":{"n":20,"arithmeticMedian":49.85,"p50":50.2,"p95":68.7,"max":68.7,"sum":1033.3},"inputToSceneDraw":{"n":20,"arithmeticMedian":47.85,"p50":48.1,"p95":64.9,"max":64.9,"sum":991.3},"synchronousApiCpu":{"n":20,"arithmeticMedian":10.85,"p50":10.9,"p95":15.5,"max":15.5,"sum":222.9},"backendDrawCpu":{"n":20,"arithmeticMedian":20.55,"p50":20.7,"p95":33.4,"max":33.4,"sum":436.1},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":39.1,"p50":39.3,"p95":58.1,"max":58.1,"sum":807.8},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"mixedPrepareCpu":{"n":20,"arithmeticMedian":18.1,"p50":18.3,"p95":29.5,"max":29.5,"sum":385},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":0,"sourceBytes":0,"totalUploadBytes":4648960,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}}},"mutation":{"kind":"churn","degree":1,"target":"block_6593","groupId":null,"members":20,"incidentConnections":28,"created":20,"reconnected":20,"deleted":20,"incidentGeometryChanges":0,"fields":{"add:all":20,"update:bounds,primitives":20,"delete:all":20}},"cache":{"orderCacheRanges":0,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":0,"orderCacheSources":[{"index":0,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":1,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":2,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0}]},"finalCounts":{"blocks":13916,"connections":18604},"glError":0},
+    {"key":"lean-pair-baseline-webgl-etl1-0.025135101168782203-churn","gpu":{"n":10,"arithmeticMedian":13.926,"p50":13.988,"p95":17.546,"max":17.546,"sum":139.032},"operations":{"add":{"inputToFirstRaf":{"n":20,"arithmeticMedian":72.15,"p50":72.2,"p95":131,"max":131,"sum":1468.8},"inputToSceneDraw":{"n":20,"arithmeticMedian":72.05,"p50":72.1,"p95":130.9,"max":130.9,"sum":1467.5},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.4,"p50":0.4,"p95":4.9,"max":4.9,"sum":13},"backendDrawCpu":{"n":20,"arithmeticMedian":43.7,"p50":43.7,"p95":80.3,"max":80.3,"sum":905.6},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":65.8,"p50":65.8,"p95":126.2,"max":126.2,"sum":1376.3},"orderCpu":{"n":20,"arithmeticMedian":32.3,"p50":32.4,"p95":70.3,"max":70.3,"sum":681.6},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.1,"max":0.1,"sum":1.5},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":16000,"totalUploadBytes":7960800,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"reconnect":{"inputToFirstRaf":{"n":20,"arithmeticMedian":45.3,"p50":45.5,"p95":49.2,"max":49.2,"sum":881.5},"inputToSceneDraw":{"n":20,"arithmeticMedian":45.3,"p50":45.5,"p95":49.1,"max":49.1,"sum":880.1},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.1,"max":0.1,"sum":1.2},"backendDrawCpu":{"n":20,"arithmeticMedian":37,"p50":37,"p95":38.9,"max":38.9,"sum":738.7},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":81.85,"p50":82.7,"p95":95.5,"max":95.5,"sum":1664.1},"orderCpu":{"n":20,"arithmeticMedian":27.6,"p50":27.6,"p95":29.5,"max":29.5,"sum":548.7},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.05,"p50":0.1,"p95":0.1,"max":0.1,"sum":1},"miniPictureCpu":{"n":20,"arithmeticMedian":42.65,"p50":43.8,"p95":55.2,"max":55.2,"sum":873},"miniPicturesInObservationWindow":20,"encodes":40,"sourceBytes":201600,"totalUploadBytes":6428880,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"delete":{"inputToFirstRaf":{"n":20,"arithmeticMedian":110.5,"p50":110.5,"p95":117.8,"max":117.8,"sum":2211.7},"inputToSceneDraw":{"n":20,"arithmeticMedian":109.6,"p50":109.6,"p95":117,"max":117,"sum":2198.4},"synchronousApiCpu":{"n":20,"arithmeticMedian":10.05,"p50":10.1,"p95":15.5,"max":15.5,"sum":221.4},"backendDrawCpu":{"n":20,"arithmeticMedian":44.8,"p50":45.1,"p95":48.3,"max":48.3,"sum":901.1},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":141.3,"p50":142.3,"p95":151.3,"max":151.3,"sum":2822.3},"orderCpu":{"n":20,"arithmeticMedian":35.4,"p50":35.6,"p95":38.5,"max":38.5,"sum":715.6},"mixedPrepareCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":1.6},"miniPictureCpu":{"n":20,"arithmeticMedian":38.9,"p50":39.5,"p95":45.3,"max":45.3,"sum":790.6},"miniPicturesInObservationWindow":20,"encodes":0,"sourceBytes":0,"totalUploadBytes":9967040,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}}},"mutation":{"kind":"churn","degree":1,"target":"p264/sessionize","groupId":"p264","members":19,"incidentConnections":19,"created":20,"reconnected":20,"deleted":20,"incidentGeometryChanges":0,"fields":{"add:all":20,"update:bounds,primitives":20,"delete:all":20}},"cache":{"orderCacheRanges":0,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":0,"orderCacheSources":[{"index":0,"kind":null,"retained":true,"liveInstances":7984,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":1,"kind":null,"retained":true,"liveInstances":51053,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":2,"kind":null,"retained":true,"liveInstances":320000,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":3,"kind":null,"retained":true,"liveInstances":214176,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":4,"kind":null,"retained":true,"liveInstances":160000,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":5,"kind":null,"retained":true,"liveInstances":80000,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":6,"kind":null,"retained":true,"liveInstances":30000,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":7,"kind":null,"retained":true,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":8,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":9,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":10,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":11,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":12,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0}]},"finalCounts":{"blocks":10000,"connections":10000},"glError":0},
+    {"key":"lean-pair-baseline-webgl-plain-0.01-churn","gpu":{"n":10,"arithmeticMedian":17.809,"p50":17.949,"p95":21.232,"max":21.232,"sum":181.081},"operations":{"add":{"inputToFirstRaf":{"n":20,"arithmeticMedian":64.35,"p50":64.4,"p95":102.9,"max":102.9,"sum":1319.1},"inputToSceneDraw":{"n":20,"arithmeticMedian":64.3,"p50":64.3,"p95":102.8,"max":102.8,"sum":1317.9},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.9,"p50":0.9,"p95":1.5,"max":1.5,"sum":18.4},"backendDrawCpu":{"n":20,"arithmeticMedian":20.2,"p50":20.2,"p95":39.4,"max":39.4,"sum":437},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":56,"p50":56.1,"p95":94.7,"max":94.7,"sum":1168.5},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"mixedPrepareCpu":{"n":20,"arithmeticMedian":19.1,"p50":19.2,"p95":37.1,"max":37.1,"sum":412.4},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":134400,"totalUploadBytes":4724320,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"reconnect":{"inputToFirstRaf":{"n":20,"arithmeticMedian":25.5,"p50":25.8,"p95":34.4,"max":34.4,"sum":514.8},"inputToSceneDraw":{"n":20,"arithmeticMedian":25.4,"p50":25.7,"p95":34.3,"max":34.3,"sum":513.4},"synchronousApiCpu":{"n":20,"arithmeticMedian":0.1,"p50":0.1,"p95":0.1,"max":0.1,"sum":1.2},"backendDrawCpu":{"n":20,"arithmeticMedian":17.6,"p50":17.6,"p95":25.8,"max":25.8,"sum":359.6},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":17.85,"p50":17.9,"p95":26.2,"max":26.2,"sum":366.3},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.3},"mixedPrepareCpu":{"n":20,"arithmeticMedian":15.8,"p50":15.9,"p95":22.1,"max":22.1,"sum":318},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":40,"sourceBytes":144000,"totalUploadBytes":145600,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}},"delete":{"inputToFirstRaf":{"n":20,"arithmeticMedian":109.05,"p50":109.1,"p95":124.1,"max":124.1,"sum":2193.7},"inputToSceneDraw":{"n":20,"arithmeticMedian":106.75,"p50":107.1,"p95":122.1,"max":122.1,"sum":2152.9},"synchronousApiCpu":{"n":20,"arithmeticMedian":14.5,"p50":14.5,"p95":19.1,"max":19.1,"sum":298.6},"backendDrawCpu":{"n":20,"arithmeticMedian":24.5,"p50":24.6,"p95":34.2,"max":34.2,"sum":489.3},"schedulerCpuInObservationWindow":{"n":20,"arithmeticMedian":94.2,"p50":94.5,"p95":109.6,"max":109.6,"sum":1893.6},"orderCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.2},"mixedPrepareCpu":{"n":20,"arithmeticMedian":21.9,"p50":22,"p95":31.2,"max":31.2,"sum":437.4},"miniPictureCpu":{"n":20,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":0,"sourceBytes":0,"totalUploadBytes":4648960,"backendFrames":{"n":20,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":20}}},"mutation":{"kind":"churn","degree":1,"target":"block_6593","groupId":null,"members":20,"incidentConnections":28,"created":20,"reconnected":20,"deleted":20,"incidentGeometryChanges":0,"fields":{"add:all":20,"update:bounds,primitives":20,"delete:all":20}},"cache":{"orderCacheRanges":0,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":0,"orderCacheSources":[{"index":0,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":1,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":2,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0}]},"finalCounts":{"blocks":13916,"connections":18604},"glError":0},
+    {"key":"time-settled-baseline-webgl-etl1-0.025135101168782203-churn","gpu":{"n":2,"arithmeticMedian":9.285,"p50":9.514,"p95":9.514,"max":9.514,"sum":18.569},"operations":{"add":{"inputToFirstRaf":{"n":3,"arithmeticMedian":76.5,"p50":76.5,"p95":100,"max":100,"sum":250.1},"inputToSceneDraw":{"n":3,"arithmeticMedian":76.4,"p50":76.4,"p95":99.9,"max":99.9,"sum":249.8},"synchronousApiCpu":{"n":3,"arithmeticMedian":0.5,"p50":0.5,"p95":1.5,"max":1.5,"sum":2.5},"backendDrawCpu":{"n":3,"arithmeticMedian":46,"p50":46,"p95":47.3,"max":47.3,"sum":136.9},"schedulerCpuInObservationWindow":{"n":3,"arithmeticMedian":68.3,"p50":68.3,"p95":92.1,"max":92.1,"sum":225},"orderCpu":{"n":3,"arithmeticMedian":30.8,"p50":30.8,"p95":37.8,"max":37.8,"sum":98.9},"mixedPrepareCpu":{"n":3,"arithmeticMedian":0.1,"p50":0.1,"p95":0.1,"max":0.1,"sum":0.3},"miniPictureCpu":{"n":3,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":6,"sourceBytes":2400,"totalUploadBytes":1194120,"backendFrames":{"n":3,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":3},"individual":[{"index":0,"inputToFirstRaf":100,"inputToFirstSceneDraw":99.9,"miniEvents":[],"lastNamedRenderCompletion":99.9,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":3,"inputToFirstRaf":73.6,"inputToFirstSceneDraw":73.5,"miniEvents":[],"lastNamedRenderCompletion":73.5,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":6,"inputToFirstRaf":76.5,"inputToFirstSceneDraw":76.4,"miniEvents":[],"lastNamedRenderCompletion":76.4,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}}]},"reconnect":{"inputToFirstRaf":{"n":3,"arithmeticMedian":46.3,"p50":46.3,"p95":53.4,"max":53.4,"sum":145.1},"inputToSceneDraw":{"n":3,"arithmeticMedian":46.1,"p50":46.1,"p95":53.1,"max":53.1,"sum":144.5},"synchronousApiCpu":{"n":3,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":0.3},"backendDrawCpu":{"n":3,"arithmeticMedian":37.5,"p50":37.5,"p95":45.7,"max":45.7,"sum":119.9},"schedulerCpuInObservationWindow":{"n":3,"arithmeticMedian":87.7,"p50":87.7,"p95":104.5,"max":104.5,"sum":279.4},"orderCpu":{"n":3,"arithmeticMedian":27.5,"p50":27.5,"p95":30.6,"max":30.6,"sum":85.5},"mixedPrepareCpu":{"n":3,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":0.3},"miniPictureCpu":{"n":3,"arithmeticMedian":48,"p50":48,"p95":55.2,"max":55.2,"sum":150.8},"miniPicturesInObservationWindow":3,"encodes":6,"sourceBytes":30240,"totalUploadBytes":964332,"backendFrames":{"n":3,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":3},"individual":[{"index":1,"inputToFirstRaf":53.4,"inputToFirstSceneDraw":53.1,"miniEvents":[{"startAfterInput":53.7,"endAfterInput":108.9}],"lastNamedRenderCompletion":108.9,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024}},{"index":4,"inputToFirstRaf":46.3,"inputToFirstSceneDraw":46.1,"miniEvents":[{"startAfterInput":46.6,"endAfterInput":94.2}],"lastNamedRenderCompletion":94.2,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024}},{"index":7,"inputToFirstRaf":45.4,"inputToFirstSceneDraw":45.3,"miniEvents":[{"startAfterInput":45.6,"endAfterInput":93.7}],"lastNamedRenderCompletion":93.7,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024}}]},"delete":{"inputToFirstRaf":{"n":3,"arithmeticMedian":112.3,"p50":112.3,"p95":120.4,"max":120.4,"sum":341.4},"inputToSceneDraw":{"n":3,"arithmeticMedian":111.5,"p50":111.5,"p95":119.7,"max":119.7,"sum":339.2},"synchronousApiCpu":{"n":3,"arithmeticMedian":9,"p50":9,"p95":11,"max":11,"sum":27.8},"backendDrawCpu":{"n":3,"arithmeticMedian":46.3,"p50":46.3,"p95":46.5,"max":46.5,"sum":136.7},"schedulerCpuInObservationWindow":{"n":3,"arithmeticMedian":148,"p50":148,"p95":154.9,"max":154.9,"sum":448},"orderCpu":{"n":3,"arithmeticMedian":36.8,"p50":36.8,"p95":36.9,"max":36.9,"sum":107.7},"mixedPrepareCpu":{"n":3,"arithmeticMedian":0.1,"p50":0.1,"p95":0.1,"max":0.1,"sum":0.2},"miniPictureCpu":{"n":3,"arithmeticMedian":42.7,"p50":42.7,"p95":43.2,"max":43.2,"sum":128.4},"miniPicturesInObservationWindow":3,"encodes":0,"sourceBytes":0,"totalUploadBytes":1495056,"backendFrames":{"n":3,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":3},"individual":[{"index":2,"inputToFirstRaf":120.4,"inputToFirstSceneDraw":119.7,"miniEvents":[{"startAfterInput":120.9,"endAfterInput":164.1}],"lastNamedRenderCompletion":164.1,"usableRectBefore":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":5,"inputToFirstRaf":112.3,"inputToFirstSceneDraw":111.5,"miniEvents":[{"startAfterInput":112.8,"endAfterInput":155.5}],"lastNamedRenderCompletion":155.5,"usableRectBefore":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":8,"inputToFirstRaf":108.7,"inputToFirstSceneDraw":108,"miniEvents":[{"startAfterInput":109.3,"endAfterInput":151.8}],"lastNamedRenderCompletion":151.8,"usableRectBefore":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}}]}},"mutation":{"kind":"churn","degree":1,"target":"p264/sessionize","groupId":"p264","members":19,"incidentConnections":19,"created":3,"reconnected":3,"deleted":3,"incidentGeometryChanges":0,"fields":{"add:all":3,"update:bounds,primitives":3,"delete:all":3}},"cache":{"orderCacheRanges":0,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":0,"orderCacheSources":[{"index":0,"kind":null,"retained":true,"liveInstances":7984,"ranges":0,"buckets":0},{"index":1,"kind":null,"retained":true,"liveInstances":51053,"ranges":0,"buckets":0},{"index":2,"kind":null,"retained":true,"liveInstances":320000,"ranges":0,"buckets":0},{"index":3,"kind":null,"retained":true,"liveInstances":214176,"ranges":0,"buckets":0},{"index":4,"kind":null,"retained":true,"liveInstances":160000,"ranges":0,"buckets":0},{"index":5,"kind":null,"retained":true,"liveInstances":80000,"ranges":0,"buckets":0},{"index":6,"kind":null,"retained":true,"liveInstances":30000,"ranges":0,"buckets":0},{"index":7,"kind":null,"retained":true,"liveInstances":0,"ranges":0,"buckets":0},{"index":8,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"buckets":0},{"index":9,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"buckets":0},{"index":10,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":11,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":12,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0}]},"finalCounts":{"blocks":10000,"connections":10000},"glError":0},
+    {"key":"time-settled-candidate-1-webgl-etl1-0.025135101168782203-churn","gpu":{"n":2,"arithmeticMedian":12.232,"p50":16.53,"p95":16.53,"max":16.53,"sum":24.465},"operations":{"add":{"inputToFirstRaf":{"n":3,"arithmeticMedian":67.8,"p50":67.8,"p95":87.9,"max":87.9,"sum":220.8},"inputToSceneDraw":{"n":3,"arithmeticMedian":67.7,"p50":67.7,"p95":87.8,"max":87.8,"sum":220.6},"synchronousApiCpu":{"n":3,"arithmeticMedian":0.8,"p50":0.8,"p95":1.2,"max":1.2,"sum":2.7},"backendDrawCpu":{"n":3,"arithmeticMedian":32.8,"p50":32.8,"p95":37,"max":37,"sum":102},"schedulerCpuInObservationWindow":{"n":3,"arithmeticMedian":59.5,"p50":59.5,"p95":80.7,"max":80.7,"sum":198},"orderCpu":{"n":3,"arithmeticMedian":23.3,"p50":23.3,"p95":26.7,"max":26.7,"sum":73.2},"mixedPrepareCpu":{"n":3,"arithmeticMedian":0.1,"p50":0.1,"p95":0.1,"max":0.1,"sum":0.2},"miniPictureCpu":{"n":3,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":6,"sourceBytes":2400,"totalUploadBytes":1194120,"backendFrames":{"n":3,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":3},"individual":[{"index":0,"inputToFirstRaf":87.9,"inputToFirstSceneDraw":87.8,"miniEvents":[],"lastNamedRenderCompletion":87.8,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":3,"inputToFirstRaf":67.8,"inputToFirstSceneDraw":67.7,"miniEvents":[],"lastNamedRenderCompletion":67.7,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":6,"inputToFirstRaf":65.1,"inputToFirstSceneDraw":65.1,"miniEvents":[],"lastNamedRenderCompletion":65.1,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}}]},"reconnect":{"inputToFirstRaf":{"n":3,"arithmeticMedian":61.2,"p50":61.2,"p95":61.7,"max":61.7,"sum":182.4},"inputToSceneDraw":{"n":3,"arithmeticMedian":61.1,"p50":61.1,"p95":61.6,"max":61.6,"sum":182.1},"synchronousApiCpu":{"n":3,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":0.3},"backendDrawCpu":{"n":3,"arithmeticMedian":52.3,"p50":52.3,"p95":52.5,"max":52.5,"sum":155.4},"schedulerCpuInObservationWindow":{"n":3,"arithmeticMedian":97.6,"p50":97.6,"p95":99.5,"max":99.5,"sum":287.8},"orderCpu":{"n":3,"arithmeticMedian":37.5,"p50":37.5,"p95":38.5,"max":38.5,"sum":112.4},"mixedPrepareCpu":{"n":3,"arithmeticMedian":0.1,"p50":0.1,"p95":0.1,"max":0.1,"sum":0.2},"miniPictureCpu":{"n":3,"arithmeticMedian":42.4,"p50":42.4,"p95":43.2,"max":43.2,"sum":123.1},"miniPicturesInObservationWindow":3,"encodes":6,"sourceBytes":30240,"totalUploadBytes":964332,"backendFrames":{"n":3,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":3},"individual":[{"index":1,"inputToFirstRaf":61.2,"inputToFirstSceneDraw":61.1,"miniEvents":[{"startAfterInput":61.6,"endAfterInput":104.1}],"lastNamedRenderCompletion":104.1,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024}},{"index":4,"inputToFirstRaf":59.5,"inputToFirstSceneDraw":59.4,"miniEvents":[{"startAfterInput":60,"endAfterInput":97.6}],"lastNamedRenderCompletion":97.6,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024}},{"index":7,"inputToFirstRaf":61.7,"inputToFirstSceneDraw":61.6,"miniEvents":[{"startAfterInput":62,"endAfterInput":105.2}],"lastNamedRenderCompletion":105.2,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024}}]},"delete":{"inputToFirstRaf":{"n":3,"arithmeticMedian":78.2,"p50":78.2,"p95":78.6,"max":78.6,"sum":231.8},"inputToSceneDraw":{"n":3,"arithmeticMedian":77.1,"p50":77.1,"p95":77.6,"max":77.6,"sum":228.9},"synchronousApiCpu":{"n":3,"arithmeticMedian":8,"p50":8,"p95":8.1,"max":8.1,"sum":21.7},"backendDrawCpu":{"n":3,"arithmeticMedian":43.3,"p50":43.3,"p95":44.6,"max":44.6,"sum":131.1},"schedulerCpuInObservationWindow":{"n":3,"arithmeticMedian":113.3,"p50":113.3,"p95":115.7,"max":115.7,"sum":334.1},"orderCpu":{"n":3,"arithmeticMedian":33.4,"p50":33.4,"p95":34.2,"max":34.2,"sum":100.2},"mixedPrepareCpu":{"n":3,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":0.3},"miniPictureCpu":{"n":3,"arithmeticMedian":40.6,"p50":40.6,"p95":43.2,"max":43.2,"sum":120.3},"miniPicturesInObservationWindow":3,"encodes":0,"sourceBytes":0,"totalUploadBytes":1495056,"backendFrames":{"n":3,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":3},"individual":[{"index":2,"inputToFirstRaf":78.6,"inputToFirstSceneDraw":77.6,"miniEvents":[{"startAfterInput":78.9,"endAfterInput":119.5}],"lastNamedRenderCompletion":119.5,"usableRectBefore":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":5,"inputToFirstRaf":75,"inputToFirstSceneDraw":74.2,"miniEvents":[{"startAfterInput":75.3,"endAfterInput":111.8}],"lastNamedRenderCompletion":111.8,"usableRectBefore":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":8,"inputToFirstRaf":78.2,"inputToFirstSceneDraw":77.1,"miniEvents":[{"startAfterInput":78.5,"endAfterInput":121.7}],"lastNamedRenderCompletion":121.7,"usableRectBefore":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}}]}},"mutation":{"kind":"churn","degree":1,"target":"p264/sessionize","groupId":"p264","members":19,"incidentConnections":19,"created":3,"reconnected":3,"deleted":3,"incidentGeometryChanges":0,"fields":{"add:all":3,"update:bounds,primitives":3,"delete:all":3}},"cache":{"orderCacheRanges":263132,"orderCachePositions":0,"orderCachePositionBytes":0,"orderCacheBuckets":258780,"orderCacheSources":[{"index":0,"kind":null,"retained":true,"liveInstances":7984,"ranges":3992,"buckets":3066},{"index":1,"kind":null,"retained":true,"liveInstances":51053,"ranges":13992,"buckets":11468},{"index":2,"kind":null,"retained":true,"liveInstances":320000,"ranges":50000,"buckets":50000},{"index":3,"kind":null,"retained":true,"liveInstances":214176,"ranges":55148,"buckets":54246},{"index":4,"kind":null,"retained":true,"liveInstances":160000,"ranges":30000,"buckets":30000},{"index":5,"kind":null,"retained":true,"liveInstances":80000,"ranges":20000,"buckets":20000},{"index":6,"kind":null,"retained":true,"liveInstances":30000,"ranges":30000,"buckets":30000},{"index":7,"kind":null,"retained":true,"liveInstances":0,"ranges":0,"buckets":0},{"index":8,"kind":null,"retained":true,"liveInstances":120000,"ranges":30000,"buckets":30000},{"index":9,"kind":null,"retained":true,"liveInstances":120000,"ranges":30000,"buckets":30000},{"index":10,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":11,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0},{"index":12,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"buckets":0}]},"finalCounts":{"blocks":10000,"connections":10000},"glError":0},
+    {"key":"minimap-true-webgl-etl1-0.025135101168782203-churn","gpu":{"n":2,"arithmeticMedian":17.223,"p50":22.774,"p95":22.774,"max":22.774,"sum":34.446},"operations":{"add":{"inputToFirstRaf":{"n":3,"arithmeticMedian":71.9,"p50":71.9,"p95":94.8,"max":94.8,"sum":232.6},"inputToSceneDraw":{"n":3,"arithmeticMedian":71.9,"p50":71.9,"p95":94.7,"max":94.7,"sum":232.3},"synchronousApiCpu":{"n":3,"arithmeticMedian":0.5,"p50":0.5,"p95":0.6,"max":0.6,"sum":1.5},"backendDrawCpu":{"n":3,"arithmeticMedian":40.8,"p50":40.8,"p95":50.7,"max":50.7,"sum":126.3},"schedulerCpuInObservationWindow":{"n":3,"arithmeticMedian":63.9,"p50":63.9,"p95":86.9,"max":86.9,"sum":208.6},"orderCpu":{"n":3,"arithmeticMedian":30.9,"p50":30.9,"p95":39.2,"max":39.2,"sum":94.8},"mixedPrepareCpu":{"n":3,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":0.3},"miniPictureCpu":{"n":3,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":6,"sourceBytes":2400,"totalUploadBytes":1194120,"backendFrames":{"n":3,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":3},"individual":[{"index":0,"inputToFirstRaf":94.8,"inputToFirstSceneDraw":94.7,"miniEvents":[],"lastNamedRenderCompletion":94.7,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":3,"inputToFirstRaf":65.9,"inputToFirstSceneDraw":65.7,"miniEvents":[],"lastNamedRenderCompletion":65.7,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":6,"inputToFirstRaf":71.9,"inputToFirstSceneDraw":71.9,"miniEvents":[],"lastNamedRenderCompletion":71.9,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}}]},"reconnect":{"inputToFirstRaf":{"n":3,"arithmeticMedian":53.1,"p50":53.1,"p95":56.3,"max":56.3,"sum":161.6},"inputToSceneDraw":{"n":3,"arithmeticMedian":53.1,"p50":53.1,"p95":56.1,"max":56.1,"sum":161.3},"synchronousApiCpu":{"n":3,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.1},"backendDrawCpu":{"n":3,"arithmeticMedian":43.6,"p50":43.6,"p95":46.6,"max":46.6,"sum":133.7},"schedulerCpuInObservationWindow":{"n":3,"arithmeticMedian":98.4,"p50":98.4,"p95":98.9,"max":98.9,"sum":291.5},"orderCpu":{"n":3,"arithmeticMedian":33.1,"p50":33.1,"p95":35.7,"max":35.7,"sum":98.5},"mixedPrepareCpu":{"n":3,"arithmeticMedian":0,"p50":0,"p95":0.2,"max":0.2,"sum":0.2},"miniPictureCpu":{"n":3,"arithmeticMedian":49.1,"p50":49.1,"p95":51.6,"max":51.6,"sum":146.9},"miniPicturesInObservationWindow":3,"encodes":6,"sourceBytes":30240,"totalUploadBytes":964332,"backendFrames":{"n":3,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":3},"individual":[{"index":1,"inputToFirstRaf":56.3,"inputToFirstSceneDraw":56.1,"miniEvents":[{"startAfterInput":56.6,"endAfterInput":105.7}],"lastNamedRenderCompletion":105.7,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024}},{"index":4,"inputToFirstRaf":52.2,"inputToFirstSceneDraw":52.1,"miniEvents":[{"startAfterInput":52.4,"endAfterInput":104.1}],"lastNamedRenderCompletion":104.1,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024}},{"index":7,"inputToFirstRaf":53.1,"inputToFirstSceneDraw":53.1,"miniEvents":[{"startAfterInput":53.3,"endAfterInput":99.5}],"lastNamedRenderCompletion":99.5,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024}}]},"delete":{"inputToFirstRaf":{"n":3,"arithmeticMedian":80.3,"p50":80.3,"p95":80.4,"max":80.4,"sum":240.3},"inputToSceneDraw":{"n":3,"arithmeticMedian":79.1,"p50":79.1,"p95":79.4,"max":79.4,"sum":237.1},"synchronousApiCpu":{"n":3,"arithmeticMedian":6.7,"p50":6.7,"p95":7.2,"max":7.2,"sum":20.6},"backendDrawCpu":{"n":3,"arithmeticMedian":49.5,"p50":49.5,"p95":50,"max":50,"sum":148.3},"schedulerCpuInObservationWindow":{"n":3,"arithmeticMedian":120.6,"p50":120.6,"p95":122.5,"max":122.5,"sum":363.5},"orderCpu":{"n":3,"arithmeticMedian":39.1,"p50":39.1,"p95":39.9,"max":39.9,"sum":117.8},"mixedPrepareCpu":{"n":3,"arithmeticMedian":0.1,"p50":0.1,"p95":0.1,"max":0.1,"sum":0.3},"miniPictureCpu":{"n":3,"arithmeticMedian":45.4,"p50":45.4,"p95":48.1,"max":48.1,"sum":135.7},"miniPicturesInObservationWindow":3,"encodes":0,"sourceBytes":0,"totalUploadBytes":1495056,"backendFrames":{"n":3,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":3},"individual":[{"index":2,"inputToFirstRaf":80.3,"inputToFirstSceneDraw":79.1,"miniEvents":[{"startAfterInput":80.6,"endAfterInput":128.7}],"lastNamedRenderCompletion":128.7,"usableRectBefore":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":5,"inputToFirstRaf":79.6,"inputToFirstSceneDraw":78.6,"miniEvents":[{"startAfterInput":79.9,"endAfterInput":122.1}],"lastNamedRenderCompletion":122.1,"usableRectBefore":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":8,"inputToFirstRaf":80.4,"inputToFirstSceneDraw":79.4,"miniEvents":[{"startAfterInput":80.6,"endAfterInput":126}],"lastNamedRenderCompletion":126,"usableRectBefore":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}}]}},"mutation":{"kind":"churn","degree":1,"target":"p264/sessionize","groupId":"p264","members":19,"incidentConnections":19,"created":3,"reconnected":3,"deleted":3,"incidentGeometryChanges":0,"fields":{"add:all":3,"update:bounds,primitives":3,"delete:all":3}},"cache":{"orderCacheRanges":0,"orderCachePositions":263132,"orderCachePositionBytes":2105056,"orderCacheBuckets":258780,"orderCacheSources":[{"index":0,"kind":null,"retained":true,"liveInstances":7984,"ranges":0,"positions":3992,"positionBytes":31936,"buckets":3066},{"index":1,"kind":null,"retained":true,"liveInstances":51053,"ranges":0,"positions":13992,"positionBytes":111936,"buckets":11468},{"index":2,"kind":null,"retained":true,"liveInstances":320000,"ranges":0,"positions":50000,"positionBytes":400000,"buckets":50000},{"index":3,"kind":null,"retained":true,"liveInstances":214176,"ranges":0,"positions":55148,"positionBytes":441184,"buckets":54246},{"index":4,"kind":null,"retained":true,"liveInstances":160000,"ranges":0,"positions":30000,"positionBytes":240000,"buckets":30000},{"index":5,"kind":null,"retained":true,"liveInstances":80000,"ranges":0,"positions":20000,"positionBytes":160000,"buckets":20000},{"index":6,"kind":null,"retained":true,"liveInstances":30000,"ranges":0,"positions":30000,"positionBytes":240000,"buckets":30000},{"index":7,"kind":null,"retained":true,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":8,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"positions":30000,"positionBytes":240000,"buckets":30000},{"index":9,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"positions":30000,"positionBytes":240000,"buckets":30000},{"index":10,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":11,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":12,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0}]},"finalCounts":{"blocks":10000,"connections":10000},"glError":0},
+    {"key":"minimap-false-webgl-etl1-0.025135101168782203-churn","gpu":{"n":2,"arithmeticMedian":14.846,"p50":15.783,"p95":15.783,"max":15.783,"sum":29.693},"operations":{"add":{"inputToFirstRaf":{"n":3,"arithmeticMedian":82.3,"p50":82.3,"p95":100.1,"max":100.1,"sum":254.9},"inputToSceneDraw":{"n":3,"arithmeticMedian":82.2,"p50":82.2,"p95":99.9,"max":99.9,"sum":254.5},"synchronousApiCpu":{"n":3,"arithmeticMedian":0.5,"p50":0.5,"p95":0.7,"max":0.7,"sum":1.7},"backendDrawCpu":{"n":3,"arithmeticMedian":40.9,"p50":40.9,"p95":53,"max":53,"sum":133.9},"schedulerCpuInObservationWindow":{"n":3,"arithmeticMedian":74,"p50":74,"p95":92.6,"max":92.6,"sum":231.5},"orderCpu":{"n":3,"arithmeticMedian":31,"p50":31,"p95":41.9,"max":41.9,"sum":99.4},"mixedPrepareCpu":{"n":3,"arithmeticMedian":0,"p50":0,"p95":0.1,"max":0.1,"sum":0.1},"miniPictureCpu":{"n":3,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":6,"sourceBytes":2400,"totalUploadBytes":1194120,"backendFrames":{"n":3,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":3},"individual":[{"index":0,"inputToFirstRaf":100.1,"inputToFirstSceneDraw":99.9,"miniEvents":[],"lastNamedRenderCompletion":99.9,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":3,"inputToFirstRaf":82.3,"inputToFirstSceneDraw":82.2,"miniEvents":[],"lastNamedRenderCompletion":82.2,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":6,"inputToFirstRaf":72.5,"inputToFirstSceneDraw":72.4,"miniEvents":[],"lastNamedRenderCompletion":72.4,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}}]},"reconnect":{"inputToFirstRaf":{"n":3,"arithmeticMedian":62.2,"p50":62.2,"p95":69,"max":69,"sum":190.5},"inputToSceneDraw":{"n":3,"arithmeticMedian":62,"p50":62,"p95":68.7,"max":68.7,"sum":189.9},"synchronousApiCpu":{"n":3,"arithmeticMedian":0.1,"p50":0.1,"p95":0.2,"max":0.2,"sum":0.4},"backendDrawCpu":{"n":3,"arithmeticMedian":53.5,"p50":53.5,"p95":59.8,"max":59.8,"sum":162.7},"schedulerCpuInObservationWindow":{"n":3,"arithmeticMedian":54.7,"p50":54.7,"p95":60.9,"max":60.9,"sum":166.6},"orderCpu":{"n":3,"arithmeticMedian":38.8,"p50":38.8,"p95":42.1,"max":42.1,"sum":119.6},"mixedPrepareCpu":{"n":3,"arithmeticMedian":0.1,"p50":0.1,"p95":0.1,"max":0.1,"sum":0.3},"miniPictureCpu":{"n":3,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":6,"sourceBytes":30240,"totalUploadBytes":964332,"backendFrames":{"n":3,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":3},"individual":[{"index":1,"inputToFirstRaf":62.2,"inputToFirstSceneDraw":62,"miniEvents":[],"lastNamedRenderCompletion":62,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024}},{"index":4,"inputToFirstRaf":69,"inputToFirstSceneDraw":68.7,"miniEvents":[],"lastNamedRenderCompletion":68.7,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024}},{"index":7,"inputToFirstRaf":59.3,"inputToFirstSceneDraw":59.2,"miniEvents":[],"lastNamedRenderCompletion":59.2,"usableRectBefore":{"x":-48,"y":-48,"width":63056,"height":27024},"usableRectAfter":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024}}]},"delete":{"inputToFirstRaf":{"n":3,"arithmeticMedian":107.1,"p50":107.1,"p95":109.4,"max":109.4,"sum":301.8},"inputToSceneDraw":{"n":3,"arithmeticMedian":106.1,"p50":106.1,"p95":107.9,"max":107.9,"sum":298.3},"synchronousApiCpu":{"n":3,"arithmeticMedian":10.2,"p50":10.2,"p95":11.4,"max":11.4,"sum":28.6},"backendDrawCpu":{"n":3,"arithmeticMedian":62.9,"p50":62.9,"p95":64.2,"max":64.2,"sum":178.6},"schedulerCpuInObservationWindow":{"n":3,"arithmeticMedian":96.2,"p50":96.2,"p95":99.3,"max":99.3,"sum":272.7},"orderCpu":{"n":3,"arithmeticMedian":51.4,"p50":51.4,"p95":51.5,"max":51.5,"sum":144.4},"mixedPrepareCpu":{"n":3,"arithmeticMedian":0.1,"p50":0.1,"p95":0.1,"max":0.1,"sum":0.2},"miniPictureCpu":{"n":3,"arithmeticMedian":0,"p50":0,"p95":0,"max":0,"sum":0},"miniPicturesInObservationWindow":0,"encodes":0,"sourceBytes":0,"totalUploadBytes":1495056,"backendFrames":{"n":3,"arithmeticMedian":1,"p50":1,"p95":1,"max":1,"sum":3},"individual":[{"index":2,"inputToFirstRaf":109.4,"inputToFirstSceneDraw":107.9,"miniEvents":[],"lastNamedRenderCompletion":107.9,"usableRectBefore":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":5,"inputToFirstRaf":85.3,"inputToFirstSceneDraw":84.3,"miniEvents":[],"lastNamedRenderCompletion":84.3,"usableRectBefore":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}},{"index":8,"inputToFirstRaf":107.1,"inputToFirstSceneDraw":106.1,"miniEvents":[],"lastNamedRenderCompletion":106.1,"usableRectBefore":{"x":-4561.104,"y":-48,"width":71642.208,"height":27024},"usableRectAfter":{"x":-48,"y":-48,"width":63056,"height":27024}}]}},"mutation":{"kind":"churn","degree":1,"target":"p264/sessionize","groupId":"p264","members":19,"incidentConnections":19,"created":3,"reconnected":3,"deleted":3,"incidentGeometryChanges":0,"fields":{"add:all":3,"update:bounds,primitives":3,"delete:all":3}},"cache":{"orderCacheRanges":0,"orderCachePositions":263132,"orderCachePositionBytes":2105056,"orderCacheBuckets":258780,"orderCacheSources":[{"index":0,"kind":null,"retained":true,"liveInstances":7984,"ranges":0,"positions":3992,"positionBytes":31936,"buckets":3066},{"index":1,"kind":null,"retained":true,"liveInstances":51053,"ranges":0,"positions":13992,"positionBytes":111936,"buckets":11468},{"index":2,"kind":null,"retained":true,"liveInstances":320000,"ranges":0,"positions":50000,"positionBytes":400000,"buckets":50000},{"index":3,"kind":null,"retained":true,"liveInstances":214176,"ranges":0,"positions":55148,"positionBytes":441184,"buckets":54246},{"index":4,"kind":null,"retained":true,"liveInstances":160000,"ranges":0,"positions":30000,"positionBytes":240000,"buckets":30000},{"index":5,"kind":null,"retained":true,"liveInstances":80000,"ranges":0,"positions":20000,"positionBytes":160000,"buckets":20000},{"index":6,"kind":null,"retained":true,"liveInstances":30000,"ranges":0,"positions":30000,"positionBytes":240000,"buckets":30000},{"index":7,"kind":null,"retained":true,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":8,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"positions":30000,"positionBytes":240000,"buckets":30000},{"index":9,"kind":null,"retained":true,"liveInstances":120000,"ranges":0,"positions":30000,"positionBytes":240000,"buckets":30000},{"index":10,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":11,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0},{"index":12,"kind":null,"retained":false,"liveInstances":0,"ranges":0,"positions":0,"positionBytes":0,"buckets":0}]},"finalCounts":{"blocks":10000,"connections":10000},"glError":0}
+  ],
+  "quality": [
+    {
+      "baseline": "edit-abba-0-baseline-etl1-edit-add",
+      "candidate": "edit-abba-1-candidate-1-etl1-edit-add",
+      "scene": "etl1",
+      "operation": "add",
+      "fullRgbaByteExact": true,
+      "proof": "Identical complete gzip streams imply identical decompressed full RGBA buffers.",
+      "width": 3200,
+      "height": 1930,
+      "scale": 0.35,
+      "time": 2.5,
+      "mutation": {
+        "operation": "add",
+        "count": 10001,
+        "edge": "__pixel_edit_probe"
+      },
+      "usableRectBefore": {
+        "x": -48,
+        "y": -48,
+        "width": 63056,
+        "height": 27024
+      },
+      "usableRectAfter": {
+        "x": -48,
+        "y": -48,
+        "width": 63056,
+        "height": 27024
+      },
+      "error": 0
+    },
+    {
+      "baseline": "edit-abba-0-baseline-etl1-edit-reconnect",
+      "candidate": "edit-abba-1-candidate-1-etl1-edit-reconnect",
+      "scene": "etl1",
+      "operation": "reconnect",
+      "fullRgbaByteExact": true,
+      "proof": "Identical complete gzip streams imply identical decompressed full RGBA buffers.",
+      "width": 3200,
+      "height": 1930,
+      "scale": 0.35,
+      "time": 2.5,
+      "mutation": {
+        "operation": "reconnect",
+        "count": 10001,
+        "edge": "__pixel_edit_probe"
+      },
+      "usableRectBefore": {
+        "x": -48,
+        "y": -48,
+        "width": 63056,
+        "height": 27024
+      },
+      "usableRectAfter": {
+        "x": -4561.104,
+        "y": -48,
+        "width": 71642.208,
+        "height": 27024
+      },
+      "error": 0
+    },
+    {
+      "baseline": "edit-abba-0-baseline-etl1-edit-delete",
+      "candidate": "edit-abba-1-candidate-1-etl1-edit-delete",
+      "scene": "etl1",
+      "operation": "delete",
+      "fullRgbaByteExact": true,
+      "proof": "Identical complete gzip streams imply identical decompressed full RGBA buffers.",
+      "width": 3200,
+      "height": 1930,
+      "scale": 0.35,
+      "time": 2.5,
+      "mutation": {
+        "operation": "delete",
+        "count": 10000,
+        "edge": null
+      },
+      "usableRectBefore": {
+        "x": -48,
+        "y": -48,
+        "width": 63056,
+        "height": 27024
+      },
+      "usableRectAfter": {
+        "x": -48,
+        "y": -48,
+        "width": 63056,
+        "height": 27024
+      },
+      "error": 0
+    },
+    {
+      "baseline": "edit-abba-0-baseline-plain-edit-add",
+      "candidate": "edit-abba-1-candidate-1-plain-edit-add",
+      "scene": "plain",
+      "operation": "add",
+      "fullRgbaByteExact": true,
+      "proof": "Identical complete gzip streams imply identical decompressed full RGBA buffers.",
+      "width": 3200,
+      "height": 2000,
+      "scale": 0.35,
+      "time": 2.5,
+      "mutation": {
+        "operation": "add",
+        "count": 18605,
+        "edge": "__pixel_edit_probe"
+      },
+      "usableRectBefore": {
+        "x": 0,
+        "y": -72650,
+        "width": 68950,
+        "height": 145950
+      },
+      "usableRectAfter": {
+        "x": 0,
+        "y": -72650,
+        "width": 68950,
+        "height": 145950
+      },
+      "error": 0
+    },
+    {
+      "baseline": "edit-abba-0-baseline-plain-edit-reconnect",
+      "candidate": "edit-abba-1-candidate-1-plain-edit-reconnect",
+      "scene": "plain",
+      "operation": "reconnect",
+      "fullRgbaByteExact": true,
+      "proof": "Identical complete gzip streams imply identical decompressed full RGBA buffers.",
+      "width": 3200,
+      "height": 2000,
+      "scale": 0.35,
+      "time": 2.5,
+      "mutation": {
+        "operation": "reconnect",
+        "count": 18605,
+        "edge": "__pixel_edit_probe"
+      },
+      "usableRectBefore": {
+        "x": 0,
+        "y": -72650,
+        "width": 68950,
+        "height": 145950
+      },
+      "usableRectAfter": {
+        "x": -54.799,
+        "y": -72650,
+        "width": 69004.799,
+        "height": 145950
+      },
+      "error": 0
+    },
+    {
+      "baseline": "edit-abba-0-baseline-plain-edit-delete",
+      "candidate": "edit-abba-1-candidate-1-plain-edit-delete",
+      "scene": "plain",
+      "operation": "delete",
+      "fullRgbaByteExact": true,
+      "proof": "Identical complete gzip streams imply identical decompressed full RGBA buffers.",
+      "width": 3200,
+      "height": 2000,
+      "scale": 0.35,
+      "time": 2.5,
+      "mutation": {
+        "operation": "delete",
+        "count": 18604,
+        "edge": null
+      },
+      "usableRectBefore": {
+        "x": 0,
+        "y": -72650,
+        "width": 68950,
+        "height": 145950
+      },
+      "usableRectAfter": {
+        "x": 0,
+        "y": -72650,
+        "width": 68950,
+        "height": 145950
+      },
+      "error": 0
+    },
+    {
+      "baseline": "lean-pair-baseline-etl1-edit-add",
+      "candidate": "lean-pair-candidate-lean-etl1-edit-add",
+      "scene": "etl1",
+      "operation": "add",
+      "fullRgbaByteExact": true,
+      "proof": "Identical complete gzip streams imply identical decompressed full RGBA buffers.",
+      "width": 3200,
+      "height": 1930,
+      "scale": 0.35,
+      "time": 2.5,
+      "mutation": {
+        "operation": "add",
+        "count": 10001,
+        "edge": "__pixel_edit_probe"
+      },
+      "usableRectBefore": {
+        "x": -48,
+        "y": -48,
+        "width": 63056,
+        "height": 27024
+      },
+      "usableRectAfter": {
+        "x": -48,
+        "y": -48,
+        "width": 63056,
+        "height": 27024
+      },
+      "error": 0
+    },
+    {
+      "baseline": "lean-pair-baseline-etl1-edit-reconnect",
+      "candidate": "lean-pair-candidate-lean-etl1-edit-reconnect",
+      "scene": "etl1",
+      "operation": "reconnect",
+      "fullRgbaByteExact": true,
+      "proof": "Identical complete gzip streams imply identical decompressed full RGBA buffers.",
+      "width": 3200,
+      "height": 1930,
+      "scale": 0.35,
+      "time": 2.5,
+      "mutation": {
+        "operation": "reconnect",
+        "count": 10001,
+        "edge": "__pixel_edit_probe"
+      },
+      "usableRectBefore": {
+        "x": -48,
+        "y": -48,
+        "width": 63056,
+        "height": 27024
+      },
+      "usableRectAfter": {
+        "x": -4561.104,
+        "y": -48,
+        "width": 71642.208,
+        "height": 27024
+      },
+      "error": 0
+    },
+    {
+      "baseline": "lean-pair-baseline-etl1-edit-delete",
+      "candidate": "lean-pair-candidate-lean-etl1-edit-delete",
+      "scene": "etl1",
+      "operation": "delete",
+      "fullRgbaByteExact": true,
+      "proof": "Identical complete gzip streams imply identical decompressed full RGBA buffers.",
+      "width": 3200,
+      "height": 1930,
+      "scale": 0.35,
+      "time": 2.5,
+      "mutation": {
+        "operation": "delete",
+        "count": 10000,
+        "edge": null
+      },
+      "usableRectBefore": {
+        "x": -48,
+        "y": -48,
+        "width": 63056,
+        "height": 27024
+      },
+      "usableRectAfter": {
+        "x": -48,
+        "y": -48,
+        "width": 63056,
+        "height": 27024
+      },
+      "error": 0
+    },
+    {
+      "baseline": "lean-pair-baseline-plain-edit-add",
+      "candidate": "lean-pair-candidate-lean-plain-edit-add",
+      "scene": "plain",
+      "operation": "add",
+      "fullRgbaByteExact": true,
+      "proof": "Identical complete gzip streams imply identical decompressed full RGBA buffers.",
+      "width": 3200,
+      "height": 2000,
+      "scale": 0.35,
+      "time": 2.5,
+      "mutation": {
+        "operation": "add",
+        "count": 18605,
+        "edge": "__pixel_edit_probe"
+      },
+      "usableRectBefore": {
+        "x": 0,
+        "y": -72650,
+        "width": 68950,
+        "height": 145950
+      },
+      "usableRectAfter": {
+        "x": 0,
+        "y": -72650,
+        "width": 68950,
+        "height": 145950
+      },
+      "error": 0
+    },
+    {
+      "baseline": "lean-pair-baseline-plain-edit-reconnect",
+      "candidate": "lean-pair-candidate-lean-plain-edit-reconnect",
+      "scene": "plain",
+      "operation": "reconnect",
+      "fullRgbaByteExact": true,
+      "proof": "Identical complete gzip streams imply identical decompressed full RGBA buffers.",
+      "width": 3200,
+      "height": 2000,
+      "scale": 0.35,
+      "time": 2.5,
+      "mutation": {
+        "operation": "reconnect",
+        "count": 18605,
+        "edge": "__pixel_edit_probe"
+      },
+      "usableRectBefore": {
+        "x": 0,
+        "y": -72650,
+        "width": 68950,
+        "height": 145950
+      },
+      "usableRectAfter": {
+        "x": -54.799,
+        "y": -72650,
+        "width": 69004.799,
+        "height": 145950
+      },
+      "error": 0
+    },
+    {
+      "baseline": "lean-pair-baseline-plain-edit-delete",
+      "candidate": "lean-pair-candidate-lean-plain-edit-delete",
+      "scene": "plain",
+      "operation": "delete",
+      "fullRgbaByteExact": true,
+      "proof": "Identical complete gzip streams imply identical decompressed full RGBA buffers.",
+      "width": 3200,
+      "height": 2000,
+      "scale": 0.35,
+      "time": 2.5,
+      "mutation": {
+        "operation": "delete",
+        "count": 18604,
+        "edge": null
+      },
+      "usableRectBefore": {
+        "x": 0,
+        "y": -72650,
+        "width": 68950,
+        "height": 145950
+      },
+      "usableRectAfter": {
+        "x": 0,
+        "y": -72650,
+        "width": 68950,
+        "height": 145950
+      },
+      "error": 0
+    }
+  ],
+  "diagnostics": [
+    {
+      "key": "settled-profile-webgl-etl1-0.025135101168782203-churn",
+      "traceWindowGc": {
+        "count": 16,
+        "totalMs": 77.633,
+        "maxMs": 5.744,
+        "major": []
+      },
+      "operations": {
+        "add": {
+          "inputToRaf": {
+            "n": 4,
+            "p50": 81.9,
+            "p95": 95.7,
+            "max": 95.7,
+            "sum": 326.1
+          },
+          "synchronous": {
+            "n": 4,
+            "p50": 0.5,
+            "p95": 1.3,
+            "max": 1.3,
+            "sum": 2.6
+          },
+          "schedulerCpu": {
+            "n": 4,
+            "p50": 76.7,
+            "p95": 87.2,
+            "max": 87.2,
+            "sum": 304.1
+          },
+          "backendDraw": {
+            "n": 4,
+            "p50": 50,
+            "p95": 51.5,
+            "max": 51.5,
+            "sum": 191.2
+          },
+          "gcOverlap": {
+            "n": 4,
+            "p50": 4.943,
+            "p95": 5.349,
+            "max": 5.349,
+            "sum": 18.636
+          },
+          "topCpuSelf": [
+            {
+              "name": "forEachRange @46794",
+              "ms": 38.734
+            },
+            {
+              "name": "(idle) @-1",
+              "ms": 30.512
+            },
+            {
+              "name": "mergeBuckets @50780",
+              "ms": 20.176
+            },
+            {
+              "name": "sortBuckets @50757",
+              "ms": 18.895
+            },
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 17.526
+            },
+            {
+              "name": "rebuild @49619",
+              "ms": 16.372
+            },
+            {
+              "name": "filterTranslucentRuns @50802",
+              "ms": 16.372
+            },
+            {
+              "name": "checkData @65262",
+              "ms": 15.122
+            }
+          ],
+          "topCpuStacks": [
+            {
+              "name": "forEachRange @46794 <- sourceBuckets @50746 <-  @50830 <- bucketLists @50829 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17",
+              "ms": 38.734
+            },
+            {
+              "name": "(idle) @-1 <- (root) @-1",
+              "ms": 30.512
+            },
+            {
+              "name": "mergeBuckets @50780 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17 <- draw @51790 <-  @28 <- object.<computed> @17",
+              "ms": 20.176
+            },
+            {
+              "name": "sortBuckets @50757 <-  @50830 <- bucketLists @50829 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17 <- draw @51790",
+              "ms": 18.895
+            },
+            {
+              "name": "(garbage collector) @-1 <- (root) @-1",
+              "ms": 17.526
+            }
+          ]
+        },
+        "reconnect": {
+          "inputToRaf": {
+            "n": 4,
+            "p50": 55,
+            "p95": 55.3,
+            "max": 55.3,
+            "sum": 207.9
+          },
+          "synchronous": {
+            "n": 4,
+            "p50": 0.1,
+            "p95": 0.1,
+            "max": 0.1,
+            "sum": 0.4
+          },
+          "schedulerCpu": {
+            "n": 4,
+            "p50": 91,
+            "p95": 95.2,
+            "max": 95.2,
+            "sum": 351.3
+          },
+          "backendDraw": {
+            "n": 4,
+            "p50": 45.8,
+            "p95": 46.7,
+            "max": 46.7,
+            "sum": 172.4
+          },
+          "gcOverlap": {
+            "n": 4,
+            "p50": 4.724,
+            "p95": 5.405,
+            "max": 5.405,
+            "sum": 18.131
+          },
+          "topCpuSelf": [
+            {
+              "name": "forEachRange @46794",
+              "ms": 41.51
+            },
+            {
+              "name": "(idle) @-1",
+              "ms": 32.674
+            },
+            {
+              "name": "mergeBuckets @50780",
+              "ms": 21.387
+            },
+            {
+              "name": "sortBuckets @50757",
+              "ms": 20.939
+            },
+            {
+              "name": "drawInterpreted @71490",
+              "ms": 20.016
+            },
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 18.961
+            },
+            {
+              "name": "query @70165",
+              "ms": 18.688
+            },
+            {
+              "name": "bezierCurveTo @-1",
+              "ms": 17.27
+            }
+          ],
+          "topCpuStacks": [
+            {
+              "name": "forEachRange @46794 <- sourceBuckets @50746 <-  @50830 <- bucketLists @50829 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17",
+              "ms": 41.51
+            },
+            {
+              "name": "(idle) @-1 <- (root) @-1",
+              "ms": 32.674
+            },
+            {
+              "name": "mergeBuckets @50780 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17 <- draw @51790 <-  @28 <- object.<computed> @17",
+              "ms": 21.387
+            },
+            {
+              "name": "sortBuckets @50757 <-  @50830 <- bucketLists @50829 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17 <- draw @51790",
+              "ms": 20.939
+            },
+            {
+              "name": "drawInterpreted @71490 <- flush @75362 <- renderBlocks @75347 <- drawPicture @75223 <-  @25 <- object.<computed> @17 <- render @75172 <- renderLifeCycle @57999",
+              "ms": 20.016
+            }
+          ]
+        },
+        "delete": {
+          "inputToRaf": {
+            "n": 4,
+            "p50": 113.4,
+            "p95": 121.9,
+            "max": 121.9,
+            "sum": 452.1
+          },
+          "synchronous": {
+            "n": 4,
+            "p50": 9.4,
+            "p95": 9.6,
+            "max": 9.6,
+            "sum": 34.5
+          },
+          "schedulerCpu": {
+            "n": 4,
+            "p50": 159.2,
+            "p95": 165.6,
+            "max": 165.6,
+            "sum": 614.2
+          },
+          "backendDraw": {
+            "n": 4,
+            "p50": 42.7,
+            "p95": 45.3,
+            "max": 45.3,
+            "sum": 170
+          },
+          "gcOverlap": {
+            "n": 4,
+            "p50": 10.435,
+            "p95": 10.865,
+            "max": 10.865,
+            "sum": 40.866
+          },
+          "topCpuSelf": [
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 45.1
+            },
+            {
+              "name": "forEachRange @46794",
+              "ms": 39.381
+            },
+            {
+              "name": "drawInterpreted @71490",
+              "ms": 35.003
+            },
+            {
+              "name": "prepareUpdate @58029",
+              "ms": 23.927
+            },
+            {
+              "name": "sortBuckets @50757",
+              "ms": 21.348
+            },
+            {
+              "name": "mergeBuckets @50780",
+              "ms": 21.009
+            },
+            {
+              "name": "checkData @65262",
+              "ms": 20.049
+            },
+            {
+              "name": "stroke @-1",
+              "ms": 18.899
+            }
+          ],
+          "topCpuStacks": [
+            {
+              "name": "(garbage collector) @-1 <- (root) @-1",
+              "ms": 45.1
+            },
+            {
+              "name": "forEachRange @46794 <- sourceBuckets @50746 <-  @50830 <- bucketLists @50829 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17",
+              "ms": 39.381
+            },
+            {
+              "name": "drawInterpreted @71490 <- flush @75362 <- renderBlocks @75347 <- drawPicture @75223 <-  @25 <- object.<computed> @17 <- render @75172 <- renderLifeCycle @57999",
+              "ms": 35.003
+            },
+            {
+              "name": "sortBuckets @50757 <-  @50830 <- bucketLists @50829 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17 <- draw @51790",
+              "ms": 21.348
+            },
+            {
+              "name": "mergeBuckets @50780 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17 <- draw @51790 <-  @28 <- object.<computed> @17",
+              "ms": 21.009
+            }
+          ]
+        }
+      },
+      "worstFrames": [
+        {
+          "frame": 6,
+          "operation": "add",
+          "inputToRaf": 81.9,
+          "rafInterval": 166.7,
+          "phases": {
+            "applyMany": 4.4,
+            "refreshTexts": 0,
+            "uploadPaths": 2.8,
+            "orderedStockPaths": 0,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 40.8,
+            "visibleTranslucentRuns": 4.7,
+            "prepareMixedPlane": 0,
+            "buildStockPlan": 0.9,
+            "prepareStockPaths": 1.3,
+            "gatherPathDraws": 0,
+            "drawPrepared": 0.1,
+            "drawStockPaths": 0,
+            "draw": 51.5,
+            "scheduler": 76.7
+          },
+          "gc": [
+            {
+              "name": "MinorGC",
+              "ms": 5.349
+            }
+          ],
+          "topCpu": [
+            {
+              "name": "forEachRange @46794",
+              "ms": 9.783
+            },
+            {
+              "name": "(idle) @-1",
+              "ms": 9.375
+            },
+            {
+              "name": "rebuild @49619",
+              "ms": 7.578
+            },
+            {
+              "name": "mergeBuckets @50780",
+              "ms": 6.319
+            },
+            {
+              "name": "filterTranslucentRuns @50802",
+              "ms": 5.041
+            },
+            {
+              "name": "sortBuckets @50757",
+              "ms": 5.039
+            },
+            {
+              "name": "checkData @65262",
+              "ms": 5.031
+            },
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 4.834
+            }
+          ],
+          "sourceBytes": 800,
+          "encodes": 2
+        },
+        {
+          "frame": 9,
+          "operation": "add",
+          "inputToRaf": 77.7,
+          "rafInterval": 175,
+          "phases": {
+            "applyMany": 4.2,
+            "refreshTexts": 0,
+            "uploadPaths": 2.7,
+            "orderedStockPaths": 0.1,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 39.5,
+            "visibleTranslucentRuns": 4.5,
+            "prepareMixedPlane": 0.1,
+            "buildStockPlan": 0.9,
+            "prepareStockPaths": 1.4,
+            "gatherPathDraws": 0,
+            "drawPrepared": 0.2,
+            "drawStockPaths": 0,
+            "draw": 50,
+            "scheduler": 74.4
+          },
+          "gc": [
+            {
+              "name": "MinorGC",
+              "ms": 4.943
+            }
+          ],
+          "topCpu": [
+            {
+              "name": "forEachRange @46794",
+              "ms": 10.081
+            },
+            {
+              "name": "(idle) @-1",
+              "ms": 9.253
+            },
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 5.073
+            },
+            {
+              "name": "filterTranslucentRuns @50802",
+              "ms": 5.043
+            },
+            {
+              "name": "mergeBuckets @50780",
+              "ms": 5.037
+            },
+            {
+              "name": " @50830",
+              "ms": 3.801
+            },
+            {
+              "name": "setProps @57947",
+              "ms": 3.798
+            },
+            {
+              "name": "compute @49281",
+              "ms": 2.542
+            }
+          ],
+          "sourceBytes": 800,
+          "encodes": 2
+        },
+        {
+          "frame": 0,
+          "operation": "add",
+          "inputToRaf": 95.7,
+          "rafInterval": 7.5,
+          "phases": {
+            "applyMany": 4.8,
+            "refreshTexts": 0,
+            "uploadPaths": 2.9,
+            "orderedStockPaths": 0,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 36.8,
+            "visibleTranslucentRuns": 4,
+            "prepareMixedPlane": 0,
+            "buildStockPlan": 0.7,
+            "prepareStockPaths": 1.2,
+            "gatherPathDraws": 0,
+            "drawPrepared": 0.1,
+            "drawStockPaths": 0.1,
+            "draw": 46.8,
+            "scheduler": 87.2
+          },
+          "gc": [
+            {
+              "name": "MinorGC",
+              "ms": 4.01
+            }
+          ],
+          "topCpu": [
+            {
+              "name": "forEachRange @46794",
+              "ms": 10.068
+            },
+            {
+              "name": "(idle) @-1",
+              "ms": 8.015
+            },
+            {
+              "name": "prepareUpdate @58029",
+              "ms": 6.328
+            },
+            {
+              "name": "sortBuckets @50757",
+              "ms": 6.291
+            },
+            {
+              "name": "updateChildren @67539",
+              "ms": 5.04
+            },
+            {
+              "name": "_dipping @58191",
+              "ms": 5.038
+            },
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 3.842
+            },
+            {
+              "name": "mergeBuckets @50780",
+              "ms": 3.793
+            }
+          ],
+          "sourceBytes": 800,
+          "encodes": 2
+        }
+      ]
+    },
+    {
+      "key": "settled-profile-webgl-plain-0.01-churn",
+      "traceWindowGc": {
+        "count": 10,
+        "totalMs": 26.985,
+        "maxMs": 3.772,
+        "major": []
+      },
+      "operations": {
+        "add": {
+          "inputToRaf": {
+            "n": 4,
+            "p50": 64.6,
+            "p95": 81,
+            "max": 81,
+            "sum": 268.7
+          },
+          "synchronous": {
+            "n": 4,
+            "p50": 0.9,
+            "p95": 1.9,
+            "max": 1.9,
+            "sum": 4.3
+          },
+          "schedulerCpu": {
+            "n": 4,
+            "p50": 55.9,
+            "p95": 72.7,
+            "max": 72.7,
+            "sum": 235.3
+          },
+          "backendDraw": {
+            "n": 4,
+            "p50": 21.8,
+            "p95": 23.7,
+            "max": 23.7,
+            "sum": 84.8
+          },
+          "gcOverlap": {
+            "n": 4,
+            "p50": 2.924,
+            "p95": 3.357,
+            "max": 3.357,
+            "sum": 8.39
+          },
+          "topCpuSelf": [
+            {
+              "name": "(idle) @-1",
+              "ms": 31.431
+            },
+            {
+              "name": "forEachRange @46794",
+              "ms": 27.318
+            },
+            {
+              "name": "prepareUpdate @58029",
+              "ms": 20.184
+            },
+            {
+              "name": "checkData @57978",
+              "ms": 19.998
+            },
+            {
+              "name": "setProps @57947",
+              "ms": 16.047
+            },
+            {
+              "name": "updateChildren @67539",
+              "ms": 11.322
+            },
+            {
+              "name": "renumberBand @47717",
+              "ms": 11.316
+            },
+            {
+              "name": "prepareMixedPlane @53340",
+              "ms": 11.31
+            }
+          ],
+          "topCpuStacks": [
+            {
+              "name": "(idle) @-1 <- (root) @-1",
+              "ms": 31.431
+            },
+            {
+              "name": "checkData @57978 <- checkData @59757 <- checkData @63671 <- checkData @65262 <- prepareUpdate @58029 <- flush @56462 <- walk @57029 <- traverseDown @57478",
+              "ms": 16.226
+            },
+            {
+              "name": "setProps @57947 <- prepareUpdate @58029 <- prepareData @57489 <- prepare @57069 <- walk @57029 <- traverseDown @57478 <- update @56648 <- update @57913",
+              "ms": 16.047
+            },
+            {
+              "name": "forEachRange @46794 <- ownedDrawRanges @53125 <- splitMixedDraws @53143 <- buildMixedPlane @53159 <-  @19 <- object.<computed> @17 <- cachedMixedPlane @53388 <-  @19",
+              "ms": 13.686
+            },
+            {
+              "name": "forEachRange @46794 <- ownedDrawRanges @53125 <- connectionInstances @53307 <- hasMixedVertexWork @53293 <- prepareMixedPlane @53340 <-  @19 <- object.<computed> @17 <- draw @51790",
+              "ms": 13.632
+            }
+          ]
+        },
+        "reconnect": {
+          "inputToRaf": {
+            "n": 4,
+            "p50": 27,
+            "p95": 28.3,
+            "max": 28.3,
+            "sum": 105.9
+          },
+          "synchronous": {
+            "n": 4,
+            "p50": 0.1,
+            "p95": 0.2,
+            "max": 0.2,
+            "sum": 0.3
+          },
+          "schedulerCpu": {
+            "n": 4,
+            "p50": 18.7,
+            "p95": 20.5,
+            "max": 20.5,
+            "sum": 73.2
+          },
+          "backendDraw": {
+            "n": 4,
+            "p50": 18.3,
+            "p95": 19.7,
+            "max": 19.7,
+            "sum": 71.3
+          },
+          "gcOverlap": {
+            "n": 4,
+            "p50": 2.352,
+            "p95": 2.569,
+            "max": 2.569,
+            "sum": 4.921
+          },
+          "topCpuSelf": [
+            {
+              "name": "(idle) @-1",
+              "ms": 44.126
+            },
+            {
+              "name": "prepareMixedPlane @53340",
+              "ms": 13.816
+            },
+            {
+              "name": "b.extendMixedWidth @22",
+              "ms": 11.121
+            },
+            {
+              "name": "forEachRange @46794",
+              "ms": 9.831
+            },
+            {
+              "name": "collectMixedPaths @53242",
+              "ms": 8.832
+            },
+            {
+              "name": "buildMixedPlane @53159",
+              "ms": 7.571
+            },
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 4.728
+            },
+            {
+              "name": "mark @-1",
+              "ms": 3.83
+            }
+          ],
+          "topCpuStacks": [
+            {
+              "name": "(idle) @-1 <- (root) @-1",
+              "ms": 44.126
+            },
+            {
+              "name": "prepareMixedPlane @53340 <-  @19 <- object.<computed> @17 <- draw @51790 <-  @28 <- object.<computed> @17 <- drawWebGL @69568 <- render @69546",
+              "ms": 13.816
+            },
+            {
+              "name": "b.extendMixedWidth @22 <- collectMixedPaths @53242 <- b.collectMixedPaths @21 <- buildMixedPlane @53159 <-  @19 <- object.<computed> @17 <- cachedMixedPlane @53388 <-  @19",
+              "ms": 11.121
+            },
+            {
+              "name": "forEachRange @46794 <- ownedDrawRanges @53125 <- connectionInstances @53307 <- hasMixedVertexWork @53293 <- prepareMixedPlane @53340 <-  @19 <- object.<computed> @17 <- draw @51790",
+              "ms": 9.831
+            },
+            {
+              "name": "collectMixedPaths @53242 <- b.collectMixedPaths @21 <- buildMixedPlane @53159 <-  @19 <- object.<computed> @17 <- cachedMixedPlane @53388 <-  @19 <- object.<computed> @17",
+              "ms": 8.832
+            }
+          ]
+        },
+        "delete": {
+          "inputToRaf": {
+            "n": 4,
+            "p50": 106.4,
+            "p95": 111.1,
+            "max": 111.1,
+            "sum": 428.1
+          },
+          "synchronous": {
+            "n": 4,
+            "p50": 13.4,
+            "p95": 13.4,
+            "max": 13.4,
+            "sum": 53.3
+          },
+          "schedulerCpu": {
+            "n": 4,
+            "p50": 92.9,
+            "p95": 97.9,
+            "max": 97.9,
+            "sum": 374.4
+          },
+          "backendDraw": {
+            "n": 4,
+            "p50": 21.3,
+            "p95": 23.2,
+            "max": 23.2,
+            "sum": 83.9
+          },
+          "gcOverlap": {
+            "n": 4,
+            "p50": 3.146,
+            "p95": 3.772,
+            "max": 3.772,
+            "sum": 11.949
+          },
+          "topCpuSelf": [
+            {
+              "name": "setProps @57947",
+              "ms": 31.104
+            },
+            {
+              "name": "get @23919",
+              "ms": 30.195
+            },
+            {
+              "name": "forEachRange @46794",
+              "ms": 24.975
+            },
+            {
+              "name": "prepareUpdate @58029",
+              "ms": 23.911
+            },
+            {
+              "name": " @60869",
+              "ms": 20.132
+            },
+            {
+              "name": "checkData @57978",
+              "ms": 17.643
+            },
+            {
+              "name": "_dipping @58191",
+              "ms": 16.422
+            },
+            {
+              "name": " @72358",
+              "ms": 16.376
+            }
+          ],
+          "topCpuStacks": [
+            {
+              "name": "setProps @57947 <- prepareUpdate @58029 <- prepareData @57489 <- prepare @57069 <- walk @57029 <- traverseDown @57478 <- update @56648 <- update @57913",
+              "ms": 31.104
+            },
+            {
+              "name": "flush @56462 <- walk @57029 <- traverseDown @57478 <- update @56648 <- update @57913 <-  @68460 <- update @68459 <- performUpdate @74459",
+              "ms": 16.356
+            },
+            {
+              "name": "prepareMixedPlane @53340 <-  @19 <- object.<computed> @17 <- draw @51790 <-  @28 <- object.<computed> @17 <- drawWebGL @69568 <- render @69546",
+              "ms": 13.629
+            },
+            {
+              "name": "forEachRange @46794 <- ownedDrawRanges @53125 <- splitMixedDraws @53143 <- buildMixedPlane @53159 <-  @19 <- object.<computed> @17 <- cachedMixedPlane @53388 <-  @19",
+              "ms": 13.621
+            },
+            {
+              "name": "(garbage collector) @-1 <- (root) @-1",
+              "ms": 12.807
+            }
+          ]
+        }
+      },
+      "worstFrames": [
+        {
+          "frame": 0,
+          "operation": "add",
+          "inputToRaf": 81,
+          "rafInterval": 8.3,
+          "phases": {
+            "applyMany": 7.7,
+            "refreshTexts": 0,
+            "uploadPaths": 0.8,
+            "orderedStockPaths": 0,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 0,
+            "visibleTranslucentRuns": 0,
+            "buildMixedPlane": 12.1,
+            "cachedMixedPlane": 12.1,
+            "prepareMixedPlane": 22.3,
+            "prepareStockPaths": 0,
+            "gatherPathDraws": 0,
+            "beginMixedScene": 0.3,
+            "drawPrepared": 0,
+            "draw": 23.7,
+            "scheduler": 72.7
+          },
+          "gc": [
+            {
+              "name": "MinorGC",
+              "ms": 3.357
+            }
+          ],
+          "topCpu": [
+            {
+              "name": "forEachRange @46794",
+              "ms": 8.632
+            },
+            {
+              "name": "checkData @63671",
+              "ms": 6.119
+            },
+            {
+              "name": "prepareUpdate @58029",
+              "ms": 5.064
+            },
+            {
+              "name": "setProps @57947",
+              "ms": 5.04
+            },
+            {
+              "name": "checkData @57978",
+              "ms": 3.772
+            },
+            {
+              "name": "renumberBand @47717",
+              "ms": 3.77
+            },
+            {
+              "name": "prepareMixedPlane @53340",
+              "ms": 3.77
+            },
+            {
+              "name": "get @23919",
+              "ms": 3.769
+            }
+          ],
+          "sourceBytes": 6720,
+          "encodes": 2
+        },
+        {
+          "frame": 5,
+          "operation": "delete",
+          "inputToRaf": 105.9,
+          "rafInterval": 32.9,
+          "phases": {
+            "applyMany": 4.8,
+            "refreshTexts": 0,
+            "uploadPaths": 1.9,
+            "orderedStockPaths": 0,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 0,
+            "visibleTranslucentRuns": 0,
+            "buildMixedPlane": 12.8,
+            "cachedMixedPlane": 12.8,
+            "prepareMixedPlane": 20.7,
+            "prepareStockPaths": 0,
+            "gatherPathDraws": 0,
+            "beginMixedScene": 0.3,
+            "drawPrepared": 0.1,
+            "draw": 23.2,
+            "scheduler": 92.4
+          },
+          "gc": [
+            {
+              "name": "MinorGC",
+              "ms": 3.054
+            }
+          ],
+          "topCpu": [
+            {
+              "name": "get @23919",
+              "ms": 10.066
+            },
+            {
+              "name": "setProps @57947",
+              "ms": 7.555
+            },
+            {
+              "name": " @60869",
+              "ms": 6.306
+            },
+            {
+              "name": "forEachRange @46794",
+              "ms": 6.304
+            },
+            {
+              "name": "checkData @57978",
+              "ms": 6.303
+            },
+            {
+              "name": "flush @56462",
+              "ms": 5.024
+            },
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 3.873
+            },
+            {
+              "name": "prepareUpdate @58029",
+              "ms": 3.785
+            }
+          ],
+          "sourceBytes": 0,
+          "encodes": 0
+        },
+        {
+          "frame": 6,
+          "operation": "add",
+          "inputToRaf": 64.6,
+          "rafInterval": 108.4,
+          "phases": {
+            "applyMany": 5,
+            "refreshTexts": 0,
+            "uploadPaths": 0.5,
+            "orderedStockPaths": 0,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 0,
+            "visibleTranslucentRuns": 0,
+            "buildMixedPlane": 12.9,
+            "cachedMixedPlane": 12.9,
+            "prepareMixedPlane": 20.7,
+            "prepareStockPaths": 0,
+            "gatherPathDraws": 0,
+            "beginMixedScene": 0.2,
+            "drawPrepared": 0.1,
+            "draw": 21.8,
+            "scheduler": 55.9
+          },
+          "gc": [
+            {
+              "name": "MinorGC",
+              "ms": 2.924
+            }
+          ],
+          "topCpu": [
+            {
+              "name": "(idle) @-1",
+              "ms": 9.602
+            },
+            {
+              "name": "forEachRange @46794",
+              "ms": 6.325
+            },
+            {
+              "name": "checkData @57978",
+              "ms": 6.162
+            },
+            {
+              "name": "prepareUpdate @58029",
+              "ms": 5.05
+            },
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 2.597
+            },
+            {
+              "name": "collectMixedPaths @53242",
+              "ms": 2.53
+            },
+            {
+              "name": "setProps @57947",
+              "ms": 2.527
+            },
+            {
+              "name": "hasChangedValue @63572",
+              "ms": 2.527
+            }
+          ],
+          "sourceBytes": 6720,
+          "encodes": 2
+        }
+      ]
+    },
+    {
+      "key": "structural-profile-webgl-etl1-0.025135101168782203-churn",
+      "traceWindowGc": {
+        "count": 75,
+        "totalMs": 410.128,
+        "maxMs": 24.936,
+        "major": [
+          {
+            "ts": 1027682383606,
+            "durationMs": 24.936,
+            "largestSubPhases": [
+              {
+                "name": "V8.GCFinalizeMC",
+                "ms": 24.828
+              },
+              {
+                "name": "V8.GC_MARK_COMPACTOR",
+                "ms": 24.817
+              },
+              {
+                "name": "V8.GC_MC_CLEAR",
+                "ms": 8.637
+              },
+              {
+                "name": "V8.GC_MC_SWEEP_EXTERNAL_POINTER_TABLE",
+                "ms": 5.375
+              },
+              {
+                "name": "V8.GC_MC_EVACUATE",
+                "ms": 5.363
+              },
+              {
+                "name": "V8.GC_MC_FINISH",
+                "ms": 5.086
+              },
+              {
+                "name": "V8.GC_MC_SWEEP",
+                "ms": 3.496
+              },
+              {
+                "name": "V8.GC_MC_EVACUATE_UPDATE_POINTERS",
+                "ms": 2.755
+              }
+            ]
+          }
+        ]
+      },
+      "operations": {
+        "add": {
+          "inputToRaf": {
+            "n": 20,
+            "p50": 70.6,
+            "p95": 115.9,
+            "max": 115.9,
+            "sum": 1576.5
+          },
+          "synchronous": {
+            "n": 20,
+            "p50": 0.5,
+            "p95": 0.7,
+            "max": 0.7,
+            "sum": 9
+          },
+          "schedulerCpu": {
+            "n": 20,
+            "p50": 69.1,
+            "p95": 115.1,
+            "max": 115.1,
+            "sum": 1547.2
+          },
+          "backendDraw": {
+            "n": 20,
+            "p50": 45.8,
+            "p95": 76.4,
+            "max": 76.4,
+            "sum": 970.1
+          },
+          "gcOverlap": {
+            "n": 20,
+            "p50": 5.344,
+            "p95": 11.316,
+            "max": 11.316,
+            "sum": 111.433
+          },
+          "topCpuSelf": [
+            {
+              "name": "forEachRange @46794",
+              "ms": 207.903
+            },
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 134.337
+            },
+            {
+              "name": "mergeBuckets @50780",
+              "ms": 103.56
+            },
+            {
+              "name": "sortBuckets @50757",
+              "ms": 97.442
+            },
+            {
+              "name": "rebuild @49619",
+              "ms": 76.627
+            },
+            {
+              "name": "filterTranslucentRuns @50802",
+              "ms": 67.61
+            },
+            {
+              "name": "prepareUpdate @58029",
+              "ms": 66.343
+            },
+            {
+              "name": "checkData @65262",
+              "ms": 51.44
+            }
+          ],
+          "topCpuStacks": [
+            {
+              "name": "forEachRange @46794 <- sourceBuckets @50746 <-  @50830 <- bucketLists @50829 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17",
+              "ms": 207.903
+            },
+            {
+              "name": "(garbage collector) @-1 <- (root) @-1",
+              "ms": 134.337
+            },
+            {
+              "name": "mergeBuckets @50780 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17 <- draw @51790 <-  @28 <- object.<computed> @17",
+              "ms": 103.56
+            },
+            {
+              "name": "sortBuckets @50757 <-  @50830 <- bucketLists @50829 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17 <- draw @51790",
+              "ms": 97.442
+            },
+            {
+              "name": "rebuild @49619 <- update @49596 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17 <- draw @51790 <-  @28 <- object.<computed> @17",
+              "ms": 76.627
+            }
+          ]
+        },
+        "reconnect": {
+          "inputToRaf": {
+            "n": 20,
+            "p50": 42.7,
+            "p95": 126.2,
+            "max": 126.2,
+            "sum": 942.4
+          },
+          "synchronous": {
+            "n": 20,
+            "p50": 0,
+            "p95": 0.1,
+            "max": 0.1,
+            "sum": 0.8
+          },
+          "schedulerCpu": {
+            "n": 20,
+            "p50": 42.1,
+            "p95": 125.8,
+            "max": 125.8,
+            "sum": 929.4
+          },
+          "backendDraw": {
+            "n": 20,
+            "p50": 41.8,
+            "p95": 69.1,
+            "max": 69.1,
+            "sum": 865.1
+          },
+          "gcOverlap": {
+            "n": 20,
+            "p50": 4.649,
+            "p95": 24.936,
+            "max": 24.936,
+            "sum": 104.706
+          },
+          "topCpuSelf": [
+            {
+              "name": "forEachRange @46794",
+              "ms": 220.675
+            },
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 111.816
+            },
+            {
+              "name": "sortBuckets @50757",
+              "ms": 99.143
+            },
+            {
+              "name": "mergeBuckets @50780",
+              "ms": 89.311
+            },
+            {
+              "name": "filterTranslucentRuns @50802",
+              "ms": 67.675
+            },
+            {
+              "name": "update @48954",
+              "ms": 53.295
+            },
+            {
+              "name": "levelFor @49367",
+              "ms": 26.618
+            },
+            {
+              "name": "orderTranslucent @50820",
+              "ms": 20.968
+            }
+          ],
+          "topCpuStacks": [
+            {
+              "name": "forEachRange @46794 <- sourceBuckets @50746 <-  @50830 <- bucketLists @50829 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17",
+              "ms": 220.675
+            },
+            {
+              "name": "(garbage collector) @-1 <- (root) @-1",
+              "ms": 111.816
+            },
+            {
+              "name": "sortBuckets @50757 <-  @50830 <- bucketLists @50829 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17 <- draw @51790",
+              "ms": 99.143
+            },
+            {
+              "name": "mergeBuckets @50780 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17 <- draw @51790 <-  @28 <- object.<computed> @17",
+              "ms": 89.311
+            },
+            {
+              "name": "filterTranslucentRuns @50802 <- visibleTranslucentRuns @52920 <-  @19 <- object.<computed> @17 <- draw @51790 <-  @28 <- object.<computed> @17 <- drawWebGL @69568",
+              "ms": 67.675
+            }
+          ]
+        },
+        "delete": {
+          "inputToRaf": {
+            "n": 20,
+            "p50": 157.4,
+            "p95": 173.1,
+            "max": 173.1,
+            "sum": 3146
+          },
+          "synchronous": {
+            "n": 20,
+            "p50": 8.1,
+            "p95": 14.3,
+            "max": 14.3,
+            "sum": 178.3
+          },
+          "schedulerCpu": {
+            "n": 20,
+            "p50": 148.3,
+            "p95": 161,
+            "max": 161,
+            "sum": 2955.9
+          },
+          "backendDraw": {
+            "n": 20,
+            "p50": 46.2,
+            "p95": 53.2,
+            "max": 53.2,
+            "sum": 920.1
+          },
+          "gcOverlap": {
+            "n": 20,
+            "p50": 9.822,
+            "p95": 12.877,
+            "max": 12.877,
+            "sum": 189.631
+          },
+          "topCpuSelf": [
+            {
+              "name": "forEachRange @46794",
+              "ms": 195.596
+            },
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 192.968
+            },
+            {
+              "name": "prepareUpdate @58029",
+              "ms": 123.994
+            },
+            {
+              "name": "drawInterpreted @71490",
+              "ms": 121.65
+            },
+            {
+              "name": "sortBuckets @50757",
+              "ms": 106.285
+            },
+            {
+              "name": "_dipping @58191",
+              "ms": 100.716
+            },
+            {
+              "name": "setProps @57947",
+              "ms": 96.298
+            },
+            {
+              "name": "drawElements @69383",
+              "ms": 92.762
+            }
+          ],
+          "topCpuStacks": [
+            {
+              "name": "forEachRange @46794 <- sourceBuckets @50746 <-  @50830 <- bucketLists @50829 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17",
+              "ms": 195.596
+            },
+            {
+              "name": "(garbage collector) @-1 <- (root) @-1",
+              "ms": 192.968
+            },
+            {
+              "name": "sortBuckets @50757 <-  @50830 <- bucketLists @50829 <- orderTranslucent @50820 <- orderTranslucent @52890 <-  @19 <- object.<computed> @17 <- draw @51790",
+              "ms": 106.285
+            },
+            {
+              "name": "drawElements @69383 <- drawInterpreted @71490 <- flush @75362 <- renderBlocks @75347 <- drawPicture @75223 <-  @25 <- object.<computed> @17 <- render @75172",
+              "ms": 92.762
+            },
+            {
+              "name": "drawInterpreted @71490 <- flush @75362 <- renderBlocks @75347 <- drawPicture @75223 <-  @25 <- object.<computed> @17 <- render @75172 <- renderLifeCycle @57999",
+              "ms": 91.557
+            }
+          ]
+        }
+      },
+      "worstFrames": [
+        {
+          "frame": 51,
+          "operation": "add",
+          "inputToRaf": 100.4,
+          "rafInterval": 150.1,
+          "phases": {
+            "applyMany": 4.4,
+            "refreshTexts": 0,
+            "uploadPaths": 2.6,
+            "orderedStockPaths": 0,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 65.1,
+            "visibleTranslucentRuns": 4.2,
+            "prepareMixedPlane": 0,
+            "buildStockPlan": 1.9,
+            "prepareStockPaths": 2.7,
+            "gatherPathDraws": 0,
+            "drawPrepared": 0.2,
+            "drawStockPaths": 0.1,
+            "draw": 76.4,
+            "scheduler": 99.3
+          },
+          "gc": [
+            {
+              "name": "MinorGC",
+              "ms": 5.424
+            }
+          ],
+          "topCpu": [
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 24.4
+            },
+            {
+              "name": "mergeBuckets @50780",
+              "ms": 13.57
+            },
+            {
+              "name": "forEachRange @46794",
+              "ms": 7.572
+            },
+            {
+              "name": "sortBuckets @50757",
+              "ms": 7.443
+            },
+            {
+              "name": "filterTranslucentRuns @50802",
+              "ms": 3.866
+            },
+            {
+              "name": "update @49596",
+              "ms": 3.773
+            },
+            {
+              "name": "rebuild @49619",
+              "ms": 3.771
+            },
+            {
+              "name": "buildStockPlan @53470",
+              "ms": 2.61
+            }
+          ],
+          "sourceBytes": 800,
+          "encodes": 2
+        },
+        {
+          "frame": 52,
+          "operation": "reconnect",
+          "inputToRaf": 126.2,
+          "rafInterval": 100,
+          "phases": {
+            "minimap": 54.2,
+            "applyMany": 0.1,
+            "refreshTexts": 0,
+            "uploadPaths": 2.8,
+            "orderedStockPaths": 0,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 59.4,
+            "visibleTranslucentRuns": 4,
+            "prepareMixedPlane": 0,
+            "buildStockPlan": 0.9,
+            "prepareStockPaths": 1.5,
+            "gatherPathDraws": 0,
+            "drawPrepared": 0.1,
+            "drawStockPaths": 0.1,
+            "draw": 69.1,
+            "scheduler": 125.8
+          },
+          "gc": [
+            {
+              "name": "MajorGC",
+              "ms": 24.936
+            }
+          ],
+          "topCpu": [
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 28.566
+            },
+            {
+              "name": "forEachRange @46794",
+              "ms": 10.24
+            },
+            {
+              "name": "drawInterpreted @71490",
+              "ms": 7.905
+            },
+            {
+              "name": "query @70165",
+              "ms": 7.804
+            },
+            {
+              "name": "mergeBuckets @50780",
+              "ms": 6.304
+            },
+            {
+              "name": "drawRect @69222",
+              "ms": 5.097
+            },
+            {
+              "name": "stroke @-1",
+              "ms": 5.076
+            },
+            {
+              "name": "sortBuckets @50757",
+              "ms": 5.066
+            }
+          ],
+          "sourceBytes": 10080,
+          "encodes": 2
+        },
+        {
+          "frame": 0,
+          "operation": "add",
+          "inputToRaf": 107.6,
+          "rafInterval": 8.3,
+          "phases": {
+            "applyMany": 6,
+            "refreshTexts": 0,
+            "uploadPaths": 5.4,
+            "orderedStockPaths": 0.1,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 49.6,
+            "visibleTranslucentRuns": 4.8,
+            "prepareMixedPlane": 0.2,
+            "buildStockPlan": 1.7,
+            "prepareStockPaths": 2.1,
+            "gatherPathDraws": 0,
+            "drawPrepared": 0.1,
+            "drawStockPaths": 0,
+            "draw": 64,
+            "scheduler": 99
+          },
+          "gc": [
+            {
+              "name": "MinorGC",
+              "ms": 4.605
+            }
+          ],
+          "topCpu": [
+            {
+              "name": "forEachRange @46794",
+              "ms": 12.257
+            },
+            {
+              "name": "mergeBuckets @50780",
+              "ms": 8.869
+            },
+            {
+              "name": "rebuild @49619",
+              "ms": 7.59
+            },
+            {
+              "name": "(idle) @-1",
+              "ms": 7.363
+            },
+            {
+              "name": "checkData @65262",
+              "ms": 6.28
+            },
+            {
+              "name": "setProps @57947",
+              "ms": 5.052
+            },
+            {
+              "name": "update @48954",
+              "ms": 5.051
+            },
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 3.802
+            }
+          ],
+          "sourceBytes": 800,
+          "encodes": 2
+        }
+      ]
+    },
+    {
+      "key": "structural-profile-webgl-plain-0.01-churn",
+      "traceWindowGc": {
+        "count": 40,
+        "totalMs": 133.856,
+        "maxMs": 19.967,
+        "major": [
+          {
+            "ts": 1027694534093,
+            "durationMs": 19.967,
+            "largestSubPhases": [
+              {
+                "name": "V8.GCFinalizeMC",
+                "ms": 19.896
+              },
+              {
+                "name": "V8.GC_MARK_COMPACTOR",
+                "ms": 19.886
+              },
+              {
+                "name": "V8.GC_MC_CLEAR",
+                "ms": 8.657
+              },
+              {
+                "name": "V8.GC_MC_CLEAR_WEAK_GLOBAL_HANDLES",
+                "ms": 4.635
+              },
+              {
+                "name": "V8.GC_MC_EVACUATE",
+                "ms": 3.315
+              },
+              {
+                "name": "V8.GC_MC_SWEEP_EXTERNAL_POINTER_TABLE",
+                "ms": 3.088
+              },
+              {
+                "name": "V8.GC_MC_FINISH",
+                "ms": 2.631
+              },
+              {
+                "name": "V8.GC_MC_EVACUATE_UPDATE_POINTERS",
+                "ms": 2.24
+              }
+            ]
+          }
+        ]
+      },
+      "operations": {
+        "add": {
+          "inputToRaf": {
+            "n": 20,
+            "p50": 59.8,
+            "p95": 70.5,
+            "max": 70.5,
+            "sum": 1209.9
+          },
+          "synchronous": {
+            "n": 20,
+            "p50": 0.8,
+            "p95": 1.9,
+            "max": 1.9,
+            "sum": 17.8
+          },
+          "schedulerCpu": {
+            "n": 20,
+            "p50": 58.2,
+            "p95": 64.7,
+            "max": 64.7,
+            "sum": 1176.4
+          },
+          "backendDraw": {
+            "n": 20,
+            "p50": 20.8,
+            "p95": 23.5,
+            "max": 23.5,
+            "sum": 415.3
+          },
+          "gcOverlap": {
+            "n": 20,
+            "p50": 0,
+            "p95": 0,
+            "max": 0,
+            "sum": 0
+          },
+          "topCpuSelf": [
+            {
+              "name": "forEachRange @46794",
+              "ms": 141.961
+            },
+            {
+              "name": "prepareUpdate @58029",
+              "ms": 131.864
+            },
+            {
+              "name": "checkData @57978",
+              "ms": 88.872
+            },
+            {
+              "name": "setProps @57947",
+              "ms": 67.152
+            },
+            {
+              "name": "updateChildren @67539",
+              "ms": 63.955
+            },
+            {
+              "name": "prepareMixedPlane @53340",
+              "ms": 63.226
+            },
+            {
+              "name": "collectMixedPaths @53242",
+              "ms": 53.944
+            },
+            {
+              "name": "_dipping @58191",
+              "ms": 52.727
+            }
+          ],
+          "topCpuStacks": [
+            {
+              "name": "checkData @57978 <- checkData @59757 <- checkData @63671 <- checkData @65262 <- prepareUpdate @58029 <- flush @56462 <- walk @57029 <- traverseDown @57478",
+              "ms": 88.872
+            },
+            {
+              "name": "forEachRange @46794 <- ownedDrawRanges @53125 <- connectionInstances @53307 <- hasMixedVertexWork @53293 <- prepareMixedPlane @53340 <-  @19 <- object.<computed> @17 <- draw @51790",
+              "ms": 84.576
+            },
+            {
+              "name": "prepareUpdate @58029 <- flush @56462 <- walk @57029 <- traverseDown @57478 <- update @56648 <- update @57913 <-  @68460 <- update @68459",
+              "ms": 67.987
+            },
+            {
+              "name": "setProps @57947 <- prepareUpdate @58029 <- prepareData @57489 <- prepare @57069 <- walk @57029 <- traverseDown @57478 <- update @56648 <- update @57913",
+              "ms": 65.896
+            },
+            {
+              "name": "updateChildren @67539 <- prepareUpdate @58029 <- prepareData @57489 <- prepare @57069 <- walk @57029 <- traverseDown @57478 <- update @56648 <- update @57913",
+              "ms": 63.955
+            }
+          ]
+        },
+        "reconnect": {
+          "inputToRaf": {
+            "n": 20,
+            "p50": 23.4,
+            "p95": 27.6,
+            "max": 27.6,
+            "sum": 472.2
+          },
+          "synchronous": {
+            "n": 20,
+            "p50": 0,
+            "p95": 0.1,
+            "max": 0.1,
+            "sum": 0.9
+          },
+          "schedulerCpu": {
+            "n": 20,
+            "p50": 23,
+            "p95": 24.5,
+            "max": 24.5,
+            "sum": 456.4
+          },
+          "backendDraw": {
+            "n": 20,
+            "p50": 22.6,
+            "p95": 24.2,
+            "max": 24.2,
+            "sum": 450.5
+          },
+          "gcOverlap": {
+            "n": 20,
+            "p50": 2.956,
+            "p95": 3.281,
+            "max": 3.281,
+            "sum": 56.375
+          },
+          "topCpuSelf": [
+            {
+              "name": "b.extendMixedWidth @22",
+              "ms": 73.92
+            },
+            {
+              "name": "prepareMixedPlane @53340",
+              "ms": 64.671
+            },
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 58.355
+            },
+            {
+              "name": "collectMixedPaths @53242",
+              "ms": 58.336
+            },
+            {
+              "name": "forEachRange @46794",
+              "ms": 51.496
+            },
+            {
+              "name": "mixedPathSchedule @49111",
+              "ms": 25.029
+            },
+            {
+              "name": "(program) @-1",
+              "ms": 19.25
+            },
+            {
+              "name": "compact @47196",
+              "ms": 17.813
+            }
+          ],
+          "topCpuStacks": [
+            {
+              "name": "b.extendMixedWidth @22 <- collectMixedPaths @53242 <- b.collectMixedPaths @21 <- buildMixedPlane @53159 <-  @19 <- object.<computed> @17 <- cachedMixedPlane @53388 <-  @19",
+              "ms": 73.92
+            },
+            {
+              "name": "prepareMixedPlane @53340 <-  @19 <- object.<computed> @17 <- draw @51790 <-  @28 <- object.<computed> @17 <- drawWebGL @69568 <- render @69546",
+              "ms": 64.671
+            },
+            {
+              "name": "(garbage collector) @-1 <- (root) @-1",
+              "ms": 58.355
+            },
+            {
+              "name": "collectMixedPaths @53242 <- b.collectMixedPaths @21 <- buildMixedPlane @53159 <-  @19 <- object.<computed> @17 <- cachedMixedPlane @53388 <-  @19 <- object.<computed> @17",
+              "ms": 58.336
+            },
+            {
+              "name": "forEachRange @46794 <- ownedDrawRanges @53125 <- connectionInstances @53307 <- hasMixedVertexWork @53293 <- prepareMixedPlane @53340 <-  @19 <- object.<computed> @17 <- draw @51790",
+              "ms": 51.496
+            }
+          ]
+        },
+        "delete": {
+          "inputToRaf": {
+            "n": 20,
+            "p50": 114.5,
+            "p95": 167.8,
+            "max": 167.8,
+            "sum": 2351
+          },
+          "synchronous": {
+            "n": 20,
+            "p50": 12.1,
+            "p95": 14.1,
+            "max": 14.1,
+            "sum": 236.7
+          },
+          "schedulerCpu": {
+            "n": 20,
+            "p50": 102.2,
+            "p95": 157.4,
+            "max": 157.4,
+            "sum": 2098.8
+          },
+          "backendDraw": {
+            "n": 20,
+            "p50": 26.8,
+            "p95": 31.3,
+            "max": 31.3,
+            "sum": 529.3
+          },
+          "gcOverlap": {
+            "n": 20,
+            "p50": 3.049,
+            "p95": 19.967,
+            "max": 19.967,
+            "sum": 77.481
+          },
+          "topCpuSelf": [
+            {
+              "name": "prepareUpdate @58029",
+              "ms": 188.02
+            },
+            {
+              "name": "setProps @57947",
+              "ms": 183.043
+            },
+            {
+              "name": "forEachRange @46794",
+              "ms": 145.597
+            },
+            {
+              "name": "get @23919",
+              "ms": 110.624
+            },
+            {
+              "name": "checkData @57978",
+              "ms": 100.864
+            },
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 85.959
+            },
+            {
+              "name": "_dipping @58191",
+              "ms": 85.524
+            },
+            {
+              "name": "c @23672",
+              "ms": 78.354
+            }
+          ],
+          "topCpuStacks": [
+            {
+              "name": "setProps @57947 <- prepareUpdate @58029 <- prepareData @57489 <- prepare @57069 <- walk @57029 <- traverseDown @57478 <- update @56648 <- update @57913",
+              "ms": 180.532
+            },
+            {
+              "name": "prepareUpdate @58029 <- prepareData @57489 <- prepare @57069 <- walk @57029 <- traverseDown @57478 <- update @56648 <- update @57913 <-  @68460",
+              "ms": 103.987
+            },
+            {
+              "name": "(garbage collector) @-1 <- (root) @-1",
+              "ms": 85.959
+            },
+            {
+              "name": "forEachRange @46794 <- ownedDrawRanges @53125 <- connectionInstances @53307 <- hasMixedVertexWork @53293 <- prepareMixedPlane @53340 <-  @19 <- object.<computed> @17 <- draw @51790",
+              "ms": 83.111
+            },
+            {
+              "name": "prepareUpdate @58029 <- flush @56462 <- walk @57029 <- traverseDown @57478 <- update @56648 <- update @57913 <-  @68460 <- update @68459",
+              "ms": 82.769
+            }
+          ]
+        }
+      },
+      "worstFrames": [
+        {
+          "frame": 11,
+          "operation": "delete",
+          "inputToRaf": 127,
+          "rafInterval": 33.3,
+          "phases": {
+            "applyMany": 6.4,
+            "refreshTexts": 0,
+            "uploadPaths": 2.4,
+            "orderedStockPaths": 0,
+            "refreshOverlapBounds": 0.1,
+            "orderTranslucent": 0,
+            "visibleTranslucentRuns": 0,
+            "buildMixedPlane": 16.5,
+            "cachedMixedPlane": 16.5,
+            "prepareMixedPlane": 28.2,
+            "prepareStockPaths": 0,
+            "gatherPathDraws": 0,
+            "beginMixedScene": 0.2,
+            "drawPrepared": 0.1,
+            "draw": 31.3,
+            "scheduler": 114.2
+          },
+          "gc": [
+            {
+              "name": "MinorGC",
+              "ms": 3.049
+            }
+          ],
+          "topCpu": [
+            {
+              "name": "forEachRange @46794",
+              "ms": 12.174
+            },
+            {
+              "name": "setProps @57947",
+              "ms": 9.614
+            },
+            {
+              "name": "prepareUpdate @58029",
+              "ms": 8.246
+            },
+            {
+              "name": "c @23672",
+              "ms": 6.018
+            },
+            {
+              "name": "Event @-1",
+              "ms": 5.035
+            },
+            {
+              "name": "updateChildren @67539",
+              "ms": 4.97
+            },
+            {
+              "name": "checkData @57978",
+              "ms": 4.836
+            },
+            {
+              "name": " @60869",
+              "ms": 4.768
+            }
+          ],
+          "sourceBytes": 0,
+          "encodes": 0
+        },
+        {
+          "frame": 47,
+          "operation": "delete",
+          "inputToRaf": 167.8,
+          "rafInterval": 33.8,
+          "phases": {
+            "applyMany": 7.9,
+            "refreshTexts": 0,
+            "uploadPaths": 2.6,
+            "orderedStockPaths": 0.1,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 0,
+            "visibleTranslucentRuns": 0.1,
+            "buildMixedPlane": 14.6,
+            "cachedMixedPlane": 14.6,
+            "prepareMixedPlane": 26,
+            "prepareStockPaths": 0,
+            "gatherPathDraws": 0,
+            "beginMixedScene": 0.2,
+            "drawPrepared": 0.1,
+            "draw": 29.2,
+            "scheduler": 157.4
+          },
+          "gc": [
+            {
+              "name": "MajorGC",
+              "ms": 19.967
+            }
+          ],
+          "topCpu": [
+            {
+              "name": "(garbage collector) @-1",
+              "ms": 31.268
+            },
+            {
+              "name": "setProps @57947",
+              "ms": 15.483
+            },
+            {
+              "name": "prepareUpdate @58029",
+              "ms": 13.356
+            },
+            {
+              "name": "forEachRange @46794",
+              "ms": 11.312
+            },
+            {
+              "name": "syncSceneElement @61101",
+              "ms": 5.146
+            },
+            {
+              "name": "flush @56462",
+              "ms": 5.136
+            },
+            {
+              "name": "checkData @57978",
+              "ms": 5.135
+            },
+            {
+              "name": " @60869",
+              "ms": 4.914
+            }
+          ],
+          "sourceBytes": 0,
+          "encodes": 0
+        },
+        {
+          "frame": 20,
+          "operation": "delete",
+          "inputToRaf": 120.7,
+          "rafInterval": 33.3,
+          "phases": {
+            "applyMany": 5.1,
+            "refreshTexts": 0,
+            "uploadPaths": 2.1,
+            "orderedStockPaths": 0,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 0,
+            "visibleTranslucentRuns": 0,
+            "buildMixedPlane": 16,
+            "cachedMixedPlane": 16,
+            "prepareMixedPlane": 25.9,
+            "prepareStockPaths": 0,
+            "gatherPathDraws": 0,
+            "beginMixedScene": 0.3,
+            "drawPrepared": 0,
+            "draw": 28.7,
+            "scheduler": 108.3
+          },
+          "gc": [
+            {
+              "name": "MinorGC",
+              "ms": 3.272
+            }
+          ],
+          "topCpu": [
+            {
+              "name": "get @23919",
+              "ms": 11.017
+            },
+            {
+              "name": "prepareUpdate @58029",
+              "ms": 9.972
+            },
+            {
+              "name": "checkData @57978",
+              "ms": 7.555
+            },
+            {
+              "name": "forEachRange @46794",
+              "ms": 7.534
+            },
+            {
+              "name": "_dipping @58191",
+              "ms": 5.038
+            },
+            {
+              "name": " @72358",
+              "ms": 5.033
+            },
+            {
+              "name": "Event @-1",
+              "ms": 5.025
+            },
+            {
+              "name": "syncSceneElement @61101",
+              "ms": 4.99
+            }
+          ],
+          "sourceBytes": 0,
+          "encodes": 0
+        }
+      ]
+    },
+    {
+      "key": "zoom-profile-webgl-etl1-0.025135101168782203-zoom",
+      "traceWindowGc": {
+        "count": 65,
+        "totalMs": 78.06,
+        "maxMs": 2.533,
+        "major": []
+      },
+      "operations": {
+        "zoom": {
+          "inputToRaf": {
+            "n": 960,
+            "p50": 8.3,
+            "p95": 16,
+            "max": 45.7,
+            "sum": 8720.3
+          },
+          "synchronous": {
+            "n": 960,
+            "p50": 0,
+            "p95": 0.2,
+            "max": 6.4,
+            "sum": 128.2
+          },
+          "schedulerCpu": {
+            "n": 960,
+            "p50": 3.1,
+            "p95": 11.1,
+            "max": 45.4,
+            "sum": 3896
+          },
+          "backendDraw": {
+            "n": 960,
+            "p50": 2.8,
+            "p95": 10.1,
+            "max": 18.2,
+            "sum": 3271.8
+          },
+          "gcOverlap": {
+            "n": 960,
+            "p50": 0,
+            "p95": 0.88,
+            "max": 2.533,
+            "sum": 77.111
+          },
+          "topCpuSelf": [
+            {
+              "name": "(idle) @-1",
+              "ms": 3771.26
+            },
+            {
+              "name": "forEachRange @49815",
+              "ms": 594.629
+            },
+            {
+              "name": "(program) @-1",
+              "ms": 457.596
+            },
+            {
+              "name": "appendVisibleDraws @53723",
+              "ms": 315.05
+            },
+            {
+              "name": "filterTranslucentRuns @50802",
+              "ms": 305.082
+            },
+            {
+              "name": "update @48954",
+              "ms": 227.314
+            },
+            {
+              "name": "buildStockPlan @53470",
+              "ms": 100.263
+            },
+            {
+              "name": "draw @51790",
+              "ms": 98.48
+            }
+          ],
+          "topCpuStacks": [
+            {
+              "name": "(idle) @-1 <- (root) @-1",
+              "ms": 3771.26
+            },
+            {
+              "name": "forEachRange @49815 <- appendVisibleDraws @53723 <- draw @51790 <-  @28 <- drawWebGL @69568 <- render @69546 <- paint @57128 <- walk @57029",
+              "ms": 579.52
+            },
+            {
+              "name": "(program) @-1 <- (root) @-1",
+              "ms": 457.596
+            },
+            {
+              "name": "appendVisibleDraws @53723 <- draw @51790 <-  @28 <- drawWebGL @69568 <- render @69546 <- paint @57128 <- walk @57029 <- update @56648",
+              "ms": 315.05
+            },
+            {
+              "name": "filterTranslucentRuns @50802 <- visibleTranslucentRuns @52920 <-  @19 <- object.<computed> @17 <- draw @51790 <-  @28 <- drawWebGL @69568 <- render @69546",
+              "ms": 305.082
+            }
+          ]
+        }
+      },
+      "worstFrames": [
+        {
+          "frame": 61,
+          "operation": "zoom",
+          "inputToRaf": 24.8,
+          "rafInterval": 8,
+          "phases": {
+            "refreshTexts": 0,
+            "uploadPaths": 6.6,
+            "orderedStockPaths": 0,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 0,
+            "visibleTranslucentRuns": 5.5,
+            "prepareMixedPlane": 0,
+            "buildStockPlan": 0.2,
+            "prepareStockPaths": 0.2,
+            "gatherPathDraws": 0.2,
+            "drawPrepared": 4.3,
+            "draw": 18.2,
+            "scheduler": 18.4
+          },
+          "gc": [],
+          "topCpu": [
+            {
+              "name": "(idle) @-1",
+              "ms": 6.304
+            },
+            {
+              "name": "filterTranslucentRuns @50802",
+              "ms": 4.844
+            },
+            {
+              "name": "update @48954",
+              "ms": 3.765
+            },
+            {
+              "name": "selectHulls @49775",
+              "ms": 1.266
+            },
+            {
+              "name": "draw @39649",
+              "ms": 1.265
+            },
+            {
+              "name": "depthFunc @40741",
+              "ms": 1.263
+            },
+            {
+              "name": "stockDrawGroups @53450",
+              "ms": 1.261
+            },
+            {
+              "name": "appendVisibleDraws @53723",
+              "ms": 1.261
+            }
+          ],
+          "sourceBytes": 0,
+          "encodes": 0
+        },
+        {
+          "frame": 781,
+          "operation": "zoom",
+          "inputToRaf": 25.1,
+          "rafInterval": 8.3,
+          "phases": {
+            "refreshTexts": 0,
+            "uploadPaths": 6.6,
+            "orderedStockPaths": 0,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 0,
+            "visibleTranslucentRuns": 5.6,
+            "prepareMixedPlane": 0,
+            "buildStockPlan": 0.2,
+            "prepareStockPaths": 0.3,
+            "gatherPathDraws": 0.1,
+            "drawPrepared": 4.3,
+            "draw": 18.2,
+            "scheduler": 18.4
+          },
+          "gc": [],
+          "topCpu": [
+            {
+              "name": "update @48954",
+              "ms": 6.306
+            },
+            {
+              "name": "(idle) @-1",
+              "ms": 6.305
+            },
+            {
+              "name": "filterTranslucentRuns @50802",
+              "ms": 5.033
+            },
+            {
+              "name": "selectHulls @49775",
+              "ms": 1.263
+            },
+            {
+              "name": "enable @40468",
+              "ms": 1.261
+            },
+            {
+              "name": "bindBuffer @-1",
+              "ms": 1.26
+            },
+            {
+              "name": "appendVisibleDraws @53723",
+              "ms": 1.257
+            },
+            {
+              "name": "bindVertexArray @40672",
+              "ms": 1.252
+            }
+          ],
+          "sourceBytes": 0,
+          "encodes": 0
+        },
+        {
+          "frame": 541,
+          "operation": "zoom",
+          "inputToRaf": 24.4,
+          "rafInterval": 8.2,
+          "phases": {
+            "refreshTexts": 0,
+            "uploadPaths": 6.4,
+            "orderedStockPaths": 0,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 0,
+            "visibleTranslucentRuns": 5.3,
+            "prepareMixedPlane": 0,
+            "buildStockPlan": 0.2,
+            "prepareStockPaths": 0.3,
+            "gatherPathDraws": 0,
+            "drawPrepared": 4.2,
+            "draw": 17.5,
+            "scheduler": 17.8
+          },
+          "gc": [],
+          "topCpu": [
+            {
+              "name": "(idle) @-1",
+              "ms": 6.34
+            },
+            {
+              "name": "update @48954",
+              "ms": 6.274
+            },
+            {
+              "name": "filterTranslucentRuns @50802",
+              "ms": 3.789
+            },
+            {
+              "name": "setGLParameters @40853",
+              "ms": 2.533
+            },
+            {
+              "name": "visibleTranslucentRuns @52920",
+              "ms": 1.263
+            },
+            {
+              "name": "forEachRange @49815",
+              "ms": 1.262
+            },
+            {
+              "name": "stockDrawGroups @53450",
+              "ms": 1.257
+            },
+            {
+              "name": "useProgram @40663",
+              "ms": 1.014
+            }
+          ],
+          "sourceBytes": 0,
+          "encodes": 0
+        }
+      ]
+    },
+    {
+      "key": "zoom-profile-webgl-plain-0.01-zoom",
+      "traceWindowGc": {
+        "count": 50,
+        "totalMs": 57.631,
+        "maxMs": 2.228,
+        "major": []
+      },
+      "operations": {
+        "zoom": {
+          "inputToRaf": {
+            "n": 960,
+            "p50": 9.3,
+            "p95": 15.3,
+            "max": 29.8,
+            "sum": 9934
+          },
+          "synchronous": {
+            "n": 960,
+            "p50": 0.2,
+            "p95": 0.6,
+            "max": 12.1,
+            "sum": 373.1
+          },
+          "schedulerCpu": {
+            "n": 960,
+            "p50": 1,
+            "p95": 9.7,
+            "max": 17.1,
+            "sum": 2495.1
+          },
+          "backendDraw": {
+            "n": 960,
+            "p50": 0.8,
+            "p95": 9.6,
+            "max": 17.1,
+            "sum": 2365.8
+          },
+          "gcOverlap": {
+            "n": 960,
+            "p50": 0,
+            "p95": 0,
+            "max": 2.151,
+            "sum": 52.898
+          },
+          "topCpuSelf": [
+            {
+              "name": "(idle) @-1",
+              "ms": 6149.144
+            },
+            {
+              "name": "b.extendMixedWidth @22",
+              "ms": 669.928
+            },
+            {
+              "name": "collectMixedPaths @53242",
+              "ms": 467.191
+            },
+            {
+              "name": "(program) @-1",
+              "ms": 347.838
+            },
+            {
+              "name": "mark @-1",
+              "ms": 261.623
+            },
+            {
+              "name": "mixedPathSchedule @49111",
+              "ms": 211.855
+            },
+            {
+              "name": "update @49949",
+              "ms": 106.045
+            },
+            {
+              "name": " @75583",
+              "ms": 88.559
+            }
+          ],
+          "topCpuStacks": [
+            {
+              "name": "(idle) @-1 <- (root) @-1",
+              "ms": 6149.144
+            },
+            {
+              "name": "b.extendMixedWidth @22 <- collectMixedPaths @53242 <- buildMixedPlane @53159 <-  @19 <- object.<computed> @17 <- cachedMixedPlane @53388 <-  @19 <- object.<computed> @17",
+              "ms": 666.85
+            },
+            {
+              "name": "collectMixedPaths @53242 <- buildMixedPlane @53159 <-  @19 <- object.<computed> @17 <- cachedMixedPlane @53388 <-  @19 <- object.<computed> @17 <- prepareMixedPlane @53340",
+              "ms": 467.191
+            },
+            {
+              "name": "(program) @-1 <- (root) @-1",
+              "ms": 347.838
+            },
+            {
+              "name": "mark @-1 <- window.run @35 <- (root) @-1",
+              "ms": 261.623
+            }
+          ]
+        }
+      },
+      "worstFrames": [
+        {
+          "frame": 277,
+          "operation": "zoom",
+          "inputToRaf": 29.8,
+          "rafInterval": 9,
+          "phases": {
+            "refreshTexts": 0,
+            "uploadPaths": 0,
+            "orderedStockPaths": 0.1,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 0,
+            "visibleTranslucentRuns": 0,
+            "buildMixedPlane": 14,
+            "cachedMixedPlane": 14,
+            "prepareMixedPlane": 16.7,
+            "prepareStockPaths": 0,
+            "gatherPathDraws": 0,
+            "beginMixedScene": 0.2,
+            "drawPrepared": 0,
+            "draw": 17.1,
+            "scheduler": 17.1
+          },
+          "gc": [],
+          "topCpu": [
+            {
+              "name": "(idle) @-1",
+              "ms": 12.532
+            },
+            {
+              "name": "collectMixedPaths @53242",
+              "ms": 6.25
+            },
+            {
+              "name": "b.extendMixedWidth @22",
+              "ms": 3.805
+            },
+            {
+              "name": "mixedPathSchedule @49111",
+              "ms": 3.786
+            },
+            {
+              "name": "update @49949",
+              "ms": 2.512
+            },
+            {
+              "name": "get @29653",
+              "ms": 1.265
+            },
+            {
+              "name": "mark @-1",
+              "ms": 0.175
+            }
+          ],
+          "sourceBytes": 0,
+          "encodes": 0
+        },
+        {
+          "frame": 278,
+          "operation": "zoom",
+          "inputToRaf": 14.1,
+          "rafInterval": 24.8,
+          "phases": {
+            "refreshTexts": 0,
+            "uploadPaths": 0,
+            "orderedStockPaths": 0,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 0,
+            "visibleTranslucentRuns": 0,
+            "buildMixedPlane": 11.3,
+            "cachedMixedPlane": 11.3,
+            "prepareMixedPlane": 13.1,
+            "prepareStockPaths": 0,
+            "gatherPathDraws": 0,
+            "beginMixedScene": 0.2,
+            "drawPrepared": 0,
+            "draw": 13.6,
+            "scheduler": 13.7
+          },
+          "gc": [],
+          "topCpu": [
+            {
+              "name": "b.extendMixedWidth @22",
+              "ms": 4.751
+            },
+            {
+              "name": "collectMixedPaths @53242",
+              "ms": 3.768
+            },
+            {
+              "name": "mixedPathSchedule @49111",
+              "ms": 2.528
+            },
+            {
+              "name": "update @49949",
+              "ms": 1.118
+            },
+            {
+              "name": "mark @-1",
+              "ms": 0.225
+            }
+          ],
+          "sourceBytes": 0,
+          "encodes": 0
+        },
+        {
+          "frame": 758,
+          "operation": "zoom",
+          "inputToRaf": 14.7,
+          "rafInterval": 16.3,
+          "phases": {
+            "refreshTexts": 0,
+            "uploadPaths": 0,
+            "orderedStockPaths": 0.1,
+            "refreshOverlapBounds": 0,
+            "orderTranslucent": 0,
+            "visibleTranslucentRuns": 0,
+            "buildMixedPlane": 10.7,
+            "cachedMixedPlane": 10.7,
+            "prepareMixedPlane": 13,
+            "prepareStockPaths": 0,
+            "gatherPathDraws": 0,
+            "beginMixedScene": 0.1,
+            "drawPrepared": 0,
+            "draw": 13.6,
+            "scheduler": 13.6
+          },
+          "gc": [],
+          "topCpu": [
+            {
+              "name": "mixedPathSchedule @49111",
+              "ms": 3.807
+            },
+            {
+              "name": "b.extendMixedWidth @22",
+              "ms": 3.794
+            },
+            {
+              "name": "update @49949",
+              "ms": 2.53
+            },
+            {
+              "name": "collectMixedPaths @53242",
+              "ms": 2.523
+            },
+            {
+              "name": "(idle) @-1",
+              "ms": 1.259
+            },
+            {
+              "name": "mark @-1",
+              "ms": 0.279
+            }
+          ],
+          "sourceBytes": 0,
+          "encodes": 0
+        }
+      ]
+    }
+  ],
+  "minimapToggleSetups": [
+    {
+      "coldPreparation": {
+        "applyMs": 1550.8,
+        "applyCalls": 1,
+        "drawMs": 424.5,
+        "start": 92.9,
+        "done": true,
+        "mountToFirstFrameMs": 2831,
+        "encodes": 260456,
+        "instances": 328039,
+        "uploadBytes": 217323308
+      },
+      "scene": "etl1",
+      "renderer": "webgl",
+      "camera": {
+        "x": 8.747,
+        "y": 144.081,
+        "width": 1600,
+        "height": 965,
+        "relativeX": 348,
+        "relativeY": 5732,
+        "relativeWidth": 63656,
+        "relativeHeight": 38392,
+        "scale": 0.025,
+        "scaleMax": 1,
+        "scaleMin": 0.01,
+        "viewportInsets": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0
+        },
+        "autoPanningEnabled": false,
+        "dpr": 2
+      },
+      "center": {
+        "x": 61720,
+        "y": 12884
+      },
+      "fit": 0.025,
+      "blocks": 10000,
+      "connections": 10000,
+      "resolved": 10000,
+      "fingerprint": 4269558956,
+      "contexts": 1,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+      "minimap": true,
+      "minimapLayerCount": 1,
+      "html": true,
+      "args": {
+        "blockCount": 10000,
+        "connectionCount": 10000,
+        "renderer": "webgl",
+        "html": true,
+        "minimap": true,
+        "live": false,
+        "focusOnFailures": false,
+        "view": "fit",
+        "selectionGlow": 0.6,
+        "effectMinScale": 0.1,
+        "cameraMotion": "manual"
+      }
+    },
+    {
+      "coldPreparation": {
+        "applyMs": 1559.7,
+        "applyCalls": 1,
+        "drawMs": 356.6,
+        "start": 98.8,
+        "done": true,
+        "mountToFirstFrameMs": 2821.5,
+        "encodes": 260456,
+        "instances": 328039,
+        "uploadBytes": 217323308
+      },
+      "scene": "etl1",
+      "renderer": "webgl",
+      "camera": {
+        "x": 8.747,
+        "y": 144.081,
+        "width": 1600,
+        "height": 965,
+        "relativeX": 348,
+        "relativeY": 5732,
+        "relativeWidth": 63656,
+        "relativeHeight": 38392,
+        "scale": 0.025,
+        "scaleMax": 1,
+        "scaleMin": 0.01,
+        "viewportInsets": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0
+        },
+        "autoPanningEnabled": false,
+        "dpr": 2
+      },
+      "center": {
+        "x": 61720,
+        "y": 12884
+      },
+      "fit": 0.025,
+      "blocks": 10000,
+      "connections": 10000,
+      "resolved": 10000,
+      "fingerprint": 4269558956,
+      "contexts": 1,
+      "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+      "minimap": false,
+      "minimapLayerCount": 0,
+      "html": true,
+      "args": {
+        "blockCount": 10000,
+        "connectionCount": 10000,
+        "renderer": "webgl",
+        "html": true,
+        "minimap": false,
+        "live": false,
+        "focusOnFailures": false,
+        "view": "fit",
+        "selectionGlow": 0.6,
+        "effectMinScale": 0.1,
+        "cameraMotion": "manual"
+      }
+    }
+  ],
+  "limitations": [
+    "The historical 85.7 ms zoom outlier had no original GC trace. Four new 240-frame cycles per fixture did not reproduce it; no cause or fix for that historical event is claimed.",
+    "Initial contiguous diagnostic scheduler/GC attribution may include delayed MiniMap work from the preceding operation. The settled and 200 ms probes identify the first scene draw and named MiniMap completion separately.",
+    "Only baseline GC attribution was recorded. No reduction in candidate GC is claimed.",
+    "MiniMap repaint on cross-scene reconnect/delete is meaningful: usableRect changes, affecting its mapping. The new hidden-by-default example setting is separate from renderer changes; MiniMap internals were not changed.",
+    "Retained cache saves transient rebuilding at the cost of numeric metadata plus bucket objects. Final ETL reconnect/upper-tail backend time is not uniformly faster.",
+    "Custom connection subclass update notifications remain on the compatibility path; exact stock view optimization chiefly benefits plain Nirvana."
+  ],
+  "artifacts": {
+    "temporaryRoot": "/private/tmp/graph-structural-acd245f3",
+    "rawLogs": [
+      "/private/tmp/graph-structural-acd245f3/matched.log",
+      "/private/tmp/graph-structural-acd245f3/lean-pair.log",
+      "/private/tmp/graph-structural-acd245f3/time-settled.log",
+      "/private/tmp/graph-structural-acd245f3/minimap-pair.log"
+    ],
+    "harness": [
+      {
+        "path": "/private/tmp/graph-structural-acd245f3/build.cjs",
+        "sha256": "0af79aa73e1faac0313e2adfdba3adcf712732873dff9cfa62db3c293becef21"
+      },
+      {
+        "path": "/private/tmp/graph-structural-acd245f3/run.cjs",
+        "sha256": "99a881651281a2ca1ad840a96842e0e6605b3b89b1e2cbaec807d354ac2cbc8a"
+      },
+      {
+        "path": "/private/tmp/graph-structural-acd245f3/scenarios.js",
+        "sha256": "bcbbc0e8e22cad1ad2546a7b011dd2832b12abc7d90ed51584bd0233105e532e"
+      },
+      {
+        "path": "/private/tmp/graph-structural-acd245f3/run-settled.cjs",
+        "sha256": "64197e13e61385a949ae8b8bb9750b1fe7c3f75f7f29ca37b664375bc945cf07"
+      },
+      {
+        "path": "/private/tmp/graph-structural-acd245f3/scenarios-settled.js",
+        "sha256": "65d3a67e5a151f5e0417f5dba280ed02321bf4bcfdff225820d96c337c9fdc84"
+      },
+      {
+        "path": "/private/tmp/graph-structural-acd245f3/attribute.cjs",
+        "sha256": "09bab29de7ee3c4d12e2f4db35efe7bd8d6a0375d2c0bd6796dfac64394333a1"
+      },
+      {
+        "path": "/private/tmp/graph-structural-acd245f3/matched.cjs",
+        "sha256": "6cfba95fbb3e3576f9cf1f100042867924f156ab5321f5cb92300b573ba69f9b"
+      },
+      {
+        "path": "/private/tmp/graph-structural-acd245f3/lean-pair.cjs",
+        "sha256": "7e1b514926509e2697b2818635d011bed0498d56fc62874b4096053d6f71bae9"
+      },
+      {
+        "path": "/private/tmp/graph-structural-acd245f3/minimap-pair.cjs",
+        "sha256": "8300e455b86441429632ad2a1ec7cebcc51b10f2baf11a6a5df341079a330388"
+      }
+    ]
+  },
+  "headlineFinalLeanPair": {
+    "etl1": {
+      "baseline": {
+        "add": {
+          "inputToFirstRafMedian": 72.15,
+          "sceneDrawCpuMedian": 43.7,
+          "inputToFirstRafP95": 131
+        },
+        "reconnect": {
+          "inputToFirstRafMedian": 45.3,
+          "sceneDrawCpuMedian": 37,
+          "inputToFirstRafP95": 49.2
+        },
+        "delete": {
+          "inputToFirstRafMedian": 110.5,
+          "sceneDrawCpuMedian": 44.8,
+          "inputToFirstRafP95": 117.8
+        }
+      },
+      "candidate-lean": {
+        "add": {
+          "inputToFirstRafMedian": 60.65,
+          "sceneDrawCpuMedian": 33.45,
+          "inputToFirstRafP95": 94.6
+        },
+        "reconnect": {
+          "inputToFirstRafMedian": 47.75,
+          "sceneDrawCpuMedian": 39.5,
+          "inputToFirstRafP95": 83.8
+        },
+        "delete": {
+          "inputToFirstRafMedian": 70.15,
+          "sceneDrawCpuMedian": 43.3,
+          "inputToFirstRafP95": 92.5
+        }
+      }
+    },
+    "plain": {
+      "baseline": {
+        "add": {
+          "inputToFirstRafMedian": 64.35,
+          "sceneDrawCpuMedian": 20.2,
+          "inputToFirstRafP95": 102.9
+        },
+        "reconnect": {
+          "inputToFirstRafMedian": 25.5,
+          "sceneDrawCpuMedian": 17.6,
+          "inputToFirstRafP95": 34.4
+        },
+        "delete": {
+          "inputToFirstRafMedian": 109.05,
+          "sceneDrawCpuMedian": 24.5,
+          "inputToFirstRafP95": 124.1
+        }
+      },
+      "candidate-lean": {
+        "add": {
+          "inputToFirstRafMedian": 45.95,
+          "sceneDrawCpuMedian": 19,
+          "inputToFirstRafP95": 87.7
+        },
+        "reconnect": {
+          "inputToFirstRafMedian": 25.5,
+          "sceneDrawCpuMedian": 16.95,
+          "inputToFirstRafP95": 27.8
+        },
+        "delete": {
+          "inputToFirstRafMedian": 49.85,
+          "sceneDrawCpuMedian": 20.55,
+          "inputToFirstRafP95": 68.7
+        }
+      }
+    }
+  }
+}

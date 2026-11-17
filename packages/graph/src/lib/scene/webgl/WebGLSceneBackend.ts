@@ -107,7 +107,7 @@ import { TextRelayout } from "./textRelayout";
 import type { ITextRelayoutHost } from "./textRelayout";
 import { createTinySdfGenerator } from "./tinySdfGlyphs";
 import { SUB_FLOAT, elementSteps, filterTranslucentRuns, orderTranslucent, splitSteps } from "./translucentOrder";
-import type { TElementSubs, TTranslucentRun } from "./translucentOrder";
+import type { TElementSubs, TTranslucentOrderCache, TTranslucentRun } from "./translucentOrder";
 
 type TPass = "opaque" | "translucent";
 
@@ -781,6 +781,7 @@ class WebGLSceneBackend implements ISceneBackend {
   /** The translucent batches the runs index, and the runs: scene order where translucent primitives overlap. */
   private translucentBatches: TBatch[] = [];
   private translucentRuns: TTranslucentRun[] = [];
+  private translucentOrderCache: TTranslucentOrderCache = {};
 
   private frames = 0;
   /** `scene_subs` of the frame: the depth's sub-orders per key, 2^subBits. */
@@ -1051,6 +1052,7 @@ class WebGLSceneBackend implements ISceneBackend {
     this.stockPlan = undefined;
     this.stockOrder = undefined;
     this.stockPhysicalDraws.length = 0;
+    this.translucentOrderCache = {};
     this.mixedComposite?.destroy();
     if (this.ownsObjects()) {
       this.mixedTarget?.destroy();
@@ -1293,6 +1295,7 @@ class WebGLSceneBackend implements ISceneBackend {
     this.stockPlan = undefined;
     this.stockOrder = undefined;
     this.stockPhysicalDraws.length = 0;
+    this.translucentOrderCache = {};
     this.elements.clear();
     for (const group of this.pathGroups.values()) group.users = 0;
     this.pathGroupsOf.clear();
@@ -2210,12 +2213,15 @@ class WebGLSceneBackend implements ISceneBackend {
     if (sameNumbers(stamp(), this.orderStamp)) return;
     const start = performance.now();
     const layout = (): number[] => batches.map((batch) => batch.ranges.layoutRevision);
+    this.translucentOrderCache.levelRevision = this.levels.revision;
     this.translucentRuns = orderTranslucent(
       batches.map((batch) => ({ instances: batch.ranges, companion: batch.companion?.ranges })),
       this.levelOf,
       this.orderKeyOf,
       subBits,
-      !sameNumbers(layout(), this.layoutStamp)
+      !sameNumbers(layout(), this.layoutStamp),
+      undefined,
+      this.translucentOrderCache
     );
     this.translucentBatches = batches;
     // After the sort: it changes the revisions of the lists it reorders.
@@ -2607,16 +2613,19 @@ class WebGLSceneBackend implements ISceneBackend {
         last++;
       const key = this.table.data[owner * 4 + 2];
       if (key >= 0) {
-        const range = { key, sub, tie, first, count: last - first };
         if (native) {
           if (work.customKey !== undefined && work.customKey !== key) return false;
           work.customEffect = native;
           work.customKey = key;
-          work.ranges.push({ ...range, native: batch });
+          work.ranges.push({ key, sub, tie, first, count: last - first, native: batch });
         } else {
-          work.ranges.push({ ...range, source });
+          work.ranges.push({ key, sub, tie, first, count: last - first, source });
         }
-        if (group.pass === "opaque") this.extendMixedWidth(work.widths, data, elements, first, last);
+        if (group.pass === "opaque") {
+          // All pieces of this primitive share its stroke. Zero-filled holes can alias only owner 0, sub 0.
+          const widthEnd = owner === 0 && sub === 0 ? last : first + 1;
+          this.extendMixedWidth(work.widths, data, elements, first, widthEnd);
+        }
       }
       first = last;
     }

@@ -1,5 +1,6 @@
 import { Graph } from "../../../graph";
 import { globalScheduler } from "../../../lib/Scheduler";
+import { Camera } from "../../../services/camera/Camera";
 import type { ConnectionState, TConnection } from "../../../store/connection/ConnectionState";
 import type { TBlock } from "../blocks/Block";
 
@@ -34,10 +35,10 @@ describe("a connection added back in the same frame gets a component of its own"
   let graph: Graph;
 
   /** Blocks a (x 0..100) and b (x 400..500), y 0..50, and connection c from a to b along y 25, labelled. */
-  function start(): void {
+  function start(connection: typeof BlockConnection<TConnection> = BlockConnection): void {
     const root = document.createElement("div");
     Object.defineProperties(root, { clientWidth: { value: 1000 }, clientHeight: { value: 800 } });
-    graph = new Graph({ settings: { useBezierConnections: false, showConnectionLabels: true } }, root);
+    graph = new Graph({ settings: { connection, useBezierConnections: false, showConnectionLabels: true } }, root);
     graph.setEntities({ blocks: [block("a", 0), block("b", 400)], connections: [CONNECTION] });
     graph.cameraService.set({ width: 1000, height: 800, x: 0, y: 0, scale: 1 });
     graph.start();
@@ -147,6 +148,7 @@ describe("a connection added back in the same frame gets a component of its own"
     start();
     const view = viewOf();
     const primitives = elementOf(view)?.primitives;
+    const setProps = jest.spyOn(view, "setProps");
     expect(primitives).toBeDefined();
     graph.rootStore.connectionsList.addConnection({ id: "d", sourceBlockId: "b", targetBlockId: "a" });
     frames();
@@ -156,8 +158,60 @@ describe("a connection added back in the same frame gets a component of its own"
     graph.rootStore.connectionsList.deleteConnections([stateOf("d")]);
     frames();
     expect(elementOf(view)?.primitives).toBe(primitives);
+    expect(setProps).not.toHaveBeenCalled();
     view.setProps({ showConnectionArrows: !view.props.showConnectionArrows });
     frames();
     expect(elementOf(view)?.primitives).not.toBe(primitives);
+  });
+
+  it("applies parent settings over a conflicting pending stock prop", () => {
+    start();
+    const view = viewOf();
+    const expected = view.props.showConnectionArrows;
+    graph.connections.addConnection({ id: "d", sourceBlockId: "b", targetBlockId: "a" });
+    view.setProps({ showConnectionArrows: !expected });
+    frames();
+    expect(view.props.showConnectionArrows).toBe(expected);
+    graph.updateSettings({ showConnectionArrows: !expected });
+    frames();
+    expect(view.props.showConnectionArrows).toBe(!expected);
+  });
+
+  it("keeps the parent props callback of a custom connection on a list update", () => {
+    class CustomConnection extends BlockConnection {}
+    start(CustomConnection);
+    const view = viewOf();
+    const changed = jest.fn();
+    view.onChange(changed);
+    graph.connections.addConnection({ id: "d", sourceBlockId: "b", targetBlockId: "a" });
+    frames();
+    expect(changed).toHaveBeenCalledWith(view);
+  });
+
+  it("keeps change notifications for subscribed stock views and their ancestors", () => {
+    start();
+    const view = viewOf();
+    const camera = graph.getGraphLayer().$.camera;
+    if (!(camera instanceof Camera)) throw new Error("missing camera component");
+    const setProps = jest.spyOn(view, "setProps");
+    const own = jest.fn();
+    const above = jest.fn();
+    const stopOwn = view.onChange(own);
+    const stopAbove = camera.addEventListener("graph-component-change", above);
+    graph.connections.addConnection({ id: "d", sourceBlockId: "b", targetBlockId: "a" });
+    frames();
+    expect(own).toHaveBeenCalledWith(view);
+    stopOwn();
+    setProps.mockClear();
+    above.mockClear();
+    graph.connections.deleteConnections([stateOf("d")]);
+    frames();
+    expect(setProps).toHaveBeenCalled();
+    expect(above).toHaveBeenCalled();
+    stopAbove();
+    setProps.mockClear();
+    graph.connections.addConnection({ id: "d", sourceBlockId: "b", targetBlockId: "a" });
+    frames();
+    expect(setProps).not.toHaveBeenCalled();
   });
 });

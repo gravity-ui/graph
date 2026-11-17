@@ -339,6 +339,11 @@ export class CoreComponent<
     // noop
   }
 
+  /** @internal Whether the parent needs to deliver this descriptor to an already mounted child. */
+  protected shouldReceiveParentProps(_props: Readonly<Props> | undefined): boolean {
+    return true;
+  }
+
   private __unmount() {
     const comp = this.__comp;
     comp.unmounted = true;
@@ -454,7 +459,7 @@ export class CoreComponent<
       nextKeys.push(key);
       if (child && child.constructor === descriptor.klass) {
         // Each descriptor came from its concrete factory; this is the shared runtime update boundary.
-        Reflect.apply(child.setProps, child, [descriptor.props]);
+        if (child.shouldReceiveParentProps(descriptor.props)) Reflect.apply(child.setProps, child, [descriptor.props]);
         child.__comp.updated = true;
         // A reconciliation is new data for this frame: a detached child that already applied in it applies again.
         // Each reconciliation allows one more application, and a parent reconciles at most once per own preparation.

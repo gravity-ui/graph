@@ -430,6 +430,15 @@ export class BlockConnection<T extends TConnection = TConnection>
     return this.pathBounds;
   }
 
+  protected override shouldReceiveParentProps(props: Readonly<TConnectionProps> | undefined): boolean {
+    // Extensions keep their full reconciliation lifecycle; only the built-in view skips unchanged parent props.
+    return (
+      this.constructor !== BlockConnection ||
+      hasChangedValue(props, this.__data.nextProps ?? this.props) ||
+      this.hasDispatchObserver("graph-component-change")
+    );
+  }
+
   protected override propsChanged(nextProps: TConnectionProps) {
     super.propsChanged(nextProps);
     if (hasChangedValue(nextProps, this.props)) this.updateLine(this.state, nextProps);

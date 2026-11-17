@@ -14,7 +14,7 @@ import {
   sourceBuckets,
   splitSteps,
 } from "./translucentOrder";
-import type { TTranslucentRun, TTranslucentSource } from "./translucentOrder";
+import type { TTranslucentOrderCache, TTranslucentRun, TTranslucentSource } from "./translucentOrder";
 
 /** The narrowest sub-order width, which the tests use unless they change it. */
 const BITS = SCENE_DEPTH.MIN_SUB_BITS;
@@ -118,6 +118,106 @@ describe("element steps", () => {
 });
 
 describe("translucent order", () => {
+  it("reuses source snapshots and the merged schedule when their effective buckets stay unchanged", () => {
+    const a = new InstanceRanges(3);
+    const b = new InstanceRanges(3);
+    a.set("a", quads([1, 0], [2, 0]));
+    b.set("b", quads([3, 0]));
+    a.retainLayout();
+    b.retainLayout();
+    const sources = [{ instances: a }, { instances: b }];
+    const cache: TTranslucentOrderCache = { levelRevision: 0 };
+    const levels: Record<string, number> = { a: 0, b: 1 };
+    const order = () =>
+      orderTranslucent(
+        sources,
+        (id) => levels[id],
+        () => 0,
+        BITS,
+        false,
+        undefined,
+        cache
+      );
+    const first = order();
+    const visitA = jest.spyOn(a, "forEachRange");
+    const visitB = jest.spyOn(b, "forEachRange");
+    expect(order()).toBe(first);
+    a.edit("a", (data) => {
+      data[0] = 10;
+    });
+    expect(order()).toBe(first);
+    expect(visitA).not.toHaveBeenCalled();
+    expect(visitB).not.toHaveBeenCalled();
+    levels.a = 2;
+    cache.levelRevision = 1;
+    const moved = order();
+    expect(moved).toEqual([
+      { source: 1, first: 0, count: 1 },
+      { source: 0, first: 0, count: 2 },
+    ]);
+    expect(moved).not.toBe(first);
+    visitA.mockClear();
+    visitB.mockClear();
+    expect(order()).toBe(moved);
+    expect(visitA).not.toHaveBeenCalled();
+    expect(visitB).not.toHaveBeenCalled();
+    visitA.mockRestore();
+    visitB.mockRestore();
+  });
+
+  it("matches stateless ordering through retained hole reuse, source changes, steps, levels and dense sorting", () => {
+    const a = new InstanceRanges(3);
+    const b = new InstanceRanges(3);
+    const dense = new InstanceRanges(3);
+    a.set("a", quads([1, 0], [2, 0]));
+    a.set("c", quads([3, 0]));
+    b.set("b", quads([4, 0]));
+    dense.set("d", quads([5, 0]));
+    dense.set("e", quads([6, 0]));
+    a.retainLayout();
+    b.retainLayout();
+    let sources = [{ instances: a }, { instances: b }, { instances: dense }];
+    const levels: Record<string, number> = { a: 2, b: 1, c: 0, d: 4, e: 3, added: 1 };
+    const level = (id: string) => levels[id];
+    const cache = {};
+    const compare = (bits: number = BITS) => {
+      const result = orderTranslucent(sources, level, () => 0, bits, true, undefined, cache);
+      expect(result).toEqual(orderTranslucent(sources, level, () => 0, bits));
+      return result;
+    };
+    compare();
+    a.delete("a");
+    compare();
+    a.set("added", quads([7, 0]));
+    compare();
+    a.setSteps("added", [{ step: 3, instances: quads([8, 0], [9, 0], [10, 0]) }]);
+    compare();
+    levels.added = 5;
+    levels.e = 6;
+    compare();
+    levels.added = 2 ** 30;
+    compare();
+    compare(BITS + 1);
+    sources = [{ instances: dense }, { instances: a }];
+    compare();
+    sources = [];
+    expect(compare()).toEqual([]);
+    sources = [{ instances: b }];
+    compare();
+    expect(
+      orderTranslucent(
+        sources,
+        level,
+        () => 0,
+        BITS,
+        false,
+        () => false,
+        cache
+      )
+    ).toEqual([]);
+    compare();
+  });
+
   it("omits inactive retained ranges before querying levels or building draw positions", () => {
     const paths = new InstanceRanges(3);
     paths.set("hidden", quads([1, 0], [2, 0]));

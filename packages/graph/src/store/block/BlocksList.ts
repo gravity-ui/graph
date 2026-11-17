@@ -440,6 +440,7 @@ export class BlockListStore {
    */
   public deleteSelectedBlocks() {
     const selectedBlocks = this.$selectedBlocks.value;
+    if (!selectedBlocks.length) return;
     selectedBlocks.forEach((block) => {
       this.deleteAllBlockConnections(block.id);
     });
