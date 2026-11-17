@@ -66,9 +66,9 @@ Endpoint-reference optimization remains a measured follow-on if drag still domin
 
 The user added these tasks on 2026-11-17 and explicitly asked to finish the current implementation first:
 
-- Add a Storybook control to mount/unmount the minimap, so its cost can be isolated in the performance scenarios.
-- Assess moving rendering to OffscreenCanvas in a worker: inspect the current dependencies, browser requirements, expected benefit and the concrete migration work. This is an assessment, not authorization to replace the rendering architecture immediately.
-- Profile group dragging with and without the minimap; identify which updates and rendering work cause the reported cost, then fix confirmed technical bottlenecks while preserving delegation and interaction semantics.
+- [x] Add the ETL Storybook Minimap control. Actual Controls on/off/on at 5000/6000 detaches the old canvas, creates one new layer, and preserves the camera and graph. Typecheck/lint passed; committed as `b46485be`.
+- [x] Assess OffscreenCanvas/worker scope in `research/2026-11-17-offscreen-rendering.md`. Supported by installed luma/platform; estimate 3–5 engineer-days for a prototype, 20–35 total for production compatibility. No worker implementation or measured worker speedup is claimed.
+- [x] Profile and fix group drag: batch member updates and read exact shallow state for bounds. At 5000/6000, the 19-member pipeline falls from 95,000 deep snapshots / 19 derivations to 0 / 1. WebGL without MiniMap: handler p95 248.2→1.6 ms; rAF p95 259.1→16.9 ms. MiniMap retains its documented 100 ms cadence and adds 19–23 ms per picture. Final core (1912 tests), 107 relevant browser tests and actual Storybook pointer/port checks passed. See `research/2026-11-17-group-drag.md`.
 
 ## Measured decisions during implementation
 
